@@ -73,7 +73,8 @@ final class EventFlier
      * Everything one flier needs, resolved from a signed token.
      *
      * @return array{event:array<string,mixed>, name:string, confirmed:bool, tier:string,
-     *               chip:bool, qr:string, qr_label:string, when:string, venue:string}|null
+     *               chip:bool, qr:string, qr_label:string, host:string, when:string,
+     *               venue:string}|null
      */
     public static function forToken(string $token, string $base): ?array
     {
@@ -158,6 +159,10 @@ final class EventFlier
             // `location` is the city-ish line and `venue` is the room; the flier has space for
             // one and the city is what tells somebody whether they can be there. There is no
             // `city` column — that guess cost a test run.
+            // Printed as text beside the code. The bare host, not the whole link: the link
+            // carries a referral parameter and printing it without one would be an address
+            // that does not credit the sharer.
+            'host'      => (string) (parse_url($base, PHP_URL_HOST) ?: ''),
             'venue'     => trim((string) ($event->location ?? '')) !== ''
                 ? trim((string) ($event->location ?? ''))
                 : trim((string) ($event->venue ?? '')),
@@ -191,7 +196,8 @@ final class EventFlier
      *
      * @param array<string,mixed> $f from {@see forToken()}
      */
-    public function png(array $f, string $fmt = 'plain', ?string $photo = null): ?string
+    public function png(array $f, string $fmt = 'plain', ?string $photo = null,
+                       mixed $photoIm = null, ?float $focusX = null, ?float $focusY = null): ?string
     {
         if (!EventFlierLayout::valid($fmt)) return null;
         if (!function_exists('imagecreatetruecolor')) return null;
@@ -208,7 +214,7 @@ final class EventFlier
         // handoff says to offer it first because most people upload nothing. So the fallback
         // is here rather than only in the generator: a format cannot be talked into drawing
         // the hole by a hand-written URL.
-        $hasPhoto = $photo !== null && trim($photo) !== '';
+        $hasPhoto = $photoIm !== null || ($photo !== null && trim($photo) !== '');
         if (!$hasPhoto && isset(EventFlierLayout::PHOTO[$fmt])) {
             $fmt = 'plain';
         }
@@ -248,13 +254,21 @@ final class EventFlier
 
         // ── the photo, where the format has one ─────────────────────────────
         if ($slot !== null) {
+            // An already-decoded upload wins over a path: the upload is never written to disk,
+            // so there is nothing to load it from. See decodeUpload().
+            $img = $photoIm ?? $this->loadPhoto((string) $photo);
             // Guaranteed present by the fallback above, but a remote fetch can still fail —
             // and if it does, `plain` is again the answer rather than an empty slot.
-            $img = $this->loadPhoto((string) $photo);
             if ($img === null) return $this->png($f, 'plain');
 
-            $this->cover($im, $img, $slot['x'], $slot['y'], $slot['w'], $slot['h']);
-            imagedestroy($img);
+            // The REFRAME. A cover-crop has one degree of freedom in each axis, and the
+            // handoff is blunt that reframing is not optional polish: a mis-cropped selfie is
+            // the main reason a generated flier gets binned, and the type sits below the
+            // lower third. `null` keeps FlierRaster's default anchor, which is what every
+            // other graphic on the platform uses.
+            $this->cover($im, $img, $slot['x'], $slot['y'], $slot['w'], $slot['h'],
+                         $focusX, $focusY);
+            if ($photoIm === null) imagedestroy($img);
             // A scrim over the lower band of the photo, so type below it stays legible
             // whatever somebody uploaded. A gradient rather than a flat wash, because a hard
             // edge across a face reads as a rendering fault.
@@ -299,14 +313,17 @@ final class EventFlier
         $claimLinesN = count($this->wrapMeasured($L::CLAIM, $W - $pad * 2, $claimSz,
             FlierService::fontPath('display'), 2));
 
+        $whenSize = $L::WHEN_SIZE[$fmt];
+
         $usedH = $qrSide
                + $L::GAP_QR_META
-               + (int) round($metaSize * 0.9) + $L::GAP_META_LINE
+               + $whenSize + $L::GAP_META_LINE
                + $titleLinesN * (int) round($metaSize * 1.3)
                + $L::GAP_STATE + $nameSize
                + (($f['confirmed'] ?? false) ? self::CHIP_H + $L::GAP_CHIP : 0)
                + $L::GAP_CLAIM
                + $claimLinesN * (int) round($claimSz * $L::CLAIM_LINE)
+               + $L::GAP_RULE + $L::RULE_H
                + $L::GAP_KICKER + $L::KICKER_SIZE;
 
         // The room the format leaves: below the photo where there is one, below the top
@@ -325,23 +342,33 @@ final class EventFlier
         $centred = $regionTop + (int) round((($regionBot - $regionTop) + $usedH) / 2) - $qrSide;
         $qrY = (int) min($regionBot - $qrSide, max($pad + $usedH - $qrSide, $centred));
         $this->qr($im, (string) ($f['qr'] ?? ''), (string) ($f['qr_label'] ?? ''),
-                  $fmt, $mute, $pad, $qrY);
+                  (string) ($f['host'] ?? ''), $fmt, $mute, $ink, $pad, $qrY);
 
         // ── the event, in words, just above it ───────────────────────────────
         $ev = (array) ($f['event'] ?? []);
         $titleLines = $this->wrapMeasured(trim((string) ($ev['title'] ?? '')),
             $W - $pad * 2, $metaSize, FlierService::fontPath('bold'), 2);
 
-        $when = trim((string) ($f['when'] ?? ''));
-        if (($f['venue'] ?? '') !== '') $when .= '  ·  ' . (string) $f['venue'];
-        $whenSize = (int) round($metaSize * 0.9);
+        // Mono, uppercase, tracked. The house style reserves mono for metadata, and that is
+        // what stops a date reading as a sentence — the first version set it in the body face
+        // at nearly the title's size, so the title and the date competed and neither won.
+        $when = mb_strtoupper(trim((string) ($f['when'] ?? '')));
+        if (($f['venue'] ?? '') !== '') $when .= '  ·  ' . mb_strtoupper((string) $f['venue']);
 
         $metaBottom = $qrY - $L::GAP_QR_META;
         $whenY      = $metaBottom;
         $titleY     = $whenY - $whenSize - $L::GAP_META_LINE
                     - (count($titleLines) - 1) * (int) round($metaSize * 1.3);
 
-        $this->text($im, $when, $whenSize, FlierService::fontPath('regular'), $mute, $pad, $whenY);
+        // Tracked uppercase SANS, not the mono face. Mono is the house idiom for metadata and
+        // it is the wrong tool for this particular string: AGMono's period and colon sit left
+        // in their cells with the rest of the cell as bearing, so "14:00" renders as "14: 00"
+        // and a domain as "afg. afrovanguard. org. ng". That is inherent to the face and not
+        // tracking — it survived setting tracking to zero. Uppercase and tracked gives the
+        // micro-label reading without the cell artefacts; the kicker keeps the mono, because
+        // it has no punctuation in it to open up.
+        $this->text($im, $when, $whenSize, FlierService::fontPath('bold'), $mute,
+                    $pad, $whenY, $L::MONO_TRACK);
         $ty = $titleY;
         foreach ($titleLines as $line) {
             $this->text($im, $line, $metaSize, FlierService::fontPath('bold'), $ink, $pad, $ty);
@@ -398,8 +425,19 @@ final class EventFlier
             $cy += $lineStep;
         }
 
-        $this->text($im, 'AFRICA GATES', $L::KICKER_SIZE, FlierService::fontPath('bold'),
-            $paper ? $mute : $gold, $pad, $claimTop - $L::GAP_KICKER, $L::KICKER_TRACK);
+        // ── the hairline ────────────────────────────────────────────────────
+        //
+        // Between the kicker and the claim, so the claim has something to sit on. The design
+        // was correct and loose without it: a stack of type where nothing was separated from
+        // anything, so the eye had no reason to stop at the headline. This is the platform's
+        // own idiom — hairline rules, mono micro-labels, one gold accent — and it does what
+        // more whitespace cannot.
+        $ruleY = $claimTop - $L::GAP_RULE;
+        imagefilledrectangle($im, $pad, $ruleY, $pad + $L::RULE_W - 1,
+                             $ruleY + $L::RULE_H - 1, $gold);
+
+        $this->text($im, 'AFRICA GATES', $L::KICKER_SIZE, FlierService::fontPath('mono'),
+            $paper ? $mute : $gold, $pad, $ruleY - $L::GAP_KICKER, $L::KICKER_TRACK);
 
         ob_start();
         imagepng($im, null, 6);
@@ -407,6 +445,61 @@ final class EventFlier
         imagedestroy($im);
 
         return $out !== '' ? $out : null;
+    }
+
+    /**
+     * The largest photo this will decode, in bytes.
+     *
+     * A ceiling, not a policy: `imagecreatefromstring` allocates roughly width × height × 4
+     * bytes whatever the compressed size is, so a 40MB JPEG is a memory limit away from a
+     * blank page rather than an error. Refused with a sentence instead.
+     */
+    public const PHOTO_MAX_BYTES = 12 * 1024 * 1024;
+
+    /** And the largest dimensions, for the same reason: 8000×8000 is 256MB decoded. */
+    public const PHOTO_MAX_SIDE = 6000;
+
+    /**
+     * A photo the visitor just uploaded, decoded — and NEVER written anywhere.
+     *
+     * ══════════════════════════════════════════════════════════════════════════
+     * WHY THE FILE IS NOT STORED, AT ALL
+     * ══════════════════════════════════════════════════════════════════════════
+     *
+     * The handoff says the upload is cropped and DISCARDED, that the UI must say so at the
+     * point of upload, and that the discard has to be confirmed "at the storage layer, not by
+     * reading the code". The easiest way to satisfy all three is to have no storage layer: the
+     * flier is rendered in the SAME request the file arrives in, straight out of PHP's own
+     * upload temp, and PHP unlinks that itself when the request ends.
+     *
+     * So there is no temp directory to sweep, no key to expire, no cron to forget, and nothing
+     * for a later bug to leave behind. Asking somebody to upload a photo of their face to an
+     * events site needs a reason to trust it, and "the file is never written to our disk" is a
+     * stronger one than a retention promise.
+     *
+     * Returns null for anything that is not a decodable image, and the caller falls back to
+     * `plain` — see png(), where a failed photo is already a designed outcome rather than a
+     * hole.
+     *
+     * @param array{tmp_name?:string, size?:int, error?:int} $file one entry of $_FILES
+     * @return \GdImage|null
+     */
+    public static function decodeUpload(array $file): mixed
+    {
+        $tmp = (string) ($file['tmp_name'] ?? '');
+        if ($tmp === '' || (int) ($file['error'] ?? 1) !== UPLOAD_ERR_OK) return null;
+        if (!is_uploaded_file($tmp) && !is_file($tmp)) return null;
+        if ((int) ($file['size'] ?? 0) > self::PHOTO_MAX_BYTES) return null;
+
+        // The declared type is whatever the browser said; the real one comes from the bytes.
+        $info = @getimagesize($tmp);
+        if ($info === false) return null;
+        [$w, $h] = $info;
+        if ($w < 1 || $h < 1 || $w > self::PHOTO_MAX_SIDE || $h > self::PHOTO_MAX_SIDE) return null;
+
+        $im = @imagecreatefromstring((string) @file_get_contents($tmp));
+
+        return $im === false ? null : $im;
     }
 
     /**
@@ -476,8 +569,8 @@ final class EventFlier
      * that number came from putting the image through what a messaging app does. See
      * EventFlierLayout's note.
      */
-    private function qr($im, string $target, string $label, string $fmt, int $mute,
-                        int $x0, int $y0): void
+    private function qr($im, string $target, string $label, string $host, string $fmt,
+                        int $mute, int $ink, int $x0, int $y0): void
     {
         if ($target === '') return;
 
@@ -507,14 +600,28 @@ final class EventFlier
             }
         }
 
+        // ── the caption, BESIDE the code and stacked ─────────────────────────
+        //
+        // Two lines rather than one floating in the middle of an empty half: what the code
+        // does, and where it goes. The instruction alone left a wide gap to the right of the
+        // plate with nothing in it, which is the loosest part of the whole composition.
+        //
+        // The host is printed as TEXT on purpose. A QR is unreachable to a screen reader and
+        // unusable to anybody who cannot scan — the handoff asks for a short URL beside it,
+        // and until there is a shortener to mint one this is the honest half of that: it does
+        // not replace the scan, and it does tell somebody looking at a screenshot where the
+        // thing came from.
+        $tx = $x0 + $side + 34;
+        $ty = $y0 + intdiv($side, 2);
+
         if ($label !== '') {
-            // Vertically centred against the PLATE, not hung off its top corner. Off the top
-            // it reads as a caption for the first few rows of the pattern and leaves the rest
-            // of the line beside an empty square.
             $this->text($im, $label, EventFlierLayout::QRLABEL_SIZE,
-                FlierService::fontPath('bold'), $mute,
-                $x0 + $side + 34,
-                $y0 + intdiv($side, 2) + intdiv(EventFlierLayout::QRLABEL_SIZE, 2), 3.0);
+                FlierService::fontPath('bold'), $ink, $tx, $ty, 2.0);
+        }
+        if ($host !== '') {
+            $this->text($im, $host, EventFlierLayout::HOST_SIZE,
+                FlierService::fontPath('regular'), $mute,
+                $tx, $ty + EventFlierLayout::QRLABEL_SIZE + 18, EventFlierLayout::HOST_TRACK);
         }
     }
 }

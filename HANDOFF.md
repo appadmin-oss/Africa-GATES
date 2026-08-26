@@ -820,3 +820,66 @@ latent trap would have fired on an event that happened to be 10% full, via the p
 element budget is 10 layers on `calm`/`rise`/`hold` and 18 on `peak`, everything is `transform`
 or `opacity`, and the two `box-shadow` values are static and crossfaded rather than keyframed.
 It should be fine. It has not been proven fine on the device it runs on.
+
+---
+
+## 17. The "I will be there" flier (26 Aug 2026)
+
+Built from `docs/design-handoffs/HANDOFF-flier.md`, which is the handoff as received with
+**⟶ BUILT** notes inline and its three open decisions answered in a new §11. Read that file
+if you are changing the flier. What follows is what a future reader needs before touching
+anything near it.
+
+### The design file was not in the attachment, again
+
+`I Will Be There Flier.dc.html` was referenced and not provided, so there were no
+coordinates, type sizes or colours to port. Everything the prose fixed was taken exactly:
+the three canvas sizes, the QR module and pad measurements, the state table, the copy. The
+layout is authored — see §11.4 of the handoff for the four faults that were only visible in
+a rendered image and the three things added to make it read as designed.
+
+### Three things the handoff asked for that this host cannot do
+
+- **A headless renderer.** No shell on production. Its reasoning against client-side canvas
+  is right and stands, which is why it is server-side GD. See CLAUDE.md.
+- **A QR that holds a URL.** Did not exist and had to be built first. See CLAUDE.md.
+- **Store the upload, then render it by token.** Replaced by a POST that renders in the same
+  request, so there is no storage layer at all and the discard promise is structural.
+
+### If you touch the flier, four things will bite
+
+**Nothing may be drawn outside the margins, and `square`'s keep-out is 90px** — a display
+picture is rendered as a circle and the corners are gone. The test that asserts this is what
+caught an inclusive-rectangle off-by-one.
+
+**A photo format without a photo renders `plain`.** In the renderer, not only in the
+generator, so a hand-written URL cannot produce the dark layout with a hole. That means a
+`story` request can legitimately return a 1080×1080 image, and two tests depend on knowing it.
+
+**The QR is read back out of the raster** in the tests, module by module, by finding the white
+plate. The plate's left edge is an invariant — the stack is left-aligned at the format's
+margin — and the finder depends on that. A centred layout would break the finder, not the
+flier.
+
+**`role="radio"` is now on two different groups on the event page** — the tier list and the
+flier's shape picker. Count within a group (`role="radio" data-ed-tier`), never across the
+page; a page-wide count failed the day the generator arrived.
+
+### And two test-harness notes
+
+`EventFlierGeneratorTest` strips Twig comments, block comments and whole-line `//` comments
+before scanning, because the generator's own comments quote the strings under test. The block
+strip is guarded with `(?<![\w"'])` because **`accept="image/*"` contains a literal `/*`** —
+without the guard it ran to the next `*/` and swallowed four states.
+
+Prefer a **structural** bound over a character count when asserting that something sits inside
+a branch. `EventTierSelectionTest`'s win-burst assertion used `[\s\S]{0,900}` and had to be
+widened twice; it now slices between `if(d.success){` and its `} else {`.
+
+### What is still open
+
+**Scanning a real phone after a real WhatsApp round trip.** Simulated — downscale, recompress
+twice, decode with OpenCV — and that is not the same thing. It needs a person and a handset.
+
+**The short URL beside the QR** needs a shortener decision. The bare host ships as text in the
+meantime, which covers the screenshot case and not the cannot-scan case.

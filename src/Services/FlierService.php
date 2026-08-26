@@ -519,6 +519,9 @@ final class FlierService
         'bold'     => 'DMSans-Bold.ttf',            // kicker, chip, URL
         'semibold' => 'DMSans-SemiBold.ttf',        // the standing line
         'regular'  => 'DMSans-Regular.ttf',         // everything else
+        // Micro-labels — a date, a venue, a domain. The house style reserves mono for
+        // metadata, which is what keeps a date from reading as a sentence.
+        'mono'     => 'AGMono-Bold.ttf',
     ];
 
     /**

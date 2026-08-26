@@ -370,6 +370,69 @@
     .ed-rsvp.is-a .ed-total, .ed-rsvp.is-b .ed-total{ animation-duration:.01ms !important; }
     .ed-tier{ transition:none; }
   }
+  /* ══════════════════════════════════════════════════════════════════════════
+     THE "I WILL BE THERE" FLIER GENERATOR
+     ══════════════════════════════════════════════════════════════════════════
+
+     Ten states, not one. The handoff is explicit that the first pass drew only the
+     confirmed, photo-supplied, share-works case and that "that is the demo, not the
+     feature" — so every state below is reachable and each is listed in the markup.
+
+     Generating and Ready are SEPARATE screens. A progress bar above an enabled "Save the
+     image" is an interface offering an action it cannot perform, and "Copy the caption
+     again" implies a copy that never happened. */
+  .fl{ margin-top:16px; border:1px solid rgba(16,41,44,.1); border-radius:16px; background:var(--ag-surface,#fff); overflow:hidden }
+  .fl__head{ padding:16px 18px 0 }
+  .fl__eyebrow{ font-size:11px; font-weight:700; letter-spacing:.1em; text-transform:uppercase; color:var(--ag-green,#237b22) }
+  .fl__h{ margin:6px 0 0; font-family:var(--ag-font-display,Georgia,serif); font-weight:700; font-size:1.05rem; color:var(--ag-ink,#10292c) }
+  .fl__p{ margin:6px 0 0; font-size:12.5px; line-height:1.6; color:var(--ag-ink-soft,#626a6e) }
+  .fl__body{ padding:14px 18px 18px }
+  .fl__row{ display:flex; gap:9px; flex-wrap:wrap; margin-top:12px }
+  /* 44px is the WCAG 2.5.5 target and 52 is this platform's primary-CTA height. Measured,
+     not assumed — it is the rule broken most often. */
+  .fl__btn{ min-height:44px; padding:0 18px; border-radius:999px; border:1px solid rgba(16,41,44,.18);
+    background:#fff; color:var(--ag-ink,#10292c); font:600 13.5px/1 inherit; cursor:pointer;
+    display:inline-flex; align-items:center; justify-content:center; gap:8px }
+  .fl__btn--go{ min-height:52px; border:none; background:var(--ag-green,#237b22); color:#fff; font-size:15px; flex:1 1 auto }
+  .fl__btn--go:hover{ background:var(--ag-green-dark,#1a6118) }
+  .fl__btn:disabled{ opacity:.55; cursor:not-allowed }
+  .fl__btn:focus-visible, .fl__fmt:focus-visible, .fl input:focus-visible, .fl textarea:focus-visible{
+    outline:2px solid var(--ag-green,#237b22); outline-offset:2px }
+  /* The format picker is a radio group, for the same reason the tier list is: it is a
+     single choice from a set, and users arrive knowing arrow keys move inside one. */
+  .fl__fmts{ display:flex; gap:8px; flex-wrap:wrap; margin-top:10px }
+  .fl__fmt{ min-height:44px; padding:0 14px; border-radius:11px; border:1.5px solid rgba(16,41,44,.14);
+    background:#fff; font:600 12.5px/1 inherit; color:var(--ag-ink,#10292c); cursor:pointer; display:flex;
+    flex-direction:column; align-items:flex-start; justify-content:center; gap:2px; text-align:left }
+  .fl__fmt[aria-checked="true"]{ border-color:var(--ag-green,#237b22); background:#f6fcf5 }
+  .fl__fmt small{ font-weight:400; font-size:10.5px; color:var(--ag-ink-soft,#626a6e) }
+  .fl__lab{ display:block; font:700 10.5px/1 inherit; letter-spacing:.08em; text-transform:uppercase;
+    color:var(--ag-ink-soft,#626a6e); margin:14px 0 6px }
+  .fl__in{ width:100%; box-sizing:border-box; border:1px solid rgba(16,41,44,.16); border-radius:11px;
+    padding:12px 14px; font-family:inherit; font-size:16px; color:var(--ag-ink,#10292c) }
+  .fl__note{ margin:8px 0 0; font-size:11.5px; line-height:1.6; color:var(--ag-ink-soft,#626a6e) }
+  .fl__err{ margin:10px 0 0; font-size:12.5px; line-height:1.6; color:#8a2020; font-weight:600 }
+  /* The reframe stage. The type line is drawn ON the preview, because the whole point is
+     showing what gets covered — a mis-cropped selfie is the main reason a flier is binned. */
+  .fl__frame{ position:relative; margin-top:12px; border-radius:12px; overflow:hidden;
+    background:#0d2f26; touch-action:none; cursor:grab; aspect-ratio:9/16; max-height:420px }
+  .fl__frame--sq{ aspect-ratio:1/1 }
+  .fl__frame img{ position:absolute; inset:0; width:100%; height:100%; object-fit:cover; user-select:none; pointer-events:none }
+  .fl__typeline{ position:absolute; left:0; right:0; bottom:0; height:42%; pointer-events:none;
+    background:linear-gradient(to bottom, rgba(13,47,38,0), rgba(13,47,38,.86) 55%) }
+  .fl__typeline span{ position:absolute; left:10px; bottom:8px; font:700 10px/1.4 inherit;
+    letter-spacing:.08em; text-transform:uppercase; color:rgba(255,255,255,.8) }
+  .fl__prev{ display:block; width:100%; max-width:320px; margin:12px auto 0; border-radius:12px;
+    border:1px solid rgba(16,41,44,.1) }
+  /* Progress, announced. `role="progressbar"` with no value is the indeterminate form, which
+     is honest here: the server does not report how far through a render it is. */
+  .fl__bar{ margin-top:14px; height:6px; border-radius:5px; background:#eef2ee; overflow:hidden }
+  .fl__bar span{ display:block; height:100%; width:38%; border-radius:5px; background:var(--ag-green,#237b22);
+    animation:flSlide 1.1s ease-in-out infinite }
+  @keyframes flSlide{ 0%{transform:translateX(-100%)} 100%{transform:translateX(360%)} }
+  @media (prefers-reduced-motion: reduce){
+    .fl__bar span{ animation:none; width:100% }
+  }
   /* share / calendar */
   .ed-share{ display:flex; gap:9px; margin-top:4px; }
   .ed-share button{ flex:1; cursor:pointer; border:1px solid rgba(16,41,44,.14); background:#fff; color:#10292C; font-family:inherit; font-size:13px; font-weight:600; padding:10px; border-radius:11px; display:flex; align-items:center; justify-content:center; gap:7px; }
@@ -894,10 +957,199 @@
                and burying it in an email that may not arrive for ten minutes is how somebody
                turns up with nothing to show. #}
             <a class="ed-cta" x-show="ticketUrl" x-cloak :href="ticketUrl" style="margin-top:14px;display:block;text-align:center;text-decoration:none">View your ticket →</a>
-            <a class="ed-ext" href="/events" style="margin-top:16px">Back to all events →</a>
+            {# The flier, right where somebody has just registered. The card itself is
+               further down the page and already knows it is confirmed by then — this is the
+               nudge to it, not a second copy of it. #}
+            <a class="ed-ext" href="#flier" style="margin-top:14px">Make your “I will be there” flier →</a>
+            <a class="ed-ext" href="/events" style="margin-top:10px">Back to all events →</a>
           </div>
         </div>
       {% endif %}
+
+{# ══════════════════════════════════════════════════════════════════════════════
+   THE "I WILL BE THERE" FLIER
+   ══════════════════════════════════════════════════════════════════════════════
+
+   A shareable image an attendee makes for THEMSELVES. Not an organiser's promo asset:
+   anyone can make one, no account and no ticket, and a confirmed ticket earns a visible
+   mark and turns the code into that person's referral link so the flier pays them.
+
+   That last part is why it exists at all. The referral programme already worked and was
+   already on this page — as a read-only field behind a sign-in, which is precisely why
+   nobody used it. This is the same link in a form people already share unprompted.
+
+   Rendered on the SERVER. These layouts depend on Playfair Display at 900, and a
+   client-side canvas export inherits whatever the device has and substitutes silently.
+   The POST returns the PNG in the same request the photo arrives in, so the upload is
+   never written to this disk — which is what makes the discard promise below true rather
+   than a retention policy. #}
+{% if not is_past and (event.status|default('published')) != 'cancelled' %}
+<div class="fl" id="flier" x-data="evFlier('{{ event.slug|e('js') }}', '{{ csrf_token|e('js') }}', {{ referral and referral.pct ? referral.pct : 0 }})">
+
+  <div class="fl__head">
+    <span class="fl__eyebrow">Tell people</span>
+    <h2 class="fl__h">Make an “I will be there” flier</h2>
+  </div>
+
+  <div class="fl__body">
+
+    {# ── 1 · ENTRY ────────────────────────────────────────────────────────
+       One field. No account, no ticket — and it says so, because the ungated path is the
+       whole point and a form that looks like it needs a login is a form nobody starts. #}
+    <div x-show="stage === 'entry'" x-cloak>
+      <p class="fl__p" x-show="!token" x-cloak>
+        No ticket needed — put your name on it and share it. If you register, the code on
+        your flier becomes your referral link, and you earn
+        <strong x-text="pct ? pct + '%' : 'a share'"></strong> of every ticket bought through it.
+      </p>
+      <p class="fl__p" x-show="token" x-cloak>
+        Your ticket is confirmed, so your flier carries the mark — and its code is your own
+        referral link.
+      </p>
+
+      <label class="fl__lab" for="flName">Your name</label>
+      <input class="fl__in" id="flName" x-model="name" maxlength="60" autocomplete="name"
+             placeholder="Ada Nwosu" @keydown.enter.prevent="start()">
+
+      <span class="fl__lab" id="flFmtLab">Shape</span>
+      <div class="fl__fmts" role="radiogroup" aria-labelledby="flFmtLab"
+           @keydown.arrow-right.prevent="stepFmt(1)" @keydown.arrow-down.prevent="stepFmt(1)"
+           @keydown.arrow-left.prevent="stepFmt(-1)" @keydown.arrow-up.prevent="stepFmt(-1)">
+        {# `plain` FIRST, because it is the most common case by far: most people upload no
+           photo, and it is a design for that rather than a degraded version of the others. #}
+        <button type="button" class="fl__fmt" role="radio" data-fl-fmt
+                :aria-checked="fmt === 'plain' ? 'true' : 'false'"
+                :tabindex="fmt === 'plain' ? 0 : -1" @click="fmt = 'plain'">
+          No photo<small>Square · post or profile</small></button>
+        <button type="button" class="fl__fmt" role="radio" data-fl-fmt
+                :aria-checked="fmt === 'story' ? 'true' : 'false'"
+                :tabindex="fmt === 'story' ? 0 : -1" @click="fmt = 'story'">
+          With a photo<small>Tall · status and stories</small></button>
+        <button type="button" class="fl__fmt" role="radio" data-fl-fmt
+                :aria-checked="fmt === 'square' ? 'true' : 'false'"
+                :tabindex="fmt === 'square' ? 0 : -1" @click="fmt = 'square'">
+          With a photo<small>Square · display picture</small></button>
+      </div>
+
+      {# ── 2 · THE PHOTO PICKER ──────────────────────────────────────────
+         Optional everywhere, and the reason to trust it is stated HERE rather than in a
+         policy page. Asking somebody to upload a photo of their face to an events site
+         needs a stated reason, at the moment of asking. #}
+      <div x-show="fmt !== 'plain'" x-cloak>
+        <label class="fl__lab" for="flPhoto">Your photo <span style="font-weight:400;text-transform:none;letter-spacing:0">(optional)</span></label>
+        <input class="fl__in" id="flPhoto" type="file" accept="image/*" x-ref="photo" @change="pick()">
+        <p class="fl__note">
+          Cropped to the shape and used to draw the flier, then discarded — it is never saved
+          on our server. Leave it empty and you get the “No photo” design instead.
+        </p>
+      </div>
+
+      {# ── 3 · THE CAPTION ────────────────────────────────────────────────
+         It goes in the SHARE MESSAGE, not on the image. The first line is left blank on
+         purpose: a fully prefilled caption gets sent verbatim and reads like an ad, and an
+         empty one gets sent with no context. #}
+      <label class="fl__lab" for="flCap">Caption <span style="font-weight:400;text-transform:none;letter-spacing:0">(optional — goes with the message, not on the image)</span></label>
+      <textarea class="fl__in" id="flCap" rows="4" x-model="caption" style="font-size:14px;line-height:1.6"></textarea>
+
+      <div class="fl__row">
+        <button type="button" class="fl__btn fl__btn--go" @click="start()"
+                :disabled="!name.trim()" x-text="fmt === 'plain' ? 'Make my flier' : 'Next — position the photo'"></button>
+      </div>
+      <p class="fl__err" x-show="error" x-cloak x-text="error"></p>
+    </div>
+
+    {# ── 4 · REFRAME ──────────────────────────────────────────────────────
+       Drag to move the frame. The type line is drawn over the preview, because showing
+       what gets covered is the entire point — a mis-cropped selfie is the main reason a
+       generated flier gets binned, and the type sits over the lower third. #}
+    <div x-show="stage === 'frame'" x-cloak>
+      <p class="fl__p">Drag the picture to choose what shows. The shaded part is where the
+        words go.</p>
+      <div class="fl__frame" :class="fmt === 'square' ? 'fl__frame--sq' : ''"
+           x-ref="frame" @pointerdown="grab($event)" role="group" aria-label="Position your photo">
+        <img :src="photoUrl" alt="" :style="'object-position:' + (fx*100) + '% ' + (fy*100) + '%'">
+        <span class="fl__typeline"><span>Your name and the event go here</span></span>
+      </div>
+      <label class="fl__lab" for="flZoomY">How high in the frame</label>
+      {# A range as well as the drag: dragging is the good interaction and a slider is the
+         one that works with a keyboard and a screen reader. #}
+      <input id="flZoomY" type="range" min="0" max="100" step="1" style="width:100%"
+             :value="Math.round(fy*100)" @input="fy = $event.target.value/100"
+             aria-label="Move the photo up or down in the frame">
+      <div class="fl__row">
+        <button type="button" class="fl__btn fl__btn--go" @click="render()">Make my flier</button>
+        <button type="button" class="fl__btn" @click="stage = 'entry'">Back</button>
+      </div>
+    </div>
+
+    {# ── 5 · GENERATING ───────────────────────────────────────────────────
+       Its own screen, with NOTHING pressable but Cancel. A progress bar above an enabled
+       "Save the image" is an interface offering an action it cannot perform. #}
+    <div x-show="stage === 'busy'" x-cloak>
+      <p class="fl__p" role="status">Drawing your flier…</p>
+      <div class="fl__bar" role="progressbar" aria-label="Making your flier"><span></span></div>
+      <div class="fl__row">
+        <button type="button" class="fl__btn" @click="cancel()">Cancel</button>
+      </div>
+    </div>
+
+    {# ── 6 · READY ────────────────────────────────────────────────────────
+       Two shapes, decided by feature detection and not by user agent. Where the device can
+       share a FILE there is one button and it opens the share sheet with the image and the
+       caption. Where it cannot, Save is primary, the caption is copied, and one sentence
+       says why there are two steps — never a silent fall back to wa.me, which cannot attach
+       an image and produces a link with no flier. #}
+    <div x-show="stage === 'ready'" x-cloak>
+      <img class="fl__prev" :src="pngUrl" :alt="'Your flier for ' + title">
+
+      <div class="fl__row" x-show="canShareFile" x-cloak>
+        <button type="button" class="fl__btn fl__btn--go" @click="share()">Share it</button>
+        <button type="button" class="fl__btn" @click="save()">Save the image</button>
+      </div>
+
+      <div x-show="!canShareFile" x-cloak>
+        <div class="fl__row">
+          <button type="button" class="fl__btn fl__btn--go" @click="save()">Save the image</button>
+          <button type="button" class="fl__btn" @click="copy()" x-text="copied ? 'Caption copied' : 'Copy the caption'"></button>
+        </div>
+        <p class="fl__note">This browser cannot hand an image straight to WhatsApp, so it is
+          two steps: save the picture, then attach it and paste the caption.</p>
+      </div>
+
+      <div class="fl__row">
+        <button type="button" class="fl__btn" @click="stage = 'entry'">Change something</button>
+      </div>
+      <p class="fl__err" x-show="error" x-cloak x-text="error"></p>
+    </div>
+
+    {# ── 7 · FAILED ───────────────────────────────────────────────────────
+       Retry, and the name is still in the box behind this — `stage` is the only thing that
+       changed, so nothing typed is lost. #}
+    <div x-show="stage === 'failed'" x-cloak>
+      <p class="fl__err" x-text="error || 'The flier could not be made just now.'"></p>
+      <p class="fl__p">Nothing you typed has been lost.</p>
+      <div class="fl__row">
+        <button type="button" class="fl__btn fl__btn--go" @click="render()">Try again</button>
+        <button type="button" class="fl__btn" @click="stage = 'entry'">Change something</button>
+      </div>
+    </div>
+  </div>
+</div>
+{% else %}
+{# ── 8 · PAST OR CANCELLED ────────────────────────────────────────────────
+   Explained, with somewhere to go. A live code on a finished evening is worse than no
+   flier: somebody scans it, finds nothing, and concludes the platform is broken — which is
+   why the route answers 410 as well, rather than trusting this branch alone. #}
+<div class="fl">
+  <div class="fl__head"><span class="fl__eyebrow">Tell people</span>
+    <h2 class="fl__h">This event has finished</h2></div>
+  <div class="fl__body">
+    <p class="fl__p">Fliers are only made for events still to come — a code pointing at a
+      finished evening sends people nowhere.</p>
+    <div class="fl__row"><a class="fl__btn" href="/events">See what is coming up →</a></div>
+  </div>
+</div>
+{% endif %}
 
       {# ── Share and save the date ────────────────────────────────────────────
          The DOWNLOAD is the primary action, not the Google link. A `.ics` file is understood
@@ -1186,6 +1438,19 @@
                paid path above this does not reach here at all — it hands off to the
                gateway, where nothing has succeeded yet.
                Also deliberately not in joinList(): a waiting list is not a win. */
+            /* ── HAND THE FLIER ITS CREDENTIAL ───────────────────────────────
+               An event rather than a direct reach into the other component: they are two
+               Alpine roots on one page, and two components holding references to each other
+               is how a change to one breaks the other silently.
+
+               This is the handoff's first entry point and the reason it is first: it is the
+               only moment somebody is proud, and asking then costs nothing. */
+            if (d.flier_token) {
+              window.dispatchEvent(new CustomEvent('ag:flier-token', {
+                detail: { token: d.flier_token, name: this.name.trim() }
+              }));
+            }
+
             this.won = true;
             /* Five sparks and a single slow lap, whatever the tier was. This is not the
                tier ladder speaking — it is one outcome, and it is the same outcome for a
@@ -1255,6 +1520,200 @@
     });
   })();
 {% endif %}
+
+  /**
+   * The flier generator.
+   *
+   * ── WHY THE IMAGE IS FETCHED AS A BLOB AND NOT SET AS AN <img src> ─────────
+   *
+   * Because the share path needs a File. `navigator.share({files})` cannot be handed a URL,
+   * so the PNG has to exist in the page as bytes — and once it does, the preview, the save
+   * and the share are all the same object. Fetching it also means the POST can carry the
+   * photo, which is what keeps the upload off our disk entirely.
+   *
+   * ── AND WHY FEATURE DETECTION, NOT A USER-AGENT GUESS ─────────────────────
+   *
+   * `navigator.canShare({files:[…]})` is the only honest test: the API exists on desktop
+   * Chrome and refuses files, and it exists on iOS Safari and accepts them. A lone "Share to
+   * WhatsApp" button promises something the device may simply not do, and the documented
+   * wrong answer is falling back to a wa.me link — which cannot attach an image and produces
+   * a message with no flier in it.
+   */
+  function evFlier(slug, csrf, pct){
+    return {
+      /* entry · frame · busy · ready · failed. Generating and Ready are deliberately
+         separate: a progress bar above an enabled "Save the image" offers an action the
+         page cannot perform yet. */
+      stage: 'entry',
+      name: '', fmt: 'plain', caption: '', error: '', copied: false,
+      pct: pct || 0,
+      /* The confirmed credential, when there is one. Minted server-side by the register
+         response — a browser cannot assert a registration, which is the whole point of
+         EventFlierToken. Empty here means the ungated path, which is the common one. */
+      token: '',
+      title: {{ event.title|default('')|json_encode|raw }},
+      /* The photo never leaves this page except as the body of one POST. `photoUrl` is an
+         object URL for the reframe preview only. */
+      file: null, photoUrl: '',
+      fx: 0.5, fy: 0.22,
+      pngUrl: '', blob: null,
+      canShareFile: false,
+      ctrl: null,
+
+      init(){
+        /* Prefilled, so the caption is one edit rather than one composition — and the FIRST
+           LINE IS LEFT BLANK on purpose. A fully prefilled caption gets sent verbatim and
+           reads like an ad; an empty one gets sent with no context. */
+        this.caption = '\n' + this.title + '\n'
+          + {{ (event.event_date|default(''))|json_encode|raw }}.slice(0, 10) + '\n'
+          + location.origin + '/events/' + slug;
+
+        /* A one-byte PNG is enough to ask the question, and asking it with a real File is the
+           only way to get a true answer. */
+        try {
+          var probe = new File([new Uint8Array([137,80,78,71])], 'f.png', { type: 'image/png' });
+          this.canShareFile = !!(navigator.canShare && navigator.canShare({ files: [probe] }));
+        } catch (e) { this.canShareFile = false; }
+
+        /* The confirmed path. `evReg` publishes the token on its success state, and this
+           picks it up rather than the two components reaching into each other. */
+        window.addEventListener('ag:flier-token', (e) => {
+          this.token = (e.detail && e.detail.token) || '';
+          if (e.detail && e.detail.name) this.name = e.detail.name;
+        });
+      },
+
+      stepFmt(dir){
+        var els = Array.prototype.slice.call(this.$root.querySelectorAll('[data-fl-fmt]'));
+        var order = ['plain', 'story', 'square'];
+        var at = order.indexOf(this.fmt);
+        this.fmt = order[((at + dir) + order.length) % order.length];
+        var el = els[order.indexOf(this.fmt)];
+        if (el) el.focus();
+      },
+
+      pick(){
+        var f = this.$refs.photo && this.$refs.photo.files ? this.$refs.photo.files[0] : null;
+        if (this.photoUrl) URL.revokeObjectURL(this.photoUrl);
+        this.file = f || null;
+        this.photoUrl = f ? URL.createObjectURL(f) : '';
+        this.error = '';
+      },
+
+      start(){
+        this.error = '';
+        if (!this.name.trim()) { this.error = 'Add your name first.'; return; }
+        /* Straight to the render when there is nothing to reframe. A reframe step over a
+           picture nobody supplied is a screen with one thing to do and no way to do it. */
+        if (this.fmt !== 'plain' && this.file) { this.stage = 'frame'; return; }
+        this.render();
+      },
+
+      /* Drag the frame. Pointer events, so one handler covers mouse, touch and pen — and
+         `touch-action:none` on the element is what stops the page scrolling under a drag. */
+      grab(e){
+        var box = this.$refs.frame.getBoundingClientRect();
+        var move = (ev) => {
+          this.fx = Math.min(1, Math.max(0, (ev.clientX - box.left) / box.width));
+          this.fy = Math.min(1, Math.max(0, (ev.clientY - box.top) / box.height));
+        };
+        move(e);
+        var up = () => {
+          window.removeEventListener('pointermove', move);
+          window.removeEventListener('pointerup', up);
+        };
+        window.addEventListener('pointermove', move);
+        window.addEventListener('pointerup', up);
+      },
+
+      async render(){
+        this.error = '';
+        this.stage = 'busy';
+        /* An AbortController, because Cancel has to actually cancel. A Cancel button that
+           only changes the screen leaves the request running and the next one racing it. */
+        this.ctrl = new AbortController();
+
+        var body = new FormData();
+        body.append('_token', csrf);
+        body.append('fmt', this.fmt);
+        if (this.token) body.append('t', this.token);
+        else body.append('name', this.name.trim());
+        if (this.fmt !== 'plain' && this.file) {
+          body.append('photo', this.file);
+          body.append('focus_x', String(this.fx));
+          body.append('focus_y', String(this.fy));
+        }
+
+        try {
+          var r = await fetch('/events/' + slug + '/flier.png',
+                              { method: 'POST', body: body, signal: this.ctrl.signal });
+          if (!r.ok) {
+            var d = await r.json().catch(function(){ return {}; });
+            this.error = d.message || 'The flier could not be made just now.';
+            this.stage = 'failed';
+            return;
+          }
+          if (this.pngUrl) URL.revokeObjectURL(this.pngUrl);
+          this.blob = await r.blob();
+          this.pngUrl = URL.createObjectURL(this.blob);
+          /* The token the server used, so "share as a link" and a later format change need
+             no retyping — and so the confirmed state survives a regenerate. */
+          this.token = r.headers.get('X-Flier-Token') || this.token;
+          this.stage = 'ready';
+        } catch (e) {
+          if (e && e.name === 'AbortError') { this.stage = 'entry'; return; }
+          this.error = 'Network error. Nothing you typed has been lost.';
+          this.stage = 'failed';
+        } finally { this.ctrl = null; }
+      },
+
+      cancel(){
+        if (this.ctrl) this.ctrl.abort();
+        this.stage = 'entry';
+      },
+
+      fileName(){
+        return 'i-will-be-there-' + slug + '.png';
+      },
+
+      async share(){
+        if (!this.blob) return;
+        try {
+          var file = new File([this.blob], this.fileName(), { type: 'image/png' });
+          await navigator.share({ files: [file], text: this.caption });
+        } catch (e) {
+          /* A cancelled share sheet throws AbortError, and treating that as a failure would
+             put an error under a button somebody deliberately dismissed. */
+          if (e && e.name === 'AbortError') return;
+          this.error = 'That did not open. Save the image instead and attach it.';
+        }
+      },
+
+      save(){
+        if (!this.pngUrl) return;
+        var a = document.createElement('a');
+        a.href = this.pngUrl;
+        a.download = this.fileName();
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        /* On the two-step path the caption is copied WITH the save, so the second step is
+           paste rather than "go back and press another button". */
+        if (!this.canShareFile) this.copy();
+      },
+
+      copy(){
+        var done = (ok) => {
+          this.copied = ok;
+          if (window.agAnnounce) window.agAnnounce(ok ? 'Caption copied' : 'Could not copy the caption');
+          if (ok) setTimeout(() => { this.copied = false; }, 2400);
+        };
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          navigator.clipboard.writeText(this.caption).then(function(){ done(true); }, function(){ done(false); });
+        } else { done(false); }
+      }
+    };
+  }
 
   function evShare(){
     return {

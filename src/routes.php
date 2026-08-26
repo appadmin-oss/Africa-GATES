@@ -1974,6 +1974,9 @@ return function(App $app) {
         // enumerable address would let anybody render a stranger's name over this event's
         // branding and post it. See EventFlierToken.
         $g->get('/events/{slug}/flier.png', EventsController::class.':flier');
+        // The generator. A POST that returns the PNG in the same request the photo arrives
+        // in, so the upload is never written to this disk — see flierMake().
+        $g->post('/events/{slug}/flier.png', EventsController::class.':flierMake');
         $g->get('/events/{slug}/calendar.ics', EventsController::class.':calendar');
         // ── TRADING AT AN EVENT ───────────────────────────────────────
         //

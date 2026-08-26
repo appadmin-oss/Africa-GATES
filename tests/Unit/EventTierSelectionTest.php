@@ -98,7 +98,12 @@ final class EventTierSelectionTest extends TestCase
         $this->assertStringContainsString('role="radiogroup"', $html);
         // Named, or a screen reader announces "group" with nothing to say what of.
         $this->assertStringContainsString('aria-label="Ticket type"', $html);
-        $this->assertSame(2, substr_count($html, 'role="radio"'), 'one radio per tier');
+
+        // Counted inside the TIER group, not across the page: the flier generator's shape
+        // picker is a radiogroup too, and a page-wide count made this test fail the day it
+        // arrived — for something it is not about.
+        $this->assertSame(2, substr_count($html, 'role="radio" data-ed-tier'),
+            'one radio per tier');
     }
 
     public function test_the_selection_is_announced_and_not_only_coloured(): void
@@ -315,11 +320,16 @@ final class EventTierSelectionTest extends TestCase
         // The handoff left this "designed but not wired", and named the risk itself: a
         // burst followed by a payment error is worse than no burst. So it sits inside the
         // `d.success` branch, after the paid path has already returned to the gateway.
-        // Bounded rather than open-ended: `this.won = true` anywhere in the file would
-        // satisfy an unbounded match, including inside submit()'s failure branch. The
-        // window is generous because the branch carries the explanation with it.
-        $this->assertMatchesRegularExpression(
-            '/if\(d\.success\)\{[\s\S]{0,900}?this\.won = true;/', $js);
+        // Bounded by the BRANCH, not by a character count. A count has to be widened every
+        // time anything is added to that branch — it already has been once — and each
+        // widening makes the assertion weaker for the same reason it makes it pass.
+        $from = strpos($js, 'if(d.success){');
+        $this->assertNotFalse($from, 'the success branch could not be located');
+        $to = strpos($js, '} else {', $from);
+        $this->assertNotFalse($to, 'the success branch has no else');
+
+        $this->assertStringContainsString('this.won = true;', substr($js, $from, $to - $from),
+            'the register burst is not inside the success branch');
 
         // And never on the paid hand-off, which returns before reaching that branch:
         // nothing has succeeded when the browser is on its way to a payment page.

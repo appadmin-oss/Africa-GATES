@@ -153,6 +153,35 @@ A design handoff asked for `loop.index0` here; it would have made the cheapest t
 hardest for any organiser who puts their premium row first, and nothing about that failure
 is visible from the template.
 
+## Generated images are GD, server-side, and share one set of hands
+
+There is no headless browser on this host and there cannot be. Every generated graphic —
+the nominee share card, the ticket, the event flier — is rasterised by GD from the faces in
+`resources/fonts/`, and the primitives live in **one** place: `FlierRaster`. Text with
+letter-spacing, wrapping measured against the real face, gradients, cover-crop, photo
+loading. Do not write a second `cover()`: two renderers with their own crop maths is how one
+graphic centres a face and another cuts the chin off, and neither looks wrong on its own.
+
+Two GD traps that have each cost a render pass here: `imagefilledrectangle()` is **inclusive**
+of both corners, so filling to `y + $h` draws one pixel more than the geometry you measured
+with; and `imagettftext()` takes a **baseline** while every box you draw grows downward from
+its origin, which is how a chip came to sit on top of a name.
+
+## `Support\Qr` has two entry points and they are not interchangeable
+
+`encode()` is for a **ticket code**: version 1, alphanumeric, 16 characters, and it folds
+case because a code read off a screen may be typed either way. `encodeBytes()` is for a
+**URL**: byte mode, versions 2–6, case preserved, 74 bytes. Uppercasing a URL path produces
+a code that scans perfectly and goes nowhere.
+
+`Qr::SIZE` is only true of version 1 — read `count($matrix)` for anything from
+`encodeBytes()`. Vectors are verified by **decoding** (`tests/Support/qr-bytes-vectors.py`),
+never by diffing another encoder: the pad region after the terminator is not uniquely
+determined, so two correct encoders disagree byte-for-byte.
+
+The 4-module quiet zone is a measurement, not a margin. At 2 modules the square and plain
+fliers decode when sent and fail when forwarded.
+
 ## House style
 
 Comments explain *why*, and name the failure the code exists to prevent — this codebase is

@@ -620,6 +620,171 @@ final class EventFlierTest extends TestCase
         return $ctrl->flier($req, (new ResponseFactory())->createResponse(), ['slug' => $this->slug]);
     }
 
+    // ══ the generator's POST ═════════════════════════════════════════════════
+
+    /** @param array<string,mixed> $body */
+    private function post(array $body, ?string $photoPath = null): \Psr\Http\Message\ResponseInterface
+    {
+        $b = new ContainerBuilder();
+        $b->addDefinitions(require dirname(__DIR__, 2) . '/config/container.php');
+        $ctrl = $b->build()->get(EventsController::class);
+
+        $req = (new ServerRequestFactory())
+            ->createServerRequest('POST', '/events/' . $this->slug . '/flier.png')
+            ->withParsedBody($body);
+
+        if ($photoPath !== null) {
+            // sapi=false, so the stream is a real file this process can read — which is what
+            // decodeUpload() reads, and it never writes anywhere.
+            $req = $req->withUploadedFiles(['photo' => new \Slim\Psr7\UploadedFile(
+                $photoPath, basename($photoPath), 'image/jpeg',
+                filesize($photoPath) ?: null, UPLOAD_ERR_OK, false
+            )]);
+        }
+
+        return $ctrl->flierMake($req, (new ResponseFactory())->createResponse(),
+                                ['slug' => $this->slug]);
+    }
+
+    public function test_a_typed_name_alone_makes_a_flier(): void
+    {
+        // The ungated path, and the whole point of the feature: no account, no ticket, no
+        // sign-in. The referral programme already sat behind a sign-in as a read-only field,
+        // which is exactly why nobody used it.
+        $res = $this->post(['name' => 'A Friend', 'fmt' => 'plain']);
+
+        $this->assertSame(200, $res->getStatusCode());
+        $this->assertSame('image/png', $res->getHeaderLine('Content-Type'));
+        $this->assertNotSame('', $res->getHeaderLine('X-Flier-Token'),
+            'the browser needs the token back to reshare or change format without retyping');
+        $this->assertNotFalse(imagecreatefromstring((string) $res->getBody()));
+    }
+
+    public function test_a_blank_name_is_refused_with_a_sentence(): void
+    {
+        $res = $this->post(['name' => '   ', 'fmt' => 'plain']);
+
+        $this->assertSame(422, $res->getStatusCode());
+        $this->assertStringContainsString('application/json', $res->getHeaderLine('Content-Type'));
+        $this->assertStringContainsString('name', (string) $res->getBody());
+    }
+
+    public function test_the_post_honours_a_confirmed_token(): void
+    {
+        // The only way to be confirmed: a browser cannot assert a registration id, so the
+        // token minted by the register response is the credential.
+        $res = $this->post([
+            't' => EventFlierToken::mint($this->eventId, 'Ada Nwosu', $this->registration()),
+            'fmt' => 'plain',
+        ]);
+
+        $this->assertSame(200, $res->getStatusCode());
+        $this->assertNotFalse(imagecreatefromstring((string) $res->getBody()));
+    }
+
+    public function test_the_post_refuses_a_finished_event(): void
+    {
+        DB::table('gates_site_events')->where('id', $this->eventId)
+            ->update(['event_date' => date('Y-m-d H:i:s', strtotime('-9 days'))]);
+
+        $res = $this->post(['name' => 'A Friend', 'fmt' => 'plain']);
+
+        $this->assertSame(410, $res->getStatusCode());
+        $this->assertStringNotContainsString('image/png', $res->getHeaderLine('Content-Type'));
+    }
+
+    public function test_an_uploaded_photo_is_never_written_to_disk(): void
+    {
+        // The handoff asks for this to be confirmed "at the storage layer, not by reading the
+        // code". There is no storage layer to confirm: the file is decoded from the upload
+        // temp, drawn, and the request ends. So what is asserted is the absence of any new
+        // file anywhere the platform writes — and that the photo DID reach the image, because
+        // an upload that was silently ignored would pass a "nothing was written" test
+        // perfectly.
+        $photo = $this->photo();
+        $dirs = [sys_get_temp_dir(), dirname(__DIR__, 2) . '/var',
+                 dirname(__DIR__, 2) . '/public/uploads'];
+
+        $before = [];
+        foreach ($dirs as $d) $before[$d] = is_dir($d) ? $this->listing($d) : [];
+
+        $res = $this->post(['name' => 'Ada Nwosu', 'fmt' => 'story',
+                            'focus_x' => '0.5', 'focus_y' => '0.2'], $photo);
+
+        $this->assertSame(200, $res->getStatusCode());
+        $im = imagecreatefromstring((string) $res->getBody());
+        $this->assertNotFalse($im);
+        // It reached the image: 1920 tall means the photo layout ran rather than the plain
+        // fallback, and the slot's top is the picture's orange half.
+        $this->assertSame(1920, imagesy($im), 'the upload did not reach the flier');
+        $c = imagecolorsforindex($im, imagecolorat($im, 540, 180));
+        $this->assertGreaterThan($c['blue'] + 40, $c['red'], 'the slot is not the photo');
+        imagedestroy($im);
+
+        foreach ($dirs as $d) {
+            if (!is_dir($d)) continue;
+            $new = array_diff($this->listing($d), $before[$d]);
+            // The fixture's own file is expected; nothing else may appear.
+            $new = array_values(array_filter($new, static fn (string $f): bool => $f !== basename($photo)));
+            $this->assertSame([], $new, 'the upload left something behind in ' . $d);
+        }
+
+        @unlink($photo);
+    }
+
+    /** @return list<string> file names directly inside $dir */
+    private function listing(string $dir): array
+    {
+        $out = [];
+        foreach ((array) @scandir($dir) as $f) {
+            if ($f !== '.' && $f !== '..') $out[] = (string) $f;
+        }
+        sort($out);
+        return $out;
+    }
+
+    public function test_a_reframe_actually_changes_the_crop(): void
+    {
+        // Otherwise the focal point would be accepted, ignored, and every flier would use the
+        // default anchor — and the reframe screen would be a control with no effect, which is
+        // indistinguishable from one that works until somebody looks closely.
+        $photo = $this->photo();
+        try {
+            $top = (string) $this->post(['name' => 'Ada', 'fmt' => 'square',
+                                         'focus_x' => '0.5', 'focus_y' => '0'], $photo)->getBody();
+            $bot = (string) $this->post(['name' => 'Ada', 'fmt' => 'square',
+                                         'focus_x' => '0.5', 'focus_y' => '1'], $photo)->getBody();
+
+            $this->assertNotSame($top, $bot, 'the focal point had no effect on the crop');
+        } finally { @unlink($photo); }
+    }
+
+    public function test_an_unreadable_upload_falls_back_to_plain_rather_than_failing(): void
+    {
+        // Somebody uploads a PDF renamed .jpg. That is not an error worth a screen: the
+        // renderer has a design for "no photo" and it is the common case anyway.
+        $junk = sys_get_temp_dir() . '/ag-not-an-image-' . bin2hex(random_bytes(4)) . '.jpg';
+        file_put_contents($junk, 'this is not an image');
+
+        try {
+            $res = $this->post(['name' => 'Ada', 'fmt' => 'story'], $junk);
+
+            $this->assertSame(200, $res->getStatusCode());
+            $im = imagecreatefromstring((string) $res->getBody());
+            $this->assertSame(1080, imagesy($im), 'a junk upload should land on plain');
+            imagedestroy($im);
+        } finally { @unlink($junk); }
+    }
+
+    public function test_the_generated_flier_is_never_cached_or_indexed(): void
+    {
+        // It carries somebody's name, and the next press may carry a different crop.
+        $res = $this->post(['name' => 'Ada Nwosu', 'fmt' => 'plain']);
+
+        $this->assertStringContainsString('no-store', $res->getHeaderLine('Cache-Control'));
+        $this->assertStringContainsString('noindex', $res->getHeaderLine('X-Robots-Tag'));
+    }
+
     public function test_the_route_serves_a_png_for_a_good_token(): void
     {
         $res = $this->hit(

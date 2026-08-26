@@ -142,7 +142,8 @@ trait FlierRaster
     }
 
     /** Draw $src to cover the box, cropping the overflow — never stretching it. */
-    protected function cover($im, $src, int $dx, int $dy, int $dw, int $dh): void
+    protected function cover($im, $src, int $dx, int $dy, int $dw, int $dh,
+                            ?float $focusX = null, ?float $focusY = null): void
     {
         $sw = imagesx($src); $sh = imagesy($src);
         if ($sw < 1 || $sh < 1) return;
@@ -150,10 +151,18 @@ trait FlierRaster
         $scale = max($dw / $sw, $dh / $sh);
         $cw = (int) round($dw / $scale);
         $ch = (int) round($dh / $scale);
+
+        // The focal point, 0..1 in each axis, or the defaults.
+        //
         // Horizontally centred (a subject is reliably centred left-to-right); vertically
-        // biased upward, because they are reliably NOT centred top-to-bottom.
-        $sx = (int) round(($sw - $cw) / 2);
-        $sy = (int) round(($sh - $ch) * self::PHOTO_ANCHOR_Y);
+        // biased upward, because they are reliably NOT centred top-to-bottom. A caller that
+        // passes a point is a person who has dragged the frame themselves, and their answer
+        // beats both defaults — which is why the event flier's reframe step exists at all.
+        $fx = $focusX === null ? 0.5 : max(0.0, min(1.0, $focusX));
+        $fy = $focusY === null ? self::PHOTO_ANCHOR_Y : max(0.0, min(1.0, $focusY));
+
+        $sx = (int) round(($sw - $cw) * $fx);
+        $sy = (int) round(($sh - $ch) * $fy);
         imagecopyresampled($im, $src, $dx, $dy, max(0, $sx), max(0, $sy), $dw, $dh, $cw, $ch);
     }
 

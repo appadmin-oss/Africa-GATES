@@ -530,6 +530,19 @@ class EventsController
             return $json(['success' => true, 'ticket_code' => (string) ($r['ticket_code'] ?? ''),
                           'ticket_url' => $this->base($req) . '/events/ticket/' . urlencode((string) $r['reference']),
                           'discount_note' => (string) ($r['discount_note'] ?? ''),
+                          // ── THE FLIER'S CREDENTIAL ───────────────────────────
+                          //
+                          // Minted HERE, server-side, from the registration that was just
+                          // created. It is the only way a browser can hold a confirmed flier:
+                          // the client cannot assert a registration id, and this is the moment
+                          // it is entitled to one — the handoff's first entry point, and the
+                          // only moment somebody is proud.
+                          'flier_token' => \AfricaGates\Services\EventFlierToken::mint(
+                              // `$event` is a row OBJECT here, not the array the show()
+                              // action works with — two shapes for one thing in one file, and
+                              // the array subscript threw at runtime rather than at parse.
+                              (int) $event->id, (string) ($data['name'] ?? ''), (int) ($r['id'] ?? 0)
+                          ),
                           'message' => (string) $r['message']]);
         }
 
@@ -974,6 +987,107 @@ class EventsController
             // rather than being served a stale image from before the payment landed.
             ->withHeader('Cache-Control', 'private, max-age=900')
             ->withHeader('X-Robots-Tag', 'noindex, nofollow');
+    }
+
+    /**
+     * Make a flier, in one request, and hand back the PNG.
+     *
+     * ══════════════════════════════════════════════════════════════════════════
+     * WHY THIS IS A POST THAT RETURNS AN IMAGE
+     * ══════════════════════════════════════════════════════════════════════════
+     *
+     * The obvious build is: upload the photo, store it, mint a token, then GET the image by
+     * token. That design has a storage layer, and the handoff's privacy promise is that the
+     * photo is cropped and DISCARDED — verified "at the storage layer, not by reading the
+     * code".
+     *
+     * The easiest way to keep that promise is to have no storage layer. The file arrives, is
+     * decoded from PHP's own upload temp, is drawn into the flier, and the request ends —
+     * at which point PHP unlinks the temp itself. Nothing to sweep, nothing to expire, no
+     * cron to forget, and nothing for a later bug to leave behind.
+     *
+     * The browser holds the result as a blob, which is also exactly what `navigator.share`
+     * wants for its `files` payload, so the share path needs no second fetch.
+     *
+     * {@see flier()} remains for the no-photo case, so a flier is still a shareable URL.
+     *
+     * ── AND ON RATE LIMITING ─────────────────────────────────────────────────
+     *
+     * The handoff's first open decision: anybody can generate one with any name, a session
+     * token would limit abuse, and the friction would land on the ungated path that is the
+     * whole point. Its call was "allow it, watch it, add friction only if abused" and that is
+     * what this does — with the CSRF check as the only gate, which stops a drive-by without
+     * asking a visitor for anything.
+     */
+    public function flierMake(Request $req, Response $res, array $args): Response
+    {
+        $b    = (array) $req->getParsedBody();
+        $fmt  = strtolower(trim((string) ($b['fmt'] ?? 'plain')));
+        $slug = trim((string) ($args['slug'] ?? ''));
+
+        if (!\AfricaGates\Services\EventFlierLayout::valid($fmt)) $fmt = 'plain';
+
+        $fail = function (Response $res, int $code, string $why): Response {
+            $res->getBody()->write(json_encode(['success' => false, 'message' => $why]));
+            return $res->withStatus($code)->withHeader('Content-Type', 'application/json');
+        };
+
+        $event = DB::table('gates_site_events')->where('slug', $slug)->first();
+        if (!$event) return $fail($res, 404, 'That event could not be found.');
+
+        // A token when the browser has one — that is the confirmed path, and it is the only
+        // way to be confirmed. Otherwise a typed name, which is the ungated path.
+        $token = trim((string) ($b['t'] ?? ''));
+        if ($token === '') {
+            $name = \AfricaGates\Services\EventFlierToken::cleanName((string) ($b['name'] ?? ''));
+            if ($name === '') return $fail($res, 422, 'Add your name and we will make the flier.');
+            $token = \AfricaGates\Services\EventFlierToken::mint((int) $event->id, $name);
+        }
+
+        $f = \AfricaGates\Services\EventFlier::forToken(
+            $token, \AfricaGates\Support\SiteUrl::base($req)
+        );
+        if ($f === null || trim((string) ($f['event']['slug'] ?? '')) !== $slug) {
+            return $fail($res, 410, 'This event has finished, so there is no flier to make.');
+        }
+
+        // The photo, decoded and never written. Absent or unreadable is not an error: the
+        // renderer draws `plain`, which is the design for that case rather than a fallback.
+        $files = $req->getUploadedFiles();
+        $photo = null;
+        if (isset($files['photo']) && $files['photo'] instanceof \Psr\Http\Message\UploadedFileInterface
+            && $files['photo']->getError() === UPLOAD_ERR_OK) {
+            $up = $files['photo'];
+            $photo = \AfricaGates\Services\EventFlier::decodeUpload([
+                'tmp_name' => (string) ($up->getStream()->getMetadata('uri') ?? ''),
+                'size'     => (int) ($up->getSize() ?? 0),
+                'error'    => $up->getError(),
+            ]);
+        }
+
+        // Where the frame sits, 0..1 in each axis, from the reframe step. Absent means the
+        // platform's own anchor, which is centred across and biased upward.
+        $fx = array_key_exists('focus_x', $b) ? (float) $b['focus_x'] : null;
+        $fy = array_key_exists('focus_y', $b) ? (float) $b['focus_y'] : null;
+
+        $png = (new \AfricaGates\Services\EventFlier())->png($f, $fmt, null, $photo, $fx, $fy);
+        if ($photo !== null) imagedestroy($photo);
+
+        if ($png === null) {
+            return $fail($res, 503, 'The flier could not be generated on this server.');
+        }
+
+        $res->getBody()->write($png);
+
+        return $res
+            ->withHeader('Content-Type', 'image/png')
+            ->withHeader('Content-Length', (string) strlen($png))
+            // Never stored, never cached: the next press may carry a different crop.
+            ->withHeader('Cache-Control', 'no-store, private')
+            ->withHeader('X-Robots-Tag', 'noindex, nofollow')
+            // The token the browser needs to re-share this as a LINK rather than a file, and
+            // to regenerate in another format without retyping the name.
+            ->withHeader('X-Flier-Token', $token);
     }
 
     public function calendar(Request $req, Response $res, array $args): Response

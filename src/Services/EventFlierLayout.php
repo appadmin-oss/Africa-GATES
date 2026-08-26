@@ -86,13 +86,51 @@ final class EventFlierLayout
     ];
 
     /** Gaps in the bottom-anchored stack. */
-    public const GAP_QR_META   = 44;
-    public const GAP_META_LINE = 10;
-    public const GAP_STATE     = 40;
-    public const GAP_CLAIM     = 30;
+    public const GAP_QR_META   = 52;
+    public const GAP_META_LINE = 14;
+    public const GAP_STATE     = 44;
+    public const GAP_CLAIM     = 34;
     public const GAP_KICKER    = 26;
     /** Between the mark row and the name under it. */
     public const GAP_CHIP      = 22;
+
+    /**
+     * The hairline under the claim.
+     *
+     * ── WHY A RULE AND NOT MORE SPACING ─────────────────────────────────────
+     *
+     * The first version of this design was correct and loose: a stack of type on a ground,
+     * with nothing anchoring it. Everything read as equally important because nothing was
+     * separated from anything, and the eye had no reason to stop at the claim.
+     *
+     * A hairline is this platform's own idiom — the design system is "paper ground, hairline
+     * rules, mono micro-labels, one gold accent" — and it does the work that adding whitespace
+     * cannot: it says the claim is the headline and everything below it is the detail. Gold,
+     * because the accent is already gold and a second colour would be a second decision.
+     *
+     * 2px, not 1: this image is recompressed by a messaging app and viewed as a thumbnail, and
+     * a one-pixel line does not survive either.
+     */
+    public const RULE_H     = 2;
+    public const RULE_W     = 132;
+    public const GAP_RULE   = 30;
+
+    /**
+     * Tracking on the mono lines — deliberately ZERO.
+     *
+     * These lines are tracked uppercase SANS, not the mono face — which is a deliberate
+     * departure from the house "mono micro-labels" rule, for one reason: AGMono's period and
+     * colon sit at the left of their cells with the remainder as bearing, so "14:00" renders
+     * as "14: 00" and a domain as "afg. afrovanguard. org. ng". That is the face, not the
+     * tracking; it survived setting tracking to zero. Uppercase and tracked reads as a
+     * micro-label without the cell artefacts.
+     *
+     * The kicker still uses mono, because "AFRICA GATES" has no punctuation in it to open up
+     * and a wide-set mono word is exactly the effect wanted there.
+     */
+    public const MONO_TRACK = 2.2;
+    public const HOST_SIZE  = 22;
+    public const HOST_TRACK = 0.8;
 
     // ── type ────────────────────────────────────────────────────────────────
 
@@ -109,8 +147,11 @@ final class EventFlierLayout
     public const KICKER_SIZE = 20;
     public const KICKER_TRACK = 6.0;
 
-    public const NAME_SIZE  = ['story' => 40, 'square' => 34, 'plain' => 38];
-    public const META_SIZE  = ['story' => 30, 'square' => 25, 'plain' => 28];
+    public const NAME_SIZE  = ['story' => 42, 'square' => 34, 'plain' => 38];
+    /** The event's own name — a name, so sans and not mono. */
+    public const META_SIZE  = ['story' => 31, 'square' => 26, 'plain' => 29];
+    /** The date and place. Mono micro-label, so smaller than the title above it. */
+    public const WHEN_SIZE  = ['story' => 23, 'square' => 20, 'plain' => 22];
     public const CHIP_SIZE  = 22;
     public const QRLABEL_SIZE = 24;
 
