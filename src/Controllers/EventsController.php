@@ -239,11 +239,17 @@ class EventsController
             // Twig, makes the cheapest tier sweep hardest for any organiser who puts their
             // premium row at the top of the list. See EventTierTone.
             'tier_tones'       => \AfricaGates\Services\EventTierTone::forTiers($tiers),
-            // And the colour it sweeps in: the event's own accent ladder, so the light on
-            // the card is the colour of the dot on the ticket they are about to be sent.
+            // And the colour it sweeps in: the colour the organiser set on the tier,
+            // resolved from the event's own accent — so the light on the card is the same
+            // colour as the swatch in the admin and as the dot on the printed ticket.
+            //
+            // Two values per tier, not one. `hue` is the identity and drives the light;
+            // `edge` is the darker variant used for the selected row's border and the
+            // filled radio, which are non-text indicators of state and owe 3:1 against
+            // white (WCAG 1.4.11). Same pair the ticket's own dot draws.
             'tier_hues'        => array_reduce($tiers, static function (array $c, array $t) use ($event): array {
                 if (isset($t['id'])) {
-                    $c[(int) $t['id']] = \AfricaGates\Services\EventTierTone::hue($t, $event);
+                    $c[(int) $t['id']] = \AfricaGates\Services\EventTierTone::hues($t, $event);
                 }
                 return $c;
             }, []),

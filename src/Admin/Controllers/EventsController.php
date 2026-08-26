@@ -77,6 +77,9 @@ class EventsController
                     'until'  => self::forInput((string) ($t->sale_ends_at ?? '')),
                     'code'   => (string) ($t->access_code ?? ''),
                     'active' => (int) ($t->is_active ?? 1) === 1,
+                    // The palette SLOT, '' for "no colour on this tier" — which is the
+                    // default and a real answer. See the colour field's note in the form.
+                    'colour' => (string) (\AfricaGates\Services\EventTierPalette::slot($t->colour ?? null) ?? ''),
                     // Shown beside the row so an organiser can see why a tier refuses to be
                     // deleted, and how close it is to its own limit.
                     'sold'   => \AfricaGates\Services\EventTicketService::sold((int) $t->id),
@@ -87,6 +90,7 @@ class EventsController
             foreach ((json_decode((string)($row['ticket_tiers'] ?? '[]'), true) ?: []) as $t) {
                 if (!is_array($t)) continue;
                 $tierSeed[] = ['id' => ++$i, 'tid' => 0, 'name' => (string)($t['name'] ?? ''),
+                               'colour' => '',
                                'price' => (int) preg_replace('/\D+/', '', (string) ($t['price'] ?? '0')),
                                'cap' => '', 'perk' => (string)($t['perk'] ?? ''),
                                'from' => '', 'until' => '', 'code' => '', 'active' => true, 'sold' => 0];
@@ -122,6 +126,19 @@ class EventsController
             'referral_rate_pct' => \AfricaGates\Services\ReferralService::ratePct(),
             'sched_seed' => $schedSeed,
             'tier_seed'  => $tierSeed,
+            // ── THE TIER COLOUR PICKER ───────────────────────────────────────
+            //
+            // The six slots with their resolved hexes for THIS event, so an organiser
+            // choosing "Warm" is shown what warm actually is against their own accent
+            // rather than a word. Resolved live: change the accent above and the swatches
+            // move with it on the next load, which is the whole reason the column stores a
+            // slot instead of a hex.
+            'tier_palette' => \AfricaGates\Services\EventTierPalette::forEvent($row ?: null),
+            'tier_slots'   => \AfricaGates\Services\EventTierPalette::SLOTS,
+            // Hidden rather than shown-and-dropped on a deployment that has not migrated.
+            'tier_colour_missing' => \AfricaGates\Support\OptionalColumn::missing(
+                'gates_event_tiers', ['colour']
+            ),
             'session_seed' => $sessionSeed,
             // datetime-local wants its own format, and a raw timestamp in the box silently
             // renders as empty — which reads as "no cutoff set" and quietly removes one.
@@ -456,6 +473,7 @@ class EventsController
         $until  = (array) ($b['tier_until'] ?? []);
         $codes  = (array) ($b['tier_code'] ?? []);
         $active = (array) ($b['tier_active'] ?? []);
+        $hues   = (array) ($b['tier_colour'] ?? []);
 
         $now  = Carbon::now()->toDateTimeString();
         $kept = [];
@@ -488,9 +506,37 @@ class EventsController
                 'sale_ends_at'   => self::fromInput($until[$i] ?? ''),
                 'access_code' => mb_substr(trim((string) ($codes[$i] ?? '')), 0, 60) ?: null,
                 'is_active'   => (string) ($active[$i] ?? '1') === '1' ? 1 : 0,
+                // ── THE TIER'S COLOUR ────────────────────────────────────────
+                //
+                // A SLOT, checked against EventTierPalette::SLOTS, never a hex. The hex is
+                // computed from the event's accent every time it is read, so changing the
+                // accent moves the whole ladder — the dot on the printed ticket and the
+                // selection light on the registration card both follow, because both read
+                // the same resolver.
+                //
+                // This field is new. The palette, the six named slots, the separation pass
+                // and the WCAG edge guarantee all shipped months ago and the column was
+                // never writable: there was no field anywhere in the admin, so every tier
+                // on the platform had NULL and every surface that reads a tier colour fell
+                // back to a default. A whole mechanism with no route in — the pattern in
+                // CODEBASE-INDEX §18, third instance.
+                //
+                // NULL is preserved as NULL rather than stored as '': "no colour on this
+                // tier" is the default and a real answer, and a ladder where every row is
+                // coloured because the field had to be filled in is noisier than one where
+                // the organiser marked the two that matter.
                 'sort_order'  => $order++,
                 'updated_at'  => $now,
             ];
+
+            // `colour` arrived on its own dated migration, so a deployment that has uploaded
+            // this code and not yet run /__setup/migrate does not have the column. Writing it
+            // there would throw, and the catch below would swallow it — losing the WHOLE tier
+            // silently, which is much worse than not having the field. OptionalColumn is the
+            // convention for exactly this and every other block on this screen uses it.
+            if (\AfricaGates\Support\OptionalColumn::on('gates_event_tiers', 'colour')) {
+                $row['colour'] = \AfricaGates\Services\EventTierPalette::slot($hues[$i] ?? null);
+            }
 
             $tid = (int) ($ids[$i] ?? 0);
             try {

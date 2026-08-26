@@ -138,8 +138,14 @@ Full account in `docs/CODEBASE-INDEX.md` §16.
 **A tier's colour is a slot, never a hex.** `EventTierPalette` resolves it from the event's
 own `ticket_accent` on every read, so changing the accent moves the whole ladder — including
 the selection light on the registration card and the dot on the printed ticket, which read
-the same value for that reason. Do not add a colour picker, and do not invent a palette for
-a new surface: `EventTierTone::hue()` is the one resolver.
+the same value for that reason. Do not add a *hex* picker, and do not invent a palette for
+a new surface: `EventTierTone::hues()` is the one resolver.
+
+It returns **two** values and the distinction matters. `hue` is `fill` — the identity, the
+swatch the organiser picked, what the light and the dot are painted with. `edge` is the
+darker variant, and it is only for things that owe 3:1 against white (WCAG 1.4.11): a
+border, a ring, a hairline that holds. Painting the light with `edge` shows the organiser a
+colour they did not choose; drawing a border with a pale `fill` shows them nothing at all.
 
 **Tiers are ordered by `sort_order`, not by price.** So `loop.last` is whichever row the
 organiser dragged to the bottom, and rank is a price question answered in `EventTierTone`.

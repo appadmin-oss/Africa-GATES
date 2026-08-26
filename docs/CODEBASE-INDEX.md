@@ -842,6 +842,32 @@ broke three things written on the assumption it ran once: `hunt()` self-schedule
 twice), and the pending buffer would carry one call's captions into another interview's
 transcript (cleared).
 
+### 18.3a The tier colour picker — the same pattern, third instance
+
+`EventTierPalette` shipped six named slots, a redmean separation pass so no two swatches read
+as the same colour on any accent, and a per-swatch `edge` guaranteed to clear 3:1 against
+white. `2026_09_17_tier_colour.php` created the column. The printed ticket read it.
+`TicketTierColourTest` asserted that changing an event's accent moves the tier's colour with
+it — the whole point of storing a slot.
+
+**Nothing in the admin could write it.** No field on the event form, and `saveTiers()` did not
+read one. So `gates_event_tiers.colour` was NULL for every tier on the platform, `forTier()`
+returned null everywhere, and every surface fell back to a default — which is what made the
+registration card's selection light sweep the platform green for everybody, matching a colour
+nobody could set.
+
+The event editor has the picker now (a select per tier row plus a resolved swatch strip, a
+delegated `data-ag-do="tier-colour"` listener for the live dot, `OptionalColumn`-guarded
+because the column is on its own dated migration and writing an absent column inside
+`saveTiers()`' try/catch loses the whole tier silently).
+
+**And `EventTierTone::hues()` returns two values, not one.** `hue` is `fill`: the identity —
+the picker's swatch, the ticket's dot, the light. `edge` is the darker variant and belongs
+only to what owes 3:1 (WCAG 1.4.11) — a border, the radio's ring, the rim that holds after
+the arc has gone. The light was `edge` at first, which was the right instinct applied to the
+wrong element: it is `aria-hidden` and decorative, owes nothing, and painting it with a
+darkened derivative showed the organiser a colour they had not chosen.
+
 ### 18.4 The interview screen, grouped by phase
 
 `templates/admin/interviews/show.twig` was eleven sections, all open, six screens of

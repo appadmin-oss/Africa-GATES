@@ -330,8 +330,25 @@
        A tier with a price is CHARGED: the registration goes to the gateway and no ticket
        exists until Paystack confirms it. Leave the price at 0 for a free RSVP, which is
        confirmed on the spot. #}
-    <div style="border:1px solid var(--ad-line,#e2e8e6);border-radius:12px;padding:14px 16px;margin-top:6px;background:#fafcfa" x-data="evRepeater({{ tier_seed|json_encode|e('html_attr') }}, {name:'',price:0,perk:'',cap:'',code:'',active:true,sold:0})">
+    <div style="border:1px solid var(--ad-line,#e2e8e6);border-radius:12px;padding:14px 16px;margin-top:6px;background:#fafcfa" x-data="evRepeater({{ tier_seed|json_encode|e('html_attr') }}, {name:'',price:0,perk:'',cap:'',code:'',colour:'',active:true,sold:0})">
       <strong style="font-size:14px">Ticket tiers <small style="font-weight:400;color:#8a9a9c">(a price of 0 is a free RSVP — leave the list empty for one simple free ticket)</small></strong>
+      {% if tier_colour_missing is empty %}
+      {# ── WHAT THE COLOURS ARE, ONCE ────────────────────────────────────────
+         The six slots resolved against THIS event's accent, so "Warm" is a colour an
+         organiser can recognise before choosing it rather than a word they have to guess
+         at. Change the ticket accent below and this strip moves with it on the next load —
+         which is the whole reason the column stores a slot and not a hex. #}
+      <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-top:10px;
+                  padding:8px 10px;background:#fff;border:1px solid var(--ad-line,#e2e8e6);border-radius:9px">
+        <span style="font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:#8a9a9c">Your colours</span>
+        {% for key, sw in tier_palette %}
+          <span style="display:inline-flex;align-items:center;gap:5px;font-size:12px;color:#3d4b4d">
+            <span aria-hidden="true" style="width:12px;height:12px;border-radius:50%;
+                     background:{{ sw.fill }};border:1px solid {{ sw.edge }}"></span>{{ sw.label }}
+          </span>
+        {% endfor %}
+      </div>
+      {% endif %}
       <template x-for="r in rows" :key="r.id">
         <div style="border-top:1px solid var(--ad-line,#e2e8e6);margin-top:10px;padding-top:10px">
           <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
@@ -351,6 +368,37 @@
                code, which is how a sponsor or speaker allocation stays out of sight
                without needing a second, secret event. #}
             <input name="tier_code[]" aria-label="Access code" x-model="r.code" maxlength="60" placeholder="Access code (optional — hides the tier)" style="flex:1;min-width:180px">
+            {% if tier_colour_missing is empty %}
+            {# ── THE TIER'S COLOUR ──────────────────────────────────────────
+               New field, old mechanism. EventTierPalette has shipped six named slots, a
+               separation pass and a WCAG edge guarantee for months, and nothing in the
+               admin could write the column — so every tier on the platform was NULL and
+               every surface that reads a tier colour fell back to a default. The palette
+               was complete, correct, and unreachable.
+
+               It is what colours the dot on the printed ticket AND the selection light on
+               the registration card, because both read the same resolver. So this one
+               choice is the colour the buyer sees on the page and again on the door.
+
+               A select, not a swatch grid: this sits in a row an organiser fills in while
+               thinking about prices, and six coloured targets per tier is a place people
+               stop and deliberate. The live dot beside it is drawn by a delegated listener
+               in admin.js — the admin CSP has no 'unsafe-inline', so there is no onchange
+               here and there must not be. #}
+            <label style="display:flex;align-items:center;gap:6px;font-size:12px;white-space:nowrap">
+              <span class="sr-only">Tier colour</span>
+              <span aria-hidden="true" data-tier-dot
+                    style="width:13px;height:13px;border-radius:50%;flex:none;
+                           border:1px solid rgba(16,41,44,.25);background:transparent"></span>
+              <select name="tier_colour[]" aria-label="Tier colour" x-model="r.colour"
+                      data-ag-do="tier-colour" style="width:150px">
+                <option value="">No colour</option>
+                {% for key, sw in tier_palette %}
+                  <option value="{{ key }}" data-fill="{{ sw.fill }}" data-edge="{{ sw.edge }}">{{ sw.label }}</option>
+                {% endfor %}
+              </select>
+            </label>
+            {% endif %}
             <label style="display:flex;align-items:center;gap:5px;font-size:12px;white-space:nowrap"><input type="checkbox" x-model="r.active"> On sale</label>
             <span x-show="r.sold > 0" x-cloak style="font-size:12px;color:#1a6118;font-weight:700"
                   x-text="r.sold + ' sold'"></span>

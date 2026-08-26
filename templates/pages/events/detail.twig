@@ -177,21 +177,28 @@
     transition:border-color var(--ag-dur-fast,.15s) var(--ag-ease,ease),
                background var(--ag-dur-fast,.15s) var(--ag-ease,ease),
                box-shadow var(--ag-dur,.25s) var(--ag-ease,ease); }
-  .ed-tier.is-sel{ border-color:var(--tier-hue); background:#f6fcf5; }
+  /* The BORDER takes the edge, not the identity: a pale fill as a 1.5px line on white is
+     an absence rather than a mark, and a selected-state indicator owes 3:1 (WCAG 1.4.11).
+     The colour the organiser chose is what runs the rim as light — see .ed-fx. */
+  .ed-tier.is-sel{ border-color:var(--tier-edge); background:#f6fcf5; }
   /* The persistent warm inner light on the chosen row — an INSET rim, not a wash across the
      face. A tinted face would sit behind `.ed-tier__perk` at 11.5px, and that text is
      #626a6e, which is AA on white with little room to spend. The rim carries the same
      "this one is chosen" signal and touches no text. A static value with a transition,
      never a keyframe: box-shadow is the one property here that repaints. */
-  .ed-tier.is-sel{ box-shadow:inset 0 0 0 1px color-mix(in srgb, var(--tier-hue) 22%, transparent),
-                              inset 0 1px 12px -6px color-mix(in srgb, var(--tier-hue) 55%, transparent); }
+  .ed-tier.is-sel{ box-shadow:inset 0 0 0 1px color-mix(in srgb, var(--tier-hue) 26%, transparent),
+                              inset 0 1px 12px -6px color-mix(in srgb, var(--tier-hue) 60%, transparent); }
   .ed-tier:disabled{ opacity:.5; cursor:not-allowed; }
   /* Focus is drawn on the row, and it has to survive the selected state's border change —
      an outline rather than a border swap, so the two cannot cancel each other out. */
   .ed-tier:focus-visible{ outline:2px solid var(--ag-green,#237b22); outline-offset:2px; }
   .ed-tier__radio{ flex:none; width:18px; height:18px; margin-top:2px; border-radius:50%; border:2px solid rgba(16,41,44,.25); display:flex; align-items:center; justify-content:center; }
-  .ed-tier.is-sel .ed-tier__radio{ border-color:var(--tier-hue); }
-  .ed-tier.is-sel .ed-tier__radio::after{ content:''; width:9px; height:9px; border-radius:50%; background:var(--tier-hue); }
+  /* `background: fill` inside a `1px solid edge` ring — the printed ticket's `.tk__dot`,
+     to the pixel. The organiser picks one colour and sees the same object in the admin
+     picker, on this row, and on the door. */
+  .ed-tier.is-sel .ed-tier__radio{ border-color:var(--tier-edge); }
+  .ed-tier.is-sel .ed-tier__radio::after{ content:''; width:9px; height:9px; border-radius:50%;
+    background:var(--tier-hue); box-shadow:0 0 0 1px var(--tier-edge); }
   .ed-tier__name{ font-weight:600; font-size:14px; color:var(--ag-ink); }
   .ed-tier__perk{ font-size:11.5px; color:var(--ag-ink-soft,#626a6e); }
   .ed-tier__price{ flex:none; margin-left:auto; padding-left:8px; font-family:var(--ag-font-mono,monospace); font-size:14px; font-weight:700; line-height:1.4; white-space:nowrap; color:var(--ag-ink); }
@@ -267,7 +274,10 @@
   .ed-fx__flash2{ background:conic-gradient(from 26deg, transparent 0turn, #fff .014turn, transparent .032turn); }
 
   /* 9 · the border holds after the arc has gone, then cools */
-  .ed-fx__rim{ inset:0; border-radius:20px; box-shadow:0 0 0 1.5px var(--tier-hue); }
+  /* The rim HOLDS after the arc has gone, long enough to read as a border rather than as
+     motion — so it is the one effect layer that takes the edge. Everything that moves takes
+     the identity. */
+  .ed-fx__rim{ inset:0; border-radius:20px; box-shadow:0 0 0 1.5px var(--tier-edge); }
 
   /* 10 · sparks off the top-right corner. Seven, on the peak tone only.
      They fan up and INWARD rather than out past the right edge. Outward is the obvious
@@ -647,7 +657,7 @@
       {% else %}
         <div class="ed-rsvp" id="ed-rsvp"
              :class="burst === 0 ? '' : ((burst % 2 ? 'is-a' : 'is-b') + (won ? ' is-won' : ''))"
-             :style="'--tier-hue:' + hue + ';--tier-ms:' + toneMs + 'ms;--tier-laps:' + toneLaps"
+             :style="'--tier-hue:' + hue + ';--tier-edge:' + edge + ';--tier-ms:' + toneMs + 'ms;--tier-laps:' + toneLaps"
              x-data="evReg('{{ event.slug|e('js') }}', '{{ csrf_token|e('js') }}', {{ reg_count }}, {{ tiers ? 'true' : 'false' }}, {{ access_code|default('')|json_encode }}, {{ waitlist_open|default(false) ? 'true' : 'false' }})">
 
           {# ── THE SELECTION LIGHT ────────────────────────────────────────
@@ -760,9 +770,16 @@
                         :class="tierId === {{ t.id|default(0) }} ? 'is-sel' : ''"
                         :aria-checked="tierId === {{ t.id|default(0) }} ? 'true' : 'false'"
                         :tabindex="(tierId === {{ t.id|default(0) }} || (tierId === 0 && {{ loop.first ? 'true' : 'false' }})) ? 0 : -1"
-                        style="--tier-hue:{{ tier_hues[t.id]|default('#237b22') }}"
+                        {# Two values, not one. `--tier-hue` is the colour the organiser set
+                           and it drives the light; `--tier-edge` is the palette's darker
+                           variant and it draws the border and the filled radio, which are
+                           non-text indicators of state and owe 3:1 against white (WCAG
+                           1.4.11). It is the same pair the printed ticket's dot draws —
+                           `background: fill`, `1px solid edge` — which is what makes the
+                           row here and the mark on the door the same object. #}
+                        style="--tier-hue:{{ tier_hues[t.id].hue|default('#237b22') }};--tier-edge:{{ tier_hues[t.id].edge|default('#1a6118') }}"
                         {{ shut ? 'disabled' : '' }}
-                        @click="pick({{ t.id|default(0) }}, {{ t.price_naira|default(0) }}, {{ t.max|default(10) }}, {{ (t.min|default(1)) }}, {{ gone ? 'true' : 'false' }}, {{ waitlist_counts[t.id]|default(0) }}, '{{ tone }}', '{{ tier_hues[t.id]|default('#237b22') }}')">
+                        @click="pick({{ t.id|default(0) }}, {{ t.price_naira|default(0) }}, {{ t.max|default(10) }}, {{ (t.min|default(1)) }}, {{ gone ? 'true' : 'false' }}, {{ waitlist_counts[t.id]|default(0) }}, '{{ tone }}', '{{ tier_hues[t.id].hue|default('#237b22') }}', '{{ tier_hues[t.id].edge|default('#1a6118') }}')">
                   <span class="ed-tier__radio"></span>
                   <span>
                     <span class="ed-tier__name">{{ t.name }}{% if gone %} · sold out{% endif %}</span>
@@ -1023,7 +1040,7 @@
       burst: 0,
       /* Tone and hue arrive from the pressed row rather than being worked out here: rank
          is a price question and PHP already answered it. See EventTierTone. */
-      toneMs: 950, toneLaps: 1, toneSparks: 0, hue: '#237b22',
+      toneMs: 950, toneLaps: 1, toneSparks: 0, hue: '#237b22', edge: '#1a6118',
       /* The one burst that is not a comparison. Set on a SUCCESSFUL registration and
          never on submit — see submit(). */
       won: false,
@@ -1043,11 +1060,16 @@
       TONES: { calm:{ms:950,laps:1,sparks:0}, rise:{ms:820,laps:1,sparks:0},
                peak:{ms:700,laps:2,sparks:7}, hold:{ms:1050,laps:1,sparks:0} },
 
-      pick(id, price, max, min, soldOut, wlCount, tone, hue){
+      pick(id, price, max, min, soldOut, wlCount, tone, hue, edge){
         /* The light first, so the rest of this function cannot return early past it. */
         var t = this.TONES[tone] || this.TONES.calm;
         this.toneMs = t.ms; this.toneLaps = t.laps; this.toneSparks = t.sparks;
+        /* `hue` is the colour the organiser set on this tier and it drives the light;
+           `edge` is the palette's darker variant, for the rim that HOLDS. Both come from
+           the row rather than being derived here — one resolver, in EventTierTone, so the
+           card and the printed ticket cannot come to disagree about a tier's colour. */
         this.hue = hue || '#237b22';
+        this.edge = edge || '#1a6118';
         /* A fresh selection is a comparison, not an outcome: any previous success glow is
            dropped rather than compounding into it. */
         this.won = false;

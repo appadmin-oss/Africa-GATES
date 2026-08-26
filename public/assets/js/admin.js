@@ -160,6 +160,51 @@
     }
   }
 
+  // ── THE TIER COLOUR DOT ─────────────────────────────────────────────────
+  //
+  // The swatch beside the tier-colour select on the event editor, kept in step with it.
+  // Delegated and keyed on `data-ag-do` for the same reason as everything else on this
+  // screen: the admin CSP has no 'unsafe-inline', so an inline `onchange` would silently
+  // never run and CspTest would fail the build over it.
+  //
+  // The hex comes off the chosen <option>, never from a table duplicated here. The options
+  // are rendered from EventTierPalette resolved against this event's own accent, so a copy
+  // in JS would be a second palette that drifts the first time somebody changes the accent
+  // — which is precisely the failure the slot column exists to prevent.
+  function agTierDot(sel) {
+    const wrap = sel.closest('label');
+    const dot = wrap && wrap.querySelector('[data-tier-dot]');
+    if (!dot) return;
+    const opt = sel.options[sel.selectedIndex];
+    const fill = opt && opt.getAttribute('data-fill');
+    const edge = opt && opt.getAttribute('data-edge');
+    dot.style.background = fill || 'transparent';
+    dot.style.borderColor = edge || 'rgba(16,41,44,.25)';
+  }
+
+  document.addEventListener('change', function (e) {
+    const sel = e.target.closest('[data-ag-do="tier-colour"]');
+    if (sel) agTierDot(sel);
+  });
+
+  // Alpine renders the tier rows from an x-for template, so these selects do not exist at
+  // DOMContentLoaded and are replaced whenever a row is added or removed. Bound once at
+  // load, every row added afterwards would have a dead swatch — so the list is repainted
+  // when the DOM changes, coalesced to one frame because Alpine rewrites the whole
+  // repeater on a single keystroke.
+  (function () {
+    const paint = function () {
+      document.querySelectorAll('[data-ag-do="tier-colour"]').forEach(agTierDot);
+    };
+    paint();
+    if (!window.MutationObserver) return;
+    let pending = 0;
+    new MutationObserver(function () {
+      if (pending) return;
+      pending = requestAnimationFrame(function () { pending = 0; paint(); });
+    }).observe(document.body, { childList: true, subtree: true });
+  })();
+
   // A select that submits its own form on choice — the cycle switcher on the shortlist
   // screen, and anything after it that wants the same.
   //

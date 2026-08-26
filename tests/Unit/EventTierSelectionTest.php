@@ -191,8 +191,16 @@ final class EventTierSelectionTest extends TestCase
 
         // Border, background, and a FILLED radio dot — a shape, not a colour, so the
         // selection survives greyscale and colour blindness as well as CSS being off.
-        $this->assertMatchesRegularExpression('/\.ed-tier\.is-sel\{ border-color:var\(--tier-hue\); background:#f6fcf5/', $css);
+        //
+        // The border takes `--tier-edge`, not `--tier-hue`: it is a non-text indicator of
+        // state and owes 3:1 against white (WCAG 1.4.11), and a pale fill as a 1.5px line
+        // is an absence rather than a mark. The colour the organiser chose is what runs
+        // the rim as light, where nothing is owed.
+        $this->assertMatchesRegularExpression('/\.ed-tier\.is-sel\{ border-color:var\(--tier-edge\); background:#f6fcf5/', $css);
         $this->assertStringContainsString('.ed-tier.is-sel .ed-tier__radio::after', $css);
+        // fill inside an edge ring — the printed ticket's own dot.
+        $this->assertMatchesRegularExpression(
+            '/\.ed-tier\.is-sel \.ed-tier__radio::after\{[^}]*background:var\(--tier-hue\)[^}]*var\(--tier-edge\)/', $css);
     }
 
     // ══ the light cannot overflow the page ═══════════════════════════════════
@@ -255,9 +263,10 @@ final class EventTierSelectionTest extends TestCase
         // than to nothing.
         $this->assertStringContainsString("'peak'", $html);
         $this->assertStringContainsString("'calm'", $html);
-        // And the hue is a real hex on the row itself, so the light matches the dot on
-        // the ticket rather than a fourth palette.
-        $this->assertMatchesRegularExpression('/style="--tier-hue:#[0-9a-f]{6}"/i', $html);
+        // And both hexes are on the row itself, so the light matches the swatch the
+        // organiser chose and the dot on the ticket rather than a fourth palette.
+        $this->assertMatchesRegularExpression(
+            '/style="--tier-hue:#[0-9a-f]{6};--tier-edge:#[0-9a-f]{6}"/i', $html);
     }
 
     public function test_the_premium_row_at_the_top_of_the_list_still_gets_the_peak(): void

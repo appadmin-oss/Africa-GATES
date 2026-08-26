@@ -181,25 +181,68 @@ final class EventTierTone
     }
 
     /**
-     * The sweep's colour for one tier: the event's accent ladder when the organiser has
-     * given the tier a slot, and the platform's green when they have not.
+     * The two hexes one tier's row needs: the colour the organiser chose, and an edge dark
+     * enough to be a visible line on white.
      *
-     * Returned as a hex, because it lands in a CSS custom property on the row and the
-     * animation derives the arc, the flash and the rim from it. One value in, so a
-     * mis-set slot cannot produce a card whose light and whose printed ticket disagree.
+     * ── WHY TWO AND NOT ONE ──────────────────────────────────────────────────
+     *
+     * This started as one value, the palette's `edge`, on the reasoning that a line of
+     * light 1.5px wide on a white card needs to clear 3:1 (WCAG 1.4.11). That is true of
+     * the STATIC indicators — the selected row's border and the filled radio — and it is
+     * the wrong answer for the light itself, because `edge` is a darkened derivative. An
+     * organiser who picks "Warm" and watches a dark violet run round the card has not been
+     * shown the colour they set.
+     *
+     * So: `fill` is the identity — the swatch on the picker, the dot on the printed ticket,
+     * and now the light — and `edge` is used only where a contrast obligation actually
+     * applies. That is exactly the pair the ticket's own dot already draws
+     * (`background: fill`, `1px solid edge`), which is what makes the row on the
+     * registration card and the mark on the door literally the same object.
+     *
+     * The light itself carries no contrast obligation: it is `aria-hidden`, decorative, and
+     * conveys nothing that the border, the background and the radio do not also say.
      *
      * @param array<string,mixed>|object|null $tier a tier row carrying `colour`
      * @param array<string,mixed>|object|null $event a `gates_site_events` row
+     * @return array{hue:string, edge:string}
+     */
+    public static function hues(array|object|null $tier, array|object|null $event): array
+    {
+        $resolved = EventTierPalette::forTier($tier, $event);
+
+        return $resolved !== null
+            ? ['hue' => $resolved['fill'], 'edge' => $resolved['edge']]
+            : ['hue' => self::DEFAULT_HUE, 'edge' => self::DEFAULT_EDGE];
+    }
+
+    /**
+     * The colour the organiser set, for the light.
+     *
+     * Kept as its own call because the light is the thing most callers want, and a
+     * `['hue']` at every use site reads worse than a name.
      */
     public static function hue(array|object|null $tier, array|object|null $event): string
     {
-        $resolved = EventTierPalette::forTier($tier, $event);
-        // `edge`, not `fill`. The fill is chosen to carry ink on top of it; the edge is the
-        // one guaranteed to clear 3:1 against white (WCAG 1.4.11), which is what a line of
-        // light one and a half pixels wide on a white card actually needs.
-        return $resolved !== null ? $resolved['edge'] : self::DEFAULT_HUE;
+        return self::hues($tier, $event)['hue'];
     }
 
-    /** The platform's own green, for a tier whose organiser set no colour. */
+    /** The line-on-white variant, for the border and the radio. */
+    public static function edge(array|object|null $tier, array|object|null $event): string
+    {
+        return self::hues($tier, $event)['edge'];
+    }
+
+    /**
+     * The platform's own green, for a tier whose organiser set no colour — which is still
+     * most tiers, and is a real answer rather than a missing one.
+     */
     public const DEFAULT_HUE = '#237b22';
+
+    /**
+     * And its edge. Darker than DEFAULT_HUE by the same reasoning the palette applies to
+     * every other slot: `#237b22` on white is 4.4:1, which clears 3:1 comfortably, so this
+     * is the same value — stated separately so a future change to one is a deliberate
+     * change to one.
+     */
+    public const DEFAULT_EDGE = '#1a6118';
 }

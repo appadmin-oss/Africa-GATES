@@ -245,17 +245,59 @@ final class EventTierToneTest extends TestCase
         }
     }
 
-    public function test_the_hue_is_the_edge_swatch_and_not_the_fill(): void
+    public function test_the_light_is_the_colour_the_organiser_actually_SET(): void
     {
-        // A line of light 1.5px wide on a white card needs the swatch that clears 3:1
-        // against white (WCAG 1.4.11). The `fill` is chosen to carry ink on top of it and
-        // can be pale enough to vanish as a hairline.
+        // This was `edge` at first, reasoning that a 1.5px line on a white card owes 3:1
+        // (WCAG 1.4.11). True of the STATIC indicators, wrong for the light: `edge` is a
+        // DARKENED derivative, so an organiser who chose "Warm" and watched a dark violet
+        // run round the card had not been shown the colour they set.
+        //
+        // `fill` is the identity — the swatch in the admin picker, the dot on the printed
+        // ticket, and the light. The light owes nothing: it is aria-hidden, decorative, and
+        // says nothing the border and the radio do not also say.
+        $palette = \AfricaGates\Services\EventTierPalette::fromAccent('#2a6fdb');
+
+        $this->assertSame(
+            $palette['soft']['fill'],
+            EventTierTone::hue(['colour' => 'soft'], ['ticket_accent' => '#2a6fdb'])
+        );
+    }
+
+    public function test_the_edge_is_kept_for_what_actually_owes_contrast(): void
+    {
+        // The selected row's border and the filled radio are non-text indicators of state
+        // and owe 3:1 against white. A pale fill as a hairline is an absence, not a mark.
         $palette = \AfricaGates\Services\EventTierPalette::fromAccent('#2a6fdb');
 
         $this->assertSame(
             $palette['soft']['edge'],
-            EventTierTone::hue(['colour' => 'soft'], ['ticket_accent' => '#2a6fdb'])
+            EventTierTone::edge(['colour' => 'soft'], ['ticket_accent' => '#2a6fdb'])
         );
+    }
+
+    public function test_the_pair_is_the_same_pair_the_printed_ticket_draws(): void
+    {
+        // `background: fill` inside a `1px solid edge` ring is exactly `.tk__dot` on the
+        // ticket. One choice by the organiser, the same object in the admin picker, on the
+        // registration row, and on the door.
+        $both = EventTierTone::hues(['colour' => 'bold'], ['ticket_accent' => '#b4452f']);
+        $sw   = \AfricaGates\Services\EventTierPalette::forTier(
+            ['colour' => 'bold'], ['ticket_accent' => '#b4452f']
+        );
+
+        $this->assertSame(['hue' => $sw['fill'], 'edge' => $sw['edge']], $both);
+    }
+
+    public function test_a_tier_with_no_colour_gets_a_usable_pair_too(): void
+    {
+        // Still most tiers. Neither half may come back empty: an empty --tier-hue renders
+        // as `transparent`, which is an invisible sweep and reads as the effect being
+        // broken rather than as a tier without a colour.
+        $both = EventTierTone::hues(['colour' => ''], null);
+
+        $this->assertSame(EventTierTone::DEFAULT_HUE, $both['hue']);
+        $this->assertSame(EventTierTone::DEFAULT_EDGE, $both['edge']);
+        foreach ($both as $h) $this->assertMatchesRegularExpression('/^#[0-9a-f]{6}$/i', $h);
     }
 
     public function test_a_tier_with_no_id_is_skipped_rather_than_keyed_on_zero(): void

@@ -360,6 +360,42 @@ every `@keyframes` in the file and fails any that has no paired twin — a singl
 means that layer replays only every other press, which is exactly the bug §4 exists to
 prevent and is close to invisible by eye.
 
+### 10.1a · …and the colour the organiser sets is now a colour they can set
+
+Two corrections to 10.1, both from the same discovery.
+
+**The light was the wrong swatch.** It took the palette's `edge`, reasoning that a 1.5px line
+on a white card owes 3:1 (WCAG 1.4.11). True of the STATIC indicators; wrong for the light,
+because `edge` is a darkened derivative — an organiser who picks "Warm" and watches a dark
+violet run the rim has not been shown the colour they set.
+
+`fill` is the identity now — the swatch in the admin picker, the dot on the printed ticket, and
+the light — and `edge` is used only where a contrast obligation actually applies: the selected
+row's border, the radio's ring, and the rim that HOLDS after the arc has gone. That is exactly
+the pair the ticket's own `.tk__dot` draws (`background: fill`, `1px solid edge`), which is what
+makes the row on the card and the mark on the door the same object. The light owes nothing: it
+is `aria-hidden`, decorative, and says nothing the border and the radio do not also say.
+
+**And there was no field.** `EventTierPalette` shipped six named slots, a redmean separation
+pass, a per-swatch `edge` guarantee and a migration for the column. The printed ticket read it.
+A test asserted that changing an event's accent moves the tier's colour with it. **Nothing in
+the admin could write it** — no field on the event form, and `saveTiers()` did not read one — so
+`gates_event_tiers.colour` was NULL for every tier on the platform and every surface fell back
+to a default. The whole mechanism, complete and correct, with no route in: the third instance
+of the pattern in `docs/CODEBASE-INDEX.md` §18.
+
+So the event editor has the picker now: a select per tier row rendered from
+`EventTierPalette::SLOTS`, a strip above the list showing the six slots resolved against this
+event's accent so "Warm" is recognisable before it is chosen, and a live dot beside the select
+drawn by a delegated `data-ag-do="tier-colour"` listener — the admin CSP has no
+`'unsafe-inline'`, so an inline `onchange` would silently never run. Guarded with
+`OptionalColumn`, because `colour` arrived on its own dated migration and writing an absent
+column inside `saveTiers()`' try/catch would have lost the whole tier silently.
+
+Verified: on an event accented `#2A6FDB`, a `cool` tier's light paints
+`rgb(42, 211, 219)` against a `#1DA4AB` border, a `warm` tier's `rgb(73, 42, 219)`, and a
+`bold` tier's `rgb(208, 75, 53)` — each row's own choice, each arc in it.
+
 ### 10.5 · Still open
 
 1. **Mid-range Android.** Not measured. Headless Chromium on a server cannot stand in for it.

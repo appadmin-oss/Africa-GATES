@@ -22,7 +22,7 @@ final class Dump extends \Tests\TestCase
             'status' => 'published', 'ticket_accent' => '#2a6fdb',
             
         ]);
-        foreach ([['General', 5000, '', 1], ['Supporter', 25000, 'warm', 2], ['Patron', 380000, 'deep', 3]] as [$n, $p, $c, $o]) {
+        foreach ([['General', 5000, 'cool', 1], ['Supporter', 25000, 'warm', 2], ['Patron', 380000, 'bold', 3]] as [$n, $p, $c, $o]) {
             \Illuminate\Database\Capsule\Manager::table('gates_event_tiers')->insert([
                 'event_id' => $ev, 'slug' => strtolower($n), 'name' => $n, 'price_naira' => $p,
                 'capacity' => 100, 'colour' => $c, 'is_active' => 1, 'sort_order' => $o,
