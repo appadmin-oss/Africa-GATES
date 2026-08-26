@@ -909,6 +909,73 @@ class EventsController
      * the date held before they decide — and a login between them and that is how the date
      * gets forgotten instead.
      */
+    /**
+     * The "I will be there" flier, as a PNG.
+     *
+     * ── 410, NOT 404, AND NOT AN IMAGE ───────────────────────────────────────
+     *
+     * A past or cancelled event refuses. The handoff is blunt about why and it is right: a
+     * live QR on a finished event is worse than no flier, because somebody scans it, finds
+     * nothing to buy, and concludes the platform is broken. 410 Gone rather than 404 because
+     * the address WAS valid and the thing behind it has ended — which is the distinction a
+     * cache respects.
+     *
+     * ── AND NO REGISTRATION ID IN THE URL ────────────────────────────────────
+     *
+     * The flier prints a name. `?reg=8814` would let anybody who can count render a stranger's
+     * name and tier over this event's branding, and the platform would have generated it. The
+     * payload travels inside a signed token instead — see EventFlierToken, which also explains
+     * why every failure returns the same answer.
+     */
+    public function flier(Request $req, Response $res, array $args): Response
+    {
+        $q     = $req->getQueryParams();
+        $fmt   = strtolower(trim((string) ($q['fmt'] ?? 'plain')));
+        $token = (string) ($q['t'] ?? '');
+
+        if (!\AfricaGates\Services\EventFlierLayout::valid($fmt)) $fmt = 'plain';
+
+        $f = \AfricaGates\Services\EventFlier::forToken(
+            $token, \AfricaGates\Support\SiteUrl::base($req)
+        );
+
+        // One answer for every refusal: expired, forged, wrong event, past, cancelled. A route
+        // that distinguished them would be an oracle for guessing at the signing key, and
+        // there is nothing a caller could usefully do differently with the distinction.
+        if ($f === null) {
+            $res->getBody()->write('This flier is no longer available.');
+            return $res->withStatus(410)->withHeader('Content-Type', 'text/plain; charset=utf-8');
+        }
+
+        // The event in the token has to be the event in the URL. Without this a token minted
+        // for one event renders under another's slug — the image would be right and the
+        // address would be a lie, which is the kind of thing that gets screenshotted.
+        if (trim((string) ($f['event']['slug'] ?? '')) !== trim((string) ($args['slug'] ?? ''))) {
+            $res->getBody()->write('This flier is no longer available.');
+            return $res->withStatus(410)->withHeader('Content-Type', 'text/plain; charset=utf-8');
+        }
+
+        $png = (new \AfricaGates\Services\EventFlier())->png($f, $fmt);
+        if ($png === null) {
+            // Nothing drawn rather than a broken graphic: without GD or the bundled faces this
+            // would render in GD's built-in bitmap font, which is not a degraded flier but a
+            // graphic somebody would think we meant to make.
+            $res->getBody()->write('The flier could not be generated on this server.');
+            return $res->withStatus(503)->withHeader('Content-Type', 'text/plain; charset=utf-8');
+        }
+
+        $res->getBody()->write($png);
+
+        return $res
+            ->withHeader('Content-Type', 'image/png')
+            ->withHeader('Content-Length', (string) strlen($png))
+            // Cached per token and format, and the token carries its own expiry — so a flier
+            // that upgrades from open to confirmed gets a NEW token and therefore a new URL,
+            // rather than being served a stale image from before the payment landed.
+            ->withHeader('Cache-Control', 'private, max-age=900')
+            ->withHeader('X-Robots-Tag', 'noindex, nofollow');
+    }
+
     public function calendar(Request $req, Response $res, array $args): Response
     {
         $slug  = trim((string) ($args['slug'] ?? ''));

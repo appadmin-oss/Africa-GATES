@@ -1967,6 +1967,13 @@ return function(App $app) {
         // irreversible step rather than after it.
         $g->post('/events/ticket/{ref:[A-Za-z0-9\-]{8,60}}/cancel-quote', EventsController::class.':cancelQuote');
         $g->post('/events/ticket/{ref:[A-Za-z0-9\-]{8,60}}/cancel',       EventsController::class.':cancel');
+        // The "I will be there" flier. BEFORE `/events/{slug}`, like the calendar above it, or
+        // `{slug}` swallows it.
+        //
+        // GET and a signed token, never a registration id: the flier prints a NAME, so an
+        // enumerable address would let anybody render a stranger's name over this event's
+        // branding and post it. See EventFlierToken.
+        $g->get('/events/{slug}/flier.png', EventsController::class.':flier');
         $g->get('/events/{slug}/calendar.ics', EventsController::class.':calendar');
         // ── TRADING AT AN EVENT ───────────────────────────────────────
         //
