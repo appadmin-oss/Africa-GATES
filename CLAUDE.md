@@ -133,6 +133,20 @@ Full account in `docs/CODEBASE-INDEX.md` §16.
   opening its URL. Each part was complete and correct in isolation. `docs/CODEBASE-INDEX.md`
   §18.
 
+## Two things about the events page's tier list
+
+**A tier's colour is a slot, never a hex.** `EventTierPalette` resolves it from the event's
+own `ticket_accent` on every read, so changing the accent moves the whole ladder — including
+the selection light on the registration card and the dot on the printed ticket, which read
+the same value for that reason. Do not add a colour picker, and do not invent a palette for
+a new surface: `EventTierTone::hue()` is the one resolver.
+
+**Tiers are ordered by `sort_order`, not by price.** So `loop.last` is whichever row the
+organiser dragged to the bottom, and rank is a price question answered in `EventTierTone`.
+A design handoff asked for `loop.index0` here; it would have made the cheapest tier sweep
+hardest for any organiser who puts their premium row first, and nothing about that failure
+is visible from the template.
+
 ## House style
 
 Comments explain *why*, and name the failure the code exists to prevent — this codebase is

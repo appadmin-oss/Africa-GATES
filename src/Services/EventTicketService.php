@@ -107,6 +107,12 @@ final class EventTicketService
                 'min'         => max(1, (int) ($t->min_per_order ?? 1)),
                 'max'         => self::maxPerOrder($t),
                 'unlocked'    => $gate !== '',
+                // The palette SLOT, not a hex. A tier does not know its own colour — see
+                // EventTierPalette — so this is carried through raw and resolved against
+                // the event wherever it is drawn. The registration card's selection light
+                // and the dot on the printed ticket read the same value, which is the only
+                // way they cannot come to disagree.
+                'colour'      => (string) ($t->colour ?? ''),
             ] + $a;
         }
         return $out;

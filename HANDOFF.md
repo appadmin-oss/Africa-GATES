@@ -760,3 +760,63 @@ operand for a duplicate key, so a fixture written `[...defaults] + $over` silent
 every override. Four tests asserted against the same unmodified row and looked like a
 template bug. And the transcript lives in `gates_nominee_interviews`, not a table named for
 transcripts — check the schema, not the fixture.
+
+---
+
+## 16. The cinematic tier selection (26 Aug 2026)
+
+Built from `docs/design-handoffs/ticket-tier-effect.md`, which is the handoff as received with
+**⟶ BUILT** notes inline where the implementation differs and its three open decisions
+answered in a new §10. Read that file rather than this section if you are changing the effect;
+what follows is only what a future reader needs to know before touching anything near it.
+
+### The design file was not in the attachment
+
+`Ticket Tier Effect.dc.html` (option 6B) was referenced but not provided, so the `TONES`
+object §5c says to "port verbatim" could not be ported. Everything specified in prose — four
+durations, lap counts, spark counts, the ten layers' timing multipliers, the 520ms row press,
+the 1.075 total beat, the .42 rack focus — was taken exactly. The gradients were authored from
+one `--tier-hue` per row. If the file turns up, the arc and flash gradients are four lines in
+`templates/pages/events/detail.twig` and nothing else depends on their shape.
+
+### Three things the handoff specified that were wrong for this codebase
+
+- **`loop.index0` for rank.** Tiers are ordered by `sort_order`. See CLAUDE.md.
+- **Glow discs extending 22px past the card.** The sidebar gutter at 390px is 16px. `box-shadow`
+  does not contribute to scroll width, so the bloom is a shadow on layers pinned to `inset:0`
+  and the 390px check passes by construction. Measured: `scrollWidth == clientWidth` at 390,
+  360, 320, 768, 1280.
+- **`aria-pressed` on buttons.** The list it described had *no* selected state exposed to
+  assistive tech at all — colour alone, WCAG 1.4.1, plus no name/role/value (4.1.2). It is a
+  `role="radiogroup"` with `aria-checked`, a roving tabindex and arrow keys now, which is both
+  the accessibility fix and the convention for picking one of a set.
+
+### If you touch the effect, two things will bite
+
+**Every `@keyframes` needs a paired twin.** A finished CSS animation does not restart when the
+same `animation-name` is re-applied, and pressing one tier twice is what people do while
+comparing. The card carries `.is-a`/`.is-b` by `burst % 2` and the *name change* is the
+restart. `EventTierSelectionTest::test_the_burst_counter_is_what_makes_a_repeat_press_replay`
+walks every keyframe in the file and fails any without a twin — one missing `B` means that
+layer replays only every other press, which is close to invisible by eye.
+
+**Do not add `overflow:hidden` to `.ed-rsvp`.** It clips the whole effect, and the symptom is
+"the animation does not work" with nothing pointing at that line. The one place `overflow:hidden`
+is correct is `.ed-fx__ring`, which is what confines the rotating conic gradients to the rim.
+
+### And a false positive worth knowing about
+
+`EventReferralPromptTest` asserts a page that promises 8% does not also say `10%` anywhere.
+It was searching the raw body — 109KB including the inline stylesheet — and a CSS keyframe stop
+is spelled `10%`. Adding `@keyframes edLapA{ … 10%{opacity:1} … }` failed it instantly, on a
+page that was correct everywhere a reader could look. The guard now strips `<style>`, `<script>`
+and inline `style` attributes first and keeps its full strength over visible text. The same
+latent trap would have fired on an event that happened to be 10% full, via the progress bar's
+`width:10%`.
+
+### What is still open
+
+**Mid-range Android.** Not measured — headless Chromium on a server cannot stand in for it. The
+element budget is 10 layers on `calm`/`rise`/`hold` and 18 on `peak`, everything is `transform`
+or `opacity`, and the two `box-shadow` values are static and crossfaded rather than keyframed.
+It should be fine. It has not been proven fine on the device it runs on.

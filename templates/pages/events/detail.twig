@@ -164,15 +164,202 @@
   .ed-sold__fill{ display:block; height:100%; border-radius:5px; background:linear-gradient(90deg,#d49a0e,#fbc329); }
   /* align-items:flex-start, not center: a tier with three perks is a tall card, and a radio
      floating halfway down one reads as belonging to whichever perk it happens to sit beside. */
-  .ed-tier{ width:100%; text-align:left; border:1.5px solid rgba(16,41,44,.12); background:#fff; border-radius:13px; padding:12px 14px; display:flex; align-items:flex-start; gap:11px; cursor:pointer; margin-top:9px; font-family:inherit; }
-  .ed-tier.is-sel{ border-color:var(--ag-green); background:#f6fcf5; }
+  /* min-height, not just padding: a one-line tier row came to 43.6px, which clears WCAG
+     2.5.8's 24px AA floor but misses 2.5.5's 44px and Android's 48dp guidance. This is a
+     row people press three or four times while comparing, on a phone, with a thumb. */
+  .ed-tier{ position:relative; width:100%; min-height:48px; text-align:left; border:1.5px solid rgba(16,41,44,.12); background:#fff; border-radius:13px; padding:12px 14px; display:flex; align-items:flex-start; gap:11px; cursor:pointer; margin-top:9px; font-family:inherit;
+    /* The tone's own colour, overridden per row from the event's accent ladder. Declared
+       here so a row whose hue never arrives still animates in the platform's green rather
+       than in `transparent`, which is invisible and reads as the effect being broken. */
+    --tier-hue:var(--ag-green,#237b22);
+    --tier-ms:950ms;
+    --tier-heat:.34;
+    transition:border-color var(--ag-dur-fast,.15s) var(--ag-ease,ease),
+               background var(--ag-dur-fast,.15s) var(--ag-ease,ease),
+               box-shadow var(--ag-dur,.25s) var(--ag-ease,ease); }
+  .ed-tier.is-sel{ border-color:var(--tier-hue); background:#f6fcf5; }
+  /* The persistent warm inner light on the chosen row — an INSET rim, not a wash across the
+     face. A tinted face would sit behind `.ed-tier__perk` at 11.5px, and that text is
+     #626a6e, which is AA on white with little room to spend. The rim carries the same
+     "this one is chosen" signal and touches no text. A static value with a transition,
+     never a keyframe: box-shadow is the one property here that repaints. */
+  .ed-tier.is-sel{ box-shadow:inset 0 0 0 1px color-mix(in srgb, var(--tier-hue) 22%, transparent),
+                              inset 0 1px 12px -6px color-mix(in srgb, var(--tier-hue) 55%, transparent); }
   .ed-tier:disabled{ opacity:.5; cursor:not-allowed; }
+  /* Focus is drawn on the row, and it has to survive the selected state's border change —
+     an outline rather than a border swap, so the two cannot cancel each other out. */
+  .ed-tier:focus-visible{ outline:2px solid var(--ag-green,#237b22); outline-offset:2px; }
   .ed-tier__radio{ flex:none; width:18px; height:18px; margin-top:2px; border-radius:50%; border:2px solid rgba(16,41,44,.25); display:flex; align-items:center; justify-content:center; }
-  .ed-tier.is-sel .ed-tier__radio{ border-color:var(--ag-green); }
-  .ed-tier.is-sel .ed-tier__radio::after{ content:''; width:9px; height:9px; border-radius:50%; background:var(--ag-green); }
+  .ed-tier.is-sel .ed-tier__radio{ border-color:var(--tier-hue); }
+  .ed-tier.is-sel .ed-tier__radio::after{ content:''; width:9px; height:9px; border-radius:50%; background:var(--tier-hue); }
   .ed-tier__name{ font-weight:600; font-size:14px; color:var(--ag-ink); }
   .ed-tier__perk{ font-size:11.5px; color:var(--ag-ink-soft,#626a6e); }
   .ed-tier__price{ flex:none; margin-left:auto; padding-left:8px; font-family:var(--ag-font-mono,monospace); font-size:14px; font-weight:700; line-height:1.4; white-space:nowrap; color:var(--ag-ink); }
+
+  /* ══════════════════════════════════════════════════════════════════════════
+     THE SELECTION LIGHT
+     ══════════════════════════════════════════════════════════════════════════
+
+     Choosing a tier is COMPARISON, not commitment — people press General, Supporter,
+     Patron, then General again. So the press gets light rather than particles, and the
+     light travels the card's RIM. Nothing crosses the card's face: an overlay there dims
+     the price somebody is in the middle of reading, which is the one thing they came for.
+
+     Everything below animates `transform` or `opacity` and nothing else, so the whole
+     effect composites and the sidebar never repaints. The two exceptions are stated where
+     they are: the chosen row's inner rim and the card's lift shadow are static box-shadow
+     values crossfaded by opacity, because box-shadow as a keyframe repaints every frame.
+
+     ── ON NOT USING DISCS THAT BLEED PAST THE CARD ─────────────────────────
+
+     The design put the bloom on absolutely-positioned discs extending ~22px beyond the
+     card. At 390px the sidebar's gutter is not 22px, and an element that wide is a
+     horizontal scrollbar on the whole document. `box-shadow` does not contribute to scroll
+     width — only element boxes do — so the bloom is a shadow on a layer pinned to the
+     card's own bounds. Same light, no geometry outside the card, and the 390px check
+     cannot fail by construction rather than by measurement.
+
+     ── AND ON RESTARTING ──────────────────────────────────────────────────
+
+     A finished CSS animation does NOT restart when the same `animation-name` is re-applied.
+     Pressing one tier twice would do nothing at all. Every animated thing here therefore
+     has two identical keyframe sets under different names, and the card carries `.is-a` or
+     `.is-b` by `burst % 2`. The NAME CHANGE is what restarts it. This is the mechanism the
+     handoff called out as the one not to simplify, and it is used for every layer rather
+     than only the focusable ones — re-keying a subtree in Alpine means an `x-for` over a
+     one-item array, which churns the DOM on every press for no gain.
+     ══════════════════════════════════════════════════════════════════════════ */
+
+  .ed-rsvp{ position:relative; }
+  /* NOT overflow:hidden on the card — it would clip the whole effect. */
+  .ed-fx{ position:absolute; inset:0; border-radius:20px; pointer-events:none; z-index:0; }
+  .ed-fx > *{ position:absolute; opacity:0; will-change:transform,opacity; }
+  /* Everything in the card's own content sits above the light. Scoped to the registration
+     card by ID: `.ed-rsvp` is also the class on the share panel and on the fully-booked and
+     past-event cards, and giving every child of those a stacking context to solve a problem
+     they do not have is how a change to one card turns up as a bug on another. */
+  #ed-rsvp > *:not(.ed-fx){ position:relative; z-index:1; }
+
+  /* 1–2 · the lift. A pre-painted shadow crossfaded in, so the card rises without a
+     box-shadow keyframe. Two layers: neutral depth, then the tier's own colour. */
+  .ed-fx__lift, .ed-fx__lifttint{ inset:0; border-radius:20px; }
+  .ed-fx__lift{ box-shadow:0 26px 46px -22px rgba(16,41,44,.44); }
+  .ed-fx__lifttint{ box-shadow:0 22px 40px -20px color-mix(in srgb, var(--tier-hue) 70%, transparent); }
+
+  /* 3 · the bloom out from the perimeter */
+  .ed-fx__glow{ inset:0; border-radius:20px;
+    box-shadow:0 0 0 1.5px color-mix(in srgb, var(--tier-hue) 70%, transparent),
+               0 0 18px 2px color-mix(in srgb, var(--tier-hue) 45%, transparent); }
+
+  /* 4 · the strike point, where the light enters at the top edge */
+  .ed-fx__impact{ top:-1px; left:50%; width:34%; height:3px; border-radius:999px; transform:translateX(-50%) scaleX(.2);
+    background:linear-gradient(90deg,transparent,color-mix(in srgb, var(--tier-hue) 85%, #fff),transparent); }
+
+  /* 5–8 · the arcs. The ring is what confines the rotating conic gradients to the rim: its
+     radius stays 2px larger than the card's, and it is the ONE place overflow:hidden is
+     correct. The card's own opaque face masks the middle, which is why only the lit edge
+     is ever visible. */
+  .ed-fx__ring{ position:absolute; inset:-2px; border-radius:22px; overflow:hidden; opacity:1; }
+  .ed-fx__ring > *{ position:absolute; inset:-40%; opacity:0; will-change:transform,opacity; }
+  .ed-fx__tail{ background:conic-gradient(from -52deg, transparent 0turn, color-mix(in srgb, var(--tier-hue) 40%, transparent) .04turn, transparent .1turn); }
+  .ed-fx__head{ background:conic-gradient(from 0deg, transparent 0turn, var(--tier-hue) .035turn, transparent .075turn); }
+  .ed-fx__flash{ background:conic-gradient(from 26deg, transparent 0turn, #fff .018turn, transparent .04turn); }
+  .ed-fx__flash2{ background:conic-gradient(from 26deg, transparent 0turn, #fff .014turn, transparent .032turn); }
+
+  /* 9 · the border holds after the arc has gone, then cools */
+  .ed-fx__rim{ inset:0; border-radius:20px; box-shadow:0 0 0 1.5px var(--tier-hue); }
+
+  /* 10 · sparks off the top-right corner. Seven, on the peak tone only.
+     They fan up and INWARD rather than out past the right edge. Outward is the obvious
+     direction and it is the one that puts a positioned element ~25px beyond the card — at
+     390px the sidebar's gutter is 16px, and an element wider than its gutter is a
+     horizontal scrollbar on the whole document. Up-and-left sheds off the same corner,
+     stays inside the card's width by construction, and only ever bleeds vertically, which
+     cannot scroll anything. */
+  .ed-fx__spark{ top:7px; right:16px; width:3px; height:3px; border-radius:50%;
+    background:color-mix(in srgb, var(--tier-hue) 30%, #fff); }
+
+  /* ── the keyframes, twice each ─────────────────────────────────────────── */
+  @keyframes edLiftA{ 0%{opacity:0;transform:translateY(6px)} 30%{opacity:1;transform:translateY(0)} 100%{opacity:0;transform:translateY(0)} }
+  @keyframes edLiftB{ 0%{opacity:0;transform:translateY(6px)} 30%{opacity:1;transform:translateY(0)} 100%{opacity:0;transform:translateY(0)} }
+  @keyframes edGlowA{ 0%{opacity:0;transform:scale(.985)} 22%{opacity:1;transform:scale(1)} 100%{opacity:0;transform:scale(1)} }
+  @keyframes edGlowB{ 0%{opacity:0;transform:scale(.985)} 22%{opacity:1;transform:scale(1)} 100%{opacity:0;transform:scale(1)} }
+  @keyframes edImpactA{ 0%{opacity:0;transform:translateX(-50%) scaleX(.2)} 18%{opacity:1;transform:translateX(-50%) scaleX(1)} 100%{opacity:0;transform:translateX(-50%) scaleX(1.15)} }
+  @keyframes edImpactB{ 0%{opacity:0;transform:translateX(-50%) scaleX(.2)} 18%{opacity:1;transform:translateX(-50%) scaleX(1)} 100%{opacity:0;transform:translateX(-50%) scaleX(1.15)} }
+  /* The head overshoots to 1.055turn and settles — the arc arriving back at the strike
+     point and rocking, rather than stopping dead on the number it was aiming at. */
+  @keyframes edArcA{ 0%{opacity:0;transform:rotate(0turn)} 8%{opacity:1} 88%{transform:rotate(calc(var(--tier-laps,1) * 1turn + .055turn))} 100%{opacity:0;transform:rotate(calc(var(--tier-laps,1) * 1turn))} }
+  @keyframes edArcB{ 0%{opacity:0;transform:rotate(0turn)} 8%{opacity:1} 88%{transform:rotate(calc(var(--tier-laps,1) * 1turn + .055turn))} 100%{opacity:0;transform:rotate(calc(var(--tier-laps,1) * 1turn))} }
+  @keyframes edLapA{ 0%{opacity:0;transform:rotate(0turn)} 10%{opacity:1} 100%{opacity:0;transform:rotate(1turn)} }
+  @keyframes edLapB{ 0%{opacity:0;transform:rotate(0turn)} 10%{opacity:1} 100%{opacity:0;transform:rotate(1turn)} }
+  @keyframes edRimA{ 0%{opacity:0} 12%{opacity:1} 62%{opacity:1} 100%{opacity:0} }
+  @keyframes edRimB{ 0%{opacity:0} 12%{opacity:1} 62%{opacity:1} 100%{opacity:0} }
+  @keyframes edSparkA{ 0%{opacity:0;transform:translate(0,0) scale(1)} 12%{opacity:1} 100%{opacity:0;transform:translate(var(--sx,10px),var(--sy,-14px)) scale(.3)} }
+  @keyframes edSparkB{ 0%{opacity:0;transform:translate(0,0) scale(1)} 12%{opacity:1} 100%{opacity:0;transform:translate(var(--sx,10px),var(--sy,-14px)) scale(.3)} }
+  /* Anticipation dip, then lift. 520ms fixed, not scaled by tone: this is the physical
+     press and it feels the same whichever row it is. */
+  @keyframes edRowA{ 0%{transform:translateY(0)} 12%{transform:translateY(1.5px)} 46%{transform:translateY(-3px)} 100%{transform:translateY(0)} }
+  @keyframes edRowB{ 0%{transform:translateY(0)} 12%{transform:translateY(1.5px)} 46%{transform:translateY(-3px)} 100%{transform:translateY(0)} }
+  /* Rack focus: the rows you did NOT choose fall back while the light passes. .42 opacity
+     on 11.5px body text would fail contrast if it held — it does not hold, and the state
+     it returns to is the legible one. */
+  @keyframes edDimA{ 0%{opacity:1} 34%{opacity:.42} 100%{opacity:1} }
+  @keyframes edDimB{ 0%{opacity:1} 34%{opacity:.42} 100%{opacity:1} }
+  /* The total is what actually changed, so it takes a beat as the arc reaches it. */
+  @keyframes edTotalA{ 0%{transform:scale(1)} 40%{transform:scale(1.075)} 100%{transform:scale(1)} }
+  @keyframes edTotalB{ 0%{transform:scale(1)} 40%{transform:scale(1.075)} 100%{transform:scale(1)} }
+
+  /* ── wiring the names to the A/B flip ─────────────────────────────────────
+     `.is-a` / `.is-b` is `burst % 2`, and neither is present until the first press — so
+     nothing animates on page load. Each `animation-duration` is the tone's `ms` times the
+     multiplier from the design's layer table. */
+  .ed-rsvp.is-a .ed-fx__lift{ animation:edLiftA calc(var(--tier-ms) * 1.35) var(--ag-ease,ease) both; }
+  .ed-rsvp.is-b .ed-fx__lift{ animation:edLiftB calc(var(--tier-ms) * 1.35) var(--ag-ease,ease) both; }
+  .ed-rsvp.is-a .ed-fx__lifttint{ animation:edLiftA calc(var(--tier-ms) * 1.5) var(--ag-ease,ease) both; }
+  .ed-rsvp.is-b .ed-fx__lifttint{ animation:edLiftB calc(var(--tier-ms) * 1.5) var(--ag-ease,ease) both; }
+  .ed-rsvp.is-a .ed-fx__glow{ animation:edGlowA calc(var(--tier-ms) * 1.2) var(--ag-ease,ease) both; }
+  .ed-rsvp.is-b .ed-fx__glow{ animation:edGlowB calc(var(--tier-ms) * 1.2) var(--ag-ease,ease) both; }
+  .ed-rsvp.is-a .ed-fx__impact{ animation:edImpactA calc(var(--tier-ms) * .72) var(--ag-ease,ease) both; }
+  .ed-rsvp.is-b .ed-fx__impact{ animation:edImpactB calc(var(--tier-ms) * .72) var(--ag-ease,ease) both; }
+  .ed-rsvp.is-a .ed-fx__tail{ animation:edArcA calc(var(--tier-ms) * 1.34) var(--ag-ease,ease) both; }
+  .ed-rsvp.is-b .ed-fx__tail{ animation:edArcB calc(var(--tier-ms) * 1.34) var(--ag-ease,ease) both; }
+  .ed-rsvp.is-a .ed-fx__head{ animation:edArcA var(--tier-ms) var(--ag-ease,ease) both; }
+  .ed-rsvp.is-b .ed-fx__head{ animation:edArcB var(--tier-ms) var(--ag-ease,ease) both; }
+  .ed-rsvp.is-a .ed-fx__flash{ animation:edArcA calc(var(--tier-ms) * .96) var(--ag-ease,ease) both; }
+  .ed-rsvp.is-b .ed-fx__flash{ animation:edArcB calc(var(--tier-ms) * .96) var(--ag-ease,ease) both; }
+  /* The second, faster lap. Rendered only on the peak tone — see the markup — so this
+     selector matches nothing on the other three. */
+  .ed-rsvp.is-a .ed-fx__flash2{ animation:edLapA calc(var(--tier-ms) * .62) var(--ag-ease,ease) calc(var(--tier-ms) * .34) both; }
+  .ed-rsvp.is-b .ed-fx__flash2{ animation:edLapB calc(var(--tier-ms) * .62) var(--ag-ease,ease) calc(var(--tier-ms) * .34) both; }
+  .ed-rsvp.is-a .ed-fx__rim{ animation:edRimA calc(var(--tier-ms) * 1.5) var(--ag-ease,ease) calc(var(--tier-ms) * .5) both; }
+  .ed-rsvp.is-b .ed-fx__rim{ animation:edRimB calc(var(--tier-ms) * 1.5) var(--ag-ease,ease) calc(var(--tier-ms) * .5) both; }
+  .ed-rsvp.is-a .ed-fx__spark{ animation:edSparkA calc(var(--tier-ms) * .62) var(--ag-ease,ease) var(--sd,0ms) both; }
+  .ed-rsvp.is-b .ed-fx__spark{ animation:edSparkB calc(var(--tier-ms) * .62) var(--ag-ease,ease) var(--sd,0ms) both; }
+  .ed-rsvp.is-a .ed-tier.is-sel{ animation:edRowA 520ms var(--ag-ease,ease) both; }
+  .ed-rsvp.is-b .ed-tier.is-sel{ animation:edRowB 520ms var(--ag-ease,ease) both; }
+  .ed-rsvp.is-a .ed-tier:not(.is-sel){ animation:edDimA calc(var(--tier-ms) * .9) var(--ag-ease,ease) both; }
+  .ed-rsvp.is-b .ed-tier:not(.is-sel){ animation:edDimB calc(var(--tier-ms) * .9) var(--ag-ease,ease) both; }
+  .ed-rsvp.is-a .ed-total{ animation:edTotalA calc(var(--tier-ms) * .8) var(--ag-ease,ease) both; }
+  .ed-rsvp.is-b .ed-total{ animation:edTotalB calc(var(--tier-ms) * .8) var(--ag-ease,ease) both; }
+  .ed-total{ display:inline-block; transform-origin:left center; }
+
+  /* The one burst that is not a comparison. Register happens once, and it fires on a
+     SUCCESSFUL response — never on submit. A burst followed by a payment error is worse
+     than no burst. */
+  .ed-rsvp.is-won .ed-fx__glow, .ed-rsvp.is-won .ed-fx__rim{ animation-duration:1400ms; }
+
+  /* ── reduced motion ────────────────────────────────────────────────────────
+     Collapsed to .01ms rather than `none`, so `animationend` still fires and nothing is
+     left waiting on it. Nothing is lost, because nothing was carried by the animation:
+     the border, the background, the inner rim and the filled radio are all static state
+     and all still there. */
+  @media (prefers-reduced-motion: reduce){
+    .ed-fx{ display:none; }
+    .ed-rsvp.is-a .ed-tier.is-sel, .ed-rsvp.is-b .ed-tier.is-sel,
+    .ed-rsvp.is-a .ed-tier:not(.is-sel), .ed-rsvp.is-b .ed-tier:not(.is-sel),
+    .ed-rsvp.is-a .ed-total, .ed-rsvp.is-b .ed-total{ animation-duration:.01ms !important; }
+    .ed-tier{ transition:none; }
+  }
   /* share / calendar */
   .ed-share{ display:flex; gap:9px; margin-top:4px; }
   .ed-share button{ flex:1; cursor:pointer; border:1px solid rgba(16,41,44,.14); background:#fff; color:#10292C; font-family:inherit; font-size:13px; font-weight:600; padding:10px; border-radius:11px; display:flex; align-items:center; justify-content:center; gap:7px; }
@@ -458,7 +645,49 @@
           <p class="ed-past">All {{ capacity }} places have been reserved. Join the <a href="/community" style="color:var(--ag-green);font-weight:600">community</a> to hear first about the next one — and any released places.</p>
         </div>
       {% else %}
-        <div class="ed-rsvp" id="ed-rsvp" x-data="evReg('{{ event.slug|e('js') }}', '{{ csrf_token|e('js') }}', {{ reg_count }}, {{ tiers ? 'true' : 'false' }}, {{ access_code|default('')|json_encode }}, {{ waitlist_open|default(false) ? 'true' : 'false' }})">
+        <div class="ed-rsvp" id="ed-rsvp"
+             :class="burst === 0 ? '' : ((burst % 2 ? 'is-a' : 'is-b') + (won ? ' is-won' : ''))"
+             :style="'--tier-hue:' + hue + ';--tier-ms:' + toneMs + 'ms;--tier-laps:' + toneLaps"
+             x-data="evReg('{{ event.slug|e('js') }}', '{{ csrf_token|e('js') }}', {{ reg_count }}, {{ tiers ? 'true' : 'false' }}, {{ access_code|default('')|json_encode }}, {{ waitlist_open|default(false) ? 'true' : 'false' }})">
+
+          {# ── THE SELECTION LIGHT ────────────────────────────────────────
+             Ten layers, all `transform`/`opacity`, all confined to the card's own bounds —
+             see the stylesheet for why the bloom is a shadow rather than a disc that bleeds
+             past the card, and for why every keyframe exists twice.
+
+             `aria-hidden` and `pointer-events:none`: it carries no text, no meaning and no
+             target. Everything it says is also said by the border, the background, the
+             inner rim and the filled radio, which is what makes it safe to remove entirely
+             under `prefers-reduced-motion`. #}
+          <span class="ed-fx" aria-hidden="true">
+            <span class="ed-fx__lift"></span>
+            <span class="ed-fx__lifttint"></span>
+            <span class="ed-fx__glow"></span>
+            <span class="ed-fx__impact"></span>
+            <span class="ed-fx__ring">
+              <span class="ed-fx__tail"></span>
+              <span class="ed-fx__head"></span>
+              <span class="ed-fx__flash"></span>
+              {# The second lap, on the peak tone only. Rendered conditionally rather than
+                 hidden, so a calm press is four animated elements and not twelve — the
+                 budget matters on the mid-range Android this actually runs on. #}
+              <template x-if="toneLaps > 1">
+                <span class="ed-fx__flash2"></span>
+              </template>
+            </span>
+            <span class="ed-fx__rim"></span>
+            {# Seven sparks, peak tone only. The offsets are fixed per index rather than
+               random: a random spray differs on every press, and a press people make four
+               times in a row should look like the same event happening again.
+
+               `--sx` is negative — up and to the LEFT. See the stylesheet: outward past the
+               right edge is what would put a positioned element outside its own gutter. #}
+            <template x-for="i in toneSparks" :key="i">
+              <span class="ed-fx__spark"
+                    :style="'--sx:' + (-2 - i * 3.4) + 'px;--sy:' + (-5 - i * 2.8) + 'px;--sd:' + (i * 26) + 'ms'"></span>
+            </template>
+          </span>
+
           <div x-show="step==='form'">
             {# ── THE PANEL NAMES WHAT KIND OF EVENT THIS IS ────────────────
                "Tickets" alone is right for a summit and wrong for a fundraising
@@ -495,7 +724,27 @@
                out while the event is not, and it says which of those it is rather than just
                going grey. `state` is the one word the branch reads: open / sold_out / early
                / closed, each a different sentence to somebody who wants to come. #}
-            <div style="margin-top:8px">
+            {# ── A RADIO GROUP, NOT A ROW OF TOGGLE BUTTONS ──────────────────
+               This was a list of plain `<button>`s whose only selected signal was a CSS
+               class. To a screen reader the chosen tier was conveyed by colour alone —
+               WCAG 1.4.1 — and there was no name, role or value for the selection at all
+               (4.1.2): every row announced as an unremarkable button, none of them as
+               chosen, and none as one of a set.
+
+               `role="radiogroup"` with `aria-checked` per row fixes both, and it is also
+               the convention: a single-select list of options is a radio group everywhere
+               else on the web, so Arrow keys move between rows and Tab leaves the group.
+               The handoff specified `aria-pressed` on buttons instead — that announces a
+               toggle rather than a choice, and makes Tab visit every tier, which is the
+               wrong shape for "pick exactly one of these three".
+
+               Roving tabindex: only the chosen row is tabbable, so the group is one stop.
+               `tierId === 0` before anything is chosen makes the FIRST row the stop, or
+               the group would be unreachable by keyboard. #}
+            <div style="margin-top:8px" role="radiogroup" aria-label="Ticket type"
+                 @keydown.arrow-down.prevent="step_(1)" @keydown.arrow-right.prevent="step_(1)"
+                 @keydown.arrow-up.prevent="step_(-1)" @keydown.arrow-left.prevent="step_(-1)"
+                 @keydown.home.prevent="edge_(0)" @keydown.end.prevent="edge_(-1)">
               {% for t in tiers %}
                 {% set gone = (t.state|default('open')) == 'sold_out' %}
                 {# A sold-out tier stays PRESSABLE when there is a waiting list, because the
@@ -503,10 +752,17 @@
                    end for the most motivated person on the page. Without a list it is
                    disabled, since there is genuinely nothing to press. #}
                 {% set shut = (t.state|default('open')) != 'open' and not (gone and waitlist_open|default(false)) %}
-                <button type="button" class="ed-tier"
+                {# Tone and hue come from PHP. Rank is a price question and this list is
+                   ordered by `sort_order` — a column the organiser drags rows around with —
+                   so `loop.last` is not the dearest tier. See EventTierTone. #}
+                {% set tone = tier_tones[t.id]|default('calm') %}
+                <button type="button" class="ed-tier" role="radio" data-ed-tier
                         :class="tierId === {{ t.id|default(0) }} ? 'is-sel' : ''"
+                        :aria-checked="tierId === {{ t.id|default(0) }} ? 'true' : 'false'"
+                        :tabindex="(tierId === {{ t.id|default(0) }} || (tierId === 0 && {{ loop.first ? 'true' : 'false' }})) ? 0 : -1"
+                        style="--tier-hue:{{ tier_hues[t.id]|default('#237b22') }}"
                         {{ shut ? 'disabled' : '' }}
-                        @click="pick({{ t.id|default(0) }}, {{ t.price_naira|default(0) }}, {{ t.max|default(10) }}, {{ (t.min|default(1)) }}, {{ gone ? 'true' : 'false' }}, {{ waitlist_counts[t.id]|default(0) }})">
+                        @click="pick({{ t.id|default(0) }}, {{ t.price_naira|default(0) }}, {{ t.max|default(10) }}, {{ (t.min|default(1)) }}, {{ gone ? 'true' : 'false' }}, {{ waitlist_counts[t.id]|default(0) }}, '{{ tone }}', '{{ tier_hues[t.id]|default('#237b22') }}')">
                   <span class="ed-tier__radio"></span>
                   <span>
                     <span class="ed-tier__name">{{ t.name }}{% if gone %} · sold out{% endif %}</span>
@@ -556,7 +812,10 @@
             <p class="sub" x-show="price > 0 && !soldOut" x-cloak style="margin-top:10px;font-weight:700;color:#10292C">
               Total:
               <span class="ed-was" x-show="off > 0" x-cloak x-text="'₦' + (price * qty).toLocaleString()"></span>
-              <span x-text="'₦' + Math.max(0, price * qty - off).toLocaleString()"></span>
+              {# The total is the thing that actually changed when a tier was pressed, so it
+                 takes a beat as the arc passes it. `ed-total` is the hook; the scale is in
+                 the stylesheet. #}
+              <span class="ed-total" x-text="'₦' + Math.max(0, price * qty - off).toLocaleString()"></span>
             </p>
 
             {# ── THE WAITING LIST ─────────────────────────────────────────────
@@ -750,6 +1009,25 @@
       /* Sold out, and whether there is a queue to join about it. */
       soldOut: false, wlOpen: !!wlOpen, wlCount: 0, wlPlace: 0,
 
+      /* ── THE SELECTION LIGHT ───────────────────────────────────────────────
+         `burst` is a counter, and it is the only thing that makes the effect replay.
+         A finished CSS animation does NOT restart when the same `animation-name` is
+         re-applied, so pressing one tier twice — which is what people actually do while
+         comparing — would do nothing at all. The card carries `is-a` or `is-b` by
+         `burst % 2`, and the NAME CHANGE is the restart.
+
+         Zero until the first press, so nothing animates on page load.
+
+         The counter is per CARD, which here means per Alpine component. A page with two
+         registration cards on it would otherwise flash both on every press. */
+      burst: 0,
+      /* Tone and hue arrive from the pressed row rather than being worked out here: rank
+         is a price question and PHP already answered it. See EventTierTone. */
+      toneMs: 950, toneLaps: 1, toneSparks: 0, hue: '#237b22',
+      /* The one burst that is not a comparison. Set on a SUCCESSFUL registration and
+         never on submit — see submit(). */
+      won: false,
+
       init(){
         /* A percentage code against three seats is not the same number as against one, so a
            quantity change re-prices it. Re-asked rather than scaled here, because scaling in
@@ -758,7 +1036,23 @@
         this.$watch('qty', () => { if (this.discount.trim() !== '') this.checkCode(); });
       },
 
-      pick(id, price, max, min, soldOut, wlCount){
+      /* The four tones, mirrored from EventTierTone so the numbers exist in exactly two
+         places and a test can hold them equal. `hold` is the slowest and dimmest: it is
+         what a sold-out tier with a waiting list gets, and joining a queue is not a thing
+         to celebrate. */
+      TONES: { calm:{ms:950,laps:1,sparks:0}, rise:{ms:820,laps:1,sparks:0},
+               peak:{ms:700,laps:2,sparks:7}, hold:{ms:1050,laps:1,sparks:0} },
+
+      pick(id, price, max, min, soldOut, wlCount, tone, hue){
+        /* The light first, so the rest of this function cannot return early past it. */
+        var t = this.TONES[tone] || this.TONES.calm;
+        this.toneMs = t.ms; this.toneLaps = t.laps; this.toneSparks = t.sparks;
+        this.hue = hue || '#237b22';
+        /* A fresh selection is a comparison, not an outcome: any previous success glow is
+           dropped rather than compounding into it. */
+        this.won = false;
+        this.burst++;
+
         this.tierId = id; this.price = price;
         this.minQty = min || 1;
         this.maxQty = Math.max(this.minQty, max || 1);
@@ -773,6 +1067,33 @@
         this.off = 0; this.codeNote = '';
         this.error = '';
       },
+      /* ── ARROW KEYS ACROSS THE GROUP ────────────────────────────────────────
+         The convention for a radio group, and the reason this is a radiogroup rather than
+         a row of toggle buttons: Arrow moves and selects, Tab leaves. Reading the DOM
+         rather than the tier list, because a `disabled` row must be skipped and only the
+         DOM knows which rows those are — `shut` is computed in Twig from three conditions
+         and duplicating that here is how the two come to disagree. */
+      rows_(){
+        var g = this.$root.querySelector('[role="radiogroup"]');
+        if (!g) return [];
+        return Array.prototype.filter.call(g.querySelectorAll('[data-ed-tier]'),
+                                           function(b){ return !b.disabled; });
+      },
+      step_(dir){
+        var rows = this.rows_();
+        if (rows.length === 0) return;
+        var at = rows.indexOf(document.activeElement);
+        /* Wrapping, which is what a radio group does — and from -1 (focus is on the group
+           itself, not a row) a Down lands on the first row rather than nowhere. */
+        var next = rows[(((at < 0 ? (dir > 0 ? -1 : 0) : at) + dir) + rows.length) % rows.length];
+        if (next) { next.focus(); next.click(); }
+      },
+      edge_(which){
+        var rows = this.rows_();
+        var el = which === 0 ? rows[0] : rows[rows.length - 1];
+        if (el) { el.focus(); el.click(); }
+      },
+
       seatOptions(){
         var out = [];
         for (var n = this.minQty; n <= this.maxQty; n++) out.push(n);
@@ -837,6 +1158,18 @@
             this.msg = d.message || 'You’re registered.';
             this.ticketUrl = d.ticket_url || '';
             this.count += (this.qty || 1);
+            /* ── THE ONE BURST THAT IS NOT A COMPARISON ──────────────────────
+               Fired HERE, on a successful response, and nowhere else. Not on submit: a
+               burst followed by "that card was declined" is worse than no burst, and the
+               paid path above this does not reach here at all — it hands off to the
+               gateway, where nothing has succeeded yet.
+               Also deliberately not in joinList(): a waiting list is not a win. */
+            this.won = true;
+            /* Five sparks and a single slow lap, whatever the tier was. This is not the
+               tier ladder speaking — it is one outcome, and it is the same outcome for a
+               free General seat as for a Patron table. */
+            this.toneMs = 1100; this.toneLaps = 1; this.toneSparks = 5;
+            this.burst++;
             this.step='done';
           } else {
             /* The seats went while they were filling the form in. If there is a list, offer

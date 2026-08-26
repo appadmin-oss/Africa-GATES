@@ -76,6 +76,28 @@ final class EventReferralPromptTest extends TestCase
         return (string) $res->getBody();
     }
 
+    /**
+     * The page's VISIBLE text, with CSS removed.
+     *
+     * The honesty assertions below search for a rate like "10%" and must not find one the
+     * ledger will not pay. Written against the raw body they searched 109KB of HTML
+     * including the inline stylesheet — and a CSS keyframe stop is spelled `10%`, as is a
+     * `width:10%` on a progress bar. The tier-selection effect added
+     * `@keyframes edLapA{ … 10%{opacity:1} … }` and this failed instantly, on a page that
+     * was promising 8% correctly everywhere a reader could see it.
+     *
+     * So the guard keeps its full strength — any visible mention of a stale rate anywhere on
+     * the page still fails it — and stops reading percentages out of stylesheets.
+     */
+    private function visible(string $html): string
+    {
+        $html = (string) preg_replace('~<style\b[^>]*>.*?</style>~si', '', $html);
+        $html = (string) preg_replace('~<script\b[^>]*>.*?</script>~si', '', $html);
+        // Inline `style` attributes too: the sold-progress bar renders `width:{{ pct }}%`,
+        // so an event that happens to be 10% full would have failed this the same way.
+        return (string) preg_replace('~\sstyle="[^"]*"~i', '', $html);
+    }
+
     private function member(string $email = 'sharer@example.com'): int
     {
         return (int) DB::table('gates_users')->insertGetId([
@@ -147,7 +169,7 @@ final class EventReferralPromptTest extends TestCase
 
         $this->setting('referral_rate_bps', '800');
 
-        $html = $this->render($uid);
+        $html = $this->visible($this->render($uid));
         $this->assertStringContainsString('8%', $html);
         $this->assertStringNotContainsString('10%', $html,
             'a page promising a rate the ledger will not pay is worse than no page');

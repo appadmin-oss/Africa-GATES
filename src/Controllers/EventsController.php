@@ -231,6 +231,22 @@ class EventsController
             'schedule'         => $schedule,
             'agenda'           => $agenda,
             'tiers'            => $tiers,
+            // ── HOW LOUDLY THE CARD REACTS TO EACH TIER ──────────────────────
+            //
+            // Computed here, not in the template, because rank is a PRICE question and the
+            // tier list is ordered by `sort_order` — a column an organiser drags rows around
+            // with. Deriving rank from loop position, which is the obvious thing to do in
+            // Twig, makes the cheapest tier sweep hardest for any organiser who puts their
+            // premium row at the top of the list. See EventTierTone.
+            'tier_tones'       => \AfricaGates\Services\EventTierTone::forTiers($tiers),
+            // And the colour it sweeps in: the event's own accent ladder, so the light on
+            // the card is the colour of the dot on the ticket they are about to be sent.
+            'tier_hues'        => array_reduce($tiers, static function (array $c, array $t) use ($event): array {
+                if (isset($t['id'])) {
+                    $c[(int) $t['id']] = \AfricaGates\Services\EventTierTone::hue($t, $event);
+                }
+                return $c;
+            }, []),
             'event_sold'       => $seatsTaken,
             // The waitlist is offered per TIER, because a tier is what sells out — somebody
             // priced out of the ₦380,000 table is not waiting for it, they are waiting for a
