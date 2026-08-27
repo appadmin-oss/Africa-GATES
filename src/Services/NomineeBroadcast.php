@@ -257,6 +257,24 @@ final class NomineeBroadcast
             ->where('cy.voting_close', '>', Carbon::now()->toDateTimeString())
             ->select('cy.id', 'cy.programme_id', 'cy.voting_close', 'p.title as programme_title');
 
+        // The rehearsal is seeded at status 'voting' with voting_close twenty days out,
+        // precisely so the sandbox shows a usable ballot — which is also exactly the
+        // shape this query selects. So the broadcast picked the sandbox up and mailed
+        // its nominees at @demo.invalid: a domain that does not resolve, so every one
+        // is a hard bounce charged against the sending domain's reputation, from a
+        // send an operator only ever asked for on real cycles.
+        //
+        // notSandbox() rather than `p.is_active`, and the LEFT JOIN above is the whole
+        // reason: `NULL != 5` is NULL in SQL, so a bare comparison would silently drop
+        // every cycle whose programme row is missing — real nominees never told their
+        // voting had closed, to exclude a sandbox they were never in.
+        //
+        // Applied BEFORE the $only branch, so naming the rehearsal's cycle id explicitly
+        // does not send either. Rehearsing this particular job is not a rehearsal: the
+        // addresses are real SMTP sends to a domain that does not exist, so the only
+        // thing an operator could learn from it is what a bounce looks like.
+        DemoSeeder::notSandbox($q, 'cy.programme_id');
+
         $only > 0 ? $q->where('cy.id', $only) : $q->where('cy.status', 'voting');
 
         return $q->orderBy('cy.voting_close')->get()->all();

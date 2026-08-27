@@ -143,6 +143,11 @@ final class FlierService
                 ->join('gates_award_cycles as cy', 'cy.id', '=', 'c.cycle_id')
                 ->join('gates_award_programmes as p', 'p.id', '=', 'cy.programme_id')
                 ->where('n.id', $nomineeId)
+                // Same gate as the ballot this card links to. Without it the sandbox had
+                // a share card: a real PNG of a "DEMO —" nominee, served to any crawler
+                // that was handed the URL, on the one surface whose whole job is to be
+                // reposted. See VoteController::nomineeBallot() for the full account.
+                ->where('p.is_active', 1)
                 ->whereIn('n.status', ['approved', 'winner', 'runner_up'])
                 ->whereNull('n.merged_into')
                 // `organisation` only when the column exists — the flier is also an

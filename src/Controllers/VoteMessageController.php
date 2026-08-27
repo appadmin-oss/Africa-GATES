@@ -213,6 +213,12 @@ final class VoteMessageController
                 ->join('gates_award_categories as c', 'c.id', '=', 'n.category_id')
                 ->join('gates_award_cycles as cy', 'cy.id', '=', 'c.cycle_id')
                 ->join('gates_award_programmes as p', 'p.id', '=', 'cy.programme_id')
+                // "No public ballot" has to mean the same thing here as it does on the
+                // ballot itself. VoteController gates on `p.is_active` — see the note
+                // there — and without the same line these pages stayed open on a nominee
+                // whose ballot 404s: the sandbox's messages and supporters, reachable at
+                // their own URLs after the ballot had been closed to them.
+                ->where('p.is_active', 1)
                 ->where('n.id', $id)->whereIn('n.status', ['approved', 'winner', 'runner_up'])
                 ->select('n.id', 'n.name', 'n.photo_path', 'n.status', 'c.title as category', 'p.slug as programme_slug')
                 ->first();

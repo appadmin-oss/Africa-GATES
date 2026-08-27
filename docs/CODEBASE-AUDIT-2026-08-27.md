@@ -121,9 +121,23 @@ real voter's OTP can be spent against a row that exists to be deleted.
 
 **The wider pattern.** Of 81 sites that touch `gates_award_programmes`, 54 have no `is_active` in
 the surrounding query. Most are admin-side and correct — the operator *should* see the sandbox.
-The public-side ones worth reviewing alongside `VoteController` are `VoteMessageController:215,486`,
-`PulseFeedService:268`, `ActivityFeedService:524`, `FlierService:144`, `GatedFormService:138`,
-`NomineeBroadcast:255,271`, `SupporterHonours:537` and `Support/NomineeUrl:46`.
+
+> **All eight public-side candidates have since been reviewed.** Three were real and are fixed;
+> five were not leaks. The review also turned up `DemoSeeder::notSandbox()`, a NULL-safe helper
+> that already existed for readers which reach the programme through a LEFT JOIN or not at all —
+> which is why `ActivityFeedService` was a false positive in this scan.
+>
+> | Site | Verdict |
+> |---|---|
+> | `VoteMessageController::nomineeFor()` | **Leak — fixed.** The messages and supporters pages gated on nominee status alone, so closing the ballot only moved the sandbox to a neighbouring URL. |
+> | `FlierService::forNominee()` | **Leak — fixed.** The og:image every share link renders. All four flier surfaces (`page`, `svg`, `png`, `card`) route through this one resolver. |
+> | `NomineeBroadcast::cycles()` | **Leak — fixed**, and outward rather than inward: the rehearsal is seeded `voting` with `voting_close` 20 days out, exactly the shape this selects, so the broadcast mailed `@demo.invalid` — a non-resolving domain, so every send is a hard bounce against the sending domain's reputation. Gated with `notSandbox()` rather than `is_active`, because the LEFT JOIN makes a bare comparison NULL-unsafe. |
+> | `ActivityFeedService:524` | Not a leak — already uses `DemoSeeder::notSandbox()`. |
+> | `PulseFeedService::channelNames()` | Not a leak — a lookup map that only names programmes which have posts, and `DemoSeeder` creates none. |
+> | `VoteMessageController::ballotPath()` | Not a leak — a URL builder reached only for a nominee `nomineeFor()` has already gated. |
+> | `Support/NomineeUrl::path()` | Not a leak — called from the paid-vote flow, checkout receipts and support context, never as a public lookup on an arbitrary id. |
+> | `GatedFormService::subjectTermsUrl()` | Not a leak — returns `/terms/{slug}`, reached through a single-use token that is itself the credential. |
+> | `SupporterHonours::nominee()` | Not a leak — a mail path scoped to one nominee's own supporters, and LEFT-joined, so `is_active` would be the NULL-unsafe form anyway. |
 
 ---
 
@@ -418,9 +432,9 @@ only `imagecopyresampled()` in the tree.
 
 ## 8. Suggested order of work
 
-1. **§3.1** — ~~add `->where('p.is_active', 1)` to both `VoteController` handlers, and add a guard
-   test that asserts a seeded demo nominee 404s on its ballot URL.~~ **Done.** Still open: walk the
-   eight other public readers listed at the end of §3.1.
+1. **§3.1** — ~~add `->where('p.is_active', 1)` to both `VoteController` handlers, and walk the
+   eight other public readers.~~ **Done.** Five guards now live in `PublicSurfaceSandboxTest`,
+   each verified to fail with its fix removed.
 2. **§3.2** — one static resolver per service (`CheckoutMailer::smtp()`, `CloudinaryService::config()`),
    `gates_settings` first and `.env` as the fallback; point `CycleAnnouncer` at the same resolver;
    add the fields to `/admin/settings` and replace the "add it to `.env`" copy in

@@ -5,6 +5,8 @@ namespace Tests\Unit;
 
 use AfricaGates\Services\ActivityFeedService;
 use AfricaGates\Services\DemoSeeder;
+use AfricaGates\Services\FlierService;
+use AfricaGates\Services\NomineeBroadcast;
 use AfricaGates\Services\SitemapService;
 use AfricaGates\Support\Slug;
 use DI\ContainerBuilder;
@@ -220,5 +222,61 @@ final class PublicSurfaceSandboxTest extends TestCase
         $demo = $this->get('/vote/' . $this->demoNomineeId);
         $this->assertSame('/vote', $demo->getHeaderLine('Location'),
             'the legacy link still hands out the sandbox nominee\'s URL');
+    }
+
+    /**
+     * The two pages that hang off the ballot. Both resolve a nominee by the same shape of
+     * query the ballot used, and "no public ballot" has to mean one thing across all three
+     * — otherwise closing the ballot just moves the sandbox to a neighbouring URL.
+     */
+    public function test_the_messages_and_supporters_pages_are_not_open_on_a_sandbox_nominee(): void
+    {
+        $realSeg = Slug::idSegment($this->realNomineeId, 'Kigali Signal Trust');
+        $demoSeg = Slug::idSegment($this->demoNomineeId, DemoSeeder::PREFIX . 'Kigali Signal');
+
+        foreach (['messages', 'supporters'] as $page) {
+            $this->assertNotSame(404, $this->get("/vote/real-awards/$realSeg/$page")->getStatusCode(),
+                "the guard took the real nominee's $page page down with it");
+            $this->assertSame(404, $this->get('/vote/' . DemoSeeder::PROGRAMME_SLUG . "/$demoSeg/$page")->getStatusCode(),
+                "a sandbox nominee still has a $page page");
+        }
+    }
+
+    /**
+     * The share card — the one surface whose entire job is to be reposted. A crawler
+     * handed the URL rendered a real PNG of a nominee whose name begins "DEMO —".
+     */
+    public function test_the_share_card_does_not_render_a_sandbox_nominee(): void
+    {
+        $flier = new FlierService();
+
+        $this->assertNotNull($flier->forNominee($this->realNomineeId),
+            'the guard stopped a real nominee having a share card');
+        $this->assertNull($flier->forNominee($this->demoNomineeId),
+            'the sandbox still has a share card');
+    }
+
+    /**
+     * And the one that reaches outward rather than being reached.
+     *
+     * DemoSeeder seeds the rehearsal at status 'voting' with voting_close twenty days
+     * out — exactly the shape NomineeBroadcast::cycles() selects — so the broadcast
+     * mailed the sandbox's nominees at @demo.invalid. That domain does not resolve, so
+     * each one is a hard bounce charged against the sending domain's reputation.
+     */
+    public function test_the_nominee_broadcast_does_not_pick_up_the_rehearsal(): void
+    {
+        DB::table('gates_award_cycles')->update([
+            'status' => 'voting', 'voting_close' => '2099-01-01 00:00:00',
+        ]);
+
+        $labels = array_map(
+            static fn (object $c): string => (string) $c->programme_title,
+            (new NomineeBroadcast())->cycles()
+        );
+
+        // build() sets each programme's title to its slug, so these are the titles.
+        $this->assertContains('real-awards', $labels, 'a real cycle stopped being broadcast');
+        $this->assertNotContains(DemoSeeder::PROGRAMME_SLUG, $labels, 'the rehearsal is still being mailed');
     }
 }
