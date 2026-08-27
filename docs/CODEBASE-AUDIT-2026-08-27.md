@@ -83,6 +83,14 @@ reject; the tests are the authority and they are green.
 
 **Severity: high.** Violates a stated invariant: *"The sandbox must never reach the public."*
 
+> **Resolved after this audit was written.** Both handlers now carry `->where('p.is_active', 1)`,
+> and `PublicSurfaceSandboxTest` gained two guards that fail without it — the ballot returned `200`
+> and `/vote/{id}` redirected to `/vote/demo-sandbox/1-demo-kigali-signal` with the filter removed.
+> The rest of this section is left as written, because it is the record of what was found. Note the
+> one consequence beyond the sandbox: "Active" is an operator checkbox, so deactivating a real
+> programme now takes its nominee pages down too — consistent with the hub, the programme page and
+> the sitemap, which already dropped them.
+
 `DemoSeeder` contains the sandbox by construction rather than by flag, and says so:
 
 > `is_active = 0` is the whole public-invisibility mechanism. Both public readers already
@@ -410,9 +418,9 @@ only `imagecopyresampled()` in the tree.
 
 ## 8. Suggested order of work
 
-1. **§3.1** — add `->where('p.is_active', 1)` to both `VoteController` handlers, and add a guard
-   test that asserts a seeded demo nominee 404s on its ballot URL. Then walk the eight other public
-   readers listed at the end of §3.1.
+1. **§3.1** — ~~add `->where('p.is_active', 1)` to both `VoteController` handlers, and add a guard
+   test that asserts a seeded demo nominee 404s on its ballot URL.~~ **Done.** Still open: walk the
+   eight other public readers listed at the end of §3.1.
 2. **§3.2** — one static resolver per service (`CheckoutMailer::smtp()`, `CloudinaryService::config()`),
    `gates_settings` first and `.env` as the fallback; point `CycleAnnouncer` at the same resolver;
    add the fields to `/admin/settings` and replace the "add it to `.env`" copy in

@@ -288,6 +288,11 @@ class VoteController {
             ->join('gates_award_categories as c', 'c.id', '=', 'n.category_id')
             ->join('gates_award_cycles as cy', 'cy.id', '=', 'c.cycle_id')
             ->join('gates_award_programmes as p', 'p.id', '=', 'cy.programme_id')
+            // The demo programme carries `is_active = 0`, and that one column is the whole
+            // thing keeping the sandbox off the public site. Without this, /vote/{id}
+            // resolved ANY id — so it handed the canonical URL of a sandbox nominee to
+            // anybody who guessed a number. Full account on nomineeBallot() below.
+            ->where('p.is_active', 1)
             ->where('n.id', $id)->whereIn('n.status', self::PUBLIC_STATUSES)
             ->where(fn($q) => \AfricaGates\Services\MergeService::notMerged($q, 'n.merged_into'))
             ->select(['n.id', 'n.name', 'p.slug as programme_slug'])->first();
@@ -373,6 +378,32 @@ class VoteController {
             // "see the roll of honour" would have arrived at a not-found. The
             // filter is there to hide pending and rejected entries; a winner is
             // neither.
+            //
+            // ── AND THE SANDBOX IS NOT PUBLIC ────────────────────────────────
+            //
+            // DemoSeeder contains the demo by construction rather than by flag: its
+            // programme carries `is_active = 0`, and that single column is the whole
+            // public-invisibility mechanism. Its nominees, though, are seeded
+            // 'approved' inside a cycle at 'voting' — so every other filter on this
+            // query waves them through, and this is THE BALLOT. A sandbox nominee had
+            // a live, votable page at its direct URL: real ballots landing on a row
+            // that exists to be deleted, and a real voter's OTP spent against it.
+            //
+            // The hub and the programme page were never affected — AwardService and
+            // SitemapService both require 1 already. This reader did not, which is
+            // exactly why the containment note in DemoSeeder says "both public
+            // readers" and there were three.
+            //
+            // Note what this means beyond the sandbox, because it is a real change:
+            // "Active" is an operator checkbox, so deactivating a REAL programme now
+            // takes its nominee pages down too. That was already true of the hub, the
+            // programme page and the sitemap — so the only state this removes is a
+            // nominee page that outlives the programme it belongs to, reachable by
+            // direct link and de-indexed on the same day. Filtering on the slug
+            // instead would keep that state alive and hard-code the sandbox besides;
+            // `is_active` is the mechanism DemoSeeder deliberately chose so that
+            // nothing new has to know the demo exists.
+            ->where('p.is_active', 1)
             ->where('n.id', $id)->whereIn('n.status', self::PUBLIC_STATUSES)
             ->where(fn($q) => \AfricaGates\Services\MergeService::notMerged($q, 'n.merged_into'))
             // `organisation` joins the SELECT only when the column exists.

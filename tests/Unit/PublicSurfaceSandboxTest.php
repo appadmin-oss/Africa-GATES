@@ -6,7 +6,11 @@ namespace Tests\Unit;
 use AfricaGates\Services\ActivityFeedService;
 use AfricaGates\Services\DemoSeeder;
 use AfricaGates\Services\SitemapService;
+use AfricaGates\Support\Slug;
+use DI\ContainerBuilder;
 use Illuminate\Database\Capsule\Manager as DB;
+use Slim\Factory\AppFactory;
+use Slim\Psr7\Factory\ServerRequestFactory;
 use Tests\TestCase;
 
 /**
@@ -30,21 +34,39 @@ use Tests\TestCase;
  * The sitemap was the same shape with a longer tail: it published /vote/demo-sandbox/…
  * to search engines, where the slug lookup that a crawler follows then refuses because
  * the programme is inactive. Indexed URLs that resolve to nothing.
+ *
+ * ── AND THE ONE THIS FILE ITSELF MISSED ──────────────────────────────────────
+ *
+ * The sitemap assertion above is written as though a crawler following
+ * /vote/demo-sandbox/{id}-{name} would be refused. It would not have been. That claim
+ * was only ever true of the PROGRAMME page — `AwardService::getProgrammeBySlug()`
+ * requires `is_active = 1`, so /vote/demo-sandbox bounced to the hub. The NOMINEE page
+ * underneath it is a different reader, and it required no such thing: it starts at
+ * `gates_nominees`, joins its way up to the programme for the slug alone, and filters
+ * only on nominee status. DemoSeeder seeds its nominees 'approved' in a cycle at
+ * 'voting', so every filter on that query waved them through.
+ *
+ * That reader is THE BALLOT. A sandbox nominee had a live, votable page at its direct
+ * URL, and /vote/{id} would hand that URL to anyone who guessed a number — so a real
+ * voter's OTP could be spent on a row that exists to be deleted. The two tests at the
+ * bottom of this file are the ones that would have caught it.
  */
 final class PublicSurfaceSandboxTest extends TestCase
 {
     private ActivityFeedService $feed;
+    private int $demoNomineeId = 0;
+    private int $realNomineeId = 0;
 
     protected function setUp(): void
     {
         parent::setUp();
         $this->feed = new ActivityFeedService();
 
-        $this->build(DemoSeeder::PROGRAMME_SLUG, 0, DemoSeeder::PREFIX . 'Kigali Signal', 'winner');
-        $this->build('real-awards', 1, 'Kigali Signal Trust', 'winner');
+        $this->demoNomineeId = $this->build(DemoSeeder::PROGRAMME_SLUG, 0, DemoSeeder::PREFIX . 'Kigali Signal', 'winner');
+        $this->realNomineeId = $this->build('real-awards', 1, 'Kigali Signal Trust', 'winner');
     }
 
-    private function build(string $slug, int $active, string $nominee, string $status): void
+    private function build(string $slug, int $active, string $nominee, string $status): int
     {
         $pid = (int) DB::table('gates_award_programmes')->insertGetId([
             'slug' => $slug, 'title' => $slug, 'is_active' => $active,
@@ -55,7 +77,7 @@ final class PublicSurfaceSandboxTest extends TestCase
         $cat = (int) DB::table('gates_award_categories')->insertGetId([
             'cycle_id' => $cid, 'slug' => 'cat-' . $slug, 'title' => 'Signal', 'sort_order' => 1,
         ]);
-        DB::table('gates_nominees')->insert([
+        $nid = (int) DB::table('gates_nominees')->insertGetId([
             'category_id' => $cat, 'name' => $nominee, 'status' => $status,
             'nominated_at' => '2026-02-01 10:00:00', 'vote_count' => 0, 'organic_vote_count' => 0,
         ]);
@@ -64,6 +86,27 @@ final class PublicSurfaceSandboxTest extends TestCase
             'reason' => 'auto: date window', 'actor' => 'cron',
             'observed_at' => '2026-02-02 10:00:00',
         ]);
+
+        return $nid;
+    }
+
+    /** The real routing stack, so these two assertions are about the URL and not a method. */
+    private function app(): \Slim\App
+    {
+        $builder = new ContainerBuilder();
+        $builder->addDefinitions(dirname(__DIR__, 2) . '/config/container.php');
+        AppFactory::setContainer($builder->build());
+        $app = AppFactory::create();
+        (require dirname(__DIR__, 2) . '/src/routes.php')($app);
+        $app->addRoutingMiddleware();
+        $app->addErrorMiddleware(false, false, false);
+
+        return $app;
+    }
+
+    private function get(string $path): \Psr\Http\Message\ResponseInterface
+    {
+        return $this->app()->handle((new ServerRequestFactory())->createServerRequest('GET', $path));
     }
 
     /** @return list<string> */
@@ -138,5 +181,44 @@ final class PublicSurfaceSandboxTest extends TestCase
 
         $this->assertContains('Orphaned Entry', $this->titles('Orphaned'),
             'a nominee with no category was dropped by the sandbox filter');
+    }
+
+    // ════════════════════════════════════════════════════════════════════════
+    //  THE BALLOT — see the note at the top of this file
+    // ════════════════════════════════════════════════════════════════════════
+
+    /**
+     * The page a share link actually opens.
+     *
+     * Asserted both ways on purpose. A guard that 404s the sandbox by 404ing every
+     * nominee would pass a one-sided test and take the whole ballot down with it —
+     * which is a far worse bug than the one being fixed, and one nothing else here
+     * would catch.
+     */
+    public function test_a_demo_nominee_has_no_ballot_page(): void
+    {
+        $real = $this->get('/vote/real-awards/' . Slug::idSegment($this->realNomineeId, 'Kigali Signal Trust'));
+        $this->assertNotSame(404, $real->getStatusCode(), 'the guard took a real nominee down with it');
+
+        $demo = $this->get('/vote/' . DemoSeeder::PROGRAMME_SLUG . '/'
+            . Slug::idSegment($this->demoNomineeId, DemoSeeder::PREFIX . 'Kigali Signal'));
+        $this->assertSame(404, $demo->getStatusCode(), 'a sandbox nominee still has a votable page');
+    }
+
+    /**
+     * And the legacy /vote/{id} link, which needs no slug at all — so it hands out the
+     * canonical URL of whatever row that id names. Guessing a number was the whole
+     * discovery mechanism the direct-URL leak needed.
+     */
+    public function test_the_legacy_id_link_does_not_resolve_a_sandbox_nominee(): void
+    {
+        $real = $this->get('/vote/' . $this->realNomineeId);
+        $this->assertSame(302, $real->getStatusCode());
+        $this->assertStringContainsString('/vote/real-awards/', $real->getHeaderLine('Location'),
+            'a real nominee stopped being redirected to their page');
+
+        $demo = $this->get('/vote/' . $this->demoNomineeId);
+        $this->assertSame('/vote', $demo->getHeaderLine('Location'),
+            'the legacy link still hands out the sandbox nominee\'s URL');
     }
 }
