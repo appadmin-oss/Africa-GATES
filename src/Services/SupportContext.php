@@ -499,7 +499,11 @@ final class SupportContext
                 Env::has('FLUTTERWAVE_SECRET_KEY') ? 'Flutterwave' : null,
             ])),
         ];
-        $out['email'] = ['ok' => Env::has('SMTP_HOST') || Env::has('MAIL_HOST')];
+        // Asked of the resolver, not of the environment. This read Env::has('SMTP_HOST'),
+        // which since OtpService::boot() answers a narrower question than the one being
+        // asked — mail configured in Settings would have had the assistant telling a
+        // user email was switched off while their receipts were going out.
+        $out['email'] = ['ok' => OtpService::boot()->smtpConfigured()];
 
         // Pending migrations are the single most common cause of "it worked
         // yesterday" on this deployment model, so the agent gets to see them.

@@ -146,6 +146,24 @@ the surrounding query. Most are admin-side and correct — the operator *should*
 **Severity: high.** Violates a stated rule: *"Anything operational must be settable from
 `/admin/settings`."*
 
+> **Resolved after this audit was written.** `OtpService::boot()` is now the one resolver for
+> every mail value, credentials included, and `CloudinaryService::config()` reads
+> `gates_settings` before `.env`. The six hand-built SMTP arrays are gone — `container.php`,
+> `CheckoutMailer`, `CycleAnnouncer`, `SupporterHonours` and two closures in `routes.php` all
+> call `boot()` — and `SupportContext`'s capability readout, which asked
+> `Env::has('SMTP_HOST')`, now asks the resolver. Both sets of fields are on
+> `/admin/settings` (SMTP under Email & sender, Cloudinary under a new Media tab), with the
+> secrets write-only on the established provider-key pattern: never echoed back, blank keeps,
+> a "remove" box clears. The Media panel's "add `CLOUDINARY_URL` to `.env`" now links to the
+> form instead, and `OtpService`'s own failure text stops naming environment variables.
+>
+> `tests/Unit/OperationalCredentialsTest.php` holds ten guards, five of which were verified to
+> fail with the fix reverted. Two of them generalise the rule rather than the instance: one
+> tokenises `src/` and `config/` and fails if anything reads `SMTP_*` outside the resolver, and
+> one fails if **any** admin template answers "not configured" with an instruction to edit
+> `.env`. The rest of this section is left as written, because it is the record of what was
+> found.
+
 The rule exists because `GAS_URL`/`GAS_SECRET` were readable only from `.env`, there is no SSH on
 production, and so the whole Google integration was dead while every screen explained itself
 correctly and told the operator to edit a file they cannot open. That lesson is written out at
@@ -435,10 +453,10 @@ only `imagecopyresampled()` in the tree.
 1. **§3.1** — ~~add `->where('p.is_active', 1)` to both `VoteController` handlers, and walk the
    eight other public readers.~~ **Done.** Five guards now live in `PublicSurfaceSandboxTest`,
    each verified to fail with its fix removed.
-2. **§3.2** — one static resolver per service (`CheckoutMailer::smtp()`, `CloudinaryService::config()`),
-   `gates_settings` first and `.env` as the fallback; point `CycleAnnouncer` at the same resolver;
-   add the fields to `/admin/settings` and replace the "add it to `.env`" copy in
-   `admin/media/index.twig`.
+2. **§3.2** — ~~one static resolver per service, `gates_settings` first and `.env` as the
+   fallback; point `CycleAnnouncer` at the same resolver; add the fields to `/admin/settings`
+   and replace the "add it to `.env`" copy.~~ **Done**, via `OtpService::boot()` and
+   `CloudinaryService::config()`, with a scanning guard against a seventh reader.
 3. **§3.4** — call `DisplayTime::toStored()` from `cycleSave()`, delete the two reimplementations,
    and cover the round-trip with a test that asserts the stored string has no `T` and keeps its
    seconds.

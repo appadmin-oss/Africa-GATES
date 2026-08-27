@@ -191,14 +191,7 @@ return function(App $app) {
                 // The first resolved recipient, whether or not they are sendable — a
                 // suppressed or already-sent nominee is still a valid shape to preview.
                 $sample = $plan['queue'][0];
-                $mailer = new \AfricaGates\Services\OtpService([
-                    'host'         => Env::get('SMTP_HOST', 'smtp-relay.brevo.com'),
-                    'port'         => Env::int('SMTP_PORT', 587),
-                    'username'     => Env::get('SMTP_USER', ''),
-                    'password'     => Env::get('SMTP_PASS', ''),
-                    'from_address' => Env::get('MAIL_FROM_ADDRESS', 'noreply@afrovanguard.org.ng'),
-                    'from_name'    => Env::get('MAIL_FROM_NAME', 'Africa GATES'),
-                ]);
+                $mailer = \AfricaGates\Services\OtpService::boot();
                 $preview = ['nominee' => $sample['nominee'], 'cycle' => $sample['cycle'],
                             'email'   => $testTo];
                 $sent = $mailer->sendRawHtml(
@@ -295,14 +288,7 @@ return function(App $app) {
                 $lines[] = 'ABORTED: APP_URL is not set. Every link in this email is absolute.';
                 $send = false;
             } else {
-                $mailer = new \AfricaGates\Services\OtpService([
-                    'host'         => Env::get('SMTP_HOST', 'smtp-relay.brevo.com'),
-                    'port'         => Env::int('SMTP_PORT', 587),
-                    'username'     => Env::get('SMTP_USER', ''),
-                    'password'     => Env::get('SMTP_PASS', ''),
-                    'from_address' => Env::get('MAIL_FROM_ADDRESS', 'noreply@afrovanguard.org.ng'),
-                    'from_name'    => Env::get('MAIL_FROM_NAME', 'Africa GATES'),
-                ]);
+                $mailer = \AfricaGates\Services\OtpService::boot();
                 foreach (array_slice($plan['sendable'], 0, $batch) as $r) {
                     $svc->sendOne($r, $site, $mailer)['ok'] ? $sent++ : $failed++;
                     usleep(250000);

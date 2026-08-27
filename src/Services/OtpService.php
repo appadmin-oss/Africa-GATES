@@ -29,6 +29,59 @@ class OtpService
         private readonly ?LoggerInterface $log = null,
     ) {}
 
+    /**
+     * The one place mail configuration is resolved. `gates_settings` first, `.env` as
+     * the fallback.
+     *
+     * ── WHY THIS IS A STATIC AND NOT SIX ARRAY LITERALS ──────────────────────
+     *
+     * It was six. The class docblock above already promised that "all outgoing mail is
+     * routed through one shared transport builder so credentials are never duplicated",
+     * and that was true of the SOCKET and false of the CONFIGURATION: `container.php`,
+     * `CheckoutMailer`, `CycleAnnouncer`, `SupporterHonours` and two closures in
+     * `routes.php` each built the same array from `Env::get` by hand.
+     *
+     * Two of them had already drifted. `CheckoutMailer` grew a settings-aware `$pick()`
+     * for the sender identity and kept reading the credentials from the environment, so
+     * an operator who pasted a login into Settings got their from-name applied and their
+     * password ignored — and `CycleAnnouncer` had no settings lookup at all, so the two
+     * mailers disagreed about where configuration comes from.
+     *
+     * ── AND WHY THE CREDENTIALS MOVED, NOT JUST THE SENDER NAME ──────────────
+     *
+     * `container.php` used to carry the line "Credentials stay env-only." There is no
+     * SSH on production, so that sentence means the SMTP login cannot be set at all —
+     * which is precisely the GAS_URL failure CLAUDE.md records, where a whole
+     * integration sat dead while every screen explained itself correctly and told the
+     * operator to edit a file they cannot open. The settings page even printed the
+     * symptom: "SMTP not set — mail is written to var/logs/outgoing-mail.log", above a
+     * form with no field to fix it, on the platform whose OTP codes gate voting.
+     *
+     * `AiService::boot()` already stores provider keys this way. This is the same
+     * resolver shape, for the same reason.
+     */
+    public static function boot(?LoggerInterface $log = null): self
+    {
+        $s = [];
+        try { $s = DB::table('gates_settings')->pluck('value', 'key_name')->all(); }
+        catch (\Throwable) {}
+
+        $pick = static fn (string $key, string $env, string $dft): string
+            => trim((string) ($s[$key] ?? '')) ?: (string) Env::get($env, $dft);
+
+        return new self([
+            'host'         => $pick('mail_smtp_host', 'SMTP_HOST', 'smtp-relay.brevo.com'),
+            // Cast late: a settings row is a string and Env::int is not reachable through
+            // $pick, so an operator typing "587 " must still produce an int port.
+            'port'         => (int) $pick('mail_smtp_port', 'SMTP_PORT', '587') ?: 587,
+            'username'     => $pick('mail_smtp_user', 'SMTP_USER', ''),
+            'password'     => $pick('mail_smtp_pass', 'SMTP_PASS', ''),
+            'from_address' => $pick('mail_from_address', 'MAIL_FROM_ADDRESS', 'noreply@afrovanguard.org.ng'),
+            'from_name'    => $pick('mail_from_name', 'MAIL_FROM_NAME', 'Africa GATES'),
+            'reply_to'     => $pick('mail_reply_to', 'MAIL_REPLY_TO', ''),
+        ], $log);
+    }
+
     /* ══════════════════════════════════════════════════════════
        TRANSPORT
     ══════════════════════════════════════════════════════════ */
@@ -151,9 +204,9 @@ class OtpService
             $this->devLog($to, $subject, $plainBody ?: strip_tags($htmlBody));
             if ($this->isProduction()) {
                 $this->log?->error('[mail] SMTP not configured in production — message NOT delivered', ['to' => $to, 'subject' => $subject]);
-                $this->mailLog($to, $subject, $category, 'failed', 'SMTP not configured (SMTP_USER / SMTP_PASS)');
+                $this->mailLog($to, $subject, $category, 'failed', 'SMTP not configured (Settings → Email & sender)');
                 return ['success' => false, 'fallback' => 'log',
-                        'error' => 'Email is not configured (set SMTP_USER / SMTP_PASS). The message was written to var/logs/outgoing-mail.log but was NOT delivered.'];
+                        'error' => 'Email is not configured — set the SMTP host and login in Settings → Email & sender. The message was written to var/logs/outgoing-mail.log but was NOT delivered.'];
             }
             $this->mailLog($to, $subject, $category, 'logged_dev');
             return ['success' => true, 'fallback' => 'log'];
@@ -217,9 +270,9 @@ class OtpService
             $this->devLog($to, $subject, $plainBody ?: strip_tags($html));
             if ($this->isProduction()) {
                 $this->log?->error('[mail] SMTP not configured in production — message NOT delivered', ['to' => $to, 'subject' => $subject]);
-                $this->mailLog($to, $subject, $category, 'failed', 'SMTP not configured (SMTP_USER / SMTP_PASS)');
+                $this->mailLog($to, $subject, $category, 'failed', 'SMTP not configured (Settings → Email & sender)');
                 return ['success' => false, 'fallback' => 'log',
-                        'error' => 'Email is not configured (set SMTP_USER / SMTP_PASS). The message was written to var/logs/outgoing-mail.log but was NOT delivered.'];
+                        'error' => 'Email is not configured — set the SMTP host and login in Settings → Email & sender. The message was written to var/logs/outgoing-mail.log but was NOT delivered.'];
             }
             $this->mailLog($to, $subject, $category, 'logged_dev');
             return ['success' => true, 'fallback' => 'log'];
@@ -253,9 +306,9 @@ class OtpService
         if (!$this->smtpConfigured()) {
             $this->devLog($to, $subject, $body);
             if ($this->isProduction()) {
-                $this->mailLog($to, $subject, 'custom', 'failed', 'SMTP not configured (SMTP_USER / SMTP_PASS)');
+                $this->mailLog($to, $subject, 'custom', 'failed', 'SMTP not configured (Settings → Email & sender)');
                 return ['success' => false, 'fallback' => 'log',
-                        'error' => 'Email is not configured (set SMTP_USER / SMTP_PASS). Written to var/logs/outgoing-mail.log but NOT delivered.'];
+                        'error' => 'Email is not configured — set the SMTP host and login in Settings → Email & sender. Written to var/logs/outgoing-mail.log but NOT delivered.'];
             }
             $this->mailLog($to, $subject, 'custom', 'logged_dev');
             return ['success' => true, 'fallback' => 'log'];
@@ -282,7 +335,7 @@ class OtpService
     public function selfTest(string $to): array
     {
         if (!$this->smtpConfigured()) {
-            return ['success' => false, 'error' => 'SMTP credentials are not configured in .env (SMTP_USER / SMTP_PASS).'];
+            return ['success' => false, 'error' => 'SMTP credentials are not configured. Set them in Settings → Email & sender.'];
         }
         return $this->sendBranded(
             $to,

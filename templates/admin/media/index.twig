@@ -67,11 +67,14 @@
       Portraits are delivered face-cropped, so the flier frames a nominee’s face instead of centre-cropping to their chest.
     </p>
   {% else %}
+    {# This used to say "add CLOUDINARY_URL=… to .env". There is no SSH on production,
+       so the remedy named a file the operator reading it cannot open — the panel
+       diagnosed correctly and prescribed nothing they could do. The credentials are
+       settable now; the link goes where they are set. #}
     <p class="md-cdn__p">
-      Uploads are being stored on this server. To move them to Cloudinary, add
-      <code>CLOUDINARY_URL=cloudinary://key:secret@cloud</code> to <code>.env</code>
-      (or the three <code>CLOUDINARY_*</code> names), then reload this page. Nothing breaks until you do —
-      local storage keeps working exactly as it does now.
+      Uploads are being stored on this server. To move them to Cloudinary, paste your
+      credentials into <a href="/admin/settings">Settings → Media</a>, then reload this page.
+      Nothing breaks until you do — local storage keeps working exactly as it does now.
     </p>
   {% endif %}
 

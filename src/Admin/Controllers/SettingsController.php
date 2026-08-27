@@ -39,6 +39,20 @@ class SettingsController
             'tz_abbr'        => \AfricaGates\Support\DisplayTime::abbr(),
             'admin_settings' => $adminSettings,
             'smtp_configured'=> $this->mailer?->smtpConfigured() ?? false,
+            // Whether a password is resolvable at all, from either source — the field
+            // itself is WRITE-ONLY, like every provider key, so this only picks the
+            // placeholder. Same shape as ai_mod_dedicated below.
+            // Deliberately settings-only, not "configured from either source": the
+            // placeholder promises that leaving the box blank KEEPS what is there, and
+            // what blank keeps is the stored row. An .env password is the fallback
+            // underneath, not something this form is holding on to.
+            'smtp_pass_set'  => trim((string) (\Illuminate\Database\Capsule\Manager::table('gates_settings')->where('key_name', 'mail_smtp_pass')->value('value') ?? '')) !== '',
+            // Image hosting. Read through the resolver, so what the card reports is
+            // what an upload will actually do rather than what one source of two says.
+            'cloudinary_on'     => \AfricaGates\Services\CloudinaryService::enabled(),
+            'cloudinary_cloud'  => \AfricaGates\Services\CloudinaryService::cloudName(),
+            'cloudinary_folder' => \AfricaGates\Services\CloudinaryService::rootFolder(),
+            'cloudinary_secret_set' => trim((string) (\Illuminate\Database\Capsule\Manager::table('gates_settings')->where('key_name', 'cloudinary_api_secret')->value('value') ?? '')) !== '',
             // Flash renders from the Twig globals via the layout — do not shadow them.
             // Where each revenue stream settles. Resolved, so the screen shows the code that
             // WILL be used rather than a raw setting somebody has to interpret.
@@ -187,10 +201,35 @@ class SettingsController
                   // Public-facing support address. Distinct from admin_alert_email:
                   // that one is internal plumbing, this one is printed on pages and
                   // quoted by the assistant, so a stranger must be able to write to it.
-                  'support_email'] as $k) {
+                  'support_email',
+                  // SMTP transport. The host, port and login are echoed back like any
+                  // other field; the PASSWORD is handled below and never rendered.
+                  // These used to be readable only from .env, on a host with no shell.
+                  'mail_smtp_host','mail_smtp_port','mail_smtp_user',
+                  // Image hosting. Cloud name, key and folder are identifiers, not
+                  // secrets — the API secret and the combined URL are handled below.
+                  'cloudinary_cloud_name','cloudinary_api_key','cloudinary_folder'] as $k) {
             if (array_key_exists($k, $b)) {
                 $this->settings->set($k, trim((string)$b[$k]), $adminId);
             }
+        }
+
+        // ── Credentials: WRITE-ONLY, exactly like the AI provider keys below ──
+        //
+        // Never rendered back to the page. A blank field leaves the stored value
+        // untouched — otherwise every save of an unrelated field on this form would
+        // wipe the SMTP password — and the matching "clear" box removes it.
+        //
+        // `cloudinary_url` is in this list rather than the echoed one above because
+        // `cloudinary://key:secret@cloud` carries the secret inside it; echoing it back
+        // would put the credential in the page source of every settings render.
+        foreach (['mail_smtp_pass' => 'smtp_pass',
+                  'cloudinary_api_secret' => 'cloudinary_secret',
+                  'cloudinary_url' => 'cloudinary_url'] as $settingKey => $clearName) {
+            $clear = (array) ($b['secret_clear'] ?? []);
+            if (!empty($clear[$clearName])) { $this->settings->set($settingKey, '', $adminId); continue; }
+            $val = trim((string) ($b[$settingKey] ?? ''));
+            if ($val !== '') $this->settings->set($settingKey, $val, $adminId);
         }
 
         // ── Display timezone ────────────────────────────────────────────────

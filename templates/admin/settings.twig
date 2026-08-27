@@ -65,6 +65,7 @@
 {% set st_sections = [
   {id: 'site',      label: 'Site'},
   {id: 'mail',      label: 'Email & messaging'},
+  {id: 'media',     label: 'Media'},
   {id: 'money',     label: 'Payments & voting'},
   {id: 'integrity', label: 'Integrity'},
   {id: 'ai',        label: 'AI'},
@@ -188,6 +189,27 @@
       <div class="row">
         <div><label for="f-support_email">Support inbox <small>printed on the site, quoted by the assistant, and where tickets are delivered</small></label><input type="email" name="support_email" id="f-support_email" value="{{ values.support_email|default('') }}" placeholder="gates@afrovanguard.org.ng"></div>
       </div>
+
+      {# ── THE TRANSPORT ITSELF ──────────────────────────────────────────────
+         These four were readable only from .env. There is no SSH on production, so
+         that meant the card's own heading could report "SMTP not set" directly above
+         a form with no field that could set it — on the platform whose OTP codes gate
+         voting. Resolved by OtpService::boot(): these first, .env as the fallback. #}
+      <div style="margin-top:14px;padding-top:14px;border-top:1px solid var(--ad-line,#e5eae8)">
+        <div class="row">
+          <div><label for="f-mail_smtp_host">SMTP host <small>leave blank for the Brevo relay</small></label><input type="text" name="mail_smtp_host" id="f-mail_smtp_host" value="{{ values.mail_smtp_host|default('') }}" placeholder="smtp-relay.brevo.com"></div>
+          <div><label for="f-mail_smtp_port">Port</label><input type="number" name="mail_smtp_port" id="f-mail_smtp_port" value="{{ values.mail_smtp_port|default('') }}" placeholder="587" min="1" max="65535"></div>
+        </div>
+        <div class="row">
+          <div><label for="f-mail_smtp_user">SMTP username</label><input type="text" name="mail_smtp_user" id="f-mail_smtp_user" value="{{ values.mail_smtp_user|default('') }}" autocomplete="off" placeholder="the login your mail provider issued"></div>
+          <div>
+            <label for="f-mail_smtp_pass">SMTP password <small>stored write-only — never shown again</small></label>
+            <input type="password" name="mail_smtp_pass" id="f-mail_smtp_pass" autocomplete="new-password" placeholder="{% if smtp_pass_set %}•••••••••• (leave blank to keep){% else %}your provider's SMTP key{% endif %}">
+            {% if smtp_pass_set %}<label style="font-size:11px;display:inline-flex;gap:4px;align-items:center"><input type="checkbox" name="secret_clear[smtp_pass]" value="1"> remove</label>{% endif %}
+          </div>
+        </div>
+      </div>
+
       <div><button class="ad-btn" type="submit" formaction="/admin/settings/smtp-test" formnovalidate>Send a test email to me</button></div>
 
       {# ── Delivery health: is mail ACTUALLY leaving the building? ── #}
@@ -224,6 +246,34 @@
       </div>
     </div>
   </div></div>
+  <div class="ad-card" data-sec="media" data-keys="cloudinary image hosting cdn uploads media cloud name api key secret folder photos avatars" x-show="show($el)"><div class="ad-card__head"><div class="ad-card__title">Image hosting<small>{% if cloudinary_on %}Cloudinary is configured — uploads go to <code>{{ cloudinary_cloud }}</code>.{% else %}Not configured — uploads are stored on this server.{% endif %}</small></div></div><div class="ad-card__body">
+    <div class="ad-form">
+      {# The Media screen used to answer "not configured" with "add CLOUDINARY_URL to
+         .env" — an instruction no operator can carry out on a host with no shell.
+         These are the same values, settable. CloudinaryService::config() reads them
+         first and falls back to the environment. #}
+      <p class="hint" style="margin:0 0 10px">Optional. Without it, uploads are stored on this server and served from it — which works, and costs you the disk and the bandwidth. Paste either the single URL Cloudinary shows on your dashboard, or the three values separately.</p>
+      <div>
+        <label for="f-cloudinary_url">Cloudinary URL <small>stored write-only — it contains the secret</small></label>
+        <input type="password" name="cloudinary_url" id="f-cloudinary_url" autocomplete="new-password" placeholder="{% if cloudinary_on %}•••••••••• (leave blank to keep){% else %}cloudinary://key:secret@cloud-name{% endif %}">
+        {% if cloudinary_on %}<label style="font-size:11px;display:inline-flex;gap:4px;align-items:center"><input type="checkbox" name="secret_clear[cloudinary_url]" value="1"> remove</label>{% endif %}
+      </div>
+      <div class="row">
+        <div><label for="f-cloudinary_cloud_name">Cloud name</label><input type="text" name="cloudinary_cloud_name" id="f-cloudinary_cloud_name" value="{{ values.cloudinary_cloud_name|default('') }}" placeholder="your-cloud"></div>
+        <div><label for="f-cloudinary_api_key">API key</label><input type="text" name="cloudinary_api_key" id="f-cloudinary_api_key" value="{{ values.cloudinary_api_key|default('') }}" autocomplete="off" placeholder="123456789012345"></div>
+      </div>
+      <div class="row">
+        <div>
+          <label for="f-cloudinary_api_secret">API secret <small>stored write-only</small></label>
+          <input type="password" name="cloudinary_api_secret" id="f-cloudinary_api_secret" autocomplete="new-password" placeholder="{% if cloudinary_secret_set %}•••••••••• (leave blank to keep){% else %}from your Cloudinary dashboard{% endif %}">
+          {% if cloudinary_secret_set %}<label style="font-size:11px;display:inline-flex;gap:4px;align-items:center"><input type="checkbox" name="secret_clear[cloudinary_secret]" value="1"> remove</label>{% endif %}
+        </div>
+        <div><label for="f-cloudinary_folder">Folder <small>so one account can host several sites</small></label><input type="text" name="cloudinary_folder" id="f-cloudinary_folder" value="{{ values.cloudinary_folder|default('') }}" placeholder="{{ cloudinary_folder }}"></div>
+      </div>
+      <p class="hint" style="margin:8px 0 0">Sweeping existing images across to Cloudinary is done from <a href="/admin/media">Media</a>, a batch at a time.</p>
+    </div>
+  </div></div>
+
   <div class="ad-card" data-sec="money" data-keys="shop location based pricing region multiplier currency conversion naira" x-show="show($el)"><div class="ad-card__head"><div class="ad-card__title">Shop · location-based pricing<small>Per-region price multiplier — 1.0 = base price. Leave all at 1.0 to disable.</small></div></div><div class="ad-card__body">
     <div class="ad-form">
       <label class="checkbox" style="display:flex;align-items:flex-start;gap:8px;margin-bottom:10px"><input type="checkbox" name="currency_conversion" value="1" {% if values.currency_conversion == '1' %}checked{% endif %}> <span><strong>Currency conversion</strong> — let shoppers view prices in their local currency (USD, GBP, EUR…). Orders are still charged in Naira (₦); rates are fetched live and cached.</span></label>

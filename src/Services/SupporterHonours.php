@@ -518,14 +518,7 @@ final class SupporterHonours
     /** No DI in the console/cron context this runs from — same pattern as CycleAnnouncer. */
     private static function defaultMailer(): OtpService
     {
-        return new OtpService([
-            'host'         => Env::get('SMTP_HOST', 'smtp-relay.brevo.com'),
-            'port'         => Env::int('SMTP_PORT', 587),
-            'username'     => Env::get('SMTP_USER', ''),
-            'password'     => Env::get('SMTP_PASS', ''),
-            'from_address' => Env::get('MAIL_FROM_ADDRESS', 'noreply@afrovanguard.org.ng'),
-            'from_name'    => Env::get('MAIL_FROM_NAME', 'Africa GATES'),
-        ]);
+        return OtpService::boot();
     }
 
     private static function nominee(int $nomineeId): ?object

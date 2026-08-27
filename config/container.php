@@ -375,20 +375,11 @@ return [
         $c->has(\AfricaGates\Admin\Services\LogService::class) ? $c->get(\AfricaGates\Admin\Services\LogService::class) : null
     ),
     OtpService::class           => function(ContainerInterface $c) {
-        // Sender identity (from name/address, reply-to) is admin-configurable in
-        // Settings with .env as the fallback. Credentials stay env-only.
-        $s = [];
-        try { $s = $c->get(SettingsService::class)->all(); } catch (\Throwable $e) {}
-        $pick = fn(string $key, string $env, string $dft) => trim((string)($s[$key] ?? '')) ?: (string) Env::get($env, $dft);
-        $mailer = new OtpService([
-            'host' => Env::get('SMTP_HOST', 'smtp-relay.brevo.com'),
-            'port' => Env::int('SMTP_PORT', 587),
-            'username' => Env::get('SMTP_USER', ''),
-            'password' => Env::get('SMTP_PASS', ''),
-            'from_address' => $pick('mail_from_address', 'MAIL_FROM_ADDRESS', 'noreply@afrovanguard.org.ng'),
-            'from_name'    => $pick('mail_from_name', 'MAIL_FROM_NAME', 'Africa GATES'),
-            'reply_to'     => $pick('mail_reply_to', 'MAIL_REPLY_TO', ''),
-        ], $c->get(\Psr\Log\LoggerInterface::class));
+        // Every value — credentials included — resolves in OtpService::boot():
+        // gates_settings first, .env as the fallback. This used to build the array
+        // here and read the credentials from the environment only, which meant the
+        // SMTP login could not be set on a host with no shell. See boot().
+        $mailer = OtpService::boot($c->get(\Psr\Log\LoggerInterface::class));
         // Hand the same transport to CheckoutMailer, which sends receipts from
         // PaidVoteController and PaymentController — neither of which has a mailer to
         // inject. It can boot its own, but then it would not share this logger, so a

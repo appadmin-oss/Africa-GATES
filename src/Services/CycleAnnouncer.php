@@ -141,14 +141,9 @@ final class CycleAnnouncer
         if (empty($n->profile_email) || !filter_var($n->profile_email, FILTER_VALIDATE_EMAIL)) return;
 
         try {
-            $mailer = new OtpService([
-                'host'         => Env::get('SMTP_HOST', 'smtp-relay.brevo.com'),
-                'port'         => Env::int('SMTP_PORT', 587),
-                'username'     => Env::get('SMTP_USER', ''),
-                'password'     => Env::get('SMTP_PASS', ''),
-                'from_address' => Env::get('MAIL_FROM_ADDRESS', 'noreply@afrovanguard.org.ng'),
-                'from_name'    => Env::get('MAIL_FROM_NAME', 'Africa GATES'),
-            ]);
+            // Was the only sender with no gates_settings lookup at all, so it and
+            // CheckoutMailer disagreed about where configuration comes from.
+            $mailer = OtpService::boot();
             $base     = rtrim((string) Env::get('APP_URL', 'https://afg.afrovanguard.org.ng'), '/');
             $headline = $kind === 'winner' ? 'Congratulations — you won.' : 'Congratulations — you are a runner-up.';
             $nm       = htmlspecialchars((string) $n->profile_name, ENT_QUOTES, 'UTF-8');

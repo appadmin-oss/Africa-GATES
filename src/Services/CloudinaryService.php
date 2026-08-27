@@ -5,6 +5,7 @@ namespace AfricaGates\Services;
 
 use AfricaGates\Support\Env;
 use GuzzleHttp\Client;
+use Illuminate\Database\Capsule\Manager as DB;
 use Psr\Log\LoggerInterface;
 
 /**
@@ -68,12 +69,13 @@ final class CloudinaryService
      */
     public static function config(): ?array
     {
-        $cloud  = (string) Env::get('CLOUDINARY_CLOUD_NAME', '');
-        $key    = (string) Env::get('CLOUDINARY_API_KEY', '');
-        $secret = (string) Env::get('CLOUDINARY_API_SECRET', '');
+        $pick   = self::resolver();
+        $cloud  = $pick('cloudinary_cloud_name', 'CLOUDINARY_CLOUD_NAME');
+        $key    = $pick('cloudinary_api_key',    'CLOUDINARY_API_KEY');
+        $secret = $pick('cloudinary_api_secret', 'CLOUDINARY_API_SECRET');
 
         if ($cloud === '' || $key === '' || $secret === '') {
-            $url = (string) Env::get('CLOUDINARY_URL', '');
+            $url = $pick('cloudinary_url', 'CLOUDINARY_URL');
             if ($url !== '' && preg_match('~^cloudinary://([^:]+):([^@]+)@(.+)$~', $url, $m) === 1) {
                 $key    = rawurldecode($m[1]);
                 $secret = rawurldecode($m[2]);
@@ -83,6 +85,31 @@ final class CloudinaryService
 
         if ($cloud === '' || $key === '' || $secret === '') return null;
         return ['cloud' => $cloud, 'key' => $key, 'secret' => $secret];
+    }
+
+    /**
+     * `gates_settings` first, `.env` as the fallback — for every value above.
+     *
+     * ── WHY THIS IS NOT ENV-ONLY ANY MORE ────────────────────────────────────
+     *
+     * It was, and the Media screen's remedy for it read "add
+     * CLOUDINARY_URL=cloudinary://key:secret@cloud to .env". There is no SSH on
+     * production. So the panel could tell an operator their image hosting was
+     * unconfigured and hand them an instruction they had no way to carry out — the
+     * GAS_URL failure exactly, on a different screen. The panel's own "configured"
+     * light reads through this resolver, so it now goes green from the settings form
+     * that sets it.
+     *
+     * @return \Closure(string, string): string
+     */
+    private static function resolver(): \Closure
+    {
+        $s = [];
+        try { $s = DB::table('gates_settings')->pluck('value', 'key_name')->all(); }
+        catch (\Throwable) {}
+
+        return static fn (string $key, string $env): string
+            => trim((string) ($s[$key] ?? '')) ?: (string) Env::get($env, '');
     }
 
     /** True when uploads should go to Cloudinary. False means "store locally", never "fail". */
@@ -105,7 +132,9 @@ final class CloudinaryService
      */
     public static function rootFolder(): string
     {
-        return trim((string) Env::get('CLOUDINARY_FOLDER', 'africa-gates'), '/');
+        $folder = (self::resolver())('cloudinary_folder', 'CLOUDINARY_FOLDER');
+
+        return trim($folder !== '' ? $folder : 'africa-gates', '/');
     }
 
     // ── Upload ───────────────────────────────────────────────────────────────
