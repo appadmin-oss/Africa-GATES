@@ -74,39 +74,6 @@ final class VendorCatalogue
     }
 
     /**
-     * What a VISITOR sees: only what is actually available.
-     *
-     * A catalogue that shows sold-out lines to somebody deciding whether to make the trip
-     * is worse than a short catalogue, because the trip is the cost.
-     *
-     * @return array<int,object>
-     */
-    public static function publicFor(int $orgId): array
-    {
-        return array_values(array_filter(
-            self::forOrg($orgId),
-            static fn (object $i): bool => (int) ($i->is_available ?? 0) === 1
-        ));
-    }
-
-    /** @return array<int,object> keyed by nothing — for a whole event's accepted vendors. */
-    public static function forOrgs(array $orgIds): array
-    {
-        $ids = array_values(array_unique(array_filter(array_map('intval', $orgIds))));
-        if ($ids === []) return [];
-
-        try {
-            return DB::table('gates_vendor_items')
-                ->whereIn('org_id', $ids)
-                ->where('is_available', 1)
-                ->orderBy('org_id')->orderBy('sort_order')->orderBy('id')
-                ->get()->all();
-        } catch (\Throwable) {
-            return [];
-        }
-    }
-
-    /**
      * How many items this vendor has in each category.
      *
      * The number an organiser needs and the one the paragraph could never give: it is what

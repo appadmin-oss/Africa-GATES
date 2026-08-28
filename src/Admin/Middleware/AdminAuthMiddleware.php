@@ -3,6 +3,8 @@ declare(strict_types=1);
 
 namespace AfricaGates\Admin\Middleware;
 
+use AfricaGates\Admin\Services\AuthService;
+use AfricaGates\Support\Session;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
 use Psr\Http\Server\RequestHandlerInterface as Handler;
@@ -12,6 +14,24 @@ use Slim\Psr7\Response as Psr7Response;
  * Enforces an authenticated admin session for protected /admin routes.
  * If unauthenticated and the path is HTML, redirects to /admin/login.
  * If unauthenticated and the path is JSON (admin API), returns 401 JSON.
+ *
+ * ── THE SESSION IS NOT THE ACCOUNT ───────────────────────────────────────────
+ *
+ * `admin_role` and the account's `is_active` were written into $_SESSION at login
+ * and then never read from the database again. Everything downstream — the judge
+ * refusal below, the writer allowlist below that, SectionGuardMiddleware, the
+ * sidebar — read the copy.
+ *
+ * So the console had two buttons that did nothing to anybody already signed in.
+ * Deactivating an admin ended no session: they kept full access until their cookie
+ * expired, which is the whole reason the button is pressed. Demoting a superadmin
+ * to viewer was the same. Neither failure is visible from anywhere — the operator
+ * sees the row change, and the person they revoked keeps working.
+ *
+ * {@see AuthService::currentAdmin()} is the reader that closes it, and it is asked
+ * on EVERY request rather than on a timer: the entire value of a revocation is that
+ * it lands on the next click, and this is one primary-key SELECT on a console a
+ * handful of people use. BallotGuard declines to memoise for the same reason.
  */
 class AdminAuthMiddleware
 {
@@ -22,8 +42,11 @@ class AdminAuthMiddleware
      */
     private const WRITER_ROLES = ['superadmin', 'admin', 'editor', 'moderator'];
 
-    /** @param string[] $exempt absolute paths that don't require auth */
-    public function __construct(private readonly array $exempt = [
+    /**
+     * @param AuthService $auth the one reader of the live admin row — see the class note
+     * @param string[]    $exempt absolute paths that don't require auth
+     */
+    public function __construct(private readonly AuthService $auth, private readonly array $exempt = [
         '/admin/login',
         '/admin/login/submit',
         '/admin/magic',
@@ -50,7 +73,41 @@ class AdminAuthMiddleware
             $res = new Psr7Response(302);
             return $res->withHeader('Location', '/admin/login' . $next);
         }
-        $role = $_SESSION['admin_role'] ?? '';
+        // ── RE-READ THE ACCOUNT, NOT THE COPY OF IT ─────────────────────────
+        //
+        // Fails CLOSED when the row cannot be read at all. The alternative is that
+        // a database hiccup readmits everybody who has been revoked, and a console
+        // whose database is unreachable can do nothing useful anyway.
+        try {
+            $live = $this->auth->currentAdmin();
+        } catch (\Throwable $e) {
+            error_log('[admin-auth] could not verify the signed-in account: ' . $e->getMessage());
+            $live = null;
+        }
+
+        if ($live === null || (int) ($live->is_active ?? 0) !== 1) {
+            unset($_SESSION['admin_id'], $_SESSION['admin_name'],
+                  $_SESSION['admin_role'], $_SESSION['admin_email']);
+            Session::rotate();
+            $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
+
+            $isJson = str_contains($req->getHeaderLine('Accept'), 'application/json')
+                   || str_starts_with($path, '/admin/api/');
+            if ($isJson) {
+                $res = new Psr7Response(401);
+                $res->getBody()->write(json_encode(['success' => false,
+                    'message' => 'This account is no longer active. Please sign in again.']));
+                return $res->withHeader('Content-Type', 'application/json');
+            }
+            $_SESSION['flash_error'] = 'This account is no longer active. Please sign in again.';
+            return (new Psr7Response(302))->withHeader('Location', '/admin/login');
+        }
+
+        // The live role, written back so the guards below — and every screen that
+        // reads $_SESSION['admin_role'] — see the demotion rather than the login.
+        $role = (string) ($live->role ?? '');
+        $_SESSION['admin_role'] = $role;
+        $_SESSION['admin_name'] = (string) ($live->name ?? ($_SESSION['admin_name'] ?? ''));
 
         // Judges have no place in the admin console — they evaluate in the /judge
         // portal. Deny the entire area outright (every route + method), and send

@@ -76,10 +76,4 @@ final class AiResult
     {
         return false;
     }
-
-    /** The value, or $fallback when the call did not succeed. */
-    public function valueOr(mixed $fallback): mixed
-    {
-        return $this->ok ? $this->value : $fallback;
-    }
 }

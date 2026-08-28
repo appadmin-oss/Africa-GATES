@@ -333,17 +333,33 @@ final class VendorAccountTest extends TestCase
         $this->assertSame('Their jollof', (string) VendorCatalogue::find($id)->name);
     }
 
-    /** Sold out comes off the public list without losing the line. */
-    public function test_an_unavailable_item_leaves_the_public_list_and_stays_in_the_catalogue(): void
+    /**
+     * Sold out is recorded against the line rather than removing it.
+     *
+     * ── AND THE READER THAT USED TO BE ASSERTED HERE ─────────────────────────
+     *
+     * This used to end on `VendorCatalogue::publicFor()`, "a sold-out line was shown to
+     * somebody deciding whether to make the trip". Nothing called publicFor(), and its
+     * sibling forOrgs() — a whole event's accepted vendors — was never called either,
+     * because THERE IS NO PUBLIC VENDOR CATALOGUE. The event page carries the call for
+     * stands; no surface anywhere shows a visitor what a vendor is bringing.
+     *
+     * So the toggle a vendor presses on their dashboard is seen by that dashboard and by
+     * nobody else, and two readers stood ready for a page that was never built. The audit
+     * of 2026-08-27 found them; they are gone, and the flag is what is held here — the
+     * line stays in the catalogue, and `is_available` records the truth about it, which
+     * is what any such page would need on the day it exists.
+     */
+    public function test_an_unavailable_item_keeps_its_place_and_records_that_it_is_sold_out(): void
     {
         $orgId = $this->vendorOrg('avail@example.test');
         $id = (int) VendorCatalogue::save($orgId, 0, ['name' => 'Moi moi'])['id'];
 
         VendorCatalogue::setAvailable($orgId, $id, false);
 
-        $this->assertCount(1, VendorCatalogue::forOrg($orgId));
-        $this->assertSame([], VendorCatalogue::publicFor($orgId),
-            'a sold-out line was shown to somebody deciding whether to make the trip');
+        $items = VendorCatalogue::forOrg($orgId);
+        $this->assertCount(1, $items, 'sold out is not deleted — the line comes back');
+        $this->assertSame(0, (int) $items[0]->is_available);
     }
 
     /**

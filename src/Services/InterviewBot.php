@@ -117,6 +117,16 @@ final class InterviewBot
     public const OVERRUN_GRACE_MINUTES = 25;
 
     /** Words the nominee must have said before 'auto' will move to the next question. */
+    /**
+     * How long after a bot leaves the sweep keeps asking for the rest of the transcript.
+     *
+     * Transcription is a queued job on the provider's side; twenty minutes is generous
+     * against the minutes it normally takes and short enough that a provider which never
+     * says "complete" is not polled about one meeting for the life of the installation.
+     * {@see settleTranscripts()}.
+     */
+    private const SETTLE_MINUTES = 20;
+
     private const ADVANCE_MIN_WORDS = 25;
 
     /** Seconds of transcript silence that count as "they have finished answering". */
@@ -316,6 +326,79 @@ final class InterviewBot
                 $touched++;
             } catch (\Throwable $e) {
                 error_log('[interview-bot] poll ' . $iv->id . ': ' . $e->getMessage());
+            }
+        }
+
+        // 3. Finished, but the words are still arriving.
+        $touched += self::settleTranscripts($limit);
+
+        return $touched;
+    }
+
+    /**
+     * Keep reading a finished sitting until the provider says the transcript is complete.
+     *
+     * ══════════════════════════════════════════════════════════════════════════
+     * THE TAIL OF EVERY INTERVIEW WAS BEING LOST
+     * ══════════════════════════════════════════════════════════════════════════
+     *
+     * Arm 2 above polls `requested`, `joining` and `in_call`. The tick that observes the
+     * bot leave writes `bot_state = 'done'`, runs one last {@see ingestFor()} — and takes
+     * the sitting out of the only query that would ever fetch from it again.
+     *
+     * Transcription LAGS the audio. It is a queued job on the provider's side and the
+     * last stretch of a call is still being written when the bot walks out of the room.
+     * So the final minutes — which in a judging interview is the closing answer and
+     * whatever the panel said afterwards — were fetched exactly once, too early, and
+     * never again.
+     *
+     * The failure is invisible in the worst possible way: there IS a transcript, it reads
+     * as a whole conversation, and only somebody who was in the call knows it stops short.
+     *
+     * {@see AttendeeBot::transcriptReady()} is the provider's own statement that nothing
+     * more is coming, and it is the condition to stop on. The deadline exists because a
+     * provider that never says "complete" must not be polled about one meeting forever.
+     *
+     * @return int sittings touched
+     */
+    private static function settleTranscripts(int $limit): int
+    {
+        try {
+            $rows = DB::table('gates_interviews')
+                ->whereIn('bot_state', ['done', 'removed'])
+                ->whereNotNull('bot_id')->where('bot_id', '!=', '')
+                ->whereNotNull('bot_left_at')
+                ->where('bot_left_at', '>=', Carbon::now()->subMinutes(self::SETTLE_MINUTES)->toDateTimeString())
+                ->orderByDesc('bot_left_at')
+                ->limit($limit)
+                ->get(['id', 'bot_id']);
+        } catch (\Throwable $e) {
+            error_log('[interview-bot] settle query: ' . $e->getMessage());
+            return 0;
+        }
+
+        $touched = 0;
+        foreach ($rows as $r) {
+            $id    = (int) $r->id;
+            $botId = (string) $r->bot_id;
+            try {
+                $meta = self::meta($id);
+                // Already settled on an earlier tick. The flag is what stops this arm
+                // re-fetching a finished conversation every minute until the deadline.
+                if (!empty($meta['transcript_settled_at'])) continue;
+
+                self::ingestFor($id, $botId);
+                $touched++;
+
+                // Read AFTER the ingest, never before: a bot that reports "complete" on
+                // this tick still has the lines we have not fetched yet, and stopping on
+                // the flag first would drop precisely the tail this exists to keep.
+                if (AttendeeBot::transcriptReady($botId)) {
+                    $meta['transcript_settled_at'] = Carbon::now()->toDateTimeString();
+                    self::putMeta($id, $meta);
+                }
+            } catch (\Throwable $e) {
+                error_log('[interview-bot] settle ' . $id . ': ' . $e->getMessage());
             }
         }
 

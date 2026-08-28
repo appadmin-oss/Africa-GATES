@@ -468,44 +468,6 @@ HTML;
        TRANSACTIONAL NOTIFICATIONS
     ══════════════════════════════════════════════════════════ */
 
-    /** Branded HTML nomination confirmation to the nominator. */
-    public function sendNominationConfirmation(
-        string $nominatorEmail,
-        string $nominatorName,
-        string $nomineeName,
-        string $programme,
-    ): array {
-        $html = <<<HTML
-<p style="margin:0 0 14px;font-size:15px;color:#374151">Hi <strong>$nominatorName</strong>,</p>
-<p style="margin:0 0 14px;font-size:15px;color:#374151">
-  Thank you for nominating <strong>$nomineeName</strong> for the <strong>$programme</strong>.
-  Your submission has been received and is now in our moderation queue.
-</p>
-<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:20px 0;background:#f0fdf4;border-left:4px solid #22c55e;border-radius:0 8px 8px 0;padding:14px 18px">
-  <tr>
-    <td style="font-size:14px;color:#166534">
-      Once approved, <strong>$nomineeName</strong> will appear on the public shortlist and the community can begin voting.
-      You'll receive a follow-up email when the decision is made.
-    </td>
-  </tr>
-</table>
-<p style="margin:0;font-size:14px;color:#6b7280">
-  Questions? Reply to this email and our team will get back to you.
-</p>
-HTML;
-
-        return $this->sendBranded(
-            $nominatorEmail,
-            "Your nomination of $nomineeName was received",
-            $html,
-            "Hi $nominatorName,\n\nThank you for nominating $nomineeName for the $programme. "
-                . "Your submission is now in our moderation queue.\n\nOnce approved, "
-                . "$nomineeName will appear on the public shortlist for community voting.\n\n— Africa GATES",
-            'Confirmation',
-            $this->base() . '/assets/img/illustrations/illo-plane.jpg'
-        );
-    }
-
     /** Branded HTML confirmation to a partner/sponsor after enquiry. */
     public function sendPartnerConfirmation(
         string $contactEmail,

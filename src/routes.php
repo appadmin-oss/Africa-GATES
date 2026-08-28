@@ -3721,5 +3721,6 @@ return function(App $app) {
             $s->post('/{id:[0-9]+}/test',   AdminWebhooksController::class.':test');
         })->add(new RoleMiddleware('superadmin'));
     // Auth runs first (outermost), then the per-section RBAC guard.
-    })->add(new SectionGuardMiddleware())->add(new AdminAuthMiddleware());
+    })->add(new SectionGuardMiddleware())
+      ->add(new AdminAuthMiddleware($app->getContainer()->get(\AfricaGates\Admin\Services\AuthService::class)));
 };

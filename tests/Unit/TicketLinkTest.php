@@ -225,29 +225,37 @@ final class TicketLinkTest extends TestCase
 
     // ══ lifecycle ═══════════════════════════════════════════════════════════
 
-    /** Revoking is per ticket and immediate — the "that wasn't me" route. */
-    public function test_revoking_a_ticket_closes_every_link_at_once(): void
+    /**
+     * A revoked link is refused — and `revoked_at` is the only way to revoke one.
+     *
+     * ── WHY THERE IS NO revokeForTicket() ANY MORE ───────────────────────────
+     *
+     * There was, and nothing called it. It was written for two cases and neither of
+     * them can arise: no path in this codebase changes a ticket's email, and there is
+     * no "that wasn't me" surface for a person to press. Two tests exercised the method
+     * and passed, which is exactly why the audit of 2026-08-27 found it — a mechanism
+     * with no route in tests perfectly well.
+     *
+     * The security property was never resting on it. `resolve()` re-checks the address
+     * on every read, so a reassigned ticket kills every link already sent for it whether
+     * or not a row was ever marked; and `prune()` clears the rows a week past expiry.
+     *
+     * What is asserted here instead is the column: `revoked_at` is honoured on read, so
+     * an operator who sets it by hand — or a revoke surface built later — gets the
+     * refusal without anything else having to change.
+     */
+    public function test_a_revoked_link_is_refused_and_its_neighbours_are_not(): void
     {
-        $a = TicketLinkService::issue($this->ticketId, self::EMAIL);
-        $b = TicketLinkService::issue($this->ticketId, self::EMAIL);
+        $other  = $this->ticket('AGS-LINK-3', 'third@example.test');
+        $mine   = TicketLinkService::issue($this->ticketId, self::EMAIL);
+        $theirs = TicketLinkService::issue($other, 'third@example.test');
 
-        $this->assertSame(2, TicketLinkService::revokeForTicket($this->ticketId));
-
-        $this->assertNull(TicketLinkService::resolve($a));
-        $this->assertNull(TicketLinkService::resolve($b));
-    }
-
-    /** Revoking one ticket must not touch another's. */
-    public function test_revoking_is_scoped_to_its_own_ticket(): void
-    {
-        $other      = $this->ticket('AGS-LINK-3', 'third@example.test');
-        $mine       = TicketLinkService::issue($this->ticketId, self::EMAIL);
-        $theirs     = TicketLinkService::issue($other, 'third@example.test');
-
-        TicketLinkService::revokeForTicket($this->ticketId);
+        DB::table('gates_ticket_links')
+            ->where('token_hash', hash('sha256', (string) $mine))
+            ->update(['revoked_at' => '2026-01-01 00:00:00']);
 
         $this->assertNull($this->resolveOrNull($mine));
-        $this->assertNotNull($this->resolveOrNull($theirs));
+        $this->assertNotNull($this->resolveOrNull($theirs), 'one revocation must not close another thread');
     }
 
     private function resolveOrNull(?string $t): ?array

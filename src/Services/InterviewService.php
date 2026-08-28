@@ -616,7 +616,24 @@ final class InterviewService
         return ['ok' => true, 'message' => $held ? 'Interview closed.' : 'Recorded as a no-show.'];
     }
 
-    /** Called off by us. */
+    /**
+     * Called off by us.
+     *
+     * ── AND CALLED OFF IN THE CALENDAR TOO ───────────────────────────────────
+     *
+     * This used to change one column. The sitting read "cancelled" in the console while
+     * the appointment stayed in the nominee's diary, the panel's diary, and the guests' —
+     * with a Meet link that still opened a room. Nobody was told. The first anybody knew
+     * was somebody sitting in a call alone at the appointed time, and the console had
+     * been showing "cancelled" the whole while, which is what made it unreportable.
+     *
+     * The calendar leg is BEST-EFFORT and never blocks the cancellation: an Apps Script
+     * that is unreachable, unconfigured or not yet redeployed must not leave an interview
+     * we have decided is off still marked as happening. What it must do is SAY so, which
+     * is why the outcome is folded into the message rather than swallowed — an operator
+     * who reads "the calendar could not be reached" deletes the event by hand, and one
+     * who reads nothing does not.
+     */
     public static function cancel(int $id, string $note = ''): array
     {
         $iv = self::byId($id);
@@ -624,12 +641,45 @@ final class InterviewService
         if ($iv->status === 'done') {
             return ['ok' => false, 'message' => 'That interview has already been held.'];
         }
-        DB::table('gates_interviews')->where('id', $id)->update([
+
+        $patch = [
             'status'       => 'cancelled',
             'outcome_note' => $note !== '' ? mb_substr(trim($note), 0, 500) : null,
             'updated_at'   => Carbon::now()->toDateTimeString(),
-        ]);
-        return ['ok' => true, 'message' => 'Interview #' . $id . ' cancelled.'];
+        ];
+
+        $said    = '';
+        $eventId = trim((string) ($iv->calendar_event_id ?? ''));
+        if ($eventId !== '') {
+            try {
+                $svc = GoogleMeetService::boot();
+                if (!$svc->canSchedule()) {
+                    $said = ' The calendar event could not be removed (' . $svc->why()
+                          . ') — delete it by hand.';
+                } else {
+                    $r = $svc->cancelEvent(['event_id' => $eventId]);
+                    if ($r['ok']) {
+                        // Cleared whether or not the event was still there: either way there
+                        // is no longer a room to send anybody — or a bot — to.
+                        $patch['meet_url']          = null;
+                        $patch['meet_code']         = null;
+                        $patch['calendar_event_id'] = null;
+                        $said = $r['cancelled']
+                            ? ' The calendar event has been deleted and the guests told.'
+                            : ' The calendar event was already gone.';
+                    } else {
+                        $said = ' The calendar event could not be removed (' . $r['message']
+                              . ') — delete it by hand.';
+                    }
+                }
+            } catch (\Throwable $e) {
+                error_log('[interview] calendar cancel ' . $id . ': ' . $e->getMessage());
+                $said = ' The calendar could not be reached — delete the event by hand.';
+            }
+        }
+
+        DB::table('gates_interviews')->where('id', $id)->update($patch);
+        return ['ok' => true, 'message' => 'Interview #' . $id . ' cancelled.' . $said];
     }
 
     /** Append one captured answer to the live record. */

@@ -127,28 +127,4 @@ HTML;
             }
         } catch (\Throwable) {}
     }
-
-    /**
-     * Get all milestones achieved by a nominee (for their campaign page).
-     */
-    public function getForNominee(int $nomineeId): array
-    {
-        try {
-            return DB::table('gates_vote_milestones')
-                ->where('nominee_id', $nomineeId)
-                ->orderBy('milestone')
-                ->get()->toArray();
-        } catch (\Throwable) {
-            return [];
-        }
-    }
-
-    /** Next milestone the nominee hasn't reached yet */
-    public function nextMilestone(int $currentVotes): ?int
-    {
-        foreach (self::MILESTONES as $m) {
-            if ($currentVotes < $m) return $m;
-        }
-        return null;
-    }
 }

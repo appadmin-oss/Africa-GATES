@@ -281,12 +281,4 @@ final class SupportAttachmentService
         $abs = self::root() . '/' . $rel;
         return is_file($abs) ? $abs : null;
     }
-
-    /** Human size for a caption. */
-    public static function humanBytes(int $b): string
-    {
-        if ($b >= 1048576) return round($b / 1048576, 1) . ' MB';
-        if ($b >= 1024)    return round($b / 1024) . ' KB';
-        return $b . ' B';
-    }
 }

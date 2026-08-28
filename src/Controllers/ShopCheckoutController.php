@@ -409,6 +409,13 @@ final class ShopCheckoutController
 
         $result = $this->confirmByReference($provider, $reference, $order);
         if ($result === 'confirmed' || $result === 'already') {
+            // Spend the referral. See the same call in EventsController::callback() for
+            // the rule and why it lands here rather than at checkout: the code is stamped
+            // when the order is created and earns only when the order is paid, and one
+            // followed link must not go on earning for the rest of the session.
+            if (trim((string) ($order->referral_code ?? '')) !== '') {
+                \AfricaGates\Services\ReferralService::clearSession();
+            }
             return $this->redirect($res, $this->base($req) . '/shop/success?ref=' . urlencode($reference));
         }
         // A mismatch is not a failure and must not be worded as one: the gateway says money

@@ -55,13 +55,6 @@ final class BallotGuard
         catch (PhaseError) { return false; }
     }
 
-    /** Non-throwing form, for read paths and templates. */
-    public static function isNominable(int $programmeId, ?Carbon $now = null): bool
-    {
-        try { self::assertNominable($programmeId, $now); return true; }
-        catch (PhaseError) { return false; }
-    }
-
     /**
      * The shared decision. $action is 'vote' or 'nominate'.
      *
@@ -192,13 +185,6 @@ final class BallotGuard
     public static function stateForCategory(int $categoryId, ?Carbon $now = null): ?array
     {
         $cycle = self::cycleForCategory($categoryId);
-        return $cycle ? CyclePolicy::stateFor($cycle, $now) : null;
-    }
-
-    /** The phase view-model for a programme's current cycle (null when none). */
-    public static function stateForProgramme(int $programmeId, ?Carbon $now = null): ?array
-    {
-        $cycle = self::currentCycleForProgramme($programmeId);
         return $cycle ? CyclePolicy::stateFor($cycle, $now) : null;
     }
 }

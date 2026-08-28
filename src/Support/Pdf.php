@@ -98,8 +98,6 @@ final class Pdf
         return true;
     }
 
-    public function hasFont(string $alias): bool { return isset($this->fonts[$alias]); }
-
     // ──────────────────────────────── pages ─────────────────────────────────
 
     public function addPage(): void
@@ -113,9 +111,6 @@ final class Pdf
         $this->pages[] = ['content' => $this->buffer, 'w' => $this->pageW, 'h' => $this->pageH];
         $this->buffer = '';
     }
-
-    public function pageWidth(): float  { return $this->pageW; }
-    public function pageHeight(): float { return $this->pageH; }
 
     // ─────────────────────────────── drawing ────────────────────────────────
 

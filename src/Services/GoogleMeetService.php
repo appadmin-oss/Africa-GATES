@@ -381,16 +381,36 @@ final class GoogleMeetService
      * there" is the state the caller asked for. Guests ARE notified by default — a
      * cancellation nobody is told about is the guest turning up.
      *
+     * ── WHY THIS TAKES THE SAME PAIR readEvent() DOES ────────────────────────
+     *
+     * It used to take a bare `$key`, and a key exists only on events {@see syncEvent()}
+     * created. The interviews screen books through {@see createSpace()}, which sets no
+     * key and stores an `event_id` — so this could not address a single event a judging
+     * panel had ever made, and nothing said so. Cancelling an interview left the Meet
+     * link live and the appointment in the nominee's diary.
+     *
+     * Prefer `event_id` when you have one; `key` is the fallback for a sitting whose id
+     * was never stored.
+     *
+     * @param array{event_id?:string, key?:string, notify?:bool, calendar_id?:string} $opts
      * @return array{ok:bool, cancelled:bool, message:string}
      */
-    public function cancelEvent(string $key, bool $notify = true, string $calendarId = 'primary'): array
+    public function cancelEvent(array $opts): array
     {
         if (!$this->canSchedule()) return ['ok' => false, 'cancelled' => false, 'message' => $this->why()];
-        if (trim($key) === '')    return ['ok' => false, 'cancelled' => false,
-                                          'message' => 'A cancel needs the key the event was created with.'];
+
+        $eventId = trim((string) ($opts['event_id'] ?? ''));
+        $key     = trim((string) ($opts['key'] ?? ''));
+        if ($eventId === '' && $key === '') {
+            return ['ok' => false, 'cancelled' => false,
+                    'message' => 'A cancel needs an event id or the key the event was created with.'];
+        }
 
         $res = $this->call('calendar.cancel', [
-            'key' => mb_substr(trim($key), 0, 120), 'notify' => $notify, 'calendarId' => $calendarId,
+            'eventId'    => $eventId !== '' ? mb_substr($eventId, 0, 1024) : null,
+            'key'        => $key     !== '' ? mb_substr($key, 0, 120)      : null,
+            'notify'     => (bool) ($opts['notify'] ?? true),
+            'calendarId' => (string) ($opts['calendar_id'] ?? 'primary'),
         ], self::TIMEOUT_CREATE);
 
         return ['ok' => (bool) ($res['ok'] ?? false),

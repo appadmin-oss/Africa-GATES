@@ -171,17 +171,6 @@ final class TicketLinkService
         } catch (\Throwable) {}
     }
 
-    /** Kill every link for a ticket — for "that wasn't me" and for a reassigned address. */
-    public static function revokeForTicket(int $ticketId): int
-    {
-        if ($ticketId < 1 || !self::ready()) return 0;
-        try {
-            return (int) DB::table('gates_ticket_links')
-                ->where('ticket_id', $ticketId)->whereNull('revoked_at')
-                ->update(['revoked_at' => Carbon::now()->toDateTimeString()]);
-        } catch (\Throwable) { return 0; }
-    }
-
     /**
      * Drop links that expired a while ago.
      *

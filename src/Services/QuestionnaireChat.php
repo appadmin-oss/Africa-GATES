@@ -686,18 +686,6 @@ final class QuestionnaireChat
                 'done' => $st['done']];
     }
 
-    /** Record which engine answered, so the operator screen can say so. */
-    public static function noteSource(string $token, string $source): void
-    {
-        $s = QuestionnaireService::byToken($token);
-        if (!$s) return;
-        $now = (string) ($s->chat_source ?? '');
-        // Once a model has contributed, 'ai' stands: it shaped part of the record.
-        if ($now === 'ai') return;
-        DB::table('gates_nominee_submissions')->where('id', (int) $s->id)
-            ->update(['chat_source' => in_array($source, ['ai', 'rules'], true) ? $source : 'rules']);
-    }
-
     // ══ 7. the readiness check ═══════════════════════════════════════════════
 
     /**

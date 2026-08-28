@@ -392,6 +392,88 @@ reachable, and `AiCapability::$timeout` is the standing proof of how expensive t
 The full list is reproducible with the scan described above; it is not reproduced here because the
 value is in the nine rows in the table, not the tail.
 
+> **Resolved after this audit was written.** Triaged one by one; the scan now reports **24**, down
+> from 48, and every remaining entry is in the tested-but-uncalled tail rather than the table.
+>
+> **Wired up — four mechanisms an operator or a member believed were running:**
+>
+> - **`AuthService::currentAdmin()`** → `AdminAuthMiddleware`. This was the serious one, and it was
+>   worse than "a helper is unused". `admin_role` and `is_active` were stamped into `$_SESSION` at
+>   login and never compared against the row again, and *every* downstream guard — the judge
+>   refusal, the writer allowlist, `SectionGuardMiddleware`, the sidebar — read that copy. So
+>   deactivating an admin ended no session and demoting a superadmin left them writing, until their
+>   cookie expired. The middleware now re-reads the account on every request (fail-closed if the row
+>   cannot be read) and writes the live role back over the login copy. Six new cases in
+>   `AdminAuthMiddlewareTest` fail without it.
+> - **`GoogleMeetService::cancelEvent()`** → `InterviewService::cancel()`. Two halves were broken.
+>   `cancel()` changed one column, so a cancelled interview stayed in the nominee's, the panel's and
+>   the guests' calendars with a Meet link that still opened a room. And the method could not have
+>   helped anyway: it demanded the `agatesKey` that only `calendar.sync` sets, while the interviews
+>   screen books through `meet.create`, which sets none and returns an event id. `calendar.cancel`
+>   now takes `eventId` as well as `key` — the pair `calendarRead` has always taken — and the
+>   calendar leg is best-effort but never silent: an unreachable script says so in the message the
+>   operator reads, and the interview cancels regardless. **Requires the Apps Script to be
+>   redeployed** before the calendar half takes effect.
+> - **`AttendeeBot::transcriptReady()`** → a third arm on `InterviewBot::sweep()`. The sweep polled
+>   `requested`, `joining` and `in_call`; the tick that saw the bot leave wrote `bot_state = 'done'`
+>   and thereby removed the sitting from the only query that would ever fetch from it again. But
+>   transcription *lags* the audio, so the last stretch of every recorded interview — the closing
+>   answer, and whatever the panel said after — was fetched once, too early, and never again. The
+>   failure was invisible: there is a transcript, it reads as a whole conversation, and only somebody
+>   who was in the room knows it stops short. Finished sittings are now read until the provider says
+>   the transcript is complete, or twenty minutes pass.
+> - **`ReferralService::clearSession()`** → both paid callbacks. The rule is written on the method
+>   itself — *"after it has been credited, so one link cannot earn on two purchases"* — and nothing
+>   called it, so it was a comment. One click on a referral link earned commission on every purchase
+>   for the rest of the session. Cleared at the paid callback rather than at reserve, so a buyer who
+>   abandons a hold keeps the attribution they arrived with, and guarded on the row actually carrying
+>   a code, so a refused self-referral or a free ticket spends nothing.
+>
+> **Deleted — thirteen methods whose absence removes nothing:**
+>
+> - `AuthService::hasRole()` — the third answer to a question `Permissions` owns, and the only one
+>   that read `$_SESSION` from inside a service.
+> - `OtpService::sendNominationConfirmation()` — a strictly worse second implementation.
+>   `NominationAftercare` already sends the nominator a confirmation, and unlike this one it carries
+>   the reference and the watch link.
+> - `TicketLinkService::revokeForTicket()` — written for two cases that cannot arise: nothing in this
+>   codebase changes a ticket's email, and there is no "that wasn't me" surface. The security
+>   property never rested on it — `resolve()` re-checks the address on every read — and `revoked_at`
+>   is still honoured, so a revoke surface built later needs nothing else.
+> - `MilestoneService::getForNominee()`, `nextMilestone()` and `VendorCatalogue::publicFor()`,
+>   `forOrgs()` — readers for pages that were never built. The nominee campaign page does not exist,
+>   and neither does any public vendor catalogue: **a vendor's sold-out toggle is seen by their own
+>   dashboard and by nobody else.** That is a product gap, recorded here rather than papered over
+>   with two readers standing ready for it.
+> - `BallotGuard::isNominable()`, `stateForProgramme()` — non-throwing wrappers nothing composes.
+>   `assertNominable()` runs and the gate holds.
+> - `QuestionnaireChat::noteSource()` — the only writer of `chat_source`, inside the guided chat that
+>   was **deliberately retired** (see the note in `MyWorkController`). Wiring it would have been
+>   wiring a writer into a mechanism with no door.
+> - `Pdf::pageWidth()`, `pageHeight()`, `hasFont()` — every consumer passes the page size in and holds
+>   its own constant, and `font()` already returns whether registration worked.
+> - `AiResult::valueOr()`, `SupportAttachmentService::humanBytes()` — one-line conveniences nothing
+>   composes.
+>
+> **Left, and why.** The 24 that remain all have test coverage and are the third class the finding
+> named: a tested method with no caller is an API awaiting a consumer, not a mechanism silently not
+> running. The three most alarming names were checked individually and are convenience doors onto
+> paths that *are* live — `PointsService::spend()` (redemption goes through `redeemForVote()`),
+> `CommunityService::toggleCheer()` (the controller calls `react()` directly) and
+> `ShortlistService::isShortlisted()` (cards use the bulk sibling). Nothing an operator or a member
+> believes is happening is failing to happen in that tail.
+>
+> **Two findings this triage turned up that are not §3.5.** `QuestionnaireChat::say()` and `open()`
+> have no route either — the retired guided chat is a whole subsystem still carrying `chat_json`,
+> `chat_probes` and `chat_source`, and `spokenTurn()` reads turns only `say()` writes. And
+> `redeemForVote()` writes the points ledger inline rather than through `award()`, which is a second
+> write path to money-adjacent rows. Both are left alone deliberately: each is a change larger than
+> this finding, and speculative surgery on either is worse than the naming.
+>
+> `tests/Unit/DeadMechanismTest.php` holds the wiring structurally, because a behavioural test cannot
+> catch this class — every one of these methods already had a passing test of its own logic. What was
+> missing was a caller, and only the call graph shows that.
+
 ---
 
 ### 3.6 The test suite makes live outbound calls to `api.openai.com`
@@ -541,4 +623,4 @@ only `imagecopyresampled()` in the tree.
    funnel reader and four uncalled emitters deleted, the guard fixed.
 5. **§3.6** — ~~give `AiService` a sentinel it refuses before `curl_exec`.~~ **Done** — a full run
    now contains zero occurrences of `api.openai.com`.
-6. **§3.5** — triage the nine rows in the table; each is a decision to wire up or delete, not a fix.
+6. ~~**§3.5** — triage the nine rows in the table; each is a decision to wire up or delete, not a fix.~~ **Done** — see the block under §3.5.

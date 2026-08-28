@@ -109,16 +109,22 @@ class AuthService
         $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
     }
 
+    /**
+     * The live row behind the signed-in session, or null when there is none.
+     *
+     * Read on every admin request by {@see \AfricaGates\Admin\Middleware\AdminAuthMiddleware},
+     * which is what makes deactivating an account and changing a role take effect on
+     * somebody already signed in. Deliberately UNFILTERED — the middleware needs to
+     * tell a deactivated account from a deleted one, and `is_active` is its decision
+     * to make, not this reader's.
+     *
+     * ({@see findByEmail()} filters on is_active because a login is a different
+     * question: there, an inactive account must be indistinguishable from no account.)
+     */
     public function currentAdmin(): ?object
     {
         $id = (int)($_SESSION['admin_id'] ?? 0);
         return $id ? $this->findById($id) : null;
-    }
-
-    public function hasRole(string ...$roles): bool
-    {
-        $role = $_SESSION['admin_role'] ?? '';
-        return in_array($role, $roles, true);
     }
 
     /**

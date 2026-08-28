@@ -478,14 +478,39 @@ function meetUrlOf(ev) {
  * every guest's calendar as a greyed-out row and reads as "maybe". `sendUpdates` is what
  * actually tells them, and it is on by default — a cancellation nobody is told about is
  * the guest turning up.
+ *
+ * ── ADDRESSED BY eventId AS WELL AS BY key ───────────────────────────────────
+ *
+ * This used to demand `key`, and `key` is only ever set by `calendar.sync`. The
+ * interviews screen books through `meet.create`, which sets no extended property and
+ * hands back an `eventId` — so every event a judging panel ever created was one this
+ * function could not find. Cancelling an interview left the Meet link live and the
+ * appointment sitting in the nominee's calendar; nothing anywhere said so.
+ *
+ * `calendarRead` has taken both since it was written. This is the same pair, for the
+ * same reason: the two create paths remember two different handles.
  */
 function calendarCancel(d) {
   const notReady = calendarReady(); if(notReady) return notReady;
-  if(!d.key) return respond(false,'A cancel needs the key the event was created with.');
+  if(!d.eventId && !d.key) return respond(false,'A cancel needs an eventId or the key the event was created with.');
 
   const calendarId = d.calendarId || 'primary';
-  const existing = findByKey(calendarId, d.key);
-  if(!existing) return respond(true,'Nothing to cancel', {ok:true, cancelled:false});
+
+  let existing = null;
+  if(d.eventId) {
+    try {
+      existing = Calendar.Events.get(calendarId, String(d.eventId));
+    } catch(err) {
+      // 404/410 mean it is already gone, which is the success this call is idempotent about.
+      const m = String(err.message||'');
+      if(/not found|deleted|404|410/i.test(m)) return respond(true,'Nothing to cancel', {ok:true, cancelled:false});
+      return respond(false, m);
+    }
+  } else {
+    existing = findByKey(calendarId, String(d.key));
+  }
+
+  if(!existing || existing.status === 'cancelled') return respond(true,'Nothing to cancel', {ok:true, cancelled:false});
 
   Calendar.Events.remove(calendarId, existing.id, {
     sendUpdates: d.notify === false ? 'none' : 'all'

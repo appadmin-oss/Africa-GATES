@@ -688,6 +688,27 @@ class EventsController
             // inside the mailer means a second call sends nothing, so calling it costs a query
             // and covers the case where the winner's mail failed.
             EventTicketMailer::send((int) $reg->id, $this->mailer);
+
+            // ── SPEND THE REFERRAL ───────────────────────────────────────────
+            //
+            // ReferralService::clearSession() says what the rule is — "after it has been
+            // credited, so one link cannot earn on two purchases" — and nothing called
+            // it. So one click on a referral link stamped the referrer's code onto every
+            // subsequent purchase in that browser session, and the commission was paid on
+            // all of them. The referrer sees more earnings than they made; the operator
+            // sees a liability figure nobody can reconcile against the links people
+            // actually followed.
+            //
+            // HERE and not at reserve, because reserving is not paying: a buyer who
+            // abandons a hold and comes back must keep the attribution they arrived
+            // with. Guarded on the row actually carrying a code, so a self-referral that
+            // was refused, or a free ticket that credits nothing, leaves the session
+            // alone — nothing was earned, so nothing has been spent.
+            $stamped = EventTicketService::byReference($ref);
+            if (trim((string) ($stamped->referral_code ?? '')) !== '') {
+                \AfricaGates\Services\ReferralService::clearSession();
+            }
+
             return $this->goTo($res, '/events/ticket/' . urlencode($ref));
         }
 
