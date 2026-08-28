@@ -135,6 +135,114 @@ final class EventInvites
     }
 
     /**
+     * Why there is nobody to invite, in the order an operator would fix it.
+     *
+     * ══════════════════════════════════════════════════════════════════════════
+     * THE BUG THIS EXISTS FOR
+     * ══════════════════════════════════════════════════════════════════════════
+     *
+     * {@see shortlisted()} walks the linked programmes and `continue`s past a programme
+     * with no cycle, and past a cycle with no PUBLISHED shortlist. {@see judges()} returns
+     * an empty array the moment no programme is linked at all. And the picker that links
+     * them is hidden outright on a deployment that has not run the migration.
+     *
+     * Five different failures, and every one of them renders as the same thing: a table of
+     * zeroes. The operator cannot tell "this event is not linked to an award" from "the
+     * shortlist has not been published yet" from "you need to run /__setup/migrate", and
+     * there is NO SHELL ON PRODUCTION to go and look — which is the condition under which
+     * a silent empty state stops being tidy and becomes the whole problem.
+     *
+     * So the counting and the diagnosis are the same walk, done here, once. Each blocker
+     * names what is wrong, what to do, and where — because "where" is the part an operator
+     * cannot guess and the part that costs an afternoon.
+     *
+     * `hard` marks the two that stop the run dead — no table, no linked award. Everything
+     * else is one programme's problem on a night with several, and the run should still go
+     * for the awards that ARE ready rather than refusing the whole evening.
+     *
+     * @return list<array{what:string, fix:string, href:string, hard:bool}> empty when ready
+     */
+    public static function readiness(int $eventId): array
+    {
+        $out = [];
+
+        // 0 · The table itself. An operator uploads the zip and runs /__setup/migrate as
+        //     two separate acts, and between them this feature is invisible rather than
+        //     broken — which reads as "it was never built".
+        try {
+            $ready = DB::schema()->hasTable('gates_event_programmes');
+        } catch (\Throwable) {
+            $ready = false;
+        }
+        if (!$ready) {
+            return [[
+                'what' => 'The awards-to-event link has not been created in the database yet.',
+                'fix'  => 'Run the migration once — /__setup/migrate?token=… with the SETUP_TOKEN '
+                        . 'from your .env. Nothing on this page can work until it exists.',
+                'href' => '',
+                'hard' => true,
+            ]];
+        }
+
+        $programmes = self::programmesFor($eventId);
+        if ($programmes === []) {
+            return [[
+                'what' => 'This event is not linked to any award programme.',
+                'fix'  => 'Open the event and tick the awards being presented, under '
+                        . '"Awards presented at this event".',
+                'href' => '/admin/events/' . $eventId,
+                'hard' => true,
+            ]];
+        }
+
+        // 1 · Per programme, the two things shortlisted() walks past in silence.
+        foreach ($programmes as $programme) {
+            $cycle = DB::table('gates_award_cycles')
+                ->where('programme_id', $programme->id)
+                ->orderByDesc('year')->orderByDesc('id')
+                ->first(['id', 'year']);
+
+            if (!$cycle) {
+                $out[] = [
+                    'what' => $programme->title . ' has no award cycle yet.',
+                    'fix'  => 'Create this year\'s cycle before inviting anybody to be honoured in it.',
+                    'href' => '/admin/programmes/' . (int) $programme->id,
+                    'hard' => false,
+                ];
+                continue;
+            }
+
+            if (ShortlistService::shortlistedIn((int) $cycle->id) === []) {
+                $out[] = [
+                    'what' => $programme->title . ' (' . (int) $cycle->year . ') has no PUBLISHED shortlist.',
+                    // The distinction that costs the afternoon: a shortlist can be fully
+                    // drawn up and still be a draft, and a draft is invisible here on
+                    // purpose — an invitation is the loudest way to tell somebody they
+                    // are on a list that has not been decided.
+                    'fix'  => 'Draw the shortlist and publish it. A drafted shortlist is '
+                            . 'deliberately not invited from.',
+                    'href' => '/admin/shortlists?cycle=' . (int) $cycle->id,
+                    'hard' => false,
+                ];
+            }
+        }
+
+        // 2 · The panel. Judges with no programmes named are on every panel, so this is
+        //     empty only when there are genuinely no active judges at all.
+        if (self::judges($eventId) === []) {
+            $out[] = [
+                'what' => 'No active judge is on the panel for these awards.',
+                'fix'  => 'Appoint judges, or leave this — the nominee half of the run works '
+                        . 'without them.',
+                'href' => '/admin/judges',
+                'hard' => false,
+            ];
+        }
+
+        return $out;
+    }
+
+    /**
      * Everybody who should be invited, by audience, with why any of them cannot be.
      *
      * Read-only. Nothing is minted and nothing is sent.

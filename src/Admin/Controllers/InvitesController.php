@@ -54,9 +54,15 @@ final class InvitesController
             'page_title' => 'Invitations — ' . $event->title,
             'admin_page' => 'events',
             'event'      => (array) $event,
-            'programme'  => $event->programme_id
-                ? DB::table('gates_award_programmes')->where('id', $event->programme_id)->first()
-                : null,
+            // The awards this ceremony is for. Read from the join table, not from
+            // `gates_site_events.programme_id` — that is the single-programme column the
+            // multi-programme migration folds INTO the join table, so on any migrated
+            // install it is null and this page was rendering "From ''s published
+            // shortlist" above a table of zeroes.
+            'programmes' => \AfricaGates\Services\EventInvites::programmesFor($id),
+            // Why the table is a table of zeroes, when it is. Five different failures
+            // used to render identically here and there is no shell to go and look.
+            'blockers'   => \AfricaGates\Services\EventInvites::readiness($id),
             // Read-only: nothing is minted by opening this page.
             'plan'        => EventInvites::plan($id),
             'invites'     => array_map(static fn ($r) => (array) $r, $invites),

@@ -183,6 +183,26 @@
         <label>Slug <span class="af-opt">blank = made from the title</span>
           <input type="text" name="slug" value="{{ row.slug|default('') }}" placeholder="auto"></label>
 
+        {# ── WHEN THE MIGRATION HAS NOT RUN ────────────────────────────────
+           The house convention on this form is to HIDE a field whose column does not
+           exist yet — an operator uploads the zip and runs /__setup/migrate as two
+           separate acts, and a form that posts an unknown column 500s in between.
+
+           Hiding it silently is the wrong half of that convention here. Every other
+           hidden field on this page is a refinement of something already visible; this
+           one is the ONLY way to link an award to a ceremony, and the whole invitation
+           run reads from it. Gone with no explanation, it does not read as "not migrated
+           yet", it reads as "that feature does not exist" — which is what it read as.
+           So the control goes, and the reason stays. #}
+        {% if not programme_link_ready %}
+        <div style="grid-column:1/-1;background:#fdf6e3;border:1px solid #f3b416;border-radius:11px;padding:12px 14px;font-size:12.5px;line-height:1.7;color:#10292C">
+          <strong style="display:block;margin-bottom:2px">Awards cannot be linked to this event yet.</strong>
+          The table that holds the link has not been created. Run the migration once —
+          <code>/__setup/migrate?token=…</code> with the <code>SETUP_TOKEN</code> from your
+          <code>.env</code> — and this becomes a list of tick boxes here. Until then the
+          invitation run has no shortlist to draw from.
+        </div>
+        {% endif %}
         {% if programme_link_ready %}
         {# CHECKBOXES, not a multi-select. A <select multiple> on a phone is a scrolling
            list where ctrl-click is the only way to add a second item, and this is the

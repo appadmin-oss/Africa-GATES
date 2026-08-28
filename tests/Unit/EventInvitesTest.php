@@ -153,6 +153,223 @@ final class EventInvitesTest extends TestCase
         $this->assertSame([], $plan['unreachable']);
     }
 
+    // ── why there is nobody, when there is nobody ───────────────────────────
+
+    /**
+     * Five ways to have an empty list, and they all used to look the same.
+     *
+     * ══════════════════════════════════════════════════════════════════════════
+     * THE BUG THIS FILE GAINED THESE TESTS FOR
+     * ══════════════════════════════════════════════════════════════════════════
+     *
+     * `shortlisted()` walks the linked programmes and `continue`s past a programme with
+     * no cycle and past a cycle with no PUBLISHED shortlist. `judges()` returns nothing
+     * the moment no programme is linked. The picker that links them is hidden outright
+     * before the migration runs. And the invitations page itself was gated on
+     * `gates_site_events.programme_id` — the single-programme column the multi-programme
+     * migration folds INTO the join table, so on a migrated install it is null and the
+     * page said "no award programme is linked to this event" for every event, including
+     * the ones that were.
+     *
+     * Every one of those renders as a table of zeroes, and there is no shell on this host
+     * to go and find out which. So `readiness()` names the actual one, and these hold it.
+     */
+    public function test_an_event_with_no_awards_says_so_and_says_where_to_fix_it(): void
+    {
+        EventInvites::setProgrammes($this->eventId, []);
+
+        $b = EventInvites::readiness($this->eventId);
+
+        $this->assertCount(1, $b, 'one blocker at a time, in the order they are fixed');
+        $this->assertStringContainsString('not linked to any award', $b[0]['what']);
+        $this->assertTrue($b[0]['hard'], 'nothing can be invited without an award');
+        $this->assertSame('/admin/events/' . $this->eventId, $b[0]['href'],
+            'the fix has to name WHERE — that is the part an operator cannot guess');
+    }
+
+    /**
+     * A drawn-but-unpublished shortlist is the expensive one: everything looks done, and
+     * the invitation run is silently drawing from nothing.
+     */
+    public function test_an_unpublished_shortlist_is_named_as_the_reason(): void
+    {
+        $ada = $this->nominee('Ada Obi', 'ada@example.com');
+        $sl  = $this->publishShortlist($this->cycleId, $this->catId, [$ada]);
+        DB::table('gates_shortlists')->where('id', $sl)->update(['status' => 'draft']);
+
+        $b = EventInvites::readiness($this->eventId);
+        $said = implode(' ', array_column($b, 'what'));
+
+        $this->assertStringContainsString('PUBLISHED shortlist', $said);
+        $this->assertStringContainsString('Incredible Principal Awards', $said,
+            'on a four-award night it has to say WHICH award is not ready');
+        // Not a hard stop: the other awards on the night should still be invited.
+        foreach ($b as $one) {
+            if (str_contains($one['what'], 'shortlist')) $this->assertFalse($one['hard']);
+        }
+    }
+
+    /** A programme with no cycle at all — the state a brand new award is in. */
+    public function test_a_programme_with_no_cycle_is_named(): void
+    {
+        $fresh = (int) DB::table('gates_award_programmes')->insertGetId([
+            'slug' => 'newcomers', 'title' => 'Newcomer Awards', 'is_active' => 1,
+        ]);
+        EventInvites::setProgrammes($this->eventId, [$fresh]);
+
+        $said = implode(' ', array_column(EventInvites::readiness($this->eventId), 'what'));
+        $this->assertStringContainsString('Newcomer Awards has no award cycle', $said);
+    }
+
+    /** And when everything is in place it says nothing at all. */
+    public function test_a_ready_run_reports_no_blockers(): void
+    {
+        $ada = $this->nominee('Ada Obi', 'ada@example.com');
+        $this->publishShortlist($this->cycleId, $this->catId, [$ada]);
+        DB::table('gates_judges')->insert([
+            'name' => 'Judge Ada', 'email' => 'judge@example.com', 'is_active' => 1,
+        ]);
+
+        $this->assertSame([], EventInvites::readiness($this->eventId),
+            'a warning on a screen where nothing is wrong is the reason nobody reads them');
+    }
+
+    /**
+     * The page must not be gated on the legacy single-programme column.
+     *
+     * `gates_site_events.programme_id` is what the join table replaced. Reading it here
+     * is how a fully-configured multi-award ceremony came to report that it had no award
+     * linked at all — and it is the specific line the operator hit.
+     */
+    public function test_readiness_does_not_depend_on_the_retired_programme_column(): void
+    {
+        $ada = $this->nominee('Ada Obi', 'ada@example.com');
+        $this->publishShortlist($this->cycleId, $this->catId, [$ada]);
+        DB::table('gates_judges')->insert([
+            'name' => 'Judge Ada', 'email' => 'judge@example.com', 'is_active' => 1,
+        ]);
+        // `gates_site_events.programme_id` is not merely empty — it is in no schema file
+        // and no migration adds it. It was only ever read, never created, which is why the
+        // invitations page's `{% if not event.programme_id %}` gate was true for EVERY
+        // event from the day it shipped: the page has never once rendered the run.
+        $this->assertFalse(\Illuminate\Database\Capsule\Manager::schema()
+            ->hasColumn('gates_site_events', 'programme_id'),
+            'if this column is ever added, the retired gate becomes plausible again');
+
+        $this->assertSame([], EventInvites::readiness($this->eventId));
+        $this->assertNotSame([], EventInvites::plan($this->eventId)[InviteAudience::NOMINEE]['ready'],
+            'the shortlist is reachable through the join table alone');
+
+        // And no screen may reintroduce the dependency.
+        //
+        // Matched with the COMMENTS STRIPPED. Both files name the column in a note saying
+        // why they no longer read it, and a scanner that cannot tell a comment from code
+        // is a scanner that punishes the explanation — the same mistake, and the same fix,
+        // as the settings-credential scan in OperationalCredentialsTest.
+        foreach ([
+            'src/Admin/Controllers/InvitesController.php' => '/->\s*programme_id/',
+            'templates/admin/events/invites.twig'         => '/event\.programme_id/',
+        ] as $rel => $access) {
+            $src  = (string) file_get_contents(dirname(__DIR__, 2) . '/' . $rel);
+            $code = str_ends_with($rel, '.twig')
+                ? (string) preg_replace('/\{#[\s\S]*?#\}/', '', $src)
+                : self::phpWithoutComments($src);
+
+            $this->assertDoesNotMatchRegularExpression($access, $code,
+                $rel . ' reads the retired single-programme column, which is in no schema');
+        }
+    }
+
+    /** Source with every comment token removed, so a scan cannot match an explanation. */
+    private static function phpWithoutComments(string $src): string
+    {
+        $out = '';
+        foreach (token_get_all($src) as $t) {
+            if (is_array($t)) {
+                if ($t[0] === T_COMMENT || $t[0] === T_DOC_COMMENT) continue;
+                $out .= $t[1];
+            } else {
+                $out .= $t;
+            }
+        }
+        return $out;
+    }
+
+    /**
+     * The page itself renders the run, and not the stuck warning.
+     *
+     * The unit tests above hold `readiness()`. This holds the SCREEN, because the fault
+     * the operator hit was not in the resolver — it was a template gate on a column that
+     * does not exist, which no test of the resolver could ever have caught.
+     */
+    public function test_the_invitations_page_shows_the_run_for_a_configured_ceremony(): void
+    {
+        $ada = $this->nominee('Ada Obi', 'ada@example.com');
+        $this->publishShortlist($this->cycleId, $this->catId, [$ada]);
+        DB::table('gates_judges')->insert([
+            'name' => 'Judge Ada', 'email' => 'judge@example.com', 'is_active' => 1,
+        ]);
+
+        $_SESSION['admin_id'] = $this->admin();
+        $html = (string) $this->get('/admin/events/' . $this->eventId . '/invites')->getBody();
+
+        $this->assertStringNotContainsString('No award programme is linked to this event', $html,
+            'the page said this for every ceremony, configured or not, since the day it shipped');
+        $this->assertStringContainsString('Who is invited', $html);
+        $this->assertStringContainsString('Incredible Principal Awards', $html,
+            'the awards are named, from the join table');
+        $this->assertStringContainsString('Build the invitation list', $html);
+    }
+
+    /** And when it is NOT configured, it says which of the five things is wrong. */
+    public function test_the_invitations_page_names_the_blocker_instead_of_a_table_of_zeroes(): void
+    {
+        EventInvites::setProgrammes($this->eventId, []);
+
+        $_SESSION['admin_id'] = $this->admin();
+        $html = (string) $this->get('/admin/events/' . $this->eventId . '/invites')->getBody();
+
+        $this->assertStringContainsString('not linked to any award programme', $html);
+        $this->assertStringContainsString('/admin/events/' . $this->eventId, $html,
+            'the notice has to carry the way to fix it');
+        $this->assertStringNotContainsString('Build the invitation list', $html,
+            'nothing to build, so nothing to press');
+    }
+
+    /** A signed-in admin, for the two page tests above. */
+    private function admin(): int
+    {
+        return (int) DB::table('gates_admins')->insertGetId([
+            'email' => 'ops-' . bin2hex(random_bytes(4)) . '@example.test',
+            'password_hash' => password_hash('x', PASSWORD_BCRYPT),
+            'name' => 'Ops', 'role' => 'superadmin', 'is_active' => 1,
+            'created_at' => '2026-01-01 00:00:00', 'updated_at' => '2026-01-01 00:00:00',
+        ]);
+    }
+
+    /**
+     * The picker is hidden before the migration, and the REASON is not.
+     *
+     * Hiding a field whose column does not exist is this form's convention and it is
+     * right — a form that posts an unknown column 500s. But this field is the only way to
+     * link an award to a ceremony, and gone with no explanation it does not read as "not
+     * migrated yet", it reads as "that feature does not exist". Which is what it read as.
+     */
+    public function test_the_events_form_explains_the_missing_link_rather_than_hiding_it(): void
+    {
+        $tpl = (string) file_get_contents(
+            dirname(__DIR__, 2) . '/templates/admin/events/form.twig');
+
+        $this->assertStringContainsString('{% if not programme_link_ready %}', $tpl,
+            'the unmigrated case has no branch, so it says nothing');
+        $at = strpos($tpl, '{% if not programme_link_ready %}');
+        $notice = substr($tpl, $at, 900);
+        $this->assertStringContainsString('/__setup/migrate', $notice,
+            'there is no shell on this host — the notice has to name the route that fixes it');
+        // And the control itself still goes, or the save posts a column that is not there.
+        $this->assertStringContainsString('{% if programme_link_ready %}', $tpl);
+    }
+
     // ── minting ─────────────────────────────────────────────────────────────
 
     public function test_minting_stores_the_quota_and_mints_a_code_that_allows_exactly_it(): void

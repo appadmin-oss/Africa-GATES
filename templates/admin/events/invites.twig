@@ -43,14 +43,33 @@
 <p class="iv-sub">{{ event.title }} · {{ event.event_date|when_zoned }}
   · <a href="/admin/events/{{ event.id }}">back to the event</a></p>
 
-{% if not event.programme_id %}
+{# ── WHY THERE IS NOBODY, WHEN THERE IS NOBODY ──────────────────────────────
+   This used to be one line gated on `event.programme_id` — the SINGLE-programme column
+   that the multi-programme migration folds into the join table. So on any migrated
+   install it is null, and this page said "no award programme is linked to this event"
+   for every event including the ones that were.
+
+   And behind that line were four more failures that all rendered as a table of zeroes:
+   an unmigrated database, no cycle, an unpublished shortlist, no panel. `readiness()`
+   walks them and each one names its own fix and where to go, because there is no shell
+   on this host to go and look with. #}
+{% set hard = blockers|filter(b => b.hard)|length > 0 %}
+
+{% if blockers|length %}
   <div class="iv-warn">
-    <strong>No award programme is linked to this event.</strong>
-    Invitations are drawn from a programme's published shortlist and its judging panel, so
-    there is nobody to invite until one is set. Choose it on
-    <a href="/admin/events/{{ event.id }}">the event form</a>.
+    <strong>{% if hard %}There is nobody to invite yet.{% else %}Some of this evening is not ready.{% endif %}</strong>
+    <ul style="margin:8px 0 0 18px;line-height:1.8;padding:0">
+      {% for b in blockers %}
+        <li>{{ b.what }}
+          <span class="iv-mute">{{ b.fix }}</span>
+          {% if b.href %}<a href="{{ b.href }}">Go there →</a>{% endif %}
+        </li>
+      {% endfor %}
+    </ul>
   </div>
-{% else %}
+{% endif %}
+
+{% if not hard %}
 
   <form method="post" action="/admin/events/{{ event.id }}/invites/build">
     <input type="hidden" name="_token" value="{{ csrf_token }}">
@@ -58,7 +77,12 @@
     {# ── who would be invited ─────────────────────────────────────────────── #}
     <div class="iv-sec">
       <h2>Who is invited</h2>
-      <p>From <strong>{{ programme.title }}</strong>'s published shortlist and its panel.
+      {# Plural, and read from the join table. One gala night hands out several awards, and
+         naming them is what tells an operator whether the list in front of them is the
+         whole evening or one programme of it. #}
+      <p>From the published shortlist of
+         {% for p in programmes %}<strong>{{ p.title }}</strong>{% if not loop.last %}{{ loop.revindex0 == 1 ? ' and ' : ', ' }}{% endif %}{% endfor %},
+         and the panel that judged {{ programmes|length > 1 ? 'them' : 'it' }}.
          Nothing is minted by opening this page.</p>
 
       <div class="iv-scroll">
