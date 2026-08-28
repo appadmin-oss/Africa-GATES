@@ -148,9 +148,13 @@ final class EventTierToneTest extends TestCase
         ]);
 
         $this->assertSame('hold', $tones[2]);
-        $this->assertSame(0.0, EventTierTone::HEAT['hold'], 'hold never flashes white');
-        $this->assertSame(0, EventTierTone::SPARKS['hold'], 'and never sheds sparks');
-        $this->assertSame(1, EventTierTone::LAPS['hold']);
+        // Zero heat is the quietest the ladder goes, and it is what makes the wash on a
+        // sold-out row land at the floor weight and no more. It was "never flashes white"
+        // when the press was a firework; it is "never lands heavier than it has to" now,
+        // and it is the same number saying the same thing.
+        $this->assertSame(0.0, EventTierTone::HEAT['hold']);
+        $this->assertSame(min(EventTierTone::HEAT), EventTierTone::HEAT['hold'],
+            'a waiting list must never be acknowledged more loudly than a seat on sale');
     }
 
     public function test_hold_is_the_slowest_tone(): void
@@ -185,32 +189,49 @@ final class EventTierToneTest extends TestCase
         }
     }
 
-    // ══ higher = faster and hotter, in that order ════════════════════════════
+    // ══ higher = faster and heavier, in that order ═══════════════════════════
 
     public function test_the_escalation_runs_the_right_way(): void
     {
-        // A slow sweep on the premium tier reads as sluggish, not luxurious. This is the
+        // A slow response on the premium tier reads as sluggish, not luxurious. This is the
         // one relationship the whole effect rests on, so it is asserted rather than
         // commented.
+        //
+        // It is asserted on the RAW numbers, and the template renders MS at .4×. That is
+        // safe because the rescale is monotonic — but only because it is monotonic, which
+        // is why the scale factor is a single constant beside the property it sets rather
+        // than a per-tone table that could reorder these behind this test's back.
         $this->assertGreaterThan(EventTierTone::MS['rise'], EventTierTone::MS['calm']);
         $this->assertGreaterThan(EventTierTone::MS['peak'], EventTierTone::MS['rise']);
 
         $this->assertGreaterThan(EventTierTone::HEAT['calm'], EventTierTone::HEAT['rise']);
         $this->assertGreaterThan(EventTierTone::HEAT['rise'], EventTierTone::HEAT['peak']);
-
-        $this->assertSame(2, EventTierTone::LAPS['peak'], 'two laps, on the peak alone');
-        foreach (['calm', 'rise', 'hold'] as $t) {
-            $this->assertSame(1, EventTierTone::LAPS[$t]);
-            $this->assertSame(0, EventTierTone::SPARKS[$t]);
-        }
     }
 
-    public function test_every_tone_has_every_value(): void
+    /**
+     * The two tables that are gone, and why this is not a gap.
+     *
+     * `LAPS` and `SPARKS` counted laps of a light running the registration card's rim and
+     * particles shed off its corner — the effect that fired on every tier press. It was
+     * removed: it animated the whole card for an action that happened on one 48px row,
+     * for up to 1.4s, on a press people repeat three times while comparing tiers.
+     *
+     * A press is a state layer and a ripple on the pressed row now, and neither can say a
+     * lap count. The one firework left runs on a completed registration and is uniform on
+     * purpose. So the two tables had nobody to speak to, and a constant with no reader is
+     * this codebase's most expensive bug — see CODEBASE-INDEX §17.
+     */
+    public function test_the_ladder_is_two_tables_and_they_are_the_two_a_press_can_express(): void
     {
-        // A tone missing from one table renders as a card that animates for 0ms, which
-        // looks exactly like the effect not being wired up.
+        $this->assertFalse(defined(EventTierTone::class . '::LAPS'),
+            'LAPS is back with nothing to read it — a press cannot express a lap count');
+        $this->assertFalse(defined(EventTierTone::class . '::SPARKS'),
+            'SPARKS is back with nothing to read it');
+
+        // A tone missing from one of the surviving tables renders as a row that responds
+        // for 0ms at 0 opacity, which looks exactly like the effect not being wired up.
         foreach (EventTierTone::TONES as $tone) {
-            foreach (['MS', 'LAPS', 'SPARKS', 'HEAT'] as $table) {
+            foreach (['MS', 'HEAT'] as $table) {
                 $this->assertArrayHasKey($tone, constant(EventTierTone::class . '::' . $table),
                     $tone . ' is missing from ' . $table);
             }

@@ -29,8 +29,8 @@ namespace AfricaGates\Services;
  * "this is the expensive one", on the same card, eleven pixels apart.
  *
  * The escalation survives intact without touching hue, because hue was never carrying it:
- * the peak tone is FASTER, brighter, goes round twice and sheds sparks. That reads as
- * "more" whatever colour it is. So the hue comes from the event's own accent — through
+ * the peak tone is FASTER and its ink lands HEAVIER. That reads as "more" whatever colour
+ * it is. So the hue comes from the event's own accent — through
  * {@see EventTierPalette}, the same ladder that colours the dot on the printed ticket — and
  * the light that runs the card is the colour of the ticket the buyer is about to receive.
  * A tier the organiser has given a slot sweeps in its own colour; one they have not sweeps
@@ -42,7 +42,7 @@ namespace AfricaGates\Services;
  *
  * "The most expensive tier gets the full treatment" is wrong at ₦5,000 / ₦5,500. There is
  * no Patron tier there; there are two general tiers and one of them is slightly dearer, and
- * a white-hot double lap with seven sparks over ₦500 reads as the page being broken.
+ * the full treatment over ₦500 reads as the page being broken.
  *
  * The peak needs a real premium underneath it, so it requires the top price to be at least
  * {@see PEAK_RATIO}× the cheapest paid tier — or the cheapest tier to be free, where any
@@ -64,20 +64,41 @@ final class EventTierTone
     /** The top tier must cost at least this many times the cheapest paid one to be `peak`. */
     public const PEAK_RATIO = 2.0;
 
-    /** Arc duration in ms. Higher tier = FASTER: a slow sweep reads as sluggish, not lavish. */
+    /**
+     * How fast the ink crosses the row, in ms. Higher tier = FASTER: a slow response reads
+     * as sluggish, not lavish.
+     *
+     * The template takes .4× of this. The numbers are an arc's — they were written when a
+     * press ran a light around the whole registration card — and a press belongs in a much
+     * shorter band; the rescale is monotonic, so the ordering asserted below is the
+     * ordering that reaches the screen. Kept unscaled here so this table stays the one
+     * place the ladder is written, and the single rescale is visible beside the property
+     * it sets.
+     */
     public const MS = ['calm' => 950, 'rise' => 820, 'peak' => 700, 'hold' => 1050];
 
-    /** Laps the light runs. Two on `peak` and nowhere else. */
-    public const LAPS = ['calm' => 1, 'rise' => 1, 'peak' => 2, 'hold' => 1];
-
-    /** Particles shed off the top-right corner. */
-    public const SPARKS = ['calm' => 0, 'rise' => 0, 'peak' => 7, 'hold' => 0];
-
     /**
-     * How near white the leading spark burns, 0–1.
+     * How heavily the ink lands, 0–1. With {@see MS}, the whole escalation.
      *
-     * This is the whole escalation, together with MS and LAPS. `hold` is 0 on purpose:
-     * a sold-out tier never flashes white.
+     * ── WHAT THIS USED TO MEAN, AND WHAT IT MEANS NOW ────────────────────────
+     *
+     * It was "how near white the leading spark burns", and it sat beside LAPS and SPARKS —
+     * a lap count and a particle count for a light that ran the card's perimeter on every
+     * tier press. That effect is gone: it fired 22px above and 400px below the row a finger
+     * had actually landed on, for up to 1.4 seconds, on an action people repeat three times
+     * while comparing. The press is a state layer and a ripple on the pressed row now.
+     *
+     * LAPS and SPARKS went with it — they could only ever be said by a firework, and the
+     * one place a firework still runs (a completed registration) is deliberately uniform,
+     * because a Patron table celebrating harder than a free General seat is the page
+     * ranking the people in it.
+     *
+     * HEAT survives because weight is something a state layer CAN say. It scales the wash's
+     * and the ripple's opacity above a floor rather than multiplying them — see `--tier-w`
+     * in the template for why a straight multiply makes `calm` invisible.
+     *
+     * `hold` is 0 on purpose and it always was: a sold-out tier gets the quietest possible
+     * acknowledgement, and nothing louder.
      */
     public const HEAT = ['calm' => 0.34, 'rise' => 0.62, 'peak' => 1.0, 'hold' => 0.0];
 

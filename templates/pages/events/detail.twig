@@ -169,11 +169,25 @@
      row people press three or four times while comparing, on a phone, with a thumb. */
   .ed-tier{ position:relative; width:100%; min-height:48px; text-align:left; border:1.5px solid rgba(16,41,44,.12); background:#fff; border-radius:13px; padding:12px 14px; display:flex; align-items:flex-start; gap:11px; cursor:pointer; margin-top:9px; font-family:inherit;
     /* The tone's own colour, overridden per row from the event's accent ladder. Declared
-       here so a row whose hue never arrives still animates in the platform's green rather
+       here so a row whose hue never arrives still tints in the platform's green rather
        than in `transparent`, which is invisible and reads as the effect being broken. */
     --tier-hue:var(--ag-green,#237b22);
-    --tier-ms:950ms;
+    /* How hard this row's ink lands, 0–1, from EventTierTone::HEAT. It was declared here
+       from the day the effect shipped and NOTHING ever set it — a dead custom property is
+       §17's bug in CSS, and it is the reason the ladder existed only in the arc's speed.
+       It is set per row from PHP now; see `--tier-w` below for what it drives. */
     --tier-heat:.34;
+    /* The state layer's weight, derived once. Material's opacities are flat tokens; this
+       platform has a rank ladder that has to survive, so heat modulates them ABOVE A FLOOR
+       rather than multiplying them: .34 heat at a straight multiply is .027 opacity, which
+       is nothing at all, and a hover state nobody can see is a hover state that is missing.
+       calm ≈ .90 · rise ≈ 1.03 · peak = 1.20 · hold = .75. */
+    --tier-w:calc(.75 + .45 * var(--tier-heat));
+    /* The gate that stops the layers stacking. 1 normally; 0 while a ripple is on the row.
+       See THE PRESS — state layers are alternatives, not a pile, and multiplying them by
+       one switch is what keeps that true without four specificity fights. */
+    --tier-state:1;
+    --tier-grow:380ms;
     transition:border-color var(--ag-dur-fast,.15s) var(--ag-ease,ease),
                background var(--ag-dur-fast,.15s) var(--ag-ease,ease),
                box-shadow var(--ag-dur,.25s) var(--ag-ease,ease); }
@@ -200,17 +214,152 @@
   .ed-tier.is-sel .ed-tier__radio::after{ content:''; width:9px; height:9px; border-radius:50%;
     background:var(--tier-hue); box-shadow:0 0 0 1px var(--tier-edge); }
   .ed-tier__name{ font-weight:600; font-size:14px; color:var(--ag-ink); }
-  .ed-tier__perk{ font-size:11.5px; color:var(--ag-ink-soft,#626a6e); }
+  /* Darker than the site's `--ag-ink-soft` (#626a6e), and only here.
+     #626a6e is 5.52:1 on white — AA at 11.5px with almost nothing to spend, which is what
+     the original effect's comment meant by "little room" and why that effect kept off the
+     row's face entirely. The state layer DOES cross the face, so the room has to exist:
+     against a black wash — the worst accent an organiser can produce — #626a6e stops
+     clearing 4.5:1 at 7.3% opacity, and the heaviest persistent state here is 12%.
+     #545c60 is 6.83:1 and moves that ceiling to 16.2%, which clears every state the
+     stylesheet declares including the ripple's. Held by EventTierSelectionTest, which
+     sweeps the accent space rather than trusting the hues that happen to exist today. */
+  .ed-tier__perk{ font-size:11.5px; color:#545c60; }
   .ed-tier__price{ flex:none; margin-left:auto; padding-left:8px; font-family:var(--ag-font-mono,monospace); font-size:14px; font-weight:700; line-height:1.4; white-space:nowrap; color:var(--ag-ink); }
 
   /* ══════════════════════════════════════════════════════════════════════════
-     THE SELECTION LIGHT
+     THE PRESS — A STATE LAYER AND A RIPPLE, ON THE ROW THAT WAS PRESSED
      ══════════════════════════════════════════════════════════════════════════
 
-     Choosing a tier is COMPARISON, not commitment — people press General, Supporter,
-     Patron, then General again. So the press gets light rather than particles, and the
-     light travels the card's RIM. Nothing crosses the card's face: an overlay there dims
-     the price somebody is in the middle of reading, which is the one thing they came for.
+     ── WHAT THIS REPLACED, AND WHY ─────────────────────────────────────────
+
+     Pressing a tier used to animate the whole REGISTRATION CARD: arcs racing the card's
+     perimeter for 950–1400ms, a lift shadow, sparks off the corner, and every unpressed row
+     dimmed to .42 while it ran. Three things were wrong with it, and none of them is a
+     matter of taste.
+
+     1 · IT BROKE CAUSALITY. The finger lands on a 48px row; the light appears 22px above it
+         and 400px below it, on a border the row does not own. Motion's job in a press is to
+         say "that — the thing you touched — is what responded". A card-wide effect says
+         something responded, somewhere.
+
+     2 · IT WAS TOO LONG FOR WHAT IT WAS. The comment on the old effect had the insight
+         exactly right — "choosing a tier is COMPARISON, not commitment; people press
+         General, Supporter, Patron, then General again" — and then spent up to 1.4 seconds
+         on each of those presses. A state change in place is a 75–100ms event.
+
+     3 · IT DIMMED THE THING BEING COMPARED. `edDim` took every other row to .42 opacity for
+         850ms. The rows somebody is reading against are the rows the animation hid.
+
+     And a fourth, quieter one: there was no hover or focus response AT ALL. The row had a
+     one-shot burst and nothing in between, so on a desktop the list was inert until clicked.
+
+     ── THE MODEL ────────────────────────────────────────────────────────────
+
+     Material's two parts, in this platform's own colours:
+
+       · A STATE LAYER — a flat wash of the tier's own hue over the row, at a fixed opacity
+         per state. It is PERSISTENT while the state holds, not an animation, which is what
+         makes a control feel continuously alive rather than only at the instant of a click.
+       · A RIPPLE — one circle, born at the pointer, grown to cover the row, held while the
+         finger is down, faded on release. Born at the pointer is the whole point: it is the
+         part that says the row you touched is the row that answered.
+
+     ── AND WHAT THE RANK LADDER DOES NOW ────────────────────────────────────
+
+     Google expresses emphasis statically — a filled card, a badge — never by animating
+     harder. But `EventTierTone`'s ladder is a real, tested decision (rank from PRICE, not
+     from list position, because organisers drag their premium row to the top) and throwing
+     it away to be more Material would be losing an argument that was already won.
+
+     So rank moved rather than went: from the arc's SPEED and PARTICLE COUNT to the ink's
+     WEIGHT and REACH. `HEAT` sets how heavily the wash lands; `MS` sets how fast the ripple
+     crosses the row, at .4× — the same ordering the tone test holds, rescaled into the band
+     a press belongs in. A peak tier's ink is fractionally darker and arrives fractionally
+     sooner. Nobody names it and everybody feels it, which is what a ladder is for.
+
+     The firework was not deleted. It moved to `won` — see THE ARRIVAL below.
+     ══════════════════════════════════════════════════════════════════════════ */
+
+  /* The clipping host. `overflow:hidden` lives HERE and not on `.ed-tier`, so the row's
+     focus outline (drawn outside the border box, at +2px) and the selected row's inset rim
+     are both untouched. A ripple is a circle wider than the row; without this it is a
+     circle wider than the row. */
+  .ed-tier__ink{ position:absolute; inset:0; border-radius:inherit; overflow:hidden;
+                 pointer-events:none; z-index:0; }
+  /* Everything else in the row sits above the ink. `::before` is generated as the first
+     child, so with both positioned and no z-index the later siblings would already win —
+     but the ripples are appended LAST by script, and they would not. */
+  .ed-tier > *:not(.ed-tier__ink){ position:relative; z-index:1; }
+
+  /* THE STATE LAYER. One element, one property, three values.
+     `linear` rather than an ease: this is a wash appearing in place, not a thing moving,
+     and 90ms of eased opacity reads as a lag rather than as a curve. */
+  .ed-tier__ink::before{ content:''; position:absolute; inset:0; background:var(--tier-hue);
+                         opacity:0; transition:opacity 90ms linear; }
+  /* ONE LAYER AT A TIME. Every opacity below is multiplied by `--tier-state`, which the
+     script drops to 0 for as long as a ripple is on the row.
+     Without it the layers composite: a keyboard press is focus (.12) UNDER the ripple
+     (.144), which comes to about .25 — twice the ink a press is supposed to carry, and
+     enough to put the 11.5px perk line under AA on a dark accent. They are alternatives,
+     not a pile: the ripple is the pressed state, and while it is there it is the whole of
+     what the row is showing. Material draws it the same way.
+
+     Done with a multiplier rather than an overriding rule because `:not(:disabled):hover`
+     outweighs a plain class, and winning that four times over is four places for the next
+     state to be forgotten. */
+
+  /* Guarded on `hover:hover`: on a touch screen `:hover` sticks after a tap, and a row that
+     stays washed after you have moved on reads as a second selection. */
+  @media (hover:hover){
+    .ed-tier:not(:disabled):hover .ed-tier__ink::before{ opacity:calc(.08 * var(--tier-w) * var(--tier-state)); }
+  }
+  .ed-tier:not(:disabled):focus-visible .ed-tier__ink::before{ opacity:calc(.10 * var(--tier-w) * var(--tier-state)); }
+  /* NO `:active` RULE HERE, and that is not an omission.
+     The ripple IS the pressed state — that is what it is for — and a `:active` wash under
+     it does not deepen the press, it doubles it: two layers at .144 composite to about .27,
+     which is a slab rather than ink, and it is enough to push the 11.5px perk line under
+     AA on a dark accent. Material has the same single layer for the same reason.
+     The pressed wash comes back under `prefers-reduced-motion`, where there is no ripple
+     to be it — see the bottom of this stylesheet. */
+  /* The chosen row keeps a resting wash, so the selection reads on a list where nothing is
+     hovered — and so moving the pointer onto it is a change rather than a no-op. */
+  .ed-tier.is-sel .ed-tier__ink::before{ opacity:calc(.05 * var(--tier-w) * var(--tier-state)); }
+  @media (hover:hover){
+    .ed-tier.is-sel:not(:disabled):hover .ed-tier__ink::before{ opacity:calc(.10 * var(--tier-w) * var(--tier-state)); }
+  }
+  /* The gate itself. Set by `ripple_()` for as long as at least one ripple is alive. */
+  .ed-tier.is-inking{ --tier-state:0; }
+
+  /* THE RIPPLE. Position and size are written by script — they depend on where the pointer
+     landed and cannot be expressed here. Everything else is. `transform` and `opacity`
+     only, so it composites and the sidebar never repaints. */
+  .ed-tier__ripple{ position:absolute; border-radius:50%; background:var(--tier-hue);
+                    opacity:calc(.12 * var(--tier-w)); transform:scale(0);
+                    pointer-events:none; will-change:transform,opacity; }
+
+
+  /* ══════════════════════════════════════════════════════════════════════════
+     THE ARRIVAL — the card-wide light, for the one press that is not a comparison
+     ══════════════════════════════════════════════════════════════════════════
+
+     This ran on every tier press once. It should not have: choosing a tier is COMPARISON,
+     and people press General, Supporter, Patron, then General again. A card that throws a
+     firework four times in ten seconds is a card that has misread what is happening on it.
+     See THE PRESS above for what a comparison gets now.
+
+     What it IS right for is the moment it was always right for, and which the old code
+     already named: a registration that came back successful. That happens once, it is an
+     outcome rather than a step, and it is worth the whole card. So every layer below
+     survives intact and fires on `won` alone.
+
+     It runs at one fixed intensity whatever was bought, which was already the decision here
+     and is still the right one: a seat secured is a seat secured, and a Patron table
+     celebrating harder than a free General place is the page ranking the people in it.
+
+     That is also why `EventTierTone::LAPS` and `SPARKS` are gone. They were the ladder's
+     particle vocabulary and they only ever spoke through the press — the arrival is
+     uniform by choice and the press is a ripple now, so nothing was left for them to say.
+     `HEAT` and `MS` survive: they are what the ladder speaks through instead.
 
      Everything below animates `transform` or `opacity` and nothing else, so the whole
      effect composites and the sidebar never repaints. The two exceptions are stated where
@@ -306,23 +455,23 @@
   @keyframes edRimB{ 0%{opacity:0} 12%{opacity:1} 62%{opacity:1} 100%{opacity:0} }
   @keyframes edSparkA{ 0%{opacity:0;transform:translate(0,0) scale(1)} 12%{opacity:1} 100%{opacity:0;transform:translate(var(--sx,10px),var(--sy,-14px)) scale(.3)} }
   @keyframes edSparkB{ 0%{opacity:0;transform:translate(0,0) scale(1)} 12%{opacity:1} 100%{opacity:0;transform:translate(var(--sx,10px),var(--sy,-14px)) scale(.3)} }
-  /* Anticipation dip, then lift. 520ms fixed, not scaled by tone: this is the physical
-     press and it feels the same whichever row it is. */
-  @keyframes edRowA{ 0%{transform:translateY(0)} 12%{transform:translateY(1.5px)} 46%{transform:translateY(-3px)} 100%{transform:translateY(0)} }
-  @keyframes edRowB{ 0%{transform:translateY(0)} 12%{transform:translateY(1.5px)} 46%{transform:translateY(-3px)} 100%{transform:translateY(0)} }
-  /* Rack focus: the rows you did NOT choose fall back while the light passes. .42 opacity
-     on 11.5px body text would fail contrast if it held — it does not hold, and the state
-     it returns to is the legible one. */
-  @keyframes edDimA{ 0%{opacity:1} 34%{opacity:.42} 100%{opacity:1} }
-  @keyframes edDimB{ 0%{opacity:1} 34%{opacity:.42} 100%{opacity:1} }
   /* The total is what actually changed, so it takes a beat as the arc reaches it. */
   @keyframes edTotalA{ 0%{transform:scale(1)} 40%{transform:scale(1.075)} 100%{transform:scale(1)} }
   @keyframes edTotalB{ 0%{transform:scale(1)} 40%{transform:scale(1.075)} 100%{transform:scale(1)} }
 
   /* ── wiring the names to the A/B flip ─────────────────────────────────────
-     `.is-a` / `.is-b` is `burst % 2`, and neither is present until the first press — so
-     nothing animates on page load. Each `animation-duration` is the tone's `ms` times the
-     multiplier from the design's layer table. */
+     A finished CSS animation does NOT restart when the same `animation-name` is re-applied,
+     so every layer has two identical keyframe sets and the card carries `.is-a` or `.is-b`
+     by `burst % 2`. The NAME CHANGE is the restart.
+
+     `burst` is incremented on an ARRIVAL now, not on a press — so on this card the flip
+     matters for a retry after a failed payment, and the tier list next to it restarts by
+     construction instead, because each press builds a new ripple element. The mechanism is
+     kept rather than simplified away: a second registration in one session is a real path,
+     and it is the path where a once-only animation silently does nothing.
+
+     Each `animation-duration` is the bought tier's `ms` times the multiplier from the
+     design's layer table. */
   .ed-rsvp.is-a .ed-fx__lift{ animation:edLiftA calc(var(--tier-ms) * 1.35) var(--ag-ease,ease) both; }
   .ed-rsvp.is-b .ed-fx__lift{ animation:edLiftB calc(var(--tier-ms) * 1.35) var(--ag-ease,ease) both; }
   .ed-rsvp.is-a .ed-fx__lifttint{ animation:edLiftA calc(var(--tier-ms) * 1.5) var(--ag-ease,ease) both; }
@@ -345,30 +494,40 @@
   .ed-rsvp.is-b .ed-fx__rim{ animation:edRimB calc(var(--tier-ms) * 1.5) var(--ag-ease,ease) calc(var(--tier-ms) * .5) both; }
   .ed-rsvp.is-a .ed-fx__spark{ animation:edSparkA calc(var(--tier-ms) * .62) var(--ag-ease,ease) var(--sd,0ms) both; }
   .ed-rsvp.is-b .ed-fx__spark{ animation:edSparkB calc(var(--tier-ms) * .62) var(--ag-ease,ease) var(--sd,0ms) both; }
-  .ed-rsvp.is-a .ed-tier.is-sel{ animation:edRowA 520ms var(--ag-ease,ease) both; }
-  .ed-rsvp.is-b .ed-tier.is-sel{ animation:edRowB 520ms var(--ag-ease,ease) both; }
-  .ed-rsvp.is-a .ed-tier:not(.is-sel){ animation:edDimA calc(var(--tier-ms) * .9) var(--ag-ease,ease) both; }
-  .ed-rsvp.is-b .ed-tier:not(.is-sel){ animation:edDimB calc(var(--tier-ms) * .9) var(--ag-ease,ease) both; }
-  .ed-rsvp.is-a .ed-total{ animation:edTotalA calc(var(--tier-ms) * .8) var(--ag-ease,ease) both; }
-  .ed-rsvp.is-b .ed-total{ animation:edTotalB calc(var(--tier-ms) * .8) var(--ag-ease,ease) both; }
+  /* The total is the number that actually changed, so it says so — and it is the one thing
+     from the old press effect that survives on a press, because a value changing in place
+     is exactly what a beat is for. 220ms rather than 760ms: it is a digit, not an event.
+     Its own counter, so it fires on a comparison while the card-wide light does not. */
   .ed-total{ display:inline-block; transform-origin:left center; }
+  .ed-total.is-a{ animation:edTotalA 220ms var(--ag-ease,ease) both; }
+  .ed-total.is-b{ animation:edTotalB 220ms var(--ag-ease,ease) both; }
 
-  /* The one burst that is not a comparison. Register happens once, and it fires on a
-     SUCCESSFUL response — never on submit. A burst followed by a payment error is worse
-     than no burst. */
+  /* The arrival holds longer than the tier light ever did, because it is the last thing
+     that happens rather than one of four. */
   .ed-rsvp.is-won .ed-fx__glow, .ed-rsvp.is-won .ed-fx__rim{ animation-duration:1400ms; }
 
   /* ── reduced motion ────────────────────────────────────────────────────────
      Collapsed to .01ms rather than `none`, so `animationend` still fires and nothing is
-     left waiting on it. Nothing is lost, because nothing was carried by the animation:
-     the border, the background, the inner rim and the filled radio are all static state
-     and all still there. */
+     left waiting on it. Nothing is lost, because nothing is carried by the animation: the
+     border, the background, the inner rim and the filled radio are all static state and
+     all still there.
+
+     The RIPPLE is refused at the source as well as here — see `ripple_()` in the script.
+     A ripple is a growing circle and there is no honest .01ms version of one; a caller who
+     has asked for less motion gets the state layer, which is a flat wash that appears and
+     conveys the same thing without anything travelling. The wash itself keeps a short
+     transition rather than none, because an instantaneous colour change on hover is the
+     one thing that reads as a rendering fault. */
   @media (prefers-reduced-motion: reduce){
     .ed-fx{ display:none; }
-    .ed-rsvp.is-a .ed-tier.is-sel, .ed-rsvp.is-b .ed-tier.is-sel,
-    .ed-rsvp.is-a .ed-tier:not(.is-sel), .ed-rsvp.is-b .ed-tier:not(.is-sel),
-    .ed-rsvp.is-a .ed-total, .ed-rsvp.is-b .ed-total{ animation-duration:.01ms !important; }
+    .ed-tier__ripple{ display:none; }
+    /* The pressed state, for the only readers who do not get a ripple to be it. Same
+       weight the ripple carries, so a press looks the same here as it does there — it
+       simply arrives all at once instead of spreading. */
+    .ed-tier:not(:disabled):active .ed-tier__ink::before{ opacity:calc(.12 * var(--tier-w) * var(--tier-state)); }
+    .ed-total.is-a, .ed-total.is-b{ animation-duration:.01ms !important; }
     .ed-tier{ transition:none; }
+    .ed-tier__ink::before{ transition-duration:60ms; }
   }
   /* ══════════════════════════════════════════════════════════════════════════
      THE "I WILL BE THERE" FLIER GENERATOR
@@ -911,7 +1070,12 @@
                Roving tabindex: only the chosen row is tabbable, so the group is one stop.
                `tierId === 0` before anything is chosen makes the FIRST row the stop, or
                the group would be unreachable by keyboard. #}
+            {# `pointerdown` is delegated to the group rather than bound per row: one
+               listener for three tiers, and it keeps working if a tier is ever added
+               without a page load. It fires BEFORE click, which is the point — a ripple
+               that waits for the click has missed the press it describes. #}
             <div style="margin-top:8px" role="radiogroup" aria-label="Ticket type"
+                 @pointerdown="down_($event)"
                  @keydown.arrow-down.prevent="step_(1)" @keydown.arrow-right.prevent="step_(1)"
                  @keydown.arrow-up.prevent="step_(-1)" @keydown.arrow-left.prevent="step_(-1)"
                  @keydown.home.prevent="edge_(0)" @keydown.end.prevent="edge_(-1)">
@@ -937,16 +1101,33 @@
                            1.4.11). It is the same pair the printed ticket's dot draws —
                            `background: fill`, `1px solid edge` — which is what makes the
                            row here and the mark on the door the same object. #}
-                        style="--tier-hue:{{ tier_hues[t.id].hue|default('#237b22') }};--tier-edge:{{ tier_hues[t.id].edge|default('#1a6118') }}"
+                        {# `--tier-heat` is the third value and the one that was missing: it is
+                           declared on `.ed-tier` and, until now, set by nothing, so the rank
+                           ladder existed only inside the arc's speed. It weighs the state
+                           layer and the ripple. `--tier-grow` is EventTierTone::MS at .4×,
+                           which is that table's ordering rescaled into the band a press
+                           belongs in — see THE PRESS in the stylesheet. #}
+                        style="--tier-hue:{{ tier_hues[t.id].hue|default('#237b22') }};--tier-edge:{{ tier_hues[t.id].edge|default('#1a6118') }};--tier-heat:{{ tier_heats[t.id]|default(0.34) }};--tier-grow:{{ (tier_ms[t.id]|default(950) * 0.4)|round }}ms"
                         {{ shut ? 'disabled' : '' }}
-                        @click="pick({{ t.id|default(0) }}, {{ t.price_naira|default(0) }}, {{ t.max|default(10) }}, {{ (t.min|default(1)) }}, {{ gone ? 'true' : 'false' }}, {{ waitlist_counts[t.id]|default(0) }}, '{{ tone }}', '{{ tier_hues[t.id].hue|default('#237b22') }}', '{{ tier_hues[t.id].edge|default('#1a6118') }}')">
+                        {# `tap_` draws the ripple for the presses that carry no pointer —
+                           Enter, Space, and the `.click()` `step_()` fires when an arrow
+                           key moves the selection. It no-ops when `down_` already started
+                           one, so a mouse press does not get two. #}
+                        @click="tap_($event.currentTarget); pick({{ t.id|default(0) }}, {{ t.price_naira|default(0) }}, {{ t.max|default(10) }}, {{ (t.min|default(1)) }}, {{ gone ? 'true' : 'false' }}, {{ waitlist_counts[t.id]|default(0) }}, '{{ tone }}', '{{ tier_hues[t.id].hue|default('#237b22') }}', '{{ tier_hues[t.id].edge|default('#1a6118') }}')">
+                  {# The ink layer, first in the row so everything after it paints on top.
+                     It carries the state layer and hosts the ripples, and it is the one
+                     thing here with `overflow:hidden` — a ripple is a circle wider than
+                     the row it is drawn in. Untouchable and unspoken: the selection is
+                     announced by `aria-checked` and drawn by the border and the filled
+                     radio, so this can be removed entirely and nothing is lost. #}
+                  <span class="ed-tier__ink" aria-hidden="true"></span>
                   <span class="ed-tier__radio"></span>
                   <span>
                     <span class="ed-tier__name">{{ t.name }}{% if gone %} · sold out{% endif %}</span>
                     {% if t.description|default('') %}<br><span class="ed-tier__perk">{{ t.description }}</span>{% endif %}
                     {% for p in t.perks|default([]) %}<br><span class="ed-tier__perk">✓ {{ p }}</span>{% endfor %}
                     {% if (t.state|default('open')) != 'open' and t.why|default('') %}<br><span class="ed-tier__perk">{{ t.why }}</span>
-                    {% if gone and waitlist_open|default(false) %}<br><span class="ed-tier__perk" style="color:#966905;font-weight:700">Join the waiting list{% if waitlist_counts[t.id]|default(0) %} · {{ waitlist_counts[t.id] }} waiting{% endif %}</span>{% endif %}
+                    {% if gone and waitlist_open|default(false) %}<br><span class="ed-tier__perk" style="color:#7b5604;font-weight:700">Join the waiting list{% if waitlist_counts[t.id]|default(0) %} · {{ waitlist_counts[t.id] }} waiting{% endif %}</span>{% endif %}
                     {# The scarcity line is a FACT read off the tier's own remaining count,
                        not a nudge: it appears when there are few enough left that somebody
                        deciding today deserves to know, and never otherwise. #}
@@ -992,7 +1173,8 @@
               {# The total is the thing that actually changed when a tier was pressed, so it
                  takes a beat as the arc passes it. `ed-total` is the hook; the scale is in
                  the stylesheet. #}
-              <span class="ed-total" x-text="'₦' + Math.max(0, price * qty - off).toLocaleString()"></span>
+              <span class="ed-total" x-text="'₦' + Math.max(0, price * qty - off).toLocaleString()"
+                    :class="totalBeat === 0 ? '' : (totalBeat % 2 ? 'is-a' : 'is-b')"></span>
             </p>
 
             {# ── THE WAITING LIST ─────────────────────────────────────────────
@@ -1511,23 +1693,34 @@
       /* Sold out, and whether there is a queue to join about it. */
       soldOut: false, wlOpen: !!wlOpen, wlCount: 0, wlPlace: 0,
 
-      /* ── THE SELECTION LIGHT ───────────────────────────────────────────────
-         `burst` is a counter, and it is the only thing that makes the effect replay.
-         A finished CSS animation does NOT restart when the same `animation-name` is
-         re-applied, so pressing one tier twice — which is what people actually do while
-         comparing — would do nothing at all. The card carries `is-a` or `is-b` by
-         `burst % 2`, and the NAME CHANGE is the restart.
+      /* ── THE ARRIVAL ───────────────────────────────────────────────────────
+         `burst` is a counter, and it is the only thing that makes the card-wide light
+         replay. A finished CSS animation does NOT restart when the same `animation-name`
+         is re-applied, so the card carries `is-a` or `is-b` by `burst % 2` and the NAME
+         CHANGE is the restart.
 
-         Zero until the first press, so nothing animates on page load.
+         It is incremented on an ARRIVAL now, not on a press. A press gets a ripple on the
+         row it landed on — see `ripple_()` — and a ripple restarts by construction,
+         because each one is a new element. The card-wide light is for the registration
+         coming back successful, which is an outcome rather than a step.
 
-         The counter is per CARD, which here means per Alpine component. A page with two
-         registration cards on it would otherwise flash both on every press. */
+         The A/B flip is kept rather than simplified away even though an arrival is
+         usually once: a second registration in one session, or a retry after a declined
+         card, is a real path, and it is exactly the path where a once-only animation
+         silently does nothing.
+
+         Zero until then, so nothing animates on page load.
+
+         The counter is per CARD, which here means per Alpine component. */
       burst: 0,
+      /* Its own counter, for the one beat that still belongs to a press: the total is the
+         number that actually changed. Same A/B trick, because the same restart problem
+         applies to a digit somebody changes four times while comparing. */
+      totalBeat: 0,
       /* Tone and hue arrive from the pressed row rather than being worked out here: rank
          is a price question and PHP already answered it. See EventTierTone. */
       toneMs: 950, toneLaps: 1, toneSparks: 0, hue: '#237b22', edge: '#1a6118',
-      /* The one burst that is not a comparison. Set on a SUCCESSFUL registration and
-         never on submit — see submit(). */
+      /* Set on a SUCCESSFUL registration and never on submit — see submit(). */
       won: false,
 
       init(){
@@ -1538,17 +1731,16 @@
         this.$watch('qty', () => { if (this.discount.trim() !== '') this.checkCode(); });
       },
 
-      /* The four tones, mirrored from EventTierTone so the numbers exist in exactly two
-         places and a test can hold them equal. `hold` is the slowest and dimmest: it is
-         what a sold-out tier with a waiting list gets, and joining a queue is not a thing
-         to celebrate. */
-      TONES: { calm:{ms:950,laps:1,sparks:0}, rise:{ms:820,laps:1,sparks:0},
-               peak:{ms:700,laps:2,sparks:7}, hold:{ms:1050,laps:1,sparks:0} },
-
       pick(id, price, max, min, soldOut, wlCount, tone, hue, edge){
-        /* The light first, so the rest of this function cannot return early past it. */
-        var t = this.TONES[tone] || this.TONES.calm;
-        this.toneMs = t.ms; this.toneLaps = t.laps; this.toneSparks = t.sparks;
+        /* No tone is played here any more. The press is a ripple on the row that was
+           pressed, drawn by `ripple_()` from that row's own `--tier-heat` and
+           `--tier-grow` — so the ladder reaches it through CSS, from PHP, without this
+           function knowing the numbers. The card-wide light belongs to the arrival and
+           sets its own; see submit().
+
+           `tone` is still taken as an argument: it is what the row IS, and dropping it
+           from the call would mean editing three hundred lines of markup to add it back
+           the first time anything else needs to know. */
         /* `hue` is the colour the organiser set on this tier and it drives the light;
            `edge` is the palette's darker variant, for the rim that HOLDS. Both come from
            the row rather than being derived here — one resolver, in EventTierTone, so the
@@ -1558,7 +1750,9 @@
         /* A fresh selection is a comparison, not an outcome: any previous success glow is
            dropped rather than compounding into it. */
         this.won = false;
-        this.burst++;
+        /* The total is about to change, and a number that changes in place should say so.
+           The only beat a comparison gets. */
+        this.totalBeat++;
 
         this.tierId = id; this.price = price;
         this.minQty = min || 1;
@@ -1574,6 +1768,158 @@
         this.off = 0; this.codeNote = '';
         this.error = '';
       },
+      /* ══ THE RIPPLE ═══════════════════════════════════════════════════════
+         One circle, born where the pointer landed, grown until it covers the row, held
+         while the finger is down, faded on release.
+
+         ── WHY IT IS SCRIPTED AND NOT A KEYFRAME ────────────────────────────
+
+         Two of its four numbers are unknowable in a stylesheet. WHERE it starts is where
+         the pointer landed; HOW BIG it has to get is the distance from there to the row's
+         farthest corner, which depends on both. A CSS-only ripple has to centre itself,
+         and a ripple that always starts in the middle is a ripple that has given up the
+         one thing it was for.
+
+         Built with the Web Animations API rather than by adding a class, for the reason
+         the card-wide light needed two keyframe sets and an A/B flip: a finished CSS
+         animation does not restart. Here it never has to. Each press builds a NEW element
+         and drops it when the fade ends, so the fourth press in ten seconds behaves like
+         the first by construction.
+
+         ── PRESS-HOLD, THEN RELEASE-FADE ────────────────────────────────────
+
+         The part that reads as Google rather than as "a circle animated once". The ripple
+         grows while the finger is DOWN and only fades when it lifts, so a long press holds
+         a full-size wash and a tap is over in about half a second. Fading on a fixed timer
+         instead makes every press identical in a way a finger can feel is wrong.
+
+         `finished` is awaited before the fade so a quick tap still shows the growth it
+         started; without it, a 90ms tap fades a circle that never got anywhere. */
+      RIPPLE_FADE: 160,
+
+      ripple_(btn, x, y){
+        if (!btn || btn.disabled) return;
+        /* Refused at the source, not collapsed to .01ms. There is no honest reduced version
+           of a growing circle — the state layer says the same thing without travelling, and
+           it is still there. */
+        try {
+          if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+        } catch (e) {}
+        var host = btn.querySelector('.ed-tier__ink');
+        if (!host || typeof host.animate !== 'function') return;
+
+        var r = btn.getBoundingClientRect();
+        if (r.width === 0) return;
+        /* Centred when there is no pointer to read — a keyboard selection, or an arrow key
+           moving through the group. Material does the same, and the alternative is a
+           ripple at (0,0) that crawls out of the corner. */
+        var px = (typeof x === 'number') ? x - r.left : r.width / 2;
+        var py = (typeof y === 'number') ? y - r.top  : r.height / 2;
+
+        /* Reach the FARTHEST corner, so the wash covers the row rather than stopping short
+           of the price at the far end — which is the corner a thumb on the left is
+           furthest from, and the number they are reading. */
+        var far = Math.max(
+          Math.hypot(px, py), Math.hypot(r.width - px, py),
+          Math.hypot(px, r.height - py), Math.hypot(r.width - px, r.height - py)
+        );
+
+        var el = document.createElement('span');
+        el.className = 'ed-tier__ripple';
+        el.style.left   = (px - far) + 'px';
+        el.style.top    = (py - far) + 'px';
+        el.style.width  = (far * 2) + 'px';
+        el.style.height = (far * 2) + 'px';
+        host.appendChild(el);
+        /* The gate. `is-inking` takes the row's persistent state layers to 0 for as long as
+           a ripple is alive on it, so the press is the ripple and nothing else — see the
+           note in the stylesheet for what stacking them cost. Counted rather than a plain
+           flag: a second press can land while the first is still fading, and a boolean
+           would have the first one's cleanup turn the second one's gate off. */
+        btn._ink = (btn._ink || 0) + 1;
+        btn.classList.add('is-inking');
+        var ungate = function(){
+          btn._ink = Math.max(0, (btn._ink || 1) - 1);
+          if (btn._ink === 0) btn.classList.remove('is-inking');
+        };
+
+        var grow = el.animate(
+          [{ transform: 'scale(0)' }, { transform: 'scale(1)' }],
+          /* Decelerate-in: the ink arrives and settles. The duration is the tier's own,
+             from `--tier-grow` on the row — EventTierTone::MS at .4×. Read off the element
+             rather than passed in, so the one place that number is written is the one
+             place it is read. */
+          { duration: this.growMs_(btn), easing: 'cubic-bezier(.2,.8,.2,1)', fill: 'forwards' }
+        );
+
+        var done = false;
+        var self = this;
+        var fade = function(){
+          if (done) return;
+          done = true;
+          var run = function(){
+            /* The node may already be gone — a re-render, or a second press that removed
+               it. Guarded rather than assumed: an exception here would take the click
+               handler down with it. */
+            if (!el.isConnected) { ungate(); return; }
+            var drop = function(){
+              if (el.parentNode) el.parentNode.removeChild(el);
+              ungate();
+            };
+            var out = el.animate([{ opacity: getComputedStyle(el).opacity }, { opacity: 0 }],
+                                 { duration: self.RIPPLE_FADE, easing: 'linear', fill: 'forwards' });
+            out.onfinish = drop;
+            /* A belt for the case `onfinish` never arrives — a background tab throttles
+               animations, and a ripple left at full opacity on a row is a row that looks
+               permanently pressed, with its hover state gated off behind it. */
+            setTimeout(drop, self.RIPPLE_FADE + 400);
+          };
+          if (grow.finished && typeof grow.finished.then === 'function') {
+            grow.finished.then(run).catch(run);
+          } else {
+            run();
+          }
+        };
+
+        /* Every way a press can end, including the ones that are not a click: dragging off
+           the row, a system gesture cancelling the pointer, the window losing focus
+           mid-press. Miss one and the ripple stays on screen. */
+        ['pointerup', 'pointercancel', 'pointerleave', 'blur'].forEach(function(ev){
+          btn.addEventListener(ev, fade, { once: true });
+        });
+        window.addEventListener('pointerup', fade, { once: true });
+        return fade;
+      },
+
+      /* The tier's grow duration, off the row's own custom property. Falls back to the
+         calm tier's rather than to 0 — a 0ms ripple is a flash, which is the one thing
+         this is not. */
+      growMs_(btn){
+        var v = 0;
+        try { v = parseFloat(getComputedStyle(btn).getPropertyValue('--tier-grow')); } catch (e) {}
+        return (v > 0 && v < 2000) ? v : 380;
+      },
+
+      /* pointerdown, not click: a ripple that waits for the click has already missed the
+         press it is describing. `press_` marks the row so the click handler below knows a
+         ripple is already running and does not draw a second, centred one on top. */
+      down_(e){
+        var btn = e.target && e.target.closest ? e.target.closest('[data-ed-tier]') : null;
+        if (!btn) return;
+        btn.dataset.rippling = '1';
+        this.ripple_(btn, e.clientX, e.clientY);
+      },
+
+      /* The keyboard and programmatic path. Enter, Space, an arrow key moving through the
+         group, and `step_()`'s own `.click()` all arrive here with no pointer behind them.
+         Centred, and released on the next frame so it plays as one gesture. */
+      tap_(btn){
+        if (!btn) return;
+        if (btn.dataset.rippling === '1') { delete btn.dataset.rippling; return; }
+        var fade = this.ripple_(btn);
+        if (fade) setTimeout(fade, 90);
+      },
+
       /* ── ARROW KEYS ACROSS THE GROUP ────────────────────────────────────────
          The convention for a radio group, and the reason this is a radiogroup rather than
          a row of toggle buttons: Arrow moves and selects, Tab leaves. Reading the DOM
@@ -1687,7 +2033,8 @@
             this.won = true;
             /* Five sparks and a single slow lap, whatever the tier was. This is not the
                tier ladder speaking — it is one outcome, and it is the same outcome for a
-               free General seat as for a Patron table. */
+               free General seat as for a Patron table. The only place these three are
+               written, now that a press draws a ripple instead of a firework. */
             this.toneMs = 1100; this.toneLaps = 1; this.toneSparks = 5;
             this.burst++;
             this.step='done';

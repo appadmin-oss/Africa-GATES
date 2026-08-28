@@ -268,10 +268,12 @@ final class EventTierSelectionTest extends TestCase
         // than to nothing.
         $this->assertStringContainsString("'peak'", $html);
         $this->assertStringContainsString("'calm'", $html);
-        // And both hexes are on the row itself, so the light matches the swatch the
-        // organiser chose and the dot on the ticket rather than a fourth palette.
+        // And both hexes are on the row itself, so the ink matches the swatch the
+        // organiser chose and the dot on the ticket rather than a fourth palette — plus
+        // the two numbers that carry the rank ladder into CSS.
         $this->assertMatchesRegularExpression(
-            '/style="--tier-hue:#[0-9a-f]{6};--tier-edge:#[0-9a-f]{6}"/i', $html);
+            '/style="--tier-hue:#[0-9a-f]{6};--tier-edge:#[0-9a-f]{6};--tier-heat:[\d.]+;--tier-grow:\d+ms"/i',
+            $html);
     }
 
     public function test_the_premium_row_at_the_top_of_the_list_still_gets_the_peak(): void
@@ -343,17 +345,27 @@ final class EventTierSelectionTest extends TestCase
             'joining a waiting list must not fire a celebration');
     }
 
-    public function test_the_burst_counter_is_what_makes_a_repeat_press_replay(): void
+    /**
+     * A repeat press must replay, and the two effects reach that guarantee differently.
+     *
+     * A finished CSS animation does not restart when the same `animation-name` is
+     * re-applied, and pressing one tier twice is exactly what people do while comparing.
+     * Every keyframe-driven layer therefore exists twice, under an A and a B name, with a
+     * counter flipping between them — the NAME CHANGE is the restart.
+     *
+     * The ripple needs none of that, because each press builds a NEW element and drops it
+     * when the fade ends. That is the better answer and it is why the press moved to it;
+     * the A/B machinery survives only where a class still drives a keyframe.
+     */
+    public function test_a_repeat_press_replays_on_both_mechanisms(): void
     {
         $js = (string) file_get_contents(
             dirname(__DIR__, 2) . '/templates/pages/events/detail.twig');
 
-        // A finished CSS animation does not restart when the same `animation-name` is
-        // re-applied, and pressing one tier twice is what people actually do. The class
-        // alternates on `burst % 2` and the NAME CHANGE is the restart — so both halves
-        // of every keyframe pair have to exist.
         $this->assertStringContainsString("burst % 2 ? 'is-a' : 'is-b'", $js);
+        $this->assertStringContainsString("totalBeat % 2 ? 'is-a' : 'is-b'", $js);
         $this->assertStringContainsString('this.burst++', $js);
+        $this->assertStringContainsString('this.totalBeat++', $js);
 
         preg_match_all('/@keyframes (ed\w+?)([AB])\{/', $js, $m, PREG_SET_ORDER);
         $this->assertNotEmpty($m);
@@ -364,6 +376,11 @@ final class EventTierSelectionTest extends TestCase
             $this->assertSame(['A', 'B'], $halves,
                 '@keyframes ' . $name . ' has no paired twin, so it replays only every other press');
         }
+
+        // The ripple's own restart: a fresh element per press, removed when it is done.
+        $this->assertStringContainsString("createElement('span')", $js);
+        $this->assertStringContainsString('removeChild(el)', $js,
+            'a ripple that is never removed stacks one node per press for the life of the page');
     }
 
     public function test_nothing_animates_before_the_first_press(): void
@@ -374,5 +391,319 @@ final class EventTierSelectionTest extends TestCase
         // `burst === 0` means neither class is on the card, so a page load is still. An
         // effect that fires on arrival is an effect nobody connects to their own press.
         $this->assertStringContainsString("burst === 0 ? ''", $html);
+        $this->assertStringContainsString("totalBeat === 0 ? ''", $html);
+    }
+
+    // ══ the press: a state layer and a ripple, on the row that was pressed ═══
+
+    /**
+     * The card-wide light does not run on a comparison any more.
+     *
+     * It fired 22px above and 400px below the 48px row a finger had landed on, for up to
+     * 1.4 seconds, on an action the effect's own comment correctly called comparison
+     * rather than commitment. `pick()` must not touch `burst`; the arrival is what does.
+     */
+    public function test_choosing_a_tier_does_not_fire_the_card_wide_light(): void
+    {
+        $js = (string) file_get_contents(
+            dirname(__DIR__, 2) . '/templates/pages/events/detail.twig');
+
+        $from = strpos($js, 'pick(id, price, max, min, soldOut, wlCount, tone, hue, edge){');
+        $this->assertNotFalse($from, 'pick() could not be located');
+        $to = strpos($js, "\n      },", $from);
+        $body = substr($js, $from, $to - $from);
+
+        $this->assertStringNotContainsString('this.burst++', $body,
+            'a comparison must not throw the arrival firework');
+        $this->assertStringContainsString('this.totalBeat++', $body,
+            'the total is the number that changed and should say so');
+    }
+
+    /** And the rows being compared are not dimmed while somebody compares them. */
+    public function test_the_unchosen_rows_are_not_dimmed(): void
+    {
+        $css = (string) file_get_contents(
+            dirname(__DIR__, 2) . '/templates/pages/events/detail.twig');
+
+        // `edDim` took every other row to .42 opacity for 850ms — the rows somebody is
+        // reading against are the rows it hid.
+        $this->assertStringNotContainsString('@keyframes edDim', $css);
+        $this->assertDoesNotMatchRegularExpression('/\.ed-tier:not\(\.is-sel\)\{[^}]*animation/', $css);
+    }
+
+    /**
+     * The ripple is born where the pointer landed, which is the whole point of it.
+     *
+     * A ripple that always starts in the middle of the row has given up the one thing it
+     * was for: saying that the row you touched is the row that answered.
+     */
+    public function test_the_ripple_starts_at_the_pointer_and_covers_the_row(): void
+    {
+        $js = (string) file_get_contents(
+            dirname(__DIR__, 2) . '/templates/pages/events/detail.twig');
+
+        $this->assertStringContainsString('e.clientX', $js);
+        $this->assertStringContainsString('e.clientY', $js);
+        // Sized to the FARTHEST corner: a radius to the nearest one stops short of the
+        // price at the other end of the row, which is the thing being compared.
+        $this->assertMatchesRegularExpression('/Math\.max\(\s*\n?\s*Math\.hypot/', $js);
+        // pointerdown, not click — a ripple that waits for the click has missed the press.
+        $this->assertStringContainsString('@pointerdown="down_($event)"', $js);
+    }
+
+    /** Every way a press can end has to end the ripple, or it stays on the row. */
+    public function test_the_ripple_is_released_on_every_exit_from_a_press(): void
+    {
+        $js = (string) file_get_contents(
+            dirname(__DIR__, 2) . '/templates/pages/events/detail.twig');
+
+        foreach (['pointerup', 'pointercancel', 'pointerleave', 'blur'] as $ev) {
+            $this->assertStringContainsString("'" . $ev . "'", $js,
+                'a press that ends with ' . $ev . ' leaves the ripple on screen');
+        }
+    }
+
+    /**
+     * A keyboard press has no pointer, and it still gets a response.
+     *
+     * Enter, Space, and the `.click()` an arrow key fires all arrive with no coordinates.
+     * Material centres the ripple in that case; the alternative is one crawling out of the
+     * top-left corner, or nothing at all — and nothing at all is the state this row was in
+     * for keyboard users before any of this.
+     */
+    public function test_a_keyboard_selection_still_gets_a_ripple(): void
+    {
+        $this->tier('General', 5000);
+        $html = $this->render();
+
+        $this->assertStringContainsString('tap_($event.currentTarget)', $html);
+
+        $js = (string) file_get_contents(
+            dirname(__DIR__, 2) . '/templates/pages/events/detail.twig');
+        $this->assertStringContainsString('r.width / 2', $js, 'the fallback origin is the row centre');
+        // And a mouse press must not draw two — the delegated pointerdown marks the row.
+        $this->assertStringContainsString("btn.dataset.rippling === '1'", $js);
+    }
+
+    /**
+     * The row responds to hover and focus, not only to a completed click.
+     *
+     * There was no hover or focus response at all: a one-shot burst and nothing in
+     * between, so on a desktop the list was inert until something was clicked.
+     */
+    public function test_the_row_has_a_state_layer_for_hover_focus_and_press(): void
+    {
+        $css = (string) file_get_contents(
+            dirname(__DIR__, 2) . '/templates/pages/events/detail.twig');
+
+        $this->assertMatchesRegularExpression('/\.ed-tier:not\(:disabled\):hover \.ed-tier__ink::before\{[^}]*opacity/', $css);
+        $this->assertMatchesRegularExpression('/\.ed-tier:not\(:disabled\):focus-visible \.ed-tier__ink::before\{[^}]*opacity/', $css);
+        $this->assertMatchesRegularExpression('/\.ed-tier:not\(:disabled\):active \.ed-tier__ink::before\{[^}]*opacity/', $css);
+
+        // `:disabled` is excluded from all three: a sold-out row with no waiting list
+        // must not light up under a cursor as though it could be pressed.
+        // And hover is behind `hover:hover`, or a tap leaves the row washed on a phone.
+        $this->assertMatchesRegularExpression('/@media \(hover:hover\)\{\s*\n?\s*\.ed-tier:not\(:disabled\):hover/', $css);
+    }
+
+    /**
+     * The ripple is clipped to the row, and the row's outline is not clipped with it.
+     *
+     * `overflow:hidden` has to go on the ink layer rather than on `.ed-tier`: a focus
+     * outline is drawn outside the border box at +2px, and the selected row's rim is an
+     * inset shadow. Putting the clip on the button would have taken the focus indicator
+     * with it, which is a WCAG 2.4.7 failure introduced by a decoration.
+     */
+    public function test_the_clip_is_on_the_ink_layer_and_not_on_the_row(): void
+    {
+        $css = (string) file_get_contents(
+            dirname(__DIR__, 2) . '/templates/pages/events/detail.twig');
+
+        $this->assertMatchesRegularExpression('/\.ed-tier__ink\{[^}]*overflow:hidden/', $css);
+        $this->assertDoesNotMatchRegularExpression('/\.ed-tier\{[^}]*overflow:\s*hidden/', $css);
+        // And it carries neither meaning nor a target.
+        $this->assertMatchesRegularExpression('/\.ed-tier__ink\{[^}]*pointer-events:none/', $css);
+        $this->assertStringContainsString('<span class="ed-tier__ink" aria-hidden="true"></span>', $css);
+    }
+
+    /**
+     * The wash must never take the row's small text below AA — for ANY accent.
+     *
+     * ══════════════════════════════════════════════════════════════════════════
+     * THE REGRESSION THIS CAUGHT
+     * ══════════════════════════════════════════════════════════════════════════
+     *
+     * The effect this replaced kept off the row's face on purpose, and its comment said
+     * exactly why: `.ed-tier__perk` is 11.5px at #626a6e, which is 5.52:1 on white — AA
+     * with almost nothing to spend. A state layer DOES cross the face, so the first
+     * version of it put a 12% wash of the tier's own colour behind that text and took a
+     * navy peak row to 4.09:1. Below the floor, on a persistent state somebody can sit in
+     * with the pointer parked, on the row where the price is.
+     *
+     * ══════════════════════════════════════════════════════════════════════════
+     * AND WHY THIS SWEEPS INSTEAD OF CHECKING THE HUES THAT EXIST
+     * ══════════════════════════════════════════════════════════════════════════
+     *
+     * The hue is the organiser's, resolved from `ticket_accent` through EventTierPalette.
+     * There is no list of them to check. So this does what EventFlierThemeTest does for the
+     * flier: it asserts the FLOOR against the worst input the space can produce rather than
+     * against colours somebody thought of. For a wash on a light ground the worst case is
+     * black, and every other accent is strictly safer.
+     *
+     * The opacities are read out of the stylesheet rather than written here, so raising one
+     * fails this test instead of quietly failing a reader.
+     */
+    public function test_no_state_layer_takes_the_rows_small_text_below_aa(): void
+    {
+        $css = (string) file_get_contents(
+            dirname(__DIR__, 2) . '/templates/pages/events/detail.twig');
+
+        // Every `calc(<n> * var(--tier-w))` the stylesheet declares, times the heaviest
+        // weight the ladder can reach — peak, whose HEAT is 1.0, so --tier-w is 1.2.
+        preg_match_all('/opacity:calc\(([\d.]+) \* var\(--tier-w\)\)/', $css, $m);
+        $this->assertNotEmpty($m[1], 'the state layer opacities are not in the stylesheet');
+        $weight = 0.75 + 0.45 * 1.0;
+
+        // The colours that appear on a row at 11.5px, from the stylesheet and from the two
+        // inline overrides on the scarcity lines.
+        preg_match('/\.ed-tier__perk\{ font-size:11\.5px; color:(#[0-9a-f]{6})/i', $css, $pk);
+        $this->assertNotEmpty($pk, 'the perk colour could not be read');
+        preg_match_all('/class="ed-tier__perk" style="color:(#[0-9a-f]{6})/i', $css, $inline);
+        $smalls = array_merge([$pk[1]], $inline[1]);
+        $this->assertGreaterThanOrEqual(3, count($smalls), 'the scarcity lines were not found');
+
+        // The ripple's own opacity, which is declared the same way on `.ed-tier__ripple`.
+        preg_match('/\.ed-tier__ripple\{[\s\S]*?opacity:calc\(([\d.]+) \* var\(--tier-w\)\)/', $css, $rp);
+        $this->assertNotEmpty($rp, "the ripple's opacity could not be read");
+        $ripple = (float) $rp[1] * $weight;
+
+        // Layers do NOT composite, and that is enforced rather than hoped for: every
+        // persistent opacity is multiplied by `--tier-state`, which the script takes to 0
+        // for as long as a ripple is on the row. The first version had them stacking — a
+        // keyboard press was focus UNDER the ripple, about .25 of ink — and checking each
+        // opacity in isolation is exactly what missed it. The exclusion itself is asserted
+        // in the next test; this one checks each layer at the weight it can actually reach
+        // on its own, which is only sound BECAUSE of that exclusion.
+        $each = array_map(static fn ($v): float => (float) $v * $weight, $m[1]);
+        $each['the ripple'] = $ripple;
+
+        foreach (['#ffffff', '#f6fcf5'] as $ground) {
+            foreach ($each as $label => $alpha) {
+                $bg = self::blend('#000000', $alpha, $ground);
+                foreach ($smalls as $fg) {
+                    $r = self::contrast($fg, $bg);
+                    $this->assertGreaterThanOrEqual(4.5, round($r, 2),
+                        sprintf('%s on %s under a %.1f%% black wash (%s) is %.2f:1 — the '
+                              . 'darkest accent an organiser can set puts this text below AA',
+                                $fg, $ground, $alpha * 100,
+                                is_string($label) ? $label : 'a state layer', $r));
+                }
+            }
+        }
+    }
+
+    /**
+     * The layers are alternatives, not a pile.
+     *
+     * Every persistent opacity has to pass through `--tier-state`, and the script has to
+     * take it to 0 while a ripple is alive. Miss one rule and that state composites with
+     * the ripple; the contrast test above then holds a floor the screen does not, because
+     * it checks each layer at its own weight on the strength of this guarantee.
+     */
+    public function test_no_persistent_layer_escapes_the_ripple_gate(): void
+    {
+        $css = (string) file_get_contents(
+            dirname(__DIR__, 2) . '/templates/pages/events/detail.twig');
+
+        preg_match_all('/\.ed-tier[^{]*\.ed-tier__ink::before\{ opacity:([^;}]+)/', $css, $m);
+        $this->assertNotEmpty($m[1], 'the state layer opacities are not in the stylesheet');
+        foreach ($m[1] as $expr) {
+            $this->assertStringContainsString('var(--tier-state)', $expr,
+                'this layer is not gated, so it composites with the ripple: ' . trim($expr));
+        }
+
+        // And the gate is actually driven, in both directions.
+        $this->assertStringContainsString('.ed-tier.is-inking{ --tier-state:0; }', $css);
+        $this->assertStringContainsString("btn.classList.add('is-inking')", $css);
+        $this->assertStringContainsString("btn.classList.remove('is-inking')", $css);
+        // Counted, not a boolean: a second press landing during the first one's fade would
+        // otherwise have the first one's cleanup turn the second one's gate off.
+        $this->assertStringContainsString('btn._ink = (btn._ink || 0) + 1', $css);
+    }
+
+    /**
+     * And the pressed wash exists exactly where the ripple does not.
+     *
+     * `:active` and the ripple are two drawings of one state. Both at once is the stacking
+     * the test above now holds against; neither at all leaves a reduced-motion reader with
+     * no press feedback on a row they just pressed.
+     */
+    public function test_the_pressed_wash_lives_only_where_there_is_no_ripple(): void
+    {
+        $css = (string) file_get_contents(
+            dirname(__DIR__, 2) . '/templates/pages/events/detail.twig');
+
+        $at = strpos($css, '@media (prefers-reduced-motion: reduce){');
+        $this->assertNotFalse($at);
+        $before = substr($css, 0, $at);
+        $inside = substr($css, $at);
+
+        $this->assertDoesNotMatchRegularExpression(
+            '/\.ed-tier:not\(:disabled\):active \.ed-tier__ink::before/', $before,
+            'the ripple already draws the press — a wash under it doubles the ink');
+        $this->assertMatchesRegularExpression(
+            '/\.ed-tier:not\(:disabled\):active \.ed-tier__ink::before/', $inside,
+            'a reader who asked for less motion still needs to see that the row went down');
+    }
+
+    /** @return array{0:float,1:float,2:float} sRGB 0–255 */
+    private static function rgb(string $hex): array
+    {
+        return [(float) hexdec(substr($hex, 1, 2)), (float) hexdec(substr($hex, 3, 2)),
+                (float) hexdec(substr($hex, 5, 2))];
+    }
+
+    private static function blend(string $fg, float $alpha, string $bgHex): string
+    {
+        $f = self::rgb($fg); $b = self::rgb($bgHex);
+        $o = '#';
+        foreach ([0, 1, 2] as $i) {
+            $o .= str_pad(dechex((int) round($alpha * $f[$i] + (1 - $alpha) * $b[$i])), 2, '0', STR_PAD_LEFT);
+        }
+        return $o;
+    }
+
+    private static function contrast(string $a, string $b): float
+    {
+        $lum = static function (string $hex): float {
+            $out = 0.0;
+            foreach ([[0, 0.2126], [1, 0.7152], [2, 0.0722]] as [$i, $k]) {
+                $c = self::rgb($hex)[$i] / 255;
+                $out += $k * ($c <= 0.03928 ? $c / 12.92 : (($c + 0.055) / 1.055) ** 2.4);
+            }
+            return $out;
+        };
+        $x = $lum($a); $y = $lum($b);
+        return ($x > $y ? ($x + 0.05) / ($y + 0.05) : ($y + 0.05) / ($x + 0.05));
+    }
+
+    /**
+     * Reduced motion refuses the ripple at the source rather than collapsing it.
+     *
+     * There is no honest .01ms version of a growing circle. The state layer is a flat wash
+     * that appears in place and says the same thing without anything travelling, so it
+     * stays — at a shortened transition rather than none, because an instantaneous colour
+     * change on hover reads as a rendering fault.
+     */
+    public function test_reduced_motion_keeps_the_wash_and_drops_the_ripple(): void
+    {
+        $css = (string) file_get_contents(
+            dirname(__DIR__, 2) . '/templates/pages/events/detail.twig');
+
+        $this->assertMatchesRegularExpression(
+            '/prefers-reduced-motion: reduce\)\{[\s\S]{0,400}?\.ed-tier__ripple\{ display:none/', $css);
+        // Refused before it is built, too: a display:none element still costs a WAAPI
+        // animation per press, and the setting means "do less", not "hide more".
+        $this->assertStringContainsString("matchMedia('(prefers-reduced-motion: reduce)')", $css);
     }
 }

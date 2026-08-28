@@ -238,7 +238,27 @@ class EventsController
             // with. Deriving rank from loop position, which is the obvious thing to do in
             // Twig, makes the cheapest tier sweep hardest for any organiser who puts their
             // premium row at the top of the list. See EventTierTone.
-            'tier_tones'       => \AfricaGates\Services\EventTierTone::forTiers($tiers),
+            'tier_tones'       => $tierTones = \AfricaGates\Services\EventTierTone::forTiers($tiers),
+            // How heavily that tone lands, per tier. `--tier-heat` was declared on `.ed-tier`
+            // from the day the effect shipped and NOTHING ever set it — the ladder lived only
+            // in the arc's speed, and a custom property with no writer is §17's bug wearing
+            // CSS. It drives the state layer's and the ripple's opacity now, which is where
+            // rank belongs once the press stops being a firework.
+            'tier_heats'       => array_map(
+                static fn (string $tone): float => \AfricaGates\Services\EventTierTone::HEAT[$tone]
+                                                 ?? \AfricaGates\Services\EventTierTone::HEAT['calm'],
+                $tierTones
+            ),
+            // And how fast the ink crosses the row. The template takes .4× of this, which is
+            // the same ordering the tone test holds — peak fastest — rescaled from an arc's
+            // band into a press's. Sent raw rather than pre-scaled so the number here stays
+            // the number in EventTierTone, and the one place the rescale happens is visible
+            // beside the thing it is scaling.
+            'tier_ms'          => array_map(
+                static fn (string $tone): int => \AfricaGates\Services\EventTierTone::MS[$tone]
+                                               ?? \AfricaGates\Services\EventTierTone::MS['calm'],
+                $tierTones
+            ),
             // And the colour it sweeps in: the colour the organiser set on the tier,
             // resolved from the event's own accent — so the light on the card is the same
             // colour as the swatch in the admin and as the dot on the printed ticket.
