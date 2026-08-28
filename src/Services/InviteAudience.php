@@ -71,16 +71,28 @@ final class InviteAudience
                 // completely different things, and a sentence that tries to cover both
                 // honours neither. The default is warm and general; an operator running a
                 // specific programme writes the sentence that is true of it.
-                'witness'    => 'to witness the work you have done, and what it has meant to '
-                              . 'the people around you',
+                //
+                // ── A WHOLE SENTENCE, NOT A CLAUSE ───────────────────────────
+                //
+                // This used to be a fragment — "to witness the work you have done" — and
+                // the template supplied "We want the hall packed" in front of it and a
+                // trailing clause behind it. Which meant the one string an operator is
+                // invited to edit was the middle of a sentence they could not see the ends
+                // of: write a complete sentence, which is the obvious thing to do, and the
+                // letter goes out reading "We want the hall packed We want the hall packed
+                // to witness…". Half a sentence in the settings screen and half in a Twig
+                // file is two authors for one paragraph.
+                'witness'    => 'We want the hall packed to witness the work you have done, '
+                              . 'and what it has meant to the people around you.',
             ],
             self::JUDGE => [
                 'label'      => 'Judges',
                 'one'        => 'Judge',
                 'quota'      => 10,
                 'salutation' => 'Dear',
-                'witness'    => 'to witness the integrity of your judgement, your love for '
-                              . 'this community, and your support for this initiative',
+                'witness'    => 'We want the hall packed to witness the integrity of your '
+                              . 'judgement, your love for this community, and your support '
+                              . 'for this initiative.',
             ],
         ];
 

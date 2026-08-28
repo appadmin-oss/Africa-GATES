@@ -293,4 +293,63 @@ final class InviteMailerTest extends TestCase
             $this->assertStringContainsString($path, $routes, $path . ' is not routed');
         }
     }
+
+    // ══ one sentence, one author ═════════════════════════════════════════════
+
+    /**
+     * The "why" sentence is the operator's, whole.
+     *
+     * It used to be a FRAGMENT — "to witness the work you have done" — with the template
+     * supplying "We want the hall packed" in front of it and a trailing clause behind. So
+     * the one string the settings screen invites an operator to edit was the middle of a
+     * sentence whose ends they could not see: write a complete sentence, which is the
+     * obvious thing to do, and the letter goes out reading "We want the hall packed We
+     * want the hall packed to witness…".
+     *
+     * Both halves had the prefix — the Twig template and the plain-text builder — so
+     * fixing one would have left the other doing it, which is the same bug wearing the
+     * part nobody screenshots.
+     */
+    public function test_neither_half_prefixes_the_operators_sentence(): void
+    {
+        foreach ([
+            'templates/emails/invitation.twig'   => 'the HTML half',
+            'src/Services/InviteMailer.php'      => 'the plain-text half',
+        ] as $rel => $which) {
+            $src = (string) file_get_contents(dirname(__DIR__, 2) . '/' . $rel);
+            // Comments explain the bug by name, so they are stripped before the scan.
+            $code = str_ends_with($rel, '.twig')
+                ? (string) preg_replace('/\{#[\s\S]*?#\}/', '', $src)
+                : (string) preg_replace('#//[^\n]*#', '', $src);
+
+            $this->assertStringNotContainsString('We want the hall packed', $code,
+                $which . ' still writes half the sentence the operator owns');
+        }
+
+        // And the default IS a whole sentence, so the setting screen's placeholder shows
+        // an operator what shape their replacement has to be.
+        foreach ([InviteAudience::NOMINEE, InviteAudience::JUDGE] as $a) {
+            $w = InviteAudience::spec($a)['witness'];
+            $this->assertMatchesRegularExpression('/^[A-Z].*\.$/s', $w,
+                $a . "'s default reason is not a complete sentence");
+        }
+    }
+
+    /**
+     * The letter greets the person it is addressed to.
+     *
+     * `salutation` is resolved per audience in InviteAudience and was never put into the
+     * view, so the template's `{{ salutation }} {{ name }},` rendered as a leading space
+     * and a name — a fault invisible in every unit test of the resolver and visible in
+     * every inbox.
+     */
+    public function test_the_letter_opens_with_a_salutation(): void
+    {
+        $html = InviteMailer::preview($this->invite(), $this->event);
+
+        $this->assertMatchesRegularExpression('/Dear\s+Ada Obi,/', $html,
+            'the greeting is missing its salutation');
+        $this->assertStringNotContainsString('> Ada Obi,', $html,
+            'the salutation resolved to nothing and left a bare name');
+    }
 }

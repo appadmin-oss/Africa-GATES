@@ -150,11 +150,31 @@ final class InviteMailer
                          . ' discounted seats for the people you bring.',
 
             'name'         => trim((string) $invite->name),
+            // "Dear". Per audience, and it has to be HERE: the template opens the letter
+            // with `{{ salutation }} {{ name }},` and a key the view does not supply
+            // renders as empty — so the letter would greet somebody with a leading space
+            // and no salutation at all, which is the kind of fault that only ever shows up
+            // in a real inbox.
+            'salutation'   => (string) $spec['salutation'],
             'audience_one' => (string) $spec['one'],
             'witness'      => (string) $spec['witness'],
 
             'event_title' => trim((string) $event->title),
+            // ── THE DATE, IN THREE PARTS ─────────────────────────────────────
+            //
+            // It arrived as one pre-formatted string — "Saturday 12 December 2026 at
+            // 18:00" — and was rendered as 15px body copy under a 10px label, which made
+            // the single most important fact on an invitation the least prominent thing in
+            // it. An invitation exists to say WHEN.
+            //
+            // Split so the template can set it as a typographic object rather than a
+            // sentence: the weekday as a tracked micro-label, the date large, the time and
+            // zone quiet beside the venue. `when` is kept whole for the plain-text part,
+            // where there is no typography and a sentence is the right shape.
             'when'        => DisplayTime::showZoned((string) $event->event_date, 'l j F Y \a\t H:i'),
+            'when_day'    => DisplayTime::show((string) $event->event_date, 'l'),
+            'when_date'   => DisplayTime::show((string) $event->event_date, 'j F Y'),
+            'when_time'   => DisplayTime::showZoned((string) $event->event_date, 'H:i'),
             'where'       => $where,
             'cover_url'   => self::coverUrl($event, $base),
 
@@ -205,10 +225,19 @@ final class InviteMailer
             '',
             'You are invited to ' . $view['event_title'] . ', as a guest of honour.',
             '',
-            (string) $view['name'],
+            // Greeted, not merely named. A bare line carrying somebody's name reads as a
+            // record header; this is a letter.
+            $view['salutation'] . ' ' . $view['name'] . ',',
             '',
-            'We want the hall packed ' . $view['witness'] . ' — and we would like the people '
-                . 'who know that work best to be in the room to see it recognised.',
+            // The witness sentence WHOLE, exactly as the HTML half renders it. It used to
+            // be prefixed here too — "We want the hall packed " plus the operator's
+            // fragment plus a trailing clause — and the fragment is now a complete
+            // sentence, so a prefix here would send the plain-text reader "We want the
+            // hall packed We want the hall packed to witness…". One sentence, one author:
+            // that is the whole reason the default moved into InviteAudience.
+            (string) $view['witness'],
+            'We would like the people who know that work best to be in the room to see it',
+            'recognised.',
             '',
             'WHEN   ' . $view['when'],
             'WHERE  ' . ($view['where'] !== '' ? $view['where'] : 'Venue to be confirmed'),

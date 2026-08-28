@@ -48,7 +48,12 @@ final class InviteInboxCompatTest extends EmailInboxCompatTest
         // and the way in. A blocked hero must cost the reader nothing but the picture.
         $withoutImages = (string) preg_replace('/<img[^>]*>/', '', $m);
 
-        foreach (['{{ when }}', '{{ where', '{{ event_title }}', '{{ reference }}'] as $fact) {
+        // The date is set in three parts now — a tracked weekday, the date large, the
+        // time beside the venue — because as one pre-formatted sentence it was 15px body
+        // copy under a 10px label, which made the single fact an invitation exists to
+        // convey the least prominent thing on the page. All three have to survive.
+        foreach (['{{ when_day }}', '{{ when_date }}', '{{ when_time }}',
+                  '{{ where', '{{ event_title }}', '{{ reference }}'] as $fact) {
             $this->assertStringContainsString($fact, $withoutImages,
                 'with images off, ' . $fact . ' is gone — and it is the message');
         }
