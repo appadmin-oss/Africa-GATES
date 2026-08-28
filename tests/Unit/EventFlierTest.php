@@ -1299,4 +1299,51 @@ final class EventFlierTest extends TestCase
         $this->assertSame(1080, imagesy($im));
         imagedestroy($im);
     }
+
+    // ══ the throttle ═════════════════════════════════════════════════════════
+
+    /**
+     * The flier POST is rate limited, and NOT on a bare REMOTE_ADDR.
+     *
+     * One call is a GD render at flier dimensions, plus an image decode and a face-find on
+     * the photo path — the most expensive public POST here, and CSRF was the only thing in
+     * front of it. A CSRF token harvested once from a page load is reusable for its
+     * lifetime, so it is not a rate limit.
+     *
+     * The key is the BROWSER token, through {@see \AfricaGates\Support\ClientIp}. That
+     * class exists because this site sits behind Cloudflare, where REMOTE_ADDR is an edge
+     * address and every visitor on earth hashes to one fingerprint — a cap on that is a cap
+     * for the entire internet, which is precisely how a supporter was told their network
+     * was suspicious on their first paid vote.
+     */
+    public function test_the_flier_post_is_throttled_per_browser(): void
+    {
+        $token = EventFlierToken::mint($this->eventId, 'Ada Obi');
+
+        $last = null;
+        for ($i = 0; $i < 42; $i++) {
+            $last = $this->post(['t' => $token, 'fmt' => 'plain']);
+            if ($last->getStatusCode() === 429) break;
+        }
+
+        $this->assertSame(429, $last->getStatusCode(),
+            'the flier POST rendered 42 images without ever refusing');
+        $this->assertStringContainsString('lot of fliers',
+            (string) json_decode((string) $last->getBody(), true)['message']);
+    }
+
+    /**
+     * And the cap is generous enough not to punish the ordinary use of it: choosing a
+     * shape, trying a style, reframing the crop are each a render, and somebody doing all
+     * three has not done anything wrong.
+     */
+    public function test_an_ordinary_session_of_trying_shapes_is_not_refused(): void
+    {
+        $token = EventFlierToken::mint($this->eventId, 'Ada Obi');
+
+        for ($i = 0; $i < 12; $i++) {
+            $this->assertNotSame(429, $this->post(['t' => $token, 'fmt' => 'plain'])->getStatusCode(),
+                'refused on render ' . ($i + 1) . ' — that is inside normal use');
+        }
+    }
 }

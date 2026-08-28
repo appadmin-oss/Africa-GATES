@@ -1383,8 +1383,16 @@
       <textarea class="fl__in" id="flCap" rows="4" x-model="caption" style="font-size:14px;line-height:1.6"></textarea>
 
       <div class="fl__row">
+        {# `!token && !name.trim()`, not `!name.trim()`.
+
+           fields() below already encodes the real rule — `if (this.token) o.t = this.token;
+           else o.name = ...` — because flierMake() takes the name OUT OF THE TOKEN and never
+           reads the field when one is present. This button did not know that, and the third
+           entry point is the one that suffers: arriving from the account area with
+           `#flier=<token>` sets the token and no name, so a ticket-holder saw the confirmed
+           copy, an empty box and a dead button, and had to type a name the server discards. #}
         <button type="button" class="fl__btn fl__btn--go" @click="start()"
-                :disabled="!name.trim()">Make my flier</button>
+                :disabled="!token && !name.trim()">Make my flier</button>
       </div>
       <p class="fl__err" x-show="error" x-cloak x-text="error"></p>
     </div>
@@ -2001,7 +2009,10 @@
 
       start(){
         this.error = '';
-        if (!this.name.trim()) { this.error = 'Add your name first.'; return; }
+        /* Same rule as the button above and as fields() below: a name is required only
+           when there is no token to take it from. Three places encoded this and one of
+           them was right. */
+        if (!this.token && !this.name.trim()) { this.error = 'Add your name first.'; return; }
         /* Straight to the render, always. The reframe used to come first and had to guess
            where the crop would land; the server finds the face now, so the first thing
            somebody sees is the real image and reframing is a correction to it. */

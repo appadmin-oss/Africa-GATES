@@ -611,4 +611,48 @@ final class EventFlierGeneratorTest extends TestCase
             . "'{{ csrf_token|e('js') }}', {{ referral and referral.pct ? referral.pct : 0 }},", $tpl,
             'JSON must not be passed through an HTML attribute');
     }
+
+    // ══ the token path is not a dead button ══════════════════════════════════
+
+    /**
+     * A name is required only when there is no token to take it from.
+     *
+     * `flierMake()` reads `name` ONLY when `t` is empty — a token carries the name, minted
+     * server-side, and `fields()` already knows it: `if (this.token) o.t = this.token; else
+     * o.name = ...`. Two other places demanded a name regardless, and the third entry point
+     * is the one that paid: arriving from the account area with `#flier=<token>` sets the
+     * token and no name, so a ticket-holder saw the confirmed copy, an empty box and a
+     * button that would not enable — and had to type a name the server then discards.
+     */
+    public function test_the_make_button_is_live_on_the_token_path(): void
+    {
+        $this->assertMatchesRegularExpression(
+            '~:disabled="!token\s*&&\s*!name\.trim\(\)"~', $this->body(),
+            'the button gates on a name the token path does not need — it stays dead for a ticket-holder'
+        );
+    }
+
+    /** And the guard behind it agrees, or the button enables onto a refusal. */
+    public function test_the_start_guard_agrees_with_the_button(): void
+    {
+        $this->assertMatchesRegularExpression(
+            '~if\s*\(!this\.token\s*&&\s*!this\.name\.trim\(\)\)~', $this->body(),
+            'start() still demands a name on the token path'
+        );
+    }
+
+    /**
+     * All three places that decide "is a name required" must say the same thing. This is
+     * the property, not the two spellings above: the bug was that fields() was right and
+     * the other two were not.
+     */
+    public function test_nothing_still_requires_a_name_unconditionally(): void
+    {
+        $body = $this->body();
+
+        $this->assertStringNotContainsString(':disabled="!name.trim()"', $body);
+        $this->assertStringNotContainsString("if (!this.name.trim())", $body);
+        $this->assertStringContainsString('if (this.token) o.t = this.token; else o.name', $body,
+            'fields() is the rule the other two follow — if it changed, they must too');
+    }
 }

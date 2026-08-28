@@ -1062,6 +1062,48 @@ class EventsController
         $event = DB::table('gates_site_events')->where('slug', $slug)->first();
         if (!$event) return $fail($res, 404, 'That event could not be found.');
 
+        // ── THROTTLED, BECAUSE OF WHAT ONE CALL COSTS ────────────────────────
+        //
+        // This is the most expensive public POST on the platform: a GD render at flier
+        // dimensions, and on the photo path an image decode and a face-find, all in
+        // request. CSRF gates it, which stops a script starting cold — but a token
+        // harvested once from a page load is reusable for its lifetime, so CSRF is not a
+        // rate limit, and it was the only thing here.
+        //
+        // ── BROWSER TIGHT, NETWORK LOOSE ─────────────────────────────────────
+        //
+        // Through Support\ClientIp, and NOT a bare REMOTE_ADDR, which is the whole reason
+        // that class exists: this site is served through Cloudflare, so REMOTE_ADDR is an
+        // edge address and every visitor on earth hashes to one fingerprint. A cap of
+        // twenty on that is twenty fliers per hour FOR THE ENTIRE INTERNET — the exact
+        // failure that told a supporter their network was suspicious on their first
+        // attempt at a paid vote.
+        //
+        // The pair is what ClientIp prescribes and what this needs. The browser token is
+        // per-session and cannot be shared by NAT, so it can be tight enough to mean
+        // something. The network is a wide backstop only: Nigerian carriers run
+        // large-scale NAT, and any IP cap tight enough to stop a script is tight enough to
+        // block a stadium of real supporters.
+        //
+        // Both are generous because making a flier IS trying several shapes and styles and
+        // reframing the crop, and every one of those is a render. A cap that punishes the
+        // ordinary use of the feature defeats the feature.
+        if ($this->rateLimit !== null) {
+            $browser = \AfricaGates\Support\ClientIp::fingerprint(
+                \AfricaGates\Support\ClientIp::browser($req), 'event_flier:browser'
+            );
+            if (!$this->rateLimit->check($browser, 'event_flier', 40, 3600)) {
+                return $fail($res, 429, 'That is a lot of fliers. Give it a minute and try again.');
+            }
+
+            $ip = \AfricaGates\Support\ClientIp::from($req);
+            if ($ip !== '' && !$this->rateLimit->check(
+                    \AfricaGates\Support\ClientIp::fingerprint($ip, 'event_flier:network'),
+                    'event_flier_net', 400, 3600)) {
+                return $fail($res, 429, 'This network is making a lot of fliers right now. Try again shortly.');
+            }
+        }
+
         // A token when the browser has one — that is the confirmed path, and it is the only
         // way to be confirmed. Otherwise a typed name, which is the ungated path.
         $token = trim((string) ($b['t'] ?? ''));
