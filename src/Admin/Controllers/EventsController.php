@@ -140,13 +140,18 @@ class EventsController
                 'gates_event_tiers', ['colour']
             ),
             'session_seed' => $sessionSeed,
-            // The award programme this event is the ceremony for. Drives the invitation
-            // run — see Admin\Controllers\InvitesController — and is nullable because
-            // most events are not ceremonies.
+            // The awards this event is the ceremony for. PLURAL: one gala night hands out
+            // several, and a single-select would force an operator to run four events for
+            // one evening or leave three shortlists uninvited. Drives the invitation run —
+            // see Admin\Controllers\InvitesController.
             'programmes' => DB::table('gates_award_programmes')->where('is_active', 1)
                 ->orderBy('sort_order')->orderBy('title')->get(['id', 'title'])
                 ->map(fn ($r) => (array) $r)->all(),
-            'programme_missing' => OptionalColumn::missing('gates_site_events', ['programme_id']),
+            'programme_ids' => array_map(
+                static fn (object $p): int => (int) $p->id,
+                \AfricaGates\Services\EventInvites::programmesFor((int) ($row['id'] ?? 0))
+            ),
+            'programme_link_ready' => DB::schema()->hasTable('gates_event_programmes'),
             // datetime-local wants its own format, and a raw timestamp in the box silently
             // renders as empty — which reads as "no cutoff set" and quietly removes one.
             'sales_close_input' => self::forInput((string) ($row['sales_close_at'] ?? '')),
@@ -231,14 +236,6 @@ class EventsController
             // "fully booked", because it costs somebody hope as well as a seat.
         ];
 
-        // The ceremony's programme. Written ONLY when the form actually posted it and the
-        // column exists — for exactly the reason the note below records: writing a column
-        // the form does not contain blanks it on every unrelated save.
-        if (array_key_exists('programme_id', $b)
-            && OptionalColumn::missing('gates_site_events', ['programme_id']) === []) {
-            $pid = (int) $b['programme_id'];
-            $data['programme_id'] = $pid > 0 ? $pid : null;
-        }
 
         // ══ THE EXTRAS PANEL, AND A DATA-LOSS BUG IT WAS CAUSING ════════════════
         //
@@ -312,6 +309,13 @@ class EventsController
             $data['created_at'] = Carbon::now()->toDateTimeString();
             $id = (int)DB::table('gates_site_events')->insertGetId($data);
             $this->audit->record((int)$_SESSION['admin_id'], 'event.create', 'site_event', $id);
+        }
+
+        // The awards this ceremony is for. Written only when the form posted the field, for
+        // the reason the extras panel above records: writing something the form does not
+        // contain wipes it on every unrelated save.
+        if (array_key_exists('programme_ids', $b)) {
+            \AfricaGates\Services\EventInvites::setProgrammes($id, (array) $b['programme_ids']);
         }
 
         $this->saveTiers($id, $b);

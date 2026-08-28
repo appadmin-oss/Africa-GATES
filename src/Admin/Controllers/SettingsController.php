@@ -52,6 +52,12 @@ class SettingsController
             'cloudinary_on'     => \AfricaGates\Services\CloudinaryService::enabled(),
             'cloudinary_cloud'  => \AfricaGates\Services\CloudinaryService::cloudName(),
             'cloudinary_folder' => \AfricaGates\Services\CloudinaryService::rootFolder(),
+            // Shown as the placeholder, so an operator can see the sentence they are
+            // replacing rather than an empty box.
+            'invite_witness_nominee_default' => \AfricaGates\Services\InviteAudience::spec(
+                \AfricaGates\Services\InviteAudience::NOMINEE)['witness_default'],
+            'invite_witness_judge_default'   => \AfricaGates\Services\InviteAudience::spec(
+                \AfricaGates\Services\InviteAudience::JUDGE)['witness_default'],
             'cloudinary_secret_set' => trim((string) (\Illuminate\Database\Capsule\Manager::table('gates_settings')->where('key_name', 'cloudinary_api_secret')->value('value') ?? '')) !== '',
             // Flash renders from the Twig globals via the layout — do not shadow them.
             // Where each revenue stream settles. Resolved, so the screen shows the code that
@@ -212,8 +218,10 @@ class SettingsController
                   // Invitation quotas and the guest discount. Clamped in InviteAudience
                   // rather than here, because they are read from settings by services that
                   // must not trust the row either.
-                  'invite_quota_principal','invite_quota_child','invite_quota_judge',
-                  'invite_discount_percent','invite_programme_principal','invite_programme_child'] as $k) {
+                  'invite_quota_nominee','invite_quota_judge','invite_discount_percent',
+                  // The one sentence that names why the hall is being filled. Editable
+                  // because programmes honour different things — see InviteAudience.
+                  'invite_witness_nominee','invite_witness_judge'] as $k) {
             if (array_key_exists($k, $b)) {
                 $this->settings->set($k, trim((string)$b[$k]), $adminId);
             }

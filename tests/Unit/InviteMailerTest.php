@@ -40,10 +40,11 @@ final class InviteMailerTest extends TestCase
             'slug' => 'principals', 'title' => 'Incredible Principal Awards', 'is_active' => 1,
         ]);
         $this->eventId = (int) DB::table('gates_site_events')->insertGetId([
-            'slug' => 'gala-2026', 'title' => 'Africa GATES Gala 2026', 'programme_id' => $pid,
+            'slug' => 'gala-2026', 'title' => 'Africa GATES Gala 2026',
             'event_date' => '2026-12-12 18:00:00', 'status' => 'published',
             'venue' => 'Eko Convention Centre', 'location' => 'Lagos',
         ]);
+        EventInvites::setProgrammes($this->eventId, [$pid]);
         DB::table('gates_event_tiers')->insert([
             'event_id' => $this->eventId, 'slug' => 'supporter', 'name' => 'Supporter',
             'price_naira' => 5000, 'is_active' => 1, 'sort_order' => 1,
@@ -51,7 +52,7 @@ final class InviteMailerTest extends TestCase
         $this->event = DB::table('gates_site_events')->where('id', $this->eventId)->first();
     }
 
-    private function invite(string $audience = InviteAudience::PRINCIPAL, string $email = 'ada@example.com'): object
+    private function invite(string $audience = InviteAudience::NOMINEE, string $email = 'ada@example.com'): object
     {
         return EventInvites::mint($this->eventId, $audience,
             ['name' => 'Ada Obi', 'email' => $email, 'nominee_id' => 0, 'judge_id' => 0]);
@@ -106,13 +107,16 @@ final class InviteMailerTest extends TestCase
         $this->assertStringContainsString('/honour/' . $inv->reference, $html, 'the pass is a link');
     }
 
-    /** Each audience is told why the room is being filled for them, in their own words. */
+    /**
+     * Each audience is told why the room is being filled for them, in their own words —
+     * and a nominee and a judge are the only two, because a nominee is a nominee whichever
+     * award they were shortlisted for.
+     */
     public function test_each_audience_is_given_its_own_reason(): void
     {
         $cases = [
-            InviteAudience::PRINCIPAL => 'resilience',
-            InviteAudience::CHILD     => 'incorruptible life',
-            InviteAudience::JUDGE     => 'integrity of your judgement',
+            InviteAudience::NOMINEE => 'what it has meant to the people around you',
+            InviteAudience::JUDGE   => 'integrity of your judgement',
         ];
 
         foreach ($cases as $audience => $phrase) {
@@ -258,9 +262,8 @@ final class InviteMailerTest extends TestCase
     {
         $form = (string) file_get_contents(dirname(__DIR__, 2) . '/templates/admin/settings.twig');
 
-        foreach (['invite_quota_principal', 'invite_quota_child', 'invite_quota_judge',
-                  'invite_discount_percent', 'invite_programme_principal',
-                  'invite_programme_child'] as $key) {
+        foreach (['invite_quota_nominee', 'invite_quota_judge', 'invite_discount_percent',
+                  'invite_witness_nominee', 'invite_witness_judge'] as $key) {
             $this->assertStringContainsString('name="' . $key . '"', $form,
                 $key . ' is read by InviteAudience but nothing can set it');
         }
@@ -273,8 +276,10 @@ final class InviteMailerTest extends TestCase
 
         $this->assertStringContainsString('/invites', $form,
             'the invitation run has no link from the event screen');
-        $this->assertStringContainsString('name="programme_id"', $form,
+        $this->assertStringContainsString('name="programme_ids[]"', $form,
             'without this field no event can be marked as a ceremony, so nobody is ever invited');
+        $this->assertStringContainsString('type="checkbox"', $form,
+            'one ceremony honours several awards — a single-select cannot say so');
     }
 
     /** The three admin actions exist as routes. */

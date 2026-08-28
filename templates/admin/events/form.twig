@@ -183,14 +183,37 @@
         <label>Slug <span class="af-opt">blank = made from the title</span>
           <input type="text" name="slug" value="{{ row.slug|default('') }}" placeholder="auto"></label>
 
-        {% if programme_missing is empty %}
-        <label>Award programme <small>set this when the event is a ceremony — it is what the invitation run draws its guests of honour from</small>
-          <select name="programme_id">
-            <option value="">Not a ceremony</option>
+        {% if programme_link_ready %}
+        {# CHECKBOXES, not a multi-select. A <select multiple> on a phone is a scrolling
+           list where ctrl-click is the only way to add a second item, and this is the
+           control that decides whose shortlist gets invited — so it is four visible
+           checkboxes an operator can read and tick.
+
+           A hidden empty field first, so CLEARING every box actually clears the set:
+           unchecked boxes send nothing at all, and a save with none ticked would otherwise
+           look identical to a save from a form that never had the field. #}
+        {# A fieldset with a legend, not a label over a div: these are several controls
+           answering one question, which is exactly what a group label is for — a screen
+           reader reading the fourth checkbox otherwise has no idea what the four are. #}
+        <fieldset style="grid-column:1/-1;border:0;padding:0;margin:0;min-width:0">
+          <legend style="display:block;font-weight:600;font-size:12.5px;color:var(--ad-text);margin-bottom:6px;padding:0">
+            Awards presented at this event
+            <small style="display:block;font-weight:400;color:var(--ad-text-soft)">the invitation run draws its guests of honour from these — leave all unticked when the event is not a ceremony</small>
+          </legend>
+          {# An empty value first, so CLEARING every box actually clears the set: unchecked
+             boxes send nothing at all, and a save with none ticked would otherwise be
+             indistinguishable from a save posted by a form that never had the field. #}
+          <input type="hidden" name="programme_ids[]" value="">
+          <div style="display:flex;flex-wrap:wrap;gap:10px 18px">
             {% for p in programmes %}
-              <option value="{{ p.id }}"{% if row.programme_id|default(0) == p.id %} selected{% endif %}>{{ p.title }}</option>
+              <label style="display:inline-flex;align-items:center;gap:8px;font-weight:400;font-size:13.5px;min-height:44px;margin:0">
+                <input type="checkbox" name="programme_ids[]" value="{{ p.id }}"
+                       {% if p.id in programme_ids %}checked{% endif %}>
+                {{ p.title }}
+              </label>
             {% endfor %}
-          </select></label>
+          </div>
+        </fieldset>
         {% endif %}
       </div>
       <div class="row">

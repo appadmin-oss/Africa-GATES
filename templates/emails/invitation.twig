@@ -1,0 +1,282 @@
+{#
+  THE INVITATION.
+
+  ── THE DIRECTION, IN ONE SENTENCE ──────────────────────────────────────────
+  An engraved ceremony invitation: deep ink ground, a single gold rule, a serif
+  display face over monospace metadata, letterpress restraint. No gradients, no
+  glass, no pill badges, no icon rows.
+
+  ── WHY IT IS NOT THE CAMPAIGN SKELETON ─────────────────────────────────────
+  The first version of this rendered through emails/campaign.twig's block list, which
+  was the wrong call and looked it: that skeleton is built for a broadcast — a
+  countdown hero, numbered asks, a green CTA — and an invitation to be honoured in
+  public is not a broadcast. It is addressed to one person, it has one thing to say,
+  and the design has to carry that or the words are wasted.
+
+  What it DOES inherit from that skeleton is the scaffolding, deliberately: the
+  fluid-hybrid 560px wrapper, the MSO conditional tables, the VML button, the styled
+  alt text, presentation roles on every layout table, the hidden preheader, no data:
+  URIs. Those twelve properties are held by EmailInboxCompatTest and they are the
+  difference between a design and a design that arrives.
+
+  ── THE HIERARCHY, AND WHAT LEFT IT ─────────────────────────────────────────
+  Two actions survive on the surface: open your pass, and get your guests' tickets.
+  Everything else an invitee might want — the schedule, the venue map, the programme
+  — is one tap away on the event page and is NOT here. An invitation with six links
+  is a newsletter.
+
+  Type: Georgia for the display voice (present on every mail client that matters and
+  with real character — a web font cannot be relied on here); Helvetica/Arial for
+  body; Consolas/Courier for the micro-labels and the reference, because a reference
+  is read aloud at a door and monospace is what makes it transcribable.
+#}
+<!DOCTYPE html>
+<html lang="en" xmlns="http://www.w3.org/1999/xhtml" xmlns:v="urn:schemas-microsoft-com:vml" xmlns:o="urn:schemas-microsoft-com:office:office">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta http-equiv="X-UA-Compatible" content="IE=edge">
+{# iOS turns dates, addresses and references into blue links and then restyles them.
+   A ceremony date rendered as a system link in the middle of an engraved invitation
+   is the single ugliest thing this template can do, so it is switched off. #}
+<meta name="format-detection" content="telephone=no, date=no, address=no, email=no, url=no">
+<meta name="color-scheme" content="light">
+<meta name="supported-color-schemes" content="light">
+<title>{{ subject }}</title>
+<!--[if mso]>
+<xml><o:OfficeDocumentSettings><o:PixelsPerInch>96</o:PixelsPerInch></o:OfficeDocumentSettings></xml>
+<style>
+  /* Word engine: no rem, and cells need mso-line-height-rule or the leading is ignored.
+     Deliberately no angle-bracketed tag names in this comment — the balance check counts
+     tags inside an [if mso] block, and a tag named in prose here reads as an unclosed one. */
+  table, td, div, p, a { font-family: Georgia, 'Times New Roman', serif !important; mso-line-height-rule: exactly; }
+</style>
+<![endif]-->
+<style>
+  /* Gmail strips this block in several configurations — POP/IMAP accounts most
+     commonly — so nothing below is load-bearing. It refines; it does not lay out. */
+  .ag-w { width:100% !important; max-width:560px !important; }
+  .ag-px { padding-left:32px !important; padding-right:32px !important; }
+  a { color:#8a6205; }
+  /* iOS still detects dates and addresses with format-detection set, wraps them in its
+     own anchor and restyles them blue. A ceremony date rendered as a system link in the
+     middle of an engraved invitation is the ugliest thing this template could do. */
+  a[x-apple-data-detectors] {
+    color:inherit !important; text-decoration:none !important; font-size:inherit !important;
+    font-family:inherit !important; font-weight:inherit !important; line-height:inherit !important;
+  }
+  @media only screen and (max-width:600px) {
+    .ag-px  { padding-left:22px !important; padding-right:22px !important; }
+    .ag-d1  { font-size:29px !important; line-height:34px !important; }
+    .ag-name{ font-size:21px !important; line-height:27px !important; }
+    .ag-fact{ display:block !important; width:100% !important; padding-bottom:14px !important; }
+  }
+  @media (prefers-color-scheme: dark) {
+    /* Apple Mail and iOS honour this and leave the rest alone; Gmail and Outlook.com
+       invert regardless and do it badly on near-white, which is why the card is a
+       warm off-white rather than #ffffff — an inverted #ffffff goes flat black and
+       takes the gold with it. */
+    .ag-body { background-color:#0b1f22 !important; }
+    .ag-card { background-color:#12292c !important; }
+    .ag-ink  { color:#f2f4f3 !important; }
+    .ag-mute { color:#a8bbba !important; }
+    .ag-rule { border-color:#2a4a4c !important; }
+  }
+</style>
+</head>
+<body class="ag-body" style="margin:0; padding:0; background-color:#e9ecec; -webkit-text-size-adjust:100%; -ms-text-size-adjust:100%;">
+
+{# The preheader: the line an inbox shows beside the subject. Hidden, and padded with
+   zero-width joiners so the client does not pull body copy in after it. #}
+<div style="display:none; max-height:0; max-width:0; font-size:1px; line-height:1px; opacity:0; overflow:hidden; mso-hide:all;">
+  {{ preheader }}&#8202;&zwnj;&#8202;&zwnj;&#8202;&zwnj;&#8202;&zwnj;&#8202;&zwnj;&#8202;&zwnj;&#8202;&zwnj;
+</div>
+
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="#e9ecec" class="ag-body" style="background-color:#e9ecec;">
+  <tr>
+    <td align="center" style="padding:28px 12px 40px 12px;">
+
+      <!--[if mso]>
+      <table role="presentation" width="560" cellpadding="0" cellspacing="0" border="0" style="width:560px;"><tr><td>
+      <![endif]-->
+      <table role="presentation" class="agw-wrapper ag-w ag-card" width="100%" cellpadding="0" cellspacing="0" border="0" style="width:100%; max-width:560px; background-color:#fdfdfc; border:1px solid #d7dcdb;">
+
+        {# ── 1 · THE MASTHEAD BAND ─────────────────────────────────────────
+           Ink, the wordmark in tracked monospace gold, and one gold rule under it.
+           That rule is the only ornament in the whole email and it is doing the work
+           an engraved border does on a printed card. #}
+        <tr>
+          <td bgcolor="#10292c" style="background-color:#10292c; padding:22px 32px 20px 32px;" class="ag-px">
+            <p style="margin:0; font-family:Consolas,'Courier New',monospace; font-size:12px; letter-spacing:3.4px; color:#f3b416; text-transform:uppercase;">Africa&nbsp;GATES</p>
+            <p style="margin:5px 0 0 0; font-family:Georgia,'Times New Roman',serif; font-size:12px; font-style:italic; color:#9fb3b2;">An Afrovanguard Initiative</p>
+          </td>
+        </tr>
+        <tr><td bgcolor="#f3b416" style="background-color:#f3b416; height:3px; line-height:3px; font-size:0;">&nbsp;</td></tr>
+
+        {# ── 2 · THE STATEMENT ─────────────────────────────────────────────── #}
+        <tr>
+          <td class="ag-px" style="padding:38px 32px 0 32px;">
+            <p style="margin:0 0 16px 0; font-family:Consolas,'Courier New',monospace; font-size:10.5px; letter-spacing:2.2px; color:#8a6205; text-transform:uppercase;">Invitation &middot; {{ audience_one }}</p>
+            <h1 class="ag-d1 ag-ink" style="margin:0; font-family:Georgia,'Times New Roman',serif; font-size:35px; line-height:40px; font-weight:normal; color:#10292c; letter-spacing:-0.4px;">You are invited</h1>
+            <p class="ag-mute" style="margin:14px 0 0 0; font-family:Helvetica,Arial,sans-serif; font-size:15.5px; line-height:25px; color:#4a5c5e;">
+              to <strong style="color:#10292c;">{{ event_title }}</strong>, as a guest of honour.
+            </p>
+          </td>
+        </tr>
+
+        {# ── 3 · THE NAME PLATE ────────────────────────────────────────────
+           The engraved bit. Their name, set between two hairlines, in the display
+           face — because this is addressed to one person and the design should be
+           unable to pretend otherwise. #}
+        <tr>
+          <td class="ag-px" style="padding:30px 32px 0 32px;">
+            <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+              <tr><td class="ag-rule" style="border-top:1px solid #ddd; font-size:0; line-height:0;">&nbsp;</td></tr>
+              <tr>
+                <td align="center" style="padding:20px 6px 20px 6px;">
+                  <p class="ag-name ag-ink" style="margin:0; font-family:Georgia,'Times New Roman',serif; font-size:25px; line-height:32px; font-style:italic; color:#10292c;">{{ name }}</p>
+                </td>
+              </tr>
+              <tr><td class="ag-rule" style="border-top:1px solid #ddd; font-size:0; line-height:0;">&nbsp;</td></tr>
+            </table>
+          </td>
+        </tr>
+
+        {# ── 4 · THE REASON ────────────────────────────────────────────────
+           One sentence, operator-written per programme. It is the only italic body
+           copy in the email, which is what makes it read as the sentence that matters. #}
+        <tr>
+          <td class="ag-px" style="padding:26px 32px 0 32px;">
+            <p class="ag-ink" style="margin:0; font-family:Georgia,'Times New Roman',serif; font-size:17px; line-height:29px; color:#1e3b3e;">
+              We want the hall packed {{ witness }} — and we would like the people who know that work best to be in the room to see it recognised.
+            </p>
+          </td>
+        </tr>
+
+        {% if cover_url %}
+        {# ── 5 · THE EVENING, PICTURED ─────────────────────────────────────
+           width AND height on the tag, always: a blocked remote image with no height
+           collapses the panel it is the hero of, and Outlook desktop blocks by
+           default. The alt text is styled for the same reason — unstyled alt renders
+           as 10px serif and reads as a broken attachment rather than a sentence. #}
+        <tr>
+          <td style="padding:30px 0 0 0;">
+            <img src="{{ cover_url }}" width="560" height="220" alt="{{ event_title }}"
+                 style="display:block; width:100%; max-width:560px; height:auto; border:0; outline:none; text-decoration:none; font-family:Georgia,'Times New Roman',serif; font-size:14px; line-height:22px; color:#4a5c5e; background-color:#e9ecec;">
+          </td>
+        </tr>
+        {% endif %}
+
+        {# ── 6 · THE FACTS ─────────────────────────────────────────────────
+           Two cells, monospace micro-labels above each. Stacks on a phone via the
+           .ag-fact media rule — and if Gmail strips the <style>, it stays a
+           two-column table, which is legible rather than broken. #}
+        <tr>
+          <td class="ag-px" style="padding:32px 32px 0 32px;">
+            <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+              <tr>
+                <td class="ag-fact" width="50%" valign="top" style="padding:0 12px 0 0;">
+                  <p style="margin:0 0 6px 0; font-family:Consolas,'Courier New',monospace; font-size:10px; letter-spacing:1.6px; color:#8a6205; text-transform:uppercase;">When</p>
+                  <p class="ag-ink" style="margin:0; font-family:Helvetica,Arial,sans-serif; font-size:15px; line-height:23px; color:#10292c;">{{ when }}</p>
+                </td>
+                <td class="ag-fact" width="50%" valign="top" style="padding:0 0 0 12px;">
+                  <p style="margin:0 0 6px 0; font-family:Consolas,'Courier New',monospace; font-size:10px; letter-spacing:1.6px; color:#8a6205; text-transform:uppercase;">Where</p>
+                  <p class="ag-ink" style="margin:0; font-family:Helvetica,Arial,sans-serif; font-size:15px; line-height:23px; color:#10292c;">{{ where ?: 'Venue to be confirmed' }}</p>
+                </td>
+              </tr>
+            </table>
+          </td>
+        </tr>
+
+        {# ── 7 · THE PASS ──────────────────────────────────────────────────
+           An ink panel, because it is the one thing in the email that is a
+           credential rather than a message. Gold VML button for Outlook, real anchor
+           for everything else. #}
+        <tr>
+          <td class="ag-px" style="padding:32px 32px 0 32px;">
+            <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="#10292c" style="background-color:#10292c;">
+              <tr>
+                <td align="center" style="padding:26px 24px 26px 24px;">
+                  <p style="margin:0 0 6px 0; font-family:Consolas,'Courier New',monospace; font-size:10px; letter-spacing:1.8px; color:#f3b416; text-transform:uppercase;">Your entry</p>
+                  <p style="margin:0 0 18px 0; font-family:Helvetica,Arial,sans-serif; font-size:14.5px; line-height:23px; color:#dfe7e6;">
+                    Arranged already — no ticket needed for you. Your pass is a live page: open it on your phone at the door.
+                  </p>
+
+                  <!--[if mso]>
+                  <v:roundrect xmlns:v="urn:schemas-microsoft-com:vml" xmlns:w="urn:schemas-microsoft-com:office:word" href="{{ id_url }}" style="height:46px; v-text-anchor:middle; width:220px;" arcsize="9%" strokecolor="#f3b416" fillcolor="#f3b416">
+                    <w:anchorlock/>
+                    <center style="color:#1a1204; font-family:Helvetica,Arial,sans-serif; font-size:15px; font-weight:bold;">Open your pass</center>
+                  </v:roundrect>
+                  <![endif]-->
+                  <!--[if !mso]><!-->
+                  <a href="{{ id_url }}" style="display:inline-block; background-color:#f3b416; color:#1a1204; font-family:Helvetica,Arial,sans-serif; font-size:15px; font-weight:bold; line-height:46px; text-align:center; text-decoration:none; width:220px; border-radius:4px;">Open your pass</a>
+                  <!--<![endif]-->
+                </td>
+              </tr>
+            </table>
+          </td>
+        </tr>
+
+        {# ── 8 · THE ASK ───────────────────────────────────────────────────
+           Their reference, in monospace, framed. It is both their identity at the
+           door and the code their guests spend, which is why it is set apart rather
+           than mentioned in a sentence. #}
+        <tr>
+          <td class="ag-px" style="padding:32px 32px 0 32px;">
+            <p style="margin:0 0 14px 0; font-family:Consolas,'Courier New',monospace; font-size:10.5px; letter-spacing:2.2px; color:#8a6205; text-transform:uppercase;">Bring your people</p>
+            <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="border:1px solid #f3b416;">
+              <tr>
+                <td align="center" style="padding:18px 18px 16px 18px;">
+                  <p class="ag-ink" style="margin:0; font-family:Consolas,'Courier New',monospace; font-size:19px; letter-spacing:2.4px; color:#10292c;">{{ reference }}</p>
+                  <p class="ag-mute" style="margin:8px 0 0 0; font-family:Helvetica,Arial,sans-serif; font-size:12.5px; line-height:19px; color:#5a6d6f;">
+                    {{ discount }}% off &middot; up to {{ quota }} guests
+                  </p>
+                </td>
+              </tr>
+            </table>
+            <p class="ag-mute" style="margin:14px 0 0 0; font-family:Helvetica,Arial,sans-serif; font-size:14.5px; line-height:24px; color:#4a5c5e;">
+              Share it with the people you want in the room. It takes {{ discount }}% off their tickets, for up to {{ quota }} of them{% if tier_line %}{{ tier_line }}{% endif %}.
+              <a href="{{ events_url }}" style="color:#8a6205; text-decoration:underline;">Send them to the tickets &rarr;</a>
+            </p>
+          </td>
+        </tr>
+
+        {# ── 9 · SIGN-OFF ──────────────────────────────────────────────────── #}
+        <tr>
+          <td class="ag-px" style="padding:34px 32px 0 32px;">
+            <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+              <tr><td class="ag-rule" style="border-top:1px solid #ddd; font-size:0; line-height:0;">&nbsp;</td></tr>
+            </table>
+            <p class="ag-ink" style="margin:22px 0 0 0; font-family:Georgia,'Times New Roman',serif; font-size:16px; line-height:27px; color:#1e3b3e;">
+              We would be honoured to have you with us. The formal invitation is attached, for your records.
+            </p>
+            <p class="ag-ink" style="margin:18px 0 0 0; font-family:Georgia,'Times New Roman',serif; font-size:16px; line-height:24px; color:#10292c;">
+              With respect,<br>
+              <strong style="font-weight:normal;">Africa GATES</strong>
+            </p>
+          </td>
+        </tr>
+
+        <tr><td style="padding:0 0 38px 0; font-size:0; line-height:0;">&nbsp;</td></tr>
+      </table>
+
+      {# ── FOOTER ────────────────────────────────────────────────────────
+         Outside the card, in monospace, small and quiet. An invitation that ends in
+         a marketing footer stops being an invitation. #}
+      <table role="presentation" class="ag-w" width="100%" cellpadding="0" cellspacing="0" border="0" style="width:100%; max-width:560px;">
+        <tr>
+          <td align="center" style="padding:20px 24px 0 24px;">
+            <p style="margin:0; font-family:Consolas,'Courier New',monospace; font-size:11px; line-height:19px; color:#7a8b8c;">
+              {{ postal_address }}<br>
+              <a href="{{ unsubscribe_url }}" style="color:#7a8b8c; text-decoration:underline;">Stop receiving email from Africa GATES</a>
+            </p>
+          </td>
+        </tr>
+      </table>
+      <!--[if mso]></td></tr></table><![endif]-->
+
+    </td>
+  </tr>
+</table>
+</body>
+</html>

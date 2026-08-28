@@ -28,6 +28,7 @@ final class EventInvitesTest extends TestCase
     private int $eventId = 0;
     private int $cycleId = 0;
     private int $catId   = 0;
+    private int $programmeId = 0;
 
     protected function setUp(): void
     {
@@ -44,9 +45,12 @@ final class EventInvitesTest extends TestCase
             'cycle_id' => $this->cycleId, 'slug' => 'excellence', 'title' => 'Academic Excellence', 'sort_order' => 1,
         ]);
         $this->eventId = (int) DB::table('gates_site_events')->insertGetId([
-            'slug' => 'gala-2026', 'title' => 'Africa GATES Gala 2026', 'programme_id' => $pid,
+            'slug' => 'gala-2026', 'title' => 'Africa GATES Gala 2026',
             'event_date' => '2026-12-12 18:00:00', 'status' => 'published',
         ]);
+        // Through the join table: one ceremony honours several awards.
+        EventInvites::setProgrammes($this->eventId, [$pid]);
+        $this->programmeId = $pid;
     }
 
     /** A shortlisted nominee reachable at one address. */
@@ -82,9 +86,7 @@ final class EventInvitesTest extends TestCase
 
     public function test_the_ceremony_is_found_from_its_programme(): void
     {
-        $pid = (int) DB::table('gates_award_programmes')->where('slug', 'principals')->value('id');
-
-        $e = EventInvites::eventForProgramme($pid);
+        $e = EventInvites::eventForProgramme($this->programmeId);
 
         $this->assertNotNull($e, 'the programme has no ceremony linked to it');
         $this->assertSame('gala-2026', (string) $e->slug);
@@ -116,7 +118,7 @@ final class EventInvitesTest extends TestCase
         $nobody = $this->nominee('Silent Sam');                  // no address anywhere
         $this->publishShortlist($this->cycleId, $this->catId, [$ada, $nobody]);
 
-        $plan = EventInvites::plan($this->eventId)[InviteAudience::PRINCIPAL];
+        $plan = EventInvites::plan($this->eventId)[InviteAudience::NOMINEE];
 
         $this->assertSame(['Ada Obi'], array_column($plan['ready'], 'name'));
         $this->assertSame(['Silent Sam'], array_column($plan['unreachable'], 'name'));
@@ -134,7 +136,7 @@ final class EventInvitesTest extends TestCase
         $this->nominee('Chinelo Eze', 'chinelo.b@example.com');   // same name, second address
         $this->publishShortlist($this->cycleId, $this->catId, [$one]);
 
-        $plan = EventInvites::plan($this->eventId)[InviteAudience::PRINCIPAL];
+        $plan = EventInvites::plan($this->eventId)[InviteAudience::NOMINEE];
 
         $this->assertSame([], $plan['ready'], 'an ambiguous address must never be picked');
         $this->assertStringContainsString('More than one', $plan['unreachable'][0]['why']);
@@ -145,7 +147,7 @@ final class EventInvitesTest extends TestCase
     {
         $this->nominee('Not Shortlisted', 'no@example.com');
 
-        $plan = EventInvites::plan($this->eventId)[InviteAudience::PRINCIPAL];
+        $plan = EventInvites::plan($this->eventId)[InviteAudience::NOMINEE];
 
         $this->assertSame([], $plan['ready']);
         $this->assertSame([], $plan['unreachable']);
@@ -155,7 +157,7 @@ final class EventInvitesTest extends TestCase
 
     public function test_minting_stores_the_quota_and_mints_a_code_that_allows_exactly_it(): void
     {
-        $inv = EventInvites::mint($this->eventId, InviteAudience::PRINCIPAL,
+        $inv = EventInvites::mint($this->eventId, InviteAudience::NOMINEE,
             ['name' => 'Ada Obi', 'email' => 'ada@example.com', 'nominee_id' => 0, 'judge_id' => 0]);
 
         $this->assertNotNull($inv);
@@ -188,12 +190,90 @@ final class EventInvitesTest extends TestCase
         $this->assertSame(15, (int) DB::table('gates_event_codes')->where('code', $inv->reference)->value('amount'));
     }
 
-    /** Default quotas are the ones the brief asked for. */
-    public function test_the_default_quotas_are_25_25_and_10(): void
+    /**
+     * Two audiences, not three. It began as principal / child / judge, which was a taxonomy
+     * invented out of two example programmes — a nominee is a nominee whichever award they
+     * are shortlisted for.
+     */
+    public function test_there_are_two_audiences_with_the_briefed_quotas(): void
     {
-        $this->assertSame(25, InviteAudience::spec(InviteAudience::PRINCIPAL)['quota']);
-        $this->assertSame(25, InviteAudience::spec(InviteAudience::CHILD)['quota']);
+        $this->assertSame(['nominee', 'judge'], InviteAudience::all());
+        $this->assertSame(25, InviteAudience::spec(InviteAudience::NOMINEE)['quota']);
         $this->assertSame(10, InviteAudience::spec(InviteAudience::JUDGE)['quota']);
+    }
+
+    /**
+     * The sentence naming WHY the hall is being filled is editable, and that is the point:
+     * an Incredible Principal Award and a Carol Award honour completely different things,
+     * so a sentence written to cover both honours neither.
+     */
+    public function test_the_reason_is_editable_per_audience(): void
+    {
+        $default = InviteAudience::spec(InviteAudience::NOMINEE)['witness'];
+
+        DB::table('gates_settings')->insert([
+            'key_name' => 'invite_witness_nominee',
+            'value'    => 'to witness a decade of choral discipline',
+        ]);
+
+        $this->assertSame('to witness a decade of choral discipline',
+            InviteAudience::spec(InviteAudience::NOMINEE)['witness']);
+        $this->assertNotSame($default, InviteAudience::spec(InviteAudience::NOMINEE)['witness']);
+    }
+
+    /** A gala honours several awards, and every shortlist among them is invited. */
+    public function test_every_linked_programme_contributes_its_shortlist(): void
+    {
+        $ada = $this->nominee('Ada Obi', 'ada@example.com');
+        $this->publishShortlist($this->cycleId, $this->catId, [$ada]);
+
+        // A second award on the same night, with its own cycle, category and shortlist.
+        $pid2 = (int) DB::table('gates_award_programmes')->insertGetId([
+            'slug' => 'carol', 'title' => 'Carol Awards', 'is_active' => 1,
+        ]);
+        $cy2 = (int) DB::table('gates_award_cycles')->insertGetId([
+            'programme_id' => $pid2, 'year' => 2026, 'status' => 'judging', 'edition_label' => 'C',
+        ]);
+        $cat2 = (int) DB::table('gates_award_categories')->insertGetId([
+            'cycle_id' => $cy2, 'slug' => 'choir', 'title' => 'Choir of the Year', 'sort_order' => 1,
+        ]);
+        $eze = (int) DB::table('gates_nominees')->insertGetId([
+            'category_id' => $cat2, 'name' => 'Eze Choir', 'status' => 'approved',
+            'nominated_at' => '2026-02-01 10:00:00', 'vote_count' => 0, 'organic_vote_count' => 0,
+        ]);
+        DB::table('gates_nominations')->insert([
+            'cycle_id' => $cy2, 'category_id' => $cat2, 'status' => 'approved',
+            'nominee_name' => 'Eze Choir', 'nominee_email' => 'eze@example.com',
+            'nominator_name' => 'A Nominator', 'nominator_email' => 'nom@example.com',
+            'created_at' => '2026-02-01 10:00:00',
+        ]);
+        $this->publishShortlist($cy2, $cat2, [$eze]);
+
+        EventInvites::setProgrammes($this->eventId, [$this->programmeId, $pid2]);
+
+        $ready = EventInvites::plan($this->eventId)[InviteAudience::NOMINEE]['ready'];
+        $names = array_column($ready, 'name');
+
+        $this->assertContains('Ada Obi', $names);
+        $this->assertContains('Eze Choir', $names, 'the second award on the night was not invited');
+
+        // The award is named beside the category: on a multi-programme night "Choir of the
+        // Year" alone does not say which award it belongs to.
+        $byName = array_column($ready, null, 'name');
+        $this->assertStringContainsString('Carol Awards', $byName['Eze Choir']['category']);
+    }
+
+    /** Unticking every award leaves nobody to invite, and says so rather than guessing. */
+    public function test_an_event_with_no_awards_invites_nobody(): void
+    {
+        $ada = $this->nominee('Ada Obi', 'ada@example.com');
+        $this->publishShortlist($this->cycleId, $this->catId, [$ada]);
+        EventInvites::setProgrammes($this->eventId, []);
+
+        $plan = EventInvites::plan($this->eventId);
+
+        $this->assertSame([], $plan[InviteAudience::NOMINEE]['ready']);
+        $this->assertSame([], $plan[InviteAudience::JUDGE]['ready']);
     }
 
     /**
@@ -204,8 +284,8 @@ final class EventInvitesTest extends TestCase
     {
         $who = ['name' => 'Ada Obi', 'email' => 'ada@example.com', 'nominee_id' => 0, 'judge_id' => 0];
 
-        $first  = EventInvites::mint($this->eventId, InviteAudience::PRINCIPAL, $who);
-        $second = EventInvites::mint($this->eventId, InviteAudience::PRINCIPAL, $who);
+        $first  = EventInvites::mint($this->eventId, InviteAudience::NOMINEE, $who);
+        $second = EventInvites::mint($this->eventId, InviteAudience::NOMINEE, $who);
 
         $this->assertSame((string) $first->reference, (string) $second->reference);
         $this->assertSame(1, (int) DB::table('gates_event_invites')->where('event_id', $this->eventId)->count());
@@ -229,7 +309,7 @@ final class EventInvitesTest extends TestCase
 
     public function test_the_pass_rotates_and_a_photograph_of_it_stops_working(): void
     {
-        $inv = EventInvites::mint($this->eventId, InviteAudience::PRINCIPAL,
+        $inv = EventInvites::mint($this->eventId, InviteAudience::NOMINEE,
             ['name' => 'Ada Obi', 'email' => 'ada@example.com', 'nominee_id' => 0, 'judge_id' => 0]);
 
         $now  = InvitePass::window();
@@ -254,7 +334,7 @@ final class EventInvitesTest extends TestCase
     /** A future window must never verify, however skewed the phone's clock. */
     public function test_a_future_code_is_refused(): void
     {
-        $inv = EventInvites::mint($this->eventId, InviteAudience::PRINCIPAL,
+        $inv = EventInvites::mint($this->eventId, InviteAudience::NOMINEE,
             ['name' => 'Ada Obi', 'email' => 'ada@example.com', 'nominee_id' => 0, 'judge_id' => 0]);
 
         $ahead = InvitePass::code((string) $inv->reference, (string) $inv->id_secret, InvitePass::window() + 4);
@@ -269,7 +349,7 @@ final class EventInvitesTest extends TestCase
      */
     public function test_holding_the_reference_is_not_enough_to_forge_a_pass(): void
     {
-        $inv = EventInvites::mint($this->eventId, InviteAudience::PRINCIPAL,
+        $inv = EventInvites::mint($this->eventId, InviteAudience::NOMINEE,
             ['name' => 'Ada Obi', 'email' => 'ada@example.com', 'nominee_id' => 0, 'judge_id' => 0]);
 
         $forged = InvitePass::code((string) $inv->reference, 'a-guess-at-the-secret');
@@ -280,7 +360,7 @@ final class EventInvitesTest extends TestCase
 
     public function test_a_scan_is_counted_once_at_the_door_not_per_refresh(): void
     {
-        $inv = EventInvites::mint($this->eventId, InviteAudience::PRINCIPAL,
+        $inv = EventInvites::mint($this->eventId, InviteAudience::NOMINEE,
             ['name' => 'Ada Obi', 'email' => 'ada@example.com', 'nominee_id' => 0, 'judge_id' => 0]);
 
         InvitePass::code((string) $inv->reference, (string) $inv->id_secret);   // a refresh
@@ -316,7 +396,7 @@ final class EventInvitesTest extends TestCase
     {
         $this->tier(5000, 'Supporter');
 
-        return EventInvites::mint($this->eventId, InviteAudience::PRINCIPAL,
+        return EventInvites::mint($this->eventId, InviteAudience::NOMINEE,
             ['name' => 'Ada Obi', 'email' => 'ada@example.com', 'nominee_id' => 0, 'judge_id' => 0]);
     }
 
@@ -491,5 +571,97 @@ final class EventInvitesTest extends TestCase
         $this->assertSame('refuse', $v['verdict'] ?? '');
         $this->assertSame('Not a ticket for this event', $v['title'] ?? '',
             'a dotless code must go to EventTicketService, not to the invitation check');
+    }
+
+    // ════════════════════════════════════════════════════════════════════════
+    //  THE PASS, AS A DESIGNED OBJECT
+    // ════════════════════════════════════════════════════════════════════════
+
+    private function pass(): string
+    {
+        return (string) file_get_contents(dirname(__DIR__, 2) . '/templates/pages/honour.twig');
+    }
+
+    /**
+     * The first version was three near-identical rounded cards stacked down a dark page.
+     * Everything had the same weight, so nothing was the pass. The structure IS the design:
+     * a stub carrying the evening, a perforation, and a paper plate holding the code.
+     */
+    public function test_the_pass_is_built_like_a_pass(): void
+    {
+        $css = $this->pass();
+
+        $this->assertStringContainsString('hn__stub', $css, 'no stub — the evening has nowhere to sit');
+        $this->assertStringContainsString('hn__perf', $css, 'no perforation — the shape reads as a panel');
+        $this->assertStringContainsString('hn__plate', $css, 'no plate — the code has no home');
+
+        // The plate is PAPER on an ink page: at a door it is the only thing that matters
+        // and the eye has to land on it with no help.
+        $this->assertMatchesRegularExpression('~\.hn__plate\{[^}]*background:var\(--paper\)~', $css);
+    }
+
+    /**
+     * The countdown is a depleting ring, not a spinner. A spinner says "something is
+     * happening"; the remaining life of the code on screen is a fact a guest and a steward
+     * both need, and it is the one piece of motion on the page that earns itself.
+     */
+    public function test_the_countdown_is_informative_motion_not_decoration(): void
+    {
+        $css = $this->pass();
+
+        $this->assertStringContainsString('stroke-dashoffset', $css, 'the ring does not deplete');
+        $this->assertStringNotContainsString('hn-spin', $css, 'a spinner is decoration, not a countdown');
+        $this->assertStringContainsString('prefers-reduced-motion', $css,
+            'a full-page animation with no reduced-motion path');
+    }
+
+    /** The two things that actually happen at a door: no signal, and a stale code. */
+    public function test_the_unhappy_states_exist(): void
+    {
+        $css = $this->pass();
+
+        $this->assertStringContainsString('hn--offline', $css, 'no offline state — at a venue, on venue wifi');
+        $this->assertStringContainsString('hn--stale', $css, 'no state for a code that failed to refresh');
+        $this->assertStringContainsString("classList.add('hn--offline')", $css,
+            'the offline class is styled but never applied');
+    }
+
+    /** Hierarchy is subtraction: two actions on the surface, and the rest on the event page. */
+    public function test_the_pass_carries_two_actions_and_no_more(): void
+    {
+        preg_match_all('~<a class="hn__(?:cta|alt)"~', $this->pass(), $m);
+
+        $this->assertCount(2, $m[0],
+            'the pass grew a third action — the schedule and the map belong on the event page');
+    }
+
+    /** Touch targets. A pass is used one-handed, in a queue, in the dark. */
+    public function test_every_action_clears_the_touch_floor(): void
+    {
+        $css = $this->pass();
+
+        foreach (['.hn__cta', '.hn__alt'] as $sel) {
+            $this->assertMatchesRegularExpression(
+                '~' . preg_quote($sel, '~') . '\{[^}]*(min-height:44px|line-height:44px)~',
+                $css,
+                $sel . ' is under the 44px touch floor'
+            );
+        }
+    }
+
+    /**
+     * The site already loads Playfair Display, DM Sans and JetBrains Mono and exposes them
+     * as tokens. A pass that ships a fourth face is a pass that does not belong to the site
+     * it is part of.
+     */
+    public function test_the_pass_uses_the_sites_own_type_tokens(): void
+    {
+        $css = $this->pass();
+
+        foreach (['--ag-font-display', '--ag-font-mono'] as $token) {
+            $this->assertStringContainsString($token, $css, $token . ' is not used');
+        }
+        $this->assertStringNotContainsString('fonts.googleapis.com', $css,
+            'the layout already loads the faces — a second link is a second render-blocking request');
     }
 }

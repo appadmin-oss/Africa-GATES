@@ -3,6 +3,8 @@ declare(strict_types=1);
 namespace AfricaGates\Services;
 
 use AfricaGates\Support\DisplayTime;
+use Twig\Environment;
+use Twig\Loader\FilesystemLoader;
 use AfricaGates\Support\SiteUrl;
 use Illuminate\Database\Capsule\Manager as DB;
 use Illuminate\Support\Carbon;
@@ -10,17 +12,19 @@ use Illuminate\Support\Carbon;
 /**
  * The invitation itself: what a guest of honour receives.
  *
- * ── WHY THIS RENDERS THROUGH THE CAMPAIGN SKELETON ───────────────────────────
+ * ── WHY THIS HAS ITS OWN TEMPLATE ────────────────────────────────────────────
  *
- * `templates/emails/campaign.twig` already carries the twelve properties that decide
- * whether mail survives a real inbox — the fluid-hybrid wrapper, the MSO conditionals,
- * the VML button, styled alt text, presentation roles, a hidden preheader, no data: URIs
- * — and {@see \Tests\Unit\EmailInboxCompatTest} holds every one of them. A hand-written
- * invitation template would be a thirteenth skeleton to keep correct, and the first thing
- * to break would be Outlook, silently, on the one mail nobody sends twice.
+ * The first cut rendered through `emails/campaign.twig`'s block list, and that was wrong.
+ * That skeleton is built for a BROADCAST — a countdown hero, numbered asks, a green CTA —
+ * and an invitation to be honoured in public is not a broadcast. It is addressed to one
+ * person, it has one thing to say, and reusing a newsletter chassis for it produced
+ * exactly what it sounds like.
  *
- * So this builds BLOCKS and lets that skeleton render them. The invitation is a block
- * list, not a template.
+ * `emails/invitation.twig` is its own design and inherits only the SCAFFOLDING from that
+ * skeleton — the fluid-hybrid 560px wrapper, the MSO conditional tables, the VML button,
+ * styled alt text, presentation roles, the hidden preheader, no data: URIs. Those twelve
+ * properties are the difference between a design and a design that ARRIVES, and
+ * {@see \Tests\Unit\InviteInboxCompatTest} holds every one of them for this file too.
  *
  * ── WHAT IS ATTACHED, AND WHY IT IS BY VALUE ─────────────────────────────────
  *
@@ -69,20 +73,13 @@ final class InviteMailer
         $tier     = EventInvites::lowestTier((int) $event->id);
         $base     = rtrim(SiteUrl::base(), '/');
 
-        $html = EmailCampaign::render(
-            self::subject($invite, $event, $spec),
-            self::preheader($invite, $event, $spec),
-            self::blocks($invite, $event, $spec, $tier),
-            self::vars($invite, $event, $base)
-        );
-        $plain = EmailCampaign::plainOf(
-            self::blocks($invite, $event, $spec, $tier),
-            self::vars($invite, $event, $base)
-        );
+        $view  = self::view($invite, $event, $spec, $tier, $base);
+        $html  = self::html($view);
+        $plain = self::plain($view);
 
         $r = $mailer->sendBranded(
             $email,
-            self::subject($invite, $event, $spec),
+            (string) $view['subject'],
             $html,
             $plain,
             'invitation',
@@ -108,125 +105,147 @@ final class InviteMailer
     /** The rendered HTML, for the admin's preview. Sends nothing. */
     public static function preview(object $invite, object $event): string
     {
-        $spec = InviteAudience::spec((string) $invite->audience);
-
-        return EmailCampaign::render(
-            self::subject($invite, $event, $spec),
-            self::preheader($invite, $event, $spec),
-            self::blocks($invite, $event, $spec, EventInvites::lowestTier((int) $event->id)),
-            self::vars($invite, $event, rtrim(SiteUrl::base(), '/'))
-        );
+        return self::html(self::view(
+            $invite,
+            $event,
+            InviteAudience::spec((string) $invite->audience),
+            EventInvites::lowestTier((int) $event->id),
+            rtrim(SiteUrl::base(), '/')
+        ));
     }
 
-    // ══ the words ════════════════════════════════════════════════════════════
 
-    /** @param array<string,mixed> $spec */
-    public static function subject(object $invite, object $event, array $spec): string
-    {
-        // Their own name in the subject, because this is not a campaign — it is an
-        // invitation to one person, and the inbox has to read that way at a glance.
-        return trim((string) $invite->name) . ', you are invited to ' . trim((string) $event->title);
-    }
 
-    /** @param array<string,mixed> $spec */
-    private static function preheader(object $invite, object $event, array $spec): string
-    {
-        return 'As a guest of honour — with ' . (int) $invite->guest_quota
-             . ' discounted seats for the people you bring.';
-    }
+
+
 
     /**
-     * The invitation, as blocks.
+     * Everything the template renders, resolved once.
+     *
+     * One array rather than a call per field, so the HTML and the plain-text part cannot
+     * end up describing different evenings — which is the failure mode of building each
+     * of them separately from the same row.
      *
      * @param array<string,mixed> $spec
-     * @return list<array<string,mixed>>
+     * @return array<string,mixed>
      */
-    private static function blocks(object $invite, object $event, array $spec, ?object $tier): array
+    private static function view(object $invite, object $event, array $spec, ?object $tier, string $base): array
     {
-        $when  = DisplayTime::showZoned((string) $event->event_date, 'l j F Y \a\t H:i');
+        $quota = (int) $invite->guest_quota;
+        $pct   = InviteAudience::discountPercent();
+
         $where = trim(implode(', ', array_filter([
             trim((string) ($event->venue ?? '')),
             trim((string) ($event->location ?? '')),
         ])));
-        $pct   = InviteAudience::discountPercent();
-        $quota = (int) $invite->guest_quota;
-
-        $from = $tier !== null
-            ? ' Seats start at ₦' . number_format((int) $tier->price_naira)
-              . ' (' . trim((string) $tier->name) . ').'
-            : '';
 
         return [
-            ['type' => 'hero',
-             'headline'   => 'You are',
-             'accent'     => 'invited',
-             'standfirst' => 'It is our privilege to invite you to ' . trim((string) $event->title)
-                           . ' as a guest of honour.'],
+            // Their own name in the subject, because this is not a campaign — it is an
+            // invitation to one person, and the inbox has to read that way at a glance.
+            'subject'   => trim((string) $invite->name) . ', you are invited to ' . trim((string) $event->title),
+            // The line an inbox shows beside the subject. It carries the ASK, because the
+            // subject already carries the invitation and repeating it wastes the one
+            // sentence somebody reads before deciding whether to open.
+            'preheader' => 'As a guest of honour — with ' . $quota
+                         . ' discounted seats for the people you bring.',
 
-            ['type' => 'paragraph',
-             'text' => trim((string) $invite->name) . ', we want the hall packed '
-                     . $spec['witness'] . ' — and we would like the people who know that '
-                     . 'work best to be in the room to see it recognised.'],
+            'name'         => trim((string) $invite->name),
+            'audience_one' => (string) $spec['one'],
+            'witness'      => (string) $spec['witness'],
 
-            ['type' => 'heading', 'text' => 'The evening'],
+            'event_title' => trim((string) $event->title),
+            'when'        => DisplayTime::showZoned((string) $event->event_date, 'l j F Y \a\t H:i'),
+            'where'       => $where,
+            'cover_url'   => self::coverUrl($event, $base),
 
-            ['type' => 'paragraph',
-             'text' => $when . ($where !== '' ? '. ' . $where : '')
-                     . '. Your own entry is arranged and needs no ticket.'],
+            'reference' => trim((string) $invite->reference),
+            'quota'     => $quota,
+            'discount'  => $pct,
+            // Prefixed here rather than in the template, so the sentence reads correctly
+            // both with a tier and without one.
+            'tier_line' => $tier !== null
+                ? ', from ₦' . number_format((int) $tier->price_naira)
+                  . ' (' . trim((string) $tier->name) . ') upwards'
+                : '',
 
-            ['type' => 'button',
-             'label'           => 'Open your pass',
-             'link'            => 'id_url',
-             'secondary_label' => 'See the event',
-             'secondary_link'  => 'events_url'],
-
-            ['type' => 'callout',
-             'text' => 'Your pass is a live page, not a file. The code on it changes every '
-                     . InvitePass::STEP_SECONDS . ' seconds, so open it on your phone at the '
-                     . 'door rather than printing it or sending on a screenshot.'],
-
-            ['type' => 'heading', 'text' => 'Bring your people'],
-
-            ['type' => 'ask',
-             'title'      => $quota . ' seats at ' . $pct . '% off',
-             'text'       => 'Your reference is ' . trim((string) $invite->reference)
-                           . ', and it is also the code your guests use. It takes ' . $pct
-                           . '% off for up to ' . $quota . ' of them.' . $from
-                           . ' Share it freely with the people you want in the room.',
-             'link_label' => 'Send them to the tickets',
-             'link'       => 'events_url'],
-
-            ['type' => 'signoff',
-             'text'       => 'We would be honoured to have you with us. The formal invitation '
-                           . 'is attached, for your records.',
-             'salutation' => 'With respect,',
-             'signature'  => 'Africa GATES'],
-        ];
-    }
-
-    /** @return array<string,string> */
-    private static function vars(object $invite, object $event, string $base): array
-    {
-        return [
-            'site_url'        => $base,
-            'events_url'      => $base . '/events/' . rawurlencode((string) $event->slug),
             'id_url'          => EventInvites::idUrl((string) $invite->reference, $base),
-            'vote_url'        => $base . '/vote',
+            'events_url'      => $base . '/events/' . rawurlencode((string) $event->slug),
             'unsubscribe_url' => EmailOptOut::url($base, (string) $invite->email),
             'postal_address'  => (string) \AfricaGates\Support\Env::get(
                 'MAIL_POSTAL_ADDRESS', 'Afrovanguard, Lagos, Nigeria'
             ),
-            'first_name'      => self::firstName((string) $invite->name),
-            'category_name'   => (string) $invite->audience,
-            'closes_human'    => DisplayTime::showZoned((string) $event->event_date),
         ];
     }
 
-    private static function firstName(string $name): string
+    /** @param array<string,mixed> $view */
+    private static function html(array $view): string
     {
-        $bits = preg_split('/\s+/u', trim($name)) ?: [];
+        static $twig = null;
+        $twig ??= new Environment(
+            new FilesystemLoader(\dirname(__DIR__, 2) . '/templates'),
+            ['autoescape' => 'html']
+        );
 
-        return (string) ($bits[0] ?? '');
+        return $twig->render('emails/invitation.twig', $view);
+    }
+
+    /**
+     * The plain-text part, WRITTEN rather than stripped.
+     *
+     * `strip_tags()` over a table layout produces a column of orphaned words. This part is
+     * what a plain-text client shows, what a screen reader may be handed, and what every
+     * spam filter reads to decide whether the HTML half is worth trusting.
+     *
+     * @param array<string,mixed> $view
+     */
+    private static function plain(array $view): string
+    {
+        return implode("\n", [
+            'AFRICA GATES — An Afrovanguard Initiative',
+            '',
+            'You are invited to ' . $view['event_title'] . ', as a guest of honour.',
+            '',
+            (string) $view['name'],
+            '',
+            'We want the hall packed ' . $view['witness'] . ' — and we would like the people '
+                . 'who know that work best to be in the room to see it recognised.',
+            '',
+            'WHEN   ' . $view['when'],
+            'WHERE  ' . ($view['where'] !== '' ? $view['where'] : 'Venue to be confirmed'),
+            '',
+            'YOUR ENTRY',
+            'Arranged already — no ticket needed for you. Your pass is a live page; open it on',
+            'your phone at the door:',
+            '  ' . $view['id_url'],
+            '',
+            'BRING YOUR PEOPLE',
+            '  ' . $view['reference'] . '  —  ' . $view['discount'] . '% off, up to '
+                . $view['quota'] . ' guests',
+            'Share it with the people you want in the room. It takes ' . $view['discount']
+                . '% off their tickets, for up to ' . $view['quota'] . ' of them'
+                . $view['tier_line'] . '.',
+            '  ' . $view['events_url'],
+            '',
+            'We would be honoured to have you with us. The formal invitation is attached, for',
+            'your records.',
+            '',
+            'With respect,',
+            'Africa GATES',
+            '',
+            '--',
+            (string) $view['postal_address'],
+            'Stop receiving email: ' . $view['unsubscribe_url'],
+        ]);
+    }
+
+    /** The cover as an ABSOLUTE url, or '' — a relative src is a broken image in an inbox. */
+    private static function coverUrl(object $event, string $base): string
+    {
+        $rel = trim((string) ($event->cover_image ?? ''));
+        if ($rel === '') return '';
+        if (preg_match('~^https?://~i', $rel) === 1) return $rel;
+
+        return $base . '/' . ltrim($rel, '/');
     }
 
     // ══ attachments ══════════════════════════════════════════════════════════

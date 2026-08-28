@@ -39,18 +39,69 @@ use Illuminate\Support\Carbon;
  */
 final class EventInvites
 {
-    /** The ceremony for a programme, or null when none is linked. */
+    /** The ceremony a programme is honoured at, or null when none is linked. */
     public static function eventForProgramme(int $programmeId): ?object
     {
         if ($programmeId < 1) return null;
         try {
-            return DB::table('gates_site_events')
-                ->where('programme_id', $programmeId)
-                ->where('status', 'published')
-                ->orderBy('event_date')
-                ->first() ?: null;
+            return DB::table('gates_site_events as e')
+                ->join('gates_event_programmes as ep', 'ep.event_id', '=', 'e.id')
+                ->where('ep.programme_id', $programmeId)
+                ->where('e.status', 'published')
+                ->orderBy('e.event_date')
+                ->first(['e.*']) ?: null;
         } catch (\Throwable) {
             return null;
+        }
+    }
+
+    /**
+     * The awards this ceremony is for.
+     *
+     * Plural, because one gala night hands out several. A column would have forced an
+     * operator to run four events for one evening or leave three shortlists uninvited.
+     *
+     * @return list<object> with `id` and `title`
+     */
+    public static function programmesFor(int $eventId): array
+    {
+        try {
+            return DB::table('gates_event_programmes as ep')
+                ->join('gates_award_programmes as p', 'p.id', '=', 'ep.programme_id')
+                ->where('ep.event_id', $eventId)
+                ->orderBy('p.sort_order')->orderBy('p.title')
+                ->get(['p.id', 'p.title', 'p.slug'])->all();
+        } catch (\Throwable) {
+            return [];
+        }
+    }
+
+    /**
+     * Replace the set of awards a ceremony is for.
+     *
+     * @param list<int> $programmeIds
+     */
+    public static function setProgrammes(int $eventId, array $programmeIds): void
+    {
+        try {
+            $keep = [];
+            foreach ($programmeIds as $id) {
+                $id = (int) $id;
+                if ($id > 0) $keep[$id] = true;
+            }
+
+            DB::table('gates_event_programmes')->where('event_id', $eventId)
+                ->whereNotIn('programme_id', array_keys($keep) ?: [0])->delete();
+
+            foreach (array_keys($keep) as $id) {
+                DB::table('gates_event_programmes')->insertOrIgnore([
+                    'event_id' => $eventId, 'programme_id' => $id,
+                ]);
+            }
+        } catch (\Throwable) {
+            // A ceremony with no programmes shows the invitation screen's "nothing to
+            // invite" state, which is honest. Losing the save on the rest of the event
+            // form over this would not be.
         }
     }
 
@@ -101,10 +152,10 @@ final class EventInvites
         $out   = [];
 
         foreach (InviteAudience::all() as $key) {
-            $spec  = InviteAudience::spec($key);
-            $rows  = $key === InviteAudience::JUDGE
-                ? self::judges()
-                : self::shortlisted((string) $spec['programme_slug']);
+            $spec = InviteAudience::spec($key);
+            $rows = $key === InviteAudience::JUDGE
+                ? self::judges($eventId)
+                : self::shortlisted($eventId);
 
             $ready = [];
             $bad   = [];
@@ -267,76 +318,104 @@ final class EventInvites
     }
 
     /**
-     * The published shortlist of a programme's current cycle.
+     * The published shortlist of every award this ceremony is for.
+     *
+     * Across ALL linked programmes, each at its own current cycle — a gala honouring four
+     * awards invites four shortlists, and they do not share a cycle. The programme set is
+     * the one the operator stated on the event; it is not looked up from a settings slug,
+     * because that would be a second source for a fact already recorded.
      *
      * @return list<array{name:string,email:string,nominee_id:int,judge_id:int,category:string,why:string,cycle_id:int}>
      */
-    private static function shortlisted(string $programmeSlug): array
+    private static function shortlisted(int $eventId): array
     {
-        $programme = DB::table('gates_award_programmes')->where('slug', $programmeSlug)->first(['id']);
-        if (!$programme) return [];
-
-        $cycle = DB::table('gates_award_cycles')
-            ->where('programme_id', $programme->id)
-            ->orderByDesc('year')->orderByDesc('id')
-            ->first(['id']);
-        if (!$cycle) return [];
-
-        $cycleId = (int) $cycle->id;
-        $onList  = ShortlistService::shortlistedIn($cycleId);
-        if ($onList === []) return [];
-
-        $rows = DB::table('gates_nominees as n')
-            ->join('gates_award_categories as c', 'c.id', '=', 'n.category_id')
-            ->where('c.cycle_id', $cycleId)
-            ->whereIn('n.id', array_keys($onList))
-            ->whereNull('n.merged_into')
-            ->select('n.id', 'n.name', 'n.profile_id', 'c.title as category')
-            ->orderBy('c.title')->orderBy('n.name')
-            ->get()->all();
-
         $out = [];
-        foreach ($rows as $n) {
-            $found = NomineeAddress::candidates($n, $cycleId);
-            $out[] = [
-                'name'       => (string) $n->name,
-                'email'      => count($found) === 1 ? $found[0] : '',
-                'nominee_id' => (int) $n->id,
-                'judge_id'   => 0,
-                'category'   => (string) $n->category,
-                'cycle_id'   => $cycleId,
-                // Named, not just counted: "two people share this name" and "we have no
-                // address" are different problems and an operator fixes them differently.
-                'why'        => $found === []
-                    ? 'No address on the nomination or the linked profile.'
-                    : (count($found) > 1
-                        ? 'More than one nominee is approved under this name — pick the right address by hand.'
-                        : ''),
-            ];
+
+        foreach (self::programmesFor($eventId) as $programme) {
+            $cycle = DB::table('gates_award_cycles')
+                ->where('programme_id', $programme->id)
+                ->orderByDesc('year')->orderByDesc('id')
+                ->first(['id']);
+            if (!$cycle) continue;
+
+            $cycleId = (int) $cycle->id;
+            $onList  = ShortlistService::shortlistedIn($cycleId);
+            if ($onList === []) continue;
+
+            $rows = DB::table('gates_nominees as n')
+                ->join('gates_award_categories as c', 'c.id', '=', 'n.category_id')
+                ->where('c.cycle_id', $cycleId)
+                ->whereIn('n.id', array_keys($onList))
+                ->whereNull('n.merged_into')
+                ->select('n.id', 'n.name', 'n.profile_id', 'c.title as category')
+                ->orderBy('c.title')->orderBy('n.name')
+                ->get()->all();
+
+            foreach ($rows as $n) {
+                $found = NomineeAddress::candidates($n, $cycleId);
+                $out[] = [
+                    'name'       => (string) $n->name,
+                    'email'      => count($found) === 1 ? $found[0] : '',
+                    'nominee_id' => (int) $n->id,
+                    'judge_id'   => 0,
+                    // The award, not just the category: on a four-programme night "Community
+                    // Engagement" alone does not say which award it belongs to.
+                    'category'   => trim((string) $programme->title) . ' · ' . (string) $n->category,
+                    'cycle_id'   => $cycleId,
+                    // Named, not just counted: "two people share this name" and "we have no
+                    // address" are different problems and an operator fixes them differently.
+                    'why'        => $found === []
+                        ? 'No address on the nomination or the linked profile.'
+                        : (count($found) > 1
+                            ? 'More than one nominee is approved under this name — pick the right address by hand.'
+                            : ''),
+                ];
+            }
         }
 
         return $out;
     }
 
     /**
-     * The panel. Through realJudges(), so the sandbox's rehearsal judge is not invited
-     * to a real ceremony.
+     * The panel that judged the awards this ceremony is for.
+     *
+     * Scoped to those programmes, not "every judge on the platform". `programme_ids` is a
+     * JSON list on the judge row, so the filter is applied in PHP — the alternative is a
+     * LIKE against a JSON string, which matches programme 1 inside programme 11.
+     *
+     * A judge with NO programmes recorded is included: an unassigned panellist is far more
+     * likely to be a record nobody finished than a person who judged nothing, and leaving
+     * a judge out of a ceremony they sat for is the worse mistake.
+     *
+     * Through realJudges(), so the sandbox's rehearsal judge is never invited to a real one.
      *
      * @return list<array{name:string,email:string,nominee_id:int,judge_id:int,category:string,why:string,cycle_id:int}>
      */
-    private static function judges(): array
+    private static function judges(int $eventId): array
     {
+        $wanted = [];
+        foreach (self::programmesFor($eventId) as $p) $wanted[(int) $p->id] = true;
+        if ($wanted === []) return [];
+
         try {
             $rows = JudgeService::realJudges()
                 ->where('is_active', 1)
                 ->orderBy('name')
-                ->get(['id', 'name', 'email'])->all();
+                ->get(['id', 'name', 'email', 'programme_ids'])->all();
         } catch (\Throwable) {
             return [];
         }
 
         $out = [];
         foreach ($rows as $j) {
+            $ids = [];
+            if (!empty($j->programme_ids)) {
+                $decoded = json_decode((string) $j->programme_ids, true);
+                if (is_array($decoded)) $ids = array_map('intval', $decoded);
+            }
+
+            if ($ids !== [] && array_intersect($ids, array_keys($wanted)) === []) continue;
+
             $e = EmailOptOut::normalise((string) ($j->email ?? ''));
             $out[] = [
                 'name'       => (string) $j->name,

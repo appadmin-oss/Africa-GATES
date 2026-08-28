@@ -5,40 +5,44 @@ namespace AfricaGates\Services;
 use Illuminate\Database\Capsule\Manager as DB;
 
 /**
- * The three kinds of guest of honour, and what each of them is asked.
+ * The two kinds of guest of honour, and what each of them is asked.
  *
- * ── WHY THIS IS A TABLE OF THREE AND NOT A FLAG ──────────────────────────────
+ * ── TWO, AND WHY NOT MORE ────────────────────────────────────────────────────
  *
- * A principal, a child nominee and a judge are invited to the same ceremony for three
- * different reasons, and the reason is the whole content of the letter. A principal is
- * asked to fill the hall so the room can witness the work they have done; a child
- * nominee so it can witness the life they are living and what their parents have poured
- * into them; a judge so it can witness the integrity of a judgement nobody sees being
- * made. Collapsing that into one template with a name substituted produces a circular,
- * and a circular is what people delete.
+ * This began as three — `principal`, `child` and `judge` — because the brief that asked
+ * for it wrote separate copy for the Incredible Principal Awards and the Incorruptible
+ * Awards. That was a taxonomy invented out of two example programmes, and it was wrong:
+ * those are just two of the programmes that happen to exist, and the platform is built to
+ * run any number of them. A nominee is a nominee whichever award they are shortlisted for.
  *
- * Each audience therefore owns four things: which shortlist it is drawn from, how many
- * guests it may bring, the sentence that names why, and the settings key an operator
- * edits to change the quota. Nothing here is a literal at a call site.
+ * So the split that survives is the one that is real, because the two groups are invited
+ * for genuinely different reasons and are drawn from different places: a NOMINEE comes off
+ * a published shortlist and is honoured for what they did; a JUDGE comes off the panel and
+ * is honoured for how they judged it. Nothing else about them differs.
  *
- * ── WHICH PROGRAMME IS WHICH ─────────────────────────────────────────────────
+ * ── AND WHY THE 'WHY' IS EDITABLE ────────────────────────────────────────────
  *
- * `principal` and `child` are resolved by programme slug, not by category, because that
- * is what they are: the Incredible Principal Awards and the Incorruptible Awards are
- * separate programmes with separate cycles. The slugs are the default and are
- * settings-overridable, because a programme can be renamed and a hardcoded slug is how
- * an invitation run silently resolves nobody.
+ * The one sentence that names why the hall is being filled cannot be generic and cannot be
+ * hardcoded either. An Incredible Principal Award and a Carol Award honour completely
+ * different things; a sentence written to cover both honours neither, and a sentence
+ * hardcoded for one is wrong for every other programme this platform will ever run. So it
+ * is a setting, per audience, with a warm general default — and an operator running a
+ * particular programme writes the sentence that is true of it.
+ *
+ * WHICH PROGRAMME the nominees come from is not asked here at all. It is the programme the
+ * ceremony is linked to (`gates_site_events.programme_id`), which is a fact the operator
+ * has already stated on the event, and reading it from a settings slug instead was a second
+ * source for one answer.
  */
 final class InviteAudience
 {
-    public const PRINCIPAL = 'principal';
-    public const CHILD     = 'child';
-    public const JUDGE     = 'judge';
+    public const NOMINEE = 'nominee';
+    public const JUDGE   = 'judge';
 
     /** @return list<string> */
     public static function all(): array
     {
-        return [self::PRINCIPAL, self::CHILD, self::JUDGE];
+        return [self::NOMINEE, self::JUDGE];
     }
 
     public static function isValid(string $audience): bool
@@ -57,32 +61,26 @@ final class InviteAudience
     public static function spec(string $audience): array
     {
         $defaults = [
-            self::PRINCIPAL => [
-                'label'          => 'Principal nominees',
-                'quota'          => 25,
-                'programme_slug' => 'principals',
-                'salutation'     => 'Dear',
-                // The reason the room is being filled. Written as one sentence because it
-                // has to survive being read on a phone, in a hurry, once.
-                'witness'        => 'to witness your resilience, your hard work, and the '
-                                  . 'incredible labour of love you have given this community',
-            ],
-            self::CHILD => [
-                'label'          => 'Child nominees',
-                'quota'          => 25,
-                'programme_slug' => 'incorruptible',
-                'salutation'     => 'Dear',
-                'witness'        => 'to witness the incorruptible life you are living, and the '
-                                  . 'hard work your parents have poured into you',
+            self::NOMINEE => [
+                'label'      => 'Nominees',
+                'one'        => 'Nominee',
+                'quota'      => 25,
+                'salutation' => 'Dear',
+                // The reason the room is being filled. EDITABLE, and that is the point of
+                // this whole class: an Incredible Principal Award and a Carol Award honour
+                // completely different things, and a sentence that tries to cover both
+                // honours neither. The default is warm and general; an operator running a
+                // specific programme writes the sentence that is true of it.
+                'witness'    => 'to witness the work you have done, and what it has meant to '
+                              . 'the people around you',
             ],
             self::JUDGE => [
-                'label'          => 'Judges',
-                'quota'          => 10,
-                // Judges are not drawn from a programme's shortlist; they are the panel.
-                'programme_slug' => null,
-                'salutation'     => 'Dear',
-                'witness'        => 'to witness the integrity of your judgement, your love for '
-                                  . 'this community, and your support for this initiative',
+                'label'      => 'Judges',
+                'one'        => 'Judge',
+                'quota'      => 10,
+                'salutation' => 'Dear',
+                'witness'    => 'to witness the integrity of your judgement, your love for '
+                              . 'this community, and your support for this initiative',
             ],
         ];
 
@@ -93,23 +91,25 @@ final class InviteAudience
         $d   = $defaults[$audience];
         $set = self::settings();
 
-        $quotaKey = 'invite_quota_' . $audience;
-        $slugKey  = 'invite_programme_' . $audience;
+        $quotaKey   = 'invite_quota_' . $audience;
+        $witnessKey = 'invite_witness_' . $audience;
 
-        $quota = (int) trim((string) ($set[$quotaKey] ?? ''));
-        $slug  = trim((string) ($set[$slugKey] ?? ''));
+        $quota   = (int) trim((string) ($set[$quotaKey] ?? ''));
+        $witness = trim((string) ($set[$witnessKey] ?? ''));
 
         return [
-            'key'            => $audience,
-            'label'          => $d['label'],
+            'key'             => $audience,
+            'label'           => $d['label'],
+            'one'             => $d['one'],
             // Clamped, not trusted. A quota is what a code's max_uses becomes and what a
             // letter promises in writing; 0 would send an invitation that admits nobody
             // and a four-figure typo would hand out a code the whole internet can spend.
-            'quota'          => $quota > 0 ? min(500, $quota) : $d['quota'],
-            'quota_setting'  => $quotaKey,
-            'programme_slug' => $d['programme_slug'] === null ? null : ($slug !== '' ? $slug : $d['programme_slug']),
-            'witness'        => $d['witness'],
-            'salutation'     => $d['salutation'],
+            'quota'           => $quota > 0 ? min(500, $quota) : $d['quota'],
+            'quota_setting'   => $quotaKey,
+            'witness'         => $witness !== '' ? $witness : $d['witness'],
+            'witness_setting' => $witnessKey,
+            'witness_default' => $d['witness'],
+            'salutation'      => $d['salutation'],
         ];
     }
 

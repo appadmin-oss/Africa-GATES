@@ -246,26 +246,31 @@
       </div>
     </div>
   </div></div>
-  <div class="ad-card" data-sec="mail" data-keys="invitations invite guests of honour quota nominees judges shortlist ceremony discount percent principal child children" x-show="show($el)"><div class="ad-card__head"><div class="ad-card__title">Invitations<small>What a guest of honour is promised when the shortlist is invited to a ceremony.</small></div></div><div class="ad-card__body">
+  <div class="ad-card" data-sec="mail" data-keys="invitations invite guests of honour quota nominees judges shortlist ceremony discount percent reason why witness" x-show="show($el)"><div class="ad-card__head"><div class="ad-card__title">Invitations<small>What a guest of honour is promised, and the one sentence that says why.</small></div></div><div class="ad-card__body">
     <div class="ad-form">
-      {# These become a discount code's max_uses AND a sentence in a letter, so they are
-         resolved and STORED on each invitation when it is minted — editing them here
-         changes future invitations and never a number already promised in writing to
-         somebody who has read it. See InviteAudience. #}
+      {# TWO audiences, not three. This began as principals / children / judges, which was
+         a taxonomy invented out of two example programmes — a nominee is a nominee whichever
+         award they were shortlisted for. Which awards a ceremony covers is stated on the
+         EVENT, not here, so there is no programme field on this card. #}
       <p class="hint" style="margin:0 0 10px">Each guest of honour may bring this many people at a discount. The numbers are written into their letter and into the code their guests spend, so a change here applies to invitations minted from now on.</p>
       <div class="row">
-        <div><label for="f-invite_quota_principal">Principal nominees <small>guests each</small></label><input type="number" name="invite_quota_principal" id="f-invite_quota_principal" value="{{ values.invite_quota_principal|default('') }}" placeholder="25" min="1" max="500"></div>
-        <div><label for="f-invite_quota_child">Child nominees <small>guests each</small></label><input type="number" name="invite_quota_child" id="f-invite_quota_child" value="{{ values.invite_quota_child|default('') }}" placeholder="25" min="1" max="500"></div>
-      </div>
-      <div class="row">
+        <div><label for="f-invite_quota_nominee">Nominees <small>guests each</small></label><input type="number" name="invite_quota_nominee" id="f-invite_quota_nominee" value="{{ values.invite_quota_nominee|default('') }}" placeholder="25" min="1" max="500"></div>
         <div><label for="f-invite_quota_judge">Judges <small>guests each</small></label><input type="number" name="invite_quota_judge" id="f-invite_quota_judge" value="{{ values.invite_quota_judge|default('') }}" placeholder="10" min="1" max="500"></div>
-        <div><label for="f-invite_discount_percent">Guest discount <small>per cent off any tier</small></label><input type="number" name="invite_discount_percent" id="f-invite_discount_percent" value="{{ values.invite_discount_percent|default('') }}" placeholder="10" min="1" max="100"></div>
       </div>
-      <div class="row">
-        <div><label for="f-invite_programme_principal">Principal programme <small>slug the principal shortlist is read from</small></label><input type="text" name="invite_programme_principal" id="f-invite_programme_principal" value="{{ values.invite_programme_principal|default('') }}" placeholder="principals"></div>
-        <div><label for="f-invite_programme_child">Child programme <small>slug the child shortlist is read from</small></label><input type="text" name="invite_programme_child" id="f-invite_programme_child" value="{{ values.invite_programme_child|default('') }}" placeholder="incorruptible"></div>
+      <div><label for="f-invite_discount_percent">Guest discount <small>per cent off any tier</small></label><input type="number" name="invite_discount_percent" id="f-invite_discount_percent" value="{{ values.invite_discount_percent|default('') }}" placeholder="10" min="1" max="100"></div>
+
+      <div style="margin-top:14px;padding-top:14px;border-top:1px solid var(--ad-line,#e5eae8)">
+        <p class="hint" style="margin:0 0 10px">
+          The sentence that names why the hall is being filled. It reads
+          <em>&ldquo;We want the hall packed&nbsp;&hellip;&rdquo;</em>, so write the continuation.
+          Worth editing per season: an Incredible Principal Award and a Carol Award honour
+          completely different things, and a sentence written to cover both honours neither.
+        </p>
+        <div><label for="f-invite_witness_nominee">Why, for a nominee</label><input type="text" name="invite_witness_nominee" id="f-invite_witness_nominee" value="{{ values.invite_witness_nominee|default('') }}" maxlength="240" placeholder="{{ invite_witness_nominee_default }}"></div>
+        <div style="margin-top:10px"><label for="f-invite_witness_judge">Why, for a judge</label><input type="text" name="invite_witness_judge" id="f-invite_witness_judge" value="{{ values.invite_witness_judge|default('') }}" maxlength="240" placeholder="{{ invite_witness_judge_default }}"></div>
       </div>
-      <p class="hint" style="margin:8px 0 0">A run is built and sent per ceremony, from <strong>Events → the event → Invitations</strong>.</p>
+
+      <p class="hint" style="margin:10px 0 0">A run is built and sent per ceremony, from <strong>Events &rarr; the event &rarr; Invitations</strong>. Which awards it covers is set on the event itself.</p>
     </div>
   </div></div>
 
