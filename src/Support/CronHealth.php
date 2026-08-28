@@ -107,6 +107,77 @@ final class CronHealth
     }
 
     /**
+     * When maintenance last completed with EVERY task succeeding.
+     *
+     * ── WHY THIS IS A SECOND QUESTION ────────────────────────────────────────
+     *
+     * `lastRunAt()` takes the newest row whatever its status, and `gates_cron_log.status`
+     * is 'error' when any task inside the run failed — a distinction Maintenance already
+     * makes deliberately, and which this class was throwing away.
+     *
+     * So a schedule that ran every fifteen minutes and failed the queue drain every single
+     * time reported "Scheduled work · ran 12 minutes ago", in green, for as long as it kept
+     * failing. Meanwhile the queue's own check went degraded because the head of it was
+     * hours old, and the one component on the page whose entire purpose is to explain that
+     * said nothing. The operator is left with two symptoms and no cause.
+     *
+     * Both readings are kept, because they answer different questions and an operator needs
+     * both: "is the schedule alive" and "is it getting anything done".
+     */
+    public static function lastCleanRunAt(): ?Carbon
+    {
+        try {
+            $at = DB::table('gates_cron_log')
+                ->where('job_name', 'maintenance')
+                ->where('status', 'success')
+                ->orderByDesc('id')
+                ->value('ran_at');
+            return $at === null ? null : Carbon::parse((string) $at);
+        } catch (\Throwable) {
+            return null;
+        }
+    }
+
+    /**
+     * The schedule is running but its work is not landing.
+     *
+     * True when there IS a recent run and there is NOT a recent clean one. Deliberately not
+     * "the last run errored": one failed task in one tick is a blip, and a page that cries
+     * about a blip gets ignored on the day it matters. This only speaks when nothing has
+     * completed cleanly for as long as a total stall would have taken to notice.
+     */
+    public static function isFailing(): bool
+    {
+        if (self::neverRun() || self::isStale()) return false;   // a different fault, reported as itself
+
+        // HOW LONG has nothing worked — not "did the last tick fail".
+        //
+        // Measured from the last clean run, or from the first run ever when there has never
+        // been one. That second half is what keeps a fresh install honest: a schedule whose
+        // first tick five minutes ago failed one task is a broken TASK, and pointing its
+        // operator at their webcron configuration would send them to fix the wrong thing.
+        // It has to have had a full window to succeed in before its silence means anything.
+        $since = self::lastCleanRunAt() ?? self::firstRunAt();
+
+        return $since !== null
+            && ($since->diffInMinutes(Carbon::now(), false) / 60) >= self::STALE_HOURS;
+    }
+
+    /** The earliest recorded run — the clock for "it has never once got through". */
+    private static function firstRunAt(): ?Carbon
+    {
+        try {
+            $at = DB::table('gates_cron_log')
+                ->where('job_name', 'maintenance')
+                ->orderBy('id')
+                ->value('ran_at');
+            return $at === null ? null : Carbon::parse((string) $at);
+        } catch (\Throwable) {
+            return null;
+        }
+    }
+
+    /**
      * Everything an admin screen needs to say something true, in one row read.
      *
      * `say` is written for the person reading it and names the consequence rather
@@ -124,6 +195,8 @@ final class CronHealth
         $stale = self::isStale();
         $last  = self::lastRunAt();
 
+        $failing = self::isFailing();
+
         $say = null;
         if ($never) {
             $say = 'Scheduled maintenance has never run, so payment reconciliation and automatic '
@@ -132,15 +205,23 @@ final class CronHealth
             $say = 'Scheduled maintenance last ran ' . self::humanGap($hours) . ' ago. Payments are '
                  . 'not being reconciled and refunds are not being sent. Check the webcron job, or '
                  . 'press "Run maintenance now" under Settings → Automation & cron.';
+        } elseif ($failing) {
+            $say = 'Scheduled maintenance is running but has not completed cleanly for at least '
+                 . self::STALE_HOURS . ' hours — tasks inside it are failing, so queued email, '
+                 . 'refunds and reconciliation are not finishing even though the schedule looks '
+                 . 'alive. The reasons are on each run under Settings → Automation & cron.';
         }
 
         return [
-            'ok'    => !$never && !$stale,
-            'never' => $never,
-            'stale' => $stale,
-            'hours' => $hours,
-            'last'  => $last?->toDateTimeString(),
-            'say'   => $say,
+            'ok'      => !$never && !$stale && !$failing,
+            'never'   => $never,
+            'stale'   => $stale,
+            // Running, but nothing has got through. The state that used to read as healthy.
+            'failing' => $failing,
+            'hours'   => $hours,
+            'last'    => $last?->toDateTimeString(),
+            'clean'   => self::lastCleanRunAt()?->toDateTimeString(),
+            'say'     => $say,
         ];
     }
 

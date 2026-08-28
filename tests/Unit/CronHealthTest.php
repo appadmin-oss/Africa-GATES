@@ -234,4 +234,99 @@ final class CronHealthTest extends TestCase
         $this->assertSame('3 days',            CronHealth::humanGap(72.0));
         $this->assertSame('an unknown time',   CronHealth::humanGap(null));
     }
+
+    // ══ running, but nothing getting through ═════════════════════════════════
+
+    private function failedHoursAgo(float $hours): void
+    {
+        DB::table('gates_cron_log')->insert([
+            'job_name'   => 'maintenance',
+            // 'error' is what Maintenance writes when ANY task inside the run failed —
+            // a distinction it makes deliberately and this class used to discard.
+            'status'     => 'error',
+            'message'    => '{"ran":[],"failures":["queue"]}',
+            'runtime_ms' => 100,
+            'ran_at'     => Carbon::now()->subMinutes((int) round($hours * 60))->toDateTimeString(),
+        ]);
+    }
+
+    /**
+     * The state that used to read as healthy.
+     *
+     * A schedule ticking every fifteen minutes and failing the queue drain every time
+     * reported "ran 12 minutes ago", in green, indefinitely — while the queue's own check
+     * went degraded because its head was hours old. Two symptoms on the board and the one
+     * component whose entire purpose is to explain them stayed silent.
+     */
+    public function test_a_schedule_that_never_completes_cleanly_is_not_healthy(): void
+    {
+        for ($h = 8.0; $h > 0; $h -= 0.25) $this->failedHoursAgo($h);
+
+        $st = CronHealth::status();
+
+        $this->assertFalse($st['stale'], 'it IS running — that is the point');
+        $this->assertTrue($st['failing'], 'running and never completing is not healthy');
+        $this->assertFalse($st['ok']);
+        $this->assertStringContainsString('tasks inside it are failing', (string) $st['say']);
+    }
+
+    /** One bad tick is a blip. A page that cries about a blip is ignored on the day it matters. */
+    public function test_a_single_failed_tick_is_not_reported_as_failing(): void
+    {
+        $this->ranHoursAgo(0.5);
+        $this->failedHoursAgo(0.1);
+
+        $st = CronHealth::status();
+
+        $this->assertFalse($st['failing'], 'one failed tick after a clean one is a blip');
+        $this->assertTrue($st['ok']);
+    }
+
+    /** A stall is reported as a stall, not as failing — they need different remedies. */
+    public function test_a_stalled_schedule_is_not_also_reported_as_failing(): void
+    {
+        $this->ranHoursAgo(30);
+
+        $st = CronHealth::status();
+
+        $this->assertTrue($st['stale']);
+        $this->assertFalse($st['failing'], 'a schedule that is not running cannot be "running but failing"');
+    }
+
+    /**
+     * A schedule that has never once got through says so — but only once it has had a full
+     * window to. The clock runs from the FIRST run, not from the last failed one, which is
+     * what keeps {@see test_a_run_that_reported_failures_still_counts_as_alive} true: a
+     * first tick five minutes ago that failed one task is a broken task, not a broken
+     * schedule, and conflating them sends somebody to reconfigure a working webcron.
+     */
+    public function test_a_schedule_that_has_never_completed_cleanly_says_so(): void
+    {
+        $this->failedHoursAgo(9);      // it has had nine hours to succeed once
+        $this->failedHoursAgo(0.2);
+
+        $this->assertTrue(CronHealth::isFailing());
+        $this->assertNull(CronHealth::lastCleanRunAt());
+    }
+
+    /** And it stays quiet while that window is still open. */
+    public function test_a_young_install_failing_for_minutes_is_not_yet_reported(): void
+    {
+        $this->failedHoursAgo(0.2);
+
+        $this->assertFalse(CronHealth::isFailing(),
+            'five minutes of failure is a broken task, not a broken schedule');
+    }
+
+    /** The healthy case still reads healthy — the whole point of the blip rule above. */
+    public function test_a_clean_recent_run_is_still_ok(): void
+    {
+        $this->ranHoursAgo(0.2);
+
+        $st = CronHealth::status();
+
+        $this->assertTrue($st['ok']);
+        $this->assertFalse($st['failing']);
+        $this->assertNotNull($st['clean']);
+    }
 }

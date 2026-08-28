@@ -785,6 +785,20 @@ final class SystemStatus
                 $when);
         }
 
+        // Running, but nothing inside it is completing. This read OK — green, with a
+        // reassuring "ran 12 minutes ago" — while the queue's own check went degraded
+        // because the head of it was hours old. Two symptoms on the board and the one
+        // component whose whole job is to explain them stayed silent. See
+        // CronHealth::isFailing() for why this is not "the last run errored".
+        if (!empty($h['failing'])) {
+            return self::component('Scheduled work', 'Refunds, reminders and queued email',
+                self::DEGRADED,
+                'Scheduled work is running but has not finished cleanly for hours — tasks '
+                . 'inside it are failing, so queued email and refunds are not going out even '
+                . 'though the schedule itself is alive.',
+                $when !== '' ? 'ran ' . $when . ', not cleanly' : 'not completing');
+        }
+
         return self::component('Scheduled work', 'Refunds, reminders and queued email',
             self::OK, '', $when !== '' ? 'ran ' . $when : '');
     }

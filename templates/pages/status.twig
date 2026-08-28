@@ -305,14 +305,22 @@
         <li>
           <span class="stx-inc__mark stx-f stx-f--{{ i.status }}" aria-hidden="true"></span>
           <span class="stx-inc__what">
-            <b>{{ i.name }}</b> — {{ status_labels[i.status]|default(i.status)|lower }}
-            {% if i.ongoing %}<span class="stx-inc__live">still</span>{% endif %}
+            {# "still" BEFORE the state. Appended, it read "AI assistance — slower than
+               usual still", which is not a sentence anybody says. #}
+            <b>{{ i.name }}</b> — {% if i.ongoing %}<span class="stx-inc__live">still</span> {% endif %}{{ status_labels[i.status]|default(i.status)|lower }}
           </span>
           <span class="stx-inc__when">
             {# The zone is stated ONCE, on the start. "16:00 WAT → 19:30 WAT" repeats a fact
-               that cannot have changed between the two halves of one sentence. #}
+               that cannot have changed between the two halves of one sentence.
+
+               The DATE is not the same kind of fact, and dropping it from the end was wrong.
+               A 61-hour incident rendered as "25 Aug, 22:21 → 11:41", which reads as ending
+               eleven hours BEFORE it started — the one number on this line that matters,
+               shown as nonsense, on exactly the incidents worth reading. Same day keeps the
+               terse form; a crossing shows the date it ended on. #}
+            {% set same_day = i.from|when('Y-m-d') == i.to|when('Y-m-d') %}
             <time datetime="{{ i.from|date('c') }}">{{ i.from|when('j M, H:i') }}</time>
-            {%- if i.minutes > 0 %} → <time datetime="{{ i.to|date('c') }}">{{ i.to|when('H:i') }}</time>{% endif %}
+            {%- if i.minutes > 0 %} → <time datetime="{{ i.to|date('c') }}">{{ i.to|when(same_day ? 'H:i' : 'j M, H:i') }}</time>{% endif %}
             {{ tz_abbr() }} · {{ i.duration }}
           </span>
         </li>
