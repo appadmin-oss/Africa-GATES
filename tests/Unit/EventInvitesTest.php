@@ -336,6 +336,75 @@ final class EventInvitesTest extends TestCase
             'nothing to build, so nothing to press');
     }
 
+    /**
+     * "Run the migration" is the wrong answer when they already have.
+     *
+     * ══════════════════════════════════════════════════════════════════════════
+     * THE DEAD END
+     * ══════════════════════════════════════════════════════════════════════════
+     *
+     * The setup ledger is written AFTER a step is included, so a step that THREW is not
+     * recorded and /__setup/migrate retries it. That is the ordinary case, and the fix is
+     * to finish the run — 151 steps, four per request, chained by a meta refresh, so a
+     * closed tab stops it part way and nothing anywhere says so.
+     *
+     * The other case is a step recorded as applied whose table is not there. The migrate
+     * endpoint skips it forever, and with no shell on this host there is no way back at
+     * all. The notice said "run the migration" for BOTH — which is the one instruction
+     * that provably cannot work in the second.
+     */
+    public function test_the_notice_tells_an_unfinished_run_from_a_dead_end(): void
+    {
+        DB::schema()->drop('gates_event_programmes');
+
+        // 1 · Not yet applied: setup is simply unfinished.
+        DB::table('gates_migrations')->where('migration', EventInvites::MIGRATION)->delete();
+        $b = EventInvites::readiness($this->eventId)[0];
+        $this->assertStringContainsString('/__setup/migrate', $b['fix']);
+        $this->assertStringContainsString('LEAVE THE TAB OPEN', $b['fix'],
+            'the run applies four steps a request and refreshes itself — a closed tab is '
+            . 'the commonest way it stops half way');
+        $this->assertSame('', $b['rerun'], 'the ordinary route still works here');
+
+        // 2 · Recorded as applied, table absent: the migrate endpoint will skip it.
+        DB::table('gates_migrations')->updateOrInsert(
+            ['migration' => EventInvites::MIGRATION], ['applied_at' => '2026-01-01 00:00:00']
+        );
+        $b = EventInvites::readiness($this->eventId)[0];
+        $this->assertStringContainsString('recorded as already applied', $b['fix']);
+        $this->assertStringNotContainsString('/__setup/migrate', $b['fix'],
+            'it will skip the step — sending an operator there again is the bug');
+        $this->assertSame(EventInvites::MIGRATION, $b['rerun'],
+            'the only way out has to be offered');
+    }
+
+    /** And the way out actually creates the table. */
+    public function test_the_repair_applies_the_step_the_ledger_would_skip(): void
+    {
+        DB::schema()->drop('gates_event_programmes');
+        // The harness has already applied every migration, so the ledger entry is there —
+        // which is exactly the state this exists for.
+        DB::table('gates_migrations')->updateOrInsert(
+            ['migration' => EventInvites::MIGRATION], ['applied_at' => '2026-01-01 00:00:00']
+        );
+
+        $r = \AfricaGates\Services\MigrationRunner::rerun(EventInvites::MIGRATION);
+
+        $this->assertTrue($r['ok'], $r['message']);
+        $this->assertTrue(DB::schema()->hasTable('gates_event_programmes'),
+            'the whole point is the table, not the return value');
+    }
+
+    /** A name that is not a step is refused rather than included. */
+    public function test_the_repair_will_not_include_an_arbitrary_path(): void
+    {
+        foreach (['../../public/index.php', '/etc/passwd', 'nope.php', ''] as $bad) {
+            $r = \AfricaGates\Services\MigrationRunner::rerun($bad);
+            $this->assertFalse($r['ok'], $bad . ' was accepted');
+            $this->assertStringContainsString('no setup step', $r['message']);
+        }
+    }
+
     /** A signed-in admin, for the two page tests above. */
     private function admin(): int
     {
@@ -1043,4 +1112,5 @@ final class EventInvitesTest extends TestCase
         $this->assertStringNotContainsString('fonts.googleapis.com', $css,
             'the layout already loads the faces — a second link is a second render-blocking request');
     }
+
 }

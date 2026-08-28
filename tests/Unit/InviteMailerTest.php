@@ -357,4 +357,244 @@ final class InviteMailerTest extends TestCase
         $this->assertStringNotContainsString('> Ada Obi,', $html,
             'the salutation resolved to nothing and left a bare name');
     }
+
+    // ══ the letter is a letter ═══════════════════════════════════════════════
+
+    /**
+     * The formal letter carries the conventions that make correspondence formal.
+     *
+     * It was a web page printed to A4: a wordmark, a rule, "An Invitation" set at 26pt
+     * like a magazine cover, then straight into "Dear". No date, no reference block, no
+     * subject line, no recipient block — and nowhere for anybody to sign it, which is the
+     * loudest of the omissions on a document somebody puts on a wall.
+     *
+     * Asserted on the PDF's own text, so this holds the DOCUMENT rather than the code
+     * that draws it.
+     */
+    public function test_the_letter_reads_as_formal_correspondence(): void
+    {
+        $pdf = InviteLetter::render($this->invite(), $this->event);
+        $txt = self::pdfText($pdf);
+
+        foreach ([
+            'INVITATION TO'                  => 'no subject line — a formal letter states its business above the salutation',
+            'Our ref:'                       => 'no reference block',
+            'Dear '                          => 'no salutation',
+            'Yours sincerely'                => 'no complimentary close',
+            'For and on behalf of'           => 'nothing to sign, and nobody signing it',
+        ] as $needle => $why) {
+            $this->assertStringContainsString($needle, $txt, $why);
+        }
+
+        // The date. A letter with no date is a notice.
+        $this->assertMatchesRegularExpression('/\d{1,2} [A-Z][a-z]+ \d{4}/', $txt,
+            'the letter is undated');
+
+        // And the magazine headline is gone.
+        $this->assertStringNotContainsString('An Invitation', $txt,
+            '"An Invitation" at 26pt is a cover line, not a subject');
+    }
+
+    /**
+     * One page, with the longest input the console will accept.
+     *
+     * The sign-off is anchored to the foot, so the failure mode is not a second page — it
+     * is the body running INTO it. The operator's "why" sentence is capped at 240
+     * characters by the settings field and the name at 160 by the column, so this renders
+     * both at their maximum and asserts the body still clears the anchored block.
+     *
+     * Measured with the real face through Pdf::lines(), which is what the renderer wraps
+     * with — a count of characters would pass on a name of narrow letters and fail on
+     * the one it was written for.
+     */
+    public function test_the_longest_letter_the_console_allows_still_fits_one_page(): void
+    {
+        // 240 characters, the settings field's maxlength, in the widest realistic shape.
+        $long = 'We want the hall packed to witness the extraordinary and sustained work you '
+              . 'have done across two decades, and what it has meant to the thousands of '
+              . 'families, teachers and children whose lives were quietly and permanently '
+              . 'changed by it.';
+        $this->assertLessThanOrEqual(240, mb_strlen($long), 'the fixture must not exceed the field');
+
+        DB::table('gates_settings')->updateOrInsert(
+            ['key_name' => 'invite_witness_nominee'], ['value' => $long]
+        );
+
+        // The worst case is every variable at once, not just the long sentence: the venue
+        // and location both set, a tier line quoted, and the longest name the column
+        // holds. The first version of this test set only the sentence, so the body still
+        // fit and the test passed against the very layout that printed the close over the
+        // reference — which is how a guard comes to guard nothing.
+        DB::table('gates_site_events')->where('id', $this->eventId)->update([
+            'venue'    => 'The Grand Ballroom, Eko Convention Centre',
+            'location' => 'Victoria Island, Lagos, Nigeria',
+        ]);
+        $event = DB::table('gates_site_events')->where('id', $this->eventId)->first();
+
+        $inv = $this->invite();
+        $inv->name = str_repeat('Adébáyọ̀-Williams ', 8);   // 160 chars of the hardest glyphs
+
+        $tier = (object) ['name' => 'General admission', 'price_naira' => 5000];
+        $pdf  = InviteLetter::render($inv, $event, $tier);
+
+        $this->assertSame(1, preg_match_all('#/Type\s*/Page(?![s/\w])#', $pdf),
+            'the letter grew a second page');
+
+        // ── GEOMETRIC, BECAUSE PRESENCE IS NOT ENOUGH ────────────────────────
+        //
+        // The first version of this test asserted that "Yours sincerely" and the reference
+        // were both in the document. They were — printed on top of each other, on the same
+        // baseline, on the longest letter the console allows. A string that is present and
+        // a string that is legible are different claims, and only the second one matters
+        // on a document somebody keeps.
+        //
+        // PDF user space has y growing UPWARD from the page foot, so a line further down
+        // the page has a SMALLER y.
+        $at = static function (string $needle) use ($pdf): float {
+            foreach (self::pdfRuns($pdf) as [$text, $ty]) {
+                if (str_contains($text, $needle)) return $ty;
+            }
+            return -1.0;
+        };
+
+        // The BLOCK's label, not 'AGI-' — the body quotes the reference too, and matching
+        // that finds the paragraph rather than the block below it.
+        $block = $at('YOUR REFERENCE');
+        $sign  = $at('Yours sincerely');
+        $body  = $at('We would be honoured');
+
+        $this->assertGreaterThan(0, $block, 'the reference block was not drawn');
+        $this->assertGreaterThan(0, $sign,  'the sign-off was not drawn');
+        $this->assertGreaterThan(0, $body,  'the last line of the letter was not drawn');
+
+        // 4mm ≈ 11.3pt of clear space between the block and the close, at minimum.
+        $this->assertGreaterThan(11.3, $block - $sign,
+            'the reference block and the sign-off are printed over each other');
+        // And the letter ends above its own block rather than being drawn through it.
+        $this->assertGreaterThan($block + 11.3, $body,
+            'the letter runs into its own reference block');
+    }
+
+    /**
+     * The letter sets a Yorùbá name and a naira figure without boxes.
+     *
+     * DM Sans is the body face now — it is narrower and tighter than the DejaVu the letter
+     * used to be set in, and it is the site's own. It also has no Ọ, ẹ, ṣ or ₦, which is
+     * the gap CODEBASE-INDEX records against the ticket. Every DM Sans face is registered
+     * with DejaVu behind it and Pdf splits runs per character; this is that arrangement
+     * asserted rather than assumed, on the one document somebody keeps.
+     */
+    public function test_the_letter_sets_an_african_name_and_a_naira_figure(): void
+    {
+        $inv = $this->invite();
+        $inv->name = 'Dr Ọlásùnkànmí Adébáyọ̀-Williams';
+
+        $tier = (object) ['name' => 'General admission', 'price_naira' => 5000];
+        $txt  = self::pdfText(InviteLetter::render($inv, $this->event, $tier));
+
+        $this->assertStringContainsString('Ọlásùnkànmí', $txt, 'the name did not survive the font split');
+        $this->assertStringContainsString('₦5,000', $txt, 'the naira sign fell out');
+    }
+
+    /**
+     * The text of a PDF this codebase generated, for assertions about the document.
+     *
+     * Pdf writes uncompressed content streams, so the drawing operators are readable in
+     * the bytes. Text is emitted as hex strings of 2-byte glyph ids with a ToUnicode CMap
+     * beside them — reversing that is the only way to assert on what a reader SEES rather
+     * than on the code that drew it, and a test of the drawing code cannot catch a missing
+     * signature block.
+     */
+    /**
+     * Every drawn run as [text, baseline-y in PDF points].
+     *
+     * Position, not just presence — see the note in the one-page test for what asserting
+     * presence alone let through.
+     *
+     * @return list<array{0:string,1:float}>
+     */
+    private static function pdfRuns(string $pdf): array
+    {
+        [$maps, $bodies] = self::pdfParts($pdf);
+        $out = [];
+        foreach ($bodies as $body) {
+            if (!preg_match_all(
+                '#/(F[A-Za-z0-9_]+)[^/]*?Tm\s*<([0-9A-Fa-f]+)>\s*Tj#s', $body, $runs, PREG_SET_ORDER)) {
+                continue;
+            }
+            // The Tm matrix carries the baseline as its last number.
+            preg_match_all('#Tm#', $body, $_);
+            preg_match_all('#([-\d.]+)\s+([-\d.]+)\s+Tm\s*<([0-9A-Fa-f]+)>\s*Tj#s', $body, $pos, PREG_SET_ORDER);
+            foreach ($runs as $i => $run) {
+                $text = '';
+                $m = $maps[$run[1]] ?? [];
+                foreach (str_split($run[2], 4) as $gid) {
+                    if (strlen($gid) < 4) continue;
+                    $cp = $m[hexdec($gid)] ?? null;
+                    if ($cp !== null) $text .= mb_chr($cp, 'UTF-8');
+                }
+                $out[] = [$text, (float) ($pos[$i][2] ?? 0)];
+            }
+        }
+        return $out;
+    }
+
+    private static function pdfText(string $pdf): string
+    {
+        $out = '';
+        foreach (self::pdfRuns($pdf) as [$text, $_]) $out .= $text;
+
+        return $out;
+    }
+
+    /**
+     * A PDF's inflated objects, as [font resource name => glyph map, content-stream bodies].
+     *
+     * ── WHY THE MAPS ARE PER-FONT ────────────────────────────────────────────
+     *
+     * Every font has its own glyph-id space, so gid 5 in DM Sans and gid 5 in the mono
+     * face are different characters. Merging every ToUnicode CMap into one table reads
+     * "INVITATION" back as "GNVGTATGON" — plausible nonsense, and a test that fails for a
+     * reason that has nothing to do with the document.
+     *
+     * @return array{0: array<string, array<int,int>>, 1: list<string>}
+     */
+    private static function pdfParts(string $pdf): array
+    {
+        // Content streams and CMaps are /FlateDecode — see Pdf::output().
+        $objects = [];
+        if (preg_match_all('/(\d+) 0 obj(.*?)endobj/s', $pdf, $objs, PREG_SET_ORDER)) {
+            foreach ($objs as $o) {
+                $body = $o[2];
+                if (preg_match('/stream\r?\n(.*?)\r?\nendstream/s', $body, $st)) {
+                    $inf = @gzuncompress($st[1]);
+                    if (is_string($inf) && $inf !== '') $body .= "\n" . $inf;
+                }
+                $objects[(int) $o[1]] = $body;
+            }
+        }
+
+        $maps = [];
+        foreach ($objects as $body) {
+            if (!preg_match_all('#/(F[A-Za-z0-9_]+)\s+(\d+) 0 R#', $body, $res, PREG_SET_ORDER)) continue;
+            foreach ($res as $r) {
+                $font = $objects[(int) $r[2]] ?? '';
+                if (!preg_match('#/ToUnicode (\d+) 0 R#', $font, $tu)) continue;
+                $m = [];
+                if (preg_match_all('/beginbfchar(.*?)endbfchar/s', $objects[(int) $tu[1]] ?? '', $blocks)) {
+                    foreach ($blocks[1] as $block) {
+                        if (preg_match_all('/<([0-9A-Fa-f]+)>\s*<([0-9A-Fa-f]+)>/', $block, $pairs, PREG_SET_ORDER)) {
+                            foreach ($pairs as $pair) $m[hexdec($pair[1])] = hexdec($pair[2]);
+                        }
+                    }
+                }
+                if ($m !== []) $maps[$r[1]] = $m;
+            }
+        }
+
+        $bodies = [];
+        foreach ($objects as $body) if (str_contains($body, ' Tj')) $bodies[] = $body;
+
+        return [$maps, $bodies];
+    }
 }

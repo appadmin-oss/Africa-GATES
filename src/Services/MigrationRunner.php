@@ -225,6 +225,68 @@ final class MigrationRunner
         return ['driver' => $driver, 'applied' => count($applied), 'pending' => $pending];
     }
 
+    /**
+     * Apply ONE step again, whatever the ledger says about it.
+     *
+     * ══════════════════════════════════════════════════════════════════════════
+     * THE DEAD END THIS EXISTS FOR
+     * ══════════════════════════════════════════════════════════════════════════
+     *
+     * The ledger is written AFTER a step is included, so a step that throws is not
+     * recorded and `/__setup/migrate` will retry it. What that does not cover is a step
+     * that finished without doing its job — a `CREATE TABLE` inside a branch that was not
+     * taken, a fold that found nothing to fold, an include that returned early. The ledger
+     * then says applied, the table is not there, and the migrate endpoint skips it
+     * forever. With no shell on this host there is no way back at all.
+     *
+     * So: named, deliberate, one step. Not a "reset migrations" button — every migration
+     * here is idempotent by contract, but re-running 151 of them because one is wrong is a
+     * much larger act than the problem, and the operator pressing it can only be sure
+     * about the one they are looking at.
+     *
+     * @return array{ok:bool, message:string}
+     */
+    public static function rerun(string $key): array
+    {
+        $root   = dirname(__DIR__, 2);
+        $driver = DB::connection()->getDriverName();
+
+        $step = null;
+        foreach (self::steps($root, $driver) as $s) {
+            if ($s['key'] === $key) { $step = $s; break; }
+        }
+        // Matched against the real step list rather than trusted: `$key` reaches this from
+        // a form, and a runner that includes whatever path it is handed is a remote file
+        // include pointed at its own codebase.
+        if ($step === null) {
+            return ['ok' => false, 'message' => 'There is no setup step by that name.'];
+        }
+        if (!is_file($step['file'])) {
+            return ['ok' => false, 'message' => 'That step is named but its file is not on '
+                                              . 'this server — the deploy is incomplete.'];
+        }
+
+        try {
+            @set_time_limit(0);
+            if ($step['type'] === 'schema') {
+                $lines = [];
+                self::applySchemaFile($step['file'], $driver, $lines);
+            } else {
+                (static function (string $__migrationFile) { include $__migrationFile; })($step['file']);
+            }
+
+            self::ensureLedger($driver);
+            if (!DB::table('gates_migrations')->where('migration', $key)->exists()) {
+                DB::table('gates_migrations')->insert([
+                    'migration' => $key, 'applied_at' => Carbon::now()->toDateTimeString(),
+                ]);
+            }
+            return ['ok' => true, 'message' => $key . ' was applied again.'];
+        } catch (\Throwable $e) {
+            return ['ok' => false, 'message' => $key . ' failed: ' . $e->getMessage()];
+        }
+    }
+
     /** Create the migration-tracking ledger if it doesn't exist (driver-aware). */
     private static function ensureLedger(string $driver): void
     {

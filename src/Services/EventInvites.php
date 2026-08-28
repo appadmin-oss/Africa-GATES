@@ -39,6 +39,14 @@ use Illuminate\Support\Carbon;
  */
 final class EventInvites
 {
+    /**
+     * The setup step that creates `gates_event_programmes`.
+     *
+     * Named here rather than typed into a notice, so the string an operator is asked to
+     * re-run is the same string the runner matches against its own step list.
+     */
+    public const MIGRATION = '2026_11_01_event_invites.php';
+
     /** The ceremony a programme is honoured at, or null when none is linked. */
     public static function eventForProgramme(int $programmeId): ?object
     {
@@ -160,7 +168,10 @@ final class EventInvites
      * else is one programme's problem on a night with several, and the run should still go
      * for the awards that ARE ready rather than refusing the whole evening.
      *
-     * @return list<array{what:string, fix:string, href:string, hard:bool}> empty when ready
+     * `rerun` names the setup step to apply again, in the one case where the ordinary
+     * migrate endpoint cannot help — see the branch that sets it. Empty everywhere else.
+     *
+     * @return list<array{what:string, fix:string, href:string, hard:bool, rerun:string}>
      */
     public static function readiness(int $eventId): array
     {
@@ -175,12 +186,38 @@ final class EventInvites
             $ready = false;
         }
         if (!$ready) {
+            // TWO DIFFERENT FAULTS, and telling an operator to "run the migration" when
+            // they already have is the reason this needed a second look.
+            //
+            // The ledger is written after a step is included, so a step that THREW is not
+            // recorded and the migrate endpoint will retry it — that is the ordinary case,
+            // and the fix is to finish the run (151 steps, four per request, chained by a
+            // meta refresh: a closed tab stops it part way and nothing says so).
+            //
+            // The other case is a step recorded as applied whose table is not there. The
+            // migrate endpoint then skips it forever, and with no shell there is no way
+            // back. That one needs {@see MigrationRunner::rerun()}, and the notice has to
+            // name it rather than repeat an instruction that cannot work.
+            $pending = [];
+            try { $pending = MigrationRunner::status()['pending'] ?? []; } catch (\Throwable) {}
+            $mine    = self::MIGRATION;
+            $waiting = in_array($mine, $pending, true);
+
             return [[
                 'what' => 'The awards-to-event link has not been created in the database yet.',
-                'fix'  => 'Run the migration once — /__setup/migrate?token=… with the SETUP_TOKEN '
-                        . 'from your .env. Nothing on this page can work until it exists.',
-                'href' => '',
-                'hard' => true,
+                'fix'  => $waiting
+                    ? 'Setup is not finished — ' . count($pending) . ' step'
+                      . (count($pending) === 1 ? '' : 's') . ' still to apply, and this is one '
+                      . 'of them. Open /__setup/migrate?token=… with the SETUP_TOKEN from your '
+                      . '.env and LEAVE THE TAB OPEN: it applies four steps per request and '
+                      . 'refreshes itself until it says "setup complete".'
+                    : 'The step that creates it is recorded as already applied, so the migrate '
+                      . 'endpoint will skip it — it has to be run again on its own. Use the '
+                      . 'button below.',
+                'href'  => '',
+                'hard'  => true,
+                // Only offered in the case where the ordinary route cannot help.
+                'rerun' => $waiting ? '' : $mine,
             ]];
         }
 
@@ -192,6 +229,7 @@ final class EventInvites
                         . '"Awards presented at this event".',
                 'href' => '/admin/events/' . $eventId,
                 'hard' => true,
+                'rerun' => '',
             ]];
         }
 
@@ -208,6 +246,7 @@ final class EventInvites
                     'fix'  => 'Create this year\'s cycle before inviting anybody to be honoured in it.',
                     'href' => '/admin/programmes/' . (int) $programme->id,
                     'hard' => false,
+                    'rerun' => '',
                 ];
                 continue;
             }
@@ -223,6 +262,7 @@ final class EventInvites
                             . 'deliberately not invited from.',
                     'href' => '/admin/shortlists?cycle=' . (int) $cycle->id,
                     'hard' => false,
+                    'rerun' => '',
                 ];
             }
         }
@@ -236,6 +276,7 @@ final class EventInvites
                         . 'without them.',
                 'href' => '/admin/judges',
                 'hard' => false,
+                'rerun' => '',
             ];
         }
 

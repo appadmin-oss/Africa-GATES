@@ -66,6 +66,19 @@
         </li>
       {% endfor %}
     </ul>
+
+    {# The one blocker with no route out of it. `/__setup/migrate` skips a step the
+       ledger records as applied, so an operator in that state has been told to do the
+       only thing that cannot work. Superadmin only; the controller checks too. #}
+    {# `|filter`, not `for … if` — Twig 3 removed the inline condition on a for tag and
+       the whole page 500s on it. #}
+    {% for b in blockers|filter(b => b.rerun|default('')) %}
+      <form method="post" action="/admin/events/{{ event.id }}/invites/repair" style="margin-top:10px">
+        <input type="hidden" name="_token" value="{{ csrf_token }}">
+        <button class="ad-btn" type="submit">Create the awards link now</button>
+        <span class="iv-mute" style="margin-left:8px">Applies <code>{{ b.rerun }}</code> again. Safe to press twice.</span>
+      </form>
+    {% endfor %}
   </div>
 {% endif %}
 

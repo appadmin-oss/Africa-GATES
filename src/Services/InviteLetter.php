@@ -48,6 +48,16 @@ final class InviteLetter
     private const RULE  = [0xCD, 0xD6, 0xD6];
 
     /**
+     * Where the reference block and the sign-off sit, measured up from the page foot.
+     *
+     * Fixed rather than flowed, so every copy of this letter has its close in the same
+     * place — see the note at the reference block. `REF_Y` leaves 18.5mm for the block
+     * itself plus a gap before `SIGN_Y`.
+     */
+    private const REF_Y  = self::PAGE_H - self::MARGIN - 66.0;
+    private const SIGN_Y = self::PAGE_H - self::MARGIN - 42.0;
+
+    /**
      * @param object $invite a `gates_event_invites` row
      * @param object $event  a `gates_site_events` row
      * @return string the PDF bytes
@@ -58,36 +68,61 @@ final class InviteLetter
         $pdf  = self::begin();
         $pdf->addPage();
 
-        $w = self::PAGE_W - self::MARGIN * 2;
-        $x = self::MARGIN;
-        $y = self::MARGIN;
+        // ── THE SHAPE OF A LETTER ────────────────────────────────────────────
+        //
+        // This was a web page printed to A4: a wordmark, a rule, "An Invitation" set at
+        // 26pt like a magazine cover, an eyebrow, and then straight into "Dear". Every
+        // convention that makes correspondence read as correspondence was missing — it
+        // carried no date, no reference block, no subject line, no recipient block, and
+        // most tellingly nowhere for anybody to sign it.
+        //
+        // The order below is the ordinary order of a formal letter, and it is ordinary on
+        // purpose: this is shown to a spouse, forwarded to a head teacher, and put on a
+        // wall. It should look like the letters that already hang there.
+        //
+        // The MEASURE is narrower than the margins allow — 148mm inside a 166mm text
+        // block. 166mm of 10.5pt type is about 95 characters a line, which is half again
+        // the width prose is comfortable at, and a wide measure is the single loudest tell
+        // that a document was laid out by its container rather than for its reader.
+        $x     = self::MARGIN;
+        $w     = self::PAGE_W - self::MARGIN * 2;
+        $mw    = 148.0;
+        $y     = self::MARGIN;
 
-        // ── masthead ─────────────────────────────────────────────────────────
-        $pdf->text('AFRICA GATES', $x, $y + 6.0, 'mono', 9.0, self::GOLD, 1.6);
-        $pdf->text('An Afrovanguard Initiative', $x, $y + 11.4, 'text', 8.0, self::MUTE);
-        $pdf->text(DisplayTime::show(Carbon::now()->toDateTimeString(), 'j F Y'),
-                   $x + $w - $pdf->width(DisplayTime::show(Carbon::now()->toDateTimeString(), 'j F Y'), 'text', 8.0),
-                   $y + 11.4, 'text', 8.0, self::MUTE);
-        $y += 18.0;
-        $pdf->line($x, $y, $x + $w, $y, self::RULE, 0.3);
-        $y += 16.0;
+        // ── 1 · letterhead ───────────────────────────────────────────────────
+        $pdf->text('AFRICA GATES', $x, $y + 6.2, 'mono', 9.5, self::INK, 2.2);
+        $pdf->text('Continental Cultural Recognition', $x, $y + 11.6, 'text', 8.0, self::MUTE);
 
-        // ── the title ────────────────────────────────────────────────────────
-        $pdf->text('An Invitation', $x, $y + 9.0, 'display', 26.0, self::INK);
-        $y += 15.0;
-        $pdf->text(mb_strtoupper($spec['label'] . ' · guest of honour'), $x, $y + 4.0,
-                   'mono', 8.0, self::GOLD, 1.4);
-        $y += 14.0;
+        $host = self::host();
+        $pdf->text($host, $x + $w - $pdf->width($host, 'text', 8.0), $y + 6.2, 'text', 8.0, self::MUTE);
+        $pdf->text('An Afrovanguard Initiative',
+                   $x + $w - $pdf->width('An Afrovanguard Initiative', 'text', 8.0),
+                   $y + 11.6, 'text', 8.0, self::MUTE);
 
-        // ── the letter ───────────────────────────────────────────────────────
-        // Baseline, not a box top: imagettftext and Pdf::text both take a baseline while
-        // every rectangle grows downward from its origin, which is how a line of type comes
-        // to sit on top of the one above it.
-        $y = $pdf->paragraph(
-            $spec['salutation'] . ' ' . trim((string) $invite->name) . ',',
-            $x, $y + 4.0, $w, 'bold', 11.5, 6.0, self::INK, 2
-        );
-        $y += 4.0;
+        $y += 17.0;
+        // Two rules, 0.9mm apart — the letterpress convention for a letterhead, and the
+        // one piece of ornament in the document. The gold is the thin one.
+        $pdf->line($x, $y, $x + $w, $y, self::INK, 0.5);
+        $pdf->line($x, $y + 1.4, $x + $w, $y + 1.4, self::GOLD, 0.5);
+
+        // ── 2 · reference and date ───────────────────────────────────────────
+        // A letter with no date is a notice. Both sit right, above the recipient block,
+        // which is where a reader's eye goes for them.
+        $y += 12.0;
+        $ref  = 'Our ref: ' . trim((string) $invite->reference);
+        $date = DisplayTime::show(Carbon::now()->toDateTimeString(), 'j F Y');
+        $pdf->text($ref,  $x + $w - $pdf->width($ref,  'text', 9.0), $y, 'text', 9.0, self::MUTE);
+        $pdf->text($date, $x + $w - $pdf->width($date, 'text', 9.0), $y + 5.2, 'text', 9.0, self::INK);
+
+        // ── 3 · the recipient ────────────────────────────────────────────────
+        // There is no postal address to set — nobody collects one — so the block carries
+        // what this platform actually knows: who they are and what they are being honoured
+        // for. That is the honest version of an address block rather than a blank one.
+        $pdf->text(trim((string) $invite->name), $x, $y, 'semi', 11.0, self::INK);
+        $pdf->text($spec['one'] . ' · ' . trim((string) $event->title),
+                   $x, $y + 5.4, 'text', 9.0, self::MUTE);
+
+        $y += 20.0;
 
         $when  = DisplayTime::showZoned((string) $event->event_date, 'l j F Y \a\t H:i');
         $where = trim(implode(', ', array_filter([
@@ -95,11 +130,32 @@ final class InviteLetter
             trim((string) ($event->location ?? '')),
         ])));
 
+        // ── 4 · the subject line ─────────────────────────────────────────────
+        // What "An Invitation" at 26pt was trying to be. A formal letter states its
+        // business in one bold line above the salutation, and the line says what the
+        // letter is FOR rather than what kind of thing it is.
+        $y = $pdf->paragraph(
+            mb_strtoupper('Invitation to ' . trim((string) $event->title)
+                        . ' as a guest of honour'),
+            $x, $y, $mw, 'bold', 10.0, 5.4, self::INK, 3
+        );
+        $y += 8.0;
+
+        // ── 5 · the letter ───────────────────────────────────────────────────
+        // Baseline, not a box top: Pdf::text takes a baseline while every rectangle grows
+        // downward from its origin, which is how a line of type comes to sit on the one
+        // above it.
+        $y = $pdf->paragraph(
+            $spec['salutation'] . ' ' . trim((string) $invite->name) . ',',
+            $x, $y, $mw, 'text', 10.5, 5.4, self::INK, 2
+        );
+        $y += 3.0;
+
         $body = [
             'It is our privilege to invite you to ' . trim((string) $event->title)
                 . ($where !== '' ? ', at ' . $where : '') . ', on ' . $when . '.',
 
-            // The operator's sentence, WHOLE. This was the third place assembling it —
+            // The operator\'s sentence, WHOLE. This was the third place assembling it —
             // after the Twig template and the plain-text builder — each prefixing "We want
             // the hall packed " onto what the settings screen presents as an editable
             // sentence. Three authors for one paragraph, and the letter is the copy the
@@ -124,26 +180,85 @@ final class InviteLetter
             'We would be honoured to have you with us.',
         ];
 
-        foreach ($body as $para) {
-            $y = $pdf->paragraph($para, $x, $y + 6.0, $w, 'text', 10.5, 5.6, self::INK, 8);
+        // ── MEASURED BEFORE IT IS DRAWN ──────────────────────────────────────
+        //
+        // The reference block and the sign-off are at fixed positions (see REF_Y), so the
+        // body is the thing that has to fit. It is an operator's 240-character sentence
+        // plus a name of up to 160, and the first version of this simply flowed and then
+        // pushed the block down when it ran long — which printed "Yours sincerely," across
+        // the middle of the reference on the longest letter the console will accept.
+        //
+        // So the height is worked out first, against the real face, and the leading
+        // tightens if it has to. Tightening is the right thing to give: a letter set a
+        // half-millimetre closer is a letter, and one with the close printed over the
+        // reference is waste paper. Nothing is ever cut — these are somebody's words about
+        // somebody's life's work.
+        $lead = 5.4;
+        $gap  = 5.4;
+        $room = self::REF_Y - 8.0 - $y;
+        for ($i = 0; $i < 6; $i++) {
+            $rows = 0;
+            // `lines()` returns a COUNT, not the lines — same 8-line cap the draw uses, so
+            // the measurement and the drawing cannot disagree about a long paragraph.
+            foreach ($body as $para) $rows += $pdf->lines($para, $mw, 'text', 10.5, 8);
+            $need = $rows * $lead + count($body) * $gap;
+            if ($need <= $room) break;
+            // 4.6mm at 10.5pt is 1.24 leading — tight, still comfortably readable, and the
+            // floor. Below that the paragraph gap goes instead.
+            if ($lead > 4.6) { $lead = max(4.6, $lead - 0.2); continue; }
+            $gap = max(3.0, $gap - 0.4);
         }
 
-        // ── the reference, set apart ─────────────────────────────────────────
-        $y += 10.0;
-        $boxH = 22.0;
-        $pdf->frame($x, $y, $w, $boxH, self::GOLD, 0.4);
-        $pdf->text('YOUR REFERENCE AND GUEST CODE', $x + 6.0, $y + 8.0, 'mono', 7.5, self::MUTE, 1.2);
-        $pdf->text(trim((string) $invite->reference), $x + 6.0, $y + 17.0, 'mono', 13.0, self::INK, 1.0);
-        $quota = (int) $invite->guest_quota . ' guests · ' . InviteAudience::discountPercent() . '% off';
-        $pdf->text($quota, $x + $w - 6.0 - $pdf->width($quota, 'text', 9.0), $y + 17.0,
-                   'text', 9.0, self::MUTE);
+        foreach ($body as $para) {
+            $y = $pdf->paragraph($para, $x, $y + $gap, $mw, 'text', 10.5, $lead, self::INK, 8);
+        }
 
-        // ── sign-off, anchored to the page foot ──────────────────────────────
-        $footY = self::PAGE_H - self::MARGIN - 20.0;
-        $pdf->line($x, $footY - 10.0, $x + $w, $footY - 10.0, self::RULE, 0.3);
-        $pdf->text('Africa GATES', $x, $footY - 2.0, 'bold', 10.0, self::INK);
+        // ── 6 · the reference, set apart ─────────────────────────────────────
+        // A hairline rule above and below rather than a gold box: a bordered panel in the
+        // middle of a letter is a coupon, and this is the line a steward reads off the
+        // page when somebody's phone is dead.
+        //
+        // ANCHORED to the foot with the sign-off rather than flowed after the body, and
+        // that is the one-page guarantee. Flowing it means the length of the body decides
+        // where it lands — and the body's length is an operator's 240-character sentence
+        // plus a name, neither of which anybody previews. Anchored, a long letter runs
+        // toward a fixed block instead of pushing it off the page, and the only failure
+        // left is a collision that {@see \Tests\Unit\InviteMailerTest} measures against
+        // the longest input the settings screen will accept.
+        $y = self::REF_Y;
+        $pdf->line($x, $y, $x + $mw, $y, self::RULE, 0.3);
+        $pdf->text('YOUR REFERENCE AND GUEST CODE', $x, $y + 6.4, 'mono', 7.0, self::MUTE, 1.4);
+        $pdf->text(trim((string) $invite->reference), $x, $y + 14.0, 'mono', 13.0, self::INK, 1.2);
+        $quota = (int) $invite->guest_quota . ' guests · ' . InviteAudience::discountPercent() . '% off';
+        $pdf->text($quota, $x + $mw - $pdf->width($quota, 'text', 9.0), $y + 14.0,
+                   'text', 9.0, self::MUTE);
+        $y += 18.5;
+        $pdf->line($x, $y, $x + $mw, $y, self::RULE, 0.3);
+
+        // ── 7 · the close, and somewhere to sign ─────────────────────────────
+        //
+        // The missing formality, and the loudest one. A letter of invitation that nobody
+        // has signed is a printout; the space for a signature is what makes the difference
+        // whether or not anybody ever writes in it. The rule is 62mm — a signature's
+        // width, not the measure's.
+        //
+        // Anchored to the page foot rather than flowing after the body, so a long name or
+        // a long operator sentence pushes the letter rather than the signature, and the
+        // close sits where a reader expects it on every copy.
+        $signY = self::SIGN_Y;
+        $pdf->text('Yours sincerely,', $x, $signY, 'text', 10.5, self::INK);
+        $pdf->line($x, $signY + 18.0, $x + 62.0, $signY + 18.0, self::RULE, 0.3);
+        $pdf->text('For and on behalf of Africa GATES', $x, $signY + 23.4, 'semi', 9.5, self::INK);
         $pdf->text('Continental Cultural Recognition · An Afrovanguard Initiative',
-                   $x, $footY + 4.0, 'text', 8.0, self::MUTE);
+                   $x, $signY + 28.6, 'text', 8.0, self::MUTE);
+
+        // ── 8 · the foot ─────────────────────────────────────────────────────
+        $footY = self::PAGE_H - self::MARGIN;
+        $pdf->line($x, $footY - 6.0, $x + $w, $footY - 6.0, self::RULE, 0.3);
+        $foot = 'This invitation is personal to ' . trim((string) $invite->name)
+              . ' and carries the reference above.';
+        $pdf->text($foot, $x, $footY, 'text', 7.5, self::MUTE);
+        $pdf->text($host, $x + $w - $pdf->width($host, 'text', 7.5), $footY, 'text', 7.5, self::MUTE);
 
         return $pdf->output();
     }
@@ -157,20 +272,49 @@ final class InviteLetter
              . strtolower((string) $invite->reference) . '.pdf';
     }
 
+    /** The site's own hostname for the letterhead — one resolver, not a literal. */
+    private static function host(): string
+    {
+        $h = parse_url(\AfricaGates\Support\SiteUrl::base(), PHP_URL_HOST);
+
+        return is_string($h) && $h !== '' ? $h : 'africagates.org';
+    }
+
     private static function begin(): Pdf
     {
         $pdf = new Pdf(self::PAGE_W, self::PAGE_H);
         $dir = dirname(__DIR__, 2) . '/resources/fonts/';
 
-        // `text` first so it is the default: every call site that forgets to name a face
-        // gets the one that can set an African name.
-        $pdf->font('text', $dir . 'AGText-Regular.ttf');
-        $pdf->font('bold', $dir . 'AGText-Bold.ttf');
+        // ── THE FACES, AND WHY THE BODY CHANGED ──────────────────────────────
+        //
+        // The letter was set in AGText — DejaVu — at 10.5pt across a 166mm measure. DejaVu
+        // is a fallback face: very wide, loosely fitted, and drawn for screens at small
+        // sizes. Printed at that size across that measure it reads as a web page sent to a
+        // printer, which is what this document was being told it looked like.
+        //
+        // DM Sans is the site's own body face and it is already in this repository. It is
+        // narrower, tighter and has actual character; the letter is set in it now.
+        //
+        // ── AND WHY DEJAVU IS STILL HERE ─────────────────────────────────────
+        //
+        // DM Sans has no Ọ, ẹ or ṣ, and no ₦ — the exact gap CODEBASE-INDEX records
+        // against the ticket. So every DM Sans face is registered WITH the DejaVu face
+        // behind it, and Pdf::font() splits runs per character: "Dr Ọlásùnkànmí
+        // Adébáyọ̀-Williams" sets in DM Sans for everything DM Sans has and falls through
+        // for the rest, rather than printing boxes through the middle of somebody's name
+        // on the one document they keep.
+        //
+        // `fb` is registered FIRST so it exists to be named as a fallback, and so a call
+        // site that forgets a face gets the one that can set any name at all.
+        $pdf->font('fb', $dir . 'AGText-Regular.ttf');
+        $pdf->font('fbb', $dir . 'AGText-Bold.ttf');
+        $pdf->font('text', $dir . 'DMSans-Regular.ttf', 'fb');
+        $pdf->font('semi', $dir . 'DMSans-SemiBold.ttf', 'fbb');
+        $pdf->font('bold', $dir . 'DMSans-Bold.ttf', 'fbb');
         $pdf->font('mono', $dir . 'AGMono-Bold.ttf');
         // Playfair covers U+1EA0–1EFF so it sets "Ọlásùnkànmí" properly, but it has no ₦ —
-        // registered with the text face behind it for exactly that reason. This letter
-        // quotes a naira figure.
-        $pdf->font('display', $dir . 'PlayfairDisplay-Bold.ttf', 'bold');
+        // registered with the text face behind it for exactly that reason.
+        $pdf->font('display', $dir . 'PlayfairDisplay-Bold.ttf', 'fbb');
 
         return $pdf;
     }

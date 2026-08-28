@@ -275,6 +275,51 @@ final class InvitesController
     }
 
     /**
+     * Apply the setup step that creates the awards-to-event link, again.
+     *
+     * ── WHY A BUTTON AND NOT "RUN THE MIGRATION" ─────────────────────────────
+     *
+     * `/__setup/migrate` skips anything the ledger records as applied, and the ledger can
+     * say applied for a step whose table is not there. There is no shell on this host, so
+     * an operator in that state has been told to do the one thing that provably cannot
+     * work — which is exactly what happened.
+     *
+     * Superadmin only, and named to one step rather than a general "re-run migrations":
+     * every migration here is idempotent by contract, but re-applying a hundred and fifty
+     * of them because one is wrong is a far larger act than the fault, and the person
+     * pressing this can only be sure about the one in front of them.
+     */
+    public function repair(Request $req, Response $res, array $args): Response
+    {
+        $id   = (int) ($args['id'] ?? 0);
+        $back = '/admin/events/' . $id . '/invites';
+
+        if ((string) ($_SESSION['admin_role'] ?? '') !== 'superadmin') {
+            $_SESSION['flash_error'] = 'Only a superadmin can apply a setup step.';
+            return $res->withHeader('Location', $back)->withStatus(302);
+        }
+
+        $r = \AfricaGates\Services\MigrationRunner::rerun(EventInvites::MIGRATION);
+
+        // Report what is TRUE afterwards, not what the runner returned: a step can finish
+        // without an exception and still not have created the table, and that is the whole
+        // fault this button exists for. Saying "applied" over a table that is still absent
+        // would put the operator back where they started, one press later.
+        $made = false;
+        try { $made = DB::schema()->hasTable('gates_event_programmes'); } catch (\Throwable) {}
+
+        if ($made) {
+            $_SESSION['flash'] = 'The awards link is in place. Tick the awards on the event, '
+                               . 'then come back here.';
+        } else {
+            $_SESSION['flash_error'] = 'That did not create the table. ' . $r['message']
+                . ' The deploy may be missing database/migrations/' . EventInvites::MIGRATION . '.';
+        }
+
+        return $res->withHeader('Location', $back)->withStatus(302);
+    }
+
+    /**
      * The picture that travels with the invitation.
      *
      * ── WHY THIS SCREEN AND NOT THE EVENT FORM ───────────────────────────────

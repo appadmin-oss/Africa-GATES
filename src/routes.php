@@ -3302,6 +3302,9 @@ return function(App $app) {
         $a->post('/events/{id:[0-9]+}/invites/send',  \AfricaGates\Admin\Controllers\InvitesController::class.':send');
         $a->post('/events/{id:[0-9]+}/invites/test',  \AfricaGates\Admin\Controllers\InvitesController::class.':test');
         $a->post('/events/{id:[0-9]+}/invites/image', \AfricaGates\Admin\Controllers\InvitesController::class.':image');
+        // The way out of a setup step the ledger calls applied over a table that is not
+        // there — the one state /__setup/migrate cannot fix, on a host with no shell.
+        $a->post('/events/{id:[0-9]+}/invites/repair', \AfricaGates\Admin\Controllers\InvitesController::class.':repair');
         // `{reference}` accepts the literal `sample`, so both of these work before the
         // list has been built — which is when an operator most wants to look.
         $a->get('/events/{id:[0-9]+}/invites/{reference}/preview', \AfricaGates\Admin\Controllers\InvitesController::class.':preview');
