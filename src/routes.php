@@ -4,7 +4,7 @@ use AfricaGates\Support\Env;
 use AfricaGates\Services\SystemStatus;
 use Slim\App;
 use Slim\Routing\RouteCollectorProxy;
-use AfricaGates\Controllers\{HomeController,ApiController,RegistryController,AwardsController,LeaderboardController,LegacyController,OpportunityController,NominationController,PartnerController,VoteController,CommunityController,EventsController,BlogController,PaymentController,ShopController,ShopCheckoutController,GuideController,DonationController,PaidVoteController,PulseController,JudgesController,AccountController,GatedFormController,FormController,ActivityController,FlierController,SupportController,HelpController,ClaimController,VoteMessageController,CountdownController,EmailPrefsController};
+use AfricaGates\Controllers\{HomeController,ApiController,RegistryController,AwardsController,LeaderboardController,LegacyController,OpportunityController,NominationController,PartnerController,VoteController,CommunityController,EventsController,BlogController,PaymentController,ShopController,ShopCheckoutController,GuideController,DonationController,PaidVoteController,PulseController,JudgesController,AccountController,GatedFormController,FormController,ActivityController,FlierController,SupportController,HelpController,ClaimController,VoteMessageController,CountdownController,EmailPrefsController,HonourController};
 use AfricaGates\Judge\Controllers\{
     AuthController as JudgeAuthController,
     BallotController as JudgeBallotController
@@ -2069,6 +2069,19 @@ return function(App $app) {
                     : ['found' => false],
             ]);
         });
+        /**
+         * A guest of honour's mobile ID — see HonourController.
+         *
+         * The two sub-paths are declared BEFORE `/honour/{reference}` for the same reason
+         * the legal downloads are: Slim's default placeholder matches any run of
+         * non-slash characters, and while that means `{reference}` cannot swallow
+         * `qr.svg` today, the ordering is the thing that keeps it true if somebody ever
+         * widens the pattern.
+         */
+        $g->get('/honour/{reference}/qr.svg', HonourController::class.':qr');
+        $g->get('/honour/{reference}/tick',   HonourController::class.':tick');
+        $g->get('/honour/{reference}',        HonourController::class.':page');
+
         $g->get('/vote',                  VoteController::class.':index');
         $g->get('/vote/{program}',        VoteController::class.':program');
         // Live tallies for the race page. BEFORE /vote/{program}/{slug} — that pattern

@@ -454,6 +454,7 @@ return [
     // No dependencies: it reads the cycle straight from the DB and draws. Bound
     // explicitly anyway, because every other controller here is.
     \AfricaGates\Controllers\CountdownController::class => fn(ContainerInterface $c)=>new \AfricaGates\Controllers\CountdownController(),
+    \AfricaGates\Controllers\HonourController::class  => fn(ContainerInterface $c)=>new \AfricaGates\Controllers\HonourController($c->get(Twig::class)),
     \AfricaGates\Controllers\EmailPrefsController::class => fn(ContainerInterface $c)=>new \AfricaGates\Controllers\EmailPrefsController($c->get(Twig::class)),
     ActivityController::class     => fn(ContainerInterface $c)=>new ActivityController($c->get(Twig::class), new \AfricaGates\Services\ActivityFeedService()),
     // Support assistant. The agent gets AiService (Groq + Gemini, whichever the

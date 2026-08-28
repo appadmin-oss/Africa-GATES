@@ -1,0 +1,206 @@
+{% extends "layout/gates.twig" %}
+
+{#
+  A GUEST OF HONOUR'S MOBILE ID.
+
+  Opened on a phone, once, in a queue, by somebody who was invited because of something
+  they did. So it is the one surface on this platform that is allowed to feel like an
+  occasion — dark ground and gold, against the paper the rest of the site is built on,
+  because a pass that looks like a settings page does not read as an honour.
+
+  Three things it has to get right:
+
+    1. THE CODE IS THE POINT. It is the largest thing on the screen, in the brightest
+       block, above the fold on a small phone, because at the door somebody is holding
+       the phone up to a camera and nothing else on this page matters in that moment.
+
+    2. THE COUNTDOWN IS ASKED FOR, NOT COUNTED. A phone that slept in a pocket wakes with
+       a local countdown reading nine seconds and a code that expired four minutes ago.
+       So the tick comes from the server, and a wake or a tab-focus re-asks immediately.
+
+    3. NO PAGE RELOAD. Reloading to refresh a code, in a queue, on a venue's wifi, is how
+       somebody ends up at the front of the line looking at a spinner.
+#}
+
+{% block content %}
+<style nonce="{{ csp_nonce }}">
+  /* Scoped to .hon — this page is a dark island inside a paper-ground site. */
+  .hon{--ink:#0b1f22;--ink-2:#123034;--paper:#f0f2f2;--gold:#f3b416;--gold-deep:#8a6205;
+       --emerald:#237b22;--mute:#9fb3b2;--line:rgba(243,180,22,.22);
+       background:var(--ink);color:var(--paper);margin:-1px 0 0;padding:0 0 56px;
+       font-feature-settings:"tnum" 0}
+  .hon__wrap{max-width:520px;margin:0 auto;padding:0 18px}
+
+  .hon__crest{padding:34px 0 22px;text-align:center}
+  .hon__kicker{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:11px;
+       letter-spacing:.22em;text-transform:uppercase;color:var(--gold);margin:0 0 14px}
+  .hon__name{font-size:clamp(1.9rem,7vw,2.6rem);line-height:1.08;margin:0 0 10px;
+       font-weight:600;letter-spacing:-.02em;text-wrap:balance}
+  .hon__role{font-size:14px;color:var(--mute);margin:0}
+  .hon__role b{color:var(--paper);font-weight:600}
+
+  /* The pass. Bright block on a dark page: the eye goes here first, which is correct. */
+  .hon__pass{background:var(--paper);color:var(--ink);border-radius:18px;padding:22px 20px 18px;
+       text-align:center;box-shadow:0 18px 50px rgba(0,0,0,.45)}
+  .hon__qr{width:min(260px,68vw);aspect-ratio:1;margin:0 auto 14px;display:block}
+  .hon__qr svg{width:100%;height:100%;display:block}
+  .hon__ref{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:17px;
+       letter-spacing:.12em;font-weight:600;margin:0 0 4px}
+  .hon__reflabel{font-family:ui-monospace,monospace;font-size:10px;letter-spacing:.14em;
+       text-transform:uppercase;color:#5d7275;margin:0 0 14px}
+
+  .hon__tick{display:flex;align-items:center;justify-content:center;gap:9px;
+       font-family:ui-monospace,monospace;font-size:11.5px;letter-spacing:.08em;
+       text-transform:uppercase;color:#5d7275}
+  .hon__ring{width:15px;height:15px;border-radius:50%;border:2px solid #cdd6d6;
+       border-top-color:var(--emerald);animation:hon-spin 1s linear infinite}
+  @keyframes hon-spin{to{transform:rotate(360deg)}}
+  @media (prefers-reduced-motion:reduce){.hon__ring{animation:none;border-top-color:#cdd6d6}}
+
+  .hon__card{background:var(--ink-2);border:1px solid var(--line);border-radius:14px;
+       padding:18px 18px 16px;margin-top:16px}
+  .hon__cardlabel{font-family:ui-monospace,monospace;font-size:10px;letter-spacing:.16em;
+       text-transform:uppercase;color:var(--gold);margin:0 0 10px}
+  .hon__witness{font-size:15.5px;line-height:1.6;margin:0;color:#dfe7e6}
+
+  .hon__code{display:flex;align-items:baseline;justify-content:space-between;gap:12px;
+       flex-wrap:wrap;margin:0 0 8px}
+  .hon__codeval{font-family:ui-monospace,monospace;font-size:19px;font-weight:600;
+       letter-spacing:.1em;color:var(--gold)}
+  .hon__codepct{font-size:13px;color:var(--mute)}
+  .hon__quota{font-size:14px;line-height:1.6;color:#dfe7e6;margin:0}
+  .hon__quota b{color:var(--gold)}
+
+  .hon__facts{list-style:none;padding:0;margin:14px 0 0;display:grid;gap:9px}
+  .hon__facts li{display:flex;gap:12px;font-size:14.5px;line-height:1.5;color:#dfe7e6}
+  .hon__facts span{font-family:ui-monospace,monospace;font-size:10px;letter-spacing:.12em;
+       text-transform:uppercase;color:var(--mute);min-width:64px;padding-top:3px}
+
+  .hon__cta{display:block;text-align:center;background:var(--gold);color:#1a1204;
+       font-weight:600;text-decoration:none;padding:14px 18px;border-radius:11px;margin-top:16px}
+  .hon__cta:focus-visible{outline:3px solid var(--paper);outline-offset:3px}
+  .hon__foot{font-size:12.5px;line-height:1.6;color:var(--mute);margin:18px 0 0;text-align:center}
+</style>
+
+<div class="hon">
+  <div class="hon__wrap">
+
+    <header class="hon__crest">
+      <p class="hon__kicker">{{ audience.label }} · Guest of honour</p>
+      <h1 class="hon__name">{{ invite.name }}</h1>
+      <p class="hon__role">Invited to <b>{{ event.title }}</b></p>
+    </header>
+
+    {# ── the pass ──────────────────────────────────────────────────────────── #}
+    <div class="hon__pass">
+      <div class="hon__qr" id="hon-qr" data-src="/honour/{{ invite.reference|url_encode }}/qr.svg">
+        {# Server-rendered first paint: the code must be scannable before any script runs,
+           because the one place this page is used is the place with the worst signal. #}
+        <img src="/honour/{{ invite.reference|url_encode }}/qr.svg" alt="Your entry code"
+             width="260" height="260">
+      </div>
+      <p class="hon__ref">{{ invite.reference }}</p>
+      <p class="hon__reflabel">Show this at the door</p>
+      <div class="hon__tick">
+        <span class="hon__ring" aria-hidden="true"></span>
+        <span id="hon-tick">Refreshes every {{ step }} seconds</span>
+      </div>
+    </div>
+
+    {# ── why they are being asked ──────────────────────────────────────────── #}
+    <div class="hon__card">
+      <p class="hon__cardlabel">Why the hall is being filled</p>
+      <p class="hon__witness">We want the hall packed {{ audience.witness }}.</p>
+    </div>
+
+    {# ── the ask ───────────────────────────────────────────────────────────── #}
+    <div class="hon__card">
+      <p class="hon__cardlabel">Bring your people</p>
+      <div class="hon__code">
+        <span class="hon__codeval">{{ invite.discount_code }}</span>
+        <span class="hon__codepct">{{ discount }}% off, up to {{ invite.guest_quota }} guests</span>
+      </div>
+      <p class="hon__quota">
+        Share this code with the people you want in the room. It takes
+        <b>{{ discount }}% off</b> for up to <b>{{ invite.guest_quota }}</b> of them
+        {%- if lowest_tier %}, from <b>₦{{ lowest_tier.price_naira|number_format }}</b>
+        ({{ lowest_tier.name }}) upwards{% endif %}.
+      </p>
+      <a class="hon__cta" href="/events/{{ event.slug }}">Get their tickets</a>
+    </div>
+
+    {# ── the practical facts ───────────────────────────────────────────────── #}
+    <div class="hon__card">
+      <p class="hon__cardlabel">The evening</p>
+      <ul class="hon__facts">
+        <li><span>When</span><div>{{ event.event_date|when_zoned }}</div></li>
+        {% if event.venue %}<li><span>Where</span><div>{{ event.venue }}{% if event.location %}, {{ event.location }}{% endif %}</div></li>{% endif %}
+        <li><span>You</span><div>{{ audience.label }} · this pass admits you, no ticket needed</div></li>
+      </ul>
+    </div>
+
+    <p class="hon__foot">
+      This pass is yours alone and the code above changes every {{ step }} seconds, so a
+      screenshot of it will not open the door. Keep this page — no ticket is needed for you.
+    </p>
+  </div>
+</div>
+
+<script nonce="{{ csp_nonce }}">
+(function () {
+  var box  = document.getElementById('hon-qr');
+  var tick = document.getElementById('hon-tick');
+  if (!box || !tick) return;
+
+  var src  = box.getAttribute('data-src');
+  var step = {{ step|default(30) }};
+  var timer = null;
+
+  function paint(seconds) {
+    tick.textContent = seconds <= 1
+      ? 'Refreshing…'
+      : 'New code in ' + seconds + 's';
+  }
+
+  // A fresh symbol. Cache-busted per window, because the response is no-store but a
+  // browser back/forward cache is not asked.
+  function refresh() {
+    var img = new Image();
+    img.width = 260; img.height = 260;
+    img.alt = 'Your entry code';
+    img.onload = function () { box.replaceChildren(img); };
+    img.src = src + '?w=' + Date.now();
+  }
+
+  // The countdown comes from the server, never from this clock: a phone that slept in a
+  // pocket wakes with a local countdown that is confidently wrong at the one moment
+  // this has to be right.
+  function sync() {
+    fetch('/honour/{{ invite.reference|url_encode }}/tick', { cache: 'no-store' })
+      .then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (d) {
+        if (!d) return;
+        var left = Math.max(1, parseInt(d.seconds_left, 10) || step);
+        paint(left);
+        clearTimeout(timer);
+        timer = setTimeout(function () { refresh(); sync(); }, left * 1000);
+      })
+      .catch(function () {
+        // Offline at the door is the expected failure, not an edge case. The symbol on
+        // screen is still the current window's for up to another {{ step }} seconds, and
+        // the door accepts the previous one too — so say nothing alarming and retry.
+        clearTimeout(timer);
+        timer = setTimeout(sync, 5000);
+      });
+  }
+
+  // Waking up is the case that matters. visibilitychange fires when the phone comes out
+  // of a pocket, and that is exactly when the code on screen is stale.
+  document.addEventListener('visibilitychange', function () {
+    if (!document.hidden) { refresh(); sync(); }
+  });
+
+  sync();
+})();
+</script>
+{% endblock %}

@@ -16,6 +16,7 @@
 #}
 
 {% block content %}
+<canvas class="dr__conf" id="dr-conf" aria-hidden="true"></canvas>
 <style nonce="{{ csp_nonce }}">
   .dr{ max-width:560px; margin:0 auto; padding:16px 14px 40px }
   .dr__head{ display:flex; align-items:baseline; justify-content:space-between; gap:10px;
@@ -69,6 +70,20 @@
   @media (prefers-reduced-motion: no-preference){
     .dr__v{ transition: background-color .12s linear, border-color .12s linear }
   }
+
+  /* ── A GUEST OF HONOUR ────────────────────────────────────────────────────
+     A green tick is the right answer for a ticket and the wrong one for somebody
+     arriving at an evening held for them. Gold, their role named, and a burst — while
+     still carrying the WORD, because rule 1 above does not get an exception for
+     ceremony. */
+  .dr__v--honour{background:#10292c;border-color:#f3b416}
+  .dr__v--honour .dr__mark{color:#f3b416}
+  .dr__v--honour b{color:#fff}
+  .dr__v--honour .dr__who{color:#f3b416}
+  .dr__conf{position:fixed;inset:0;width:100%;height:100%;pointer-events:none;z-index:60;
+       display:none}
+  .dr__conf.is-on{display:block}
+  @media (prefers-reduced-motion:reduce){ .dr__conf{display:none !important} }
 </style>
 
 <div class="dr">
@@ -151,7 +166,10 @@
 
   function paint(v) {
     var kind = CLS[v.verdict] || 'refuse';
-    panel.className = 'dr__v dr__v--' + kind;
+    // A guest of honour still gets the admit WORD and mark — the gold is added to it, not
+    // substituted for it, so the panel reads the same way in sunlight and to a steward who
+    // cannot tell the two colours apart.
+    panel.className = 'dr__v dr__v--' + kind + (v.honour && v.verdict === 'admit' ? ' dr__v--honour' : '');
     panel.innerHTML = '';
 
     var mark = document.createElement('span');
@@ -186,6 +204,64 @@
     // A short buzz on anything that is not a clean admit. The operator is looking at the
     // queue, not the screen, and this is the cheapest way to make them look down.
     if (v.verdict !== 'admit' && navigator.vibrate) { try { navigator.vibrate(180); } catch (e) {} }
+
+    if (v.honour && v.verdict === 'admit') celebrate();
+  }
+
+  /**
+   * The burst. Hand-rolled on a canvas rather than a library: this page is loaded on a
+   * venue's wifi by a steward who needs it working, and a CDN script is a thing that can
+   * fail to arrive. Twelve lines is cheaper than that risk.
+   *
+   * Honours prefers-reduced-motion twice — the canvas is display:none under it, and this
+   * returns early — because a full-screen particle field is exactly what that setting is
+   * for, and a hidden canvas still costs the animation frames.
+   */
+  function celebrate() {
+    var cv = document.getElementById('dr-conf');
+    if (!cv || !cv.getContext) return;
+    if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+
+    var ctx = cv.getContext('2d');
+    var dpr = Math.min(2, window.devicePixelRatio || 1);
+    cv.width  = Math.floor(cv.clientWidth  * dpr);
+    cv.height = Math.floor(cv.clientHeight * dpr);
+    cv.classList.add('is-on');
+
+    var COLOURS = ['#f3b416', '#237b22', '#ffffff', '#f0f2f2'];
+    var bits = [];
+    for (var i = 0; i < 90; i++) {
+      bits.push({
+        x: cv.width * (0.2 + Math.random() * 0.6),
+        y: cv.height * (0.35 + Math.random() * 0.1),
+        vx: (Math.random() - 0.5) * 9 * dpr,
+        vy: (-7 - Math.random() * 8) * dpr,
+        r: (3 + Math.random() * 4) * dpr,
+        spin: (Math.random() - 0.5) * 0.3,
+        a: Math.random() * Math.PI,
+        c: COLOURS[i % COLOURS.length]
+      });
+    }
+
+    var started = Date.now();
+    function frame() {
+      var age = Date.now() - started;
+      ctx.clearRect(0, 0, cv.width, cv.height);
+      for (var j = 0; j < bits.length; j++) {
+        var b = bits[j];
+        b.vy += 0.28 * dpr;          // gravity
+        b.x  += b.vx; b.y += b.vy; b.a += b.spin;
+        ctx.save();
+        ctx.globalAlpha = Math.max(0, 1 - age / 2600);
+        ctx.translate(b.x, b.y); ctx.rotate(b.a);
+        ctx.fillStyle = b.c;
+        ctx.fillRect(-b.r, -b.r * 0.4, b.r * 2, b.r * 0.8);
+        ctx.restore();
+      }
+      if (age < 2600) requestAnimationFrame(frame);
+      else { ctx.clearRect(0, 0, cv.width, cv.height); cv.classList.remove('is-on'); }
+    }
+    requestAnimationFrame(frame);
   }
 
   function remember(v) {

@@ -3,7 +3,7 @@ declare(strict_types=1);
 
 namespace AfricaGates\Controllers;
 
-use AfricaGates\Services\{EventScanPass, EventTicketService};
+use AfricaGates\Services\{EventScanPass, EventTicketService, InviteAudience, InvitePass};
 use Illuminate\Database\Capsule\Manager as DB;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
@@ -139,6 +139,28 @@ final class DoorController
 
         $pass  = $r['pass'];
         $label = trim((string) ($pass->label ?? ''));
+
+        // ── A GUEST OF HONOUR IS NOT A TICKET ────────────────────────────────
+        //
+        // Nominees and judges are invited, not sold to — see the note in the
+        // gates_event_invites migration on why minting them complimentary tickets would
+        // have counted them as sales and stopped the hall selling. So their pass is a
+        // different thing and it is checked here, before the ticket path.
+        //
+        // Recognised by SHAPE, not tried-and-fallen-back-to: an invitation code is
+        // `AGI-XXXXXXXX.<window>.<sig>`, and a ticket code has no dots in it. Trying the
+        // ticket lookup first and falling through on failure would make the door an
+        // oracle — two different "not found" answers for the same scan tell somebody
+        // holding a random string which namespace it missed.
+        if (substr_count($code, '.') === 2) {
+            $verdict = $this->honour($code, (int) $pass->event_id);
+            EventScanPass::touch((int) $pass->id);
+
+            return $this->json($res, $verdict + [
+                'admitted' => $this->admitted((int) $pass->event_id),
+            ]);
+        }
+
         $v = EventTicketService::checkIn(
             $code,
             (int) $pass->event_id,
@@ -160,6 +182,66 @@ final class DoorController
             // rather than a number the browser has been incrementing since it was opened.
             'admitted' => $this->admitted((int) $pass->event_id),
         ]);
+    }
+
+    /**
+     * Verify an invitation pass and say what the door should do.
+     *
+     * Returns the same shape as {@see EventTicketService::checkIn()} so the page has one
+     * verdict renderer, plus `honour` — which is what makes the screen celebrate. This is
+     * somebody being met at the door of an evening held for them; a green tick is the
+     * right answer for a ticket and the wrong one for this.
+     *
+     * @return array<string,mixed>
+     */
+    private function honour(string $code, int $eventId): array
+    {
+        $r = InvitePass::verify($code);
+
+        if (!$r['ok']) {
+            return [
+                'ok' => false, 'verdict' => 'refuse', 'honour' => false,
+                'title' => 'Invitation not valid', 'detail' => $r['reason'],
+                'name' => '', 'tier' => '', 'seats' => 0, 'code' => $code,
+            ];
+        }
+
+        $invite = $r['invite'];
+
+        // An invitation to another evening is refused with the same words as one that does
+        // not exist, for the reason the ticket path gives: splitting them turns a door into
+        // an oracle for which references are real.
+        if ($eventId > 0 && (int) $invite->event_id !== $eventId) {
+            return [
+                'ok' => false, 'verdict' => 'refuse', 'honour' => false,
+                'title' => 'Invitation not valid',
+                'detail' => 'No invitation here has that reference.',
+                'name' => '', 'tier' => '', 'seats' => 0, 'code' => $code,
+            ];
+        }
+
+        $spec = InviteAudience::spec((string) $invite->audience);
+        $seen = (int) $invite->scans;
+
+        InvitePass::touch((int) $invite->id);
+
+        // Already through is NOT a refusal. A nominee who steps out to take a call and
+        // comes back is the ordinary case, and turning them away from their own ceremony
+        // over a re-scan is a worse failure than a second admission. It is reported so a
+        // steward can see it and use their judgement.
+        return [
+            'ok'      => true,
+            'verdict' => 'admit',
+            'honour'  => true,
+            'title'   => $seen > 0 ? 'Welcome back' : 'Guest of honour',
+            'detail'  => $seen > 0
+                ? $spec['label'] . ' — already admitted ' . $seen . ' time' . ($seen === 1 ? '' : 's') . ' this evening.'
+                : 'Admit and show them to their seat. ' . $spec['label'] . '.',
+            'name'    => (string) $invite->name,
+            'tier'    => (string) $spec['label'],
+            'seats'   => 1,
+            'code'    => (string) $invite->reference,
+        ];
     }
 
     /** Seats admitted so far — people through the door, not bookings scanned. */
