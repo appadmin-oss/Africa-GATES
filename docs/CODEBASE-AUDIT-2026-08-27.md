@@ -223,6 +223,30 @@ first and `.env` as the fallback, plus the fields on the settings page.
 
 **Severity: medium.** The §17 trap class, in a fresh instance.
 
+> **Resolved after this audit was written.** The table has a reader:
+> `AnalyticsService::platformEvents()`, rendered as a **Recorded actions** panel on
+> `/admin/analytics`. It reports distinct actors and devices beside the volume rather than a
+> bare count, because the count of votes is already on that page — better — from the votes
+> table; what this log holds that no domain table does is the actor beside the action, which
+> is what makes "eleven OTP requests and one vote from one device" a sentence somebody can
+> act on.
+>
+> The constructor's guard is fixed: it discarded `hasTable()`'s return value and set
+> `$enabled = true` whenever the call did not throw.
+>
+> Two things were **deleted** rather than wired. `funnelReport()` read
+> `gates_funnel_events`, which `AnalyticsService::ballotFunnel()` already reads and renders —
+> a second reader of one table, invisible because it had no caller. And the four emitters
+> nothing called (`nominationReceived`, `nomineeApproved`, `registrationCompleted`,
+> `shareClicked`) are gone, because their content is not missing: registrations and
+> nominations are counted straight off the domain tables by `audience()` and
+> `nominationFunnel()`, which beats a parallel log that can be forgotten at a call site.
+>
+> `tests/Unit/EventLogReaderTest.php` holds nine guards. The important one asserts the
+> reader returns what a writer actually wrote — a panel rendering an empty table over a full
+> log would pass a test of its own and be the same bug. The guard on the constructor was
+> verified to fail against the original code.
+
 `EventService` is fully wired: registered in `config/container.php:350`, injected into
 `ApiController` and `MilestoneService`. Four of its emitters fire in production — `voteCast`,
 `milestoneReached`, `fraudFlagged`, `otpRequested` — so `gates_events` accumulates rows for the
@@ -374,6 +398,29 @@ value is in the nine rows in the table, not the tail.
 
 **Severity: medium.** Not a product defect; a CI-integrity one.
 
+> **Resolved after this audit was written.** `AiService::httpPost()` — already the single
+> network seam, and already protected so a test can intercept it — now refuses a credential
+> that cannot work, before `curl_init`. A full suite run afterwards contains **zero**
+> occurrences of `api.openai.com`; it previously carried OpenAI's own 401 body.
+>
+> Refused at the transport and deliberately not at `boot()`: a placeholder must still count
+> as *configured*, because the screens showing "AI is set up" are driven by that and the
+> three tests seed a key precisely to render that state. What must not happen is the round
+> trip.
+>
+> Two rules, both chosen so they cannot catch a real key — shorter than 20 characters (the
+> smallest credential any of the four providers issues is a Gemini key at 39), or containing
+> a marker no issued key does, the same shape as the placeholder list in
+> `OtpService::smtpConfigured()`. Deliberately not a prefix format check: providers change
+> those, and rejecting a real key is a far worse failure than dialling a fake one.
+>
+> The URL is inspected as well as the headers, which is not belt-and-braces — Gemini passes
+> its key as a `?key=` query parameter and calls the transport with no headers at all, so a
+> header-only check would have left one of the four providers still dialling.
+>
+> Production gets the same benefit: an unedited placeholder can only ever return 401, so
+> dialling it is pure latency on a request somebody is waiting for.
+
 Three tests — `QuestionnaireAdminRenderTest:44`, `InterviewPageTest:56`,
 `QuestionnaireInterviewTest:82` — seed a `gates_settings` row with
 `['value' => 'sk-test-not-a-real-key']`. `AiService` resolves it as a real credential and calls
@@ -489,8 +536,9 @@ only `imagecopyresampled()` in the tree.
 3. **§3.4** — ~~call `DisplayTime::toStored()` from `cycleSave()`, delete the two
    reimplementations, and cover the round-trip with a test.~~ **Done**, across nine call sites in
    seven templates and six write paths, with two scanning guards.
-4. **§3.3** — either surface `funnelReport()` on the analytics page next to the funnel data that is
-   already rendered, or drop `gates_events` and its emitters. Fix the discarded `hasTable()` either
-   way.
-5. **§3.6** — give `AiService` a sentinel it refuses before `curl_exec`, so the suite stops dialling out.
+4. **§3.3** — ~~either surface the funnel report, or drop `gates_events` and its emitters. Fix the
+   discarded `hasTable()` either way.~~ **Done** — a reader on the analytics page, the duplicate
+   funnel reader and four uncalled emitters deleted, the guard fixed.
+5. **§3.6** — ~~give `AiService` a sentinel it refuses before `curl_exec`.~~ **Done** — a full run
+   now contains zero occurrences of `api.openai.com`.
 6. **§3.5** — triage the nine rows in the table; each is a decision to wire up or delete, not a fix.

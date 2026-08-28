@@ -419,6 +419,84 @@ final class AnalyticsService
      *
      * @return array{steps:list<array{step:string,sessions:int,pct:int}>, sessions:int}
      */
+    /**
+     * What the platform actually recorded happening, from `gates_events`.
+     *
+     * ── WHY THIS PANEL EXISTS AT ALL ─────────────────────────────────────────
+     *
+     * `gates_events` had been written on four paths since the day it was added — a vote
+     * cast, a milestone reached, a fraud score flagged, an OTP requested — and read by
+     * NOTHING. Rows accumulated for the life of every install so a question could be
+     * answered, and nothing ever asked it. The audit that found it recorded the same shape
+     * five times over in this codebase; `gates_status_log.components_json` was the closest
+     * twin, stored every fifteen minutes so the status page could say "something broke on
+     * the 14th" and not which thing.
+     *
+     * ── AND WHY IT IS NOT JUST A COUNT ───────────────────────────────────────
+     *
+     * A count of `vote.submitted` is already on this page, better, from the votes table.
+     * What this log holds that no domain table does is the ACTOR beside the action — an
+     * email hash, an IP hash, a device hash — which is what makes "eleven OTP requests and
+     * one vote from one device" a sentence somebody can act on. So the panel reports the
+     * distinct actors and devices alongside the volume, because that ratio is the whole
+     * reason these rows are worth keeping.
+     *
+     * @return array{rows:list<array{name:string,count:int,actors:int,devices:int,last:string}>,
+     *                total:int}
+     */
+    public static function platformEvents(int $days = 30): array
+    {
+        $days  = self::clampDays($days);
+        $empty = ['rows' => [], 'total' => 0];
+
+        if (!self::has('gates_events')) return $empty;
+
+        $from = date('Y-m-d', strtotime('-' . ($days - 1) . ' days')) . ' 00:00:00';
+
+        try {
+            $agg = [];
+            // Aggregated in PHP rather than with COUNT(DISTINCT …) per column: the hashes
+            // are nullable, MySQL and SQLite disagree about NULL inside DISTINCT, and this
+            // table is small — it is one row per notable action, not per request.
+            foreach (DB::table('gates_events')->where('created_at', '>=', $from)
+                        ->get(['name', 'actor_hash', 'device_hash', 'created_at']) as $r) {
+                $name = trim((string) ($r->name ?? ''));
+                if ($name === '') continue;
+
+                $agg[$name] ??= ['count' => 0, 'actors' => [], 'devices' => [], 'last' => ''];
+                $agg[$name]['count']++;
+
+                $a = (string) ($r->actor_hash ?? '');
+                $d = (string) ($r->device_hash ?? '');
+                if ($a !== '') $agg[$name]['actors'][$a]   = true;
+                if ($d !== '') $agg[$name]['devices'][$d]  = true;
+
+                $at = (string) ($r->created_at ?? '');
+                if ($at > $agg[$name]['last']) $agg[$name]['last'] = $at;
+            }
+        } catch (\Throwable) {
+            return $empty;
+        }
+
+        $rows  = [];
+        $total = 0;
+        foreach ($agg as $name => $a) {
+            $total += $a['count'];
+            $rows[] = [
+                'name'    => $name,
+                'count'   => (int) $a['count'],
+                'actors'  => count($a['actors']),
+                'devices' => count($a['devices']),
+                'last'    => (string) $a['last'],
+            ];
+        }
+
+        // Busiest first: the row somebody is on this page about is the one with volume.
+        usort($rows, static fn (array $x, array $y): int => $y['count'] <=> $x['count']);
+
+        return ['rows' => $rows, 'total' => $total];
+    }
+
     public static function ballotFunnel(int $days = 30): array
     {
         $days = self::clampDays($days);

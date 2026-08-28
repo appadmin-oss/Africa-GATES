@@ -63,6 +63,9 @@ final class AnalyticsController
             'community'  => AnalyticsService::community($days),
             'support'    => AnalyticsService::support($days),
             'mail'       => AnalyticsService::deliverability($days),
+            // gates_events: written on four paths since the day it was added, read by
+            // nothing until this line. See AnalyticsService::platformEvents().
+            'events'     => AnalyticsService::platformEvents($days),
         ]);
     }
 }

@@ -184,4 +184,73 @@ class AiServiceTest extends TestCase
         $this->assertSame('{"a":1}', $m->invoke(null, "```\n{\"a\":1}\n```"));
         $this->assertSame('{"a":1}', $m->invoke(null, '{"a":1}'));
     }
+
+    // ══ the suite does not dial a provider ═══════════════════════════════════
+
+    /** Reach the protected transport without going near a network. */
+    private function transport(): object
+    {
+        return new class extends AiService {
+            public function __construct() { parent::__construct(); }
+            /** @param list<string> $headers */
+            public function callHttp(string $url, array $headers): ?array
+            {
+                return $this->httpPost($url, $headers, ['x' => 1]);
+            }
+        };
+    }
+
+    /**
+     * Three tests seed `sk-test-not-a-real-key` into gates_settings to render the
+     * "AI is configured" state, and the suite dialled api.openai.com for real on every run
+     * because of it — OpenAI's own 401 body was in the log, so the request left the
+     * machine. That made the suite depend on outbound reachability, pay a handshake per
+     * call, and send traffic to a third party on every CI build, to reach a failure path
+     * that is reached identically without leaving the process.
+     */
+    public function test_a_placeholder_bearer_token_is_never_sent(): void
+    {
+        $t = $this->transport();
+
+        $this->assertNull($t->callHttp('https://api.openai.com/v1/chat/completions',
+            ['Authorization: Bearer sk-test-not-a-real-key']));
+        $this->assertNull($t->callHttp('https://api.groq.com/openai/v1/chat/completions',
+            ['Authorization: Bearer sk-test']), 'too short to be any provider\'s key');
+        $this->assertNull($t->callHttp('https://api.anthropic.com/v1/messages',
+            ['x-api-key: your_key_here']));
+    }
+
+    /**
+     * Gemini takes its key as a `?key=` query parameter and calls the transport with NO
+     * headers, so a header-only check would have left exactly one of the four providers
+     * still dialling.
+     */
+    public function test_a_placeholder_in_the_url_is_never_sent_either(): void
+    {
+        $this->assertNull($this->transport()->callHttp(
+            'https://generativelanguage.googleapis.com/v1beta/models/x:generateContent?key=changeme',
+            []
+        ));
+    }
+
+    /**
+     * And the rule cannot catch a real credential — the failure that would matter far more
+     * than dialling a fake one. Asserted on the predicate rather than by making a call,
+     * because proving a real key IS sent would mean sending it.
+     */
+    public function test_a_real_looking_key_is_not_refused(): void
+    {
+        $m = new \ReflectionMethod(AiService::class, 'looksUnusable');
+        $m->setAccessible(true);
+
+        foreach ([
+            'sk-' . str_repeat('A1b2C3d4', 6),              // OpenAI
+            'gsk_' . str_repeat('x7Y9z2Qw', 7),             // Groq
+            'sk-ant-api03-' . str_repeat('kL8mN2pQ', 8),    // Anthropic
+            'AIza' . str_repeat('Sy9Bd3Kk', 5),             // Gemini
+        ] as $key) {
+            $this->assertFalse($m->invoke(null, $key),
+                'a real ' . substr($key, 0, 4) . '… key was refused as a placeholder');
+        }
+    }
 }

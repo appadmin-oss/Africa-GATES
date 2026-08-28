@@ -340,6 +340,46 @@
   </div>
 </section>
 
+{# ══ RECORDED ACTIONS ═══════════════════════════════════════════════════════
+
+   `gates_events` was written on four paths since the day it was added and read by nothing
+   until this panel. What it holds that no domain table does is the ACTOR beside the action,
+   which is why the actor and device columns are here rather than a bare count: the count of
+   votes is already on this page, better, from the votes table. Eleven OTP requests and one
+   vote from one device is the sentence this exists to make sayable. #}
+<section class="an-sec">
+  <div class="an-sec__h"><h2>Recorded actions</h2><span>volume, and how many people it came from</span></div>
+  <div class="an-panel">
+    <p class="an-sec__note" style="margin:0 0 8px">
+      Straight from the platform's own event log. A row where the volume is high and the
+      people count is low is one device doing something repeatedly — which is the only
+      reading here that domain tables cannot give you.
+    </p>
+    {% if events.rows|length %}
+      <table class="an-tbl">
+        <thead><tr><th>Action</th><th class="n">Times</th><th class="n">People</th><th class="n">Devices</th><th>Last</th></tr></thead>
+        <tbody>
+        {% for e in events.rows %}
+          <tr>
+            <td><code>{{ e.name }}</code></td>
+            <td class="n">{{ e.count|number_format }}</td>
+            <td class="n">{{ e.actors ? e.actors|number_format : '—' }}</td>
+            <td class="n">{{ e.devices ? e.devices|number_format : '—' }}</td>
+            <td>{{ e.last ? e.last|when : '—' }}</td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    {% else %}
+      <p class="an-empty">
+        Nothing has been recorded to <code>gates_events</code> in this window. That is an
+        instrumentation gap rather than a quiet platform — votes and sign-in codes are
+        counted elsewhere on this page and will show there regardless.
+      </p>
+    {% endif %}
+  </div>
+</section>
+
 {# ══ GEOGRAPHY ══════════════════════════════════════════════════════════════ #}
 <section class="an-sec">
   <div class="an-sec__h"><h2>Geography</h2><span>reach, and the gaps in it</span></div>

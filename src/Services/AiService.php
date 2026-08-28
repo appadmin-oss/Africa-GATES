@@ -1185,6 +1185,72 @@ class AiService
     }
 
     // ── Shared HTTP + parsing helpers ──────────────────────────────────────
+
+    /**
+     * Is the bearer token on this request something no provider could ever accept?
+     *
+     * TWO RULES, both chosen so they cannot catch a real key.
+     *
+     *   · Too short. The shortest credential any of these four providers issues is a
+     *     Gemini key at `AIza` plus thirty-five characters; OpenAI is `sk-` plus
+     *     forty-eight, Groq `gsk_` plus fifty-two. Twenty is far below all of them and
+     *     comfortably above the `sk-test` that a fixture uses.
+     *   · A marker no issued key contains. Same shape as the placeholder list in
+     *     {@see OtpService::smtpConfigured()}, and for the same reason: the values people
+     *     leave in a config file are a known, small set.
+     *
+     * Deliberately NOT a format check on the prefix. Providers change those — `sk-proj-`
+     * did not exist when `sk-` was the whole convention — and a validator that rejects a
+     * real key is a far worse failure than one that dials a fake one.
+     *
+     * The URL is inspected as well as the headers, and that is not belt-and-braces: Gemini
+     * takes its key as a `?key=` query parameter and calls httpPost with NO headers at all,
+     * so a header-only check would have left exactly one of the four providers still
+     * dialling on a placeholder.
+     *
+     * @param list<string> $headers
+     */
+    private static function unusableCredential(string $url, array $headers): bool
+    {
+        $candidates = [];
+
+        $q = (string) (parse_url($url, PHP_URL_QUERY) ?? '');
+        if ($q !== '') {
+            parse_str($q, $params);
+            foreach (['key', 'api_key', 'apikey'] as $name) {
+                if (isset($params[$name]) && is_string($params[$name])) $candidates[] = $params[$name];
+            }
+        }
+
+        foreach ($candidates as $key) {
+            if (self::looksUnusable($key)) return true;
+        }
+
+        foreach ($headers as $h) {
+            if (stripos((string) $h, 'authorization:') !== 0
+                && stripos((string) $h, 'x-api-key:') !== 0) continue;
+
+            $key = trim((string) preg_replace('~^[^:]+:\s*(Bearer\s+)?~i', '', (string) $h));
+            if (self::looksUnusable($key)) return true;
+        }
+
+        return false;
+    }
+
+    /** The two rules above, applied to one credential. */
+    private static function looksUnusable(string $key): bool
+    {
+        $key = trim($key);
+        if ($key === '' || strlen($key) < 20) return true;
+
+        foreach (['not-a-real-key', 'placeholder', 'changeme', 'change-me',
+                  'your_', 'your-key', 'yourkey', 'example-key', 'dummy'] as $marker) {
+            if (stripos($key, $marker) !== false) return true;
+        }
+
+        return false;
+    }
+
     /**
      * Protected, not private, so a test can intercept the ONE network call without
      * bypassing anything else. Overriding the four per-provider methods instead
@@ -1193,6 +1259,27 @@ class AiService
      */
     protected function httpPost(string $url, array $headers, array $payload): ?array
     {
+        // ── A CREDENTIAL THAT CANNOT WORK IS NOT DIALLED ─────────────────────
+        //
+        // Refused here rather than at boot() on purpose: a placeholder must still count as
+        // CONFIGURED, because the screens that show "AI is set up" are driven by that and
+        // several tests seed a key precisely to render that state. What must not happen is
+        // the round trip.
+        //
+        // It was happening. Three tests seed `sk-test-not-a-real-key` into gates_settings
+        // and the suite dialled api.openai.com for real on every run — OpenAI's own 401 is
+        // in the log, so the request left the machine. That made the suite depend on
+        // outbound reachability, pay a handshake per call, and send traffic to a third
+        // party on every CI build, all to reach a failure path that is reached identically
+        // without leaving the process.
+        //
+        // Production gets the same benefit: an unedited placeholder can only ever return
+        // 401, so dialling it is pure latency on a request somebody is waiting for.
+        if (self::unusableCredential($url, $headers)) {
+            error_log('[AiService] refusing to send a placeholder credential to ' . $url);
+            return null;
+        }
+
         $body  = json_encode($payload);
         $limit = max(1, (int) ($this->timeoutOverride ?? $this->timeout));
 
