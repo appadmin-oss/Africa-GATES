@@ -68,7 +68,10 @@ class PostsController
             'author'       => trim((string)($b['author'] ?? 'Africa GATES Editorial')),
             'tag'          => trim((string)($b['tag'] ?? '')),
             'status'       => in_array($b['status'] ?? '', ['published','draft'], true) ? $b['status'] : 'draft',
-            'published_at' => $b['published_at'] ?: Carbon::now()->toDateTimeString(),
+            // Typed in the display zone, stored as UTC. The form renders this through
+            // |when_input, so saving the raw POST would shift it by the offset on
+            // every save. See DisplayTime.
+            'published_at' => \AfricaGates\Support\DisplayTime::toStored($b['published_at'] ?? null) ?: Carbon::now()->toDateTimeString(),
         ];
         if ($data['title'] === '' || $data['slug'] === '') {
             $_SESSION['flash_error'] = 'Title and slug are required.';

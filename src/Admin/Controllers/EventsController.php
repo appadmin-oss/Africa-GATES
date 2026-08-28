@@ -205,8 +205,11 @@ class EventsController
             'description' => trim((string)($b['description'] ?? '')),
             'location'    => trim((string)($b['location'] ?? '')),
             'venue'       => trim((string)($b['venue'] ?? '')),
-            'event_date'  => (string)($b['event_date'] ?: Carbon::now()->toDateTimeString()),
-            'end_date'    => $b['end_date'] ?: null,
+            // Through fromInput() like every other datetime on this form. These three
+            // read the raw POST while the tier and session dates beside them were
+            // converted — the same form, two conventions, one of them an hour out.
+            'event_date'  => (string)(self::fromInput($b['event_date'] ?? '') ?: Carbon::now()->toDateTimeString()),
+            'end_date'    => self::fromInput($b['end_date'] ?? ''),
             'cover_image' => trim((string)($b['cover_image'] ?? '')),
             'rsvp_url'    => trim((string)($b['rsvp_url'] ?? '')),
             'status'      => in_array($b['status'] ?? '', ['published','draft'], true) ? $b['status'] : 'draft',
@@ -214,7 +217,7 @@ class EventsController
             'schedule'            => $schedule ? json_encode($schedule) : null,
             'map_embed'           => trim((string)($b['map_embed'] ?? '')) ?: null,
             'early_bird_text'     => trim((string)($b['early_bird_text'] ?? '')) ?: null,
-            'early_bird_deadline' => trim((string)($b['early_bird_deadline'] ?? '')) ?: null,
+            'early_bird_deadline' => self::fromInput($b['early_bird_deadline'] ?? ''),
             'early_bird_url'      => trim((string)($b['early_bird_url'] ?? '')) ?: null,
             // ── the organiser's own operating rules ──────────────────────────
             // Off unless ticked. A waiting list nobody works is worse than an honest
@@ -425,22 +428,27 @@ class EventsController
         ];
     }
 
-    /** `2026-01-31 19:00:00` → `2026-01-31T19:00`, which is what datetime-local wants. */
+    /**
+     * Both halves of the `datetime-local` round trip, delegated.
+     *
+     * These were a local pair built on Carbon, and they were the SECOND
+     * implementation of a round trip `Support\DisplayTime` already owns — the cycle
+     * form's inline Twig filter was the third. Two things were wrong with this copy:
+     * it formatted `'Y-m-d\TH:i'`, dropping the seconds off every value that passed
+     * through it, and it read the typed time in the PROCESS zone, so an organiser in
+     * Lagos setting a sales close at 18:00 got 18:00 UTC — an hour later than the
+     * hour they picked. Storage is still UTC either way; the conversion is the point.
+     */
     private static function forInput(string $stamp): string
     {
-        $stamp = trim($stamp);
-        if ($stamp === '') return '';
-        try { return Carbon::parse($stamp)->format('Y-m-d\TH:i'); }
-        catch (\Throwable) { return ''; }
+        return \AfricaGates\Support\DisplayTime::forInput($stamp);
     }
 
-    /** `2026-01-31T19:00` → a database timestamp, or null for an empty box. */
     private static function fromInput(mixed $raw): ?string
     {
-        $raw = trim((string) $raw);
-        if ($raw === '') return null;
-        try { return Carbon::parse($raw)->toDateTimeString(); }
-        catch (\Throwable) { return null; }
+        return \AfricaGates\Support\DisplayTime::toStored(
+            $raw === null ? null : (string) $raw
+        );
     }
 
     /**
@@ -923,10 +931,12 @@ class EventsController
             return $res->withHeader('Location', '/admin/events')->withStatus(302);
         }
 
+        // Both windows through the converter — the form renders them with |when_input,
+        // and a gate pass that opens an hour late is a queue outside the door.
         $token = \AfricaGates\Services\EventScanPass::issue(
             $id,
-            (string) ($b['closes_at'] ?? ''),
-            (string) ($b['opens_at'] ?? ''),
+            (string) (\AfricaGates\Support\DisplayTime::toStored($b['closes_at'] ?? null) ?? ''),
+            (string) (\AfricaGates\Support\DisplayTime::toStored($b['opens_at'] ?? null) ?? ''),
             trim((string) ($b['label'] ?? '')),
             (int) ($_SESSION['admin_id'] ?? 0)
         );

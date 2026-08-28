@@ -199,7 +199,7 @@
           <div>
             <label for="stReopen">New closing date</label>
             <input id="stReopen" name="closes_at" type="datetime-local" required
-                   value="{{ call.closes_at ? call.closes_at|slice(0,16)|replace({' ':'T'}) : '' }}">
+                   value="{{ call.closes_at ? call.closes_at|when_input : '' }}" step="1">
           </div>
           <button class="ad-btn ad-btn--sm" type="submit">Reopen</button>
         </form>
@@ -220,12 +220,12 @@
         <div>
           <label for="stOpens">Opens (optional)</label>
           <input id="stOpens" name="opens_at" type="datetime-local"
-                 value="{{ call and call.opens_at ? call.opens_at|slice(0,16)|replace({' ':'T'}) : '' }}">
+                 value="{{ call and call.opens_at ? call.opens_at|when_input : '' }}" step="1">
         </div>
         <div>
           <label for="stCloses">Closes <span aria-hidden="true">*</span></label>
           <input id="stCloses" name="closes_at" type="datetime-local" required
-                 value="{{ call and call.closes_at ? call.closes_at|slice(0,16)|replace({' ':'T'}) : '' }}">
+                 value="{{ call and call.closes_at ? call.closes_at|when_input : '' }}" step="1">
           <small style="color:var(--ad-text-mute)">A window with no deadline is an appeal that never resolves</small>
         </div>
       </div>

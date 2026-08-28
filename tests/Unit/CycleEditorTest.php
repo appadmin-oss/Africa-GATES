@@ -101,7 +101,17 @@ class CycleEditorTest extends TestCase
 
         $body = $this->view();
 
-        $this->assertStringContainsString('All times are UTC', $body);
+        // This asserted the literal 'All times are UTC', because the form used to be
+        // labelled with the PROCESS zone and stored what was typed — so an operator in
+        // Lagos had to convert every deadline in their head. The fields now round-trip
+        // through DisplayTime, which reads the DISPLAY zone and stores UTC, so the page
+        // has two facts to state rather than one. The intent is unchanged and is the
+        // reason this test exists: datetime-local carries no offset, so the convention
+        // cannot be left implicit.
+        $this->assertStringContainsString('Entered in ' . \AfricaGates\Support\DisplayTime::abbr(), $body,
+            'the page must name the zone the operator is typing in');
+        $this->assertStringContainsString('stored as UTC', $body,
+            'and the zone it is kept in, which is not the same one');
         $this->assertStringContainsString("your browser's timezone is not applied", $body,
             'datetime-local gives no offset, so the convention must be explicit');
     }

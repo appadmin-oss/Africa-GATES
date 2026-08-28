@@ -166,11 +166,11 @@
           <label for="dpOpens">Opens <span style="font-weight:400;color:#5a6d6f">(optional)</span></label>
           {# Blank means "works now" — an organiser standing at the door with a queue already
              forming should not have to fill in a start time to get moving. #}
-          <input type="datetime-local" id="dpOpens" name="opens_at">
+          <input type="datetime-local" id="dpOpens" name="opens_at" step="1">
         </div>
         <div>
           <label for="dpCloses">Closes</label>
-          <input type="datetime-local" id="dpCloses" name="closes_at">
+          <input type="datetime-local" id="dpCloses" name="closes_at" step="1">
         </div>
       </div>
       <p class="st-hint" style="margin:6px 0 10px">

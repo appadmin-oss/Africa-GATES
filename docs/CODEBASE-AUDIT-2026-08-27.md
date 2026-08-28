@@ -265,6 +265,35 @@ table got its screen; the other did not.
 
 **Severity: medium.** Touches the `T`-separator divergence documented in `CLAUDE.md`.
 
+> **Correction, and then resolved.** The claim below that **`forInput()` has zero callers is
+> wrong.** It is registered in `config/container.php` as the `|when_input` Twig filter, wired
+> straight to `DisplayTime::forInput`. The audit's scan searched `src/` and `templates/` and
+> missed `config/`. Only `toStored()` — the write half — was genuinely dead, because there is no
+> write-side filter. That makes the finding sharper rather than softer: the read half was
+> already available as a one-word filter, and **nine call sites across seven templates
+> hand-rolled `|replace({' ': 'T'})|slice(0,16)` anyway** — six more templates than this section
+> found.
+>
+> Fixed: every one of those now uses `|when_input`; `cycleSave()`, `PostsController`,
+> `InterviewsController`, `QuestionnairePolicy`, the `EventScanPass` windows and three
+> `EventsController` fields that bypassed its own converter all run their input through
+> `DisplayTime::toStored()`; `EventsController`'s private Carbon pair delegates instead of
+> duplicating; and every `datetime-local` input gained `step="1"`, without which the browser
+> hands back a value one minute coarser than the one it was given.
+>
+> **No data migration was needed, and that is worth recording.** The cycle form was labelled
+> with `Clock::timezone()` — the *process* zone, UTC — and stored what was typed, so the rows it
+> produced are already correct UTC. `toStored()` converts from the display zone to UTC, so the
+> rows it produces are correct UTC too. Only what the operator types and sees changes. The form
+> now says "Entered in WAT · stored as UTC" instead of asking a Lagos operator to convert five
+> deadlines in their head.
+>
+> `tests/Unit/DeadlineRoundTripTest.php` holds seven guards, including two scanning ones: no
+> template may convert a datetime by hand, and no `datetime-local` input may omit `step="1"`.
+> `CycleEditorTest`'s timezone assertion was updated — it asserted the literal string
+> `All times are UTC`; it now asserts the page names both the entry zone and the storage zone,
+> which is what it always said it was for.
+
 `Support/DisplayTime` exists to solve exactly one problem, and its docblocks state it clearly:
 
 > an operator typing "23:59" into a cycle's `voting_close` means 23:59 in THEIR zone, and storing
@@ -457,9 +486,9 @@ only `imagecopyresampled()` in the tree.
    fallback; point `CycleAnnouncer` at the same resolver; add the fields to `/admin/settings`
    and replace the "add it to `.env`" copy.~~ **Done**, via `OtpService::boot()` and
    `CloudinaryService::config()`, with a scanning guard against a seventh reader.
-3. **§3.4** — call `DisplayTime::toStored()` from `cycleSave()`, delete the two reimplementations,
-   and cover the round-trip with a test that asserts the stored string has no `T` and keeps its
-   seconds.
+3. **§3.4** — ~~call `DisplayTime::toStored()` from `cycleSave()`, delete the two
+   reimplementations, and cover the round-trip with a test.~~ **Done**, across nine call sites in
+   seven templates and six write paths, with two scanning guards.
 4. **§3.3** — either surface `funnelReport()` on the analytics page next to the funnel data that is
    already rendered, or drop `gates_events` and its emitters. Fix the discarded `hasTable()` either
    way.

@@ -136,12 +136,12 @@
       </div>
       <div class="sc-f">
         <label for="scFrom">Usable from <small>(optional)</small></label>
-        <input id="scFrom" name="starts_at" type="datetime-local" x-model="form.starts_at">
+        <input id="scFrom" name="starts_at" type="datetime-local" x-model="form.starts_at" step="1">
       </div>
       <div class="sc-f">
         {# An early-bird code that still works in December. #}
         <label for="scUntil">Stops working <small>(optional)</small></label>
-        <input id="scUntil" name="ends_at" type="datetime-local" x-model="form.ends_at">
+        <input id="scUntil" name="ends_at" type="datetime-local" x-model="form.ends_at" step="1">
       </div>
     </div>
 

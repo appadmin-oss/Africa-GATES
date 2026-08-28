@@ -164,7 +164,7 @@
     <div class="is-f">
       <label for="when">Date and time</label>
       <input class="is-in" id="when" name="scheduled_at" type="datetime-local"
-             value="{{ row.scheduled_at ? row.scheduled_at|replace({' ':'T'})|slice(0,16) : '' }}" required>
+             value="{{ row.scheduled_at ? row.scheduled_at|when_input : '' }}" required step="1">
     </div>
     <div class="is-f">
       <label for="tz">Timezone</label>

@@ -115,9 +115,12 @@ final class QuestionnairePolicy
         $raw  = trim((string) ($in['deadline_at'] ?? ''));
         $when = null;
         if ($raw !== '') {
-            try {
-                $when = Carbon::parse($raw)->toDateTimeString();
-            } catch (\Throwable) {
+            // DisplayTime, not a bare Carbon::parse: the field renders through
+            // |when_input, so what arrives is the operator's wall clock and what is
+            // stored must be UTC. Carbon::parse read it in the PROCESS zone, which put
+            // the deadline an hour out for every nominee it was shown to.
+            $when = \AfricaGates\Support\DisplayTime::toStored($raw);
+            if ($when === null) {
                 return ['ok' => false, 'message' => 'That date could not be read. Use the date picker.'];
             }
         }

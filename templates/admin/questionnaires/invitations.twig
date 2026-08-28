@@ -69,7 +69,7 @@
                     for the public pages: the field would show an hour later than it stored,
                     and saving without touching it would push the deadline forward an hour
                     every single time. #}
-                 value="{{ policy.deadline_at ? policy.deadline_at|replace({' ':'T'})|slice(0,16) : '' }}">
+                 value="{{ policy.deadline_at ? policy.deadline_at|when_input : '' }}" step="1">
           {% if policy.source == 'derived' %}
             <p class="hint">Currently taken from this cycle's results date. Set one here and it stops moving when you reschedule the results.</p>
           {% elseif policy.source == 'none' %}

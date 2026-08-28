@@ -38,7 +38,7 @@
       {% endif %}
 
       <div class="ad-card">
-        <div class="ad-card__head"><div class="ad-card__title">Cycle window<small>All times are {{ timezone }}</small></div></div>
+        <div class="ad-card__head"><div class="ad-card__title">Cycle window<small>Entered in {{ timezone }} · stored as UTC</small></div></div>
         <div class="ad-card__body">
           <div class="ad-form">
             {# Target this cycle by ID. Matching on the submitted YEAR meant that
@@ -54,16 +54,21 @@
             </div>
             <div><label for="f-edition_label">Edition label</label><input type="text" name="edition_label" id="f-edition_label" value="{{ cycle.edition_label|default('') }}"></div>
             <div class="row">
-              <div><label for="f-nominations_open">Nominations open</label><input type="datetime-local" name="nominations_open" id="f-nominations_open" value="{{ cycle.nominations_open|default('')|replace({' ': 'T'})|slice(0,16) }}"></div>
-              <div><label for="f-nominations_close">Nominations close</label><input type="datetime-local" name="nominations_close" id="f-nominations_close" value="{{ cycle.nominations_close|default('')|replace({' ': 'T'})|slice(0,16) }}"></div>
+              <div><label for="f-nominations_open">Nominations open</label><input type="datetime-local" name="nominations_open" id="f-nominations_open" value="{{ cycle.nominations_open|default('')|when_input }}" step="1"></div>
+              <div><label for="f-nominations_close">Nominations close</label><input type="datetime-local" name="nominations_close" id="f-nominations_close" value="{{ cycle.nominations_close|default('')|when_input }}" step="1"></div>
             </div>
             <div class="row">
-              <div><label for="f-voting_open">Voting open</label><input type="datetime-local" name="voting_open" id="f-voting_open" value="{{ cycle.voting_open|default('')|replace({' ': 'T'})|slice(0,16) }}"></div>
-              <div><label for="f-voting_close">Voting close</label><input type="datetime-local" name="voting_close" id="f-voting_close" value="{{ cycle.voting_close|default('')|replace({' ': 'T'})|slice(0,16) }}"></div>
+              <div><label for="f-voting_open">Voting open</label><input type="datetime-local" name="voting_open" id="f-voting_open" value="{{ cycle.voting_open|default('')|when_input }}" step="1"></div>
+              <div><label for="f-voting_close">Voting close</label><input type="datetime-local" name="voting_close" id="f-voting_close" value="{{ cycle.voting_close|default('')|when_input }}" step="1"></div>
             </div>
-            <div><label for="f-results_date">Results date</label><input type="datetime-local" name="results_date" id="f-results_date" value="{{ cycle.results_date|default('')|replace({' ': 'T'})|slice(0,16) }}"></div>
+            <div><label for="f-results_date">Results date</label><input type="datetime-local" name="results_date" id="f-results_date" value="{{ cycle.results_date|default('')|when_input }}" step="1"></div>
             <p class="hint" style="margin:0">
-              Entered and stored in <strong>{{ timezone }}</strong> — your browser's timezone is not applied.
+              {# Was `Entered and stored in UTC`, with the value round-tripped by an inline
+                 `|when_input` — which put a `T` separator into the
+                 column and dropped the seconds. Both now go through DisplayTime, which is
+                 also why `step="1"` is on every field above: without it the browser hides
+                 the seconds it was given and hands back a value one minute coarser. #}
+              Entered in <strong>{{ timezone }}</strong> and stored as UTC — your browser's timezone is not applied.
               Leave a field blank to skip that phase. A voting close date with no open date is accepted,
               but setting both is strongly preferred.
             </p>

@@ -122,7 +122,11 @@ class ProgrammesController
             // automation instead of inferring it from five date fields.
             'phase'      => $phase,
             'history'    => $history,
-            'timezone'   => \AfricaGates\Support\Clock::timezone(),
+            // The DISPLAY zone, not Clock::timezone(). This said UTC, and the form
+            // stored what was typed verbatim — so an operator in Lagos had to convert
+            // every deadline in their head, on the five fields that decide whether a
+            // vote counted. Storage is still UTC; the conversion is DisplayTime's job.
+            'timezone'   => \AfricaGates\Support\DisplayTime::abbr(),
             // Statuses the transition guard will actually accept, so the
             // dropdown stops offering options that always fail.
             'selectable' => \AfricaGates\Services\CycleService::selectableFrom($cycle->status ?? null),
@@ -144,6 +148,29 @@ class ProgrammesController
         $cycle = $cycleId > 0
             ? DB::table('gates_award_cycles')->where('id', $cycleId)->where('programme_id', $programmeId)->first()
             : DB::table('gates_award_cycles')->where('programme_id', $programmeId)->where('year', $year)->first();
+
+        // ── THE FIVE DEADLINES, THROUGH THE ONE CONVERTER ───────────────────
+        //
+        // These went into the database as the browser handed them over:
+        // `2026-01-01T09:00`. A `T` separator and no seconds, on the columns that
+        // decide whether a vote counted.
+        //
+        // MySQL normalises a T-separated value on its way into a DATETIME, so
+        // production survived it. SQLite — dev, and the whole test harness — stores
+        // the string verbatim, where `'2026-01-01T09:00'` sorts AFTER every
+        // space-separated stamp of the same day, because 'T' is 0x54 and ' ' is 0x20.
+        // A phase comparison that passes every test and rejects real input.
+        //
+        // The seconds mattered on their own: the template rendered these with
+        // `slice(0,16)`, so a close stored at 23:59:59 came back 23:59:00 every time
+        // somebody opened this form and pressed save without touching the field.
+        //
+        // Normalised BEFORE windowError() below, so validation and storage are
+        // reading the same values — validating the raw POST and storing the converted
+        // one is how a window passes its own ordering check and then breaks it.
+        foreach (['nominations_open', 'nominations_close', 'voting_open', 'voting_close', 'results_date'] as $f) {
+            $b[$f] = \AfricaGates\Support\DisplayTime::toStored($b[$f] ?? null);
+        }
 
         // Window ordering. Nothing validated these, so it was possible to save a
         // cycle that could never open, or one whose windows overlap.

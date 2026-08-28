@@ -17,7 +17,7 @@
     <label>Audio URL <small>(optional — narration / podcast; mp3, m4a, ogg)</small><input type="url" name="audio_path" value="{{ row.audio_path|default('') }}" placeholder="https://… .mp3"></label>
     <div class="row">
       <label>Author<input type="text" name="author" value="{{ row.author|default('Africa GATES Editorial') }}"></label>
-      <label>Published at<input type="datetime-local" name="published_at" value="{{ row.published_at|default('')|replace({' ':'T'})|slice(0,16) }}"></label>
+      <label>Published at<input type="datetime-local" name="published_at" value="{{ row.published_at|when_input }}" step="1"></label>
     </div>
     <label>Status
       <select name="status">

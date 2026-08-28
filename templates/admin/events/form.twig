@@ -185,9 +185,9 @@
       </div>
       <div class="row">
         <label>Starts <span class="af-req" title="Required">*</span>
-          <input type="datetime-local" name="event_date" value="{{ row.event_date|default('')|replace({' ':'T'})|slice(0,16) }}" required></label>
+          <input type="datetime-local" name="event_date" value="{{ row.event_date|when_input }}" required step="1"></label>
         <label>Ends <span class="af-opt">optional</span>
-          <input type="datetime-local" name="end_date" value="{{ row.end_date|default('')|replace({' ':'T'})|slice(0,16) }}"></label>
+          <input type="datetime-local" name="end_date" value="{{ row.end_date|when_input }}" step="1"></label>
       </div>
       <div class="row">
         <label>Town or city <span class="af-opt">optional</span>
@@ -298,7 +298,7 @@
       </div>
       <div class="row">
         <label>Registration closes <span class="af-opt">blank = when the event starts</span>
-          <input type="datetime-local" name="sales_close_at" value="{{ sales_close_input|default('') }}"></label>
+          <input type="datetime-local" name="sales_close_at" value="{{ sales_close_input|default('') }}" step="1"></label>
         <label class="af-check" style="align-self:end">
           <input type="checkbox" name="waitlist_open" value="1"
                  {% if row.waitlist_open|default(0) %}checked{% endif %}>
@@ -362,8 +362,8 @@
             <button type="button" @click="rm(r.id)" aria-label="Remove row" style="border:none;background:#fbeaea;color:#a4243a;font-weight:700;border-radius:8px;width:34px;height:34px;cursor:pointer">×</button>
           </div>
           <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:6px">
-            <input name="tier_from[]" aria-label="Sales open at" type="datetime-local" x-model="r.from" style="width:200px">
-            <input name="tier_until[]" aria-label="Sales close at" type="datetime-local" x-model="r.until" style="width:200px">
+            <input name="tier_from[]" aria-label="Sales open at" type="datetime-local" x-model="r.from" style="width:200px" step="1">
+            <input name="tier_until[]" aria-label="Sales close at" type="datetime-local" x-model="r.until" style="width:200px" step="1">
             {# A code-gated tier is hidden from the public list and refused without the
                code, which is how a sponsor or speaker allocation stays out of sight
                without needing a second, secret event. #}
@@ -418,7 +418,7 @@
       <strong style="font-size:14px">Early-bird banner <small style="font-weight:400;color:#8a9a9c">(optional — auto-hides after the deadline)</small></strong>
       <label style="margin-top:8px">Banner text<input type="text" name="early_bird_text" value="{{ row.early_bird_text|default('') }}" maxlength="255" placeholder="Save ₦8,000 with Early Bird tickets"></label>
       <div class="row">
-        <label>Deadline<input type="datetime-local" name="early_bird_deadline" value="{{ row.early_bird_deadline|default('')|replace({' ':'T'})|slice(0,16) }}"></label>
+        <label>Deadline<input type="datetime-local" name="early_bird_deadline" value="{{ row.early_bird_deadline|when_input }}" step="1"></label>
         <label>Link URL<input type="text" name="early_bird_url" value="{{ row.early_bird_url|default('') }}" placeholder="#tickets or https://…"></label>
       </div>
     </div>
@@ -449,8 +449,8 @@
             <button type="button" @click="rm(r.id)" aria-label="Remove session" style="border:none;background:#fbeaea;color:#a4243a;font-weight:700;border-radius:8px;width:34px;height:34px;cursor:pointer;flex:none">×</button>
           </div>
           <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:6px">
-            <input name="ses_from[]" aria-label="Session starts" type="datetime-local" x-model="r.from" style="width:200px">
-            <input name="ses_until[]" aria-label="Session ends" type="datetime-local" x-model="r.until" style="width:200px">
+            <input name="ses_from[]" aria-label="Session starts" type="datetime-local" x-model="r.from" style="width:200px" step="1">
+            <input name="ses_until[]" aria-label="Session ends" type="datetime-local" x-model="r.until" style="width:200px" step="1">
             <input name="ses_room[]" aria-label="Room" x-model="r.room" maxlength="120" placeholder="Room" style="width:130px">
             <input name="ses_track[]" aria-label="Track" x-model="r.track" maxlength="80" placeholder="Track" style="width:130px">
             <label style="display:flex;align-items:center;gap:5px;font-size:12px;white-space:nowrap"><input type="checkbox" x-model="r.live"> Published</label>

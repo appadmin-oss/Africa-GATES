@@ -254,7 +254,9 @@ final class InterviewsController
 
         $nomineeId = (int) ($b2['nominee_id'] ?? 0);
         $tz        = trim((string) ($b2['timezone'] ?? 'Africa/Lagos'));
-        $when      = trim((string) ($b2['scheduled_at'] ?? ''));
+        // Converted, not just trimmed: the field renders through |when_input, so the
+        // browser hands back the organiser's own wall clock and storage is UTC.
+        $when      = (string) (\AfricaGates\Support\DisplayTime::toStored($b2['scheduled_at'] ?? null) ?? '');
 
         // The RAW local string, with the zone beside it. Converting here as well as in
         // create() is what stored every sitting an hour early in Lagos.
