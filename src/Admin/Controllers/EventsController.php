@@ -140,6 +140,13 @@ class EventsController
                 'gates_event_tiers', ['colour']
             ),
             'session_seed' => $sessionSeed,
+            // The award programme this event is the ceremony for. Drives the invitation
+            // run — see Admin\Controllers\InvitesController — and is nullable because
+            // most events are not ceremonies.
+            'programmes' => DB::table('gates_award_programmes')->where('is_active', 1)
+                ->orderBy('sort_order')->orderBy('title')->get(['id', 'title'])
+                ->map(fn ($r) => (array) $r)->all(),
+            'programme_missing' => OptionalColumn::missing('gates_site_events', ['programme_id']),
             // datetime-local wants its own format, and a raw timestamp in the box silently
             // renders as empty — which reads as "no cutoff set" and quietly removes one.
             'sales_close_input' => self::forInput((string) ($row['sales_close_at'] ?? '')),
@@ -223,6 +230,15 @@ class EventsController
             // Off unless ticked. A waiting list nobody works is worse than an honest
             // "fully booked", because it costs somebody hope as well as a seat.
         ];
+
+        // The ceremony's programme. Written ONLY when the form actually posted it and the
+        // column exists — for exactly the reason the note below records: writing a column
+        // the form does not contain blanks it on every unrelated save.
+        if (array_key_exists('programme_id', $b)
+            && OptionalColumn::missing('gates_site_events', ['programme_id']) === []) {
+            $pid = (int) $b['programme_id'];
+            $data['programme_id'] = $pid > 0 ? $pid : null;
+        }
 
         // ══ THE EXTRAS PANEL, AND A DATA-LOSS BUG IT WAS CAUSING ════════════════
         //

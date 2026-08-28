@@ -182,6 +182,16 @@
           <input type="text" name="title" value="{{ row.title|default('') }}" required></label>
         <label>Slug <span class="af-opt">blank = made from the title</span>
           <input type="text" name="slug" value="{{ row.slug|default('') }}" placeholder="auto"></label>
+
+        {% if programme_missing is empty %}
+        <label>Award programme <small>set this when the event is a ceremony — it is what the invitation run draws its guests of honour from</small>
+          <select name="programme_id">
+            <option value="">Not a ceremony</option>
+            {% for p in programmes %}
+              <option value="{{ p.id }}"{% if row.programme_id|default(0) == p.id %} selected{% endif %}>{{ p.title }}</option>
+            {% endfor %}
+          </select></label>
+        {% endif %}
       </div>
       <div class="row">
         <label>Starts <span class="af-req" title="Required">*</span>
@@ -831,7 +841,8 @@
       Also for this event:
       <a href="/admin/events/{{ row.id }}/tickets" style="font-weight:600">Who is coming</a> ·
       <a href="/admin/events/{{ row.id }}/codes" style="font-weight:600">Discount codes</a> ·
-      <a href="/admin/events/{{ row.id }}/stands" style="font-weight:600">Vendor stands</a>
+      <a href="/admin/events/{{ row.id }}/stands" style="font-weight:600">Vendor stands</a> ·
+      <a href="/admin/events/{{ row.id }}/invites" style="font-weight:600">Invitations</a>
     </p>
     {% endif %}
   </form>

@@ -3292,6 +3292,16 @@ return function(App $app) {
         // Tickets, attendees and the door. Its own screen because an organiser reading a
         // door list on the morning of an event is doing a different job from one editing a
         // description, and check-in is the only thing they want on that page.
+        /**
+         * The invitation run. Build, read, send — three steps and never one button,
+         * because what is being sent is a personal letter that cannot be recalled.
+         * See Admin\Controllers\InvitesController.
+         */
+        $a->get('/events/{id:[0-9]+}/invites',        \AfricaGates\Admin\Controllers\InvitesController::class.':index');
+        $a->post('/events/{id:[0-9]+}/invites/build', \AfricaGates\Admin\Controllers\InvitesController::class.':build');
+        $a->post('/events/{id:[0-9]+}/invites/send',  \AfricaGates\Admin\Controllers\InvitesController::class.':send');
+        $a->get('/events/{id:[0-9]+}/invites/{reference}/preview', \AfricaGates\Admin\Controllers\InvitesController::class.':preview');
+
         $a->get('/events/{id:[0-9]+}/tickets',   AdminEventsController::class.':tickets');
         $a->post('/events/{id:[0-9]+}/check-in', AdminEventsController::class.':checkIn');
         // Door passes: minted and revoked on the event's own tickets screen, because a door

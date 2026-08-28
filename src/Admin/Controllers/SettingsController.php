@@ -208,7 +208,12 @@ class SettingsController
                   'mail_smtp_host','mail_smtp_port','mail_smtp_user',
                   // Image hosting. Cloud name, key and folder are identifiers, not
                   // secrets — the API secret and the combined URL are handled below.
-                  'cloudinary_cloud_name','cloudinary_api_key','cloudinary_folder'] as $k) {
+                  'cloudinary_cloud_name','cloudinary_api_key','cloudinary_folder',
+                  // Invitation quotas and the guest discount. Clamped in InviteAudience
+                  // rather than here, because they are read from settings by services that
+                  // must not trust the row either.
+                  'invite_quota_principal','invite_quota_child','invite_quota_judge',
+                  'invite_discount_percent','invite_programme_principal','invite_programme_child'] as $k) {
             if (array_key_exists($k, $b)) {
                 $this->settings->set($k, trim((string)$b[$k]), $adminId);
             }

@@ -1,0 +1,159 @@
+{% extends 'admin/layout.twig' %}
+
+{#
+  THE INVITATION RUN.
+
+  Read before sent. Every row on this page is a personal letter to somebody who was
+  shortlisted, carrying their own name and their own reference, and none of it can be
+  recalled — so this screen's whole job is to make an operator LOOK before pressing
+  anything: who cannot be reached and why, named individually; how many of each audience
+  against the quota each is being promised; and a preview rendered from a real row.
+
+  Build, read, send — three steps, never one button.
+
+  `formaction` on the send button rather than a second <form>: an HTML parser DISCARDS a
+  <form> start tag inside an open one and the button then posts to the OUTER action. That
+  has shipped three times in this codebase.
+#}
+
+{% block head_styles %}
+<style nonce="{{ csp_nonce }}">
+  .iv-sub{ font-size:13px; color:#5a6d6f; margin:2px 0 18px }
+  .iv-sec{ background:#fff; border:1px solid rgba(16,41,44,.1); border-radius:14px;
+    padding:18px 20px; margin-bottom:14px }
+  .iv-sec h2{ margin:0 0 3px; font-size:14.5px; color:#10292C }
+  .iv-sec p{ margin:8px 0 0; font-size:12.5px; line-height:1.7; color:#5a6d6f }
+  .iv-warn{ background:#fdf6e3; border:1px solid #f3b416; border-radius:14px;
+    padding:16px 18px; margin-bottom:14px; font-size:13px; line-height:1.7; color:#10292C }
+  .iv-warn strong{ display:block; margin-bottom:4px }
+  .iv-num{ text-align:right; font-variant-numeric:tabular-nums; white-space:nowrap }
+  .iv-mute{ color:#8a9a9c }
+  .iv-who{ font-size:11px; color:#8a9a9c }
+  .iv-act{ display:flex; gap:12px; align-items:center; flex-wrap:wrap; margin-top:14px }
+  .iv-act .hint{ font-size:12px; color:#5a6d6f; margin:0 }
+  .iv-bad{ margin:12px 0 0; font-size:12.5px; color:#5a6d6f }
+  .iv-bad summary{ cursor:pointer; color:#10292C }
+  .iv-bad ul{ margin:8px 0 0 18px; line-height:1.8 }
+  .iv-scroll{ overflow-x:auto }
+</style>
+{% endblock %}
+
+{% block content %}
+<h1>Invitations</h1>
+<p class="iv-sub">{{ event.title }} · {{ event.event_date|when_zoned }}
+  · <a href="/admin/events/{{ event.id }}">back to the event</a></p>
+
+{% if not event.programme_id %}
+  <div class="iv-warn">
+    <strong>No award programme is linked to this event.</strong>
+    Invitations are drawn from a programme's published shortlist and its judging panel, so
+    there is nobody to invite until one is set. Choose it on
+    <a href="/admin/events/{{ event.id }}">the event form</a>.
+  </div>
+{% else %}
+
+  <form method="post" action="/admin/events/{{ event.id }}/invites/build">
+    <input type="hidden" name="_token" value="{{ csrf_token }}">
+
+    {# ── who would be invited ─────────────────────────────────────────────── #}
+    <div class="iv-sec">
+      <h2>Who is invited</h2>
+      <p>From <strong>{{ programme.title }}</strong>'s published shortlist and its panel.
+         Nothing is minted by opening this page.</p>
+
+      <div class="iv-scroll">
+        <table class="ad-table">
+          <thead>
+            <tr><th>Audience</th><th class="iv-num">Reachable</th><th class="iv-num">Unreachable</th>
+                <th class="iv-num">Already invited</th><th class="iv-num">Guests each</th></tr>
+          </thead>
+          <tbody>
+          {% for key, g in plan %}
+            <tr>
+              <td>{{ g.audience.label }}</td>
+              <td class="iv-num">{{ g.ready|length }}</td>
+              <td class="iv-num">
+                {% if g.unreachable|length %}<span class="ad-chip ad-chip--gold">{{ g.unreachable|length }}</span>
+                {% else %}0{% endif %}
+              </td>
+              <td class="iv-num">{{ g.already }}</td>
+              <td class="iv-num">{{ g.audience.quota }} · {{ discount }}% off</td>
+            </tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      </div>
+
+      {% for key, g in plan %}
+        {% if g.unreachable|length %}
+          <details class="iv-bad">
+            <summary><strong>{{ g.unreachable|length }} {{ g.audience.label|lower }} cannot be written to</strong></summary>
+            <ul>
+              {% for u in g.unreachable %}
+                <li>{{ u.name }} — <span class="iv-mute">{{ u.why }}</span></li>
+              {% endfor %}
+            </ul>
+            <p>Skipped rather than guessed: an invitation carrying the wrong person's name
+               and personal reference cannot be taken back.</p>
+          </details>
+        {% endif %}
+      {% endfor %}
+
+      <div class="iv-act">
+        <button class="ad-btn ad-btn--primary" type="submit">Build the invitation list</button>
+        <p class="hint">Adds only who is new. Sends nothing.</p>
+      </div>
+    </div>
+
+    {# ── the list, and sending it ─────────────────────────────────────────── #}
+    {% if invites|length %}
+      <div class="iv-sec">
+        <h2>The list</h2>
+        <p>{{ sent_count }} sent · {{ pending }} still to go
+          {%- if lowest_tier %} · guests start at ₦{{ lowest_tier.price_naira|number_format }}
+          ({{ lowest_tier.name }}){% endif %}</p>
+
+        <div class="iv-scroll">
+          <table class="ad-table">
+            <thead>
+              <tr><th>Name</th><th>Audience</th><th>Reference &amp; guest code</th>
+                  <th class="iv-num">Guests</th><th>Sent</th><th>Opened</th>
+                  <th class="iv-num">Scans</th><th></th></tr>
+            </thead>
+            <tbody>
+            {% for i in invites %}
+              <tr>
+                <td>{{ i.name }}<br><span class="iv-who">{{ i.email }}</span></td>
+                <td>{{ i.audience }}</td>
+                <td><code>{{ i.reference }}</code></td>
+                <td class="iv-num">{{ i.guest_quota }}</td>
+                <td>{% if i.sent_at %}<span class="ad-chip ad-chip--green">{{ i.sent_at|when }}</span>
+                    {% else %}<span class="ad-chip ad-chip--grey">not yet</span>{% endif %}</td>
+                <td>{% if i.opened_at %}{{ i.opened_at|when }}{% else %}<span class="iv-mute">—</span>{% endif %}</td>
+                <td class="iv-num">{{ i.scans }}</td>
+                <td><a href="/admin/events/{{ event.id }}/invites/{{ i.reference|url_encode }}/preview"
+                       target="_blank" rel="noopener">Preview</a></td>
+              </tr>
+            {% endfor %}
+            </tbody>
+          </table>
+        </div>
+
+        {% if pending %}
+          <div class="iv-act">
+            <button class="ad-btn ad-btn--gold" type="submit"
+                    formaction="/admin/events/{{ event.id }}/invites/send"
+                    data-confirm="Send up to {{ batch }} invitations now? Each one is a personal letter and cannot be recalled.">
+              Send the next {{ batch }}
+            </button>
+            <p class="hint">{{ pending }} still to go. Batched because each invitation renders
+              a PDF and does an SMTP round trip — press again until the count reaches zero.</p>
+          </div>
+        {% else %}
+          <p>Everybody on this list has been written to.</p>
+        {% endif %}
+      </div>
+    {% endif %}
+  </form>
+{% endif %}
+{% endblock %}
