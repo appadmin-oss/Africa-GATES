@@ -301,40 +301,17 @@ final class NomineeBroadcast
     /**
      * Candidate addresses for a nominee, best source first.
      *
-     * gates_nominees has no email column — it is the ballot row. The address lives on the
-     * NOMINATION that produced it, is optional there, and there is no foreign key between
-     * the two tables.
+     * The reasoning moved to {@see NomineeAddress} when the invitation run needed the
+     * same answer — two implementations of "who do we email" is how one sender writes to
+     * somebody the other already did. This stays as the name the send loop below reads by.
      *
      * @return list<string> 0 = unreachable, >1 = ambiguous and must never be guessed
      */
     private function addressesFor(object $n, int $cycleId): array
     {
-        // A real link beats a name match: if the linked profile has an address, use it and
-        // stop, so a same-name nomination elsewhere cannot make this ambiguous.
-        if (!empty($n->profile_id)) {
-            $e = DB::table('gates_profiles')->where('id', $n->profile_id)->value('email');
-            if (is_string($e) && $e !== '' && filter_var($e, FILTER_VALIDATE_EMAIL)) {
-                return [EmailOptOut::normalise($e)];
-            }
-        }
-
-        // LOWER() on both sides: approval passes the name through Name::title() and the
-        // nomination keeps whatever was typed.
-        $rows = DB::table('gates_nominations')
-            ->where('cycle_id', $cycleId)
-            ->where('status', 'approved')
-            ->whereNotNull('nominee_email')->where('nominee_email', '!=', '')
-            ->whereRaw('LOWER(TRIM(nominee_name)) = ?', [strtolower(trim((string) $n->name))])
-            ->pluck('nominee_email')->all();
-
-        $out = [];
-        foreach ($rows as $e) {
-            $e = EmailOptOut::normalise((string) $e);
-            if ($e !== '' && filter_var($e, FILTER_VALIDATE_EMAIL)) $out[$e] = true;
-        }
-
-        return array_keys($out);
+        return NomineeAddress::candidates($n, $cycleId);
     }
+
 
     /** @return array<string,true> email_hash of everything already sent for this campaign */
     private function alreadySent(): array
