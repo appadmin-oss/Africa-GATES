@@ -312,9 +312,14 @@ final class InviteMailerTest extends TestCase
      */
     public function test_neither_half_prefixes_the_operators_sentence(): void
     {
+        // Every file that composes the sentence, not the two I happened to look at first.
+        // It was in three — the Twig template, the plain-text builder, and the PDF letter,
+        // which is the copy the invitee KEEPS — and a scan over two of them would have
+        // left the worst one doing it.
         foreach ([
             'templates/emails/invitation.twig'   => 'the HTML half',
             'src/Services/InviteMailer.php'      => 'the plain-text half',
+            'src/Services/InviteLetter.php'      => 'the PDF letter',
         ] as $rel => $which) {
             $src = (string) file_get_contents(dirname(__DIR__, 2) . '/' . $rel);
             // Comments explain the bug by name, so they are stripped before the scan.

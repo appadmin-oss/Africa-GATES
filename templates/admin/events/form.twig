@@ -260,8 +260,17 @@
             <option value="draft" {% if row.status|default('draft') == 'draft' %}selected{% endif %}>Draft — only you can see it</option>
           </select>
         </label>
-        <label>Cover image <span class="af-opt">also used on the ticket</span>
-          <input type="url" name="cover_image" value="{{ row.cover_image|default('') }}" placeholder="https://…"></label>
+        {# `type="text"`, not `type="url"`, and that is a fix rather than a loosening.
+           This column legitimately holds EITHER a hosted URL or a path on this disk —
+           EventTicketDesign::image() has resolved both since it was written, and the
+           invitation can only ATTACH the local form. A url-typed input refuses to submit
+           a bare `uploads/x.jpg`, so the one value the mailer can use was the one value
+           the form would not accept, and no invitation has ever carried a picture.
+           Upload one at Events → the event → Invitations to get a local path without
+           typing it. #}
+        <label>Cover image <span class="af-opt">also used on the ticket and the invitation</span>
+          <input type="text" name="cover_image" value="{{ row.cover_image|default('') }}"
+                 placeholder="https://… or uploads/events/…"></label>
       </div>
       <div class="row">
         <label>Map link <span class="af-opt">optional</span>

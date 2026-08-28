@@ -3300,7 +3300,12 @@ return function(App $app) {
         $a->get('/events/{id:[0-9]+}/invites',        \AfricaGates\Admin\Controllers\InvitesController::class.':index');
         $a->post('/events/{id:[0-9]+}/invites/build', \AfricaGates\Admin\Controllers\InvitesController::class.':build');
         $a->post('/events/{id:[0-9]+}/invites/send',  \AfricaGates\Admin\Controllers\InvitesController::class.':send');
+        $a->post('/events/{id:[0-9]+}/invites/test',  \AfricaGates\Admin\Controllers\InvitesController::class.':test');
+        $a->post('/events/{id:[0-9]+}/invites/image', \AfricaGates\Admin\Controllers\InvitesController::class.':image');
+        // `{reference}` accepts the literal `sample`, so both of these work before the
+        // list has been built — which is when an operator most wants to look.
         $a->get('/events/{id:[0-9]+}/invites/{reference}/preview', \AfricaGates\Admin\Controllers\InvitesController::class.':preview');
+        $a->get('/events/{id:[0-9]+}/invites/{reference}/letter.pdf', \AfricaGates\Admin\Controllers\InvitesController::class.':letter');
 
         $a->get('/events/{id:[0-9]+}/tickets',   AdminEventsController::class.':tickets');
         $a->post('/events/{id:[0-9]+}/check-in', AdminEventsController::class.':checkIn');

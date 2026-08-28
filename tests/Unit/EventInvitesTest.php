@@ -370,6 +370,168 @@ final class EventInvitesTest extends TestCase
         $this->assertStringContainsString('{% if programme_link_ready %}', $tpl);
     }
 
+    /**
+     * A mailer that records instead of sending. The same shape InviteMailerTest uses —
+     * duplicated rather than shared because the two files seed different worlds, and a
+     * base class holding one anonymous class for both would be more machinery than the
+     * eleven lines it saves.
+     */
+    private function recorderMailer(): \AfricaGates\Services\OtpService
+    {
+        return new class(['host' => 'localhost', 'port' => 25,
+                          'username' => 'u', 'password' => 'p',
+                          'from_address' => 'no@example.com', 'from_name' => 'X'])
+            extends \AfricaGates\Services\OtpService {
+            public function smtpConfigured(): bool { return true; }
+
+            public function sendBranded(string $to, string $subject, string $htmlBody, string $plainBody = '',
+                                        string $category = '', string $hero = '', string $unsubscribeUrl = '',
+                                        array $attachments = []): array
+            {
+                return ['success' => true];
+            }
+        };
+    }
+
+    // ── the three things you do BEFORE the run ──────────────────────────────
+
+    /**
+     * Everything an operator needs to check the run is reachable before it exists.
+     *
+     * ══════════════════════════════════════════════════════════════════════════
+     * THREE MECHANISMS WITH NO ROUTE IN
+     * ══════════════════════════════════════════════════════════════════════════
+     *
+     * The invitation run is irreversible and personal, and none of the three ways to look
+     * at it before pressing send could be reached:
+     *
+     *   · the LETTER — InviteLetter::render() was called only from inside the attachment
+     *     builder, so the one document this run puts in front of a nominee could not be
+     *     opened by the person sending it;
+     *   · a TEST SEND — there was no route at all, so the only way to see what lands in an
+     *     inbox was to send to a real nominee;
+     *   · the PICTURE — the field feeding it is on the event form as `type="url"`, and
+     *     InviteMailer::cover() refuses anything beginning `http` because an attachment
+     *     must be a file on this disk. The only value the form accepted was the one value
+     *     the mailer discarded.
+     *
+     * The preview existed but needed a real row, so it was unreachable on a fresh ceremony
+     * too — and before building the list is exactly when you want to look.
+     */
+    public function test_the_preview_and_the_letter_work_before_anything_is_minted(): void
+    {
+        $_SESSION['admin_id'] = $this->admin();
+
+        foreach (['preview', 'letter.pdf'] as $what) {
+            $r = $this->get('/admin/events/' . $this->eventId . '/invites/sample/' . $what);
+            $this->assertSame(200, $r->getStatusCode(),
+                $what . ' cannot be opened on a ceremony whose list has not been built');
+        }
+    }
+
+    /** The letter route returns a real PDF, inline, and not a redirect to a flash. */
+    public function test_the_letter_route_returns_the_pdf_that_is_attached(): void
+    {
+        $_SESSION['admin_id'] = $this->admin();
+
+        $r = $this->get('/admin/events/' . $this->eventId . '/invites/sample/letter.pdf');
+        $body = (string) $r->getBody();
+
+        $this->assertSame('application/pdf', $r->getHeaderLine('Content-Type'));
+        $this->assertStringStartsWith('%PDF-', $body, 'that is not a PDF');
+        // `inline`, because this is a thing to read now rather than a file to keep.
+        $this->assertStringContainsString('inline;', $r->getHeaderLine('Content-Disposition'));
+    }
+
+    /** And the sample is never written — a press of Preview must not mint anything. */
+    public function test_the_sample_is_not_saved_and_does_not_burn_a_reference(): void
+    {
+        $before = DB::table('gates_event_invites')->count();
+        $a = EventInvites::sample($this->eventId);
+        $b = EventInvites::sample($this->eventId);
+
+        $this->assertSame($before, DB::table('gates_event_invites')->count(),
+            'previewing minted a row');
+        $this->assertSame($a->reference, $b->reference,
+            'the sample draws a fresh reference each time, out of the space real '
+            . 'invitations use');
+        // The secret IS fresh, so a previewed pass rotates exactly as a real one does.
+        $this->assertNotSame($a->id_secret, $b->id_secret);
+    }
+
+    /**
+     * A test send changes nothing: no row is marked, no log is written, and pressing it
+     * twice works.
+     *
+     * `send()` refuses an address the run has already written to, records the attempt and
+     * stamps `sent_at`. A test that did any of those would either refuse the second press
+     * or take a real invitee out of the run — the operator checks their own letter and a
+     * nominee never receives one.
+     */
+    public function test_a_test_send_records_nothing_against_the_run(): void
+    {
+        $inv = EventInvites::mint($this->eventId, InviteAudience::NOMINEE,
+            ['name' => 'Ada Obi', 'email' => 'ada@example.com', 'nominee_id' => 0, 'judge_id' => 0]);
+        $this->assertNotNull($inv);
+        $event = DB::table('gates_site_events')->where('id', $this->eventId)->first();
+
+        $logBefore = DB::table('gates_broadcast_log')->count();
+
+        // Twice, to the same address — the second press must not be refused.
+        for ($i = 0; $i < 2; $i++) {
+            \AfricaGates\Services\InviteMailer::sendTest($inv, $event, 'ops@example.test',
+                $this->recorderMailer());
+        }
+
+        $this->assertNull(DB::table('gates_event_invites')->where('id', $inv->id)->value('sent_at'),
+            'a test marked a real invitee as already invited');
+        $this->assertSame($logBefore, DB::table('gates_broadcast_log')->count(),
+            'a test wrote to the campaign log, so the run now thinks it has sent one');
+    }
+
+    /** A junk address is refused, and an opted-out one is refused for the right reason. */
+    public function test_a_test_send_still_honours_an_opt_out(): void
+    {
+        $inv   = EventInvites::sample($this->eventId);
+        $event = DB::table('gates_site_events')->where('id', $this->eventId)->first();
+
+        $bad = \AfricaGates\Services\InviteMailer::sendTest($inv, $event, 'not-an-address',
+            $this->recorderMailer());
+        $this->assertFalse($bad['ok']);
+
+        \AfricaGates\Services\EmailOptOut::record('gone@example.test', 'test');
+        $out = \AfricaGates\Services\InviteMailer::sendTest($inv, $event, 'gone@example.test',
+            $this->recorderMailer());
+        $this->assertFalse($out['ok']);
+        $this->assertStringContainsString('opted out', $out['error'],
+            'an operator whose own address is suppressed needs to be told that, not left '
+            . 'wondering why nothing arrived');
+    }
+
+    /**
+     * The picture can be attached at all.
+     *
+     * `cover()` refuses `http…` on purpose — an attachment is a file on this disk. The
+     * only input that fed it was url-typed, so the two halves could never agree. The
+     * event form takes text now, and the invitations screen uploads.
+     */
+    public function test_the_cover_field_can_hold_the_local_path_the_mailer_needs(): void
+    {
+        $form = (string) file_get_contents(
+            dirname(__DIR__, 2) . '/templates/admin/events/form.twig');
+
+        $this->assertDoesNotMatchRegularExpression(
+            '/<input[^>]*type="url"[^>]*name="cover_image"/', $form,
+            'a url-typed input refuses the local path that is the only form the mailer '
+            . 'can attach');
+
+        $tpl = (string) file_get_contents(
+            dirname(__DIR__, 2) . '/templates/admin/events/invites.twig');
+        $this->assertStringContainsString('enctype="multipart/form-data"', $tpl,
+            'without enctype the file never reaches the server and the page reports success');
+        $this->assertStringContainsString('name="cover"', $tpl);
+    }
+
     // ── minting ─────────────────────────────────────────────────────────────
 
     public function test_minting_stores_the_quota_and_mints_a_code_that_allows_exactly_it(): void

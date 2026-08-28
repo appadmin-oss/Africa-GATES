@@ -128,6 +128,96 @@
         <p class="hint">Adds only who is new. Sends nothing.</p>
       </div>
     </div>
+  </form>
+
+  {# ── CHECK IT BEFORE ANYBODY RECEIVES IT ────────────────────────────────
+     Three things that could not be reached before, and every one of them is
+     something you want BEFORE the run rather than after it.
+
+     Each is its own <form>. A form inside a form is DISCARDED by the parser —
+     the children survive and post to the outer action — and that has shipped
+     three times in this codebase, so these are siblings of the build form
+     rather than nested in it. #}
+  <div class="iv-sec">
+    <h2>Check it first</h2>
+    <p>Everything below reads a real invitation — the first on the list, or a sample
+       when there is none yet. Nothing here sends to an invitee and nothing is recorded
+       against the run.</p>
+
+    {% set ref = invites|length ? invites[0].reference|url_encode : 'sample' %}
+
+    <div class="iv-act">
+      <a class="ad-btn" href="/admin/events/{{ event.id }}/invites/{{ ref }}/preview"
+         target="_blank" rel="noopener">Read the email</a>
+      {# The letter was only ever rendered inside the send path, so the one document
+         this run puts in front of a nominee could not be looked at by the person
+         sending it. This is the same call the attachment builder makes. #}
+      <a class="ad-btn" href="/admin/events/{{ event.id }}/invites/{{ ref }}/letter.pdf"
+         target="_blank" rel="noopener">Open the letter (PDF)</a>
+    </div>
+
+    {# ── A REAL SEND, TO YOU ─────────────────────────────────────────────
+       A preview in a browser tab proves the markup. It does not prove SMTP works,
+       that the letter attaches, or what Gmail does to the layout — and the run is
+       irreversible, so the only honest rehearsal is a real message to yourself. #}
+    <form class="ad-form" method="post" action="/admin/events/{{ event.id }}/invites/test" style="margin-top:16px">
+      <input type="hidden" name="_token" value="{{ csrf_token }}">
+      <fieldset style="border:0;padding:0;margin:0;min-width:0">
+        <legend style="display:block;font-weight:600;font-size:12.5px;color:var(--ad-text);margin-bottom:6px;padding:0">
+          Send one to yourself
+          <small style="display:block;font-weight:400;color:var(--ad-text-soft)">the real invitation, with the letter and the picture attached — nothing is marked sent</small>
+        </legend>
+        <div class="iv-act">
+          <input type="email" name="to" value="{{ admin_email|default('') }}"
+                 placeholder="you@example.com" style="max-width:280px" aria-label="Send the test to">
+          <button class="ad-btn" type="submit">Send the test</button>
+        </div>
+      </fieldset>
+    </form>
+  </div>
+
+  {# ── THE PICTURE THAT TRAVELS WITH IT ───────────────────────────────────
+     There was no way to add one. The field behind it lives on the event form as
+     `type="url"`, and the attachment builder refuses anything beginning `http`
+     because an attachment has to be a file on this disk — so the only value the
+     form accepted was the one value the mailer threw away, and no invitation has
+     ever carried a picture. An upload produces a local path by construction. #}
+  <div class="iv-sec">
+    <h2>The invitation image</h2>
+    <p>Attached to every letter in this run, and shown at the top of the email.
+       This is the event's cover picture — it is used on the ticket and the event page
+       too, so changing it here changes it there.</p>
+
+    {% if event.cover_image %}
+      <p style="margin-top:12px">
+        <img src="/{{ event.cover_image|trim('/') }}" alt="The current invitation image"
+             style="display:block;max-width:320px;width:100%;height:auto;border-radius:10px;border:1px solid var(--ad-line,#e5eae8)">
+      </p>
+      <form method="post" action="/admin/events/{{ event.id }}/invites/image"
+            data-confirm="Remove the invitation image? The ticket and the event page use it too.">
+        <input type="hidden" name="_token" value="{{ csrf_token }}">
+        <input type="hidden" name="remove" value="1">
+        <div class="iv-act"><button class="ad-btn" type="submit">Remove it</button></div>
+      </form>
+    {% else %}
+      <p class="iv-mute" style="margin-top:10px">No picture yet — the letters will go out without one.</p>
+    {% endif %}
+
+    <form class="ad-form" method="post" action="/admin/events/{{ event.id }}/invites/image"
+          enctype="multipart/form-data" style="margin-top:14px">
+      <input type="hidden" name="_token" value="{{ csrf_token }}">
+      <div class="iv-act">
+        <input type="file" name="cover" accept="image/jpeg,image/png,image/webp"
+               style="max-width:320px" aria-label="Choose an invitation image">
+        <button class="ad-btn ad-btn--primary" type="submit">Use this picture</button>
+      </div>
+      <p class="hint">JPEG, PNG or WebP, at least 900px wide. Anything over 2.5MB is dropped
+         rather than attached, so a letter never bounces on size.</p>
+    </form>
+  </div>
+
+  <form method="post" action="/admin/events/{{ event.id }}/invites/build">
+    <input type="hidden" name="_token" value="{{ csrf_token }}">
 
     {# ── the list, and sending it ─────────────────────────────────────────── #}
     {% if invites|length %}

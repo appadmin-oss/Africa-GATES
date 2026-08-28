@@ -99,9 +99,14 @@ final class InviteLetter
             'It is our privilege to invite you to ' . trim((string) $event->title)
                 . ($where !== '' ? ', at ' . $where : '') . ', on ' . $when . '.',
 
-            'You are invited as a guest of honour. We want the hall packed '
-                . $spec['witness'] . ' — and we would like the people who know that work '
-                . 'best to be in the room to see it recognised.',
+            // The operator's sentence, WHOLE. This was the third place assembling it —
+            // after the Twig template and the plain-text builder — each prefixing "We want
+            // the hall packed " onto what the settings screen presents as an editable
+            // sentence. Three authors for one paragraph, and the letter is the copy the
+            // invitee keeps.
+            'You are invited as a guest of honour. ' . $spec['witness'],
+            'We would like the people who know that work best to be in the room to see it '
+                . 'recognised.',
 
             'Your personal reference is ' . trim((string) $invite->reference) . '. It is also '
                 . 'the code your guests use: it takes ' . InviteAudience::discountPercent()

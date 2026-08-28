@@ -69,23 +69,17 @@ final class InviteMailer
         }
 
         $mailer ??= OtpService::boot();
-        $spec     = InviteAudience::spec((string) $invite->audience);
-        $tier     = EventInvites::lowestTier((int) $event->id);
-        $base     = rtrim(SiteUrl::base(), '/');
-
-        $view  = self::view($invite, $event, $spec, $tier, $base);
-        $html  = self::html($view);
-        $plain = self::plain($view);
+        $m = self::compose($invite, $event);
 
         $r = $mailer->sendBranded(
             $email,
-            (string) $view['subject'],
-            $html,
-            $plain,
+            $m['subject'],
+            $m['html'],
+            $m['plain'],
             'invitation',
             '',
-            EmailOptOut::url($base, $email),
-            self::attachments($invite, $event, $tier)
+            EmailOptOut::url(rtrim(SiteUrl::base(), '/'), $email),
+            $m['attachments']
         );
 
         $ok    = (bool) ($r['success'] ?? false);
@@ -100,6 +94,81 @@ final class InviteMailer
         }
 
         return ['ok' => $ok, 'error' => $error, 'skipped' => false];
+    }
+
+    /**
+     * The whole message, composed once.
+     *
+     * Extracted because there are two send paths now — the real run and a test to the
+     * operator's own address — and two copies of "build the subject, the HTML, the plain
+     * text and the attachments" is two things to keep in step. This codebase has the
+     * scar: the invitation's own "why" sentence was assembled in the Twig template AND in
+     * the plain-text builder, and fixing one left the other sending the mangled version.
+     *
+     * @return array{subject:string, html:string, plain:string,
+     *               attachments:list<array{name:string,mime:string,body:string}>}
+     */
+    private static function compose(object $invite, object $event): array
+    {
+        $spec = InviteAudience::spec((string) $invite->audience);
+        $tier = EventInvites::lowestTier((int) $event->id);
+        $view = self::view($invite, $event, $spec, $tier, rtrim(SiteUrl::base(), '/'));
+
+        return [
+            'subject'     => (string) $view['subject'],
+            'html'        => self::html($view),
+            'plain'       => self::plain($view),
+            'attachments' => self::attachments($invite, $event, $tier),
+        ];
+    }
+
+    /**
+     * Send one invitation to an address of the operator's choosing, changing nothing.
+     *
+     * ── WHY THIS IS NOT `send()` WITH A DIFFERENT ADDRESS ────────────────────
+     *
+     * `send()` does three things a test must not: it refuses an address the run has
+     * already written to, it records the attempt in the campaign log, and it stamps
+     * `sent_at` on the row. A test that did any of those would either refuse the second
+     * press, or quietly take a real invitee out of the run — the operator checks their
+     * own letter and a nominee never receives one.
+     *
+     * The message itself is composed by the same {@see compose()} the real send uses, so
+     * what arrives is not a rendering of the invitation: it IS the invitation, letter and
+     * artwork attached.
+     *
+     * Opt-out is still honoured. A suppression is a suppression even when the address is
+     * your own, and an operator who has unsubscribed needs to know that rather than to
+     * wonder why nothing arrived.
+     *
+     * @return array{ok:bool, error:string}
+     */
+    public static function sendTest(object $invite, object $event, string $to, ?OtpService $mailer = null): array
+    {
+        $to = trim($to);
+        if ($to === '' || !filter_var($to, FILTER_VALIDATE_EMAIL)) {
+            return ['ok' => false, 'error' => 'That is not an email address.'];
+        }
+        if (EmailOptOut::suppressed($to)) {
+            return ['ok' => false, 'error' => 'That address has opted out of email from us, '
+                                            . 'so nothing can be sent to it.'];
+        }
+
+        $mailer ??= OtpService::boot();
+        $m = self::compose($invite, $event);
+
+        $r = $mailer->sendBranded(
+            $to,
+            $m['subject'],
+            $m['html'],
+            $m['plain'],
+            'invitation',
+            '',
+            EmailOptOut::url(rtrim(SiteUrl::base(), '/'), $to),
+            $m['attachments']
+        );
+
+        return ['ok' => (bool) ($r['success'] ?? false), 'error' => (string) ($r['error'] ?? '')];
     }
 
     /** The rendered HTML, for the admin's preview. Sends nothing. */

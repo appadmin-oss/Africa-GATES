@@ -284,6 +284,51 @@ final class EventInvites
     }
 
     /**
+     * An invitation-shaped object that was never saved, for the preview and the test send.
+     *
+     * ══════════════════════════════════════════════════════════════════════════
+     * WHY THIS EXISTS
+     * ══════════════════════════════════════════════════════════════════════════
+     *
+     * The preview needed a real row, so an operator could not look at the letter until
+     * they had already minted a list — and the moment you most want to see what you are
+     * about to send is BEFORE you build it, not after. The same for a test to yourself and
+     * for the PDF: all three were unreachable on a fresh ceremony.
+     *
+     * Nothing here is written. The reference is a fixed, obviously-fake string rather than
+     * a freshly-minted one, because {@see freshReference()} would burn a code out of the
+     * space real invitations draw from every time somebody pressed Preview. The secret is
+     * real and random, so the rotating pass on a previewed ID behaves exactly as it will
+     * on a real one — a preview whose QR does not rotate teaches the operator the wrong
+     * thing about what they are sending.
+     */
+    public static function sample(int $eventId, string $audience = InviteAudience::NOMINEE): object
+    {
+        if (!InviteAudience::isValid($audience)) $audience = InviteAudience::NOMINEE;
+        $spec = InviteAudience::spec($audience);
+
+        return (object) [
+            'id'            => 0,
+            'event_id'      => $eventId,
+            'cycle_id'      => null,
+            'audience'      => $audience,
+            'nominee_id'    => null,
+            'judge_id'      => null,
+            // A name that cannot be mistaken for a real invitee in a screenshot.
+            'name'          => 'Sample ' . $spec['one'],
+            'email'         => '',
+            'reference'     => 'AGI-SAMPLE0',
+            'id_secret'     => InvitePass::secret(),
+            'discount_code' => 'AGI-SAMPLE0',
+            'guest_quota'   => (int) $spec['quota'],
+            'created_at'    => Carbon::now()->toDateTimeString(),
+            'sent_at'       => null,
+            'opened_at'     => null,
+            'scanned_at'    => null,
+        ];
+    }
+
+    /**
      * Mint one invite, or return the existing one for that person.
      *
      * Idempotent on (event, email) — the table's own unique key says so, and an operator

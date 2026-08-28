@@ -72,6 +72,10 @@ final class InvitesController
             'discount'    => InviteAudience::discountPercent(),
             'lowest_tier' => EventInvites::lowestTier($id),
             'batch'       => self::BATCH,
+            // Pre-filled, because "send one to yourself" that makes you type your own
+            // address is a step between an operator and the one check that matters.
+            'admin_email' => (string) (DB::table('gates_admins')
+                ->where('id', (int) ($_SESSION['admin_id'] ?? 0))->value('email') ?? ''),
         ]);
     }
 
@@ -142,20 +146,200 @@ final class InvitesController
         return $res->withHeader('Location', '/admin/events/' . $id . '/invites')->withStatus(302);
     }
 
+    /**
+     * The invitation, or the letter, for one person — or for nobody in particular.
+     *
+     * `{reference}` may be the literal `sample`, which resolves to an invitation-shaped
+     * object that was never saved. The preview used to need a real row, so an operator
+     * could not look at what they were about to send until they had already built the
+     * list — and before building it is exactly when you want to look.
+     *
+     * @return array{0:object, 1:object}
+     */
+    private function subject(Request $req, array $args): array
+    {
+        $id    = (int) ($args['id'] ?? 0);
+        $ref   = (string) ($args['reference'] ?? '');
+        $event = DB::table('gates_site_events')->where('id', $id)->first();
+        if (!$event) throw new \Slim\Exception\HttpNotFoundException($req);
+
+        if ($ref === 'sample') {
+            return [EventInvites::sample($id, (string) (($req->getQueryParams()['as'] ?? ''))), $event];
+        }
+
+        $invite = EventInvites::byReference($ref);
+        if (!$invite || (int) $invite->event_id !== $id) {
+            throw new \Slim\Exception\HttpNotFoundException($req);
+        }
+        return [$invite, $event];
+    }
+
     /** The rendered invitation for one person, so an operator can read it before sending. */
     public function preview(Request $req, Response $res, array $args): Response
     {
-        $id     = (int) ($args['id'] ?? 0);
-        $invite = EventInvites::byReference((string) ($args['reference'] ?? ''));
-        $event  = DB::table('gates_site_events')->where('id', $id)->first();
-
-        if (!$invite || !$event || (int) $invite->event_id !== $id) {
-            throw new \Slim\Exception\HttpNotFoundException($req);
-        }
+        [$invite, $event] = $this->subject($req, $args);
 
         $res->getBody()->write(InviteMailer::preview($invite, $event));
 
         return $res->withHeader('Content-Type', 'text/html; charset=utf-8')
                    ->withHeader('X-Robots-Tag', 'noindex, nofollow');
+    }
+
+    /**
+     * The formal letter, as the PDF that is actually attached.
+     *
+     * {@see InviteLetter::render()} was only ever called from inside the send path, so the
+     * one document this whole run puts in front of a nominee could not be looked at by the
+     * person sending it. Rendered here from the same call the attachment builder makes —
+     * not a preview OF the letter, the letter.
+     *
+     * `inline`, so it opens in the browser's viewer rather than landing in Downloads: this
+     * is a thing to read now, not a file to keep.
+     */
+    public function letter(Request $req, Response $res, array $args): Response
+    {
+        [$invite, $event] = $this->subject($req, $args);
+
+        try {
+            $pdf = \AfricaGates\Services\InviteLetter::render(
+                $invite, $event, EventInvites::lowestTier((int) $event->id)
+            );
+        } catch (\Throwable $e) {
+            // Said rather than 500ed: the commonest cause is a missing font file, and a
+            // stack trace does not tell an operator that the letter their invitees are
+            // about to receive is the one thing in the run that is broken.
+            $_SESSION['flash_error'] = 'The letter could not be rendered: ' . $e->getMessage();
+            return $res->withHeader('Location', '/admin/events/' . (int) $event->id . '/invites')
+                       ->withStatus(302);
+        }
+
+        $res->getBody()->write($pdf);
+
+        return $res
+            ->withHeader('Content-Type', 'application/pdf')
+            ->withHeader('Content-Disposition',
+                'inline; filename="' . \AfricaGates\Services\InviteLetter::fileName($invite) . '"')
+            ->withHeader('X-Robots-Tag', 'noindex, nofollow');
+    }
+
+    /**
+     * Send one real invitation to an address the operator types — their own, by default.
+     *
+     * The whole run is irreversible and personal, and there was no way to see what lands
+     * in an inbox short of sending to a nominee. A preview in a browser tab is not that
+     * test: it does not prove SMTP works, does not prove the letter attaches, and does not
+     * show what Gmail does to the layout.
+     *
+     * Changes nothing — see {@see InviteMailer::sendTest()} for why it cannot be `send()`
+     * with a different address.
+     */
+    public function test(Request $req, Response $res, array $args): Response
+    {
+        $id    = (int) ($args['id'] ?? 0);
+        $back  = '/admin/events/' . $id . '/invites';
+        $event = DB::table('gates_site_events')->where('id', $id)->first();
+        if (!$event) {
+            $_SESSION['flash_error'] = 'That event could not be found.';
+            return $res->withHeader('Location', '/admin/events')->withStatus(302);
+        }
+
+        $b  = (array) $req->getParsedBody();
+        $to = trim((string) ($b['to'] ?? ''));
+        if ($to === '') {
+            $to = trim((string) (DB::table('gates_admins')
+                ->where('id', (int) ($_SESSION['admin_id'] ?? 0))->value('email') ?? ''));
+        }
+
+        $mailer = OtpService::boot();
+        if (!$mailer->smtpConfigured()) {
+            $_SESSION['flash_error'] = 'SMTP is not configured — set it in Settings → Email & sender first.';
+            return $res->withHeader('Location', $back)->withStatus(302);
+        }
+
+        // A real invitee when there is one, so the test carries a real name and reference;
+        // the sample when the list has not been built, so this works on day one.
+        $ref     = trim((string) ($b['reference'] ?? ''));
+        $invite  = $ref !== '' ? EventInvites::byReference($ref) : null;
+        if (!$invite || (int) $invite->event_id !== $id) {
+            $first  = EventInvites::forEvent($id);
+            $invite = $first[0] ?? EventInvites::sample($id);
+        }
+
+        $r = InviteMailer::sendTest($invite, $event, $to, $mailer);
+
+        $_SESSION[$r['ok'] ? 'flash' : 'flash_error'] = $r['ok']
+            ? 'A test invitation was sent to ' . $to . '. Nothing was recorded against the run.'
+            : 'The test was not sent: ' . ($r['error'] !== '' ? $r['error'] : 'the mail server refused it.');
+
+        return $res->withHeader('Location', $back)->withStatus(302);
+    }
+
+    /**
+     * The picture that travels with the invitation.
+     *
+     * ── WHY THIS SCREEN AND NOT THE EVENT FORM ───────────────────────────────
+     *
+     * The field feeding it is on the event form, and it is `type="url"` — while
+     * {@see InviteMailer::cover()} refuses any value beginning `http`, because an
+     * attachment has to be a file on this disk. So the only value the form would accept
+     * was the one value the attachment builder throws away, and no invitation has ever
+     * carried a picture. A browser will not even submit a bare `uploads/x.jpg` into a
+     * url-typed input, so the local path the backend wants could not be typed either.
+     *
+     * An upload is the honest control: it produces a local path by construction. It is
+     * offered HERE because this is the screen where somebody is thinking about the
+     * invitation — and the copy beside it says plainly that the image is the event's
+     * cover, used on the ticket and the event page too, because a control with a wider
+     * blast radius than its label is how an operator changes something they did not mean
+     * to touch.
+     */
+    public function image(Request $req, Response $res, array $args): Response
+    {
+        $id   = (int) ($args['id'] ?? 0);
+        $back = '/admin/events/' . $id . '/invites';
+        if (!DB::table('gates_site_events')->where('id', $id)->exists()) {
+            $_SESSION['flash_error'] = 'That event could not be found.';
+            return $res->withHeader('Location', '/admin/events')->withStatus(302);
+        }
+
+        $b = (array) $req->getParsedBody();
+        if (!empty($b['remove'])) {
+            DB::table('gates_site_events')->where('id', $id)->update(['cover_image' => '']);
+            $_SESSION['flash'] = 'The invitation image was removed.';
+            return $res->withHeader('Location', $back)->withStatus(302);
+        }
+
+        $file = $req->getUploadedFiles()['cover'] ?? null;
+        if (!$file || $file->getError() === UPLOAD_ERR_NO_FILE) {
+            $_SESSION['flash_error'] = 'No image was chosen.';
+            return $res->withHeader('Location', $back)->withStatus(302);
+        }
+
+        try {
+            // 1600px is the delivered width, not a master: this file is attached to every
+            // invitation in the run, and MAX_COVER_BYTES drops anything over 2.5MB on the
+            // floor silently. A 900px floor because a picture narrower than the band it
+            // fills arrives blurred in somebody's inbox and cannot be fixed afterwards.
+            $up = (new \AfricaGates\Admin\Services\UploadService())->uploadImage(
+                $file, 'events', 1600, 82,
+                ((int) ($_SESSION['admin_id'] ?? 0)) ?: null, 'site_event', $id, 900
+            );
+        } catch (\Throwable $e) {
+            $_SESSION['flash_error'] = 'That image was not used: ' . $e->getMessage();
+            return $res->withHeader('Location', $back)->withStatus(302);
+        }
+
+        // The LOCAL path, deliberately — a hosted URL is exactly what cover() refuses, and
+        // storing one here would put the screen back where it started.
+        $local = ltrim((string) ($up['local'] ?? ''), '/');
+        if ($local === '') {
+            $_SESSION['flash_error'] = 'That image was stored remotely, so it cannot be attached.';
+            return $res->withHeader('Location', $back)->withStatus(302);
+        }
+
+        DB::table('gates_site_events')->where('id', $id)->update(['cover_image' => $local]);
+        $_SESSION['flash'] = 'The invitation image was set. It travels with every letter in this run.';
+
+        return $res->withHeader('Location', $back)->withStatus(302);
     }
 }
