@@ -34,6 +34,21 @@
   .iv-bad{ margin:12px 0 0; font-size:12.5px; color:#5a6d6f }
   .iv-bad summary{ cursor:pointer; color:#10292C }
   .iv-bad ul{ margin:8px 0 0 18px; line-height:1.8 }
+
+  /* One person the platform has no address for, and the box to give them one. */
+  .iv-addr{ list-style:none; margin:10px 0 0; padding:0 }
+  .iv-addr > li{ padding:12px 0; border-top:1px solid rgba(16,41,44,.08) }
+  .iv-addr > li:first-child{ border-top:none }
+  .iv-addr__row{ display:flex; flex-wrap:wrap; gap:8px; align-items:center; margin-top:8px }
+  .iv-addr__row input{ flex:1 1 260px; min-width:0; min-height:40px; box-sizing:border-box;
+    padding:0 12px; font:inherit; font-size:14px; border:1px solid rgba(16,41,44,.18);
+    border-radius:8px; background:#fff; color:#10292C }
+  .iv-addr__row input:focus{ outline:none; border-color:#237b22;
+    box-shadow:0 0 0 3px rgba(35,123,34,.16) }
+  /* Visually hidden, not absent: every box needs a name a screen reader can read, and
+     the placeholder is not one — it disappears the moment somebody starts typing. */
+  .iv-addr__lab{ position:absolute; width:1px; height:1px; padding:0; margin:-1px;
+    overflow:hidden; clip:rect(0 0 0 0); white-space:nowrap; border:0 }
   .iv-scroll{ overflow-x:auto }
 </style>
 {% endblock %}
@@ -138,13 +153,42 @@
         {% if g.unreachable|length %}
           <details class="iv-bad">
             <summary><strong>{{ g.unreachable|length }} {{ g.audience.label|lower }} cannot be written to</strong></summary>
-            <ul>
+            {# ── AN ADDRESS THE ORGANISER KNOWS AND THE PLATFORM DOES NOT ────
+               A nominee's address comes from their linked profile or the nomination that
+               named them, and plenty of real nominations arrive without one — somebody
+               nominated by a colleague who knew their name and not their inbox. They used
+               to sit here captioned "cannot be written to" with nothing to do about it.
+
+               `formaction`, NOT a nested <form>: this block is inside the build form, and
+               a form inside a form is DELETED by the parser — the children survive and
+               post to the outer action, which here would build the list instead. Three of
+               those have shipped in this codebase.
+
+               Every row's box posts together, so the pressed button's own name and value
+               are what say which row was meant. #}
+            <ul class="iv-addr">
               {% for u in g.unreachable %}
-                <li>{{ u.name }} — <span class="iv-mute">{{ u.why }}</span></li>
+                {% set k = u.judge_id|default(0) > 0 ? 'judge:' ~ u.judge_id : 'nominee:' ~ u.nominee_id %}
+                <li>
+                  <div><strong>{{ u.name }}</strong>
+                    {% if u.category|default('') %}<span class="iv-mute"> · {{ u.category }}</span>{% endif %}
+                  </div>
+                  <div class="iv-mute">{{ u.why }}</div>
+                  <div class="iv-addr__row">
+                    <label class="iv-addr__lab" for="addr-{{ k }}">Address for {{ u.name }}</label>
+                    <input id="addr-{{ k }}" type="email" name="addr[{{ k }}]"
+                           placeholder="their email address" autocomplete="off">
+                    <button class="ad-btn" type="submit" name="mint_for" value="{{ k }}"
+                            formaction="/admin/events/{{ event.id }}/invites/address"
+                            formnovalidate>Add and invite</button>
+                  </div>
+                </li>
               {% endfor %}
             </ul>
-            <p>Skipped rather than guessed: an invitation carrying the wrong person's name
-               and personal reference cannot be taken back.</p>
+            <p>Nothing is guessed: an invitation carrying the wrong person's name and
+               personal reference cannot be taken back. The address you type is kept on the
+               invitation, not written back onto the nomination — that is somebody else's
+               submission and the record the panel read.</p>
           </details>
         {% endif %}
       {% endfor %}

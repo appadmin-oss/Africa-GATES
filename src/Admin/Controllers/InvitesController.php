@@ -82,22 +82,156 @@ final class InvitesController
     /** Mint the list. Idempotent — a second press adds only who is new. */
     public function build(Request $req, Response $res, array $args): Response
     {
-        $id    = (int) ($args['id'] ?? 0);
-        $made  = 0;
+        $id = (int) ($args['id'] ?? 0);
+
+        // ── PER AUDIENCE, AND NAMING WHAT FAILED ────────────────────────────
+        //
+        // This reported one number for the whole run. So a build that minted twenty
+        // judges and no nominees said "20 invitations minted" — which is true, reads as
+        // success, and is the exact screen an operator was looking at while reporting
+        // that nominees were missing. There was no way to tell "already invited" from
+        // "no address" from "the insert threw", and no shell to go and look.
+        $made = [];
+        $kept = [];
+        $failed = [];
 
         foreach (EventInvites::plan($id) as $audience => $group) {
+            $label = strtolower((string) ($group['audience']['label'] ?? $audience));
+            $made[$label]   = 0;
+            $kept[$label]   = 0;
+
             foreach ($group['ready'] as $who) {
                 $before = DB::table('gates_event_invites')->where('event_id', $id)->count();
-                EventInvites::mint($id, $audience, $who, (int) ($who['cycle_id'] ?? 0) ?: null);
-                if (DB::table('gates_event_invites')->where('event_id', $id)->count() > $before) $made++;
+                $row    = EventInvites::mint($id, $audience, $who, (int) ($who['cycle_id'] ?? 0) ?: null);
+                $after  = DB::table('gates_event_invites')->where('event_id', $id)->count();
+
+                if ($after > $before)      { $made[$label]++; continue; }
+                if ($row !== null)         { $kept[$label]++; continue; }
+
+                // Named, and capped: three examples tell an operator what is wrong,
+                // three hundred tell them nothing they can read.
+                if (count($failed) < 3) {
+                    $failed[] = (string) $who['name'] . ' — ' . (EventInvites::lastMintError() ?: 'unknown reason');
+                }
             }
         }
 
-        $_SESSION['flash'] = $made === 0
-            ? 'Nothing new to add — everybody reachable already has an invitation.'
-            : $made . ' invitation' . ($made === 1 ? '' : 's') . ' minted. Read the list, then send.';
+        $parts = [];
+        foreach ($made as $label => $n) {
+            $parts[] = $n . ' ' . $label . ($kept[$label] > 0 ? ' (' . $kept[$label] . ' already had one)' : '');
+        }
+
+        $total = array_sum($made);
+        $msg   = $total === 0
+            ? 'Nothing new to add. ' . implode(', ', $parts) . '.'
+            : 'Minted: ' . implode(', ', $parts) . '. Read the list, then send.';
+
+        if ($failed !== []) {
+            $_SESSION['flash_error'] = count($failed) . ' could not be added: '
+                                     . implode('; ', $failed) . '.';
+        }
+
+        $_SESSION['flash'] = $msg;
 
         return $res->withHeader('Location', '/admin/events/' . $id . '/invites')->withStatus(302);
+    }
+
+    /**
+     * Give somebody an address by hand, and invite them with it.
+     *
+     * ── WHY THIS IS NEEDED AT ALL ────────────────────────────────────────────
+     *
+     * A nominee's address is looked up from their linked profile or from the nomination
+     * that named them. Plenty of real nominations arrive without one — somebody was
+     * nominated by a colleague who knew their name and not their inbox — and until now
+     * those people sat in a list captioned "cannot be written to" with no way to write to
+     * them. The organiser knows the address; the platform simply had nowhere to put it.
+     *
+     * ── WHAT IT DOES NOT DO ──────────────────────────────────────────────────
+     *
+     * It does not edit the nomination. That row is somebody else's submission and a
+     * record of what they said; correcting it here would quietly rewrite the evidence a
+     * panel scored. The address goes onto the INVITE, which is this platform's own record
+     * of who it wrote to — and once the invite exists the address is remembered, so a
+     * later rebuild does not ask again.
+     *
+     * ── AND WHY THE ID IS CHECKED AGAINST THE PLAN ───────────────────────────
+     *
+     * Minting attaches a real discount code with a real guest quota. Taking the id
+     * straight from the form would let a mistyped — or crafted — value invite somebody
+     * who is not on this ceremony's shortlist at all, with a code their guests can spend.
+     * So the person must be in this event's own unreachable list, which is the same walk
+     * the screen rendered from.
+     */
+    public function address(Request $req, Response $res, array $args): Response
+    {
+        $id   = (int) ($args['id'] ?? 0);
+        $back = '/admin/events/' . $id . '/invites';
+        $b    = (array) $req->getParsedBody();
+
+        // ── ONE KEY, USED TWICE ─────────────────────────────────────────────
+        //
+        // This control lives INSIDE the build form — a <form> nested in a <form> is
+        // deleted by the parser, so it is a `formaction` on its own submit button and the
+        // whole outer form posts. Every unreachable row therefore submits its box at once,
+        // and the pressed button's own name/value is what says which row was meant.
+        //
+        // `nominee:42` / `judge:7` rather than two fields, so the button and the box are
+        // keyed by the same string and cannot come apart.
+        $key   = trim((string) ($b['mint_for'] ?? ''));
+        $email = trim((string) (((array) ($b['addr'] ?? []))[$key] ?? ''));
+
+        [$kind, $rawId] = array_pad(explode(':', $key, 2), 2, '');
+        $nomineeId = $kind === 'nominee' ? (int) $rawId : 0;
+        $judgeId   = $kind === 'judge'   ? (int) $rawId : 0;
+        $audience  = $kind === 'judge' ? InviteAudience::JUDGE : InviteAudience::NOMINEE;
+
+        if ($nomineeId < 1 && $judgeId < 1) {
+            $_SESSION['flash_error'] = 'That form did not say who the address was for. '
+                                     . 'Nothing was changed.';
+            return $res->withHeader('Location', $back)->withStatus(302);
+        }
+
+        if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
+            $_SESSION['flash_error'] = 'That is not an email address the platform can write to. '
+                                     . 'Nothing was changed.';
+            return $res->withHeader('Location', $back)->withStatus(302);
+        }
+
+        // The same walk the screen rendered from, so an id that was never on it cannot be
+        // invited by posting one.
+        $match = null;
+        foreach (EventInvites::plan($id) as $key => $group) {
+            if ($key !== $audience) continue;
+            foreach ($group['unreachable'] as $who) {
+                if ($nomineeId > 0 && (int) ($who['nominee_id'] ?? 0) === $nomineeId) { $match = $who; break 2; }
+                if ($judgeId   > 0 && (int) ($who['judge_id']   ?? 0) === $judgeId)   { $match = $who; break 2; }
+            }
+        }
+
+        if ($match === null) {
+            $_SESSION['flash_error'] = 'That person is not on this ceremony\'s list of people '
+                                     . 'without an address. Nothing was changed.';
+            return $res->withHeader('Location', $back)->withStatus(302);
+        }
+
+        $invite = EventInvites::mint($id, $audience, [
+            'name'       => (string) $match['name'],
+            'email'      => $email,
+            'nominee_id' => (int) ($match['nominee_id'] ?? 0),
+            'judge_id'   => (int) ($match['judge_id'] ?? 0),
+        ], (int) ($match['cycle_id'] ?? 0) ?: null);
+
+        // Reported on what is TRUE afterwards. mint() returns the EXISTING row when that
+        // address already has an invitation for this event, which is a different outcome
+        // from having made one and must not be announced as a new invitation.
+        $_SESSION[$invite === null ? 'flash_error' : 'flash'] = $invite === null
+            ? 'That address could not be used — it may already belong to somebody else on '
+              . 'this list. Nothing was changed.'
+            : (string) $match['name'] . ' is on the list now, at ' . $email
+              . '. Press Send when you are ready.';
+
+        return $res->withHeader('Location', $back)->withStatus(302);
     }
 
     /** Send one batch. */
@@ -120,8 +254,10 @@ final class InvitesController
         }
 
         $ok = 0; $failed = 0; $skipped = 0;
-        foreach (EventInvites::forEvent($id) as $invite) {
-            if ($invite->sent_at !== null) continue;
+        // sendQueue(), not forEvent(): the list screen groups by audience, which is right
+        // to read and wrong to send. 'judge' sorts before 'nominee', so a batch drawn in
+        // that order was all judges on any ceremony with fifteen of them — every time.
+        foreach (EventInvites::sendQueue($id) as $invite) {
             if ($ok + $failed >= self::BATCH) break;
 
             $r = InviteMailer::send($invite, $event, $mailer);
@@ -133,14 +269,28 @@ final class InvitesController
             usleep(250000);
         }
 
-        $left = 0;
-        foreach (EventInvites::forEvent($id) as $i) if ($i->sent_at === null) $left++;
+        // WHO is left, not just how many. "12 still to go" beside a list an operator has
+        // just watched go out to judges is the sentence that made this look like nominees
+        // were being skipped rather than queued behind a cap.
+        $remaining = [];
+        foreach (EventInvites::sendQueue($id) as $i) {
+            $key = (string) $i->audience;
+            $remaining[$key] = ($remaining[$key] ?? 0) + 1;
+        }
+        $left  = array_sum($remaining);
+        $named = [];
+        foreach ($remaining as $key => $n) {
+            $spec    = InviteAudience::isValid($key) ? InviteAudience::spec($key) : null;
+            $named[] = $n . ' ' . strtolower((string) ($spec['label'] ?? $key));
+        }
 
         $_SESSION[$failed > 0 ? 'flash_error' : 'flash'] = trim(
             $ok . ' sent'
             . ($failed  > 0 ? ', ' . $failed . ' FAILED' : '')
             . ($skipped > 0 ? ', ' . $skipped . ' skipped (opted out or already sent)' : '')
-            . '. ' . ($left > 0 ? $left . ' still to go — press Send again.' : 'That is everybody.')
+            . '. ' . ($left > 0
+                ? 'Still to go: ' . implode(', ', $named) . ' — press Send again.'
+                : 'That is everybody.')
         );
 
         return $res->withHeader('Location', '/admin/events/' . $id . '/invites')->withStatus(302);

@@ -251,6 +251,206 @@ final class EventInvitesTest extends TestCase
     }
 
     /**
+     * A BATCH MUST NOT BE ALL JUDGES.
+     *
+     * forEvent() orders by `audience`, and 'judge' sorts before 'nominee'. The send loop
+     * stops at BATCH. So on a ceremony with fifteen or more judges the first press sends
+     * judges and only judges, every time — and the nominees, who are the reason the
+     * evening exists, are systematically last.
+     *
+     * The screen does say "N still to go", but an operator who pressed Send once and
+     * looked at what left reported exactly this: "it is only sending for judges."
+     */
+    public function test_a_send_batch_is_not_all_judges_before_any_nominee(): void
+    {
+        $ids = [];
+        for ($i = 0; $i < 20; $i++) {
+            DB::table('gates_judges')->insert([
+                'name' => 'Judge ' . str_pad((string) $i, 2, '0', STR_PAD_LEFT),
+                'email' => 'judge' . $i . '@example.com', 'is_active' => 1,
+                'programme_ids' => json_encode([$this->programmeId]),
+            ]);
+        }
+        for ($i = 0; $i < 5; $i++) {
+            $ids[] = $this->nominee('Nominee ' . $i, 'nominee' . $i . '@example.com');
+        }
+        $this->publishShortlist($this->cycleId, $this->catId, $ids);
+
+        foreach (EventInvites::plan($this->eventId) as $audience => $g) {
+            foreach ($g['ready'] as $who) {
+                EventInvites::mint($this->eventId, $audience, $who,
+                                   (int) ($who['cycle_id'] ?? 0) ?: null);
+            }
+        }
+
+        $queue = array_slice(EventInvites::sendQueue($this->eventId), 0, 15);
+        $audiences = array_map(static fn (object $i): string => (string) $i->audience, $queue);
+
+        $this->assertContains(InviteAudience::NOMINEE, $audiences,
+            'fifteen judges filled the whole batch and not one nominee was written to');
+    }
+
+    /**
+     * BUILD NAMES EACH AUDIENCE, so "no nominees" cannot read as success.
+     *
+     * It used to report one number for the whole run. A build that minted twenty judges
+     * and no nominees said "20 invitations minted" — true, reads as success, and is the
+     * exact screen an operator was looking at while reporting that nominees were missing.
+     */
+    public function test_build_reports_each_audience_separately(): void
+    {
+        $_SESSION['admin_id'] = 1; $_SESSION['admin_role'] = 'superadmin';
+
+        DB::table('gates_judges')->insert([
+            'name' => 'Bola Judge', 'email' => 'bola@example.com', 'is_active' => 1,
+            'programme_ids' => json_encode([$this->programmeId]),
+        ]);
+        // A nominee who IS shortlisted and reachable.
+        $ada = $this->nominee('Ada Obi', 'ada@example.com');
+        $this->publishShortlist($this->cycleId, $this->catId, [$ada]);
+
+        $b = new \DI\ContainerBuilder();
+        $b->addDefinitions(dirname(__DIR__, 2) . '/config/container.php');
+        $req = (new \Slim\Psr7\Factory\ServerRequestFactory())
+            ->createServerRequest('POST', '/admin/events/' . $this->eventId . '/invites/build');
+
+        $b->build()->get(\AfricaGates\Admin\Controllers\InvitesController::class)
+            ->build($req, new \Slim\Psr7\Response(), ['id' => $this->eventId]);
+
+        $flash = (string) ($_SESSION['flash'] ?? '');
+        $this->assertStringContainsString('1 nominees', $flash,
+            'the nominee count is not stated, so an empty one cannot be noticed');
+        $this->assertStringContainsString('1 judges', $flash);
+        $this->assertCount(2, EventInvites::forEvent($this->eventId));
+    }
+
+    /** And a mint that fails says why, instead of quietly not counting. */
+    public function test_a_failed_mint_is_named_rather_than_silently_uncounted(): void
+    {
+        $this->assertSame('', EventInvites::lastMintError());
+
+        $r = EventInvites::mint($this->eventId, InviteAudience::NOMINEE,
+            ['name' => 'No Address', 'email' => '', 'nominee_id' => 1, 'judge_id' => 0]);
+
+        $this->assertNull($r);
+        $this->assertSame('no address', EventInvites::lastMintError(),
+            'the reason a person was left out is not recoverable, and there is no shell to '
+            . 'go and look');
+    }
+
+    // ══ an address the organiser knows and the platform does not ════════════
+
+    /** POST one typed address through the real controller. */
+    private function addAddress(string $key, string $email): string
+    {
+        $b = new \DI\ContainerBuilder();
+        $b->addDefinitions(dirname(__DIR__, 2) . '/config/container.php');
+
+        $req = (new \Slim\Psr7\Factory\ServerRequestFactory())
+            ->createServerRequest('POST', '/admin/events/' . $this->eventId . '/invites/address')
+            ->withParsedBody(['mint_for' => $key, 'addr' => [$key => $email]]);
+
+        $b->build()->get(\AfricaGates\Admin\Controllers\InvitesController::class)
+            ->address($req, new \Slim\Psr7\Response(), ['id' => $this->eventId]);
+
+        return (string) ($_SESSION['flash'] ?? $_SESSION['flash_error'] ?? '');
+    }
+
+    /**
+     * A nominee with no address on file can be given one and invited.
+     *
+     * Plenty of real nominations arrive without an address — somebody nominated by a
+     * colleague who knew their name and not their inbox. They used to sit in a list
+     * captioned "cannot be written to" with nothing an organiser could do about it.
+     */
+    public function test_an_organiser_can_supply_a_missing_address(): void
+    {
+        $_SESSION['admin_id'] = 1; $_SESSION['admin_role'] = 'superadmin';
+
+        $ada = $this->nominee('Ada Obi');            // no email anywhere
+        $this->publishShortlist($this->cycleId, $this->catId, [$ada]);
+
+        $plan = EventInvites::plan($this->eventId);
+        $this->assertCount(1, $plan[InviteAudience::NOMINEE]['unreachable']);
+        $this->assertSame($ada, $plan[InviteAudience::NOMINEE]['unreachable'][0]['nominee_id'],
+            'the row carries no id, so nothing on the screen could act on it');
+
+        $this->addAddress('nominee:' . $ada, 'ada@example.com');
+
+        $invites = EventInvites::forEvent($this->eventId);
+        $this->assertCount(1, $invites);
+        $this->assertSame('ada@example.com', (string) $invites[0]->email);
+        $this->assertSame('Ada Obi', (string) $invites[0]->name);
+        $this->assertSame($ada, (int) $invites[0]->nominee_id,
+            'the invitation is not tied to the person it is for');
+    }
+
+    /**
+     * The nomination is left exactly as it was.
+     *
+     * It is somebody else's submission and the record a panel scored. Correcting it from
+     * here would quietly rewrite the evidence.
+     */
+    public function test_supplying_an_address_does_not_edit_the_nomination(): void
+    {
+        $_SESSION['admin_id'] = 1; $_SESSION['admin_role'] = 'superadmin';
+
+        $ada = $this->nominee('Ada Obi');
+        DB::table('gates_nominations')->insert([
+            'cycle_id' => $this->cycleId, 'category_id' => $this->catId, 'status' => 'approved',
+            'nominee_name' => 'Ada Obi', 'nominee_email' => null,
+            'nominator_name' => 'A Nominator', 'nominator_email' => 'nom@example.com',
+            'created_at' => '2026-02-01 10:00:00',
+        ]);
+        $this->publishShortlist($this->cycleId, $this->catId, [$ada]);
+
+        $this->addAddress('nominee:' . $ada, 'ada@example.com');
+
+        $this->assertNull(
+            DB::table('gates_nominations')->where('nominee_name', 'Ada Obi')->value('nominee_email'),
+            'the nomination was rewritten — that row is a record of what somebody else said'
+        );
+    }
+
+    /**
+     * An id that was never on this ceremony's list cannot be invited by posting one.
+     *
+     * Minting attaches a real discount code with a real guest quota. Taking the id
+     * straight from the form would let a crafted value invite somebody who is not on this
+     * shortlist at all, with a code their guests can spend.
+     */
+    public function test_an_id_that_is_not_on_the_list_cannot_be_invited(): void
+    {
+        $_SESSION['admin_id'] = 1; $_SESSION['admin_role'] = 'superadmin';
+
+        $ada = $this->nominee('Ada Obi');
+        $this->publishShortlist($this->cycleId, $this->catId, [$ada]);
+
+        // A real, approved nominee — simply not on this ceremony's shortlist.
+        $stranger = $this->nominee('Not Shortlisted');
+
+        $msg = $this->addAddress('nominee:' . $stranger, 'stranger@example.com');
+
+        $this->assertSame([], EventInvites::forEvent($this->eventId),
+            'somebody off the shortlist was minted a code their guests could spend');
+        $this->assertStringContainsString('not on this ceremony', $msg);
+    }
+
+    /** And a malformed address changes nothing. */
+    public function test_a_bad_address_is_refused_rather_than_stored(): void
+    {
+        $_SESSION['admin_id'] = 1; $_SESSION['admin_role'] = 'superadmin';
+
+        $ada = $this->nominee('Ada Obi');
+        $this->publishShortlist($this->cycleId, $this->catId, [$ada]);
+
+        $msg = $this->addAddress('nominee:' . $ada, 'ada at example dot com');
+
+        $this->assertSame([], EventInvites::forEvent($this->eventId));
+        $this->assertStringContainsString('not an email address', $msg);
+    }
+
+    /**
      * A drawn-but-unpublished shortlist is the expensive one: everything looks done, and
      * the invitation run is silently drawing from nothing.
      */

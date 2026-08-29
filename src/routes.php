@@ -3323,6 +3323,10 @@ return function(App $app) {
          */
         $a->get('/events/{id:[0-9]+}/invites',        \AfricaGates\Admin\Controllers\InvitesController::class.':index');
         $a->post('/events/{id:[0-9]+}/invites/build', \AfricaGates\Admin\Controllers\InvitesController::class.':build');
+        // An address typed by the organiser for somebody the platform has none for. The
+        // nomination that named them is left alone — it is somebody else's submission and
+        // the record a panel scored; the address goes on the invite instead.
+        $a->post('/events/{id:[0-9]+}/invites/address', \AfricaGates\Admin\Controllers\InvitesController::class.':address');
         $a->post('/events/{id:[0-9]+}/invites/send',  \AfricaGates\Admin\Controllers\InvitesController::class.':send');
         $a->post('/events/{id:[0-9]+}/invites/test',  \AfricaGates\Admin\Controllers\InvitesController::class.':test');
         $a->post('/events/{id:[0-9]+}/invites/image', \AfricaGates\Admin\Controllers\InvitesController::class.':image');

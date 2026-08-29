@@ -356,7 +356,7 @@ final class EventInvites
      * @return array<string, array{
      *   audience:array<string,mixed>,
      *   ready:list<array{name:string,email:string,nominee_id:int,judge_id:int,category:string}>,
-     *   unreachable:list<array{name:string,why:string}>,
+     *   unreachable:list<array{name:string,why:string,nominee_id:int,judge_id:int,cycle_id:int,category:string}>,
      *   already:int
      * }>
      */
@@ -374,7 +374,14 @@ final class EventInvites
             $ready = [];
             $bad   = [];
             foreach ($rows as $r) {
-                if ($r['email'] === '') { $bad[] = ['name' => $r['name'], 'why' => $r['why']]; continue; }
+                if ($r['email'] === '') {
+                    // The WHOLE row, not just a name and a reason. An operator who can see
+                    // that somebody has no address should be able to type one in without
+                    // leaving the screen, and doing that needs the ids the mint takes —
+                    // which a name and a sentence cannot supply.
+                    $bad[] = $r;
+                    continue;
+                }
                 $ready[] = $r;
             }
 
@@ -445,10 +452,20 @@ final class EventInvites
      */
     public static function mint(int $eventId, string $audience, array $who, ?int $cycleId = null): ?object
     {
-        if (!InviteAudience::isValid($audience)) return null;
+        self::$lastMintError = '';
+
+        if (!InviteAudience::isValid($audience)) {
+            self::$lastMintError = 'not an audience this platform knows';
+            return null;
+        }
 
         $email = EmailOptOut::normalise($who['email'] ?? '');
-        if ($email === '' || !filter_var($email, FILTER_VALIDATE_EMAIL)) return null;
+        if ($email === '' || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
+            self::$lastMintError = $email === ''
+                ? 'no address'
+                : 'the address on file is not one the platform can write to';
+            return null;
+        }
 
         try {
             $existing = DB::table('gates_event_invites')
@@ -477,10 +494,32 @@ final class EventInvites
             self::mintCode($eventId, $reference, $quota, (string) $spec['label']);
 
             return DB::table('gates_event_invites')->where('id', $id)->first();
-        } catch (\Throwable) {
+        } catch (\Throwable $e) {
+            // ── THE SWALLOWED ERROR ─────────────────────────────────────────
+            //
+            // This caught and returned null, and the build screen reported a COUNT. So
+            // "already invited", "no address" and "the insert threw" were one outcome to
+            // an operator: a number that did not go up. On a host with no shell that is
+            // unanswerable — which is exactly the position an operator was left in when
+            // a run produced judges and no nominees.
+            //
+            // Kept out of the return type on purpose: every caller treats null as "no
+            // invitation", and widening that to a result object would make the common
+            // path carry a failure branch it does not need.
+            self::$lastMintError = $e->getMessage();
+            error_log('[event-invites] mint failed for ' . $email . ': ' . $e->getMessage());
+
             return null;
         }
     }
+
+    /** Why the last {@see mint()} produced nothing. '' when it produced something. */
+    public static function lastMintError(): string
+    {
+        return self::$lastMintError;
+    }
+
+    private static string $lastMintError = '';
 
     /**
      * The discount code an invitee's guests spend.
@@ -527,6 +566,58 @@ final class EventInvites
         } catch (\Throwable) {
             return [];
         }
+    }
+
+    /**
+     * The unsent invitations, in the order they should go out.
+     *
+     * ══════════════════════════════════════════════════════════════════════════
+     * WHY THIS IS NOT JUST `forEvent()` FILTERED
+     * ══════════════════════════════════════════════════════════════════════════
+     *
+     * {@see forEvent()} orders by `audience` for the LIST SCREEN, where grouping judges
+     * together and nominees together is exactly right to read.
+     *
+     * The send loop used the same order and stops at a batch cap. 'judge' sorts before
+     * 'nominee', so on a ceremony with fifteen or more judges the first press sent judges
+     * and only judges — every time, deterministically — and the nominees, who are the
+     * reason the evening exists, were systematically last. The screen said "N still to
+     * go", but an operator who pressed Send and looked at what left reported it as
+     * "invitations are only sending for judges".
+     *
+     * ══════════════════════════════════════════════════════════════════════════
+     * ROUND-ROBIN, NOT REVERSED
+     * ══════════════════════════════════════════════════════════════════════════
+     *
+     * Putting nominees first would fix the report and recreate the bug facing the other
+     * way: judges would then be systematically last on a night with a long shortlist.
+     * Taking one from each audience in turn means every press makes visible progress on
+     * both, and no group can be starved by the size of another.
+     *
+     * Within an audience the order is still by name, so a partly-sent list is
+     * predictable rather than arbitrary.
+     *
+     * @return list<object>
+     */
+    public static function sendQueue(int $eventId): array
+    {
+        $byAudience = [];
+        foreach (self::forEvent($eventId) as $invite) {
+            if (($invite->sent_at ?? null) !== null) continue;
+            $byAudience[(string) $invite->audience][] = $invite;
+        }
+        if ($byAudience === []) return [];
+
+        $out = [];
+        while ($byAudience !== []) {
+            foreach ($byAudience as $key => $queue) {
+                $next = array_shift($byAudience[$key]);
+                if ($next !== null) $out[] = $next;
+                if ($byAudience[$key] === []) unset($byAudience[$key]);
+            }
+        }
+
+        return $out;
     }
 
     public static function byReference(string $reference): ?object
