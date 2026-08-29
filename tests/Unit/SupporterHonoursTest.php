@@ -58,7 +58,7 @@ final class SupporterHonoursTest extends TestCase
             /** @param list<array{to:string,subject:string,body:string,unsub:string}> $sink */
             public function __construct(private array &$sink) { parent::__construct([]); }
             public function sendBranded(string $to, string $subject, string $htmlBody, string $plainBody = '',
-                                        string $category = '', string $hero = '', string $unsubscribeUrl = '', array $attachments = []): array
+                                        string $category = '', string $hero = '', string $unsubscribeUrl = '', array $attachments = [], string $preheader = '', int $heroHeight = 0): array
             {
                 $this->sink[] = ['to' => $to, 'subject' => $subject,
                                  'body' => $htmlBody . ' ' . $plainBody, 'unsub' => $unsubscribeUrl];

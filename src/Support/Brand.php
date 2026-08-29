@@ -19,12 +19,13 @@ namespace AfricaGates\Support;
  * and the email it arrives with showing two different logos is worse than neither having
  * any.
  *
- * ── THE LOCKUP IS WHITE-BACKED, NOT TRANSPARENT ──────────────────────────────
+ * ── THE LOCKUP IS WHITE-BACKED, SO THERE ARE TWO OF THEM ─────────────────────
  *
- * Which is why it goes on paper and never on the ink band. Reversed-out artwork does not
- * exist in this repository, and inventing one by inverting a PNG produces a grey block
- * with a hole in it. The email's masthead is a white band above its ink hero for exactly
- * that reason — see the template.
+ * The shipped artwork is green on white and goes on paper. On the ink masthead it would
+ * be a white rectangle with a logo in it, so {@see LOGO_REVERSED} is the same artwork
+ * recoloured — and {@see logoUrl()} takes a flag rather than leaving each caller to pick.
+ * That flag is the whole reason this is one function: the two files are indistinguishable
+ * in a filename and unmistakable on a ground.
  */
 final class Brand
 {

@@ -479,7 +479,7 @@ final class EventInvitesTest extends TestCase
 
             public function sendBranded(string $to, string $subject, string $htmlBody, string $plainBody = '',
                                         string $category = '', string $hero = '', string $unsubscribeUrl = '',
-                                        array $attachments = []): array
+                                        array $attachments = [], string $preheader = '', int $heroHeight = 0): array
             {
                 return ['success' => true];
             }

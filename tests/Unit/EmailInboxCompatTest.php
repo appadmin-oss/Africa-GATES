@@ -28,15 +28,38 @@ class EmailInboxCompatTest extends TestCase
         return self::TPL;
     }
 
-    private static function src(): string
+    /**
+     * The markup these properties are asserted against.
+     *
+     * Overridable, and {@see InviteInboxCompatTest} overrides it with a RENDERED message
+     * rather than a template — because the invitation stopped being a document and became
+     * a fragment inside {@see \AfricaGates\Services\OtpService::brandWrap()}. Reading the
+     * fragment file would then prove nothing about what arrives: the doctype, the metas,
+     * the fluid wrapper, the mso conditional and the preheader all live in the shell now,
+     * and a test pointed at the fragment would pass or fail on the wrong half of the mail.
+     */
+    protected static function markup(): string
     {
-        return (string) file_get_contents(static::tpl());
+        return (string) preg_replace('/\{#.*?#\}/s', '', (string) file_get_contents(static::tpl()));
     }
 
-    /** The template with Twig comments removed — those never reach a recipient. */
-    private static function markup(): string
+    /**
+     * How to recognise the fluid wrapper, and how wide the card is capped.
+     *
+     * The PROPERTY is shared — a percentage-width wrapper with a max-width, so a client
+     * that throws the @media block away still gets a mobile-safe layout. The selector is
+     * not: the campaign skeleton names its own wrapper `agw-wrapper` at 560px, the house
+     * shell is an unclassed 600px card. Hard-coding one skeleton's class here is what
+     * would force the other to grow a class it has no other use for.
+     */
+    protected static function fluidWrapperRe(): string
     {
-        return (string) preg_replace('/\{#.*?#\}/s', '', self::src());
+        return '/class="agw-wrapper[^"]*"\s+width="100%"/';
+    }
+
+    protected static function cardMaxWidth(): string
+    {
+        return 'max-width:560px';
     }
 
     public function test_layout_survives_a_stripped_style_block(): void
@@ -44,16 +67,16 @@ class EmailInboxCompatTest extends TestCase
         // GMAIL. It strips <style> in several configurations — most commonly a non-Gmail
         // address pulled into a Gmail account over POP/IMAP. Anything whose only mobile
         // behaviour lives in @media is then a desktop-width table on a phone.
-        $m = self::markup();
+        $m = static::markup();
 
         // The main wrapper must be percentage-width with a max-width, not a fixed px width.
         $this->assertMatchesRegularExpression(
-            '/class="agw-wrapper[^"]*"\s+width="100%"/',
+            static::fluidWrapperRe(),
             $m,
             'The wrapper must be fluid. A fixed width="560" needs the @media override to be '
             . 'mobile-safe, and that override is exactly what Gmail throws away.'
         );
-        $this->assertStringContainsString('max-width:560px', $m);
+        $this->assertStringContainsString(static::cardMaxWidth(), $m);
 
         // Outlook ignores max-width, so it needs the fixed width back — inside a conditional.
         $this->assertStringContainsString('<!--[if mso]>', $m,
@@ -64,7 +87,7 @@ class EmailInboxCompatTest extends TestCase
     {
         // OUTLOOK (Word engine). An unbalanced conditional table is invisible everywhere
         // else and destroys the layout in the one client that reads it.
-        $mso = implode('', self::matchAll('/<!--\[if mso\]>(.*?)<!\[endif\]-->/s', self::markup()));
+        $mso = implode('', self::matchAll('/<!--\[if mso\]>(.*?)<!\[endif\]-->/s', static::markup()));
         foreach (['table', 'tr', 'td'] as $tag) {
             $this->assertSame(
                 preg_match_all('/<' . $tag . '[\s>]/', $mso),
@@ -78,7 +101,7 @@ class EmailInboxCompatTest extends TestCase
     {
         // OUTLOOK. border-radius and padding on an <a> do nothing, so a styled anchor
         // renders as bare underlined text. The VML roundrect is the version Outlook sees.
-        $m = self::markup();
+        $m = static::markup();
         $this->assertStringContainsString('v:roundrect', $m, 'no VML button for Outlook');
         $this->assertStringContainsString('<w:anchorlock/>', $m,
             'without anchorlock the VML button text is selectable and the click target misbehaves');
@@ -90,7 +113,7 @@ class EmailInboxCompatTest extends TestCase
     {
         // OUTLOOK DESKTOP and most corporate mail block remote images by default. The
         // countdown GIF is the hero, so the deadline has to exist as text as well.
-        $m = self::markup();
+        $m = static::markup();
 
         // Repeated as real text, outside any <img>.
         $withoutImages = (string) preg_replace('/<img[^>]*>/', '', $m);
@@ -111,7 +134,7 @@ class EmailInboxCompatTest extends TestCase
     {
         // GMAIL and OUTLOOK.COM invert regardless of color-scheme, and do it badly on
         // near-white surfaces. APPLE MAIL / iOS honour color-scheme and leave it alone.
-        $m = self::markup();
+        $m = static::markup();
         $this->assertStringContainsString('prefers-color-scheme: dark', $m);
         $this->assertStringContainsString('name="color-scheme"', $m);
         $this->assertStringContainsString('name="supported-color-schemes"', $m);
@@ -121,7 +144,7 @@ class EmailInboxCompatTest extends TestCase
     {
         // OUTLOOK (Word engine) supports none of these. Any of them load-bearing means the
         // layout collapses there — which is why this template is tables, not divs.
-        $m = self::markup();
+        $m = static::markup();
         // Only look OUTSIDE the [if !mso] blocks, where Outlook never reads.
         $seen = (string) preg_replace('/<!--\[if !mso\]><!-->.*?<!--<!\[endif\]-->/s', '', $m);
         foreach (['display:flex', 'display:grid', 'position:absolute', 'position:fixed',
@@ -135,7 +158,7 @@ class EmailInboxCompatTest extends TestCase
     {
         // SCREEN READERS. A layout table without role="presentation" is announced as a
         // data table, cell by cell.
-        $m      = self::markup();
+        $m      = static::markup();
         $tables = preg_match_all('/<table\b/', $m);
         $roles  = preg_match_all('/<table[^>]*role="presentation"/', $m);
         $this->assertSame($tables, $roles, 'every layout table needs role="presentation"');
@@ -146,7 +169,7 @@ class EmailInboxCompatTest extends TestCase
     {
         // EVERY CLIENT shows the first text it finds beside the subject. Without a
         // preheader that is "View in browser" or a stray style rule.
-        $m = self::markup();
+        $m = static::markup();
         $this->assertStringContainsString('mso-hide:all', $m, 'preheader must hide in Outlook too');
         $this->assertMatchesRegularExpression('/display:none;\s*max-height:0/', $m);
     }
@@ -158,7 +181,7 @@ class EmailInboxCompatTest extends TestCase
         // email — which the majority of readers downloaded in order to see the alt text,
         // while it ate the headroom before Gmail's clipping point. What Gmail clips off a
         // campaign is the footer, and that is where the unsubscribe link lives.
-        $this->assertStringNotContainsString('src="data:', self::markup(),
+        $this->assertStringNotContainsString('src="data:', static::markup(),
             'Inline a data: URI here and most recipients see alt text for double the bytes. '
             . 'Host the file and reference it absolutely.');
     }
@@ -167,7 +190,7 @@ class EmailInboxCompatTest extends TestCase
     {
         // An inbox has no page to be relative TO. A src="/assets/..." resolves against
         // the mail client's own host and 404s everywhere.
-        foreach (self::matchAll('/<img[^>]+src="([^"]+)"/', self::markup()) as $src) {
+        foreach (self::matchAll('/<img[^>]+src="([^"]+)"/', static::markup()) as $src) {
             $this->assertMatchesRegularExpression(
                 '~^(https?://|\{\{)~', $src,
                 "Image src must be absolute or a Twig variable that resolves to one: $src"
@@ -180,15 +203,16 @@ class EmailInboxCompatTest extends TestCase
         // GMAIL clips around 102KB and appends a "View entire message" link, which on a
         // campaign usually cuts the unsubscribe footer off — the one part that must not
         // be optional.
-        $this->assertLessThan(102400, strlen(self::src()),
-            'Template source is near Gmail clipping; the rendered output is larger still');
+        $this->assertLessThan(102400, strlen(static::markup()),
+            'Near Gmail clipping — and where this is asserted on a TEMPLATE the rendered '
+            . 'output is larger still');
     }
 
     public function test_ios_does_not_autolink_the_dates_and_addresses(): void
     {
         // APPLE MAIL / iOS turn dates, phone numbers and addresses into blue links,
         // which on a designed email looks like damage.
-        $m = self::markup();
+        $m = static::markup();
         $this->assertStringContainsString('name="format-detection"', $m);
         $this->assertStringContainsString('x-apple-data-detectors', $m,
             'the detector override is needed even with format-detection set');

@@ -23,9 +23,8 @@ use Tests\TestCase;
  * does not write to anybody twice.
  *
  * The MARKUP half — whether this survives Outlook — is not tested here and does not need
- * to be: the invitation renders through `templates/emails/campaign.twig`, so
- * {@see CampaignInboxCompatTest} already holds all twelve inbox properties for it. That
- * is the whole reason it is a block list rather than a thirteenth template.
+ * to be: {@see InviteInboxCompatTest} holds all twelve inbox properties against the
+ * rendered message, shell and body together.
  */
 final class InviteMailerTest extends TestCase
 {
@@ -72,7 +71,7 @@ final class InviteMailerTest extends TestCase
 
             public function sendBranded(string $to, string $subject, string $htmlBody, string $plainBody = '',
                                         string $category = '', string $hero = '', string $unsubscribeUrl = '',
-                                        array $attachments = []): array
+                                        array $attachments = [], string $preheader = '', int $heroHeight = 0): array
             {
                 $this->sent[] = compact('to', 'subject', 'htmlBody', 'plainBody', 'category', 'attachments');
 
@@ -377,10 +376,14 @@ final class InviteMailerTest extends TestCase
             'the lockup named by Brand is not in the deploy'
         );
 
-        $tpl = (string) file_get_contents(
-            dirname(__DIR__, 2) . '/templates/emails/invitation.twig');
-        $this->assertStringContainsString('{{ logo_url }}', $tpl,
-            'the email hard-codes a path instead of asking Brand');
+        // The mark sits in the house shell now, not in this one template — which is the
+        // point of a resolver: every branded message the platform sends carries it, and
+        // the invitation stopped being the only one that asked.
+        $shell = (string) file_get_contents(
+            dirname(__DIR__, 2) . '/src/Services/OtpService.php');
+        $this->assertStringNotContainsString('/assets/img/logo', $shell,
+            'the shell hard-codes a path instead of asking Brand — and `public/assets/img/` '
+            . 'holds fourteen files with "logo", "mark" or "brand" in the name');
 
         // The email takes the REVERSED lockup, because its masthead is ink. Getting this
         // wrong is not subtle — the green-on-white artwork on ink is a white rectangle
@@ -413,13 +416,20 @@ final class InviteMailerTest extends TestCase
             'Brand::LOGO_RATIO no longer describes the file — a new export was dropped in '
             . 'without it');
 
-        $tpl = (string) file_get_contents(
-            dirname(__DIR__, 2) . '/templates/emails/invitation.twig');
-        preg_match('/<img src="\{\{ logo_url \}\}" width="(\d+)" height="(\d+)"/', $tpl, $m);
+        // Asserted on the RENDERED message: the box is written in the shell, and the
+        // reversed export is a separate file that a designer could replace at a
+        // different aspect without anyone noticing until it was in the post.
+        $html = InviteMailer::preview($this->invite(), $this->event);
+        preg_match('/<img src="[^"]*' . preg_quote(Brand::LOGO_REVERSED, '/')
+                   . '" width="(\d+)" height="(\d+)"/', $html, $m);
         $this->assertNotEmpty($m, 'the mark carries no width and height — a blocked image '
                                 . 'then collapses the band it is the only thing in');
         $this->assertEqualsWithDelta((int) $m[1] / (int) $m[2], Brand::LOGO_RATIO, 0.02,
             'the declared box is not the artwork\'s shape');
+
+        [$rw, $rh] = getimagesize(dirname(__DIR__, 2) . '/public/' . Brand::LOGO_REVERSED);
+        $this->assertEqualsWithDelta($rw / $rh, Brand::LOGO_RATIO, 0.001,
+            'the reversed export is a different shape from the lockup it was derived from');
     }
 
     /**

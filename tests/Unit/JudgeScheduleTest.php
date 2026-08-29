@@ -271,7 +271,7 @@ final class JudgeScheduleTest extends TestCase
 
             public function sendBranded(string $to, string $subject, string $htmlBody, string $plainBody = '',
                                         string $category = '', string $hero = '', string $unsubscribeUrl = '',
-                                        array $attachments = []): array
+                                        array $attachments = [], string $preheader = '', int $heroHeight = 0): array
             {
                 $this->sink[] = ['to' => $to, 'subject' => $subject, 'html' => $htmlBody,
                                  'plain' => $plainBody, 'files' => $attachments];

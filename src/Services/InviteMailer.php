@@ -20,11 +20,15 @@ use Illuminate\Support\Carbon;
  * person, it has one thing to say, and reusing a newsletter chassis for it produced
  * exactly what it sounds like.
  *
- * `emails/invitation.twig` is its own design and inherits only the SCAFFOLDING from that
- * skeleton — the fluid-hybrid 560px wrapper, the MSO conditional tables, the VML button,
- * styled alt text, presentation roles, the hidden preheader, no data: URIs. Those twelve
- * properties are the difference between a design and a design that ARRIVES, and
- * {@see \Tests\Unit\InviteInboxCompatTest} holds every one of them for this file too.
+ * `emails/invitation.twig` is its own copy and its own hierarchy, but it is a FRAGMENT:
+ * the doctype, the letterhead, the hero band, the footer and the hidden preheader come
+ * from {@see OtpService::brandWrap()}, like every other transactional message here. It
+ * was briefly a whole document, which meant the recipient got two mastheads and two
+ * footers nested — see the note at the top of the template.
+ *
+ * The twelve inbox properties are the difference between a design and a design that
+ * ARRIVES, and {@see \Tests\Unit\InviteInboxCompatTest} holds every one of them against
+ * the RENDERED message — so they are held for the shell, and therefore for all of it.
  *
  * ── WHAT IS ATTACHED, AND WHY IT IS BY VALUE ─────────────────────────────────
  *
@@ -49,6 +53,15 @@ final class InviteMailer
 
     /** Cap on the cover artwork. Past this an invitation starts bouncing on size. */
     private const MAX_COVER_BYTES = 2_500_000;
+
+    /**
+     * The height the shell reserves for the hero band, in the 600px card.
+     *
+     * Declared because a blocked remote image with no height collapses the band it is the
+     * only thing in — Outlook desktop blocks by default — and the reader gets a hairline
+     * where the picture was. 600×260 is a 2.3:1 band.
+     */
+    private const HERO_H = 260;
 
     /**
      * Send one invitation.
@@ -76,10 +89,12 @@ final class InviteMailer
             $m['subject'],
             $m['html'],
             $m['plain'],
-            'invitation',
-            '',
+            'Invitation',
+            $m['hero'],
             EmailOptOut::url(rtrim(SiteUrl::base(), '/'), $email),
-            $m['attachments']
+            $m['attachments'],
+            $m['preheader'],
+            self::HERO_H
         );
 
         $ok    = (bool) ($r['success'] ?? false);
@@ -119,6 +134,11 @@ final class InviteMailer
             'html'        => self::html($view),
             'plain'       => self::plain($view),
             'attachments' => self::attachments($invite, $event, $tier),
+            // What the SHELL needs. The invitation is a body fragment now — brandWrap
+            // supplies the masthead, the hero band, the footer and the preheader, the same
+            // way it does for every other transactional message on this platform.
+            'preheader'   => (string) $view['preheader'],
+            'hero'        => (string) $view['cover_url'],
         ];
     }
 
@@ -162,25 +182,36 @@ final class InviteMailer
             $m['subject'],
             $m['html'],
             $m['plain'],
-            'invitation',
-            '',
+            'Invitation',
+            $m['hero'],
             EmailOptOut::url(rtrim(SiteUrl::base(), '/'), $to),
-            $m['attachments']
+            $m['attachments'],
+            $m['preheader'],
+            self::HERO_H
         );
 
         return ['ok' => (bool) ($r['success'] ?? false), 'error' => (string) ($r['error'] ?? '')];
     }
 
     /** The rendered HTML, for the admin's preview. Sends nothing. */
-    public static function preview(object $invite, object $event): string
+    public static function preview(object $invite, object $event, ?OtpService $mailer = null): string
     {
-        return self::html(self::view(
-            $invite,
-            $event,
-            InviteAudience::spec((string) $invite->audience),
-            EventInvites::lowestTier((int) $event->id),
-            rtrim(SiteUrl::base(), '/')
-        ));
+        $m = self::compose($invite, $event);
+
+        // WRAPPED, because the recipient's copy is wrapped. This used to return the body
+        // alone, so the operator read one document and the inbox received another — which
+        // is how the invitation came to be a whole second HTML document nested inside the
+        // house shell without anybody seeing it. A preview that is not the message is a
+        // preview of nothing.
+        return ($mailer ?? OtpService::boot())->brandWrap(
+            $m['subject'],
+            $m['html'],
+            'Invitation',
+            $m['hero'],
+            '',
+            $m['preheader'],
+            self::HERO_H
+        );
     }
 
 

@@ -2,6 +2,7 @@
 declare(strict_types=1);
 namespace AfricaGates\Services;
 
+use AfricaGates\Support\Brand;
 use AfricaGates\Support\Env;
 use Illuminate\Support\Carbon;
 use Illuminate\Database\Capsule\Manager as DB;
@@ -198,7 +199,7 @@ class OtpService
      *        attaches is generated for the message (a schedule, a receipt), and accepting a
      *        path would make it possible to attach a file somebody else's request named.
      */
-    public function sendBranded(string $to, string $subject, string $htmlBody, string $plainBody = '', string $category = '', string $hero = '', string $unsubscribeUrl = '', array $attachments = []): array
+    public function sendBranded(string $to, string $subject, string $htmlBody, string $plainBody = '', string $category = '', string $hero = '', string $unsubscribeUrl = '', array $attachments = [], string $preheader = '', int $heroHeight = 0): array
     {
         if (!$this->smtpConfigured()) {
             $this->devLog($to, $subject, $plainBody ?: strip_tags($htmlBody));
@@ -215,7 +216,7 @@ class OtpService
             $m = $this->mailer($to);
             $m->isHTML(true);
             $m->Subject = $subject;
-            $m->Body    = $this->brandWrap($subject, $htmlBody, $category, $hero, $unsubscribeUrl);
+            $m->Body    = $this->brandWrap($subject, $htmlBody, $category, $hero, $unsubscribeUrl, $preheader, $heroHeight);
             $m->AltBody = $plainBody ?: strip_tags($htmlBody);
             if ($unsubscribeUrl !== '') {
                 $m->addCustomHeader('List-Unsubscribe', '<' . $unsubscribeUrl . '>');
@@ -515,19 +516,94 @@ HTML;
      * Uses <table> layout throughout for maximum email-client compatibility
      * (Outlook, Gmail app, Apple Mail, Yahoo Mail).
      */
-    private function brandWrap(string $subject, string $body, string $category = '', string $hero = '', string $unsubscribeUrl = ''): string
+    /**
+     * The house shell every branded email arrives in.
+     *
+     * PUBLIC, and not for a test: the admin preview has to show what the RECIPIENT gets.
+     * The invitation preview used to render its body and show that, so the operator read
+     * one document and the inbox received another — which is exactly how a shell problem
+     * survives four rounds of review.
+     *
+     * ── WHAT WAS ADDED, AND FOR WHICH CLIENT ─────────────────────────────────
+     *
+     * This carried the design and none of the scaffolding. Six of the twelve properties
+     * EmailInboxCompatTest holds were missing — from the shell EVERY transactional message
+     * on this platform goes out in, not from one template:
+     *
+     *   · No MSO conditional table. Outlook desktop ignores `max-width`, so the 600px card
+     *     rendered edge to edge at whatever width the window was.
+     *   · No VML behind the buttons in the bodies above, so Outlook drew them as bare text
+     *     with the background dropped.
+     *   · No hidden preheader, so Gmail's preview line read "Africa GATES Cultural Power
+     *     Index" — the pre-header strip — for every message the platform sends.
+     *   · No `x-apple-data-detectors` neutraliser: iOS finds dates and addresses, wraps
+     *     them in its own anchor and restyles them blue.
+     *   · No `color-scheme`, so Gmail and Outlook.com inverted a near-white card badly.
+     *   · The hero image had a width and no HEIGHT, so a blocked image — Outlook desktop
+     *     blocks by default — collapsed the hero to nothing.
+     *
+     * The look is unchanged. This is the difference between a design and a design that
+     * arrives.
+     *
+     * @param string $preheader the line an inbox shows beside the subject. Falls back to
+     *                          the subject rather than to the body's first words, which is
+     *                          what a client picks up when there is nothing hidden for it.
+     */
+    public function brandWrap(string $subject, string $body, string $category = '', string $hero = '', string $unsubscribeUrl = '', string $preheader = '', int $heroHeight = 0): string
     {
         $year    = date('Y');
         $base    = $this->base();
+        // The category sits UNDER the mark now. Opposite it, a 10px tracked label was
+        // being asked to hold the other end of a 100px letterhead, and it read as a
+        // caption that had come loose.
         $catCell = $category !== ''
-            ? '<span style="font-size:10.5px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:rgba(255,255,255,0.5)">' . htmlspecialchars($category, ENT_QUOTES) . '</span>'
+            ? '<div style="margin-top:13px;font-size:10.5px;font-weight:700;letter-spacing:.18em;text-transform:uppercase;color:rgba(243,180,22,0.85)">'
+              . htmlspecialchars($category, ENT_QUOTES) . '</div>'
             : '';
+        // HEIGHT as well as width. Outlook desktop blocks remote images by default, and a
+        // blocked image with no height collapses the band it is the only thing in — the
+        // reader gets a hairline where the picture was. 260 is the shipped 600×260 crop;
+        // a caller with different artwork passes its own.
+        $hh = $heroHeight > 0 ? $heroHeight : 260;
         $heroRow = $hero !== ''
-            ? '<tr><td style="padding:0;font-size:0;line-height:0"><img src="' . htmlspecialchars($hero, ENT_QUOTES) . '" alt="" width="600" style="display:block;width:100%;max-width:600px;height:auto;border:0"></td></tr>'
+            ? '<tr><td style="padding:0;font-size:0;line-height:0"><img src="' . htmlspecialchars($hero, ENT_QUOTES)
+              . '" alt="" width="600" height="' . $hh . '" style="display:block;width:100%;max-width:600px;height:auto;border:0"></td></tr>'
             : '';
+
+        // The line an inbox shows beside the subject. Without it every message on this
+        // platform previewed as "Africa GATES Cultural Power Index" — the words in the
+        // pre-header strip, which is the first text in the document. Padded with
+        // zero-width joiners so the client does not pull body copy in after it.
+        $pre = htmlspecialchars($preheader !== '' ? $preheader : $subject, ENT_QUOTES);
+        $preRow = '<div style="display:none;max-height:0;max-width:0;font-size:1px;line-height:1px;opacity:0;overflow:hidden;mso-hide:all">'
+                . $pre . str_repeat('&#8202;&zwnj;', 7) . '</div>';
         // A visible way out, next to the other two footer links. The List-Unsubscribe
         // header is what Gmail reads; this is what a person reads, and only one of those
         // two is a promise the platform made in writing.
+        // THE REAL MARK, at a size it can actually be read at.
+        //
+        // This masthead was a "G" set in a 34px tile beside the words "Africa GATES" — a
+        // lockup drawn in CSS, because the artwork is green-on-white and this band is
+        // ink. Brand::LOGO_REVERSED is that artwork recoloured by its own blend ratio, so
+        // the platform's own mark can sit on the platform's own ink; asking Brand for it
+        // rather than typing the path is what keeps the letter and the email it arrives
+        // with showing the same logo.
+        //
+        // ── WHY IT IS 100px AND CENTRED, AND NOT 42px IN THE CORNER ──────────────
+        //
+        // The lockup is a LARGE-FORMAT mark: a hairline coastline with "Africa" set
+        // inside it over "G.A.T.E.S." tracked at 4% of the artwork's height. Dropped into
+        // the corner at 42px — the size a wordmark would want — the tracked line is under
+        // 2px, the coastline goes sub-pixel, and what arrives is a gold smudge. It has to
+        // be around 100px before the word reads, and a 100px mark in a corner is not a
+        // corner mark: it is a letterhead. So the band is one, which is also what the
+        // printed invitation does with the same file.
+        //
+        // width AND height on the tag: Outlook desktop blocks remote images by default
+        // and a blocked image with no height collapses the band it is the only thing in.
+        // The alt is the organisation's name, styled — an unstyled alt renders as 10px
+        // serif and reads as a broken attachment rather than as a wordmark.
+        $logo = htmlspecialchars(Brand::logoUrl($base, true), ENT_QUOTES);
         $unsub = $unsubscribeUrl !== ''
             ? ' · <a href="' . htmlspecialchars($unsubscribeUrl, ENT_QUOTES)
               . '" style="color:rgba(255,255,255,0.8);text-decoration:underline">Unsubscribe</a>'
@@ -539,46 +615,70 @@ HTML;
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="format-detection" content="telephone=no, date=no, address=no, email=no, url=no">
+  <meta name="color-scheme" content="light">
+  <meta name="supported-color-schemes" content="light">
   <title>$subject</title>
+  <style>
+    /* iOS still finds dates and addresses with format-detection set, wraps them in its
+       own anchor and restyles them blue — through the middle of a sentence. */
+    a[x-apple-data-detectors] {
+      color:inherit !important; text-decoration:none !important; font-size:inherit !important;
+      font-family:inherit !important; font-weight:inherit !important; line-height:inherit !important;
+    }
+    @media only screen and (max-width:620px) {
+      .ag-pad { padding-left:22px !important; padding-right:22px !important; }
+    }
+    /* This shell does NOT go dark, and that is a decision rather than an omission.
+       Every body it wraps is a FRAGMENT whose ink is set inline — #10292C headings on
+       white, per-message callouts in their own tints — so a card flipped to #0d1512
+       here would render all of it dark-on-dark in exactly the clients that honour this
+       query and nothing else.
+       What the block is for is colour-LOCKING. Outlook.com and the Windows Outlook apps
+       invert regardless of color-scheme and do it partially, which leaves a near-white
+       surface muddy grey with the ink on it untouched. Restating each surface with
+       !important is what stops that. */
+    @media (prefers-color-scheme: dark) {
+      .ag-ground { background-color:#dfe1dc !important; }
+      .ag-strip  { background-color:#fbfbfa !important; }
+      .ag-card   { background-color:#ffffff !important; }
+      .ag-body   { background-color:#ffffff !important; color:#4a5256 !important; }
+      .ag-ink    { background-color:#10292C !important; }
+      .ag-foot   { background-color:#0c2225 !important; }
+    }
+  </style>
 </head>
 <body style="margin:0;padding:0;background:#dfe1dc;font-family:'DM Sans',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif">
-  <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="background:#dfe1dc;padding:28px 16px">
+  $preRow
+  <table role="presentation" class="ag-ground" cellpadding="0" cellspacing="0" border="0" width="100%" style="background:#dfe1dc;padding:28px 16px">
     <tr><td align="center">
-      <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="600" style="max-width:600px;background:#ffffff;border-radius:6px;overflow:hidden;border:1px solid rgba(16,41,44,0.06);box-shadow:0 6px 24px -12px rgba(16,41,44,0.3)">
+      <!--[if mso]>
+      <table role="presentation" width="600" cellpadding="0" cellspacing="0" border="0" style="width:600px"><tr><td>
+      <![endif]-->
+      <table role="presentation" class="ag-card" cellpadding="0" cellspacing="0" border="0" width="600" style="max-width:600px;background:#ffffff;border-radius:6px;overflow:hidden;border:1px solid rgba(16,41,44,0.06);box-shadow:0 6px 24px -12px rgba(16,41,44,0.3)">
 
-        <!-- Pre-header -->
-        <tr><td style="background:#fbfbfa;border-bottom:1px solid rgba(16,41,44,0.06);padding:9px 20px">
-          <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr>
-            <td align="left" style="font-size:10px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:#a9b0ad">Africa GATES</td>
-            <td align="right" style="font-size:10px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:#a9b0ad">Cultural Power Index</td>
-          </tr></table>
-        </td></tr>
+        <!-- Envelope line. It used to read "Africa GATES" on the left and "Cultural
+             Power Index" on the right, which was fine above a 34px badge and is a
+             repetition above a letterhead: the name is set 100px wide immediately
+             below it. What is left is the half the mark does NOT say. -->
+        <tr><td class="ag-strip" align="center" style="background:#fbfbfa;border-bottom:1px solid rgba(16,41,44,0.06);padding:10px 20px;font-size:10px;font-weight:700;letter-spacing:.18em;text-transform:uppercase;color:#a9b0ad">Cultural Power Index</td></tr>
 
         <!-- Masthead -->
-        <tr><td style="background:#10292C;padding:18px 32px">
-          <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr>
-            <td align="left">
-              <table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr>
-                <td width="34" style="width:34px;height:34px;background:rgba(127,200,124,0.16);border-radius:9px;text-align:center;vertical-align:middle;font-family:'Playfair Display',Georgia,serif;font-weight:700;font-size:18px;color:#7FC87C">G</td>
-                <td style="padding-left:11px;vertical-align:middle;line-height:1.1">
-                  <span style="font-family:'Playfair Display',Georgia,serif;font-weight:700;font-size:15px;color:#ffffff">Africa</span><br>
-                  <span style="font-size:9px;font-weight:700;letter-spacing:.26em;color:#7FC87C">GATES</span>
-                </td>
-              </tr></table>
-            </td>
-            <td align="right" style="vertical-align:middle">$catCell</td>
-          </tr></table>
+        <tr><td class="ag-ink" align="center" style="background:#10292C;padding:26px 32px 24px">
+          <img src="$logo" width="100" height="115" alt="Africa GATES"
+               style="display:block;width:100px;max-width:100px;height:auto;margin:0 auto;border:0;outline:none;text-decoration:none;font-family:'Playfair Display',Georgia,serif;font-size:17px;font-weight:700;color:#f3b416">
+          $catCell
         </td></tr>
 
         $heroRow
 
         <!-- Body -->
-        <tr><td style="padding:34px 40px 30px;color:#4a5256;font-size:15px;line-height:1.65">
+        <tr><td class="ag-pad ag-body" style="padding:34px 40px 30px;background:#ffffff;color:#4a5256;font-size:15px;line-height:1.65">
           $body
         </td></tr>
 
         <!-- Footer -->
-        <tr><td style="background:#0c2225;padding:24px 40px">
+        <tr><td class="ag-foot" style="background:#0c2225;padding:24px 40px">
           <span style="font-family:'Playfair Display',Georgia,serif;font-weight:700;font-size:14px;color:#ffffff">Africa<span style="color:#7FC87C">GATES</span></span>
           <div style="height:1px;background:rgba(255,255,255,0.1);margin:14px 0"></div>
           <p style="margin:0;font-size:11.5px;line-height:1.7;color:rgba(255,255,255,0.55)">
@@ -589,6 +689,7 @@ HTML;
         </td></tr>
 
       </table>
+      <!--[if mso]></td></tr></table><![endif]-->
     </td></tr>
   </table>
 </body>

@@ -26,7 +26,7 @@ final class RecordingMailer extends OtpService
         $this->fail = $fail;
     }
 
-    public function sendBranded(string $to, string $subject, string $htmlBody, string $plainBody = '', string $category = '', string $hero = '', string $unsubscribeUrl = '', array $attachments = []): array
+    public function sendBranded(string $to, string $subject, string $htmlBody, string $plainBody = '', string $category = '', string $hero = '', string $unsubscribeUrl = '', array $attachments = [], string $preheader = '', int $heroHeight = 0): array
     {
         if ($this->fail) return ['success' => false, 'error' => 'connection refused'];
         $this->sent[] = compact('to', 'subject', 'category') + ['html' => $htmlBody, 'text' => $plainBody];

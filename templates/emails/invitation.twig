@@ -1,305 +1,115 @@
 {#
-  THE INVITATION.
+  THE INVITATION — a BODY, not a document.
 
-  ── THE DIRECTION, IN ONE SENTENCE ──────────────────────────────────────────
-  An engraved ceremony invitation: deep ink ground, a single gold rule, a serif
-  display face over monospace metadata, letterpress restraint. No gradients, no
-  glass, no pill badges, no icon rows.
+  ── WHY THIS FILE SHRANK BY TWO HUNDRED LINES ───────────────────────────────
 
-  ── WHY IT IS NOT THE CAMPAIGN SKELETON ─────────────────────────────────────
-  The first version of this rendered through emails/campaign.twig's block list, which
-  was the wrong call and looked it: that skeleton is built for a broadcast — a
-  countdown hero, numbered asks, a green CTA — and an invitation to be honoured in
-  public is not a broadcast. It is addressed to one person, it has one thing to say,
-  and the design has to carry that or the words are wasted.
+  It used to be a complete HTML document: its own doctype, head, masthead, hero,
+  footer and unsubscribe. And it was handed to `OtpService::sendBranded()`, which
+  passes what it is given to `brandWrap()` — the house shell — and drops it inside
+  a table cell.
 
-  What it DOES inherit from that skeleton is the scaffolding, deliberately: the
-  fluid-hybrid 560px wrapper, the MSO conditional tables, the VML button, the styled
-  alt text, presentation roles on every layout table, the hidden preheader, no data:
-  URIs. Those twelve properties are held by EmailInboxCompatTest and they are the
-  difference between a design and a design that arrives.
+  So the message that actually reached an inbox was two documents nested: the house
+  pre-header strip and ink masthead, then a whole second `<html>` with a second
+  masthead and a second footer, then the house footer again. Two of everything.
+  The admin preview never showed it because `preview()` rendered THIS file alone,
+  so the operator read one email and the recipient received another.
 
-  ── THE HIERARCHY, AND WHAT LEFT IT ─────────────────────────────────────────
-  Two actions survive on the surface: open your pass, and get your guests' tickets.
-  Everything else an invitee might want — the schedule, the venue map, the programme
-  — is one tap away on the event page and is NOT here. An invitation with six links
-  is a newsletter.
+  Every other transactional message on this platform is a fragment — see
+  `OtpService::sendPartnerConfirmation()` and the nomination confirmations. The
+  campaign path is the exception and it says so: it renders a full document and
+  sends through `sendRawHtml()`, which does not wrap.
 
-  Type: Georgia for the display voice (present on every mail client that matters and
-  with real character — a web font cannot be relied on here); Helvetica/Arial for
-  body; Consolas/Courier for the micro-labels and the reference, because a reference
-  is read aloud at a door and monospace is what makes it transcribable.
+  This is a fragment now, in the house idiom, and the shell is the shell.
+
+  ── WHAT THE SHELL ALREADY PROVIDES, SO NOTHING HERE REPEATS IT ─────────────
+
+  The wordmark, the category chip ("Invitation"), the hero image, the footer, the
+  unsubscribe link, the hidden preheader, and the 600px card on its paper ground.
+  This file starts at the salutation and ends at the sign-off.
+
+  Type comes from the shell's body cell: DM Sans, 15px, 1.65, #4a5256 on white.
+  Anything set here that the shell already sets is a second opinion about the same
+  thing, and the two drift.
 #}
-<!DOCTYPE html>
-<html lang="en" xmlns="http://www.w3.org/1999/xhtml" xmlns:v="urn:schemas-microsoft-com:vml" xmlns:o="urn:schemas-microsoft-com:office:office">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<meta http-equiv="X-UA-Compatible" content="IE=edge">
-{# iOS turns dates, addresses and references into blue links and then restyles them.
-   A ceremony date rendered as a system link in the middle of an engraved invitation
-   is the single ugliest thing this template can do, so it is switched off. #}
-<meta name="format-detection" content="telephone=no, date=no, address=no, email=no, url=no">
-<meta name="color-scheme" content="light">
-<meta name="supported-color-schemes" content="light">
-<title>{{ subject }}</title>
-<!--[if mso]>
-<xml><o:OfficeDocumentSettings><o:PixelsPerInch>96</o:PixelsPerInch></o:OfficeDocumentSettings></xml>
-<style>
-  /* Word engine: no rem, and cells need mso-line-height-rule or the leading is ignored.
-     Deliberately no angle-bracketed tag names in this comment — the balance check counts
-     tags inside an [if mso] block, and a tag named in prose here reads as an unclosed one. */
-  table, td, div, p, a { font-family: Georgia, 'Times New Roman', serif !important; mso-line-height-rule: exactly; }
-</style>
-<![endif]-->
-<style>
-  /* Gmail strips this block in several configurations — POP/IMAP accounts most
-     commonly — so nothing below is load-bearing. It refines; it does not lay out. */
-  .ag-w { width:100% !important; max-width:560px !important; }
-  .ag-px { padding-left:32px !important; padding-right:32px !important; }
-  a { color:#8a6205; }
-  /* iOS still detects dates and addresses with format-detection set, wraps them in its
-     own anchor and restyles them blue. A ceremony date rendered as a system link in the
-     middle of an engraved invitation is the ugliest thing this template could do. */
-  a[x-apple-data-detectors] {
-    color:inherit !important; text-decoration:none !important; font-size:inherit !important;
-    font-family:inherit !important; font-weight:inherit !important; line-height:inherit !important;
-  }
-  @media only screen and (max-width:600px) {
-    .ag-px  { padding-left:22px !important; padding-right:22px !important; }
-    .ag-d1  { font-size:27px !important; line-height:33px !important; }
-    .ag-d2  { font-size:22px !important; line-height:28px !important; }
-    .ag-name{ font-size:20px !important; line-height:27px !important; }
-    /* Full width, because a 300px button beside a 22px gutter on a 320px screen is a
-       button with 2px of margin. The only control in the email, and a thumb has to
-       find it without aiming. */
-    .ag-btn { width:100% !important; }
-  }
-  @media (prefers-color-scheme: dark) {
-    /* Apple Mail and iOS honour this and leave the rest alone; Gmail and Outlook.com
-       invert regardless and do it badly on near-white, which is why the card is a
-       warm off-white rather than #ffffff — an inverted #ffffff goes flat black and
-       takes the gold with it. */
-    .ag-body { background-color:#0b1f22 !important; }
-    .ag-card { background-color:#12292c !important; }
-    .ag-ink  { color:#f2f4f3 !important; }
-    .ag-mute { color:#a8bbba !important; }
-    .ag-rule { border-color:#2a4a4c !important; }
-  }
-</style>
-</head>
-<body class="ag-body" style="margin:0; padding:0; background-color:#e9ecec; -webkit-text-size-adjust:100%; -ms-text-size-adjust:100%;">
 
-{# The preheader: the line an inbox shows beside the subject. Hidden, and padded with
-   zero-width joiners so the client does not pull body copy in after it. #}
-<div style="display:none; max-height:0; max-width:0; font-size:1px; line-height:1px; opacity:0; overflow:hidden; mso-hide:all;">
-  {{ preheader }}&#8202;&zwnj;&#8202;&zwnj;&#8202;&zwnj;&#8202;&zwnj;&#8202;&zwnj;&#8202;&zwnj;&#8202;&zwnj;
-</div>
+<p style="margin:0 0 6px;font-family:'Playfair Display',Georgia,serif;font-size:21px;line-height:1.3;color:#10292C">{{ salutation }} {{ name }},</p>
 
-<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="#e9ecec" class="ag-body" style="background-color:#e9ecec;">
+{# The operator's sentence — the one piece of copy that changes per programme, and
+   the reason the room is being filled. Set at body size and left alone. #}
+<p style="margin:0 0 14px;font-size:15px;line-height:1.65;color:#4a5256">{{ witness }}</p>
+<p style="margin:0 0 22px;font-size:15px;line-height:1.65;color:#4a5256">
+  We would like the people who know that work best to be in the room to see it recognised.
+</p>
+
+{# ── THE EVENING ───────────────────────────────────────────────────────────
+   The house callout, which on this platform is a tinted panel with a rule down its
+   leading edge — the shape used for the nomination confirmation and the partner
+   reply. It carries the date, because the date is what an invitation is FOR and a
+   sentence is where it goes to be missed. #}
+<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%"
+       style="margin:0 0 22px;background:#f4f7f4;border-left:4px solid #237b22;border-radius:0 8px 8px 0">
   <tr>
-    <td align="center" style="padding:28px 12px 40px 12px;">
-
-      <!--[if mso]>
-      <table role="presentation" width="560" cellpadding="0" cellspacing="0" border="0" style="width:560px;"><tr><td>
-      <![endif]-->
-      <table role="presentation" class="agw-wrapper ag-w ag-card" width="100%" cellpadding="0" cellspacing="0" border="0" style="width:100%; max-width:560px; background-color:#fdfdfc; border:1px solid #d7dcdb;">
-
-        {# ── 1 · THE CEREMONY CARD ─────────────────────────────────────────
-           Masthead and hero are ONE ink block, and that is the structural change.
-           Before, the ink was a slab in the MIDDLE of the email holding the button,
-           which made the heaviest thing on the page something you met after three
-           screens of paper. Weight belongs at the top, where it reads as a header
-           instead of an interruption. #}
-        {# ── ONE HEADER, NOT TWO STACKED ──────────────────────────────────
-           The mark used to sit on a WHITE band above this ink block, because the
-           lockup is green-on-white artwork and there was no reversed version of
-           it. That put three value zones in the first screen — white, ink, paper
-           — and a fourth colour, the brand green #006634, which appears nowhere
-           else in this email. It read as two designs bolted together, and the
-           band was a 560×158 area with one small object alone in it: whitespace
-           left over rather than distributed.
-
-           The lockup is exactly two colours, #FFFFFF and #006634, so every pixel
-           is a blend of the pair. `logo-africa-gates-gold.png` is that blend
-           recoloured — gold where the ink was, transparent where the paper was —
-           which is a two-colour treatment rather than an inversion, and an
-           inversion is what would give a gold block with a hole in it.
-
-           So the header is one ink zone in the platform's own two colours, and
-           the mark belongs to it. #}
-        <tr>
-          <td bgcolor="#10292c" style="background-color:#10292c; padding:26px 32px 4px 32px;" class="ag-px">
-            {# 88 × 101 is the artwork's own 640:734 ratio. A width and height that
-               are not the real ratio make a blocked image reserve the wrong box and
-               the layout jump when it loads. #}
-            <img src="{{ logo_url }}" width="88" height="101" alt="Africa GATES"
-                 style="display:block; width:88px; max-width:88px; height:auto; border:0; outline:none; text-decoration:none; font-family:Georgia,'Times New Roman',serif; font-size:15px; line-height:22px; font-weight:bold; color:#f3b416;">
-          </td>
-        </tr>
-        <tr>
-          <td bgcolor="#10292c" style="background-color:#10292c; padding:26px 32px 30px 32px;" class="ag-px">
-            <p style="margin:0 0 12px 0; font-family:Consolas,'Courier New',monospace; font-size:10px; letter-spacing:2.2px; color:#9fb3b2; text-transform:uppercase;">You are invited &middot; {{ audience_one }}</p>
-
-            {# The EVENT is the specific thing; "You are invited" is the generic thing.
-               The generic one used to be the 35px headline and the event a subordinate
-               line under it — so the largest type in the email was the part that is the
-               same in every invitation ever sent. Swapped. #}
-            <h1 class="ag-d1" style="margin:0; font-family:Georgia,'Times New Roman',serif; font-size:33px; line-height:39px; font-weight:normal; color:#ffffff; letter-spacing:-0.5px;">{{ event_title }}</h1>
-
-            {# ── THE DATE, SET AS AN OBJECT ────────────────────────────────
-               This is the redesign's centre. An invitation exists to say WHEN, and the
-               date was 15px body copy under a 10px label in a two-column table below
-               the fold — the least prominent thing on the page. It is now the second
-               voice after the event's own name, and it is what somebody screenshots.
-
-               Three parts rather than one sentence, so it can be set typographically:
-               a tracked weekday, the date large, the time and place quiet beneath. #}
-            {# A SHORT rule, not a full-width one — `width` on a lone td inside a 100%
-               table constrains nothing, and a rule spanning the card competes with the
-               3px gold band that closes the header eleven lines below. The width goes on
-               the table. #}
-            <table role="presentation" width="42" cellpadding="0" cellspacing="0" border="0" style="width:42px; margin-top:22px;">
-              <tr><td bgcolor="#f3b416" style="background-color:#f3b416; height:2px; line-height:2px; font-size:0;">&nbsp;</td></tr>
-            </table>
-            <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
-              <tr>
-                <td style="padding-top:16px;">
-                  <p style="margin:0; font-family:Consolas,'Courier New',monospace; font-size:10.5px; letter-spacing:2.6px; color:#f3b416; text-transform:uppercase;">{{ when_day }}</p>
-                  <p class="ag-d2" style="margin:7px 0 0 0; font-family:Georgia,'Times New Roman',serif; font-size:25px; line-height:31px; color:#ffffff; letter-spacing:-0.2px;">{{ when_date }}</p>
-                  <p style="margin:9px 0 0 0; font-family:Helvetica,Arial,sans-serif; font-size:14px; line-height:22px; color:#9fb3b2;">{{ when_time }}{% if where %} &middot; {{ where }}{% endif %}</p>
-                </td>
-              </tr>
-            </table>
-          </td>
-        </tr>
-        <tr><td bgcolor="#f3b416" style="background-color:#f3b416; height:3px; line-height:3px; font-size:0;">&nbsp;</td></tr>
-
-        {% if cover_url %}
-        {# ── 2 · THE EVENING, PICTURED ─────────────────────────────────────
-           width AND height on the tag, always: a blocked remote image with no height
-           collapses the panel it is the hero of, and Outlook desktop blocks by
-           default. The alt text is styled for the same reason — unstyled alt renders
-           as 10px serif and reads as a broken attachment rather than a sentence.
-
-           Directly under the rule, so a blocked image leaves the header intact rather
-           than a hole in the middle of the letter. #}
-        <tr>
-          <td style="padding:0; font-size:0; line-height:0;">
-            <img src="{{ cover_url }}" width="560" height="220" alt="{{ event_title }}"
-                 style="display:block; width:100%; max-width:560px; height:auto; border:0; outline:none; text-decoration:none; font-family:Georgia,'Times New Roman',serif; font-size:14px; line-height:22px; color:#4a5c5e; background-color:#e9ecec;">
-          </td>
-        </tr>
-        {% endif %}
-
-        {# ── 3 · THE ADDRESS AND THE REASON ────────────────────────────────
-           Their name used to sit centred, italic, between two full-width hairlines —
-           which is the visual language of a CERTIFICATE, and a certificate is a thing
-           you are given rather than a thing you are asked. This is a letter to one
-           person, so it opens the way a letter does.
-
-           And the reason is sans now, not 17px Georgia at a 29px leading. Long serif
-           paragraphs read as a document; the serif is spent on the two moments that
-           earn it — the event's name and theirs. #}
-        <tr>
-          <td class="ag-px" style="padding:34px 32px 0 32px;">
-            <p class="ag-name ag-ink" style="margin:0; font-family:Georgia,'Times New Roman',serif; font-size:22px; line-height:29px; color:#10292c;">{{ salutation }} {{ name }},</p>
-            <p class="ag-ink" style="margin:16px 0 0 0; font-family:Helvetica,Arial,sans-serif; font-size:16px; line-height:27px; color:#1e3b3e;">{{ witness }}</p>
-            <p class="ag-mute" style="margin:14px 0 0 0; font-family:Helvetica,Arial,sans-serif; font-size:16px; line-height:27px; color:#4a5c5e;">
-              We would like the people who know that work best to be in the room to see it recognised.
-            </p>
-          </td>
-        </tr>
-
-        {# ── 4 · THE PASS ──────────────────────────────────────────────────
-           The one primary action, on the paper ground. It was inside a dark slab
-           competing with the masthead for weight; the ink is the header now, so this
-           can simply be the button it always was. Full width on a phone, which is the
-           only thing a thumb reliably hits.
-
-           Gold VML for Outlook, real anchor for everything else. #}
-        <tr>
-          <td class="ag-px" style="padding:30px 32px 0 32px;">
-            <!--[if mso]>
-            <v:roundrect xmlns:v="urn:schemas-microsoft-com:vml" xmlns:w="urn:schemas-microsoft-com:office:word" href="{{ id_url }}" style="height:50px; v-text-anchor:middle; width:300px;" arcsize="8%" strokecolor="#f3b416" fillcolor="#f3b416">
-              <w:anchorlock/>
-              <center style="color:#1a1204; font-family:Helvetica,Arial,sans-serif; font-size:15.5px; font-weight:bold;">Open your pass</center>
-            </v:roundrect>
-            <![endif]-->
-            <!--[if !mso]><!-->
-            <a class="ag-btn" href="{{ id_url }}" style="display:inline-block; background-color:#f3b416; color:#1a1204; font-family:Helvetica,Arial,sans-serif; font-size:15.5px; font-weight:bold; line-height:50px; text-align:center; text-decoration:none; width:300px; border-radius:4px;">Open your pass</a>
-            <!--<![endif]-->
-            <p class="ag-mute" style="margin:12px 0 0 0; font-family:Helvetica,Arial,sans-serif; font-size:13.5px; line-height:21px; color:#5a6d6f;">
-              Your seat is arranged &mdash; there is no ticket for you to buy. The pass is a live
-              page: open it on your phone at the door.
-            </p>
-          </td>
-        </tr>
-
-        {# ── 5 · THE STUB ──────────────────────────────────────────────────
-           Their reference is one string doing two jobs: their identity at the door and
-           the code their guests spend. It used to be centred inside a gold-bordered
-           box, which reads as a coupon and matches nothing else on the page.
-
-           Drawn as a STUB instead — a dashed edge across the top, the way the pass and
-           the printed ticket are perforated. Same object, three surfaces. Left-aligned,
-           because everything else on this card is. #}
-        <tr>
-          <td class="ag-px" style="padding:34px 32px 0 32px;">
-            <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="#f6f7f6" style="background-color:#f6f7f6; border-top:2px dashed #cfd6d5;">
-              <tr>
-                <td style="padding:18px 20px 18px 20px;">
-                  <p style="margin:0 0 9px 0; font-family:Consolas,'Courier New',monospace; font-size:10px; letter-spacing:2.2px; color:#8a6205; text-transform:uppercase;">Bring your people</p>
-                  <p class="ag-ink" style="margin:0; font-family:Consolas,'Courier New',monospace; font-size:20px; line-height:26px; letter-spacing:2.2px; color:#10292c;">{{ reference }}</p>
-                  <p class="ag-mute" style="margin:8px 0 0 0; font-family:Helvetica,Arial,sans-serif; font-size:13px; line-height:20px; color:#5a6d6f;">
-                    {{ discount }}% off &middot; up to {{ quota }} guests
-                  </p>
-                </td>
-              </tr>
-            </table>
-            <p class="ag-mute" style="margin:14px 0 0 0; font-family:Helvetica,Arial,sans-serif; font-size:14.5px; line-height:24px; color:#4a5c5e;">
-              Share it with the people you want in the room. It takes {{ discount }}% off their
-              tickets, for up to {{ quota }} of them{% if tier_line %}{{ tier_line }}{% endif %}.
-              <a href="{{ events_url }}" style="color:#8a6205; text-decoration:underline;">Send them to the tickets &rarr;</a>
-            </p>
-          </td>
-        </tr>
-
-        {# ── 9 · SIGN-OFF ──────────────────────────────────────────────────── #}
-        <tr>
-          <td class="ag-px" style="padding:32px 32px 0 32px;">
-            <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
-              <tr><td class="ag-rule" style="border-top:1px solid #e2e6e5; font-size:0; line-height:0;">&nbsp;</td></tr>
-            </table>
-            <p class="ag-ink" style="margin:20px 0 0 0; font-family:Helvetica,Arial,sans-serif; font-size:15px; line-height:25px; color:#1e3b3e;">
-              We would be honoured to have you with us. The formal invitation is attached, for your records.
-            </p>
-            <p class="ag-ink" style="margin:16px 0 0 0; font-family:Georgia,'Times New Roman',serif; font-size:16px; line-height:24px; color:#10292c;">
-              With respect,<br>Africa&nbsp;GATES
-            </p>
-          </td>
-        </tr>
-
-        <tr><td style="padding:0 0 38px 0; font-size:0; line-height:0;">&nbsp;</td></tr>
-      </table>
-
-      {# ── FOOTER ────────────────────────────────────────────────────────
-         Outside the card, in monospace, small and quiet. An invitation that ends in
-         a marketing footer stops being an invitation. #}
-      <table role="presentation" class="ag-w" width="100%" cellpadding="0" cellspacing="0" border="0" style="width:100%; max-width:560px;">
-        <tr>
-          <td align="center" style="padding:20px 24px 0 24px;">
-            <p style="margin:0; font-family:Consolas,'Courier New',monospace; font-size:11px; line-height:19px; color:#7a8b8c;">
-              {{ postal_address }}<br>
-              <a href="{{ unsubscribe_url }}" style="color:#7a8b8c; text-decoration:underline;">Stop receiving email from Africa GATES</a>
-            </p>
-          </td>
-        </tr>
-      </table>
-      <!--[if mso]></td></tr></table><![endif]-->
-
+    <td style="padding:16px 20px">
+      <p style="margin:0 0 4px;font-size:10.5px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:#5c7a5e">You are invited to</p>
+      <p style="margin:0 0 10px;font-family:'Playfair Display',Georgia,serif;font-size:19px;line-height:1.25;color:#10292C">{{ event_title }}</p>
+      <p style="margin:0;font-size:14.5px;line-height:1.6;color:#3f5a41">
+        <strong style="color:#1e3b23">{{ when_day }} {{ when_date }}</strong><br>
+        {{ when_time }}{% if where %} · {{ where }}{% endif %}
+      </p>
     </td>
   </tr>
 </table>
-</body>
-</html>
+
+{# ── THE PASS ──────────────────────────────────────────────────────────────
+   The house button: the green pill used by the nomination and claim emails. VML
+   behind it, because Outlook desktop draws a padded anchor with the background
+   dropped — a bare text link where the only action is. #}
+<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:0 0 10px">
+  <tr><td>
+    <!--[if mso]>
+    <v:roundrect xmlns:v="urn:schemas-microsoft-com:vml" xmlns:w="urn:schemas-microsoft-com:office:word" href="{{ id_url }}" style="height:46px;v-text-anchor:middle;width:236px" arcsize="50%" strokecolor="#237b22" fillcolor="#237b22">
+      <w:anchorlock/>
+      <center style="color:#ffffff;font-family:'DM Sans',Helvetica,Arial,sans-serif;font-size:15px;font-weight:600">Open your pass</center>
+    </v:roundrect>
+    <![endif]-->
+    <!--[if !mso]><!-->
+    <a href="{{ id_url }}" style="display:inline-block;background:#237b22;color:#ffffff;text-decoration:none;font-weight:600;font-size:15px;padding:13px 26px;border-radius:999px">Open your pass</a>
+    <!--<![endif]-->
+  </td></tr>
+</table>
+<p style="margin:0 0 24px;font-size:13.5px;line-height:1.6;color:#6b7280">
+  Your seat is arranged — there is no ticket for you to buy. The pass is a live page:
+  open it on your phone at the door.
+</p>
+
+{# ── THE ASK ───────────────────────────────────────────────────────────────
+   Their reference is one string doing two jobs: their identity at the door and the
+   code their guests spend. Gold-ruled rather than green, because it is the one
+   thing on the page that is not about them. #}
+<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%"
+       style="margin:0 0 14px;background:#fdf8ec;border-left:4px solid #f3b416;border-radius:0 8px 8px 0">
+  <tr>
+    <td style="padding:16px 20px">
+      <p style="margin:0 0 6px;font-size:10.5px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:#8a6205">Bring your people</p>
+      <p style="margin:0 0 4px;font-family:Consolas,'Courier New',monospace;font-size:19px;letter-spacing:2px;color:#10292C">{{ reference }}</p>
+      <p style="margin:0;font-size:13px;line-height:1.6;color:#7a6636">{{ discount }}% off · up to {{ quota }} guests</p>
+    </td>
+  </tr>
+</table>
+<p style="margin:0 0 10px;font-size:14.5px;line-height:1.65;color:#4a5256">
+  Share it with the people you want in the room. It takes {{ discount }}% off their tickets,
+  for up to {{ quota }} of them{% if tier_line %}{{ tier_line }}{% endif %}.
+</p>
+{# The secondary action gets its own line. Left inline it landed mid-sentence and then
+   wrapped, so an underlined green link broke across two lines in the middle of a
+   paragraph — which reads as damage rather than as the second thing to do. #}
+<p style="margin:0 0 26px;font-size:14.5px;line-height:1.65">
+  <a href="{{ events_url }}" style="color:#237b22;font-weight:600;text-decoration:underline">Send them to the tickets&nbsp;→</a>
+</p>
+
+<p style="margin:0 0 4px;font-size:15px;line-height:1.65;color:#4a5256">
+  We would be honoured to have you with us. The formal invitation is attached, for your records.
+</p>
+<p style="margin:0;font-size:15px;line-height:1.65;color:#10292C">
+  With respect,<br><strong style="font-weight:600">Africa GATES</strong>
+</p>
