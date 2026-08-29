@@ -47,6 +47,64 @@ final class EventInvites
      */
     public const MIGRATION = '2026_11_01_event_invites.php';
 
+    /**
+     * The setup step that repairs `gates_event_invites.audience`.
+     *
+     * {@see MIGRATION} shipped the column as `ENUM('principal','child','judge')` and was
+     * corrected to `ENUM('nominee','judge')` one commit later — but it only rebuilds the
+     * table when the table is EMPTY, so a database that had minted one invitation kept the
+     * withdrawn set. 'judge' is in it and 'nominee' is not, which is why a build produced
+     * judges and only judges and no screen could say so.
+     */
+    public const REPAIR_AUDIENCE = '2026_11_06_invite_audience_widen.php';
+
+    /**
+     * Whether the invitations table can actually store a nominee.
+     *
+     * ── WHY THIS IS READ OUT OF THE DATABASE ─────────────────────────────────
+     *
+     * Not inferred from the migration ledger, which is what made the fault invisible for
+     * as long as it was: the step that defines the column is recorded as APPLIED on every
+     * affected database — it ran, it just declined to rebuild a table that had rows in it.
+     * A ledger that says "done" over a column that is wrong is exactly the state the
+     * repair button exists for, so the only honest question is what the column accepts.
+     *
+     * Returns null when the answer cannot be read at all. A database this process cannot
+     * ask is not a database with a bad column, and raising a repair against one is how an
+     * operator comes to press a button that cannot help.
+     */
+    public static function audienceAcceptsNominee(): ?bool
+    {
+        try {
+            if (!DB::schema()->hasTable('gates_event_invites')) return null;
+
+            if (DB::connection()->getDriverName() === 'sqlite') {
+                $ddl = (string) DB::table('sqlite_master')->where('type', 'table')
+                    ->where('name', 'gates_event_invites')->value('sql');
+                if ($ddl === '') return null;
+
+                // No CHECK at all is not a fault: a table rebuilt without one accepts
+                // everything, which is permissive rather than broken.
+                return preg_match('/CHECK\s*\(\s*audience\s+IN\s*\(([^)]*)\)/i', $ddl, $m) !== 1
+                    || str_contains($m[1], "'" . InviteAudience::NOMINEE . "'");
+            }
+
+            $type = (string) (DB::selectOne(
+                'SELECT COLUMN_TYPE AS t FROM information_schema.COLUMNS
+                  WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND COLUMN_NAME = ?',
+                ['gates_event_invites', 'audience']
+            )->t ?? '');
+            if ($type === '') return null;
+
+            // A VARCHAR left behind by a half-finished repair takes 'nominee' perfectly
+            // well. The question is what the column ACCEPTS, not what shape it is.
+            return !str_starts_with(strtolower($type), 'enum')
+                || str_contains(strtolower($type), "'" . InviteAudience::NOMINEE . "'");
+        } catch (\Throwable) {
+            return null;
+        }
+    }
+
     /** The ceremony a programme is honoured at, or null when none is linked. */
     public static function eventForProgramme(int $programmeId): ?object
     {
@@ -232,7 +290,7 @@ final class EventInvites
      * `rerun` names the setup step to apply again, in the one case where the ordinary
      * migrate endpoint cannot help — see {@see linkBlocker()}. Empty everywhere else.
      *
-     * @return list<array{what:string, fix:string, href:string, hard:bool, rerun:string}>
+     * @return list<array{what:string, fix:string, href:string, hard:bool, rerun:string, rerun_label?:string}>
      */
     public static function readiness(int $eventId): array
     {
@@ -279,6 +337,34 @@ final class EventInvites
                 'hard'  => true,
                 // Only offered in the case where the ordinary route cannot help.
                 'rerun' => $waiting ? '' : $mine,
+                'rerun_label' => 'Create the awards link now',
+            ]];
+        }
+
+        // 0b · The column that decides whether a nominee can be minted at all.
+        //
+        //      Reported HERE, above everything about cycles and shortlists, because it is
+        //      the one fault whose symptom is indistinguishable from all of them: the run
+        //      completes, reports a true count, and the nominees are simply absent. An
+        //      operator staring at a full judge list and an empty nominee list has no way
+        //      to reach this, and no shell to look with.
+        if (self::audienceAcceptsNominee() === false) {
+            return [[
+                'what' => 'The invitations table cannot store a nominee — only judges.',
+                'fix'  => 'A setup step defined this column before the audiences were '
+                        . 'settled and could not correct it on a database that already '
+                        . 'held invitations. Nothing is lost and nobody is re-invited: '
+                        . 'the repair widens the column and leaves every row in place. '
+                        . 'Use the button below.',
+                'href'  => '',
+                'hard'  => true,
+                // The ordinary migrate endpoint WILL apply this if it is still pending, but
+                // the button is offered either way: an operator on this screen is looking at
+                // a build that has already failed, and sending them to a token-gated URL to
+                // find out whether it was pending is a worse answer than a button that is
+                // safe to press twice.
+                'rerun' => self::REPAIR_AUDIENCE,
+                'rerun_label' => 'Repair the invitations table now',
             ]];
         }
 

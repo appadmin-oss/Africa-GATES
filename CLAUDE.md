@@ -15,6 +15,14 @@ enforces:
 
 - SQLite ignores integer widths and `ENUM`. A value that fits in dev fails in production —
   `TINYINT UNSIGNED` caps at **255**, which has bitten a `sort_order` already.
+- **Correcting a constraint needs a repair migration, not a corrected definition.** A
+  migration that rebuilds its table only when the table is *empty* leaves the old
+  constraint on every database that has rows, permanently. `gates_event_invites.audience`
+  shipped as `ENUM('principal','child','judge')` and was corrected to
+  `ENUM('nominee','judge')` one commit later; production kept the first. `'judge'` is in
+  both sets and `'nominee'` is in neither, so "Build the list" minted judges and only
+  judges — while dev, whose table was built fresh from the corrected definition, was
+  correct and green. See `2026_11_06_invite_audience_widen.php`.
 - MySQL normalises a `T`-separated datetime when it lands in a `TIMESTAMP` column. SQLite
   stores the string verbatim, so `2026-01-01T09:00` compares wrong and a comparison that
   passes every test silently rejects real input.

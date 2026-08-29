@@ -456,12 +456,43 @@ final class InvitesController
             return $res->withHeader('Location', $back)->withStatus(302);
         }
 
-        $r = \AfricaGates\Services\MigrationRunner::rerun(EventInvites::MIGRATION);
+        // WHITELISTED, never taken as given. {@see MigrationRunner::rerun()} already
+        // refuses a path that is not one of its own steps, so this is not about file
+        // inclusion — it is about the other hundred and fifty steps that ARE in that list.
+        // Two are offerable from this screen and the request may pick between them; a
+        // posted name is not a licence to re-apply an unrelated migration.
+        $asked = (string) (((array) $req->getParsedBody())['step'] ?? '');
+        $step  = in_array($asked, [EventInvites::MIGRATION, EventInvites::REPAIR_AUDIENCE], true)
+            ? $asked
+            : EventInvites::MIGRATION;
+
+        $r = \AfricaGates\Services\MigrationRunner::rerun($step);
 
         // Report what is TRUE afterwards, not what the runner returned: a step can finish
-        // without an exception and still not have created the table, and that is the whole
-        // fault this button exists for. Saying "applied" over a table that is still absent
-        // would put the operator back where they started, one press later.
+        // without an exception and still not have done its work, and that is the whole
+        // fault this button exists for. Saying "applied" over a database that is still
+        // wrong would put the operator back where they started, one press later.
+        if ($step === EventInvites::REPAIR_AUDIENCE) {
+            $ok = EventInvites::audienceAcceptsNominee();
+
+            if ($ok === true) {
+                $_SESSION['flash'] = 'The invitations table takes nominees now. '
+                                   . 'Press Build the list again.';
+            } elseif ($ok === null) {
+                // Distinct from a failed repair on purpose: "the step ran and the database
+                // cannot be asked whether it worked" is a different problem from "the step
+                // ran and did not work", and they are fixed differently.
+                $_SESSION['flash_error'] = 'The step ran, but this database cannot be asked '
+                    . 'what the column accepts, so there is nothing to confirm. ' . $r['message'];
+            } else {
+                $_SESSION['flash_error'] = 'That did not widen the column. ' . $r['message']
+                    . ' The deploy may be missing database/migrations/'
+                    . EventInvites::REPAIR_AUDIENCE . '.';
+            }
+
+            return $res->withHeader('Location', $back)->withStatus(302);
+        }
+
         $made = false;
         try { $made = DB::schema()->hasTable('gates_event_programmes'); } catch (\Throwable) {}
 

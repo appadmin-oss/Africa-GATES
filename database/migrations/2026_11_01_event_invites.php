@@ -110,6 +110,12 @@ if (DB::schema()->hasTable('gates_event_invites')) {
     // dropping rows that somebody has already sent invitations against would destroy the
     // one record of who was written to. If it has rows, the old constraint is left and this
     // says so rather than acting.
+    //
+    // WHICH IS NOT ENOUGH ON ITS OWN, and it took a broken production build to see it: a
+    // database that had minted ONE invitation kept the withdrawn set forever, and 'judge'
+    // is in it while 'nominee' is not — so "Build the list" produced judges and only
+    // judges. `2026_11_06_invite_audience_widen.php` repairs the column in place, without
+    // dropping a row. This branch is still right; it is just not the whole fix.
     $rows = (int) DB::table('gates_event_invites')->count();
     if ($rows === 0) {
         DB::statement('DROP TABLE gates_event_invites');

@@ -90,7 +90,10 @@
     {% for b in blockers|filter(b => b.rerun|default('')) %}
       <form method="post" action="/admin/events/{{ event.id }}/invites/repair" style="margin-top:10px">
         <input type="hidden" name="_token" value="{{ csrf_token }}">
-        <button class="ad-btn" type="submit">Create the awards link now</button>
+        {# Which step, because there is more than one repair offerable here now. The
+           controller whitelists it — a posted filename is never taken as given. #}
+        <input type="hidden" name="step" value="{{ b.rerun }}">
+        <button class="ad-btn" type="submit">{{ b.rerun_label|default('Apply this setup step now') }}</button>
         <span class="iv-mute" style="margin-left:8px">Applies <code>{{ b.rerun }}</code> again. Safe to press twice.</span>
       </form>
     {% endfor %}
