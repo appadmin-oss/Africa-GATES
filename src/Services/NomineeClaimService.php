@@ -602,10 +602,13 @@ HTML;
               . "If you did not ask for it, ignore this message.";
 
         $ok = false;
-        try { $ok = $this->sms->sendSms($e164, $body, 'claim-code'); } catch (\Throwable) {}
+        // respectOptOut FALSE: this is a code the person just asked for, to prove a page
+        // is theirs. Withholding it because they once opted out of event texts locks them
+        // out of their own profile — which is the opposite of what opting out asked for.
+        try { $ok = $this->sms->sendSms($e164, $body, 'claim-code', respectOptOut: false); } catch (\Throwable) {}
         try {
             if (!$ok && $this->sms->whatsappConfigured()) {
-                $ok = $this->sms->sendWhatsApp($e164, $body, 'claim-code');
+                $ok = $this->sms->sendWhatsApp($e164, $body, 'claim-code', respectOptOut: false);
             }
         } catch (\Throwable) {}
         return $ok;

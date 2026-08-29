@@ -1908,6 +1908,17 @@ return function(App $app) {
         $g->get('/register/success', fn($req,$res)=>$res->withHeader('Location','/account')->withStatus(301));
         $g->get('/legacy',        LegacyController::class.':index');
         $g->get('/legacy/{slug}', LegacyController::class.':event');
+        // ── SOMEBODY REPLYING STOP ──────────────────────────────────────────
+        //
+        // Every check-in text ends "Reply STOP to end texts", and without this that is a
+        // promise nothing keeps. Signature-verified against the Twilio auth token; see
+        // the controller for why an unverified version of this endpoint would be a way to
+        // silence somebody else's security alerts.
+        //
+        // No CSRF: the caller is a carrier, not a browser with a session. The signature IS
+        // the authentication, which is why it is not optional.
+        $g->post('/hooks/sms-inbound', \AfricaGates\Controllers\SmsInboundController::class.':receive');
+
         $g->get('/opportunities',  OpportunityController::class.':index');
         $g->get('/events',         EventsController::class.':index');
         // ── PAID TICKETS ─────────────────────────────────────────────────────

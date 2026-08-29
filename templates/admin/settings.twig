@@ -1047,6 +1047,45 @@
     <div class="ad-form">
       <label class="checkbox" style="display:flex;align-items:flex-start;gap:8px;margin-bottom:6px"><input type="checkbox" name="sms_enabled" value="1" {% if values.sms_enabled == '1' %}checked{% endif %}> <span><strong>Enable SMS</strong> (Twilio)</span></label>
       <label class="checkbox" style="display:flex;align-items:flex-start;gap:8px;margin-bottom:10px"><input type="checkbox" name="wa_enabled" value="1" {% if values.wa_enabled == '1' %}checked{% endif %}> <span><strong>Enable WhatsApp</strong> (Meta Cloud API preferred, Twilio WhatsApp as alternative)</span></label>
+
+      {# ── WHICH GATEWAY THE TEXTS GO OUT THROUGH ────────────────────────────
+         Cheapest-for-Africa first. Twilio charges roughly an order of magnitude more
+         per message to a Nigerian handset than either of the two above it, and almost
+         every recipient here is on an African network. Configure one; configure two and
+         the higher one is the fallback. #}
+      <p style="margin:0 0 8px;font-size:12.5px;color:var(--ad-text-mute,#5a6d6f)">
+        Texts go out through the first of these that is set up:
+        <strong>Africa&rsquo;s Talking</strong> &rarr; <strong>Termii</strong> &rarr; <strong>Twilio</strong> &mdash;
+        cheapest per African number first.
+        {% if sms_status.sms_provider %}Currently sending through <strong style="color:#16794d">{{ sms_status.sms_provider }}</strong>.{% endif %}
+      </p>
+      <div class="row">
+        <div>
+          <label for="f-sms_at_username">Africa&rsquo;s Talking username</label>
+          <input type="text" name="sms_at_username" id="f-sms_at_username" value="{{ values.sms_at_username|default('') }}" placeholder="sandbox or your live username">
+        </div>
+        <div>
+          <label for="f-sms_at_api_key">Africa&rsquo;s Talking API key {% if values.sms_at_api_key|default('') != '' %}<span style="color:#16794d;font-weight:600">&#9679; configured</span>{% endif %}</label>
+          <input type="password" name="sms_at_api_key" id="f-sms_at_api_key" autocomplete="new-password" placeholder="{% if values.sms_at_api_key|default('') != '' %}&bull;&bull;&bull;&bull;&bull;&bull; (leave blank to keep){% else %}atsk_…{% endif %}">
+          {% if values.sms_at_api_key|default('') != '' %}<label style="font-size:11px;display:inline-flex;gap:4px;align-items:center;margin-top:3px"><input type="checkbox" name="messaging_clear[sms_at_api_key]" value="1"> remove</label>{% endif %}
+        </div>
+        <div>
+          <label for="f-sms_at_from">Africa&rsquo;s Talking sender ID <em style="font-weight:400;color:var(--ad-text-mute,#5a6d6f)">optional</em></label>
+          <input type="text" name="sms_at_from" id="f-sms_at_from" value="{{ values.sms_at_from|default('') }}" placeholder="leave blank for the shared shortcode">
+        </div>
+      </div>
+      <div class="row">
+        <div>
+          <label for="f-sms_termii_api_key">Termii API key {% if values.sms_termii_api_key|default('') != '' %}<span style="color:#16794d;font-weight:600">&#9679; configured</span>{% endif %}</label>
+          <input type="password" name="sms_termii_api_key" id="f-sms_termii_api_key" autocomplete="new-password" placeholder="{% if values.sms_termii_api_key|default('') != '' %}&bull;&bull;&bull;&bull;&bull;&bull; (leave blank to keep){% else %}TL…{% endif %}">
+          {% if values.sms_termii_api_key|default('') != '' %}<label style="font-size:11px;display:inline-flex;gap:4px;align-items:center;margin-top:3px"><input type="checkbox" name="messaging_clear[sms_termii_api_key]" value="1"> remove</label>{% endif %}
+        </div>
+        <div>
+          <label for="f-sms_termii_from">Termii sender ID <em style="font-weight:400;color:var(--ad-text-mute,#5a6d6f)">required for Termii</em></label>
+          <input type="text" name="sms_termii_from" id="f-sms_termii_from" value="{{ values.sms_termii_from|default('') }}" placeholder="an ID already approved on your account">
+          <p style="margin:4px 0 0;font-size:11.5px;color:var(--ad-text-mute,#5a6d6f)">Termii is skipped without one: a key with no approved sender ID answers 200 and sends nothing.</p>
+        </div>
+      </div>
       <div class="row">
         <div>
           <label for="f-sms_twilio_sid">Twilio Account SID {% if values.sms_twilio_sid|default('') != '' %}<span style="color:#16794d;font-weight:600">● configured</span>{% endif %}</label>
@@ -1072,6 +1111,24 @@
         </div>
       </div>
       <p style="margin:6px 0 0;font-size:12px;color:var(--ad-text-mute,#5a6d6f)">Delivery is best-effort with automatic retries; every send is audited (numbers stored hashed &amp; masked). Recipients are normalised to E.164, compatible with Twilio and the WhatsApp Business API.</p>
+
+      {# ── THE TEXT SOMEBODY GETS FOR WALKING IN ─────────────────────────────
+         Off by default, like every outbound channel on this page: an upgrade must
+         never start texting an existing event's attendees because a feature shipped.
+         The "Reply STOP" line is appended by the code and is not in the box, so a
+         rewrite here cannot remove the way out of the message. #}
+      <hr style="border:0;border-top:1px solid var(--ad-line,rgba(16,41,44,.1));margin:16px 0">
+      <label class="checkbox" style="display:flex;align-items:flex-start;gap:8px;margin-bottom:8px"><input type="checkbox" name="checkin_sms_enabled" value="1" {% if values.checkin_sms_enabled == '1' %}checked{% endif %}> <span><strong>Text attendees when they check in</strong> — one message per ticket, thanking them and pointing at open opportunities. Needs SMS enabled above.</span></label>
+      <div>
+        <label for="f-checkin_sms_template">Check-in message</label>
+        <textarea name="checkin_sms_template" id="f-checkin_sms_template" rows="3" placeholder="{{ checkin_sms_default }}">{{ values.checkin_sms_template|default('') }}</textarea>
+        <p style="margin:5px 0 0;font-size:12px;color:var(--ad-text-mute,#5a6d6f)">
+          Leave blank for the wording shown. <code>{name}</code> is their first name,
+          <code>{count}</code> the number of opportunities open today, <code>{url}</code> the
+          opportunities page, <code>{event}</code> the event title.
+          &ldquo;Reply STOP to end texts.&rdquo; is added automatically and cannot be removed.
+        </p>
+      </div>
     </div>
   </div></div>
   {# A search that matches nothing must say so. Without this the page just goes

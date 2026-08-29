@@ -42,6 +42,17 @@ class SmsService
         private readonly ?string $waToken = null,
         private readonly bool $smsEnabled = false,
         private readonly bool $waEnabled = false,
+        // ── THE AFRICAN PROVIDERS ───────────────────────────────────────────
+        //
+        // Twilio charges roughly an order of magnitude more per message to a Nigerian
+        // handset than either of these, and this platform's recipients are almost
+        // entirely on African networks. At a few thousand check-in texts a season that
+        // is the difference between a feature that runs and one an operator turns off.
+        private readonly ?string $atUsername = null,
+        private readonly ?string $atApiKey = null,
+        private readonly ?string $atFrom = null,
+        private readonly ?string $termiiApiKey = null,
+        private readonly ?string $termiiFrom = null,
         private readonly int $timeout = 8,
         ?callable $transport = null,
     ) {
@@ -72,12 +83,41 @@ class SmsService
             $resolve('wa_access_token', 'WA_ACCESS_TOKEN'),
             $flag($resolve('sms_enabled', 'SMS_ENABLED')),
             $flag($resolve('wa_enabled', 'WA_ENABLED')),
+            $resolve('sms_at_username', 'AT_USERNAME'),
+            $resolve('sms_at_api_key', 'AT_API_KEY'),
+            $resolve('sms_at_from', 'AT_SENDER_ID'),
+            $resolve('sms_termii_api_key', 'TERMII_API_KEY'),
+            $resolve('sms_termii_from', 'TERMII_SENDER_ID'),
         );
     }
 
     public function smsConfigured(): bool
     {
-        return $this->smsEnabled && $this->twilioSid && $this->twilioToken && $this->twilioFrom;
+        return $this->smsEnabled && $this->smsProvider() !== null;
+    }
+
+    /**
+     * Which gateway an SMS would go out through, cheapest-for-Africa first.
+     *
+     * ── THE ORDER IS THE DECISION ────────────────────────────────────────────
+     *
+     * Africa's Talking, then Termii, then Twilio. Not alphabetical and not
+     * most-recently-added: it is roughly ascending cost per message to an African handset,
+     * which is where essentially every recipient of this platform is. Twilio is last
+     * because it is the expensive one, not because it is the worst — it is the only one of
+     * the three that reaches a number anywhere on earth, which is exactly why it belongs
+     * at the bottom as the fallback rather than off the list.
+     *
+     * An operator who wants a specific gateway configures only that one. Configuring two
+     * is not ambiguous — it is a preference and a fallback, in that order.
+     */
+    public function smsProvider(): ?string
+    {
+        if ($this->atUsername && $this->atApiKey)               return 'africastalking';
+        if ($this->termiiApiKey && $this->termiiFrom)           return 'termii';
+        if ($this->twilioSid && $this->twilioToken && $this->twilioFrom) return 'twilio';
+
+        return null;
     }
 
     /** 'meta' | 'twilio' | null — which WhatsApp transport would be used. */
@@ -104,6 +144,10 @@ class SmsService
     {
         return [
             'sms'         => $this->smsConfigured(),
+            // WHICH gateway, not just whether one exists. An operator who has set up
+            // Africa's Talking and left old Twilio keys in place needs to see which of the
+            // two is actually spending their money.
+            'sms_provider' => $this->smsProvider(),
             'whatsapp'    => $this->whatsappConfigured(),
             'wa_provider' => $this->whatsappProvider(),
             'sms_enabled' => $this->smsEnabled,
@@ -133,10 +177,24 @@ class SmsService
 
     /**
      * Best-effort SMS: audited, never throws; failure enqueues a retry job.
+     *
+     * ── THE OPT-OUT IS CHECKED HERE, NOT AT THE CALL SITES ──────────────────
+     *
+     * Ten callers that must each remember to check means an eleventh — written next year
+     * by somebody who has not read this file — that texts a person who asked twice to be
+     * left alone. One check, in the one place every text passes through.
+     *
+     * @param bool $respectOptOut false for a reply somebody just asked for. Refusing to
+     *                            send a login code to a number that once opted out of
+     *                            EVENT texts locks a person out of their own account,
+     *                            which is not what they asked for. Anything a person did
+     *                            not individually request must leave this true.
      */
-    public function sendSms(string $toE164, string $body, string $template = 'generic'): bool
+    public function sendSms(string $toE164, string $body, string $template = 'generic',
+                            bool $respectOptOut = true): bool
     {
         if (!$this->smsConfigured() || Phone::normalize($toE164) === null) return false;
+        if ($respectOptOut && SmsOptOut::suppressed($toE164)) return false;
         try {
             $this->deliver('sms', $toE164, $body, $template);
             return true;
@@ -149,9 +207,13 @@ class SmsService
     /**
      * Best-effort WhatsApp: audited, never throws; failure enqueues a retry job.
      */
-    public function sendWhatsApp(string $toE164, string $body, string $template = 'generic'): bool
+    public function sendWhatsApp(string $toE164, string $body, string $template = 'generic',
+                                bool $respectOptOut = true): bool
     {
         if (!$this->whatsappConfigured() || Phone::normalize($toE164) === null) return false;
+        // One list for both channels: somebody who asks to stop being texted has not asked
+        // to be reached the same way on a different wire.
+        if ($respectOptOut && SmsOptOut::suppressed($toE164)) return false;
         try {
             $this->deliver('whatsapp', $toE164, $body, $template);
             return true;
@@ -184,6 +246,16 @@ class SmsService
     /** @return array{0:string,1:bool,2:?string,3:?string} provider, ok, ref, error */
     private function attemptSms(string $to, string $body): array
     {
+        return match ($this->smsProvider()) {
+            'africastalking' => $this->attemptAfricasTalking($to, $body),
+            'termii'         => $this->attemptTermii($to, $body),
+            default          => $this->attemptTwilio($to, $body),
+        };
+    }
+
+    /** @return array{0:string,1:bool,2:?string,3:?string} */
+    private function attemptTwilio(string $to, string $body): array
+    {
         $resp = $this->http(
             "https://api.twilio.com/2010-04-01/Accounts/{$this->twilioSid}/Messages.json",
             ['Content-Type: application/x-www-form-urlencoded'],
@@ -191,6 +263,100 @@ class SmsService
             $this->twilioSid . ':' . $this->twilioToken,
         );
         return $this->twilioOutcome('twilio', $resp);
+    }
+
+    /**
+     * Africa's Talking.
+     *
+     * ── TWO THINGS THAT ARE NOT LIKE THE OTHERS ─────────────────────────────
+     *
+     * The key travels in an `apiKey` HEADER, not a bearer token and not in the body. And
+     * it answers 201 on success, so a `=== 200` check rejects every message it delivers.
+     *
+     * More importantly, it answers 201 for a message it did NOT send: the per-recipient
+     * outcome is inside `SMSMessageData.Recipients[].status`, and a wrong number or an
+     * empty account comes back as HTTP 201 with "InvalidPhoneNumber" or
+     * "InsufficientBalance" in that array. Reading only the HTTP code marks those as
+     * delivered, and the platform would report an unpaid account as a season of sent
+     * texts.
+     *
+     * `from` is the sender ID and is OPTIONAL — an unregistered alphanumeric ID is
+     * rejected on many African networks, so a deployment that has not registered one is
+     * better off omitting it and going out on the shared shortcode.
+     *
+     * @return array{0:string,1:bool,2:?string,3:?string}
+     */
+    private function attemptAfricasTalking(string $to, string $body): array
+    {
+        $form = [
+            'username' => (string) $this->atUsername,
+            'to'       => $to,
+            'message'  => $body,
+        ];
+        if ((string) $this->atFrom !== '') $form['from'] = (string) $this->atFrom;
+
+        $resp = $this->http(
+            'https://api.africastalking.com/version1/messaging',
+            ['Content-Type: application/x-www-form-urlencoded', 'Accept: application/json',
+             'apiKey: ' . $this->atApiKey],
+            $form,
+            null,
+        );
+
+        $j = json_decode($resp['body'], true);
+        $r = is_array($j) ? ($j['SMSMessageData']['Recipients'][0] ?? null) : null;
+
+        // "Success" and "Sent" are both accepted states; anything else is the reason.
+        $status = is_array($r) ? (string) ($r['status'] ?? '') : '';
+        $ok     = $resp['code'] >= 200 && $resp['code'] < 300
+               && in_array(strtolower($status), ['success', 'sent'], true);
+
+        $ref = is_array($r) ? ($r['messageId'] ?? null) : null;
+
+        return ['africastalking', $ok, is_string($ref) ? substr($ref, 0, 80) : null,
+                $ok ? null : ($status !== '' ? $status : $this->errorFrom($resp))];
+    }
+
+    /**
+     * Termii.
+     *
+     * JSON, with the key in the body rather than a header. Same trap as above and worse:
+     * it answers 200 with a `message` describing the failure, so the HTTP code alone is
+     * almost never the answer. A successful send carries a `message_id`, which is the one
+     * field that cannot be present on a failure — so that is what is checked.
+     *
+     * `from` is REQUIRED and must be a sender ID already approved on the account. That is
+     * why {@see smsProvider()} does not consider Termii configured without one: a key with
+     * no sender ID produces a confident 200 and no message, on every send, forever.
+     *
+     * @return array{0:string,1:bool,2:?string,3:?string}
+     */
+    private function attemptTermii(string $to, string $body): array
+    {
+        $resp = $this->http(
+            'https://api.ng.termii.com/api/sms/send',
+            ['Content-Type: application/json', 'Accept: application/json'],
+            (string) json_encode([
+                'api_key' => $this->termiiApiKey,
+                // No leading +. Termii wants the international number as digits, and a
+                // plus is quietly treated as a malformed recipient.
+                'to'      => ltrim($to, '+'),
+                'from'    => (string) $this->termiiFrom,
+                'sms'     => $body,
+                'type'    => 'plain',
+                'channel' => 'generic',
+            ]),
+            null,
+        );
+
+        $j   = json_decode($resp['body'], true);
+        $ref = is_array($j) ? ($j['message_id'] ?? null) : null;
+        $ok  = $resp['code'] >= 200 && $resp['code'] < 300 && is_string($ref) && $ref !== '';
+
+        $why = is_array($j) ? (string) ($j['message'] ?? '') : '';
+
+        return ['termii', $ok, is_string($ref) ? substr($ref, 0, 80) : null,
+                $ok ? null : ($why !== '' ? $why : $this->errorFrom($resp))];
     }
 
     /** @return array{0:string,1:bool,2:?string,3:?string} */
@@ -257,6 +423,55 @@ class SmsService
         } catch (\Throwable) {
             // Audit must never break delivery or the calling flow.
         }
+    }
+
+    /**
+     * Is this inbound POST really from Twilio?
+     *
+     * ── WHY THIS CANNOT BE SKIPPED ───────────────────────────────────────────
+     *
+     * The endpoint it guards records opt-outs from the `From` number on the request. An
+     * unsigned version is a form anybody on the internet can submit to stop somebody
+     * else's messages — including the claim codes and security alerts this platform sends
+     * — and the victim would have no way to tell it had happened.
+     *
+     * ── THE ALGORITHM, BECAUSE IT IS EASY TO GET SUBTLY WRONG ────────────────
+     *
+     * Twilio signs the full request URL with the POST fields appended: keys sorted
+     * lexicographically, each key immediately followed by its value, no separators. That
+     * string is HMAC-SHA1'd with the ACCOUNT AUTH TOKEN — not the API key, not the SID —
+     * and base64'd.
+     *
+     * The URL must be exactly the one Twilio was configured with, including scheme, host
+     * and query string. Behind a proxy that terminates TLS, `https` vs `http` is the
+     * commonest reason a correct implementation rejects every request.
+     *
+     * hash_equals, not `===`: this is a MAC comparison and a timing-variable one leaks the
+     * signature a byte at a time.
+     *
+     * @param array<string,mixed> $params the POST fields, exactly as received
+     */
+    public function validateWebhook(string $url, array $params, string $signature): bool
+    {
+        if ($this->twilioToken === null || $this->twilioToken === '' || $signature === '') {
+            return false;
+        }
+
+        ksort($params, SORT_STRING);
+        $payload = $url;
+        foreach ($params as $k => $v) {
+            $payload .= $k . (is_scalar($v) ? (string) $v : '');
+        }
+
+        $expected = base64_encode(hash_hmac('sha1', $payload, $this->twilioToken, true));
+
+        return hash_equals($expected, $signature);
+    }
+
+    /** Is there a token to validate an inbound request against at all? */
+    public function canValidateWebhook(): bool
+    {
+        return $this->twilioToken !== null && $this->twilioToken !== '';
     }
 
     private function enqueueRetry(string $jobType, string $to, string $body, string $template): void

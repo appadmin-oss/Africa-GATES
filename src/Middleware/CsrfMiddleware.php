@@ -74,6 +74,11 @@ class CsrfMiddleware {
         // The recording bot's callback: server-to-server from the Attendee instance, no
         // cookie and no Origin, guarded by a shared secret compared in the controller.
         '/api/interview/bot/webhook', '/api/v1/interview/bot/webhook',
+        // A carrier delivering an inbound SMS — no cookie, no session, no Origin. The
+        // Twilio request signature is the authentication and the controller refuses
+        // outright when there is no auth token to verify it against, so this is not an
+        // unguarded POST: it is one guarded by something a CSRF token cannot express.
+        '/hooks/sms-inbound',
         '/email/unsubscribe'];
 
     public function __invoke(Request $req, Handler $handler): Response {

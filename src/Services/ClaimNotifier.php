@@ -316,9 +316,12 @@ HTML;
               . "to the nominee's own account.";
 
         $ok = false;
-        try { $ok = $sms->sendSms($e164, $body, 'claim-alert'); } catch (\Throwable) {}
+        // respectOptOut FALSE: somebody is claiming this person's page and this is the
+        // warning. A security notice suppressed by a marketing preference is how the one
+        // message that mattered is the one that never arrived.
+        try { $ok = $sms->sendSms($e164, $body, 'claim-alert', respectOptOut: false); } catch (\Throwable) {}
         try {
-            if ($sms->whatsappConfigured() && $sms->sendWhatsApp($e164, $body, 'claim-alert')) $ok = true;
+            if ($sms->whatsappConfigured() && $sms->sendWhatsApp($e164, $body, 'claim-alert', respectOptOut: false)) $ok = true;
         } catch (\Throwable) {}
 
         return ['channel' => 'phone', 'hint' => $hint, 'status' => $ok ? 'sent' : 'failed'];

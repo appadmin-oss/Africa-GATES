@@ -1248,11 +1248,36 @@ final class EventTicketService
             ];
         }
 
+        // ── THE THANK-YOU ───────────────────────────────────────────────────
+        //
+        // Only on the branch that WON the update. `duplicate` returns above this — a
+        // re-scan is ordinary at a door and must not text somebody twice — and so does
+        // every refusal.
+        //
+        // Queued, never sent here. SmsService is synchronous with an eight-second timeout,
+        // and eight seconds at a door is a steward staring at a spinner with forty people
+        // behind them. Wrapped as well, because nothing about a thank-you may decide
+        // whether a person who has paid gets through the door.
+        try { CheckInThanks::queue($reg, self::eventOf((int) $reg->event_id)); }
+        catch (\Throwable) {}
+
         return [
             'verdict' => 'admit', 'title' => 'Admit',
             'detail'  => $seats > 1 ? $seats . ' seats on this ticket.' : '',
             'name' => $name, 'tier' => $tier, 'seats' => $seats, 'code' => $code, 'at' => $now,
         ];
+    }
+
+    /** The event a registration belongs to, or null. Only the title is used. */
+    private static function eventOf(int $eventId): ?object
+    {
+        if ($eventId < 1) return null;
+
+        try {
+            return DB::table('gates_site_events')->where('id', $eventId)->first(['id', 'title', 'slug']);
+        } catch (\Throwable) {
+            return null;
+        }
     }
 
     /** 'HH:MM' from a stored timestamp — a door reads a clock, not a date. */

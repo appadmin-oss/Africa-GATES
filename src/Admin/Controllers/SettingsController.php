@@ -154,6 +154,9 @@ class SettingsController
                                   'stt'   => \AfricaGates\Services\VoiceService::STT_MODEL],
             // Messaging channels configured state (booleans only — secrets never echoed).
             'sms_status'     => \AfricaGates\Services\SmsService::boot()->status(),
+            // The shipped wording, shown as the textarea's placeholder so an operator can
+            // see what "leave blank" actually sends rather than being asked to trust it.
+            'checkin_sms_default' => \AfricaGates\Services\CheckInThanks::DEFAULT_TEMPLATE,
             // Email delivery health — recent sends with status/error so "links
             // aren't arriving" is diagnosable at a glance.
             'mail_health'    => $this->mailHealth(),
@@ -515,13 +518,32 @@ class SettingsController
             $this->settings->set('sms_enabled', isset($b['sms_enabled']) ? '1' : '', $adminId);
             $this->settings->set('wa_enabled',  isset($b['wa_enabled'])  ? '1' : '', $adminId);
             $clear = (array) ($b['messaging_clear'] ?? []);
-            foreach (['sms_twilio_sid', 'sms_twilio_token', 'wa_access_token'] as $k) {
+            foreach (['sms_twilio_sid', 'sms_twilio_token', 'wa_access_token',
+                      'sms_at_api_key', 'sms_termii_api_key'] as $k) {
                 if (!empty($clear[$k])) { $this->settings->set($k, '', $adminId); continue; }
                 $val = trim((string) ($b[$k] ?? ''));
                 if ($val !== '') $this->settings->set($k, $val, $adminId);
             }
-            foreach (['sms_twilio_from', 'sms_twilio_wa_from', 'wa_phone_number_id'] as $k) {
+            foreach (['sms_twilio_from', 'sms_twilio_wa_from', 'wa_phone_number_id',
+                      'sms_at_username', 'sms_at_from', 'sms_termii_from'] as $k) {
                 if (array_key_exists($k, $b)) $this->settings->set($k, trim((string) $b[$k]), $adminId);
+            }
+
+            // ── THE TEXT SOMEBODY GETS FOR WALKING IN ───────────────────────
+            //
+            // Off by default like every outbound channel here: an upgrade must never
+            // start texting an existing event's attendees because a new feature shipped.
+            //
+            // The copy is editable because it is the platform speaking in its own voice to
+            // somebody who has just paid and travelled, and a sentence written here in
+            // English by a developer is not that. What an operator CANNOT edit is the
+            // "Reply STOP" line — CheckInThanks appends it after the template, so a
+            // rewrite cannot remove the way out of it.
+            $this->settings->set(\AfricaGates\Services\CheckInThanks::K_ENABLED,
+                                 isset($b['checkin_sms_enabled']) ? '1' : '', $adminId);
+            if (array_key_exists('checkin_sms_template', $b)) {
+                $this->settings->set(\AfricaGates\Services\CheckInThanks::K_TEMPLATE,
+                                     trim((string) $b['checkin_sms_template']), $adminId);
             }
         }
 
