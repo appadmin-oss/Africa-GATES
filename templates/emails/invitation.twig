@@ -111,27 +111,30 @@
            which made the heaviest thing on the page something you met after three
            screens of paper. Weight belongs at the top, where it reads as a header
            instead of an interruption. #}
-        {# ── THE MASTHEAD ─────────────────────────────────────────────────
-           A WHITE band, and that is forced rather than chosen: the lockup is
-           white-backed artwork — no reversed-out version of it exists in this
-           repository — so on the ink below it would be a pale block with a hole
-           in it. Inverting a PNG to make one is how a brand mark ends up grey.
+        {# ── ONE HEADER, NOT TWO STACKED ──────────────────────────────────
+           The mark used to sit on a WHITE band above this ink block, because the
+           lockup is green-on-white artwork and there was no reversed version of
+           it. That put three value zones in the first screen — white, ink, paper
+           — and a fourth colour, the brand green #006634, which appears nowhere
+           else in this email. It read as two designs bolted together, and the
+           band was a 560×158 area with one small object alone in it: whitespace
+           left over rather than distributed.
 
-           It also happens to be the right shape. The letter this email carries
-           puts the mark on paper above a rule; doing the same here means the two
-           documents open the same way, which is what a letterhead is for.
+           The lockup is exactly two colours, #FFFFFF and #006634, so every pixel
+           is a blend of the pair. `logo-africa-gates-gold.png` is that blend
+           recoloured — gold where the ink was, transparent where the paper was —
+           which is a two-colour treatment rather than an inversion, and an
+           inversion is what would give a gold block with a hole in it.
 
-           width AND height on the tag, always: a blocked remote image with no
-           height collapses the band it is the only thing in, and Outlook desktop
-           blocks by default. The alt is the organisation's name, styled — an
-           unstyled alt renders as 10px serif and reads as a broken attachment. #}
+           So the header is one ink zone in the platform's own two colours, and
+           the mark belongs to it. #}
         <tr>
-          <td bgcolor="#ffffff" style="background-color:#ffffff; padding:20px 32px 16px 32px;" class="ag-px">
-            {# 106 × 122 is the artwork's own 640:734 ratio. Declaring a height that is
-               not the real ratio is what makes a blocked image reserve the wrong box and
+          <td bgcolor="#10292c" style="background-color:#10292c; padding:26px 32px 4px 32px;" class="ag-px">
+            {# 88 × 101 is the artwork's own 640:734 ratio. A width and height that
+               are not the real ratio make a blocked image reserve the wrong box and
                the layout jump when it loads. #}
-            <img src="{{ logo_url }}" width="106" height="122" alt="Africa GATES"
-                 style="display:block; width:106px; max-width:106px; height:auto; border:0; outline:none; text-decoration:none; font-family:Georgia,'Times New Roman',serif; font-size:15px; line-height:22px; font-weight:bold; color:#10292c;">
+            <img src="{{ logo_url }}" width="88" height="101" alt="Africa GATES"
+                 style="display:block; width:88px; max-width:88px; height:auto; border:0; outline:none; text-decoration:none; font-family:Georgia,'Times New Roman',serif; font-size:15px; line-height:22px; font-weight:bold; color:#f3b416;">
           </td>
         </tr>
         <tr>

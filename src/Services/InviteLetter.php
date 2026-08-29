@@ -55,8 +55,16 @@ final class InviteLetter
      * place — see the note at the reference block. `REF_Y` leaves 18.5mm for the block
      * itself plus a gap before `SIGN_Y`.
      */
-    /** The printed width of the lockup. Its height follows from the artwork's own ratio. */
-    private const LOGO_W = 21.0;
+    /**
+     * The printed width of the lockup. Its height follows from the artwork's own ratio.
+     *
+     * 26mm, not 21. The artwork is a fine line drawing of Africa with "Africa G.A.T.E.S."
+     * set inside it, and at 21mm the wordmark inside it came out around 7pt with the
+     * coastline at a sub-hairline stroke — present, but reading as a smudge rather than as
+     * a mark. Every piece of artwork has a size below which it stops saying what it is,
+     * and for this one that size is above 21mm.
+     */
+    private const LOGO_W = 26.0;
 
     private const REF_Y  = self::PAGE_H - self::MARGIN - 66.0;
     private const SIGN_Y = self::PAGE_H - self::MARGIN - 42.0;
@@ -114,19 +122,25 @@ final class InviteLetter
         // Set beside the mark when there is one, and in its place when the deploy is
         // missing the file — a letterhead that silently loses its name because an image
         // did not load is worse than one that never had a picture.
-        $tx = $logo !== null ? $x + self::LOGO_W + 7.0 : $x;
-        $ty = $logo !== null ? $y + $logoH / 2 - 3.4 : $y + 6.2;
+        //
+        // TOP-aligned with the mark, not centred against it. The mark is 30mm tall and the
+        // text block is 11; centring one on the other put the words at an optical position
+        // that matched nothing else on the page, and three left edges that do not relate
+        // is what reads as "placed" rather than "laid out". The type sits on the mark's own
+        // top line, and the host closes the same line on the right.
+        $tx = $logo !== null ? $x + self::LOGO_W + 8.0 : $x;
+        $ty = $y + 6.4;
         if ($logo === null) {
             $pdf->text('AFRICA GATES', $tx, $ty, 'mono', 9.5, self::INK, 2.2);
-            $ty += 5.4;
+            $ty += 5.6;
         }
-        $pdf->text('Continental Cultural Recognition', $tx, $ty, 'semi', 9.0, self::INK);
-        $pdf->text('An Afrovanguard Initiative', $tx, $ty + 5.0, 'text', 8.0, self::MUTE);
+        $pdf->text('Continental Cultural Recognition', $tx, $ty, 'semi', 9.5, self::INK);
+        $pdf->text('An Afrovanguard Initiative', $tx, $ty + 5.2, 'text', 8.5, self::MUTE);
 
         $host = self::host();
-        $pdf->text($host, $x + $w - $pdf->width($host, 'text', 8.0), $ty + 5.0, 'text', 8.0, self::MUTE);
+        $pdf->text($host, $x + $w - $pdf->width($host, 'text', 8.5), $ty, 'text', 8.5, self::MUTE);
 
-        $y += max(17.0, $logoH + 4.0);
+        $y += max(17.0, $logoH + 5.0);
         // Two rules, 0.9mm apart — the letterpress convention for a letterhead, and the
         // one piece of ornament in the document. The gold is the thin one.
         $pdf->line($x, $y, $x + $w, $y, self::INK, 0.5);
@@ -223,17 +237,22 @@ final class InviteLetter
         $lead = 5.4;
         $gap  = 5.4;
         $room = self::REF_Y - 8.0 - $y;
-        for ($i = 0; $i < 6; $i++) {
-            $rows = 0;
-            // `lines()` returns a COUNT, not the lines — same 8-line cap the draw uses, so
-            // the measurement and the drawing cannot disagree about a long paragraph.
-            foreach ($body as $para) $rows += $pdf->lines($para, $mw, 'text', 10.5, 8);
-            $need = $rows * $lead + count($body) * $gap;
-            if ($need <= $room) break;
-            // 4.6mm at 10.5pt is 1.24 leading — tight, still comfortably readable, and the
-            // floor. Below that the paragraph gap goes instead.
-            if ($lead > 4.6) { $lead = max(4.6, $lead - 0.2); continue; }
-            $gap = max(3.0, $gap - 0.4);
+
+        // The line count does not change with the leading, so it is measured once.
+        // `lines()` returns a COUNT, not the lines — same 8-line cap the draw uses, so the
+        // measurement and the drawing cannot disagree about a long paragraph.
+        $rows = 0;
+        foreach ($body as $para) $rows += $pdf->lines($para, $mw, 'text', 10.5, 8);
+
+        // Bounded by the FLOORS, not by a fixed number of passes. The first cut of this
+        // ran six iterations, which cannot exhaust both ranges — so a letterhead that grew
+        // by six millimetres was enough to leave it still overrunning, silently, with the
+        // close printed over the reference. 4.6mm at 10.5pt is 1.24 leading: tight, still
+        // comfortably readable, and where this stops giving.
+        while ($rows * $lead + count($body) * $gap > $room) {
+            if ($lead > 4.6)     { $lead = max(4.6, $lead - 0.1); continue; }
+            if ($gap  > 3.0)     { $gap  = max(3.0, $gap  - 0.2); continue; }
+            break;   // Both at their floor. The guard test is what says this is enough.
         }
 
         foreach ($body as $para) {

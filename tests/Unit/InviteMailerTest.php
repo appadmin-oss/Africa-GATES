@@ -382,8 +382,14 @@ final class InviteMailerTest extends TestCase
         $this->assertStringContainsString('{{ logo_url }}', $tpl,
             'the email hard-codes a path instead of asking Brand');
 
+        // The email takes the REVERSED lockup, because its masthead is ink. Getting this
+        // wrong is not subtle — the green-on-white artwork on ink is a white rectangle
+        // with a logo in it.
         $html = InviteMailer::preview($this->invite(), $this->event);
-        $this->assertStringContainsString(Brand::LOGO, $html, 'the mark is not in the email');
+        $this->assertStringContainsString(Brand::LOGO_REVERSED, $html,
+            'the email is not using the reversed mark');
+        $this->assertFileExists(dirname(__DIR__, 2) . '/public/' . Brand::LOGO_REVERSED,
+            'the reversed lockup is not in the deploy');
 
         // And the letter embeds the same file's bytes.
         $this->assertNotNull(Brand::logoJpeg(320), 'the mark could not be transcoded for the PDF');

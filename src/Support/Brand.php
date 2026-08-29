@@ -31,15 +31,45 @@ final class Brand
     /** The lockup, relative to `public/`. The same file the site publishes as its logo. */
     public const LOGO = 'assets/img/logo-africa-gates.png';
 
+    /**
+     * The same lockup for dark grounds: gold where the ink was, transparent where the
+     * paper was.
+     *
+     * ── DERIVED, NOT INVENTED ────────────────────────────────────────────────
+     *
+     * The artwork is exactly two colours — #FFFFFF and #006634 — so every pixel in it is
+     * a blend of that pair. This file is that blend recoloured by its own ratio, which is
+     * a two-colour treatment. Inverting the PNG, which is the obvious thing to reach for,
+     * gives a gold block with a hole in it.
+     *
+     * Regenerate it the same way if the lockup is ever replaced: map luminance to alpha,
+     * paint the result in the platform's gold.
+     */
+    public const LOGO_REVERSED = 'assets/img/logo-africa-gates-gold.png';
+
     /** Width ÷ height of {@see LOGO}, so a caller can size a box without loading it. */
     public const LOGO_RATIO = 640 / 734;
 
-    /** The absolute URL, for an email or a page. */
-    public static function logoUrl(string $base = ''): string
+    /**
+     * The absolute URL, for an email or a page.
+     *
+     * @param bool $reversed true for a dark ground — see {@see LOGO_REVERSED}. Getting
+     *                       this wrong is not subtle: the green-on-white lockup on ink is
+     *                       a white rectangle with a logo in it.
+     */
+    public static function logoUrl(string $base = '', bool $reversed = false): string
     {
         $base = rtrim($base !== '' ? $base : (string) SiteUrl::base(), '/');
 
-        return $base . '/' . self::LOGO;
+        return $base . '/' . ($reversed ? self::LOGO_REVERSED : self::LOGO);
+    }
+
+    /** The reversed file on disk, or '' when the deploy is missing it. */
+    public static function reversedFile(): string
+    {
+        $path = \dirname(__DIR__, 2) . '/public/' . self::LOGO_REVERSED;
+
+        return is_file($path) ? $path : '';
     }
 
     /** The file on disk, or '' when the deploy is missing it. */
@@ -87,7 +117,11 @@ final class Brand
             imagedestroy($src);
 
             ob_start();
-            imagejpeg($out, null, 88);
+            // 95, not the usual 82–88. This is LINE ART — a hairline coastline and a
+            // wordmark on flat white — and JPEG's ringing shows on hard edges against
+            // white long before it shows on a photograph. The file is a few kilobytes
+            // either way, and it is embedded once per letter.
+            imagejpeg($out, null, 95);
             $bytes = (string) ob_get_clean();
             imagedestroy($out);
 
