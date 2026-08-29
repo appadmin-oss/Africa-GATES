@@ -107,7 +107,20 @@
           <tbody>
           {% for key, g in plan %}
             <tr>
-              <td>{{ g.audience.label }}</td>
+              <td>{{ g.audience.label }}
+                {# ── A ROW OF ZEROES HAS TO SAY WHY ──────────────────────────
+                   The whole reason readiness() exists: five different failures all
+                   render as the same empty row, and an operator watching judges appear
+                   while nominees stay at nought cannot tell "no shortlist published"
+                   from "the nominee half is broken". The banner above carries the
+                   detail; this puts the fact next to the number it explains. #}
+                {% if g.ready|length == 0 and g.unreachable|length == 0 and g.already == 0 %}
+                  <small style="display:block;color:var(--ad-text-soft)">
+                    {% if key == 'nominee' %}No published shortlist to draw from — see above.
+                    {% else %}Nobody on this list yet — see above.{% endif %}
+                  </small>
+                {% endif %}
+              </td>
               <td class="iv-num">{{ g.ready|length }}</td>
               <td class="iv-num">
                 {% if g.unreachable|length %}<span class="ad-chip ad-chip--gold">{{ g.unreachable|length }}</span>

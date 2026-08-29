@@ -188,6 +188,69 @@ final class EventInvitesTest extends TestCase
     }
 
     /**
+     * NEXT YEAR'S EMPTY CYCLE MUST NOT HIDE THIS YEAR'S SHORTLIST.
+     *
+     * `shortlisted()` took the programme's newest cycle by year and looked for a published
+     * shortlist in it. An operator who opens the 2027 cycle — which is the ordinary thing
+     * to do the week after a ceremony is announced, and which the platform encourages —
+     * silently empties the invitation list for the 2026 ceremony they are still building.
+     *
+     * The judges are unaffected, because `judges()` is scoped to the PROGRAMME and never
+     * looks at a cycle. So the screen shows a full panel and no nominees, which reads as
+     * "the nominee half is broken" and is the exact report this test was written from.
+     */
+    public function test_a_newer_empty_cycle_does_not_hide_the_shortlist(): void
+    {
+        $ada = $this->nominee('Ada Obi', 'ada@example.com');
+        $this->publishShortlist($this->cycleId, $this->catId, [$ada]);
+
+        // The organiser opens next year. No categories, no nominees, no shortlist.
+        DB::table('gates_award_cycles')->insert([
+            'programme_id' => $this->programmeId, 'year' => 2027, 'status' => 'upcoming',
+        ]);
+
+        $plan = EventInvites::plan($this->eventId);
+
+        $this->assertCount(1, $plan[InviteAudience::NOMINEE]['ready'],
+            "next year's empty cycle hid this year's shortlist");
+        $this->assertSame('Ada Obi', $plan[InviteAudience::NOMINEE]['ready'][0]['name']);
+    }
+
+    /**
+     * With no shortlist anywhere, the nominee row says so rather than showing a zero.
+     *
+     * This is the failure readiness() was written for, restated on the row itself: an
+     * operator watching judges arrive while nominees stay at nought cannot tell "no
+     * shortlist has been published" from "the nominee half is broken" — and the second is
+     * what they reported.
+     */
+    public function test_an_empty_nominee_row_explains_itself(): void
+    {
+        $_SESSION['admin_id']   = 1;
+        $_SESSION['admin_role'] = 'superadmin';
+
+        // A judge, so the panel is not empty either — the contrast is the point.
+        DB::table('gates_judges')->insert([
+            'name' => 'Ada Judge', 'email' => 'judge@example.com', 'is_active' => 1,
+            'programme_ids' => json_encode([$this->programmeId]),
+        ]);
+        $this->nominee('Ada Obi', 'ada@example.com');   // approved, but never shortlisted
+
+        $b = new \DI\ContainerBuilder();
+        $b->addDefinitions(dirname(__DIR__, 2) . '/config/container.php');
+        $req = (new \Slim\Psr7\Factory\ServerRequestFactory())
+            ->createServerRequest('GET', '/admin/events/' . $this->eventId . '/invites');
+
+        $html = (string) $b->build()
+            ->get(\AfricaGates\Admin\Controllers\InvitesController::class)
+            ->index($req, new \Slim\Psr7\Response(), ['id' => $this->eventId])
+            ->getBody();
+
+        $this->assertStringContainsString('No published shortlist to draw from', $html,
+            'the nominee row is a bare zero with no reason beside it');
+    }
+
+    /**
      * A drawn-but-unpublished shortlist is the expensive one: everything looks done, and
      * the invitation run is silently drawing from nothing.
      */

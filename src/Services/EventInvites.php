@@ -296,10 +296,14 @@ final class EventInvites
 
         // 1 · Per programme, the two things shortlisted() walks past in silence.
         foreach ($programmes as $programme) {
-            $cycle = DB::table('gates_award_cycles')
-                ->where('programme_id', $programme->id)
-                ->orderByDesc('year')->orderByDesc('id')
-                ->first(['id', 'year']);
+            // THE SAME resolver the build uses. A diagnosis computed from a different
+            // cycle than the one being invited from is worse than none: it would report
+            // "2027 has no published shortlist" while the run quietly draws from 2026, or
+            // pronounce everything ready about a year nobody is inviting.
+            $cycleId = self::cycleWithShortlist((int) $programme->id);
+            $cycle   = $cycleId > 0
+                ? DB::table('gates_award_cycles')->where('id', $cycleId)->first(['id', 'year'])
+                : null;
 
             if (!$cycle) {
                 $out[] = [
@@ -587,14 +591,10 @@ final class EventInvites
         $out = [];
 
         foreach (self::programmesFor($eventId) as $programme) {
-            $cycle = DB::table('gates_award_cycles')
-                ->where('programme_id', $programme->id)
-                ->orderByDesc('year')->orderByDesc('id')
-                ->first(['id']);
-            if (!$cycle) continue;
+            $cycleId = self::cycleWithShortlist((int) $programme->id);
+            if ($cycleId === 0) continue;
 
-            $cycleId = (int) $cycle->id;
-            $onList  = ShortlistService::shortlistedIn($cycleId);
+            $onList = ShortlistService::shortlistedIn($cycleId);
             if ($onList === []) continue;
 
             $rows = DB::table('gates_nominees as n')
@@ -629,6 +629,48 @@ final class EventInvites
         }
 
         return $out;
+    }
+
+    /**
+     * The cycle this ceremony is actually inviting from.
+     *
+     * ── THE BUG THIS EXISTS BECAUSE OF ───────────────────────────────────────
+     *
+     * This used to be "the programme's newest cycle by year", full stop. An organiser who
+     * opens next year's cycle — the ordinary thing to do the week a new edition is
+     * announced, and something the platform encourages — silently emptied the invitation
+     * list for the ceremony they were still building. The 2027 row has no categories, no
+     * nominees and no shortlist, so the newest-cycle lookup found nothing and
+     * `shortlisted()` returned an empty list.
+     *
+     * The judges were unaffected, because {@see judges()} is scoped to the PROGRAMME and
+     * never looks at a cycle. So the screen showed a full panel and no nominees at all,
+     * which reads as "the nominee half is broken" rather than "you are looking at the
+     * wrong year" — and there was nothing on the screen to say which.
+     *
+     * ── NEWEST CYCLE THAT HAS SOMETHING TO INVITE ────────────────────────────
+     *
+     * Still newest-first, so a programme that has published two years running invites from
+     * the current one. What changed is that a cycle with no PUBLISHED shortlist is passed
+     * over rather than being the answer — an empty cycle is not a shortlist of nobody, it
+     * is a cycle that has not got there yet.
+     *
+     * Falls back to the newest cycle when none has a published shortlist, so
+     * {@see readiness()} still reports "this cycle has no published shortlist" against the
+     * year an operator is actually working on rather than silently naming an older one.
+     */
+    private static function cycleWithShortlist(int $programmeId): int
+    {
+        $cycles = DB::table('gates_award_cycles')
+            ->where('programme_id', $programmeId)
+            ->orderByDesc('year')->orderByDesc('id')
+            ->pluck('id')->all();
+
+        foreach ($cycles as $id) {
+            if (ShortlistService::shortlistedIn((int) $id) !== []) return (int) $id;
+        }
+
+        return (int) ($cycles[0] ?? 0);
     }
 
     /**
