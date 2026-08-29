@@ -277,12 +277,6 @@ final class InviteMailer
             'when_time'   => DisplayTime::showZoned((string) $event->event_date, 'H:i'),
             'where'       => $where,
             'cover_url'   => self::coverUrl($event, $base),
-            // The organisation's mark, from the one resolver that knows which of the
-            // fourteen files in assets/img is actually the lockup.
-            // The REVERSED mark: the masthead is ink, and the ordinary lockup is
-            // green-on-white artwork — on ink it is a white rectangle with a logo in it.
-            'logo_url'    => \AfricaGates\Support\Brand::logoUrl($base, true),
-
             'reference' => trim((string) $invite->reference),
             'quota'     => $quota,
             'discount'  => $pct,

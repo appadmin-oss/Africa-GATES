@@ -40,7 +40,33 @@ class EmailInboxCompatTest extends TestCase
      */
     protected static function markup(): string
     {
-        return (string) preg_replace('/\{#.*?#\}/s', '', (string) file_get_contents(static::tpl()));
+        return self::stripComments(
+            (string) preg_replace('/\{#.*?#\}/s', '', (string) file_get_contents(static::tpl()))
+        );
+    }
+
+    /**
+     * Drop HTML comments that are only prose, and keep the ones a client acts on.
+     *
+     * Three times now a rule here has fired on a comment explaining the markup rather
+     * than on the markup: an author wrote the words "padding on a &lt;table&gt;" beside the
+     * wrapper and `test_it_is_a_table_layout_with_presentation_roles` counted an eighth
+     * layout table with no role. A comment is not rendered by any client, so scanning it
+     * measures the wrong thing in both directions — a false failure like that one, and a
+     * false PASS the day a required attribute exists only inside a commented-out block.
+     *
+     * Outlook's conditionals are the exception and are kept: `[if mso]` and
+     * `[if !mso]` are markup to the one engine these rules are mostly about.
+     */
+    protected static function stripComments(string $html): string
+    {
+        // Matched whole, then kept or dropped by what is inside — not by a lookahead on
+        // the opener. `<!--[if !mso]><!-->` opens with a downlevel-revealed comment whose
+        // own closer is `<!-->`, and a lookahead that skipped the opener then matched
+        // that closer and ate the live markup after it.
+        return (string) preg_replace_callback('/<!--.*?-->/s', static function (array $m): string {
+            return str_contains($m[0], '[if') || str_contains($m[0], '[endif') ? $m[0] : '';
+        }, $html);
     }
 
     /**

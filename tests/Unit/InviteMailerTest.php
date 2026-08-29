@@ -385,14 +385,15 @@ final class InviteMailerTest extends TestCase
             'the shell hard-codes a path instead of asking Brand — and `public/assets/img/` '
             . 'holds fourteen files with "logo", "mark" or "brand" in the name');
 
-        // The email takes the REVERSED lockup, because its masthead is ink. Getting this
-        // wrong is not subtle — the green-on-white artwork on ink is a white rectangle
-        // with a logo in it.
+        // The email takes the ALPHA lockup, because its masthead is the paper ground and
+        // the shipped artwork is opaque. Getting this wrong is not subtle in an inbox and
+        // nearly invisible in a screenshot, which is why it is asserted rather than
+        // eyeballed: #f0f2f2 behind a white box is a difference of four levels.
         $html = InviteMailer::preview($this->invite(), $this->event);
-        $this->assertStringContainsString(Brand::LOGO_REVERSED, $html,
-            'the email is not using the reversed mark');
-        $this->assertFileExists(dirname(__DIR__, 2) . '/public/' . Brand::LOGO_REVERSED,
-            'the reversed lockup is not in the deploy');
+        $this->assertStringContainsString(Brand::LOGO_ON_TINT, $html,
+            'the email is not using the alpha mark');
+        $this->assertFileExists(dirname(__DIR__, 2) . '/public/' . Brand::LOGO_ON_TINT,
+            'the alpha lockup is not in the deploy');
 
         // And the letter embeds the same file's bytes.
         $this->assertNotNull(Brand::logoJpeg(320), 'the mark could not be transcoded for the PDF');
@@ -420,16 +421,27 @@ final class InviteMailerTest extends TestCase
         // reversed export is a separate file that a designer could replace at a
         // different aspect without anyone noticing until it was in the post.
         $html = InviteMailer::preview($this->invite(), $this->event);
-        preg_match('/<img src="[^"]*' . preg_quote(Brand::LOGO_REVERSED, '/')
+        preg_match('/<img src="[^"]*' . preg_quote(Brand::LOGO_ON_TINT, '/')
                    . '" width="(\d+)" height="(\d+)"/', $html, $m);
         $this->assertNotEmpty($m, 'the mark carries no width and height — a blocked image '
                                 . 'then collapses the band it is the only thing in');
         $this->assertEqualsWithDelta((int) $m[1] / (int) $m[2], Brand::LOGO_RATIO, 0.02,
             'the declared box is not the artwork\'s shape');
 
-        [$rw, $rh] = getimagesize(dirname(__DIR__, 2) . '/public/' . Brand::LOGO_REVERSED);
+        $alpha = dirname(__DIR__, 2) . '/public/' . Brand::LOGO_ON_TINT;
+        [$rw, $rh] = getimagesize($alpha);
         $this->assertEqualsWithDelta($rw / $rh, Brand::LOGO_RATIO, 0.001,
-            'the reversed export is a different shape from the lockup it was derived from');
+            'the alpha export is a different shape from the lockup it was derived from');
+
+        // And it is actually transparent where the paper was. Replace it with the shipped
+        // opaque lockup and every assertion above still passes — same name, same ratio,
+        // same src — while the masthead grows a white card four levels off its ground.
+        // That is a difference nobody sees in a screenshot and everybody sees in an inbox.
+        $im = imagecreatefrompng($alpha);
+        $this->assertNotFalse($im);
+        $corner = imagecolorsforindex($im, imagecolorat($im, 2, 2));
+        $this->assertSame(127, $corner['alpha'],
+            'the top-left corner is opaque — this is the white-backed lockup, not the alpha one');
     }
 
     /**

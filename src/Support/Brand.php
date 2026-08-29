@@ -21,11 +21,13 @@ namespace AfricaGates\Support;
  *
  * ── THE LOCKUP IS WHITE-BACKED, SO THERE ARE TWO OF THEM ─────────────────────
  *
- * The shipped artwork is green on white and goes on paper. On the ink masthead it would
- * be a white rectangle with a logo in it, so {@see LOGO_REVERSED} is the same artwork
- * recoloured — and {@see logoUrl()} takes a flag rather than leaving each caller to pick.
- * That flag is the whole reason this is one function: the two files are indistinguishable
- * in a filename and unmistakable on a ground.
+ * The shipped artwork is green on OPAQUE white. Dropped on any ground that is not white
+ * it is a white rectangle with a logo in it — and the email's masthead sits on the paper
+ * ground, `#f0f2f2`, which is close enough to white that the box is invisible in a
+ * screenshot and obvious in an inbox. {@see LOGO_ON_TINT} is the same artwork with the
+ * paper turned to alpha, and {@see logoUrl()} takes a flag rather than leaving every
+ * caller to pick: the two files are indistinguishable in a filename and unmistakable on
+ * a ground.
  */
 final class Brand
 {
@@ -33,20 +35,20 @@ final class Brand
     public const LOGO = 'assets/img/logo-africa-gates.png';
 
     /**
-     * The same lockup for dark grounds: gold where the ink was, transparent where the
-     * paper was.
+     * The same lockup with the paper turned to alpha, for a ground that is not white.
      *
      * ── DERIVED, NOT INVENTED ────────────────────────────────────────────────
      *
      * The artwork is exactly two colours — #FFFFFF and #006634 — so every pixel in it is
-     * a blend of that pair. This file is that blend recoloured by its own ratio, which is
-     * a two-colour treatment. Inverting the PNG, which is the obvious thing to reach for,
-     * gives a gold block with a hole in it.
+     * a blend of that pair, and the RED channel has the widest spread (255 down to 0),
+     * which recovers that blend ratio with the least quantisation error. This file is
+     * that ratio as alpha, painted in the same green. Keying out the white instead,
+     * which is the obvious thing to reach for, leaves a white halo on every antialiased
+     * edge — and this mark is a hairline coastline, so it is almost entirely edge.
      *
-     * Regenerate it the same way if the lockup is ever replaced: map luminance to alpha,
-     * paint the result in the platform's gold.
+     * Regenerate it the same way if the lockup is ever replaced.
      */
-    public const LOGO_REVERSED = 'assets/img/logo-africa-gates-gold.png';
+    public const LOGO_ON_TINT = 'assets/img/logo-africa-gates-alpha.png';
 
     /** Width ÷ height of {@see LOGO}, so a caller can size a box without loading it. */
     public const LOGO_RATIO = 640 / 734;
@@ -54,23 +56,15 @@ final class Brand
     /**
      * The absolute URL, for an email or a page.
      *
-     * @param bool $reversed true for a dark ground — see {@see LOGO_REVERSED}. Getting
-     *                       this wrong is not subtle: the green-on-white lockup on ink is
-     *                       a white rectangle with a logo in it.
+     * @param bool $onTint true for any ground that is not white — see {@see LOGO_ON_TINT}.
+     *                     Getting this wrong is not subtle: the opaque artwork on a tint
+     *                     is a white card with a logo printed on it.
      */
-    public static function logoUrl(string $base = '', bool $reversed = false): string
+    public static function logoUrl(string $base = '', bool $onTint = false): string
     {
         $base = rtrim($base !== '' ? $base : (string) SiteUrl::base(), '/');
 
-        return $base . '/' . ($reversed ? self::LOGO_REVERSED : self::LOGO);
-    }
-
-    /** The reversed file on disk, or '' when the deploy is missing it. */
-    public static function reversedFile(): string
-    {
-        $path = \dirname(__DIR__, 2) . '/public/' . self::LOGO_REVERSED;
-
-        return is_file($path) ? $path : '';
+        return $base . '/' . ($onTint ? self::LOGO_ON_TINT : self::LOGO);
     }
 
     /** The file on disk, or '' when the deploy is missing it. */

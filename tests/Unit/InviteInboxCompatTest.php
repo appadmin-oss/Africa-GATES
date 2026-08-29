@@ -84,13 +84,20 @@ final class InviteInboxCompatTest extends EmailInboxCompatTest
     /** The whole message: shell plus body, exactly as it goes on the wire. */
     protected static function markup(): string
     {
-        return self::$rendered;
+        return parent::stripComments(self::$rendered);
     }
 
-    /** The shell's fluid card. 600px here, against the campaign skeleton's own 560. */
+    /**
+     * The shell's fluid card. 600px here, against the campaign skeleton's own 560.
+     *
+     * Pointed at the CARD and not at the outer ground table, deliberately. The ground was
+     * always width="100%" — it is a full-bleed background — so matching it proved
+     * nothing, and the card inside it was fixed at width="600" for the life of this
+     * shell. Every branded email ran off the right edge of a phone.
+     */
     protected static function fluidWrapperRe(): string
     {
-        return '/class="ag-ground"[^>]*width="100%"/';
+        return '/class="ag-card"[^>]*width="100%"/';
     }
 
     protected static function cardMaxWidth(): string
@@ -201,7 +208,9 @@ final class InviteInboxCompatTest extends EmailInboxCompatTest
      */
     private static function letter(): string
     {
-        if (!preg_match('/class="ag-pad ag-body"[^>]*>(.*?)<!-- Footer -->/s', self::markup(), $m)) {
+        // Cut from the RAW render: markup() drops the comment this slices on, which is
+        // the point of dropping it — a recipient never sees it either.
+        if (!preg_match('/class="ag-pad ag-body"[^>]*>(.*?)<!-- Footer -->/s', self::$rendered, $m)) {
             self::fail('the shell no longer has a body cell this can be cut from');
         }
 

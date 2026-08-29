@@ -553,11 +553,12 @@ HTML;
     {
         $year    = date('Y');
         $base    = $this->base();
-        // The category sits UNDER the mark now. Opposite it, a 10px tracked label was
-        // being asked to hold the other end of a 100px letterhead, and it read as a
-        // caption that had come loose.
+        // #626a6e is the platform's documented AA-safe secondary ink — 5.14:1 on the
+        // paper ground. A 10px tracked label is small text, so it owes the full 4.5:1;
+        // the lighter grey this used to be was chosen against white and does not clear
+        // it on #f0f2f2.
         $catCell = $category !== ''
-            ? '<div style="margin-top:13px;font-size:10.5px;font-weight:700;letter-spacing:.18em;text-transform:uppercase;color:rgba(243,180,22,0.85)">'
+            ? '<div style="margin-top:5px;font-size:10.5px;font-weight:700;letter-spacing:.16em;text-transform:uppercase;color:#10292C">'
               . htmlspecialchars($category, ENT_QUOTES) . '</div>'
             : '';
         // HEIGHT as well as width. Outlook desktop blocks remote images by default, and a
@@ -583,31 +584,56 @@ HTML;
         // THE REAL MARK, at a size it can actually be read at.
         //
         // This masthead was a "G" set in a 34px tile beside the words "Africa GATES" — a
-        // lockup drawn in CSS, because the artwork is green-on-white and this band is
-        // ink. Brand::LOGO_REVERSED is that artwork recoloured by its own blend ratio, so
-        // the platform's own mark can sit on the platform's own ink; asking Brand for it
-        // rather than typing the path is what keeps the letter and the email it arrives
-        // with showing the same logo.
+        // lockup drawn in CSS, because the shipped artwork is green on OPAQUE white and
+        // the band was ink. The band is the paper ground now, so the mark is the real
+        // green one; Brand::LOGO_ON_TINT is that artwork with the paper turned to alpha,
+        // because #f0f2f2 is close enough to white that the opaque file's box is
+        // invisible in a screenshot and obvious in an inbox. Asking Brand for it rather
+        // than typing a path is what keeps the letter and the email it arrives with
+        // showing the same logo.
         //
-        // ── WHY IT IS 100px AND CENTRED, AND NOT 42px IN THE CORNER ──────────────
+        // ── WHY IT IS 96px AND NOT 42px ──────────────────────────────────────────
         //
         // The lockup is a LARGE-FORMAT mark: a hairline coastline with "Africa" set
-        // inside it over "G.A.T.E.S." tracked at 4% of the artwork's height. Dropped into
-        // the corner at 42px — the size a wordmark would want — the tracked line is under
-        // 2px, the coastline goes sub-pixel, and what arrives is a gold smudge. It has to
-        // be around 100px before the word reads, and a 100px mark in a corner is not a
-        // corner mark: it is a letterhead. So the band is one, which is also what the
-        // printed invitation does with the same file.
+        // inside it over "G.A.T.E.S." tracked at 4% of the artwork's height. At 42px —
+        // the size a horizontal wordmark would want — that tracked line is under 2px, the
+        // coastline goes sub-pixel, and what arrives is a smudge. It needs about 96px
+        // before the word reads, which makes the header band taller than a wordmark's
+        // would be. That is the artwork, not the layout.
         //
         // width AND height on the tag: Outlook desktop blocks remote images by default
         // and a blocked image with no height collapses the band it is the only thing in.
         // The alt is the organisation's name, styled — an unstyled alt renders as 10px
         // serif and reads as a broken attachment rather than as a wordmark.
-        $logo = htmlspecialchars(Brand::logoUrl($base, true), ENT_QUOTES);
+        $logo = htmlspecialchars(Brand::logoUrl($base, onTint: true), ENT_QUOTES);
         $unsub = $unsubscribeUrl !== ''
             ? ' · <a href="' . htmlspecialchars($unsubscribeUrl, ENT_QUOTES)
               . '" style="color:rgba(255,255,255,0.8);text-decoration:underline">Unsubscribe</a>'
             : '';
+        // ── THE SKELETON, AND THE THREE THINGS THAT ARE EASY TO GET WRONG IN IT ──
+        //
+        // A comment written INSIDE the heredoc ships to every recipient and is scanned by
+        // the compat tests as if it were markup — an HTML comment saying "padding on a
+        // <table>" was read as an eighth layout table with no presentation role. So the
+        // reasoning lives out here.
+        //
+        // THE CARD is width="100%" with a max-width, never width="600". Fixed at 600 it
+        // did not shrink on a phone: measured in a 390px frame, the header labels and the
+        // right edge of every paragraph were off-screen, on every branded message this
+        // platform sends. The [if mso] table hands Outlook back the fixed 600 it needs,
+        // because it is the one engine that ignores max-width.
+        //
+        // THE GUTTER is on the cell, not on the wrapper. Browsers inset it either way;
+        // Outlook's Word engine ignores CSS padding on a table element and honours it on
+        // a cell, so on the wrapper it is a gutter that silently is not there in the one
+        // client the conditional exists for. Same convention as the campaign skeleton.
+        //
+        // THE MASTHEAD puts the mark where a letterhead puts it and hangs the descriptor
+        // and the message's category off the TOP line opposite — centred, they floated
+        // against the outline's empty lower half. There used to be a separate near-white
+        // strip above it reading "Africa GATES · Cultural Power Index"; it is gone,
+        // because two light bands of almost the same value read as a printing fault and
+        // half of what it said is the wordmark directly beneath it.
         return <<<HTML
 <!DOCTYPE html>
 <html lang="en">
@@ -640,34 +666,34 @@ HTML;
        !important is what stops that. */
     @media (prefers-color-scheme: dark) {
       .ag-ground { background-color:#dfe1dc !important; }
-      .ag-strip  { background-color:#fbfbfa !important; }
+      .ag-head   { background-color:#f0f2f2 !important; }
       .ag-card   { background-color:#ffffff !important; }
       .ag-body   { background-color:#ffffff !important; color:#4a5256 !important; }
-      .ag-ink    { background-color:#10292C !important; }
       .ag-foot   { background-color:#0c2225 !important; }
     }
   </style>
 </head>
 <body style="margin:0;padding:0;background:#dfe1dc;font-family:'DM Sans',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif">
   $preRow
-  <table role="presentation" class="ag-ground" cellpadding="0" cellspacing="0" border="0" width="100%" style="background:#dfe1dc;padding:28px 16px">
-    <tr><td align="center">
+  <table role="presentation" class="ag-ground" cellpadding="0" cellspacing="0" border="0" width="100%" style="background:#dfe1dc">
+    <tr><td align="center" style="padding:28px 16px">
       <!--[if mso]>
       <table role="presentation" width="600" cellpadding="0" cellspacing="0" border="0" style="width:600px"><tr><td>
       <![endif]-->
-      <table role="presentation" class="ag-card" cellpadding="0" cellspacing="0" border="0" width="600" style="max-width:600px;background:#ffffff;border-radius:6px;overflow:hidden;border:1px solid rgba(16,41,44,0.06);box-shadow:0 6px 24px -12px rgba(16,41,44,0.3)">
-
-        <!-- Envelope line. It used to read "Africa GATES" on the left and "Cultural
-             Power Index" on the right, which was fine above a 34px badge and is a
-             repetition above a letterhead: the name is set 100px wide immediately
-             below it. What is left is the half the mark does NOT say. -->
-        <tr><td class="ag-strip" align="center" style="background:#fbfbfa;border-bottom:1px solid rgba(16,41,44,0.06);padding:10px 20px;font-size:10px;font-weight:700;letter-spacing:.18em;text-transform:uppercase;color:#a9b0ad">Cultural Power Index</td></tr>
+      <table role="presentation" class="ag-card" cellpadding="0" cellspacing="0" border="0" width="100%" style="width:100%;max-width:600px;background:#ffffff;border-radius:6px;overflow:hidden;border:1px solid rgba(16,41,44,0.06);box-shadow:0 6px 24px -12px rgba(16,41,44,0.3)">
 
         <!-- Masthead -->
-        <tr><td class="ag-ink" align="center" style="background:#10292C;padding:26px 32px 24px">
-          <img src="$logo" width="100" height="115" alt="Africa GATES"
-               style="display:block;width:100px;max-width:100px;height:auto;margin:0 auto;border:0;outline:none;text-decoration:none;font-family:'Playfair Display',Georgia,serif;font-size:17px;font-weight:700;color:#f3b416">
-          $catCell
+        <tr><td class="ag-head" style="background:#f0f2f2;border-bottom:1px solid rgba(16,41,44,0.10);padding:20px 32px">
+          <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr>
+            <td align="left" style="vertical-align:middle">
+              <img src="$logo" width="96" height="110" alt="Africa GATES"
+                   style="display:block;width:96px;max-width:96px;height:auto;border:0;outline:none;text-decoration:none;font-family:'Playfair Display',Georgia,serif;font-size:17px;font-weight:700;color:#006634">
+            </td>
+            <td align="right" style="vertical-align:top;padding-top:12px">
+              <div style="font-size:10px;font-weight:700;letter-spacing:.16em;text-transform:uppercase;color:#626a6e">Cultural Power Index</div>
+              $catCell
+            </td>
+          </tr></table>
         </td></tr>
 
         $heroRow
