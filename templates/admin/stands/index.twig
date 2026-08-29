@@ -782,6 +782,21 @@
           </td>
           <td>
             {{ r.type ? r.type.name : '—' }}
+            {# The VENDOR'S declared trade, not the pitch's category. The two are
+               different claims and can disagree — a "3m corner pitch" filed under
+               `general` is chosen for its size, and two vendors picking it are not
+               necessarily in the same trade. Shown beside what they wrote, because
+               that is the sentence it was read off.
+
+               Absent on an application submitted before the form asked, and nothing
+               is rendered for those: a blank is the honest reading of "not asked",
+               and a default would invent a claim on the row a market is allocated
+               from. #}
+            {% if r.app.category %}
+              <div style="margin-top:4px">
+                <span class="ad-chip ad-chip--grey">{{ categories[r.app.category]|default(r.app.category) }}</span>
+              </div>
+            {% endif %}
             <div class="st-app__meta">
               {% if r.app.needs_power %}Needs power. {% endif %}
               {% if r.app.needs_step_free %}Needs a step-free pitch. {% endif %}

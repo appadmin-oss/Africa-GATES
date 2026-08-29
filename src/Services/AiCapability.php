@@ -796,6 +796,50 @@ final class AiCapability
                     . 'before you share it, and a written fallback is used if no model answers.',
             ]),
             /**
+             * Matching what a vendor SELLS to the organiser's own trade categories.
+             *
+             * ── WHY A MODEL AND NOT A KEYWORD TABLE ─────────────────────────
+             *
+             * The category list is the organiser's, set per event — a book fair adds
+             * "publishing", a food festival drops "beauty" — so there is no fixed
+             * vocabulary to write rules against. A keyword table would have to be
+             * rewritten every time somebody edits the list, and the first event whose
+             * list it had not been rewritten for would silently match nothing.
+             *
+             * ── AND WHY IT ONLY EVER SUGGESTS ───────────────────────────────
+             *
+             * The category is what a QUOTA is set against, and the quota is the entire
+             * fairness mechanism for stands — twelve jewellery stalls and no food is
+             * the failure §10.1 exists to prevent. A model that silently filed an
+             * applicant under the wrong trade would move somebody between queues
+             * without either of them knowing. So this returns a suggestion the vendor
+             * accepts or ignores, on a control they can already operate by hand, and
+             * the form works identically with no model configured at all.
+             *
+             * FAST tier: the answer is one slug off a list the prompt carries.
+             */
+            'vendor.category_match' => $c('vendor.category_match', [
+                'purpose'         => 'assist',
+                'tier'            => self::TIER_FAST,
+                'model'           => self::PRIMARY[self::TIER_FAST],
+                'on_failure'      => self::FAIL_DEGRADE,
+                'advisory'        => true,
+                'max_tokens'      => 120,
+                'calls_per_day'   => 3000,
+                'tokens_per_day'  => 200_000,
+                // On a button somebody is waiting behind, not a background job.
+                'timeout'         => 8,
+                'max_attempts'    => 1,
+                'untrusted_input' => true,
+                'public_content'  => false,
+                'data_sent'       => 'What you typed in "Describe your goods", and the list of trade '
+                    . 'categories this event publishes. Nothing about you, your business name or '
+                    . 'your contact details is sent.',
+                'data_purpose'    => 'To suggest which trade category your description fits, so you do '
+                    . 'not have to read a list of seven. You choose the category yourself — the '
+                    . 'suggestion only moves the control, and the form works without it.',
+            ]),
+            /**
              * Interpreting a plain-English activity search.
              *
              * REASON, not WRITE: the output is a set of FILTERS the platform then acts

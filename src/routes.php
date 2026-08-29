@@ -1992,6 +1992,10 @@ return function(App $app) {
         $g->get ('/events/{slug}/stands',       $S.':call');
         $g->get ('/events/{slug}/stands/apply', $S.':form');
         $g->post('/events/{slug}/stands/apply', $S.':submit');
+        // Reading a description back and suggesting the trade it fits. POST because it
+        // carries the vendor's free text, which has no business in a URL, a referrer or
+        // an access log.
+        $g->post('/events/{slug}/stands/suggest-category', $S.':suggestCategory');
         $g->get('/events/{slug}',  EventsController::class.':show');
         $g->post('/events/{slug}/register', EventsController::class.':register');
         // A price preview for a typed discount code, and the queue for a tier that has gone.

@@ -109,6 +109,56 @@ class StandSurfacesTest extends TestCase
             ->withParsedBody($body);
     }
 
+    /**
+     * An application POST carrying the photographs the form now requires.
+     *
+     * Photographs became a submit gate rather than a dashboard nag: everything past that
+     * check writes an account and a row, and a panel scoring a form in which every field
+     * is a claim and nothing is evidence was the reason. The tests below therefore have to
+     * bring them, exactly as a browser does.
+     *
+     * The files are never read here — {@see StandApplyController::photoPreflight()} counts
+     * and weighs them before anything irreversible, and storage afterwards is best-effort
+     * by design. Small in-memory streams are enough to be that count, and keep the suite
+     * off the disk.
+     */
+    private function postWithPhotos(string $path, array $body, int $photos = 3,
+                                    int $bytes = 4096): \Psr\Http\Message\ServerRequestInterface
+    {
+        $files = [];
+        for ($i = 0; $i < $photos; $i++) {
+            // A REAL file on disk, and a real JPEG in it. An in-memory stream cannot be
+            // moveTo()'d — PHP warns "wrapper does not support renaming" — so the storage
+            // half would never run and the warning would sit in the suite forever. And
+            // UploadService measures the image, so a file of 'xxxx' is refused for its
+            // dimensions rather than accepted: the photographs have to clear
+            // StandPhotos::MIN_EDGE to prove the path end to end.
+            $tmp = tempnam(sys_get_temp_dir(), 'agstand');
+            file_put_contents($tmp, self::jpegBytes());
+            $files[] = new \Slim\Psr7\UploadedFile(
+                $tmp, 'stall-' . $i . '.jpg', 'image/jpeg', filesize($tmp) ?: $bytes, UPLOAD_ERR_OK
+            );
+        }
+
+        return $this->post($path, $body)->withUploadedFiles(['photos' => $files]);
+    }
+
+    /** One 640px JPEG, encoded once for the whole suite. */
+    private static function jpegBytes(): string
+    {
+        static $bytes = null;
+        if ($bytes !== null) return $bytes;
+
+        $im = imagecreatetruecolor(640, 640);
+        imagefilledrectangle($im, 0, 0, 640, 640, imagecolorallocate($im, 200, 180, 120));
+        ob_start();
+        imagejpeg($im, null, 70);
+        $bytes = (string) ob_get_clean();
+        imagedestroy($im);
+
+        return $bytes;
+    }
+
     // ───────────────────────── the organiser's console ──────────────────────
 
     public function test_the_console_shows_the_locked_terms_and_the_quota(): void
@@ -175,7 +225,7 @@ class StandSurfacesTest extends TestCase
 
         $type = StandType::forEvent((int) $event->id)[0];
         $app  = StandApplication::submit($this->makeVendor(), (int) $type->id,
-                                         ['what_they_sell' => 'Jollof rice']);
+                                         ['what_they_sell' => 'Jollof rice', 'category' => 'food']);
         StandApplication::checkEligibility($app['id']);
 
         $this->admin()->decide($this->post('/x', ['decision' => 'offered']), new Response(),
@@ -194,13 +244,13 @@ class StandSurfacesTest extends TestCase
         $type = StandType::forEvent((int) $event->id)[0];
 
         $good = StandApplication::submit($this->makeVendor(), (int) $type->id,
-                                         ['what_they_sell' => 'Jollof rice']);
+                                         ['what_they_sell' => 'Jollof rice', 'category' => 'food']);
         // No documents at all: ineligible, and entitled to know precisely why.
         $bare = (int) DB::table('gates_partner_orgs')->insertGetId([
             'slug' => 'bare-' . bin2hex(random_bytes(4)), 'name' => 'Bare Vendor',
             'kind' => PartnerOrg::KIND_VENDOR, 'status' => PartnerOrg::STATUS_PENDING,
         ]);
-        $bad = StandApplication::submit($bare, (int) $type->id, ['what_they_sell' => 'Beads']);
+        $bad = StandApplication::submit($bare, (int) $type->id, ['what_they_sell' => 'Beads', 'category' => 'food']);
 
         $this->admin()->checkAll($this->post('/x', []), new Response(), ['id' => (int) $event->id]);
 
@@ -226,8 +276,8 @@ class StandSurfacesTest extends TestCase
         $type = StandType::forEvent((int) $event->id)[0];
         $args = ['id' => (int) $event->id];
 
-        $first  = StandApplication::submit($this->makeVendor(), (int) $type->id, ['what_they_sell' => 'Rice']);
-        $second = StandApplication::submit($this->makeVendor(), (int) $type->id, ['what_they_sell' => 'Suya']);
+        $first  = StandApplication::submit($this->makeVendor(), (int) $type->id, ['what_they_sell' => 'Rice', 'category' => 'food']);
+        $second = StandApplication::submit($this->makeVendor(), (int) $type->id, ['what_they_sell' => 'Suya', 'category' => 'food']);
         StandApplication::checkEligibility($first['id']);
         StandApplication::checkEligibility($second['id']);
 
@@ -247,7 +297,7 @@ class StandSurfacesTest extends TestCase
         $event = $this->makeEvent();
         $this->openCall($event);
         $type = StandType::forEvent((int) $event->id)[0];
-        $app  = StandApplication::submit($this->makeVendor(), (int) $type->id, ['what_they_sell' => 'Rice']);
+        $app  = StandApplication::submit($this->makeVendor(), (int) $type->id, ['what_they_sell' => 'Rice', 'category' => 'food']);
 
         $this->admin()->decide($this->post('/x', ['decision' => 'rejected', 'reason' => '   ']),
                                new Response(), ['id' => (int) $event->id, 'app' => $app['id']]);
@@ -273,8 +323,8 @@ class StandSurfacesTest extends TestCase
         $outId = $this->makeVendor(['name' => 'Rejected Foods']);
 
         $in  = StandApplication::submit($inId,  (int) $type->id,
-                                        ['what_they_sell' => 'Jollof', 'needs_step_free' => '1']);
-        $out = StandApplication::submit($outId, (int) $type->id, ['what_they_sell' => 'Suya']);
+                                        ['category' => 'food', 'what_they_sell' => 'Jollof', 'needs_step_free' => '1']);
+        $out = StandApplication::submit($outId, (int) $type->id, ['what_they_sell' => 'Suya', 'category' => 'food']);
         StandApplication::checkEligibility($in['id']);
         StandApplication::offer($in['id'], 1);
         StandApplication::accept($in['id'], $inId);
@@ -286,6 +336,13 @@ class StandSurfacesTest extends TestCase
         $this->assertStringContainsString('Accepted Foods', $csv);
         $this->assertStringContainsString('08099999999', $csv);
         $this->assertStringContainsString('Step-free', $csv);
+
+        // The two category columns are named apart, because they are different claims and
+        // can disagree: the pitch's bucket is what the quota counts, the vendor's trade is
+        // what they said they sell. One column called "Category" carrying whichever it
+        // happened to be is how an allocation sheet gets read wrong on the morning.
+        $this->assertStringContainsString('"Pitch category","Trade declared"', $csv,
+            'the vendor\'s own declared trade never reaches the sheet the market is run from');
         $this->assertStringNotContainsString('Rejected Foods', $csv,
             'A sheet that lists people who were not allocated a pitch is worse than no sheet.');
     }
@@ -379,14 +436,14 @@ class StandSurfacesTest extends TestCase
         $type  = StandType::forEvent((int) $event->id)[0];
         $email = 'ngozi-' . bin2hex(random_bytes(4)) . '@example.test';
 
-        $res = $this->publicCtrl()->submit($this->post('/x', [
+        $res = $this->publicCtrl()->submit($this->postWithPhotos('/x', [
             'stand_type_id'  => (string) $type->id,
             'entity_type'    => PartnerOrg::ENTITY_INDIVIDUAL,
             'name'           => 'Mama Ngozi’s Kitchen',
             'legal_name'     => 'Ngozi Okafor',
             'contact_email'  => $email,
             'password'       => 'correct horse battery',
-            'what_they_sell' => 'Jollof rice and moi moi, cooked on site.',
+            'category' => 'food', 'what_they_sell' => 'Jollof rice and moi moi, cooked on site.',
             'needs_power'    => '1',
         ]), new Response(), ['slug' => (string) $event->slug]);
 
@@ -406,6 +463,128 @@ class StandSurfacesTest extends TestCase
                                           (string) $_SESSION['org_flash_ok']);
     }
 
+    // ══ what the form now refuses to send ════════════════════════════════════
+
+    /**
+     * Photographs are a submit gate, not a dashboard nag.
+     *
+     * Everything past that check writes an account and a row. A vendor who submitted
+     * without them used to get an application, an account and a reminder; the panel then
+     * scored a form in which every field is a claim and nothing is evidence.
+     *
+     * Asserted on the ACCOUNT as well as the response, because the ordering is the point:
+     * refusing after registration would leave somebody an account they never asked for.
+     */
+    public function test_an_application_without_photographs_is_refused_before_anything_is_written(): void
+    {
+        $event = $this->makeEvent();
+        $this->openCall($event);
+        $type  = StandType::forEvent((int) $event->id)[0];
+        $email = 'nophoto-' . bin2hex(random_bytes(4)) . '@example.test';
+
+        $res = $this->publicCtrl()->submit($this->post('/x', [
+            'stand_type_id'  => (string) $type->id,
+            'entity_type'    => PartnerOrg::ENTITY_INDIVIDUAL,
+            'name'           => 'Mama Ngozi’s Kitchen',
+            'legal_name'     => 'Ngozi Okafor',
+            'contact_email'  => $email,
+            'password'       => 'correct horse battery',
+            'category'       => 'food',
+            'what_they_sell' => 'Jollof rice and moi moi, cooked on site.',
+        ]), new Response(), ['slug' => (string) $event->slug]);
+
+        $this->assertSame(200, $res->getStatusCode(), 'it went through without photographs');
+        $this->assertStringContainsString('photographs of what you sell',
+                                          (string) $res->getBody());
+        $this->assertNull(OrgAuth::findByEmail($email),
+            'an account was created for a submission that was then refused');
+    }
+
+    /**
+     * And two is not three.
+     *
+     * The count is the rule, so a form that attaches some photographs must be refused in
+     * the same breath as one that attaches none — and told the number it is short by.
+     */
+    public function test_too_few_photographs_is_refused_and_the_count_is_named(): void
+    {
+        $event = $this->makeEvent();
+        $this->openCall($event);
+        $type  = StandType::forEvent((int) $event->id)[0];
+
+        $html = (string) $this->publicCtrl()->submit($this->postWithPhotos('/x', [
+            'stand_type_id'  => (string) $type->id,
+            'entity_type'    => PartnerOrg::ENTITY_INDIVIDUAL,
+            'name'           => 'Two Photos Only',
+            'legal_name'     => 'Ada Two',
+            'contact_email'  => 'two-' . bin2hex(random_bytes(4)) . '@example.test',
+            'password'       => 'correct horse battery',
+            'category'       => 'food',
+            'what_they_sell' => 'Jollof rice and moi moi, cooked on site.',
+        ], photos: 2), new Response(), ['slug' => (string) $event->slug])->getBody();
+
+        $this->assertStringContainsString('there are 2 so far', $html,
+            'a vendor short of the minimum must be told how far short');
+    }
+
+    /**
+     * The body PHP threw away.
+     *
+     * A POST over `post_max_size` is DISCARDED rather than rejected: it arrives with its
+     * Content-Length intact and $_POST empty. The first check to notice used to be the
+     * stand type, so the answer was "Choose which kind of stand you want" — naming a
+     * field they had filled in, saying nothing about the photographs that caused it, on a
+     * form they had just spent twenty minutes on. That is the whole of "the upload does
+     * not work", and it is silent at the language level.
+     */
+    public function test_a_post_php_discarded_is_explained_as_the_upload_it_was(): void
+    {
+        $event = $this->makeEvent();
+        $this->openCall($event);
+
+        // Exactly what PHP hands the app: no parsed body, a Content-Length that says
+        // something was sent. Built here rather than through post(), because PSR-7 has no
+        // withServerParams — the params are fixed when the request is created.
+        $req = (new \Slim\Psr7\Factory\ServerRequestFactory())
+            ->createServerRequest('POST', '/x', ['CONTENT_LENGTH' => '31457280'])
+            ->withParsedBody([]);
+
+        $html = (string) $this->publicCtrl()
+            ->submit($req, new Response(), ['slug' => (string) $event->slug])->getBody();
+
+        $this->assertStringContainsString('too large to send together', $html);
+        $this->assertStringNotContainsString('Choose which kind of stand you want', $html,
+            'still blaming the stand type for a body the language discarded');
+    }
+
+    /**
+     * The trade is the vendor's own declaration, and it has to be on the list.
+     *
+     * A value the organiser does not publish is a row belonging to no group — which on
+     * the screen that groups applications by trade looks like a missing application
+     * rather than a bad field.
+     */
+    public function test_the_trade_must_be_one_the_event_publishes(): void
+    {
+        $event = $this->makeEvent();
+        $this->openCall($event);
+        $type = StandType::forEvent((int) $event->id)[0];
+
+        $r = StandApplication::submit($this->makeVendor(), (int) $type->id,
+            ['what_they_sell' => 'Beadwork and leather bags', 'category' => 'taxidermy']);
+
+        $this->assertFalse($r['ok']);
+        $this->assertSame('category', $r['field']);
+
+        $ok = StandApplication::submit($this->makeVendor(), (int) $type->id,
+            ['what_they_sell' => 'Beadwork and leather bags', 'category' => 'craft']);
+
+        $this->assertTrue($ok['ok'], $ok['message'] ?? '');
+        $this->assertSame('craft',
+            StandApplication::find($ok['id'])->category,
+            'the trade they declared is not what was stored');
+    }
+
     /** A bad detail must not cost them the other eight fields. */
     public function test_a_rejected_form_comes_back_filled_in(): void
     {
@@ -413,14 +592,14 @@ class StandSurfacesTest extends TestCase
         $this->openCall($event);
         $type = StandType::forEvent((int) $event->id)[0];
 
-        $html = (string) $this->publicCtrl()->submit($this->post('/x', [
+        $html = (string) $this->publicCtrl()->submit($this->postWithPhotos('/x', [
             'stand_type_id'  => (string) $type->id,
             'entity_type'    => PartnerOrg::ENTITY_INDIVIDUAL,
             'name'           => 'Mama Ngozi’s Kitchen',
             'legal_name'     => 'Ngozi Okafor',
             'contact_email'  => 'ngozi@example.test',
             'password'       => 'tooshort',
-            'what_they_sell' => 'Jollof rice and moi moi.',
+            'category' => 'food', 'what_they_sell' => 'Jollof rice and moi moi.',
         ]), new Response(), ['slug' => (string) $event->slug])->getBody();
 
         $this->assertStringContainsString('at least 12 characters', $html);
@@ -435,7 +614,7 @@ class StandSurfacesTest extends TestCase
         $type = StandType::forEvent((int) $event->id)[0];
         StandCall::close((int) StandCall::forEvent((int) $event->id)->id);
 
-        $res = $this->publicCtrl()->submit($this->post('/x', [
+        $res = $this->publicCtrl()->submit($this->postWithPhotos('/x', [
             'stand_type_id' => (string) $type->id,
         ]), new Response(), ['slug' => (string) $event->slug]);
 
@@ -597,9 +776,9 @@ class StandSurfacesTest extends TestCase
         $_SESSION['org_id']      = $orgId;
 
         $before = (int) DB::table('gates_partner_orgs')->count();
-        $res    = $this->publicCtrl()->submit($this->post('/x', [
+        $res    = $this->publicCtrl()->submit($this->postWithPhotos('/x', [
             'stand_type_id'  => (string) $type->id,
-            'what_they_sell' => 'Jollof rice.',
+            'category' => 'food', 'what_they_sell' => 'Jollof rice.',
         ]), new Response(), ['slug' => (string) $event->slug]);
 
         $this->assertSame(302, $res->getStatusCode());
@@ -674,7 +853,7 @@ class StandSurfacesTest extends TestCase
         // refused by an earlier and separate rule and would never reach it.
         foreach (['Jollof.', 'Suya.'] as $sells) {
             $app = StandApplication::submit($this->makeVendor(), (int) $type->id,
-                                            ['what_they_sell' => $sells]);
+                                            ['category' => 'food', 'what_they_sell' => $sells]);
             $this->assertTrue($app['ok'], $app['message'] ?? '');
             StandApplication::checkEligibility((int) $app['id']);
             $off = StandApplication::offer((int) $app['id'], 1);
@@ -808,7 +987,7 @@ class StandSurfacesTest extends TestCase
         $ids = [];
         foreach (['late', 'never', 'early'] as $which) {
             $app = StandApplication::submit($this->makeVendor(), (int) $type->id,
-                                            ['what_they_sell' => $which]);
+                                            ['category' => 'food', 'what_they_sell' => $which]);
             $ids[$which] = (int) $app['id'];
         }
 
@@ -836,7 +1015,7 @@ class StandSurfacesTest extends TestCase
         $this->openCall($event, 2);
         $type  = StandType::forEvent((int) $event->id)[0];
         $app   = StandApplication::submit($this->makeVendor(), (int) $type->id,
-                                          ['what_they_sell' => 'Jollof.']);
+                                          ['what_they_sell' => 'Jollof.', 'category' => 'food']);
         $this->asAdmin();
 
         // An offer is refused while eligibility is unchecked — a real refusal path.
@@ -864,7 +1043,7 @@ class StandSurfacesTest extends TestCase
         $this->openCall($event, 2);
         $type  = StandType::forEvent((int) $event->id)[0];
         StandApplication::submit($this->makeVendor(), (int) $type->id,
-                                 ['what_they_sell' => 'Jollof.']);
+                                 ['what_they_sell' => 'Jollof.', 'category' => 'food']);
         $this->asAdmin();
 
         $html = (string) $this->admin()->index($this->get('/x'), new Response(),
@@ -885,7 +1064,7 @@ class StandSurfacesTest extends TestCase
         $this->openCall($event, 2);
         $type  = StandType::forEvent((int) $event->id)[0];
         $app   = StandApplication::submit($this->makeVendor(), (int) $type->id,
-                                          ['what_they_sell' => 'Jollof.']);
+                                          ['what_they_sell' => 'Jollof.', 'category' => 'food']);
         StandApplication::checkEligibility((int) $app['id']);
         StandApplication::offer((int) $app['id'], 1);
         $this->asAdmin();
@@ -922,7 +1101,7 @@ class StandSurfacesTest extends TestCase
         $this->openCall($event);
         $type = StandType::forEvent((int) $event->id)[0];
 
-        $res = $this->publicCtrl()->submit($this->post('/x', [
+        $res = $this->publicCtrl()->submit($this->postWithPhotos('/x', [
             'stand_type_id' => (string) $type->id,
             'entity_type'   => 'individual',
             'name'          => 'Mama Ngozi Kitchen',
@@ -949,7 +1128,7 @@ class StandSurfacesTest extends TestCase
         $this->openCall($event);
         $type = StandType::forEvent((int) $event->id)[0];
 
-        $html = (string) $this->publicCtrl()->submit($this->post('/x', [
+        $html = (string) $this->publicCtrl()->submit($this->postWithPhotos('/x', [
             'stand_type_id' => (string) $type->id, 'entity_type' => 'individual',
             'name' => 'Mama Ngozi Kitchen', 'legal_name' => 'Ngozi Chioma Okafor',
             'contact_email' => 'not-an-email', 'password' => 'correct horse battery staple',
@@ -969,7 +1148,7 @@ class StandSurfacesTest extends TestCase
         $orgId = $this->makeVendor();
 
         $r = StandApplication::submit($orgId, (int) $type->id, [
-            'what_they_sell' => str_repeat('a', StandApplication::SELLS_MAX + 400),
+            'category' => 'food', 'what_they_sell' => str_repeat('a', StandApplication::SELLS_MAX + 400),
         ]);
 
         $this->assertFalse($r['ok']);

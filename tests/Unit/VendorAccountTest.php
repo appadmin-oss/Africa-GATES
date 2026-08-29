@@ -209,7 +209,7 @@ final class VendorAccountTest extends TestCase
             ]);
         }
 
-        $app = StandApplication::submit($orgId, (int) $t['id'], ['what_they_sell' => 'Jollof.']);
+        $app = StandApplication::submit($orgId, (int) $t['id'], ['category' => 'food', 'what_they_sell' => 'Jollof.']);
         StandApplication::checkEligibility((int) $app['id']);
         StandApplication::offer((int) $app['id'], 1);
 
@@ -242,7 +242,7 @@ final class VendorAccountTest extends TestCase
                 'created_at' => date('Y-m-d H:i:s'),
             ]);
         }
-        $app = StandApplication::submit($orgId, (int) $t['id'], ['what_they_sell' => 'Rice.']);
+        $app = StandApplication::submit($orgId, (int) $t['id'], ['category' => 'food', 'what_they_sell' => 'Rice.']);
         StandApplication::checkEligibility((int) $app['id']);
         StandApplication::offer((int) $app['id'], 1);
 

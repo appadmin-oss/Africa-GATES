@@ -269,14 +269,32 @@
     margin-bottom:8px; }
   .ap-field label em{ font-style:normal; color:var(--ap-mute); }
   .ap-f input[type=text], .ap-f input[type=email], .ap-f input[type=tel],
-  .ap-f input[type=password], .ap-f textarea{
+  .ap-f input[type=password], .ap-f textarea, .ap-f select{
     width:100%; box-sizing:border-box; padding:0 14px; min-height:48px;
     border:1px solid var(--ap-line-2); border-radius:var(--ap-r-sm);
     font-family:inherit; font-size:16px; background:var(--ap-card); color:var(--ap-ink);
     outline:none; transition:border-color .12s; }
   .ap-f textarea{ padding:13px 14px; line-height:1.6; resize:vertical; }
-  .ap-f input:focus, .ap-f textarea:focus{ border-color:var(--ap-green);
+  .ap-f input:focus, .ap-f textarea:focus, .ap-f select:focus{ border-color:var(--ap-green);
     box-shadow:0 0 0 3px rgba(35,123,34,.16); }
+  /* The native arrow, kept. A custom one is a background-image behind a control whose
+     height varies by platform, and it lands on the text on at least one of them. */
+  .ap-f select{ appearance:none; -webkit-appearance:none; padding-right:40px;
+    background-image:url("data:image/svg+xml;charset=utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8' fill='none' stroke='%235d7275' stroke-width='2' stroke-linecap='round'%3E%3Cpath d='M1 1.5 6 6.5 11 1.5'/%3E%3C/svg%3E");
+    background-repeat:no-repeat; background-position:right 15px center; }
+
+  /* ── the trade suggestion ────────────────────────────────────────────────
+     A button that appears only once there is something to read, and a line of
+     result under it. Both are inert with no model configured — the select above
+     is the control, and this only ever moves it. */
+  .ap-cat__ai{ margin-top:10px; }
+  .ap-cat__go{ font:600 13px/1 inherit; color:var(--ap-green-dark); background:none;
+    border:1px dashed var(--ap-line-2); border-radius:999px; padding:9px 14px;
+    cursor:pointer; transition:border-color .12s, background .12s; }
+  .ap-cat__go:hover{ border-color:var(--ap-green); background:rgba(35,123,34,.05); }
+  .ap-cat__go[disabled]{ opacity:.55; cursor:progress; }
+  .ap-cat__out{ margin:10px 0 0; font-size:13px; line-height:1.6; color:var(--ap-ink-2); }
+  .ap-cat__out b{ color:var(--ap-green-dark); }
   .ap-field small{ display:block; margin-top:7px; font-size:12.5px; line-height:1.55;
     color:var(--ap-mute); }
   .ap-wide{ grid-column:1 / -1; }
@@ -479,7 +497,8 @@
       {% if bad_field %}
         <br><a href="#{{ {'name':'apName','legal_name':'apLegal','cac_number':'apCac',
                           'contact_email':'apEmail','password':'apPass',
-                          'what_they_sell':'apSell','stand_type_id':'apStandFirst'}[bad_field]
+                          'what_they_sell':'apSell','stand_type_id':'apStandFirst',
+                          'category':'apCat','photos':'apPhotosK'}[bad_field]
                         |default('apErr') }}">Go to the field</a>
       {% endif %}
     </div>
@@ -696,6 +715,39 @@
             and how many of you there will be.</small>
         </div>
 
+        {# ── AND WHICH TRADE THAT IS ───────────────────────────────────────
+           AFTER the description, deliberately. A vendor arrives knowing exactly what
+           they sell and nothing about how this event has decided to file it — so they
+           write it in their own words first, and then answer a question the words have
+           already answered.
+
+           The list is the ORGANISER'S, per event: a book fair adds "publishing", a food
+           festival drops "beauty". It is what their screens group by and it sits beside
+           the quota, so it is a real declaration and not a tag. #}
+        <div class="ap-field ap-cat">
+          <label for="apCat">Which trade is that?</label>
+          <select id="apCat" name="category" required
+            {% if bad_field == 'category' %}aria-invalid="true" aria-describedby="apErr" autofocus{% endif %}
+            data-ap-cat>
+            <option value="">Choose one…</option>
+            {% for slug, label in categories %}
+              <option value="{{ slug }}"{% if old.category|default('') == slug %} selected{% endif %}>{{ label }}</option>
+            {% endfor %}
+          </select>
+          <small>How this event groups its stands. It decides which list you are counted
+            in, so pick the one closest to what you actually sell.</small>
+
+          {# The suggestion, and nothing until there is one. Hidden rather than absent so
+             the live region exists before it has anything to announce — inserting a
+             region and its text together announces neither in most screen readers. #}
+          <div class="ap-cat__ai">
+            <button type="button" class="ap-cat__go" data-ap-cat-go hidden>
+              Suggest from what I wrote
+            </button>
+            <p class="ap-cat__out" data-ap-cat-out role="status" aria-live="polite" hidden></p>
+          </div>
+        </div>
+
         {# ── PHOTOGRAPHS OF WHAT YOU SELL ──────────────────────────────────
            The same question as the textarea above, asked the other way: what is it,
            and what does it look like. Two scorers read this without meeting the
@@ -713,7 +765,7 @@
         <div class="ap-photos">
           <div class="ap-photos__h">
             <p class="ap-photos__k" id="apPhotosK">Photos of what you sell</p>
-            <span class="ap-photos__n" data-ap-count aria-live="polite">0 OF {{ photo_max }} ADDED · MINIMUM {{ photo_min }}</span>
+            <span class="ap-photos__n" data-ap-count aria-live="polite">0 OF {{ photo_max }} ADDED · {{ photo_min }} REQUIRED</span>
           </div>
           <p class="ap-photos__why">Two scorers read this application without meeting you,
             and a photograph of the actual goods is the only thing on the form that shows
@@ -729,7 +781,7 @@
 
           <label class="ap-drop" data-ap-drop>
             <span class="ap-drop__t">Drag photos here, or <strong>choose files</strong></span>
-            <span class="ap-drop__f">JPEG · PNG · WEBP · GIF · UP TO 10 MB EACH</span>
+            <span class="ap-drop__f">JPEG · PNG · WEBP · GIF · UP TO {{ photo_limit_h|upper }} EACH · {{ photo_budget_h|upper }} IN TOTAL</span>
             {# `photos[]`, alongside every field name that was already here. The single
                POST is unchanged; this is one more part in it. #}
             <input type="file" name="photos[]" multiple accept="{{ photo_accept }}"
@@ -812,7 +864,8 @@
 (function () {
   'use strict';
 
-  var MIN = {{ photo_min }}, MAX = {{ photo_max }}, MAX_BYTES = {{ photo_max_bytes }};
+  var MIN = {{ photo_min }}, MAX = {{ photo_max }}, MAX_BYTES = {{ photo_max_bytes }},
+      BUDGET = {{ photo_budget }}, LIMIT_H = '{{ photo_limit_h }}', BUDGET_H = '{{ photo_budget_h }}';
 
   // ── THE RAIL FOLLOWS THE FORM ────────────────────────────────────────────
   //
@@ -872,6 +925,85 @@
     if (r.checked) showChosen(r.closest('.ap-stand'));
   });
 
+  // ── THE TRADE, READ OFF WHAT THEY WROTE ──────────────────────────────────
+  //
+  // The button appears only once the description is long enough to be a description
+  // rather than a product name — "bread" is a true answer that three categories fit
+  // equally, and asking anyway produces a confident wrong one.
+  //
+  // It never SETS the select on its own. A form that silently changed a field while
+  // somebody was reading a different part of the page is worse than no help: the trade
+  // is what an organiser's screens group by, and being moved between groups without
+  // noticing is the failure. So the suggestion is offered, and accepting it is a click.
+  var sell = document.getElementById('apSell'),
+      cat  = document.querySelector('[data-ap-cat]'),
+      go   = document.querySelector('[data-ap-cat-go]'),
+      cout = document.querySelector('[data-ap-cat-out]');
+
+  if (sell && cat && go && cout) {
+    var MIN_CHARS = 12;
+
+    var showGo = function () { go.hidden = sell.value.trim().length < MIN_CHARS; };
+    sell.addEventListener('input', showGo);
+    showGo();
+
+    var say = function (html) {
+      cout.innerHTML = html || '';
+      cout.hidden = !html;
+    };
+
+    go.addEventListener('click', function () {
+      go.disabled = true;
+      say('Reading what you wrote…');
+
+      var body = new FormData();
+      body.append('what_they_sell', sell.value);
+      body.append('_token', document.querySelector('input[name=_token]').value);
+
+      fetch('/events/{{ event.slug }}/stands/suggest-category', {
+        method: 'POST', body: body, credentials: 'same-origin'
+      }).then(function (r) { return r.json(); }).then(function (j) {
+        go.disabled = false;
+        if (!j || !j.ok) {
+          // Deliberately not an error. Nothing is broken from where the vendor is
+          // standing — the select above still works, and it is the control.
+          say('No suggestion this time. Choose the trade above.');
+          return;
+        }
+
+        // textContent for everything the model wrote, then the accept control appended
+        // as a node. Building this as an HTML string would put a model's output, which
+        // began as a stranger's free text, into innerHTML.
+        say('');
+        cout.hidden = false;
+        var line = document.createElement('span');
+        line.appendChild(document.createTextNode('This reads like '));
+        var b = document.createElement('b');
+        b.textContent = j.label;
+        line.appendChild(b);
+        if (j.why) line.appendChild(document.createTextNode(' — ' + j.why));
+        cout.appendChild(line);
+
+        var use = document.createElement('button');
+        use.type = 'button';
+        use.className = 'ap-cat__go';
+        use.style.marginLeft = '8px';
+        use.textContent = 'Use it';
+        use.addEventListener('click', function () {
+          cat.value = j.slug;
+          cat.dispatchEvent(new Event('change', { bubbles: true }));
+          say('');
+          cout.hidden = false;
+          cout.textContent = 'Set to ' + j.label + '. Change it above if that is not right.';
+        });
+        cout.appendChild(use);
+      }).catch(function () {
+        go.disabled = false;
+        say('No suggestion this time. Choose the trade above.');
+      });
+    });
+  }
+
   // ── THE PHOTOGRAPHS ──────────────────────────────────────────────────────
   //
   // Staged in the page and posted with everything else. A DataTransfer holds the real
@@ -900,7 +1032,7 @@
     input.files = dt.files;
 
     if (count) {
-      count.textContent = picked.length + ' OF ' + MAX + ' ADDED · MINIMUM ' + MIN;
+      count.textContent = picked.length + ' OF ' + MAX + ' ADDED · ' + MIN + ' REQUIRED';
       count.classList.toggle('is-met', picked.length >= MIN);
     }
     if (add) add.hidden = picked.length >= MAX;
@@ -949,7 +1081,15 @@
     [].slice.call(files).forEach(function (f) {
       if (picked.length >= MAX) { refused.push(f.name + ' — that is ' + MAX + ' already'); return; }
       if (!/^image\//.test(f.type)) { refused.push(f.name + ' — not an image'); return; }
-      if (f.size > MAX_BYTES) { refused.push(f.name + ' — over 10 MB'); return; }
+      if (f.size > MAX_BYTES) { refused.push(f.name + ' — over ' + LIMIT_H); return; }
+      // post_max_size caps the REQUEST, so files that each clear the per-file limit can
+      // still add up to a body PHP discards whole — silently, with every typed field
+      // gone too. Refused here, where the reader still has the file in front of them.
+      var used = picked.reduce(function (n, p) { return n + p.file.size; }, 0);
+      if (used + f.size > BUDGET) {
+        refused.push(f.name + ' — these come to more than ' + BUDGET_H + ' together');
+        return;
+      }
       picked.push({ file: f, url: URL.createObjectURL(f) });
     });
 

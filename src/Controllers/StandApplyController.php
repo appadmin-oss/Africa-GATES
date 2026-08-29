@@ -4,7 +4,7 @@ declare(strict_types=1);
 namespace AfricaGates\Controllers;
 
 use AfricaGates\Admin\Services\UploadService;
-use AfricaGates\Services\{OrgAuth, PartnerOrg, RateLimitService, StandApplication, StandCall, StandPhotos, StandType};
+use AfricaGates\Services\{OrgAuth, PartnerOrg, RateLimitService, StandApplication, StandCall, StandPhotos, StandType, VendorCategoryMatch, VendorPolicy};
 use Illuminate\Database\Capsule\Manager as DB;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
@@ -297,7 +297,13 @@ final class StandApplyController
             // convenience; StandPhotos is the rule.
             'photo_min'       => StandPhotos::MIN,
             'photo_max'       => StandPhotos::MAX,
-            'photo_max_bytes' => 10 * 1024 * 1024,
+            // The host's real ceiling, not a number typed here. A form that promises
+            // 10MB on a server accepting 2MB produces a POST PHP discards whole — see
+            // StandPhotos::limitBytes().
+            'photo_max_bytes' => StandPhotos::limitBytes(),
+            'photo_budget'    => StandPhotos::requestBudgetBytes(),
+            'photo_limit_h'   => StandPhotos::humanLimit(),
+            'photo_budget_h'  => StandPhotos::human(StandPhotos::requestBudgetBytes()),
             'photo_accept'    => 'image/jpeg,image/png,image/webp,image/gif',
             'error'      => $error,
         ])->withHeader('X-Robots-Tag', 'noindex, nofollow');
@@ -324,7 +330,28 @@ final class StandApplyController
             return $this->redirect($res, '/events/' . (string) $event->slug . '/stands');
         }
 
-        $b    = (array) $req->getParsedBody();
+        // ── THE BODY PHP THREW AWAY ─────────────────────────────────────────
+        //
+        // A POST over `post_max_size` is not rejected by PHP — it is DISCARDED. The
+        // request arrives with its Content-Length intact and $_POST empty, so every
+        // field reads as blank and the first check to notice was the stand type, which
+        // answered "Choose which kind of stand you want" — naming a field they had
+        // filled in, saying nothing about the photographs that caused it, on a form
+        // they had just spent twenty minutes on. That is the whole of "the upload does
+        // not work", and it is silent by design at the language level.
+        //
+        // Caught before anything else reads $b, because after this point every value is
+        // absent for one reason and the error can only be about the wrong thing.
+        $b = (array) $req->getParsedBody();
+        if ($b === [] && (int) ($req->getServerParams()['CONTENT_LENGTH'] ?? 0) > 0) {
+            return $this->render($res, $event, $call, null, [],
+                'Those photographs were too large to send together — the server accepted '
+                . 'nothing at all, including what you typed. Each photograph must be under '
+                . StandPhotos::humanLimit() . ', and all of them together under '
+                . StandPhotos::human(StandPhotos::requestBudgetBytes())
+                . '. Nothing was saved; add smaller photographs and send it again.');
+        }
+
         $user = OrgAuth::user();
         $org  = $user ? PartnerOrg::find((int) $user->org_id) : null;
 
@@ -333,6 +360,23 @@ final class StandApplyController
         if (!$type || (int) $type->event_id !== (int) $event->id) {
             return $this->render($res, $event, $call, $org, $b,
                                  'Choose which kind of stand you want.', 'stand_type_id');
+        }
+
+        // ── THE PHOTOGRAPHS ARE A REQUIREMENT, NOT A COURTESY ───────────────
+        //
+        // Checked HERE — before an account is created and before a row is written —
+        // because everything below this line is irreversible. A vendor who submits
+        // without photographs used to get an application, an account, and a dashboard
+        // nag; the panel then scored a form in which every field is a claim and nothing
+        // is evidence.
+        //
+        // Counted rather than stored: storing needs an application id, and the
+        // application must not exist until this passes. What a file WEIGHS is checked
+        // here too, so the one that will be refused is named before it costs anybody a
+        // submission — StandPhotos::add is still the rule, this is the early word.
+        $photoErr = self::photoPreflight($req);
+        if ($photoErr !== '') {
+            return $this->render($res, $event, $call, $org, $b, $photoErr, 'photos');
         }
 
         // ── registering, if they are not already somebody ────────────────────
@@ -402,6 +446,98 @@ final class StandApplyController
         }
 
         return $this->redirect($res, '/org');
+    }
+
+    /**
+     * Read a description back and say which trade it reads like.
+     *
+     * ── A SUGGESTION, ON A CONTROL THEY ALREADY HAVE ────────────────────────
+     *
+     * Answers `{ok:false}` for every unhappy path — no model, no key, budget spent,
+     * description too short, an answer off the list — and never an HTTP error. The
+     * button is a convenience beside a `<select>` the vendor can operate by hand, so a
+     * failure here must cost them a suggestion and nothing else. A 500 in the console of
+     * a form somebody is halfway through is a bug report about the form.
+     *
+     * Rate-limited per address: it is the one endpoint on this controller that spends
+     * money per call, and it is reachable without an account because the form is.
+     */
+    public function suggestCategory(Request $req, Response $res, array $args = []): Response
+    {
+        $out = static function (Response $res, array $body): Response {
+            $res->getBody()->write((string) json_encode($body));
+
+            return $res->withHeader('Content-Type', 'application/json')
+                       ->withHeader('X-Robots-Tag', 'noindex, nofollow');
+        };
+
+        $event = $this->eventBySlug((string) ($args['slug'] ?? ''));
+        if (!$event) return $out($res->withStatus(404), ['ok' => false]);
+
+        $ip = (string) ($req->getServerParams()['REMOTE_ADDR'] ?? '');
+        if ($this->rateLimit && $ip !== ''
+            && !$this->rateLimit->check(hash('sha256', $ip), 'stand_cat_suggest', 30, 3600)) {
+            return $out($res, ['ok' => false]);
+        }
+
+        $b    = (array) $req->getParsedBody();
+        $text = trim((string) ($b['what_they_sell'] ?? ''));
+
+        // Capped before it reaches a model, not after. The textarea holds 2,000
+        // characters and a POST is not the textarea.
+        $text = mb_substr($text, 0, StandApplication::SELLS_MAX);
+
+        $hit = VendorCategoryMatch::suggest($text, VendorPolicy::categories());
+
+        return $out($res, $hit === null ? ['ok' => false] : ['ok' => true] + $hit);
+    }
+
+    /**
+     * Is there enough here to submit at all?
+     *
+     * @return string the reason it cannot be sent, or '' when it can
+     */
+    private static function photoPreflight(Request $req): string
+    {
+        $files = $req->getUploadedFiles()['photos'] ?? [];
+        $files = is_array($files) ? $files : [$files];
+
+        $usable = 0;
+        $heavy  = [];
+        $limit  = StandPhotos::limitBytes();
+
+        foreach ($files as $f) {
+            if (!$f instanceof \Psr\Http\Message\UploadedFileInterface) continue;
+            if ($f->getError() === UPLOAD_ERR_NO_FILE) continue;
+
+            // INI_SIZE and FORM_SIZE arrive with a zero size, so they have to be read off
+            // the error code rather than measured.
+            if ($f->getError() === UPLOAD_ERR_INI_SIZE || $f->getError() === UPLOAD_ERR_FORM_SIZE
+                || (int) $f->getSize() > $limit) {
+                $heavy[] = trim((string) $f->getClientFilename()) ?: 'one photograph';
+                continue;
+            }
+            if ($f->getError() !== UPLOAD_ERR_OK) continue;
+
+            $usable++;
+        }
+
+        if ($heavy !== []) {
+            return (count($heavy) === 1 ? 'This photograph is' : 'These photographs are')
+                 . ' over the ' . StandPhotos::humanLimit() . ' this server accepts: '
+                 . implode(', ', $heavy) . '. Replace '
+                 . (count($heavy) === 1 ? 'it' : 'them') . ' and send the form again.';
+        }
+
+        if ($usable < StandPhotos::MIN) {
+            return 'Add ' . StandPhotos::MIN . ' photographs of what you sell before you send '
+                 . 'this — ' . ($usable === 0 ? 'there are none attached' : 'there '
+                 . ($usable === 1 ? 'is 1' : 'are ' . $usable) . ' so far') . '. Two scorers '
+                 . 'read this application without meeting you, and every other field on the '
+                 . 'form is a claim.';
+        }
+
+        return '';
     }
 
     /**

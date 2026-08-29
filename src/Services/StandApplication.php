@@ -180,12 +180,33 @@ final class StandApplication
                                        . 'reads what is here.'];
         }
 
+        // ── THE TRADE THEY SAY THEY ARE IN ──────────────────────────────────
+        //
+        // Validated against the ORGANISER'S list rather than accepted as typed. The slug
+        // reaches a screen that groups applications by trade and a quota conversation that
+        // assumes two people who sell food are filed together, and a value not on the list
+        // is a row that silently belongs to no group — which looks like a missing
+        // application rather than a bad field.
+        //
+        // Required, because the form now asks for it. An older application has NULL here
+        // and that is a different thing: not asked, rather than not answered.
+        $category = trim((string) ($in['category'] ?? ''));
+        $offered  = VendorPolicy::categories();
+        if (!isset($offered[$category])) {
+            return $fail + ['field' => 'category',
+                            'message' => $category === ''
+                                ? 'Choose the trade that best describes what you sell.'
+                                : 'That is not one of the trades this event publishes. '
+                                . 'Choose one from the list.'];
+        }
+
         $now = date('Y-m-d H:i:s');
         $id  = (int) DB::table('gates_stand_applications')->insertGetId([
             'call_id'         => (int) $call->id,
             'event_id'        => (int) $type->event_id,
             'org_id'          => $orgId,
             'stand_type_id'   => $standTypeId,
+            'category'        => $category,
             'what_they_sell'  => mb_substr($sells, 0, self::SELLS_MAX),
             'needs_power'     => !empty($in['needs_power'])     ? 1 : 0,
             'needs_step_free' => !empty($in['needs_step_free']) ? 1 : 0,

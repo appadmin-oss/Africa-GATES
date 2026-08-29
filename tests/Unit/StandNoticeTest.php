@@ -84,7 +84,7 @@ final class StandNoticeTest extends TestCase
         $this->assertTrue(StandCall::open($c['id'], 1)['ok']);
 
         $orgId = $this->vendor();
-        $app   = StandApplication::submit($orgId, (int) $t['id'], ['what_they_sell' => 'Jollof.']);
+        $app   = StandApplication::submit($orgId, (int) $t['id'], ['category' => 'food', 'what_they_sell' => 'Jollof.']);
         $this->assertTrue($app['ok'], $app['message'] ?? '');
         StandApplication::checkEligibility((int) $app['id']);
 
@@ -304,7 +304,7 @@ final class StandNoticeTest extends TestCase
         StandCall::open($c['id'], 1);
 
         $app = StandApplication::submit($this->vendor(), (int) $t['id'],
-                                       ['what_they_sell' => 'Beadwork.']);
+                                       ['category' => 'food', 'what_they_sell' => 'Beadwork.']);
         $v = $this->vars((int) $app['id'], 'waitlisted');
 
         $this->assertSame('6 × 6 ft', $v['stand_size']);

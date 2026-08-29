@@ -650,8 +650,15 @@ final class StandsController
         // The escape argument is passed explicitly on both calls: PHP 8.4 deprecates leaving
         // it to a default that is about to change, and a CSV whose quoting silently changes
         // under an interpreter upgrade is a spreadsheet that opens wrong on the morning.
-        fputcsv($out, ['Stand type', 'Category', 'Vendor', 'Trading as', 'Kind', 'Contact',
-                       'Phone', 'Email', 'Sells', 'Power', 'Step-free', 'Fee (NGN)', 'Accepted'],
+        // TWO category columns, named apart. The first is the PITCH's — the organiser's own
+        // bucket, what the quota is set against. The second is what the VENDOR said they
+        // trade in, which is a different claim and can disagree: a "3m corner pitch" filed
+        // under `general` is picked for its size, and two vendors choosing it are not in
+        // the same trade. One column called "Category" carrying whichever of those it
+        // happened to be is how an allocation sheet gets read wrong on the morning.
+        fputcsv($out, ['Stand type', 'Pitch category', 'Trade declared', 'Vendor', 'Trading as',
+                       'Kind', 'Contact', 'Phone', 'Email', 'Sells', 'Power', 'Step-free',
+                       'Fee (NGN)', 'Accepted'],
                 ',', '"', '\\');
 
         foreach ($rows as $r) {
@@ -660,6 +667,10 @@ final class StandsController
             fputcsv($out, [
                 (string) ($type->name ?? ''),
                 (string) (StandType::categories()[(string) ($type->category ?? '')] ?? ''),
+                // Empty for an application submitted before the form asked. Blank is the
+                // honest rendering of "not asked" — anything else invents a claim on a row
+                // somebody allocates a market from.
+                (string) (StandType::categories()[(string) ($r['app']->category ?? '')] ?? ''),
                 PartnerOrg::legalNameOf($org),
                 (string) ($org->name ?? ''),
                 $r['individual'] ? 'Individual' : 'Registered business',

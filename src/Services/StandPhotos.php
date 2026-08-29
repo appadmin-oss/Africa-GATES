@@ -54,6 +54,86 @@ final class StandPhotos
 
     public const BUCKET = 'stand-photos';
 
+    /** What this codebase would allow per photograph, before the host has its say. */
+    public const WANT_BYTES = 10 * 1024 * 1024;
+
+    /**
+     * The per-photograph ceiling a vendor is actually told about.
+     *
+     * ── THE BUG THIS EXISTS TO END ───────────────────────────────────────────
+     *
+     * The form advertised a flat 10MB and six photographs. This host accepts
+     * `upload_max_filesize = 2M` and `post_max_size = 8M`. A vendor attaching three
+     * photographs off a phone — 3 to 5MB each is ordinary — exceeded `post_max_size`, and
+     * PHP does not reject that request: it DISCARDS THE WHOLE BODY. `$_POST` arrives
+     * empty, so the controller read no stand type and answered "Choose which kind of stand
+     * you want" — naming a field they had filled in, saying nothing about photographs, on a
+     * form they had just spent twenty minutes on.
+     *
+     * The platform already knows this trap; {@see SupportAttachmentService::limitBytes()}
+     * and {@see PulseMediaService} both read these ini values for exactly this reason. The
+     * stand form was the one that did not.
+     *
+     * The SMALLER of the three, because promising 10MB on a host that drops 2MB is how you
+     * get a bug nobody can reproduce.
+     */
+    public static function limitBytes(): int
+    {
+        $caps = array_filter([
+            self::WANT_BYTES,
+            self::iniBytes('upload_max_filesize'),
+            self::iniBytes('post_max_size'),
+        ]);
+
+        return $caps === [] ? self::WANT_BYTES : (int) min($caps);
+    }
+
+    /**
+     * What the whole POST may weigh — photographs, form fields and multipart overhead.
+     *
+     * Separate from the per-file cap and not derivable from it: `post_max_size` governs the
+     * REQUEST, so six files that each clear `upload_max_filesize` can still add up to a
+     * body PHP throws away. The form needs both numbers to keep a running total, and 512KB
+     * is left for the rest of the multipart body — the typed fields, the boundaries and the
+     * headers — because a budget spent exactly to the limit is a body over it.
+     */
+    public static function requestBudgetBytes(): int
+    {
+        $post = self::iniBytes('post_max_size');
+        if ($post <= 0) return self::WANT_BYTES * self::MAX;   // 0 means unlimited
+
+        return max(0, $post - 512 * 1024);
+    }
+
+    /** "2 MB", for a sentence a vendor reads. */
+    public static function humanLimit(): string
+    {
+        return self::human(self::limitBytes());
+    }
+
+    public static function human(int $bytes): string
+    {
+        return $bytes >= 1048576
+            ? rtrim(rtrim(number_format($bytes / 1048576, 1), '0'), '.') . ' MB'
+            : max(1, (int) round($bytes / 1024)) . ' KB';
+    }
+
+    /** An ini shorthand ("8M", "512K") in bytes. 0 when unset or unlimited. */
+    private static function iniBytes(string $key): int
+    {
+        $v = trim((string) ini_get($key));
+        if ($v === '' || $v === '-1') return 0;
+
+        $n = (int) $v;
+
+        return match (strtolower(substr($v, -1))) {
+            'g'     => $n * 1073741824,
+            'm'     => $n * 1048576,
+            'k'     => $n * 1024,
+            default => $n,
+        };
+    }
+
     /**
      * Every photograph on an application, cover first.
      *

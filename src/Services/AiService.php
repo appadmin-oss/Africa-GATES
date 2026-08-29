@@ -310,9 +310,23 @@ class AiService
         // Gemini:        usageMetadata.promptTokenCount / candidatesTokenCount
         $u = $j['usage'] ?? $j['usageMetadata'] ?? null;
         if (!is_array($u)) return;
+
+        // ── THINKING IS SPEND, AND IT IS MOST OF IT ──────────────────────────
+        //
+        // Gemini reports reasoning tokens separately, in `thoughtsTokenCount`, and they
+        // are NOT included in `candidatesTokenCount`. Counting only the latter meters a
+        // classifier that thought for four hundred tokens and answered in thirty as
+        // thirty — so `tokens_per_day` was measuring the wrong number by an order of
+        // magnitude on exactly the capabilities whose answers are shortest, and a daily
+        // cap set to protect a free tier could not do it.
+        //
+        // Added rather than maximised: they are disjoint counts of one bill.
+        $out = (int) ($u['completion_tokens'] ?? $u['output_tokens'] ?? $u['candidatesTokenCount'] ?? 0);
+        $out += (int) ($u['thoughtsTokenCount'] ?? 0);
+
         $this->lastUsage = [
-            'in'  => (int) ($u['prompt_tokens'] ?? $u['input_tokens']  ?? $u['promptTokenCount']     ?? 0),
-            'out' => (int) ($u['completion_tokens'] ?? $u['output_tokens'] ?? $u['candidatesTokenCount'] ?? 0),
+            'in'  => (int) ($u['prompt_tokens'] ?? $u['input_tokens']  ?? $u['promptTokenCount'] ?? 0),
+            'out' => $out,
         ];
     }
 
@@ -1076,6 +1090,24 @@ class AiService
                           . "decommissioned. Set a current model for {$at} in admin Settings.";
             } elseif (preg_match('~\bHTTP 5\d\d\b~', $e)) {
                 $causes[] = "{$at}: the provider itself is erroring. Nothing to change here; retry later.";
+            } elseif (str_contains($e, 'MAX_TOKENS')) {
+                // Reached only after the retry at GEMINI_RETRY_OUTPUT already failed, so
+                // this is a model that wants more room than any short capability declares
+                // — not the starved-budget case, which now fixes itself.
+                $causes[] = "{$at}: answered 200 but spent its whole output budget reasoning before "
+                          . "writing anything, twice. '{$h['model']}' needs more room than this feature "
+                          . "allows — raise the capability's `max_tokens` in AiCapability, or set a "
+                          . "non-reasoning model for {$at} in admin Settings.";
+            } elseif (str_contains($e, 'blockReason') || str_contains($e, 'withheld')) {
+                // Deliberately NOT actionable as configuration: the provider made a content
+                // decision. An operator who reads this as a fault will change keys and models
+                // for a week without moving it.
+                $causes[] = "{$at}: the provider refused this particular text on its own safety rules. "
+                          . "Nothing is wrong with the key, the model or the host, and changing them "
+                          . "will not move it — the same input will be refused again.";
+            } elseif (str_contains($e, 'no candidates')) {
+                $causes[] = "{$at}: answered 200 with an empty envelope. Usually a request shape the "
+                          . "model does not accept rather than a key problem.";
             } elseif (str_contains($e, 'empty/failed response')) {
                 $causes[] = "{$at}: answered 200 with nothing usable — usually a model that rejected the "
                           . "request shape rather than a key problem.";
@@ -1116,21 +1148,145 @@ class AiService
     }
 
     // ── Provider: Google Gemini (free tier) ────────────────────────────────
+
+    /**
+     * The floor under Gemini's output budget, and the reason this provider needs one.
+     *
+     * `maxOutputTokens` on a Gemini flash model is the budget for THINKING PLUS ANSWER,
+     * not for the answer. A reasoning model handed 70 spends all 70 thinking and returns
+     * HTTP 200 carrying `finishReason: MAX_TOKENS` and no `parts` array at all — a
+     * success, with nothing in it.
+     *
+     * Six capabilities on this platform declare a budget under a hundred tokens because
+     * their answer is a word or a small JSON object: `moderation.classify` at 80, which
+     * is every public submission; `questionnaire.chat` at 90, `questionnaire.coach` at 70
+     * and `interview.followup` at 90, which are the judges' three. Against a thinking
+     * model those do not fail sometimes. They cannot succeed. That is the whole of
+     * "Gemini does not work", and of "none of the AI works" on a deployment whose only
+     * key is a Gemini one.
+     *
+     * A ceiling is not a target: raising it cannot make a model answer at greater length,
+     * and a classifier still emits its thirty tokens. What it buys is room to think first.
+     * Real spend is metered from `usageMetadata` after the fact, so the daily budget stays
+     * honest either way — see {@see captureUsage()}.
+     */
+    private const GEMINI_MIN_OUTPUT = 768;
+
+    /** The one retry's ceiling, for a model that wanted more room than the floor gave it. */
+    private const GEMINI_RETRY_OUTPUT = 2048;
+
+    /**
+     * Ask a Gemini 3 model to think BRIEFLY, which is the other half of the fix.
+     *
+     * The budget floor below stops a short capability starving; this stops it paying for
+     * reasoning it does not need. A spam classifier returning one JSON object does not
+     * benefit from four hundred tokens of deliberation, and on a free tier that reasoning
+     * is the whole bill.
+     *
+     * `thinkingLevel` is the Gemini 3 control. `thinkingBudget` is the legacy one and
+     * Google warns against it on 3.x, and the two may not both be sent. Gated on the model
+     * name rather than sent blind, because an operator may set a 2.x model in Settings and
+     * an unknown field is a 400 — a working provider turned off by a parameter meant to
+     * tune it. Those models keep the floor and the retry, which is what they had.
+     *
+     * @return array<string,mixed> merged into generationConfig, or nothing
+     */
+    private static function geminiThinking(string $model): array
+    {
+        return str_starts_with($model, 'gemini-3')
+            ? ['thinkingConfig' => ['thinkingLevel' => 'low']]
+            : [];
+    }
+
     private function geminiChat(string $system, string $user, int $maxTokens, bool $json, float $temp, ?string $model = null): ?string
     {
-        $model = $this->modelFor('gemini', $model);
-        $url = "https://generativelanguage.googleapis.com/v1beta/models/$model:generateContent?key=" . urlencode((string) $this->geminiKey);
-        $cfg = ['temperature' => $temp, 'maxOutputTokens' => $maxTokens];
+        $model  = $this->modelFor('gemini', $model);
+        $url    = "https://generativelanguage.googleapis.com/v1beta/models/$model:generateContent?key=" . urlencode((string) $this->geminiKey);
+        $budget = max($maxTokens, self::GEMINI_MIN_OUTPUT);
+        $think  = self::geminiThinking($model);
+
+        $stop = '';
+        $text = $this->geminiAttempt($url, $system, $user, $budget, $json, $temp, $stop, $think);
+        if ($text !== null) return $text;
+
+        // Only ever retried for the one fault a retry can fix. A safety block, a bad key
+        // or a missing model returns the same answer the second time and the capability
+        // is waiting on a synchronous request.
+        if ($stop === 'MAX_TOKENS' && $budget < self::GEMINI_RETRY_OUTPUT) {
+            $text = $this->geminiAttempt($url, $system, $user, self::GEMINI_RETRY_OUTPUT, $json, $temp, $stop, $think);
+            if ($text !== null) return $text;
+        }
+
+        return null;
+    }
+
+    /**
+     * One call, and a REASON when it comes back empty.
+     *
+     * A 200 that carries no text used to reach the ladder as "empty/failed response" —
+     * the same words as a socket that never opened. Gemini says exactly what happened in
+     * `finishReason` and `promptFeedback.blockReason`, and nothing read either, so the
+     * admin status page and the error log both described a working integration returning
+     * nothing. The platform has shipped six of these; §17 of the codebase index is the
+     * list.
+     *
+     * @param string $stop out: the finish reason, so the caller can tell the one
+     *                     recoverable failure from the five that are not
+     */
+    private function geminiAttempt(string $url, string $system, string $user, int $budget,
+                                   bool $json, float $temp, string &$stop, array $think = []): ?string
+    {
+        $cfg = ['temperature' => $temp, 'maxOutputTokens' => $budget] + $think;
         if ($json) $cfg['responseMimeType'] = 'application/json';
-        $payload = [
+
+        $j = $this->httpPost($url, [], [
             'contents'          => [['parts' => [['text' => $user]]]],
             'systemInstruction' => ['parts' => [['text' => $system]]],
             'generationConfig'  => $cfg,
-        ];
-        $j = $this->httpPost($url, [], $payload);
+        ]);
         $this->captureUsage($j);
-        $c = $j['candidates'][0]['content']['parts'][0]['text'] ?? null;
-        return (is_string($c) && $c !== '') ? $c : null;
+
+        // An HTTP failure has already written its code and the provider's own words into
+        // lastError; saying anything else here would overwrite the better message.
+        if ($j === null) { $stop = ''; return null; }
+
+        $cand = $j['candidates'][0] ?? [];
+        $stop = (string) ($cand['finishReason'] ?? '');
+
+        // The parts array is a LIST and the text is not always in the first entry — a
+        // model that returns a thought part alongside its answer puts the answer second.
+        $text = '';
+        foreach ((array) ($cand['content']['parts'] ?? []) as $part) {
+            if (is_array($part) && isset($part['text']) && is_string($part['text'])) {
+                $text .= $part['text'];
+            }
+        }
+        if ($text !== '') return $text;
+
+        $this->lastError = self::geminiWhyEmpty($stop, $j, $budget);
+
+        return null;
+    }
+
+    /** Why a 200 carried no text, in words an operator can act on. */
+    private static function geminiWhyEmpty(string $stop, array $j, int $budget): string
+    {
+        $blocked = (string) ($j['promptFeedback']['blockReason'] ?? '');
+        if ($blocked !== '') {
+            return 'HTTP 200 but the PROMPT was blocked before the model saw it (blockReason '
+                 . $blocked . ')';
+        }
+
+        return match ($stop) {
+            'MAX_TOKENS' => 'HTTP 200 but no text: the whole ' . $budget . '-token output budget '
+                          . 'went on reasoning before the model answered (finishReason MAX_TOKENS)',
+            'SAFETY', 'PROHIBITED_CONTENT', 'BLOCKLIST' =>
+                'HTTP 200 but the answer was withheld (finishReason ' . $stop . ')',
+            'RECITATION' => 'HTTP 200 but the answer was withheld as a recitation of training data '
+                          . '(finishReason RECITATION)',
+            ''  => 'HTTP 200 with no candidates at all',
+            default => 'HTTP 200 but no text (finishReason ' . $stop . ')',
+        };
     }
 
     // ── Provider: Anthropic (Claude Haiku) ─────────────────────────────────

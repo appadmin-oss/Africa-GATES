@@ -146,7 +146,7 @@ class VendorStandTest extends TestCase
         $this->assertFalse(StandCall::isAccepting(StandCall::find($s['call'])));
 
         $v = $this->makeVendor();
-        $r = StandApplication::submit($v, $s['type'], ['what_they_sell' => 'Jollof']);
+        $r = StandApplication::submit($v, $s['type'], ['what_they_sell' => 'Jollof', 'category' => 'food']);
         $this->assertFalse($r['ok']);
     }
 
@@ -164,7 +164,7 @@ class VendorStandTest extends TestCase
         $e = $this->makeEvent();
         $s = $this->openCall($e);
         $v = $this->makeVendor();
-        StandApplication::submit($v, $s['type'], ['what_they_sell' => 'Jollof']);
+        StandApplication::submit($v, $s['type'], ['what_they_sell' => 'Jollof', 'category' => 'food']);
 
         StandCall::close($s['call']);                     // so the open-call guard is not what refuses
         $r = StandType::delete($s['type']);
@@ -180,10 +180,10 @@ class VendorStandTest extends TestCase
         $s = $this->openCall($e);
         $v = $this->makeVendor();
 
-        $first = StandApplication::submit($v, $s['type'], ['what_they_sell' => 'Jollof and small chops']);
+        $first = StandApplication::submit($v, $s['type'], ['what_they_sell' => 'Jollof and small chops', 'category' => 'food']);
         $this->assertTrue($first['ok']);
 
-        $again = StandApplication::submit($v, $s['type'], ['what_they_sell' => 'Jollof']);
+        $again = StandApplication::submit($v, $s['type'], ['what_they_sell' => 'Jollof', 'category' => 'food']);
         $this->assertFalse($again['ok'], 'A second application for the same stand type is refused.');
         $this->assertSame($first['id'], $again['id'], 'It should point at the existing one.');
     }
@@ -210,8 +210,8 @@ class VendorStandTest extends TestCase
         $this->assertTrue(StandCall::open($c['id'], 1)['ok']);
 
         $v = $this->makeVendor();
-        $this->assertTrue(StandApplication::submit($v, $food['id'],  ['what_they_sell' => 'Jollof'])['ok']);
-        $this->assertTrue(StandApplication::submit($v, $craft['id'], ['what_they_sell' => 'Beadwork'])['ok']);
+        $this->assertTrue(StandApplication::submit($v, $food['id'],  ['what_they_sell' => 'Jollof', 'category' => 'food'])['ok']);
+        $this->assertTrue(StandApplication::submit($v, $craft['id'], ['what_they_sell' => 'Beadwork', 'category' => 'food'])['ok']);
 
         $this->assertCount(2, StandApplication::forOrg($v));
     }
@@ -222,7 +222,7 @@ class VendorStandTest extends TestCase
         $s = $this->openCall($e);
         $v = $this->makeVendor();
 
-        $r = StandApplication::submit($v, $s['type'], ['what_they_sell' => '   ']);
+        $r = StandApplication::submit($v, $s['type'], ['what_they_sell' => '   ', 'category' => 'food']);
         $this->assertFalse($r['ok']);
     }
 
@@ -232,7 +232,7 @@ class VendorStandTest extends TestCase
         $s = $this->openCall($e);
         $v = $this->makeVendor(['status' => PartnerOrg::STATUS_SUSPENDED]);
 
-        $this->assertFalse(StandApplication::submit($v, $s['type'], ['what_they_sell' => 'Jollof'])['ok']);
+        $this->assertFalse(StandApplication::submit($v, $s['type'], ['what_they_sell' => 'Jollof', 'category' => 'food'])['ok']);
     }
 
     // ───────────────────────────── eligibility ──────────────────────────────
@@ -255,7 +255,7 @@ class VendorStandTest extends TestCase
         $e = $this->makeEvent();
         $s = $this->openCall($e);
         $v = $this->makeVendor();
-        $a = StandApplication::submit($v, $s['type'], ['what_they_sell' => 'Jollof'])['id'];
+        $a = StandApplication::submit($v, $s['type'], ['what_they_sell' => 'Jollof', 'category' => 'food'])['id'];
 
         $r = StandApplication::checkEligibility($a);
         $this->assertFalse($r['ok']);
@@ -277,7 +277,7 @@ class VendorStandTest extends TestCase
         $this->doc($v, 'cac');                                          // never expires
         $this->doc($v, 'insurance', date('Y-m-d', strtotime('-21 days')));   // lapsed
 
-        $a = StandApplication::submit($v, $s['type'], ['what_they_sell' => 'Jollof'])['id'];
+        $a = StandApplication::submit($v, $s['type'], ['what_they_sell' => 'Jollof', 'category' => 'food'])['id'];
         $r = StandApplication::checkEligibility($a);
 
         $this->assertFalse($r['ok'], 'A lapsed policy must not pass.');
@@ -292,7 +292,7 @@ class VendorStandTest extends TestCase
         $this->doc($v, 'cac');
         $this->doc($v, 'insurance', date('Y-m-d', strtotime('+300 days')));
 
-        $a = StandApplication::submit($v, $s['type'], ['what_they_sell' => 'Jollof'])['id'];
+        $a = StandApplication::submit($v, $s['type'], ['what_they_sell' => 'Jollof', 'category' => 'food'])['id'];
         $this->assertTrue(StandApplication::checkEligibility($a)['ok']);
     }
 
@@ -309,7 +309,7 @@ class VendorStandTest extends TestCase
         $this->doc($v, 'cac');
         $this->doc($v, 'insurance', date('Y-m-d', strtotime('+300 days')));
 
-        $a = StandApplication::submit($v, $s['type'], ['what_they_sell' => 'Jollof'])['id'];
+        $a = StandApplication::submit($v, $s['type'], ['what_they_sell' => 'Jollof', 'category' => 'food'])['id'];
         $this->photos($a, $v);
         $this->assertTrue(StandApplication::refreshCompleteness($a));
 
@@ -327,7 +327,7 @@ class VendorStandTest extends TestCase
         $s = $this->openCall($e);
         $v = $this->makeVendor();
 
-        $a = StandApplication::submit($v, $s['type'], ['what_they_sell' => 'Jollof'])['id'];
+        $a = StandApplication::submit($v, $s['type'], ['what_they_sell' => 'Jollof', 'category' => 'food'])['id'];
         $this->assertNull(StandApplication::find($a)->completed_at);
 
         $this->doc($v, 'cac');
@@ -352,7 +352,7 @@ class VendorStandTest extends TestCase
         $this->doc($v, 'cac');
         $this->doc($v, 'insurance', date('Y-m-d', strtotime('+300 days')));
 
-        $a = StandApplication::submit($v, $s['type'], ['what_they_sell' => 'Jollof'])['id'];
+        $a = StandApplication::submit($v, $s['type'], ['what_they_sell' => 'Jollof', 'category' => 'food'])['id'];
 
         $this->assertNull(StandApplication::find($a)->completed_at);
         $this->assertArrayHasKey('stand_photos', StandApplication::missingForCompleteness($a));
@@ -380,7 +380,7 @@ class VendorStandTest extends TestCase
         $this->doc($v, 'cac');
         $this->doc($v, 'insurance', date('Y-m-d', strtotime('+300 days')));
 
-        $a = StandApplication::submit($v, $s['type'], ['what_they_sell' => 'Jollof'])['id'];
+        $a = StandApplication::submit($v, $s['type'], ['what_they_sell' => 'Jollof', 'category' => 'food'])['id'];
 
         $this->assertTrue(StandApplication::checkEligibility($a)['ok'],
             'a missing photograph refused an application outright');
@@ -393,7 +393,7 @@ class VendorStandTest extends TestCase
         $v = $this->makeVendor();
         $this->doc($v, 'cac');
         $this->doc($v, 'insurance', date('Y-m-d', strtotime('+300 days')));
-        $a = StandApplication::submit($v, $typeId, ['what_they_sell' => 'Jollof'])['id'];
+        $a = StandApplication::submit($v, $typeId, ['what_they_sell' => 'Jollof', 'category' => 'food'])['id'];
         StandApplication::checkEligibility($a);
         return $a;
     }
@@ -404,7 +404,7 @@ class VendorStandTest extends TestCase
         $e = $this->makeEvent();
         $s = $this->openCall($e);
         $v = $this->makeVendor();
-        $a = StandApplication::submit($v, $s['type'], ['what_they_sell' => 'Jollof'])['id'];
+        $a = StandApplication::submit($v, $s['type'], ['what_they_sell' => 'Jollof', 'category' => 'food'])['id'];
         StandApplication::checkEligibility($a);
 
         $r = StandApplication::offer($a, 1);

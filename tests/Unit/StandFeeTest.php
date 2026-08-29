@@ -79,7 +79,7 @@ final class StandFeeTest extends TestCase
         StandCall::open($c['id'], 1);
 
         $orgId = $this->vendor();
-        $app   = StandApplication::submit($orgId, (int) $t['id'], ['what_they_sell' => 'Jollof.']);
+        $app   = StandApplication::submit($orgId, (int) $t['id'], ['category' => 'food', 'what_they_sell' => 'Jollof.']);
         StandApplication::checkEligibility((int) $app['id']);
         $r = StandApplication::offer((int) $app['id'], 1);
         $this->assertTrue($r['ok'], $r['message'] ?? '');
@@ -485,7 +485,7 @@ final class StandFeeTest extends TestCase
         // Fill every published place with other vendors.
         DB::table('gates_stand_types')->where('id', $typeId)->update(['quota' => 1]);
         $other = $this->vendor();
-        $app2  = StandApplication::submit($other, $typeId, ['what_they_sell' => 'Suya.']);
+        $app2  = StandApplication::submit($other, $typeId, ['category' => 'food', 'what_they_sell' => 'Suya.']);
         StandApplication::checkEligibility((int) $app2['id']);
         $this->assertTrue(StandApplication::offer((int) $app2['id'], 1)['ok']);
 
