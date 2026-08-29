@@ -54,22 +54,13 @@ use Illuminate\Database\Capsule\Manager as DB;
 final class JudgingAudit
 {
     /**
-     * A mark changed this long after it was first set is worth a second look.
-     *
-     * Not a rule and not a threshold anybody is judged by: scoring is done over days and
-     * a judge revisiting their own sheet in the same sitting is ordinary. What is not
-     * ordinary is a mark moving weeks later, and the trail can now show which is which.
-     */
-    private const LATE_CHANGE_HOURS = 48;
-
-    /**
      * Everything known about how one programme judges.
      *
      * @return array{
      *   programme: ?object,
      *   cycles: list<array<string,mixed>>,
      *   judges: list<array<string,mixed>>,
-     *   changes: list<array<string,mixed>>,
+     *   changes: array{rows:list<array<string,mixed>>, total:int},
      *   conflicts: list<array<string,mixed>>,
      *   totals: array<string,int>
      * }
@@ -78,7 +69,8 @@ final class JudgingAudit
     {
         $programme = DB::table('gates_award_programmes')->where('id', $programmeId)->first();
 
-        $empty = ['programme' => $programme, 'cycles' => [], 'judges' => [], 'changes' => [],
+        $empty = ['programme' => $programme, 'cycles' => [], 'judges' => [],
+                  'changes' => ['rows' => [], 'total' => 0],
                   'conflicts' => [], 'totals' => self::zeroTotals()];
         if (!$programme) return $empty;
 
@@ -94,7 +86,7 @@ final class JudgingAudit
             'cycles'    => self::cycleCoverage($cycles, $nominees, $scores,
                                               self::orientationGaps($cycleIds)),
             'judges'    => self::judgeConduct($programmeId, $scores),
-            'changes'   => self::changes($scores, $cycles, $changeLimit),
+            'changes'   => self::changes($nominees, $cycles, $changeLimit),
             'conflicts' => self::conflicts($programmeId, $scores),
             'totals'    => self::totals($cycles, $nominees, $scores),
         ];
@@ -161,69 +153,106 @@ final class JudgingAudit
     }
 
     /**
-     * Every change to a mark, newest first, with the cycle's own phase attached.
+     * Every change to a mark, newest first, with the cycle's phase attached.
      *
      * ── THE DISTINCTION THAT MATTERS ─────────────────────────────────────────
      *
      * `old_score` NULL means this was the FIRST mark for that pair — not a change, and
      * not a score of zero. The column was built with that distinction and this is the
-     * first screen to honour it: only rows with an old score are changes, and only those
-     * are shown. A first mark is the judging; a second mark is the audit.
+     * first screen to honour it: a first mark is the judging, a second is the audit.
      *
-     * @param list<object> $scores
+     * ── FILTERED BY NOMINEE, NOT BY JUDGE ────────────────────────────────────
+     *
+     * The log carries no cycle, so the rows belonging to this programme have to be
+     * recognised some other way. The first cut narrowed by JUDGE and then dropped rows
+     * whose (judge, nominee, criterion) triple was not in this programme, fetching four
+     * times the limit to leave room for the discards.
+     *
+     * That was wrong twice. A judge who also sits on two other programmes can fill the
+     * window with their changes elsewhere, so this programme's changes fall off the end —
+     * an audit silently showing fewer changes than exist, which is the worst thing an
+     * audit can do. And a mark that was changed and then DELETED had no surviving triple,
+     * so it vanished from the record entirely — exactly the row somebody would most want
+     * to see.
+     *
+     * A nominee belongs to one category, which belongs to one cycle, which belongs to one
+     * programme. So `nominee_id IN (…)` is exact: no foreign rows to discard, the limit
+     * means what it says, and a change survives its score being deleted.
+     *
+     * @param array<int,list<array<string,mixed>>> $nominees
      * @param list<array<string,mixed>> $cycles
-     * @return list<array<string,mixed>>
+     * @return array{rows:list<array<string,mixed>>, total:int}
      */
-    private static function changes(array $scores, array $cycles, int $limit): array
+    private static function changes(array $nominees, array $cycles, int $limit): array
     {
-        // The log has no cycle on it, so the (judge, nominee, criterion) triples that
-        // belong to this programme are collected from the scores and matched.
-        $mine = [];
-        foreach ($scores as $s) {
-            $mine[(int) $s->judge_id . ':' . (int) $s->nominee_id . ':' . (int) $s->criterion_id]
-                = ['cycle_id' => (int) $s->cycle_id, 'nominee' => (string) $s->nominee_name,
-                   'judge' => (string) $s->judge_name, 'criterion' => (string) $s->criterion_name,
-                   'first_at' => (string) $s->created_at];
+        // nominee id => [cycle, name], so a row can be placed and named without a join.
+        $where = [];
+        foreach ($nominees as $cycleId => $rows) {
+            foreach ($rows as $n) {
+                $where[(int) $n['id']] = ['cycle' => (int) $cycleId, 'name' => (string) $n['name']];
+            }
         }
-        if ($mine === []) return [];
+        if ($where === []) return ['rows' => [], 'total' => 0];
+
+        $ids = array_keys($where);
+
+        $base = DB::table('gates_judge_score_log')
+            ->whereNotNull('old_score')
+            ->whereIn('nominee_id', $ids);
+
+        // Counted before it is limited, so the screen can say "the most recent 200 of
+        // 1,412" rather than presenting a truncated list as the whole record.
+        $total = (clone $base)->count();
+
+        $rows = $base->orderByDesc('changed_at')->orderByDesc('id')
+                     ->limit(max(1, $limit))->get();
+
+        $judges   = self::namesFor('gates_judges', 'name');
+        $criteria = self::namesFor('gates_judge_criteria', 'label');
 
         $results = [];
         foreach ($cycles as $c) $results[(int) $c['id']] = (string) ($c['results_date'] ?? '');
 
-        $rows = DB::table('gates_judge_score_log')
-            ->whereNotNull('old_score')
-            ->whereIn('judge_id', array_values(array_unique(array_map(
-                static fn (object $s): int => (int) $s->judge_id, $scores))))
-            ->orderByDesc('changed_at')
-            ->limit(max(1, $limit) * 4)   // room to drop rows from other programmes
-            ->get();
-
         $out = [];
         foreach ($rows as $r) {
-            $key = (int) $r->judge_id . ':' . (int) $r->nominee_id . ':' . (int) $r->criterion_id;
-            $ctx = $mine[$key] ?? null;
-            if ($ctx === null) continue;   // another programme's row, same judge
-
+            $n         = $where[(int) $r->nominee_id];
             $changedAt = (string) $r->changed_at;
-            $resultsAt = $results[$ctx['cycle_id']] ?? '';
+            $resultsAt = $results[$n['cycle']] ?? '';
 
             $out[] = [
-                'judge'      => $ctx['judge'],
-                'nominee'    => $ctx['nominee'],
-                'criterion'  => $ctx['criterion'],
-                'cycle_id'   => $ctx['cycle_id'],
-                'old'        => (int) $r->old_score,
-                'new'        => (int) $r->new_score,
+                'judge'     => $judges[(int) $r->judge_id] ?? ('Judge #' . (int) $r->judge_id),
+                'nominee'   => $n['name'],
+                'criterion' => $criteria[(int) $r->criterion_id] ?? '',
+                'cycle_id'  => $n['cycle'],
+                'old'       => (int) $r->old_score,
+                'new'       => (int) $r->new_score,
                 'changed_at' => $changedAt,
-                // The two facts that make a change worth reading, computed here rather
-                // than left to a template to work out with a date comparison in Twig.
+                // Computed here rather than left to a template to work out with a date
+                // comparison in Twig.
                 'after_results' => $resultsAt !== '' && strtotime($changedAt) > strtotime($resultsAt),
-                'late'          => self::hoursBetween($ctx['first_at'], $changedAt) > self::LATE_CHANGE_HOURS,
             ];
-            if (count($out) >= $limit) break;
         }
 
-        return $out;
+        return ['rows' => $out, 'total' => $total];
+    }
+
+    /**
+     * id => display name for one table, read once.
+     *
+     * @return array<int,string>
+     */
+    private static function namesFor(string $table, string $column): array
+    {
+        try {
+            $out = [];
+            foreach (DB::table($table)->get(['id', $column]) as $r) {
+                $out[(int) $r->id] = (string) ($r->$column ?? '');
+            }
+
+            return $out;
+        } catch (\Throwable) {
+            return [];
+        }
     }
 
     // ══ the judges ═══════════════════════════════════════════════════════════
@@ -513,15 +542,5 @@ final class JudgingAudit
     {
         return ['cycles' => 0, 'nominees' => 0, 'judged' => 0, 'unjudged' => 0,
                 'judges' => 0, 'scores' => 0];
-    }
-
-    private static function hoursBetween(string $a, string $b): float
-    {
-        if ($a === '' || $b === '') return 0.0;
-        $ta = strtotime($a);
-        $tb = strtotime($b);
-        if ($ta === false || $tb === false) return 0.0;
-
-        return abs($tb - $ta) / 3600;
     }
 }

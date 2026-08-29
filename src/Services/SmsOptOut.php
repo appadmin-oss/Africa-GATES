@@ -37,17 +37,33 @@ use Illuminate\Support\Carbon;
 final class SmsOptOut
 {
     /**
-     * Hashed with the app key, not bare SHA-256.
+     * UNKEYED, and that is the deliberate choice — see below.
      *
-     * A phone number has around ten digits of entropy inside a known country code, so a
-     * plain digest of every possible Nigerian mobile number is minutes of work on a
-     * laptop. Keyed, the table is useless to anybody who takes it without also taking the
-     * key — which is the property the email list was built for and the same reasoning
-     * applies here with more force, because a phone number reaches somebody directly.
+     * ── WHY NOT HMAC WITH THE APP KEY ────────────────────────────────────────
+     *
+     * The obvious improvement is to key this: a phone number is about ten digits of
+     * entropy inside a known country code, so a plain digest of every Nigerian mobile is
+     * minutes of work on a laptop, and a keyed one is useless to somebody who steals the
+     * table without the key.
+     *
+     * It was written that way first, and it was wrong. This hash is the LOOKUP, and a
+     * lookup has to keep matching forever. Key it, and the day APP_KEY is first set — or
+     * rotated, which is a thing an operator is supposed to be able to do — every stored
+     * row stops matching its own number, and every person who asked not to be texted
+     * starts being texted again. Silently. Nobody finds out until the complaints.
+     *
+     * {@see EmailOptOut::hash()} makes the same call for the same reason and keys only
+     * its unsubscribe TOKEN, which is a credential and must be unforgeable. This table has
+     * no credential in it, so there is nothing here for a key to protect that is worth a
+     * suppression list emptying itself.
+     *
+     * The exposure this accepts: somebody who has already exfiltrated the table can test
+     * candidate numbers against it offline. They learn who asked not to be texted, which
+     * is a real but small harm next to the alternative.
      */
     public static function hash(string $e164): string
     {
-        return hash_hmac('sha256', self::normalise($e164), (string) (getenv('APP_KEY') ?: 'gates'));
+        return hash('sha256', self::normalise($e164));
     }
 
     /** E.164, or '' when it is not a usable number at all. */

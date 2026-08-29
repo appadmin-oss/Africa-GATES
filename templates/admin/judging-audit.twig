@@ -246,15 +246,21 @@
   <div class="ja-card">
     <h3>Marks that were changed</h3>
     <p>Every mark that was set and then set again. A first mark is not listed &mdash; that
-      is the judging. A second is the audit.</p>
-    {% if audit.changes %}
+      is the judging. A second is the audit.
+      {% if audit.changes.total > audit.changes.rows|length %}
+        {# Said out loud. A truncated list presented as the whole record is how an audit
+           reassures somebody with a number that is not the number. #}
+        Showing the most recent {{ audit.changes.rows|length }} of
+        <strong>{{ audit.changes.total }}</strong>.
+      {% endif %}</p>
+    {% if audit.changes.rows %}
       <table class="ja-t">
         <thead>
           <tr><th>When</th><th>Judge</th><th>Nominee</th><th>Criterion</th>
               <th>Change</th><th></th></tr>
         </thead>
         <tbody>
-          {% for c in audit.changes %}
+          {% for c in audit.changes.rows %}
             <tr>
               <td class="ja-num">{{ c.changed_at|slice(0, 16) }}</td>
               <td class="ja-name">{{ c.judge }}</td>
@@ -264,8 +270,6 @@
               <td>
                 {% if c.after_results %}
                   <span class="ja-flag ja-flag--bad">After results</span>
-                {% elseif c.late %}
-                  <span class="ja-flag ja-flag--warn">Days later</span>
                 {% endif %}
               </td>
             </tr>

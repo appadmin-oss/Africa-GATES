@@ -138,7 +138,7 @@ final class JudgingAuditTest extends TestCase
             'old_score' => null, 'new_score' => 7, 'changed_at' => '2026-11-01 09:00:00',
         ]);
 
-        $this->assertSame([], JudgingAudit::forProgramme($this->programmeId)['changes'],
+        $this->assertSame([], JudgingAudit::forProgramme($this->programmeId)['changes']['rows'],
             'a first mark was reported as an edit');
     }
 
@@ -156,13 +156,112 @@ final class JudgingAuditTest extends TestCase
 
         $changes = JudgingAudit::forProgramme($this->programmeId)['changes'];
 
-        $this->assertCount(1, $changes);
-        $this->assertSame(4, $changes[0]['old']);
-        $this->assertSame(9, $changes[0]['new']);
-        $this->assertTrue($changes[0]['after_results'],
+        $this->assertCount(1, $changes['rows']);
+        $this->assertSame(1, $changes['total']);
+        $this->assertSame(4, $changes['rows'][0]['old']);
+        $this->assertSame(9, $changes['rows'][0]['new']);
+        $this->assertTrue($changes['rows'][0]['after_results'],
             'a mark raised by five points a week after the results date read as routine');
-        $this->assertTrue($changes[0]['late']);
-        $this->assertSame('Impact', $changes[0]['criterion'], 'the criterion was not named');
+        $this->assertSame('Impact', $changes['rows'][0]['criterion'], 'the criterion was not named');
+    }
+
+    /**
+     * A busy judge on ANOTHER programme cannot push this one's changes off the list.
+     *
+     * The first cut narrowed the log by judge and fetched four times the limit to leave
+     * room for discarding foreign rows. A judge who also sits on two other panels fills
+     * that window with their changes elsewhere and this programme's fall off the end —
+     * an audit silently showing fewer changes than exist, which is the worst thing an
+     * audit can do. Filtering by NOMINEE is exact, because a nominee belongs to one
+     * cycle and one programme.
+     */
+    public function test_changes_elsewhere_cannot_crowd_out_this_programmes(): void
+    {
+        $mine = $this->nominee('Ours');
+        $j    = $this->judge('Busy Ada');
+        $this->score($j, $mine, 'impact', 5);
+
+        // Another programme entirely, same judge, and far more recent activity.
+        $otherProg = (int) DB::table('gates_award_programmes')->insertGetId([
+            'slug' => 'other', 'title' => 'Another Award', 'is_active' => 1,
+        ]);
+        $otherCycle = (int) DB::table('gates_award_cycles')->insertGetId([
+            'programme_id' => $otherProg, 'year' => 2026, 'status' => 'judging',
+        ]);
+        $otherCat = (int) DB::table('gates_award_categories')->insertGetId([
+            'cycle_id' => $otherCycle, 'slug' => 'x', 'title' => 'X',
+        ]);
+        $theirs = (int) DB::table('gates_nominees')->insertGetId([
+            'category_id' => $otherCat, 'name' => 'Theirs', 'status' => 'approved',
+        ]);
+
+        // One old change here, fifty newer ones there.
+        DB::table('gates_judge_score_log')->insert([
+            'judge_id' => $j, 'nominee_id' => $mine, 'criterion_id' => $this->crit['impact'],
+            'old_score' => 2, 'new_score' => 5, 'changed_at' => '2026-11-01 09:00:00',
+        ]);
+        for ($i = 0; $i < 50; $i++) {
+            DB::table('gates_judge_score_log')->insert([
+                'judge_id' => $j, 'nominee_id' => $theirs, 'criterion_id' => $this->crit['impact'],
+                'old_score' => 1, 'new_score' => 9,
+                'changed_at' => '2026-12-0' . (($i % 9) + 1) . '1' . str_pad((string) ($i % 10), 1, '0') . ':00:00',
+            ]);
+        }
+
+        $changes = JudgingAudit::forProgramme($this->programmeId, 5)['changes'];
+
+        $this->assertCount(1, $changes['rows'],
+            "another programme's changes crowded this one's out of the window");
+        $this->assertSame('Ours', $changes['rows'][0]['nominee']);
+        $this->assertSame(1, $changes['total'], 'the total counted a foreign programme');
+    }
+
+    /**
+     * A mark changed and then DELETED still appears.
+     *
+     * It is the row somebody auditing a result would most want to see, and the first cut
+     * dropped it: context came from the surviving scores, so a change with no surviving
+     * score had nothing to match against and vanished.
+     */
+    public function test_a_change_survives_the_score_being_deleted(): void
+    {
+        $n = $this->nominee('Score Later Removed');
+        $j = $this->judge('Ada One');
+
+        DB::table('gates_judge_score_log')->insert([
+            'judge_id' => $j, 'nominee_id' => $n, 'criterion_id' => $this->crit['impact'],
+            'old_score' => 3, 'new_score' => 10, 'changed_at' => '2026-11-02 09:00:00',
+        ]);
+        // …and no row in gates_judge_criteria_scores at all.
+
+        $changes = JudgingAudit::forProgramme($this->programmeId)['changes'];
+
+        $this->assertCount(1, $changes['rows'],
+            'a mark changed and then deleted disappeared from the audit entirely');
+        $this->assertSame('Ada One', $changes['rows'][0]['judge']);
+        $this->assertSame('Score Later Removed', $changes['rows'][0]['nominee']);
+    }
+
+    /** And a truncated list says so, rather than reading as the whole record. */
+    public function test_a_truncated_list_reports_the_real_total(): void
+    {
+        $n = $this->nominee('Much Revised');
+        $j = $this->judge('Ada One');
+        $this->score($j, $n, 'impact', 7);
+
+        for ($i = 0; $i < 12; $i++) {
+            DB::table('gates_judge_score_log')->insert([
+                'judge_id' => $j, 'nominee_id' => $n, 'criterion_id' => $this->crit['impact'],
+                'old_score' => 1, 'new_score' => 7,
+                'changed_at' => '2026-11-' . str_pad((string) ($i + 1), 2, '0', STR_PAD_LEFT) . ' 09:00:00',
+            ]);
+        }
+
+        $changes = JudgingAudit::forProgramme($this->programmeId, 5)['changes'];
+
+        $this->assertCount(5, $changes['rows']);
+        $this->assertSame(12, $changes['total'],
+            'a truncated list presented as the whole record reassures with the wrong number');
     }
 
     // ══ the judges ═══════════════════════════════════════════════════════════

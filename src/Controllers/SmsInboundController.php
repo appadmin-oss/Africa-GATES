@@ -92,15 +92,30 @@ final class SmsInboundController
      *
      * Rebuilt from the request rather than from SiteUrl: the signature covers the exact
      * string configured in the Twilio console, and a host or scheme that disagrees by one
-     * character rejects every genuine request. Behind a TLS-terminating proxy the scheme
-     * on the request is `http`, which is the commonest reason a correct implementation
-     * of this rejects everything — so `X-Forwarded-Proto` wins when it is present.
+     * character rejects every genuine request.
+     *
+     * ── X-FORWARDED-PROTO ONLY BEHIND A TRUSTED PROXY ───────────────────────
+     *
+     * Behind a TLS-terminating proxy the scheme on the request is `http`, which is the
+     * commonest reason a correct implementation of this rejects every genuine call. But
+     * that header is attacker-controlled, and this codebase already has one rule for it —
+     * {@see \AfricaGates\Support\ClientIp}: proxy headers are consulted only when
+     * TRUST_PROXY is set. Reading it unconditionally here would be a second, more
+     * permissive rule for the same class of header, which is how the two come to disagree.
+     *
+     * The exposure is small either way — a forged scheme cannot produce a valid signature,
+     * only prevent one from matching — but a deployment behind a proxy needs TRUST_PROXY
+     * set for the rest of the platform anyway, so honouring it costs nothing and keeps
+     * one rule.
      */
     private static function url(Request $req): string
     {
-        $uri   = $req->getUri();
-        $proto = trim(explode(',', $req->getHeaderLine('X-Forwarded-Proto'))[0] ?? '');
-        if ($proto !== '') $uri = $uri->withScheme($proto);
+        $uri = $req->getUri();
+
+        if (\AfricaGates\Support\Env::bool('TRUST_PROXY')) {
+            $proto = trim(explode(',', $req->getHeaderLine('X-Forwarded-Proto'))[0] ?? '');
+            if ($proto !== '') $uri = $uri->withScheme($proto);
+        }
 
         return (string) $uri;
     }
