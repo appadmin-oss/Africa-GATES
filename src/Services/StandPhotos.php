@@ -36,8 +36,30 @@ use Psr\Http\Message\UploadedFileInterface;
  */
 final class StandPhotos
 {
-    /** Below this an application is not complete. Not a submit gate — see the migration. */
+    /** Below this an application is not complete, and below this a form cannot be sent. */
     public const MIN = 3;
+
+    /**
+     * The day photographs became a submit gate rather than a completeness note.
+     *
+     * ── WHY A DATE AND NOT A COLUMN ──────────────────────────────────────────
+     *
+     * A call that was ALREADY OPEN when this shipped published one set of rules, and
+     * vendors have been part-way through filling that form — some of them for weeks,
+     * some of them without the photographs yet because the form told them they could
+     * upload from the dashboard afterwards. Tightening a requirement under somebody
+     * mid-application is the kind of change that loses a market its traders.
+     *
+     * A column would have to be backfilled, and the only value it could be backfilled
+     * from is this same date. So the date is the mechanism, stated once, rather than
+     * copied into every existing row and then believed.
+     *
+     * The transition ends on its own: every call opened from here carries the gate, and
+     * once the last pre-existing call closes this constant stops being consulted. It is
+     * deliberately NOT a setting — an operator who could turn it off would be turning off
+     * the evidence the panel scores.
+     */
+    public const REQUIRED_FROM = '2026-08-29';
 
     /** Above this the extra photographs are not read, so they are not accepted. */
     public const MAX = 6;
@@ -53,6 +75,24 @@ final class StandPhotos
     public const MIN_EDGE = 600;
 
     public const BUCKET = 'stand-photos';
+
+    /**
+     * Must this call's applicants attach photographs before they can send the form?
+     *
+     * A call with no opening date recorded is treated as new: the only rows without one
+     * are drafts, which have no applicants to grandfather.
+     */
+    public static function requiredForCall(?object $call): bool
+    {
+        $opened = trim((string) ($call->opens_at ?? ''));
+        if ($opened === '') return true;
+
+        // Compared as DATES, not strings. MySQL hands back "2026-08-29 09:00:00" and
+        // SQLite hands back whatever was written — including the T-separated form, which
+        // string-compares wrong against a space-separated literal. This codebase has
+        // shipped that bug once already; see CLAUDE.md.
+        return strtotime($opened) >= strtotime(self::REQUIRED_FROM);
+    }
 
     /** What this codebase would allow per photograph, before the host has its say. */
     public const WANT_BYTES = 10 * 1024 * 1024;

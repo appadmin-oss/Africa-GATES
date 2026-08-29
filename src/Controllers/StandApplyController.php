@@ -296,6 +296,10 @@ final class StandApplyController
             // typed a second time into the template. The counter on the form is a
             // convenience; StandPhotos is the rule.
             'photo_min'       => StandPhotos::MIN,
+            // Whether this call's applicants are held to the gate or the older note. A
+            // form that says "required" on a call that will accept without them is
+            // lying to the one vendor who has not got them yet.
+            'photo_required'  => StandPhotos::requiredForCall($call),
             'photo_max'       => StandPhotos::MAX,
             // The host's real ceiling, not a number typed here. A form that promises
             // 10MB on a server accepting 2MB produces a POST PHP discards whole — see
@@ -374,7 +378,7 @@ final class StandApplyController
         // application must not exist until this passes. What a file WEIGHS is checked
         // here too, so the one that will be refused is named before it costs anybody a
         // submission — StandPhotos::add is still the rule, this is the early word.
-        $photoErr = self::photoPreflight($req);
+        $photoErr = StandPhotos::requiredForCall($call) ? self::photoPreflight($req) : '';
         if ($photoErr !== '') {
             return $this->render($res, $event, $call, $org, $b, $photoErr, 'photos');
         }

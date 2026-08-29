@@ -1,0 +1,283 @@
+{% extends 'admin/layout.twig' %}
+
+{#
+  How one award programme judged, and who judged it.
+
+  The spine of this page is `gates_judge_score_log`, which has recorded every change to
+  every mark since the day it was added and which nothing read. An organiser asked "did
+  anybody change a score after the panel met" had to answer that they could not tell — on
+  the platform whose whole argument is that its results can be checked.
+
+  Two things here are FACTS and are styled as such: a judge who declared a conflict and
+  scored anyway, and a mark changed after the results date. Everything else is arithmetic
+  over small samples and carries its denominator in the same row as its number, because a
+  lean with no comparison count is a rumour about a named person.
+#}
+
+{% block head_styles %}
+<style nonce="{{ csp_nonce }}">
+  .ja-lede{ background:#fff; border:1px solid rgba(16,41,44,.1); border-radius:14px;
+    padding:18px 20px; margin-bottom:16px }
+  .ja-lede h2{ margin:0 0 6px; font-size:14.5px; color:#10292C }
+  .ja-lede p{ margin:8px 0 0; font-size:12.5px; line-height:1.7; color:#5a6d6f; max-width:76ch }
+  .ja-row{ display:flex; gap:10px; flex-wrap:wrap; align-items:flex-end; margin-bottom:14px }
+
+  .ja-stats{ display:grid; grid-template-columns:repeat(auto-fit,minmax(132px,1fr)); gap:1px;
+    background:rgba(16,41,44,.1); border:1px solid rgba(16,41,44,.1); border-radius:10px;
+    overflow:hidden; margin-bottom:16px }
+  .ja-stat{ background:#fff; padding:12px 14px }
+  .ja-stat__k{ font-family:var(--ag-font-mono,monospace); font-size:10px; font-weight:700;
+    letter-spacing:.09em; text-transform:uppercase; color:#5a6d6f; margin:0 }
+  .ja-stat__v{ font-family:var(--ag-font-mono,monospace); font-size:20px; font-weight:700;
+    color:#10292C; margin:4px 0 0; line-height:1 }
+  /* Reserved for a count that should be zero. Never used for a large number. */
+  .ja-stat--bad .ja-stat__v{ color:#8a2b18 }
+
+  .ja-card{ background:#fff; border:1px solid rgba(16,41,44,.1); border-radius:14px;
+    padding:18px 20px; margin-bottom:16px }
+  .ja-card h3{ margin:0 0 4px; font-size:13.5px; color:#10292C }
+  .ja-card > p{ margin:0 0 14px; font-size:12.5px; line-height:1.7; color:#5a6d6f; max-width:76ch }
+
+  .ja-t{ width:100%; border-collapse:collapse; font-size:12.5px }
+  .ja-t th{ text-align:left; font-family:var(--ag-font-mono,monospace); font-size:10px;
+    font-weight:700; letter-spacing:.09em; text-transform:uppercase; color:#5a6d6f;
+    padding:0 10px 8px 0; border-bottom:1px solid rgba(16,41,44,.12) }
+  .ja-t td{ padding:10px 10px 10px 0; border-bottom:1px solid rgba(16,41,44,.06);
+    color:#3d4b4d; vertical-align:top }
+  .ja-t tr:last-child td{ border-bottom:none }
+  .ja-num{ font-family:var(--ag-font-mono,monospace); font-variant-numeric:tabular-nums }
+  .ja-name{ font-weight:600; color:#10292C }
+  /* The denominator, set beside the figure it qualifies rather than under it. */
+  .ja-den{ display:block; margin-top:3px; font-size:11px; color:#5a6d6f }
+
+  .ja-flag{ font-family:var(--ag-font-mono,monospace); font-size:10px; font-weight:700;
+    letter-spacing:.05em; text-transform:uppercase; padding:3px 8px; border-radius:999px;
+    background:rgba(16,41,44,.07); color:#3d4b4d; white-space:nowrap }
+  .ja-flag--bad{ background:#fdecea; color:#8a2b18 }
+  .ja-flag--warn{ background:#fffaf0; color:#7a5605 }
+
+  .ja-fact{ border-left:3px solid #8a2b18; background:#fdf6f5; border-radius:0 10px 10px 0;
+    padding:13px 16px; margin-bottom:12px }
+  .ja-fact b{ color:#8a2b18 }
+  .ja-fact p{ margin:6px 0 0; font-size:12.5px; line-height:1.65; color:#5a4442 }
+
+  .ja-caveat{ margin:14px 0 0; padding:12px 15px; border-left:3px solid #d49a0e;
+    background:#fffaf0; border-radius:0 8px 8px 0; font-size:12.5px; line-height:1.65;
+    color:#7a5605 }
+  .ja-empty{ font-size:12.5px; line-height:1.7; color:#5a6d6f; margin:0 }
+</style>
+{% endblock %}
+
+{% block topbar_title %}Judging audit{% endblock %}
+
+{% block content %}
+
+<div class="ja-lede">
+  <h2>How this award decides, and who has been deciding it</h2>
+  <p>Every mark and every change to a mark, across every cycle this programme has run.
+    Two things on this page are records of what happened and need no interpretation: a
+    judge who declared a conflict and scored anyway, and a mark changed after the results
+    date. Everything else is arithmetic over small numbers, and carries the count it was
+    computed from.</p>
+  <p>For whether one cycle&rsquo;s result is sound &mdash; bias, collusion, vote fraud &mdash;
+    see <a href="/admin/integrity">Integrity</a>, which asks that question of a single cycle
+    with the caveats that belong to it.</p>
+</div>
+
+<form method="get" action="/admin/judging-audit" class="ja-row">
+  <div>
+    <label for="jaProg" style="display:block;font-size:12px;font-weight:600;color:#10292C">Award programme</label>
+    {# data-ag-do, NOT an inline onchange: the admin CSP has no 'unsafe-inline' in
+       script-src, so an inline handler silently never runs and CspTest fails the build
+       over it. The button below is not decoration — it is what makes the selector work
+       if admin.js ever fails to load. #}
+    <select id="jaProg" name="programme" data-ag-do="submit-form" style="margin-top:5px">
+      {% for p in programmes %}
+        <option value="{{ p.id }}"{% if p.id == programme_id %} selected{% endif %}>{{ p.title }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <button type="submit" class="ad-btn">Show</button>
+</form>
+
+{% if failed %}
+  <div class="ja-fact">
+    <b>This audit could not be built.</b>
+    <p>The error is in the server log. Nothing below is missing because it is empty &mdash;
+      it is missing because the query did not run, and those two look the same on a screen.</p>
+  </div>
+{% elseif audit.totals.scores == 0 %}
+  <div class="ja-card">
+    <h3>Nothing has been judged yet</h3>
+    <p class="ja-empty">No marks have been recorded for this programme. That is not a
+      finding &mdash; a programme in nominations or voting has nothing to audit until a
+      panel has scored.</p>
+  </div>
+{% else %}
+
+  <div class="ja-stats">
+    <div class="ja-stat">
+      <p class="ja-stat__k">Cycles</p>
+      <p class="ja-stat__v">{{ audit.totals.cycles }}</p>
+    </div>
+    <div class="ja-stat">
+      <p class="ja-stat__k">Nominees</p>
+      <p class="ja-stat__v">{{ audit.totals.nominees }}</p>
+    </div>
+    <div class="ja-stat{% if audit.totals.unjudged > 0 %} ja-stat--bad{% endif %}">
+      <p class="ja-stat__k">Never scored</p>
+      <p class="ja-stat__v">{{ audit.totals.unjudged }}</p>
+    </div>
+    <div class="ja-stat">
+      <p class="ja-stat__k">Judges</p>
+      <p class="ja-stat__v">{{ audit.totals.judges }}</p>
+    </div>
+    <div class="ja-stat">
+      <p class="ja-stat__k">Marks</p>
+      <p class="ja-stat__v">{{ audit.totals.scores }}</p>
+    </div>
+    <div class="ja-stat{% if audit.conflicts|length > 0 %} ja-stat--bad{% endif %}">
+      <p class="ja-stat__k">Conflicts breached</p>
+      <p class="ja-stat__v">{{ audit.conflicts|length }}</p>
+    </div>
+  </div>
+
+  {# ── THE ONE THING THAT IS NOT A SIGNAL ──────────────────────────────────
+     A declaration in gates_judge_coi, and marks recorded afterwards. Two records
+     of two events. It was collected and stored and never compared. #}
+  {% if audit.conflicts %}
+    <div class="ja-card">
+      <h3>Declared a conflict on this programme, and scored in it</h3>
+      <p>Not an inference. Each of these is a conflict-of-interest declaration held against
+        this programme, and marks by the same judge on nominees inside it.</p>
+      {% for c in audit.conflicts %}
+        <div class="ja-fact">
+          <b>{{ c.judge }}</b> &mdash; {{ c.scores }} mark{{ c.scores == 1 ? '' : 's' }}
+          {% if c.declared_first %}
+            recorded <b>after</b> declaring the conflict on {{ c.declared_at|slice(0, 10) }}.
+          {% else %}
+            recorded <b>before</b> declaring the conflict on {{ c.declared_at|slice(0, 10) }},
+            which reads as a judge recusing themselves partway through.
+          {% endif %}
+          {% if c.reason %}<p>Reason given: {{ c.reason }}</p>{% endif %}
+        </div>
+      {% endfor %}
+    </div>
+  {% endif %}
+
+  {# ── THE PROCESS, PER CYCLE ─────────────────────────────────────────────── #}
+  <div class="ja-card">
+    <h3>Coverage, cycle by cycle</h3>
+    <p>The smallest panel any single nominee faced, not the average one. An average of four
+      can contain a nominee seen by one judge, and that nominee is the question.</p>
+    <table class="ja-t">
+      <thead>
+        <tr>
+          <th>Cycle</th><th>Status</th><th>Nominees</th><th>Never scored</th>
+          <th>One judge only</th><th>Smallest panel</th><th>No dossier</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for c in audit.cycles %}
+          <tr>
+            <td class="ja-name">{{ c.edition_label|default(c.year) }}</td>
+            <td>{{ c.status }}</td>
+            <td class="ja-num">{{ c.nominees }}</td>
+            <td class="ja-num">
+              {% if c.unjudged > 0 %}<span class="ja-flag ja-flag--bad">{{ c.unjudged }}</span>
+              {% else %}0{% endif %}
+            </td>
+            <td class="ja-num">
+              {% if c.thin > 0 %}<span class="ja-flag ja-flag--warn">{{ c.thin }}</span>
+              {% else %}0{% endif %}
+            </td>
+            <td class="ja-num">{{ c.min_panel }}</td>
+            {# A nominee whose orientation dossier failed was judged without the briefing
+               every other nominee's judges had. Written since day one, shown here first. #}
+            <td class="ja-num">
+              {% if c.no_dossier > 0 %}<span class="ja-flag ja-flag--warn">{{ c.no_dossier }}</span>
+              {% else %}0{% endif %}
+            </td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  {# ── THE JUDGES ─────────────────────────────────────────────────────────── #}
+  <div class="ja-card">
+    <h3>The panel</h3>
+    <p>What each judge did, ordered by how much of the field they saw. The lean is measured
+      against the rest of the panel on the same nominee and criterion &mdash; never against
+      a mean that includes the judge&rsquo;s own mark, which would flatten it.</p>
+    <table class="ja-t">
+      <thead>
+        <tr><th>Judge</th><th>Marks</th><th>Nominees</th><th>Mean given</th>
+            <th>Lean vs panel</th><th>Scored between</th></tr>
+      </thead>
+      <tbody>
+        {% for j in audit.judges %}
+          <tr>
+            <td class="ja-name">{{ j.judge }}</td>
+            <td class="ja-num">{{ j.scores }}</td>
+            <td class="ja-num">{{ j.nominees }}</td>
+            <td class="ja-num">{{ j.mean }}</td>
+            <td class="ja-num">
+              {% if j.lean is null %}
+                &mdash;
+                <span class="ja-den">nobody else scored the same work</span>
+              {% else %}
+                {{ j.lean > 0 ? '+' : '' }}{{ j.lean }}
+                <span class="ja-den">over {{ j.compared }} comparison{{ j.compared == 1 ? '' : 's' }}</span>
+              {% endif %}
+            </td>
+            <td>{{ j.first_at|slice(0, 10) }} &ndash; {{ j.last_at|slice(0, 10) }}</td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    <p class="ja-caveat">A lean is arithmetic over whatever number is in the column beside
+      it. Across a panel of twenty, some leans look striking by chance; a figure computed
+      over six comparisons is not the same claim as one computed over sixty. This is a
+      place to ask a question, never a finding on its own.</p>
+  </div>
+
+  {# ── THE TRAIL ──────────────────────────────────────────────────────────── #}
+  <div class="ja-card">
+    <h3>Marks that were changed</h3>
+    <p>Every mark that was set and then set again. A first mark is not listed &mdash; that
+      is the judging. A second is the audit.</p>
+    {% if audit.changes %}
+      <table class="ja-t">
+        <thead>
+          <tr><th>When</th><th>Judge</th><th>Nominee</th><th>Criterion</th>
+              <th>Change</th><th></th></tr>
+        </thead>
+        <tbody>
+          {% for c in audit.changes %}
+            <tr>
+              <td class="ja-num">{{ c.changed_at|slice(0, 16) }}</td>
+              <td class="ja-name">{{ c.judge }}</td>
+              <td>{{ c.nominee }}</td>
+              <td>{{ c.criterion|default('—') }}</td>
+              <td class="ja-num">{{ c.old }} &rarr; {{ c.new }}</td>
+              <td>
+                {% if c.after_results %}
+                  <span class="ja-flag ja-flag--bad">After results</span>
+                {% elseif c.late %}
+                  <span class="ja-flag ja-flag--warn">Days later</span>
+                {% endif %}
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    {% else %}
+      <p class="ja-empty">No mark in this programme has ever been changed after it was
+        first set.</p>
+    {% endif %}
+  </div>
+
+{% endif %}
+
+{% endblock %}

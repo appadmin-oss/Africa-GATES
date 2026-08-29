@@ -667,10 +667,12 @@ final class StandsController
             fputcsv($out, [
                 (string) ($type->name ?? ''),
                 (string) (StandType::categories()[(string) ($type->category ?? '')] ?? ''),
-                // Empty for an application submitted before the form asked. Blank is the
-                // honest rendering of "not asked" — anything else invents a claim on a row
-                // somebody allocates a market from.
-                (string) (StandType::categories()[(string) ($r['app']->category ?? '')] ?? ''),
+                // Falls back to the pitch's category for an application submitted before
+                // the form asked, marked "(from pitch)" — see StandApplication::trade().
+                // A blank cell is a row somebody has to look up on the morning of a
+                // market; an unmarked inference is worse, because it reads as a fact the
+                // vendor stated.
+                StandApplication::trade($r['app'], $type)['label'],
                 PartnerOrg::legalNameOf($org),
                 (string) ($org->name ?? ''),
                 $r['individual'] ? 'Individual' : 'Registered business',

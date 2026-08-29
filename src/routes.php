@@ -3099,6 +3099,15 @@ return function(App $app) {
         // the summary and written by nothing, so the queue could only ever grow.
         $a->post('/integrity/fraud-reviewed', \AfricaGates\Admin\Controllers\IntegrityController::class.':reviewFraud');
 
+        // ── HOW ONE PROGRAMME JUDGES, AND WHO HAS BEEN JUDGING IT ───────────
+        //
+        // A different question from Integrity's, at a different altitude: that page asks
+        // whether ONE CYCLE's result is sound, in the hours before publishing it. This
+        // asks whether an award means anything — across every cycle it has run, as its
+        // panel turned over. The spine of it is gates_judge_score_log, which has recorded
+        // every change to every mark since it was added and which nothing read.
+        $a->get('/judging-audit', \AfricaGates\Admin\Controllers\JudgingAuditController::class.':index');
+
         // ── WHAT VENDORS MUST SUPPLY, AND MAY SELL ──────────────────────────
         //
         // Both were constants in PHP, on a deployment with no SSH — so a craft market of

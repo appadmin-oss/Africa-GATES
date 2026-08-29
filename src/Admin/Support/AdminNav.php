@@ -142,6 +142,11 @@ final class AdminNav
                 'tip' => 'Every dataset collected — browse, view details and export.',
                 'items' => [
                     ['page' => 'integrity',     'label' => 'Integrity',           'href' => '/admin/integrity'],
+                    // Beside Integrity, because they answer the same kind of question at
+                    // different altitudes: that one asks whether a cycle's result is
+                    // sound, this one whether an award's judging can be defended across
+                    // every cycle it has run.
+                    ['page' => 'judging-audit', 'label' => 'Judging Audit',       'href' => '/admin/judging-audit'],
                     ['page' => 'data',          'label' => 'All data',            'href' => '/admin/data'],
                     ['page' => 'analytics',     'label' => 'Analytics',           'href' => '/admin/analytics'],
                     ['page' => 'registrations', 'label' => 'Event Registrations', 'href' => '/admin/registrations'],

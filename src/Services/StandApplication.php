@@ -61,6 +61,47 @@ final class StandApplication
      */
     public const SELLS_MAX = 2000;
 
+    /**
+     * The trade to show for one application, and whether the vendor said it.
+     *
+     * ── WHY THIS IS NOT JUST `$app->category ?: $type->category` ─────────────
+     *
+     * An application submitted before the form asked has no declared trade, and a blank
+     * cell on an allocation sheet is a row an organiser has to go and look up on the
+     * morning of a market. So it falls back to the pitch's category, which is the best
+     * available answer.
+     *
+     * But it is an INFERENCE and it is marked as one, because the two are different
+     * claims that can disagree. A "3m corner pitch" filed under `general` is picked for
+     * its size; two vendors choosing it are not thereby in the same trade. Presenting
+     * that inference in the same voice as a vendor's own declaration is how a market gets
+     * allocated on a fact nobody stated — and the person reading the sheet has no way to
+     * tell which cells are which.
+     *
+     * One resolver, so the CSV, the console and any screen added later cannot disagree
+     * about what a blank means.
+     *
+     * @return array{slug:string, label:string, declared:bool}
+     */
+    public static function trade(?object $app, ?object $type = null): array
+    {
+        $cats = VendorPolicy::categories();
+
+        $slug = trim((string) ($app->category ?? ''));
+        if ($slug !== '') {
+            return ['slug' => $slug, 'label' => $cats[$slug] ?? $slug, 'declared' => true];
+        }
+
+        $fallback = trim((string) ($type->category ?? ''));
+        if ($fallback === '') return ['slug' => '', 'label' => '', 'declared' => false];
+
+        return [
+            'slug'     => $fallback,
+            'label'    => ($cats[$fallback] ?? $fallback) . ' (from pitch)',
+            'declared' => false,
+        ];
+    }
+
     public static function find(int $id): ?object
     {
         if ($id < 1) return null;

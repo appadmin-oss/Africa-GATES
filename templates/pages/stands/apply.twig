@@ -765,7 +765,7 @@
         <div class="ap-photos">
           <div class="ap-photos__h">
             <p class="ap-photos__k" id="apPhotosK">Photos of what you sell</p>
-            <span class="ap-photos__n" data-ap-count aria-live="polite">0 OF {{ photo_max }} ADDED · {{ photo_min }} REQUIRED</span>
+            <span class="ap-photos__n" data-ap-count aria-live="polite">0 OF {{ photo_max }} ADDED · {{ photo_min }} {% if photo_required %}REQUIRED{% else %}FOR A COMPLETE APPLICATION{% endif %}</span>
           </div>
           <p class="ap-photos__why">Two scorers read this application without meeting you,
             and a photograph of the actual goods is the only thing on the form that shows
@@ -865,6 +865,9 @@
   'use strict';
 
   var MIN = {{ photo_min }}, MAX = {{ photo_max }}, MAX_BYTES = {{ photo_max_bytes }},
+      // Whether this call holds applicants to the gate. A call that was already open
+      // when photographs became a requirement keeps the rules it published.
+      REQ = {{ photo_required ? 'true' : 'false' }},
       BUDGET = {{ photo_budget }}, LIMIT_H = '{{ photo_limit_h }}', BUDGET_H = '{{ photo_budget_h }}';
 
   // ── THE RAIL FOLLOWS THE FORM ────────────────────────────────────────────
@@ -1032,7 +1035,8 @@
     input.files = dt.files;
 
     if (count) {
-      count.textContent = picked.length + ' OF ' + MAX + ' ADDED · ' + MIN + ' REQUIRED';
+      count.textContent = picked.length + ' OF ' + MAX + ' ADDED · ' + MIN
+                        + (REQ ? ' REQUIRED' : ' FOR A COMPLETE APPLICATION');
       count.classList.toggle('is-met', picked.length >= MIN);
     }
     if (add) add.hidden = picked.length >= MAX;
