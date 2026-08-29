@@ -7,6 +7,7 @@ use AfricaGates\Services\EmailOptOut;
 use AfricaGates\Services\EventInvites;
 use AfricaGates\Services\InviteAudience;
 use AfricaGates\Services\InviteLetter;
+use AfricaGates\Support\Brand;
 use AfricaGates\Services\InviteMailer;
 use AfricaGates\Services\OtpService;
 use Illuminate\Database\Capsule\Manager as DB;
@@ -358,6 +359,76 @@ final class InviteMailerTest extends TestCase
             'the salutation resolved to nothing and left a bare name');
     }
 
+    // ══ the mark ═════════════════════════════════════════════════════════════
+
+    /**
+     * The letter and the email it arrives with carry the SAME mark.
+     *
+     * `public/assets/img/` holds fourteen files with "logo", "mark" or "brand" in the
+     * name, and only one is the real lockup — the rest are a favicon badge, two
+     * hand-drawn approximations and a pair of watermarks. A path typed into a template is
+     * a decision nobody can find later, and a letter showing one logo beside an email
+     * showing another is worse than neither carrying any.
+     */
+    public function test_both_surfaces_take_the_mark_from_one_resolver(): void
+    {
+        $this->assertFileExists(
+            dirname(__DIR__, 2) . '/public/' . Brand::LOGO,
+            'the lockup named by Brand is not in the deploy'
+        );
+
+        $tpl = (string) file_get_contents(
+            dirname(__DIR__, 2) . '/templates/emails/invitation.twig');
+        $this->assertStringContainsString('{{ logo_url }}', $tpl,
+            'the email hard-codes a path instead of asking Brand');
+
+        $html = InviteMailer::preview($this->invite(), $this->event);
+        $this->assertStringContainsString(Brand::LOGO, $html, 'the mark is not in the email');
+
+        // And the letter embeds the same file's bytes.
+        $this->assertNotNull(Brand::logoJpeg(320), 'the mark could not be transcoded for the PDF');
+    }
+
+    /**
+     * The declared box is the artwork's own ratio — on both surfaces.
+     *
+     * In email, a width and height that are not the real ratio make a blocked image
+     * reserve the wrong box and the layout jump when it loads. In the PDF it is worse
+     * than cosmetic: Pdf::image() COVERS its box and clips the overflow, like
+     * `object-fit: cover` — right for a poster on a ticket, and for a logo it crops the
+     * Africa outline instead of fitting it. Matching the ratio is what makes cover and
+     * contain the same operation.
+     */
+    public function test_the_mark_is_never_stretched_or_cropped(): void
+    {
+        $file = dirname(__DIR__, 2) . '/public/' . Brand::LOGO;
+        [$w, $h] = getimagesize($file);
+        $this->assertEqualsWithDelta($w / $h, Brand::LOGO_RATIO, 0.001,
+            'Brand::LOGO_RATIO no longer describes the file — a new export was dropped in '
+            . 'without it');
+
+        $tpl = (string) file_get_contents(
+            dirname(__DIR__, 2) . '/templates/emails/invitation.twig');
+        preg_match('/<img src="\{\{ logo_url \}\}" width="(\d+)" height="(\d+)"/', $tpl, $m);
+        $this->assertNotEmpty($m, 'the mark carries no width and height — a blocked image '
+                                . 'then collapses the band it is the only thing in');
+        $this->assertEqualsWithDelta((int) $m[1] / (int) $m[2], Brand::LOGO_RATIO, 0.02,
+            'the declared box is not the artwork\'s shape');
+    }
+
+    /**
+     * The letterhead still names the organisation when the file is missing.
+     *
+     * A deploy that dropped the image would otherwise produce a letter with a blank
+     * corner and no name on it at all — and it is the copy somebody keeps.
+     */
+    public function test_the_letterhead_survives_a_missing_logo(): void
+    {
+        $txt = self::pdfText(InviteLetter::render($this->invite(), $this->event));
+        $this->assertStringContainsString('Continental Cultural Recognition', $txt);
+        $this->assertStringContainsString('For and on behalf of Africa GATES', $txt);
+    }
+
     // ══ the letter is a letter ═══════════════════════════════════════════════
 
     /**
@@ -561,16 +632,30 @@ final class InviteMailerTest extends TestCase
      */
     private static function pdfParts(string $pdf): array
     {
-        // Content streams and CMaps are /FlateDecode — see Pdf::output().
+        // ── SLICED ON OBJECT HEADERS, NOT ON `endobj` ────────────────────────
+        //
+        // This used to match `(\d+) 0 obj(.*?)endobj` across the whole file. That works
+        // right up until the document contains an image: a JPEG's compressed bytes are
+        // arbitrary binary, the non-greedy match ends somewhere inside them, and every
+        // object after it is sliced at the wrong offset — so the font dictionaries go
+        // missing and two thirds of the letter reads back as absent. It looked exactly
+        // like the renderer had stopped drawing.
+        //
+        // Boundaries come from the NEXT object header instead. Binary that happens to
+        // contain "endobj" is ordinary; binary that happens to contain "N 0 obj" at a
+        // line start is not, and even then it corrupts one object rather than the tail of
+        // the file.
         $objects = [];
-        if (preg_match_all('/(\d+) 0 obj(.*?)endobj/s', $pdf, $objs, PREG_SET_ORDER)) {
-            foreach ($objs as $o) {
-                $body = $o[2];
+        if (preg_match_all('/(?:^|[\r\n])(\d+) 0 obj\b/', $pdf, $heads, PREG_OFFSET_CAPTURE | PREG_SET_ORDER)) {
+            foreach ($heads as $i => $h) {
+                $from = $h[0][1] + strlen($h[0][0]);
+                $to   = $heads[$i + 1][0][1] ?? strlen($pdf);
+                $body = substr($pdf, $from, $to - $from);
                 if (preg_match('/stream\r?\n(.*?)\r?\nendstream/s', $body, $st)) {
                     $inf = @gzuncompress($st[1]);
                     if (is_string($inf) && $inf !== '') $body .= "\n" . $inf;
                 }
-                $objects[(int) $o[1]] = $body;
+                $objects[(int) $h[1][0]] = $body;
             }
         }
 

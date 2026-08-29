@@ -395,6 +395,30 @@ final class EventInvitesTest extends TestCase
             'the whole point is the table, not the return value');
     }
 
+    /**
+     * "Nothing to migrate" over a table that is not there has to be describable.
+     *
+     * The old status readout was a count and a pending list, and in this state the
+     * pending list is empty — so it looked exactly like a healthy install, which is
+     * where the operator and I both got stuck. `known` says how many steps the deploy
+     * actually carries and `absent` names any the ledger claims but the files do not
+     * back, which is the incomplete-upload case.
+     */
+    public function test_the_setup_status_can_describe_a_deploy_missing_its_files(): void
+    {
+        DB::table('gates_migrations')->insert([
+            'migration' => '2099_01_01_not_in_this_deploy.php', 'applied_at' => '2026-01-01 00:00:00',
+        ]);
+
+        $st = \AfricaGates\Services\MigrationRunner::status();
+
+        $this->assertGreaterThan(0, $st['known'], 'the runner can see no steps at all');
+        $this->assertContains('2099_01_01_not_in_this_deploy.php', $st['absent'],
+            'a step the ledger claims and the deploy does not carry is invisible');
+        // And a step that IS present is not reported as absent.
+        $this->assertNotContains(EventInvites::MIGRATION, $st['absent']);
+    }
+
     /** A name that is not a step is refused rather than included. */
     public function test_the_repair_will_not_include_an_arbitrary_path(): void
     {

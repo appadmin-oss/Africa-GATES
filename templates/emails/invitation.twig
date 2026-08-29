@@ -111,9 +111,27 @@
            which made the heaviest thing on the page something you met after three
            screens of paper. Weight belongs at the top, where it reads as a header
            instead of an interruption. #}
+        {# ── THE MASTHEAD ─────────────────────────────────────────────────
+           A WHITE band, and that is forced rather than chosen: the lockup is
+           white-backed artwork — no reversed-out version of it exists in this
+           repository — so on the ink below it would be a pale block with a hole
+           in it. Inverting a PNG to make one is how a brand mark ends up grey.
+
+           It also happens to be the right shape. The letter this email carries
+           puts the mark on paper above a rule; doing the same here means the two
+           documents open the same way, which is what a letterhead is for.
+
+           width AND height on the tag, always: a blocked remote image with no
+           height collapses the band it is the only thing in, and Outlook desktop
+           blocks by default. The alt is the organisation's name, styled — an
+           unstyled alt renders as 10px serif and reads as a broken attachment. #}
         <tr>
-          <td bgcolor="#10292c" style="background-color:#10292c; padding:24px 32px 0 32px;" class="ag-px">
-            <p style="margin:0; font-family:Consolas,'Courier New',monospace; font-size:11.5px; letter-spacing:3.4px; color:#f3b416; text-transform:uppercase;">Africa&nbsp;GATES</p>
+          <td bgcolor="#ffffff" style="background-color:#ffffff; padding:20px 32px 16px 32px;" class="ag-px">
+            {# 106 × 122 is the artwork's own 640:734 ratio. Declaring a height that is
+               not the real ratio is what makes a blocked image reserve the wrong box and
+               the layout jump when it loads. #}
+            <img src="{{ logo_url }}" width="106" height="122" alt="Africa GATES"
+                 style="display:block; width:106px; max-width:106px; height:auto; border:0; outline:none; text-decoration:none; font-family:Georgia,'Times New Roman',serif; font-size:15px; line-height:22px; font-weight:bold; color:#10292c;">
           </td>
         </tr>
         <tr>

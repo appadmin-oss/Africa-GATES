@@ -204,10 +204,21 @@ final class MigrationRunner
     }
 
     /**
-     * Read-only status for the diagnostics endpoint: applied count + pending step keys
-     * (schema files + dated migrations).
+     * Read-only status for the diagnostics endpoint.
      *
-     * @return array{driver:string, applied:int, pending:string[]}
+     * ── WHY IT REPORTS WHAT IT CAN SEE, NOT ONLY WHAT IS LEFT ────────────────
+     *
+     * "Nothing to migrate" and a table that is not there is a real state, and the old
+     * shape of this could not describe it: `pending` is empty in that case and `applied`
+     * is a number, so the readout looked identical to a healthy install.
+     *
+     * There are two ways to reach it. The ledger can carry a step whose file is no longer
+     * in the deploy — an incomplete upload, which `absent` names. Or the file is there and
+     * the step is recorded but did not do its job, which `known` and `applied` agreeing
+     * points at. Either way the operator has something to paste rather than a mystery, and
+     * on a host with no shell that is the whole diagnostic surface there is.
+     *
+     * @return array{driver:string, applied:int, known:int, pending:string[], absent:string[]}
      */
     public static function status(): array
     {
@@ -218,11 +229,29 @@ final class MigrationRunner
             self::ensureLedger($driver);
             foreach (DB::table('gates_migrations')->pluck('migration') as $m) { $applied[(string) $m] = true; }
         } catch (\Throwable) {}
+
         $pending = [];
+        $seen    = [];
         foreach (self::steps($root, $driver) as $s) {
+            $seen[$s['key']] = true;
             if (!isset($applied[$s['key']])) $pending[] = $s['key'];
         }
-        return ['driver' => $driver, 'applied' => count($applied), 'pending' => $pending];
+
+        // Recorded as applied, and not on disk. The deploy is missing files, and every one
+        // of them is a table or a column the code above it expects to exist.
+        $absent = array_values(array_filter(
+            array_keys($applied),
+            static fn (string $k): bool => !isset($seen[$k])
+        ));
+        sort($absent);
+
+        return [
+            'driver'  => $driver,
+            'applied' => count($applied),
+            'known'   => count($seen),
+            'pending' => $pending,
+            'absent'  => $absent,
+        ];
     }
 
     /**

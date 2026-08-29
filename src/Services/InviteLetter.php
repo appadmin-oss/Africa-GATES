@@ -2,6 +2,7 @@
 declare(strict_types=1);
 namespace AfricaGates\Services;
 
+use AfricaGates\Support\Brand;
 use AfricaGates\Support\DisplayTime;
 use AfricaGates\Support\Pdf;
 use Illuminate\Support\Carbon;
@@ -54,6 +55,9 @@ final class InviteLetter
      * place — see the note at the reference block. `REF_Y` leaves 18.5mm for the block
      * itself plus a gap before `SIGN_Y`.
      */
+    /** The printed width of the lockup. Its height follows from the artwork's own ratio. */
+    private const LOGO_W = 21.0;
+
     private const REF_Y  = self::PAGE_H - self::MARGIN - 66.0;
     private const SIGN_Y = self::PAGE_H - self::MARGIN - 42.0;
 
@@ -90,16 +94,39 @@ final class InviteLetter
         $y     = self::MARGIN;
 
         // ── 1 · letterhead ───────────────────────────────────────────────────
-        $pdf->text('AFRICA GATES', $x, $y + 6.2, 'mono', 9.5, self::INK, 2.2);
-        $pdf->text('Continental Cultural Recognition', $x, $y + 11.6, 'text', 8.0, self::MUTE);
+        //
+        // The mark, then the words — the ordinary shape of a letterhead, and the reason
+        // the wordmark below is set quietly: with the lockup present, "AFRICA GATES" in
+        // tracked capitals beside it is the same name twice.
+        //
+        // The box is sized from the artwork's OWN ratio, because Pdf::image() covers and
+        // clips its box like `object-fit: cover` — correct for a poster on a ticket, and
+        // the wrong thing entirely for a logo, where a box of the wrong shape crops the
+        // Africa outline rather than fitting it. Matching the ratio makes cover and
+        // contain the same operation.
+        $logoH = 0.0;
+        $logo  = Brand::logoJpeg((int) round(self::LOGO_W * 3));   // ~300dpi
+        if ($logo !== null) {
+            $logoH = self::LOGO_W / Brand::LOGO_RATIO;
+            $pdf->image($logo, $x, $y, self::LOGO_W, $logoH, 0.5);
+        }
+
+        // Set beside the mark when there is one, and in its place when the deploy is
+        // missing the file — a letterhead that silently loses its name because an image
+        // did not load is worse than one that never had a picture.
+        $tx = $logo !== null ? $x + self::LOGO_W + 7.0 : $x;
+        $ty = $logo !== null ? $y + $logoH / 2 - 3.4 : $y + 6.2;
+        if ($logo === null) {
+            $pdf->text('AFRICA GATES', $tx, $ty, 'mono', 9.5, self::INK, 2.2);
+            $ty += 5.4;
+        }
+        $pdf->text('Continental Cultural Recognition', $tx, $ty, 'semi', 9.0, self::INK);
+        $pdf->text('An Afrovanguard Initiative', $tx, $ty + 5.0, 'text', 8.0, self::MUTE);
 
         $host = self::host();
-        $pdf->text($host, $x + $w - $pdf->width($host, 'text', 8.0), $y + 6.2, 'text', 8.0, self::MUTE);
-        $pdf->text('An Afrovanguard Initiative',
-                   $x + $w - $pdf->width('An Afrovanguard Initiative', 'text', 8.0),
-                   $y + 11.6, 'text', 8.0, self::MUTE);
+        $pdf->text($host, $x + $w - $pdf->width($host, 'text', 8.0), $ty + 5.0, 'text', 8.0, self::MUTE);
 
-        $y += 17.0;
+        $y += max(17.0, $logoH + 4.0);
         // Two rules, 0.9mm apart — the letterpress convention for a letterhead, and the
         // one piece of ornament in the document. The gold is the thin one.
         $pdf->line($x, $y, $x + $w, $y, self::INK, 0.5);
