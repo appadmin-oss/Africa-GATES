@@ -116,6 +116,10 @@ class EventsController
             ];
         }
 
+        // Asked once. It reads the schema and, when the table is absent, the migration
+        // ledger — neither of which should be done twice to answer one question.
+        $linkBlocker = \AfricaGates\Services\EventInvites::linkBlocker();
+
         return $this->view->render($res, 'admin/events/form.twig', [
             'page_title' => $id ? 'Edit Event — Admin' : 'New Event — Admin',
             'admin_page' => 'events',
@@ -151,7 +155,14 @@ class EventsController
                 static fn (object $p): int => (int) $p->id,
                 \AfricaGates\Services\EventInvites::programmesFor((int) ($row['id'] ?? 0))
             ),
-            'programme_link_ready' => DB::schema()->hasTable('gates_event_programmes'),
+            // The blocker itself, not a boolean. This screen used to be handed a yes/no
+            // and print its own hard-coded sentence telling the operator to run
+            // /__setup/migrate — which is the one instruction that cannot work when the
+            // step is recorded as applied and the table is absent, and it went on saying
+            // it after they had done it. EventInvites::linkBlocker() knows which of the
+            // two faults it is and whether a repair is available; both screens read it.
+            'programme_link'       => $linkBlocker,
+            'programme_link_ready' => $linkBlocker === null,
             // datetime-local wants its own format, and a raw timestamp in the box silently
             // renders as empty — which reads as "no cutoff set" and quietly removes one.
             'sales_close_input' => self::forInput((string) ($row['sales_close_at'] ?? '')),

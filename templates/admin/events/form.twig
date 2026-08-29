@@ -194,13 +194,33 @@
            run reads from it. Gone with no explanation, it does not read as "not migrated
            yet", it reads as "that feature does not exist" — which is what it read as.
            So the control goes, and the reason stays. #}
-        {% if not programme_link_ready %}
+        {# The DIAGNOSIS, not a fixed sentence. This block used to say "run the migration
+           once — /__setup/migrate" whatever the actual state was, which is the exact
+           instruction that cannot work when the step is recorded as applied and the table
+           is absent: the endpoint skips it forever. It went on saying it after the
+           operator had run it, repeatedly, so the feature read as one that had never been
+           built. EventInvites::linkBlocker() decides which of the two faults it is. #}
+        {% if programme_link %}
         <div style="grid-column:1/-1;background:#fdf6e3;border:1px solid #f3b416;border-radius:11px;padding:12px 14px;font-size:12.5px;line-height:1.7;color:#10292C">
           <strong style="display:block;margin-bottom:2px">Awards cannot be linked to this event yet.</strong>
-          The table that holds the link has not been created. Run the migration once —
-          <code>/__setup/migrate?token=…</code> with the <code>SETUP_TOKEN</code> from your
-          <code>.env</code> — and this becomes a list of tick boxes here. Until then the
-          invitation run has no shortlist to draw from.
+          {{ programme_link.what }} {{ programme_link.fix }}
+          {% if programme_link.rerun and row.id is defined %}
+            {# formaction, NOT a nested <form>. A <form> inside a <form> is DELETED by the
+               parser — not nested, dropped — and this button would then have run the event
+               save instead. Three of those have shipped here; the house convention is a
+               formaction on the submit button and this is it.
+
+               `?back=form` so the redirect lands where the button was pressed. Without it
+               an operator on the event form is thrown to the invitation screen, which is
+               not where they were and not what they were doing. #}
+            <div style="margin-top:10px">
+              <button class="ad-btn" type="submit"
+                      formaction="/admin/events/{{ row.id }}/invites/repair?back=form"
+                      formnovalidate>Create the awards link now</button>
+              <span style="margin-left:8px;color:var(--ad-text-soft)">Applies
+                <code>{{ programme_link.rerun }}</code> again. Safe to press twice.</span>
+            </div>
+          {% endif %}
         </div>
         {% endif %}
         {% if programme_link_ready %}

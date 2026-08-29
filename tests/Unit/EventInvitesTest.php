@@ -450,17 +450,79 @@ final class EventInvitesTest extends TestCase
      */
     public function test_the_events_form_explains_the_missing_link_rather_than_hiding_it(): void
     {
-        $tpl = (string) file_get_contents(
-            dirname(__DIR__, 2) . '/templates/admin/events/form.twig');
+        // ── WHY THIS RENDERS THE PAGE INSTEAD OF READING THE TEMPLATE ────────
+        //
+        // It used to assert that form.twig contained the string "/__setup/migrate" inside
+        // a `{% if not programme_link_ready %}` branch. That passed for as long as the
+        // notice existed — including while the notice was a HARD-CODED sentence that
+        // ignored the diagnosis entirely and told an operator to run the one endpoint
+        // that provably cannot help in the dead-end case. The screen was useless and the
+        // test was green, because the test was checking that some words were in a file.
+        //
+        // Rendering is the only thing that can tell those apart.
+        $_SESSION['admin_id']   = 1;
+        $_SESSION['admin_role'] = 'superadmin';
 
-        $this->assertStringContainsString('{% if not programme_link_ready %}', $tpl,
-            'the unmigrated case has no branch, so it says nothing');
-        $at = strpos($tpl, '{% if not programme_link_ready %}');
-        $notice = substr($tpl, $at, 900);
-        $this->assertStringContainsString('/__setup/migrate', $notice,
+        DB::schema()->drop('gates_event_programmes');
+        DB::table('gates_migrations')->updateOrInsert(
+            ['migration' => EventInvites::MIGRATION], ['applied_at' => '2026-01-01 00:00:00']
+        );
+
+        $html = $this->renderEventForm();
+
+        $this->assertStringContainsString('Awards cannot be linked to this event yet', $html);
+        $this->assertStringContainsString('recorded as already applied', $html,
+            'the screen is still repeating the generic instruction rather than the diagnosis');
+        $this->assertStringContainsString('Create the awards link now', $html,
+            'the only way out of this state is not offered where the operator is standing');
+        $this->assertStringContainsString('back=form', $html,
+            'the repair would land them on a different screen from the one they pressed it on');
+    }
+
+    /** And when setup is simply unfinished, it says THAT — with no repair button. */
+    public function test_an_unfinished_run_is_not_offered_a_repair_it_does_not_need(): void
+    {
+        $_SESSION['admin_id']   = 1;
+        $_SESSION['admin_role'] = 'superadmin';
+
+        DB::schema()->drop('gates_event_programmes');
+        DB::table('gates_migrations')->where('migration', EventInvites::MIGRATION)->delete();
+
+        $html = $this->renderEventForm();
+
+        $this->assertStringContainsString('/__setup/migrate', $html,
             'there is no shell on this host — the notice has to name the route that fixes it');
-        // And the control itself still goes, or the save posts a column that is not there.
-        $this->assertStringContainsString('{% if programme_link_ready %}', $tpl);
+        $this->assertStringContainsString('LEAVE THE TAB OPEN', $html);
+        $this->assertStringNotContainsString('Create the awards link now', $html,
+            'a repair offered where the ordinary route works invites somebody to reach for '
+            . 'the sharp tool first');
+    }
+
+    /** And with the table present, the tick boxes are there and the notice is not. */
+    public function test_a_migrated_deployment_gets_the_control_and_no_notice(): void
+    {
+        $_SESSION['admin_id']   = 1;
+        $_SESSION['admin_role'] = 'superadmin';
+
+        $html = $this->renderEventForm();
+
+        $this->assertStringContainsString('Awards presented at this event', $html);
+        $this->assertStringNotContainsString('Awards cannot be linked', $html);
+    }
+
+    /** The event form, rendered through the real controller. */
+    private function renderEventForm(): string
+    {
+        $b = new \DI\ContainerBuilder();
+        $b->addDefinitions(dirname(__DIR__, 2) . '/config/container.php');
+
+        $req = (new \Slim\Psr7\Factory\ServerRequestFactory())
+            ->createServerRequest('GET', '/admin/events/' . $this->eventId);
+
+        return (string) $b->build()
+            ->get(\AfricaGates\Admin\Controllers\EventsController::class)
+            ->form($req, new \Slim\Psr7\Response(), ['id' => $this->eventId])
+            ->getBody();
     }
 
     /**

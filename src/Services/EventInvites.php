@@ -142,6 +142,67 @@ final class EventInvites
         }
     }
 
+
+    /**
+     * Is the awards-to-event link missing, and if so which of the two faults is it?
+     *
+     * ── ONE RESOLVER, BECAUSE TWO SCREENS ASK ────────────────────────────────
+     *
+     * The invitation screen asks because it has nobody to draw from. The event form asks
+     * because the tick boxes that create the link are the thing that is missing. Both
+     * were answering it separately and only one of them answered it correctly: the event
+     * form carried a HARD-CODED sentence telling an operator to run `/__setup/migrate`,
+     * which is the exact instruction that cannot work in the second case below — and it
+     * went on saying it after they had done it, which is how this came to look like a
+     * feature that had never been built.
+     *
+     * ── THE TWO FAULTS, AND WHY THEY NEED DIFFERENT WORDS ────────────────────
+     *
+     * The ledger is written AFTER a step is included, so a step that threw is not
+     * recorded and the migrate endpoint will retry it. That is the ordinary case, and the
+     * fix is to finish the run — 151 steps, four per request, chained by a meta refresh,
+     * so a closed tab stops it part way and nothing says so.
+     *
+     * The other is a step recorded as applied whose table is not there. The migrate
+     * endpoint then skips it forever and, with no shell on this host, there is no way
+     * back. That one needs {@see MigrationRunner::rerun()}.
+     *
+     * @return array{what:string, fix:string, href:string, hard:bool, rerun:string}|null
+     */
+    public static function linkBlocker(): ?array
+    {
+        try {
+            if (DB::schema()->hasTable('gates_event_programmes')) return null;
+        } catch (\Throwable) {
+            // A schema read that throws is not a missing table — it is a database this
+            // process cannot ask. It falls through to the harder message, because telling
+            // somebody to press a repair button against an unreachable database is worse
+            // than telling them setup is unfinished.
+        }
+
+        $pending = [];
+        try { $pending = MigrationRunner::status()['pending'] ?? []; } catch (\Throwable) {}
+
+        $mine    = self::MIGRATION;
+        $waiting = in_array($mine, $pending, true);
+
+        return [
+            'what' => 'The awards-to-event link has not been created in the database yet.',
+            'fix'  => $waiting
+                ? 'Setup is not finished — ' . count($pending) . ' step'
+                  . (count($pending) === 1 ? '' : 's') . ' still to apply, and this is one '
+                  . 'of them. Open /__setup/migrate?token=… with the SETUP_TOKEN from your '
+                  . '.env and LEAVE THE TAB OPEN: it applies four steps per request and '
+                  . 'refreshes itself until it says "setup complete".'
+                : 'The step that creates it is recorded as already applied, so the migrate '
+                  . 'endpoint skips it — running setup again cannot help. It has to be '
+                  . 'applied on its own, with the button below.',
+            'href'  => '',
+            'hard'  => true,
+            'rerun' => $waiting ? '' : $mine,
+        ];
+    }
+
     /**
      * Why there is nobody to invite, in the order an operator would fix it.
      *
@@ -169,7 +230,7 @@ final class EventInvites
      * for the awards that ARE ready rather than refusing the whole evening.
      *
      * `rerun` names the setup step to apply again, in the one case where the ordinary
-     * migrate endpoint cannot help — see the branch that sets it. Empty everywhere else.
+     * migrate endpoint cannot help — see {@see linkBlocker()}. Empty everywhere else.
      *
      * @return list<array{what:string, fix:string, href:string, hard:bool, rerun:string}>
      */

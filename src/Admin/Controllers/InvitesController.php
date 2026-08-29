@@ -291,8 +291,15 @@ final class InvitesController
      */
     public function repair(Request $req, Response $res, array $args): Response
     {
-        $id   = (int) ($args['id'] ?? 0);
-        $back = '/admin/events/' . $id . '/invites';
+        $id = (int) ($args['id'] ?? 0);
+
+        // Back to where the button was pressed. The same repair is offered on the event
+        // form, where the missing link is what hides the tick boxes, and landing an
+        // operator on the invitation screen instead moves them somewhere they were not
+        // and interrupts what they were doing.
+        $back = ($req->getQueryParams()['back'] ?? '') === 'form'
+            ? '/admin/events/' . $id
+            : '/admin/events/' . $id . '/invites';
 
         if ((string) ($_SESSION['admin_role'] ?? '') !== 'superadmin') {
             $_SESSION['flash_error'] = 'Only a superadmin can apply a setup step.';
