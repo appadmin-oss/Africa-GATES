@@ -428,10 +428,19 @@ final class InviteMailerTest extends TestCase
         $this->assertEqualsWithDelta((int) $m[1] / (int) $m[2], Brand::LOGO_RATIO, 0.02,
             'the declared box is not the artwork\'s shape');
 
+        // The derived raster is small enough that a float delta on the ratio is mostly
+        // measuring its own rounding, so this asserts the pixel instead: the height is
+        // the master's shape applied to whatever width the script was run at.
         $alpha = dirname(__DIR__, 2) . '/public/' . Brand::LOGO_ON_TINT;
         [$rw, $rh] = getimagesize($alpha);
-        $this->assertEqualsWithDelta($rw / $rh, Brand::LOGO_RATIO, 0.001,
+        $this->assertEqualsWithDelta((int) round($rw / Brand::LOGO_RATIO), $rh, 1,
             'the alpha export is a different shape from the lockup it was derived from');
+
+        // And it is served at 2x the declared box, which is what makes it clean on a
+        // phone. Reduced in the mail client instead, the hairline coastline washes out.
+        $this->assertSame((int) $m[1] * 2, $rw,
+            'the raster is no longer 2x the CSS box — scripts/gen-mark-alpha.php OUT_W and '
+            . 'the width in OtpService::brandWrap() are one decision');
 
         // And it is actually transparent where the paper was. Replace it with the shipped
         // opaque lockup and every assertion above still passes — same name, same ratio,

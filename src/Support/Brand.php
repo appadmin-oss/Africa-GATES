@@ -35,18 +35,18 @@ final class Brand
     public const LOGO = 'assets/img/logo-africa-gates.png';
 
     /**
-     * The same lockup with the paper turned to alpha, for a ground that is not white.
+     * The same lockup with the paper turned to alpha, reduced to the size it is served at.
      *
-     * ── DERIVED, NOT INVENTED ────────────────────────────────────────────────
+     * ── DERIVED, AND THERE IS A SCRIPT ───────────────────────────────────────
      *
-     * The artwork is exactly two colours — #FFFFFF and #006634 — so every pixel in it is
-     * a blend of that pair, and the RED channel has the widest spread (255 down to 0),
-     * which recovers that blend ratio with the least quantisation error. This file is
-     * that ratio as alpha, painted in the same green. Keying out the white instead,
-     * which is the obvious thing to reach for, leaves a white halo on every antialiased
-     * edge — and this mark is a hairline coastline, so it is almost entirely edge.
+     * `scripts/gen-mark-alpha.php` builds it, and that script carries the reasoning for
+     * each step. The short version: coverage comes off the RED channel because the
+     * artwork is exactly two colours; the reduction is a box filter done once here rather
+     * than 8x in the recipient's mail client, which is what made the mark look dirty; and
+     * a coverage curve restores the hairline's weight, which a plain reduction washes out.
      *
-     * Regenerate it the same way if the lockup is ever replaced.
+     * It is 2x the CSS box declared in {@see \AfricaGates\Services\OtpService::brandWrap()}.
+     * Those two numbers are one decision — change either and change the other.
      */
     public const LOGO_ON_TINT = 'assets/img/logo-africa-gates-alpha.png';
 

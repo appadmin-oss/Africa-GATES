@@ -592,14 +592,20 @@ HTML;
         // than typing a path is what keeps the letter and the email it arrives with
         // showing the same logo.
         //
-        // ── WHY IT IS 96px AND NOT 42px ──────────────────────────────────────────
+        // ── WHY IT IS 72px, AND WHY THE FILE IS 144 ──────────────────────────────
         //
         // The lockup is a LARGE-FORMAT mark: a hairline coastline with "Africa" set
         // inside it over "G.A.T.E.S." tracked at 4% of the artwork's height. At 42px —
-        // the size a horizontal wordmark would want — that tracked line is under 2px, the
-        // coastline goes sub-pixel, and what arrives is a smudge. It needs about 96px
-        // before the word reads, which makes the header band taller than a wordmark's
-        // would be. That is the artwork, not the layout.
+        // the size a horizontal wordmark would want — the coastline goes sub-pixel and
+        // what arrives is a smudge. 72 is the floor at which "Africa" still reads; the
+        // tracked line below it is texture at any size a masthead can carry, and that is
+        // the artwork rather than the layout.
+        //
+        // What made it look dirty was never the size, though — it was serving the 640px
+        // master and letting the client reduce it 8x, which washes a 2.5px stroke out to
+        // a third of a pixel of coverage. `scripts/gen-mark-alpha.php` does that
+        // reduction properly, ONCE, at 2x this box. Change 72 here and change OUT_W
+        // there: the two are one decision.
         //
         // width AND height on the tag: Outlook desktop blocks remote images by default
         // and a blocked image with no height collapses the band it is the only thing in.
@@ -686,8 +692,8 @@ HTML;
         <tr><td class="ag-head" style="background:#f0f2f2;border-bottom:1px solid rgba(16,41,44,0.10);padding:20px 32px">
           <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr>
             <td align="left" style="vertical-align:middle">
-              <img src="$logo" width="96" height="110" alt="Africa GATES"
-                   style="display:block;width:96px;max-width:96px;height:auto;border:0;outline:none;text-decoration:none;font-family:'Playfair Display',Georgia,serif;font-size:17px;font-weight:700;color:#006634">
+              <img src="$logo" width="72" height="83" alt="Africa GATES"
+                   style="display:block;width:72px;max-width:72px;height:auto;border:0;outline:none;text-decoration:none;font-family:'Playfair Display',Georgia,serif;font-size:15px;font-weight:700;color:#006634">
             </td>
             <td align="right" style="vertical-align:top;padding-top:12px">
               <div style="font-size:10px;font-weight:700;letter-spacing:.16em;text-transform:uppercase;color:#626a6e">Cultural Power Index</div>
