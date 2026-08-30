@@ -352,11 +352,31 @@ final class InterviewService
             }
         }
 
-        DB::table('gates_interviews')->where('id', $id)->update([
+        $now = Carbon::now()->toDateTimeString();
+
+        $row = [
             'status'     => $iv->status === 'draft' ? 'invited' : $iv->status,
-            'invited_at' => Carbon::now()->toDateTimeString(),
-            'updated_at' => Carbon::now()->toDateTimeString(),
-        ]);
+            'invited_at' => $now,
+            'updated_at' => $now,
+        ];
+
+        // ── WHEN THE NOMINEE WAS TOLD ABOUT THE BOT ──────────────────────────
+        //
+        // Only when the invitation actually said it — {@see botDisclosure()} returns ''
+        // when no bot will attend, and a stamp claiming a disclosure that was never
+        // written is worse than an empty column: it is a consent record that lies.
+        //
+        // Stamped once and never overwritten. Re-inviting sends the sentence again, but
+        // the fact worth keeping is when the person was FIRST told, not the last time we
+        // repeated it — and an operator asking "were they told before the bot joined?"
+        // is asking about the first.
+        if (self::botDisclosure() !== '' && empty($iv->bot_disclosed_at)) {
+            $row['bot_disclosed_at'] = $now;
+        }
+
+        DB::table('gates_interviews')->where('id', $id)->update(
+            \AfricaGates\Support\OptionalColumn::filter('gates_interviews', $row, ['bot_disclosed_at'])
+        );
         self::queueReminders($id, (string) $iv->scheduled_at);
 
         if ($sent === []) {
@@ -1164,9 +1184,54 @@ final class InterviewService
              . "without it the panel cannot be shown a transcript, and your answers reach them only "
              . "as the notes a judge takes by hand. Refusing is allowed and costs you nothing in the "
              . "judging.\n\n"
+             // ── WHO ELSE WILL BE IN THE CALL ─────────────────────────────────
+             //
+             // Said only when it is true — the bot attends only where it is switched on
+             // AND configured, and a sentence about a participant who never arrives is
+             // its own small dishonesty.
+             //
+             // Separate from the recording permission above because it is a different
+             // thing to agree to: consenting to be recorded by the person you are talking
+             // to is not consenting to a stranger appearing in the call. Somebody who
+             // opens a Meet link and finds an unnamed participant already there has been
+             // surprised in a conversation about their own work.
+             . self::botDisclosure()
              . "If the time does not work, say so on that page and we will find another. Nothing "
              . "about this stage costs money, and nobody will ever ask you to pay for an interview, "
              . "a nomination or a result.\n";
+    }
+
+    /**
+     * The sentence naming the recording bot, or ''.
+     *
+     * ── THE MECHANISM THE INDEX ALREADY DESCRIBED ────────────────────────────
+     *
+     * `docs/CODEBASE-INDEX.md` §on the interview bot says the disclosure is "stamped by
+     * the invitation rather than by an admin ticking a box, because a bot in the room is a
+     * materially different thing to consent to than a human taking notes."
+     *
+     * It was not. `bot_disclosed_at` existed in the schema and nothing in the codebase
+     * wrote it, read it or rendered it — the column, the paragraph explaining it, and no
+     * code between them. §18's fault exactly: every part complete in isolation.
+     *
+     * The invitation did say the sitting may be recorded, which is the consent that gates
+     * capture. What it never said is that a participant would join to do the recording.
+     */
+    private static function botDisclosure(): string
+    {
+        if (!\AfricaGates\Services\InterviewBot::enabled()
+            || !\AfricaGates\Services\AttendeeBot::configured()) {
+            return '';
+        }
+
+        $name = trim(\AfricaGates\Services\AttendeeBot::botName());
+
+        return 'A note about the call itself: a recording assistant'
+             . ($name !== '' ? ' called "' . $name . '"' : '')
+             . " will join and appear in the participant list. It is there only to record "
+             . "and write down the conversation, it does not take part, and it records "
+             . "nothing at all unless you have given the permission above. If you would "
+             . "rather it did not join, say so on that page.\n\n";
     }
 
     private static function panelInviteBody(string $judge, string $nominee, string $when, object $iv): string

@@ -128,6 +128,25 @@
   <span class="is-tag">{{ row.status }}</span>
   {% if iv.consented %}<span class="is-tag is-tag--ok">permission given</span>
   {% else %}<span class="is-tag is-tag--no">no permission to record</span>{% endif %}
+  {# ── WAS THE PERSON TOLD A BOT WOULD JOIN? ─────────────────────────────
+     Separate from "permission given", which is consent to be RECORDED. Being
+     recorded by the person you are talking to and a stranger appearing in the
+     participant list are different things to agree to, which is the reason this
+     column exists — and for a long time it existed only in the schema and in a
+     paragraph of the index describing behaviour no code had.
+
+     Shown only where a bot is actually in play. On a deployment with no recorder
+     configured this is a fact about nothing, and a row of tags that answer
+     questions nobody asked is how the two that matter stop being read.
+
+     `iv.bot.available` is the one resolver for "a bot will attend" — the same value
+     the console's bot panel reads. Recomputing it here from the controller would be a
+     second reader of one setting, which is how the halves of an integration come to
+     disagree about whether it is configured. #}
+  {% if iv.bot.available %}
+    {% if row.bot_disclosed_at %}<span class="is-tag is-tag--ok">bot disclosed {{ row.bot_disclosed_at|when }}</span>
+    {% else %}<span class="is-tag is-tag--no">bot not yet disclosed</span>{% endif %}
+  {% endif %}
   {% if row.transcript_id %}<span class="is-tag is-tag--ok">in the judges' dossier</span>{% endif %}
   {% if row.brief_source %}<span class="is-tag">questions: {{ row.brief_source }}</span>{% endif %}
   {% if row.review_source %}<span class="is-tag">transcript read: {{ row.review_source }}</span>{% endif %}
