@@ -128,9 +128,14 @@
 
 {# ══ ARRIVALS ═══════════════════════════════════════════════════════════════
    The only section on this page not counted off a domain table. Everything else
-   here reports what happened AFTER somebody arrived; this is the half that says
-   where they came from — which, on a platform whose entire reach is shared links,
-   is the question an organiser actually asks on the Tuesday after a flier. #}
+   reports what happened AFTER somebody arrived; this is the half that says where
+   they came from — which, on a platform whose reach is shared links, is the
+   question an organiser actually asks on the Tuesday after a flier.
+
+   EVERY COLUMN THE TABLE STORES IS RENDERED SOMEWHERE BELOW. The first cut showed
+   five of twelve, and the four that were written and never read cost nothing
+   visible: the page looked complete, and the only symptom was an operator who
+   could not answer a question the data was already sitting there to answer. #}
 <section class="an-sec">
   <div class="an-sec__h"><h2>Where people came from</h2><span>last {{ days }} days</span></div>
 
@@ -138,7 +143,7 @@
     {# A page of zeroes reads as "nobody came". It has to say which it is. #}
     <p class="an-sec__note"><strong>Nothing is being recorded.</strong>
       Arrival tracking is switched off, so these are not low numbers — they are no numbers.
-      Turn it on in <a href="/admin/settings#f-visits_enabled">Settings &rarr; Privacy &amp; tracking</a>.</p>
+      Turn it on in <a href="/admin/settings#f-visits_enabled">Settings &rarr; Arrivals</a>.</p>
   {% else %}
     <p class="an-sec__note">
       One row per visit, not per page view — a reader who opens nine pages is one arrival.
@@ -151,18 +156,43 @@
       <div class="an-card">
         <div class="an-card__k">Arrivals</div>
         <div class="an-card__n">{{ arrivals.total|number_format }}</div>
-        <div class="an-card__s">distinct visits</div>
+        <div class="an-card__s">
+          {% if arrivals.growth_pct is null %}
+            <span class="an-flat">no prior activity</span> to compare against
+          {% elseif arrivals.growth_pct >= 0 %}
+            <span class="an-up">+{{ arrivals.growth_pct }}%</span> on the {{ days }} days before
+          {% else %}
+            <span class="an-down">{{ arrivals.growth_pct }}%</span> on the {{ days }} days before
+          {% endif %}
+        </div>
+        {{ ch.spark(arrivals.series, '#237B22') }}
       </div>
       <div class="an-card">
         <div class="an-card__k">Did something</div>
         <div class="an-card__n">{{ arrivals.rate }}%</div>
         <div class="an-card__s">{{ arrivals.converted|number_format }} of {{ arrivals.total|number_format }}</div>
+        {# Plotted on the day they ARRIVED, not the day they converted — otherwise
+           Tuesday's flier is credited to Thursday. #}
+        {{ ch.spark(arrivals.converted_series, '#F3B416') }}
       </div>
-      {% for k in arrivals.kinds|slice(0, 2) %}
+      <div class="an-card">
+        <div class="an-card__k">Without leaving</div>
+        <div class="an-card__n">
+          {% if arrivals.same_visit_pct is null %}&mdash;{% else %}{{ arrivals.same_visit_pct }}%{% endif %}
+        </div>
+        <div class="an-card__s">
+          {% if arrivals.same_visit_pct is null %}
+            nobody has converted yet
+          {% else %}
+            acted on the first visit — the rest came back
+          {% endif %}
+        </div>
+      </div>
+      {% for k in arrivals.kinds|slice(0, 1) %}
         <div class="an-card">
-          <div class="an-card__k">{{ k.kind }}</div>
+          <div class="an-card__k">Most often</div>
           <div class="an-card__n">{{ k.count|number_format }}</div>
-          <div class="an-card__s">from a tracked arrival</div>
+          <div class="an-card__s">{{ k.kind }}{% if arrivals.kinds|length > 1 %}, of {{ arrivals.kinds|length }} kinds{% endif %}</div>
         </div>
       {% endfor %}
     </div>
@@ -172,24 +202,32 @@
         <div>
           <h3 style="font-size:13px;margin:0 0 8px">By source</h3>
           <table class="an-tbl">
-            <thead><tr><th>Source</th><th class="n">Arrivals</th><th class="n">Did something</th></tr></thead>
+            <thead><tr><th>Source</th><th class="n">Arrivals</th><th class="n">Networks</th><th class="n">Did something</th></tr></thead>
             <tbody>
             {% for r in arrivals.sources %}
               <tr>
                 <td>{{ r.source }}</td>
                 <td class="n">{{ r.visits|number_format }}</td>
+                <td class="n">{{ r.networks|default(0)|number_format }}</td>
                 <td class="n">{{ r.converted|number_format }} <span class="an-flat">({{ r.rate }}%)</span></td>
               </tr>
             {% endfor %}
             </tbody>
           </table>
+          <p class="an-sec__note" style="margin-top:8px">
+            <strong>Networks</strong> is a floor on people, not a headcount: the address is
+            hashed with a daily salt, so one machine visiting on five days counts as five —
+            and mobile carriers here put thousands of real people behind one address. It is
+            worth reading in one direction only. Four hundred arrivals from three networks
+            is one machine reloading a link, not a campaign.
+          </p>
         </div>
         <div>
           <h3 style="font-size:13px;margin:0 0 8px">
             {% if arrivals.campaigns|length %}By campaign{% else %}Landed on{% endif %}
           </h3>
-          <table class="an-tbl">
-            {% if arrivals.campaigns|length %}
+          {% if arrivals.campaigns|length %}
+            <table class="an-tbl">
               <thead><tr><th>Campaign</th><th class="n">Arrivals</th><th class="n">Did something</th></tr></thead>
               <tbody>
               {% for r in arrivals.campaigns %}
@@ -197,18 +235,19 @@
                     <td class="n">{{ r.converted|number_format }} <span class="an-flat">({{ r.rate }}%)</span></td></tr>
               {% endfor %}
               </tbody>
-            {% else %}
-              {# No campaigns tagged yet. Saying HOW to tag one is more useful than an
-                 empty table, and it is the one thing that makes this report sharp. #}
-              <thead><tr><th>Page</th><th class="n">Arrivals</th></tr></thead>
+            </table>
+          {% else %}
+            {# No campaigns tagged yet. Saying HOW to tag one is more useful than an empty
+               table, and it is the one thing that makes this report sharp. #}
+            <table class="an-tbl">
+              <thead><tr><th>Page</th><th class="n">Arrivals</th><th class="n">Did something</th></tr></thead>
               <tbody>
               {% for r in arrivals.landings %}
-                <tr><td><code>{{ r.path }}</code></td><td class="n">{{ r.visits|number_format }}</td></tr>
+                <tr><td><code>{{ r.path }}</code></td><td class="n">{{ r.visits|number_format }}</td>
+                    <td class="n">{{ r.converted|number_format }} <span class="an-flat">({{ r.rate }}%)</span></td></tr>
               {% endfor %}
               </tbody>
-            {% endif %}
-          </table>
-          {% if not arrivals.campaigns|length %}
+            </table>
             <p class="an-sec__note" style="margin-top:8px">
               Add <code>?utm_source=flier&amp;utm_campaign=gala26</code> to a link you share and
               it will be counted here by name.
@@ -216,6 +255,124 @@
           {% endif %}
         </div>
       </div>
+
+      {# ── the three lists that only exist because their columns are stored ──
+         Landing pages when campaigns took the slot above, the hosts behind a
+         folded source, and the countries a CDN told us about. Each is skipped
+         when it has nothing to say, rather than drawn as an empty box. #}
+      <div class="an-two" style="margin-top:14px">
+        {% if arrivals.campaigns|length and arrivals.landings|length %}
+          <div>
+            <h3 style="font-size:13px;margin:0 0 8px">Landed on</h3>
+            <table class="an-tbl">
+              <thead><tr><th>Page</th><th class="n">Arrivals</th><th class="n">Did something</th></tr></thead>
+              <tbody>
+              {% for r in arrivals.landings %}
+                <tr><td><code>{{ r.path }}</code></td><td class="n">{{ r.visits|number_format }}</td>
+                    <td class="n">{{ r.converted|number_format }} <span class="an-flat">({{ r.rate }}%)</span></td></tr>
+              {% endfor %}
+              </tbody>
+            </table>
+            <p class="an-sec__note" style="margin-top:8px">
+              A page with traffic and no conversions is a page problem, not a channel one.
+            </p>
+          </div>
+        {% endif %}
+
+        {% if arrivals.sections|length > 1 %}
+          <div>
+            <h3 style="font-size:13px;margin:0 0 8px">What kind of page</h3>
+            <table class="an-tbl">
+              <thead><tr><th>Section</th><th class="n">Arrivals</th><th class="n">Did something</th></tr></thead>
+              <tbody>
+              {% for r in arrivals.sections %}
+                <tr><td><code>{{ r.section }}</code></td><td class="n">{{ r.visits|number_format }}</td>
+                    <td class="n">{{ r.converted|number_format }} <span class="an-flat">({{ r.rate }}%)</span></td></tr>
+              {% endfor %}
+              </tbody>
+            </table>
+            <p class="an-sec__note" style="margin-top:8px">
+              Every nominee has their own page, so a share-card campaign lands on hundreds
+              of them. Ranked exactly, that is hundreds of rows of one visit each and the
+              real answer &mdash; &ldquo;most arrivals land on a nominee profile&rdquo; &mdash;
+              is not a row at all.
+            </p>
+          </div>
+        {% endif %}
+
+        {% if arrivals.mediums|length %}
+          <div>
+            <h3 style="font-size:13px;margin:0 0 8px">How they reached it</h3>
+            <table class="an-tbl">
+              <thead><tr><th>Medium</th><th class="n">Arrivals</th></tr></thead>
+              <tbody>
+              {% for r in arrivals.mediums %}
+                <tr><td>{{ r.medium }}</td><td class="n">{{ r.visits|number_format }}</td></tr>
+              {% endfor %}
+              </tbody>
+            </table>
+            <p class="an-sec__note" style="margin-top:8px">
+              As distinct from WHERE. One campaign run across a flier and a WhatsApp
+              broadcast is one campaign and two mediums, and the campaign row alone cannot
+              say which half worked.
+            </p>
+          </div>
+        {% endif %}
+
+        {% if arrivals.hosts|length %}
+          <div>
+            <h3 style="font-size:13px;margin:0 0 8px">Sites that linked here</h3>
+            <table class="an-tbl">
+              <thead><tr><th>Host</th><th class="n">Arrivals</th></tr></thead>
+              <tbody>
+              {% for r in arrivals.hosts %}
+                <tr><td>{{ r.host }}</td><td class="n">{{ r.visits|number_format }}</td></tr>
+              {% endfor %}
+              </tbody>
+            </table>
+            <p class="an-sec__note" style="margin-top:8px">
+              The hostname behind a folded source — &ldquo;facebook&rdquo; is five of these, and
+              the folded name is the one thing that cannot say which is sending people.
+            </p>
+          </div>
+        {% endif %}
+
+        {% if arrivals.countries|length %}
+          <div>
+            <h3 style="font-size:13px;margin:0 0 8px">Countries</h3>
+            <table class="an-tbl">
+              <thead><tr><th>Country</th><th class="n">Arrivals</th></tr></thead>
+              <tbody>
+              {% for r in arrivals.countries %}
+                <tr><td>{{ r.country }}</td><td class="n">{{ r.visits|number_format }}</td></tr>
+              {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        {% endif %}
+
+        {% if arrivals.devices|length %}
+          <div>
+            <h3 style="font-size:13px;margin:0 0 8px">On what</h3>
+            <table class="an-tbl">
+              <thead><tr><th>Device</th><th class="n">Arrivals</th></tr></thead>
+              <tbody>
+              {% for r in arrivals.devices %}
+                <tr><td>{{ r.device }}</td><td class="n">{{ r.visits|number_format }}</td></tr>
+              {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        {% endif %}
+      </div>
+
+      {% if not arrivals.countries|length %}
+        <p class="an-sec__note" style="margin-top:10px">
+          No country is recorded: it is only read from a header a CDN in front of this site
+          sets. Nothing is geolocated here — a lookup would mean sending every visitor's
+          address to somebody else to fill in a column.
+        </p>
+      {% endif %}
     {% else %}
       <p class="an-sec__note">No arrivals recorded in this window yet.</p>
     {% endif %}

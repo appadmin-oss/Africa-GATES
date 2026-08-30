@@ -175,10 +175,55 @@ final class VisitTrackerTest extends TestCase
             'https://gates.test/honour/AGI-K7M2QX4T?t=live-secret-token&utm_source=email'));
 
         $v = $this->lastVisit();
-        $this->assertSame('/honour/AGI-K7M2QX4T', $v['landing_path']);
+        // Redacted, not stored: the reference IS a credential — see safePath().
+        $this->assertSame('/honour/*', $v['landing_path']);
         $this->assertStringNotContainsString('live-secret-token', json_encode($v));
+        $this->assertStringNotContainsString('AGI-K7M2QX4T', json_encode($v));
         // The utm was still READ — dropping the query must not cost the attribution.
         $this->assertSame('email', $v['source']);
+    }
+
+    /**
+     * A credential in the PATH is redacted too, and this was missed the first time.
+     *
+     * Dropping the query string is only half of it. `/honour/AGI-K7M2QX4T` is a guest of
+     * honour's pass reference — the same string the support desk treats as the key to
+     * their invitation — and it was being stored verbatim in a table that is browsable and
+     * exportable from the admin console.
+     */
+    public function test_a_credential_in_the_path_never_reaches_the_table(): void
+    {
+        VisitTracker::record($this->get('https://gates.test/honour/AGI-K7M2QX4T'));
+
+        $v = $this->lastVisit();
+        $this->assertSame('/honour/*', $v['landing_path']);
+        $this->assertStringNotContainsString('AGI-K7M2QX4T', json_encode($v));
+    }
+
+    /**
+     * A list of known routes and a shape rule, because the failure mode is forgetting.
+     *
+     * The prefixes cover what exists; the shape covers the token-bearing URL somebody
+     * writes next. Real slugs have to survive both — a report that redacted
+     * `/nominee/incredible-principal-2026` would answer nothing.
+     */
+    public function test_token_shaped_segments_are_starred_and_real_slugs_are_not(): void
+    {
+        foreach ([
+            '/honour/AGI-K7M2QX4T'                          => '/honour/*',
+            '/claim/dispute/0f3a9c1b2d4e5f60718293a4b5c6d7e8' => '/claim/dispute/*',
+            '/pay/AFG-VOTE-1a2b3c4d'                        => '/pay/*',
+            '/x/0f3a9c1b2d4e5f60'                           => '/x/*',
+            '/x/aB3xY9zQ7mN2pL5kR8tW'                       => '/x/*',
+            // …and everything a real page looks like.
+            '/'                                             => '/',
+            '/awards'                                       => '/awards',
+            '/nominee/incredible-principal-2026'            => '/nominee/incredible-principal-2026',
+            '/events/gala-2026'                             => '/events/gala-2026',
+            '/blog/why-character-matters'                   => '/blog/why-character-matters',
+        ] as $in => $expected) {
+            $this->assertSame($expected, VisitTracker::safePath($in), $in);
+        }
     }
 
     /** The host, never the path: a referrer path carries somebody's search terms. */
@@ -376,6 +421,39 @@ final class VisitTrackerTest extends TestCase
         DB::table('gates_settings')->insert(['key_name' => 'visits_enabled', 'value' => '0']);
 
         $this->assertFalse(AnalyticsService::arrivals(30)['tracking']);
+    }
+
+    /**
+     * The rows written before the redaction existed are repaired, not left.
+     *
+     * Fixing the writer protects every arrival from now on and does nothing at all for the
+     * ones already in a table that is browsable and exportable from the admin console.
+     * This codebase has paid for that distinction once already — a corrected column
+     * definition that only applied to databases with no rows left production on the old
+     * one forever.
+     */
+    public function test_paths_recorded_before_the_redaction_are_repaired(): void
+    {
+        DB::table('gates_visits')->insert([
+            ['visit_key' => str_repeat('c', 32), 'source' => 'email',
+             'landing_path' => '/honour/AGI-K7M2QX4T', 'device' => 'mobile',
+             'created_at' => Carbon::now()->toDateTimeString()],
+            ['visit_key' => str_repeat('d', 32), 'source' => 'direct',
+             'landing_path' => '/nominee/incredible-principal-2026', 'device' => 'desktop',
+             'created_at' => Carbon::now()->toDateTimeString()],
+        ]);
+
+        ob_start();
+        try {
+            require dirname(__DIR__, 2) . '/database/migrations/2026_11_08_visit_path_redact.php';
+        } finally {
+            ob_end_clean();
+        }
+
+        $paths = DB::table('gates_visits')->orderBy('id')->pluck('landing_path')->all();
+
+        $this->assertSame(['/honour/*', '/nominee/incredible-principal-2026'], $paths,
+            'the credential goes and the real slug stays');
     }
 
     /** Recorded on the way in, and pruned by the maintenance run. */

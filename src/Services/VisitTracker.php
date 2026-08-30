@@ -105,8 +105,8 @@ final class VisitTracker
                 'medium'        => self::trim((string) ($q['utm_medium'] ?? ''), 60) ?: null,
                 'campaign'      => self::trim((string) ($q['utm_campaign'] ?? ''), 80) ?: null,
                 'referrer_host' => $host !== '' ? self::trim($host, 120) : null,
-                // The PATH, never the query. This platform puts live credentials in links.
-                'landing_path'  => self::trim($path, 190),
+                // The path, redacted. Dropping the query is only half of it — see safePath().
+                'landing_path'  => self::trim(self::safePath($path), 190),
                 'device'        => self::device($request),
                 'country'       => self::country($request),
                 'ip_hash'       => self::ipHash($request),
@@ -181,6 +181,69 @@ final class VisitTracker
         } catch (\Throwable) {
             return 0;
         }
+    }
+
+    /**
+     * A landing path with any credential in it reduced to a star.
+     *
+     * ── THE HALF THAT DROPPING THE QUERY STRING DOES NOT COVER ───────────────
+     *
+     * The query is dropped because this platform puts live credentials in links. It also
+     * puts them in PATHS, and that was missed: `/honour/AGI-K7M2QX4T` is a guest of
+     * honour's pass reference — the same string the support desk treats as the key to
+     * their invitation — and `/claim/dispute/<32 hex>` is a live dispute token.
+     *
+     * Recorded verbatim, those sat in a table built to be read by operators and exported
+     * to a spreadsheet. The redaction is done at WRITE time and not in the report,
+     * because a value that never enters the column cannot leave it by some other door.
+     *
+     * ── A LIST AND A SHAPE, BOTH ─────────────────────────────────────────────
+     *
+     * The prefixes are exact and cover what exists today. The shape rule is what covers
+     * the route somebody adds next — the failure mode here is FORGETTING, and a list on
+     * its own is a rule to be remembered on the day a new token-bearing URL is written.
+     *
+     * Real slugs survive: `incredible-principal-awards-2026` is long, but it is hyphenated
+     * lower-case words, and nothing below matches it.
+     */
+    public static function safePath(string $path): string
+    {
+        $path = '/' . trim($path, '/');
+        if ($path === '/') return '/';
+
+        $parts = explode('/', ltrim($path, '/'));
+
+        // Known credential-bearing routes, by prefix. Everything below the named depth is
+        // a secret regardless of what it looks like.
+        foreach ([['honour', 1], ['claim', 2], ['ticket', 1], ['pass', 1]] as [$head, $keep]) {
+            if (($parts[0] ?? '') !== $head) continue;
+            if (count($parts) <= $keep) continue;
+
+            // /claim/dispute/<token> keeps 'dispute'; /claim/42 does not need redacting but
+            // starring it costs nothing and is the safer default for a route that grows.
+            return '/' . implode('/', array_slice($parts, 0, $keep)) . '/*';
+        }
+
+        $out = [];
+        foreach ($parts as $seg) {
+            $out[] = self::looksLikeSecret($seg) ? '*' : $seg;
+        }
+
+        return '/' . implode('/', $out);
+    }
+
+    /** A path segment that is a token rather than a name. */
+    private static function looksLikeSecret(string $seg): bool
+    {
+        // Hex of token length: session ids, dispute tokens, anything from bin2hex().
+        if (preg_match('/^[0-9a-f]{16,}$/i', $seg)) return true;
+
+        // This platform's own reference shapes: AGI- for an invitation, AFG- for a payment.
+        if (preg_match('/^(AGI|AFG)-[A-Z0-9-]{4,}$/i', $seg)) return true;
+
+        // A long unhyphenated run mixing letters and digits — the shape of a random token
+        // and NOT the shape of a slug, which is hyphenated words.
+        return preg_match('/^(?=.*\d)(?=.*[A-Za-z])[A-Za-z0-9_]{20,}$/', $seg) === 1;
     }
 
     // ── how a source is decided ──────────────────────────────────────────────

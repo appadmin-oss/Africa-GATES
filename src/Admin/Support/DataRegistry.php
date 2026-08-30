@@ -18,7 +18,12 @@ use Illuminate\Database\Capsule\Manager as DB;
 final class DataRegistry
 {
     /** Columns never rendered anywhere (credentials / raw secrets). */
-    public const HIDDEN = ['password_hash', 'token_hash', 'otp', 'otp_hash', 'secret', 'magic_token'];
+    public const HIDDEN = ['password_hash', 'token_hash', 'otp', 'otp_hash', 'secret', 'magic_token',
+        // A visit's key is scoped to one browsing session and has no meaning outside it.
+        // `ip_hash` beside it is already caught by the `_hash` suffix rule below — this is
+        // the one column in gates_visits that could link arrivals to each other, and an
+        // export is exactly where that should not travel.
+        'visit_key'];
 
     /** Roles that may view EVERY dataset (the see-all tier). */
     private const BASE_ROLES = ['superadmin', 'admin', 'viewer'];
@@ -31,7 +36,7 @@ final class DataRegistry
         'vote-milestones' => ['moderator'], 'collusion' => ['moderator'], 'fraud-scores' => ['moderator'],
         'judge-score-log' => ['moderator'],
         // Analytics / content datasets an editor needs.
-        'funnel' => ['editor'], 'cpi-history' => ['editor'], 'nomination-drafts' => ['editor'], 'newsletter' => ['editor'],
+        'funnel' => ['editor'], 'visits' => ['editor'], 'cpi-history' => ['editor'], 'nomination-drafts' => ['editor'], 'newsletter' => ['editor'],
     ];
 
     public const SETS = [
@@ -79,6 +84,17 @@ final class DataRegistry
             'label' => 'Activity feed', 'table' => 'gates_activity', 'group' => 'Community',
             'order' => ['created_at', 'desc'], 'search' => ['actor_label', 'target_label'],
             'cols' => [['id', 'ID'], ['kind', 'Kind', 'chip'], ['actor_label', 'Actor'], ['target_label', 'Target'], ['is_public', 'Public', 'bool'], ['created_at', 'When', 'datetime']],
+        ],
+        // Arrivals. Registered so the numbers on the analytics page can be taken away and
+        // checked — a report an operator cannot export is a report they have to trust.
+        // `visit_key` and `ip_hash` never appear: see HIDDEN and isHidden() above.
+        'visits' => [
+            'label' => 'Arrivals', 'table' => 'gates_visits', 'group' => 'Analytics',
+            'order' => ['created_at', 'desc'], 'search' => ['source', 'campaign', 'landing_path'],
+            'cols' => [['id', 'ID'], ['source', 'Source', 'chip'], ['medium', 'Medium'],
+                       ['campaign', 'Campaign'], ['landing_path', 'Landed on'],
+                       ['device', 'Device', 'chip'], ['country', 'Country'],
+                       ['converted_kind', 'Led to', 'chip'], ['created_at', 'When', 'datetime']],
         ],
         'funnel' => [
             'label' => 'Funnel events', 'table' => 'gates_funnel_events', 'group' => 'Analytics',

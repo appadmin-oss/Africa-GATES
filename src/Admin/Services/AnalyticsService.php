@@ -543,66 +543,127 @@ final class AnalyticsService
      *
      * A list of arrivals by source is a vanity table: the channel with the most forwards
      * wins it every time, and it is usually the one that also sends the most people who
-     * bounce. What an organiser actually decides with is the RATE — four hundred arrivals
-     * from a WhatsApp forward and two votes is a worse Tuesday than thirty arrivals from
-     * a partner's newsletter and eleven.
+     * bounce. What an organiser decides with is the RATE — four hundred arrivals from a
+     * WhatsApp forward and two votes is a worse Tuesday than thirty arrivals from a
+     * partner's newsletter and eleven.
      *
-     * So conversions are counted per source alongside the arrivals, and the percentage is
-     * computed here rather than left to a template — a rate assembled in Twig is a rate
-     * two screens will eventually disagree about.
+     * ── AND EVERY COLUMN THIS TABLE STORES IS READ HERE ──────────────────────
      *
-     * ── AND WHY 'direct' IS NOT AN EMBARRASSMENT ─────────────────────────────
+     * The first cut of this report selected five of the twelve columns. `country`,
+     * `referrer_host`, `ip_hash` and `converted_at` were written on every single arrival
+     * and read by nothing — four instances, in one commit, of the fault this codebase
+     * calls the most expensive one available (docs/CODEBASE-INDEX.md §17). They cost
+     * nothing visible: the report looked complete, the writes succeeded, and the only
+     * symptom was an operator who could not answer a question the data was already
+     * sitting there to answer.
+     *
+     * So the rule this method now holds is simple and testable: if a column is written,
+     * something below returns it. A column with nothing to say should be dropped from the
+     * table, not carried.
+     *
+     * ── 'direct' IS NOT AN EMBARRASSMENT ─────────────────────────────────────
      *
      * It will be large, and most of it is not people typing the address. Every app that
-     * strips the referrer on the way out lands here: a link opened from inside WhatsApp
-     * on some clients, an email client, anything shared as a screenshot and typed back
-     * in. It is reported honestly and labelled, rather than being quietly folded into
-     * whichever channel would flatter a campaign.
+     * strips the referrer on the way out lands there. It is reported honestly and
+     * labelled, rather than folded into whichever channel it would flatter.
      *
      * @return array{
      *   total:int, converted:int, rate:int, tracking:bool,
-     *   sources:list<array{source:string,visits:int,converted:int,rate:int}>,
+     *   prev_total:int, growth_pct:?int,
+     *   series:list<array{label:string,value:int}>,
+     *   converted_series:list<array{label:string,value:int}>,
+     *   same_visit_pct:?int,
+     *   sources:list<array{source:string,visits:int,converted:int,rate:int,networks:int}>,
      *   campaigns:list<array{campaign:string,visits:int,converted:int,rate:int}>,
-     *   landings:list<array{path:string,visits:int}>,
+     *   landings:list<array{path:string,visits:int,converted:int,rate:int}>,
+     *   sections:list<array{section:string,visits:int,converted:int,rate:int}>,
+     *   mediums:list<array{medium:string,visits:int}>,
+     *   hosts:list<array{host:string,visits:int}>,
      *   devices:list<array{device:string,visits:int}>,
+     *   countries:list<array{country:string,visits:int}>,
      *   kinds:list<array{kind:string,count:int}>
      * }
      */
     public static function arrivals(int $days = 30, int $limit = 12): array
     {
         $empty = ['total' => 0, 'converted' => 0, 'rate' => 0, 'tracking' => false,
-                  'sources' => [], 'campaigns' => [], 'landings' => [], 'devices' => [], 'kinds' => []];
+                  'prev_total' => 0, 'growth_pct' => null, 'series' => [], 'converted_series' => [],
+                  'same_visit_pct' => null, 'sources' => [], 'campaigns' => [], 'landings' => [],
+                  'sections' => [], 'mediums' => [], 'hosts' => [], 'devices' => [],
+                  'countries' => [], 'kinds' => []];
 
         $days = self::clampDays($days);
         if (!self::has('gates_visits')) return $empty;
 
-        $from = date('Y-m-d', strtotime('-' . ($days - 1) . ' days')) . ' 00:00:00';
+        $from = date('Y-m-d', strtotime('-' . ($days - 1) . ' days'));
 
         try {
             $bySource   = [];
             $byCampaign = [];
             $byLanding  = [];
+            $bySection  = [];
+            $byMedium   = [];
+            $byHost     = [];
             $byDevice   = [];
+            $byCountry  = [];
             $byKind     = [];
+            $byDay      = [];
+            $byDayConv  = [];
             $total      = 0;
             $converted  = 0;
+            $sameVisit  = 0;
 
-            // One pass, in PHP. The alternative is five GROUP BY queries, and this table
-            // is bounded by its own pruner — a month of arrivals on this platform is
-            // thousands of rows, not the millions that would make the round trip the
-            // cheaper option.
-            foreach (DB::table('gates_visits')->where('created_at', '>=', $from)
-                        ->get(['source', 'campaign', 'landing_path', 'device', 'converted_kind']) as $r) {
+            // The whole window seeded to zero, so a quiet Wednesday is a trough in the
+            // sparkline rather than a day the line skips over. A series with holes in it
+            // draws a straight line across an outage and reads as steady traffic.
+            for ($i = $days - 1; $i >= 0; $i--) {
+                $d = date('Y-m-d', strtotime('-' . $i . ' days'));
+                $byDay[$d] = 0;
+                $byDayConv[$d] = 0;
+            }
+
+            // One pass, in PHP, over every column the table stores. The alternative is
+            // eight GROUP BY queries, and this table is bounded by its own pruner — a
+            // month of arrivals here is thousands of rows, not the millions that would
+            // make the round trips the cheaper option.
+            foreach (DB::table('gates_visits')->where('created_at', '>=', $from . ' 00:00:00')
+                        ->get(['source', 'medium', 'campaign', 'landing_path', 'referrer_host',
+                               'device', 'country', 'ip_hash', 'converted_kind', 'converted_at',
+                               'created_at']) as $r) {
                 $total++;
                 $did = trim((string) ($r->converted_kind ?? '')) !== '';
+
+                $day = substr((string) $r->created_at, 0, 10);
+                if (isset($byDay[$day])) $byDay[$day]++;
+
                 if ($did) {
                     $converted++;
                     $byKind[(string) $r->converted_kind] = ($byKind[(string) $r->converted_kind] ?? 0) + 1;
+
+                    // Counted on the day the ARRIVAL happened, not the day it converted,
+                    // so the two lines answer the same question: of the people who came on
+                    // Tuesday, how many did something. Plotting conversions on their own
+                    // day would credit Tuesday's flier to Thursday.
+                    if (isset($byDayConv[$day])) $byDayConv[$day]++;
+
+                    // Same visit, or came back later? `converted_at` is the only thing that
+                    // can tell the difference, and it is the difference between a link that
+                    // works and a link that starts a conversation.
+                    $at = trim((string) ($r->converted_at ?? ''));
+                    if ($at !== '' && substr($at, 0, 10) === $day) $sameVisit++;
                 }
 
                 $src = trim((string) ($r->source ?? '')) !== '' ? (string) $r->source : 'direct';
                 $bySource[$src]['v'] = ($bySource[$src]['v'] ?? 0) + 1;
                 $bySource[$src]['c'] = ($bySource[$src]['c'] ?? 0) + ($did ? 1 : 0);
+                $hash = trim((string) ($r->ip_hash ?? ''));
+                if ($hash !== '') $bySource[$src]['n'][$hash] = true;
+
+                // HOW they reached it — print, social, email — as distinct from WHERE.
+                // A campaign run across a flier and a WhatsApp broadcast is one campaign
+                // and two mediums, and the campaign row alone cannot say which half worked.
+                $med = trim((string) ($r->medium ?? ''));
+                if ($med !== '') $byMedium[$med] = ($byMedium[$med] ?? 0) + 1;
 
                 $camp = trim((string) ($r->campaign ?? ''));
                 if ($camp !== '') {
@@ -611,56 +672,139 @@ final class AnalyticsService
                 }
 
                 $path = trim((string) ($r->landing_path ?? ''));
-                if ($path !== '') $byLanding[$path] = ($byLanding[$path] ?? 0) + 1;
+                if ($path !== '') {
+                    // Conversions per LANDING PAGE, not just traffic. A page with four
+                    // hundred arrivals and no conversions is a page problem, and the
+                    // traffic-only version of this table could not say which page it was.
+                    $byLanding[$path]['v'] = ($byLanding[$path]['v'] ?? 0) + 1;
+                    $byLanding[$path]['c'] = ($byLanding[$path]['c'] ?? 0) + ($did ? 1 : 0);
+
+                    // ── AND THE SAME AGAIN, GROUPED ──────────────────────────
+                    //
+                    // Every nominee has their own page, and a share-card campaign lands on
+                    // five hundred of them. Ranked exactly, the landing table becomes five
+                    // hundred rows of one visit each and the top twelve are noise — while
+                    // the real answer, "most arrivals land on a nominee profile", is not a
+                    // row at all because no single page holds it.
+                    //
+                    // So both are kept: the exact list for the pages an operator names,
+                    // and this for the shape of the traffic.
+                    $sec = self::section($path);
+                    $bySection[$sec]['v'] = ($bySection[$sec]['v'] ?? 0) + 1;
+                    $bySection[$sec]['c'] = ($bySection[$sec]['c'] ?? 0) + ($did ? 1 : 0);
+                }
+
+                // The host BEHIND a folded source. 'facebook' is five hostnames, and when
+                // an organiser asks which one is actually sending people, the folded name
+                // is the one thing that cannot answer.
+                $host = trim((string) ($r->referrer_host ?? ''));
+                if ($host !== '') $byHost[$host] = ($byHost[$host] ?? 0) + 1;
 
                 $dev = trim((string) ($r->device ?? '')) !== '' ? (string) $r->device : 'unknown';
                 $byDevice[$dev] = ($byDevice[$dev] ?? 0) + 1;
+
+                $cc = strtoupper(trim((string) ($r->country ?? '')));
+                if ($cc !== '') $byCountry[$cc] = ($byCountry[$cc] ?? 0) + 1;
             }
 
             $rate = static fn (int $c, int $v): int => $v > 0 ? (int) round($c * 100 / $v) : 0;
 
-            $rows = static function (array $in) use ($rate, $limit): array {
+            // ── the window before this one ───────────────────────────────────
+            //
+            // Counted rather than pulled: the previous period needs two numbers, and
+            // fetching a second window of rows to produce them would double the read for
+            // a delta. Same shape as audience(): null when there is nothing to compare
+            // against, because "up 100%" from zero is not a growth figure.
+            $prevFrom = date('Y-m-d', strtotime('-' . (($days * 2) - 1) . ' days'));
+            $prevTo   = date('Y-m-d', strtotime('-' . $days . ' days'));
+            $prev = (int) DB::table('gates_visits')
+                ->where('created_at', '>=', $prevFrom . ' 00:00:00')
+                ->where('created_at', '<=', $prevTo . ' 23:59:59')
+                ->count();
+
+            $rows = static function (array $in, string $label) use ($rate, $limit): array {
                 $out = [];
                 foreach ($in as $k => $n) {
-                    $out[] = ['key' => (string) $k, 'visits' => (int) $n['v'],
-                              'converted' => (int) $n['c'], 'rate' => $rate((int) $n['c'], (int) $n['v'])];
+                    $out[] = [
+                        $label      => (string) $k,
+                        'visits'    => (int) $n['v'],
+                        'converted' => (int) $n['c'],
+                        'rate'      => $rate((int) $n['c'], (int) $n['v']),
+                    ] + (isset($n['n']) ? ['networks' => count($n['n'])] : []);
                 }
                 usort($out, static fn (array $a, array $b): int => $b['visits'] <=> $a['visits']);
 
                 return array_slice($out, 0, $limit);
             };
 
-            $sources   = array_map(static fn (array $r): array =>
-                ['source' => $r['key']] + array_intersect_key($r, array_flip(['visits', 'converted', 'rate'])),
-                $rows($bySource));
-            $campaigns = array_map(static fn (array $r): array =>
-                ['campaign' => $r['key']] + array_intersect_key($r, array_flip(['visits', 'converted', 'rate'])),
-                $rows($byCampaign));
+            $flat = static function (array $in, string $label, int $cap): array {
+                arsort($in);
+                $out = [];
+                foreach (array_slice($in, 0, $cap, true) as $k => $n) {
+                    $out[] = [$label => (string) $k, 'visits' => (int) $n];
+                }
 
-            arsort($byLanding);
-            arsort($byDevice);
-            arsort($byKind);
+                return $out;
+            };
 
-            $landings = [];
-            foreach (array_slice($byLanding, 0, $limit, true) as $p => $n) {
-                $landings[] = ['path' => (string) $p, 'visits' => (int) $n];
+            $series = [];
+            $convSeries = [];
+            foreach ($byDay as $d => $n) {
+                $series[]     = ['label' => $d, 'value' => (int) $n];
+                $convSeries[] = ['label' => $d, 'value' => (int) ($byDayConv[$d] ?? 0)];
             }
-            $devices = [];
-            foreach ($byDevice as $d => $n) $devices[] = ['device' => (string) $d, 'visits' => (int) $n];
+
+            arsort($byKind);
             $kinds = [];
             foreach ($byKind as $k => $n) $kinds[] = ['kind' => (string) $k, 'count' => (int) $n];
 
             return [
                 'total' => $total, 'converted' => $converted, 'rate' => $rate($converted, $total),
+                'prev_total' => $prev,
+                'growth_pct' => $prev > 0 ? (int) round(($total - $prev) * 100 / $prev) : null,
+                'series' => $series, 'converted_series' => $convSeries,
+                // Of the people who did something, how many did it without leaving. Null
+                // rather than 0 when nobody converted at all — a 0% that means "no data"
+                // and a 0% that means "everybody came back later" are opposite readings.
+                'same_visit_pct' => $converted > 0 ? $rate($sameVisit, $converted) : null,
                 // Whether the recorder is even on. A page of zeroes reads as "nobody came";
                 // this is what lets the screen say "nothing is being recorded" instead.
                 'tracking' => \AfricaGates\Services\VisitTracker::enabled(),
-                'sources' => $sources, 'campaigns' => $campaigns,
-                'landings' => $landings, 'devices' => $devices, 'kinds' => $kinds,
+                'sources'   => $rows($bySource, 'source'),
+                'campaigns' => $rows($byCampaign, 'campaign'),
+                'landings'  => $rows($byLanding, 'path'),
+                'sections'  => $rows($bySection, 'section'),
+                'mediums'   => $flat($byMedium, 'medium', 8),
+                'hosts'     => $flat($byHost, 'host', $limit),
+                'devices'   => $flat($byDevice, 'device', 8),
+                'countries' => $flat($byCountry, 'country', $limit),
+                'kinds'     => $kinds,
             ];
         } catch (\Throwable) {
             return $empty;
         }
+    }
+
+    /**
+     * A landing path reduced to the KIND of page it is.
+     *
+     * `/nominee/ada-obi` and `/nominee/chidi-eze` are one answer — "a nominee profile" —
+     * and five hundred separate rows in a ranked table. The first segment is the section;
+     * anything below it becomes a star.
+     *
+     * The home page keeps its own name rather than collapsing to '/', because "/" in a
+     * list of paths reads as a missing value.
+     */
+    public static function section(string $path): string
+    {
+        $path = '/' . trim($path, '/');
+        if ($path === '/') return '/ (home)';
+
+        $parts = explode('/', ltrim($path, '/'));
+
+        // A one-segment path IS the page — /awards, /events, /vote. Collapsing it to
+        // '/awards/*' would invent a section with one member and hide the page itself.
+        return count($parts) === 1 ? '/' . $parts[0] : '/' . $parts[0] . '/*';
     }
 
     // ═════════════════════════════════════════════════════════════════════════
