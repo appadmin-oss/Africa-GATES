@@ -93,11 +93,109 @@ final class JudgeEvidenceFileTest extends TestCase
         $this->assertSame('image', $kind);
     }
 
-    /** A genuine external source stays a link — proxying it would gain nothing. */
-    public function test_an_absolute_url_stays_a_link(): void
+    /**
+     * Somebody else's link stays a link.
+     *
+     * It is a source to read, not a file we hold — and an iframe pointed at an arbitrary
+     * host is a judge console that can be pointed at one, which is why `frame-src` refuses
+     * it too.
+     */
+    public function test_an_external_source_stays_a_link(): void
     {
         $this->assertSame(['', ''], EvidenceService::fileFor('https://example.org/report.pdf', 9));
-        $this->assertSame(['', ''], EvidenceService::fileFor('https://res.cloudinary.com/x/a.png', 9));
+        $this->assertSame(['', ''], EvidenceService::fileFor('http://files.example.net/a.png', 9));
+    }
+
+    /**
+     * OUR OWN CDN is a file, and this is the behaviour that changed.
+     *
+     * All absolute URLs used to collapse into "that is a link", and the case that paid for
+     * it was an upload: once Cloudinary is switched on, an evidence PDF is STORED as a
+     * delivery URL. So a document uploaded this week rendered as a bare anchor while an
+     * identical one from the week before previewed inline — same screen, same file type,
+     * different treatment, and nothing on the page said why.
+     *
+     * Through the judge-gated route rather than straight to the delivery URL: the route
+     * authorises, and the URL never enters the ballot's HTML where a screenshot or a
+     * copied DOM would carry a permanent unauthenticated link out of the console.
+     */
+    public function test_a_cdn_hosted_file_is_previewed_through_the_gated_route(): void
+    {
+        $this->assertSame(
+            ['/judge/evidence/9', 'pdf'],
+            EvidenceService::fileFor('https://res.cloudinary.com/demo/image/upload/v1/dossier.pdf', 9));
+
+        $this->assertSame(
+            ['/judge/evidence/9', 'image'],
+            EvidenceService::fileFor('https://res.cloudinary.com/demo/image/upload/v1/photo.png', 9));
+
+        // Subdomains too — isRemote() accepts them, so anything it will redirect to has to
+        // be classified here or the two disagree about what the platform owns.
+        $this->assertSame(
+            ['/judge/evidence/9', 'pdf'],
+            EvidenceService::fileFor('https://eu.res.cloudinary.com/demo/image/upload/v1/a.pdf', 9));
+    }
+
+    /**
+     * The extension comes from the PATH, not the whole URL.
+     *
+     * A delivery URL may carry a query, and `pathinfo` over the whole string reads the
+     * last thing after a dot in it — so `?v=1.2` would make a PDF a file of kind "2".
+     */
+    public function test_a_query_string_does_not_decide_the_file_type(): void
+    {
+        $this->assertSame(
+            ['/judge/evidence/9', 'pdf'],
+            EvidenceService::fileFor(
+                'https://res.cloudinary.com/demo/image/upload/v1/dossier.pdf?_a=BAM&v=1.2', 9));
+    }
+
+    // ══ THE ROUTE THE PREVIEW POINTS AT ═════════════════════════════════════
+
+    /**
+     * The redirect is to our CDN or nowhere.
+     *
+     * This route is a FRAME TARGET now, with a signed-in judge on the other end of it. A
+     * route that forwards to any URL a nominee happened to store is an open redirect, and
+     * the fact that nothing linked to it before is not a property worth relying on.
+     */
+    public function test_the_stream_refuses_to_forward_anywhere_but_the_cdn(): void
+    {
+        $ctl = (string) file_get_contents(
+            dirname(__DIR__, 2) . '/src/Judge/Controllers/EvidenceController.php');
+
+        $from = (int) strpos($ctl, 'preg_match(\'~^https?://~i\'');
+        $this->assertGreaterThan(0, $from, 'the absolute-URL branch has moved');
+        $branch = substr($ctl, $from, 900);
+
+        $this->assertStringContainsString('CloudinaryService::isRemote(', $branch,
+            'the branch forwards without asking whose URL it is');
+        $this->assertStringContainsString('withStatus(404)', $branch,
+            'and a URL that is not ours must be refused, not followed');
+    }
+
+    /**
+     * `?download=1` survives the hop.
+     *
+     * The fallback link under the preview is the one route through on a browser with no
+     * PDF viewer. Dropped at the redirect, it sent the reader to the same inline render
+     * that had already failed them — a dead end reached by pressing the escape hatch.
+     */
+    public function test_the_download_flag_is_carried_onto_the_cdn_url(): void
+    {
+        $ctl = (string) file_get_contents(
+            dirname(__DIR__, 2) . '/src/Judge/Controllers/EvidenceController.php');
+
+        $this->assertStringContainsString("transformed(\$stored, 'fl_attachment')", $ctl,
+            'the download flag has to become one the CDN understands, or it is lost');
+
+        // And the transformation the controller asks for has to be one the service can
+        // actually apply — a flag that silently returns the URL unchanged would look
+        // exactly like it worked.
+        $url = 'https://res.cloudinary.com/demo/image/upload/v1/dossier.pdf';
+        $this->assertSame(
+            'https://res.cloudinary.com/demo/image/upload/fl_attachment/v1/dossier.pdf',
+            \AfricaGates\Services\CloudinaryService::transformed($url, 'fl_attachment'));
     }
 
     /** Nothing outside the uploads tree is ours to stream. */

@@ -54,10 +54,30 @@ final class EvidenceController
 
         $stored = trim((string) ($row->source_url ?? ''));
 
-        // An absolute URL was never ours to stream — redirect rather than 404, so a
-        // Cloudinary-hosted item still opens.
+        // ── AN ABSOLUTE URL: OURS, OR NOT AT ALL ────────────────────────────
+        //
+        // Redirect rather than 404, so a CDN-hosted item still opens — that was always
+        // the intent, and this now names the condition it assumed. Only the platform's
+        // own delivery host: `EvidenceService::fileFor()` produces a file_url for
+        // Cloudinary items and nothing else, so this route is a FRAME TARGET now, and a
+        // route that will forward a judge to any URL a nominee stored is an open redirect
+        // with a signed-in reader on the other end of it.
+        //
+        // 404 rather than a message, matching the entitlement check above: the two
+        // failures an unauthorised caller can produce should look the same.
         if (preg_match('~^https?://~i', $stored)) {
-            return $res->withHeader('Location', $stored)->withStatus(302);
+            if (!\AfricaGates\Services\CloudinaryService::isRemote($stored)) {
+                return $res->withStatus(404);
+            }
+
+            // `?download=1` has to survive the hop. Without this the fallback link under
+            // the preview — the one route through on a browser with no PDF viewer — sent
+            // the reader to the same inline render that had already failed them.
+            $to = ($req->getQueryParams()['download'] ?? '') === '1'
+                ? (\AfricaGates\Services\CloudinaryService::transformed($stored, 'fl_attachment') ?? $stored)
+                : $stored;
+
+            return $res->withHeader('Location', $to)->withStatus(302);
         }
 
         // Resolved strictly inside the uploads tree. `realpath` first, then the prefix

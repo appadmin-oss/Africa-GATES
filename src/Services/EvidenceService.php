@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 namespace AfricaGates\Services;
 
+use AfricaGates\Services\CloudinaryService;
 use Illuminate\Database\Capsule\Manager as DB;
 
 /**
@@ -97,9 +98,32 @@ final class EvidenceService
     /**
      * Is this `source_url` actually an uploaded file, and if so how should it be shown?
      *
-     * A stored path has no scheme; a real source is an absolute http(s) URL. Cloudinary
-     * images are absolute and stay links — they are already served from a delivery URL and
-     * nothing is gained by proxying them — but a LOCAL path becomes the judge-gated stream.
+     * ── THREE KINDS OF VALUE, AND ONLY TWO ARE FILES ─────────────────────────
+     *
+     * A stored path has no scheme and is a file on this disk. An absolute URL is either
+     * OUR OWN CDN — where uploads go once Cloudinary is switched on — or somebody else's
+     * link, pasted as a source.
+     *
+     * All three used to collapse into "absolute means link", and the second case paid for
+     * it: an evidence PDF uploaded after Cloudinary was enabled was stored as a delivery
+     * URL, so it rendered as a bare anchor while an identical PDF uploaded the week before
+     * previewed inline. Same document, same screen, different treatment, and nothing said
+     * why. A judge scoring on documented impact reads the ones they can see.
+     *
+     * ── AND WHY OURS STILL GOES THROUGH THE JUDGE-GATED ROUTE ────────────────
+     *
+     * The obvious shortcut is to hand the delivery URL straight to the page: it is public
+     * anyway, and one redirect is saved. Two reasons not to.
+     *
+     * The route AUTHORISES — `evidenceFor($judgeId, $id)` — so a judge on another panel
+     * gets a 404 rather than a document. And the delivery URL never enters the ballot's
+     * HTML, so a screenshot, a copied DOM or a shared devtools panel does not carry a
+     * permanent unauthenticated link to another nominee's evidence out of the console.
+     * The redirect is public at the end; the page does not have to be.
+     *
+     * Somebody else's link stays a link. It is a source to read, not a file we hold — and
+     * an iframe pointed at an arbitrary host is a judge console that can be pointed at
+     * one, which is why `frame-src` does not allow it either.
      *
      * @return array{0:string, 1:string} [url, kind] — kind is 'pdf', 'image' or ''
      */
@@ -108,14 +132,29 @@ final class EvidenceService
         $v = trim($sourceUrl);
         if ($v === '' || $evidenceId < 1) return ['', ''];
 
-        // An absolute URL is a source, not a file on this disk.
-        if (preg_match('~^https?://~i', $v)) return ['', ''];
-        // Anything else that is not inside the uploads tree is not ours to stream.
-        if (!str_starts_with(ltrim($v, '/'), 'uploads/')) return ['', ''];
+        if (preg_match('~^https?://~i', $v)) {
+            // Ours, or a source. `isRemote()` decides — one resolver for "is this the
+            // platform's own CDN", shared with the controller that will redirect to it.
+            if (!CloudinaryService::isRemote($v)) return ['', ''];
 
-        $ext  = strtolower(pathinfo($v, PATHINFO_EXTENSION));
+            // The PATH, because a delivery URL may carry a query and `pathinfo` over the
+            // whole string would read the last thing after a dot in it as the extension.
+            $forExt = (string) parse_url($v, PHP_URL_PATH);
+        } else {
+            // Not inside the uploads tree is not ours to stream.
+            if (!str_starts_with(ltrim($v, '/'), 'uploads/')) return ['', ''];
+            $forExt = $v;
+        }
+
+        $ext  = strtolower(pathinfo($forExt, PATHINFO_EXTENSION));
         $kind = $ext === 'pdf' ? 'pdf' : (in_array($ext, ['jpg', 'jpeg', 'png', 'webp', 'gif'], true) ? 'image' : '');
 
+        // An unclassified kind still returns the ROUTE, with no kind. That is deliberate
+        // and was nearly undone here: the template renders a preview only for 'pdf' and
+        // 'image', but it renders the download link for anything with a file_url — and
+        // falling back to source_url instead would hand the reader a bare `uploads/…`
+        // path, which resolves against the current page and 404s. That is the exact dead
+        // link this method was written to fix.
         return ['/judge/evidence/' . $evidenceId, $kind];
     }
 
