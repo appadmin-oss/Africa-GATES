@@ -100,13 +100,18 @@
 
 {# The rule's effect, stated BEFORE it can be run. `enforce(dryRun: true)` names the
    people, because a count is not enough to authorise taking a nomination away. #}
-{% if policy.autodisqualify and enforce and enforce.would > 0 %}
+{# Shown when anybody is held back too, not only when somebody would be taken. Gating
+   the whole card on `would > 0` meant that a cycle where EVERY silent nominee is still
+   waiting for their warning showed the organiser nothing at all — and "nothing on the
+   screen" reads as "the rule found nobody", which is the opposite of what is true. #}
+{% if policy.autodisqualify and enforce and (enforce.would > 0 or enforce.held|default([])|length) %}
 <div class="ad-card">
   <div class="ad-card__head"><div class="ad-card__title" style="color:var(--ad-danger,#a4243d)">
-    {{ enforce.would }} nominee{{ enforce.would == 1 ? '' : 's' }} would be disqualified now
+    {% if enforce.would > 0 %}{{ enforce.would }} nominee{{ enforce.would == 1 ? '' : 's' }} would be disqualified now
+    {%- else %}Nobody would be disqualified yet{% endif %}
     <small>Nothing has happened yet. This is what the rule would do if it ran this minute.</small>
   </div>
-  {% if may_write %}
+  {% if may_write and enforce.would > 0 %}
   <form method="post" action="/admin/questionnaires/invitations/disqualify">
     <input type="hidden" name="_token" value="{{ csrf_token }}">
     <input type="hidden" name="cycle_id" value="{{ cycle_id }}">
@@ -116,12 +121,34 @@
   {% endif %}
   </div>
   <div class="ad-card__body">
+    {% if enforce.would > 0 %}
     <p style="margin:0 0 8px;font-size:12.5px;color:var(--ad-text-mute,#5a6d6f)">
       Try sending to them again first — most of these are people who never saw the email.</p>
     <p style="margin:0;font-size:13px;line-height:1.7">
       {% for n in enforce.names|slice(0, 40) %}<span class="ad-chip ad-chip--grey" style="margin:0 4px 4px 0">{{ n }}</span>{% endfor %}
       {% if enforce.names|length > 40 %}<span style="color:var(--ad-text-mute)">and {{ enforce.names|length - 40 }} more</span>{% endif %}
     </p>
+    {% endif %}
+
+    {# ── WHO THE RULE WILL NOT TAKE, AND WHY ─────────────────────────────────
+       A nominee with no warning on file is held back rather than disqualified. Named
+       here rather than only counted, because an organiser looking at a smaller number
+       than they expected has to be able to see it is a warning queue and not a bug. #}
+    {% if enforce.held|default([])|length %}
+    <div style="margin-top:{{ enforce.would > 0 ? '14px' : '0' }};padding-top:{{ enforce.would > 0 ? '14px' : '0' }};
+                border-top:{{ enforce.would > 0 ? '1px solid var(--ad-line,#dfe4e4)' : 'none' }}">
+      <p style="margin:0 0 8px;font-size:12.5px;color:var(--ad-text-mute,#5a6d6f)">
+        <strong>{{ enforce.held|length }} {{ enforce.would > 0 ? 'more ' : '' }}being held back:
+        {{ enforce.held|length == 1 ? 'this nominee has' : 'these nominees have' }} not been warned yet.</strong>
+        The rule will not take a nomination from somebody whose only message was the
+        invitation. Warnings go out with the daily run; each person is taken by a later
+        run if they still say nothing.</p>
+      <p style="margin:0;font-size:13px;line-height:1.7">
+        {% for n in enforce.held|slice(0, 40) %}<span class="ad-chip ad-chip--grey" style="margin:0 4px 4px 0">{{ n }}</span>{% endfor %}
+        {% if enforce.held|length > 40 %}<span style="color:var(--ad-text-mute)">and {{ enforce.held|length - 40 }} more</span>{% endif %}
+      </p>
+    </div>
+    {% endif %}
   </div>
 </div>
 {% endif %}

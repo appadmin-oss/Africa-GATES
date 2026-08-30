@@ -64,6 +64,12 @@ class SettingsController
             'invite_reminder_on'    => \AfricaGates\Services\InviteReminders::enabled(),
             'invite_reminder_marks' => \AfricaGates\Services\InviteReminders::marks(),
             'invite_reminder_days_default' => implode(', ', \AfricaGates\Services\InviteReminders::DEFAULT_MARKS),
+            // The questionnaire deadline warnings. Resolved for the same reason the
+            // invitation marks are: an operator who has set nothing is on the defaults,
+            // and an empty box beside a schedule that runs every morning reads as "off".
+            'questionnaire_reminder_marks' => \AfricaGates\Services\QuestionnaireReminders::marks(),
+            'questionnaire_reminder_days_default' =>
+                implode(', ', \AfricaGates\Services\QuestionnaireReminders::DEFAULT_MARKS),
             // Resolved, not echoed: an operator who has set no time is on 09:00, and the
             // screen has to say 09:00 rather than show them an empty box beside a schedule
             // that is demonstrably running.
@@ -259,6 +265,9 @@ class SettingsController
                   // InviteReminders — a free-text day list must not be trusted by the
                   // sweep any more than it is trusted here.
                   'invite_reminder_days','invite_reminder_time',
+                  // The questionnaire deadline warnings. Same free-text day list, parsed
+                  // and clamped in QuestionnaireReminders rather than trusted here.
+                  'questionnaire_reminder_days',
                   'invite_reminder_line_nominee','invite_reminder_line_judge',
                   // The countdown letters: the facts no database can know, and the five
                   // bodies themselves. Tokens are resolved at send time against the event,

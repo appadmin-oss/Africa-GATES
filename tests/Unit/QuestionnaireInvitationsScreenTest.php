@@ -46,7 +46,8 @@ final class QuestionnaireInvitationsScreenTest extends TestCase
         ]);
     }
 
-    private function nominee(int $id, string $email, int $programmeId = 1, string $status = 'draft'): void
+    private function nominee(int $id, string $email, int $programmeId = 1, string $status = 'draft',
+                             bool $warned = true): void
     {
         DB::table('gates_nominees')->insert([
             'id' => $id, 'category_id' => 1, 'name' => 'Nominee ' . $id, 'status' => 'approved',
@@ -63,6 +64,10 @@ final class QuestionnaireInvitationsScreenTest extends TestCase
             'id' => $id, 'nominee_id' => $id, 'programme_id' => $programmeId,
             'cycle_id' => self::CYCLE, 'status' => $status,
             'invite_token' => str_pad((string) $id, 32, 'a'),
+            'invited_at' => '2026-05-01 09:00:00',
+            // Warned by default: enforce() holds back anybody with no `reminded_at`, so an
+            // unwarned row is the exception these tests name rather than the baseline.
+            'reminded_at' => $warned ? '2026-05-18 09:00:00' : null,
         ]);
     }
 
@@ -193,6 +198,48 @@ final class QuestionnaireInvitationsScreenTest extends TestCase
 
         $this->assertSame(0, DB::table('gates_nominee_submissions')->where('status', 'disqualified')->count(),
             'rendering the screen must not have disqualified anybody');
+    }
+
+    /**
+     * And who the rule will NOT take, named as well.
+     *
+     * A nominee whose only message was the invitation is held back — that rule is the
+     * whole reason a count can come out smaller than an organiser expects, and a smaller
+     * number with no explanation reads as the rule being broken.
+     */
+    public function test_the_preview_names_who_is_being_held_back_until_warned(): void
+    {
+        $this->nominee(1, 'a@example.com', 1, 'draft');
+        $this->nominee(2, 'b@example.com', 1, 'draft', false);
+        QuestionnairePolicy::save(self::CYCLE, [
+            'deadline_at' => '2026-05-20 18:00', 'autodisqualify' => 1, 'grace_days' => 0,
+        ], 1);
+
+        $html = $this->render('cycle=1');
+
+        $this->assertStringContainsString('1 nominee would be disqualified now', $html);
+        $this->assertStringContainsString('being held back', $html);
+        $this->assertStringContainsString('>Nominee 2<', $html);
+    }
+
+    /**
+     * And the card still appears when EVERYBODY is held. Gating the whole thing on
+     * "somebody would go" meant an organiser saw an empty screen, which reads as "the rule
+     * found nobody" — the opposite of what is true.
+     */
+    public function test_the_card_still_appears_when_nobody_can_be_taken_yet(): void
+    {
+        $this->nominee(1, 'a@example.com', 1, 'draft', false);
+        QuestionnairePolicy::save(self::CYCLE, [
+            'deadline_at' => '2026-05-20 18:00', 'autodisqualify' => 1, 'grace_days' => 0,
+        ], 1);
+
+        $html = $this->render('cycle=1');
+
+        $this->assertStringContainsString('Nobody would be disqualified yet', $html);
+        $this->assertStringContainsString('not been warned yet', $html);
+        // And no button, because there is nothing to press it for.
+        $this->assertStringNotContainsString('Run it now', $html);
     }
 
     public function test_no_disqualification_panel_appears_while_the_rule_is_off(): void

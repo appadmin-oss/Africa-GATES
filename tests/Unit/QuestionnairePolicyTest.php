@@ -52,6 +52,11 @@ final class QuestionnairePolicyTest extends TestCase
         DB::table('gates_nominee_submissions')->insert($over + [
             'id' => $id, 'nominee_id' => $id, 'programme_id' => 1, 'cycle_id' => self::CYCLE,
             'status' => $status, 'invite_token' => str_repeat((string) $id, 32),
+            // Warned by default, because that is the ordinary state by the time this rule
+            // can act: {@see QuestionnaireReminders} runs in the same pass, ahead of it.
+            // Pass `['reminded_at' => null]` for the nominee who never heard from us.
+            'invited_at'  => '2026-05-01 09:00:00',
+            'reminded_at' => '2026-05-18 09:00:00',
         ]);
     }
 
@@ -230,6 +235,64 @@ final class QuestionnairePolicyTest extends TestCase
         $this->assertSame(1, $first['done']);
         $this->assertSame(0, $second['done'], 'a disqualified row is no longer draft, so it is not picked up again');
         $this->assertSame($stamp, (string) DB::table('gates_nominee_submissions')->where('id', 1)->value('autodisqualify_at'));
+    }
+
+    // ══ nobody is taken without a warning ════════════════════════════════════
+
+    /**
+     * THE ONE THAT MATTERS MOST IN THIS FILE.
+     *
+     * This rule runs unattended at 06:00 on a host with no shell, and it removes a person
+     * from an award. Their only message had been the invitation — one email, months
+     * earlier, to an address the NOMINATOR typed, which can be wrong, spam-filed, or sent
+     * to a job they have since left. Taking a nomination from somebody who never knew
+     * they had one is the most damaging thing this platform can do quietly.
+     */
+    public function test_a_nominee_who_was_never_warned_is_not_disqualified(): void
+    {
+        $this->submission(1, 'draft', ['reminded_at' => null]);
+        QuestionnairePolicy::save(self::CYCLE, [
+            'deadline_at' => '2026-05-20 18:00', 'autodisqualify' => 1, 'grace_days' => 0,
+        ], 7);
+
+        $r = QuestionnairePolicy::enforce(self::CYCLE, false, 7);
+
+        $this->assertSame(0, $r['done'], 'a nomination was taken from somebody who was never told');
+        $this->assertSame('draft', (string) DB::table('gates_nominee_submissions')->where('id', 1)->value('status'));
+    }
+
+    /** Held, not forgiven: the next sweep warns them and a later run takes them. */
+    public function test_the_same_nominee_is_disqualified_once_the_warning_has_gone(): void
+    {
+        $this->submission(1, 'draft', ['reminded_at' => null]);
+        QuestionnairePolicy::save(self::CYCLE, [
+            'deadline_at' => '2026-05-20 18:00', 'autodisqualify' => 1, 'grace_days' => 0,
+        ], 7);
+        $this->assertSame(0, QuestionnairePolicy::enforce(self::CYCLE, false, 7)['done']);
+
+        DB::table('gates_nominee_submissions')->where('id', 1)
+            ->update(['reminded_at' => '2026-05-18 09:00:00']);
+
+        $this->assertSame(1, QuestionnairePolicy::enforce(self::CYCLE, false, 7)['done']);
+    }
+
+    /**
+     * And the organiser is told, by name. A count that quietly shrank would read as the
+     * rule being broken, and the screen gates its whole card on this list.
+     */
+    public function test_the_dry_run_names_who_is_being_held_back(): void
+    {
+        $this->submission(1, 'draft', ['reminded_at' => null]);
+        $this->submission(2);
+        QuestionnairePolicy::save(self::CYCLE, [
+            'deadline_at' => '2026-05-20 18:00', 'autodisqualify' => 1, 'grace_days' => 0,
+        ], 7);
+
+        $r = QuestionnairePolicy::enforce(self::CYCLE, true);
+
+        $this->assertSame(['Nominee 2'], $r['names']);
+        $this->assertSame(['Nominee 1'], $r['held']);
+        $this->assertStringContainsString('held back until warned', $r['message']);
     }
 
     // ══ reversibility ════════════════════════════════════════════════════════

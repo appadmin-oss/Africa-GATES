@@ -262,6 +262,14 @@ final class Maintenance
                 // every-tick path: this takes nominations away, and a rule that acts on
                 // people should fire on a schedule an organiser can predict and be awake
                 // for — not at 03:12 because that is when a cron happened to land.
+                //
+                // AND THE WARNING GOES FIRST, in the same pass and before it. Ordering
+                // matters here rather than being tidy: enforce() holds back anybody with
+                // no `reminded_at`, so a nominee warned this morning is disqualified by a
+                // LATER run, never by this one. Running the warning second would delay
+                // every first warning by a day for no reason.
+                $ran[] = ['qremind', $this->task('qremind',
+                    fn() => \AfricaGates\Services\QuestionnaireReminders::sweep())];
                 $ran[] = ['qdisqualify', $this->task('qdisqualify', fn() => $this->enforceQuestionnaireDeadlines())];
                 $ran[] = ['cronlog',   $this->task('cronlog',   fn() => $this->trimCronLog())];
                 $ran[] = ['chain',     $this->task('chain',     fn() => $this->verifyChain())];
@@ -283,6 +291,11 @@ final class Maintenance
                 'standoffers' => $ran[] = ['standoffers', $this->task('standoffers', fn() => $this->expireStandOffers())],
                 'digest'    => $ran[] = ['digest', $this->task('digest', fn() => $this->recordDigest())],
                 'qdisqualify' => $ran[] = ['qdisqualify', $this->task('qdisqualify', fn() => $this->enforceQuestionnaireDeadlines())],
+                // Addressable by name for the reason judgemaps and invite-reminders are:
+                // there is no shell here, and an organiser who has just set a deadline and
+                // wants the first warnings to go now cannot wait for tomorrow's 06:00.
+                'qremind'   => $ran[] = ['qremind', $this->task('qremind',
+                    fn() => \AfricaGates\Services\QuestionnaireReminders::sweep())],
                 'chain'     => $ran[] = ['chain', $this->task('chain', fn() => $this->verifyChain())],
                 // Addressable by name because there is no SSH on this account: when a round
                 // opens sooner than the hourly sweep can fill it, `/__cron/run?task=judgemaps`

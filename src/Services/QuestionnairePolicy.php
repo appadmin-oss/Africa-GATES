@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 namespace AfricaGates\Services;
 
+use AfricaGates\Support\OptionalColumn;
 use Carbon\Carbon;
 use Illuminate\Database\Capsule\Manager as DB;
 
@@ -186,12 +187,14 @@ final class QuestionnairePolicy
      * unattended, so the screen shows an organiser exactly who it would take BEFORE the
      * rule ever fires, and the command has the same switch.
      *
-     * @return array{ok:bool, cycle_id:int, would:int, done:int, names:list<string>, message:string}
+     * @return array{ok:bool, cycle_id:int, would:int, done:int, names:list<string>,
+     *               held:list<string>, message:string}
      */
     public static function enforce(int $cycleId, bool $dryRun = true, int $adminId = 0): array
     {
         $p = self::forCycle($cycleId);
-        $none = ['ok' => false, 'cycle_id' => $cycleId, 'would' => 0, 'done' => 0, 'names' => []];
+        $none = ['ok' => false, 'cycle_id' => $cycleId, 'would' => 0, 'done' => 0,
+                 'names' => [], 'held' => []];
 
         if (!$p['autodisqualify']) {
             return $none + ['message' => 'Auto-disqualification is off for this cycle.'];
@@ -212,16 +215,52 @@ final class QuestionnairePolicy
             ->where('s.cycle_id', $cycleId)
             ->whereIn('s.status', ['draft', 'withdrawn'])
             ->where(fn ($q) => $q->whereNull('s.is_test')->orWhere('s.is_test', 0))
-            ->get(['s.id', 's.nominee_id', 'n.name']);
+            ->get(['s.id', 's.nominee_id', 's.reminded_at', 'n.name']);
+
+        // ── NOBODY IS TAKEN WITHOUT HAVING BEEN WARNED ───────────────────────
+        //
+        // This rule runs unattended on a host with no shell, and it removes a person from
+        // an award. The only message they had ever had was the invitation — one email,
+        // months earlier, to an address the NOMINATOR typed. It can be wrong, it can be
+        // spam-filed, the person can have changed job. Taking a nomination from somebody
+        // who never knew they had one is the most damaging thing this platform can do
+        // quietly, and it did it every morning at 06:00.
+        //
+        // {@see QuestionnaireReminders} sends the warnings and stamps `reminded_at`. A row
+        // with no stamp has not been warned, so it is held back rather than disqualified —
+        // held, not forgiven: the next sweep warns them and the next run takes them if
+        // they still say nothing.
+        //
+        // Guarded on the column existing so a database that has not run the migration
+        // behaves as it did before rather than refusing to enforce anything at all.
+        $guard = OptionalColumn::on('gates_nominee_submissions', 'reminded_at');
+        $held  = [];
+        if ($guard) {
+            $keep = [];
+            foreach ($rows as $r) {
+                if (trim((string) ($r->reminded_at ?? '')) === '') {
+                    $held[] = (string) ($r->name ?? ('#' . $r->nominee_id));
+                } else {
+                    $keep[] = $r;
+                }
+            }
+            $rows = $keep;
+        }
 
         $names = [];
         foreach ($rows as $r) $names[] = (string) ($r->name ?? ('#' . $r->nominee_id));
 
+        // Said on the screen and not only in a log, because an organiser looking at a
+        // smaller number than they expected must be told why rather than left to wonder
+        // whether the rule is broken.
+        $heldNote = $held === [] ? '' : ' ' . count($held) . ' more '
+                  . (count($held) === 1 ? 'is' : 'are') . ' being held back until warned.';
+
         if ($dryRun) {
             return ['ok' => true, 'cycle_id' => $cycleId, 'would' => count($names), 'done' => 0,
-                    'names' => $names,
+                    'names' => $names, 'held' => $held,
                     'message' => count($names) . ' nominee' . (count($names) === 1 ? '' : 's')
-                               . ' would be disqualified. Nothing has changed.'];
+                               . ' would be disqualified. Nothing has changed.' . $heldNote];
         }
 
         $note = 'Missed the questionnaire deadline of '
@@ -239,8 +278,8 @@ final class QuestionnairePolicy
         }
 
         return ['ok' => true, 'cycle_id' => $cycleId, 'would' => count($names), 'done' => $done,
-                'names' => $names,
-                'message' => $done . ' nominee' . ($done === 1 ? '' : 's') . ' disqualified.'];
+                'names' => $names, 'held' => $held,
+                'message' => $done . ' nominee' . ($done === 1 ? '' : 's') . ' disqualified.' . $heldNote];
     }
 
     /**

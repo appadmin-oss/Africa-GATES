@@ -382,6 +382,32 @@
     </div>
   </div></div>
 
+  {# ── THE WARNING BEFORE A NOMINATION IS CLOSED ───────────────────────────
+     Separate card from Invitations above, because these are different people being
+     written to about a different thing: a guest of honour counting down to an evening,
+     and a nominee who has not answered and is about to lose their place.
+
+     The rule that closes a nomination runs unattended at 06:00 on a host with no shell.
+     Until this existed the only message a nominee ever had was the invitation — one
+     email, months earlier, to an address the NOMINATOR typed. #}
+  <div class="ad-card" data-sec="mail" data-keys="questionnaire reminders deadline warning nominee disqualify disqualification days before grace missed submission chase" x-show="show($el)"><div class="ad-card__head"><div class="ad-card__title">Questionnaire deadline warnings<small>When a nominee who has not answered is written to before their nomination closes.</small></div></div><div class="ad-card__body">
+      <div><label for="f-questionnaire_reminder_days">Days before the deadline <small>the largest is when warnings start</small></label>
+        <input type="text" name="questionnaire_reminder_days" id="f-questionnaire_reminder_days" value="{{ values.questionnaire_reminder_days|default('') }}" maxlength="60" placeholder="{{ questionnaire_reminder_days_default }}"></div>
+      <p class="hint" style="margin:6px 0 0">
+        {# RESOLVED, not echoed — same reason as the invitation marks above: an empty box
+           beside a schedule that is demonstrably running reads as "off". #}
+        In use now: <strong>{{ questionnaire_reminder_marks|join(', ') }}</strong> days before
+        the deadline (plus its grace period, which is set per cycle on the
+        <a href="/admin/questionnaires/invitations">questionnaire invitations</a> screen).
+      </p>
+      <p class="hint" style="margin:8px 0 0">
+        Nobody is written to who has not already been invited, or who has already answered.
+        <strong>A nominee who has had no warning is never disqualified</strong> — the rule
+        holds them back and takes them on a later run if they still say nothing, so a
+        deadline can never close a nomination belonging to somebody who never heard from us.
+      </p>
+  </div></div>
+
   <div class="ad-card" data-sec="data" data-keys="tracking visits analytics arrivals referrer utm campaign source privacy retention do not track" x-show="show($el)"><div class="ad-card__head"><div class="ad-card__title">Arrivals<small>Where the people who come here came from.</small></div></div><div class="ad-card__body">
     <div class="ad-form">
       {# The report this feeds is Analytics → "Where people came from". Everything else on
