@@ -438,6 +438,13 @@ class JudgeService
         // button. The ballot shows what is there and offers a button for the rest.
         $maps = \AfricaGates\Services\JudgeAssist::forBallot(array_column($nominees, 'id'));
 
+        // …minus the ones THIS judge has said misread the dossier. Continuing to show a
+        // map above the evidence after its reader has told us it is wrong is the whole
+        // harm the map risks, delivered on purpose. Per judge: the map is cached and
+        // shared across a panel, and one judge's objection does not decide for the rest.
+        $flagged = \AfricaGates\Services\JudgeAssist::flaggedBy(
+            $judgeId, array_column($nominees, 'id'));
+
         // The summary the nominee themselves confirmed, in their own submission. Distinct
         // from the dossier map above and shown separately: the map is ours, written for a
         // judge; this is a description of the entry that the nominee read and agreed
@@ -468,7 +475,11 @@ class JudgeService
             // Null when nobody has asked for one. The ballot renders a button in that case
             // rather than an empty panel, because an empty "what this rests on" reads as a
             // statement that the entry rests on nothing.
-            $n['map'] = $maps[(int) $n['id']] ?? null;
+            $n['map'] = isset($flagged[(int) $n['id']]) ? null : ($maps[(int) $n['id']] ?? null);
+            // Distinct from "no map yet", which offers a button. A judge who disputed one
+            // must not be handed the same button on the next page load — that reads as the
+            // objection having been ignored, which is exactly what it would be.
+            $n['map_flagged'] = isset($flagged[(int) $n['id']]);
             $n['summary'] = $summaries[(int) $n['id']] ?? null;
             $byCategory[$n['category_id']]['nominees'][] = $n;
         }

@@ -3024,6 +3024,14 @@ return function(App $app) {
         $j->post('/orient/{nomineeId:[0-9]+}',
             \AfricaGates\Judge\Controllers\BallotController::class.':orient');
 
+        // The judge saying the map misread the dossier. The map is written ABOVE the
+        // evidence and read before it, so it frames everything after — and the judge
+        // reading both is the only person positioned to notice when it is wrong. A model
+        // artefact that shapes a judging decision and has no correction path is a signal
+        // nothing collects. See JudgeAssist::flag().
+        $j->post('/orient/{nomineeId:[0-9]+}/flag',
+            \AfricaGates\Judge\Controllers\BallotController::class.':flagMap');
+
         // ── A JUDGE'S OWN SITTINGS, FOR THEIR OWN CALENDAR ───────────────────
         //
         // GET, unlike the map above, because it spends nothing and a calendar file has to

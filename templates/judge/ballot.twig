@@ -186,7 +186,33 @@
                   Read the dossier again</button>
               </template>
               <span class="jc-map__wait" x-show="mapBusy">Reading the dossier…</span>
+
+              {# ── SAYING IT IS WRONG ───────────────────────────────────────────
+                 Offered only when there is a map to be wrong about, and set quietly:
+                 this is a correction, not a rating, and a prominent thumbs-down beside
+                 a summary invites a verdict on the writing rather than a report of a
+                 misreading.
+
+                 The judge reading the map and the dossier together is the only person
+                 positioned to notice, and until this they were the only one with no way
+                 to say so. #}
+              <template x-if="cur?.map && !mapBusy">
+                <button class="jc-map__flag" type="button" @click="flagMap()"
+                        :disabled="flagBusy">
+                  This misreads the dossier</button>
+              </template>
             </div>
+
+            {# What replaces the map once a judge has disputed it. NOT the "Map this
+               dossier" button that an unmapped nominee gets — offering to write the same
+               thing again is the objection being ignored, one page load later. #}
+            <template x-if="cur?.map_flagged">
+              <p class="jc-cover">
+                You told us this map misreads the dossier, so it is hidden here. The panel
+                administrators can see it was disputed. The dossier itself is below and is
+                unchanged.
+              </p>
+            </template>
 
             {# ── SAID, NEVER IMPLIED ──────────────────────────────────────────
                A map is not wrong about what it read; it is wrong about what it is a map
@@ -444,11 +470,45 @@
 
             <div class="jc-note">
               <label for="jcNote">Panel note (optional)</label>
-              <textarea id="jcNote" x-model="cur.notes" :disabled="locked" placeholder="Why this score? Notes are shared with the panel, never public."></textarea>
+              {# ── THE NOTE SAVES ITSELF, LIKE THE SCORES DO ─────────────────
+                 `x-model` alone only updates the object in memory. Scores were
+                 debounce-saved on change and the note was not, so a judge who
+                 wrote a paragraph explaining a low mark and then closed the tab —
+                 or was signed out, which happens on a long sitting — lost it with
+                 no warning and no trace. Nothing on the screen had claimed it was
+                 saved, which is precisely why nobody would think to check.
+
+                 Same 800ms debounce as a score, so a sentence is one request and
+                 not one per keystroke; and again on blur, because the last words
+                 typed before somebody clicks away are the ones a debounce is most
+                 likely to still be holding. #}
+              <textarea id="jcNote" x-model="cur.notes" :disabled="locked"
+                        @input="touchNote()" @blur="flushNote()"
+                        placeholder="Why this score? Notes are shared with the panel, never public."></textarea>
             </div>
 
+            {# ── WHO YOU ARE NOW SCORING ──────────────────────────────────────
+               Submit advances to the next unscored nominee and swaps the whole
+               panel — the name, the dossier, the scale — with no announcement and
+               no focus move. A sighted judge sees the change; a screen-reader user
+               is left on a button that now belongs to somebody else, and the next
+               score they enter is against a person they were never told about.
+
+               A visually-hidden live region is the smallest fix that carries the
+               fact. It is separate from the save status above because the two can
+               fire together, and one region holding both would read the second over
+               the first. #}
+            <p class="sr-only" role="status" aria-live="polite" x-text="whoLabel"></p>
+
             <div class="jc-actions">
-              <div class="jc-save" :class="cur._state" x-text="saveLabel"></div>
+              {# role=status, because this is the only confirmation that a score
+                 reached the server. Without it a screen-reader user gets silence
+                 on success AND on failure — on the one instrument this platform's
+                 result is computed from. Polite rather than assertive: it fires on
+                 every debounced save and an assertive region would interrupt the
+                 judge mid-sentence in the note above. #}
+              <div class="jc-save" :class="cur._state" x-text="saveLabel"
+                   role="status" aria-live="polite"></div>
               <div style="flex:1"></div>
               <button type="button" class="jc-btn jc-btn--ghost" @click="advance()">Skip</button>
               <button type="button" class="jc-btn jc-btn--p" @click="submit()" :disabled="locked || cur._state==='saving'">
@@ -545,6 +605,15 @@
     background:#fff; color:#10292C; border-radius:999px; padding:9px 15px; min-height:34px; }
   .jc-map__go:hover{ border-color:#237b22; color:#237b22; }
   .jc-map__go:focus-visible{ outline:3px solid #237b22; outline-offset:2px; }
+  /* Quiet on purpose — a correction, not a rating. Still a real target: 13px of
+     padding either side of 12.5px text clears the 24×24 floor comfortably, and the
+     underline means it is not signalled by colour alone. */
+  .jc-map__flag{ background:none; border:none; cursor:pointer; font-family:inherit;
+    font-size:12.5px; color:#fff; opacity:.72; text-decoration:underline;
+    text-underline-offset:3px; padding:9px 13px; min-height:34px; border-radius:8px; }
+  .jc-map__flag:hover{ opacity:1; }
+  .jc-map__flag:focus-visible{ outline:3px solid #fff; outline-offset:2px; opacity:1; }
+  .jc-map__flag:disabled{ opacity:.45; cursor:progress; }
   .jc-map__wait{ font-size:12.5px; color:#5a6d6f; }
   .jc-map__hint{ margin:10px 0 0; max-width:66ch; font-size:13px; line-height:1.65; color:#5a6d6f; }
   .jc-map__rests{ margin:12px 0 0; font-size:15px; line-height:1.6; font-weight:600; color:#10292C; }
@@ -628,8 +697,16 @@
   .jc-scale__opt:has(input:disabled){ opacity:.55; cursor:not-allowed; }
   .jc-note{ margin-top:24px; }
   .jc-note label{ display:block; font-size:12px; font-weight:600; color:#4a5256; margin-bottom:8px; }
-  .jc-note textarea{ width:100%; min-height:84px; resize:vertical; border:1px solid rgba(16,41,44,.16); border-radius:12px; padding:13px 15px; font-family:inherit; font-size:16px; line-height:1.5; color:#10292C; outline:none; }
+  /* The same trap the scale above was rescued from, two rules later and still
+     live: `outline:none` in this block beats the site-wide `:focus-visible` rule
+     on source order, because this block renders after every stylesheet. What was
+     left was a 1px border tint — visible, but a different and weaker indicator
+     than every other control on the page, which is its own kind of confusing.
+     The ring is restored and the border tint kept, since it also marks focus for
+     a pointer user who never triggers :focus-visible. */
+  .jc-note textarea{ width:100%; min-height:84px; resize:vertical; border:1px solid rgba(16,41,44,.16); border-radius:12px; padding:13px 15px; font-family:inherit; font-size:16px; line-height:1.5; color:#10292C; }
   .jc-note textarea:focus{ border-color:#237b22; }
+  .jc-note textarea:focus-visible{ outline:3px solid #237b22; outline-offset:2px; }
   .jc-actions{ display:flex; align-items:center; gap:12px; margin-top:20px; }
   .jc-save{ font-size:12.5px; color:#5a6d6f; }
   .jc-save.ok{ color:#237b22; } .jc-save.err{ color:#c0392b; } .jc-save.saving{ color:#7a5600; }
@@ -665,8 +742,9 @@
   .jd-conflict__btn--no:hover{ background:#ecf3ea; }
   .jd-conflict__lbl{ display:block; margin:14px 0 6px; font-size:12.5px; font-weight:600; color:#4a5256; }
   .jd-conflict__lbl span{ font-weight:400; color:#8a9698; }
-  .jd-conflict__ta{ width:100%; resize:vertical; border:1px solid rgba(16,41,44,.16); border-radius:10px; padding:11px 13px; font-family:inherit; font-size:13.5px; line-height:1.5; color:#10292C; outline:none; }
+  .jd-conflict__ta{ width:100%; resize:vertical; border:1px solid rgba(16,41,44,.16); border-radius:10px; padding:11px 13px; font-family:inherit; font-size:13.5px; line-height:1.5; color:#10292C; }
   .jd-conflict__ta:focus{ border-color:#d49a0e; }
+  .jd-conflict__ta:focus-visible{ outline:3px solid #d49a0e; outline-offset:2px; }
 
   @media (max-width:860px){ .jc-grid{ grid-template-columns:1fr; } .jc-queue{ position:static; } .jc-scroll{ max-height:280px; } }
 </style>
@@ -690,16 +768,44 @@ function ballotApp(initial){
     get progressPct(){ return this.totalCount > 0 ? Math.round(this.scoredCount / this.totalCount * 100) : 0; },
     get maxScore(){ return this.criteria.length * 10; },
     get curScore(){ var n=this.cur; if(!n) return 0; return this.criteria.reduce(function(s,c){ return s + (n.scores[c.id]||0); },0); },
+    // What the live region announces when the panel changes underneath a judge.
+    // The position as well as the name: "Ada Obi, 12 of 40" tells somebody who cannot
+    // see the queue both who they are scoring and how much is left, which is the whole
+    // of what the sidebar shows a sighted judge at a glance.
+    get whoLabel(){
+      var n = this.cur;
+      if(!n) return '';
+      return 'Now scoring ' + (n.name || 'this nominee')
+           + ', ' + (this.active + 1) + ' of ' + this.queue.length
+           + (n.complete ? ', already scored' : '');
+    },
+
     get saveLabel(){ var n=this.cur; if(!n) return ''; return n._state==='saving'?'Saving…':(n._state==='ok'?'✓ Saved':(n._state==='err'?('✗ '+(n._err||'Could not save')):(n.complete?'Fully scored':'Not yet scored'))); },
 
     mapBusy: false,
     mapErr: '',
+    flagBusy: false,
 
     flag(cc){ cc=(cc||'').toUpperCase(); if(cc.length!==2) return '🌍'; return String.fromCodePoint.apply(null,[].map.call(cc,function(c){return 127397+c.charCodeAt(0);})); },
     // Clearing the map error on every move, not just on a new request: the message is
     // about the nominee that failed, and carrying it to the next one makes a working
     // dossier look broken.
-    pick(i){ this.active = i; this.mapErr = ''; this.mapBusy = false; },
+    // Anything the previous nominee is still holding goes NOW. The queue keeps the
+    // text in memory either way, so the visible behaviour is unchanged — but a reload
+    // or an expired session between here and the next save would have taken it, and
+    // switching nominee is exactly when a judge walks away from the screen.
+    pick(i){
+      if(i !== this.active) this._flushPending();
+      this.active = i; this.mapErr = ''; this.mapBusy = false;
+    },
+
+    _flushPending(){
+      var n = this.cur;
+      if(!n || this.locked || !this._timers[n.id]) return;
+      clearTimeout(this._timers[n.id]);
+      this._timers[n.id] = null;
+      this._save(n);
+    },
 
     // ── ONE REQUEST AT A TIME, AND ONLY WHEN ASKED ────────────────────────
     //
@@ -745,6 +851,59 @@ function ballotApp(initial){
       });
     },
 
+    // ── THE NOTE PERSISTS LIKE A SCORE ───────────────────────────────────
+    //
+    // Debounced on input so a paragraph is one request; flushed on blur because the
+    // last words typed before a judge clicks away are the ones the timer is still
+    // holding. `_debouncedSave` is the same one the scores use — a second saving path
+    // for the same row is how the two come to disagree about what was written.
+    touchNote(){ var n=this.cur; if(!n || this.locked) return; this._debouncedSave(n); },
+
+    flushNote(){
+      var n=this.cur; if(!n || this.locked) return;
+      clearTimeout(this._timers[n.id]);
+      this._save(n);
+    },
+
+    // ── THE CORRECTION PATH ──────────────────────────────────────────────
+    //
+    // Optimistic on the client and authoritative on the server: the map is cleared here
+    // the moment a judge presses, because leaving it on screen while a request is in
+    // flight is the map still framing the dossier after its reader has rejected it.
+    // A failed request puts it back and says so — silently keeping it hidden would tell
+    // a judge their objection was recorded when it was not.
+    flagMap(){
+      var n = this.cur;
+      if(!n || !n.map || this.flagBusy) return;
+
+      var self = this, id = n.id, keep = n.map;
+      this.flagBusy = true;
+      n.map = null; n.map_flagged = true;
+
+      fetch('/judge/orient/' + id + '/flag', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded',
+          'X-CSRF-Token': (document.querySelector('meta[name=csrf-token]')||{}).content || ''
+        },
+        body: ''
+      }).then(function(r){
+        if(r.status === 401){ window.location = '/judge/login?next=' + encodeURIComponent(location.pathname); return {}; }
+        return r.json().catch(function(){ return {}; });
+      }).then(function(d){
+        self.flagBusy = false;
+        if(d && d.ok) return;
+        var q = self.queue.filter(function(x){ return x.id === id; })[0];
+        if(q){ q.map = keep; q.map_flagged = false; }
+        self.mapErr = (d && d.message) || 'That could not be recorded just now.';
+      }).catch(function(){
+        self.flagBusy = false;
+        var q = self.queue.filter(function(x){ return x.id === id; })[0];
+        if(q){ q.map = keep; q.map_flagged = false; }
+        self.mapErr = 'That could not be recorded just now.';
+      });
+    },
+
     setScore(critId, val){
       var n=this.cur; if(!n || this.locked) return;
       var sc = Object.assign({}, n.scores); sc[critId] = parseInt(val); n.scores = sc;
@@ -763,6 +922,7 @@ function ballotApp(initial){
     },
 
     advance(){
+      this._flushPending();
       var t=this.queue.length, nx=this.active;
       for(var k=1;k<=t;k++){ var c=(this.active+k)%t; if(!this.queue[c].complete){ nx=c; break; } }
       this.active = nx;

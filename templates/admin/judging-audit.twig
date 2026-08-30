@@ -84,6 +84,48 @@
     with the caveats that belong to it.</p>
 </div>
 
+{# ══ DISPUTED DOSSIER MAPS ═══════════════════════════════════════════════════
+   Programme-independent, so it sits above the selector rather than inside it: a
+   judge disputing a map is a fact about one entry, and hiding it behind whichever
+   programme happens to be selected is how it goes unseen.
+
+   Shown only when there is something to show. An empty "no maps disputed" panel
+   on every load teaches an operator to skip the region it appears in. #}
+{% if disputed|default([])|length %}
+  <div class="ja-lede" style="border-left:4px solid #f3b416;padding-left:14px">
+    <h2>Dossier maps the panel has disputed</h2>
+    <p>The map is written above a nominee&rsquo;s evidence and read before it, so it frames
+      everything after. A judge saying it misreads the dossier has hidden it for
+      themselves; whether to withdraw it from the whole panel is a decision for you.
+      <strong>One judge disagreeing is a judge. Three is a map.</strong></p>
+
+    <div class="iv-scroll">
+      <table class="ad-table">
+        <thead><tr><th>Nominee</th><th class="an-num">Judges</th><th>What they said</th><th>Last</th></tr></thead>
+        <tbody>
+        {% for d in disputed %}
+          <tr>
+            <td>{{ d.nominee }}</td>
+            <td class="an-num">{{ d.flags }}</td>
+            <td>
+              {% if d.reasons|length %}
+                {# A judge's own words, escaped by Twig. They are typed mid-ballot and are
+                   not public, but they are still somebody's free text on an admin page. #}
+                {% for r in d.reasons|slice(0, 3) %}<div>&ldquo;{{ r }}&rdquo;</div>{% endfor %}
+                {% if d.reasons|length > 3 %}<div class="iv-mute">and {{ d.reasons|length - 3 }} more</div>{% endif %}
+              {% else %}
+                <span class="iv-mute">no reason given</span>
+              {% endif %}
+            </td>
+            <td>{{ d.last }}</td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+{% endif %}
+
 <form method="get" action="/admin/judging-audit" class="ja-row">
   <div>
     <label for="jaProg" style="display:block;font-size:12px;font-weight:600;color:#10292C">Award programme</label>

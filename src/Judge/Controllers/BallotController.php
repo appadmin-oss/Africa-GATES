@@ -111,6 +111,47 @@ class BallotController
         ]);
     }
 
+    /**
+     * A judge saying the dossier map misreads the dossier.
+     *
+     * ── THE SAME GUARD AS orient(), AND NOT A WEAKER ONE ─────────────────────
+     *
+     * `mayJudgeNominee` first, answering exactly as it does for a nominee that does not
+     * exist. Without it this endpoint would confirm, one id at a time, which entries a
+     * programme holds to somebody who cannot see that programme — a cheaper enumeration
+     * than the map endpoint offers, because it writes rather than reads and so cannot be
+     * rate-limited by a cache.
+     *
+     * Returns JSON: the ballot replaces the panel in place rather than reloading a page a
+     * judge has scrolled halfway down and half-filled.
+     */
+    public function flagMap(Request $req, Response $res, array $args): Response
+    {
+        $judgeId   = (int) ($_SESSION['judge_id'] ?? 0);
+        $nomineeId = (int) ($args['nomineeId'] ?? 0);
+
+        $json = static function (Response $res, array $body, int $code = 200): Response {
+            $res->getBody()->write((string) json_encode($body));
+
+            return $res->withHeader('Content-Type', 'application/json')->withStatus($code);
+        };
+
+        if (!$this->judges->mayJudgeNominee($judgeId, $nomineeId)) {
+            return $json($res, ['ok' => false,
+                'message' => 'That nominee is not on your ballot.'], 404);
+        }
+
+        $reason = trim((string) (((array) $req->getParsedBody())['reason'] ?? ''));
+        $ok     = \AfricaGates\Services\JudgeAssist::flag($judgeId, $nomineeId, $reason);
+
+        return $json($res, [
+            'ok'      => $ok,
+            'message' => $ok
+                ? 'Noted — this map is hidden for you, and the panel administrators can see it was disputed.'
+                : 'That could not be recorded just now.',
+        ]);
+    }
+
     public function saveScore(Request $req, Response $res, array $args): Response
     {
         $judgeId = (int)$_SESSION['judge_id'];

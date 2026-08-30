@@ -65,6 +65,12 @@ final class JudgingAuditController
             // Said out loud rather than rendered as an empty table. "No changes recorded"
             // and "the query failed" look identical on a screen and mean opposite things.
             'failed'       => $failed,
+            // Maps the panel has disputed. Here rather than on an AI screen because the
+            // question it raises is a judging one — whether an entry has been read to the
+            // panel wrongly — and this is the page somebody opens when asking how an award
+            // was decided. A flag nobody looks at is a complaint collected and discarded,
+            // which is worse than no button at all.
+            'disputed'     => \AfricaGates\Services\JudgeAssist::disputed(25),
         ]);
     }
 }

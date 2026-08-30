@@ -535,6 +535,106 @@ final class JudgeAssist
      *
      * @return int maps made; 0 means there was nothing to do
      */
+    // ══ WHEN THE MAP IS WRONG ════════════════════════════════════════════════
+    //
+    // A map is written above the dossier and read before it, so it frames everything
+    // after it. The judge reading both is the only person positioned to notice when it
+    // misreads — and until this, the only person with no way to say so.
+
+    /**
+     * Record that a judge says this map misreads the dossier.
+     *
+     * Idempotent on (judge, nominee): pressing it twice is one complaint, not two, and
+     * the second press must not fail in a way that makes a judge think it did not take.
+     */
+    public static function flag(int $judgeId, int $nomineeId, string $reason = ''): bool
+    {
+        if ($judgeId < 1 || $nomineeId < 1) return false;
+
+        try {
+            DB::table('gates_judge_map_flags')->updateOrInsert(
+                ['judge_id' => $judgeId, 'nominee_id' => $nomineeId],
+                ['reason'     => ($r = mb_substr(trim($reason), 0, 500)) !== '' ? $r : null,
+                 'created_at' => Carbon::now()->toDateTimeString()]
+            );
+
+            return true;
+        } catch (\Throwable) {
+            return false;
+        }
+    }
+
+    /**
+     * The nominee ids whose map THIS judge has disputed.
+     *
+     * Per judge, not per map. The map is cached and shared across a panel, so a judge who
+     * flags it stops being shown it — without deciding for the other four judges what
+     * they may read. Withdrawing a map from a whole panel is a person's decision, and the
+     * audit screen is where they will see it needs making.
+     *
+     * @param list<int> $nomineeIds
+     * @return array<int,true>
+     */
+    public static function flaggedBy(int $judgeId, array $nomineeIds = []): array
+    {
+        if ($judgeId < 1) return [];
+
+        try {
+            $q = DB::table('gates_judge_map_flags')->where('judge_id', $judgeId);
+            if ($nomineeIds !== []) $q->whereIn('nominee_id', array_map('intval', $nomineeIds));
+
+            return array_fill_keys(array_map('intval', $q->pluck('nominee_id')->all()), true);
+        } catch (\Throwable) {
+            return [];
+        }
+    }
+
+    /**
+     * Disputed maps, most-disputed first, for the judging audit.
+     *
+     * ── THE READER, WITHOUT WHICH NONE OF THIS IS WORTH WRITING ──────────────
+     *
+     * A flag nobody looks at is a complaint collected and discarded, which is worse than
+     * no button at all: it teaches a judge their objection was heard when it was filed.
+     * The count is the signal — one judge disagreeing with a map is a judge, three is a
+     * map — and the reasons say which way it was wrong.
+     *
+     * @return list<array{nominee_id:int, nominee:string, flags:int, reasons:list<string>, last:string}>
+     */
+    public static function disputed(int $limit = 25): array
+    {
+        try {
+            $rows = DB::table('gates_judge_map_flags as f')
+                ->leftJoin('gates_nominees as n', 'n.id', '=', 'f.nominee_id')
+                ->orderByDesc('f.created_at')
+                ->get(['f.nominee_id', 'f.reason', 'f.created_at', 'n.name'])->all();
+        } catch (\Throwable) {
+            return [];
+        }
+
+        $by = [];
+        foreach ($rows as $r) {
+            $id = (int) $r->nominee_id;
+            $by[$id]['nominee_id'] = $id;
+            $by[$id]['nominee']    = trim((string) ($r->name ?? '')) !== ''
+                ? (string) $r->name
+                : 'Nominee #' . $id;
+            $by[$id]['flags']      = ($by[$id]['flags'] ?? 0) + 1;
+            $by[$id]['last']       = $by[$id]['last'] ?? (string) $r->created_at;
+
+            $reason = trim((string) ($r->reason ?? ''));
+            if ($reason !== '') $by[$id]['reasons'][] = $reason;
+        }
+
+        foreach ($by as &$row) $row['reasons'] = $row['reasons'] ?? [];
+        unset($row);
+
+        $out = array_values($by);
+        usort($out, static fn (array $a, array $b): int => $b['flags'] <=> $a['flags']);
+
+        return array_slice($out, 0, $limit);
+    }
+
     public static function sweep(int $limit = self::SWEEP_LIMIT): int
     {
         if (!AiGateway::available(self::CAPABILITY)) return 0;
