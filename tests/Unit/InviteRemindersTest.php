@@ -43,12 +43,14 @@ final class InviteRemindersTest extends TestCase
             'slug' => 'principals', 'title' => 'Incredible Principal Awards', 'is_active' => 1,
         ]);
 
-        // Ten days out, so the 14-day mark is the one due and there is a mark on each
-        // side of it. A fixture pinned to the exact mark would pass whether or not the
-        // window logic works at all.
+        // THREE days out: inside the five-day arc, with marks on both sides of it. Day
+        // three is the middle letter, so a fixture here exercises the sequence lookup, the
+        // marks behind us and the marks still to come — none of which a fixture pinned to
+        // the first or last day would.
         $this->eventId = (int) DB::table('gates_site_events')->insertGetId([
             'slug' => 'gala-2026', 'title' => 'Africa GATES Gala 2026',
-            'event_date' => Carbon::now()->addDays(10)->setTime(18, 0)->toDateTimeString(),
+            'tagline' => 'Accountability and Responsibility',
+            'event_date' => Carbon::now()->addDays(3)->setTime(18, 0)->toDateTimeString(),
             'status' => 'published',
             'venue' => 'Eko Convention Centre', 'location' => 'Lagos',
         ]);
@@ -508,9 +510,9 @@ final class InviteRemindersTest extends TestCase
 
         $before = InviteReminders::status($this->eventId, (string) $this->event->event_date);
         $this->assertTrue($before['enabled']);
-        $this->assertSame(10, $before['days']);
-        $this->assertSame(14, $before['due'], 'ten days out, the 14-day mark is the one holding');
-        $this->assertSame(7, $before['next'], 'and the panel can say which one follows it');
+        $this->assertSame(3, $before['days']);
+        $this->assertSame(3, $before['due'], 'three days out, day three of the arc is the one due');
+        $this->assertSame(2, $before['next'], 'and the panel can say which one follows it');
         $this->assertSame(1, $before['audience_count']);
 
         $due = array_values(array_filter($before['sent'], static fn (array $r): bool => $r['due']));
@@ -520,33 +522,38 @@ final class InviteRemindersTest extends TestCase
         // The 30 is behind us — distinguished from "not yet", because both render as a
         // zero and they are opposite problems: one will never fire, one is still coming.
         $past = array_values(array_filter($before['sent'], static fn (array $r): bool => $r['past']));
-        $this->assertSame([30], array_column($past, 'mark'));
+        $this->assertSame([5, 4], array_column($past, 'mark'));
 
         InviteReminders::sweep($this->recorder());
 
         $after = InviteReminders::status($this->eventId, (string) $this->event->event_date);
-        $sent  = array_values(array_filter($after['sent'], static fn (array $r): bool => $r['mark'] === 14));
+        $sent  = array_values(array_filter($after['sent'], static fn (array $r): bool => $r['mark'] === 3));
         $this->assertSame(1, $sent[0]['count'], 'what went out has to be visible on the screen');
     }
 
     /**
-     * The evening's time is NAMED, not just printed.
+     * The evening's time is named ONCE.
      *
-     * The invitation is read once, months out, by somebody deciding whether to come. This
-     * one is read on the way — by a judge flying in, a nominee working out when to leave —
-     * and "18:00" with no zone is a time in nobody's particular day.
+     * The first version of this test asserted only that the zone APPEARED, and it passed
+     * while a real inbox was being sent "19:00 WAT WAT" — because `DisplayTime::showZoned()`
+     * appends the abbreviation itself and a second one had been added beside it. The zone
+     * was present; it had always been present. Counting is the assertion that catches the
+     * duplicate, and "appears at least once" is the one that cannot.
      */
-    public function test_the_reminder_names_the_timezone_of_the_evening(): void
+    public function test_the_evening_time_names_its_zone_exactly_once(): void
     {
         $zone = \AfricaGates\Support\DisplayTime::abbr();
         $this->assertNotSame('', $zone, 'the harness must have a zone, or this proves nothing');
 
         $m = $this->recorder();
-        InviteReminders::send($this->invited(), $this->event, 9, 14, $m);
+        InviteReminders::send($this->invited(), $this->event, 3, 3, $m);
 
-        $this->assertStringContainsString($zone, $m->sent[0]['htmlBody']);
-        $this->assertStringContainsString($zone, $m->sent[0]['plainBody'],
-            'the plain-text half is what a screen reader may be handed');
+        $time = \AfricaGates\Support\DisplayTime::showZoned((string) $this->event->event_date, 'H:i');
+
+        $this->assertStringContainsString($time, $m->sent[0]['htmlBody']);
+        $this->assertStringNotContainsString($time . ' ' . $zone, $m->sent[0]['htmlBody'],
+            'showZoned() already appends the zone — a second one reads "19:00 WAT WAT"');
+        $this->assertStringNotContainsString($zone . ' ' . $zone, $m->sent[0]['plainBody']);
     }
 
     /** The screen says what time they go, and whether today's window has opened. */

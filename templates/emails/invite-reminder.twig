@@ -38,20 +38,28 @@
       <p style="margin:0 0 10px;font-family:'Playfair Display',Georgia,serif;font-size:26px;line-height:1.2;color:#10292C">{{ countdown_up }}</p>
       <p style="margin:0;font-size:14.5px;line-height:1.6;color:#7a6636">
         <strong style="color:#5c4708">{{ when_day }} {{ when_date }}</strong><br>
-        {{ when_time }}{% if when_zone %} {{ when_zone }}{% endif %}{% if where %} · {{ where }}{% endif %}
+        {# when_time comes from DisplayTime::showZoned(), which appends the zone itself —
+           appending another here printed "19:00 WAT WAT". #}
+        {{ when_time }}{% if where %} · {{ where }}{% endif %}
       </p>
     </td>
   </tr>
 </table>
 
-{# The operator's sentence — the one piece of copy that changes per programme and
-   per season. A complete sentence, written in the settings screen, set here at body
-   size and left alone. #}
-<p style="margin:0 0 14px;font-size:15px;line-height:1.65;color:#4a5256">{{ line }}</p>
-<p style="margin:0 0 22px;font-size:15px;line-height:1.65;color:#4a5256">
-  Nothing is needed from you — your seat at <strong style="color:#10292C">{{ event_title }}</strong>
-  is arranged and there is no ticket for you to buy.
-</p>
+{# ── THE LETTER ────────────────────────────────────────────────────────────
+   One paragraph per block, and the blocks come from the body as written — because
+   in these letters the rhythm IS the argument. "It represents trust." is a
+   paragraph on its own and has to stay one; run together with what follows it, the
+   line stops being a claim and becomes a clause.
+
+   `|nl2br` and not a second split: a single newline inside a block is a line break
+   on purpose (the values list on day two is five short lines that must stay five
+   short lines). Twig's nl2br escapes BEFORE it inserts the <br>, so operator text
+   is safe here without a raw filter — which is the only reason this loop can render
+   something an admin typed. #}
+{% for p in paragraphs %}
+  <p style="margin:0 0 {{ loop.last ? 22 : 14 }}px;font-size:15px;line-height:1.65;color:#4a5256">{{ p|nl2br }}</p>
+{% endfor %}
 
 {# ── THE PASS ──────────────────────────────────────────────────────────────
    The house button: the green pill used by the invitation, the nomination and the
@@ -107,6 +115,10 @@
 <p style="margin:0 0 4px;font-size:15px;line-height:1.65;color:#4a5256">
   We are looking forward to having you with us.
 </p>
+{# Both halves of the sign-off come from the view. "With appreciation" belongs to the
+   countdown letters and "With respect" to the ordinary reminder — one is a nudge from
+   an organiser, the other is five letters asking somebody what they believe — and the
+   name is whoever the organiser signs these as. #}
 <p style="margin:0;font-size:15px;line-height:1.65;color:#10292C">
-  With respect,<br><strong style="font-weight:600">Africa GATES</strong>
+  {{ sign_off }},<br><strong style="font-weight:600">{{ team }}</strong>
 </p>

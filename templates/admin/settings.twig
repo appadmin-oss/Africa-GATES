@@ -246,7 +246,7 @@
       </div>
     </div>
   </div></div>
-  <div class="ad-card" data-sec="mail" data-keys="invitations invite guests of honour quota nominees judges shortlist ceremony discount percent reason why witness reminders reminder days before countdown celebration legacy schedule time of day when sent" x-show="show($el)"><div class="ad-card__head"><div class="ad-card__title">Invitations<small>What a guest of honour is promised, and the one sentence that says why.</small></div></div><div class="ad-card__body">
+  <div class="ad-card" data-sec="mail" data-keys="invitations invite guests of honour quota nominees judges shortlist ceremony discount percent reason why witness reminders reminder days before countdown celebration legacy schedule time of day when sent sequence letters nominee theme values red carpet" x-show="show($el)"><div class="ad-card__head"><div class="ad-card__title">Invitations<small>What a guest of honour is promised, and the one sentence that says why.</small></div></div><div class="ad-card__body">
     <div class="ad-form">
       {# TWO audiences, not three. This began as principals / children / judges, which was
          a taxonomy invented out of two example programmes — a nominee is a nominee whichever
@@ -312,6 +312,59 @@
         </p>
         <div><label for="f-invite_reminder_line_nominee">Reminder, for a nominee</label><input type="text" name="invite_reminder_line_nominee" id="f-invite_reminder_line_nominee" value="{{ values.invite_reminder_line_nominee|default('') }}" maxlength="400" placeholder="{{ invite_reminder_line_nominee_default }}"></div>
         <div style="margin-top:10px"><label for="f-invite_reminder_line_judge">Reminder, for a judge</label><input type="text" name="invite_reminder_line_judge" id="f-invite_reminder_line_judge" value="{{ values.invite_reminder_line_judge|default('') }}" maxlength="400" placeholder="{{ invite_reminder_line_judge_default }}"></div>
+      </div>
+
+      {# ── THE COUNTDOWN LETTERS ────────────────────────────────────────────
+         Five letters over the final week, and each only works in its position:
+         WHY → VALUES → RESPONSIBILITY → MESSAGE → ACTION. They go to NOMINEES; a
+         judge is honoured for how they judged, and "your nomination represents
+         trust" is not addressed to them, so judges keep the short reminder above. #}
+      <div style="margin-top:14px;padding-top:14px;border-top:1px solid var(--ad-line,#e5eae8)">
+        <p class="hint" style="margin:0 0 10px">
+          <strong style="color:var(--ad-text)">The countdown letters.</strong>
+          In the final {{ invite_seq_days|length }} days a <em>nominee</em> receives one letter a day, building from
+          why they were chosen to what they will say when asked. Judges keep the short
+          reminder above. Everything the platform already knows — the name, the date, the
+          venue, the days left — fills itself, so a second ceremony needs none of this
+          retyped.
+        </p>
+
+        <p class="hint" style="margin:0 0 10px">
+          Write <code>{'{'}token{'}'}</code> anywhere in a letter:
+          {% for token, means in invite_seq_tokens %}<code>{{ '{' ~ token ~ '}' }}</code> <span class="iv-mute">{{ means }}</span>{% if not loop.last %} · {% endif %}{% endfor %}
+        </p>
+
+        <div><label for="f-invite_seq_theme">Theme <small>only used when the event has no tagline of its own</small></label>
+          <input type="text" name="invite_seq_theme" id="f-invite_seq_theme" value="{{ values.invite_seq_theme|default('') }}" maxlength="160" placeholder="Accountability and Responsibility"></div>
+
+        <div style="margin-top:10px"><label for="f-invite_seq_outcome">The change being asked for <small>completes &ldquo;what must we do differently to&hellip;&rdquo;</small></label>
+          <input type="text" name="invite_seq_outcome" id="f-invite_seq_outcome" value="{{ values.invite_seq_outcome|default('') }}" maxlength="240" placeholder="{{ invite_seq_outcome_default }}"></div>
+
+        <div style="margin-top:10px"><label for="f-invite_seq_values">The values it celebrates <small>one per line, up to six</small></label>
+          <textarea name="invite_seq_values" id="f-invite_seq_values" rows="5" style="width:100%">{{ values.invite_seq_values|default('') }}</textarea></div>
+        <p class="hint" style="margin:4px 0 0">Set as a block of short lines in the day-two letter, so each one is its own beat. In use now:
+          <span class="iv-mute">{{ invite_seq_values_default|replace({"\n": ' · '}) }}</span></p>
+
+        <div style="margin-top:10px"><label for="f-invite_seq_action">The closing call <small>the line the last letter ends on</small></label>
+          <input type="text" name="invite_seq_action" id="f-invite_seq_action" value="{{ values.invite_seq_action|default('') }}" maxlength="240" placeholder="{{ invite_seq_action_default }}"></div>
+
+        <div style="margin-top:10px"><label for="f-invite_seq_team">Signed by</label>
+          <input type="text" name="invite_seq_team" id="f-invite_seq_team" value="{{ values.invite_seq_team|default('') }}" maxlength="120" placeholder="{{ invite_seq_team_default }}"></div>
+
+        <p class="hint" style="margin:14px 0 8px">
+          The letters themselves. Leave one empty to send the wording that ships with the
+          platform — and read any of them, filled in against a real ceremony, from that
+          event's <strong>Invitations</strong> screen.
+        </p>
+        {% for d in invite_seq_days %}
+          {% set key = 'invite_seq_body_' ~ d %}
+          <div style="margin-top:10px">
+            <label for="f-{{ key }}">Day {{ d }}
+              <small>{% if d == 1 %}the eve — action{% elseif d == 2 %}message{% elseif d == 3 %}responsibility{% elseif d == 4 %}values{% else %}why{% endif %}</small></label>
+            <textarea name="{{ key }}" id="f-{{ key }}" rows="6" style="width:100%"
+                      placeholder="Using the wording that ships with the platform — type here to replace it.">{{ attribute(values, key)|default('') }}</textarea>
+          </div>
+        {% endfor %}
       </div>
 
       <p class="hint" style="margin:10px 0 0">A run is built and sent per ceremony, from <strong>Events &rarr; the event &rarr; Invitations</strong>. Which awards it covers is set on the event itself. Reminders go from there too, and that screen shows which one is next.</p>

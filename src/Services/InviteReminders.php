@@ -49,8 +49,15 @@ use Twig\Loader\FilesystemLoader;
  */
 final class InviteReminders
 {
-    /** Marks used when the operator has set none. Roughly a month, a fortnight, a week, the eve. */
-    public const DEFAULT_MARKS = [30, 14, 7, 1];
+    /**
+     * Marks used when the operator has set none.
+     *
+     * The last five days, one letter a day — {@see InviteSequence}, whose arc is written
+     * for exactly these marks. Referenced rather than repeated: a schedule that defaulted
+     * to 30/14/7/1 while the letters were written for 5/4/3/2/1 would ship a feature whose
+     * two halves disagree about when it runs, and nothing on any screen would say so.
+     */
+    public const DEFAULT_MARKS = InviteSequence::DAYS;
 
     /**
      * Reminders per sweep, across all events.
@@ -330,7 +337,7 @@ final class InviteReminders
      * @return array{
      *   enabled:bool, marks:list<int>, time:string, zone:string, open:bool,
      *   days:?int, due:?int, next:?int, audience_count:int,
-     *   sent:list<array{mark:int,count:int,due:bool,past:bool}>
+     *   sent:list<array{mark:int,letter:string,count:int,due:bool,past:bool}>
      * }
      */
     public static function status(int $eventId, string $eventDate): array
@@ -339,22 +346,32 @@ final class InviteReminders
         $days  = self::daysUntil($eventDate);
         $due   = $days === null ? null : self::dueMark($days, $marks);
 
-        // The next mark that will BECOME due: the largest one at or below the days
-        // remaining. Largest, because marks count DOWN — with 30/14/7/1 and ten days left,
-        // the 7 comes before the 1. Falls back to the due mark when none is below it,
-        // which is the eve of the event and where there is nothing further to name.
+        // The mark AFTER the one due now — the largest one strictly below it, because
+        // marks count DOWN and the 2 follows the 3. Strictly below, and that is the whole
+        // subtlety: "the largest mark at or below the days remaining" is the mark that is
+        // due, not the one after it, so the panel would have answered its own question
+        // with the number it had just printed.
+        //
+        // Null on the eve, which is the honest answer: there is nothing after it. When
+        // nothing is due yet, this is instead the FIRST mark that will fire, which is what
+        // "reminders start N days out" needs.
         $next = null;
         if ($days !== null && $days >= 0) {
+            $ceiling = $due ?? ($days + 1);
             foreach ($marks as $m) {
-                if ($m <= $days && ($next === null || $m > $next)) $next = $m;
+                if ($m < $ceiling && $m <= $days && ($next === null || $m > $next)) $next = $m;
             }
-            $next ??= $due;
         }
 
         $sent = [];
         foreach ($marks as $m) {
             $sent[] = [
                 'mark'  => $m,
+                // WHICH letter this mark sends. "Day 3" says when and nothing says what,
+                // and an operator deciding whether to rewrite one needs to know that day
+                // three is the one about their own street before they open it. Empty for
+                // a mark outside the arc, where the ordinary reminder goes instead.
+                'letter' => InviteSequence::has($m) ? InviteSequence::label($m) : '',
                 'count' => self::sentCount($eventId, $m),
                 'due'   => $m === $due,
                 // Behind us: the evening is nearer than this mark, so it will not fire
@@ -488,7 +505,7 @@ final class InviteReminders
         }
 
         $mailer ??= OtpService::boot();
-        $m = self::compose($invite, $event, $daysUntil);
+        $m = self::compose($invite, $event, $daysUntil, $mark);
 
         $r = $mailer->sendBranded(
             $email,
@@ -515,6 +532,9 @@ final class InviteReminders
     /** The rendered reminder, for the admin's preview. Sends nothing, logs nothing. */
     public static function preview(object $invite, object $event, int $daysUntil, ?OtpService $mailer = null): string
     {
+        // No mark passed: let compose() resolve the one the schedule would have used at
+        // this distance, so a preview shows the letter that would actually go rather than
+        // the generic fallback.
         $m = self::compose($invite, $event, $daysUntil);
 
         // WRAPPED, because the recipient's copy is wrapped — the same reason
@@ -544,9 +564,9 @@ final class InviteReminders
      *
      * @return array{subject:string, html:string, plain:string, preheader:string, hero:string}
      */
-    private static function compose(object $invite, object $event, int $daysUntil): array
+    private static function compose(object $invite, object $event, int $daysUntil, ?int $mark = null): array
     {
-        $view = self::view($invite, $event, $daysUntil);
+        $view = self::view($invite, $event, $daysUntil, $mark);
 
         return [
             'subject'   => (string) $view['subject'],
@@ -562,7 +582,7 @@ final class InviteReminders
      *
      * @return array<string,mixed>
      */
-    private static function view(object $invite, object $event, int $daysUntil): array
+    private static function view(object $invite, object $event, int $daysUntil, ?int $mark = null): array
     {
         $audience = (string) ($invite->audience ?? InviteAudience::NOMINEE);
         $spec     = InviteAudience::spec(InviteAudience::isValid($audience) ? $audience : InviteAudience::NOMINEE);
@@ -576,6 +596,39 @@ final class InviteReminders
             trim((string) ($event->location ?? '')),
         ])));
 
+        // ── WHICH LETTER IS THIS? ────────────────────────────────────────────
+        //
+        // A nominee inside the final week gets the letter of the arc written for that
+        // day; everybody else — a judge, or a nominee at a mark the operator added
+        // outside it — gets the ordinary reminder. Resolved from the mark rather than
+        // from the days remaining, because the mark is what the schedule actually chose
+        // and the two differ the moment a cron misses a morning.
+        $seqDay = null;
+        if ($audience === InviteAudience::NOMINEE) {
+            $m = $mark ?? self::dueMark($daysUntil);
+            if ($m !== null && InviteSequence::has($m)) $seqDay = $m;
+        }
+
+        $tokens = InviteSequence::tokens($invite, $event, $daysUntil);
+
+        if ($seqDay !== null) {
+            $letter     = InviteSequence::day($seqDay);
+            $subject    = InviteSequence::fill($letter['subject'], $tokens);
+            $bodyText   = InviteSequence::fill($letter['body'], $tokens);
+            $paragraphs = self::paragraphs($bodyText);
+            // "With appreciation" is how these letters sign off, and it is not
+            // interchangeable with the reminder's "With respect": one is a nudge from an
+            // organiser, the other is five letters asking somebody what they believe.
+            $signOff    = 'With appreciation';
+        } else {
+            $subject  = trim((string) $invite->name) . ', ' . $count . ': ' . $copy['headline'];
+            $bodyText = (string) $copy['line'] . "\n\n"
+                      . 'Nothing is needed from you — your seat at ' . trim((string) $event->title)
+                      . ' is arranged and there is no ticket for you to buy.';
+            $paragraphs = self::paragraphs($bodyText);
+            $signOff    = 'With respect';
+        }
+
         return [
             // ── NAME, COUNTDOWN, THEN THE FRAMING ────────────────────────────
             //
@@ -585,7 +638,7 @@ final class InviteReminders
             // sentence — pushed the one fact this message exists to carry past the
             // truncation on every mobile client. Name and countdown are both inside the
             // first twenty characters now, and the framing is the part that may fall off.
-            'subject'   => trim((string) $invite->name) . ', ' . $count . ': ' . $copy['headline'],
+            'subject'   => $subject,
             // The ask, not a repeat of the subject: the subject already says when, so the
             // one line beside it in the inbox carries what to DO about it.
             'preheader' => 'Your pass is ready, and your guests still have '
@@ -594,7 +647,14 @@ final class InviteReminders
             'name'         => trim((string) $invite->name),
             'salutation'   => (string) $spec['salutation'],
             'headline'     => (string) $copy['headline'],
-            'line'         => (string) $copy['line'],
+            // BLOCKS, not one string. The letters are long-form and their rhythm is the
+            // argument — a single line standing alone is a beat, and a wall of text with
+            // <br> between the beats is not the same message.
+            'paragraphs'   => $paragraphs,
+            'body_text'    => $bodyText,
+            'sign_off'     => $signOff,
+            'team'         => (string) $tokens['team'],
+            'sequence_day' => $seqDay,
             'countdown'    => $count,
             // Capitalised for the panel, which opens with it. Done here rather than with a
             // Twig filter because the plain-text part needs the same string and `|capitalize`
@@ -603,18 +663,17 @@ final class InviteReminders
             'days'         => $daysUntil,
 
             'event_title' => trim((string) $event->title),
-            'when'        => trim(DisplayTime::showZoned((string) $event->event_date, 'l j F Y \a\t H:i')
-                                  . ' ' . DisplayTime::abbr()),
+            'when'        => DisplayTime::showZoned((string) $event->event_date, 'l j F Y \a\t H:i'),
             'when_day'    => DisplayTime::show((string) $event->event_date, 'l'),
             'when_date'   => DisplayTime::show((string) $event->event_date, 'j F Y'),
+            // ── ZONED, AND ONLY ONCE ─────────────────────────────────────────
+            //
+            // `showZoned()` APPENDS the abbreviation itself — that is the whole difference
+            // between it and `show()`. Adding one here read "19:00 WAT WAT" in a real
+            // inbox, and it survived a test asserting the zone was present, because the
+            // zone WAS present: it always had been. An assertion that something appears is
+            // not an assertion about how many times.
             'when_time'   => DisplayTime::showZoned((string) $event->event_date, 'H:i'),
-            // NAMED, on a reminder, in a way the invitation does not bother with. The
-            // invitation is read once, months out, by somebody deciding whether to come.
-            // This one is read on the way — by a judge flying in, a nominee working out
-            // when to leave — and "18:00" with no zone is a time in nobody's particular
-            // day. Empty when the zone will not name itself, which is not worth a
-            // dangling label.
-            'when_zone'   => DisplayTime::abbr(),
             'where'       => $where,
             'cover_url'   => self::coverUrl($event, $base),
 
@@ -630,6 +689,27 @@ final class InviteReminders
             'events_url'      => $base . '/events/' . rawurlencode((string) $event->slug),
             'unsubscribe_url' => EmailOptOut::url($base, (string) $invite->email),
         ];
+    }
+
+    /**
+     * A body as the blocks a reader sees.
+     *
+     * Split on BLANK lines only. A single newline inside a block is kept and rendered as a
+     * line break, because that is how the values list reaches day two's letter — five
+     * short lines that have to stay five short lines. Splitting on every newline would
+     * turn it into five paragraphs with the spacing of five arguments.
+     *
+     * @return list<string>
+     */
+    private static function paragraphs(string $body): array
+    {
+        $out = [];
+        foreach (preg_split('/(?:\r\n|\r|\n){2,}/', trim($body)) ?: [] as $block) {
+            $block = trim($block);
+            if ($block !== '') $out[] = $block;
+        }
+
+        return $out;
     }
 
     /** @param array<string,mixed> $view */
@@ -662,7 +742,10 @@ final class InviteReminders
             '',
             $view['salutation'] . ' ' . $view['name'] . ',',
             '',
-            (string) $view['line'],
+            // The body as WRITTEN, blank lines and all. This is a letter, and the shape of
+            // it is half the message — collapsing the beats into one block is the same
+            // damage `strip_tags()` over a table does, arrived at a different way.
+            (string) $view['body_text'],
             '',
             strtoupper((string) $view['countdown_up']),
             $view['event_title'],
@@ -676,8 +759,8 @@ final class InviteReminders
                 . (string) $view['tier_line'] . '.',
             'Tickets: ' . $view['events_url'],
             '',
-            'With respect,',
-            'Africa GATES',
+            (string) $view['sign_off'] . ',',
+            (string) $view['team'],
             '',
             'To stop receiving email from us: ' . $view['unsubscribe_url'],
         ]);

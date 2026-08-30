@@ -403,11 +403,16 @@
 
         <div class="iv-scroll">
           <table class="ad-table">
-            <thead><tr><th>Mark</th><th>State</th><th class="iv-num">Sent</th></tr></thead>
+            <thead><tr><th>Mark</th><th>Letter</th><th>State</th><th class="iv-num">Sent</th></tr></thead>
             <tbody>
             {% for m in reminders.sent %}
               <tr>
                 <td>{{ m.mark }} day{{ m.mark == 1 ? '' : 's' }} out</td>
+                {# The arc, named. A mark outside it sends the short reminder instead, and
+                   saying so is the difference between "day 21 sends nothing" and "day 21
+                   sends the nudge". #}
+                <td>{% if m.letter %}{{ m.letter }}<span class="iv-mute"> · nominees</span>
+                    {% else %}<span class="iv-mute">short reminder</span>{% endif %}</td>
                 <td>
                   {# THREE states, not two. "Due now" and "not yet" and "behind us"
                      all render as a count of zero, and they are opposite problems:

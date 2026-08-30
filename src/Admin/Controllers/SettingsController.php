@@ -69,6 +69,15 @@ class SettingsController
             // that is demonstrably running.
             'invite_reminder_time'      => \AfricaGates\Services\InviteReminders::sendTimeLabel(),
             'invite_reminder_time_zone' => \AfricaGates\Support\DisplayTime::abbr(),
+            // The arc, and what an operator may write into it. The token list is READ
+            // from the class rather than copied into the template: a list of placeholders
+            // that lives in Twig is one that goes out of date the first time one is added.
+            'invite_seq_days'    => \AfricaGates\Services\InviteSequence::DAYS,
+            'invite_seq_tokens'  => \AfricaGates\Services\InviteSequence::TOKENS,
+            'invite_seq_values_default'  => \AfricaGates\Services\InviteSequence::values(),
+            'invite_seq_outcome_default' => \AfricaGates\Services\InviteSequence::DEFAULT_OUTCOME,
+            'invite_seq_action_default'  => \AfricaGates\Services\InviteSequence::DEFAULT_ACTION,
+            'invite_seq_team_default'    => \AfricaGates\Services\InviteSequence::DEFAULT_TEAM,
             'invite_reminder_line_nominee_default' => \AfricaGates\Services\InviteReminders::copy(
                 \AfricaGates\Services\InviteAudience::NOMINEE)['line_default'],
             'invite_reminder_line_judge_default'   => \AfricaGates\Services\InviteReminders::copy(
@@ -245,7 +254,14 @@ class SettingsController
                   // InviteReminders — a free-text day list must not be trusted by the
                   // sweep any more than it is trusted here.
                   'invite_reminder_days','invite_reminder_time',
-                  'invite_reminder_line_nominee','invite_reminder_line_judge'] as $k) {
+                  'invite_reminder_line_nominee','invite_reminder_line_judge',
+                  // The countdown letters: the facts no database can know, and the five
+                  // bodies themselves. Tokens are resolved at send time against the event,
+                  // so an operator running a second gala changes none of this.
+                  'invite_seq_theme','invite_seq_outcome','invite_seq_values',
+                  'invite_seq_action','invite_seq_team',
+                  'invite_seq_body_5','invite_seq_body_4','invite_seq_body_3',
+                  'invite_seq_body_2','invite_seq_body_1'] as $k) {
             if (array_key_exists($k, $b)) {
                 $this->settings->set($k, trim((string)$b[$k]), $adminId);
             }
