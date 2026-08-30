@@ -322,9 +322,10 @@
       <div style="margin-top:14px;padding-top:14px;border-top:1px solid var(--ad-line,#e5eae8)">
         <p class="hint" style="margin:0 0 10px">
           <strong style="color:var(--ad-text)">The countdown letters.</strong>
-          In the final {{ invite_seq_days|length }} days a <em>nominee</em> receives one letter a day, building from
-          why they were chosen to what they will say when asked. Judges keep the short
-          reminder above. Everything the platform already knows — the name, the date, the
+          In the final {{ invite_seq_days|length }} days a nominee and a judge each receive one letter a day, building
+          from why they were trusted to what they will say when asked. Same arc, written
+          twice: a nominee is honoured for work they did and a judge for a decision they
+          made about somebody else's. Everything the platform already knows — the name, the date, the
           venue, the days left — fills itself, so a second ceremony needs none of this
           retyped.
         </p>
@@ -356,18 +357,61 @@
           platform — and read any of them, filled in against a real ceremony, from that
           event's <strong>Invitations</strong> screen.
         </p>
-        {% for d in invite_seq_days %}
-          {% set key = 'invite_seq_body_' ~ d %}
-          <div style="margin-top:10px">
-            <label for="f-{{ key }}">Day {{ d }}
-              <small>{% if d == 1 %}the eve — action{% elseif d == 2 %}message{% elseif d == 3 %}responsibility{% elseif d == 4 %}values{% else %}why{% endif %}</small></label>
-            <textarea name="{{ key }}" id="f-{{ key }}" rows="6" style="width:100%"
-                      placeholder="Using the wording that ships with the platform — type here to replace it.">{{ attribute(values, key)|default('') }}</textarea>
-          </div>
+        {% for a in invite_seq_audiences %}
+          <p class="hint" style="margin:16px 0 4px;font-weight:600;color:var(--ad-text)">
+            {% if a == 'judge' %}To the panel{% else %}To the nominees{% endif %}
+            <small style="display:block;font-weight:400">{% if a == 'judge' %}Honoured for the decision they made about somebody else's work — they were never nominated, so these are written separately.{% else %}Honoured for work they did.{% endif %}</small>
+          </p>
+          {% for d in invite_seq_days %}
+            {% set key = 'invite_seq_body_' ~ a ~ '_' ~ d %}
+            {# The legacy value, for a nominee letter written before the key carried an
+               audience. Shown so an operator sees their own wording rather than an empty
+               box; saving migrates it to the new key. #}
+            {% set legacy = a == 'nominee' ? attribute(values, 'invite_seq_body_' ~ d)|default('') : '' %}
+            <div style="margin-top:10px">
+              <label for="f-{{ key }}">Day {{ d }}
+                <small>{% if d == 1 %}the eve — action{% elseif d == 2 %}message{% elseif d == 3 %}responsibility{% elseif d == 4 %}values{% else %}why{% endif %}</small></label>
+              <textarea name="{{ key }}" id="f-{{ key }}" rows="6" style="width:100%"
+                        placeholder="Using the wording that ships with the platform — type here to replace it.">{{ attribute(values, key)|default(legacy) }}</textarea>
+            </div>
+          {% endfor %}
         {% endfor %}
       </div>
 
       <p class="hint" style="margin:10px 0 0">A run is built and sent per ceremony, from <strong>Events &rarr; the event &rarr; Invitations</strong>. Which awards it covers is set on the event itself. Reminders go from there too, and that screen shows which one is next.</p>
+    </div>
+  </div></div>
+
+  <div class="ad-card" data-sec="data" data-keys="tracking visits analytics arrivals referrer utm campaign source privacy retention do not track" x-show="show($el)"><div class="ad-card__head"><div class="ad-card__title">Arrivals<small>Where the people who come here came from.</small></div></div><div class="ad-card__body">
+    <div class="ad-form">
+      {# The report this feeds is Analytics → "Where people came from". Everything else on
+         that page is counted off the domain tables and can say only what happened AFTER
+         somebody arrived; this is the half that says where they came from. #}
+      <p class="hint" style="margin:0 0 10px">
+        One row per visit, not per page view. Records the source (a <code>utm_source</code>,
+        or the site that linked here), the page landed on, and whether the visit led to a
+        vote, a nomination or a ticket.
+      </p>
+      <p class="hint" style="margin:0 0 10px">
+        <strong>What is never stored:</strong> no IP address (a daily-salted hash only, so the
+        same reader is unlinkable across days), no full referrer URL — the host only, because a
+        path carries search terms — no landing query string, since links here carry passes and
+        sign-in tokens, and no browser string. <code>Do Not Track</code> and
+        <code>Sec-GPC</code> are honoured, and bots and link previewers are not counted.
+      </p>
+
+      <label style="display:flex;gap:8px;align-items:flex-start;cursor:pointer">
+        <input type="checkbox" name="visits_enabled" id="f-visits_enabled" value="1"{% if visits_on %} checked{% endif %} style="margin-top:3px">
+        <span>Record where arrivals come from
+          <small style="display:block;font-weight:400">Off means the report shows nothing — which reads as "nobody came", so the screen says so.</small>
+        </span>
+      </label>
+
+      <div style="margin-top:10px"><label for="f-visits_days">Keep arrivals for <small>days — long enough to compare one campaign against the last</small></label>
+        <input type="number" name="visits_days" id="f-visits_days" value="{{ visits_days_value }}" min="7" max="730"></div>
+      <p class="hint" style="margin:6px 0 0">Older rows are dropped by the maintenance run. A recorder with no pruner is a table that grows for the life of the deployment.</p>
+
+      <p class="hint" style="margin:10px 0 0">Tag a link you share with <code>?utm_source=flier&amp;utm_campaign=gala26</code> and it will be counted by name in <a href="/admin/analytics">Analytics</a>.</p>
     </div>
   </div></div>
 

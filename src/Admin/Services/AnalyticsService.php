@@ -533,6 +533,137 @@ final class AnalyticsService
     }
 
     // ═════════════════════════════════════════════════════════════════════════
+    // ARRIVALS
+    // ═════════════════════════════════════════════════════════════════════════
+
+    /**
+     * Where the people who came here came from, and what came of it.
+     *
+     * ── THE COLUMN THAT MAKES THIS WORTH READING IS THE LAST ONE ─────────────
+     *
+     * A list of arrivals by source is a vanity table: the channel with the most forwards
+     * wins it every time, and it is usually the one that also sends the most people who
+     * bounce. What an organiser actually decides with is the RATE — four hundred arrivals
+     * from a WhatsApp forward and two votes is a worse Tuesday than thirty arrivals from
+     * a partner's newsletter and eleven.
+     *
+     * So conversions are counted per source alongside the arrivals, and the percentage is
+     * computed here rather than left to a template — a rate assembled in Twig is a rate
+     * two screens will eventually disagree about.
+     *
+     * ── AND WHY 'direct' IS NOT AN EMBARRASSMENT ─────────────────────────────
+     *
+     * It will be large, and most of it is not people typing the address. Every app that
+     * strips the referrer on the way out lands here: a link opened from inside WhatsApp
+     * on some clients, an email client, anything shared as a screenshot and typed back
+     * in. It is reported honestly and labelled, rather than being quietly folded into
+     * whichever channel would flatter a campaign.
+     *
+     * @return array{
+     *   total:int, converted:int, rate:int, tracking:bool,
+     *   sources:list<array{source:string,visits:int,converted:int,rate:int}>,
+     *   campaigns:list<array{campaign:string,visits:int,converted:int,rate:int}>,
+     *   landings:list<array{path:string,visits:int}>,
+     *   devices:list<array{device:string,visits:int}>,
+     *   kinds:list<array{kind:string,count:int}>
+     * }
+     */
+    public static function arrivals(int $days = 30, int $limit = 12): array
+    {
+        $empty = ['total' => 0, 'converted' => 0, 'rate' => 0, 'tracking' => false,
+                  'sources' => [], 'campaigns' => [], 'landings' => [], 'devices' => [], 'kinds' => []];
+
+        $days = self::clampDays($days);
+        if (!self::has('gates_visits')) return $empty;
+
+        $from = date('Y-m-d', strtotime('-' . ($days - 1) . ' days')) . ' 00:00:00';
+
+        try {
+            $bySource   = [];
+            $byCampaign = [];
+            $byLanding  = [];
+            $byDevice   = [];
+            $byKind     = [];
+            $total      = 0;
+            $converted  = 0;
+
+            // One pass, in PHP. The alternative is five GROUP BY queries, and this table
+            // is bounded by its own pruner — a month of arrivals on this platform is
+            // thousands of rows, not the millions that would make the round trip the
+            // cheaper option.
+            foreach (DB::table('gates_visits')->where('created_at', '>=', $from)
+                        ->get(['source', 'campaign', 'landing_path', 'device', 'converted_kind']) as $r) {
+                $total++;
+                $did = trim((string) ($r->converted_kind ?? '')) !== '';
+                if ($did) {
+                    $converted++;
+                    $byKind[(string) $r->converted_kind] = ($byKind[(string) $r->converted_kind] ?? 0) + 1;
+                }
+
+                $src = trim((string) ($r->source ?? '')) !== '' ? (string) $r->source : 'direct';
+                $bySource[$src]['v'] = ($bySource[$src]['v'] ?? 0) + 1;
+                $bySource[$src]['c'] = ($bySource[$src]['c'] ?? 0) + ($did ? 1 : 0);
+
+                $camp = trim((string) ($r->campaign ?? ''));
+                if ($camp !== '') {
+                    $byCampaign[$camp]['v'] = ($byCampaign[$camp]['v'] ?? 0) + 1;
+                    $byCampaign[$camp]['c'] = ($byCampaign[$camp]['c'] ?? 0) + ($did ? 1 : 0);
+                }
+
+                $path = trim((string) ($r->landing_path ?? ''));
+                if ($path !== '') $byLanding[$path] = ($byLanding[$path] ?? 0) + 1;
+
+                $dev = trim((string) ($r->device ?? '')) !== '' ? (string) $r->device : 'unknown';
+                $byDevice[$dev] = ($byDevice[$dev] ?? 0) + 1;
+            }
+
+            $rate = static fn (int $c, int $v): int => $v > 0 ? (int) round($c * 100 / $v) : 0;
+
+            $rows = static function (array $in) use ($rate, $limit): array {
+                $out = [];
+                foreach ($in as $k => $n) {
+                    $out[] = ['key' => (string) $k, 'visits' => (int) $n['v'],
+                              'converted' => (int) $n['c'], 'rate' => $rate((int) $n['c'], (int) $n['v'])];
+                }
+                usort($out, static fn (array $a, array $b): int => $b['visits'] <=> $a['visits']);
+
+                return array_slice($out, 0, $limit);
+            };
+
+            $sources   = array_map(static fn (array $r): array =>
+                ['source' => $r['key']] + array_intersect_key($r, array_flip(['visits', 'converted', 'rate'])),
+                $rows($bySource));
+            $campaigns = array_map(static fn (array $r): array =>
+                ['campaign' => $r['key']] + array_intersect_key($r, array_flip(['visits', 'converted', 'rate'])),
+                $rows($byCampaign));
+
+            arsort($byLanding);
+            arsort($byDevice);
+            arsort($byKind);
+
+            $landings = [];
+            foreach (array_slice($byLanding, 0, $limit, true) as $p => $n) {
+                $landings[] = ['path' => (string) $p, 'visits' => (int) $n];
+            }
+            $devices = [];
+            foreach ($byDevice as $d => $n) $devices[] = ['device' => (string) $d, 'visits' => (int) $n];
+            $kinds = [];
+            foreach ($byKind as $k => $n) $kinds[] = ['kind' => (string) $k, 'count' => (int) $n];
+
+            return [
+                'total' => $total, 'converted' => $converted, 'rate' => $rate($converted, $total),
+                // Whether the recorder is even on. A page of zeroes reads as "nobody came";
+                // this is what lets the screen say "nothing is being recorded" instead.
+                'tracking' => \AfricaGates\Services\VisitTracker::enabled(),
+                'sources' => $sources, 'campaigns' => $campaigns,
+                'landings' => $landings, 'devices' => $devices, 'kinds' => $kinds,
+            ];
+        } catch (\Throwable) {
+            return $empty;
+        }
+    }
+
+    // ═════════════════════════════════════════════════════════════════════════
     // GEOGRAPHY
     // ═════════════════════════════════════════════════════════════════════════
 

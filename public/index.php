@@ -210,6 +210,12 @@ $app->add(new \AfricaGates\Middleware\TrailingSlashMiddleware());
 // remember on the next page they add, and the next page they add is where a link gets
 // shared. GET only — a `?ref=` on a POST is a form action, not somebody following a link.
 $app->add(new \AfricaGates\Middleware\ReferralCaptureMiddleware());
+// Where the people who arrive here came from — one row per session, written on the way
+// in. Middleware for the same reason the referral capture is: the failure mode is
+// forgetting, and the next public page somebody adds is the one a campaign link points
+// at. Records nothing for bots, admin pages, or anybody sending DNT / Sec-GPC, and
+// swallows its own errors — a tracker that can 500 the home page is worse than none.
+$app->add(new \AfricaGates\Middleware\VisitTrackingMiddleware());
 $app->add(new CsrfMiddleware());
 $app->addBodyParsingMiddleware();
 

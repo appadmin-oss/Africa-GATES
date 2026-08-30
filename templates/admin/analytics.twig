@@ -126,6 +126,102 @@
   {% endfor %}
 </div>
 
+{# ══ ARRIVALS ═══════════════════════════════════════════════════════════════
+   The only section on this page not counted off a domain table. Everything else
+   here reports what happened AFTER somebody arrived; this is the half that says
+   where they came from — which, on a platform whose entire reach is shared links,
+   is the question an organiser actually asks on the Tuesday after a flier. #}
+<section class="an-sec">
+  <div class="an-sec__h"><h2>Where people came from</h2><span>last {{ days }} days</span></div>
+
+  {% if not arrivals.tracking %}
+    {# A page of zeroes reads as "nobody came". It has to say which it is. #}
+    <p class="an-sec__note"><strong>Nothing is being recorded.</strong>
+      Arrival tracking is switched off, so these are not low numbers — they are no numbers.
+      Turn it on in <a href="/admin/settings#f-visits_enabled">Settings &rarr; Privacy &amp; tracking</a>.</p>
+  {% else %}
+    <p class="an-sec__note">
+      One row per visit, not per page view — a reader who opens nine pages is one arrival.
+      The column worth reading is the last one: four hundred arrivals that do nothing is a
+      worse Tuesday than thirty that vote. <strong>Direct</strong> is honest rather than
+      embarrassing — every app that strips the referrer on the way out lands there.
+    </p>
+
+    <div class="an-grid">
+      <div class="an-card">
+        <div class="an-card__k">Arrivals</div>
+        <div class="an-card__n">{{ arrivals.total|number_format }}</div>
+        <div class="an-card__s">distinct visits</div>
+      </div>
+      <div class="an-card">
+        <div class="an-card__k">Did something</div>
+        <div class="an-card__n">{{ arrivals.rate }}%</div>
+        <div class="an-card__s">{{ arrivals.converted|number_format }} of {{ arrivals.total|number_format }}</div>
+      </div>
+      {% for k in arrivals.kinds|slice(0, 2) %}
+        <div class="an-card">
+          <div class="an-card__k">{{ k.kind }}</div>
+          <div class="an-card__n">{{ k.count|number_format }}</div>
+          <div class="an-card__s">from a tracked arrival</div>
+        </div>
+      {% endfor %}
+    </div>
+
+    {% if arrivals.sources|length %}
+      <div class="an-two" style="margin-top:14px">
+        <div>
+          <h3 style="font-size:13px;margin:0 0 8px">By source</h3>
+          <table class="an-tbl">
+            <thead><tr><th>Source</th><th class="n">Arrivals</th><th class="n">Did something</th></tr></thead>
+            <tbody>
+            {% for r in arrivals.sources %}
+              <tr>
+                <td>{{ r.source }}</td>
+                <td class="n">{{ r.visits|number_format }}</td>
+                <td class="n">{{ r.converted|number_format }} <span class="an-flat">({{ r.rate }}%)</span></td>
+              </tr>
+            {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        <div>
+          <h3 style="font-size:13px;margin:0 0 8px">
+            {% if arrivals.campaigns|length %}By campaign{% else %}Landed on{% endif %}
+          </h3>
+          <table class="an-tbl">
+            {% if arrivals.campaigns|length %}
+              <thead><tr><th>Campaign</th><th class="n">Arrivals</th><th class="n">Did something</th></tr></thead>
+              <tbody>
+              {% for r in arrivals.campaigns %}
+                <tr><td>{{ r.campaign }}</td><td class="n">{{ r.visits|number_format }}</td>
+                    <td class="n">{{ r.converted|number_format }} <span class="an-flat">({{ r.rate }}%)</span></td></tr>
+              {% endfor %}
+              </tbody>
+            {% else %}
+              {# No campaigns tagged yet. Saying HOW to tag one is more useful than an
+                 empty table, and it is the one thing that makes this report sharp. #}
+              <thead><tr><th>Page</th><th class="n">Arrivals</th></tr></thead>
+              <tbody>
+              {% for r in arrivals.landings %}
+                <tr><td><code>{{ r.path }}</code></td><td class="n">{{ r.visits|number_format }}</td></tr>
+              {% endfor %}
+              </tbody>
+            {% endif %}
+          </table>
+          {% if not arrivals.campaigns|length %}
+            <p class="an-sec__note" style="margin-top:8px">
+              Add <code>?utm_source=flier&amp;utm_campaign=gala26</code> to a link you share and
+              it will be counted here by name.
+            </p>
+          {% endif %}
+        </div>
+      </div>
+    {% else %}
+      <p class="an-sec__note">No arrivals recorded in this window yet.</p>
+    {% endif %}
+  {% endif %}
+</section>
+
 {# ══ AUDIENCE ═══════════════════════════════════════════════════════════════ #}
 <section class="an-sec">
   <div class="an-sec__h"><h2>Audience</h2><span>accounts on the platform</span></div>

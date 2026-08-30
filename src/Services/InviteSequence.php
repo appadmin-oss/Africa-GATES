@@ -90,23 +90,44 @@ final class InviteSequence
      *
      * @return array{day:int, subject:string, body:string, body_setting:string, body_default:string}
      */
-    public static function day(int $day): array
+    public static function day(int $day, string $audience = InviteAudience::NOMINEE): array
     {
-        $d = self::defaults()[$day] ?? null;
+        $audience = InviteAudience::isValid($audience) ? $audience : InviteAudience::NOMINEE;
+
+        $d = self::defaults()[$audience][$day] ?? null;
         if ($d === null) {
-            throw new \InvalidArgumentException('No sequence letter for day ' . $day);
+            throw new \InvalidArgumentException('No ' . $audience . ' letter for day ' . $day);
         }
 
-        $key = 'invite_seq_body_' . $day;
-        $set = trim((string) (self::settings()[$key] ?? ''));
+        $set = self::settings();
+        $key = self::bodyKey($day, $audience);
+        $val = trim((string) ($set[$key] ?? ''));
+
+        // ── THE LEGACY KEY ───────────────────────────────────────────────────
+        //
+        // The nominee letters shipped before there were judge letters, under a key with no
+        // audience in it. Renaming without a fallback would silently revert every letter an
+        // organiser had already rewritten — a save that appears to work, and a send that
+        // goes out in the shipped wording weeks later. One resolver with one documented
+        // legacy read; the form only ever writes the new key, so the next save migrates it.
+        if ($val === '' && $audience === InviteAudience::NOMINEE) {
+            $val = trim((string) ($set['invite_seq_body_' . $day] ?? ''));
+        }
 
         return [
             'day'          => $day,
+            'audience'     => $audience,
             'subject'      => $d['subject'],
-            'body'         => $set !== '' ? $set : $d['body'],
+            'body'         => $val !== '' ? $val : $d['body'],
             'body_setting' => $key,
             'body_default' => $d['body'],
         ];
+    }
+
+    /** The settings key holding one audience's letter for one day. */
+    public static function bodyKey(int $day, string $audience): string
+    {
+        return 'invite_seq_body_' . $audience . '_' . $day;
     }
 
     /**
@@ -122,10 +143,10 @@ final class InviteSequence
                 2 => 'message', 1 => 'action'][$day] ?? '';
     }
 
-    /** Whether a mark has a letter written for it. */
-    public static function has(int $day): bool
+    /** Whether a mark has a letter written for this audience. */
+    public static function has(int $day, string $audience = InviteAudience::NOMINEE): bool
     {
-        return isset(self::defaults()[$day]);
+        return isset(self::defaults()[$audience][$day]);
     }
 
     /**
@@ -249,7 +270,7 @@ final class InviteSequence
      */
     private static function defaults(): array
     {
-        return [
+        return [InviteAudience::NOMINEE => [
             // ── DAY 5 · WHY ──────────────────────────────────────────────────
             5 => [
                 'subject' => '{name}, {countdown}: begin with your WHY',
@@ -447,7 +468,222 @@ We cannot wait to welcome you to {event}.
 Tomorrow, let's celebrate the people shaping today — and commit ourselves to the generation shaping tomorrow.
 TXT,
             ],
-        ];
+        ],
+
+        // ══ THE PANEL ════════════════════════════════════════════════════════
+        //
+        // The same arc, and deliberately the same beats — an organiser reading both sets
+        // should recognise one voice, and a judge and a nominee standing on the same red
+        // carpet should have been asked the same question.
+        //
+        // What changes is WHAT WAS TRUSTED. A nominee is honoured for work they did; a
+        // judge for a decision they made about somebody else's. So "your nomination
+        // represents trust" becomes "your seat on that panel represented trust", the
+        // day-four values letter can point at a scoresheet they have just filled in, and
+        // day one asks them to stand behind a result rather than receive one. Every
+        // sentence that would have been a small lie to a judge is rewritten; the rest is
+        // held identical on purpose.
+        InviteAudience::JUDGE => [
+            // ── DAY 5 · WHY ──────────────────────────────────────────────────
+            5 => [
+                'subject' => '{name}, {countdown}: begin with your WHY',
+                'body' => <<<'TXT'
+We are officially {days} days away from {event}, and as we begin the countdown, we want to remind you that your seat on that panel represented more than a task.
+
+It represented trust.
+
+You were asked to weigh other people's work — their years, their evidence, their reputations — and to do it fairly when nobody was watching.
+
+This year's conversation goes beyond celebration. It is about {theme}.
+
+As a judge, a parent, an educator, a professional or a citizen, what does accountability and responsibility mean in the room where decisions are made?
+
+Over the next few days, begin preparing your thoughts.
+
+We would love you to be ready to share:
+
+"What must we do differently in our homes, schools, and communities to {outcome}?"
+
+You may be asked this on the red carpet, during interviews, or in conversations at the event.
+
+Don't prepare a speech simply to impress.
+
+Prepare a conviction worth sharing.
+
+Your judgement matters.
+
+Your experience matters.
+
+Your example matters.
+
+And together, our voices can help shape the community we want our children and future generations to inherit.
+
+{days} days to go. Begin with your WHY.
+TXT,
+            ],
+
+            // ── DAY 4 · VALUES ───────────────────────────────────────────────
+            4 => [
+                'subject' => '{name}, {countdown}: find your message',
+                'body' => <<<'TXT'
+{days} days to {event}.
+
+Today, we invite you to look beyond the event and look into the future.
+
+Every judge, parent, teacher, educator, community leader, and responsible adult is participating in the formation of the next generation — whether consciously or unconsciously.
+
+The question is:
+
+What kind of person are we raising?
+
+A child who knows how to succeed at all costs? Or one who understands that character must never be sacrificed for success?
+
+A child who knows how to demand rights? Or one who also understands responsibility?
+
+A child who knows how to compete? Or one who understands community and communal responsibility?
+
+You have just spent weeks answering a version of that question with a scoresheet in front of you.
+
+As you prepare for {date}, think about your own space.
+
+What is one value you believe we must deliberately restore?
+
+What is one behaviour adults must stop normalising?
+
+What is one practical thing parents, teachers, and community members can begin doing differently?
+
+Prepare your answer.
+
+Because when you step onto that red carpet, we don't just want to know who you are.
+
+We want to know what you stand for.
+
+{days} days to go. Find your message.
+TXT,
+            ],
+
+            // ── DAY 3 · RESPONSIBILITY ───────────────────────────────────────
+            3 => [
+                'subject' => '{name}, {countdown}: own your message',
+                'body' => <<<'TXT'
+{days} days to {event}.
+
+Today, we want you to think about something simple:
+
+What is your responsibility within your own space?
+
+You don't have to change an entire community at once. You can begin with your home. Your classroom. Your practice. Your organisation. Your street. Your profession. Your community. Your influence.
+
+Meaningful change is rarely created by one institution alone. It is built collectively.
+
+So, before {date}, prepare to share one practical idea from your own experience:
+
+"How can we become more accountable and responsible in creating the future we want?"
+
+Keep it simple.
+
+Keep it authentic.
+
+Speak from experience.
+
+On the red carpet, you may have only a few moments — but a few sincere words can become a powerful message when they come from conviction, and yours carries the weight of a panel that had to be sure.
+
+So don't merely prepare to attend {event}.
+
+Prepare to represent an idea.
+
+Prepare to inspire someone.
+
+Prepare to contribute to the conversation.
+
+{days} days to go. Own your message.
+TXT,
+            ],
+
+            // ── DAY 2 · MESSAGE ──────────────────────────────────────────────
+            2 => [
+                'subject' => '{name}, {countdown}: prepare to speak',
+                'body' => <<<'TXT'
+Only {days} days to go.
+
+By now, we hope you have begun thinking deeply about the message you want to carry into {event}.
+
+We want to challenge you today: don't come empty-handed.
+
+Come with a story.
+
+Come with an idea.
+
+Come with a conviction.
+
+Come with a solution.
+
+Come with a word that can challenge a parent, encourage a teacher, awaken a community leader, or inspire a young person.
+
+The red carpet will celebrate the work you helped decide, but your words can celebrate something bigger than any one result.
+
+They can celebrate:
+
+{values}
+
+Think about this:
+
+"If every adult in our community became more accountable for the example they set, what kind of generation would we raise?"
+
+Prepare your answer. You may have the opportunity to share it.
+
+And when you do, speak boldly — not because you have all the answers, but because you were willing to take responsibility for a decision that mattered to somebody.
+
+{days} days to go. Prepare to speak.
+TXT,
+            ],
+
+            // ── DAY 1 · ACTION ───────────────────────────────────────────────
+            1 => [
+                'subject' => '{name}, tomorrow is {event}',
+                'body' => <<<'TXT'
+Tomorrow is {event}.
+
+The day we have been preparing for is finally here.
+
+But before you step onto that red carpet, we want you to remember one thing: you are not coming merely to watch a result announced. You are coming to stand behind it.
+
+Come ready.
+
+Come thoughtful.
+
+Come proud of the care you took.
+
+Come prepared to speak for the standard this panel held.
+
+And most importantly, come with a message for the generation coming behind us.
+
+If you are asked, "What does {theme} mean to you?" — what will you say?
+
+If you are asked, "What role should parents, educators, leaders, or community members play?" — what will you say?
+
+If you are asked, "What must our community do differently?" — what will you say?
+
+Your response does not need to be perfect. It needs to be true.
+
+Speak from your experience.
+
+Speak from your convictions.
+
+Speak from your responsibility.
+
+And let your voice join hundreds of others saying:
+
+{action}
+
+Tomorrow, the names you weighed will be read aloud, and the legacies behind them honoured in front of the people they belong to.
+
+We cannot wait to welcome you to {event}.
+
+Tomorrow, let's celebrate the people shaping today — and commit ourselves to the generation shaping tomorrow.
+TXT,
+            ],
+        ]];
     }
 
     /** @return array<string,string> */

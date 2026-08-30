@@ -73,6 +73,11 @@ class SettingsController
             // from the class rather than copied into the template: a list of placeholders
             // that lives in Twig is one that goes out of date the first time one is added.
             'invite_seq_days'    => \AfricaGates\Services\InviteSequence::DAYS,
+            // Both arcs. Nominees and judges are honoured for different things, so the
+            // letters are written twice and edited separately.
+            'invite_seq_audiences' => \AfricaGates\Services\InviteAudience::all(),
+            'visits_on'         => \AfricaGates\Services\VisitTracker::enabled(),
+            'visits_days_value' => \AfricaGates\Services\VisitTracker::keepDays(),
             'invite_seq_tokens'  => \AfricaGates\Services\InviteSequence::TOKENS,
             'invite_seq_values_default'  => \AfricaGates\Services\InviteSequence::values(),
             'invite_seq_outcome_default' => \AfricaGates\Services\InviteSequence::DEFAULT_OUTCOME,
@@ -260,8 +265,15 @@ class SettingsController
                   // so an operator running a second gala changes none of this.
                   'invite_seq_theme','invite_seq_outcome','invite_seq_values',
                   'invite_seq_action','invite_seq_team',
+                  // The legacy nominee keys stay accepted: a screen saved before the
+                  // audience was in the key still posts them, and dropping them here
+                  // would turn that save into a silent revert.
                   'invite_seq_body_5','invite_seq_body_4','invite_seq_body_3',
-                  'invite_seq_body_2','invite_seq_body_1'] as $k) {
+                  'invite_seq_body_2','invite_seq_body_1',
+                  'invite_seq_body_nominee_5','invite_seq_body_nominee_4','invite_seq_body_nominee_3',
+                  'invite_seq_body_nominee_2','invite_seq_body_nominee_1',
+                  'invite_seq_body_judge_5','invite_seq_body_judge_4','invite_seq_body_judge_3',
+                  'invite_seq_body_judge_2','invite_seq_body_judge_1'] as $k) {
             if (array_key_exists($k, $b)) {
                 $this->settings->set($k, trim((string)$b[$k]), $adminId);
             }
@@ -300,6 +312,19 @@ class SettingsController
                 // The zone is cached per request; this request has already read it.
                 \AfricaGates\Support\DisplayTime::forget();
             }
+        }
+
+        // Arrival tracking. Marker-gated like the others: an unchecked box posts nothing,
+        // so a plain allowlist entry could turn it on and never off. `visits_days` always
+        // posts, so its presence marks the section as submitted.
+        if (array_key_exists('visits_days', $b)) {
+            $this->settings->set('visits_enabled', !empty($b['visits_enabled']) ? '1' : '0', $adminId);
+            $days = (int) trim((string) $b['visits_days']);
+            // Clamped, and the floor matters: a retention of zero would delete every
+            // arrival on the next maintenance tick, including today's.
+            $this->settings->set('visits_days',
+                (string) ($days > 0 ? max(7, min(730, $days)) : \AfricaGates\Services\VisitTracker::KEEP_DAYS),
+                $adminId);
         }
 
         // Whether the reminder run sends anything. NOT in the echo list above: an

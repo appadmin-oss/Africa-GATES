@@ -47,10 +47,20 @@ final class InviteSequenceTest extends TestCase
         $this->event = DB::table('gates_site_events')->where('id', $this->eventId)->first();
     }
 
+    private int $seq = 0;
+
+    /**
+     * A fresh invitee per call.
+     *
+     * One person cannot stand in for every letter: mint() is idempotent on (event, email)
+     * and a reminder is sent once per person per mark, so a shared address makes the
+     * SECOND assertion in any test silently compare against nothing.
+     */
     private function invited(string $audience = InviteAudience::NOMINEE): object
     {
-        $inv = EventInvites::mint($this->eventId, $audience,
-            ['name' => 'Ada Obi', 'email' => 'ada@example.com', 'nominee_id' => 0, 'judge_id' => 0]);
+        $email = 'ada' . (++$this->seq) . '@example.com';
+        $inv   = EventInvites::mint($this->eventId, $audience,
+            ['name' => 'Ada Obi', 'email' => $email, 'nominee_id' => 0, 'judge_id' => 0]);
         DB::table('gates_event_invites')->where('id', $inv->id)
             ->update(['sent_at' => Carbon::now()->subDays(20)->toDateTimeString()]);
 
@@ -232,19 +242,82 @@ final class InviteSequenceTest extends TestCase
     // ══ WHO GETS THEM ═══════════════════════════════════════════════════════
 
     /**
-     * A judge is honoured for how they judged.
+     * A judge is honoured for how they judged, and gets the arc written for that.
      *
-     * "Your nomination represents trust" is simply not addressed to them, and a sequence
-     * written for judges would need copy written for judges rather than invented here.
+     * The same beats — an organiser reading both sets should recognise one voice, and two
+     * people standing on the same red carpet should have been asked the same question.
+     * What must never cross over is what was TRUSTED: "your nomination represents trust"
+     * is a small lie told to somebody who was never nominated.
      */
-    public function test_a_judge_never_receives_a_nominee_letter(): void
+    public function test_a_judge_gets_the_panel_letter_and_never_the_nominee_one(): void
     {
-        $sent = $this->letterAt(3, InviteAudience::JUDGE);
+        $sent = $this->letterAt(5, InviteAudience::JUDGE);
 
-        $this->assertStringNotContainsString('your nomination', strtolower($sent['htmlBody']));
-        $this->assertStringNotContainsString('own your message', $sent['subject']);
-        $this->assertStringContainsString('Grand Celebration', $sent['subject'],
-            'the judge keeps the short reminder, which has its own sentence written for them');
+        $this->assertStringContainsString('your seat on that panel', $sent['htmlBody']);
+        $this->assertStringContainsString('It represented trust', $sent['htmlBody'],
+            'the same beat as the nominee letter, which is the point of writing them together');
+
+        $this->assertStringNotContainsString('your nomination', strtolower($sent['htmlBody']),
+            'they were not nominated');
+        $this->assertStringNotContainsString('the work you have done', strtolower($sent['htmlBody']));
+    }
+
+    /** Every day of the panel arc is written, in the same order as the nominee one. */
+    public function test_the_panel_arc_runs_the_same_five_days(): void
+    {
+        foreach ([5 => 'begin with your WHY', 4 => 'find your message', 3 => 'own your message',
+                  2 => 'prepare to speak'] as $day => $hinge) {
+            $this->assertStringContainsString($hinge, $this->letterAt($day, InviteAudience::JUDGE)['subject'],
+                'judge day ' . $day . ' is out of position');
+        }
+
+        $eve = $this->letterAt(1, InviteAudience::JUDGE);
+        $this->assertStringContainsString('tomorrow is', strtolower($eve['subject']));
+        // The one line that is only true for a judge: they are standing behind a result
+        // rather than receiving one.
+        $this->assertStringContainsString('the names you weighed will be read aloud', $eve['htmlBody']);
+    }
+
+    /** Each audience's letters are separately editable — and separately kept. */
+    public function test_replacing_one_audiences_letter_leaves_the_others_alone(): void
+    {
+        DB::table('gates_settings')->insert([
+            'key_name' => InviteSequence::bodyKey(3, InviteAudience::JUDGE),
+            'value'    => "A panel letter of our own.\n\nSee you at {venue}, {countdown}.",
+        ]);
+
+        $this->assertStringContainsString('A panel letter of our own',
+            $this->letterAt(3, InviteAudience::JUDGE)['htmlBody']);
+        $nominee = $this->letterAt(3)['htmlBody'];
+        $this->assertStringNotContainsString('A panel letter of our own', $nominee,
+            'a judge edit must not reach the nominees');
+        $this->assertStringContainsString('What is your responsibility within your own space', $nominee,
+            'the nominee letter is untouched and still the shipped one');
+    }
+
+    /**
+     * The key gained an audience, and anything already saved under the old one survives.
+     *
+     * Renaming without this would silently revert every letter an organiser had rewritten
+     * — a save that appeared to work, and a send that went out in the shipped wording
+     * weeks later.
+     */
+    public function test_a_letter_saved_under_the_old_key_is_still_sent(): void
+    {
+        DB::table('gates_settings')->insert([
+            'key_name' => 'invite_seq_body_2',
+            'value'    => "Written before the key had an audience in it.\n\nStill ours, {countdown}.",
+        ]);
+
+        $this->assertStringContainsString('Written before the key had an audience in it',
+            $this->letterAt(2)['htmlBody']);
+
+        // And the new key wins once it is written, so the next save migrates it.
+        DB::table('gates_settings')->insert([
+            'key_name' => InviteSequence::bodyKey(2, InviteAudience::NOMINEE),
+            'value'    => "The migrated one.\n\nSee you {countdown} at {venue}, truly.",
+        ]);
+        $this->assertStringContainsString('The migrated one', $this->letterAt(2)['htmlBody']);
     }
 
     /** A mark outside the arc sends the short reminder rather than nothing. */
@@ -265,7 +338,7 @@ final class InviteSequenceTest extends TestCase
     public function test_an_operator_can_replace_a_letter_and_still_use_the_tokens(): void
     {
         DB::table('gates_settings')->insert([
-            'key_name' => 'invite_seq_body_3',
+            'key_name' => InviteSequence::bodyKey(3, InviteAudience::NOMINEE),
             'value'    => "Three sleeps to {event}.\n\nWe will see you at {venue}, {countdown}.",
         ]);
 
@@ -289,7 +362,7 @@ final class InviteSequenceTest extends TestCase
     public function test_a_letter_cannot_smuggle_markup_into_the_message(): void
     {
         DB::table('gates_settings')->insert([
-            'key_name' => 'invite_seq_body_3',
+            'key_name' => InviteSequence::bodyKey(3, InviteAudience::NOMINEE),
             'value'    => 'Tea <script>alert(1)</script> & scones <b>now</b>',
         ]);
 
@@ -312,21 +385,35 @@ final class InviteSequenceTest extends TestCase
             $this->assertStringContainsString($key, $save, $key . ' is not accepted by the save');
         }
 
-        // The five bodies are one loop over InviteSequence::DAYS rather than five hand-
-        // written boxes, so there is no literal `name="invite_seq_body_5"` to scan for.
-        // The chain is asserted instead: the controller hands the day list to the screen,
-        // the screen builds a field name per day from it, and the save accepts each one.
-        // A sixth letter added to the class then grows a field by itself — and this test
-        // still fails until the save is told about it, which is the half that would
-        // otherwise be silent.
+        // The bodies are two nested loops — audience × day — rather than ten hand-written
+        // boxes, so there is no literal `name="invite_seq_body_judge_5"` to scan for. The
+        // chain is asserted instead: the controller hands both lists to the screen, the
+        // screen builds a field name from them, and the save accepts every combination.
+        //
+        // The BUILDER is matched, not just the prefix. An earlier version of this test
+        // looked for `'invite_seq_body_' ~ d` and kept passing after the field names
+        // gained an audience — because the legacy fallback lookup elsewhere on the page
+        // still contained that exact string. A test that survives the change it exists to
+        // catch is worse than no test.
         $this->assertStringContainsString('InviteSequence::DAYS', $save,
             'the screen cannot loop over a day list it is never given');
-        $this->assertStringContainsString("'invite_seq_body_' ~ d", $form,
-            'the field name has to be built from that list, not typed out beside it');
+        $this->assertStringContainsString('InviteAudience::all()', $save,
+            'nor over an audience list it is never given');
+        $this->assertStringContainsString("'invite_seq_body_' ~ a ~ '_' ~ d", $form,
+            'the field name has to be built from those lists, not typed out beside them');
 
+        foreach (InviteAudience::all() as $a) {
+            foreach (InviteSequence::DAYS as $d) {
+                $this->assertStringContainsString(InviteSequence::bodyKey($d, $a), $save,
+                    $a . ' day ' . $d . ' has a field but the save discards it');
+            }
+        }
+
+        // And the legacy nominee keys are still accepted, or a screen saved before the
+        // audience existed becomes a silent revert.
         foreach (InviteSequence::DAYS as $d) {
-            $this->assertStringContainsString('invite_seq_body_' . $d, $save,
-                'day ' . $d . ' has a field but the save discards it');
+            $this->assertStringContainsString("'invite_seq_body_" . $d . "'", $save,
+                'the pre-audience key for day ' . $d . ' must still be accepted');
         }
     }
 }

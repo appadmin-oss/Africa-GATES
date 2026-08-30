@@ -546,6 +546,17 @@ final class EventTicketService
                                               . 'If you need another ticket, please contact us.'];
         }
 
+        // ── THE ARRIVAL THIS SEAT CAME FROM ─────────────────────────────────
+        //
+        // AFTER the insert, past the catch that returns "you already have a registration".
+        // The reservation is the thing being attributed, and a conversion stamped before
+        // it would credit a campaign for a booking that never existed — which is the one
+        // number in this whole report an organiser would act on.
+        //
+        // Silent outside a web request and first-wins per session; see
+        // VisitTracker::convert().
+        \AfricaGates\Services\VisitTracker::convert('ticket');
+
         // Counted here rather than after the capacity check below, so that it is symmetrical
         // with the release in rollBack(): a use that had not yet been counted when the
         // rollback released one would take a use off somebody ELSE's live booking.

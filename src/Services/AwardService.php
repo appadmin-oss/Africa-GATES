@@ -323,6 +323,10 @@ class AwardService {
 
         $id = DB::table('gates_nominations')->insertGetId($row);
 
+        // What this visitor's arrival led to. Stamped once per session, first-wins, and
+        // silent outside a web request — see VisitTracker::convert().
+        \AfricaGates\Services\VisitTracker::convert('nomination');
+
         // Log EVERY moderation verdict against the persisted nomination, the way
         // every other SpamService caller does. Without this an automated
         // decision leaves no trace to review, explain or appeal.

@@ -337,7 +337,7 @@ final class InviteReminders
      * @return array{
      *   enabled:bool, marks:list<int>, time:string, zone:string, open:bool,
      *   days:?int, due:?int, next:?int, audience_count:int,
-     *   sent:list<array{mark:int,letter:string,count:int,due:bool,past:bool}>
+     *   sent:list<array{mark:int,letter:string,letter_judge:bool,count:int,due:bool,past:bool}>
      * }
      */
     public static function status(int $eventId, string $eventDate): array
@@ -372,6 +372,10 @@ final class InviteReminders
                 // three is the one about their own street before they open it. Empty for
                 // a mark outside the arc, where the ordinary reminder goes instead.
                 'letter' => InviteSequence::has($m) ? InviteSequence::label($m) : '',
+                // Whether the panel gets one too. It does now, and saying so on the
+                // schedule is the only place an operator can see that a judge is no
+                // longer receiving the short reminder at this mark.
+                'letter_judge' => InviteSequence::has($m, InviteAudience::JUDGE),
                 'count' => self::sentCount($eventId, $m),
                 'due'   => $m === $due,
                 // Behind us: the evening is nearer than this mark, so it will not fire
@@ -598,21 +602,21 @@ final class InviteReminders
 
         // ── WHICH LETTER IS THIS? ────────────────────────────────────────────
         //
-        // A nominee inside the final week gets the letter of the arc written for that
-        // day; everybody else — a judge, or a nominee at a mark the operator added
-        // outside it — gets the ordinary reminder. Resolved from the mark rather than
-        // from the days remaining, because the mark is what the schedule actually chose
-        // and the two differ the moment a cron misses a morning.
+        // Inside the final week, each audience gets ITS OWN letter for that day —
+        // a nominee is honoured for work they did and a judge for a decision they made
+        // about somebody else's, so the arc is the same and the sentences are not.
+        // Outside the week, and for anything with no letter written, the ordinary
+        // reminder. Resolved from the mark rather than from the days remaining, because
+        // the mark is what the schedule actually chose and the two differ the moment a
+        // cron misses a morning.
         $seqDay = null;
-        if ($audience === InviteAudience::NOMINEE) {
-            $m = $mark ?? self::dueMark($daysUntil);
-            if ($m !== null && InviteSequence::has($m)) $seqDay = $m;
-        }
+        $m = $mark ?? self::dueMark($daysUntil);
+        if ($m !== null && InviteSequence::has($m, $audience)) $seqDay = $m;
 
         $tokens = InviteSequence::tokens($invite, $event, $daysUntil);
 
         if ($seqDay !== null) {
-            $letter     = InviteSequence::day($seqDay);
+            $letter     = InviteSequence::day($seqDay, $audience);
             $subject    = InviteSequence::fill($letter['subject'], $tokens);
             $bodyText   = InviteSequence::fill($letter['body'], $tokens);
             $paragraphs = self::paragraphs($bodyText);

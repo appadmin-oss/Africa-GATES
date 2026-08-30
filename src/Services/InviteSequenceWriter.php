@@ -60,8 +60,10 @@ final class InviteSequenceWriter
      *
      * @return array{ok:bool, letters:array<int,string>, notes:list<string>, error:string}
      */
-    public function draft(int $eventId, string $steer = ''): array
+    public function draft(int $eventId, string $steer = '', string $audience = InviteAudience::NOMINEE): array
     {
+        $audience = InviteAudience::isValid($audience) ? $audience : InviteAudience::NOMINEE;
+
         $event = null;
         try {
             $event = DB::table('gates_site_events')->where('id', $eventId)->first();
@@ -72,7 +74,7 @@ final class InviteSequenceWriter
         }
 
         $result = ($this->gateway ?? new AiGateway())->run(self::CAPABILITY, [
-            'system'       => self::system(),
+            'system'       => self::system($audience),
             'user'         => self::brief($event, $steer),
             'json'         => true,
             // Through the gateway's OWN schema hook rather than parsed after the fact. A
@@ -186,20 +188,44 @@ final class InviteSequenceWriter
         return $open === false ? $t : substr($t, $open);
     }
 
-    private static function system(): string
+    private static function system(string $audience = InviteAudience::NOMINEE): string
     {
         $tokens = [];
         foreach (InviteSequence::TOKENS as $t => $means) $tokens[] = '{' . $t . '} — ' . $means;
 
-        return "You write countdown letters for an African awards ceremony, to people who have been "
-             . "nominated for an honour and are being invited to receive it.\n\n"
+        // ── WHO IS BEING WRITTEN TO ──────────────────────────────────────────
+        //
+        // The arc is identical and the premise is not, and getting the premise wrong is
+        // the one failure a reader notices instantly: telling a judge their nomination
+        // represents trust is a small lie to somebody who was never nominated. So the
+        // reader is described first, and every beat below is phrased against it.
+        $judge = $audience === InviteAudience::JUDGE;
+
+        $who = $judge
+            ? "to people who sat on the JUDGING PANEL for it. They were not nominated and they are "
+              . "not receiving an award: they were trusted to weigh other people's work — their years, "
+              . "their evidence, their reputations — and to do it fairly when nobody was watching. "
+              . "Never write as though they are being honoured for their own nomination."
+            : "to people who have been NOMINATED for an honour and are being invited to receive it.";
+
+        $arc = $judge
+            ? "  Day 5 — WHY they were trusted. A seat on the panel as trust, not just a task.\n"
+              . "  Day 4 — VALUES. What kind of generation are we raising — a question they have just "
+              . "spent weeks answering with a scoresheet in front of them.\n"
+              . "  Day 3 — RESPONSIBILITY, narrowed to their own home, classroom, practice or street.\n"
+              . "  Day 2 — MESSAGE. Do not come empty-handed; come with a story, an idea, a conviction.\n"
+              . "  Day 1 — ACTION. Tomorrow. They come to STAND BEHIND a result, not to receive one, "
+              . "and the names they weighed will be read aloud.\n"
+            : "  Day 5 — WHY they were chosen. Nomination as trust, not just recognition.\n"
+              . "  Day 4 — VALUES. What kind of generation are we raising, and what do they stand for.\n"
+              . "  Day 3 — RESPONSIBILITY, narrowed to their own home, classroom, business or street.\n"
+              . "  Day 2 — MESSAGE. Do not come empty-handed; come with a story, an idea, a conviction.\n"
+              . "  Day 1 — ACTION. Tomorrow. The red carpet is a platform, not a pathway.\n";
+
+        return "You write countdown letters for an African awards ceremony, " . $who . "\n\n"
              . "You are writing FIVE letters, one per day over the final five days. They are an arc and "
              . "each only works in its position:\n"
-             . "  Day 5 — WHY they were chosen. Nomination as trust, not just recognition.\n"
-             . "  Day 4 — VALUES. What kind of generation are we raising, and what do they stand for.\n"
-             . "  Day 3 — RESPONSIBILITY, narrowed to their own home, classroom, business or street.\n"
-             . "  Day 2 — MESSAGE. Do not come empty-handed; come with a story, an idea, a conviction.\n"
-             . "  Day 1 — ACTION. Tomorrow. The red carpet is a platform, not a pathway.\n\n"
+             . $arc . "\n"
              . "RULES\n"
              . "- Reply with ONLY a JSON object: {\"5\":\"...\",\"4\":\"...\",\"3\":\"...\",\"2\":\"...\",\"1\":\"...\"}\n"
              . "- No greeting and no sign-off. Both are added around your text. Start at the first sentence.\n"

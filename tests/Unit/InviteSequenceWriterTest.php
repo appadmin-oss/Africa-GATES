@@ -142,6 +142,40 @@ final class InviteSequenceWriterTest extends TestCase
             'the one instruction that keeps a letter reusable next year');
     }
 
+    /**
+     * The writer is told WHO it is writing to, and the premise is not the arc.
+     *
+     * The one failure a reader notices instantly: telling a judge their nomination
+     * represents trust, to somebody who was never nominated. The beats stay identical —
+     * that is what makes the two sets sound like one organisation — so the difference has
+     * to be carried by the premise, and the premise has to be stated.
+     */
+    public function test_the_writer_is_told_which_arc_it_is_writing(): void
+    {
+        $ref = new \ReflectionMethod(InviteSequenceWriter::class, 'system');
+        $ref->setAccessible(true);
+
+        $nominee = (string) $ref->invoke(null, \AfricaGates\Services\InviteAudience::NOMINEE);
+        $judge   = (string) $ref->invoke(null, \AfricaGates\Services\InviteAudience::JUDGE);
+
+        $this->assertNotSame($nominee, $judge);
+
+        $this->assertStringContainsString('NOMINATED', $nominee);
+        $this->assertStringContainsString('JUDGING PANEL', $judge);
+        $this->assertStringContainsString('They were not nominated', $judge,
+            'the one sentence that stops the whole set being addressed to the wrong person');
+        $this->assertStringContainsString('STAND BEHIND a result', $judge,
+            'day one is the beat where the two arcs genuinely diverge');
+        $this->assertStringContainsString('platform, not a pathway', $nominee,
+            'and the nominee keeps the beat written for somebody receiving the honour');
+
+        // The tokens are the contract for both, and a token the writer is not told about
+        // is a placeholder that quietly stops appearing.
+        foreach (array_keys(InviteSequence::TOKENS) as $token) {
+            $this->assertStringContainsString('{' . $token . '}', $judge, '{' . $token . '} for the panel');
+        }
+    }
+
     /** A drafted letter keeps its placeholders, which is what makes it reusable. */
     public function test_a_draft_keeps_its_placeholders(): void
     {

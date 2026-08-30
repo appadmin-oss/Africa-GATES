@@ -411,7 +411,7 @@
                 {# The arc, named. A mark outside it sends the short reminder instead, and
                    saying so is the difference between "day 21 sends nothing" and "day 21
                    sends the nudge". #}
-                <td>{% if m.letter %}{{ m.letter }}<span class="iv-mute"> · nominees</span>
+                <td>{% if m.letter %}{{ m.letter }}<span class="iv-mute"> · {{ m.letter_judge ? 'nominees and panel' : 'nominees' }}</span>
                     {% else %}<span class="iv-mute">short reminder</span>{% endif %}</td>
                 <td>
                   {# THREE states, not two. "Due now" and "not yet" and "behind us"
@@ -447,23 +447,26 @@
      /invites/build. Three of those have shipped in this codebase. #}
   <div class="iv-sec" id="letters">
     <h2>The countdown letters</h2>
-    <p>Five letters over the final week, to <strong>nominees</strong> — why they were
-       chosen, what they stand for, their own responsibility, the message they will
-       carry, and what to say when they reach the red carpet. Judges keep the short
-       reminder. The wording applies to every ceremony; the ceremony's own name, date
-       and venue fill themselves in.</p>
+    <p>Five letters over the final week — why they were trusted, what they stand for,
+       their own responsibility, the message they will carry, and what to say when they
+       reach the red carpet. Written twice: a nominee is honoured for work they did, a
+       judge for a decision they made about somebody else's. The wording applies to every
+       ceremony; this one's name, date and venue fill themselves in.</p>
 
     {% if drafts %}
       {# Read before saved, always. What is being written is five letters to people
          receiving an honour in public, in this organisation's name. #}
       <div class="iv-warn">
-        <strong>Drafts — nothing has been changed yet.</strong>
+        <strong>Drafts for the {{ draft_audience == 'judge' ? 'panel' : 'nominees' }} — nothing has been changed yet.</strong>
         Read them, edit anything you want, then save. An empty box is left alone rather
         than blanked.
       </div>
 
       <form method="post" action="/admin/events/{{ event.id }}/invites/letters/save" style="margin-top:12px">
         <input type="hidden" name="_token" value="{{ csrf_token }}">
+        {# WHICH arc these belong to. Without it the save writes whichever set it
+           assumes, and a panel draft would go out to a shortlist. #}
+        <input type="hidden" name="audience" value="{{ draft_audience }}">
         {% for d in seq_days %}
           {% if drafts[d] is defined %}
             <div style="margin-top:12px">
@@ -471,7 +474,7 @@
                 Day {{ d }}
                 <small style="display:block;font-weight:400;color:var(--ad-text-soft)">{% if d == 1 %}the eve — action{% elseif d == 2 %}message{% elseif d == 3 %}responsibility{% elseif d == 4 %}values{% else %}why{% endif %}</small>
               </label>
-              <textarea id="d-{{ d }}" name="invite_seq_body_{{ d }}" rows="10" style="width:100%">{{ drafts[d] }}</textarea>
+              <textarea id="d-{{ d }}" name="invite_seq_body_{{ draft_audience }}_{{ d }}" rows="10" style="width:100%">{{ drafts[d] }}</textarea>
             </div>
           {% endif %}
         {% endfor %}
@@ -496,7 +499,11 @@
                  placeholder="e.g. these are head teachers, keep it plain and avoid corporate language">
         </div>
         <div class="iv-act" style="margin-top:10px">
-          <button class="ad-btn" type="submit">Draft five letters for this ceremony</button>
+          {# Two buttons, one form, distinguished by the VALUE they submit — not two
+             forms. A `<form>` opened inside another has its start tag dropped by the
+             parser and its children adopted by the outer one. #}
+          <button class="ad-btn" type="submit" name="audience" value="nominee">Draft the nominee letters</button>
+          <button class="ad-btn" type="submit" name="audience" value="judge">Draft the panel letters</button>
           <p class="hint">Written from this event, for you to read and edit. Nothing is saved
             and nothing is sent until you press save.</p>
         </div>

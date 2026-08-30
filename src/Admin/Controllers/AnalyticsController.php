@@ -54,6 +54,10 @@ final class AnalyticsController
             'range'      => $range,
             'days'       => $days,
 
+            // Where people came from, and what came of it. The only report on this page
+            // that is not counted off a domain table — nothing else here can say what
+            // happened BEFORE somebody arrived.
+            'arrivals'   => AnalyticsService::arrivals($days, 12),
             'audience'   => AnalyticsService::audience($days),
             'voting'     => AnalyticsService::voting($days),
             'retention'  => AnalyticsService::retention(8),

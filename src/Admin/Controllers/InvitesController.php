@@ -86,6 +86,8 @@ final class InvitesController
             'drafts'      => (($_SESSION['invite_letter_drafts']['event_id'] ?? 0) === $id)
                 ? ($_SESSION['invite_letter_drafts']['letters'] ?? [])
                 : [],
+            'draft_audience' => (string) ($_SESSION['invite_letter_drafts']['audience']
+                                          ?? InviteAudience::NOMINEE),
             // Pre-filled, because "send one to yourself" that makes you type your own
             // address is a step between an operator and the one check that matters.
             'admin_email' => (string) (DB::table('gates_admins')
@@ -372,8 +374,12 @@ final class InvitesController
             return $res->withHeader('Location', $back)->withStatus(302);
         }
 
-        $steer = trim((string) (((array) $req->getParsedBody())['steer'] ?? ''));
-        $r     = $writer->draft($id, $steer);
+        $b        = (array) $req->getParsedBody();
+        $steer    = trim((string) ($b['steer'] ?? ''));
+        $audience = (string) ($b['audience'] ?? InviteAudience::NOMINEE);
+        $audience = InviteAudience::isValid($audience) ? $audience : InviteAudience::NOMINEE;
+
+        $r = $writer->draft($id, $steer, $audience);
 
         if (!$r['ok']) {
             $_SESSION['flash_error'] = $r['error'];
@@ -382,10 +388,15 @@ final class InvitesController
 
         // Keyed by event: a draft written for one ceremony must not appear on another's
         // screen if an operator opens two.
-        $_SESSION['invite_letter_drafts'] = ['event_id' => $id, 'letters' => $r['letters']];
+        // The AUDIENCE is stored with them. Two arcs exist now, and a draft written for
+        // the panel saved into the nominee keys would send judges' wording to a shortlist.
+        $_SESSION['invite_letter_drafts'] = [
+            'event_id' => $id, 'audience' => $audience, 'letters' => $r['letters'],
+        ];
 
-        $_SESSION['flash'] = count($r['letters']) . ' letter(s) drafted. Read them, then save the '
-                           . 'ones you want — nothing has been changed yet.'
+        $_SESSION['flash'] = count($r['letters']) . ' letter(s) drafted for the '
+                           . strtolower((string) InviteAudience::spec($audience)['label'])
+                           . '. Read them, then save the ones you want — nothing has been changed yet.'
                            . ($r['notes'] !== [] ? ' ' . implode(' ', $r['notes']) : '');
 
         return $res->withHeader('Location', $back)->withStatus(302);
@@ -404,10 +415,15 @@ final class InvitesController
         $back = '/admin/events/' . $id . '/invites#letters';
         $b    = (array) $req->getParsedBody();
 
+        // From the POST, and whitelisted: the audience decides which five settings are
+        // written, and a value arriving from a form is never a key.
+        $audience = (string) ($b['audience'] ?? InviteAudience::NOMINEE);
+        $audience = InviteAudience::isValid($audience) ? $audience : InviteAudience::NOMINEE;
+
         $settings = new \AfricaGates\Admin\Services\SettingsService();
         $saved    = 0;
         foreach (InviteSequence::DAYS as $day) {
-            $key  = 'invite_seq_body_' . $day;
+            $key  = InviteSequence::bodyKey($day, $audience);
             $text = trim((string) ($b[$key] ?? ''));
             // An empty box is "leave this one alone", not "blank the letter". The shipped
             // wording is what an empty setting falls back to, so clearing one here would
@@ -422,8 +438,10 @@ final class InvitesController
 
         $_SESSION['flash'] = $saved === 0
             ? 'Nothing was saved — every box was empty, so the letters are unchanged.'
-            : $saved . ' letter(s) saved. They are what the countdown will send from now on, '
-                     . 'for every ceremony. Read one from "Read the reminder" above.';
+            : $saved . ' letter(s) saved for the '
+                     . strtolower((string) InviteAudience::spec($audience)['label'])
+                     . '. They are what the countdown will send from now on, for every '
+                     . 'ceremony. Read one from "Read the reminder" above.';
 
         return $res->withHeader('Location', $back)->withStatus(302);
     }

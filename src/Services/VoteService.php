@@ -177,6 +177,11 @@ class VoteService {
         });
 
         if ($result['success']) {
+            // The arrival that led here, if this was a browser and there was one. HERE and
+            // not in each controller, for the same reason the capture is middleware: the
+            // failure mode is forgetting, and a vote is cast from the page, the API and
+            // the paid flow. No-ops outside a web request and never throws.
+            \AfricaGates\Services\VisitTracker::convert('vote');
             $this->log?->info('[vote] cast', ['nominee' => $nomineeId, 'category' => $result['category_id'] ?? null]);
         } else {
             $this->log?->info('[vote] rejected', ['code' => $result['code'], 'nominee' => $nomineeId]);

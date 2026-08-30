@@ -214,6 +214,11 @@ final class Maintenance
                 // the life of the deployment.
                 $ran[] = ['statuslog', $this->task('statuslog',
                     fn() => \AfricaGates\Services\SystemStatus::prune())];
+                // Arrivals, on their own retention. A recorder with no pruner is a table
+                // that grows for the life of the deployment — the exact fault the status
+                // log beside it was added to fix.
+                $ran[] = ['visits', $this->task('visits',
+                    fn() => \AfricaGates\Services\VisitTracker::prune())];
                 // Expired Gemini file-upload handles. The provider deletes the file itself
                 // after 48 hours; this drops OUR record of it, which is the half that
                 // matters — a stale row would be handed to generateContent as a live
