@@ -3,6 +3,8 @@ declare(strict_types=1);
 
 namespace AfricaGates\Support;
 
+use AfricaGates\Services\CloudinaryService;
+
 /**
  * The per-request CSP nonce, and the host allowlists the policy is built from.
  *
@@ -123,11 +125,36 @@ final class Csp
      */
     public const MEDIA_HOSTS = 'https://r2.vidzflow.com https://cdn.plyr.io';
 
+    /**
+     * The image CDN's delivery hosts.
+     *
+     * ── WHY BOTH FORMS, AND WHY DERIVED ──────────────────────────────────────
+     *
+     * An upload stored on Cloudinary is streamed by neither console: both the admin media
+     * view and the judge's evidence route answer a request for a remote item with a 302 to
+     * the delivery URL. A preview iframe therefore ends up pointing at this host, and
+     * without it here the browser refuses the redirect — the same blank panel that a
+     * missing 'self' produced for local files, arriving by a different road.
+     *
+     * The wildcard is not belt-and-braces: {@see CloudinaryService::isRemote()} accepts
+     * `res.cloudinary.com` OR any subdomain of it, and that is the set of URLs the two
+     * controllers will redirect to. A policy allowing only the bare host would block
+     * exactly the URLs the service considers its own — a mismatch that would present as
+     * "some documents preview and some do not", which is far harder to read than "none of
+     * them do".
+     *
+     * Derived from the service's own constant rather than typed again. One value, one
+     * source: a CDN host written down twice is two things to change on the day it moves,
+     * and the one nobody changes is the one that fails silently.
+     */
+    public const CDN_HOSTS = 'https://' . CloudinaryService::DELIVERY_HOST
+        . ' https://*.' . CloudinaryService::DELIVERY_HOST;
+
     public const FRAME_HOSTS = 'https://challenges.cloudflare.com '
         . 'https://www.youtube.com https://www.youtube-nocookie.com '
         . 'https://my.spline.design https://prod.spline.design '
         . 'https://googleads.g.doubleclick.net https://tpc.googlesyndication.com '
-        . 'https://www.google.com ' . self::PAY_HOSTS;
+        . 'https://www.google.com ' . self::PAY_HOSTS . ' ' . self::CDN_HOSTS;
 
     /** The assembled policy for this request. */
     public static function policy(): string

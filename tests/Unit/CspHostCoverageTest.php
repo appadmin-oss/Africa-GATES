@@ -4,6 +4,7 @@ declare(strict_types=1);
 namespace Tests\Unit;
 
 use Tests\TestCase;
+use AfricaGates\Services\CloudinaryService;
 use AfricaGates\Support\Csp;
 
 /**
@@ -210,6 +211,78 @@ class CspHostCoverageTest extends TestCase
      * Framing a document and handing it to a plugin are different powers. `object-src`
      * stays `'none'` — the preview needs the first and nothing here needs the second.
      */
+    /**
+     * Whatever the CDN calls its own, the preview can frame.
+     *
+     * ── THE TWO LISTS THAT HAVE TO AGREE ─────────────────────────────────────
+     *
+     * Neither console streams an upload that lives on the CDN: the admin media view and
+     * the judge's evidence route both answer with a 302 to the delivery URL. So the set
+     * of hosts a preview iframe can land on IS the set {@see CloudinaryService::isRemote()}
+     * accepts — and that method accepts the bare host OR any subdomain of it.
+     *
+     * A policy allowing only the bare host would refuse exactly the URLs the service
+     * treats as its own, which presents as "some documents preview and some do not" — far
+     * harder to read than "none of them do". So the invariant is asserted against
+     * isRemote() itself rather than against a hostname typed out here, which would be a
+     * third copy of a value that already exists twice too often.
+     */
+    public function test_every_url_the_cdn_calls_its_own_can_be_framed(): void
+    {
+        $urls = [
+            'https://res.cloudinary.com/demo/image/upload/v1/dossier.pdf'    => true,
+            'https://eu.res.cloudinary.com/demo/image/upload/v1/dossier.pdf' => true,
+            // Not ours, and must stay unframeable: a judge console that can frame any
+            // host is a judge console that can be pointed at one.
+            'https://files.example.org/dossier.pdf'                          => false,
+        ];
+
+        foreach ($urls as $url => $ours) {
+            $this->assertSame($ours, CloudinaryService::isRemote($url),
+                'isRemote() has changed shape — this test is asserting against the wrong set');
+        }
+
+        foreach (['policy' => Csp::policy(), 'staticPolicy' => Csp::staticPolicy()] as $which => $policy) {
+            $this->assertSame(1, preg_match('/frame-src ([^;]+)/', $policy, $m), $which);
+            $sources = preg_split('/\s+/', trim($m[1])) ?: [];
+
+            foreach ($urls as $url => $ours) {
+                $this->assertSame($ours, self::frameAllows($sources, $url),
+                    $which . ': ' . $url . ' — the redirect target and the policy disagree');
+            }
+        }
+    }
+
+    /**
+     * Does a frame-src source list permit this URL?
+     *
+     * Only the two shapes this policy uses: an exact `https://host`, and `https://*.host`,
+     * which CSP matches against any subdomain. Keyword sources like 'self' are skipped —
+     * every URL here is a third party by construction, so 'self' can never be the reason
+     * one is allowed, and treating it as a match would make the negative case pass for
+     * the wrong reason.
+     *
+     * @param list<string> $sources
+     */
+    private static function frameAllows(array $sources, string $url): bool
+    {
+        $host = (string) parse_url($url, PHP_URL_HOST);
+        if ($host === '') return false;
+
+        foreach ($sources as $src) {
+            if (!str_starts_with($src, 'https://')) continue;
+            $pattern = substr($src, strlen('https://'));
+
+            if (str_starts_with($pattern, '*.')) {
+                if (str_ends_with($host, substr($pattern, 1))) return true;
+            } elseif ($host === $pattern) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     public function test_documents_may_be_framed_but_never_embedded_as_objects(): void
     {
         // ── AND NOTHING RELIES ON THE POWER THAT IS REFUSED ──────────────────
