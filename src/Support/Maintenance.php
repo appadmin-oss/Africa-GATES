@@ -223,19 +223,22 @@ final class Maintenance
             }
             // ── REMINDERS FOR A CEREMONY'S GUESTS OF HONOUR ──────────────────
             //
-            // HOURLY THROUGH THE DAY, not once at 06:00 beside the voting reminder, and
-            // the reason is arithmetic rather than taste. The sweep is capped per tick
-            // (InviteReminders::CAP) because a shared host's max_execution_time is the
-            // real ceiling on an unattended run — and at one tick a day a four-hundred-
-            // person hall would take ten days to remind, by which time the mark it was
-            // reminding them about is long behind us. Sixteen ticks clears it the same
-            // day.
+            // HOURLY ONCE THE DAY'S WINDOW HAS OPENED, not once beside the voting
+            // reminder at 06:00, and the reason is arithmetic rather than taste. The
+            // sweep is capped per tick (InviteReminders::CAP) because a shared host's
+            // max_execution_time is the real ceiling on an unattended run — and at one
+            // tick a day a four-hundred-person hall would take ten days to remind, by
+            // which time the mark it was reminding them about is long behind us. Ticking
+            // on through the day clears it the same day.
             //
-            // 06:00–20:00 and no later: this is the only mail on this platform whose
-            // timing is chosen rather than triggered by something the recipient did, so
-            // it is the only one that can arrive at 03:00 for no reason. Nothing about a
-            // reminder is worth a phone lighting up in the night.
-            if ($now->hour >= 6 && $now->hour <= 20 && (int)$now->minute < 15) {
+            // AND NOT BEFORE THE TIME THE OPERATOR SET. This is the only mail on this
+            // platform whose moment is chosen rather than triggered by something the
+            // recipient did — so it is the only one that can arrive at 03:00 for no
+            // reason, and the only one where "what time do these go out?" deserves an
+            // answer other than "whenever the cron reaches it". The window opens at that
+            // time and runs to the end of the day, because the sweep is capped per tick
+            // and a large hall needs several of them. See InviteReminders::dueNow().
+            if ((int)$now->minute < 15 && \AfricaGates\Services\InviteReminders::dueNow($now)) {
                 $ran[] = ['invite-reminders', $this->task('invite-reminders',
                     fn() => \AfricaGates\Services\InviteReminders::sweep())];
             }

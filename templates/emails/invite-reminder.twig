@@ -38,7 +38,7 @@
       <p style="margin:0 0 10px;font-family:'Playfair Display',Georgia,serif;font-size:26px;line-height:1.2;color:#10292C">{{ countdown_up }}</p>
       <p style="margin:0;font-size:14.5px;line-height:1.6;color:#7a6636">
         <strong style="color:#5c4708">{{ when_day }} {{ when_date }}</strong><br>
-        {{ when_time }}{% if where %} · {{ where }}{% endif %}
+        {{ when_time }}{% if when_zone %} {{ when_zone }}{% endif %}{% if where %} · {{ where }}{% endif %}
       </p>
     </td>
   </tr>

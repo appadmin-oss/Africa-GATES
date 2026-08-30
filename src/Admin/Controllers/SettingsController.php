@@ -64,6 +64,11 @@ class SettingsController
             'invite_reminder_on'    => \AfricaGates\Services\InviteReminders::enabled(),
             'invite_reminder_marks' => \AfricaGates\Services\InviteReminders::marks(),
             'invite_reminder_days_default' => implode(', ', \AfricaGates\Services\InviteReminders::DEFAULT_MARKS),
+            // Resolved, not echoed: an operator who has set no time is on 09:00, and the
+            // screen has to say 09:00 rather than show them an empty box beside a schedule
+            // that is demonstrably running.
+            'invite_reminder_time'      => \AfricaGates\Services\InviteReminders::sendTimeLabel(),
+            'invite_reminder_time_zone' => \AfricaGates\Support\DisplayTime::abbr(),
             'invite_reminder_line_nominee_default' => \AfricaGates\Services\InviteReminders::copy(
                 \AfricaGates\Services\InviteAudience::NOMINEE)['line_default'],
             'invite_reminder_line_judge_default'   => \AfricaGates\Services\InviteReminders::copy(
@@ -239,7 +244,7 @@ class SettingsController
                   // the sentence each audience reads. Parsed and clamped in
                   // InviteReminders — a free-text day list must not be trusted by the
                   // sweep any more than it is trusted here.
-                  'invite_reminder_days',
+                  'invite_reminder_days','invite_reminder_time',
                   'invite_reminder_line_nominee','invite_reminder_line_judge'] as $k) {
             if (array_key_exists($k, $b)) {
                 $this->settings->set($k, trim((string)$b[$k]), $adminId);

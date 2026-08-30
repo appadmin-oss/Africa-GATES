@@ -127,6 +127,80 @@ final class InviteReminders
         return $marks;
     }
 
+    /** The hour reminders begin going out when the operator has set none. */
+    public const DEFAULT_TIME = '09:00';
+
+    /**
+     * The time of day reminders begin, as [hour, minute].
+     *
+     * ── WHY A SCHEDULE NEEDS A CLOCK AND NOT ONLY A CALENDAR ─────────────────
+     *
+     * The marks say WHICH DAY. Without a time they also, silently, said "whenever the
+     * cron happens to reach this task" — which on a shared host is whatever quarter hour
+     * the tick lands on, and an operator asking "what time do these go out?" had no answer
+     * and no way to change it. A reminder is the only mail on this platform whose moment
+     * is CHOSEN rather than triggered by something the recipient did, so it is the only
+     * one where that question has a real answer to give.
+     *
+     * Parsed rather than trusted, and defaulted rather than refused: an unreadable value
+     * must not silently stop every reminder on the platform.
+     *
+     * @return array{0:int,1:int}
+     */
+    public static function sendTime(): array
+    {
+        $raw = trim((string) (self::settings()['invite_reminder_time'] ?? ''));
+
+        // `<input type="time">` posts 'HH:MM', and 'HH:MM:SS' when a step is set. Both are
+        // accepted, and so is a bare hour, because a person typing into this field types
+        // "9" at least as readily as "09:00".
+        if (preg_match('/^\s*(\d{1,2})(?::(\d{2}))?/', $raw, $m) === 1) {
+            $h = (int) $m[1];
+            $i = (int) ($m[2] ?? 0);
+            if ($h >= 0 && $h <= 23 && $i >= 0 && $i <= 59) return [$h, $i];
+        }
+
+        [$dh, $di] = array_map('intval', explode(':', self::DEFAULT_TIME));
+
+        return [$dh, $di];
+    }
+
+    /** '09:00' — the send time as an operator reads and types it. */
+    public static function sendTimeLabel(): string
+    {
+        [$h, $i] = self::sendTime();
+
+        return sprintf('%02d:%02d', $h, $i);
+    }
+
+    /**
+     * Whether the clock has reached the send time today.
+     *
+     * ── A START, NOT A SLOT ──────────────────────────────────────────────────
+     *
+     * True from the set time until the end of the day, not only in the quarter hour that
+     * matches it. Two reasons, and both are about not losing people quietly:
+     *
+     *   • The sweep is capped per tick, so a large hall takes several ticks to drain. A
+     *     one-slot window would send the first forty and leave the rest until tomorrow —
+     *     by which time the mark may have moved.
+     *   • A cron on a shared host is not a guarantee. If the tick that matches 09:00 never
+     *     happens, a window that had already closed would swallow the whole day's
+     *     reminders and nothing would say so.
+     *
+     * So the set time is when reminders BEGIN. Nothing is sent before it, which is the
+     * half an operator actually cares about — and nothing rolls into tomorrow's small
+     * hours either, because a new day re-opens the window at the time they chose rather
+     * than continuing yesterday's.
+     */
+    public static function dueNow(?Carbon $now = null): bool
+    {
+        $now ??= Carbon::now();
+        [$h, $i] = self::sendTime();
+
+        return $now->hour > $h || ($now->hour === $h && $now->minute >= $i);
+    }
+
     /**
      * Whole days from today to the evening, in the site's own timezone.
      *
@@ -254,8 +328,9 @@ final class InviteReminders
      * does not need a shell this host does not have.
      *
      * @return array{
-     *   enabled:bool, marks:list<int>, days:?int, due:?int, next:?int,
-     *   audience_count:int, sent:list<array{mark:int,count:int,due:bool,past:bool}>
+     *   enabled:bool, marks:list<int>, time:string, zone:string, open:bool,
+     *   days:?int, due:?int, next:?int, audience_count:int,
+     *   sent:list<array{mark:int,count:int,due:bool,past:bool}>
      * }
      */
     public static function status(int $eventId, string $eventDate): array
@@ -292,6 +367,14 @@ final class InviteReminders
         return [
             'enabled'        => self::enabled(),
             'marks'          => $marks,
+            'time'           => self::sendTimeLabel(),
+            // Named, because a bare '09:00' on a screen an organiser reads from another
+            // country is a time in nobody's particular day.
+            'zone'           => DisplayTime::abbr(),
+            // Whether today's window has opened yet. The difference between "these have
+            // not gone" and "these have not gone YET" is the whole of what an operator
+            // wants to know at 08:40, and both render as a zero without it.
+            'open'           => self::dueNow(),
             'days'           => $days,
             'due'            => $due,
             'next'           => $next,
@@ -520,10 +603,18 @@ final class InviteReminders
             'days'         => $daysUntil,
 
             'event_title' => trim((string) $event->title),
-            'when'        => DisplayTime::showZoned((string) $event->event_date, 'l j F Y \a\t H:i'),
+            'when'        => trim(DisplayTime::showZoned((string) $event->event_date, 'l j F Y \a\t H:i')
+                                  . ' ' . DisplayTime::abbr()),
             'when_day'    => DisplayTime::show((string) $event->event_date, 'l'),
             'when_date'   => DisplayTime::show((string) $event->event_date, 'j F Y'),
             'when_time'   => DisplayTime::showZoned((string) $event->event_date, 'H:i'),
+            // NAMED, on a reminder, in a way the invitation does not bother with. The
+            // invitation is read once, months out, by somebody deciding whether to come.
+            // This one is read on the way — by a judge flying in, a nominee working out
+            // when to leave — and "18:00" with no zone is a time in nobody's particular
+            // day. Empty when the zone will not name itself, which is not worth a
+            // dangling label.
+            'when_zone'   => DisplayTime::abbr(),
             'where'       => $where,
             'cover_url'   => self::coverUrl($event, $base),
 

@@ -385,6 +385,12 @@
           {% if reminders.due %}
             The <strong>{{ reminders.due }}-day</strong> reminder is the one due now{% if reminders.next and reminders.next < reminders.due %},
             and the next after it goes {{ reminders.next }} day{{ reminders.next == 1 ? '' : 's' }} out{% endif %}.
+            {# "not gone" and "not gone YET" are the same zero in the table below, and at
+               08:40 the difference between them is the entire question. #}
+            {% if not reminders.open %}
+              <br><span class="iv-mute">Today's window has not opened — nothing goes before
+              {{ reminders.time }}{% if reminders.zone %} {{ reminders.zone }}{% endif %}.</span>
+            {% endif %}
           {% else %}
             {# reminders.next, not marks|first: they are the same number today and stop
                being the same the moment an operator edits the schedule to something whose
@@ -418,10 +424,11 @@
         </div>
 
         <p class="hint" style="margin-top:10px">
-          Sent by the maintenance run, hourly between 06:00 and 20:00, up to
-          {{ reminders.marks|length }} time{{ reminders.marks|length == 1 ? '' : 's' }} in all —
-          never at night, and never to somebody whose invitation has not gone yet.
-          The schedule and the wording are in
+          Sent by the maintenance run from <strong>{{ reminders.time }}{% if reminders.zone %} {{ reminders.zone }}{% endif %}</strong>,
+          up to {{ reminders.marks|length }} time{{ reminders.marks|length == 1 ? '' : 's' }} in all —
+          never before that hour, and never to somebody whose invitation has not gone yet.
+          A large hall keeps sending through the day until everyone has been written to.
+          The schedule, the time and the wording are in
           <a href="/admin/settings#f-invite_reminder_days">Settings &rarr; Invitations</a>.
         </p>
       {% endif %}

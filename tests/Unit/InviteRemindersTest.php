@@ -150,6 +150,67 @@ final class InviteRemindersTest extends TestCase
             'an unparseable field must not silently disable the whole feature');
     }
 
+    // ══ THE TIME OF DAY ═════════════════════════════════════════════════════
+
+    /**
+     * A schedule with no clock means "whenever the cron reaches it".
+     *
+     * Which is not an answer anybody can give when asked what time these go out — and a
+     * reminder is the only mail on this platform whose moment is CHOSEN rather than
+     * triggered by something the recipient did, so it is the only one where the question
+     * has a real answer to give.
+     */
+    public function test_the_send_time_defaults_and_is_read_as_an_operator_types_it(): void
+    {
+        $this->assertSame(InviteReminders::DEFAULT_TIME, InviteReminders::sendTimeLabel());
+
+        foreach ([
+            '08:30'    => '08:30',
+            '08:30:00' => '08:30',   // <input type="time"> posts seconds when a step is set
+            '9'        => '09:00',   // a person types "9" at least as readily as "09:00"
+            '23:59'    => '23:59',
+            '00:00'    => '00:00',
+        ] as $typed => $expected) {
+            DB::table('gates_settings')->where('key_name', 'invite_reminder_time')->delete();
+            DB::table('gates_settings')->insert(['key_name' => 'invite_reminder_time', 'value' => (string) $typed]);
+
+            $this->assertSame($expected, InviteReminders::sendTimeLabel(), 'typed: ' . $typed);
+        }
+    }
+
+    /** An unreadable time must not silently stop every reminder on the platform. */
+    public function test_an_unreadable_time_falls_back_rather_than_sending_nothing(): void
+    {
+        foreach (['morning', '', '99:99'] as $junk) {
+            DB::table('gates_settings')->where('key_name', 'invite_reminder_time')->delete();
+            DB::table('gates_settings')->insert(['key_name' => 'invite_reminder_time', 'value' => $junk]);
+
+            $this->assertSame(InviteReminders::DEFAULT_TIME, InviteReminders::sendTimeLabel(),
+                'junk: "' . $junk . '"');
+        }
+    }
+
+    /**
+     * The set time is when reminders BEGIN, and the window runs to the end of the day.
+     *
+     * Not a single slot. The sweep is capped per tick, so a large hall takes several to
+     * drain — and a cron on a shared host is not a guarantee, so a window that had already
+     * closed would swallow a whole day's reminders with nothing to say so.
+     */
+    public function test_nothing_goes_before_the_hour_and_the_window_runs_to_the_end_of_the_day(): void
+    {
+        DB::table('gates_settings')->insert(['key_name' => 'invite_reminder_time', 'value' => '09:30']);
+
+        $at = static fn (string $t): Carbon => Carbon::parse('2026-12-01 ' . $t);
+
+        $this->assertFalse(InviteReminders::dueNow($at('03:00')), 'nothing at 03:00, ever');
+        $this->assertFalse(InviteReminders::dueNow($at('09:00')));
+        $this->assertFalse(InviteReminders::dueNow($at('09:29')));
+        $this->assertTrue(InviteReminders::dueNow($at('09:30')), 'the minute itself opens it');
+        $this->assertTrue(InviteReminders::dueNow($at('14:00')), 'a capped sweep needs the afternoon');
+        $this->assertTrue(InviteReminders::dueNow($at('23:45')), 'the window runs to the end of the day');
+    }
+
     /**
      * A mark holds until the next one below it.
      *
@@ -468,6 +529,40 @@ final class InviteRemindersTest extends TestCase
         $this->assertSame(1, $sent[0]['count'], 'what went out has to be visible on the screen');
     }
 
+    /**
+     * The evening's time is NAMED, not just printed.
+     *
+     * The invitation is read once, months out, by somebody deciding whether to come. This
+     * one is read on the way — by a judge flying in, a nominee working out when to leave —
+     * and "18:00" with no zone is a time in nobody's particular day.
+     */
+    public function test_the_reminder_names_the_timezone_of_the_evening(): void
+    {
+        $zone = \AfricaGates\Support\DisplayTime::abbr();
+        $this->assertNotSame('', $zone, 'the harness must have a zone, or this proves nothing');
+
+        $m = $this->recorder();
+        InviteReminders::send($this->invited(), $this->event, 9, 14, $m);
+
+        $this->assertStringContainsString($zone, $m->sent[0]['htmlBody']);
+        $this->assertStringContainsString($zone, $m->sent[0]['plainBody'],
+            'the plain-text half is what a screen reader may be handed');
+    }
+
+    /** The screen says what time they go, and whether today's window has opened. */
+    public function test_the_screen_carries_the_send_time(): void
+    {
+        DB::table('gates_settings')->insert(['key_name' => 'invite_reminder_time', 'value' => '08:15']);
+
+        $st = InviteReminders::status($this->eventId, (string) $this->event->event_date);
+
+        $this->assertSame('08:15', $st['time']);
+        $this->assertSame(\AfricaGates\Support\DisplayTime::abbr(), $st['zone'],
+            'a bare 08:15 read from another country is a time in no particular day');
+        $this->assertSame(InviteReminders::dueNow(), $st['open'],
+            '"has not gone" and "has not gone YET" are the same zero without this');
+    }
+
     public function test_the_preview_sends_nothing_and_logs_nothing(): void
     {
         $inv = $this->invited();
@@ -496,6 +591,7 @@ final class InviteRemindersTest extends TestCase
         foreach ([
             'invite_reminder_enabled',
             'invite_reminder_days',
+            'invite_reminder_time',
             'invite_reminder_line_nominee',
             'invite_reminder_line_judge',
         ] as $key) {
@@ -515,5 +611,7 @@ final class InviteRemindersTest extends TestCase
             'a sweep with no caller is a feature that never runs');
         $this->assertStringContainsString("'invite-reminders' =>", $m,
             'and with no way to ask for it there is no shell to fall back on');
+        $this->assertStringContainsString('InviteReminders::dueNow($now)', $m,
+            'a time an operator sets and the scheduler ignores is a control that does nothing');
     }
 }
