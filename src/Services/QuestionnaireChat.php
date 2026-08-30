@@ -514,7 +514,7 @@ final class QuestionnaireChat
     private static function nextQuestion(object $s, array $answers): ?array
     {
         $questions = QuestionnaireService::questionsFor($s);
-        $skipped   = self::skipped($s);
+        $skipped   = self::declined($s);
 
         foreach ([1, 0] as $wantRequired) {
             foreach ($questions as $q) {
@@ -528,15 +528,39 @@ final class QuestionnaireChat
         return null;
     }
 
-    /** Slugs the nominee has declined, kept in the chat document rather than a column. */
-    private static function skipped(object $s): array
+    /**
+     * Slugs the nominee has declined.
+     *
+     * ── WHY THIS IS NOT JUST A WALK OF THE TURNS ─────────────────────────────
+     *
+     * It was, and {@see store()} keeps only the last {@see MAX_TURNS}. A decline recorded
+     * early in a long conversation slid off the front of the window and stopped existing,
+     * so the assistant asked again — nagging somebody about the one thing they had said
+     * they would rather not discuss, which is the worst question it could pick.
+     *
+     * `skipped_json` is the column that was added for this and never written. The turns are
+     * still read and merged so a conversation already in flight keeps its declines.
+     *
+     * @return list<string>
+     */
+    public static function declined(object $s): array
     {
-        foreach (self::turns($s) as $t) {
-            if (($t['who'] ?? '') === 'meta' && ($t['skip'] ?? '') !== '') {
-                $out[] = (string) $t['skip'];
+        $out = [];
+
+        $stored = json_decode((string) ($s->skipped_json ?? '[]'), true);
+        if (is_array($stored)) {
+            foreach ($stored as $slug) {
+                if (is_string($slug) && $slug !== '') $out[$slug] = true;
             }
         }
-        return $out ?? [];
+
+        foreach (self::turns($s) as $t) {
+            if (($t['who'] ?? '') === 'meta' && ($t['skip'] ?? '') !== '') {
+                $out[(string) $t['skip']] = true;
+            }
+        }
+
+        return array_keys($out);
     }
 
     /** @return array<string,int> */
@@ -648,6 +672,15 @@ final class QuestionnaireChat
         self::store($fresh, $turns);
     }
 
+    /**
+     * Record that the nominee declined a question — in the turns, so the transcript reads
+     * true, and in `skipped_json`, so it survives the window {@see store()} slides.
+     *
+     * Two places for one fact is normally the wrong shape. Here the turns are a transcript
+     * (what was said, in order, truncated like any log) and the column is a record (what
+     * was decided, kept). {@see declined()} is the single reader that merges them, so
+     * nothing else has to know there are two.
+     */
     private static function pushMeta(object $s, string $slug): void
     {
         $fresh = QuestionnaireService::byId((int) $s->id);
@@ -655,19 +688,33 @@ final class QuestionnaireChat
         $turns = self::turns($fresh);
         $turns[] = ['who' => 'meta', 'skip' => $slug, 'text' => '',
                     'at' => Carbon::now()->toDateTimeString()];
-        self::store($fresh, $turns);
+        // The whole set, not the delta: store() writes a column, and a column holds a set.
+        $declined = self::declined($fresh);
+        $declined[] = $slug;
+
+        self::store($fresh, $turns, array_values(array_unique($declined)));
     }
 
-    /** @param list<array<string,string>> $turns */
-    private static function store(object $s, array $turns): void
+    /**
+     * @param list<array<string,string>> $turns
+     * @param list<string>|null          $declined the full declined set, or null to leave it
+     */
+    private static function store(object $s, array $turns, ?array $declined = null): void
     {
         if (count($turns) > self::MAX_TURNS) $turns = array_slice($turns, -self::MAX_TURNS);
+        $row = [
+            'chat_json'  => json_encode(array_values($turns)),
+            'started_at' => (string) ($s->started_at ?? Carbon::now()->toDateTimeString()),
+            'updated_at' => Carbon::now()->toDateTimeString(),
+        ];
+        // Filtered rather than assumed: `skipped_json` arrives in a dated migration, and a
+        // database that has not run it must still be able to hold a conversation.
+        if ($declined !== null) $row['skipped_json'] = json_encode(array_values($declined));
+
         try {
-            DB::table('gates_nominee_submissions')->where('id', (int) $s->id)->update([
-                'chat_json'  => json_encode(array_values($turns)),
-                'started_at' => (string) ($s->started_at ?? Carbon::now()->toDateTimeString()),
-                'updated_at' => Carbon::now()->toDateTimeString(),
-            ]);
+            DB::table('gates_nominee_submissions')->where('id', (int) $s->id)->update(
+                \AfricaGates\Support\OptionalColumn::filter('gates_nominee_submissions', $row, ['skipped_json'])
+            );
         } catch (\Throwable $e) {
             error_log('[questionnaire] could not store the conversation: ' . $e->getMessage());
         }

@@ -290,6 +290,125 @@ final class QuestionnaireChatTest extends TestCase
         $this->assertNotSame($before, $after, 'a declined question was asked again');
     }
 
+    /**
+     * THE DECLINE IS A RECORD, NOT A LOG LINE.
+     *
+     * It lived only in `chat_json`, and store() keeps the last 120 turns. A decline made
+     * early in a long conversation slid off the front and stopped existing, so the
+     * assistant asked again — pressing somebody about the one thing they had said they
+     * would rather not discuss, which is the single worst question it could choose.
+     *
+     * `skipped_json` was added for exactly this and written by nothing.
+     */
+    public function test_a_decline_survives_the_turn_window_sliding(): void
+    {
+        [$id, $token] = $this->open();
+        C::start($token);
+        foreach (['We teach girls to code at Riverside School on Saturdays.',
+                  'Since March 2021 and still running.',
+                  'About 140 girls, and the school keeps a signed register each term.'] as $t) {
+            C::say($token, $t);
+        }
+        $declined = C::state($token)['question']['slug'];
+        C::say($token, 'skip');
+
+        // The window slides, exactly as a long conversation would slide it.
+        $filler = [];
+        for ($i = 0; $i < 200; $i++) {
+            $filler[] = ['who' => 'them', 'text' => 'turn ' . $i, 'at' => '2026-01-01 00:00:00'];
+        }
+        DB::table('gates_nominee_submissions')->where('id', $id)
+            ->update(['chat_json' => json_encode($filler)]);
+
+        $s = Q::byId($id);
+        $this->assertNotNull($s);
+        $this->assertContains($declined, C::declined($s),
+            'the decline was only ever a log line, and the log rolled over it');
+    }
+
+    /** And the durable record is what stops the question coming back round. */
+    public function test_a_question_declined_before_the_window_slid_is_still_not_asked_again(): void
+    {
+        [$id, $token] = $this->open();
+        C::start($token);
+        foreach (['We teach girls to code at Riverside School on Saturdays.',
+                  'Since March 2021 and still running.',
+                  'About 140 girls, and the school keeps a signed register each term.'] as $t) {
+            C::say($token, $t);
+        }
+        $declined = C::state($token)['question']['slug'];
+        C::say($token, 'skip');
+
+        // Wipe the transcript entirely — the harshest version of the same slide.
+        DB::table('gates_nominee_submissions')->where('id', $id)
+            ->update(['chat_json' => json_encode([])]);
+
+        $this->assertNotSame($declined, C::state($token)['question']['slug'] ?? '',
+            'a nominee was asked again about the thing they declined');
+    }
+
+    /**
+     * §17 the other way round. The dossier printed "not answered" for a decline and for
+     * somebody who ran out of evening, and nothing on this page is weighed harder than a
+     * refusal to answer — so the one that was never made must not look like one.
+     */
+    public function test_the_dossier_tells_a_decline_from_a_blank(): void
+    {
+        [$id, $token] = $this->open();
+        C::start($token);
+        foreach (['We teach girls to code at Riverside School on Saturdays.',
+                  'Since March 2021 and still running.',
+                  'About 140 girls, and the school keeps a signed register each term.'] as $t) {
+            C::say($token, $t);
+        }
+        $declined = C::state($token)['question']['slug'];
+        C::say($token, 'skip');
+
+        $form = Q::formFor($token);
+        $this->assertContains($declined, $form['declined'],
+            'the dossier has no way to tell the two silences apart');
+
+        $html = $this->dossier($id);
+        $this->assertStringContainsString('chose not to answer', $html);
+        // The questions genuinely never reached still read as blank, not as refusals.
+        $this->assertStringContainsString('not answered', $html,
+            'every blank was relabelled a decline, which is the same conflation inverted');
+    }
+
+    /** Nothing is claimed about a nominee who declined nothing. */
+    public function test_no_decline_is_shown_when_none_was_made(): void
+    {
+        [$id, $token] = $this->open();
+        C::start($token);
+
+        $this->assertSame([], Q::formFor($token)['declined']);
+        $this->assertStringNotContainsString('chose not to answer', $this->dossier($id));
+    }
+
+    /** The operator screen for one submission. */
+    private function dossier(int $id): string
+    {
+        $_SESSION['admin_id']   = 1;
+        $_SESSION['admin_role'] = 'superadmin';
+        $_SESSION['csrf_token'] = 'test-token';
+
+        try {
+            $b = new ContainerBuilder();
+            $b->addDefinitions(dirname(__DIR__, 2) . '/config/container.php');
+            $ctrl = $b->build()->get(\AfricaGates\Admin\Controllers\QuestionnairesController::class);
+
+            $req = (new ServerRequestFactory())->createServerRequest('GET', '/admin/questionnaires/' . $id);
+            $res = $ctrl->show($req, (new \Slim\Psr7\Factory\ResponseFactory())->createResponse(), ['id' => $id]);
+
+            $this->assertSame(200, $res->getStatusCode(),
+                'show() redirected instead of rendering — it refused before reaching the template');
+
+            return (string) $res->getBody();
+        } finally {
+            unset($_SESSION['admin_id'], $_SESSION['admin_role'], $_SESSION['csrf_token']);
+        }
+    }
+
     public function test_the_words_people_use_to_decline_are_all_understood(): void
     {
         foreach (['skip', 'Skip', 'no', 'none', 'nothing', 'n/a', 'pass', 'next',

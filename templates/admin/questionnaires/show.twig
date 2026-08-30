@@ -153,11 +153,23 @@
     </div>
   {% endif %}
 
+  {# ── TWO SILENCES, NOT ONE ────────────────────────────────────────────────
+     A blank here used to read "not answered" whether the nominee declined the question
+     outright or simply never reached it, and a panel cannot tell a refusal from somebody
+     who ran out of evening. Nothing on this page is weighed harder than a refusal to
+     answer, so the one that was never made must not look like one.
+
+     `form.declined` is the durable set — the chat transcript is a rolling window and
+     loses an early decline, which is why the column exists. #}
   {% for q in (form.questions ?? []) %}
     {% set v = form.answers[q.slug]|default('') %}
     <div class="qs-a">
       <div class="qs-q">{{ q.label }}{% if q.criterion %}<span class="qs-crit">{{ q.criterion }}</span>{% endif %}</div>
-      <div class="qs-v {{ v ? '' : 'qs-v--none' }}">{{ v ?: 'not answered' }}</div>
+      <div class="qs-v {{ v ? '' : 'qs-v--none' }}">
+        {%- if v %}{{ v }}
+        {%- elseif q.slug in (form.declined ?? []) %}the nominee was asked and chose not to answer
+        {%- else %}not answered{% endif -%}
+      </div>
     </div>
   {% else %}
     <p>No questions are configured for this programme.</p>

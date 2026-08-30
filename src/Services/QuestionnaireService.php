@@ -569,6 +569,13 @@ final class QuestionnaireService
             'declared_name' => (string) ($s->declared_name ?? ''),
             'questions'  => self::questionsFor($s),
             'answers'    => is_array($answers) ? $answers : [],
+            // Which questions the nominee was asked and chose not to answer.
+            //
+            // Without this the dossier printed "not answered" for a decline and for a
+            // person who simply ran out of evening, and a panel reading the first as the
+            // second — or the second as the first — is reading a refusal that was never
+            // made. That is the harm the column was added for.
+            'declined'   => QuestionnaireChat::declined($s),
             'works'      => is_array($works) ? array_values(array_filter($works, 'is_array')) : [],
             'max_works'  => self::MAX_WORKS,
             'max_files'  => self::MAX_FILES,
