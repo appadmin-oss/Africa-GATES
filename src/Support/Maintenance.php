@@ -221,6 +221,24 @@ final class Maintenance
                 $ran[] = ['aifiles', $this->task('aifiles',
                     fn() => \AfricaGates\Services\GeminiFiles::prune())];
             }
+            // ── REMINDERS FOR A CEREMONY'S GUESTS OF HONOUR ──────────────────
+            //
+            // HOURLY THROUGH THE DAY, not once at 06:00 beside the voting reminder, and
+            // the reason is arithmetic rather than taste. The sweep is capped per tick
+            // (InviteReminders::CAP) because a shared host's max_execution_time is the
+            // real ceiling on an unattended run — and at one tick a day a four-hundred-
+            // person hall would take ten days to remind, by which time the mark it was
+            // reminding them about is long behind us. Sixteen ticks clears it the same
+            // day.
+            //
+            // 06:00–20:00 and no later: this is the only mail on this platform whose
+            // timing is chosen rather than triggered by something the recipient did, so
+            // it is the only one that can arrive at 03:00 for no reason. Nothing about a
+            // reminder is worth a phone lighting up in the night.
+            if ($now->hour >= 6 && $now->hour <= 20 && (int)$now->minute < 15) {
+                $ran[] = ['invite-reminders', $this->task('invite-reminders',
+                    fn() => \AfricaGates\Services\InviteReminders::sweep())];
+            }
             // Every 6 hours: CPI recompute + tamper-evident standings snapshot
             if ($now->hour % 6 === 0 && (int)$now->minute < 15) {
                 $ran[] = ['cpi',      $this->task('cpi',      fn() => $this->recomputeCpi())];
@@ -263,6 +281,11 @@ final class Maintenance
                 // is the only way anybody can ask for another batch.
                 'judgemaps' => $ran[] = ['judgemaps', $this->task('judgemaps',
                     fn() => \AfricaGates\Services\JudgeAssist::sweep())],
+                // Addressable for the same reason judgemaps is: an operator who has just
+                // sent a run and wants the first reminders to go now cannot wait for the
+                // next tick, and there is no shell on this host to make them go.
+                'invite-reminders' => $ran[] = ['invite-reminders', $this->task('invite-reminders',
+                    fn() => \AfricaGates\Services\InviteReminders::sweep())],
                 'all'       => (function () use (&$ran) {
                     $ran[] = ['queue', $this->task('queue', fn() => $this->drainJobs())];
                     $ran[] = ['cycles', $this->task('cycles', fn() => $this->advanceCycles())];

@@ -58,6 +58,16 @@ class SettingsController
                 \AfricaGates\Services\InviteAudience::NOMINEE)['witness_default'],
             'invite_witness_judge_default'   => \AfricaGates\Services\InviteAudience::spec(
                 \AfricaGates\Services\InviteAudience::JUDGE)['witness_default'],
+            // The reminder schedule and its two sentences, resolved rather than read raw:
+            // the screen has to show the marks that WILL be used, which for an operator
+            // who has set nothing is the default list and not an empty box.
+            'invite_reminder_on'    => \AfricaGates\Services\InviteReminders::enabled(),
+            'invite_reminder_marks' => \AfricaGates\Services\InviteReminders::marks(),
+            'invite_reminder_days_default' => implode(', ', \AfricaGates\Services\InviteReminders::DEFAULT_MARKS),
+            'invite_reminder_line_nominee_default' => \AfricaGates\Services\InviteReminders::copy(
+                \AfricaGates\Services\InviteAudience::NOMINEE)['line_default'],
+            'invite_reminder_line_judge_default'   => \AfricaGates\Services\InviteReminders::copy(
+                \AfricaGates\Services\InviteAudience::JUDGE)['line_default'],
             'cloudinary_secret_set' => trim((string) (\Illuminate\Database\Capsule\Manager::table('gates_settings')->where('key_name', 'cloudinary_api_secret')->value('value') ?? '')) !== '',
             // Flash renders from the Twig globals via the layout — do not shadow them.
             // Where each revenue stream settles. Resolved, so the screen shows the code that
@@ -224,7 +234,13 @@ class SettingsController
                   'invite_quota_nominee','invite_quota_judge','invite_discount_percent',
                   // The one sentence that names why the hall is being filled. Editable
                   // because programmes honour different things — see InviteAudience.
-                  'invite_witness_nominee','invite_witness_judge'] as $k) {
+                  'invite_witness_nominee','invite_witness_judge',
+                  // The reminder run: whether it sends, how many days out it starts, and
+                  // the sentence each audience reads. Parsed and clamped in
+                  // InviteReminders — a free-text day list must not be trusted by the
+                  // sweep any more than it is trusted here.
+                  'invite_reminder_days',
+                  'invite_reminder_line_nominee','invite_reminder_line_judge'] as $k) {
             if (array_key_exists($k, $b)) {
                 $this->settings->set($k, trim((string)$b[$k]), $adminId);
             }
@@ -263,6 +279,16 @@ class SettingsController
                 // The zone is cached per request; this request has already read it.
                 \AfricaGates\Support\DisplayTime::forget();
             }
+        }
+
+        // Whether the reminder run sends anything. NOT in the echo list above: an
+        // unchecked box posts NOTHING, so `array_key_exists` is false and the loop would
+        // leave the old '1' in place — a switch that can be turned on and never off. The
+        // day-marks field always posts, even empty, so its presence is what marks this
+        // section as submitted, exactly as the automation and voting-integrity cards do.
+        if (array_key_exists('invite_reminder_days', $b)) {
+            $this->settings->set('invite_reminder_enabled',
+                                 !empty($b['invite_reminder_enabled']) ? '1' : '0', $adminId);
         }
 
         // Automation / webcron: toggle opportunistic self-maintenance + manage the

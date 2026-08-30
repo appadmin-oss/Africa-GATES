@@ -227,6 +227,11 @@
          sending it. This is the same call the attachment builder makes. #}
       <a class="ad-btn" href="/admin/events/{{ event.id }}/invites/{{ ref }}/letter.pdf"
          target="_blank" rel="noopener">Open the letter (PDF)</a>
+      {# The reminder is composed from a sentence typed on another screen and wrapped
+         in copy nobody here has read, then posted by a cron. Of everything this run
+         sends it is the ONLY message an operator cannot otherwise see before it goes. #}
+      <a class="ad-btn" href="/admin/events/{{ event.id }}/invites/{{ ref }}/reminder"
+         target="_blank" rel="noopener">Read the reminder</a>
     </div>
 
     {# ── A REAL SEND, TO YOU ─────────────────────────────────────────────
@@ -342,5 +347,85 @@
       </div>
     {% endif %}
   </form>
+
+  {# ── REMINDERS ──────────────────────────────────────────────────────────
+     OUTSIDE the build form, deliberately. A `<form>` opened while another is
+     already open is not nested by the HTML parser — the start tag is DROPPED and
+     the children are adopted by the outer form — so anything with a button in here
+     would post to /invites/build. Three of those have shipped in this codebase.
+
+     There is nothing to submit here anyway: the schedule lives on the settings
+     screen, because it applies to every ceremony rather than this one. What belongs
+     HERE is the state — which marks have gone, which is next — because this is the
+     only screen that knows which event you are asking about. #}
+  {% if invites|length %}
+    <div class="iv-sec">
+      <h2>Reminders</h2>
+
+      {% if not reminders.enabled %}
+        <p><span class="ad-chip ad-chip--grey">off</span>
+           No reminders will be sent for this ceremony or any other.
+           <a href="/admin/settings#f-invite_reminder_enabled">Turn them on in Settings &rarr;</a></p>
+      {% elseif reminders.days is null %}
+        <p><span class="ad-chip ad-chip--grey">no date</span>
+           This event has no readable date, so there is nothing to count down to.</p>
+      {% elseif reminders.days < 0 %}
+        <p><span class="ad-chip ad-chip--grey">past</span>
+           This evening has happened. Nothing further will be sent.</p>
+      {% else %}
+        <p>
+          {# The distance, in the words the message itself will use. An operator
+             comparing this screen against a letter somebody forwarded them should
+             not have to translate between "3" and "in 3 days". #}
+          {% if reminders.days == 0 %}<strong>Today.</strong>
+          {% elseif reminders.days == 1 %}<strong>Tomorrow.</strong>
+          {% else %}<strong>In {{ reminders.days }} days.</strong>{% endif %}
+          {{ reminders.audience_count }} guest{{ reminders.audience_count == 1 ? '' : 's' }} of honour
+          {{ reminders.audience_count == 1 ? 'has' : 'have' }} had their invitation and can be reminded.
+          {% if reminders.due %}
+            The <strong>{{ reminders.due }}-day</strong> reminder is the one due now{% if reminders.next and reminders.next < reminders.due %},
+            and the next after it goes {{ reminders.next }} day{{ reminders.next == 1 ? '' : 's' }} out{% endif %}.
+          {% else %}
+            {# reminders.next, not marks|first: they are the same number today and stop
+               being the same the moment an operator edits the schedule to something whose
+               largest mark is already behind us. The panel must name the mark that will
+               actually fire. #}
+            Nothing is due yet — reminders start
+            <strong>{{ reminders.next|default(reminders.marks|first) }} days</strong> out.
+          {% endif %}
+        </p>
+
+        <div class="iv-scroll">
+          <table class="ad-table">
+            <thead><tr><th>Mark</th><th>State</th><th class="iv-num">Sent</th></tr></thead>
+            <tbody>
+            {% for m in reminders.sent %}
+              <tr>
+                <td>{{ m.mark }} day{{ m.mark == 1 ? '' : 's' }} out</td>
+                <td>
+                  {# THREE states, not two. "Due now" and "not yet" and "behind us"
+                     all render as a count of zero, and they are opposite problems:
+                     one is about to send, one will send later, and one never will. #}
+                  {% if m.due %}<span class="ad-chip ad-chip--gold">due now</span>
+                  {% elseif m.past %}<span class="ad-chip ad-chip--grey">behind us</span>
+                  {% else %}<span class="ad-chip ad-chip--grey">not yet</span>{% endif %}
+                </td>
+                <td class="iv-num">{{ m.count }}</td>
+              </tr>
+            {% endfor %}
+            </tbody>
+          </table>
+        </div>
+
+        <p class="hint" style="margin-top:10px">
+          Sent by the maintenance run, hourly between 06:00 and 20:00, up to
+          {{ reminders.marks|length }} time{{ reminders.marks|length == 1 ? '' : 's' }} in all —
+          never at night, and never to somebody whose invitation has not gone yet.
+          The schedule and the wording are in
+          <a href="/admin/settings#f-invite_reminder_days">Settings &rarr; Invitations</a>.
+        </p>
+      {% endif %}
+    </div>
+  {% endif %}
 {% endif %}
 {% endblock %}

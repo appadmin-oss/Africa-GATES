@@ -6,6 +6,7 @@ namespace AfricaGates\Admin\Controllers;
 use AfricaGates\Services\EventInvites;
 use AfricaGates\Services\InviteAudience;
 use AfricaGates\Services\InviteMailer;
+use AfricaGates\Services\InviteReminders;
 use AfricaGates\Services\OtpService;
 use Illuminate\Database\Capsule\Manager as DB;
 use Psr\Http\Message\ResponseInterface as Response;
@@ -72,6 +73,10 @@ final class InvitesController
             'discount'    => InviteAudience::discountPercent(),
             'lowest_tier' => EventInvites::lowestTier($id),
             'batch'       => self::BATCH,
+            // What the unattended half of this feature has done and will do. The send
+            // above is a button somebody watches; the reminders are not, so the only
+            // place their state can be read is here.
+            'reminders'   => InviteReminders::status($id, (string) $event->event_date),
             // Pre-filled, because "send one to yourself" that makes you type your own
             // address is a step between an operator and the one check that matters.
             'admin_email' => (string) (DB::table('gates_admins')
@@ -330,6 +335,45 @@ final class InvitesController
         [$invite, $event] = $this->subject($req, $args);
 
         $res->getBody()->write(InviteMailer::preview($invite, $event));
+
+        return $res->withHeader('Content-Type', 'text/html; charset=utf-8')
+                   ->withHeader('X-Robots-Tag', 'noindex, nofollow');
+    }
+
+    /**
+     * The rendered REMINDER, so an operator can read what the cron will send.
+     *
+     * ── WHY THIS EXISTS AND IS NOT OPTIONAL ──────────────────────────────────
+     *
+     * Everything else on this screen is sent by somebody pressing a button and watching
+     * what happens. The reminder is not: it is composed from a sentence typed on the
+     * settings screen, wrapped in copy nobody outside this repository has read, and
+     * posted by a cron at six in the morning to a list of people being honoured in
+     * public. An operator who cannot read it before it goes is being asked to sign
+     * something unseen.
+     *
+     * `?days=` because the message CHANGES with the countdown — "today" and "in 21 days"
+     * are different letters — and an operator judging the copy needs to see the one that
+     * will actually land. Defaults to the real distance to this event, so the common case
+     * needs no query at all; falls back to the furthest mark for a ceremony already past,
+     * where the true answer is a negative number and no reminder would ever be sent.
+     */
+    public function reminder(Request $req, Response $res, array $args): Response
+    {
+        [$invite, $event] = $this->subject($req, $args);
+
+        $asked = $req->getQueryParams()['days'] ?? null;
+        $marks = InviteReminders::marks();
+        $real  = InviteReminders::daysUntil((string) $event->event_date);
+
+        $days = $asked !== null && $asked !== ''
+            // Clamped to the same range the schedule itself accepts. A preview is a
+            // rendering path reachable by URL, and an unbounded integer from a query
+            // string is how a page comes to render "in 999999999 days".
+            ? max(0, min(365, (int) $asked))
+            : ($real !== null && $real >= 0 ? $real : (int) ($marks[0] ?? 7));
+
+        $res->getBody()->write(InviteReminders::preview($invite, $event, $days));
 
         return $res->withHeader('Content-Type', 'text/html; charset=utf-8')
                    ->withHeader('X-Robots-Tag', 'noindex, nofollow');

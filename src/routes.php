@@ -3336,6 +3336,7 @@ return function(App $app) {
         // `{reference}` accepts the literal `sample`, so both of these work before the
         // list has been built — which is when an operator most wants to look.
         $a->get('/events/{id:[0-9]+}/invites/{reference}/preview', \AfricaGates\Admin\Controllers\InvitesController::class.':preview');
+        $a->get('/events/{id:[0-9]+}/invites/{reference}/reminder', \AfricaGates\Admin\Controllers\InvitesController::class.':reminder');
         $a->get('/events/{id:[0-9]+}/invites/{reference}/letter.pdf', \AfricaGates\Admin\Controllers\InvitesController::class.':letter');
 
         $a->get('/events/{id:[0-9]+}/tickets',   AdminEventsController::class.':tickets');

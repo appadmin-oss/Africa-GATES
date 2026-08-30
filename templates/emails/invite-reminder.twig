@@ -1,0 +1,112 @@
+{#
+  THE REMINDER — a BODY, not a document.
+
+  Same contract as `invitation.twig`, and for the same reason that file carries two
+  hundred lines of scar tissue about: `OtpService::sendBranded()` passes what it is
+  given to `brandWrap()`, the house shell. A whole `<html>` here would reach the
+  inbox as two documents nested — two mastheads, two footers — and the admin
+  preview would not show it, because a preview that renders the fragment alone is a
+  preview of a message nobody receives.
+
+  The shell already provides: the wordmark, the category chip ("Reminder"), the hero
+  image, the footer, the unsubscribe link, the hidden preheader, and the 600px card
+  on its paper ground. This file starts at the countdown and ends at the sign-off.
+
+  ── WHY THE COUNTDOWN IS THE FIRST THING AND NOT THE DATE ───────────────────
+
+  The invitation's job was to say WHEN, so its date panel is the loudest thing in
+  it. A reminder is read by somebody who already knows when — they have the letter
+  and the pass. What they do not know, at a glance, is how long they have left, and
+  that is the entire reason this message exists. So "in 9 days" is set as the
+  display object and the date sits under it as the supporting fact.
+
+  Type comes from the shell's body cell: DM Sans, 15px, 1.65, #4a5256 on white.
+  Anything set here that the shell already sets is a second opinion that will drift.
+#}
+
+<p style="margin:0 0 6px;font-family:'Playfair Display',Georgia,serif;font-size:21px;line-height:1.3;color:#10292C">{{ salutation }} {{ name }},</p>
+
+{# ── THE COUNTDOWN ─────────────────────────────────────────────────────────
+   Gold, not emerald. Emerald is reserved for ACTION on this platform — the pass
+   button below is the only thing in this message a reader is asked to press, and
+   painting a second thing green would put two calls to action on one screen. #}
+<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%"
+       style="margin:0 0 20px;background:#fdf8ec;border-left:4px solid #f3b416;border-radius:0 8px 8px 0">
+  <tr>
+    <td style="padding:18px 20px">
+      <p style="margin:0 0 6px;font-size:10.5px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:#8a6205">{{ headline }}</p>
+      <p style="margin:0 0 10px;font-family:'Playfair Display',Georgia,serif;font-size:26px;line-height:1.2;color:#10292C">{{ countdown_up }}</p>
+      <p style="margin:0;font-size:14.5px;line-height:1.6;color:#7a6636">
+        <strong style="color:#5c4708">{{ when_day }} {{ when_date }}</strong><br>
+        {{ when_time }}{% if where %} · {{ where }}{% endif %}
+      </p>
+    </td>
+  </tr>
+</table>
+
+{# The operator's sentence — the one piece of copy that changes per programme and
+   per season. A complete sentence, written in the settings screen, set here at body
+   size and left alone. #}
+<p style="margin:0 0 14px;font-size:15px;line-height:1.65;color:#4a5256">{{ line }}</p>
+<p style="margin:0 0 22px;font-size:15px;line-height:1.65;color:#4a5256">
+  Nothing is needed from you — your seat at <strong style="color:#10292C">{{ event_title }}</strong>
+  is arranged and there is no ticket for you to buy.
+</p>
+
+{# ── THE PASS ──────────────────────────────────────────────────────────────
+   The house button: the green pill used by the invitation, the nomination and the
+   claim emails. VML behind it, because Outlook desktop draws a padded anchor with
+   the background dropped — a bare text link where the only action is. #}
+<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:0 0 10px">
+  <tr><td>
+    <!--[if mso]>
+    <v:roundrect xmlns:v="urn:schemas-microsoft-com:vml" xmlns:w="urn:schemas-microsoft-com:office:word" href="{{ id_url }}" style="height:46px;v-text-anchor:middle;width:236px" arcsize="50%" strokecolor="#237b22" fillcolor="#237b22">
+      <w:anchorlock/>
+      <center style="color:#ffffff;font-family:'DM Sans',Helvetica,Arial,sans-serif;font-size:15px;font-weight:600">Open your pass</center>
+    </v:roundrect>
+    <![endif]-->
+    <!--[if !mso]><!-->
+    <a href="{{ id_url }}" style="display:inline-block;background:#237b22;color:#ffffff;text-decoration:none;font-weight:600;font-size:15px;padding:13px 26px;border-radius:999px">Open your pass</a>
+    <!--<![endif]-->
+  </td></tr>
+</table>
+<p style="margin:0 0 24px;font-size:13.5px;line-height:1.6;color:#6b7280">
+  It is a live page, not a ticket — open it on your phone at the door. The formal
+  invitation, with the letter attached, is in your inbox from when we first wrote.
+</p>
+
+{# ── THE ASK ───────────────────────────────────────────────────────────────
+   Their reference does two jobs: their identity at the door and the code their
+   guests spend. Repeated here because a reminder that made somebody go and find
+   the first email to get the code has failed at being a reminder.
+
+   A hairline panel rather than a second tinted one: the gold band above is this
+   message's accent, and two filled panels on a 600px card is a page with no
+   hierarchy left. #}
+<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%"
+       style="margin:0 0 14px;border:1px solid #e3e7e5;border-radius:8px">
+  <tr>
+    <td style="padding:16px 20px">
+      <p style="margin:0 0 6px;font-size:10.5px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:#6b7280">Bring your people</p>
+      <p style="margin:0 0 4px;font-family:Consolas,'Courier New',monospace;font-size:19px;letter-spacing:2px;color:#10292C">{{ reference }}</p>
+      <p style="margin:0;font-size:13px;line-height:1.6;color:#6b7280">{{ discount }}% off · up to {{ quota }} guests</p>
+    </td>
+  </tr>
+</table>
+<p style="margin:0 0 10px;font-size:14.5px;line-height:1.65;color:#4a5256">
+  There is still time to share it with the people you want in the room. It takes
+  {{ discount }}% off their tickets, for up to {{ quota }} of them{% if tier_line %}{{ tier_line }}{% endif %}.
+</p>
+{# The secondary action gets its own line. Left inline it lands mid-sentence and then
+   wraps, so an underlined green link breaks across two lines in the middle of a
+   paragraph — which reads as damage rather than as the second thing to do. #}
+<p style="margin:0 0 26px;font-size:14.5px;line-height:1.65">
+  <a href="{{ events_url }}" style="color:#237b22;font-weight:600;text-decoration:underline">Send them to the tickets&nbsp;→</a>
+</p>
+
+<p style="margin:0 0 4px;font-size:15px;line-height:1.65;color:#4a5256">
+  We are looking forward to having you with us.
+</p>
+<p style="margin:0;font-size:15px;line-height:1.65;color:#10292C">
+  With respect,<br><strong style="font-weight:600">Africa GATES</strong>
+</p>

@@ -246,7 +246,7 @@
       </div>
     </div>
   </div></div>
-  <div class="ad-card" data-sec="mail" data-keys="invitations invite guests of honour quota nominees judges shortlist ceremony discount percent reason why witness" x-show="show($el)"><div class="ad-card__head"><div class="ad-card__title">Invitations<small>What a guest of honour is promised, and the one sentence that says why.</small></div></div><div class="ad-card__body">
+  <div class="ad-card" data-sec="mail" data-keys="invitations invite guests of honour quota nominees judges shortlist ceremony discount percent reason why witness reminders reminder days before countdown celebration legacy schedule" x-show="show($el)"><div class="ad-card__head"><div class="ad-card__title">Invitations<small>What a guest of honour is promised, and the one sentence that says why.</small></div></div><div class="ad-card__body">
     <div class="ad-form">
       {# TWO audiences, not three. This began as principals / children / judges, which was
          a taxonomy invented out of two example programmes — a nominee is a nominee whichever
@@ -270,7 +270,41 @@
         <div style="margin-top:10px"><label for="f-invite_witness_judge">Why, for a judge</label><input type="text" name="invite_witness_judge" id="f-invite_witness_judge" value="{{ values.invite_witness_judge|default('') }}" maxlength="240" placeholder="{{ invite_witness_judge_default }}"></div>
       </div>
 
-      <p class="hint" style="margin:10px 0 0">A run is built and sent per ceremony, from <strong>Events &rarr; the event &rarr; Invitations</strong>. Which awards it covers is set on the event itself.</p>
+      {# ── REMINDERS ───────────────────────────────────────────────────────
+         The invitation goes once, by hand. These go by themselves, which is why the
+         switch, the schedule and the sentence are all on the same card as the letter
+         they follow — an operator editing what a guest of honour is promised should
+         be able to see, without leaving, what else that guest will receive. #}
+      <div style="margin-top:14px;padding-top:14px;border-top:1px solid var(--ad-line,#e5eae8)">
+        <label style="display:flex;gap:8px;align-items:flex-start;cursor:pointer">
+          <input type="checkbox" name="invite_reminder_enabled" id="f-invite_reminder_enabled" value="1"{% if invite_reminder_on %} checked{% endif %} style="margin-top:3px">
+          <span>Send reminders as the evening approaches
+            <small style="display:block;font-weight:400">Only to guests of honour whose invitation has already been sent. Nobody is reminded of something they were never told.</small>
+          </span>
+        </label>
+
+        <div style="margin-top:10px"><label for="f-invite_reminder_days">Days before the event <small>the largest is when reminders start</small></label>
+          <input type="text" name="invite_reminder_days" id="f-invite_reminder_days" value="{{ values.invite_reminder_days|default('') }}" maxlength="60" placeholder="{{ invite_reminder_days_default }}"></div>
+        <p class="hint" style="margin:6px 0 0">
+          {# RESOLVED, not echoed. An operator who has set nothing sees the list that will
+             actually be used rather than an empty box, which is the difference between
+             "reminders are off" and "reminders are on the defaults". #}
+          In use now: <strong>{{ invite_reminder_marks|join(', ') }}</strong> days out.
+          Each mark holds until the next one below it, so a cron that misses a morning
+          still sends — and the message says how many days are actually left, never the
+          mark it was sent on.
+        </p>
+
+        <p class="hint" style="margin:12px 0 10px">
+          The sentence that carries the celebration. It follows a gold panel reading
+          <em>&ldquo;A Grand Celebration of your name and your legacy &mdash; in 9 days&rdquo;</em>,
+          so write what you would say under that. A whole sentence, not a fragment.
+        </p>
+        <div><label for="f-invite_reminder_line_nominee">Reminder, for a nominee</label><input type="text" name="invite_reminder_line_nominee" id="f-invite_reminder_line_nominee" value="{{ values.invite_reminder_line_nominee|default('') }}" maxlength="400" placeholder="{{ invite_reminder_line_nominee_default }}"></div>
+        <div style="margin-top:10px"><label for="f-invite_reminder_line_judge">Reminder, for a judge</label><input type="text" name="invite_reminder_line_judge" id="f-invite_reminder_line_judge" value="{{ values.invite_reminder_line_judge|default('') }}" maxlength="400" placeholder="{{ invite_reminder_line_judge_default }}"></div>
+      </div>
+
+      <p class="hint" style="margin:10px 0 0">A run is built and sent per ceremony, from <strong>Events &rarr; the event &rarr; Invitations</strong>. Which awards it covers is set on the event itself. Reminders go from there too, and that screen shows which one is next.</p>
     </div>
   </div></div>
 
