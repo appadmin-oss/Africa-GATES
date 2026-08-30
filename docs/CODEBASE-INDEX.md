@@ -739,6 +739,9 @@ reached production:
 | `gates_ai_calls.error` | **none** — the admin console rendered a count and no cause |
 | `gates_judge_orientation.status = 'failed'` | **none** — a broken dossier was retried for ever |
 | `gates_status_log.components_json` | **none** — the page could say "something broke on the 14th" and not which thing |
+| `gates_interviews.bot_disclosed_at` | **none** — see §19.1 |
+| `gates_nominee_submissions.skipped_json` | **none** — see §19.2 |
+| `gates_nominee_submissions.reminded_at` | **none** — see §19.3 |
 
 Each was written carefully, documented honestly, and inert. On a deployment with no shell
 this is the most expensive class of bug available, because the symptom always looks like
@@ -886,3 +889,104 @@ lines captured", "in the judges' dossier") rather than a count of the sections i
 which would be a fact about the template. `InterviewScreenPhaseTest` renders all three
 states, because `phase` is set at template scope and a Twig `set` that fell inside a block
 would render as `null` in all three tags with a clean 200.
+
+---
+
+## 19. The column sweep (2026-08-30)
+
+§17 says to grep for a reader before believing a declaration. This was that grep, run over
+the whole schema rather than one file: the fully-migrated database dumped (140 tables, 1745
+columns) and every column name searched across `src`, `templates`, `cron` and
+`public/assets/js`.
+
+Eight columns had no reader. One, `gates_interviews.bot_recording_url`, is a **deliberate**
+vestige — Attendee's download URL expires in thirty minutes, so it is minted on demand and
+a test enforces that nothing reads the stored one. Four are unbuilt features and are listed
+at the end. Three were the real thing: a behaviour this index describes, with no code.
+
+The distinguishing question, worth carrying into the next sweep: **is there prose somewhere
+promising what this column does?** A column nothing has claimed for is a vestige. A column
+the documentation, a migration comment, or a screen has already promised is a lie with a
+schema behind it.
+
+### 19.1 `gates_interviews.bot_disclosed_at` — the consent record that did not exist
+
+§14 of this file says the disclosure is "stamped by the invitation rather than by an admin
+ticking a box, because a bot in the room is a materially different thing to consent to than
+a human taking notes."
+
+It was not stamped by anything. The literal string appeared in no file under `src`,
+`templates`, `cron` or `public`.
+
+The invitation *did* say the sitting "may be recorded and written down" — that is the
+consent that gates capture, and it worked. What it never said is that a **participant would
+join to do the recording**. Somebody who opens a Meet link and finds an unnamed stranger
+already in the list has been surprised in a conversation about their own work.
+
+`InterviewService::botDisclosure()` now writes the sentence, gated on the recorder being
+both switched on and configured — a paragraph about a participant who never arrives is its
+own small dishonesty — and `invite()` stamps the column only when the sentence really went,
+never overwriting it, because a stamp with no sentence behind it is a consent record that
+lies and the fact worth keeping is when the person was **first** told. The operator screen
+renders both states, gated on `iv.bot.available`, which is the one resolver for "a bot will
+attend".
+
+### 19.2 `gates_nominee_submissions.skipped_json` — the decline that rolled off the log
+
+Its migration named its own harm: kept "so an operator reading it later can tell 'not
+asked' from 'asked and skipped' — two very different silences, and a dossier that conflated
+them would let a panel read an absence as a refusal."
+
+A decline lived only in `chat_json`, and `QuestionnaireChat::store()` keeps the last **120**
+turns. So it had two live consequences:
+
+- **The conversation forgot.** A question declined early in a long conversation slid off the
+  front of the window, and `nextQuestion()` offered it again — pressing somebody about the
+  one thing they had said they would rather not discuss.
+- **The panel could not tell.** The dossier printed "not answered" whether the nominee
+  declined outright or simply ran out of evening. Nothing on that page is weighed harder
+  than a refusal to answer.
+
+The turns are a **transcript** and truncate like any log; the decline is a **decision** and
+has to keep. `QuestionnaireChat::declined()` is the single reader that merges the two, so
+nothing else has to know the fact lives in two places.
+
+### 19.3 `gates_nominee_submissions.reminded_at` — nobody warned, and then removed
+
+The sharpest of the three, because the missing reader was not a dormant column: it was the
+reason a whole warning did not exist.
+
+`QuestionnairePolicy::enforce()` **removes a nominee from an award** for not answering. It
+runs unattended out of the 06:00 maintenance pass, on a host with no shell. The only message
+that nominee had ever had was the invitation — one email, months earlier, to an address the
+**nominator** typed, which can be wrong, spam-filed, or sent to a job they have since left.
+
+The invitations screen already carried the diagnosis in a hint: *"Try sending to them again
+first — most of these are people who never saw the email."* It had the sentence and no
+mechanism.
+
+`QuestionnaireReminders::sweep()` warns at 14, 5 and 1 days before the deadline plus its
+grace — one message per mark, capped per tick, never to somebody not yet invited or already
+answered — and stamps the column. `enforce()` now **holds back** any row with no stamp.
+Held, not forgiven: the next sweep warns them, a later run takes them.
+
+Three details worth keeping:
+
+- **The sweep runs before the rule, in the same pass.** Ordering, not tidiness: warn second
+  and every first warning costs a day. `QuestionnaireRemindersTest` asserts the order.
+- The guard is wrapped in `OptionalColumn::on()`, so a database that has not run the
+  migration behaves as it did rather than refusing to enforce anything at all.
+- The screen no longer hides its whole card when nobody can be taken yet. An empty screen
+  reads as "the rule found nobody", which is the opposite of what is true.
+
+### The four that are vestiges, not faults
+
+Listed so the next sweep does not re-derive them. Each is a column for a feature that was
+never built, and none of them makes a false statement today:
+
+| Column | What it was for |
+|---|---|
+| `gates_legacy_events.video_url` | no legacy-event video surface exists |
+| `gates_nominations.show_nominator` | an attribution opt-in for a public nominator credit that does not exist — the nominator appears only on admin screens and in mail to themselves, so nobody is named without consent |
+| `gates_nominee_claims.revoked_reason` | there is no claim-revoke path at all; `revoked_at` is unused beside it |
+| `gates_nominee_evidence.verified_by` / `verified_at` | the inverse shape — `verified` **is** read (it drives the judge's "nothing independently checked" coverage line) but nothing sets it, so that line is permanently true. Honest by default, and the screen's own doctrine says verification means somebody outside this platform checked it |

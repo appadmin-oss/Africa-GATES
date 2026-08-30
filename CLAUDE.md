@@ -134,6 +134,17 @@ Full account in `docs/CODEBASE-INDEX.md` §16.
   status page could say "something broke on the 14th" and not which thing). With no shell on
   production the symptom always looks like something else. **Grep for a reader before you
   believe a declaration.** Full account in `docs/CODEBASE-INDEX.md` §17.
+- **A whole-schema sweep found three more, and they are the worst kind.** Each was a
+  behaviour the documentation already *promised*: `gates_interviews.bot_disclosed_at` (the
+  index described a consent stamp nothing wrote), `gates_nominee_submissions.skipped_json`
+  (its own migration named the harm — a panel reading a decline as "not answered"), and
+  `gates_nominee_submissions.reminded_at`, where the missing reader was the reason a warning
+  did not exist at all: a nominee was **removed from an award** by an unattended 06:00 rule,
+  having heard from us exactly once, months earlier. The distinguishing question for the
+  next sweep: **is there prose somewhere promising what this column does?** A column nothing
+  has claimed for is a vestige; one the docs, a migration comment or a screen has already
+  promised is a lie with a schema behind it. §19 lists all three, plus the four that really
+  are vestiges, so nobody re-derives them.
 - **And its sibling: a mechanism with no route in.** The Chrome extension's install note
   named a folder nothing served and no shell could fetch; the extension had also hardcoded
   one hostname into `host_permissions`, which no popup setting can override. Its content
