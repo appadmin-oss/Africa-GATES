@@ -7,6 +7,8 @@ use AfricaGates\Services\EventInvites;
 use AfricaGates\Services\InviteAudience;
 use AfricaGates\Services\InviteMailer;
 use AfricaGates\Services\InviteReminders;
+use AfricaGates\Services\InviteSequence;
+use AfricaGates\Services\InviteSequenceWriter;
 use AfricaGates\Services\OtpService;
 use Illuminate\Database\Capsule\Manager as DB;
 use Psr\Http\Message\ResponseInterface as Response;
@@ -77,6 +79,13 @@ final class InvitesController
             // above is a button somebody watches; the reminders are not, so the only
             // place their state can be read is here.
             'reminders'   => InviteReminders::status($id, (string) $event->event_date),
+            // The writer, and anything it has drafted but not saved. Scoped to THIS event
+            // so a draft written for one ceremony cannot appear on another's screen.
+            'writer_on'   => (new InviteSequenceWriter())->available(),
+            'seq_days'    => InviteSequence::DAYS,
+            'drafts'      => (($_SESSION['invite_letter_drafts']['event_id'] ?? 0) === $id)
+                ? ($_SESSION['invite_letter_drafts']['letters'] ?? [])
+                : [],
             // Pre-filled, because "send one to yourself" that makes you type your own
             // address is a step between an operator and the one check that matters.
             'admin_email' => (string) (DB::table('gates_admins')
@@ -338,6 +347,95 @@ final class InvitesController
 
         return $res->withHeader('Content-Type', 'text/html; charset=utf-8')
                    ->withHeader('X-Robots-Tag', 'noindex, nofollow');
+    }
+
+    /**
+     * Ask the writer for five drafts of the countdown letters, for THIS ceremony.
+     *
+     * ── NOTHING IS SAVED HERE ────────────────────────────────────────────────
+     *
+     * The drafts go into the session and onto the screen, and that is all. Saving is a
+     * second, deliberate press, because what is being written is five letters addressed
+     * to people receiving an honour in public, in the organisation's name. A button that
+     * drafted and saved in one motion would put a model's wording in front of a shortlist
+     * with nobody having read it.
+     */
+    public function draftLetters(Request $req, Response $res, array $args): Response
+    {
+        $id   = (int) ($args['id'] ?? 0);
+        $back = '/admin/events/' . $id . '/invites#letters';
+
+        $writer = new InviteSequenceWriter();
+        if (!$writer->available()) {
+            $_SESSION['flash_error'] = 'The writer is not available — no AI provider is configured, '
+                                     . 'or this feature is switched off in Settings.';
+            return $res->withHeader('Location', $back)->withStatus(302);
+        }
+
+        $steer = trim((string) (((array) $req->getParsedBody())['steer'] ?? ''));
+        $r     = $writer->draft($id, $steer);
+
+        if (!$r['ok']) {
+            $_SESSION['flash_error'] = $r['error'];
+            return $res->withHeader('Location', $back)->withStatus(302);
+        }
+
+        // Keyed by event: a draft written for one ceremony must not appear on another's
+        // screen if an operator opens two.
+        $_SESSION['invite_letter_drafts'] = ['event_id' => $id, 'letters' => $r['letters']];
+
+        $_SESSION['flash'] = count($r['letters']) . ' letter(s) drafted. Read them, then save the '
+                           . 'ones you want — nothing has been changed yet.'
+                           . ($r['notes'] !== [] ? ' ' . implode(' ', $r['notes']) : '');
+
+        return $res->withHeader('Location', $back)->withStatus(302);
+    }
+
+    /**
+     * Save the drafts an operator kept, as the letters that will actually be sent.
+     *
+     * Read from the POST rather than from the session, so what is stored is what was on
+     * the screen — an operator who edited a draft in the textarea before saving has their
+     * edit saved, not the model's original.
+     */
+    public function saveLetters(Request $req, Response $res, array $args): Response
+    {
+        $id   = (int) ($args['id'] ?? 0);
+        $back = '/admin/events/' . $id . '/invites#letters';
+        $b    = (array) $req->getParsedBody();
+
+        $settings = new \AfricaGates\Admin\Services\SettingsService();
+        $saved    = 0;
+        foreach (InviteSequence::DAYS as $day) {
+            $key  = 'invite_seq_body_' . $day;
+            $text = trim((string) ($b[$key] ?? ''));
+            // An empty box is "leave this one alone", not "blank the letter". The shipped
+            // wording is what an empty setting falls back to, so clearing one here would
+            // read as a save and behave as a revert.
+            if ($text === '') continue;
+
+            $settings->set($key, mb_substr($text, 0, 6000), (int) ($_SESSION['admin_id'] ?? 0));
+            $saved++;
+        }
+
+        unset($_SESSION['invite_letter_drafts']);
+
+        $_SESSION['flash'] = $saved === 0
+            ? 'Nothing was saved — every box was empty, so the letters are unchanged.'
+            : $saved . ' letter(s) saved. They are what the countdown will send from now on, '
+                     . 'for every ceremony. Read one from "Read the reminder" above.';
+
+        return $res->withHeader('Location', $back)->withStatus(302);
+    }
+
+    /** Throw the drafts away without saving any of them. */
+    public function discardLetters(Request $req, Response $res, array $args): Response
+    {
+        unset($_SESSION['invite_letter_drafts']);
+        $_SESSION['flash'] = 'Drafts discarded. The letters are unchanged.';
+
+        return $res->withHeader('Location',
+            '/admin/events/' . (int) ($args['id'] ?? 0) . '/invites#letters')->withStatus(302);
     }
 
     /**

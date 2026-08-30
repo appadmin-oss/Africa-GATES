@@ -3333,6 +3333,12 @@ return function(App $app) {
         // The way out of a setup step the ledger calls applied over a table that is not
         // there — the one state /__setup/migrate cannot fix, on a host with no shell.
         $a->post('/events/{id:[0-9]+}/invites/repair', \AfricaGates\Admin\Controllers\InvitesController::class.':repair');
+        // The countdown letters: draft with the writer, read, then save. Three steps
+        // rather than one, because what is being written goes to a shortlist in the
+        // organisation's name — see InvitesController::draftLetters().
+        $a->post('/events/{id:[0-9]+}/invites/letters/draft',   \AfricaGates\Admin\Controllers\InvitesController::class.':draftLetters');
+        $a->post('/events/{id:[0-9]+}/invites/letters/save',    \AfricaGates\Admin\Controllers\InvitesController::class.':saveLetters');
+        $a->post('/events/{id:[0-9]+}/invites/letters/discard', \AfricaGates\Admin\Controllers\InvitesController::class.':discardLetters');
         // `{reference}` accepts the literal `sample`, so both of these work before the
         // list has been built — which is when an operator most wants to look.
         $a->get('/events/{id:[0-9]+}/invites/{reference}/preview', \AfricaGates\Admin\Controllers\InvitesController::class.':preview');

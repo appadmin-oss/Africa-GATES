@@ -206,6 +206,26 @@ final class SupportContext
                             . "with the same problem, and asking each of them for a reference is the wrong "
                             . "answer given a hundred times.",
              'args' => []],
+            // ── the ceremony, and the guests of honour invited to it ────────
+            //
+            // The desk had nothing about events at all, and the countdown letters made
+            // that urgent: a nominee who receives "tomorrow is the gala" and cannot find
+            // their pass writes to support, and every tool here was about paying for
+            // votes. They have not paid for anything.
+            ['name' => 'invitation_lookup',
+             'description' => "Look up a GUEST OF HONOUR's invitation from its reference (AGI-...). Use it "
+                            . "whenever somebody mentions being invited, nominated, shortlisted, on a panel, "
+                            . "or asks where their pass, ID, guest code or seat is. They have NOT bought a "
+                            . "ticket and there is no payment to find — a payment tool will send them looking "
+                            . "for a receipt that does not exist. Returns the evening, whether the invitation "
+                            . "was sent, how many guests they may bring, and the link to their pass.",
+             'args' => ['reference' => 'their invitation reference, beginning AGI-']],
+            ['name' => 'event_details',
+             'description' => "When and where a ceremony is, and what a ticket costs. Use for 'when is the "
+                            . "gala', 'what time does it start', 'where is it', 'how much are tickets'. Give "
+                            . "the time WITH the zone it returns — an event time with no zone is useless to "
+                            . "somebody travelling. Leave the name empty for the next one coming up.",
+             'args' => ['name' => 'part of the event name, or empty for the next one']],
             ['name' => 'check_email_domain',
              'description' => "Can an email address actually receive mail? Use this whenever a voting code, "
                             . "receipt or reset email 'never arrived'. It spots a domain with no mail server "
@@ -397,6 +417,8 @@ final class SupportContext
                 'nominee_tally'    => $this->nomineeTally((string) ($args['name'] ?? '')),
                 'when_did_i_vote'  => $this->whenDidIVote((string) ($args['email'] ?? ''),
                                                           (string) ($args['category'] ?? '')),
+                'invitation_lookup' => $this->invitationLookup((string) ($args['reference'] ?? '')),
+                'event_details'    => $this->eventDetails((string) ($args['name'] ?? '')),
                 'gateway_status'   => $this->ext()->gatewayStatus(),
                 'check_email_domain' => $this->ext()->emailDomain((string) ($args['email'] ?? '')),
                 'convert_currency' => $this->ext()->convertCurrency(
@@ -854,6 +876,15 @@ final class SupportContext
         $ref = trim($reference);
         if ($ref === '') return 'empty';
         if (preg_match('/^AFG-[A-Z]*-?[0-9a-f]{8,}$/i', $ref)) return 'ours';
+        // ── AN INVITATION, AND WHY IT HAS TO BE TESTED BEFORE 'gateway' ──────
+        //
+        // A guest of honour's reference is AGI- and eight characters from an alphabet
+        // with no I, O, 0 or 1 — and it matched the gateway pattern below it exactly
+        // ("three to twelve letters, a dash, six or more word characters"). So somebody
+        // holding an invitation and asking where their pass was got told their reference
+        // looked like a bank or wallet app's own transaction number: a paragraph of
+        // directions about receipts, to a person who never paid for anything.
+        if (preg_match('/^AGI-[A-HJ-NP-Z2-9]{6,12}$/i', $ref)) return 'invitation';
         // Anything a gateway or wallet would show: a provider-prefixed token, or
         // a bare run of digits long enough to be a transaction id.
         if (preg_match('/^[a-z]{3,12}[_-]\w{6,}$/i', $ref) || preg_match('/^\d{8,}$/', $ref)) return 'gateway';
@@ -874,11 +905,168 @@ final class SupportContext
      * directions survive only for the case where they are still true: a number
      * that resolves to nothing at all.
      */
+    /**
+     * One guest of honour's invitation, from the reference in their letter.
+     *
+     * ── BY REFERENCE ONLY, AND THAT IS THE SECURITY MODEL ────────────────────
+     *
+     * Not by email, and the temptation is real — "I've lost the email" is the commonest
+     * version of this question. But a lookup by address turns the support desk into an
+     * oracle for "was this person nominated?", asked one address at a time by anybody who
+     * can open a chat, about a shortlist that may not be public yet. The reference is
+     * already the key to the pass itself, so returning what the pass shows to somebody
+     * holding it discloses nothing new; an address is a different question with a
+     * different answer, and the honest reply to a lost email is that a person must help.
+     *
+     * The ADDRESS is not returned even so. It is the one fact on the row that the pass
+     * does not show, and the assistant has no use for it that giving the pass link does
+     * not serve better.
+     *
+     * The sandbox is NOT filtered out here, unlike every public listing on this platform.
+     * A rehearsal invitation can only be reached by somebody already holding its
+     * reference, which is the operator walking the sandbox through — and refusing them is
+     * refusing the one rehearsal the sandbox exists for. Nothing is enumerable, so there
+     * is nothing for the exclusion to protect.
+     */
+    private function invitationLookup(string $reference): array
+    {
+        $ref = strtoupper(trim($reference));
+        if ($ref === '') {
+            return ['found' => false,
+                    'say'   => 'No reference given yet. Ask for the one in their invitation email — it '
+                             . 'begins AGI- and is also printed on their pass.'];
+        }
+
+        try {
+            $inv = \AfricaGates\Services\EventInvites::byReference($ref);
+        } catch (\Throwable) {
+            $inv = null;
+        }
+
+        if (!$inv) {
+            return ['found' => false, 'reference' => $ref,
+                    // Never "that does not exist". The same rule check_reference carries:
+                    // a reference that does not resolve is far more often mistyped than
+                    // invented, and this alphabet has no I, O, 0 or 1 precisely because it
+                    // gets read off a phone screen.
+                    'say' => 'No invitation matches that reference. It is more likely mistyped than wrong — '
+                           . 'the code has no letter I or O and no digit 0 or 1, so those are usually a 1 '
+                           . 'for an L, or a 0 for an O. Ask them to read it again from the email, and do '
+                           . 'not tell them they were not invited.'];
+        }
+
+        $event = null;
+        try {
+            $event = DB::table('gates_site_events')->where('id', (int) $inv->event_id)->first();
+        } catch (\Throwable) {}
+
+        $audience = (string) ($inv->audience ?? '');
+        $spec     = \AfricaGates\Services\InviteAudience::isValid($audience)
+            ? \AfricaGates\Services\InviteAudience::spec($audience)
+            : null;
+
+        $base = rtrim(\AfricaGates\Support\SiteUrl::base(), '/');
+
+        return [
+            'found'     => true,
+            'reference' => (string) $inv->reference,
+            'name'      => (string) $inv->name,
+            'invited_as' => $spec !== null ? (string) $spec['one'] : $audience,
+            'event'     => $event !== null ? (string) $event->title : '',
+            'when'      => $event !== null
+                ? \AfricaGates\Support\DisplayTime::showZoned((string) $event->event_date, 'l j F Y \a\t H:i')
+                : '',
+            'where'     => $event !== null
+                ? trim(implode(', ', array_filter([
+                    trim((string) ($event->venue ?? '')), trim((string) ($event->location ?? ''))])))
+                : '',
+            // Whether we have actually written to them. "I never got it" and "it was
+            // never sent" are opposite problems: one is a delivery question for
+            // check_email_domain, the other is the organiser's to finish.
+            'invitation_sent' => $inv->sent_at !== null,
+            'guests_allowed'  => (int) ($inv->guest_quota ?? 0),
+            'guest_discount'  => \AfricaGates\Services\InviteAudience::discountPercent() . '%',
+            'guest_code'      => (string) ($inv->discount_code ?? $inv->reference),
+            'pass_url'        => \AfricaGates\Services\EventInvites::idUrl((string) $inv->reference, $base),
+            'say' => 'They are a guest of honour. Their seat is arranged and there is nothing for them to '
+                   . 'buy — do not send them to the ticket page for themselves. The pass is a live page, '
+                   . 'not an attachment: give them the link and tell them to open it on their phone at the '
+                   . 'door. The same reference is the code their guests spend for the discount.',
+        ];
+    }
+
+    /**
+     * When and where a ceremony is, and what a seat costs.
+     *
+     * Published events only — the same gate the public site reads through, so the desk
+     * cannot describe an evening nobody can see a page for. The time is returned already
+     * carrying its zone, because a support answer that says "18:00" to somebody flying in
+     * is an answer they cannot act on.
+     */
+    private function eventDetails(string $name): array
+    {
+        $needle = trim($name);
+
+        try {
+            $q = DB::table('gates_site_events')->where('status', 'published');
+
+            if ($needle !== '') {
+                $q->whereRaw('LOWER(title) LIKE ?', ['%' . strtolower($needle) . '%']);
+            } else {
+                // The next one coming up, not the newest row. An organiser adds next
+                // year's gala months early, and "the next event" has to mean the one
+                // somebody is about to travel to.
+                $q->where('event_date', '>=', \Illuminate\Support\Carbon::now()->startOfDay()->toDateTimeString());
+            }
+
+            $event = $q->orderBy('event_date')->first();
+        } catch (\Throwable) {
+            $event = null;
+        }
+
+        if (!$event) {
+            return ['found' => false,
+                    'say' => $needle === ''
+                        ? 'No ceremony is scheduled at the moment. Do not invent a date.'
+                        : 'No published event matches that name. Try help_search, or ask which ceremony they mean.'];
+        }
+
+        $tiers = [];
+        try {
+            foreach (DB::table('gates_event_tiers')->where('event_id', (int) $event->id)
+                        ->where('is_active', 1)->orderBy('sort_order')
+                        ->get(['name', 'price_naira']) as $t) {
+                $tiers[] = ['name' => (string) $t->name, 'naira' => (int) $t->price_naira];
+            }
+        } catch (\Throwable) {}
+
+        return [
+            'found' => true,
+            'event' => (string) $event->title,
+            'when'  => \AfricaGates\Support\DisplayTime::showZoned((string) $event->event_date, 'l j F Y \a\t H:i'),
+            'where' => trim(implode(', ', array_filter([
+                trim((string) ($event->venue ?? '')), trim((string) ($event->location ?? ''))]))),
+            'tiers' => $tiers,
+            'url'   => rtrim(\AfricaGates\Support\SiteUrl::base(), '/')
+                       . '/events/' . rawurlencode((string) $event->slug),
+            'say'   => 'Give the time with the zone exactly as it is written here. Guests of honour do not '
+                     . 'buy any of these tiers — if they mention being invited or nominated, use '
+                     . 'invitation_lookup instead.',
+        ];
+    }
+
     private function checkReference(string $reference): array
     {
         $shape = self::shapeOf($reference);
         if ($shape === 'empty') {
             return ['ok' => false, 'shape' => 'empty', 'say' => 'No reference given yet.'];
+        }
+
+        if ($shape === 'invitation') {
+            return ['ok' => true, 'shape' => 'invitation', 'reference' => trim($reference),
+                    'say' => 'That is an INVITATION reference for a guest of honour — a nominee or a '
+                           . 'judge invited to a ceremony. They have not bought anything and there is '
+                           . 'no payment to find. Use invitation_lookup with it.'];
         }
 
         // Ours, exactly — no lookup needed to say so.

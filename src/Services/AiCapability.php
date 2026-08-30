@@ -319,6 +319,42 @@ final class AiCapability
                 'data_purpose'    => 'To score how complete and specific the nomination reads, and summarise it '
                     . 'for the reviewer. A person always makes the decision.',
             ]),
+            // ── THE COUNTDOWN LETTERS, DRAFTED FOR ONE CEREMONY ─────────────
+            //
+            // Writes the five letters an organiser will send to their nominees in the
+            // final week. TIER_WRITE, because this is composition rather than judgement,
+            // and a large budget per call because five letters is genuinely long output —
+            // a truncated day four is a letter that stops mid-argument.
+            //
+            // NOT untrusted input. Everything it is given is a ceremony an ADMIN entered:
+            // the title, the theme, the venue, the values. No nominee's text reaches it,
+            // which is why the fence and the minimiser are off — and why that has to be
+            // reconsidered the day anybody thinks of feeding it a nomination.
+            //
+            // Advisory, always. Nothing it returns is sent to anybody: an operator reads
+            // five drafts and chooses. A model that could post its own letters to a
+            // shortlist would be the single most consequential unattended writer on this
+            // platform, and it is not one.
+            'invite.sequence_draft' => $c('invite.sequence_draft', [
+                'purpose'         => 'general',
+                'tier'            => self::TIER_WRITE,
+                'model'           => self::PRIMARY[self::TIER_WRITE],
+                'on_failure'      => self::FAIL_ANNOUNCE,
+                'advisory'        => true,
+                'max_tokens'      => 3000,
+                // Small on purpose. This is an operator pressing a button a handful of
+                // times while they settle the wording for one ceremony, not a hot path —
+                // and each call is expensive enough that a runaway would be noticed as a
+                // bill rather than as a slowdown.
+                'calls_per_day'   => 40,
+                'tokens_per_day'  => 200_000,
+                // Five long letters do not come back in six seconds.
+                'timeout'         => 45,
+                'data_sent'       => 'The ceremony\'s name, theme, date and venue, and the wording an '
+                    . 'administrator set for it. Nothing a nominee or member of the public wrote.',
+                'data_purpose'    => 'To draft the countdown letters for an organiser to read, edit and '
+                    . 'choose. Nothing it writes is sent to anybody without a person saving it first.',
+            ]),
             // Spam/abuse classifier. Must never be the thing that decides.
             'moderation.classify' => $c('moderation.classify', [
                 'purpose'         => 'moderation',

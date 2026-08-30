@@ -93,6 +93,17 @@ final class SupportPlan
     private const EMAIL = '/\b[\w.+-]+@[\w-]+\.[\w.-]{2,}\b/';
 
     /**
+     * A guest of honour's invitation reference.
+     *
+     * Its own pattern rather than a widened OURS, because the two lead to opposite
+     * answers: AFG- is a payment and AGI- is somebody who has not paid for anything. The
+     * alphabet excludes I, O, 0 and 1 — the reference is read off a phone screen at a
+     * door — so the class is narrow on purpose and a `1` in the middle is a transcription
+     * error rather than a reference this should match.
+     */
+    private const INVITE = '/\bAGI-[A-HJ-NP-Z2-9]{6,12}\b/i';
+
+    /**
      * Build a plan for one message.
      *
      * @param list<string> $only restrict to these tools; [] means whatever the context allows
@@ -158,6 +169,35 @@ final class SupportPlan
             // Proof, not reassurance. vote_proof reads the live vote ROWS, so it
             // can contradict us, and it returns a URL they can open themselves.
             $add('vote_proof', ['reference' => $ref], 'so they can check it themselves');
+        }
+
+        // ── 2b · a guest of honour, who has not bought anything ─────────────
+        //
+        // Its own branch above every payment rule, and that is the whole point: a nominee
+        // asking where their pass is has no receipt, no order and no reference beginning
+        // AFG-. Answered from the payment side they are sent hunting for a confirmation
+        // email that was never sent to them, which is a dead end that reads as being told
+        // they are not on the list.
+        $invite = self::inviteReference($message);
+        if ($invite !== null) {
+            $add('invitation_lookup', ['reference' => $invite], 'they quoted an invitation reference');
+        } elseif (self::any($m, ['guest of honour', 'invited', 'invitation', 'my pass', 'the pass',
+                                 'my id', 'shortlisted', 'nominee', 'red carpet', 'guest code',
+                                 'my seat', 'honoured'])) {
+            // No reference in hand. Asking for one is the useful next move, and the tool
+            // returns exactly that instruction rather than a refusal.
+            $add('invitation_lookup', ['reference' => ''], 'they mention being invited but gave no reference');
+        }
+
+        // ── 2c · when and where the evening actually is ─────────────────────
+        //
+        // The desk had nothing about events at all, so "what time does it start" fell
+        // through to a Help Centre search — which cannot know the date of a ceremony an
+        // organiser entered last week.
+        if (self::any($m, ['what time', 'when is', 'when does', 'start time', 'starts at',
+                           'where is', 'venue', 'address of', 'directions', 'how much are tickets',
+                           'ticket price', 'gala', 'ceremony', 'awards night'])) {
+            $add('event_details', ['name' => ''], 'they asked when or where the ceremony is');
         }
 
         // ── 3 · a code or email that never arrived ───────────────────────────
@@ -287,9 +327,25 @@ final class SupportPlan
             $hit = trim(($m[1] ?? '') !== '' ? $m[1] : ($m[2] ?? ''));
             // 11 digits starting 0 is a Nigerian mobile number, not a transaction id.
             if (preg_match('/^0\d{10}$/', $hit)) return null;
+            // ── AND AN INVITATION IS NOT A PAYMENT ───────────────────────────
+            //
+            // THEIRS is "three to twelve letters, a dash, six or more word characters",
+            // which is a guest of honour's AGI- reference exactly. A nominee writing "my
+            // reference is AGI-K7M2QX4T and I can't open my pass" says "reference", which
+            // is enough for aboutMoney(), and the planner spent a payment repair on
+            // somebody who has never paid this platform anything — then told them to look
+            // for a receipt. Checked here rather than by loosening aboutMoney(), because
+            // the sentence IS about a reference; it is just not about a payment.
+            if (preg_match(self::INVITE, $hit)) return null;
             return $hit !== '' ? $hit : null;
         }
         return null;
+    }
+
+    /** A guest of honour's invitation reference, or null. */
+    public static function inviteReference(string $message): ?string
+    {
+        return preg_match(self::INVITE, $message, $m) ? strtoupper(rtrim($m[0], '.,;:)')) : null;
     }
 
     public static function email(string $message): ?string
