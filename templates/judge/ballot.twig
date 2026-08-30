@@ -340,15 +340,32 @@
                       </a>
                     </template>
                     <template x-if="it.file_kind === 'pdf'">
-                      {# `object` rather than `iframe`: it degrades to its own children when
-                         the browser has no PDF viewer, which is the common case on Android
-                         — an empty iframe there looks like a missing document. #}
-                      <object class="jc-ev__pdf" :data="it.file_url" type="application/pdf">
-                        <p class="jc-ev__body">
-                          This browser cannot show the PDF inline.
-                          <a :href="it.file_url + '?download=1'">Download it instead</a>.
-                        </p>
-                      </object>
+                      {# ── AN IFRAME, BECAUSE `object` WAS BLOCKED OUTRIGHT ──────────
+                         This was an `<object>`, chosen so it would degrade to its own
+                         children where a browser has no PDF viewer — the common case on
+                         Android — since an empty iframe there looks like a missing
+                         document. Good reasoning, and the policy made it moot: the CSP
+                         carries `object-src 'none'`, so the plugin was refused on EVERY
+                         browser and every judge saw the fallback.
+
+                         Which read "This browser cannot show the PDF inline." — a
+                         sentence the policy made true and the browser did not. On the
+                         one screen where a score is justified by the documents, every
+                         document said it could not be shown.
+
+                         `object-src 'none'` is worth keeping: framing a document and
+                         handing it to a plugin are different powers, and nothing here
+                         needs the second. So the frame is the iframe that `frame-src
+                         'self'` now permits, and the degradation the object gave for
+                         free is replaced by a line that is always visible — honest on
+                         every platform, rather than correct only where it renders. #}
+                      <iframe class="jc-ev__pdf" :src="it.file_url"
+                              :title="'Document: ' + (it.title || 'evidence')"
+                              loading="lazy"></iframe>
+                      <p class="jc-ev__fallback">
+                        Not showing?
+                        <a :href="it.file_url + '?download=1'">Download it instead</a>.
+                      </p>
                     </template>
                     <a class="jc-ev__src" :href="it.file_url + '?download=1'"
                        x-text="'Download ' + (it.source_label || 'the file')"></a>
@@ -650,7 +667,12 @@
   .jc-ev__file{ margin:11px 0 0; }
   .jc-ev__img{ display:block; width:100%; max-width:520px; height:auto;
     border:1px solid rgba(16,41,44,.14); border-radius:8px; background:#fff; }
-  .jc-ev__pdf{ display:block; width:100%; height:min(60vh,520px);
+  /* Quiet, and always there. It is not an error message — the document usually does
+     render — so it must not look like one, and it must not disappear on the platforms
+     where it is the only way through. */
+  .jc-ev__fallback{ margin:6px 0 0; font-size:12.5px; color:#5a6d6f; }
+  .jc-ev__fallback a{ color:#237b22; font-weight:600; }
+  .jc-ev__pdf{ display:block; width:100%; height:min(60vh,520px); border:0;
     border:1px solid rgba(16,41,44,.14); border-radius:8px; background:#fff; }
   /* On a phone the frame is too small to read a document in, so it becomes a
      download rather than a postage stamp of page one. */

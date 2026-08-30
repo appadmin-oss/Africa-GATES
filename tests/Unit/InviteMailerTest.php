@@ -604,6 +604,83 @@ final class InviteMailerTest extends TestCase
         $this->assertStringContainsString('₦5,000', $txt, 'the naira sign fell out');
     }
 
+    // ══ THE PARSER ABOVE THESE ASSERTIONS ════════════════════════════════════
+    //
+    // Every letter assertion in this file reads the document back through pdfParts(). A
+    // parser that is wrong makes those tests fail for reasons that have nothing to do with
+    // the letter — which is exactly what happened, intermittently, for as long as it read
+    // binary looking for object headers.
+
+    /**
+     * A stream whose bytes contain an object header must not be read as one.
+     *
+     * ── THE FLAKE THIS PINS DOWN ─────────────────────────────────────────────
+     *
+     * The letter carries a randomly generated reference, so the bytes of its compressed
+     * streams differ on every run. About one run in a few hundred produced a stream
+     * holding "\n4 0 obj" — and the parser, which took object boundaries from the next
+     * header it could find, sliced an object in half there. When that object was a font's
+     * ToUnicode CMap the digits stopped decoding, so "₦5,000" read back as "₦" and the
+     * suite failed an assertion about a naira sign that was present all along.
+     *
+     * It could not be reproduced to order, which is what made it expensive: a green re-run
+     * is indistinguishable from a fix. So the condition is CONSTRUCTED here rather than
+     * waited for. The bytes below are the adversarial case; if the parser ever goes back
+     * to scanning inside a stream, this fails every time instead of one run in three
+     * hundred.
+     */
+    public function test_the_parser_is_not_fooled_by_a_header_inside_a_stream(): void
+    {
+        // An image stream carrying the exact pattern that used to end an object early.
+        // Naming object THREE, which is the CMap — not object four, which is this image.
+        // The old parser keyed objects by number as it found them, so a spurious "3 0 obj"
+        // OVERWROTE the real CMap with whatever followed it, and the digits stopped
+        // decoding. A pattern naming the image's own number would corrupt only the image,
+        // which nothing reads, and the test would pass against the very bug it exists for.
+        $evil = "\xff\xd8binary\n3 0 obj\nmore binary\xff\xd9";
+
+        $cmap = "/CIDInit /ProcSet findresource begin\n"
+              . "1 beginbfchar\n<0041> <0035>\nendbfchar\n"     // glyph 0x41 -> "5"
+              . "1 beginbfchar\n<0042> <002C>\nendbfchar\n"     // glyph 0x42 -> ","
+              . "1 beginbfchar\n<0043> <0030>\nendbfchar\nend"; // glyph 0x43 -> "0"
+
+        // Four hex digits per glyph, because a glyph id is two bytes on the wire — the
+        // same shape Pdf emits. `<414243>` would be one-and-a-half glyphs and decode to
+        // nothing, which is a bug in a fixture rather than in a parser.
+        $content = "BT /F1 12 Tf 1 0 0 1 72 700 Tm <004100420043> Tj ET";
+
+        $pdf  = "%PDF-1.4\n";
+        $pdf .= "1 0 obj\n<< /Type /Page /Resources << /Font << /F1 2 0 R >> >> >>\nendobj\n";
+        $pdf .= "2 0 obj\n<< /Type /Font /Subtype /TrueType /ToUnicode 3 0 R >>\nendobj\n";
+        $pdf .= "3 0 obj\n<< /Length " . strlen($cmap) . " >>\nstream\n" . $cmap . "\nendstream\nendobj\n";
+        // The hostile one, sitting BETWEEN the CMap and the content stream — which is where
+        // it did the damage: everything after it was sliced at the wrong offset.
+        $pdf .= "4 0 obj\n<< /Type /XObject /Subtype /Image /Filter /DCTDecode /Length "
+              . strlen($evil) . " >>\nstream\n" . $evil . "\nendstream\nendobj\n";
+        $pdf .= "5 0 obj\n<< /Length " . strlen($content) . " >>\nstream\n" . $content . "\nendstream\nendobj\n";
+        $pdf .= "trailer\n<< /Root 1 0 R >>\n%%EOF";
+
+        $this->assertSame('5,0', self::pdfText($pdf),
+            'a header pattern inside an image stream was read as a real object boundary');
+    }
+
+    /**
+     * The parser skips a stream by its declared length, so that length must stay direct.
+     *
+     * A `/Length 9 0 R` would send it looking for the size in another object, find a digit
+     * where it expected one, and skip the wrong number of bytes — back to reading binary,
+     * back to the flake, and with nothing to say why.
+     */
+    public function test_the_writer_keeps_stream_lengths_direct(): void
+    {
+        $pdf = InviteLetter::render($this->invite(), $this->event,
+                                    (object) ['name' => 'Supporter', 'price_naira' => 5000]);
+
+        $this->assertMatchesRegularExpression('#/Length\s+\d+\b#', $pdf, 'no stream at all?');
+        $this->assertDoesNotMatchRegularExpression('#/Length\s+\d+\s+0\s+R#', $pdf,
+            'an indirect stream length would put this parser back to scanning binary');
+    }
+
     /**
      * The text of a PDF this codebase generated, for assertions about the document.
      *
@@ -669,31 +746,78 @@ final class InviteMailerTest extends TestCase
      */
     private static function pdfParts(string $pdf): array
     {
-        // ── SLICED ON OBJECT HEADERS, NOT ON `endobj` ────────────────────────
+        // ── BINARY IS SKIPPED BY LENGTH, NEVER SCANNED ───────────────────────
         //
-        // This used to match `(\d+) 0 obj(.*?)endobj` across the whole file. That works
-        // right up until the document contains an image: a JPEG's compressed bytes are
-        // arbitrary binary, the non-greedy match ends somewhere inside them, and every
-        // object after it is sliced at the wrong offset — so the font dictionaries go
-        // missing and two thirds of the letter reads back as absent. It looked exactly
-        // like the renderer had stopped drawing.
+        // Two earlier versions of this both failed the same way, one worse than the other.
         //
-        // Boundaries come from the NEXT object header instead. Binary that happens to
-        // contain "endobj" is ordinary; binary that happens to contain "N 0 obj" at a
-        // line start is not, and even then it corrupts one object rather than the tail of
-        // the file.
+        // The first matched `(\d+) 0 obj(.*?)endobj` across the whole file. A JPEG's
+        // compressed bytes are arbitrary, the non-greedy match ended somewhere inside
+        // them, and every object after it was sliced at the wrong offset — the font
+        // dictionaries went missing and two thirds of the letter read back as absent. It
+        // looked exactly like the renderer had stopped drawing.
+        //
+        // The second took boundaries from the NEXT object header, and its own comment
+        // named the residual risk: binary that happens to contain "N 0 obj" at a line
+        // start corrupts one object. That is not a hypothetical. The letter carries a
+        // RANDOMLY generated reference, so the bytes of the compressed streams differ on
+        // every single run, and roughly one run in a few hundred produced a stream
+        // containing that pattern. When the object it corrupted was a font's ToUnicode
+        // CMap, the digits stopped decoding — "₦5,000" read back as "₦" — and the suite
+        // failed on an assertion about a naira sign that was, in fact, present.
+        //
+        // A flake whose probability is driven by random content is the worst kind: it
+        // cannot be reproduced to order, so it gets re-run and forgotten.
+        //
+        // The fix is to stop reading binary at all. `/Length` is written here as a DIRECT
+        // integer (see Pdf::stream()), so a stream's extent is known exactly: skip it, and
+        // the next header is looked for on the other side. No pattern inside a compressed
+        // byte can mean anything, because nothing inside one is ever examined.
         $objects = [];
-        if (preg_match_all('/(?:^|[\r\n])(\d+) 0 obj\b/', $pdf, $heads, PREG_OFFSET_CAPTURE | PREG_SET_ORDER)) {
-            foreach ($heads as $i => $h) {
-                $from = $h[0][1] + strlen($h[0][0]);
-                $to   = $heads[$i + 1][0][1] ?? strlen($pdf);
-                $body = substr($pdf, $from, $to - $from);
-                if (preg_match('/stream\r?\n(.*?)\r?\nendstream/s', $body, $st)) {
-                    $inf = @gzuncompress($st[1]);
-                    if (is_string($inf) && $inf !== '') $body .= "\n" . $inf;
+        $len     = strlen($pdf);
+        $pos     = 0;
+
+        while ($pos < $len
+            && preg_match('/(?:^|[\r\n])(\d+) 0 obj\b/', $pdf, $h, PREG_OFFSET_CAPTURE, $pos)) {
+
+            $num  = (int) $h[1][0];
+            $from = $h[0][1] + strlen($h[0][0]);
+
+            $streamAt = strpos($pdf, 'stream', $from);
+            $endobjAt = strpos($pdf, 'endobj', $from);
+            $hasStream = $streamAt !== false
+                && ($endobjAt === false || $streamAt < $endobjAt)
+                && preg_match('#/Length\s+(\d+)\b#', substr($pdf, $from, $streamAt - $from), $L) === 1;
+
+            if ($hasStream) {
+                $dict = substr($pdf, $from, $streamAt - $from);
+
+                // The body begins after the keyword and its EOL — \r\n or \n, per the spec.
+                $bodyAt = $streamAt + 6;
+                if (substr($pdf, $bodyAt, 2) === "\r\n")   $bodyAt += 2;
+                elseif (substr($pdf, $bodyAt, 1) === "\n")  $bodyAt += 1;
+
+                $raw  = substr($pdf, $bodyAt, (int) $L[1]);
+                $tail = strpos($pdf, 'endobj', $bodyAt + (int) $L[1]);
+                $end  = $tail === false ? $len : $tail + 6;
+
+                $body = $dict;
+                $inf  = @gzuncompress($raw);
+                if (is_string($inf) && $inf !== '') {
+                    $body .= "\n" . $inf;
+                } elseif (!str_contains($dict, '/DCTDecode')) {
+                    // An uncompressed content stream — the drawing operators, readable.
+                    // An image is skipped entirely rather than concatenated: its bytes can
+                    // hold anything, including " Tj", and this parser has been fooled by
+                    // exactly that once already.
+                    $body .= "\n" . $raw;
                 }
-                $objects[(int) $h[1][0]] = $body;
+            } else {
+                $end  = $endobjAt === false ? $len : $endobjAt + 6;
+                $body = substr($pdf, $from, $end - $from);
             }
+
+            $objects[$num] = $body;
+            $pos = $end;
         }
 
         $maps = [];

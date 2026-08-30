@@ -168,7 +168,19 @@ final class Csp
             . "font-src 'self' data: " . self::FONT_HOSTS . '; '
             . "connect-src 'self' " . self::CONNECT_HOSTS . '; '
             . "media-src 'self' " . self::MEDIA_HOSTS . '; '
-            . 'frame-src ' . self::FRAME_HOSTS . '; '
+            // ── 'self' IS NOT DECORATION HERE ────────────────────────────────
+            //
+            // The admin console previews an uploaded document by pointing an iframe at
+            // /admin/media/{id}/view, which is same-origin. Without 'self' the browser
+            // blocked it, and the preview opened as an empty white panel with a console
+            // message no operator reads. Images were unaffected — they go through <img>
+            // and img-src already allows 'self' — so the fault looked like "PDFs are
+            // broken" rather than like a policy line.
+            //
+            // `object-src 'none'` still stands beside it: a PDF may be framed, never
+            // embedded as a plugin object, and `frame-ancestors 'self'` still decides who
+            // may frame US, which is the direction that matters for clickjacking.
+            . "frame-src 'self' " . self::FRAME_HOSTS . '; '
             . "object-src 'none'; base-uri 'self'; "
             . "form-action 'self' " . self::PAY_HOSTS . '; '
             . "frame-ancestors 'self'";
@@ -228,7 +240,19 @@ final class Csp
             . "font-src 'self' data: " . self::FONT_HOSTS . '; '
             . "connect-src 'self' " . self::CONNECT_HOSTS . '; '
             . "media-src 'self' " . self::MEDIA_HOSTS . '; '
-            . 'frame-src ' . self::FRAME_HOSTS . '; '
+            // ── 'self' IS NOT DECORATION HERE ────────────────────────────────
+            //
+            // The admin console previews an uploaded document by pointing an iframe at
+            // /admin/media/{id}/view, which is same-origin. Without 'self' the browser
+            // blocked it, and the preview opened as an empty white panel with a console
+            // message no operator reads. Images were unaffected — they go through <img>
+            // and img-src already allows 'self' — so the fault looked like "PDFs are
+            // broken" rather than like a policy line.
+            //
+            // `object-src 'none'` still stands beside it: a PDF may be framed, never
+            // embedded as a plugin object, and `frame-ancestors 'self'` still decides who
+            // may frame US, which is the direction that matters for clickjacking.
+            . "frame-src 'self' " . self::FRAME_HOSTS . '; '
             . "object-src 'none'; base-uri 'self'; "
             . "form-action 'self' " . self::PAY_HOSTS . '; '
             . "frame-ancestors 'self'";

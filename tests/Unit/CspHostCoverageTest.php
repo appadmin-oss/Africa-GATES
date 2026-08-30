@@ -166,6 +166,88 @@ class CspHostCoverageTest extends TestCase
             'these were refused on a live nominee ballot page and must not be again');
     }
 
+    /**
+     * The admin can preview an uploaded document.
+     *
+     * ── A POLICY LINE THAT PRESENTED AS "PDFs ARE BROKEN" ────────────────────
+     *
+     * The console previews a document by pointing an iframe at
+     * `/admin/media/{id}/view`, which is same-origin. `frame-src` listed the payment
+     * gateways, YouTube and a handful of others, and not `'self'` — so the browser
+     * refused it and the modal opened as an empty white panel with a console message no
+     * operator reads.
+     *
+     * Images were unaffected: they go through `<img>`, and `img-src` has always allowed
+     * `'self'`. That asymmetry is what made it look like a bug in PDF handling rather
+     * than one line of policy.
+     *
+     * The drift test beside this one only proves the two copies of the policy AGREE.
+     * Both agreeing on the wrong thing is exactly the state this was in, so the
+     * requirement is pinned here — and pinned to the code that needs it, so a preview
+     * rebuilt without an iframe retires this test honestly instead of leaving it as
+     * folklore.
+     */
+    public function test_the_admin_can_frame_its_own_document_preview(): void
+    {
+        $ui = (string) file_get_contents(
+            dirname(__DIR__, 2) . '/templates/admin/partials/ui.twig');
+
+        $this->assertStringContainsString("createElement('iframe')", $ui,
+            'the document preview no longer uses an iframe — if that is deliberate, this '
+            . 'test should go with it rather than be kept as a rule nothing depends on');
+
+        foreach (['policy' => Csp::policy(), 'staticPolicy' => Csp::staticPolicy()] as $which => $policy) {
+            $this->assertSame(1, preg_match('/frame-src ([^;]+)/', $policy, $m), $which);
+            $this->assertStringContainsString("'self'", $m[1],
+                $which . ': the console frames its own /admin/media/{id}/view, and without '
+                . "'self' the document preview is a blank panel");
+        }
+    }
+
+    /**
+     * And a PDF is still never an <object> or an <embed>.
+     *
+     * Framing a document and handing it to a plugin are different powers. `object-src`
+     * stays `'none'` — the preview needs the first and nothing here needs the second.
+     */
+    public function test_documents_may_be_framed_but_never_embedded_as_objects(): void
+    {
+        // ── AND NOTHING RELIES ON THE POWER THAT IS REFUSED ──────────────────
+        //
+        // The judging ballot previewed a nominee's evidence with `<object
+        // type="application/pdf">`, chosen so it would degrade to its own children where
+        // a browser has no PDF viewer. `object-src 'none'` refused it on EVERY browser,
+        // so every judge got the fallback: "This browser cannot show the PDF inline." A
+        // sentence the policy made true and the browser did not, on the one screen where
+        // a score is justified by the documents.
+        //
+        // Keeping the directive is right; a page that needs the power it refuses is the
+        // thing to catch. Same rule, opposite direction from the frame-src test above.
+        foreach ([
+            'judge/ballot.twig'          => dirname(__DIR__, 2) . '/templates/judge/ballot.twig',
+            'admin/partials/ui.twig'     => dirname(__DIR__, 2) . '/templates/admin/partials/ui.twig',
+        ] as $label => $file) {
+            // Comments stripped before scanning. The template that was FIXED explains the
+            // trap in prose and names the tag while doing it, so a raw scan flags the one
+            // file that documents the rule — the same false positive SchemaIndexTest's
+            // `IF NOT EXISTS` scan had to solve. Only markup can be an offence.
+            $markup = (string) preg_replace(
+                ['~\{#.*?#\}~s', '~<!--.*?-->~s'], '', (string) file_get_contents($file));
+
+            $this->assertDoesNotMatchRegularExpression(
+                '~<(object|embed)\b~i', $markup,
+                $label . ' embeds a plugin object, which object-src \'none\' refuses on '
+                . 'every browser — it will render its fallback and nothing else');
+        }
+
+        foreach ([Csp::policy(), Csp::staticPolicy()] as $policy) {
+            $this->assertStringContainsString("object-src 'none'", $policy);
+            // Who may frame US is a different question from what we may frame, and
+            // loosening the first is the clickjacking one.
+            $this->assertStringContainsString("frame-ancestors 'self'", $policy);
+        }
+    }
+
     public function test_the_paid_vote_form_may_redirect_to_the_gateways(): void
     {
         // The revenue path. POST /vote/paid/start validates, writes a pending order,
