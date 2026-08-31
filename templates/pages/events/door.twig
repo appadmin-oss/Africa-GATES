@@ -43,9 +43,14 @@
 
   .dr__form{ margin-top:14px; display:flex; gap:8px }
   /* 16px minimum, or iOS zooms the whole page on focus and the operator loses the queue. */
+  /* #849693 is 3.1:1 on white; the #cfdad8 all three of these carried was 1.43:1.
+     WCAG 1.4.11 asks 3:1 of the visual information needed to IDENTIFY a control, and for
+     a text box the border is the whole of that — there is no label inside it to fall back
+     on. It matters here more than on most screens: this box IS the door, and it is looked
+     for outdoors, at night, on a phone turned down to save battery. */
   .dr__form input{ flex:1; min-width:0; font-size:19px; font-family:ui-monospace,monospace;
     letter-spacing:.06em; text-transform:uppercase; padding:14px 12px; min-height:52px;
-    border:2px solid #cfdad8; border-radius:10px; background:#fff; color:#10292C }
+    border:2px solid #849693; border-radius:10px; background:#fff; color:#10292C }
   .dr__form input:focus{ outline:3px solid #237b22; outline-offset:1px; border-color:#237b22 }
   /* 52px: comfortably past the 44×44 touch recommendation, one-handed, in the dark. */
   .dr__form button{ min-height:52px; min-width:88px; padding:0 18px; font-size:16px;
@@ -54,7 +59,7 @@
 
   .dr__cam{ margin-top:10px }
   .dr__cam button{ width:100%; min-height:48px; font-size:15px; font-weight:600;
-    border:2px solid #cfdad8; border-radius:10px; background:#fff; color:#10292C; cursor:pointer }
+    border:2px solid #849693; border-radius:10px; background:#fff; color:#10292C; cursor:pointer }
   .dr__video{ width:100%; margin-top:10px; border-radius:12px; background:#000; display:none }
   .dr__video.on{ display:block }
 
@@ -63,7 +68,7 @@
      an alarm-coloured control sitting under every successful scan reads as an error. */
   .dr__undo{ margin-top:10px }
   .dr__undo__b{ width:100%; min-height:48px; font-size:15px; font-weight:600; cursor:pointer;
-    border:2px solid #cfdad8; border-radius:10px; background:#fff; color:#5a6d6f }
+    border:2px solid #849693; border-radius:10px; background:#fff; color:#5a6d6f }
   .dr__undo__b.is-armed{ border-color:#a32b1f; color:#7d1d14; background:#fdeceb }
   .dr__undo__b:focus-visible{ outline:3px solid #237b22; outline-offset:2px }
 
