@@ -270,6 +270,12 @@ final class Maintenance
                 // every first warning by a day for no reason.
                 $ran[] = ['qremind', $this->task('qremind',
                     fn() => \AfricaGates\Services\QuestionnaireReminders::sweep())];
+                // The door's greetings, rendered AHEAD of the evening. Daily at 06:00 and
+                // capped, because the whole point is that no synthesis happens at the door:
+                // a queue cannot wait on a datacentre, and the free character tier is spent
+                // once per name rather than once per scan.
+                $ran[] = ['welcome', $this->task('welcome',
+                    fn() => \AfricaGates\Services\DoorWelcome::sweep())];
                 $ran[] = ['qdisqualify', $this->task('qdisqualify', fn() => $this->enforceQuestionnaireDeadlines())];
                 $ran[] = ['cronlog',   $this->task('cronlog',   fn() => $this->trimCronLog())];
                 $ran[] = ['chain',     $this->task('chain',     fn() => $this->verifyChain())];
@@ -296,6 +302,11 @@ final class Maintenance
                 // wants the first warnings to go now cannot wait for tomorrow's 06:00.
                 'qremind'   => $ran[] = ['qremind', $this->task('qremind',
                     fn() => \AfricaGates\Services\QuestionnaireReminders::sweep())],
+                // Addressable by name for the reason every other sweep here is: there is no
+                // shell, and an organiser who has just imported a guest list the afternoon
+                // before a gala cannot wait for tomorrow's 06:00 to have their door speak.
+                'welcome'   => $ran[] = ['welcome', $this->task('welcome',
+                    fn() => \AfricaGates\Services\DoorWelcome::sweep())],
                 'chain'     => $ran[] = ['chain', $this->task('chain', fn() => $this->verifyChain())],
                 // Addressable by name because there is no SSH on this account: when a round
                 // opens sooner than the hourly sweep can fill it, `/__cron/run?task=judgemaps`

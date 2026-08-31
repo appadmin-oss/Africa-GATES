@@ -1,0 +1,217 @@
+<?php
+declare(strict_types=1);
+
+namespace AfricaGates\Services;
+
+use AfricaGates\Support\Env;
+use Illuminate\Database\Capsule\Manager as DB;
+
+/**
+ * Azure Speech, for the one thing this platform needs a real voice for: saying a Nigerian
+ * name properly at the door of an evening held in Nigeria.
+ *
+ * ══════════════════════════════════════════════════════════════════════════════
+ * WHY AZURE AND NOT THE TWO ENGINES ALREADY HERE
+ * ══════════════════════════════════════════════════════════════════════════════
+ *
+ * {@see InterviewVoice} already speaks, through OpenAI or ElevenLabs. Neither has a Nigerian
+ * English voice. An American voice reading "Chidinma Okonkwo" at a Lagos gala is not a small
+ * aesthetic miss — it is the platform sounding like it was built somewhere else, at the exact
+ * moment it is welcoming somebody by name.
+ *
+ * Azure publishes `en-NG-EzinneNeural` (female) and `en-NG-AbeoNeural` (male), and its free
+ * tier is 0.5 million characters a month. A welcome is about twenty-five characters, so the
+ * free tier is roughly twenty thousand people a month — more than this platform will greet in
+ * a year of galas. That is why it can be a standing feature rather than a budget line.
+ *
+ * ══════════════════════════════════════════════════════════════════════════════
+ * IT IS NEVER CALLED AT THE DOOR
+ * ══════════════════════════════════════════════════════════════════════════════
+ *
+ * Read that as a hard rule, not a preference. A door is a queue, and a queue cannot wait on
+ * an HTTPS round trip to a datacentre — least of all from the venue wifi this page was
+ * designed around, on a phone with one bar. {@see DoorWelcome} renders the whole guest list
+ * ahead of time and the door plays a file that is already on disk.
+ *
+ * So this class has exactly one caller pattern: a maintenance sweep, hours before anybody
+ * arrives. Nothing here may be wired into a request a person is waiting on.
+ *
+ * ══════════════════════════════════════════════════════════════════════════════
+ * CONFIGURED FROM THE ADMIN SCREEN
+ * ══════════════════════════════════════════════════════════════════════════════
+ *
+ * Same doctrine as every other credential here: `gates_settings` first, `.env` as the
+ * fallback, one resolver. There is no shell on this deployment, so a key that can only be
+ * set in a file is a key that cannot be set.
+ */
+final class AzureVoice
+{
+    /**
+     * The Nigerian voices Azure publishes. Both are `Neural`; neither supports styles or
+     * roles, so there is nothing to expose beyond the choice of person.
+     */
+    public const VOICES = [
+        'en-NG-EzinneNeural' => 'Ezinne — Nigerian, female',
+        'en-NG-AbeoNeural'   => 'Abeo — Nigerian, male',
+    ];
+
+    public const DEFAULT_VOICE  = 'en-NG-EzinneNeural';
+    public const DEFAULT_REGION = 'southafricanorth';
+
+    /**
+     * MP3 at 24kHz/48kbps. Small enough to sit in a page's cache on venue wifi, and a
+     * welcome is one short sentence — a higher bitrate would buy nothing anybody can hear
+     * through a phone speaker in a hall.
+     */
+    private const FORMAT = 'audio-24khz-48kbitrate-mono-mp3';
+
+    /** Azure lists User-Agent as REQUIRED on this endpoint, not optional. */
+    private const AGENT = 'AfricaGates/1.0';
+
+    /** Hours before the event, not seconds during it — see the class note. */
+    private const TIMEOUT = 20;
+
+    /** @var array<string, array{env:string, default:string, secret:bool, label:string}> */
+    public const SETTINGS = [
+        'azure_speech_key'    => ['env' => 'AZURE_SPEECH_KEY', 'default' => '', 'secret' => true,
+                                  'label' => 'Azure Speech key'],
+        'azure_speech_region' => ['env' => 'AZURE_SPEECH_REGION', 'default' => self::DEFAULT_REGION,
+                                  'secret' => false, 'label' => 'Azure region'],
+        'azure_speech_voice'  => ['env' => 'AZURE_SPEECH_VOICE', 'default' => self::DEFAULT_VOICE,
+                                  'secret' => false, 'label' => 'Voice'],
+    ];
+
+    public static function conf(string $key): string
+    {
+        $spec = self::SETTINGS[$key] ?? null;
+        if ($spec === null) return '';
+
+        try {
+            $stored = trim((string) (DB::table('gates_settings')->where('key_name', $key)->value('value') ?? ''));
+            if ($stored !== '') return $stored;
+        } catch (\Throwable) {
+            // No settings table yet (a deploy before db:migrate). Env still works.
+        }
+
+        $env = trim((string) Env::get($spec['env'], ''));
+
+        return $env !== '' ? $env : $spec['default'];
+    }
+
+    public static function key(): string    { return self::conf('azure_speech_key'); }
+    public static function region(): string { return self::conf('azure_speech_region') ?: self::DEFAULT_REGION; }
+
+    /**
+     * The chosen voice, validated against the list.
+     *
+     * A voice name typed into a settings box and passed through unchecked would send Azure a
+     * name it does not know, which comes back as a 400 during a sweep nobody is watching —
+     * and the first anybody would learn of it is a silent door.
+     */
+    public static function voice(): string
+    {
+        $v = self::conf('azure_speech_voice');
+
+        return isset(self::VOICES[$v]) ? $v : self::DEFAULT_VOICE;
+    }
+
+    public static function configured(): bool
+    {
+        return self::key() !== '';
+    }
+
+    /** What is wrong, in the words the settings screen shows. '' when nothing is. */
+    public static function why(): string
+    {
+        if (self::key() === '') {
+            return 'No Azure Speech key, so nobody is greeted by name — the door still works, silently.';
+        }
+        if (self::region() === '') {
+            return 'No Azure region set.';
+        }
+        return '';
+    }
+
+    private static function endpoint(): string
+    {
+        return 'https://' . self::region() . '.tts.speech.microsoft.com/cognitiveservices/v1';
+    }
+
+    /**
+     * Render one line. Returns the MP3 bytes, or null.
+     *
+     * Null rather than an exception on every failure path: the caller is an unattended sweep
+     * and the consequence of a failure is that one person is greeted by the generic clip
+     * instead of by name. That must never become an error page or a stopped maintenance run.
+     */
+    public static function say(string $text): ?string
+    {
+        $text = self::tidy($text);
+        if ($text === '' || !self::configured()) return null;
+
+        $ssml = '<speak version="1.0" xmlns="http://www.w3.org/2001/10/synthesis" xml:lang="en-NG">'
+              . '<voice name="' . htmlspecialchars(self::voice(), ENT_QUOTES | ENT_XML1, 'UTF-8') . '">'
+              . htmlspecialchars($text, ENT_QUOTES | ENT_XML1, 'UTF-8')
+              . '</voice></speak>';
+
+        $ch = curl_init(self::endpoint());
+        if ($ch === false) return null;
+
+        curl_setopt_array($ch, [
+            CURLOPT_POST           => true,
+            CURLOPT_POSTFIELDS     => $ssml,
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_TIMEOUT        => self::TIMEOUT,
+            CURLOPT_CONNECTTIMEOUT => 8,
+            CURLOPT_HTTPHEADER     => [
+                'Ocp-Apim-Subscription-Key: ' . self::key(),
+                'Content-Type: application/ssml+xml',
+                'X-Microsoft-OutputFormat: ' . self::FORMAT,
+                'User-Agent: ' . self::AGENT,
+            ],
+        ]);
+
+        $raw  = curl_exec($ch);
+        $code = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        $err  = curl_error($ch);
+        curl_close($ch);
+
+        if (!is_string($raw) || $raw === '' || $code !== 200) {
+            error_log('[azure-voice] HTTP ' . $code . ($err !== '' ? ' ' . $err : '')
+                    . ' — ' . substr(is_string($raw) ? $raw : '', 0, 200));
+            return null;
+        }
+
+        // Azure answers a bad request with 200 and a JSON body in some error shapes, so the
+        // bytes are checked rather than the status: an MP3 begins with an ID3 tag or a frame
+        // sync. Writing a JSON error into a .mp3 file would cache a clip that plays nothing
+        // and never retries, which is worse than not caching at all.
+        if (!self::looksLikeMp3($raw)) {
+            error_log('[azure-voice] the response was not audio.');
+            return null;
+        }
+
+        return $raw;
+    }
+
+    private static function looksLikeMp3(string $raw): bool
+    {
+        if (strlen($raw) < 64) return false;
+
+        return str_starts_with($raw, 'ID3') || (ord($raw[0]) === 0xFF && (ord($raw[1]) & 0xE0) === 0xE0);
+    }
+
+    /**
+     * What is safe to send.
+     *
+     * Bounded hard: this is billed per character and fed from names a stranger typed into a
+     * booking form. Control characters go because SSML is XML and a stray one is a 400 on a
+     * sweep nobody is watching.
+     */
+    public static function tidy(string $text): string
+    {
+        $text = preg_replace('/[\x00-\x08\x0B\x0C\x0E-\x1F]/u', '', trim($text)) ?? '';
+
+        return mb_substr(preg_replace('/\s+/u', ' ', $text) ?? '', 0, 240);
+    }
+}

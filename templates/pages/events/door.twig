@@ -184,6 +184,30 @@
   var url   = {{ ('/door/' ~ token ~ '/check')|json_encode|raw }};
   if (!form || !input || !panel) return;
 
+  {# ── THE VOICE ──────────────────────────────────────────────────────────
+     One <audio> element, reused. Created once rather than per scan because a phone
+     that has been granted playback keeps it on the same element, and a fresh element
+     per attendee would be blocked by autoplay policy after the first one.
+
+     The src is a key the server rendered HOURS ago. Nothing is synthesised here and
+     nothing is awaited — play() is fired and forgotten, so a slow clip, a muted
+     phone or a refused autoplay cannot hold up the verdict or the queue. #}
+  var welcomeOn = {{ welcome_on|default(false) ? 'true' : 'false' }};
+  var audio = null;
+
+  function greet(key) {
+    if (!welcomeOn || !key) return;
+    try {
+      if (!audio) { audio = new Audio(); audio.preload = 'none'; }
+      audio.src = '/door/' + {{ token|json_encode|raw }} + '/welcome/' + key;
+      // Deliberately not awaited, and the rejection is swallowed. A browser that refuses
+      // autoplay until the operator has tapped something is the normal case on a phone,
+      // and it must read as "no sound yet", never as a failed scan.
+      var p = audio.play();
+      if (p && p.catch) p.catch(function () {});
+    } catch (e) { /* a door with no sound is a working door */ }
+  }
+
   var undoWrap = document.getElementById('drUndoWrap');
   var undoBtn  = document.getElementById('drUndo');
   var undoUrl  = {{ ('/door/' ~ token ~ '/undo')|json_encode|raw }};
@@ -247,6 +271,7 @@
     if (v.verdict !== 'admit' && navigator.vibrate) { try { navigator.vibrate(180); } catch (e) {} }
 
     if (v.honour && v.verdict === 'admit') celebrate();
+    greet(v.welcome);
 
     // Offered only for a ticket that was just admitted here. Not for a duplicate (the
     // admission being undone would be somebody else's, minutes ago), not for a guest of

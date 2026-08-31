@@ -67,6 +67,15 @@ class SettingsController
             // The questionnaire deadline warnings. Resolved for the same reason the
             // invitation marks are: an operator who has set nothing is on the defaults,
             // and an empty box beside a schedule that runs every morning reads as "off".
+            // The door's voice: whether it is configured, what is wrong when it is not, and
+            // the two Nigerian voices Azure publishes. Resolved rather than echoed, same as
+            // every other credential screen here.
+            'azure_voice_on'    => \AfricaGates\Services\AzureVoice::configured(),
+            'azure_voice_why'   => \AfricaGates\Services\AzureVoice::why(),
+            'azure_voices'      => \AfricaGates\Services\AzureVoice::VOICES,
+            'azure_voice_pick'  => \AfricaGates\Services\AzureVoice::voice(),
+            'azure_region'      => \AfricaGates\Services\AzureVoice::region(),
+            'door_welcome_on'   => \AfricaGates\Services\DoorWelcome::enabled(),
             'questionnaire_reminder_marks' => \AfricaGates\Services\QuestionnaireReminders::marks(),
             'questionnaire_reminder_days_default' =>
                 implode(', ', \AfricaGates\Services\QuestionnaireReminders::DEFAULT_MARKS),
@@ -268,6 +277,11 @@ class SettingsController
                   // The questionnaire deadline warnings. Same free-text day list, parsed
                   // and clamped in QuestionnaireReminders rather than trusted here.
                   'questionnaire_reminder_days',
+                  // The door's Nigerian voice. Region and voice are identifiers, not secrets.
+                  // The KEY is deliberately absent here and handled by the write-only path
+                  // below — a credential in this list is a credential in the page source of
+                  // every settings render.
+                  'azure_speech_region','azure_speech_voice',
                   'invite_reminder_line_nominee','invite_reminder_line_judge',
                   // The countdown letters: the facts no database can know, and the five
                   // bodies themselves. Tokens are resolved at send time against the event,
@@ -299,7 +313,8 @@ class SettingsController
         // would put the credential in the page source of every settings render.
         foreach (['mail_smtp_pass' => 'smtp_pass',
                   'cloudinary_api_secret' => 'cloudinary_secret',
-                  'cloudinary_url' => 'cloudinary_url'] as $settingKey => $clearName) {
+                  'cloudinary_url' => 'cloudinary_url',
+                  'azure_speech_key' => 'azure_key'] as $settingKey => $clearName) {
             $clear = (array) ($b['secret_clear'] ?? []);
             if (!empty($clear[$clearName])) { $this->settings->set($settingKey, '', $adminId); continue; }
             $val = trim((string) ($b[$settingKey] ?? ''));
@@ -344,6 +359,13 @@ class SettingsController
         if (array_key_exists('invite_reminder_days', $b)) {
             $this->settings->set('invite_reminder_enabled',
                                  !empty($b['invite_reminder_enabled']) ? '1' : '0', $adminId);
+        }
+
+        // The door's greeting. Marker-gated like the others: an unchecked box posts NOTHING,
+        // so without a field that always posts, a switch could be turned on and never off.
+        if (array_key_exists('azure_speech_region', $b)) {
+            $this->settings->set('door_welcome_enabled',
+                                 !empty($b['door_welcome_enabled']) ? '1' : '0', $adminId);
         }
 
         // Automation / webcron: toggle opportunistic self-maintenance + manage the

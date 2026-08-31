@@ -382,6 +382,65 @@
     </div>
   </div></div>
 
+  {# ── THE VOICE AT THE DOOR ────────────────────────────────────────────────
+     A Nigerian voice saying a Nigerian name, at a Nigerian evening. The two engines
+     already here (OpenAI, ElevenLabs) have no en-NG voice, and an American voice
+     reading "Chidinma Okonkwo" at a Lagos gala is the platform sounding like it was
+     built somewhere else at the exact moment it is welcoming somebody by name.
+
+     Azure's free tier is 0.5M characters a month and a welcome is about twenty-five,
+     so this is roughly twenty thousand people a month — a standing feature rather
+     than a budget line. #}
+  <div class="ad-card" data-sec="media" data-keys="door voice welcome greeting azure speech tts text to speech nigerian ezinne abeo attendee name check in audio" x-show="show($el)"><div class="ad-card__head"><div class="ad-card__title">The voice at the door<small>{% if azure_voice_on %}Azure Speech is configured — greetings are rendered ahead of each event.{% else %}Not configured — the door works exactly as it does now, in silence.{% endif %}</small></div></div><div class="ad-card__body">
+
+      <label style="display:flex;gap:8px;align-items:flex-start;cursor:pointer">
+        <input type="checkbox" name="door_welcome_enabled" id="f-door_welcome_enabled" value="1"{% if door_welcome_on %} checked{% endif %} style="margin-top:3px">
+        <span>Greet people by name as they are admitted
+          <small style="display:block;font-weight:400">Their first name only, in the voice below. A guest of honour is greeted as one. Nothing is spoken for a refusal.</small>
+        </span>
+      </label>
+
+      <div class="row" style="margin-top:12px">
+        <div><label for="f-azure_speech_key">Azure Speech key</label>
+          <input type="password" name="azure_speech_key" id="f-azure_speech_key" autocomplete="off"
+                 placeholder="{% if azure_voice_on %}stored — leave blank to keep it{% else %}from the Speech resource's Keys page{% endif %}"></div>
+        <div><label for="f-azure_speech_region">Region <small>the one your Speech resource is in</small></label>
+          <input type="text" name="azure_speech_region" id="f-azure_speech_region" value="{{ azure_region }}" maxlength="40"></div>
+      </div>
+
+      <div style="margin-top:10px">
+        <label for="f-azure_speech_voice">Voice</label>
+        <select name="azure_speech_voice" id="f-azure_speech_voice">
+          {% for id, label in azure_voices %}
+            <option value="{{ id }}"{{ azure_voice_pick == id ? ' selected' : '' }}>{{ label }}</option>
+          {% endfor %}
+        </select>
+      </div>
+
+      {% if azure_voice_on %}
+        <label style="display:flex;gap:8px;align-items:center;margin-top:10px;cursor:pointer">
+          <input type="checkbox" name="secret_clear[azure_key]" value="1">
+          <span style="font-size:12.5px">Remove the stored key</span>
+        </label>
+      {% endif %}
+
+      {% if azure_voice_why %}<p class="hint" style="margin:10px 0 0;color:#8a2020">{{ azure_voice_why }}</p>{% endif %}
+
+      <p class="hint" style="margin:10px 0 0">
+        <strong>Nothing is generated while somebody is standing at the door.</strong> Every
+        greeting is rendered by the daily run, up to three days before an event, and the door
+        plays a file that is already on disk — a queue cannot wait on a round trip to a
+        datacentre, least of all on venue wifi. Anyone who arrives without a clip ready — a
+        walk-up, a late booking — is greeted by the same voice saying &ldquo;you are
+        welcome&rdquo;.
+      </p>
+      <p class="hint" style="margin:8px 0 0">
+        Changing the voice re-renders on the next run; it never plays an evening half in one
+        voice and half in the other. To render a list you have just imported without waiting
+        for 06:00, run <code>welcome</code> from Automation &amp; cron below.
+      </p>
+  </div></div>
+
   {# ── THE WARNING BEFORE A NOMINATION IS CLOSED ───────────────────────────
      Separate card from Invitations above, because these are different people being
      written to about a different thing: a guest of honour counting down to an evening,

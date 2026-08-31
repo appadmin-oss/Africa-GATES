@@ -3,7 +3,8 @@ declare(strict_types=1);
 
 namespace AfricaGates\Controllers;
 
-use AfricaGates\Services\{EventArrivals, EventScanPass, EventTicketService, InviteAudience, InvitePass};
+use AfricaGates\Services\{DoorWelcome, EventArrivals, EventScanPass, EventTicketService,
+                          InviteAudience, InvitePass};
 use Illuminate\Database\Capsule\Manager as DB;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
@@ -107,6 +108,9 @@ final class DoorController
             'admitted'  => $this->admitted((int) $r['event']->id),
             // Same resolver, same reason: tickets sold PLUS invitations actually sent.
             'expected'  => EventArrivals::expected((int) $r['event']->id),
+            // Whether to wire the player up at all. Off is a valid answer and a silent
+            // door is a working door.
+            'welcome_on' => DoorWelcome::enabled(),
         ])->withHeader('X-Robots-Tag', 'noindex, nofollow');
     }
 
@@ -174,10 +178,51 @@ final class DoorController
             'tier'     => $v['tier'],
             'seats'    => $v['seats'],
             'code'     => $v['code'],
+            // A key, never audio, and never a synthesis call. The clip was rendered hours
+            // ago by the sweep; this is a filename lookup, so the greeting costs the queue
+            // nothing. Only on an admit — a refusal is not a welcome, and greeting somebody
+            // by name while turning them away would be worse than silence.
+            'welcome'  => $v['verdict'] === 'admit'
+                ? DoorWelcome::keyToPlay(DoorWelcome::line((string) $v['name'])) : '',
             // Recomputed after the write, so the running count on the page is the real one
             // rather than a number the browser has been incrementing since it was opened.
             'admitted' => $this->admitted((int) $pass->event_id),
         ]);
+    }
+
+    /**
+     * GET /door/{token}/welcome/{key} — one greeting, as audio.
+     *
+     * Behind the pass, and that is not belt-and-braces: the file SAYS A GUEST'S NAME ALOUD.
+     * On a public path it would be the attendee list in audio for anybody who could guess a
+     * filename, and this door's own promise to the person holding it is that it "cannot show
+     * you the guest list".
+     *
+     * It never renders. A key with no file is a 404, the page stays silent, and the queue
+     * moves — which is the correct outcome of a missing clip and not an error.
+     */
+    public function welcome(Request $req, Response $res, array $args): Response
+    {
+        $r = EventScanPass::resolve((string) ($args['token'] ?? ''));
+        if (!$r['ok']) return $res->withStatus(403);
+
+        $path = DoorWelcome::pathFor((string) ($args['key'] ?? ''));
+        if ($path === null || !is_file($path)) return $res->withStatus(404);
+
+        $bytes = @file_get_contents($path);
+        if ($bytes === false || $bytes === '') return $res->withStatus(404);
+
+        $res->getBody()->write($bytes);
+
+        return $res
+            ->withHeader('Content-Type', 'audio/mpeg')
+            ->withHeader('Content-Length', (string) strlen($bytes))
+            // Cached hard and privately. The same steward re-scans the same guest, and a
+            // clip re-fetched over venue wifi is the latency this whole design removes.
+            // `private` because the URL is behind a bearer token and a shared proxy must not
+            // hold a guest's name.
+            ->withHeader('Cache-Control', 'private, max-age=86400')
+            ->withHeader('X-Robots-Tag', 'noindex, nofollow');
     }
 
     /**
@@ -302,6 +347,12 @@ final class DoorController
             'tier'    => (string) $spec['label'],
             'seats'   => 1,
             'code'    => (string) $invite->reference,
+            // Greeted as what they are. "Our nominee this evening" is a different sentence
+            // from a ticket holder's, because arriving at an evening held for you is a
+            // different arrival from arriving at one you bought a seat at.
+            'welcome' => DoorWelcome::keyToPlay(
+                DoorWelcome::honourLine((string) $invite->name,
+                                        strtolower((string) ($spec['one'] ?? '')))),
         ];
     }
 

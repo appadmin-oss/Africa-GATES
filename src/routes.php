@@ -2033,6 +2033,10 @@ return function(App $app) {
         // same exemption, and it needs the CODE — so it can only reach a ticket whose code the
         // holder already has, which is the same bar as admitting one.
         $g->post('/door/{token:[a-f0-9]{64}}/undo',  \AfricaGates\Controllers\DoorController::class.':undo');
+        // The greeting, as audio. A GET behind the same pass, because the clip says a guest's
+        // name out loud and a public path for it would be the attendee list read aloud.
+        $g->get('/door/{token:[a-f0-9]{64}}/welcome/{key:[a-f0-9]{40}}',
+                \AfricaGates\Controllers\DoorController::class.':welcome');
         $g->get('/blog',           BlogController::class.':index');
         $g->get('/blog/{slug}',    BlogController::class.':show');
         $g->get('/pulse',          PulseController::class.':index');
