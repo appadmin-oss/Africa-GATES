@@ -2033,6 +2033,10 @@ return function(App $app) {
         // same exemption, and it needs the CODE — so it can only reach a ticket whose code the
         // holder already has, which is the same bar as admitting one.
         $g->post('/door/{token:[a-f0-9]{64}}/undo',  \AfricaGates\Controllers\DoorController::class.':undo');
+        // The scans a gate took while the line was down. Same credential, same exemption:
+        // an offline steward has no session to carry a token in, and the endpoint can do
+        // nothing a live scan cannot already do.
+        $g->post('/door/{token:[a-f0-9]{64}}/sync',  \AfricaGates\Controllers\DoorController::class.':sync');
         // The greeting, as audio. A GET behind the same pass, because the clip says a guest's
         // name out loud and a public path for it would be the attendee list read aloud.
         $g->get('/door/{token:[a-f0-9]{64}}/welcome/{key:[a-f0-9]{40}}',

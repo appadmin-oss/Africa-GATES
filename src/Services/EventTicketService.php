@@ -1197,7 +1197,7 @@ final class EventTicketService
      *                name:string, tier:string, seats:int, code:string, at:string}
      */
     public static function checkIn(string $code, int $eventId, string $by = '',
-                                   ?int $adminId = null): array
+                                   ?int $adminId = null, string $at = ''): array
     {
         $code = strtoupper(trim($code));
         $no = static fn (string $title, string $detail): array => [
@@ -1238,7 +1238,17 @@ final class EventTicketService
             ];
         }
 
-        $now = Carbon::now()->toDateTimeString();
+        // ── WHEN IT HAPPENED, WHICH IS NOT ALWAYS NOW ────────────────────────
+        //
+        // A gate that lost the network records its scans and sends them when the line comes
+        // back. Stamping those with the flush time would put forty people through the door
+        // in the same second, half an hour after they walked in — and the arrivals log is
+        // the record an organiser stands behind when somebody disputes an entry.
+        //
+        // CLAMPED, because the caller is a browser. Never in the future, never further back
+        // than the outage this is meant to cover. A door already has the authority to admit;
+        // what it must not have is the authority to write history.
+        $now = self::stampFor($at);
         $won = DB::table('gates_event_registrations')->where('id', (int) $reg->id)
             ->whereNull('checked_in_at')
             ->update(OptionalColumn::filter('gates_event_registrations', [
@@ -1383,6 +1393,33 @@ final class EventTicketService
         } catch (\Throwable) {
             return null;
         }
+    }
+
+    /**
+     * A caller-supplied moment, or now.
+     *
+     * @param string $at 'Y-m-d H:i:s' from a gate that was offline when it scanned
+     */
+    private static function stampFor(string $at): string
+    {
+        $now = Carbon::now();
+        $at  = trim($at);
+        if ($at === '') return $now->toDateTimeString();
+
+        try {
+            $t = Carbon::parse($at);
+        } catch (\Throwable) {
+            return $now->toDateTimeString();
+        }
+
+        // A future stamp is a wrong clock or a lie, and either way now is the honest answer.
+        // Twelve hours back covers the longest gala and its overrun; past that, a queued
+        // scan is stale enough that the moment it claims is not worth trusting.
+        if ($t->greaterThan($now) || $t->lessThan($now->copy()->subHours(12))) {
+            return $now->toDateTimeString();
+        }
+
+        return $t->toDateTimeString();
     }
 
     /** 'HH:MM' from a stored timestamp — a door reads a clock, not a date. */

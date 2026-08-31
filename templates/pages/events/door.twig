@@ -81,7 +81,7 @@
   .dr__log .v{ font-weight:700; font-size:12px; letter-spacing:.04em; text-transform:uppercase }
   .dr__log .v--admit{ color:#237b22 } .dr__log .v--dup{ color:#b4671a }
   .dr__log .v--refuse{ color:#a32b1f } .dr__log .v--undone{ color:#5a6d6f }
-  .dr__log .v--slow{ color:#5a6d6f }
+  .dr__log .v--slow{ color:#5a6d6f } .dr__log .v--held{ color:#243d4e }
 
   .dr__note{ font-size:12.5px; color:#5a6d6f; line-height:1.6; margin-top:16px }
   @media (prefers-reduced-motion: no-preference){
@@ -152,6 +152,22 @@
      been told to slow down has not been shown a bad ticket, and painting it red would
      send them to argue with somebody who has paid. */
   .dr__v--slow{ background:#eef1f5; border-color:#5a6d6f; color:#39464a }
+
+  /* ── RECORDED, NOT CHECKED ────────────────────────────────────────────────
+     Its own ground, and deliberately neither green nor red. This is the one verdict
+     where the door does not know the answer, and painting it as either would be the
+     screen deciding on the steward's behalf. Slate reads as "held", which is what it
+     is. The word says the rest. */
+  .dr__v--held{ background:#eef4f8; border-color:#3a5c73; color:#243d4e }
+
+  /* The waiting count. A bar rather than a line of text because it has a button in it,
+     and 44px on that button because it is pressed one-handed in the dark. */
+  .dr__pend{ margin-top:10px; display:flex; align-items:center; gap:10px; flex-wrap:wrap;
+    padding:10px 12px; border-radius:10px; background:#eef4f8; border:1.5px solid #3a5c73 }
+  .dr__pend__n{ flex:1; min-width:0; font-size:13.5px; font-weight:600; color:#243d4e }
+  .dr__pend__b{ min-height:44px; padding:0 16px; cursor:pointer; font:inherit; font-size:14px;
+    font-weight:700; border:0; border-radius:9px; background:#243d4e; color:#fff }
+  .dr__pend__b:focus-visible{ outline:3px solid #237b22; outline-offset:2px }
 </style>
 
 <div class="dr">
@@ -208,6 +224,16 @@
 
      It is a two-step press rather than a confirm dialog: at a door, a modal is a
      second thing to dismiss one-handed, and the second tap is the confirmation. #}
+  {# ── WHAT IS WAITING ───────────────────────────────────────────────────
+     Shown only while something is held. A steward has to be able to see, without
+     asking anybody, that the gate is carrying scans nobody has checked yet — and
+     to be able to push them through the moment the line is back rather than
+     waiting for the page to notice. #}
+  <div class="dr__pend" id="drPend" hidden>
+    <span class="dr__pend__n" role="status" aria-live="polite"></span>
+    <button type="button" id="drFlush" class="dr__pend__b">Send them now</button>
+  </div>
+
   <div class="dr__undo" id="drUndoWrap" hidden>
     <button type="button" id="drUndo" class="dr__undo__b">Not them — take it back</button>
   </div>
@@ -265,13 +291,17 @@
     } catch (e) { /* a door with no sound is a working door */ }
   }
 
+  var pendEl  = document.getElementById('drPend');
+  var syncUrl = {{ ('/door/' ~ token ~ '/sync')|json_encode|raw }};
+
   var undoWrap = document.getElementById('drUndoWrap');
   var undoBtn  = document.getElementById('drUndo');
   var undoUrl  = {{ ('/door/' ~ token ~ '/undo')|json_encode|raw }};
 
-  var MARK = { admit: '✓', duplicate: '!', refuse: '✕', closed: '✕', undone: '↩', slow: '⏳' };
+  var MARK = { admit: '✓', duplicate: '!', refuse: '✕', closed: '✕', undone: '↩',
+               slow: '⏳', held: '⋯' };
   var CLS  = { admit: 'admit', duplicate: 'dup', refuse: 'refuse', closed: 'closed',
-               undone: 'undone', slow: 'slow' };
+               undone: 'undone', slow: 'slow', held: 'held' };
 
   // The ticket currently on the panel, and whether the undo button is armed. Held here
   // rather than read off the DOM so a re-render cannot leave the button pointing at a
@@ -480,12 +510,125 @@
     k.textContent = v.verdict === 'duplicate' ? 'again'
                   : v.verdict === 'undone' ? 'back'
                   : v.verdict === 'slow' ? 'wait'
+                  : v.verdict === 'held' ? 'held'
                   : (v.verdict === 'admit' ? 'in' : 'no');
     var n = document.createElement('span');
     n.textContent = v.name || v.code || '—';
     li.appendChild(t); li.appendChild(k); li.appendChild(n);
     logEl.insertBefore(li, logEl.firstChild);
     while (logEl.children.length > 12) logEl.removeChild(logEl.lastChild);
+  }
+
+  /**
+   * ── THE LINE GOING DOWN ───────────────────────────────────────────────────
+   *
+   * Before this, a failed fetch stopped the door: the message was honest and the queue
+   * stopped moving, which at a gate is the whole failure.
+   *
+   * An offline scan is RECORDED, never decided. The server is the only thing that ever
+   * says admit — see DoorController::sync() for why shipping the code list to this phone
+   * was considered and rejected — so the panel says what actually happened, in words
+   * that are not "admit", and the steward looks at the physical ticket in their hand.
+   *
+   * The queue lives in localStorage, and that is not a detail: a phone at a venue
+   * suspends tabs to save memory, and losing fifty admissions to a tab reload would be
+   * worse than having no offline mode at all. It is keyed to this pass, so two gates on
+   * one borrowed phone never flush each other's scans.
+   */
+  var QKEY = 'ag-door-q:' + {{ token|json_encode|raw }}.slice(0, 12);
+  var pending = [];
+
+  function qLoad() {
+    try {
+      var raw = localStorage.getItem(QKEY);
+      pending = raw ? (JSON.parse(raw) || []) : [];
+    } catch (e) { pending = []; }
+    if (!Array.isArray(pending)) pending = [];
+    paintPending();
+  }
+
+  function qSave() {
+    try { localStorage.setItem(QKEY, JSON.stringify(pending)); }
+    catch (e) { /* a full or disabled store must not stop the door; the queue lives in memory */ }
+    paintPending();
+  }
+
+  function paintPending() {
+    if (!pendEl) return;
+    pendEl.hidden = pending.length === 0;
+    if (pending.length) {
+      pendEl.querySelector('.dr__pend__n').textContent =
+        pending.length + (pending.length === 1 ? ' scan waiting' : ' scans waiting');
+    }
+  }
+
+  function qAdd(code) {
+    pending.push({
+      // A client id so a flush that half-succeeds, or is retried after a timeout, cannot
+      // record the same person twice.
+      id: (Date.now().toString(36) + Math.random().toString(36).slice(2, 8)),
+      code: code,
+      // The moment it HAPPENED. Sent so the arrivals log reads as an evening rather than
+      // as forty people arriving in the same second half an hour later.
+      at: stamp()
+    });
+    qSave();
+  }
+
+  /** 'YYYY-MM-DD HH:MM:SS' in the phone's own clock — the server clamps it. */
+  function stamp() {
+    var d = new Date(), p = function (n) { return (n < 10 ? '0' : '') + n; };
+    return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate()) + ' '
+         + p(d.getHours()) + ':' + p(d.getMinutes()) + ':' + p(d.getSeconds());
+  }
+
+  var flushing = false;
+  async function flush(quiet) {
+    if (flushing || !pending.length) return;
+    flushing = true;
+    var sending = pending.slice(0, 200);
+
+    try {
+      var r = await fetch(syncUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+        body: JSON.stringify({ scans: sending })
+      });
+      var d = await r.json();
+      if (!d || !d.ok) { flushing = false; return; }
+
+      // Retire exactly what the server answered for, by id. Clearing the whole queue would
+      // drop anything scanned while the request was in the air.
+      var done = {};
+      (d.results || []).forEach(function (x) { if (x && x.id) done[x.id] = x; });
+      pending = pending.filter(function (i) { return !done[i.id]; });
+      qSave();
+
+      (d.results || []).forEach(function (x) {
+        remember({ verdict: x.verdict, name: x.name, code: x.code, title: x.title });
+      });
+
+      if (typeof d.admitted === 'number' && count) {
+        count.textContent = d.admitted + ' in' + ({{ expected|default(0) }} ? ' / {{ expected|default(0) }}' : '');
+      }
+
+      if (!quiet) {
+        var went = (d.results || []).length;
+        var no = (d.results || []).filter(function (x) { return x.verdict !== 'admit'; }).length;
+        paint({
+          verdict: no ? 'duplicate' : 'admit',
+          title: went + ' sent',
+          // The failures are the point of saying anything at all. A steward who admitted
+          // somebody on a code the server later refused needs to know it happened while
+          // that person is still in the room.
+          detail: no
+            ? no + ' of them were not admitted — the list below says which.'
+            : 'Everything scanned while the line was down has gone through.'
+        });
+      }
+    } catch (e) { /* still down: the queue keeps, and the next reconnect tries again */ }
+
+    flushing = false;
   }
 
   var busy = false;
@@ -502,11 +645,20 @@
       var v = await r.json();
       paint(v); remember(v);
     } catch (e) {
-      // The network died mid-queue. Say so plainly and — this is the important half — do NOT
-      // clear the box, so the operator can press Check again rather than re-read the code off
-      // somebody's cracked screen.
-      paint({ verdict: 'refuse', title: 'No connection',
-              detail: 'The code was not checked. Press Check to try again.' });
+      // The line is down. RECORD it and keep the queue moving — but say exactly what that
+      // means, because this verdict is the one place the door does not know the answer.
+      // "Admit" here would be the screen guessing on the steward's behalf.
+      qAdd(code);
+      paint({
+        verdict: 'held',
+        title: 'Recorded — not checked',
+        detail: 'This gate is offline. Check the ticket yourself and let them through if it '
+              + 'looks right. It will be checked as soon as the line is back.',
+        code: code
+      });
+      remember({ verdict: 'held', code: code });
+      input.value = '';
+      input.focus();
       busy = false; go.disabled = false;
       return;
     }
@@ -517,6 +669,19 @@
 
   form.addEventListener('submit', function (e) { e.preventDefault(); check(input.value); });
   input.focus();
+
+  // ── COMING BACK ──────────────────────────────────────────────────────────
+  //
+  // Three ways, because none of them is reliable on its own at a venue. `online` does not
+  // fire on every recovery and `navigator.onLine` reports the wifi association rather than
+  // whether anything is reachable through it — a captive portal is "online" and useless.
+  // So: the browser's hint, a slow poll, and a button the steward can press.
+  qLoad();
+  flush(true);
+  window.addEventListener('online', function () { flush(true); });
+  setInterval(function () { if (pending.length) flush(true); }, 20000);
+  var flushBtn = document.getElementById('drFlush');
+  if (flushBtn) flushBtn.addEventListener('click', function () { flush(false); });
 
   // Two taps, no dialog. The first arms and relabels; the second sends. A modal at a door
   // is a second thing to dismiss one-handed with a queue waiting, and the relabel carries

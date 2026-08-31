@@ -112,7 +112,7 @@ class CsrfMiddleware {
         // CODE, so it can only reach a ticket whose code the caller already holds — the same
         // bar as admitting one — and a steward who has just mis-scanned somebody has a queue
         // in front of them and no session to carry a token in.
-        if (preg_match('~^/door/[a-f0-9]{64}/(check|undo)$~', $path) === 1) {
+        if (preg_match('~^/door/[a-f0-9]{64}/(check|undo|sync)$~', $path) === 1) {
             return $handler->handle($req);
         }
 

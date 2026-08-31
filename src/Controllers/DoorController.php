@@ -66,6 +66,14 @@ final class DoorController
      */
     private const SCANS_PER_MIN = 120;
 
+    /**
+     * Scans accepted in one flush.
+     *
+     * An outage at a door is minutes, not hours — the gate is capped at {@see SCANS_PER_MIN}
+     * while it is working, so a queue this long means something other than a busy evening.
+     */
+    private const SYNC_MAX = 200;
+
     public function __construct(
         private readonly Twig $view,
         private readonly ?RateLimitService $limits = null,
@@ -256,6 +264,96 @@ final class DoorController
                 ? DoorWelcome::keyToPlay(DoorWelcome::line((string) $v['name'])) : '',
             // Recomputed after the write, so the running count on the page is the real one
             // rather than a number the browser has been incrementing since it was opened.
+            'admitted' => $this->admitted((int) $pass->event_id),
+        ]);
+    }
+
+    /**
+     * POST /door/{token}/sync — the scans a gate took while the line was down.
+     *
+     * ══════════════════════════════════════════════════════════════════════════
+     * WHY AN OFFLINE DOOR RECORDS AND DOES NOT DECIDE
+     * ══════════════════════════════════════════════════════════════════════════
+     *
+     * The obvious offline design is to ship the event's ticket codes to the phone so it can
+     * answer for itself. It was considered and rejected on the numbers: a code is eight
+     * characters from a 29-letter alphabet, about 2^39, which is brute-forceable against a
+     * hash list in minutes on ordinary hardware. So a manifest on a volunteer's phone — a
+     * phone that gets lost at galas — is the event's whole valid-code set, recoverable, and
+     * this door's standing promise to whoever holds the link is that it "cannot show you the
+     * guest list".
+     *
+     * A stale manifest is the second problem and the worse one in practice. A list fetched
+     * at 18:00 does not know about a ticket sold at 19:30, so it would refuse a paying
+     * attendee CONFIDENTLY, at the door, on data it had no way to know was old.
+     *
+     * So an offline gate records what it scanned and says so — plainly, on screen, in its
+     * own words that are not "admit". The steward has the physical ticket in front of them
+     * and uses their eyes, which is what they were doing before this platform existed. The
+     * SERVER stays the only thing that ever decides, and it decides here, late, with every
+     * check it always had.
+     *
+     * ── AND THE TIME TRAVELS WITH THE SCAN ───────────────────────────────────
+     *
+     * Each item carries the moment it was taken. Without it, forty people go through the
+     * arrivals log in the same second half an hour after they walked in, and that log is
+     * what an organiser stands behind when an entry is disputed.
+     */
+    public function sync(Request $req, Response $res, array $args): Response
+    {
+        $r = EventScanPass::resolve((string) ($args['token'] ?? ''));
+        if (!$r['ok']) {
+            return $this->json($res, ['ok' => false, 'reason' => $r['reason'],
+                                      'detail' => $r['message']], 403);
+        }
+
+        $pass = $r['pass'];
+        if ($this->tooFast($pass, 'door_sync')) {
+            // Its own bucket again. A flush of forty is one request, so a gate that hits
+            // this ceiling is retrying in a loop rather than working a queue.
+            return $this->json($res, ['ok' => false, 'reason' => 'slow',
+                                      'detail' => 'Too many flushes. Wait a moment.'], 429);
+        }
+
+        $body  = (array) $req->getParsedBody();
+        $items = $body['scans'] ?? [];
+        if (!is_array($items)) $items = [];
+
+        // Bounded. A flush is one gate's outage, not a database import, and an unbounded
+        // loop of writes behind a bearer token is a denial of service with a queue behind it.
+        $items = array_slice($items, 0, self::SYNC_MAX);
+
+        $out = [];
+        foreach ($items as $item) {
+            if (!is_array($item)) continue;
+            $code = (string) ($item['code'] ?? '');
+            if (str_contains($code, '/')) {
+                $code = (string) preg_replace('~^.*/~', '', rtrim(trim($code), '/'));
+            }
+            $id = (string) ($item['id'] ?? '');
+            if ($code === '') continue;
+
+            $v = EventTicketService::checkIn(
+                $code, (int) $pass->event_id, $this->via($pass) . ' (offline)',
+                null, (string) ($item['at'] ?? ''));
+
+            // Every item answered, in the order it was sent, so the page can retire exactly
+            // the ones that landed. A flush that reported only a total would leave a gate
+            // guessing which forty of its forty-one it may now forget.
+            $out[] = [
+                'id'      => $id,
+                'code'    => $code,
+                'verdict' => $v['verdict'],
+                'title'   => $v['title'],
+                'name'    => $v['name'],
+            ];
+        }
+
+        EventScanPass::touch((int) $pass->id);
+
+        return $this->json($res, [
+            'ok'       => true,
+            'results'  => $out,
             'admitted' => $this->admitted((int) $pass->event_id),
         ]);
     }
