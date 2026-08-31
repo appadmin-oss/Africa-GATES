@@ -416,6 +416,37 @@ final class EventLifecycleTest extends TestCase
         $this->assertSame(1, EventArrivals::inTheRoom($this->eventId));
     }
 
+    /**
+     * §19 — the invitation row remembers WHEN and THROUGH WHICH GATE, and a screen shows it.
+     *
+     * All three columns existed and all three were half-dead. `last_scan_at` was written at
+     * every admission and read nowhere. `last_scan_via` was written by nothing at all,
+     * while its own migration promised the opposite in as many words: "guests of honour
+     * need the same pair the ticket path has, for the same reason: without it the record of
+     * an evening says a volunteer's scan was nobody's". And the invitations screen rendered
+     * `scans` as a bare number — so the answer to "did they come?" was "3", with no when
+     * and no where, on the one screen that is asked it.
+     */
+    public function test_9c_a_guest_of_honours_arrival_records_when_and_where(): void
+    {
+        $this->stage();
+        $invite = $this->invite('Tunde Cole', 'tunde@example.test');
+
+        $this->assertSame('admit', $this->scan($this->idCode($invite))['verdict']);
+
+        $row = (object) DB::table('gates_event_invites')->where('id', $invite->id)->first();
+
+        $this->assertSame(1, (int) $row->scans);
+        $this->assertNotNull($row->last_scan_at, 'the arrival has no time on it');
+        $this->assertStringContainsString('Main gate', (string) $row->last_scan_via,
+            'the record of the evening says a volunteer\'s scan was nobody\'s');
+
+        // And it is on the screen, not merely in the table.
+        $t = (string) file_get_contents(dirname(__DIR__, 2) . '/templates/admin/events/invites.twig');
+        $this->assertStringContainsString('last_scan_via', $t);
+        $this->assertStringContainsString('last_scan_at', $t);
+    }
+
     /** The wifi drops. The gate records; the SERVER still decides. */
     public function test_10_a_scan_taken_offline_is_admitted_when_the_line_returns(): void
     {
@@ -433,11 +464,22 @@ final class EventLifecycleTest extends TestCase
         $this->assertTrue((bool) $body['ok']);
         $this->assertSame('admit', (string) $body['results'][0]['verdict']);
 
-        // The moment it HAPPENED travelled with it, rather than the moment the wifi came back.
+        // ── THE MOMENT TRAVELS, AND IT HAS TO REACH BOTH RECORDS ─────────────
+        //
+        // The ticket row had this right from the start. The arrivals log did NOT: it
+        // stamped every row with the instant it was inserted, so a batch flushed at 21:00
+        // wrote 21:00 against everybody who walked in at 19:05 — and the log is the durable
+        // record, the one an organiser stands behind a week later when somebody disputes
+        // being turned away. Two accounts of one evening, disagreeing by the length of
+        // the outage.
         $stamp = (string) DB::table('gates_event_registrations')
             ->where('ticket_code', $code)->value('checked_in_at');
         $this->assertSame(substr($at, 0, 16), substr($stamp, 0, 16),
             'an admission taken at 19:05 was logged at whenever the line returned');
+
+        $logged = (string) (EventArrivals::recent($this->eventId)[0]['created_at'] ?? '');
+        $this->assertSame(substr($at, 0, 16), substr($logged, 0, 16),
+            'the ticket row remembers when they arrived and the arrivals log does not');
     }
 
     /**
@@ -521,6 +563,63 @@ final class EventLifecycleTest extends TestCase
         $vias = array_unique(array_column($log, 'via'));
         $this->assertCount(1, $vias, 'two names for the same gate: ' . implode(' / ', $vias));
         $this->assertStringContainsString('Main gate', (string) $vias[0]);
+    }
+
+    /**
+     * The organiser's own record reads in the ROOM's clock, and names the person.
+     *
+     * ── THE BUG THIS HOLDS DOWN ──────────────────────────────────────────────
+     *
+     * Both lists on this screen printed their times with `|slice(11, 5)` over the stored
+     * string. Storage here is UTC by convention, so a Lagos gala's 19:42 admission was
+     * shown as 18:42 — on the record an organiser is meant to stand behind a week later,
+     * when somebody is disputing an entry. Slicing a datetime is not formatting it: it
+     * reads the storage convention out loud.
+     *
+     * The door had exactly this fault on its closing time and it was fixed there. The
+     * office screen that reads the same log kept it, which is what a seam failure looks
+     * like from the inside: each half was corrected on its own.
+     *
+     * ── AND WHO ──────────────────────────────────────────────────────────────
+     *
+     * `checked_in_by` was written at every admission and rendered on no screen, and the
+     * log showed "admin #7" — unreadable at the only moment it is opened.
+     */
+    public function test_12b_the_organisers_record_is_in_the_rooms_clock(): void
+    {
+        $this->stage();
+        $code = $this->sell('Ada Obi', 'ada@example.test', 1);
+
+        $adminId = (int) DB::table('gates_admins')->insertGetId([
+            'name' => 'Bisi Alabi', 'email' => 'bisi@example.test',
+            'password_hash' => 'x', 'role' => 'admin',
+        ]);
+
+        // Admitted at 19:42 in Lagos — stored as 18:42 UTC, which is the whole point.
+        $at = Carbon::now()->format('Y-m-d') . ' 18:42:00';
+        EventTicketService::checkIn($code, $this->eventId, 'door: Main gate', $adminId, $at);
+
+        $rows = $this->ticketsScreen();
+
+        $me = null;
+        foreach ($rows['attendees'] as $a) if (($a['ticket_code'] ?? '') === $code) $me = $a;
+        $this->assertNotNull($me);
+        $this->assertSame('19:42', (string) $me['arrived_time'],
+            'the arrival was printed in the storage convention rather than in Lagos');
+        $this->assertSame('Bisi Alabi', (string) $me['by_name'],
+            'the person who admitted somebody is recorded and shown nowhere');
+
+        $this->assertSame('19:42', (string) $rows['arrivals'][0]['at_time']);
+        $this->assertSame('WAT', (string) $rows['arrivals'][0]['at_zone']);
+        $this->assertSame('Bisi Alabi', (string) $rows['arrivals'][0]['by_name']);
+
+        // And the template reads those rather than slicing the raw stamp again.
+        $t = (string) file_get_contents(dirname(__DIR__, 2) . '/templates/admin/events/tickets.twig');
+        foreach (['{{ r.at_time }}', 'a.arrived_time', 'r.by_name', 'a.by_name'] as $needle) {
+            $this->assertStringContainsString($needle, $t, 'the screen does not read ' . $needle);
+        }
+        $this->assertDoesNotMatchRegularExpression('/\{\{[^}]*slice\(11/', $t,
+            'a datetime is still being sliced rather than formatted');
     }
 
     // ══ ACT 7 · PUTTING IT RIGHT ═════════════════════════════════════════════
@@ -679,6 +778,38 @@ final class EventLifecycleTest extends TestCase
             ->update(['sent_at' => Carbon::now()->toDateTimeString()]);
 
         return (object) DB::table('gates_event_invites')->where('id', $inv->id)->first();
+    }
+
+    /**
+     * The two lists on the organiser's tickets screen, shaped the way that screen gets them.
+     *
+     * Reached through the private shaper by reflection rather than by standing the whole
+     * admin controller up with a session, an audit log and a Twig environment — and the
+     * wiring the reflection cannot see is asserted separately, right below, because a
+     * perfect shaper the page does not call is the §18 bug wearing a different hat.
+     *
+     * @return array{attendees:list<array<string,mixed>>, arrivals:list<array<string,mixed>>}
+     */
+    private function ticketsScreen(): array
+    {
+        $c = (string) file_get_contents(
+            dirname(__DIR__, 2) . '/src/Admin/Controllers/EventsController.php');
+        $this->assertSame(2, substr_count($c, '$this->inTheRoomsClock('),
+            'the tickets screen shapes only one of its two lists — the other still prints '
+            . 'the storage convention');
+
+        $m = new \ReflectionMethod(\AfricaGates\Admin\Controllers\EventsController::class,
+                                   'inTheRoomsClock');
+        $m->setAccessible(true);
+        $ctrl = (new \ReflectionClass(\AfricaGates\Admin\Controllers\EventsController::class))
+            ->newInstanceWithoutConstructor();
+        $event = (object) DB::table('gates_site_events')->where('id', $this->eventId)->first();
+
+        return [
+            'attendees' => $m->invoke($ctrl, $event,
+                EventTicketService::attendees($this->eventId), 'checked_in_at', 'arrived'),
+            'arrivals'  => $m->invoke($ctrl, $event, EventArrivals::recent($this->eventId, 300)),
+        ];
     }
 
     /**

@@ -310,7 +310,7 @@
             <thead>
               <tr><th>Name</th><th>Audience</th><th>Reference &amp; guest code</th>
                   <th class="iv-num">Guests</th><th>Sent</th><th>Opened</th>
-                  <th class="iv-num">Scans</th><th></th></tr>
+                  <th>Arrived</th><th></th></tr>
             </thead>
             <tbody>
             {% for i in invites %}
@@ -322,7 +322,24 @@
                 <td>{% if i.sent_at %}<span class="ad-chip ad-chip--green">{{ i.sent_at|when }}</span>
                     {% else %}<span class="ad-chip ad-chip--grey">not yet</span>{% endif %}</td>
                 <td>{% if i.opened_at %}{{ i.opened_at|when }}{% else %}<span class="iv-mute">—</span>{% endif %}</td>
-                <td class="iv-num">{{ i.scans }}</td>
+                {# ── WHEN, AND THROUGH WHICH GATE ──────────────────────────
+                   This was the bare number `i.scans` and nothing else, while the row
+                   underneath it carried `last_scan_at` and `last_scan_via` — both written
+                   at every admission and rendered nowhere. So an organiser looking at
+                   their nominee list could see "3" and not when any of it happened or
+                   where, on the one screen that answers "did they come?".
+
+                   The gate matters as much as the time: `last_scan_via` exists because,
+                   as its migration put it, without it "the record of an evening says a
+                   volunteer's scan was nobody's" — and a ceremony with a main gate and a
+                   VIP door needs to know which one somebody walked through. #}
+                <td>
+                  {%- if i.scans %}
+                    <span class="ad-chip ad-chip--green">{{ i.last_scan_at ? i.last_scan_at|when : 'yes' }}</span>
+                    {%- if i.last_scan_via %}<br><span class="iv-who">{{ i.last_scan_via }}</span>{% endif %}
+                    {%- if i.scans > 1 %}<br><span class="iv-mute">{{ i.scans }} scans</span>{% endif %}
+                  {%- else %}<span class="iv-mute">—</span>{% endif -%}
+                </td>
                 <td><a href="/admin/events/{{ event.id }}/invites/{{ i.reference|url_encode }}/preview"
                        target="_blank" rel="noopener">Preview</a></td>
               </tr>

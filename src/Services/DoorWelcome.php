@@ -183,7 +183,7 @@ final class DoorWelcome
      * right on the night. Matched case-insensitively on the first name, because that is
      * what gets spoken.
      */
-    public static function saidAs(string $first): string
+    private static function saidAs(string $first): string
     {
         $map = self::dictionary();
         $key = mb_strtolower($first);

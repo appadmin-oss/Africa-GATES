@@ -2,6 +2,7 @@
 declare(strict_types=1);
 namespace AfricaGates\Services;
 
+use AfricaGates\Support\OptionalColumn;
 use Illuminate\Database\Capsule\Manager as DB;
 use Illuminate\Support\Carbon;
 
@@ -141,13 +142,22 @@ final class InvitePass
     }
 
     /** Count a real admission. One write, at the door, not per refresh. */
-    public static function touch(int $inviteId): void
+    public static function touch(int $inviteId, string $via = ''): void
     {
         try {
-            DB::table('gates_event_invites')->where('id', $inviteId)->update([
-                'scans'        => DB::raw('scans + 1'),
-                'last_scan_at' => Carbon::now()->toDateTimeString(),
-            ]);
+            DB::table('gates_event_invites')->where('id', $inviteId)->update(
+                OptionalColumn::filter('gates_event_invites', [
+                    'scans'         => DB::raw('scans + 1'),
+                    'last_scan_at'  => Carbon::now()->toDateTimeString(),
+                    // WHICH GATE, which is what the column was added for and what nothing
+                    // was passing. Its migration said it plainly — "guests of honour need
+                    // the same pair the ticket path has, for the same reason: without it
+                    // the record of an evening says a volunteer's scan was nobody's" — and
+                    // then the door called this with one argument. A promise in a migration
+                    // comment with no writer behind it is §19's bug exactly.
+                    'last_scan_via' => $via !== '' ? mb_substr($via, 0, 60) : null,
+                ], ['last_scan_at', 'last_scan_via'])
+            );
         } catch (\Throwable) {
             // A door that cannot write its counter must still open. The verdict above is
             // the decision; this is the tally.

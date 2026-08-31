@@ -920,7 +920,17 @@ class EventsController
             // It carries reversals too, which is why it is a log and not a column: setting
             // `checked_in_at` back to NULL would erase the fact that somebody was scanned in
             // at 19:42 and un-scanned at 19:43, and that is exactly what gets asked about.
-            'arrivals'    => \AfricaGates\Services\EventArrivals::recent($id, 300),
+            //
+            // ── AND EVERY TIME ON IT IS IN THE ROOM'S OWN CLOCK ──────────
+            //
+            // The rows were rendered with `|slice(11, 5)` over the stored string, and
+            // storage here is UTC by convention — so an admission at 19:42 in Lagos was
+            // printed as 18:42, on the record an organiser is meant to stand behind a week
+            // later. Slicing a datetime is not formatting it: it reads the storage
+            // convention out loud. The door had exactly this bug on its closing time; the
+            // office screen that reads the same log kept it.
+            'arrivals'    => $this->inTheRoomsClock($event,
+                \AfricaGates\Services\EventArrivals::recent($id, 300)),
             'room'        => \AfricaGates\Services\EventArrivals::summary($id),
             // ── REFUNDS ──────────────────────────────────────────────────
             //
@@ -930,7 +940,9 @@ class EventsController
             // this shows the two rows somebody has to do something about.
             'refunds'      => EventTicketService::refunds($id),
             'refund_tally' => EventTicketService::refundTally($id),
-            'attendees'  => EventTicketService::attendees($id, $status),
+            // Same treatment, same reason: the attendee list stamps an arrival too.
+            'attendees'  => $this->inTheRoomsClock($event,
+                EventTicketService::attendees($id, $status), 'checked_in_at', 'arrived'),
             'filter'     => $status,
             'hold_minutes' => EventTicketService::HOLD_MINUTES,
             // The queue, and the outstanding offers — two different things an organiser has
@@ -1219,6 +1231,65 @@ class EventsController
      *
      * @return list<array<string,mixed>>
      */
+    /**
+     * Stamp each row with its time in the EVENT'S own zone, and name the person behind an id.
+     *
+     * ── WHY THE TEMPLATE CANNOT DO THIS ──────────────────────────────────────
+     *
+     * It was doing it, with `|slice(11, 5)`, and that is the bug rather than a shortcut:
+     * storage is UTC by this application's convention, so slicing the stored string prints
+     * the convention rather than the time. A gala in Lagos showed every arrival an hour
+     * early on the one record an organiser is meant to stand behind. Twig's `|date` is
+     * pinned to the PLATFORM's display zone, which is right for a deadline and wrong for a
+     * room — a Nairobi gala is not read in Lagos hours.
+     *
+     * ── AND WHY THE ADMIN'S NAME, NOT THEIR NUMBER ───────────────────────────
+     *
+     * The log rendered "admin #7". Nobody knows who #7 is, least of all a week later when
+     * somebody is disputing an entry — which is the only moment this screen is read.
+     * `checked_in_by` on the registration row had never been rendered at all.
+     *
+     * @param list<array<string,mixed>> $rows
+     * @return list<array<string,mixed>>
+     */
+    private function inTheRoomsClock(?object $event, array $rows,
+                                     string $stamp = 'created_at', string $as = 'at'): array
+    {
+        if ($rows === []) return $rows;
+
+        // One query for every name on the page, not one per row: an evening with three
+        // hundred arrivals would otherwise be three hundred round trips to render a list.
+        $ids = [];
+        foreach ($rows as $r) {
+            foreach (['admin_id', 'checked_in_by'] as $k) {
+                if (!empty($r[$k])) $ids[(int) $r[$k]] = true;
+            }
+        }
+        $names = [];
+        if ($ids !== []) {
+            try {
+                $names = \Illuminate\Database\Capsule\Manager::table('gates_admins')
+                    ->whereIn('id', array_keys($ids))->pluck('name', 'id')
+                    ->map(static fn ($v) => (string) $v)->all();
+            } catch (\Throwable) { /* a list with no names still reads */ }
+        }
+
+        foreach ($rows as $i => $r) {
+            $at = trim((string) ($r[$stamp] ?? ''));
+            $rows[$i][$as . '_time'] = $at !== ''
+                ? \AfricaGates\Support\EventTime::at($event, $at, 'H:i') : '';
+            $rows[$i][$as . '_date'] = $at !== ''
+                ? \AfricaGates\Support\EventTime::at($event, $at, 'j M') : '';
+            $rows[$i][$as . '_zone'] = $at !== ''
+                ? \AfricaGates\Support\EventTime::abbr($event, $at) : '';
+
+            $by = (int) ($r['admin_id'] ?? $r['checked_in_by'] ?? 0);
+            $rows[$i]['by_name'] = $by > 0 ? ($names[$by] ?? ('admin #' . $by)) : '';
+        }
+
+        return $rows;
+    }
+
     private function outstandingOffers(int $eventId): array
     {
         try {

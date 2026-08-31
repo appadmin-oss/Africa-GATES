@@ -1331,7 +1331,11 @@ final class EventTicketService
         // The seats admitted THIS time, not the ticket's size: an arrivals log that recorded
         // four every time two of a party walked in would count eight people into a room
         // holding four.
-        EventArrivals::admitted($reg, $by, $adminId, $take);
+        // WITH THE MOMENT IT HAPPENED. `$now` is the clamped stamp the caller sent, so a
+        // scan taken at 19:05 while the line was down is logged at 19:05 and not at
+        // whenever the wifi came back — the ticket row already had this right, and the
+        // durable record, which is the one an organiser stands behind, did not.
+        EventArrivals::admitted($reg, $by, $adminId, $take, $now);
 
         $nowIn = $inAlready + $take;
 

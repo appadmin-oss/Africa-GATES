@@ -457,8 +457,13 @@
       <tbody>
         {% for r in arrivals %}
           <tr>
-            <td style="color:#67797b;white-space:nowrap">{{ r.created_at|slice(11, 5) }}<br>
-              <span class="tx-mini">{{ r.created_at|slice(0, 10) }}</span></td>
+            {# THE ROOM'S OWN CLOCK. This was `|slice(11, 5)` over the stored string, and
+               storage is UTC — so an admission at 19:42 in Lagos printed as 18:42, on the
+               one record an organiser is meant to stand behind a week later. Resolved in the
+               controller against the EVENT's zone, because Twig's `|date` is pinned to the
+               platform's display zone and a Nairobi gala is not read in Lagos hours. #}
+            <td style="color:#67797b;white-space:nowrap">{{ r.at_time }}<br>
+              <span class="tx-mini">{{ r.at_date }} {{ r.at_zone }}</span></td>
             <td>{{ r.who ?: '—' }}
               {%- if r.invite_id %}<br><span class="tx-mini">guest of honour</span>{% endif %}</td>
             <td>
@@ -466,7 +471,9 @@
                 {%- if r.reason %}<br><span class="tx-mini">{{ r.reason }}</span>{% endif %}
               {% else %}<span class="tx-tag tx-tag--ok">admitted</span>{% endif %}
             </td>
-            <td>{{ r.via ?: '—' }}{% if r.admin_id %}<br><span class="tx-mini">admin #{{ r.admin_id }}</span>{% endif %}</td>
+            {# The NAME, not the number. "admin #7" is unreadable a week later, which is
+               the only moment this list is opened. #}
+            <td>{{ r.via ?: '—' }}{% if r.by_name %}<br><span class="tx-mini">{{ r.by_name }}</span>{% endif %}</td>
             <td>{{ r.seats }}</td>
           </tr>
         {% endfor %}
@@ -650,13 +657,18 @@
               {% elseif a.status == 'waitlisted' %}<span class="tx-tag tx-tag--wait">waiting</span>
               {% elseif a.status == 'cancelled' %}<span class="tx-tag tx-tag--no">cancelled</span>
               {% else %}<span class="tx-tag">{{ a.status|default('—') }}</span>{% endif %}
-              {# WHICH door, not just that they arrived. `checked_in_via` has been written
-                 since the scan-pass migration and read by nothing until now — and it is the
-                 only answer to "who admitted this person?", which is the question asked
-                 after a disputed entry. #}
+              {# WHICH door and WHO, not just that they arrived — the two questions asked
+                 after a disputed entry. `checked_in_via` had been written since the
+                 scan-pass migration and read by nothing; `checked_in_by` had never been
+                 rendered at all, so the person who admitted somebody was recorded on the
+                 row and shown on no screen.
+
+                 The time is the event's, not the storage convention's: this said
+                 `|slice(11, 5)` and printed a Lagos arrival an hour early. #}
               {% if a.checked_in_at %}<br><span class="tx-tag tx-tag--ok">arrived
-                {{- a.checked_in_at ? ' ' ~ a.checked_in_at|slice(11, 5) : '' }}</span>
+                {{- a.arrived_time ? ' ' ~ a.arrived_time : '' }}</span>
                 {%- if a.checked_in_via %}<br><span class="tx-mini">{{ a.checked_in_via }}</span>{% endif %}
+                {%- if a.by_name %}<br><span class="tx-mini">by {{ a.by_name }}</span>{% endif %}
               {% endif %}
             </td>
             <td style="color:#67797b">{{ a.created_at }}</td>

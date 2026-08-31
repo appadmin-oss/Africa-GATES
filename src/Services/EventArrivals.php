@@ -53,12 +53,30 @@ final class EventArrivals
      * Never throws and never blocks the door: the verdict is the decision, this is the
      * record of it, and a log that could refuse an admission would be worse than no log.
      */
-    private static function append(array $row): void
+    /**
+     * @param string $at WHEN IT HAPPENED, not when this row was written.
+     *
+     * ── WHY THAT DISTINCTION IS THE POINT OF THE PARAMETER ───────────────────
+     *
+     * The door records scans while the line is down and flushes them when it comes back.
+     * The moment of each scan travels with it — that is the whole design — and lands
+     * correctly on the ticket's own `checked_in_at`. This log stamped `now()`
+     * unconditionally, so a batch flushed at 21:00 wrote 21:00 against forty people who
+     * walked in at 19:05, and the two records of one evening disagreed.
+     *
+     * That is the worse half of the pair: the log is the durable record an organiser
+     * stands behind a week later, when somebody disputes being turned away.
+     *
+     * Already clamped by the caller — see EventTicketService::stampFor(), which refuses a
+     * future stamp and anything more than twelve hours old. A door has the authority to
+     * admit; it must not have the authority to write history.
+     */
+    private static function append(array $row, string $at = ''): void
     {
         if (!self::ready()) return;
         try {
             DB::table('gates_event_checkin_log')->insert($row + [
-                'created_at' => Carbon::now()->toDateTimeString(),
+                'created_at' => $at !== '' ? $at : Carbon::now()->toDateTimeString(),
             ]);
         } catch (\Throwable $e) {
             error_log('[arrivals] could not log: ' . $e->getMessage());
@@ -73,7 +91,8 @@ final class EventArrivals
      *                   ticket's full size on each would count eight people into a room
      *                   holding four.
      */
-    public static function admitted(object $reg, string $via, ?int $adminId = null, int $seats = 0): void
+    public static function admitted(object $reg, string $via, ?int $adminId = null,
+                                    int $seats = 0, string $at = ''): void
     {
         self::append([
             'event_id'        => (int) $reg->event_id,
@@ -89,11 +108,11 @@ final class EventArrivals
             'via'             => mb_substr($via !== '' ? $via : self::VIA_UNKNOWN, 0, 60),
             'admin_id'        => $adminId ?: null,
             'reason'          => null,
-        ]);
+        ], $at);
     }
 
     /** A guest of honour came through. One person: their guests buy ordinary tickets. */
-    public static function honoured(object $invite, string $via): void
+    public static function honoured(object $invite, string $via, string $at = ''): void
     {
         self::append([
             'event_id'        => (int) $invite->event_id,
@@ -105,7 +124,7 @@ final class EventArrivals
             'via'             => mb_substr($via !== '' ? $via : self::VIA_UNKNOWN, 0, 60),
             'admin_id'        => null,
             'reason'          => null,
-        ]);
+        ], $at);
     }
 
     /** An admission was taken back. The reason is required and is the point of the row. */
@@ -239,20 +258,19 @@ final class EventArrivals
         }
     }
 
-    /** Was this admission reversed at some point? Drives the "taken back" tag on the list. */
-    public static function reversalsFor(int $eventId): array
-    {
-        if (!self::ready()) return [];
-        try {
-            return DB::table('gates_event_checkin_log')
-                ->where('event_id', $eventId)->where('action', 'undo')
-                ->whereNotNull('registration_id')
-                ->pluck('reason', 'registration_id')
-                ->map(fn ($v) => (string) $v)->all();
-        } catch (\Throwable) {
-            return [];
-        }
-    }
+    // ── reversalsFor() WAS HERE, AND ITS DOCBLOCK WAS NOT TRUE ───────────────
+    //
+    // It said it "drives the 'taken back' tag on the list". It did not: the tag comes off
+    // `action == 'undo'` in the rows {@see recent()} already returns, and it has since the
+    // log was written. So this was a SECOND resolver for a question the first one answers —
+    // and this codebase has one rule about that, learned from GoogleSheetsService sharing
+    // the calendar's setting: two readers of one fact is how the halves of a feature come to
+    // disagree about it. A method whose own docblock describes a screen it does not reach is
+    // §20's bug exactly, and the fix for a duplicate is deletion, not a caller.
+    //
+    // Left as a note rather than removed silently, because the next person to want a
+    // per-admission reversal tag should know the data is already in recent() rather than
+    // write this again.
 
     /** Housekeeping: a log older than the dispute window is of no interest to anybody. */
     public static function prune(int $graceDays = 400): int

@@ -545,7 +545,7 @@ final class DoorController
         $spec = InviteAudience::spec((string) $invite->audience);
         $seen = (int) $invite->scans;
 
-        InvitePass::touch((int) $invite->id);
+        InvitePass::touch((int) $invite->id, $via);
         // Into the arrivals log as well as the invite's own counter, so the record of who was
         // in the room is one list rather than two tables an organiser has to join by hand.
         EventArrivals::honoured($invite, $via);
