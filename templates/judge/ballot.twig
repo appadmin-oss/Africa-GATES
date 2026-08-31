@@ -6,7 +6,11 @@
    a full reload). The payload is parsed from the JSON island below. #}
 <script nonce="{{ csp_nonce }}" id="ballotData" type="application/json">{ "criteria": {{ ballot.criteria|json_encode(JSON_SAFE)|raw }}, "nominees": {{ ballot.categories|json_encode(JSON_SAFE)|raw }}, "judgingOpen": {{ ballot.judging_open ? 'true' : 'false' }}, "lockReason": {{ ballot.lock_reason|default('')|json_encode(JSON_SAFE)|raw }} }</script>
 
-<div x-data="ballotApp(JSON.parse(document.getElementById('ballotData').textContent))">
+{# The key handler is bound at the WINDOW, not on the queue: a judge reading the dossier
+   has focus somewhere in the panel, and shortcuts that only worked while the list itself
+   was focused would be shortcuts nobody could reach. `key()` does the guarding. #}
+<div x-data="ballotApp(JSON.parse(document.getElementById('ballotData').textContent))"
+     @keydown.window="key($event)">
 
 {# ── Progress strip ── #}
 <div class="jc-strip">
@@ -90,21 +94,74 @@
 
     <div class="jc-grid" x-show="queue.length">
       {# ── Queue ── #}
+      {#
+        ── FINDING ONE NOMINEE AMONG FORTY ─────────────────────────────────────
+        This was a flat scroll with no search, no filter and no keyboard path. A
+        panel of forty is a judge scrolling a list to find the person whose evidence
+        they were reading yesterday, and a judge resuming work has exactly one
+        question — "what have I not done?" — that the list could not answer.
+
+        Three things, in the order a judge needs them:
+          · WHAT IS LEFT. The default view, because that is the resuming question.
+          · SEARCH, matching name, category and country, so a half-remembered
+            surname or "the entry from Kenya" both land.
+          · THE KEYBOARD. This is a daily-use expert tool, not a consumer flow:
+            j/k move, n jumps to the next unscored. Bound so they never fire while
+            somebody is typing a note.
+      #}
       <aside class="jc-queue">
         <div class="jc-queue__card">
           <div class="jc-queue__head">Nominees</div>
+
+          <div class="jc-find">
+            <label class="sr-only" for="jcFind">Search nominees by name, category or country</label>
+            <input id="jcFind" class="jc-find__in" type="search" x-model="q"
+                   autocomplete="off" spellcheck="false"
+                   placeholder="Search name, category, country"
+                   @keydown.escape="q = ''">
+
+            {# Segmented, not a dropdown: three options that are each one tap, and the
+               count on each is the answer to "how much is left" without opening anything.
+               `todo` first and selected by default — see the note above. #}
+            <div class="jc-seg" role="group" aria-label="Which nominees to show">
+              <template x-for="o in [{k:'todo',l:'To score'},{k:'done',l:'Scored'},{k:'all',l:'All'}]" :key="o.k">
+                <button type="button" class="jc-seg__b" :class="only===o.k && 'is-on'"
+                        :aria-pressed="only===o.k ? 'true' : 'false'"
+                        @click="only = o.k"
+                        x-text="o.l + ' (' + countOf(o.k) + ')'"></button>
+              </template>
+            </div>
+          </div>
+
+          {# The filtered list is a live region. A list that silently empties under a
+             search is a dead end for anybody not watching it, and the count is the
+             cheapest possible fix. #}
+          <p class="jc-find__n" role="status" aria-live="polite" x-text="shownLabel"></p>
+
           <div class="jc-scroll">
-            <template x-for="(n, i) in queue" :key="n.id">
+            <template x-for="i in shown" :key="queue[i].id">
               <button type="button" class="jc-qrow" :class="active===i && 'is-active'" @click="pick(i)">
-                <span class="jc-qrow__av" x-text="(n.name||'?').charAt(0).toUpperCase()"></span>
+                <span class="jc-qrow__av" x-text="(queue[i].name||'?').charAt(0).toUpperCase()"></span>
                 <span class="jc-qrow__who">
-                  <span class="jc-qrow__name" x-text="flag(n.country_code) + ' ' + n.name"></span>
-                  <span class="jc-qrow__status" x-text="n.complete ? ('Scored · ' + n.avg.toFixed(1)) : 'Awaiting score'"></span>
+                  <span class="jc-qrow__name" x-text="flag(queue[i].country_code) + ' ' + queue[i].name"></span>
+                  <span class="jc-qrow__status" x-text="queue[i].complete ? ('Scored · ' + queue[i].avg.toFixed(1)) : 'Awaiting score'"></span>
                 </span>
-                <svg class="jc-qrow__tick" :style="n.complete ? 'color:#237b22' : 'color:#dbe3dd'" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+                <svg class="jc-qrow__tick" :style="queue[i].complete ? 'color:#237b22' : 'color:#dbe3dd'" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
               </button>
             </template>
+
+            {# An empty RESULT is not an empty LIST, and they must not look alike: one
+               means "try another word", the other means "there is nothing here". #}
+            <p class="jc-find__none" x-show="!shown.length" x-cloak>
+              <span x-show="q">Nothing matches &ldquo;<span x-text="q"></span>&rdquo;.</span>
+              <span x-show="!q && only==='todo'">Every nominee on this panel has been scored.</span>
+              <span x-show="!q && only==='done'">Nothing scored on this panel yet.</span>
+            </p>
           </div>
+
+          <p class="jc-find__kb">
+            <kbd>j</kbd>/<kbd>k</kbd> move · <kbd>n</kbd> next unscored
+          </p>
         </div>
       </aside>
 
@@ -768,7 +825,34 @@
   .jd-conflict__ta:focus{ border-color:#d49a0e; }
   .jd-conflict__ta:focus-visible{ outline:3px solid #d49a0e; outline-offset:2px; }
 
-  @media (max-width:860px){ .jc-grid{ grid-template-columns:1fr; } .jc-queue{ position:static; } .jc-scroll{ max-height:280px; } }
+  /* ── The finder ──────────────────────────────────────────────────────────
+     16px on the input, or iOS zooms the page on focus and a judge loses the panel
+     they were reading. 44px minimum on every control here: this is used on a laptop
+     but also on a tablet on a lap, and the segment buttons sit close together. */
+  .jc-find{ padding:10px 12px 0; display:flex; flex-direction:column; gap:8px }
+  .jc-find__in{ width:100%; box-sizing:border-box; min-height:44px; font:inherit; font-size:16px;
+    padding:10px 12px; border:1.5px solid #dbe3dd; border-radius:10px; background:#fff; color:#10292C }
+  .jc-find__in:focus-visible{ outline:3px solid #237b22; outline-offset:1px; border-color:#237b22 }
+
+  .jc-seg{ display:flex; gap:6px }
+  .jc-seg__b{ flex:1; min-height:44px; padding:6px 4px; cursor:pointer; font:inherit; font-size:12px;
+    font-weight:600; border:1.5px solid #dbe3dd; border-radius:9px; background:#fff; color:#5a6d6f }
+  /* The selected segment carries WEIGHT and a border as well as colour — colour alone
+     fails 1.4.1 and this is three near-identical buttons in a row. */
+  .jc-seg__b.is-on{ border-color:#237b22; color:#14531a; background:#eaf7ec; font-weight:700 }
+  .jc-seg__b:focus-visible{ outline:3px solid #237b22; outline-offset:2px }
+
+  .jc-find__n{ margin:8px 12px 0; font-size:11.5px; color:#5a6d6f }
+  .jc-find__none{ margin:14px 12px; font-size:13px; line-height:1.6; color:#5a6d6f }
+  .jc-find__kb{ margin:0; padding:9px 12px 11px; font-size:11px; color:#7d8f90;
+    border-top:1px solid #eef3f2 }
+  .jc-find__kb kbd{ font:inherit; font-family:ui-monospace,monospace; background:#f0f3f2;
+    border:1px solid #dbe3dd; border-radius:4px; padding:1px 4px; color:#39464a }
+
+  @media (max-width:860px){ .jc-grid{ grid-template-columns:1fr; } .jc-queue{ position:static; } .jc-scroll{ max-height:280px; }
+    /* The keyboard hint is a lie on a phone, so it goes rather than sitting there
+       telling somebody with no keyboard what to press. */
+    .jc-find__kb{ display:none } }
 </style>
 <script nonce="{{ csp_nonce }}">
 function ballotApp(initial){
@@ -781,10 +865,96 @@ function ballotApp(initial){
     criteria: crit,
     queue: queue,
     active: 0,
+
+    // ── FINDING ONE AMONG FORTY ──────────────────────────────────────────
+    // `q` is the search, `only` the segment. Both filter a VIEW; `active` stays an
+    // index into `queue` itself, deliberately. Filtering the array instead would
+    // renumber every index under a judge mid-score and save a note against the
+    // wrong person — the worst bug this screen could have.
+    q: '',
+    only: 'todo',
     _timers: {},
     locked: initial.judgingOpen === false,
     lockReason: initial.lockReason || '',
     get cur(){ return this.queue[this.active] || null; },
+
+    // Indices into `queue`, in queue order, that match the search and the segment.
+    get shown(){
+      var q = (this.q || '').trim().toLowerCase();
+      var only = this.only, out = [];
+      for (var i = 0; i < this.queue.length; i++) {
+        var n = this.queue[i];
+        if (only === 'todo' && n.complete) continue;
+        if (only === 'done' && !n.complete) continue;
+        if (q) {
+          // Name, category and country together: a judge remembers "the entry from
+          // Kenya" as readily as half a surname, and making them pick a field first
+          // is a question the screen can answer itself.
+          var hay = ((n.name || '') + ' ' + (n.category || '') + ' ' + (n.country_code || '')).toLowerCase();
+          if (hay.indexOf(q) === -1) continue;
+        }
+        out.push(i);
+      }
+      return out;
+    },
+
+    countOf(k){
+      if (k === 'all') return this.queue.length;
+      var done = k === 'done';
+      return this.queue.filter(function(n){ return !!n.complete === done; }).length;
+    },
+
+    get shownLabel(){
+      var n = this.shown.length;
+      if (!this.q && this.only === 'all') return n + (n === 1 ? ' nominee' : ' nominees');
+      return n + ' of ' + this.queue.length + ' shown';
+    },
+
+    /**
+     * The next nominee with no score, wrapping from wherever the judge is.
+     *
+     * The single most useful move on this screen: somebody coming back to a panel is
+     * asking "where was I", and scrolling a list to work it out is the friction the
+     * search was added to remove.
+     */
+    nextTodo(){
+      var n = this.queue.length;
+      for (var s = 1; s <= n; s++) {
+        var i = (this.active + s) % n;
+        if (!this.queue[i].complete) { this.pick(i); return true; }
+      }
+      return false;
+    },
+
+    /** Move within what is currently SHOWN, so the keyboard agrees with the eye. */
+    step(d){
+      var v = this.shown;
+      if (!v.length) return;
+      var at = v.indexOf(this.active);
+      // Not in the filtered view (the judge just filtered away the person they are
+      // scoring): step to the nearest end rather than jumping somewhere arbitrary.
+      if (at === -1) { this.pick(d > 0 ? v[0] : v[v.length - 1]); return; }
+      this.pick(v[Math.min(v.length - 1, Math.max(0, at + d))]);
+    },
+
+    /**
+     * Keys, and the guard that makes them safe.
+     *
+     * A judge on this screen is typing notes and conflict declarations. A bare `j`
+     * binding that fired inside a textarea would move the panel mid-sentence and lose
+     * the sentence — so anything typed into a field, and anything with a modifier
+     * held, is left alone.
+     */
+    key(e){
+      if (e.metaKey || e.ctrlKey || e.altKey) return;
+      var t = e.target || {};
+      var tag = (t.tagName || '').toLowerCase();
+      if (tag === 'input' || tag === 'textarea' || tag === 'select' || t.isContentEditable) return;
+
+      if (e.key === 'j') { e.preventDefault(); this.step(1); }
+      else if (e.key === 'k') { e.preventDefault(); this.step(-1); }
+      else if (e.key === 'n') { e.preventDefault(); this.nextTodo(); }
+    },
     get scoredCount(){ return this.queue.filter(function(n){ return n.complete; }).length; },
     get totalCount(){ return this.queue.length; },
     get progressPct(){ return this.totalCount > 0 ? Math.round(this.scoredCount / this.totalCount * 100) : 0; },
