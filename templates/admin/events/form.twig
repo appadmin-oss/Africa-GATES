@@ -256,12 +256,28 @@
         </fieldset>
         {% endif %}
       </div>
+      {# ── THE EVENT'S OWN CLOCK ─────────────────────────────────────────────
+         The zone sits WITH the times rather than in a settings screen, and it is read
+         back into the two fields beside it: an event is a room in a city at a wall-clock
+         time, and the only hour that matters is the one on the clock in that room.
+
+         `|event_input` rather than `|when_input`, so a Nairobi gala is shown and typed
+         in Nairobi. Blank means the platform's own zone, which is what every event
+         before this field had — so nothing an organiser has already saved moves. #}
       <div class="row">
         <label>Starts <span class="af-req" title="Required">*</span>
-          <input type="datetime-local" name="event_date" value="{{ row.event_date|when_input }}" required step="1"></label>
+          <input type="datetime-local" name="event_date" value="{{ event_input(row, row.event_date|default('')) }}" required step="1"></label>
         <label>Ends <span class="af-opt">optional</span>
-          <input type="datetime-local" name="end_date" value="{{ row.end_date|when_input }}" step="1"></label>
+          <input type="datetime-local" name="end_date" value="{{ event_input(row, row.end_date|default('')) }}" step="1"></label>
       </div>
+      <label for="evTz">Timezone <span class="af-opt">the clock at the venue — leave as the default unless the event is somewhere else</span>
+        <select name="timezone" id="evTz">
+          <option value="">Platform default — {{ tz_abbr() }}</option>
+          {% for z in tz_choices %}
+            <option value="{{ z }}"{{ (row.timezone|default('')) == z ? ' selected' : '' }}>{{ z }}</option>
+          {% endfor %}
+        </select>
+      </label>
       <div class="row">
         <label>Town or city <span class="af-opt">optional</span>
           <input type="text" name="location" value="{{ row.location|default('') }}" placeholder="Lagos · Nigeria"></label>

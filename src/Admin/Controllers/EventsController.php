@@ -129,6 +129,10 @@ class EventsController
             // The live rate, so the checkbox beside it states the real number rather than
             // a hardcoded "10%" that would start lying the day an admin changes it.
             'referral_rate_pct' => \AfricaGates\Services\ReferralService::ratePct(),
+            // The zones an event can be held in. Africa in full plus the handful of
+            // places this platform's diaspora events actually run — the same list the
+            // platform's own timezone setting offers, because two lists would drift.
+            'tz_choices' => \AfricaGates\Support\DisplayTime::choices(),
             'sched_seed' => $schedSeed,
             'tier_seed'  => $tierSeed,
             // ── THE TIER COLOUR PICKER ───────────────────────────────────────
@@ -222,6 +226,12 @@ class EventsController
             $schedule[] = ['time' => mb_substr(trim((string)($sTime[$i] ?? '')), 0, 40), 'title' => mb_substr($title, 0, 160), 'body' => mb_substr(trim((string)($sBody[$i] ?? '')), 0, 300)];
         }
 
+        // Validated against the real tz database, never stored as typed: an invalid
+        // identifier here would make every date on this event's pages throw. Blank means
+        // "the platform's zone", which is what every event before this column had.
+        $tz = trim((string) ($b['timezone'] ?? ''));
+        if ($tz !== '' && !\AfricaGates\Support\Clock::isValid($tz)) $tz = '';
+
         $data = [
             'slug'        => trim($slug, '-'),
             'title'       => trim((string)($b['title'] ?? '')),
@@ -229,11 +239,21 @@ class EventsController
             'description' => trim((string)($b['description'] ?? '')),
             'location'    => trim((string)($b['location'] ?? '')),
             'venue'       => trim((string)($b['venue'] ?? '')),
-            // Through fromInput() like every other datetime on this form. These three
-            // read the raw POST while the tier and session dates beside them were
-            // converted — the same form, two conventions, one of them an hour out.
-            'event_date'  => (string)(self::fromInput($b['event_date'] ?? '') ?: Carbon::now()->toDateTimeString()),
-            'end_date'    => self::fromInput($b['end_date'] ?? ''),
+            // ── READ AS THE EVENT'S OWN WALL CLOCK ───────────────────────
+            //
+            // An organiser setting a Nairobi gala to 19:00 means 19:00 in Nairobi.
+            // Interpreting that in the platform's zone — which is what every other
+            // datetime on this form correctly does, because a deadline IS platform-wide —
+            // would start the evening an hour out for everybody holding a ticket.
+            //
+            // `$tz` is read from the POST rather than the stored row, so a zone and the
+            // times typed beside it are saved in the same breath: changing an event from
+            // Lagos to Nairobi and its start to 19:00 in one save must mean 19:00 Nairobi,
+            // not 19:00 Lagos reinterpreted afterwards.
+            'timezone'    => $tz,
+            'event_date'  => (string)(\AfricaGates\Support\EventTime::toStored(['timezone' => $tz], (string)($b['event_date'] ?? ''))
+                                      ?: Carbon::now()->toDateTimeString()),
+            'end_date'    => \AfricaGates\Support\EventTime::toStored(['timezone' => $tz], (string)($b['end_date'] ?? '')),
             'cover_image' => trim((string)($b['cover_image'] ?? '')),
             'rsvp_url'    => trim((string)($b['rsvp_url'] ?? '')),
             'status'      => in_array($b['status'] ?? '', ['published','draft'], true) ? $b['status'] : 'draft',

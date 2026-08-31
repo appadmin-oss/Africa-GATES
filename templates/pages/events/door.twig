@@ -3,6 +3,12 @@
 {#
   THE DOOR.
 
+  EVERY TIME ON THIS PAGE IS PRE-FORMATTED BY THE CONTROLLER, in the EVENT's own zone.
+  These were `|slice(11, 5)` over the stored string — and storage is UTC by this
+  application's convention, so a gate closing at 23:00 in Lagos told its steward it
+  closed at 22:00. Slicing a datetime is not formatting it; it is reading the storage
+  convention out loud.
+
   Used one-handed, outdoors, at night, by somebody who has never seen it before, with a queue
   behind them. Three rules drive every choice here:
 
@@ -180,9 +186,9 @@
     <b>Door closed</b>
     <span class="dr__sub">{{ message }}</span>
     {% if reason == 'early' and opens_at %}
-      <span class="dr__sub">It opens at <strong>{{ opens_at|slice(0, 16)|replace({'-': '/'}) }}</strong>.</span>
+      <span class="dr__sub">It opens at <strong>{{ opens_at }}</strong>.</span>
     {% elseif reason == 'expired' and closes_at %}
-      <span class="dr__sub">It closed at <strong>{{ closes_at|slice(0, 16)|replace({'-': '/'}) }}</strong>.</span>
+      <span class="dr__sub">It closed at <strong>{{ closes_at }}</strong>.</span>
     {% endif %}
   </div>
   <p class="dr__note">Ask whoever sent you this link for a new one. Nothing you scan here will
@@ -192,7 +198,7 @@
   <div class="dr__head">
     <div>
       <p class="dr__ev">{{ event.title }}</p>
-      <span class="dr__gate">{{ label ?: 'Door' }} · closes {{ closes_at|slice(11, 5) }}</span>
+      <span class="dr__gate">{{ label ?: 'Door' }} · closes {{ closes_short }}</span>
     </div>
     <span class="dr__count" id="drCount" aria-live="polite">{{ admitted }} in{% if expected %} / {{ expected }}{% endif %}</span>
   </div>
@@ -249,7 +255,7 @@
 
   <p class="dr__note" id="drHelp">
     Codes are not case sensitive. This link works until
-    <strong>{{ closes_at|slice(0, 16)|replace({'-': '/'}) }}</strong> and then stops by itself —
+    <strong>{{ closes_at }}</strong> and then stops by itself —
     it cannot be used for any other event, and it cannot show you the guest list.
   </p>
 {% endif %}

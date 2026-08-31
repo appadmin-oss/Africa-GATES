@@ -5,6 +5,7 @@ namespace AfricaGates\Controllers;
 
 use AfricaGates\Services\{DoorWelcome, EventArrivals, EventScanPass, EventTicketService,
                           InviteAudience, InvitePass, RateLimitService};
+use AfricaGates\Support\EventTime;
 use Illuminate\Database\Capsule\Manager as DB;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
@@ -131,13 +132,23 @@ final class DoorController
 
         if (!$r['ok']) {
             $pass = $r['pass'];
+            // A refused pass still knows which event it belongs to, so its times can be
+            // shown in that event's zone rather than in the platform's.
+            $ev = $pass !== null ? self::eventOfPass($pass) : null;
             return $this->view->render($res->withStatus(403), 'pages/events/door.twig', $common + [
                 'ok'      => false,
                 'reason'  => $r['reason'],
                 'message' => $r['message'],
                 // The times, when we know them — that is what makes the refusal actionable.
-                'opens_at'  => $pass !== null ? (string) ($pass->opens_at ?? '') : '',
-                'closes_at' => $pass !== null ? (string) ($pass->closes_at ?? '') : '',
+                //
+                // Formatted HERE, in the event's own zone. They were sliced out of the
+                // stored string in the template, and storage is UTC by this application's
+                // convention — so a gate that closed at 23:00 in Lagos told the person
+                // holding the phone it had closed at 22:00, an hour before it did.
+                'opens_at'  => $pass !== null
+                    ? EventTime::zoned($ev, (string) ($pass->opens_at ?? ''), 'j M, H:i') : '',
+                'closes_at' => $pass !== null
+                    ? EventTime::zoned($ev, (string) ($pass->closes_at ?? ''), 'j M, H:i') : '',
                 'event'   => null, 'token' => '', 'label' => '',
             ])->withHeader('X-Robots-Tag', 'noindex, nofollow');
         }
@@ -152,8 +163,12 @@ final class DoorController
             'reason'    => '', 'message' => '',
             'event'     => (array) $r['event'],
             'label'     => (string) ($r['pass']->label ?? ''),
-            'closes_at' => (string) $r['pass']->closes_at,
-            'opens_at'  => (string) ($r['pass']->opens_at ?? ''),
+            'closes_at'    => EventTime::zoned($r['event'], (string) $r['pass']->closes_at, 'j M, H:i'),
+            'opens_at'     => EventTime::zoned($r['event'], (string) ($r['pass']->opens_at ?? ''), 'j M, H:i'),
+            // The header wants the clock alone: the zone is already stated in the note
+            // further down, and repeating it in a line that has to fit on a phone costs
+            // the gate label its room.
+            'closes_short' => EventTime::at($r['event'], (string) $r['pass']->closes_at, 'H:i'),
             'token'     => $token,
             // The room, so somebody on the door knows whether they are near the end.
             'admitted'  => $this->admitted((int) $r['event']->id),
@@ -534,6 +549,16 @@ final class DoorController
                 DoorWelcome::honourLine((string) $invite->name,
                                         strtolower((string) ($spec['one'] ?? '')))),
         ];
+    }
+
+    /** The event a pass belongs to, for its zone. Null is a working answer — see EventTime. */
+    private static function eventOfPass(object $pass): ?object
+    {
+        try {
+            return DB::table('gates_site_events')->where('id', (int) $pass->event_id)->first();
+        } catch (\Throwable) {
+            return null;
+        }
     }
 
     /**

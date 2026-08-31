@@ -760,8 +760,8 @@
       <span class="ed-hero__badge">{{ is_past ? 'Past event' : 'Upcoming' }} · {{ event.event_date|date('Y') }}</span>
       <h1 class="ed-hero__title">{{ event.title }}</h1>
       <div class="ed-hero__meta">
-        <span><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#7FC87C" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>{{ event.event_date|date('j F Y') }}</span>
-        <span><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#7FC87C" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>{{ event.event_date|date('H:i') }}{% if event.end_date %}–{{ event.end_date|date('H:i') }}{% endif %} WAT</span>
+        <span><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#7FC87C" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>{{ event_at(event, event.event_date, 'j F Y') }}</span>
+        <span><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#7FC87C" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>{{ event_at(event, event.event_date, 'H:i') }}{% if event.end_date %}–{{ event_at(event, event.end_date, 'H:i') }}{% endif %} {{ event_tz(event, event.event_date) }}</span>
         {% if event.location or event.venue %}<span><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#7FC87C" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg>{{ event.venue|default(event.location) }}</span>{% endif %}
       </div>
     </div>

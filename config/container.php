@@ -277,6 +277,32 @@ return [
             'tz_abbr',
             [\AfricaGates\Support\DisplayTime::class, 'abbr']
         ));
+        // ── AN EVENT'S OWN CLOCK ─────────────────────────────────────────────
+        //
+        // `|when` and `|date` both render in the PLATFORM's zone, which is right for a
+        // deadline and wrong for a room: a Nairobi gala's start time is 19:00 in Nairobi
+        // whatever a settings screen in Lagos says. These three take the event and read
+        // its own zone, falling back to the platform's — so every event saved before the
+        // column existed reads exactly as it did.
+        //
+        // `event_when` returns the time WITH its zone letters, and that is the shape on
+        // purpose: the event page used to print the time from one source and "WAT" typed
+        // by hand beside it, which states a wrong hour with a confident label the moment
+        // either assumption stops holding.
+        foreach ([
+            'event_when'  => 'zoned',      // the time and its zone, for anything a guest reads
+            'event_at'    => 'at',         // the time alone, where the label is elsewhere on screen
+            'event_input' => 'forInput',   // a datetime-local value in the event's zone
+        ] as $name => $method) {
+            $twig->getEnvironment()->addFunction(new \Twig\TwigFunction(
+                $name,
+                [\AfricaGates\Support\EventTime::class, $method]
+            ));
+        }
+        $twig->getEnvironment()->addFunction(new \Twig\TwigFunction(
+            'event_tz',
+            [\AfricaGates\Support\EventTime::class, 'abbr']
+        ));
         $twig->getEnvironment()->addFunction(new \Twig\TwigFunction(
             'asset',
             [\AfricaGates\Support\Assets::class, 'url']
