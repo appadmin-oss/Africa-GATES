@@ -258,7 +258,12 @@ final class DoorController
             ]);
         }
 
-        $v = EventTicketService::checkIn($code, (int) $pass->event_id, $this->via($pass));
+        // How many of the party are standing there. 0 — the default and what a single-seat
+        // ticket always sends — means "everyone still to come on this ticket".
+        $want = max(0, (int) ($body['seats'] ?? 0));
+
+        $v = EventTicketService::checkIn($code, (int) $pass->event_id, $this->via($pass),
+                                         null, '', $want);
 
         EventScanPass::touch((int) $pass->id);
 
@@ -270,6 +275,10 @@ final class DoorController
             'name'     => $v['name'],
             'tier'     => $v['tier'],
             'seats'    => $v['seats'],
+            // The three the panel needs to offer a split, and to show one afterwards.
+            'seats_in'     => $v['seats_in'] ?? 0,
+            'seats_left'   => $v['seats_left'] ?? 0,
+            'admitted_now' => $v['admitted_now'] ?? 0,
             'code'     => $v['code'],
             // A key, never audio, and never a synthesis call. The clip was rendered hours
             // ago by the sweep; this is a filename lookup, so the greeting costs the queue
@@ -350,7 +359,7 @@ final class DoorController
 
             $v = EventTicketService::checkIn(
                 $code, (int) $pass->event_id, $this->via($pass) . ' (offline)',
-                null, (string) ($item['at'] ?? ''));
+                null, (string) ($item['at'] ?? ''), max(0, (int) ($item['seats'] ?? 0)));
 
             // Every item answered, in the order it was sent, so the page can retire exactly
             // the ones that landed. A flush that reported only a total would leave a gate
@@ -501,6 +510,7 @@ final class DoorController
                 'ok' => false, 'verdict' => 'refuse', 'honour' => false,
                 'title' => 'Invitation not valid', 'detail' => $r['reason'],
                 'name' => '', 'tier' => '', 'seats' => 0, 'code' => $code,
+                'seats_in' => 0, 'seats_left' => 0, 'admitted_now' => 0,
             ];
         }
 
@@ -515,6 +525,7 @@ final class DoorController
                 'title' => 'Invitation not valid',
                 'detail' => 'No invitation here has that reference.',
                 'name' => '', 'tier' => '', 'seats' => 0, 'code' => $code,
+                'seats_in' => 0, 'seats_left' => 0, 'admitted_now' => 0,
             ];
         }
 
@@ -541,6 +552,7 @@ final class DoorController
             'name'    => (string) $invite->name,
             'tier'    => (string) $spec['label'],
             'seats'   => 1,
+            'seats_in' => 1, 'seats_left' => 0, 'admitted_now' => 1,
             'code'    => (string) $invite->reference,
             // Greeted as what they are. "Our nominee this evening" is a different sentence
             // from a ticket holder's, because arriving at an evening held for you is a

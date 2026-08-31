@@ -254,8 +254,13 @@ final class DoorOfflineTest extends TestCase
     public function test_an_offline_scan_is_not_shown_as_an_admission(): void
     {
         $s = $this->door();
-        $at = (int) strpos($s, 'qAdd(code);');
-        $this->assertGreaterThan(0, $at, 'nothing is queued when the fetch fails');
+        // Anchored on the CATCH branch, not on `qAdd(` — the latter matches the function
+        // definition earlier in the file, so the window read a docblock and the assertion
+        // below passed or failed on text that had nothing to do with the fetch failing.
+        $at = (int) strpos($s, 'The line is down. RECORD it');
+        $this->assertGreaterThan(0, $at, 'the offline branch is gone');
+        $this->assertStringContainsString('qAdd(code', substr($s, $at, 600),
+            'nothing is queued when the fetch fails');
 
         $body = substr($s, $at, 600);
         $this->assertStringContainsString("verdict: 'held'", $body);

@@ -1197,12 +1197,13 @@ final class EventTicketService
      *                name:string, tier:string, seats:int, code:string, at:string}
      */
     public static function checkIn(string $code, int $eventId, string $by = '',
-                                   ?int $adminId = null, string $at = ''): array
+                                   ?int $adminId = null, string $at = '', int $want = 0): array
     {
         $code = strtoupper(trim($code));
         $no = static fn (string $title, string $detail): array => [
             'verdict' => 'refuse', 'title' => $title, 'detail' => $detail,
             'name' => '', 'tier' => '', 'seats' => 0, 'code' => $code, 'at' => '',
+            'seats_in' => 0, 'seats_left' => 0, 'admitted_now' => 0,
         ];
 
         if ($code === '') return $no('No code', 'Nothing was scanned or typed.');
@@ -1226,14 +1227,33 @@ final class EventTicketService
                     ? 'This booking was never paid for. Do not admit on this alone — send them to the desk.'
                     : 'This ticket was cancelled or refunded. Send them to the desk.',
                 'name' => $name, 'tier' => $tier, 'seats' => $seats, 'code' => $code, 'at' => '',
+                'seats_in' => 0, 'seats_left' => $seats, 'admitted_now' => 0,
             ];
         }
 
-        if (($reg->checked_in_at ?? null) !== null) {
+        // ── HOW MANY OF THEM ARE ACTUALLY HERE ───────────────────────────────
+        //
+        // A four-seat ticket used to admit as one thing: the first scan took the whole
+        // booking and the second said "already checked in", leaving a steward to let two
+        // more of the same party past on a ticket the screen had just called used. Two of
+        // a party arriving at seven and two at half past eight is ordinary, and the old
+        // verdict even printed "4 seats on this ticket" while having no way to split them.
+        //
+        // $want === 0 means "everyone who is left", which is what a single-seat ticket
+        // always means and what a group ticket usually does.
+        $inAlready = max(0, (int) ($reg->checked_in_seats ?? 0));
+        $left      = max(0, $seats - $inAlready);
+        $take      = $want > 0 ? min($want, $left) : $left;
+
+        if ($left < 1) {
             return [
                 'verdict' => 'duplicate', 'title' => 'Already checked in',
-                'detail'  => $name . ' was admitted at ' . self::clock((string) $reg->checked_in_at) . '.',
+                'detail'  => $seats > 1
+                    ? 'All ' . $seats . ' seats on ' . $name . "'s ticket are in, from "
+                      . self::clock((string) $reg->checked_in_at) . '.'
+                    : $name . ' was admitted at ' . self::clock((string) $reg->checked_in_at) . '.',
                 'name' => $name, 'tier' => $tier, 'seats' => $seats,
+                'seats_in' => $inAlready, 'seats_left' => 0, 'admitted_now' => 0,
                 'code' => $code, 'at' => (string) $reg->checked_in_at,
             ];
         }
@@ -1249,22 +1269,44 @@ final class EventTicketService
         // than the outage this is meant to cover. A door already has the authority to admit;
         // what it must not have is the authority to write history.
         $now = self::stampFor($at);
+
+        // ── THE RACE, WHICH IS NOW AN INCREMENT ──────────────────────────────
+        //
+        // `whereNull('checked_in_at')` let exactly one scanner win, which was the right
+        // shape while a ticket was one indivisible admission and is the wrong one now: two
+        // gates admitting two seats each off a four-seat ticket are both correct.
+        //
+        // So the ceiling moves into the predicate and the database evaluates it with the
+        // increment, in ONE statement — the same idiom RateLimitService uses. A
+        // read-then-write here would let two gates both see "2 left" and both take 2.
+        $row = OptionalColumn::filter('gates_event_registrations', [
+            'checked_in_seats' => DB::raw('COALESCE(checked_in_seats, 0) + ' . $take),
+            'checked_in_by'    => $adminId ?: null,
+            'checked_in_via'   => $by !== '' ? mb_substr($by, 0, 60) : null,
+        ], ['checked_in_by', 'checked_in_via']);
+
+        // The FIRST admission's moment, never the latest. Four people arriving across an
+        // evening have one ticket and one arrival time that means anything — the one an
+        // organiser is asked about — and the log holds the rest.
+        if (($reg->checked_in_at ?? null) === null) $row['checked_in_at'] = $now;
+
         $won = DB::table('gates_event_registrations')->where('id', (int) $reg->id)
-            ->whereNull('checked_in_at')
-            ->update(OptionalColumn::filter('gates_event_registrations', [
-                'checked_in_at'  => $now,
-                'checked_in_by'  => $adminId ?: null,
-                'checked_in_via' => $by !== '' ? mb_substr($by, 0, 60) : null,
-            ], ['checked_in_by', 'checked_in_via'])) > 0;
+            ->whereRaw('COALESCE(checked_in_seats, 0) + ? <= COALESCE(quantity, 1)', [$take])
+            ->update($row) > 0;
 
         if (!$won) {
-            // Lost the race to another scanner in the last few milliseconds. Honest answer.
-            $fresh = self::byTicketCode($code);
+            // Another gate took the seats in the last few milliseconds. Honest answer, with
+            // the numbers re-read rather than the ones this request started with.
+            $fresh    = self::byTicketCode($code);
+            $freshIn  = max(0, (int) ($fresh->checked_in_seats ?? $seats));
             return [
                 'verdict' => 'duplicate', 'title' => 'Already checked in',
-                'detail'  => $name . ' was admitted at '
-                           . self::clock((string) ($fresh->checked_in_at ?? $now)) . '.',
+                'detail'  => $seats > 1
+                    ? $freshIn . ' of ' . $seats . ' seats are in — another gate took them a moment ago.'
+                    : $name . ' was admitted at '
+                      . self::clock((string) ($fresh->checked_in_at ?? $now)) . '.',
                 'name' => $name, 'tier' => $tier, 'seats' => $seats,
+                'seats_in' => $freshIn, 'seats_left' => max(0, $seats - $freshIn), 'admitted_now' => 0,
                 'code' => $code, 'at' => (string) ($fresh->checked_in_at ?? $now),
             ];
         }
@@ -1286,12 +1328,25 @@ final class EventTicketService
         // thank-you is: a re-scan is ordinary at a door and must not appear twice in the
         // record of who came through. `checked_in_via` on the row is the CURRENT state;
         // this is the history, and it is what a reversal appends to rather than erases.
-        EventArrivals::admitted($reg, $by, $adminId);
+        // The seats admitted THIS time, not the ticket's size: an arrivals log that recorded
+        // four every time two of a party walked in would count eight people into a room
+        // holding four.
+        EventArrivals::admitted($reg, $by, $adminId, $take);
+
+        $nowIn = $inAlready + $take;
 
         return [
-            'verdict' => 'admit', 'title' => 'Admit',
-            'detail'  => $seats > 1 ? $seats . ' seats on this ticket.' : '',
-            'name' => $name, 'tier' => $tier, 'seats' => $seats, 'code' => $code, 'at' => $now,
+            'verdict' => 'admit',
+            'title'   => $nowIn < $seats ? 'Admit ' . $take : 'Admit',
+            'detail'  => $seats > 1
+                ? ($nowIn < $seats
+                    ? $take . ' in, ' . ($seats - $nowIn) . ' of this ticket still to come.'
+                    : ($inAlready > 0 ? 'The last ' . $take . ' — all ' . $seats . ' are now in.'
+                                      : $seats . ' seats on this ticket.'))
+                : '',
+            'name' => $name, 'tier' => $tier, 'seats' => $seats,
+            'seats_in' => $nowIn, 'seats_left' => $seats - $nowIn, 'admitted_now' => $take,
+            'code' => $code, 'at' => $now,
         ];
     }
 
@@ -1366,7 +1421,13 @@ final class EventTicketService
                 'checked_in_at'  => null,
                 'checked_in_by'  => null,
                 'checked_in_via' => null,
-            ], ['checked_in_by', 'checked_in_via'])) > 0;
+                // The WHOLE ticket, including a group that arrived in pieces. "Not them"
+                // means this booking was never admitted, and taking back three of four
+                // seats would leave a ticket half-used with nothing saying which half.
+                // A steward who wants only some of them back re-admits the rest, which is
+                // one scan and is honest in the log.
+                'checked_in_seats' => 0,
+            ], ['checked_in_by', 'checked_in_via', 'checked_in_seats'])) > 0;
 
         if (!$won) {
             return $no('NOT_IN', 'Already taken back',

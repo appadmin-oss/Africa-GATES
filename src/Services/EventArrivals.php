@@ -65,8 +65,15 @@ final class EventArrivals
         }
     }
 
-    /** A ticket holder came through. */
-    public static function admitted(object $reg, string $via, ?int $adminId = null): void
+    /**
+     * A ticket holder came through.
+     *
+     * @param int $seats how many of them THIS time — 0 means the whole ticket. A group
+     *                   arriving in two halves is two rows, and a log that recorded the
+     *                   ticket's full size on each would count eight people into a room
+     *                   holding four.
+     */
+    public static function admitted(object $reg, string $via, ?int $adminId = null, int $seats = 0): void
     {
         self::append([
             'event_id'        => (int) $reg->event_id,
@@ -75,8 +82,9 @@ final class EventArrivals
             'action'          => 'admit',
             // Seats AS THEY WERE. A transfer can change a ticket's quantity afterwards, and a
             // headcount recomputed from today's number would rewrite last night's door.
-            'seats'           => ColumnRange::clamp(max(1, (int) ($reg->quantity ?? 1)),
-                                                    ColumnRange::SMALLINT_UNSIGNED, 1),
+            'seats'           => ColumnRange::clamp(
+                                    $seats > 0 ? $seats : max(1, (int) ($reg->quantity ?? 1)),
+                                    ColumnRange::SMALLINT_UNSIGNED, 1),
             'who'             => mb_substr((string) ($reg->name ?? ''), 0, 160),
             'via'             => mb_substr($via !== '' ? $via : self::VIA_UNKNOWN, 0, 60),
             'admin_id'        => $adminId ?: null,
@@ -136,9 +144,15 @@ final class EventArrivals
             $n += (int) DB::table('gates_event_registrations')
                 ->where('event_id', $eventId)
                 ->whereNotNull('checked_in_at')
-                // A cancelled ticket that was admitted before it was cancelled still put a
-                // person in the room. Status is not filtered here for that reason.
-                ->sum(DB::raw('COALESCE(quantity, 1)'));
+                // SEATS ADMITTED, not the ticket's size. Two of a party of four being in
+                // the room is two people, and summing `quantity` here counted the two who
+                // have not arrived yet — on the number closest to a fire-safety figure.
+                //
+                // COALESCE to `quantity` for rows written before the column existed: the
+                // migration backfills them, and this is the belt to that brace on a
+                // database restored from a backup taken between the two statements.
+                ->sum(DB::raw('CASE WHEN COALESCE(checked_in_seats, 0) > 0 '
+                            . 'THEN checked_in_seats ELSE COALESCE(quantity, 1) END'));
         } catch (\Throwable) { /* a headcount that cannot be read is 0, not an error page */ }
 
         $n += self::honouredIn($eventId);

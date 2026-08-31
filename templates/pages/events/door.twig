@@ -168,6 +168,20 @@
 
   /* The waiting count. A bar rather than a line of text because it has a button in it,
      and 44px on that button because it is pressed one-handed in the dark. */
+  /* The party picker. 52px to match the Check button beside it — this is pressed in
+     the same posture, one-handed, with people waiting. The buttons wrap rather than
+     scroll: a ten-seat table on a narrow phone must not hide its last option. */
+  .dr__party{ margin-top:12px; padding:12px; border-radius:12px;
+    background:#f3f6f5; border:2px solid #849693 }
+  .dr__party__q{ margin:0 0 9px; font-size:14.5px; font-weight:700; color:#10292C }
+  .dr__party__row{ display:flex; flex-wrap:wrap; gap:8px }
+  .dr__party__b{ flex:1 1 64px; min-height:52px; min-width:64px; cursor:pointer;
+    font:inherit; font-size:17px; font-weight:700; border:2px solid #849693;
+    border-radius:10px; background:#fff; color:#10292C }
+  /* "All of them" is the common answer, so it leads and is the filled one. */
+  .dr__party__b--all{ flex:1 1 120px; background:#10292C; color:#fff; border-color:#10292C }
+  .dr__party__b:focus-visible{ outline:3px solid #237b22; outline-offset:2px }
+
   .dr__pend{ margin-top:10px; display:flex; align-items:center; gap:10px; flex-wrap:wrap;
     padding:10px 12px; border-radius:10px; background:#eef4f8; border:1.5px solid #3a5c73 }
   .dr__pend__n{ flex:1; min-width:0; font-size:13.5px; font-weight:600; color:#243d4e }
@@ -235,6 +249,23 @@
      asking anybody, that the gate is carrying scans nobody has checked yet — and
      to be able to push them through the moment the line is back rather than
      waiting for the page to notice. #}
+  {# ── HOW MANY OF THEM ARE HERE ──────────────────────────────────────────
+     Only for a ticket with more than one seat, and only while some are still to
+     come. A single-seat ticket — which is most of them — never sees this and costs
+     no extra tap.
+
+     "All N" leads, because a party usually arrives together, and it is a real button
+     rather than a default that fires on its own: the steward is looking at the people
+     and already knows the number before they scan. Asking is not friction here, it is
+     the question they have just answered in their head.
+
+     Rendered as a row of whole numbers rather than a stepper — at a door, a control
+     you have to press four times is worse than four you press once. #}
+  <div class="dr__party" id="drParty" hidden>
+    <p class="dr__party__q" id="drPartyQ"></p>
+    <div class="dr__party__row" id="drPartyRow" role="group" aria-labelledby="drPartyQ"></div>
+  </div>
+
   <div class="dr__pend" id="drPend" hidden>
     <span class="dr__pend__n" role="status" aria-live="polite"></span>
     <button type="button" id="drFlush" class="dr__pend__b">Send them now</button>
@@ -296,6 +327,10 @@
       if (p && p.catch) p.catch(function () {});
     } catch (e) { /* a door with no sound is a working door */ }
   }
+
+  var partyEl  = document.getElementById('drParty');
+  var partyRow = document.getElementById('drPartyRow');
+  var partyQ   = document.getElementById('drPartyQ');
 
   var pendEl  = document.getElementById('drPend');
   var syncUrl = {{ ('/door/' ~ token ~ '/sync')|json_encode|raw }};
@@ -380,6 +415,48 @@
     disarm();
     onPanel = (v.verdict === 'admit' && !v.honour && v.code) ? String(v.code) : '';
     if (onPanel && undoWrap) undoWrap.hidden = false;
+
+    offerParty(v);
+  }
+
+  /**
+   * Offer a split, but only where one is possible.
+   *
+   * Shown after an admit that left seats on the ticket, and after a duplicate that
+   * still has some — the second is the case that used to be a dead end, where a
+   * steward was told "already checked in" about a ticket with two people still to
+   * come and had to decide on their own authority.
+   */
+  function offerParty(v) {
+    if (!partyEl || !partyRow) return;
+    partyEl.hidden = true;
+    partyRow.innerHTML = '';
+
+    var left = Number(v.seats_left || 0);
+    var code = v.code ? String(v.code) : '';
+    if (v.honour || !code || left < 1 || Number(v.seats || 0) < 2) return;
+
+    partyQ.textContent = left + (left === 1 ? ' seat on this ticket is'
+                                            : ' seats on this ticket are') + ' still to come — how many are here?';
+
+    // Whole numbers, largest first, capped so a fifty-seat table does not paint fifty
+    // buttons at a gate. "All" always shows the real figure.
+    var opts = [{ n: left, label: 'All ' + left, all: true }];
+    for (var i = Math.min(left - 1, 5); i >= 1; i--) opts.push({ n: i, label: String(i), all: false });
+
+    opts.forEach(function (o) {
+      var b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'dr__party__b' + (o.all ? ' dr__party__b--all' : '');
+      b.textContent = o.label;
+      b.addEventListener('click', function () {
+        partyEl.hidden = true;
+        check(code, o.n);
+      });
+      partyRow.appendChild(b);
+    });
+
+    partyEl.hidden = false;
   }
 
   /**
@@ -519,7 +596,9 @@
                   : v.verdict === 'held' ? 'held'
                   : (v.verdict === 'admit' ? 'in' : 'no');
     var n = document.createElement('span');
-    n.textContent = v.name || v.code || '—';
+    n.textContent = (v.name || v.code || '—')
+                  + (Number(v.admitted_now || 0) > 0 && Number(v.seats || 0) > 1
+                      ? ' · ' + v.admitted_now + ' of ' + v.seats : '');
     li.appendChild(t); li.appendChild(k); li.appendChild(n);
     logEl.insertBefore(li, logEl.firstChild);
     while (logEl.children.length > 12) logEl.removeChild(logEl.lastChild);
@@ -568,12 +647,15 @@
     }
   }
 
-  function qAdd(code) {
+  function qAdd(code, seats) {
     pending.push({
       // A client id so a flush that half-succeeds, or is retried after a timeout, cannot
       // record the same person twice.
       id: (Date.now().toString(36) + Math.random().toString(36).slice(2, 8)),
       code: code,
+      // How many of the party the steward said were there. Carried through the outage
+      // so a group that arrived in two halves does not flush as one whole ticket.
+      seats: Number(seats || 0),
       // The moment it HAPPENED. Sent so the arrivals log reads as an evening rather than
       // as forty people arriving in the same second half an hour later.
       at: stamp()
@@ -638,7 +720,8 @@
   }
 
   var busy = false;
-  async function check(code) {
+  /** @param seats 0 — the default and what a one-seat ticket always sends — is "everyone left". */
+  async function check(code, seats) {
     code = (code || '').trim();
     if (!code || busy) return;
     busy = true; go.disabled = true;
@@ -646,7 +729,7 @@
       var r = await fetch(url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
-        body: JSON.stringify({ code: code })
+        body: JSON.stringify({ code: code, seats: Number(seats || 0) })
       });
       var v = await r.json();
       paint(v); remember(v);
@@ -654,7 +737,7 @@
       // The line is down. RECORD it and keep the queue moving — but say exactly what that
       // means, because this verdict is the one place the door does not know the answer.
       // "Admit" here would be the screen guessing on the steward's behalf.
-      qAdd(code);
+      qAdd(code, Number(seats || 0));
       paint({
         verdict: 'held',
         title: 'Recorded — not checked',
