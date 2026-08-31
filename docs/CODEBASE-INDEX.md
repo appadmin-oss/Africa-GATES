@@ -272,8 +272,15 @@ down. `VoteRecoveryService` derives candidates from those records ONLY; no opera
 While voting is open it refuses and tells you to re-send instead. After the close a batch needs a
 second admin's approval, passes a fraud/IP-cluster screen and a cap (25% of a nominee's verified
 votes), lands as ordinary organic votes carrying `recovery_batch_id` + `otp_token_id`, is disclosed
-publicly per nominee, and can be voided. `bin/console votes:recover health` reports the delivery
-failure rate — the number this feature exists to serve, and the one that should be falling.
+publicly per nominee, and can be voided. The delivery failure rate — the number this feature exists
+to serve, and the one that should be falling — leads `/admin/vote-recovery`, above the repair.
+
+> **It was all true except the two parts that make it happen.** Until 2026-08-31 the only route in
+> was `bin/console votes:recover`, on a deployment with no SSH — and the command cannot approve
+> (its own docblock defers that to "the admin panel", which did not exist), while `apply()` refuses
+> anything not `approved`. No batch could reach the tally by any route. Separately, `disclosureFor()`
+> — the "disclosed publicly per nominee" above — was called by nothing, so opening a route in without
+> it would have been strictly worse than the mechanism staying dead. §20.
 
 Winner promotion breaks a CPI tie on **`organic_vote_count`**, never `vote_count` — the tiebreak is
 the last place money could otherwise decide an award, and a true dead heat is logged for a human
@@ -990,3 +997,67 @@ never built, and none of them makes a false statement today:
 | `gates_nominations.show_nominator` | an attribution opt-in for a public nominator credit that does not exist — the nominator appears only on admin screens and in mail to themselves, so nobody is named without consent |
 | `gates_nominee_claims.revoked_reason` | there is no claim-revoke path at all; `revoked_at` is unused beside it |
 | `gates_nominee_evidence.verified_by` / `verified_at` | the inverse shape — `verified` **is** read (it drives the judge's "nothing independently checked" coverage line) but nothing sets it, so that line is permanently true. Honest by default, and the screen's own doctrine says verification means somebody outside this platform checked it |
+
+---
+
+## 20. The mechanism nobody could reach, and the disclosure nobody could read (2026-08-31)
+
+§19 swept the columns. This is the same sweep run over **public methods**: 2360 of them, each
+searched for a call site across `src`, `templates`, `cron`, `config`, `database`, `public` and
+`bin`. Three had none anywhere, thirty-three were called only from their own tests. Most of the
+thirty-three are harmless — a convenience wrapper, a test seam, a PSR-15 `process()` that is
+invoked by dispatch and never by name.
+
+One was `VoteRecoveryService::disclosureFor()`, and pulling on it found three faults stacked.
+
+### 20.1 The whole feature was unreachable
+
+`VoteRecoveryService` mints votes for people whose vote code **this platform failed to deliver** —
+derived from our own delivery log, never from a list anybody types. It is careful and thoroughly
+proven: `VoteRecoveryTest` holds its derivation, its cap, its two-person rule and its reversal
+twenty-three ways.
+
+Its only route in was `bin/console votes:recover`. **There is no SSH on this deployment.**
+
+That is the fault `VoteDeliveryController` was written to fix, and its docblock says so in as many
+words: shipping an incident repair as a shell-only tool "repeated a mistake this project had already
+made and already fixed once". `votes:proof` and `votes:remint` were brought into the browser.
+`votes:recover` was left behind.
+
+### 20.2 And it could not have worked from a shell either
+
+The command's own docblock: "`approve` happens in the admin panel where the approver is an
+authenticated person, because identity on a shell is not evidence." There was no admin panel.
+`apply()` refuses any batch not `approved`. So the mechanism was not merely awkward to reach —
+**no batch could reach the tally by any route at all**, and the two-person rule was enforced against
+a door that did not exist.
+
+### 20.3 The control the doctrine calls the strongest one was a method nothing called
+
+The service lists six controls and says none is ceremony. Five were enforced in code. The sixth —
+"public disclosure of every applied batch" — was `disclosureFor()`, with no caller. The batch
+reference column's own migration comment says it is "**printed on the public disclosure** so a
+reader can name the thing that put these votes on the tally and ask about it", and §on the CPI
+above stated as settled fact that a batch "is disclosed publicly per nominee".
+
+This is why the fix could not be the admin panel alone. **Opening a route in without publishing its
+use would have been strictly worse than leaving the mechanism dead**: a way to add votes to a public
+tally, quietly. `/admin/vote-recovery` and the disclosure on the nominee's own ballot page shipped
+in the same change, and `VoteRecoveryReachableTest` holds both halves in one file for that reason.
+
+Three details worth keeping:
+
+- **Every step is its own POST.** A single form with a mode would invite one person to walk the
+  workflow end to end and discover only at the last press that the approver must be somebody else.
+- **The screen explains the refusal rather than hiding the button.** A control that simply vanishes
+  teaches nobody that a second person is required; the operator concludes the page is broken.
+- **The disclosure is omitted at zero, not zeroed.** A permanent "0 recovered votes" would be noise
+  on every nominee page on the site in order to be honest about none of them.
+
+### The question this sweep turns on
+
+§19's was "is there prose somewhere promising what this column does?". The method sweep's is
+narrower and sharper: **what does this method's own docblock claim about the world?**
+`disclosureFor()` said "Published, because the strongest control on a mechanism like this is not any
+of the approvals — it is that using it cannot be quiet." A method whose docblock describes a
+property of the running system, with no caller, is that property being false.

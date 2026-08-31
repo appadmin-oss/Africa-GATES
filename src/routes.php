@@ -3179,6 +3179,20 @@ return function(App $app) {
         $a->post('/refunds/issue', \AfricaGates\Admin\Controllers\RefundsController::class.':issue');
         $a->get('/vote-delivery',          \AfricaGates\Admin\Controllers\VoteDeliveryController::class.':index');
         $a->post('/vote-delivery/deliver', \AfricaGates\Admin\Controllers\VoteDeliveryController::class.':deliver');
+        // VOTE RECOVERY — the same fault as vote delivery, one command further down.
+        // `votes:recover` was shell-only on a deployment with no shell, AND its own
+        // two-person rule required an admin panel that did not exist, so apply() —
+        // which refuses anything not `approved` — could never fire by any route.
+        // Every step is its own POST because the approver must be a different person
+        // from the preparer; see VoteRecoveryController.
+        $a->get('/vote-recovery',                              \AfricaGates\Admin\Controllers\VoteRecoveryController::class.':index');
+        $a->post('/vote-recovery/open',                        \AfricaGates\Admin\Controllers\VoteRecoveryController::class.':open');
+        $a->get('/vote-recovery/{id:[0-9]+}',                  \AfricaGates\Admin\Controllers\VoteRecoveryController::class.':show');
+        $a->post('/vote-recovery/{id:[0-9]+}/submit',          \AfricaGates\Admin\Controllers\VoteRecoveryController::class.':submit');
+        $a->post('/vote-recovery/{id:[0-9]+}/approve',         \AfricaGates\Admin\Controllers\VoteRecoveryController::class.':approve');
+        $a->post('/vote-recovery/{id:[0-9]+}/reject',          \AfricaGates\Admin\Controllers\VoteRecoveryController::class.':reject');
+        $a->post('/vote-recovery/{id:[0-9]+}/apply',           \AfricaGates\Admin\Controllers\VoteRecoveryController::class.':apply');
+        $a->post('/vote-recovery/{id:[0-9]+}/void',            \AfricaGates\Admin\Controllers\VoteRecoveryController::class.':void');
         $a->get('/support',                          \AfricaGates\Admin\Controllers\SupportController::class.':index');
         $a->get('/support/{ref:[A-Za-z0-9\-]+}',     \AfricaGates\Admin\Controllers\SupportController::class.':show');
         $a->post('/support/{ref:[A-Za-z0-9\-]+}/reply', \AfricaGates\Admin\Controllers\SupportController::class.':reply');

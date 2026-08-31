@@ -483,6 +483,13 @@ return [
         $c->get(Twig::class),
         $c->get(AuditService::class)
     ),
+    // Vote recovery — same reason, one step further. This one mints votes on behalf
+    // of people who never got their code, so the audit line is the record of who
+    // prepared a batch and, separately, who agreed to it.
+    \AfricaGates\Admin\Controllers\VoteRecoveryController::class => fn(ContainerInterface $c)=>new \AfricaGates\Admin\Controllers\VoteRecoveryController(
+        $c->get(Twig::class),
+        $c->get(AuditService::class)
+    ),
     // The support queue. Gets the ticket service so a staff reply travels the
     // same path as an automated one — mailed, and recorded on the member's thread.
     // Payment triage. Gets the audit service so a repair — which confirms orders and

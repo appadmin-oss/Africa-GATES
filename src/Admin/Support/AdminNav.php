@@ -135,6 +135,11 @@ final class AdminNav
                     ['page' => 'payments-disputes', 'label' => 'Disputes',          'href' => '/admin/payments/disputes'],
                     ['page' => 'refunds',           'label' => 'Refunds',           'href' => '/admin/refunds'],
                     ['page' => 'vote-delivery',     'label' => 'Vote Delivery',     'href' => '/admin/vote-delivery'],
+                    // Beside Vote Delivery because they are the two halves of one
+                    // failure: that one re-sends a code while it can still be used,
+                    // this one repairs the tally after the ballot has closed and
+                    // re-sending can no longer help anybody.
+                    ['page' => 'vote-recovery',     'label' => 'Vote Recovery',     'href' => '/admin/vote-recovery'],
                 ],
             ],
             [

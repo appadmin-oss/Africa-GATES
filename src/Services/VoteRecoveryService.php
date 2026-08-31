@@ -555,6 +555,87 @@ final class VoteRecoveryService
         return DB::table('gates_vote_recovery_batches')->where('id', $id)->first();
     }
 
+    /**
+     * The batches, newest first, with the names of the people who touched each.
+     *
+     * Every state is listed, rejected and voided included. A queue that showed only
+     * what is still moving would hide the two outcomes that matter most to somebody
+     * asking whether this mechanism has been used well.
+     *
+     * @return list<array<string,mixed>>
+     */
+    public static function recent(int $limit = 60): array
+    {
+        try {
+            return DB::table('gates_vote_recovery_batches as b')
+                ->leftJoin('gates_award_cycles as c', 'c.id', '=', 'b.cycle_id')
+                ->leftJoin('gates_admins as ca', 'ca.id', '=', 'b.created_by')
+                ->leftJoin('gates_admins as aa', 'aa.id', '=', 'b.approved_by')
+                ->orderByDesc('b.id')->limit($limit)
+                ->get([
+                    'b.id', 'b.reference', 'b.cycle_id', 'b.status', 'b.window_from', 'b.window_to',
+                    'b.incident_note', 'b.candidate_count', 'b.applied_count', 'b.created_at',
+                    'b.created_by', 'b.submitted_by', 'b.approved_at', 'b.decision_note',
+                    'b.voided_at', 'b.void_reason',
+                    'c.year as cycle_year',
+                    'ca.name as created_by_name', 'aa.name as decided_by_name',
+                ])
+                ->map(fn ($r) => (array) $r)->all();
+        } catch (\Throwable $e) {
+            error_log('[vote-recovery] could not list batches: ' . $e->getMessage());
+            return [];
+        }
+    }
+
+    /**
+     * The rows in one batch, grouped by nominee — which is the only breakdown an
+     * approver can actually reason about.
+     *
+     * A list of six hundred email hashes is not reviewable and publishing it would
+     * be worse; "these 41 people were voting for X" is the shape of the question
+     * being asked. The hashes stay in the table.
+     *
+     * @return list<array<string,mixed>>
+     */
+    public static function rowsByNominee(int $batchId): array
+    {
+        try {
+            return DB::table('gates_vote_recovery_rows as r')
+                ->leftJoin('gates_nominees as n', 'n.id', '=', 'r.nominee_id')
+                ->leftJoin('gates_award_categories as c', 'c.id', '=', 'r.category_id')
+                ->where('r.batch_id', $batchId)
+                ->groupBy('r.nominee_id', 'r.status', 'n.name', 'c.title')
+                ->orderBy('n.name')
+                ->selectRaw('r.nominee_id, r.status, n.name as nominee, c.title as category, COUNT(*) as votes')
+                ->get()->map(fn ($r) => (array) $r)->all();
+        } catch (\Throwable $e) {
+            error_log('[vote-recovery] could not group batch ' . $batchId . ': ' . $e->getMessage());
+            return [];
+        }
+    }
+
+    /**
+     * Cycles this could be run against: closed, with an award behind them.
+     *
+     * Open cycles are deliberately still listed — {@see open()} refuses them with the
+     * sentence explaining that re-sending is the better repair, and an operator who
+     * cannot find their cycle in a dropdown learns nothing at all.
+     *
+     * @return list<array<string,mixed>>
+     */
+    public static function cycles(int $limit = 24): array
+    {
+        try {
+            return DB::table('gates_award_cycles as c')
+                ->leftJoin('gates_award_programmes as p', 'p.id', '=', 'c.programme_id')
+                ->orderByDesc('c.year')->orderByDesc('c.id')->limit($limit)
+                ->get(['c.id', 'c.year', 'c.status', 'c.voting_open', 'c.voting_close', 'p.title as programme'])
+                ->map(fn ($r) => (array) $r)->all();
+        } catch (\Throwable) {
+            return [];
+        }
+    }
+
     public static function byReference(string $ref): ?object
     {
         $id = Reference::parseRecoveryId($ref);

@@ -145,6 +145,16 @@ Full account in `docs/CODEBASE-INDEX.md` §16.
   has claimed for is a vestige; one the docs, a migration comment or a screen has already
   promised is a lie with a schema behind it. §19 lists all three, plus the four that really
   are vestiges, so nobody re-derives them.
+- **The same sweep over public methods found the worst instance of either.** `votes:recover` mints
+  votes for people whose vote code this platform failed to deliver, and it was reachable only from a
+  console command on a host with **no SSH** — while its own two-person rule required an admin panel
+  nobody had written, so `apply()`, which refuses anything not `approved`, could never fire by any
+  route. And `disclosureFor()`, the "public disclosure of every applied batch" its doctrine calls the
+  strongest control, had no caller: so opening a route in without publishing its use would have been
+  strictly worse than leaving the mechanism dead. Both halves shipped together, and must stay
+  together. The method sweep's question is sharper than the column sweep's: **what does this method's
+  own docblock claim about the running system?** One with no caller is that claim being false.
+  `docs/CODEBASE-INDEX.md` §20.
 - **And its sibling: a mechanism with no route in.** The Chrome extension's install note
   named a folder nothing served and no shell could fetch; the extension had also hardcoded
   one hostname into `host_permissions`, which no popup setting can override. Its content

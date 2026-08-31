@@ -210,6 +210,29 @@
   .vn-race__cta{ margin:9px 0 0; font-size:13px; color:#fff; font-weight:600; }
   .vn-race__fine{ margin:6px 0 0; font-size:11px; color:rgba(255,255,255,.6); }
 
+  /* ── The recovery disclosure ──────────────────────────────────────────────
+     Sits in the hero beside the number it explains, and is deliberately the ONE
+     block here that does not stay quiet: a gold hairline, because this is the
+     platform admitting it put votes on a public tally itself and a disclosure
+     styled to be skimmed past is not a disclosure. Body text is rgba(255,255,255,.9)
+     rather than the .82 the race facts use — those are decoration around a bar, this
+     is a statement somebody may need to quote back at us. */
+  .vn-rec{ margin:14px 0 16px; padding:13px 15px; border-radius:14px;
+    background:rgba(251,195,41,.10); border:1px solid rgba(251,195,41,.42); }
+  .vn-rec__h{ margin:0 0 7px; font-size:14.5px; font-weight:700; color:#fbc329; }
+  .vn-rec__b{ margin:0; font-size:13px; line-height:1.6; color:rgba(255,255,255,.9); }
+  .vn-rec__l{ list-style:none; margin:10px 0 0; padding:0;
+    font-size:12.5px; line-height:1.6; color:rgba(255,255,255,.9); }
+  .vn-rec__l li + li{ margin-top:7px; padding-top:7px; border-top:1px solid rgba(255,255,255,.12); }
+  .vn-rec__l strong{ color:#fff; font-weight:700; }
+  /* The reference is the point of printing it: a reader can name the batch that put
+     these votes here and ask us about it by that name. Monospace so it survives being
+     read aloud, copied, or written down. */
+  .vn-rec__r{ display:inline-block; margin-left:6px; font-family:var(--ag-font-mono,monospace);
+    font-size:11.5px; color:rgba(255,255,255,.72); }
+  .vn-rec__f{ margin:10px 0 0; font-size:11.5px; line-height:1.55; color:rgba(255,255,255,.72); }
+  .vn-rec__f a{ color:#fbc329; }
+
   .vn-share{ display:flex; gap:9px; }
   .vn-share button, .vn-share a{ flex:1; cursor:pointer; border:1px solid rgba(16,41,44,.16); background:#fff; color:var(--ag-ink); font-family:inherit; font-weight:600; font-size:13.5px; padding:11px; border-radius:999px; display:inline-flex; align-items:center; justify-content:center; gap:7px; text-decoration:none; }
   .vn-share button:hover, .vn-share a:hover{ border-color:var(--ag-green); color:var(--ag-green); }
@@ -329,6 +352,47 @@
           <div><div class="vn-stat__n" x-text="votes.toLocaleString()">{{ n.vote_count }}</div><div class="vn-stat__l">Votes</div></div>
           {% if rank %}<div class="vn-stat__div" aria-hidden="true"></div><div><div class="vn-stat__n">#{{ rank }}</div><div class="vn-stat__l">In {{ n.category }}</div></div>{% endif %}
         </div>
+
+        {# ── WHAT WE PUT ON THIS TALLY OURSELVES ─────────────────────────────
+           When a vote code fails to send, the platform records its own failure and
+           that person's vote never exists. Recovery mints it for them after the
+           ballot closes — derived from our delivery log, never from a list anybody
+           typed, approved by a second person, capped, and reversible.
+
+           This block is that mechanism's strongest control, and the reason is worth
+           keeping: the approvals bind the people who happen to be in the room, and
+           publication binds everybody afterwards. It is beside the number it changed
+           because that is where the question is actually asked.
+
+           Omitted entirely at zero. A permanent "0 recovered votes" would be noise on
+           every page on the site in order to be honest about none of them. #}
+        {% if recovered.total > 0 %}
+        <div class="vn-rec" role="note" aria-labelledby="vnRecH">
+          <p class="vn-rec__h" id="vnRecH">
+            {{ recovered.total|number_format }} of these vote{{ recovered.total == 1 ? '' : 's' }}
+            {{ recovered.total == 1 ? 'was' : 'were' }} added by us
+          </p>
+          <p class="vn-rec__b">
+            {{ recovered.total == 1 ? 'One person' : recovered.total|number_format ~ ' people' }} came to this
+            ballot, chose {{ firstName }}, and never received the code we owed them — because our own
+            sending failed, which we recorded at the time. After voting closed we put those votes on
+            the tally rather than leave a result we had quietly distorted.
+          </p>
+          <ul class="vn-rec__l">
+            {% for b in recovered.batches %}
+              <li>
+                <strong>{{ b.votes|number_format }}</strong> from {{ b.window }} —
+                {{ b.incident }}
+                <span class="vn-rec__r">{{ b.reference }}</span>
+              </li>
+            {% endfor %}
+          </ul>
+          <p class="vn-rec__f">
+            Each one is an ordinary vote from a real request we can point at, and each can be taken
+            back off. <a href="/integrity">How this is controlled</a>.
+          </p>
+        </div>
+        {% endif %}
 
         {# ── The race ────────────────────────────────────────────────────────
            A vote total answers no question a supporter has. This block answers

@@ -503,6 +503,20 @@ class VoteController {
             // the nominee leads) it comes back null and the template omits the element
             // rather than printing a zero that reads as a measurement.
             'standing'         => $standing,
+            // ── WHAT WE PUT ON THIS TALLY OURSELVES ──────────────────────────
+            //
+            // Vote recovery mints votes on behalf of people whose code this platform
+            // failed to deliver. Its doctrine lists six controls and calls none of them
+            // ceremony; five were enforced in code and the sixth — "public disclosure of
+            // every applied batch" — was a method nothing called, while the index stated
+            // as settled fact that a batch "is disclosed publicly per nominee".
+            //
+            // Here, beside the number it changed, because that is the only place the
+            // disclosure answers the question somebody actually has. `total` is 0 for
+            // every nominee on a platform that has never run a recovery, and the template
+            // omits the block entirely — a permanent "0 recovered votes" would be noise
+            // on 100% of pages to be honest about 0% of them.
+            'recovered'        => \AfricaGates\Services\VoteRecoveryService::disclosureFor((int) $nom->id),
             'standing_headline'=> \AfricaGates\Services\StandingsService::headline($standing),
             'standing_cta'     => \AfricaGates\Services\StandingsService::callToAction($standing),
             'flier_url'        => $nomPath . '/flier',
