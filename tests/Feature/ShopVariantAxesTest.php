@@ -337,13 +337,39 @@ final class ShopVariantAxesTest extends TestCase
         ]));
     }
 
+    /**
+     * The singular wording — "1 colour", not "1 colours".
+     *
+     * ── WHY THE FIXTURE CHANGED ──────────────────────────────────────────────
+     *
+     * It used to seed Navy in stock AND Cream sold out, then assert
+     * "1 colour available". That stopped being the right answer when stockNote()
+     * learned to say "N of M" whenever some have gone — which it does because the
+     * card draws a dot for EVERY colour a product comes in, and "1 colour available"
+     * beside two dots reads as one of the two being wrong.
+     *
+     * So the old fixture was asserting the arithmetic, not the plural, and the
+     * arithmetic had moved. Nobody found out, because this file sits in tests/Feature
+     * and tests/Feature was not in the suite.
+     *
+     * One variant, in stock: the only shape where the singular is what should be said.
+     */
     public function test_one_available_answer_is_singular(): void
+    {
+        $id = $this->product([['Navy', 'S', '#1B2A4A', 2, 0]]);
+        $this->assertSame('1 colour available', ShopCatalogue::stockNote([
+            'variants' => ShopCatalogue::variants($id, 10000), 'stock' => null,
+        ]));
+    }
+
+    /** And the "N of M" form the moment one of them has gone, for the reason above. */
+    public function test_a_colour_that_has_gone_is_counted_in_the_total(): void
     {
         $id = $this->product([
             ['Navy',  'S', '#1B2A4A', 2, 0],
             ['Cream', 'S', '#EFE6D2', 0, 0],
         ]);
-        $this->assertSame('1 colour available', ShopCatalogue::stockNote([
+        $this->assertSame('1 of 2 colours in stock', ShopCatalogue::stockNote([
             'variants' => ShopCatalogue::variants($id, 10000), 'stock' => null,
         ]));
     }

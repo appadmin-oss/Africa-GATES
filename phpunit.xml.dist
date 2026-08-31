@@ -10,6 +10,19 @@
     <testsuite name="unit">
       <directory>tests/Unit</directory>
     </testsuite>
+    <!-- ── tests/Feature WAS NOT HERE, AND SO IT NEVER RAN ──────────────────
+         Ninety-two tests across four files, written and then never executed by
+         anything: not the suite, not CI, not a developer running the documented
+         command. They read as coverage in the directory listing and were not.
+
+         That is §18's shape exactly — a mechanism complete in itself with no route
+         in — and it had already rotted: one test was asserting stock wording the
+         code stopped producing, and nothing anywhere reported it. A test directory
+         outside the suite is worse than no tests, because it is a claim of
+         coverage nobody can see is false. -->
+    <testsuite name="feature">
+      <directory>tests/Feature</directory>
+    </testsuite>
   </testsuites>
   <source>
     <include>
