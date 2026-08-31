@@ -232,6 +232,12 @@ final class PaymentsTriageController
             'days'       => min($days, \AfricaGates\Services\GatewayLedger::MAX_DAYS),
             'max_days'   => \AfricaGates\Services\GatewayLedger::MAX_DAYS,
             'providers'  => (new PaymentTriage())->enabledProviders(),
+            // The webhook feed's health. A local table read, no gateway call — which is
+            // why it can sit on the GET while everything else on this page waits for a
+            // POST. It answers the question this screen is fundamentally about, and it
+            // answered it nowhere until now: GatewayEventLog::everReceived() called
+            // itself the single most useful diagnostic on the platform and had no reader.
+            'feed'       => \AfricaGates\Services\GatewayEventLog::health(),
             'result'     => $_SESSION['gateway_ledger'] ?? null,
         ]);
     }

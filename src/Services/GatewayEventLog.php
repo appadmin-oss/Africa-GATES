@@ -132,6 +132,41 @@ final class GatewayEventLog
         }
     }
 
+    /**
+     * The webhook feed's own health, for the screen that has to show it.
+     *
+     * ── WHY THIS EXISTS AND NOT JUST {@see everReceived()} ───────────────────
+     *
+     * `everReceived()` had no caller for as long as it existed — the single most useful
+     * diagnostic on this platform, computed and never shown, while the failure it detects
+     * presents to a buyer as "I paid and nothing happened" and to an operator as nothing
+     * at all. §20's fault exactly.
+     *
+     * But "never" is only half of it, and the quieter half is the other one: a feed that
+     * worked for months and stopped, because somebody rotated the signing secret in the
+     * dashboard. That site HAS received deliveries, so the bare question answers "yes"
+     * and everything looks well. The date is what makes it visible.
+     *
+     * `ever` still comes from {@see everReceived()} rather than being re-derived here.
+     * Two readers of one fact is how the halves of a diagnostic come to disagree.
+     *
+     * @return array{ever:bool, last_at:string, days_since:?int}
+     */
+    public static function health(): array
+    {
+        $ever = self::everReceived();
+        $last = $ever ? (self::recent(1)[0] ?? null) : null;
+        $at   = trim((string) ($last->created_at ?? ''));
+
+        $since = null;
+        if ($at !== '') {
+            try { $since = (int) Carbon::parse($at)->diffInDays(Carbon::now()); }
+            catch (\Throwable) { $since = null; }
+        }
+
+        return ['ever' => $ever, 'last_at' => $at, 'days_since' => $since];
+    }
+
     /** Trim the table. Ninety days is long past any retry schedule or dispute window. */
     public static function prune(int $days = 90): int
     {

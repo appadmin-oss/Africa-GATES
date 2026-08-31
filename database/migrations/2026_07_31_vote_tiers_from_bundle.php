@@ -61,6 +61,12 @@ if ($get('vote_tiers') !== '') {
     return;
 }
 
+// READ RAW, AND IT MUST STAY RAW. There was a PaidVoteService::votesPer1000() beside
+// this, whose docblock claimed this migration was its one remaining caller — it was not,
+// and routing this through it would have been a bug rather than a tidy-up: that getter
+// substituted DEFAULT_PER_1000 when the setting was absent, so a site that never
+// configured a bundle would have been "migrated" to a translation of a bundle nobody set.
+// The getter is gone; this is why it must not come back.
 $per1000 = (int) $get('vote_votes_per_1000');
 if ($per1000 < 1) {
     // No bundle was ever configured, so there is no pricing to preserve and the

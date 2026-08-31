@@ -49,6 +49,43 @@
   Nothing on this page changes anything; it reads both books and shows where they differ.
 </p>
 
+{# ── HAS A WEBHOOK EVER REACHED US? ───────────────────────────────────────────
+   On the GET, because it is a local table read and costs nothing — everything else
+   on this page waits for a POST because it calls Paystack up to twenty times.
+
+   This is the question the screen is fundamentally about, and it was answered
+   nowhere: GatewayEventLog::everReceived() called itself the single most useful
+   diagnostic on the platform and had no reader at all. The failure it detects
+   presents to a buyer as "I paid and nothing happened" and to an operator as
+   nothing whatsoever, which is precisely why it needs a line on a screen rather
+   than a method somebody could call. #}
+<div class="gl-card {{ feed.ever ? (feed.days_since is not null and feed.days_since > 14 ? 'gl-card--warn' : 'gl-card--ok') : 'gl-card--bad' }}">
+  <h2>
+    {%- if not feed.ever %}No payment notification has ever reached this platform
+    {%- elseif feed.days_since is null %}Payment notifications are arriving
+    {%- elseif feed.days_since == 0 %}A payment notification arrived today
+    {%- elseif feed.days_since == 1 %}The last payment notification arrived yesterday
+    {%- else %}The last payment notification arrived {{ feed.days_since }} days ago{% endif -%}
+  </h2>
+  <p class="gl-card__note">
+    {% if not feed.ever %}
+      Paystack tells us about a payment by calling a URL on this site. Nothing has ever
+      arrived, so either the webhook URL in the Paystack dashboard is wrong or missing, or
+      its signing secret does not match ours — and in both cases a buyer pays, sees nothing
+      happen, and nobody here is told. <strong>On a site that has not sold anything yet this
+      is simply what "no sales" looks like</strong>, so check that first.
+    {% elseif feed.days_since is not null and feed.days_since > 14 %}
+      Notifications have arrived before, so the wiring was right at some point. A long gap is
+      either a genuinely quiet fortnight or a signing secret that was rotated in the dashboard
+      and not here — the second looks exactly like the first from this side.
+      {% if feed.last_at %}Last delivery {{ feed.last_at }}.{% endif %}
+    {% else %}
+      The webhook feed is live, so a payment taken by Paystack is being reported back to this
+      platform. {% if feed.last_at %}Last delivery {{ feed.last_at }}.{% endif %}
+    {% endif %}
+  </p>
+</div>
+
 {% if not providers %}
   <div class="gl-warnbar">
     No payment gateway is configured in this environment, so there is nothing to read. Set

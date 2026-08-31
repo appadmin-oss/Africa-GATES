@@ -31,7 +31,6 @@ use Illuminate\Support\Carbon;
 class PaidVoteService
 {
     public const DEFAULT_PRICE_NAIRA = 100;
-    public const DEFAULT_PER_1000    = 10;
 
     /**
      * Default cap on ONE order. Admin-overridable via {@see maxQty()}.
@@ -338,19 +337,6 @@ class PaidVoteService
         return max(1, min(self::maxQty(), (int) floor(self::MAX_ORDER_NAIRA / $cheapest)));
     }
 
-    /**
-     * The retired bundle rate: votes granted per ₦1,000.
-     *
-     * @deprecated Superseded by {@see tiers()}. Nothing prices with this any more — it
-     *             survives only so `2026_07_31_vote_tiers_from_bundle.php` can read what
-     *             a live site had configured and translate it into an equivalent tier.
-     *             Once every deployment has run that migration this can go.
-     */
-    public static function votesPer1000(): int
-    {
-        $v = (int) (self::setting('vote_votes_per_1000') ?? 0);
-        return $v > 0 ? $v : self::DEFAULT_PER_1000;
-    }
 
     /** Fallback ladder when none is configured — the chips the ballot already showed. */
     public const DEFAULT_TIERS = [

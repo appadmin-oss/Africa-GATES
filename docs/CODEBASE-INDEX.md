@@ -1054,6 +1054,36 @@ Three details worth keeping:
 - **The disclosure is omitted at zero, not zeroed.** A permanent "0 recovered votes" would be noise
   on every nominee page on the site in order to be honest about none of them.
 
+### 20.4 The rest of the sweep, so nobody re-runs it
+
+Thirty-five other methods had no production caller. Most claim only what they compute —
+a helper waiting for a caller is not a lie — and several are correctly labelled test seams
+(`CronGuard::releaseAll()`, `DisposableEmail::flushCache()`, `SpamService::resetThresholdCache()`)
+or PSR-15 `process()` methods invoked by dispatch and never by name. Two more were real:
+
+**`GatewayEventLog::everReceived()`** called itself "the single most useful diagnostic on this
+platform" and named its own harm: an empty table after a week of live payments means the webhook
+URL or the signing secret is wrong, "which presents to a buyer as *I paid and nothing happened* and
+to an operator as nothing at all." Nothing called it. It now leads `/admin/payments/ledger` through
+`health()`, which is a strictly better reading than the bare question: **"never" is the loud
+failure, and the quiet one is a feed that worked for months and stopped** because a signing secret
+was rotated — that site has received deliveries, so the bare question answers *yes* and everything
+looks well. The card also says plainly that a site with no sales looks identical to a broken
+webhook, because a diagnostic that alarms on every fresh install is one operators learn to scroll
+past. `health()` calls `everReceived()` rather than re-deriving it: two readers of one fact is how
+the halves of a diagnostic come to disagree, and this one is a diagnostic about disagreement.
+
+**`PaidVoteService::votesPer1000()`** was a trap rather than a gap. Deprecated, and its docblock
+said it "survives only so `2026_07_31_vote_tiers_from_bundle.php` can read what a live site had
+configured" — but that migration reads the setting **raw**, deliberately, and routing it through the
+getter would have been a bug: the getter substitutes `DEFAULT_PER_1000` when the setting is absent,
+so a site that never configured a bundle would have been migrated to a translation of a bundle
+nobody set. The method and its constant are gone and the migration now says why it must stay raw.
+
+The lesson generalises past this one: **a docblock naming a caller is a claim to verify, not a
+reason to keep the code.** This one named a caller that did not exist, and had anybody made the
+claim true the pricing would have broken.
+
 ### The question this sweep turns on
 
 §19's was "is there prose somewhere promising what this column does?". The method sweep's is
