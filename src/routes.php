@@ -2029,6 +2029,10 @@ return function(App $app) {
         // because somebody types it into a phone at a venue.
         $g->get('/door/{token:[a-f0-9]{64}}',        \AfricaGates\Controllers\DoorController::class.':page');
         $g->post('/door/{token:[a-f0-9]{64}}/check', \AfricaGates\Controllers\DoorController::class.':check');
+        // Taking an admission back, at the door where the mistake is noticed. Same credential,
+        // same exemption, and it needs the CODE — so it can only reach a ticket whose code the
+        // holder already has, which is the same bar as admitting one.
+        $g->post('/door/{token:[a-f0-9]{64}}/undo',  \AfricaGates\Controllers\DoorController::class.':undo');
         $g->get('/blog',           BlogController::class.':index');
         $g->get('/blog/{slug}',    BlogController::class.':show');
         $g->get('/pulse',          PulseController::class.':index');

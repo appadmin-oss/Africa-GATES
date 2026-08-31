@@ -103,9 +103,16 @@ class CsrfMiddleware {
         // call the endpoint directly.
         //
         // Anchored end to end, with the token's exact shape and length spelled out, so this
-        // cannot be widened by a crafted path. `/check` is the only verb it covers: the page
-        // itself is a GET and needs no exemption, and no other door route may ever ride this.
-        if (preg_match('~^/door/[a-f0-9]{64}/check$~', $path) === 1) {
+        // cannot be widened by a crafted path. The verbs are NAMED, never a wildcard: the page
+        // itself is a GET and needs no exemption, and a route added to the door tomorrow must
+        // be added here deliberately rather than inherit an exemption it was never reasoned
+        // about.
+        //
+        // `/undo` joins `/check` on the same reasoning and no weaker one: it needs the ticket
+        // CODE, so it can only reach a ticket whose code the caller already holds — the same
+        // bar as admitting one — and a steward who has just mis-scanned somebody has a queue
+        // in front of them and no session to carry a token in.
+        if (preg_match('~^/door/[a-f0-9]{64}/(check|undo)$~', $path) === 1) {
             return $handler->handle($req);
         }
 

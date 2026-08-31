@@ -63,6 +63,11 @@
     text-transform:uppercase; color:#5a6d6f; padding:0 8px 8px 0 }
   .tx-list td{ padding:9px 8px 9px 0; border-top:1px solid rgba(16,41,44,.07); vertical-align:top }
   .tx-tag{ font-size:10px; font-weight:700; letter-spacing:.05em; text-transform:uppercase;
+  /* The second line under a cell: which gate, why it was reversed, the date under a
+     clock. Small and quiet on purpose — it is context for the row above it, and a
+     door log where every line competes is one nobody reads to the bottom of.
+     11.5px against #67797b clears 4.5:1 on this ground. */
+  .tx-mini{ font-size:11.5px; color:#67797b; line-height:1.5 }
     padding:3px 8px; border-radius:999px; background:rgba(16,41,44,.07); color:#3d4b4d }
   .tx-tag--ok{ background:#eaf7ea; color:#1c5f1b }
   .tx-tag--wait{ background:#fff8df; color:#6b5312 }
@@ -388,12 +393,61 @@
     <div class="tx-s__v">{{ summary.pending }}</div>
     <div class="tx-s__n">holding a seat for {{ hold_minutes|default(30) }} minutes</div>
   </div>
+  {# Counted from EventArrivals, not from `attendees`, and the difference is the point:
+     a guest of honour is admitted on an INVITATION and has no registration row at all, so
+     filtering the attendee list showed an organiser a hall with every nominee and judge
+     missing from it. `room.in` is the same number the door itself displays — one resolver,
+     because a door and an office disagreeing about how many people are in a building is
+     the kind of disagreement that matters to a fire officer. #}
   <div class="tx-s">
-    <div class="tx-s__k">Checked in</div>
-    <div class="tx-s__v">{{ attendees|filter(a => a.checked_in_at)|length }}</div>
-    <div class="tx-s__n">through the door</div>
+    <div class="tx-s__k">In the room</div>
+    <div class="tx-s__v">{{ room.in }}</div>
+    <div class="tx-s__n">
+      {%- if room.honoured_in %}{{ room.tickets_in }} on tickets · {{ room.honoured_in }} guest{{ room.honoured_in == 1 ? '' : 's' }} of honour
+      {%- else %}through the door, of {{ room.expected }} expected{% endif -%}
+    </div>
   </div>
 </div>
+
+{# ── WHAT HAPPENED AT THE DOOR ─────────────────────────────────────────────
+   Durable, server-timestamped, and it includes reversals. The steward's on-screen list
+   is twelve rows on one phone, stamped from that phone's clock and gone when the screen
+   locks; this is what an organiser can actually stand behind a week later.
+
+   Reversals are shown as their own kind rather than omitted. A log that quietly dropped
+   the admissions that were taken back would be a record of what we wish had happened. #}
+{% if arrivals|length %}
+<div class="tx-sec">
+  <h2>What happened at the door</h2>
+  <p>Every admission and every reversal, newest first — with which gate did it. This is the
+    record to reach for when somebody disputes being turned away.</p>
+  <div class="ad-table-wrap">
+    <table class="tx-list">
+      <thead><tr>
+        <th scope="col">Time</th><th scope="col">Who</th><th scope="col"></th>
+        <th scope="col">Gate</th><th scope="col">Seats</th>
+      </tr></thead>
+      <tbody>
+        {% for r in arrivals %}
+          <tr>
+            <td style="color:#67797b;white-space:nowrap">{{ r.created_at|slice(11, 5) }}<br>
+              <span class="tx-mini">{{ r.created_at|slice(0, 10) }}</span></td>
+            <td>{{ r.who ?: '—' }}
+              {%- if r.invite_id %}<br><span class="tx-mini">guest of honour</span>{% endif %}</td>
+            <td>
+              {% if r.action == 'undo' %}<span class="tx-tag tx-tag--no">taken back</span>
+                {%- if r.reason %}<br><span class="tx-mini">{{ r.reason }}</span>{% endif %}
+              {% else %}<span class="tx-tag tx-tag--ok">admitted</span>{% endif %}
+            </td>
+            <td>{{ r.via ?: '—' }}{% if r.admin_id %}<br><span class="tx-mini">admin #{{ r.admin_id }}</span>{% endif %}</td>
+            <td>{{ r.seats }}</td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endif %}
 
 <div class="tx-sec">
   <h2>Each ticket type, against its own limit</h2>
@@ -569,7 +623,14 @@
               {% elseif a.status == 'waitlisted' %}<span class="tx-tag tx-tag--wait">waiting</span>
               {% elseif a.status == 'cancelled' %}<span class="tx-tag tx-tag--no">cancelled</span>
               {% else %}<span class="tx-tag">{{ a.status|default('—') }}</span>{% endif %}
-              {% if a.checked_in_at %}<br><span class="tx-tag tx-tag--ok">arrived</span>{% endif %}
+              {# WHICH door, not just that they arrived. `checked_in_via` has been written
+                 since the scan-pass migration and read by nothing until now — and it is the
+                 only answer to "who admitted this person?", which is the question asked
+                 after a disputed entry. #}
+              {% if a.checked_in_at %}<br><span class="tx-tag tx-tag--ok">arrived
+                {{- a.checked_in_at ? ' ' ~ a.checked_in_at|slice(11, 5) : '' }}</span>
+                {%- if a.checked_in_via %}<br><span class="tx-mini">{{ a.checked_in_via }}</span>{% endif %}
+              {% endif %}
             </td>
             <td style="color:#67797b">{{ a.created_at }}</td>
             <td>

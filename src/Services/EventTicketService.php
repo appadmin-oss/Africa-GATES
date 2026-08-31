@@ -1272,10 +1272,104 @@ final class EventTicketService
         try { CheckInThanks::queue($reg, self::eventOf((int) $reg->event_id)); }
         catch (\Throwable) {}
 
+        // The arrivals log. Also only on the winning branch, for the same reason the
+        // thank-you is: a re-scan is ordinary at a door and must not appear twice in the
+        // record of who came through. `checked_in_via` on the row is the CURRENT state;
+        // this is the history, and it is what a reversal appends to rather than erases.
+        EventArrivals::admitted($reg, $by, $adminId);
+
         return [
             'verdict' => 'admit', 'title' => 'Admit',
             'detail'  => $seats > 1 ? $seats . ' seats on this ticket.' : '',
             'name' => $name, 'tier' => $tier, 'seats' => $seats, 'code' => $code, 'at' => $now,
+        ];
+    }
+
+    /**
+     * Take an admission back.
+     *
+     * ══════════════════════════════════════════════════════════════════════════
+     * WHY THIS HAD TO EXIST
+     * ══════════════════════════════════════════════════════════════════════════
+     *
+     * `checked_in_at` was terminal. Four things gate on it — this method's own duplicate
+     * check, a rename, a transfer, and {@see EventRefundPolicy}, which refuses a refund to
+     * anybody marked admitted. So a camera catching the ticket of the person behind in the
+     * queue turned that attendee away at the door, stopped them handing the ticket to
+     * somebody who could use it, AND kept their money, with no route to reverse any of it
+     * on a host with no shell.
+     *
+     * ── THE REASON IS REQUIRED, AND IT IS THE POINT ──────────────────────────
+     *
+     * Un-admitting somebody is the one action here that can be used to rewrite an evening.
+     * A reversal with no stated reason is indistinguishable from quietly removing a person
+     * from the record, so the log row carries why — and the row is an APPEND. Setting the
+     * column back to NULL and stopping there would erase the fact that somebody was scanned
+     * in at 19:42 and un-scanned at 19:43, which is exactly what is asked about afterwards.
+     *
+     * ── AND WHY THE DOOR MAY DO IT ───────────────────────────────────────────
+     *
+     * Because the door is where the mistake is noticed. Routing it to an admin screen means
+     * it is not fixed until after the event, by which time the person it happened to has
+     * gone home. The abuse surface is small and already accepted: a reversal needs the CODE,
+     * so it can only reach tickets whose code the holder already has — the same bar as
+     * admitting one.
+     *
+     * @return array{ok:bool, code:string, title:string, detail:string, name:string}
+     */
+    public static function undoCheckIn(string $code, int $eventId, string $by = '',
+                                       ?int $adminId = null, string $reason = ''): array
+    {
+        $code   = strtoupper(trim($code));
+        $reason = trim($reason);
+        $no = static fn (string $c, string $t, string $d): array => [
+            'ok' => false, 'code' => $c, 'title' => $t, 'detail' => $d, 'name' => '',
+        ];
+
+        if ($code === '') return $no('NO_CODE', 'No code', 'Nothing was scanned or typed.');
+        if ($reason === '') {
+            return $no('NO_REASON', 'Say why',
+                'A reversal with no reason cannot be told apart from removing somebody quietly.');
+        }
+
+        $reg = self::byTicketCode($code);
+        if (!$reg || ($eventId > 0 && (int) $reg->event_id !== $eventId)) {
+            // Same answer as checkIn() gives, for the same reason: two different "not found"
+            // sentences would turn the door into an oracle for which codes exist.
+            return $no('NOT_HERE', 'Not a ticket for this event',
+                       'No ticket here has the code ' . $code . '.');
+        }
+
+        $name = (string) $reg->name;
+
+        if (($reg->checked_in_at ?? null) === null) {
+            return $no('NOT_IN', 'Not checked in',
+                       $name . ' has not been admitted, so there is nothing to take back.')
+                 + ['name' => $name];
+        }
+
+        // Conditional, exactly as the admission is: two stewards pressing undo on the same
+        // ticket must produce one reversal and one honest "already done", not two log rows.
+        $won = DB::table('gates_event_registrations')->where('id', (int) $reg->id)
+            ->whereNotNull('checked_in_at')
+            ->update(OptionalColumn::filter('gates_event_registrations', [
+                'checked_in_at'  => null,
+                'checked_in_by'  => null,
+                'checked_in_via' => null,
+            ], ['checked_in_by', 'checked_in_via'])) > 0;
+
+        if (!$won) {
+            return $no('NOT_IN', 'Already taken back',
+                       $name . ' was un-admitted a moment ago by somebody else.') + ['name' => $name];
+        }
+
+        EventArrivals::reversed($reg, $by, $adminId, $reason);
+
+        return [
+            'ok' => true, 'code' => 'UNDONE', 'title' => 'Taken back',
+            'detail' => $name . ' is no longer admitted. Their ticket works again, and so does '
+                      . 'a refund if they are owed one.',
+            'name' => $name,
         ];
     }
 

@@ -58,13 +58,24 @@
   .dr__video{ width:100%; margin-top:10px; border-radius:12px; background:#000; display:none }
   .dr__video.on{ display:block }
 
+  /* 48px and full width: pressed one-handed, in the dark, by somebody who has just
+     realised they admitted the wrong person. Deliberately NOT red until it is armed —
+     an alarm-coloured control sitting under every successful scan reads as an error. */
+  .dr__undo{ margin-top:10px }
+  .dr__undo__b{ width:100%; min-height:48px; font-size:15px; font-weight:600; cursor:pointer;
+    border:2px solid #cfdad8; border-radius:10px; background:#fff; color:#5a6d6f }
+  .dr__undo__b.is-armed{ border-color:#a32b1f; color:#7d1d14; background:#fdeceb }
+  .dr__undo__b:focus-visible{ outline:3px solid #237b22; outline-offset:2px }
+
+  .dr__v--undone{ background:#eef1f5; border-color:#5a6d6f; color:#39464a }
+
   .dr__log{ margin:18px 0 0; padding:0; list-style:none; border-top:1px solid #e3eae9 }
   .dr__log li{ display:flex; gap:10px; align-items:baseline; padding:9px 2px;
     border-bottom:1px solid #eef3f2; font-size:13.5px }
   .dr__log .t{ font-variant-numeric:tabular-nums; color:#7d8f90; font-size:12px }
   .dr__log .v{ font-weight:700; font-size:12px; letter-spacing:.04em; text-transform:uppercase }
   .dr__log .v--admit{ color:#237b22 } .dr__log .v--dup{ color:#b4671a }
-  .dr__log .v--refuse{ color:#a32b1f }
+  .dr__log .v--refuse{ color:#a32b1f } .dr__log .v--undone{ color:#5a6d6f }
 
   .dr__note{ font-size:12.5px; color:#5a6d6f; line-height:1.6; margin-top:16px }
   @media (prefers-reduced-motion: no-preference){
@@ -132,6 +143,18 @@
     <button type="submit" id="drGo">Check</button>
   </form>
 
+  {# ── TAKING IT BACK ────────────────────────────────────────────────────
+     Shown only after an admit, and hidden again on the next scan. A permanent
+     "undo" button beside a queue is a thing that gets pressed by accident; one that
+     appears for the person who just came through, and disappears the moment the next
+     ticket is scanned, can only ever mean the scan on screen.
+
+     It is a two-step press rather than a confirm dialog: at a door, a modal is a
+     second thing to dismiss one-handed, and the second tap is the confirmation. #}
+  <div class="dr__undo" id="drUndoWrap" hidden>
+    <button type="button" id="drUndo" class="dr__undo__b">Not them — take it back</button>
+  </div>
+
   <div class="dr__cam" id="drCamWrap" hidden>
     <button type="button" id="drCam">Use the camera</button>
     <video id="drVideo" class="dr__video" playsinline muted></video>
@@ -161,8 +184,26 @@
   var url   = {{ ('/door/' ~ token ~ '/check')|json_encode|raw }};
   if (!form || !input || !panel) return;
 
-  var MARK = { admit: '✓', duplicate: '!', refuse: '✕', closed: '✕' };
-  var CLS  = { admit: 'admit', duplicate: 'dup', refuse: 'refuse', closed: 'closed' };
+  var undoWrap = document.getElementById('drUndoWrap');
+  var undoBtn  = document.getElementById('drUndo');
+  var undoUrl  = {{ ('/door/' ~ token ~ '/undo')|json_encode|raw }};
+
+  var MARK = { admit: '✓', duplicate: '!', refuse: '✕', closed: '✕', undone: '↩' };
+  var CLS  = { admit: 'admit', duplicate: 'dup', refuse: 'refuse', closed: 'closed', undone: 'undone' };
+
+  // The ticket currently on the panel, and whether the undo button is armed. Held here
+  // rather than read off the DOM so a re-render cannot leave the button pointing at a
+  // code that is no longer displayed — which is the one way this control could admit
+  // the wrong reversal.
+  var onPanel = '', armed = false;
+
+  function disarm() {
+    armed = false;
+    if (!undoBtn || !undoWrap) return;
+    undoBtn.classList.remove('is-armed');
+    undoBtn.textContent = 'Not them — take it back';
+    undoWrap.hidden = true;
+  }
 
   function paint(v) {
     var kind = CLS[v.verdict] || 'refuse';
@@ -206,6 +247,13 @@
     if (v.verdict !== 'admit' && navigator.vibrate) { try { navigator.vibrate(180); } catch (e) {} }
 
     if (v.honour && v.verdict === 'admit') celebrate();
+
+    // Offered only for a ticket that was just admitted here. Not for a duplicate (the
+    // admission being undone would be somebody else's, minutes ago), not for a guest of
+    // honour (there is no registration to reverse), and never for a refusal.
+    disarm();
+    onPanel = (v.verdict === 'admit' && !v.honour && v.code) ? String(v.code) : '';
+    if (onPanel && undoWrap) undoWrap.hidden = false;
   }
 
   /**
@@ -272,7 +320,9 @@
     t.textContent = new Date().toTimeString().slice(0, 5);
     var k = document.createElement('span');
     k.className = 'v v--' + (CLS[v.verdict] || 'refuse');
-    k.textContent = v.verdict === 'duplicate' ? 'again' : (v.verdict === 'admit' ? 'in' : 'no');
+    k.textContent = v.verdict === 'duplicate' ? 'again'
+                  : v.verdict === 'undone' ? 'back'
+                  : (v.verdict === 'admit' ? 'in' : 'no');
     var n = document.createElement('span');
     n.textContent = v.name || v.code || '—';
     li.appendChild(t); li.appendChild(k); li.appendChild(n);
@@ -309,6 +359,39 @@
 
   form.addEventListener('submit', function (e) { e.preventDefault(); check(input.value); });
   input.focus();
+
+  // Two taps, no dialog. The first arms and relabels; the second sends. A modal at a door
+  // is a second thing to dismiss one-handed with a queue waiting, and the relabel carries
+  // the same information a confirm box would — including the name, so the steward is
+  // reversing a person rather than a code.
+  if (undoBtn) {
+    undoBtn.addEventListener('click', async function () {
+      if (!onPanel || busy) return;
+
+      if (!armed) {
+        armed = true;
+        undoBtn.classList.add('is-armed');
+        undoBtn.textContent = 'Press again to un-admit';
+        return;
+      }
+
+      busy = true; undoBtn.disabled = true;
+      try {
+        var r = await fetch(undoUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+          body: JSON.stringify({ code: onPanel })
+        });
+        var v = await r.json();
+        paint(v); remember(v);
+      } catch (e) {
+        paint({ verdict: 'refuse', title: 'No connection',
+                detail: 'Nothing was changed. Scan the ticket again and retry.' });
+      }
+      busy = false; undoBtn.disabled = false;
+      input.focus();
+    });
+  }
 
   // ── THE CAMERA, WHICH IS THE ADDITION AND NOT THE DOOR ───────────────────
   //

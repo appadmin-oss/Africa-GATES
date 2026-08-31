@@ -3,7 +3,7 @@ declare(strict_types=1);
 
 namespace AfricaGates\Controllers;
 
-use AfricaGates\Services\{EventScanPass, EventTicketService, InviteAudience, InvitePass};
+use AfricaGates\Services\{EventArrivals, EventScanPass, EventTicketService, InviteAudience, InvitePass};
 use Illuminate\Database\Capsule\Manager as DB;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
@@ -105,7 +105,8 @@ final class DoorController
             'token'     => $token,
             // The room, so somebody on the door knows whether they are near the end.
             'admitted'  => $this->admitted((int) $r['event']->id),
-            'expected'  => EventTicketService::attendingForEvent((int) $r['event']->id),
+            // Same resolver, same reason: tickets sold PLUS invitations actually sent.
+            'expected'  => EventArrivals::expected((int) $r['event']->id),
         ])->withHeader('X-Robots-Tag', 'noindex, nofollow');
     }
 
@@ -137,8 +138,7 @@ final class DoorController
             $code = (string) preg_replace('~^.*/~', '', rtrim(trim($code), '/'));
         }
 
-        $pass  = $r['pass'];
-        $label = trim((string) ($pass->label ?? ''));
+        $pass = $r['pass'];
 
         // ── A GUEST OF HONOUR IS NOT A TICKET ────────────────────────────────
         //
@@ -153,7 +153,7 @@ final class DoorController
         // oracle — two different "not found" answers for the same scan tell somebody
         // holding a random string which namespace it missed.
         if (substr_count($code, '.') === 2) {
-            $verdict = $this->honour($code, (int) $pass->event_id);
+            $verdict = $this->honour($code, (int) $pass->event_id, $this->via($pass));
             EventScanPass::touch((int) $pass->id);
 
             return $this->json($res, $verdict + [
@@ -161,11 +161,7 @@ final class DoorController
             ]);
         }
 
-        $v = EventTicketService::checkIn(
-            $code,
-            (int) $pass->event_id,
-            'door' . ($label !== '' ? ': ' . $label : '')
-        );
+        $v = EventTicketService::checkIn($code, (int) $pass->event_id, $this->via($pass));
 
         EventScanPass::touch((int) $pass->id);
 
@@ -185,6 +181,68 @@ final class DoorController
     }
 
     /**
+     * Which door this is, as one string, written into `checked_in_via` and the arrivals log.
+     *
+     * One helper because the ticket path, the honour path and a reversal must all label
+     * themselves identically — an evening whose log says 'door: Main gate' for admissions and
+     * 'door' for reversals cannot be read as one sequence.
+     */
+    private function via(object $pass): string
+    {
+        $label = trim((string) ($pass->label ?? ''));
+
+        return 'door' . ($label !== '' ? ': ' . $label : '');
+    }
+
+    /**
+     * POST /door/{token}/undo — take an admission back.
+     *
+     * At the DOOR and not only in the admin panel, because the door is where the mistake is
+     * noticed: a camera catches the ticket of the person behind in the queue, and the holder
+     * is then refused, cannot transfer the ticket, and cannot be refunded. Sent to an admin
+     * screen it is not fixed until after the event, by which time they have gone home.
+     *
+     * The pass is re-resolved here exactly as it is on a check — a revoked pass must not be
+     * able to un-admit people from a tab that has been open since six.
+     */
+    public function undo(Request $req, Response $res, array $args): Response
+    {
+        $r = EventScanPass::resolve((string) ($args['token'] ?? ''));
+        if (!$r['ok']) {
+            return $this->json($res, [
+                'ok' => false, 'verdict' => 'closed',
+                'title' => 'This door is closed', 'detail' => $r['message'],
+            ], 403);
+        }
+
+        $pass = $r['pass'];
+        $body = (array) $req->getParsedBody();
+        $code = (string) ($body['code'] ?? '');
+        if (str_contains($code, '/')) {
+            $code = (string) preg_replace('~^.*/~', '', rtrim(trim($code), '/'));
+        }
+
+        // The door's reason is fixed rather than typed. A steward with a queue will not write
+        // prose, and an empty box would either block the fix or fill the log with "asdf" —
+        // whereas "scanned in error at the door" is true of every reversal made here and is
+        // the sentence somebody reading the log afterwards actually needs.
+        $v = EventTicketService::undoCheckIn(
+            $code, (int) $pass->event_id, $this->via($pass), null, 'scanned in error at the door');
+
+        EventScanPass::touch((int) $pass->id);
+
+        return $this->json($res, [
+            'ok'       => $v['ok'],
+            'verdict'  => $v['ok'] ? 'undone' : 'refuse',
+            'title'    => $v['title'],
+            'detail'   => $v['detail'],
+            'name'     => $v['name'],
+            'tier'     => '', 'seats' => 0, 'code' => $code,
+            'admitted' => $this->admitted((int) $pass->event_id),
+        ], $v['ok'] ? 200 : 409);
+    }
+
+    /**
      * Verify an invitation pass and say what the door should do.
      *
      * Returns the same shape as {@see EventTicketService::checkIn()} so the page has one
@@ -194,7 +252,7 @@ final class DoorController
      *
      * @return array<string,mixed>
      */
-    private function honour(string $code, int $eventId): array
+    private function honour(string $code, int $eventId, string $via = ''): array
     {
         $r = InvitePass::verify($code);
 
@@ -224,6 +282,9 @@ final class DoorController
         $seen = (int) $invite->scans;
 
         InvitePass::touch((int) $invite->id);
+        // Into the arrivals log as well as the invite's own counter, so the record of who was
+        // in the room is one list rather than two tables an organiser has to join by hand.
+        EventArrivals::honoured($invite, $via);
 
         // Already through is NOT a refusal. A nominee who steps out to take a call and
         // comes back is the ordinary case, and turning them away from their own ceremony
@@ -244,15 +305,18 @@ final class DoorController
         ];
     }
 
-    /** Seats admitted so far — people through the door, not bookings scanned. */
+    /**
+     * Seats admitted so far — people through the door, not bookings scanned.
+     *
+     * Delegated rather than queried here, and that is the fix rather than a tidy-up. This
+     * summed `gates_event_registrations` alone, and a guest of honour is admitted on an
+     * INVITATION and has no registration row by design — minting them a complimentary ticket
+     * would have counted as a sale and stopped the hall selling. So the number a steward
+     * reads to judge the room, and the closest thing here to a fire-safety figure, silently
+     * excluded every nominee and judge in the building.
+     */
     private function admitted(int $eventId): int
     {
-        try {
-            return (int) DB::table('gates_event_registrations')
-                ->where('event_id', $eventId)->whereNotNull('checked_in_at')
-                ->sum(DB::raw('COALESCE(quantity, 1)'));
-        } catch (\Throwable) {
-            return 0;
-        }
+        return EventArrivals::inTheRoom($eventId);
     }
 }

@@ -875,6 +875,20 @@ class EventsController
             // on a screen in an office.
             'new_pass'    => $this->takeNewPass(),
             'door_hours'  => \AfricaGates\Services\EventScanPass::DEFAULT_HOURS,
+            // ── THE ARRIVALS LOG ─────────────────────────────────────────
+            //
+            // The first reader `checked_in_via` and `checked_in_by` have ever had. Both were
+            // written from day one and rendered nowhere, so the only account of who admitted
+            // whom lived in a JavaScript list on the steward's phone — capped at twelve,
+            // timestamped from that phone's clock, and erased by a refresh. That is the
+            // record an organiser reaches for when an attendee disputes an entry, and it
+            // did not survive the screen locking.
+            //
+            // It carries reversals too, which is why it is a log and not a column: setting
+            // `checked_in_at` back to NULL would erase the fact that somebody was scanned in
+            // at 19:42 and un-scanned at 19:43, and that is exactly what gets asked about.
+            'arrivals'    => \AfricaGates\Services\EventArrivals::recent($id, 300),
+            'room'        => \AfricaGates\Services\EventArrivals::summary($id),
             // ── REFUNDS ──────────────────────────────────────────────────
             //
             // Here rather than on the finance screen because a refund that did not land is
