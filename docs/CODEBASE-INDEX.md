@@ -1091,3 +1091,60 @@ narrower and sharper: **what does this method's own docblock claim about the wor
 `disclosureFor()` said "Published, because the strongest control on a mechanism like this is not any
 of the approvals — it is that using it cannot be quiet." A method whose docblock describes a
 property of the running system, with no caller, is that property being false.
+
+---
+
+## 21. The MySQL/SQLite sweeps (2026-08-31)
+
+`CLAUDE.md` opens by calling the dev/production driver split "the single most productive
+source of bugs in this codebase". §19 and §20 swept for things with no reader; this sweeps
+for things SQLite forgives.
+
+**Two came back clean, and the null results are worth recording so nobody re-derives them.**
+
+- **`ONLY_FULL_GROUP_BY`** (MySQL's default since 5.7, and no such rule in SQLite). All 48
+  `groupBy()` sites select only grouped columns plus aggregates. Grouping by a select alias
+  — `groupBy('d')` against `substr(created_at,1,10) AS d` — is a MySQL extension and is
+  fine.
+- **Driver-specific SQL in raw expressions.** 475 raw-SQL strings scanned for `strftime`,
+  `julianday`, `DATE_FORMAT`, `CONCAT`, `NOW()`, `RAND()`, `REGEXP` and the rest: none. The
+  codebase disciplines its raw SQL to the intersection of both dialects, and
+  `AnalyticsService::dayExpr()` is where that discipline is written down.
+
+### 21.1 The third came back positive: integer widths
+
+**SQLite ignores integer widths entirely.** A column declared `SMALLINT UNSIGNED` stores
+100000 without complaint; MySQL in strict mode rejects the statement with *Out of range
+value for column*. So a form field that is lower-bounded and not upper-bounded is green
+here, green in review, and broken in production alone — for whoever typed the long number,
+with an error naming a column rather than a field. `CLAUDE.md` records that this already
+cost a `sort_order` once.
+
+The schema declares 44 non-boolean narrow integer columns. Every admin-settable one is
+clamped — `max_len` at 8000, `max_turns` at 200, `grace_days` at 365, `guest_quota` at 500,
+`failed_attempts` reset to 0 at five — **except two**, which were `max(1, (int) $input)`:
+`gates_shop_codes.max_per_email` and `gates_event_codes.max_per_email`, both
+`SMALLINT UNSIGNED`. Their `max_uses` neighbours had the same shape against `INT UNSIGNED`.
+
+`Support\ColumnRange` now holds the MySQL maxima and both writers clamp through it.
+Two decisions in it are deliberate:
+
+- **It clamps to the column, never to a product limit.** "Nobody needs a code usable 65,535
+  times by one address" is true and is not the schema's business; an invented ceiling is a
+  second opinion that drifts the day somebody widens the column.
+- **`fits()` exists beside `clamp()`** because clamping is only right where a value past the
+  ceiling means the same thing as the ceiling. For a price or an ordered quantity the
+  magnitude carries meaning and the path should refuse.
+
+`ColumnWidthTest` reads the declared type **out of the migration** rather than asserting
+≤ 65535: the invariant is that the clamp and the column agree, so widening a column fails
+the test and says the clamp beside it is now wrong, instead of leaving a ceiling nobody can
+find a reason for.
+
+One detail from writing it, because the next schema reader will hit it. A dated migration
+holds **both** branches in one file, sqlite first — so a parser that stops at the first
+`CREATE TABLE <name>` reads the branch whose widths are fiction, and `INT` without a `\b`
+matches the leading three letters of the sqlite branch's `INTEGER`. The first version of
+this test did both, reported `max_per_email` as `INT`, and would have blessed a clamp four
+orders of magnitude too generous. **A schema reader that reads the wrong branch is worse
+than none.**

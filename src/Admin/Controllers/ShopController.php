@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 namespace AfricaGates\Admin\Controllers;
 
+use AfricaGates\Support\ColumnRange;
 use AfricaGates\Admin\Services\AuditService;
 use AfricaGates\Services\{OtpService, ShopDiscount, ShopPricing, ShopShipping, StockAlert};
 use AfricaGates\Support\{OptionalColumn, PromoCode};
@@ -280,8 +281,14 @@ final class ShopController
             'min_spend_naira' => trim((string) ($b['min_spend_naira'] ?? '')) !== ''
                 ? max(0, (int) $b['min_spend_naira']) : null,
             'free_shipping' => $freeShip ? 1 : 0,
-            'max_uses'      => trim((string) ($b['max_uses'] ?? '')) !== '' ? max(1, (int) $b['max_uses']) : null,
-            'max_per_email' => max(1, (int) ($b['max_per_email'] ?? 1)),
+            // Clamped to the COLUMN, not to an invented product ceiling. Both were
+            // lower-bounded only, and SQLite stores whatever it is handed — so an
+            // operator typing a long number saved cleanly in dev and every test, and
+            // failed in production alone with "Out of range value for column".
+            'max_uses'      => trim((string) ($b['max_uses'] ?? '')) !== ''
+                ? ColumnRange::clamp((int) $b['max_uses'], ColumnRange::INT_UNSIGNED, 1) : null,
+            'max_per_email' => ColumnRange::clamp((int) ($b['max_per_email'] ?? 1),
+                                                  ColumnRange::SMALLINT_UNSIGNED, 1),
             'starts_at'     => self::stamp($b['starts_at'] ?? ''),
             'ends_at'       => self::stamp($b['ends_at'] ?? ''),
             'is_active'     => !empty($b['is_active']) ? 1 : 0,

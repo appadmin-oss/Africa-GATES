@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 namespace AfricaGates\Admin\Controllers;
 
+use AfricaGates\Support\ColumnRange;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
 use Psr\Http\Message\UploadedFileInterface;
@@ -734,8 +735,12 @@ class EventsController
             'kind'          => $kind,
             'amount'        => $amount,
             'tier_ids'      => $tierIds !== [] ? json_encode($tierIds) : null,
-            'max_uses'      => trim((string) ($b['max_uses'] ?? '')) !== '' ? max(1, (int) $b['max_uses']) : null,
-            'max_per_email' => max(1, (int) ($b['max_per_email'] ?? 1)),
+            // See ShopController — the same two fields, the same column widths, and the
+            // same failure that only ever appears on MySQL.
+            'max_uses'      => trim((string) ($b['max_uses'] ?? '')) !== ''
+                ? ColumnRange::clamp((int) $b['max_uses'], ColumnRange::INT_UNSIGNED, 1) : null,
+            'max_per_email' => ColumnRange::clamp((int) ($b['max_per_email'] ?? 1),
+                                                  ColumnRange::SMALLINT_UNSIGNED, 1),
             'starts_at'     => self::fromInput($b['starts_at'] ?? ''),
             'ends_at'       => self::fromInput($b['ends_at'] ?? ''),
             'is_active'     => !empty($b['is_active']) ? 1 : 0,
