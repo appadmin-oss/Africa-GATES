@@ -14,15 +14,28 @@ use Illuminate\Database\Capsule\Manager as DB;
  * WHY AZURE AND NOT THE TWO ENGINES ALREADY HERE
  * ══════════════════════════════════════════════════════════════════════════════
  *
- * {@see InterviewVoice} already speaks, through OpenAI or ElevenLabs. Neither has a Nigerian
- * English voice. An American voice reading "Chidinma Okonkwo" at a Lagos gala is not a small
- * aesthetic miss — it is the platform sounding like it was built somewhere else, at the exact
- * moment it is welcoming somebody by name.
+ * {@see InterviewVoice} already speaks, through OpenAI or ElevenLabs, and the door does not
+ * use either. The reason is the FREE TIER, not the voices — which is worth stating plainly,
+ * because an earlier version of this note said ElevenLabs had no Nigerian voice and that was
+ * simply wrong. It has several, they are good, and some are Yoruba-accented in a way Azure's
+ * are not.
  *
- * Azure publishes `en-NG-EzinneNeural` (female) and `en-NG-AbeoNeural` (male), and its free
- * tier is 0.5 million characters a month. A welcome is about twenty-five characters, so the
- * free tier is roughly twenty thousand people a month — more than this platform will greet in
- * a year of galas. That is why it can be a standing feature rather than a budget line.
+ * The numbers are what decide it. ElevenLabs' free tier is 10,000 credits a month and
+ * FORBIDS COMMERCIAL USE; a ticketed awards gala is commercial, so the honest comparison is
+ * against paid Starter at 30,000. Azure's F0 is 500,000 characters a month with no such
+ * restriction. A three-hundred-guest gala is about 13,500 characters — more than the whole
+ * ElevenLabs free month in one evening, two evenings on Starter, and about a fortieth of an
+ * Azure month.
+ *
+ * So: Azure is what makes this a STANDING feature rather than a budget line. ElevenLabs is a
+ * legitimate upgrade for somebody willing to pay for a better voice, and the day that is
+ * wanted the work is a provider column in the cache key — the key is voice-scoped already
+ * (see DoorWelcome::keyFor) and would have to become provider-scoped too, or one provider's
+ * clips would answer for the other's.
+ *
+ * Azure publishes `en-NG-EzinneNeural` (female) and `en-NG-AbeoNeural` (male). A welcome with
+ * its greeting is about forty-five characters, so the free tier is roughly eleven thousand
+ * people a month — more than this platform will greet in a year of galas.
  *
  * ══════════════════════════════════════════════════════════════════════════════
  * IT IS NEVER CALLED AT THE DOOR

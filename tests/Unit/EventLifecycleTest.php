@@ -496,11 +496,25 @@ final class EventLifecycleTest extends TestCase
         $this->stage();
         $code = $this->sell('Ada Obi', 'ada@example.test', 1);
 
-        // The window as the limiter itself would leave it, at the cap.
+        // ── THE WINDOW AS THE LIMITER ITSELF WOULD LEAVE IT, AT THE CAP ──────
+        //
+        // Read from the door's OWN constant rather than written down here. A number typed
+        // in would have to be re-typed the day somebody raises the cap, and the failure of
+        // forgetting is silent: the guard stops tripping and this test starts asserting
+        // that a normal scan is a normal scan.
+        //
+        // It also has to FIT. `hit_count` is `SMALLINT UNSIGNED` in MySQL — 65,535 — and
+        // the first version of this line planted 100,000. SQLite stored it happily and
+        // the test passed; MySQL refused the insert outright. That divergence is the
+        // single most productive source of bugs in this codebase, and this is what it
+        // looks like from the inside.
+        $cap = (new \ReflectionClass(DoorController::class))->getConstant('SCANS_PER_MIN');
+        $this->assertLessThanOrEqual(65535, $cap, 'the cap no longer fits its own column');
+
         $passId = (int) EventScanPass::resolve($this->door)['pass']->id;
         DB::table('gates_rate_limits')->insert([
             'fingerprint' => 'pass:' . $passId, 'action' => 'door_scan',
-            'hit_count' => 100000, 'window_start' => Carbon::now()->toDateTimeString(),
+            'hit_count' => $cap, 'window_start' => Carbon::now()->toDateTimeString(),
         ]);
 
         $v = $this->scan($code, 1);
