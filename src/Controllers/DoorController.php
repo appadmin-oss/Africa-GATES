@@ -4,7 +4,7 @@ declare(strict_types=1);
 namespace AfricaGates\Controllers;
 
 use AfricaGates\Services\{DoorWelcome, EventArrivals, EventScanPass, EventTicketService,
-                          InviteAudience, InvitePass};
+                          InviteAudience, InvitePass, RateLimitService};
 use Illuminate\Database\Capsule\Manager as DB;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
@@ -48,7 +48,47 @@ use Slim\Views\Twig;
  */
 final class DoorController
 {
-    public function __construct(private readonly Twig $view) {}
+    /**
+     * Scans allowed per pass per minute.
+     *
+     * ── WHY A DOOR NEEDS A CEILING AT ALL ────────────────────────────────────
+     *
+     * A pass is a bearer token that is MEANT to be posted into a volunteers' group chat, so
+     * it leaks by design and the time window is the accepted control. But this endpoint
+     * returns an attendee's NAME for any valid code, and nothing bounded attempts — so a
+     * leaked link was an unmetered name-lookup oracle for anybody holding a list of codes,
+     * and an unmetered database load on a live door.
+     *
+     * 120 a minute is two scans a second sustained, which is faster than a human queue moves
+     * and far below what a script wants. Chosen so it cannot bite a real door: the cost of
+     * this number being wrong is a steward being refused mid-queue, which is worse than the
+     * thing it defends against.
+     */
+    private const SCANS_PER_MIN = 120;
+
+    public function __construct(
+        private readonly Twig $view,
+        private readonly ?RateLimitService $limits = null,
+    ) {}
+
+    /**
+     * True when this pass has scanned too fast to be a person.
+     *
+     * Keyed on the PASS, not the IP: a hall with four gates behind one venue router is four
+     * stewards sharing an address, and rate-limiting them together would throttle the
+     * busiest door on the strength of the other three.
+     */
+    private function tooFast(object $pass, string $action): bool
+    {
+        if ($this->limits === null) return false;
+
+        try {
+            return !$this->limits->check('pass:' . (int) $pass->id, $action, self::SCANS_PER_MIN, 60);
+        } catch (\Throwable) {
+            // A limiter that cannot read its own table must never close a door.
+            return false;
+        }
+    }
 
     private function json(Response $res, array $data, int $status = 200): Response
     {
@@ -96,6 +136,9 @@ final class DoorController
 
         EventScanPass::touch((int) $r['pass']->id);
 
+        $accent = \AfricaGates\Services\EventTicketDesign::colour(
+            (string) ($r['event']->ticket_accent ?? ''));
+
         return $this->view->render($res, 'pages/events/door.twig', $common + [
             'ok'        => true,
             'reason'    => '', 'message' => '',
@@ -111,6 +154,20 @@ final class DoorController
             // Whether to wire the player up at all. Off is a valid answer and a silent
             // door is a working door.
             'welcome_on' => DoorWelcome::enabled(),
+            // ── THE COLOUR THE EFFECTS ARE PAINTED IN ─────────────────────
+            //
+            // The organiser's own accent, through the same resolver the ticket and the
+            // flier take it through. A hardcoded palette in the door's stylesheet would be
+            // a fourth opinion about an event's colour and the only one the organiser
+            // could not change — and a gold gala bursting emerald at its own door is the
+            // failure that rule exists to prevent.
+            'accent'      => $accent,
+            // The same accent at 55%, resolved HERE rather than with color-mix() in the
+            // stylesheet. A browser that does not know color-mix() treats the whole
+            // gradient as invalid and drops the background declaration with it — so the
+            // sweep would vanish silently on exactly the older venue phones this page is
+            // written for.
+            'accent_soft' => self::soften($accent, 0.55),
         ])->withHeader('X-Robots-Tag', 'noindex, nofollow');
     }
 
@@ -143,6 +200,19 @@ final class DoorController
         }
 
         $pass = $r['pass'];
+
+        // A distinct verdict, never a refusal. "Not a ticket for this event" on a code that
+        // is perfectly good would send a steward to argue with somebody who has paid, and
+        // neither of them would have any way to know the screen was lying.
+        if ($this->tooFast($pass, 'door_scan')) {
+            return $this->json($res, [
+                'ok' => false, 'verdict' => 'slow',
+                'title' => 'Going too fast',
+                'detail' => 'This gate has scanned a great many codes in the last minute. '
+                          . 'Wait a moment and scan again — nothing was recorded.',
+                'name' => '', 'tier' => '', 'seats' => 0, 'code' => '', 'welcome' => '',
+            ], 429);
+        }
 
         // ── A GUEST OF HONOUR IS NOT A TICKET ────────────────────────────────
         //
@@ -261,6 +331,18 @@ final class DoorController
         }
 
         $pass = $r['pass'];
+
+        // Its own bucket. Sharing the scan counter would let a busy gate spend the budget it
+        // needs for taking a mistake back — and a reversal refused because the queue was
+        // moving is the exact failure this feature exists to prevent.
+        if ($this->tooFast($pass, 'door_undo')) {
+            return $this->json($res, [
+                'ok' => false, 'verdict' => 'slow', 'title' => 'Going too fast',
+                'detail' => 'Wait a moment and try again — nothing was changed.',
+                'name' => '', 'tier' => '', 'seats' => 0, 'code' => '',
+            ], 429);
+        }
+
         $body = (array) $req->getParsedBody();
         $code = (string) ($body['code'] ?? '');
         if (str_contains($code, '/')) {
@@ -354,6 +436,25 @@ final class DoorController
                 DoorWelcome::honourLine((string) $invite->name,
                                         strtolower((string) ($spec['one'] ?? '')))),
         ];
+    }
+
+    /**
+     * `#RRGGBB` at $alpha, as an rgba() string.
+     *
+     * Server-side so the stylesheet needs no colour function at all. A CSS feature an old
+     * browser does not know does not degrade gracefully here — it invalidates the whole
+     * declaration and takes the effect with it, silently, on the oldest device in the
+     * building, which at a venue is a safe bet about somebody's phone.
+     */
+    private static function soften(string $hex, float $alpha): string
+    {
+        $h = ltrim($hex, '#');
+        if (preg_match('/^[0-9a-fA-F]{6}$/', $h) !== 1) {
+            return 'rgba(35,123,34,' . $alpha . ')';
+        }
+
+        return sprintf('rgba(%d,%d,%d,%s)',
+            hexdec(substr($h, 0, 2)), hexdec(substr($h, 2, 2)), hexdec(substr($h, 4, 2)), $alpha);
     }
 
     /**

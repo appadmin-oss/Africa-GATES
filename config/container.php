@@ -486,6 +486,14 @@ return [
     // Vote recovery — same reason, one step further. This one mints votes on behalf
     // of people who never got their code, so the audit line is the record of who
     // prepared a batch and, separately, who agreed to it.
+    // The door. Wired explicitly for the rate limiter: autowiring a nullable dependency
+    // gives null, and a limiter that is silently absent is a limiter that is not there —
+    // which on this endpoint means an unmetered name-lookup oracle behind a link that is
+    // meant to be shared into a group chat.
+    \AfricaGates\Controllers\DoorController::class => fn(ContainerInterface $c)=>new \AfricaGates\Controllers\DoorController(
+        $c->get(Twig::class),
+        $c->get(\AfricaGates\Services\RateLimitService::class)
+    ),
     \AfricaGates\Admin\Controllers\VoteRecoveryController::class => fn(ContainerInterface $c)=>new \AfricaGates\Admin\Controllers\VoteRecoveryController(
         $c->get(Twig::class),
         $c->get(AuditService::class)

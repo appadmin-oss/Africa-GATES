@@ -81,6 +81,7 @@
   .dr__log .v{ font-weight:700; font-size:12px; letter-spacing:.04em; text-transform:uppercase }
   .dr__log .v--admit{ color:#237b22 } .dr__log .v--dup{ color:#b4671a }
   .dr__log .v--refuse{ color:#a32b1f } .dr__log .v--undone{ color:#5a6d6f }
+  .dr__log .v--slow{ color:#5a6d6f }
 
   .dr__note{ font-size:12.5px; color:#5a6d6f; line-height:1.6; margin-top:16px }
   @media (prefers-reduced-motion: no-preference){
@@ -100,6 +101,57 @@
        display:none}
   .dr__conf.is-on{display:block}
   @media (prefers-reduced-motion:reduce){ .dr__conf{display:none !important} }
+
+  /* ── THE ORDINARY ADMIT ───────────────────────────────────────────────────
+     A band of the organiser's own accent crossing the panel once. The colour is
+     resolved server-side and printed here: a hardcoded one would be a second opinion
+     about an event's identity and the only one the organiser cannot change.
+
+     420ms because this is the effect that fires most. A steward sees it four hundred
+     times in an evening, so it has to be something they stop noticing — the burst is
+     reserved for the arrival that is genuinely rare.
+
+     overflow:hidden on the panel so the band is clipped to it rather than running
+     across the page, and the pseudo-element is aria-hidden by construction. */
+  .dr__v{ position:relative; overflow:hidden }
+  .dr__v::after{ content:''; position:absolute; inset:0; pointer-events:none;
+    opacity:0; background:linear-gradient(100deg, transparent 30%,
+      {{ accent_soft|default('rgba(35,123,34,0.55)') }} 50%, transparent 70%);
+    transform:translateX(-100%) }
+  .dr__v.is-sweep::after{ animation:dr-sweep .42s cubic-bezier(.22,.61,.36,1) 1 }
+  @keyframes dr-sweep{
+    0%   { opacity:0; transform:translateX(-100%) }
+    35%  { opacity:1 }
+    100% { opacity:0; transform:translateX(100%) }
+  }
+
+  /* ── STOP AND LOOK ────────────────────────────────────────────────────────
+     A duplicate, a refusal and a throttle all shake. Small — 5px — and twice: a
+     violent movement at a door reads as a broken screen rather than a wrong ticket,
+     and the steward is holding the phone one-handed.
+
+     translate3d rather than `left`, so this runs on the compositor and cannot cost a
+     layout pass on a phone that is also decoding a camera frame. */
+  .dr__v.is-nudge{ animation:dr-nudge .3s ease-in-out 1 }
+  @keyframes dr-nudge{
+    0%,100% { transform:translate3d(0,0,0) }
+    20%     { transform:translate3d(-5px,0,0) }
+    50%     { transform:translate3d(5px,0,0) }
+    80%     { transform:translate3d(-3px,0,0) }
+  }
+
+  /* Both are OFF, not merely slowed, under reduced motion. A full-width band and a
+     shaking panel are precisely what that setting is for, and the word and the mark
+     carry the verdict without either of them. */
+  @media (prefers-reduced-motion:reduce){
+    .dr__v.is-sweep::after{ animation:none; opacity:0 }
+    .dr__v.is-nudge{ animation:none }
+  }
+
+  /* The throttle. Its own ground rather than the refusal's: a steward whose gate has
+     been told to slow down has not been shown a bad ticket, and painting it red would
+     send them to argue with somebody who has paid. */
+  .dr__v--slow{ background:#eef1f5; border-color:#5a6d6f; color:#39464a }
 </style>
 
 <div class="dr">
@@ -217,8 +269,9 @@
   var undoBtn  = document.getElementById('drUndo');
   var undoUrl  = {{ ('/door/' ~ token ~ '/undo')|json_encode|raw }};
 
-  var MARK = { admit: '✓', duplicate: '!', refuse: '✕', closed: '✕', undone: '↩' };
-  var CLS  = { admit: 'admit', duplicate: 'dup', refuse: 'refuse', closed: 'closed', undone: 'undone' };
+  var MARK = { admit: '✓', duplicate: '!', refuse: '✕', closed: '✕', undone: '↩', slow: '⏳' };
+  var CLS  = { admit: 'admit', duplicate: 'dup', refuse: 'refuse', closed: 'closed',
+               undone: 'undone', slow: 'slow' };
 
   // The ticket currently on the panel, and whether the undo button is armed. Held here
   // rather than read off the DOM so a re-render cannot leave the button pointing at a
@@ -275,7 +328,14 @@
     // queue, not the screen, and this is the cheapest way to make them look down.
     if (v.verdict !== 'admit' && navigator.vibrate) { try { navigator.vibrate(180); } catch (e) {} }
 
+    // One effect per verdict, and never one that could be mistaken for another. A
+    // duplicate and a refusal both shake, because both mean "stop and look"; only an
+    // admit sweeps; only a guest of honour bursts.
     if (v.honour && v.verdict === 'admit') celebrate();
+    else if (v.verdict === 'admit') sweep();
+    else if (v.verdict === 'duplicate' || v.verdict === 'refuse' || v.verdict === 'slow') nudge();
+    else fxStop();
+
     greet(v.welcome);
 
     // Offered only for a ticket that was just admitted here. Not for a duplicate (the
@@ -287,26 +347,69 @@
   }
 
   /**
-   * The burst. Hand-rolled on a canvas rather than a library: this page is loaded on a
-   * venue's wifi by a steward who needs it working, and a CDN script is a thing that can
-   * fail to arrive. Twelve lines is cheaper than that risk.
+   * ── THE EFFECTS ───────────────────────────────────────────────────────────
    *
-   * Honours prefers-reduced-motion twice — the canvas is display:none under it, and this
-   * returns early — because a full-screen particle field is exactly what that setting is
-   * for, and a hidden canvas still costs the animation frames.
+   * Hand-rolled on one canvas rather than a library: this page is opened on a venue's
+   * wifi by a steward who needs it working, and a CDN script is a thing that can fail
+   * to arrive. Sixty lines is cheaper than that risk.
+   *
+   * FOUR RULES, and each one is a bug this replaced:
+   *
+   *  1. ONE LOOP, CANCELLABLE. The previous burst started a fresh requestAnimationFrame
+   *     on every call with nothing stopping the last one — two guests of honour scanned
+   *     inside its 2.6s and both loops wrote to the same canvas, each clearing the
+   *     other's frame. At a door, effects overlap by definition.
+   *  2. PAINTED IN THE ORGANISER'S ACCENT. It hardcoded gold and green. A tier's colour
+   *     is a slot resolved from the event's own accent everywhere else on this platform
+   *     — the ticket, the flier, the selection light — and a gold gala bursting emerald
+   *     at its own door is exactly what that rule exists to prevent.
+   *  3. NEVER THE SIGNAL. The word and the mark carry the verdict; these are added to
+   *     it. A steward who cannot tell the colours apart, or whose phone is in sunlight,
+   *     or who has motion switched off, loses nothing that matters.
+   *  4. IT NEVER DELAYS THE NEXT SCAN. Fired and forgotten, capped in duration, and the
+   *     input keeps focus throughout. A queue does not wait for confetti.
+   */
+  var ACCENT = {{ accent|default('#f3b416')|json_encode|raw }};
+  var fx = { cv: null, ctx: null, raf: 0, until: 0 };
+
+  function fxReady() {
+    if (fx.cv) return fx.ctx;
+    var cv = document.getElementById('dr-conf');
+    if (!cv || !cv.getContext) return null;
+    fx.cv = cv; fx.ctx = cv.getContext('2d');
+    return fx.ctx;
+  }
+
+  function fxStop() {
+    if (fx.raf) cancelAnimationFrame(fx.raf);
+    fx.raf = 0;
+    if (fx.ctx && fx.cv) fx.ctx.clearRect(0, 0, fx.cv.width, fx.cv.height);
+    if (fx.cv) fx.cv.classList.remove('is-on');
+  }
+
+  function reduced() {
+    return window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  }
+
+  /**
+   * The burst, for somebody arriving at an evening held for them.
+   *
+   * Their accent leads, with white and the platform's gold behind it — three colours
+   * rather than one so the field reads as celebration rather than as a coloured smear,
+   * and white because it survives every accent an organiser can choose.
    */
   function celebrate() {
-    var cv = document.getElementById('dr-conf');
-    if (!cv || !cv.getContext) return;
-    if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    var ctx = fxReady();
+    if (!ctx || reduced()) return;
+    fxStop();
 
-    var ctx = cv.getContext('2d');
+    var cv = fx.cv;
     var dpr = Math.min(2, window.devicePixelRatio || 1);
-    cv.width  = Math.floor(cv.clientWidth  * dpr);
+    cv.width = Math.floor(cv.clientWidth * dpr);
     cv.height = Math.floor(cv.clientHeight * dpr);
     cv.classList.add('is-on');
 
-    var COLOURS = ['#f3b416', '#237b22', '#ffffff', '#f0f2f2'];
+    var COLOURS = [ACCENT, '#ffffff', '#f3b416', ACCENT];
     var bits = [];
     for (var i = 0; i < 90; i++) {
       bits.push({
@@ -322,13 +425,13 @@
     }
 
     var started = Date.now();
-    function frame() {
+    (function frame() {
       var age = Date.now() - started;
       ctx.clearRect(0, 0, cv.width, cv.height);
       for (var j = 0; j < bits.length; j++) {
         var b = bits[j];
         b.vy += 0.28 * dpr;          // gravity
-        b.x  += b.vx; b.y += b.vy; b.a += b.spin;
+        b.x += b.vx; b.y += b.vy; b.a += b.spin;
         ctx.save();
         ctx.globalAlpha = Math.max(0, 1 - age / 2600);
         ctx.translate(b.x, b.y); ctx.rotate(b.a);
@@ -336,10 +439,34 @@
         ctx.fillRect(-b.r, -b.r * 0.4, b.r * 2, b.r * 0.8);
         ctx.restore();
       }
-      if (age < 2600) requestAnimationFrame(frame);
-      else { ctx.clearRect(0, 0, cv.width, cv.height); cv.classList.remove('is-on'); }
-    }
-    requestAnimationFrame(frame);
+      if (age < 2600) fx.raf = requestAnimationFrame(frame);
+      else fxStop();
+    })();
+  }
+
+  /**
+   * The ordinary admit: a band of the accent crossing the panel once.
+   *
+   * Short — 420ms — because this is the effect that fires most, and an effect a steward
+   * sees four hundred times in an evening has to be something they stop noticing. The
+   * burst is reserved for the arrival that is genuinely rare.
+   */
+  function sweep() {
+    if (reduced()) return;
+    panel.classList.remove('is-sweep');
+    // Reading offsetWidth forces the style recalculation that makes removing and
+    // re-adding a class actually restart the animation. Without it, two admits in a row
+    // play the effect once.
+    void panel.offsetWidth;
+    panel.classList.add('is-sweep');
+  }
+
+  /** A shake, for the two verdicts that need the operator to look down. */
+  function nudge() {
+    if (reduced()) return;
+    panel.classList.remove('is-nudge');
+    void panel.offsetWidth;
+    panel.classList.add('is-nudge');
   }
 
   function remember(v) {
@@ -352,6 +479,7 @@
     k.className = 'v v--' + (CLS[v.verdict] || 'refuse');
     k.textContent = v.verdict === 'duplicate' ? 'again'
                   : v.verdict === 'undone' ? 'back'
+                  : v.verdict === 'slow' ? 'wait'
                   : (v.verdict === 'admit' ? 'in' : 'no');
     var n = document.createElement('span');
     n.textContent = v.name || v.code || '—';

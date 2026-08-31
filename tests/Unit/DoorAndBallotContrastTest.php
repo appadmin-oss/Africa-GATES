@@ -119,6 +119,7 @@ final class DoorAndBallotContrastTest extends TestCase
             '.dr__v--dup{'    => 'already in',
             '.dr__v--refuse{' => 'refuse',
             '.dr__v--undone{' => 'taken back',
+            '.dr__v--slow{'   => 'going too fast',
         ] as $rule => $what) {
             $fg = $this->pick('pages/events/door.twig', $rule, 'color');
             $bg = $this->pick('pages/events/door.twig', $rule, 'background');

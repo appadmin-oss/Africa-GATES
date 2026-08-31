@@ -50,6 +50,7 @@ final class EventScanPass
         'revoked' => 'This scanning link was turned off by an organiser.',
         'early'   => 'This scanning link is not open yet.',
         'expired' => 'This scanning link has closed.',
+        'cancelled' => 'This event was cancelled, so nobody is being admitted.',
     ];
 
     public static function ready(): bool
@@ -147,6 +148,21 @@ final class EventScanPass
             $event = null;
         }
         if (!$event) return $no('unknown');
+
+        // ── AND THE EVENT ITSELF ─────────────────────────────────────────────
+        //
+        // Checked here rather than nowhere, which is where it was checked before. The pass
+        // window and the event's own state are different facts, and a door that validated
+        // only the first went on admitting people to a gala an organiser had cancelled —
+        // for as long as the pass lasted, with the cancellation notice already sent.
+        //
+        // Only 'cancelled' stops it. A draft event with a live pass is an organiser
+        // testing their door before publishing, which is exactly what a pass is for.
+        if ((string) ($event->status ?? '') === 'cancelled') {
+            $r = $no('cancelled');
+            $r['pass'] = $pass;
+            return $r;
+        }
 
         return ['ok' => true, 'reason' => '', 'message' => '', 'pass' => $pass, 'event' => $event];
     }
