@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 namespace AfricaGates\Services;
 
+use AfricaGates\Support\EventTime;
 use AfricaGates\Support\Name;
 use Illuminate\Database\Capsule\Manager as DB;
 use Illuminate\Support\Carbon;
@@ -84,23 +85,139 @@ final class DoorWelcome
 
     // ══ the words ════════════════════════════════════════════════════════════
 
+    /**
+     * The greetings, in the order a Nigerian host would actually use them.
+     *
+     * ── WHY MORE THAN ONE ────────────────────────────────────────────────────
+     *
+     * A steward hears this four hundred times in an evening, and so does everybody
+     * standing near the gate. One sentence on repeat stops being a welcome by the
+     * fortieth guest and becomes a turnstile noise — which is the opposite of the point.
+     *
+     * Chosen DETERMINISTICALLY from the name, never at random: a re-scan has to say the
+     * same thing (a guest hearing a different greeting on their second pass would wonder
+     * what changed), and the cache key is the text, so a random pick would mint a new clip
+     * and a new bill on every scan.
+     *
+     * `%s` is the name and {@see AzureVoice::PAUSE} the beat after it. Every one of these
+     * is a real thing a person says at a door in Lagos; none is a translation of one.
+     */
+    private const FORMS = [
+        '%s,' . AzureVoice::PAUSE . ' you are welcome.',
+        '%s,' . AzureVoice::PAUSE . ' welcome. You are most welcome.',
+        'Ah, %s.' . AzureVoice::PAUSE . ' You are welcome.',
+        '%s,' . AzureVoice::PAUSE . ' we have been expecting you. You are welcome.',
+    ];
+
     /** The line for a ticket holder. '' when there is no usable name. */
-    public static function line(string $name): string
-    {
-        $first = self::firstName($name);
-
-        return $first === '' ? '' : $first . ', you are welcome.';
-    }
-
-    /** The line for somebody the evening is being held for. */
-    public static function honourLine(string $name, string $role = ''): string
+    public static function line(string $name, object|array|null $event = null): string
     {
         $first = self::firstName($name);
         if ($first === '') return '';
 
+        $said = self::saidAs($first);
+        $form = self::FORMS[self::pick($first, count(self::FORMS))];
+
+        return self::greeting($event) . sprintf($form, $said);
+    }
+
+    /**
+     * The line for somebody the evening is being held for.
+     *
+     * Never varied and never hurried. A nominee arriving at their own ceremony gets the
+     * sentence that names why they are there, and hearing a different one from the person
+     * beside them in the queue is exactly right.
+     */
+    public static function honourLine(string $name, string $role = '', object|array|null $event = null): string
+    {
+        $first = self::firstName($name);
+        if ($first === '') return '';
+
+        $said = self::saidAs($first);
+
         return $role !== ''
-            ? $first . ', you are welcome. Our ' . $role . ' this evening.'
-            : $first . ', you are most welcome.';
+            ? self::greeting($event) . $said . ',' . AzureVoice::PAUSE
+              . ' you are most welcome. Our ' . $role . ' this evening.'
+            : self::greeting($event) . $said . ',' . AzureVoice::PAUSE . ' you are most welcome.';
+    }
+
+    /**
+     * 'Good evening, ' — or nothing.
+     *
+     * Taken from the EVENT's start in the EVENT's own timezone, not from the clock at
+     * render time. Clips are made hours or days ahead by a maintenance sweep, so "now" is
+     * the middle of the night as often as not — and a gala in Nairobi is not greeted by
+     * the hour in Lagos. With no event, or no start time, it says nothing rather than
+     * guessing: a wrong time of day is worse than none.
+     */
+    public static function greeting(object|array|null $event): string
+    {
+        if ($event === null) return '';
+        $e     = is_array($event) ? $event : (array) $event;
+        $start = trim((string) ($e['event_date'] ?? ''));
+        if ($start === '') return '';
+
+        $h = (int) EventTime::at($event, $start, 'G');
+        if ($h < 4 || $h >= 22) return '';   // nobody says "good night" to somebody arriving
+
+        return match (true) {
+            $h < 12 => 'Good morning. ',
+            $h < 16 => 'Good afternoon. ',
+            default => 'Good evening. ',
+        };
+    }
+
+    /**
+     * A name as it should be SAID, where somebody has told us.
+     *
+     * ── WHY THIS EXISTS ──────────────────────────────────────────────────────
+     *
+     * The whole point of a Nigerian voice is to say a Nigerian name properly, and a voice
+     * that mangles one is worse than silence: it is the platform getting a person's name
+     * wrong, out loud, at their own event, in front of a queue. Azure handles most of them
+     * and there is no fix for the ones it does not — no shell on this host, and nothing to
+     * edit.
+     *
+     * So: `Written = Spoken`, one per line, in settings. An operator hears a name go wrong
+     * at rehearsal, writes `Ọláṣubọ̀mi = Ola-shu-BOR-mi`, re-runs the sweep, and it is
+     * right on the night. Matched case-insensitively on the first name, because that is
+     * what gets spoken.
+     */
+    public static function saidAs(string $first): string
+    {
+        $map = self::dictionary();
+        $key = mb_strtolower($first);
+
+        return $map[$key] ?? $first;
+    }
+
+    /** @return array<string,string> lower-cased written form => spoken form */
+    public static function dictionary(): array
+    {
+        try {
+            $raw = (string) (DB::table('gates_settings')
+                ->where('key_name', 'door_welcome_says')->value('value') ?? '');
+        } catch (\Throwable) {
+            return [];
+        }
+
+        $out = [];
+        foreach (preg_split('/\R/', $raw) ?: [] as $line) {
+            if (!str_contains($line, '=')) continue;
+            [$written, $spoken] = array_map('trim', explode('=', $line, 2));
+            // Both halves required: a written form with no spoken one would silently erase
+            // the name rather than correct it, which is the worst outcome available here.
+            if ($written === '' || $spoken === '') continue;
+            $out[mb_strtolower($written)] = mb_substr($spoken, 0, 60);
+        }
+
+        return $out;
+    }
+
+    /** A stable index for this name — same person, same greeting, every time. */
+    private static function pick(string $seed, int $of): int
+    {
+        return $of < 1 ? 0 : (int) (hexdec(substr(sha1(mb_strtolower($seed)), 0, 6)) % $of);
     }
 
     /**
@@ -239,6 +356,13 @@ final class DoorWelcome
         return $made;
     }
 
+    /** The event row, for its start time and its zone. */
+    public static function eventOf(int $eventId): ?object
+    {
+        try { return DB::table('gates_site_events')->where('id', $eventId)->first(); }
+        catch (\Throwable) { return null; }
+    }
+
     /** Events close enough that somebody will be standing at their door. @return list<int> */
     private static function soonEvents(): array
     {
@@ -267,12 +391,17 @@ final class DoorWelcome
     public static function linesFor(int $eventId): array
     {
         $out = [];
+        // The event itself, because the greeting depends on it. Without this the sweep
+        // renders "Ada, you are welcome" and the door asks for "Good evening. Ada, you are
+        // welcome" — a different key, so every clip misses and every guest gets the
+        // fallback, silently, on the night.
+        $event = self::eventOf($eventId);
 
         try {
             foreach (DB::table('gates_event_registrations')
                 ->where('event_id', $eventId)->where('status', 'confirmed')
                 ->orderBy('id')->limit(2000)->pluck('name') as $n) {
-                $l = self::line((string) $n);
+                $l = self::line((string) $n, $event);
                 if ($l !== '') $out[$l] = true;
             }
         } catch (\Throwable) { /* a door with no names still has its generic clip */ }
@@ -283,7 +412,7 @@ final class DoorWelcome
                 ->where('reference', 'not like', 'AGI-SAMPLE%')
                 ->orderBy('id')->limit(1000)->get(['name', 'audience']) as $inv) {
                 $spec = InviteAudience::spec((string) $inv->audience);
-                $l = self::honourLine((string) $inv->name, strtolower((string) ($spec['one'] ?? '')));
+                $l = self::honourLine((string) $inv->name, strtolower((string) ($spec['one'] ?? '')), $event);
                 if ($l !== '') $out[$l] = true;
             }
         } catch (\Throwable) { /* likewise */ }

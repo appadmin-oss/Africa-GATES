@@ -282,6 +282,9 @@ class SettingsController
                   // below — a credential in this list is a credential in the page source of
                   // every settings render.
                   'azure_speech_region','azure_speech_voice',
+                  // How to SAY a name the voice gets wrong. Free text, parsed and
+                  // clamped in DoorWelcome::dictionary() rather than trusted here.
+                  'door_welcome_says',
                   'invite_reminder_line_nominee','invite_reminder_line_judge',
                   // The countdown letters: the facts no database can know, and the five
                   // bodies themselves. Tokens are resolved at send time against the event,
@@ -1031,5 +1034,97 @@ class SettingsController
         } catch (\Throwable) {}
 
         return $res->withHeader('Location', '/admin/settings#sync-probe')->withStatus(302);
+    }
+
+    // ══ THE VOICE, HEARD BEFORE THE NIGHT ═══════════════════════════════════
+
+    /**
+     * POST /admin/settings/voice-preview — say one name, now, so somebody can hear it.
+     *
+     * ── WHY THIS EXISTS AT ALL ───────────────────────────────────────────────
+     *
+     * The pronunciation list below it is the only fix available for a name Azure says
+     * wrongly, and it is written blind: an operator types `Ọláṣubọ̀mi = Ola-shu-BOR-mi`,
+     * saves, and has no way to find out whether it worked until a guest hears their own
+     * name mangled at their own event, in front of a queue. A correction nobody can hear
+     * is a correction nobody will make.
+     *
+     * ── AND WHY IT IS THE ONE PLACE THAT MAY SYNTHESISE ON A REQUEST ─────────
+     *
+     * {@see AzureVoice} says, as a hard rule, that nothing may call it from a request a
+     * person is waiting on. This is the exception and it is a narrow one: the person
+     * waiting is a superadmin who pressed a button labelled "hear it", not an attendee in
+     * a queue, and the result is cached to the same file the door will later play — so
+     * the second press, and the door itself, cost nothing.
+     *
+     * ── AND WHY IT ANSWERS WITH A URL RATHER THAN THE AUDIO ──────────────────
+     *
+     * `media-src` in {@see \AfricaGates\Support\Csp} is `'self'` plus two video hosts —
+     * no `data:`, no `blob:`. Returning the MP3 inline as a data URI would be blocked by
+     * the browser with no error the operator would ever see: a play button that does
+     * nothing, forever. So the bytes come from a same-origin path, which is the only
+     * thing the policy permits.
+     */
+    public function voicePreview(Request $req, Response $res): Response
+    {
+        $adminId = (int) ($_SESSION['admin_id'] ?? 0);
+        $name    = trim((string) (((array) $req->getParsedBody())['name'] ?? ''));
+
+        $out = static function (Response $r, array $body, int $status = 200): Response {
+            $r->getBody()->write((string) json_encode($body, JSON_UNESCAPED_SLASHES));
+            return $r->withHeader('Content-Type', 'application/json')->withStatus($status);
+        };
+
+        if (!\AfricaGates\Services\AzureVoice::configured()) {
+            return $out($res, ['ok' => false, 'why' => \AfricaGates\Services\AzureVoice::why()
+                ?: 'The voice is not configured.'], 400);
+        }
+
+        // Through the door's own resolver, not a sentence written here. A preview that
+        // built its line differently would be a preview of something nobody will hear —
+        // and the pronunciation list is matched on the FIRST name, which is exactly the
+        // part this would get wrong.
+        $line = \AfricaGates\Services\DoorWelcome::line($name);
+        if ($line === '') {
+            return $out($res, ['ok' => false,
+                'why' => 'That is not a name the door would say aloud — letters only, at least two.'], 422);
+        }
+
+        if (!\AfricaGates\Services\DoorWelcome::render($line)) {
+            return $out($res, ['ok' => false,
+                'why' => 'Azure did not answer. Check the key and the region.'], 502);
+        }
+
+        try { $this->audit->record($adminId, 'settings.voice_preview', null, null); } catch (\Throwable) {}
+
+        return $out($res, [
+            'ok'   => true,
+            'line' => $line,
+            'url'  => '/admin/settings/voice-sample/' . \AfricaGates\Services\DoorWelcome::keyFor($line),
+        ]);
+    }
+
+    /**
+     * GET /admin/settings/voice-sample/{key} — the bytes for a preview.
+     *
+     * Never renders, and behind the same superadmin gate as the rest of this screen: the
+     * cache holds every guest's name for the next three days as audio, and a path that
+     * served it to anybody who could guess a hash would be the attendee list read aloud.
+     */
+    public function voiceSample(Request $req, Response $res, array $args): Response
+    {
+        $path = \AfricaGates\Services\DoorWelcome::pathFor((string) ($args['key'] ?? ''));
+        if ($path === null || !is_file($path)) return $res->withStatus(404);
+
+        $bytes = @file_get_contents($path);
+        if ($bytes === false || $bytes === '') return $res->withStatus(404);
+
+        $res->getBody()->write($bytes);
+
+        return $res
+            ->withHeader('Content-Type', 'audio/mpeg')
+            ->withHeader('Content-Length', (string) strlen($bytes))
+            ->withHeader('Cache-Control', 'private, max-age=3600')
+            ->withHeader('X-Robots-Tag', 'noindex, nofollow');
     }
 }

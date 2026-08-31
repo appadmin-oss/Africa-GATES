@@ -3729,6 +3729,11 @@ return function(App $app) {
             // One task, not the whole pass — the answer to "I paid and my votes did
             // not appear" without waiting on a CPI recompute. Idempotent.
             $s->post('/reconcile-payments', AdminSettingsController::class.':reconcilePayments');
+            // Hear one name in the door's voice before an evening rather than after it.
+            // The only place in this codebase permitted to synthesise inside a request —
+            // see the docblock, which says why and how narrow the exception is.
+            $s->post('/voice-preview', AdminSettingsController::class.':voicePreview');
+            $s->get('/voice-sample/{key}', AdminSettingsController::class.':voiceSample');
         })->add(new RoleMiddleware('superadmin'));
 
         // ── THE REHEARSAL SANDBOX ───────────────────────────────────────────

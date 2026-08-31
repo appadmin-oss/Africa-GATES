@@ -595,6 +595,24 @@ final class Maintenance
     {
         $c = (int) DB::table('gates_cache')->where('expires_at', '<', Carbon::now())->delete();
         $this->log("Cache prune: $c rows");
+
+        // ── AND THE DOOR'S GREETINGS, WHICH ARE NOT ROWS ─────────────────────
+        //
+        // Every clip is a guest's NAME, said aloud, sitting on disk. DoorWelcome::prune()
+        // has always existed and always said "last month's guest list is of no use to
+        // anybody" — with no caller, which made that sentence false: a gala's entire
+        // attendee list stayed in var/cache indefinitely, in audio, and the disk quota on
+        // this host is finite. Two weeks is well past the last person who might re-scan.
+        //
+        // Deliberately here rather than in the sweep: the sweep returns early when the
+        // voice is switched off, and switching it off is exactly the moment somebody wants
+        // the names gone.
+        try {
+            $g = \AfricaGates\Services\DoorWelcome::prune();
+            if ($g > 0) $this->log("Door greetings pruned: $g clips");
+            $c += $g;
+        } catch (\Throwable) { /* a cache that will not prune must never stop the pass */ }
+
         return $c;
     }
 

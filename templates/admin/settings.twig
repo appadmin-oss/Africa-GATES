@@ -439,6 +439,41 @@
         voice and half in the other. To render a list you have just imported without waiting
         for 06:00, run <code>welcome</code> from Automation &amp; cron below.
       </p>
+
+      {# ── HEARING IT BEFORE THE NIGHT ────────────────────────────────────
+         A `type="button"`, never a submit and never a second <form>. The HTML parser
+         DELETES a <form> opened inside another one and adopts its children into the
+         outer form — the button would still render, still look right, and post the
+         whole settings page to the preview route. Three of those have shipped here. #}
+      <div style="margin-top:14px;padding-top:12px;border-top:1px solid rgba(16,41,44,.12)">
+        <label for="f-voice_try">Hear a name
+          <small>as the door will say it &mdash; nothing is saved</small></label>
+        <div style="display:flex;gap:8px;align-items:flex-start;flex-wrap:wrap">
+          <input type="text" id="f-voice_try" maxlength="40" placeholder="Chidinma"
+                 autocomplete="off" style="flex:1 1 180px;min-width:0">
+          <button type="button" class="btn btn--ghost" data-ag-do="voice-try"
+                  data-target="f-voice_try" data-out="voice-try-out"
+                  {% if not azure_voice_on %}disabled{% endif %}
+                  style="min-height:40px">Hear it</button>
+        </div>
+        <p class="hint" id="voice-try-out" role="status" aria-live="polite" style="margin:8px 0 0;min-height:1.2em">
+          {%- if not azure_voice_on %}Set the key above and save, then this will speak.{% endif -%}
+        </p>
+      </div>
+
+      <div style="margin-top:14px">
+        <label for="f-door_welcome_says">How to say a name
+          <small>one per line, <code>Written = Spoken</code></small></label>
+        <textarea name="door_welcome_says" id="f-door_welcome_says" rows="4" style="width:100%"
+                  placeholder="Ol&#225;&#7779;ub&#7885;&#768;mi = Ola-shu-BOR-mi&#10;Nne&#7885;ma = Nne-OH-ma">{{ values.door_welcome_says|default('') }}</textarea>
+        <p class="hint" style="margin:6px 0 0">
+          For the names the voice gets wrong. Matched on the <strong>first name</strong>,
+          ignoring case, because the first name is the part that gets spoken. Write the
+          right-hand side the way you would tell a stranger to say it &mdash; hyphens and
+          capitals for the stressed part. Clips already made keep the old pronunciation
+          until the next run, so change it and run <code>welcome</code> to hear the fix.
+        </p>
+      </div>
   </div></div>
 
   {# ── THE WARNING BEFORE A NOMINATION IS CLOSED ───────────────────────────

@@ -895,6 +895,19 @@ class EventsController
             // on a screen in an office.
             'new_pass'    => $this->takeNewPass(),
             'door_hours'  => \AfricaGates\Services\EventScanPass::DEFAULT_HOURS,
+            // ── IS THE DOOR GOING TO SPEAK? ──────────────────────────────
+            //
+            // Greetings are rendered by a 06:00 sweep, hours or days ahead, so on the
+            // afternoon of a gala the honest answer to "will it say their names" is a
+            // COUNT, not a switch. An organiser who has just imported ninety guests needs
+            // to know that ninety clips do not yet exist — while there is still time to run
+            // the sweep — rather than finding out at the door, where the failure is silent
+            // by design and every one of them gets "you are welcome".
+            //
+            // Null when the voice is off, so the panel says nothing rather than reporting
+            // "0 of 90 ready" about a feature nobody switched on.
+            'welcome_ready' => \AfricaGates\Services\DoorWelcome::enabled()
+                ? \AfricaGates\Services\DoorWelcome::costOf($id) : null,
             // ── THE ARRIVALS LOG ─────────────────────────────────────────
             //
             // The first reader `checked_in_via` and `checked_in_by` have ever had. Both were

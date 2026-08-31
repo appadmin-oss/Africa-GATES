@@ -242,6 +242,91 @@
   });
   document.querySelectorAll('[data-ag-do="stand-size"]').forEach(agSizeSync);
 
+  // ── HEAR ONE NAME IN THE DOOR'S VOICE ─────────────────────────────────────
+  //
+  // The pronunciation list on the settings screen is the only fix for a name Azure says
+  // wrongly, and without this it is written blind: the operator finds out whether their
+  // correction worked when a guest hears their own name mangled at their own event.
+  //
+  // Three things here are not decoration:
+  //
+  //   THE AUDIO COMES FROM A URL, NEVER A DATA URI. `media-src` in Csp.php is 'self'
+  //   plus two video hosts — no data:, no blob:. An inline data URI would be blocked by
+  //   the browser with nothing an operator would ever see: a button that does nothing,
+  //   permanently. The server answers with a same-origin path for that reason.
+  //
+  //   ENTER IN THE BOX PREVIEWS, IT DOES NOT SAVE. A lone text input inside a <form>
+  //   submits it on Enter, and this box sits inside the settings form — so typing a name
+  //   and pressing Enter would have saved the whole configuration screen instead of
+  //   speaking. It is the obvious thing to press.
+  //
+  //   THE BUTTON SAYS WHAT IT IS DOING. This is the one request in the console that waits
+  //   on a third party, and a couple of seconds of nothing reads as broken.
+  //
+  // With this file absent, the button is inert and the pronunciation list still saves and
+  // still works — the preview is the enhancement, never the feature.
+  (function () {
+    var busy = false;
+
+    function agVoiceTry(btn) {
+      if (busy || !btn) return;
+      var box = document.getElementById(btn.getAttribute('data-target') || '');
+      var out = document.getElementById(btn.getAttribute('data-out') || '');
+      var form = btn.closest('form');
+      var name = box ? box.value.trim() : '';
+      var say = function (t) { if (out) out.textContent = t; };
+
+      if (name === '') { say('Type a first name first.'); if (box) box.focus(); return; }
+
+      busy = true;
+      btn.disabled = true;
+      say('Asking for it\u2026');
+
+      var tok = form && form.querySelector('input[name="_token"]');
+
+      fetch('/admin/settings/voice-preview', {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded',
+          'X-CSRF-Token': tok ? tok.value : '',
+        },
+        body: 'name=' + encodeURIComponent(name),
+      })
+        .then(function (r) { return r.json().catch(function () { return { ok: false }; }); })
+        .then(function (d) {
+          if (!d || !d.ok || !d.url) {
+            say(d && d.why ? d.why : 'That could not be spoken. Check the key and the region.');
+            return;
+          }
+          say('\u201C' + d.line + '\u201D');
+          var a = new Audio(d.url);
+          // A play() rejection is the ordinary case on a browser that wants a gesture it
+          // did not see, not a fault in the voice — so it says so rather than blaming the
+          // configuration the operator just set.
+          var pl = a.play();
+          if (pl && pl.catch) pl.catch(function () { say('\u201C' + d.line + '\u201D \u2014 ready, but this browser would not play it.'); });
+        })
+        .catch(function () { say('The request did not get through.'); })
+        .then(function () { busy = false; btn.disabled = false; });
+    }
+
+    document.addEventListener('click', function (e) {
+      var btn = e.target.closest('[data-ag-do="voice-try"]');
+      if (btn) { e.preventDefault(); agVoiceTry(btn); }
+    });
+
+    document.addEventListener('keydown', function (e) {
+      if (e.key !== 'Enter') return;
+      var box = e.target.closest('input[type="text"]');
+      if (!box || !box.id) return;
+      var btn = document.querySelector('[data-ag-do="voice-try"][data-target="' + box.id + '"]');
+      if (!btn) return;
+      e.preventDefault();
+      agVoiceTry(btn);
+    });
+  })();
+
   // Tippy.js tooltips
   if (window.tippy) {
     window.tippy('[data-tip]', {

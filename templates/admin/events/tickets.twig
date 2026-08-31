@@ -237,6 +237,30 @@
       is working the gate — they will not need an account.
     </p>
     {% endif %}
+
+    {# ── WILL THE DOOR SAY THEIR NAMES? ───────────────────────────────────
+       A COUNT, not a switch, and this is the whole point of the panel: greetings are
+       rendered ahead by the 06:00 sweep, so an organiser who imported a guest list this
+       afternoon has a list of names and no clips — and the door fails SILENTLY by design,
+       giving everybody the generic welcome. The one place that is recoverable is here,
+       hours beforehand, beside the pass they are about to issue.
+
+       Drawn only when the voice is switched on. A permanently present "0 of 0 ready" for
+       a feature nobody turned on is noise on the screen they read under time pressure. #}
+    {% if welcome_ready and welcome_ready.lines > 0 %}
+      <p class="st-hint" style="margin-top:14px;padding-top:12px;border-top:1px solid rgba(16,41,44,.12)">
+        <strong>The voice at the door:</strong>
+        {% if welcome_ready.ready >= welcome_ready.lines %}
+          all {{ welcome_ready.lines }} greeting{{ welcome_ready.lines == 1 ? '' : 's' }} are
+          ready — everyone on the list will be welcomed by name.
+        {% else %}
+          {{ welcome_ready.ready }} of {{ welcome_ready.lines }} greetings are ready. The rest are rendered by the
+          06:00 run; anyone without one is welcomed by the same voice saying
+          &ldquo;you are welcome&rdquo;. To make them now, run <code>welcome</code> from
+          <a href="/admin/settings#automation">Automation &amp; cron</a>.
+        {% endif %}
+      </p>
+    {% endif %}
   </div>
 </div>
 

@@ -65,6 +65,15 @@ final class AzureVoice
      */
     private const FORMAT = 'audio-24khz-48kbitrate-mono-mp3';
 
+    /**
+     * The caller's marker for a beat, swapped for a <break/> in {@see ssml()}.
+     *
+     * A marker rather than raw SSML in the phrase, so the text that goes into the cache key
+     * is a plain string: a phrase carrying angle brackets would hash differently the day
+     * somebody changed the break length, silently orphaning every clip on disk.
+     */
+    public const PAUSE = '{{brk}}';
+
     /** Azure lists User-Agent as REQUIRED on this endpoint, not optional. */
     private const AGENT = 'AfricaGates/1.0';
 
@@ -149,10 +158,7 @@ final class AzureVoice
         $text = self::tidy($text);
         if ($text === '' || !self::configured()) return null;
 
-        $ssml = '<speak version="1.0" xmlns="http://www.w3.org/2001/10/synthesis" xml:lang="en-NG">'
-              . '<voice name="' . htmlspecialchars(self::voice(), ENT_QUOTES | ENT_XML1, 'UTF-8') . '">'
-              . htmlspecialchars($text, ENT_QUOTES | ENT_XML1, 'UTF-8')
-              . '</voice></speak>';
+        $ssml = self::ssml($text);
 
         $ch = curl_init(self::endpoint());
         if ($ch === false) return null;
@@ -194,6 +200,46 @@ final class AzureVoice
         return $raw;
     }
 
+    /**
+     * The markup, not just the words.
+     *
+     * ── WHY A DOOR NEEDS PROSODY ─────────────────────────────────────────────
+     *
+     * The first version sent bare text and it read like an announcement at a railway
+     * station: even, fast, and hard to catch in a hall with two hundred people in it. Three
+     * changes, each for a reason somebody standing at a gate would recognise:
+     *
+     *   THE BEAT AFTER THE NAME. "Ada, <pause> you are welcome" is how the sentence is
+     *   actually said. Without it the name runs into the greeting and the one word the
+     *   person is listening for — their own — is the one they miss.
+     *
+     *   SLOWER, BY A TENTH. A door is noisy and the listener is not expecting to be spoken
+     *   to. Azure allows 0.5–2×; -10% is the difference between a sentence you catch and
+     *   one you ask to have repeated, and it costs a quarter of a second.
+     *
+     *   A LITTLE LOWER. Two semitones down reads as warmth rather than as a notification.
+     *   The range is bounded at 0.5–1.5× the original, so this is nowhere near the edge.
+     *
+     * `<mstts:express-as>` is deliberately absent: Microsoft's own voice list says styles
+     * and roles are NOT supported for either Nigerian English voice, and sending one gets
+     * the markup ignored at best. Everything here is core SSML.
+     *
+     * `{{brk}}` is the caller's marker for the beat — the pause belongs to the phrasing, so
+     * {@see DoorWelcome} decides where it falls, and this decides how long it is. The text
+     * is escaped BEFORE the marker is swapped, so a name containing the marker's literal
+     * characters cannot inject markup.
+     */
+    public static function ssml(string $text): string
+    {
+        $safe = htmlspecialchars(self::tidy($text), ENT_QUOTES | ENT_XML1, 'UTF-8');
+        $safe = str_replace(self::PAUSE, '<break time="260ms"/>', $safe);
+
+        return '<speak version="1.0" xmlns="http://www.w3.org/2001/10/synthesis" xml:lang="en-NG">'
+             . '<voice name="' . htmlspecialchars(self::voice(), ENT_QUOTES | ENT_XML1, 'UTF-8') . '">'
+             . '<prosody rate="-10%" pitch="-2st">' . $safe . '</prosody>'
+             . '</voice></speak>';
+    }
+
     private static function looksLikeMp3(string $raw): bool
     {
         if (strlen($raw) < 64) return false;
@@ -212,6 +258,11 @@ final class AzureVoice
     {
         $text = preg_replace('/[\x00-\x08\x0B\x0C\x0E-\x1F]/u', '', trim($text)) ?? '';
 
-        return mb_substr(preg_replace('/\s+/u', ' ', $text) ?? '', 0, 240);
+        $text = mb_substr(preg_replace('/\s+/u', ' ', $text) ?? '', 0, 240);
+
+        // A cap that lands mid-marker would leave "{{br" in the spoken text. Rare, and the
+        // fix is one line — a half-marker read aloud at a door is not a bug anybody would
+        // enjoy diagnosing from a recording.
+        return (string) preg_replace('/\{\{b?r?k?\}?\}?$/', '', $text);
     }
 }

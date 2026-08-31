@@ -250,7 +250,8 @@ final class DoorController
         // oracle — two different "not found" answers for the same scan tell somebody
         // holding a random string which namespace it missed.
         if (substr_count($code, '.') === 2) {
-            $verdict = $this->honour($code, (int) $pass->event_id, $this->via($pass));
+            $verdict = $this->honour($code, (int) $pass->event_id, $this->via($pass),
+                                     self::eventOfPass($pass));
             EventScanPass::touch((int) $pass->id);
 
             return $this->json($res, $verdict + [
@@ -266,6 +267,19 @@ final class DoorController
                                          null, '', $want);
 
         EventScanPass::touch((int) $pass->id);
+
+        // ── THE GREETING IS KEYED ON THE EVENT, SO THE LOOKUP MUST BE TOO ────
+        //
+        // The clip was rendered hours ago from the event's own start time — "Good evening.
+        // Ada, you are welcome." Ask here for a line built WITHOUT the event and the text
+        // is "Ada, you are welcome.", which hashes to a different key, which is not on
+        // disk. Every guest would then get the generic clip: no error, no log line, just a
+        // room full of people not hearing their names on the one night it matters.
+        //
+        // Read only on an admit, so a refusal and a duplicate cost the queue no query.
+        $welcome = $v['verdict'] === 'admit'
+            ? DoorWelcome::keyToPlay(DoorWelcome::line((string) $v['name'], self::eventOfPass($pass)))
+            : '';
 
         return $this->json($res, [
             'ok'       => $v['verdict'] === 'admit',
@@ -284,8 +298,7 @@ final class DoorController
             // ago by the sweep; this is a filename lookup, so the greeting costs the queue
             // nothing. Only on an admit — a refusal is not a welcome, and greeting somebody
             // by name while turning them away would be worse than silence.
-            'welcome'  => $v['verdict'] === 'admit'
-                ? DoorWelcome::keyToPlay(DoorWelcome::line((string) $v['name'])) : '',
+            'welcome'  => $welcome,
             // Recomputed after the write, so the running count on the page is the real one
             // rather than a number the browser has been incrementing since it was opened.
             'admitted' => $this->admitted((int) $pass->event_id),
@@ -501,7 +514,7 @@ final class DoorController
      *
      * @return array<string,mixed>
      */
-    private function honour(string $code, int $eventId, string $via = ''): array
+    private function honour(string $code, int $eventId, string $via = '', ?object $event = null): array
     {
         $r = InvitePass::verify($code);
 
@@ -559,7 +572,7 @@ final class DoorController
             // different arrival from arriving at one you bought a seat at.
             'welcome' => DoorWelcome::keyToPlay(
                 DoorWelcome::honourLine((string) $invite->name,
-                                        strtolower((string) ($spec['one'] ?? '')))),
+                                        strtolower((string) ($spec['one'] ?? '')), $event)),
         ];
     }
 
