@@ -559,11 +559,16 @@ final class DoorController
             'verdict' => 'admit',
             'honour'  => true,
             'title'   => $seen > 0 ? 'Welcome back' : 'Guest of honour',
+            // THE SINGULAR, because this is one person standing there. `label` is the
+            // plural for a group — "Nominees", "Judges" — and it is the right word on the
+            // invitations screen and the wrong one on a card showing somebody's face:
+            // "Ngozi Adaeze / Judges" reads as a category rather than as a guest, on the
+            // one screen a steward glances at with a queue behind them.
             'detail'  => $seen > 0
-                ? $spec['label'] . ' — already admitted ' . $seen . ' time' . ($seen === 1 ? '' : 's') . ' this evening.'
-                : 'Admit and show them to their seat. ' . $spec['label'] . '.',
+                ? $spec['one'] . ' — already admitted ' . $seen . ' time' . ($seen === 1 ? '' : 's') . ' this evening.'
+                : 'Admit and show them to their seat. ' . $spec['one'] . '.',
             'name'    => (string) $invite->name,
-            'tier'    => (string) $spec['label'],
+            'tier'    => (string) $spec['one'],
             'seats'   => 1,
             'seats_in' => 1, 'seats_left' => 0, 'admitted_now' => 1,
             'code'    => (string) $invite->reference,
