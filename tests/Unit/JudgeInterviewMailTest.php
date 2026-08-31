@@ -50,7 +50,7 @@ final class JudgeInterviewMailTest extends TestCase
             'nominee_id'   => 1,
             'scheduled_at' => date('Y-m-d H:i:s', strtotime('+3 days')),
             'timezone'     => 'Africa/Lagos',
-            'status'       => 'scheduled',
+            'status'       => 'invited',
             'meet_url'     => 'https://meet.google.com/abc-defg-hij',
             'panel_json'   => json_encode([1, 2]),
             'created_at'   => date('Y-m-d H:i:s'),
@@ -200,7 +200,7 @@ final class JudgeInterviewMailTest extends TestCase
         DB::table('gates_interviews')->insert([
             'nominee_id'   => 2,
             'scheduled_at' => date('Y-m-d H:i:s', strtotime('+5 days')),
-            'timezone'     => 'Africa/Lagos', 'status' => 'scheduled',
+            'timezone'     => 'Africa/Lagos', 'status' => 'invited',
             'meet_url'     => 'https://meet.google.com/zzz-yyyy-xxx',
             'panel_json'   => json_encode([1, 2]),
             'created_at'   => date('Y-m-d H:i:s'),
@@ -228,7 +228,7 @@ final class JudgeInterviewMailTest extends TestCase
         ]);
         DB::table('gates_interviews')->insert([
             'nominee_id' => 2, 'scheduled_at' => date('Y-m-d H:i:s', strtotime('+5 days')),
-            'timezone' => 'Africa/Lagos', 'status' => 'scheduled',
+            'timezone' => 'Africa/Lagos', 'status' => 'invited',
             'panel_json' => json_encode([2]), 'created_at' => date('Y-m-d H:i:s'),
         ]);
 

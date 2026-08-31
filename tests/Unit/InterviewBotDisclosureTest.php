@@ -86,7 +86,7 @@ final class InterviewBotDisclosureTest extends TestCase
             'nominee_id'   => 1,
             'scheduled_at' => date('Y-m-d H:i:s', strtotime('+3 days')),
             'timezone'     => 'Africa/Lagos',
-            'status'       => 'scheduled',
+            'status'       => 'invited',
             'meet_url'     => 'https://meet.google.com/abc-defg-hij',
             'created_at'   => date('Y-m-d H:i:s'),
         ]);

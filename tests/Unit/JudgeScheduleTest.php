@@ -3,7 +3,7 @@ declare(strict_types=1);
 
 namespace Tests\Unit;
 
-use AfricaGates\Services\{JudgeSchedule, OtpService};
+use AfricaGates\Services\{InterviewService, JudgeSchedule, OtpService};
 use Illuminate\Database\Capsule\Manager as DB;
 use Tests\TestCase;
 
@@ -81,7 +81,7 @@ final class JudgeScheduleTest extends TestCase
             'scheduled_at' => date('Y-m-d H:i:s', strtotime($when)),
             'duration_mins'=> 30,
             'timezone'     => 'Africa/Lagos',
-            'status'       => 'scheduled',
+            'status'       => 'invited',
             'meet_url'     => 'https://meet.google.com/aaa-bbbb-ccc',
             'panel_json'   => json_encode($panel),
             'created_at'   => date('Y-m-d H:i:s'),
@@ -136,7 +136,7 @@ final class JudgeScheduleTest extends TestCase
     public function test_a_sitting_with_no_date_is_not_in_the_schedule(): void
     {
         DB::table('gates_interviews')->insert([
-            'nominee_id' => $this->nominee('Undated'), 'status' => 'scheduled',
+            'nominee_id' => $this->nominee('Undated'), 'status' => 'invited',
             'panel_json' => json_encode([1]), 'created_at' => date('Y-m-d H:i:s'),
         ]);
 
@@ -493,5 +493,43 @@ final class JudgeScheduleTest extends TestCase
         $this->assertStringContainsString('Event on file', $tpl);
         $this->assertStringNotContainsString('--grey">Synced', $tpl,
             'that chip asserts a fact about Google that this branch cannot know');
+    }
+
+    /**
+     * THE PARITY BUG, HELD DOWN.
+     *
+     * `gates_interviews.status` is an ENUM on MySQL and TEXT on SQLite, so a status that
+     * does not exist stores happily in development and is refused outright in production.
+     * This schedule screen filtered on `'scheduled'`, which has never been one of the
+     * eight — so on production the filter matched nothing by that name, while three test
+     * files seeded it and went green.
+     *
+     * The other half was worse and the same shape: `'draft'` — "created, nobody told yet",
+     * a real sitting with a real time that InterviewService reminds about — was missing,
+     * so a booked call the operator had not yet announced appeared on no screen at all.
+     *
+     * Asserted against the ENUM itself rather than against a copy of it: a list written
+     * down here would be a third reader of the fact whose second reader caused this.
+     */
+    public function test_every_status_the_schedule_filters_on_is_one_the_column_allows(): void
+    {
+        $live = (new \ReflectionClass(JudgeSchedule::class))->getConstant('LIVE_STATUSES');
+
+        $this->assertSame(InterviewService::PENDING, $live,
+            'the schedule keeps its own list again — that is how these two drifted apart');
+
+        // The eight the MySQL column declares, read from the migration that declares them.
+        $mig = (string) file_get_contents(
+            dirname(__DIR__, 2) . '/database/migrations/2026_08_27_interviews.php');
+        $this->assertSame(1, preg_match(
+            "/status ENUM\(([^)]*)\)/", $mig, $m), 'the ENUM moved; this test must follow it');
+        $allowed = array_map(static fn ($v) => trim($v, "' "), explode(',', $m[1]));
+
+        foreach ($live as $status) {
+            $this->assertContains($status, $allowed,
+                "the schedule filters on '{$status}', which the column refuses on MySQL");
+        }
+        $this->assertContains('draft', $live,
+            'a sitting that exists and has a time is invisible on the screen that lists sittings');
     }
 }

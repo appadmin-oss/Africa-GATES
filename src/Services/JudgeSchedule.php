@@ -57,8 +57,33 @@ final class JudgeSchedule
      */
     public const PAST_DAYS = 3;
 
-    /** Statuses whose sitting is still expected to take place. */
-    private const LIVE_STATUSES = ['scheduled', 'invited', 'confirmed', 'live'];
+    /**
+     * Statuses whose sitting is still expected to take place — {@see InterviewService::PENDING}.
+     *
+     * ── WHY THIS IS A REFERENCE AND NOT A LIST ───────────────────────────────
+     *
+     * It WAS a list: `['scheduled', 'invited', 'confirmed', 'live']`, sitting beside
+     * InterviewService::PENDING — `['draft', 'invited', 'confirmed', 'live']` — under a
+     * docblock that said the same sentence. Two readers of one fact, which is the thing
+     * this codebase has a rule about, and they had drifted in both directions at once:
+     *
+     *   `scheduled` IS NOT A STATUS. `gates_interviews.status` is an ENUM of exactly
+     *   draft, invited, confirmed, declined, live, done, no_show and cancelled, and no
+     *   migration has ever widened it. So on production this value matched nothing, ever,
+     *   and the list was effectively three items long.
+     *
+     *   `draft` WAS MISSING. Its own schema comment reads "created, nobody told yet" — a
+     *   sitting that exists, has a time, and will be reminded about by InterviewService,
+     *   which counts it pending. It never appeared on the schedule screen, whose entire
+     *   job is showing sittings. An operator who booked a call and had not yet sent the
+     *   invitation could not see it anywhere.
+     *
+     * Invisible in development, because SQLite declares this column TEXT and takes any
+     * string: three tests seeded 'scheduled', it stored happily, and the screen was
+     * verified against a state production cannot hold. MySQL rejects the insert outright,
+     * which is how it was found.
+     */
+    private const LIVE_STATUSES = InterviewService::PENDING;
 
     // ═══════════════════════════════════════════════════════════════════════
     // THE ROUND
