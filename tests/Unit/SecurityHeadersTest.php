@@ -416,9 +416,79 @@ class SecurityHeadersTest extends TestCase
         // was not there while the features worth denying went unlisted.
         $pp = SecurityHeadersMiddleware::SHARED['Permissions-Policy'];
         $this->assertStringNotContainsString('interest-cohort', $pp);
-        foreach (['camera=()', 'microphone=()', 'geolocation=()', 'payment=()', 'usb=()'] as $denied) {
+        foreach (['microphone=()', 'geolocation=()', 'payment=()', 'usb=()'] as $denied) {
             $this->assertStringContainsString($denied, $pp);
         }
+    }
+
+    /**
+     * THE DOOR NEEDS THE CAMERA, AND THIS TEST USED TO FORBID IT.
+     *
+     * `camera=()` was in the denied list above, asserted by name — so the header denied
+     * the camera on every page of the site, the door's ticket scanner could never call
+     * getUserMedia, and this test kept it that way. The scanner had never worked in
+     * production on any device since the day it shipped.
+     *
+     * It failed silently, which is what made it survive: the page catches the rejection
+     * and writes "Camera unavailable — type the code", indistinguishable from a refused
+     * prompt or a phone with no lens. Nothing anywhere pointed at a header.
+     *
+     * `self` and not `*`: our own door may open a camera, an embedded third party may
+     * not. Asserted as an exact token so a later tidy-up cannot quietly widen it to `*`
+     * or narrow it back to `()`.
+     */
+    public function test_the_door_may_open_a_camera_and_nobody_else_may(): void
+    {
+        $pp = SecurityHeadersMiddleware::SHARED['Permissions-Policy'];
+
+        $this->assertStringContainsString('camera=(self)', $pp,
+            'the door scanner cannot open a camera — getUserMedia is refused by the browser');
+        $this->assertStringNotContainsString('camera=()', $pp);
+        $this->assertStringNotContainsString('camera=*', $pp,
+            'an embedded third party may not open the venue phone\'s camera');
+    }
+
+    /**
+     * And the scanner must not be gated on an API half the venue's phones do not have.
+     *
+     * `BarcodeDetector` does not exist on ANY iOS browser — they are all WebKit — nor on
+     * Firefox. Gating the button's existence on it meant a steward holding an iPhone saw
+     * no camera at all, which at a Nigerian gala is a large share of the people working
+     * the gate. The fallback decoder is vendored rather than fetched from a CDN, because
+     * a door on venue wifi cannot depend on a third party at the moment a queue forms.
+     */
+    public function test_the_scanner_has_a_decoder_for_phones_without_barcodedetector(): void
+    {
+        $root = dirname(__DIR__, 2);
+
+        $this->assertFileExists($root . '/public/assets/vendor/jsqr.min.js',
+            'no fallback decoder: the camera works on Chrome and nowhere else');
+
+        $door = (string) file_get_contents($root . '/templates/pages/events/door.twig');
+        $this->assertStringContainsString('jsqr.min.js', $door);
+        $this->assertStringNotContainsString('cdn.jsdelivr.net/npm/jsqr', $door,
+            'the decoder is fetched from a third party at the door');
+
+        // ── THE BUTTON'S EXISTENCE MUST NOT DEPEND ON BarcodeDetector ────────
+        //
+        // Only WHICH decoder runs may. Asserted over the span between finding the widget
+        // and revealing it, because that span IS the gate — a blunter check for the name
+        // anywhere in the file fails on the decoder-selection function, which is allowed
+        // to ask and which the first version of this test wrongly flagged.
+        $from = strpos($door, "var wrap   = document.getElementById('drCamWrap')");
+        // The reveal is on the BUTTON. `wrap.hidden` is the viewfinder, which is opened
+        // later and only once there is a stream — anchoring on that would slice in the
+        // decoder-selection function and flag a check that is allowed to happen.
+        $to   = strpos($door, 'camBtn.hidden = false;');
+        $this->assertIsInt($from, 'the camera widget lookup moved; this test must follow it');
+        $this->assertIsInt($to);
+        $this->assertGreaterThan($from, $to);
+
+        $gate = substr($door, $from, $to - $from);
+        $this->assertStringNotContainsString('BarcodeDetector', $gate,
+            'the camera button is hidden outright on every iOS browser and on Firefox');
+        $this->assertStringContainsString('getUserMedia', $gate,
+            'the button is offered where a camera cannot actually open');
     }
 
     public function test_the_opener_policy_still_allows_a_popup_checkout(): void

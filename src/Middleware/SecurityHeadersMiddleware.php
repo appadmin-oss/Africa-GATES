@@ -59,7 +59,22 @@ class SecurityHeadersMiddleware {
          * which is the point of listing them rather than relying on a permission
          * prompt nobody reads.
          */
-        'Permissions-Policy'     => 'accelerometer=(), autoplay=(), camera=(), '
+        /*
+         * ── camera=(self) AND NOT camera=() ──────────────────────────────────
+         *
+         * This header denied the camera on every page of the site, and the door's
+         * ticket scanner is a camera. `getUserMedia` was rejected by the browser
+         * before a line of the page's own code ran — so the scanner had never
+         * worked in production, on any device, since the day it shipped.
+         *
+         * It failed in the worst available way: the page catches the rejection and
+         * writes "Camera unavailable — type the code", which is exactly what a
+         * missing lens or a refused prompt looks like. Nothing pointed at a header.
+         *
+         * `self`, never `*`, for the reason picture-in-picture is scoped that way:
+         * our own door may open a camera, an embedded third party may not.
+         */
+        'Permissions-Policy'     => 'accelerometer=(), autoplay=(), camera=(self), '
             . 'display-capture=(), encrypted-media=(), fullscreen=(self), geolocation=(), '
             . 'gyroscope=(), magnetometer=(), microphone=(), midi=(), payment=(), '
             /* picture-in-picture=(self): Plyr requests it for every video it mounts —

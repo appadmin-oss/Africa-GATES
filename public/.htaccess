@@ -99,7 +99,7 @@ Options -MultiViews
   Header always set Referrer-Policy "strict-origin-when-cross-origin"
   Header always set X-Permitted-Cross-Domain-Policies "none"
   # interest-cohort is gone — FLoC was withdrawn in 2022, so it denied nothing.
-  Header always set Permissions-Policy "accelerometer=(), autoplay=(), camera=(), display-capture=(), encrypted-media=(), fullscreen=(self), geolocation=(), gyroscope=(), magnetometer=(), microphone=(), midi=(), payment=(), picture-in-picture=(self), publickey-credentials-get=(), screen-wake-lock=(), usb=(), xr-spatial-tracking=()"
+  Header always set Permissions-Policy "accelerometer=(), autoplay=(), camera=(self), display-capture=(), encrypted-media=(), fullscreen=(self), geolocation=(), gyroscope=(), magnetometer=(), microphone=(), midi=(), payment=(), picture-in-picture=(self), publickey-credentials-get=(), screen-wake-lock=(), usb=(), xr-spatial-tracking=()"
   # allow-popups, not plain same-origin: the payment flows redirect in the same tab
   # today, but a future popup checkout would lose window.opener and be unable to
   # report back. Reverse tabnabbing is severed either way.

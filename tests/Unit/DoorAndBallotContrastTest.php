@@ -100,8 +100,11 @@ final class DoorAndBallotContrastTest extends TestCase
     /** The other two controls beside it, which shipped with the same hairline. */
     public function test_the_other_door_controls_are_findable_too(): void
     {
-        foreach (['.dr__cam button{' => 'the camera button',
-                  '.dr__undo__b{'    => 'the take-it-back button'] as $rule => $what) {
+        // `.dr__cam button` became `.dr__cam__b` when the camera moved out of the page
+        // flow and into the action rail. The rule-not-found guard above caught the rename
+        // rather than letting this quietly assert nothing, which is what it is for.
+        foreach (['.dr__cam__b{'  => 'the camera button',
+                  '.dr__undo__b{' => 'the take-it-back button'] as $rule => $what) {
             $this->assertFloor(
                 $this->ratio($this->pick('pages/events/door.twig', $rule, 'border'), '#ffffff'),
                 3.0, $what . ' border');

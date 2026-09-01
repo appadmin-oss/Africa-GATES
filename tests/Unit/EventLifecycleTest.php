@@ -609,8 +609,21 @@ final class EventLifecycleTest extends TestCase
             'password_hash' => 'x', 'role' => 'admin',
         ]);
 
-        // Admitted at 19:42 in Lagos — stored as 18:42 UTC, which is the whole point.
-        $at = Carbon::now()->format('Y-m-d') . ' 18:42:00';
+        // ── A REAL PAST MOMENT, NOT A CLOCK TIME WRITTEN DOWN ────────────────
+        //
+        // This used to say "today at 18:42", asserting the screen shows 19:42 in Lagos.
+        // It passed for exactly as long as the suite ran in the second half of the UTC
+        // day: EventTicketService::stampFor() clamps a FUTURE stamp to now — correctly,
+        // because a door must not be able to write history — so before 18:42 UTC the
+        // admission was stamped `now` and the assertion compared Lagos-of-now against a
+        // hardcoded 19:42. A test that only passes after tea is worse than no test.
+        //
+        // Half an hour ago is in the past whatever time it is, and the expectation is
+        // DERIVED from the same instant rather than written down.
+        $at = Carbon::now()->subMinutes(30)->format('Y-m-d H:i:00');
+        $expect = (new \DateTimeImmutable($at, new \DateTimeZone('UTC')))
+            ->setTimezone(new \DateTimeZone('Africa/Lagos'))->format('H:i');
+
         EventTicketService::checkIn($code, $this->eventId, 'door: Main gate', $adminId, $at);
 
         $rows = $this->ticketsScreen();
@@ -618,12 +631,14 @@ final class EventLifecycleTest extends TestCase
         $me = null;
         foreach ($rows['attendees'] as $a) if (($a['ticket_code'] ?? '') === $code) $me = $a;
         $this->assertNotNull($me);
-        $this->assertSame('19:42', (string) $me['arrived_time'],
+        $this->assertSame($expect, (string) $me['arrived_time'],
             'the arrival was printed in the storage convention rather than in Lagos');
+        $this->assertNotSame(substr($at, 11, 5), (string) $me['arrived_time'],
+            'Lagos is an hour ahead of storage — an identical string means no zone was applied');
         $this->assertSame('Bisi Alabi', (string) $me['by_name'],
             'the person who admitted somebody is recorded and shown nowhere');
 
-        $this->assertSame('19:42', (string) $rows['arrivals'][0]['at_time']);
+        $this->assertSame($expect, (string) $rows['arrivals'][0]['at_time']);
         $this->assertSame('WAT', (string) $rows['arrivals'][0]['at_zone']);
         $this->assertSame('Bisi Alabi', (string) $rows['arrivals'][0]['by_name']);
 

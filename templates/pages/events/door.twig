@@ -25,18 +25,40 @@
 <canvas class="dr__conf" id="dr-conf" aria-hidden="true"></canvas>
 <style nonce="{{ csp_nonce }}">
   .dr{ max-width:560px; margin:0 auto; padding:16px 14px 40px }
-  .dr__head{ display:flex; align-items:baseline; justify-content:space-between; gap:10px;
-    flex-wrap:wrap; margin-bottom:14px }
-  .dr__ev{ font-size:16px; font-weight:700; color:#10292C; margin:0 }
+  .dr__head{ display:flex; align-items:center; justify-content:space-between; gap:12px;
+    margin-bottom:12px }
+  .dr__head__id{ min-width:0 }
+  .dr__ev{ font-size:16px; font-weight:700; color:#10292C; margin:0;
+    overflow:hidden; text-overflow:ellipsis; white-space:nowrap }
   .dr__gate{ font-size:12.5px; color:#5a6d6f }
-  .dr__count{ font-variant-numeric:tabular-nums; font-size:12.5px; color:#5a6d6f }
+
+  /* THE HEADCOUNT, as a figure rather than a footnote. It was 12.5px grey in the corner
+     of the screen hardest to read and reach, and it is the number an organiser is asked
+     for all evening. Tabular so it does not jitter as it climbs. */
+  .dr__tally{ display:flex; flex-direction:column; align-items:flex-end; line-height:1.05 }
+  .dr__tally__n{ font-size:30px; font-weight:800; color:#10292C;
+    font-variant-numeric:tabular-nums; letter-spacing:-.02em }
+  .dr__tally__l{ font-size:11px; color:#5a6d6f; letter-spacing:.02em; white-space:nowrap }
+
+  /* ── THE STAGE ──────────────────────────────────────────────────────────────
+     One box for the viewfinder and the verdict, because they are never both wanted.
+     A fixed shape, held before either child exists, is what stops the page reflowing
+     under the operator's thumb between scans. */
+  .dr__stage{ position:relative; aspect-ratio:4/3; min-height:200px; max-height:46vh;
+    border-radius:14px; overflow:hidden; background:#0b1a1c }
 
   /* ── THE VERDICT ────────────────────────────────────────────────────────────
      min-height so the panel does not jump between states — a layout shift at a
      door is a mis-read. clamp() so it is large on a phone held at arm's length. */
-  .dr__v{ min-height:168px; display:flex; flex-direction:column; align-items:center;
+  .dr__v{ position:absolute; inset:0; display:flex; flex-direction:column; align-items:center;
     justify-content:center; text-align:center; gap:6px; border-radius:14px; padding:20px 16px;
     border:2px solid #d9e2e0; background:#f3f6f5; color:#3d5457 }
+  /* While the camera runs, the verdict shows for the glance and then gets out of the way
+     so the operator can keep aiming. With the camera off it simply stays — there is
+     nothing behind it to return to. */
+  .dr__stage.is-live .dr__v{ opacity:0; pointer-events:none;
+    transition:opacity .18s linear }
+  .dr__stage.is-live .dr__v.is-fresh{ opacity:1 }
   .dr__v b{ font-size:clamp(26px, 8vw, 40px); line-height:1.05; letter-spacing:-0.01em }
   .dr__v .dr__who{ font-size:17px; font-weight:600 }
   .dr__v .dr__sub{ font-size:13.5px; opacity:.85; max-width:34ch }
@@ -47,7 +69,7 @@
   .dr__v--refuse{ background:#fdeceb; border-color:#a32b1f; color:#7d1d14 }
   .dr__v--closed{ background:#fdeceb; border-color:#a32b1f; color:#7d1d14 }
 
-  .dr__form{ margin-top:14px; display:flex; gap:8px }
+  .dr__form{ display:flex; gap:8px }
   /* 16px minimum, or iOS zooms the whole page on focus and the operator loses the queue. */
   /* #849693 is 3.1:1 on white; the #cfdad8 all three of these carried was 1.43:1.
      WCAG 1.4.11 asks 3:1 of the visual information needed to IDENTIFY a control, and for
@@ -63,16 +85,45 @@
     font-weight:700; border:0; border-radius:10px; background:#10292C; color:#fff; cursor:pointer }
   .dr__form button:disabled{ opacity:.55; cursor:default }
 
-  .dr__cam{ margin-top:10px }
-  .dr__cam button{ width:100%; min-height:48px; font-size:15px; font-weight:600;
-    border:2px solid #849693; border-radius:10px; background:#fff; color:#10292C; cursor:pointer }
-  .dr__video{ width:100%; margin-top:10px; border-radius:12px; background:#000; display:none }
-  .dr__video.on{ display:block }
+  /* The viewfinder fills the stage. `cover` rather than `contain`: a letterboxed video
+     wastes the aiming area on a phone held in portrait over a ticket held in landscape. */
+  .dr__cam{ position:absolute; inset:0 }
+  .dr__video{ width:100%; height:100%; object-fit:cover; background:#0b1a1c; display:block }
+
+  /* Where to hold the ticket. Not decoration — without it people aim at the middle of
+     the phone rather than the middle of the lens, and the first scan takes four seconds. */
+  .dr__reticle{ position:absolute; left:50%; top:50%; width:62%; aspect-ratio:1;
+    transform:translate(-50%,-50%); border:3px solid rgba(255,255,255,.92); border-radius:16px;
+    box-shadow:0 0 0 100vmax rgba(8,20,22,.42); pointer-events:none }
+
+  .dr__cam__msg{ font-size:13px; color:#5a6d6f; margin:8px 2px 0; min-height:1.3em;
+    text-align:center }
+
+  /* ── THE RESERVED SLOT ─────────────────────────────────────────────────────
+     Holds its height whether or not anything is in it, so the rail below never moves.
+     Three widgets used to insert themselves into the flow here and the page shifted
+     up to three times between two scans. */
+  .dr__slot{ min-height:56px; margin-top:6px; display:flex; flex-direction:column;
+    justify-content:center }
+
+  /* ── THE RAIL ──────────────────────────────────────────────────────────────
+     Both inputs together in the bottom third, which is the part of a phone a person
+     holding it one-handed can actually reach. */
+  .dr__rail{ display:flex; flex-direction:column; gap:8px; margin-top:2px }
+
+  .dr__cam__b{ display:flex; align-items:center; justify-content:center; gap:9px;
+    width:100%; min-height:54px; font-size:16px; font-weight:700; cursor:pointer;
+    border:2px solid #10292C; border-radius:12px; background:#10292C; color:#fff }
+  .dr__cam__b:disabled{ opacity:.6; cursor:default }
+  .dr__cam__b:focus-visible{ outline:3px solid #f3b416; outline-offset:2px }
+  .dr__cam__i{ font-size:18px; line-height:1 }
+  /* Stopping is the secondary act — it loses the emphasis rather than gaining alarm. */
+  .dr__cam__b.is-on{ background:#fff; color:#10292C }
 
   /* 48px and full width: pressed one-handed, in the dark, by somebody who has just
      realised they admitted the wrong person. Deliberately NOT red until it is armed —
      an alarm-coloured control sitting under every successful scan reads as an error. */
-  .dr__undo{ margin-top:10px }
+  .dr__undo{ margin:0 }
   .dr__undo__b{ width:100%; min-height:48px; font-size:15px; font-weight:600; cursor:pointer;
     border:2px solid #849693; border-radius:10px; background:#fff; color:#5a6d6f }
   .dr__undo__b.is-armed{ border-color:#a32b1f; color:#7d1d14; background:#fdeceb }
@@ -210,74 +261,117 @@
 
 {% else %}
   <div class="dr__head">
-    <div>
+    <div class="dr__head__id">
       <p class="dr__ev">{{ event.title }}</p>
       <span class="dr__gate">{{ label ?: 'Door' }} · closes {{ closes_short }}</span>
     </div>
-    <span class="dr__count" id="drCount" aria-live="polite">{{ admitted }} in{% if expected %} / {{ expected }}{% endif %}</span>
+    {# The number an organiser is asked for all evening — and it was 12.5px grey in the
+       corner hardest to read and reach. It is a headline figure now, tabular so it does
+       not jitter as it climbs. #}
+    <div class="dr__tally">
+      <span class="dr__tally__n" id="drCount" aria-live="polite">{{ admitted }}</span>
+      <span class="dr__tally__l">{% if expected %}of {{ expected }} in{% else %}in the room{% endif %}</span>
+    </div>
   </div>
 
-  {#
-    aria-live="assertive": the verdict is the entire purpose of the page and it replaces
-    itself faster than a screen-reader user could go looking for it. This is one of the few
-    places assertive is the correct choice rather than the rude one.
-  #}
-  <div class="dr__v" id="drV" role="status" aria-live="assertive">
-    <span class="dr__mark" aria-hidden="true">⌁</span>
-    <b>Ready</b>
-    <span class="dr__sub">Scan a ticket, or type the code below.</span>
+  {# ══ THE STAGE ═══════════════════════════════════════════════════════════
+     ONE box, ONE height, for the two things that are never wanted at once: the
+     viewfinder while you are aiming, and the verdict the instant there is one.
+
+     They used to be separate blocks stacked seven apart, each independently hidden, so
+     opening the camera pushed the page down by the height of a video and every scan
+     reflowed the layout under the operator's thumb. At a door — one-handed, at night,
+     with a queue — a control that moves between taps is a control that gets mis-hit,
+     and a mis-hit here admits the wrong person.
+
+     `aspect-ratio` rather than a pixel height so it holds its shape on every phone
+     without a media query, and the box exists before either child does. #}
+  <div class="dr__stage">
+    <div class="dr__cam" id="drCamWrap" hidden>
+      <video id="drVideo" class="dr__video" playsinline muted autoplay></video>
+      <div class="dr__reticle" aria-hidden="true"></div>
+    </div>
+
+    {#
+      aria-live="assertive": the verdict is the entire purpose of the page and it replaces
+      itself faster than a screen-reader user could go looking for it. This is one of the few
+      places assertive is the correct choice rather than the rude one.
+    #}
+    <div class="dr__v" id="drV" role="status" aria-live="assertive">
+      <span class="dr__mark" aria-hidden="true">⌁</span>
+      <b>Ready</b>
+      <span class="dr__sub">Point the camera at a ticket, or type the code.</span>
+    </div>
   </div>
 
-  <form class="dr__form" id="drForm" autocomplete="off">
-    <label for="drCode" class="sr-only">Ticket code</label>
-    <input id="drCode" name="code" inputmode="latin" autocapitalize="characters"
-           spellcheck="false" placeholder="ABCD-2468" required
-           aria-describedby="drHelp">
-    <button type="submit" id="drGo">Check</button>
-  </form>
+  {# NAMED failures, not "unavailable". A refused prompt, a camera another app is
+     holding, and a device with no lens need three different actions from the operator,
+     and one word for all three sent somebody to the wrong fix while a queue waited. #}
+  <p class="dr__cam__msg" id="drCamMsg" role="status" aria-live="polite"></p>
 
-  {# ── TAKING IT BACK ────────────────────────────────────────────────────
-     Shown only after an admit, and hidden again on the next scan. A permanent
-     "undo" button beside a queue is a thing that gets pressed by accident; one that
-     appears for the person who just came through, and disappears the moment the next
-     ticket is scanned, can only ever mean the scan on screen.
+  {# ══ THE RESERVED SLOT ═══════════════════════════════════════════════════
+     Everything conditional lives HERE, in one place that always occupies the same
+     space: how many of a party are here, an offline queue waiting to go, and taking
+     back the admission on screen. Only one is ever relevant at a time, and holding
+     the room for it is what keeps the rail below from moving. #}
+  <div class="dr__slot">
+    {# ── HOW MANY OF THEM ARE HERE ──────────────────────────────────────────
+       Only for a ticket with more than one seat, and only while some are still to
+       come. A single-seat ticket — which is most of them — never sees this.
 
-     It is a two-step press rather than a confirm dialog: at a door, a modal is a
-     second thing to dismiss one-handed, and the second tap is the confirmation. #}
-  {# ── WHAT IS WAITING ───────────────────────────────────────────────────
-     Shown only while something is held. A steward has to be able to see, without
-     asking anybody, that the gate is carrying scans nobody has checked yet — and
-     to be able to push them through the moment the line is back rather than
-     waiting for the page to notice. #}
-  {# ── HOW MANY OF THEM ARE HERE ──────────────────────────────────────────
-     Only for a ticket with more than one seat, and only while some are still to
-     come. A single-seat ticket — which is most of them — never sees this and costs
-     no extra tap.
+       "All N" leads, because a party usually arrives together, and it is a real button
+       rather than a default that fires on its own: the steward is looking at the people
+       and already knows the number before they scan.
 
-     "All N" leads, because a party usually arrives together, and it is a real button
-     rather than a default that fires on its own: the steward is looking at the people
-     and already knows the number before they scan. Asking is not friction here, it is
-     the question they have just answered in their head.
+       A row of whole numbers rather than a stepper — at a door, a control you have to
+       press four times is worse than four you press once. #}
+    <div class="dr__party" id="drParty" hidden>
+      <p class="dr__party__q" id="drPartyQ"></p>
+      <div class="dr__party__row" id="drPartyRow" role="group" aria-labelledby="drPartyQ"></div>
+    </div>
 
-     Rendered as a row of whole numbers rather than a stepper — at a door, a control
-     you have to press four times is worse than four you press once. #}
-  <div class="dr__party" id="drParty" hidden>
-    <p class="dr__party__q" id="drPartyQ"></p>
-    <div class="dr__party__row" id="drPartyRow" role="group" aria-labelledby="drPartyQ"></div>
+    {# ── WHAT IS WAITING ───────────────────────────────────────────────────
+       A steward has to be able to see, without asking anybody, that the gate is
+       carrying scans nobody has checked yet — and to push them through the moment the
+       line is back rather than waiting for the page to notice. #}
+    <div class="dr__pend" id="drPend" hidden>
+      <span class="dr__pend__n" role="status" aria-live="polite"></span>
+      <button type="button" id="drFlush" class="dr__pend__b">Send them now</button>
+    </div>
+
+    {# ── TAKING IT BACK ────────────────────────────────────────────────────
+       Shown only after an admit, and hidden again on the next scan. A permanent
+       "undo" beside a queue gets pressed by accident; one that appears for the person
+       who just came through can only ever mean the scan on screen.
+
+       Two taps rather than a confirm dialog: at a door a modal is a second thing to
+       dismiss one-handed, and the second tap is the confirmation. #}
+    <div class="dr__undo" id="drUndoWrap" hidden>
+      <button type="button" id="drUndo" class="dr__undo__b">Not them — take it back</button>
+    </div>
   </div>
 
-  <div class="dr__pend" id="drPend" hidden>
-    <span class="dr__pend__n" role="status" aria-live="polite"></span>
-    <button type="button" id="drFlush" class="dr__pend__b">Send them now</button>
-  </div>
+  {# ══ THE RAIL ════════════════════════════════════════════════════════════
+     The two inputs, together, in the bottom third — which is the only part of a phone
+     a person holding it one-handed can actually reach. The camera used to be seventh
+     on the page, under three collapsing widgets; scanning is the primary act at a door
+     and it was the hardest thing to get to.
 
-  <div class="dr__undo" id="drUndoWrap" hidden>
-    <button type="button" id="drUndo" class="dr__undo__b">Not them — take it back</button>
-  </div>
+     The camera leads because it is what a steward reaches for; the typed box is beside
+     it and always works, which is what makes a wet lens or a torn ticket a non-event. #}
+  <div class="dr__rail">
+    <button type="button" id="drCam" class="dr__cam__b" hidden>
+      <span class="dr__cam__i" aria-hidden="true">▢</span>
+      <span class="dr__cam__t">Scan with the camera</span>
+    </button>
 
-  <div class="dr__cam" id="drCamWrap" hidden>
-    <button type="button" id="drCam">Use the camera</button>
-    <video id="drVideo" class="dr__video" playsinline muted></video>
+    <form class="dr__form" id="drForm" autocomplete="off">
+      <label for="drCode" class="sr-only">Ticket code</label>
+      <input id="drCode" name="code" inputmode="latin" autocapitalize="characters"
+             spellcheck="false" placeholder="ABCD-2468" required
+             aria-describedby="drHelp">
+      <button type="submit" id="drGo">Check</button>
+    </form>
   </div>
 
   {# The running list. Not decoration: it is how somebody proves what happened when an
@@ -295,12 +389,19 @@
 {% if ok %}
 <script nonce="{{ csp_nonce }}">
 (function () {
+  // Captured HERE, synchronously. `document.currentScript` is only set while a script is
+  // executing its initial pass — read inside a click handler it is null, and the decoder
+  // below would be injected with an empty nonce.
+  var NONCE = (document.currentScript && document.currentScript.nonce) || '';
+
   var form  = document.getElementById('drForm');
   var input = document.getElementById('drCode');
   var go    = document.getElementById('drGo');
   var panel = document.getElementById('drV');
   var logEl = document.getElementById('drLog');
   var count = document.getElementById('drCount');
+  var stage = document.querySelector('.dr__stage');
+  var freshFor = null;
   var url   = {{ ('/door/' ~ token ~ '/check')|json_encode|raw }};
   if (!form || !input || !panel) return;
 
@@ -366,6 +467,20 @@
     panel.className = 'dr__v dr__v--' + kind + (v.honour && v.verdict === 'admit' ? ' dr__v--honour' : '');
     panel.innerHTML = '';
 
+    // ── HOW LONG THE VERDICT HOLDS THE STAGE ─────────────────────────────
+    //
+    // While the camera is running the viewfinder is underneath, and the operator needs
+    // it back to aim at the next ticket — so the verdict shows for a glance and then
+    // steps aside. Long enough to read a name out loud; short enough that the queue
+    // does not wait on it.
+    //
+    // With the camera OFF nothing steps aside, because there is nothing behind it: a
+    // typed-entry door keeps its last verdict until the next one replaces it. The CSS
+    // does that distinction — this only marks the moment.
+    panel.classList.add('is-fresh');
+    if (freshFor) clearTimeout(freshFor);
+    freshFor = setTimeout(function () { panel.classList.remove('is-fresh'); }, 2600);
+
     var mark = document.createElement('span');
     mark.className = 'dr__mark'; mark.setAttribute('aria-hidden', 'true');
     mark.textContent = MARK[v.verdict] || '✕';
@@ -392,7 +507,7 @@
     }
 
     if (typeof v.admitted === 'number' && count) {
-      count.textContent = v.admitted + ' in' + ({{ expected|default(0) }} ? ' / {{ expected|default(0) }}' : '');
+      count.textContent = v.admitted;
     }
 
     // A short buzz on anything that is not a clean admit. The operator is looking at the
@@ -697,7 +812,7 @@
       });
 
       if (typeof d.admitted === 'number' && count) {
-        count.textContent = d.admitted + ' in' + ({{ expected|default(0) }} ? ' / {{ expected|default(0) }}' : '');
+        count.textContent = d.admitted;
       }
 
       if (!quiet) {
@@ -805,60 +920,177 @@
     });
   }
 
-  // ── THE CAMERA, WHICH IS THE ADDITION AND NOT THE DOOR ───────────────────
+  // ── THE CAMERA ───────────────────────────────────────────────────────────
   //
-  // Shown only where it can actually work: BarcodeDetector is absent on iOS Safari, and
-  // getUserMedia needs a secure context. Offering a button that cannot function is worse than
-  // not offering one, because the operator spends the queue tapping it.
-  var wrap = document.getElementById('drCamWrap');
-  var vid  = document.getElementById('drVideo');
+  // TWO THINGS KEPT THIS FROM EVER WORKING IN PRODUCTION, and both failed silently.
+  //
+  //   1. `Permissions-Policy: camera=()` denied the camera on every page of the site.
+  //      getUserMedia was rejected by the browser before any of this ran, and the catch
+  //      below wrote "Camera unavailable", which is exactly what a refused prompt or a
+  //      broken lens looks like. Fixed in SecurityHeadersMiddleware; a test now holds it.
+  //
+  //   2. The button's existence was gated on `BarcodeDetector`, which does not exist on
+  //      ANY iOS browser — they are all WebKit — nor on Firefox. A steward holding an
+  //      iPhone saw no camera at all. At a Nigerian gala that is a large share of the
+  //      people working the gate.
+  //
+  // So the gate is now getUserMedia alone, and WHICH decoder runs is decided after the
+  // stream opens: the native one where it exists, jsQR where it does not. jsQR is
+  // vendored and lazy — a door on venue wifi cannot fetch a script from a third party at
+  // the moment a queue forms, and a Chrome phone should not download 130KB it never uses.
+  var wrap   = document.getElementById('drCamWrap');
+  var vid    = document.getElementById('drVideo');
   var camBtn = document.getElementById('drCam');
+  var camMsg = document.getElementById('drCamMsg');
   var secure = window.isSecureContext || location.hostname === 'localhost';
-  if (!wrap || !vid || !camBtn || !secure) return;
-  if (!('BarcodeDetector' in window) || !navigator.mediaDevices) return;
 
-  var detector = null, stream = null, timer = null;
-  BarcodeDetector.getSupportedFormats().then(function (f) {
-    if (f.indexOf('qr_code') === -1) return;
-    detector = new BarcodeDetector({ formats: ['qr_code'] });
-    wrap.hidden = false;
-  }).catch(function () { /* no scanner: the typed box is the door */ });
+  if (!wrap || !vid || !camBtn) return;
+
+  // The typed box is the door and it always works. The camera is only ever offered where
+  // it can actually open — an offer that cannot be honoured costs the operator the queue.
+  if (!secure || !navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) return;
+  // The BUTTON becomes available; the viewfinder stays hidden until there is a stream to
+  // put in it. Revealing an empty black box under the verdict is how the stage came to
+  // have two things in it at once.
+  camBtn.hidden = false;
+
+  var stream = null, timer = null, native = null, jsqr = null, canvas = null, ctx = null;
+
+  function say(msg) { if (camMsg) camMsg.textContent = msg || ''; }
+
+  /* The button carries an icon beside its words, so its label is a span rather than the
+     button's own textContent — writing that would delete the icon on the first press. */
+  function setCamLabel(t) {
+    var el = camBtn.querySelector('.dr__cam__t');
+    if (el) el.textContent = t; else camBtn.textContent = t;
+  }
+
+  /** The native decoder, or null. Chrome and Edge have it; WebKit and Firefox do not. */
+  async function nativeDecoder() {
+    if (!('BarcodeDetector' in window)) return null;
+    try {
+      var formats = await BarcodeDetector.getSupportedFormats();
+      if (formats.indexOf('qr_code') === -1) return null;
+      return new BarcodeDetector({ formats: ['qr_code'] });
+    } catch (e) { return null; }
+  }
+
+  /** jsQR, fetched once, only when it is the only option. */
+  function loadJsQR() {
+    if (window.jsQR) return Promise.resolve(window.jsQR);
+    return new Promise(function (resolve, reject) {
+      var el = document.createElement('script');
+      // The nonce is carried over deliberately. `script-src` here is `'self'` plus a
+      // nonce, so a same-origin src would load without it today — but the day this
+      // policy gains `strict-dynamic`, host sources stop applying and an un-nonced
+      // injected script is refused. The failure then would be a scanner that stops
+      // working on exactly the phones that need it, months after the change that did it.
+      el.nonce = NONCE;
+      el.src = '/assets/vendor/jsqr.min.js';
+      el.onload  = function () { resolve(window.jsQR || null); };
+      el.onerror = function () { reject(new Error('decoder')); };
+      document.head.appendChild(el);
+    });
+  }
+
+  function stop() {
+    if (stream) { stream.getTracks().forEach(function (t) { t.stop(); }); stream = null; }
+    if (timer) { clearInterval(timer); timer = null; }
+    wrap.hidden = true;
+    if (stage) stage.classList.remove('is-live');
+    camBtn.classList.remove('is-on');
+    // The verdict stays put once the viewfinder is gone — there is nothing behind it.
+    panel.classList.add('is-fresh');
+    setCamLabel('Scan with the camera');
+    say('');
+    input.focus();
+  }
+
+  /**
+   * One frame, decoded by whichever engine we have. Returns the raw string or ''.
+   *
+   * jsQR needs pixels, so the frame goes through a canvas sized to the VIDEO's own
+   * dimensions — not the element's. A CSS-scaled video would otherwise hand the decoder a
+   * stretched image, and a QR symbol decodes from its geometry.
+   */
+  async function readFrame() {
+    if (native) {
+      var found = await native.detect(vid);
+      return (found && found.length) ? String(found[0].rawValue || '') : '';
+    }
+    if (!jsqr) return '';
+    var w = vid.videoWidth, h = vid.videoHeight;
+    if (!w || !h) return '';
+    if (!canvas) { canvas = document.createElement('canvas'); ctx = canvas.getContext('2d', { willReadFrequently: true }); }
+    if (canvas.width !== w) { canvas.width = w; canvas.height = h; }
+    ctx.drawImage(vid, 0, 0, w, h);
+    var r = jsqr(ctx.getImageData(0, 0, w, h).data, w, h, { inversionAttempts: 'dontInvert' });
+    return r && r.data ? String(r.data) : '';
+  }
 
   var last = '', lastAt = 0;
+
   camBtn.addEventListener('click', async function () {
-    if (stream) {
-      stream.getTracks().forEach(function (t) { t.stop(); });
-      stream = null; clearInterval(timer); vid.classList.remove('on');
-      camBtn.textContent = 'Use the camera';
-      input.focus();
-      return;
-    }
+    if (stream) { stop(); return; }
+
+    camBtn.disabled = true;
+    say('Opening the camera\u2026');
     try {
-      // The REAR camera: the operator holds the phone and the ticket is in front of it.
+      // The REAR camera: the operator holds the phone and the ticket faces it.
       stream = await navigator.mediaDevices.getUserMedia({
         video: { facingMode: { ideal: 'environment' } }, audio: false });
-      vid.srcObject = stream; await vid.play();
-      vid.classList.add('on'); camBtn.textContent = 'Stop the camera';
+      vid.srcObject = stream;
+      // iOS will not start an inline video without this even with the attribute set.
+      vid.setAttribute('playsinline', '');
+      await vid.play();
     } catch (e) {
-      camBtn.textContent = 'Camera unavailable — type the code';
+      stream = null;
+      camBtn.disabled = false;
+      // NAMED, because "unavailable" sent an operator to the wrong fix for two of these.
+      var n = (e && e.name) || '';
+      say(n === 'NotAllowedError'  ? 'Camera blocked. Allow it in the browser\u2019s address bar, then press again.'
+        : n === 'NotFoundError'    ? 'This device has no camera. Type the code instead.'
+        : n === 'NotReadableError' ? 'Another app is using the camera. Close it and press again.'
+        : 'The camera would not open. Type the code instead.');
       return;
     }
+
+    native = await nativeDecoder();
+    if (!native) {
+      say('Getting the scanner ready\u2026');
+      try { jsqr = await loadJsQR(); }
+      catch (e) { jsqr = null; }
+      if (!jsqr) { stop(); say('The scanner could not load. Type the code instead.'); camBtn.disabled = false; return; }
+    }
+
+    camBtn.disabled = false;
+    setCamLabel('Stop the camera');
+    camBtn.classList.add('is-on');
+    wrap.hidden = false;
+    if (stage) stage.classList.add('is-live');
+    say('Point it at the ticket.');
+
     timer = setInterval(async function () {
-      if (busy || vid.readyState < 2 || !detector) return;
+      if (busy || vid.readyState < 2) return;
       try {
-        var found = await detector.detect(vid);
-        if (!found || !found.length) return;
-        var raw = String(found[0].rawValue || '').trim();
-        // A camera pointed at one ticket fires many times a second. Same code inside three
-        // seconds is the same person, and re-sending it would report them as a duplicate of
-        // themselves — the one wrong answer that looks like fraud.
+        var raw = (await readFrame()).trim();
+        if (!raw) return;
+        // A camera pointed at one ticket fires many times a second. The same code inside
+        // three seconds is the same person, and re-sending it would report them as a
+        // duplicate of themselves — the one wrong answer that looks like fraud.
         var now = Date.now();
         if (raw === last && now - lastAt < 3000) return;
         last = raw; lastAt = now;
         check(raw);
       } catch (e) { /* a bad frame is not an error */ }
-    }, 350);
+    }, native ? 300 : 180);
   });
+
+  // A camera left running behind a locked screen is a flat battery an hour into a gala.
+  document.addEventListener('visibilitychange', function () {
+    if (document.hidden && stream) stop();
+  });
+
 })();
 </script>
 {% endif %}
