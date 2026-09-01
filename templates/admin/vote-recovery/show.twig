@@ -109,6 +109,47 @@
   {% endfor %}
 </div>
 
+{# ── WHAT ACTUALLY WENT WRONG ────────────────────────────────────────────────
+   The reason each delivery failed, grouped. It has been recorded on every token since
+   this feature shipped and shown on no screen — so a reviewer approving a batch under
+   the two-person rule could see that 412 codes failed and never what failed.
+
+   Those are not the same decision. A full mailbox is somebody who has an address and
+   could be re-sent to; an address the provider rejected is a typo nobody can vote
+   through; a four-minute provider outage is OUR fault in a way neither of the others
+   is, and the case that most obviously justifies recovering the votes.
+
+   Grouped and counted, never listed, for the same reason the nominee table below gives. #}
+{% if why_failed %}
+<div class="vb-card">
+  <h3>Why the codes did not arrive</h3>
+  <p class="vb-sub">What our own delivery log recorded at the time, grouped by reason.</p>
+  <table class="vb-tbl">
+    <thead><tr><th scope="col">Reason</th><th scope="col">Codes</th></tr></thead>
+    <tbody>
+      {% for w in why_failed %}
+        <tr><td>{{ w.reason }}</td><td>{{ w.n|number_format }}</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
+
+{% if why_rejected %}
+<div class="vb-card">
+  <h3>Why rows were refused</h3>
+  <p class="vb-sub">Written down by whoever refused them, so the batch is not re-argued from scratch.</p>
+  <table class="vb-tbl">
+    <thead><tr><th scope="col">Reason</th><th scope="col">Rows</th></tr></thead>
+    <tbody>
+      {% for w in why_rejected %}
+        <tr><td>{{ w.reason }}</td><td>{{ w.n|number_format }}</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
+
 {# ── WHO THESE VOTES ARE FOR ─────────────────────────────────────────────────
    Grouped by nominee, never listed one row per person. A list of six hundred email
    hashes is not reviewable and publishing it would be worse; "these 41 people were

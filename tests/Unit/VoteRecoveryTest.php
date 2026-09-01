@@ -429,4 +429,88 @@ class VoteRecoveryTest extends TestCase
         $this->assertSame((int) $b['batch_id'], \AfricaGates\Support\Reference::parseRecoveryId($b['reference']));
         $this->assertNull(\AfricaGates\Support\Reference::parseRecoveryId('AGR-000000-0'));
     }
+
+    // ── §17 · WHY, WHICH WAS RECORDED AND SHOWN NOWHERE ──────────────────────
+
+    /**
+     * The reviewer can see WHAT failed, not just how much of it.
+     *
+     * `gates_otp_tokens.delivery_error` has been written on every failed send since this
+     * feature shipped and read by nothing, so the two-person review — which this
+     * platform's doctrine calls the strongest control it has — was carried out on a
+     * count alone.
+     *
+     * Those are not the same decision. A full mailbox is somebody who has an address and
+     * could be re-sent to. An address the provider rejected does not exist and no
+     * recovery can make it vote. A four-minute outage is OUR failure in a way neither of
+     * the others is, and the case that most obviously justifies recovering the votes.
+     */
+    public function test_the_review_can_see_why_each_delivery_failed(): void
+    {
+        $this->attempt('a@x.test');
+        $this->attempt('b@x.test');
+        $this->attempt('c@x.test', 1, 'failed', ['delivery_error' => 'mailbox full']);
+
+        $b = $this->draft();
+        $this->assertTrue($b['ok'], (string) ($b['message'] ?? ''));
+
+        $why = Recover::whyItFailed((int) $b['batch_id']);
+
+        $this->assertNotSame([], $why, 'the reasons are recorded and the review cannot see them');
+        $byReason = array_column($why, 'n', 'reason');
+        $this->assertSame(2, $byReason['SMTP 421 relay unavailable'] ?? 0);
+        $this->assertSame(1, $byReason['mailbox full'] ?? 0);
+
+        // Grouped and counted, never one row per person: the addresses are nobody's
+        // business past the hash, which is the rule the nominee table already follows.
+        $this->assertCount(2, $why, 'three attempts, two reasons — this is listing people');
+    }
+
+    /** A token with no recorded reason says so rather than disappearing from the count. */
+    public function test_a_failure_with_no_recorded_reason_is_still_counted(): void
+    {
+        $this->attempt('a@x.test', 1, 'failed', ['delivery_error' => null]);
+
+        $b = $this->draft();
+        $why = Recover::whyItFailed((int) $b['batch_id']);
+
+        $this->assertSame([['reason' => 'not recorded', 'n' => 1]], $why,
+            'a delivery we failed to explain vanished from the tally of what we failed at');
+    }
+
+    /** And the refusals, so a batch is not re-argued from scratch by the next reviewer. */
+    public function test_the_review_can_see_why_rows_were_refused(): void
+    {
+        $this->attempt('a@x.test');
+        $this->attempt('b@x.test');
+
+        $b  = $this->draft();
+        $id = (int) $b['batch_id'];
+
+        DB::table('gates_vote_recovery_rows')->where('batch_id', $id)->limit(1)
+            ->update(['status' => 'rejected', 'reject_reason' => 'voted from the same address twice']);
+
+        $why = Recover::whyRejected($id);
+
+        $this->assertSame([['reason' => 'voted from the same address twice', 'n' => 1]], $why);
+    }
+
+    /**
+     * §17 is only closed when something RENDERS it. A resolver nobody calls is the same
+     * column with an extra step in front of it.
+     */
+    public function test_both_reasons_reach_the_screen(): void
+    {
+        $c = (string) file_get_contents(
+            dirname(__DIR__, 2) . '/src/Admin/Controllers/VoteRecoveryController.php');
+        $t = (string) file_get_contents(
+            dirname(__DIR__, 2) . '/templates/admin/vote-recovery/show.twig');
+
+        foreach (['whyItFailed', 'whyRejected'] as $fn) {
+            $this->assertStringContainsString('Recover::' . $fn . '(', $c, $fn . ' has no caller');
+        }
+        foreach (['why_failed', 'why_rejected'] as $key) {
+            $this->assertStringContainsString($key, $t, $key . ' is computed and rendered nowhere');
+        }
+    }
 }

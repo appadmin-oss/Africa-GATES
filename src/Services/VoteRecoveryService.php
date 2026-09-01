@@ -615,6 +615,78 @@ final class VoteRecoveryService
     }
 
     /**
+     * WHY each delivery failed, grouped — the reason nobody could see.
+     *
+     * ── §17: A COLUMN WRITTEN SINCE DAY ONE AND READ BY NOTHING ──────────────
+     *
+     * `gates_otp_tokens.delivery_error` records what actually went wrong when we could
+     * not send somebody their code, and every recovery row points at the token that
+     * holds it — the migration calls that pointer "THE EVIDENCE", because a recovery
+     * with no token behind it is not a recovery.
+     *
+     * The reason itself reached no screen. So the two-person review, which this
+     * platform's own doctrine calls the strongest control it has, was carried out on
+     * "we failed to deliver 412 codes" with no way to ask what failed. That is not the
+     * same decision: a mailbox that was full is somebody who has an address and could be
+     * re-sent to; an address the provider rejected as invalid is a typo nobody can vote
+     * through; and a provider outage for four minutes is OUR fault in a way the other
+     * two are not, and the one that most obviously justifies recovering the votes.
+     *
+     * Grouped and counted, never listed, for the reason the nominee table above gives:
+     * the individual addresses are nobody's business, including ours, past the hash.
+     *
+     * @return list<array{reason:string, n:int}>
+     */
+    public static function whyItFailed(int $batchId): array
+    {
+        try {
+            return DB::table('gates_vote_recovery_rows as r')
+                ->join('gates_otp_tokens as t', 't.id', '=', 'r.otp_token_id')
+                ->where('r.batch_id', $batchId)
+                ->groupBy('t.delivery_error')
+                ->orderByDesc(DB::raw('COUNT(*)'))
+                ->selectRaw("COALESCE(NULLIF(t.delivery_error, ''), 'not recorded') AS reason, COUNT(*) AS n")
+                ->get()
+                ->map(fn ($x) => ['reason' => (string) $x->reason, 'n' => (int) $x->n])
+                ->all();
+        } catch (\Throwable $e) {
+            // Pre-migration databases have no delivery columns. An empty list renders as
+            // "not recorded" rather than as an error: the batch is still reviewable.
+            error_log('[vote-recovery] could not read delivery reasons for ' . $batchId
+                    . ': ' . $e->getMessage());
+            return [];
+        }
+    }
+
+    /**
+     * And why rows were REJECTED, grouped. `reject_reason` was the same kind of orphan.
+     *
+     * A reviewer who refuses part of a batch writes down why, and the next person to open
+     * it saw only the count. Reading the refusals back is what stops the same batch being
+     * re-argued from scratch every time somebody looks at it.
+     *
+     * @return list<array{reason:string, n:int}>
+     */
+    public static function whyRejected(int $batchId): array
+    {
+        try {
+            return DB::table('gates_vote_recovery_rows')
+                ->where('batch_id', $batchId)
+                ->where('status', 'rejected')
+                ->groupBy('reject_reason')
+                ->orderByDesc(DB::raw('COUNT(*)'))
+                ->selectRaw("COALESCE(NULLIF(reject_reason, ''), 'no reason given') AS reason, COUNT(*) AS n")
+                ->get()
+                ->map(fn ($x) => ['reason' => (string) $x->reason, 'n' => (int) $x->n])
+                ->all();
+        } catch (\Throwable $e) {
+            error_log('[vote-recovery] could not read reject reasons for ' . $batchId
+                    . ': ' . $e->getMessage());
+            return [];
+        }
+    }
+
+    /**
      * Cycles this could be run against: closed, with an award behind them.
      *
      * Open cycles are deliberately still listed — {@see open()} refuses them with the

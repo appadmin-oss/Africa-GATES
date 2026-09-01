@@ -171,6 +171,13 @@ final class VoteRecoveryController
             'admin_page' => 'vote-recovery',
             'batch'      => (array) $batch,
             'rows'       => Recover::rowsByNominee($id),
+            // WHY each delivery failed, and why anything was refused. Both columns have
+            // been written since this feature shipped and read by nothing — so the
+            // two-person review, which the doctrine calls the strongest control here,
+            // was made on counts alone. A mailbox that was full is a different decision
+            // from an address that does not exist.
+            'why_failed'   => Recover::whyItFailed($id),
+            'why_rejected' => Recover::whyRejected($id),
             'screen'     => $screen,
             // Whether THIS admin may approve, worked out here rather than in the
             // template: the rule is "not the preparer, not the submitter", and a
