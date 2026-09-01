@@ -204,7 +204,10 @@ final class JudgingAuditTest extends TestCase
             DB::table('gates_judge_score_log')->insert([
                 'judge_id' => $j, 'nominee_id' => $theirs, 'criterion_id' => $this->crit['impact'],
                 'old_score' => 1, 'new_score' => 9,
-                'changed_at' => '2026-12-0' . (($i % 9) + 1) . '1' . str_pad((string) ($i % 10), 1, '0') . ':00:00',
+                // The space is load-bearing. Without it this built '2026-12-0110:00:00',
+                // which SQLite stores as the string it is and MySQL refuses outright —
+                // fifty rows of it, in a test about crowding out, none of which arrived.
+                'changed_at' => '2026-12-0' . (($i % 9) + 1) . ' 1' . ($i % 10) . ':00:00',
             ]);
         }
 

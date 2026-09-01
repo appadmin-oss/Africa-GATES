@@ -237,7 +237,17 @@ class FraudService
                     ->leftJoin('gates_nominees AS n', 'n.id', '=', 'v.nominee_id')
                     ->select('f.*', 'n.name AS nominee_name', 'v.voted_at')
                     ->whereIn('f.decision', ['flag', 'block'])
-                    ->orderByDesc('f.created_at')->limit(10)->get()->toArray(),
+                    // ── THE TIEBREAK IS NOT COSMETIC UNDER A LIMIT ───────────
+                    //
+                    // `created_at` is second-resolution and a burst of attempts shares
+                    // one. Without a second key the order of the tied rows is whatever
+                    // the engine feels like — SQLite and MySQL disagree, which is how
+                    // this was found — and with `limit(10)` over eleven tied rows it
+                    // decides which one is DROPPED. On this panel that means an attempt
+                    // we blocked not appearing in the list of what we blocked, which is
+                    // the exact failure the join above was fixed for.
+                    ->orderByDesc('f.created_at')->orderByDesc('f.id')
+                    ->limit(10)->get()->toArray(),
             ];
         } catch (\Throwable) {
             return [];

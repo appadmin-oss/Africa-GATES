@@ -39,8 +39,42 @@ use Tests\TestCase;
 final class SchemaApplierTest extends TestCase
 {
     /** Reach the private applier — it is the unit under test, not an implementation detail. */
+    /**
+     * ── THE FIXTURES ARE SQL, AND SQL HAS DIALECTS ───────────────────────────
+     *
+     * The applier under test is driver-aware; these fixtures were not. They were written
+     * in SQLite — `id INTEGER PRIMARY KEY` for an auto-rowid, `TEXT` for everything — and
+     * on MySQL that is three different failures: INTEGER PRIMARY KEY is not
+     * AUTO_INCREMENT so an insert without an id is refused, a TEXT column cannot carry a
+     * DEFAULT, and a TEXT column cannot be indexed without a key length.
+     *
+     * All three are the FIXTURE being wrong about the database, not the applier. So the
+     * dialect is translated in the one place every fixture passes through, and the SQL in
+     * each test stays readable as the thing it is describing.
+     */
+    private function dialect(string $sql): string
+    {
+        if (DB::connection()->getDriverName() === 'sqlite') return $sql;
+
+        $sql = str_replace(
+            ['INTEGER PRIMARY KEY', ' TEXT'],
+            ['INT AUTO_INCREMENT PRIMARY KEY', ' VARCHAR(190)'],
+            $sql
+        );
+
+        // MySQL has no `IF NOT EXISTS` on CREATE INDEX — it is a syntax error, not a
+        // no-op — so the fixture would warn on its FIRST apply and the test would be
+        // measuring the dialect rather than the applier. Re-running stays safe without
+        // it: MigrationRunner treats 1061 "duplicate key name" as benign, which is the
+        // mechanism this test is actually about.
+        //
+        // The real MySQL schema files do not use this form. Only these fixtures did.
+        return preg_replace('/CREATE INDEX IF NOT EXISTS/i', 'CREATE INDEX', $sql) ?? $sql;
+    }
+
     private function apply(string $sql, array &$lines): int
     {
+        $sql  = $this->dialect($sql);
         $file = tempnam(sys_get_temp_dir(), 'agschema') . '.sql';
         file_put_contents($file, $sql);
         try {
@@ -70,7 +104,7 @@ final class SchemaApplierTest extends TestCase
      */
     public function test_one_unrunnable_statement_does_not_abandon_the_rest_of_the_file(): void
     {
-        DB::statement('CREATE TABLE ag_applier_a (id INTEGER PRIMARY KEY, name TEXT)');
+        DB::statement($this->dialect('CREATE TABLE ag_applier_a (id INTEGER PRIMARY KEY, name TEXT)'));
 
         $lines = [];
         $warnings = $this->apply("
@@ -101,7 +135,8 @@ final class SchemaApplierTest extends TestCase
 
         $lines = [];
         $this->assertSame(0, $this->apply($sql, $lines));
-        $this->assertSame(0, $this->apply($sql, $lines), 'a second, identical apply must be a no-op');
+        $this->assertSame(0, $this->apply($sql, $lines),
+            "a second, identical apply must be a no-op:\n" . implode("\n", $lines));
         $this->assertSame([], $lines);
     }
 
