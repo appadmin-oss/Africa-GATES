@@ -381,9 +381,18 @@ final class ShopVariantAxesTest extends TestCase
         // Which is why the value is validated on READ as well as on write: a row can arrive
         // from a restored backup, a direct SQL edit, or an older build, and never pass through
         // the admin form at all.
+        //
+        // ── THE PAYLOAD HAS TO FIT THE COLUMN ────────────────────────────────
+        //
+        // This used to write a 36-character CSS injection. `swatch` is VARCHAR(20) on
+        // MySQL, so the database refused the write outright and the test errored before it
+        // could assert anything — it was describing a row production cannot hold, which is
+        // the opposite of what a test about hostile rows is for. Nineteen characters, still
+        // a break-out of the declaration, and something a restored backup really could
+        // carry.
         $id = $this->product([['Navy', '', '#1B2A4A', 2, 0]], 'Colour');
         DB::table('gates_product_variants')->where('product_id', $id)
-            ->update(['swatch' => '#fff);background:url(//evil.test/x.png']);
+            ->update(['swatch' => '#fff;width:100vw']);
 
         $v = ShopCatalogue::variants($id, 10000)[0];
         $this->assertSame('', $v['swatch']);

@@ -302,8 +302,15 @@ final class EventTicketDesignTest extends TestCase
             'event_date' => '2026-11-01 18:00:00',
             'status' => 'published',
         ]);
+        // ── SEVEN CHARACTERS, BECAUSE THAT IS ALL THE COLUMN HOLDS ───────────
+        //
+        // `ticket_accent` is VARCHAR(7) on MySQL — exactly `#RRGGBB` — so the 30-character
+        // script tag this used to write was refused by the database and the test errored
+        // before asserting anything. The realistic hostile row is therefore a SHORT one
+        // that is simply not a colour, and the reader has to refuse it on shape rather
+        // than on length.
         DB::table('gates_site_events')->where('id', $id)
-            ->update(['ticket_accent' => '#fff"><script>alert(1)</script>', 'ticket_theme' => 'neon']);
+            ->update(['ticket_accent' => 'red;}', 'ticket_theme' => 'neon']);
 
         $d = D::forEvent(DB::table('gates_site_events')->where('id', $id)->first());
         $this->assertSame(D::DEFAULT_ACCENT, $d['accent']);
