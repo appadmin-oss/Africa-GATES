@@ -65,6 +65,26 @@ final class DataRegistry
             'order' => ['created_at', 'desc'], 'search' => ['reason'],
             'cols' => [['id', 'ID'], ['user_id', 'User #'], ['delta', 'Change'], ['reason', 'Reason', 'chip'], ['balance_after', 'Balance'], ['created_at', 'When', 'datetime']],
         ],
+        // ── WHO ASKED TO BE LEFT ALONE ───────────────────────────────────────
+        //
+        // `phone_masked` exists precisely so this screen can exist. Its own note says
+        // why it is only the last digits: "a support desk answering 'am I still getting
+        // these' cannot do anything with sixty-four hex characters, and the alternative
+        // is keeping the number."
+        //
+        // There was no screen. The column was written on every opt-out and read by
+        // nothing, so the person who most needs it — somebody ringing up to ask whether
+        // their STOP worked — could not be answered at all.
+        //
+        // `phone_hash` never renders here: it ends in `_hash` and isHidden() catches the
+        // suffix. That is the design working as intended rather than a coincidence — the
+        // mask is what a human can use, the hash is what nobody should carry away.
+        'sms-optout' => [
+            'label' => 'SMS opt-outs', 'table' => 'gates_sms_optout', 'group' => 'People',
+            'order' => ['created_at', 'desc'], 'search' => ['phone_masked', 'source'],
+            'cols' => [['id', 'ID'], ['phone_masked', 'Number'], ['source', 'How', 'chip'],
+                       ['created_at', 'Asked', 'datetime']],
+        ],
         'newsletter' => [
             'label' => 'Newsletter', 'table' => 'gates_newsletter', 'group' => 'People',
             'order' => ['subscribed_at', 'desc'], 'search' => ['email'],
