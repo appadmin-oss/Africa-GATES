@@ -1148,3 +1148,72 @@ matches the leading three letters of the sqlite branch's `INTEGER`. The first ve
 this test did both, reported `max_per_email` as `INT`, and would have blessed a clamp four
 orders of magnitude too generous. **A schema reader that reads the wrong branch is worse
 than none.**
+
+---
+
+## 22. The whole-schema column sweep (2026-09-01)
+
+§17 and §19 were run against a handful of tables somebody already suspected. This is the
+same question asked of **every** column: 141 tables, 1,759 columns, is anything written
+here ever read back?
+
+**76 came back.** Two were fixed the same day and are §22.1; the rest are listed below so
+nobody re-derives them, and so the next person picks the one that matters rather than the
+one they happened to open.
+
+### The detector, and the way it lies if you let it
+
+A column is a candidate when it appears as `'col' =>` somewhere in `src/` and **never** as
+a read: a `where`/`value`/`orderBy`/`pluck`/`groupBy` naming it, a `$row->col`, a
+`$row['col']`, a mention inside `DB::raw`/`selectRaw`/`whereRaw`, or any occurrence at all
+in a template.
+
+The first version of that read pattern included `->select(` in the alternation. `select(`
+appears in nearly every query, so every column matched something and the sweep reported a
+confident **zero**. It was caught by re-running it with a known reader removed from the
+haystack and checking the column came back — which is the only way to trust a detector
+that reports good news. **Validate the sweep before you believe the sweep.**
+
+It is also too slow to run per-column against the corpus. Tokenise once into two counters
+and look each column up; the naive form takes minutes and times out.
+
+### 22.1 The two that sat under a control
+
+`gates_otp_tokens.delivery_error` and `gates_vote_recovery_rows.reject_reason`. The
+two-person recovery review could see that 412 codes failed and never **what** failed —
+and a full mailbox, an address the provider rejected, and a four-minute outage of ours are
+three different decisions about whether to recover a vote. Both now render on the batch
+review, grouped and counted rather than listed. See §20 for why that review is the control
+this platform leans on hardest.
+
+### 22.2 The other 74, ranked by what a person is owed
+
+Nobody is *harmed* by these today. They are recorded facts that reach no screen, so the
+question each one answers is unanswerable:
+
+- **Who did this?** — `updated_by` on `gates_settings`, `gates_legal_docs`,
+  `gates_email_campaigns`, `gates_questionnaire_policy`, `gates_shortlist_rules`,
+  `gates_stand_presets`; `decided_by` on stand applications; `vetted_by` / `vetted_at` on
+  partner orgs; `published_by` / `withdrawn_by` / `withdrawn_at` on shortlists;
+  `voided_by` / `voided_at` on recovery batches; `uploader_id` on uploads and support
+  attachments. An audit trail that exists and is shown to nobody is not an audit trail.
+- **Why did this not arrive?** — `gates_otp_tokens.delivery_at`,
+  `gates_messages.to_hash`, `gates_webhooks.last_event_at`.
+- **What was said about it?** — `review_note` on submissions and org campaigns,
+  `outcome_note` on interviews, `dispute_note` on claims, `refund_note` on orders,
+  `consent_note` on nominee interviews.
+- **Vestiges** — `gates_media_migrations.target_table` / `target_column`,
+  `gates_phase_drift.phase_allows` / `would_allow`, `gates_events.actor_type`,
+  `gates_form_submissions.form_id`. Nothing has ever claimed for these.
+
+`gates_sms_optout.phone_masked` is on the list and is a special case: its own docblock
+promises a support desk can use it to answer "am I still getting these", and there is no
+opt-out screen at all. That is §19's question answered yes — prose promising behaviour
+with nothing behind it — and it is the next one worth doing.
+
+### The question this sweep turns on
+
+The same one §19 named, and it held for all 76: **is there prose somewhere promising what
+this column does?** A column nothing has claimed for is a vestige and costs nothing to
+leave. One a docblock, a migration comment or a screen has already promised is a lie with
+a schema behind it.
