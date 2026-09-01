@@ -55,9 +55,9 @@ final class RefundAmountTest extends TestCase
         DB::table('gates_votes')->delete();
         DB::table('gates_donations')->delete();
 
-        DB::table('gates_award_programmes')->insertOrIgnore(['id' => 980, 'title' => 'P', 'slug' => 'p-980']);
+        DB::table('gates_award_programmes')->insertOrIgnore(['id' => 98, 'title' => 'P', 'slug' => 'p-980']);
         // A closed cycle: nothing can be minted, so these orders are genuinely owed.
-        DB::table('gates_award_cycles')->insertOrIgnore(['id' => 980, 'programme_id' => 980, 'year' => 2025,
+        DB::table('gates_award_cycles')->insertOrIgnore(['id' => 980, 'programme_id' => 98, 'year' => 2025,
             'status' => 'results',
             'voting_open'  => Carbon::now()->subDays(40)->toDateTimeString(),
             'voting_close' => Carbon::now()->subDays(20)->toDateTimeString()]);

@@ -52,9 +52,9 @@ final class InterviewGuardTest extends TestCase
     {
         parent::setUp();
 
-        DB::table('gates_award_programmes')->insertOrIgnore(['id' => 9500, 'title' => 'P', 'slug' => 'p-9500']);
+        DB::table('gates_award_programmes')->insertOrIgnore(['id' => 95, 'title' => 'P', 'slug' => 'p-9500']);
         DB::table('gates_award_cycles')->insertOrIgnore([
-            'id' => 9500, 'programme_id' => 9500, 'year' => 2026, 'status' => 'judging',
+            'id' => 9500, 'programme_id' => 95, 'year' => 2026, 'status' => 'judging',
         ]);
         DB::table('gates_award_categories')->insertOrIgnore([
             'id' => self::CAT, 'cycle_id' => 9500, 'title' => 'Cat', 'slug' => 'c-9500',

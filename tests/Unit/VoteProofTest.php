@@ -40,8 +40,8 @@ final class VoteProofTest extends TestCase
         DB::table('gates_votes')->delete();
         DB::table('gates_donations')->delete();
 
-        DB::table('gates_award_programmes')->insertOrIgnore(['id' => 950, 'title' => 'P', 'slug' => 'p-950']);
-        DB::table('gates_award_cycles')->insertOrIgnore(['id' => 950, 'programme_id' => 950, 'year' => 2026, 'status' => 'voting']);
+        DB::table('gates_award_programmes')->insertOrIgnore(['id' => 95, 'title' => 'P', 'slug' => 'p-950']);
+        DB::table('gates_award_cycles')->insertOrIgnore(['id' => 950, 'programme_id' => 95, 'year' => 2026, 'status' => 'voting']);
         DB::table('gates_award_categories')->insertOrIgnore(['id' => 950, 'cycle_id' => 950, 'title' => 'Cat', 'slug' => 'cat-950']);
         $this->nomineeId = (int) DB::table('gates_nominees')->insertGetId([
             'category_id' => 950, 'name' => 'Ada Obi', 'status' => 'approved', 'vote_count' => 0,

@@ -76,10 +76,10 @@ final class ScheduleAdoptionTest extends TestCase
         }
         if (DB::table('gates_award_cycles')->count() === 0) {
             DB::table('gates_award_programmes')->insertOrIgnore([
-                'id' => 991, 'slug' => 'age-fixture', 'title' => 'Age fixture', 'created_at' => $old,
+                'id' => 99, 'slug' => 'age-fixture', 'title' => 'Age fixture', 'created_at' => $old,
             ]);
             DB::table('gates_award_cycles')->insertOrIgnore([
-                'id' => 991, 'programme_id' => 991, 'year' => 2026, 'created_at' => $old,
+                'id' => 991, 'programme_id' => 99, 'year' => 2026, 'created_at' => $old,
             ]);
         }
         $ref = new \ReflectionMethod(Maintenance::class, 'installAgeHours');

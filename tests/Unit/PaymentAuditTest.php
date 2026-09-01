@@ -42,8 +42,8 @@ final class PaymentAuditTest extends TestCase
         DB::table('gates_votes')->delete();
         DB::table('gates_donations')->delete();
 
-        DB::table('gates_award_programmes')->insertOrIgnore(['id' => 941, 'title' => 'P', 'slug' => 'p-941']);
-        DB::table('gates_award_cycles')->insertOrIgnore(['id' => 941, 'programme_id' => 941, 'year' => 2026, 'status' => 'voting']);
+        DB::table('gates_award_programmes')->insertOrIgnore(['id' => 94, 'title' => 'P', 'slug' => 'p-941']);
+        DB::table('gates_award_cycles')->insertOrIgnore(['id' => 941, 'programme_id' => 94, 'year' => 2026, 'status' => 'voting']);
         DB::table('gates_award_categories')->insertOrIgnore(['id' => 941, 'cycle_id' => 941, 'title' => 'Cat', 'slug' => 'cat-941']);
         $this->nomineeId = (int) DB::table('gates_nominees')->insertGetId([
             'category_id' => 941, 'name' => 'Ada Obi', 'status' => 'approved', 'vote_count' => 0,

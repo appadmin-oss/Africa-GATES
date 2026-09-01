@@ -27,7 +27,7 @@ use Tests\TestCase;
  */
 final class QuestionnaireRehearsalTest extends TestCase
 {
-    private const PROG = 9900;
+    private const PROG = 99;
 
     protected function setUp(): void
     {

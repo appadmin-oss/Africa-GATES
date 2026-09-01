@@ -61,9 +61,9 @@ final class PaymentWriteOffRecoveryTest extends TestCase
         // A real open ballot, because the last test in this file asserts that a recovered
         // order actually credits votes — and mint() refuses on a closed cycle for its own
         // good reasons. A test that skipped this would be asserting the refusal.
-        DB::table('gates_award_programmes')->insertOrIgnore(['id' => 960, 'title' => 'P', 'slug' => 'p-960']);
+        DB::table('gates_award_programmes')->insertOrIgnore(['id' => 96, 'title' => 'P', 'slug' => 'p-960']);
         DB::table('gates_award_cycles')->insertOrIgnore([
-            'id' => 960, 'programme_id' => 960, 'year' => 2026, 'status' => 'voting']);
+            'id' => 960, 'programme_id' => 96, 'year' => 2026, 'status' => 'voting']);
         DB::table('gates_award_categories')->insertOrIgnore([
             'id' => 960, 'cycle_id' => 960, 'title' => 'Cat', 'slug' => 'cat-960']);
         $this->nomineeId = (int) DB::table('gates_nominees')->insertGetId([

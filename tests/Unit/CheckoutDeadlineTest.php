@@ -50,17 +50,17 @@ final class CheckoutDeadlineTest extends TestCase
         parent::setUp();
         DB::table('gates_donations')->delete();
 
-        DB::table('gates_award_programmes')->insertOrIgnore(['id' => 990, 'title' => 'P', 'slug' => 'p-990']);
+        DB::table('gates_award_programmes')->insertOrIgnore(['id' => 99, 'title' => 'P', 'slug' => 'p-990']);
 
-        DB::table('gates_award_cycles')->insertOrIgnore(['id' => 990, 'programme_id' => 990, 'year' => 2026,
+        DB::table('gates_award_cycles')->insertOrIgnore(['id' => 990, 'programme_id' => 99, 'year' => 2026,
             'status' => 'voting',
             'voting_open'  => Carbon::now()->subDays(5)->toDateTimeString(),
             'voting_close' => Carbon::now()->addMinutes(20)->toDateTimeString()]);
-        DB::table('gates_award_cycles')->insertOrIgnore(['id' => 991, 'programme_id' => 990, 'year' => 2027,
+        DB::table('gates_award_cycles')->insertOrIgnore(['id' => 991, 'programme_id' => 99, 'year' => 2027,
             'status' => 'voting',
             'voting_open'  => Carbon::now()->subDays(5)->toDateTimeString(),
             'voting_close' => null]);
-        DB::table('gates_award_cycles')->insertOrIgnore(['id' => 992, 'programme_id' => 990, 'year' => 2028,
+        DB::table('gates_award_cycles')->insertOrIgnore(['id' => 992, 'programme_id' => 99, 'year' => 2028,
             'status' => 'voting',
             'voting_open'  => Carbon::now()->subDays(5)->toDateTimeString(),
             'voting_close' => Carbon::now()->addDays(5)->toDateTimeString()]);

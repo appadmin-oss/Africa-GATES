@@ -53,9 +53,9 @@ final class InterviewLiveTest extends TestCase
     {
         parent::setUp();
 
-        DB::table('gates_award_programmes')->insertOrIgnore(['id' => 9300, 'title' => 'P', 'slug' => 'p-9300']);
+        DB::table('gates_award_programmes')->insertOrIgnore(['id' => 93, 'title' => 'P', 'slug' => 'p-9300']);
         DB::table('gates_award_cycles')->insertOrIgnore([
-            'id' => 9300, 'programme_id' => 9300, 'year' => 2026, 'status' => 'judging',
+            'id' => 9300, 'programme_id' => 93, 'year' => 2026, 'status' => 'judging',
         ]);
         DB::table('gates_award_categories')->insertOrIgnore([
             'id' => self::CAT, 'cycle_id' => 9300, 'title' => 'Cat', 'slug' => 'c-9300',

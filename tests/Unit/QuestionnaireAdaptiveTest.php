@@ -42,7 +42,7 @@ use Tests\TestCase;
  */
 final class QuestionnaireAdaptiveTest extends TestCase
 {
-    private const PROG = 9950;
+    private const PROG = 99;
     private const CAT  = 9950;
     private const NOM  = 9951;
 

@@ -53,8 +53,8 @@ final class PaidVoteWithoutMigrationTest extends TestCase
         DB::table('gates_votes')->delete();
         DB::table('gates_donations')->delete();
 
-        DB::table('gates_award_programmes')->insertOrIgnore(['id' => 910, 'title' => 'P', 'slug' => 'p-910']);
-        DB::table('gates_award_cycles')->insertOrIgnore(['id' => 910, 'programme_id' => 910, 'year' => 2026, 'status' => 'voting']);
+        DB::table('gates_award_programmes')->insertOrIgnore(['id' => 91, 'title' => 'P', 'slug' => 'p-910']);
+        DB::table('gates_award_cycles')->insertOrIgnore(['id' => 910, 'programme_id' => 91, 'year' => 2026, 'status' => 'voting']);
         DB::table('gates_award_categories')->insertOrIgnore(['id' => 910, 'cycle_id' => 910, 'title' => 'Cat', 'slug' => 'cat-910']);
         $this->nomineeId = (int) DB::table('gates_nominees')->insertGetId([
             'category_id' => 910, 'name' => 'Ada Obi', 'status' => 'approved', 'vote_count' => 0,

@@ -225,8 +225,8 @@ final class SupportResilienceTest extends TestCase
     public function test_the_vote_lookup_never_reveals_who_was_voted_for(): void
     {
         DB::table('gates_votes')->delete();
-        DB::table('gates_award_programmes')->insertOrIgnore(['id' => 960, 'title' => 'P', 'slug' => 'p-960']);
-        DB::table('gates_award_cycles')->insertOrIgnore(['id' => 960, 'programme_id' => 960, 'year' => 2026, 'status' => 'voting']);
+        DB::table('gates_award_programmes')->insertOrIgnore(['id' => 96, 'title' => 'P', 'slug' => 'p-960']);
+        DB::table('gates_award_cycles')->insertOrIgnore(['id' => 960, 'programme_id' => 96, 'year' => 2026, 'status' => 'voting']);
         DB::table('gates_award_categories')->insertOrIgnore(['id' => 960, 'cycle_id' => 960, 'title' => 'Secret Cat', 'slug' => 'cat-960']);
         $nid = (int) DB::table('gates_nominees')->insertGetId([
             'category_id' => 960, 'name' => 'Chosen Nominee', 'status' => 'approved', 'vote_count' => 1,
@@ -281,8 +281,8 @@ final class SupportResilienceTest extends TestCase
     {
         DB::table('gates_votes')->delete();
         DB::table('gates_donations')->delete();
-        DB::table('gates_award_programmes')->insertOrIgnore(['id' => 961, 'title' => 'P', 'slug' => 'p-961']);
-        DB::table('gates_award_cycles')->insertOrIgnore(['id' => 961, 'programme_id' => 961, 'year' => 2026, 'status' => 'voting']);
+        DB::table('gates_award_programmes')->insertOrIgnore(['id' => 97, 'title' => 'P', 'slug' => 'p-961']);
+        DB::table('gates_award_cycles')->insertOrIgnore(['id' => 961, 'programme_id' => 97, 'year' => 2026, 'status' => 'voting']);
         DB::table('gates_award_categories')->insertOrIgnore(['id' => 961, 'cycle_id' => 961, 'title' => 'C', 'slug' => 'cat-961']);
         $nid = (int) DB::table('gates_nominees')->insertGetId([
             'category_id' => 961, 'name' => 'Ada', 'status' => 'approved', 'vote_count' => 0]);

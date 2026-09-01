@@ -13,7 +13,7 @@ use Tests\TestCase;
 /** Probes for suspected defects. Each one either confirms a bug or retires a worry. */
 final class InterviewDefectProbeTest extends TestCase
 {
-    private const PROG = 9970;
+    private const PROG = 99;
     private const CAT  = 9970;
     private const NOM  = 9971;
 

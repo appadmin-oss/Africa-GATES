@@ -29,7 +29,7 @@ use Tests\TestCase;
  */
 final class QuestionnaireAdminRenderTest extends TestCase
 {
-    private const PROG = 9950;
+    private const PROG = 99;
 
     protected function setUp(): void
     {

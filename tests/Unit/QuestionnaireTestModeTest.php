@@ -44,7 +44,7 @@ use Tests\TestCase;
  */
 final class QuestionnaireTestModeTest extends TestCase
 {
-    private const PROG = 9700;
+    private const PROG = 97;
     private const CAT  = 9700;
     private const NOM  = 9701;
 

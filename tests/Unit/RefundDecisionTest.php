@@ -48,15 +48,15 @@ final class RefundDecisionTest extends TestCase
         DB::table('gates_votes')->delete();
         DB::table('gates_donations')->delete();
 
-        DB::table('gates_award_programmes')->insertOrIgnore(['id' => 970, 'title' => 'P', 'slug' => 'p-970']);
+        DB::table('gates_award_programmes')->insertOrIgnore(['id' => 97, 'title' => 'P', 'slug' => 'p-970']);
 
         // One cycle still voting, one long closed — the two sides of "can these
         // votes still be delivered", which is what separates OWED from DELIVERABLE.
-        DB::table('gates_award_cycles')->insertOrIgnore(['id' => 970, 'programme_id' => 970, 'year' => 2026,
+        DB::table('gates_award_cycles')->insertOrIgnore(['id' => 970, 'programme_id' => 97, 'year' => 2026,
             'status' => 'voting',
             'voting_open' => Carbon::now()->subDays(5)->toDateTimeString(),
             'voting_close' => Carbon::now()->addDays(5)->toDateTimeString()]);
-        DB::table('gates_award_cycles')->insertOrIgnore(['id' => 971, 'programme_id' => 970, 'year' => 2025,
+        DB::table('gates_award_cycles')->insertOrIgnore(['id' => 971, 'programme_id' => 97, 'year' => 2025,
             'status' => 'results',
             'voting_open' => Carbon::now()->subDays(40)->toDateTimeString(),
             'voting_close' => Carbon::now()->subDays(20)->toDateTimeString()]);

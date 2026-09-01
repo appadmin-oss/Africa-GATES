@@ -50,10 +50,10 @@ final class AttentionBoardTest extends TestCase
         parent::setUp();
 
         DB::table('gates_award_programmes')->insertOrIgnore([
-            'id' => 9800, 'title' => 'P', 'slug' => 'p-9800',
+            'id' => 98, 'title' => 'P', 'slug' => 'p-9800',
         ]);
         DB::table('gates_award_cycles')->insertOrIgnore([
-            'id' => 9800, 'programme_id' => 9800, 'year' => 2026, 'status' => 'judging',
+            'id' => 9800, 'programme_id' => 98, 'year' => 2026, 'status' => 'judging',
         ]);
         DB::table('gates_award_categories')->insertOrIgnore([
             'id' => self::CAT, 'cycle_id' => 9800, 'title' => 'C', 'slug' => 'c-9800',

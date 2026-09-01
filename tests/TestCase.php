@@ -203,10 +203,37 @@ abstract class TestCase extends BaseTestCase
         // FK enforcement off, matching the SQLite harness: seeds stay minimal.
         Capsule::connection()->statement('SET FOREIGN_KEY_CHECKS = 0');
 
+        // ── AND information_schema MUST NOT ANSWER FROM CACHE ────────────────
+        //
+        // MySQL 8 caches table statistics — AUTO_INCREMENT among them — for
+        // `information_schema_stats_expiry` seconds, which defaults to a DAY. The rewind
+        // below reads that column to decide whether the counter is near its ceiling, so
+        // it was reading a value from the start of the run: it saw single digits, decided
+        // there was nothing to relieve, and skipped every time while the real counter
+        // climbed to 255 and stuck there.
+        //
+        // The symptom was a "Duplicate entry '255' for key PRIMARY" in whichever test
+        // happened to insert a programme next — a table it had no interest in, from a
+        // counter it never touched.
+        try { Capsule::connection()->statement('SET SESSION information_schema_stats_expiry = 0'); }
+        catch (\Throwable) { /* MariaDB has no such variable and does not cache this */ }
+
         // Must run BEFORE beginTransaction: it is DDL, which implicitly commits.
         $this->relieveAutoIncrementPressure();
 
         Capsule::connection()->beginTransaction();
+
+        // Planted INSIDE the transaction, so a clean rollback takes it with it and a
+        // commit — however it happened — leaves it behind. That is the whole mechanism.
+        $this->sentinel = bin2hex(random_bytes(8));
+        try {
+            Capsule::table('gates_test_sentinel')->insert(['token' => $this->sentinel]);
+        } catch (\Throwable) {
+            // No sentinel table yet on a database built by an older harness. rollback()
+            // falls back to purging unconditionally rather than trusting a missing
+            // signal — slow, and correct, which is the right way round.
+            $this->sentinel = '';
+        }
     }
 
     /**
@@ -253,7 +280,7 @@ abstract class TestCase extends BaseTestCase
      * MySQL clamps the new value up to max(id)+1 when rows exist, so this is a no-op
      * rather than a hazard if a dropping test left something behind.
      */
-    private const AUTO_INCREMENT_REWIND_AT = 128;
+    private const AUTO_INCREMENT_REWIND_AT = 200;
 
     private function relieveAutoIncrementPressure(): void
     {
@@ -264,6 +291,21 @@ abstract class TestCase extends BaseTestCase
                       WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ?', [$table])?->n ?? 0);
 
                 if ($next < self::AUTO_INCREMENT_REWIND_AT) continue;
+
+                // ── EMPTY IT FIRST, OR THE RESET IS A NO-OP ──────────────────
+                //
+                // MySQL clamps `AUTO_INCREMENT = 1` UP to max(id)+1 whenever rows exist.
+                // The note above this method said so and then reset anyway — so once a
+                // leaked row was sitting at the ceiling the counter stuck at 255, the
+                // rewind quietly did nothing every time it ran, and every later insert
+                // died with "Duplicate entry '255' for key PRIMARY" in a test that had
+                // never heard of programmes.
+                //
+                // Deleting is not a liberty taken here: this runs in setUp, before the
+                // test has done anything, and an empty programmes table is exactly the
+                // state a test is entitled to start from. FOREIGN_KEY_CHECKS is already
+                // off by the time this is called.
+                Capsule::connection()->statement('DELETE FROM `' . $table . '`');
                 Capsule::connection()->statement('ALTER TABLE `' . $table . '` AUTO_INCREMENT = 1');
             } catch (\Throwable) { /* a dropping test removed it; setUp rebuilds */ }
         }
@@ -293,31 +335,35 @@ abstract class TestCase extends BaseTestCase
             }
         } catch (\Throwable) { /* a DDL test already implicitly committed */ }
 
+        // ── DID THE TRANSACTION SURVIVE? ─────────────────────────────────────
+        //
+        // This used to COUNT SIX NAMED TABLES and purge if any of them had rows —
+        // gates_award_programmes, then votes, then nominations, donations, settings,
+        // nominees. Every one of those names was added after a full MySQL run traced a
+        // failure in one file back to a leak in another, and the list only ever grew.
+        //
+        // That is the shape of the bug rather than a fix for it. There are seventy-odd
+        // tables; the canary watched six. A test that wrote to any of the other seventy
+        // and then issued DDL leaked silently, and the damage surfaced as a duplicate-key
+        // error in an unrelated file — which is how a single leak became a hundred and
+        // fifty-seven errors on the last full parity run, none of them about what the
+        // failing test was asserting.
+        //
+        // So this no longer asks WHICH table leaked. It asks whether a commit happened at
+        // all, which is the actual question and has an exact answer: a marker planted
+        // inside the transaction is gone if the rollback worked and present if anything
+        // committed — DDL, an explicit COMMIT, a TRUNCATE in a loop. One SELECT, no list
+        // to keep up to date, and nothing it can fail to notice.
         try {
-            // Several tables, not one. The first version watched only
-            // gates_award_programmes, so SchemaIndexTest — which inserts VOTE rows
-            // and then issues DDL, implicitly committing them — slipped straight
-            // past it and broke nine VoteServiceTest assertions in a different file
-            // via a uq_one_vote collision. One round trip either way.
-            // gates_settings is in the list for a reason that took a full MySQL run to
-            // find: PaidVoteCapacityTest sweeps admin configurations with
-            // `gates_settings->truncate()` inside a loop, TRUNCATE is DDL, DDL implicitly
-            // COMMITs — so its last `vote_price_naira = 5000` outlived the rollback and
-            // PaidVoteServiceTest, in a different file, asserted the default ₦100 price
-            // and got 5000. A settings table that leaks silently reconfigures the
-            // platform for every test that runs after it.
-            $leaked = (int) Capsule::connection()->selectOne(
-                'SELECT (SELECT COUNT(*) FROM gates_award_programmes)
-                      + (SELECT COUNT(*) FROM gates_votes)
-                      + (SELECT COUNT(*) FROM gates_nominations)
-                      + (SELECT COUNT(*) FROM gates_donations)
-                      + (SELECT COUNT(*) FROM gates_settings)
-                      + (SELECT COUNT(*) FROM gates_nominees) AS n'
-            )->n;
-            if ($leaked > 0) $this->purgeAll();
+            $broke = $this->sentinel === '' || (int) Capsule::connection()->selectOne(
+                'SELECT COUNT(*) AS n FROM gates_test_sentinel WHERE token = ?',
+                [$this->sentinel]
+            )->n > 0;
+
+            if ($broke) $this->purgeAll();
         } catch (\Throwable) {
-            // A canary table itself is gone — a dropping test. setUp's
-            // schemaIntact() check will rebuild before the next test runs.
+            // The sentinel table itself is gone — a dropping test. setUp's schemaIntact()
+            // rebuilds before the next test runs, which also clears anything that leaked.
         }
     }
 
@@ -372,10 +418,22 @@ abstract class TestCase extends BaseTestCase
         } finally {
             ob_end_clean();
         }
+        // ── THE ISOLATION SENTINEL ───────────────────────────────────────────
+        //
+        // Not part of the application schema and deliberately so: it exists to answer one
+        // question this harness cannot otherwise answer — did a transaction survive to
+        // the rollback, or did something commit it out from under us? See rollback().
+        $pdo->exec('CREATE TABLE IF NOT EXISTS gates_test_sentinel (
+            token VARCHAR(32) NOT NULL PRIMARY KEY
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4');
+
         self::$expectedTables = (int) Capsule::connection()->selectOne(
             'SELECT COUNT(*) AS n FROM information_schema.tables WHERE table_schema = DATABASE()'
         )->n;
     }
+
+    /** The marker written inside this test's transaction. '' when not on MySQL. */
+    private string $sentinel = '';
 
 
     /**

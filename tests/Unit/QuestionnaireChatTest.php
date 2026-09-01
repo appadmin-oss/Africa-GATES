@@ -40,7 +40,7 @@ use Tests\TestCase;
  */
 final class QuestionnaireChatTest extends TestCase
 {
-    private const PROG = 9500;
+    private const PROG = 95;
     private const CAT = 9500;
     private const NOM = 9501;
 

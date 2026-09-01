@@ -336,7 +336,7 @@ final class JudgeAssistTest extends TestCase
 
         DB::table('gates_nominee_evidence')->insert([
             'nominee_id' => $id, 'kind' => 'note', 'title' => 'A withheld complaint',
-            'body' => 'Kept from the panel deliberately.', 'provenance' => 'staff',
+            'body' => 'Kept from the panel deliberately.', 'provenance' => 'staff_note',
             'visible_to_judges' => 0, 'sort_order' => 1,
         ]);
 

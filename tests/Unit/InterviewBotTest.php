@@ -61,9 +61,9 @@ final class InterviewBotTest extends TestCase
     {
         parent::setUp();
 
-        DB::table('gates_award_programmes')->insertOrIgnore(['id' => 9400, 'title' => 'P', 'slug' => 'p-9400']);
+        DB::table('gates_award_programmes')->insertOrIgnore(['id' => 94, 'title' => 'P', 'slug' => 'p-9400']);
         DB::table('gates_award_cycles')->insertOrIgnore([
-            'id' => 9400, 'programme_id' => 9400, 'year' => 2026, 'status' => 'judging',
+            'id' => 9400, 'programme_id' => 94, 'year' => 2026, 'status' => 'judging',
         ]);
         DB::table('gates_award_categories')->insertOrIgnore([
             'id' => self::CAT, 'cycle_id' => 9400, 'title' => 'Cat', 'slug' => 'c-9400',

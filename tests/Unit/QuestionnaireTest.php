@@ -41,7 +41,7 @@ use Tests\TestCase;
  */
 final class QuestionnaireTest extends TestCase
 {
-    private const PROG = 9400;
+    private const PROG = 94;
     private const CYCLE = 9400;
     private const CAT = 9400;
     private const NOM = 9401;

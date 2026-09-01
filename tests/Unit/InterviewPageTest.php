@@ -28,7 +28,7 @@ use Tests\TestCase;
  */
 final class InterviewPageTest extends TestCase
 {
-    private const PROG = 9800;
+    private const PROG = 98;
     private const CAT  = 9800;
     private const NOM  = 9801;
 

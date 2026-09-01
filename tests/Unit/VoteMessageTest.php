@@ -45,9 +45,9 @@ final class VoteMessageTest extends TestCase
     {
         parent::setUp();
 
-        DB::table('gates_award_programmes')->insertOrIgnore(['id' => 4400, 'title' => 'Prog', 'slug' => 'prog-4400']);
+        DB::table('gates_award_programmes')->insertOrIgnore(['id' => 44, 'title' => 'Prog', 'slug' => 'prog-4400']);
         DB::table('gates_award_cycles')->insertOrIgnore([
-            'id' => 4400, 'programme_id' => 4400, 'year' => 2026, 'status' => 'voting',
+            'id' => 4400, 'programme_id' => 44, 'year' => 2026, 'status' => 'voting',
             // A real open window, not just the status column: BallotGuard computes the
             // phase from the dates, so a vote cast in the tests below has to be a vote
             // the platform would actually accept.

@@ -38,7 +38,7 @@ use Tests\TestCase;
  */
 final class InterviewFlowTest extends TestCase
 {
-    private const PROG = 9100;
+    private const PROG = 91;
     private const CYCLE = 9100;
     private const CAT = 9100;
     private const NOM = 9101;
