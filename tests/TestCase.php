@@ -377,7 +377,19 @@ abstract class TestCase extends BaseTestCase
                 if ($t === 'gates_migrations') continue; // the ledger must survive
                 $pdo->exec('DELETE FROM `' . $t . '`');
             }
-        } catch (\Throwable) { /* next setUp rebuilds */ }
+
+            // Back to what a MIGRATED database holds, not to empty. See the note where
+            // this snapshot is taken: migrations seed, and deleting their rows leaves a
+            // database no deployment has ever looked like.
+            foreach (self::$mysqlSeed ?? [] as $table => $rows) {
+                if ($table === 'gates_migrations') continue;
+                foreach (array_chunk($rows, 200) as $batch) {
+                    Capsule::table($table)->insert($batch);
+                }
+            }
+        } catch (\Throwable $e) {
+            error_log('[test-harness] purge/restore failed: ' . $e->getMessage());
+        }
     }
 
     /** Cheap sentinel: the tables a dropping test is most likely to have removed. */
@@ -430,7 +442,32 @@ abstract class TestCase extends BaseTestCase
         self::$expectedTables = (int) Capsule::connection()->selectOne(
             'SELECT COUNT(*) AS n FROM information_schema.tables WHERE table_schema = DATABASE()'
         )->n;
+
+        // ── WHAT A FRESHLY-MIGRATED DATABASE CONTAINS ────────────────────────
+        //
+        // Not empty. Migrations SEED: the shipped judging rubric, the stand catalogue, the
+        // migration ledger itself. purgeAll() used to delete everything but the ledger, so
+        // the first isolation purge destroyed the rubric and nothing ever put it back —
+        // the migration is recorded as applied, so it never runs again — and thirteen
+        // judging tests then failed with "the shipped rubric should be installed" in a
+        // file that had never touched a rubric.
+        //
+        // It only became visible when the sentinel started catching leaks properly and
+        // purges went from rare to routine. The SQLite harness already keeps rows in its
+        // template for exactly this reason; this is the same idea on the other driver.
+        self::$mysqlSeed = [];
+        foreach ($pdo->query('SHOW TABLES')->fetchAll(\PDO::FETCH_COLUMN) as $t) {
+            $rows = $pdo->query('SELECT * FROM `' . $t . '`')->fetchAll(\PDO::FETCH_ASSOC);
+            if ($rows !== []) self::$mysqlSeed[$t] = $rows;
+        }
     }
+
+    /**
+     * The rows a migrated database starts with, table => rows. Restored after a purge.
+     *
+     * @var array<string, list<array<string,mixed>>>|null
+     */
+    private static ?array $mysqlSeed = null;
 
     /** The marker written inside this test's transaction. '' when not on MySQL. */
     private string $sentinel = '';
