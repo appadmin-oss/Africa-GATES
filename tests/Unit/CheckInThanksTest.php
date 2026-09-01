@@ -219,7 +219,7 @@ final class CheckInThanksTest extends TestCase
     public function test_the_count_is_what_is_really_open_today(): void
     {
         $this->opportunity('open-now', null);
-        $this->opportunity('closes-later', '2099-01-01');
+        $this->opportunity('closes-later', '2037-01-01');
         $this->opportunity('deadline-passed', '2020-01-01');
         $this->opportunity('not-published', null, 'draft');
 

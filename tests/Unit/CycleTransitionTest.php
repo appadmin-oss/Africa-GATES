@@ -32,7 +32,7 @@ class CycleTransitionTest extends TestCase
         $this->seedCycle(1, 'nominations', [
             'nominations_open' => '2020-01-01 00:00:00',
             'voting_open'      => '2020-02-01 00:00:00',
-            'voting_close'     => '2099-01-01 00:00:00',
+            'voting_close'     => '2037-01-01 00:00:00',
         ]);
 
         (new CommandTester(new CycleAdvanceCommand()))->execute([]);

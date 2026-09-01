@@ -1277,7 +1277,7 @@ final class EventInvitesTest extends TestCase
     private function doorToken(): string
     {
         return (string) EventScanPass::issue(
-            $this->eventId, '2099-01-01 00:00:00', null, 'Main gate', 1
+            $this->eventId, '2037-01-01 00:00:00', null, 'Main gate', 1
         );
     }
 
@@ -1336,7 +1336,7 @@ final class EventInvitesTest extends TestCase
             'slug' => 'other-night', 'title' => 'Another Night',
             'event_date' => '2026-11-11 18:00:00', 'status' => 'published',
         ]);
-        $token = (string) EventScanPass::issue($other, '2099-01-01 00:00:00', null, 'Other gate', 1);
+        $token = (string) EventScanPass::issue($other, '2037-01-01 00:00:00', null, 'Other gate', 1);
 
         $v = $this->scan($token, InvitePass::code((string) $inv->reference, (string) $inv->id_secret));
 

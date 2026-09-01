@@ -442,7 +442,7 @@ final class EvidenceAnalysisTest extends TestCase
             ['content_hash' => str_repeat('a', 64), 'file_uri' => 'files/old',
              'expires_at' => '2020-01-01 00:00:00'],
             ['content_hash' => str_repeat('b', 64), 'file_uri' => 'files/new',
-             'expires_at' => '2099-01-01 00:00:00'],
+             'expires_at' => '2037-01-01 00:00:00'],
         ]);
 
         $this->assertSame(1, GeminiFiles::prune());

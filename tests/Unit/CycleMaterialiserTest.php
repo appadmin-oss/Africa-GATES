@@ -43,7 +43,7 @@ class CycleMaterialiserTest extends TestCase
             'nominations_open'  => '2020-01-01 00:00:00',
             'nominations_close' => '2020-02-01 00:00:00',
             'voting_open'       => '2020-03-01 00:00:00',
-            'voting_close'      => '2099-01-01 00:00:00',
+            'voting_close'      => '2037-01-01 00:00:00',
         ]);
 
         // Two overlapping runs, as CronGuard's fail-open behaviour permits.
@@ -87,7 +87,7 @@ class CycleMaterialiserTest extends TestCase
         $this->seedCycle(3, 'nominations', [
             'nominations_open'  => '2020-01-01 00:00:00',
             'nominations_close' => '2020-02-01 00:00:00',
-            'voting_open'       => '2099-01-01 00:00:00',
+            'voting_open'       => '2037-01-01 00:00:00',
         ]);
 
         (new CycleMaterialiser())->run();
@@ -151,7 +151,7 @@ class CycleMaterialiserTest extends TestCase
         $this->seedCycle(6, 'nominations', [
             'nominations_open'  => '2020-01-01 00:00:00',
             'nominations_close' => '2020-02-01 00:00:00',
-            'voting_open'       => '2099-01-01 00:00:00',
+            'voting_open'       => '2037-01-01 00:00:00',
         ]);
 
         $r = (new CycleMaterialiser(true))->run();
@@ -166,7 +166,7 @@ class CycleMaterialiserTest extends TestCase
         // A mistyped results_date must not un-announce published winners.
         $this->seedCycle(7, 'results', [
             'voting_open'  => '2020-01-01 00:00:00',
-            'voting_close' => '2099-01-01 00:00:00',
+            'voting_close' => '2037-01-01 00:00:00',
         ]);
 
         $r = (new CycleMaterialiser())->run();
@@ -214,14 +214,14 @@ class CycleMaterialiserTest extends TestCase
         $this->seedCycle(20, 'nominations', [
             'nominations_open'  => '2020-01-01 00:00:00',
             'nominations_close' => '2020-02-01 00:00:00',
-            'voting_open'       => '2099-03-01 00:00:00',
-            'voting_close'      => '2099-04-01 00:00:00',
+            'voting_open'       => '2037-03-01 00:00:00',
+            'voting_close'      => '2037-04-01 00:00:00',
         ]);
 
         (new CycleMaterialiser())->run();
 
         $at = (string) DB::table('gates_award_cycles')->where('id', 20)->value('next_boundary_at');
-        $this->assertStringStartsWith('2099-03-01', $at, 'the soonest FUTURE boundary, not a passed one');
+        $this->assertStringStartsWith('2037-03-01', $at, 'the soonest FUTURE boundary, not a passed one');
     }
 
     public function test_the_boundary_is_refreshed_even_when_the_phase_does_not_move(): void
@@ -230,14 +230,14 @@ class CycleMaterialiserTest extends TestCase
         // or the sweep silently stops seeing it.
         $this->seedCycle(21, 'nominations', [
             'nominations_open'  => '2020-01-01 00:00:00',
-            'nominations_close' => '2099-01-01 00:00:00',
+            'nominations_close' => '2037-01-01 00:00:00',
         ]);
 
         $r = (new CycleMaterialiser())->run();
 
         $this->assertSame(0, $r['changed'], 'nothing to advance');
         $this->assertStringStartsWith(
-            '2099-01-01',
+            '2037-01-01',
             (string) DB::table('gates_award_cycles')->where('id', 21)->value('next_boundary_at'),
             'but the boundary is still recorded'
         );

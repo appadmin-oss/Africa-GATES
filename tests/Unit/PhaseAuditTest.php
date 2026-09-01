@@ -155,7 +155,7 @@ class PhaseAuditTest extends TestCase
         ]);
         $this->seedCycle(2, 'results', [
             'nominations_open' => '2024-01-01 00:00:00', 'nominations_close' => '2024-02-01 00:00:00',
-            'voting_open' => '2024-03-01 00:00:00', 'voting_close' => '2099-01-01 00:00:00',
+            'voting_open' => '2024-03-01 00:00:00', 'voting_close' => '2037-01-01 00:00:00',
         ]);
 
         $r = PhaseAuditService::run(Carbon::parse('2024-05-01 00:00:00'));
@@ -336,7 +336,7 @@ class PhaseAuditTest extends TestCase
 
     public function test_an_unfinished_cycle_is_never_in_the_backlog(): void
     {
-        $this->seedCycle(1, 'voting', ['voting_open' => '2024-01-01 00:00:00', 'voting_close' => '2099-01-01 00:00:00']);
+        $this->seedCycle(1, 'voting', ['voting_open' => '2024-01-01 00:00:00', 'voting_close' => '2037-01-01 00:00:00']);
         $this->seedCategory(10, 1);
         DB::table('gates_nominees')->insert(['id' => 1, 'category_id' => 10, 'name' => 'Ada', 'status' => 'approved']);
 

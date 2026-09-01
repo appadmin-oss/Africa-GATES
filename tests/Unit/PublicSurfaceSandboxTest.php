@@ -267,7 +267,7 @@ final class PublicSurfaceSandboxTest extends TestCase
     public function test_the_nominee_broadcast_does_not_pick_up_the_rehearsal(): void
     {
         DB::table('gates_award_cycles')->update([
-            'status' => 'voting', 'voting_close' => '2099-01-01 00:00:00',
+            'status' => 'voting', 'voting_close' => '2037-01-01 00:00:00',
         ]);
 
         $labels = array_map(

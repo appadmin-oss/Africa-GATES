@@ -488,7 +488,7 @@ final class VoteMessageTest extends TestCase
         $code  = '424242';
         DB::table('gates_otp_tokens')->insert([
             'email_hash' => hash('sha256', $email), 'token_hash' => hash('sha256', $code),
-            'purpose' => 'vote', 'nominee_id' => self::NOMINEE, 'award_id' => 4400,
+            'purpose' => 'vote', 'nominee_id' => self::NOMINEE, 'award_id' => 44,
             'attempts' => 0, 'is_used' => 0,
             'expires_at' => \Illuminate\Support\Carbon::now()->addMinutes(10)->toDateTimeString(),
             'created_at' => \Illuminate\Support\Carbon::now()->toDateTimeString(),
@@ -496,7 +496,7 @@ final class VoteMessageTest extends TestCase
 
         $res = $this->jsonPost('/api/vote', $extra + [
             'email' => $email, 'otp' => $code,
-            'nominee_id' => self::NOMINEE, 'award_id' => 4400,
+            'nominee_id' => self::NOMINEE, 'award_id' => 44,
             'name' => 'Ngozi Balogun', 'phone' => '+2348012345678',
         ]);
 
