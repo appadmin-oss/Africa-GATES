@@ -15,6 +15,18 @@ enforces:
 
 - SQLite ignores integer widths and `ENUM`. A value that fits in dev fails in production —
   `TINYINT UNSIGNED` caps at **255**, which has bitten a `sort_order` already.
+- **And `INSERT IGNORE` does not refuse an oversized id, it CLAMPS it.** Thirty test files
+  seeded `gates_award_programmes` with ids like `9800`; on MySQL every one of them became
+  **255**, so they all resolved to the same programme. A nominee's submission pointed at
+  255 while their questionnaire config had been saved for 9800, nothing matched, and
+  `styleFor()` quietly served the guided form to somebody the programme had configured for
+  an interview. Twelve tests asserted an interview screen and got a questionnaire.
+- **A value outside an `ENUM` is `Data truncated`, not an error you will notice.** Two
+  shipped: `JudgeSchedule` filtered the schedule screen on a status `'scheduled'` that
+  `gates_interviews.status` has never allowed — so it matched nothing on production, while
+  `'draft'` ("created, nobody told yet") was missing from the same list and never appeared
+  on the one screen whose job is listing sittings. Both lists claimed the same thing in the
+  same words; only `InterviewService::PENDING` was right. One resolver, never two.
 - **Correcting a constraint needs a repair migration, not a corrected definition.** A
   migration that rebuilds its table only when the table is *empty* leaves the old
   constraint on every database that has rows, permanently. `gates_event_invites.audience`
@@ -46,6 +58,23 @@ time. Hoist anything used by more than one block to template scope.
 So no `onclick=`, no inline `<script>` without a nonce. The convention is
 `data-ag-do="..."` with a delegated listener in `public/assets/js/admin.js`; `data-confirm`
 on a form routes it through `agConfirm`.
+
+## A header can switch a feature off in a way nothing on the page can see
+
+`Permissions-Policy: camera=()` denied the camera on **every page of the site**, so the
+door's ticket scanner had never worked in production on any device since it shipped.
+`getUserMedia` was rejected by the browser before a line of the page's own code ran, and
+the page's catch wrote "Camera unavailable — type the code" — indistinguishable from a
+refused prompt or a broken lens. Nothing anywhere pointed at a header.
+
+Two things make this worth a section of its own. **A test asserted `camera=()` by name**, in
+a list of things that ought to be denied, so the bug was not merely unnoticed — it was
+enforced. And the header is set in **two** places: `SecurityHeadersMiddleware::SHARED` and
+`public/.htaccess`, where Apache's `Header always set` REPLACES rather than conflicts, so a
+divergence never shows up as an error. `SecurityHeadersTest` compares them.
+
+`media-src` is the same shape of trap: it is `'self'` plus two video hosts, with no `data:`
+and no `blob:`, so audio returned as a data URI is blocked with nothing an operator can see.
 
 ## A `<form>` inside a `<form>` is silently deleted
 
@@ -97,6 +126,37 @@ Both traps name code you did not touch, which is what makes them expensive.
 
 The harness builds an in-memory SQLite database from the three schema files and then runs
 every dated migration, with `PRAGMA foreign_keys = OFF` so unit seeds can stay minimal.
+
+### The MySQL parity run, which is the one that finds things
+
+```bash
+TEST_DB_DRIVER=mysql DB_HOST=127.0.0.1 DB_NAME=africa_gates_test \
+  DB_USER=… DB_PASS=… ./vendor/bin/phpunit --no-coverage
+```
+
+Real ENUMs, real integer widths, strict mode, `ONLY_FULL_GROUP_BY`. Everything in the
+MySQL/SQLite list at the top of this file is invisible without it.
+
+**Read the count, not the exit code.** Piping to `tail` or `grep` gives you the pipe's
+status, not PHPUnit's, and a run with two hundred errors exits 0 through a pipe.
+
+Three things used to make its output unreadable, and all three are fixed — but they are
+worth knowing, because each turned ONE fault into hundreds and none of the hundreds was
+about the test reporting it:
+
+- **DDL implicitly COMMITs**, so a test that inserts and then issues DDL has already made
+  its rows permanent when the rollback runs. `TestCase` plants a marker inside the
+  transaction and purges when it survives. It used to count six named tables instead, and
+  that list only ever grew — an enumeration of past failures is never a fix for the next
+  one.
+- **`information_schema` caches `AUTO_INCREMENT` for a day** (`information_schema_stats_expiry`).
+  The narrow-counter rewind read it, saw a value from the start of the run, and skipped
+  every time while the real counter stuck at 255. The session now sets the expiry to 0.
+- **`ALTER TABLE … AUTO_INCREMENT = 1` is clamped UP to `max(id)+1` when rows exist**, so a
+  reset on a non-empty table silently does nothing. Empty it first.
+
+`tests/Feature` was outside the `testsuite` element and had never run — ninety-two tests
+that read as coverage in a directory listing and were not. Both directories are in now.
 
 ## Scheduled work has no shell
 
