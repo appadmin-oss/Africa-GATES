@@ -55,7 +55,11 @@ DB::statement($sqlite
     : "CREATE TABLE gates_sms_optout (
          id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
          phone_hash CHAR(64) NOT NULL,
-         phone_masked VARCHAR(12) NULL,
+         -- 16, not 12. Phone::mask() emits up to FIFTEEN characters, and any E.164
+         -- number of 13 digits or more — every Nigerian mobile — needs at least 14.
+         -- At 12 the INSERT was refused in strict mode, SmsOptOut::record() swallowed
+         -- it, and replying STOP silently did nothing. See the widen migration.
+         phone_masked VARCHAR(16) NULL,
          source VARCHAR(60) NOT NULL DEFAULT 'stop-reply',
          created_at TIMESTAMP NOT NULL,
          PRIMARY KEY (id),

@@ -114,7 +114,20 @@ final class SmsOptOut
             );
 
             return true;
-        } catch (\Throwable) {
+        } catch (\Throwable $e) {
+            // ── NEVER QUIETLY ─────────────────────────────────────────────
+            //
+            // This caught and returned false for months while phone_masked was too
+            // narrow for a Nigerian number, so every STOP from the platform's home
+            // market was refused by the database, swallowed here, and answered with a
+            // 204. Nothing anywhere recorded that somebody had asked to be left alone
+            // and had not been.
+            //
+            // A suppression that failed is the one thing in this class worth shouting
+            // about: the caller cannot retry it, the person cannot tell, and the next
+            // campaign will text them again.
+            error_log('[sms-optout] COULD NOT RECORD an opt-out — the person asked to be '
+                    . 'left alone and was not: ' . $e->getMessage());
             return false;
         }
     }

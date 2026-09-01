@@ -5,6 +5,7 @@ namespace Tests\Unit;
 
 use AfricaGates\Controllers\SmsInboundController;
 use AfricaGates\Services\SmsOptOut;
+use AfricaGates\Support\Phone;
 use Illuminate\Database\Capsule\Manager as DB;
 use Tests\TestCase;
 
@@ -72,6 +73,62 @@ final class SmsInboundTest extends TestCase
 
         $this->assertTrue(SmsOptOut::suppressed('+2348012345678'),
             'the platform promised that replying STOP works');
+    }
+
+    /**
+     * THE ONE THAT SHIPPED BROKEN, AND THE ONE A DRIVER CANNOT HIDE.
+     *
+     * `phone_masked` was VARCHAR(12). Phone::mask() emits up to fifteen characters, and
+     * fourteen for any thirteen-digit E.164 number — which is every Nigerian mobile. In
+     * strict mode MySQL refused the INSERT, SmsOptOut::record() caught it and returned
+     * false, and the webhook still answered 204. On the platform's home market, replying
+     * STOP did nothing at all, and every screen and every log agreed it had worked.
+     *
+     * The suite never saw it because SQLite declares that column TEXT and takes any
+     * length. So this test does NOT rely on the database refusing anything: it measures
+     * the value the code produces against the width the schema declares. That fails on
+     * both drivers, which is the only kind of assertion that would have caught this
+     * before a real person could not get away from us.
+     */
+    public function test_a_masked_number_fits_the_column_it_is_stored_in(): void
+    {
+        $declared = 0;
+        $mig = (string) file_get_contents(
+            dirname(__DIR__, 2) . '/database/migrations/2026_11_05_sms_optout.php');
+        if (preg_match('/phone_masked VARCHAR\((\d+)\)/', $mig, $m)) $declared = (int) $m[1];
+
+        $this->assertGreaterThan(0, $declared, 'the phone_masked column declaration moved');
+
+        // Every shape this function can emit, not one example: a country code is one to
+        // three digits and a subscriber number runs to fifteen in E.164.
+        foreach ([
+            '+2348012345678',      // Nigeria — thirteen digits, the case that broke
+            '+15551234567',        // North America
+            '+861234567890123',    // the E.164 ceiling
+            '+441234567',          // short
+            '+1234567',            // shorter than the mask's own floor
+        ] as $e164) {
+            $masked = Phone::mask($e164);
+            $this->assertLessThanOrEqual($declared, mb_strlen($masked),
+                $e164 . ' masks to "' . $masked . '" (' . mb_strlen($masked) . ' chars), which '
+                . 'does not fit VARCHAR(' . $declared . ') — on MySQL that INSERT is refused '
+                . 'and the opt-out is silently lost');
+        }
+    }
+
+    /** And the round trip, which is what the person actually needs to happen. */
+    public function test_a_nigerian_number_that_replies_stop_is_actually_suppressed(): void
+    {
+        $number = '+2348099887766';
+
+        $this->assertSame(204, $this->post(['From' => $number, 'Body' => 'STOP']));
+        $this->assertTrue(SmsOptOut::suppressed($number),
+            'a Nigerian number replied STOP and is still on the list');
+
+        // The masked form is kept for a support desk, so it has to have survived too.
+        $row = DB::table('gates_sms_optout')->first();
+        $this->assertNotNull($row, 'nothing was written at all');
+        $this->assertStringEndsWith('766', (string) $row->phone_masked);
     }
 
     /** Punctuation and case are how people actually type it. */
