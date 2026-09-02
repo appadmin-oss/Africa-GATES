@@ -255,7 +255,7 @@
     <table class="ja-t">
       <thead>
         <tr><th>Judge</th><th>Marks</th><th>Nominees</th><th>Mean given</th>
-            <th>Lean vs panel</th><th>Scored between</th></tr>
+            <th>Lean vs panel</th><th>Typical gap</th><th>Scored between</th></tr>
       </thead>
       <tbody>
         {% for j in audit.judges %}
@@ -273,6 +273,16 @@
                 <span class="ja-den">over {{ j.compared }} comparison{{ j.compared == 1 ? '' : 's' }}</span>
               {% endif %}
             </td>
+            {# THE MEDIAN gap between one mark and the next, not the mean: judges score
+               in sittings across days, and a single overnight gap swamps two hundred real
+               ones. Four seconds a mark across a hundred nominees is not reading. #}
+            <td class="ja-num">
+              {% if j.median_gap is null %}&mdash;
+              {% elseif j.median_gap < 10 %}
+                <span class="ja-flag ja-flag--warn">{{ j.median_gap }}s</span>
+              {% elseif j.median_gap < 3600 %}{{ j.median_gap }}s
+              {% else %}{{ (j.median_gap / 60)|round }}m{% endif %}
+            </td>
             <td>{{ j.first_at|slice(0, 10) }} &ndash; {{ j.last_at|slice(0, 10) }}</td>
           </tr>
         {% endfor %}
@@ -283,6 +293,117 @@
       over six comparisons is not the same claim as one computed over sixty. This is a
       place to ask a question, never a finding on its own.</p>
   </div>
+
+  {# ── DID THE RUBRIC DECIDE ANYTHING? ─────────────────────────────────────
+     Weights say what the award CLAIMS to value. This says what separated the field. A
+     criterion every judge marked the same decided nothing, and because it keeps its
+     weight, the share of the mark it was given went nowhere — so a five-criterion rubric
+     with one inert criterion was really decided by four, invisibly. #}
+  {% if audit.criteria %}
+  <div class="ja-card">
+    <h3>What each criterion actually did</h3>
+    <p>Weights say what this award claims to value. This is what separated the field. A
+      criterion every judge marked the same has decided nothing &mdash; and it still
+      carries its share of the mark.</p>
+    <table class="ja-t">
+      <thead>
+        <tr><th>Criterion</th><th>Worth</th><th>Marks</th><th>Mean</th>
+            <th>Range used</th><th>Different values</th></tr>
+      </thead>
+      <tbody>
+        {% for c in audit.criteria %}
+          <tr>
+            <td class="ja-name">{{ c.label }}
+              {% if c.inert %}<span class="ja-flag ja-flag--bad">decided nothing</span>{% endif %}</td>
+            <td class="ja-num">{% if c.share is not null %}{{ c.share }}%{% else %}&mdash;{% endif %}</td>
+            <td class="ja-num">{{ c.marks }}
+              <span class="ja-den">over {{ c.nominees }} nominee{{ c.nominees == 1 ? '' : 's' }}</span></td>
+            <td class="ja-num">{{ c.mean }}</td>
+            <td class="ja-num">{{ c.low }} &ndash; {{ c.high }}</td>
+            <td class="ja-num">
+              {% if c.distinct <= 2 %}<span class="ja-flag ja-flag--warn">{{ c.distinct }}</span>
+              {% else %}{{ c.distinct }}{% endif %}
+            </td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    <p class="ja-caveat">A narrow range is not automatically wrong &mdash; a strong shortlist
+      genuinely scores alike. It is worth asking of a criterion that carries a quarter of the
+      mark and uses two of its ten points.</p>
+  </div>
+  {% endif %}
+
+  {# ── SCORECARDS LEFT PART-MARKED ─────────────────────────────────────────
+     Different from "never scored" above, and worse in a quieter way: a partial scorecard
+     is NOT discarded. The weighted average divides by the weight actually marked, so it
+     is silently reweighted onto whichever criteria the judge happened to finish. #}
+  {% if audit.incomplete.pairs > 0 %}
+  <div class="ja-card">
+    <h3>Scorecards left part-marked</h3>
+    <p><b>{{ audit.incomplete.pairs }}</b> scorecard{{ audit.incomplete.pairs == 1 ? '' : 's' }}
+      cover fewer than the {{ audit.incomplete.required }} criteria in force. These were not
+      discarded: the weighted average divides by the weight actually marked, so each one was
+      reweighted onto whichever criteria that judge finished.</p>
+    <table class="ja-t">
+      <thead><tr><th>Judge</th><th>Nominee</th><th>Marked</th><th>Of the rubric</th></tr></thead>
+      <tbody>
+        {% for r in audit.incomplete.rows %}
+          <tr>
+            <td class="ja-name">{{ r.judge }}</td>
+            <td>{{ r.nominee }}</td>
+            <td class="ja-num">{{ r.marked }} of {{ r.required }}</td>
+            <td class="ja-num">
+              {% if r.covered < 60 %}<span class="ja-flag ja-flag--bad">{{ r.covered }}%</span>
+              {% else %}<span class="ja-flag ja-flag--warn">{{ r.covered }}%</span>{% endif %}
+            </td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% if audit.incomplete.pairs > audit.incomplete.rows|length %}
+      <p class="ja-caveat">Showing the {{ audit.incomplete.rows|length }} least complete of
+        {{ audit.incomplete.pairs }}.</p>
+    {% endif %}
+  </div>
+  {% endif %}
+
+  {# ── WHERE THE PANEL DISAGREED ───────────────────────────────────────────
+     Not the lowest scores and not the closest results — the widest disagreement. A
+     nominee two judges rated 8.4 and 4.1 carries a mark neither judge held, and that is
+     the row somebody appeals. #}
+  {% if audit.disagreement %}
+  <div class="ja-card">
+    <h3>Where the panel disagreed most</h3>
+    <p>Each judge&rsquo;s own weighted average for the same nominee, furthest apart first. A
+      nominee rated 8.4 by one judge and 4.1 by another carries a mark neither of them held.</p>
+    <table class="ja-t">
+      <thead><tr><th>Nominee</th><th>Judges</th><th>Lowest</th><th>Highest</th>
+                 <th>Apart by</th><th>Who said what</th></tr></thead>
+      <tbody>
+        {% for d in audit.disagreement %}
+          <tr>
+            <td class="ja-name">{{ d.nominee }}</td>
+            <td class="ja-num">{{ d.judges }}</td>
+            <td class="ja-num">{{ d.low }}</td>
+            <td class="ja-num">{{ d.high }}</td>
+            <td class="ja-num">
+              {% if d.spread >= 3 %}<span class="ja-flag ja-flag--bad">{{ d.spread }}</span>
+              {% elseif d.spread >= 1.5 %}<span class="ja-flag ja-flag--warn">{{ d.spread }}</span>
+              {% else %}{{ d.spread }}{% endif %}
+            </td>
+            <td>
+              {% for name, avg in d.marks %}<span class="ja-den">{{ name }} {{ avg }}</span>{% endfor %}
+            </td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    <p class="ja-caveat">Disagreement is not misconduct. Two readers of the same work
+      differing is what a panel is for &mdash; this says where it happened, so that a
+      challenge to one nominee can be answered with the marks rather than with an average.</p>
+  </div>
+  {% endif %}
 
   {# ── THE TRAIL ──────────────────────────────────────────────────────────── #}
   <div class="ja-card">

@@ -77,6 +77,17 @@ final class JudgingAuditTest extends TestCase
         ]);
     }
 
+    /** Score a criterion by id, for tests that work against the EFFECTIVE rubric. */
+    private function scoreById(int $judge, int $nominee, int $criterionId, int $score,
+                               string $at = '2026-11-01 09:00:00'): void
+    {
+        DB::table('gates_judge_criteria_scores')->insert([
+            'judge_id' => $judge, 'nominee_id' => $nominee, 'category_id' => $this->categoryId,
+            'criterion_id' => $criterionId, 'score' => $score,
+            'created_at' => $at, 'updated_at' => $at,
+        ]);
+    }
+
     private function score(int $judge, int $nominee, string $crit, int $score, string $at = '2026-11-01 09:00:00'): void
     {
         DB::table('gates_judge_criteria_scores')->insert([
@@ -444,5 +455,191 @@ final class JudgingAuditTest extends TestCase
         $this->assertSame([], $r['judges']);
         $this->assertSame(0, $r['totals']['nominees']);
         $this->assertNotNull($r['programme']);
+    }
+
+    // ══ does the rubric decide anything ══════════════════════════════════════
+
+    /**
+     * A criterion every judge marked the same decided nothing — and kept its weight.
+     *
+     * Weights say what an award CLAIMS to value. This says what separated the field. On a
+     * two-criterion rubric where one is inert, the result was really decided by one
+     * criterion, and the screen said 50/50.
+     */
+    public function test_a_criterion_nobody_varied_is_named_as_deciding_nothing(): void
+    {
+        $j1 = $this->judge('Ada Obi');
+        $j2 = $this->judge('Tunde Cole');
+
+        foreach (['A', 'B', 'C'] as $i => $name) {
+            $n = $this->nominee($name);
+            // Rigour: every mark identical. Impact: it actually separates them.
+            $this->score($j1, $n, 'rigour', 8);
+            $this->score($j2, $n, 'rigour', 8);
+            $this->score($j1, $n, 'impact', 3 + $i);
+            $this->score($j2, $n, 'impact', 4 + $i);
+        }
+
+        $crit = JudgingAudit::forProgramme($this->programmeId)['criteria'];
+        $by   = [];
+        foreach ($crit as $c) $by[$c['label']] = $c;
+
+        $this->assertTrue($by['Rigour']['inert'], 'a criterion with one value decided nothing');
+        $this->assertSame(1, $by['Rigour']['distinct']);
+        $this->assertSame(0.0, $by['Rigour']['spread']);
+
+        $this->assertFalse($by['Impact']['inert']);
+        $this->assertGreaterThan(1, $by['Impact']['distinct']);
+
+        // The weight travels WITH the finding: "decided nothing" and "was worth half the
+        // mark" only mean something together.
+        $this->assertNotNull($by['Rigour']['share']);
+
+        // Worst first, so the inert one is not buried under a working rubric.
+        $this->assertSame('Rigour', $crit[0]['label']);
+    }
+
+    // ══ scorecards left part-marked ══════════════════════════════════════════
+
+    /**
+     * A partial scorecard is NOT discarded, which is why it belongs on an audit.
+     *
+     * The weighted average divides by the weight actually marked, so a judge who marked
+     * two criteria of two on one nominee and one of two on another has silently reweighted
+     * the second nominee's mark onto whichever criterion they finished. Coverage above
+     * counts nominees NOBODY marked; this is the quieter one.
+     */
+    public function test_a_part_marked_scorecard_is_reported_with_how_much_it_covered(): void
+    {
+        // ── THE REQUIRED SET IS THE RUBRIC'S, NOT THIS TEST'S ────────────────
+        //
+        // JudgeRubric::effective() is the SHIPPED criteria plus this programme's own,
+        // deduped by slug — the same list the scorer presents and the same one
+        // completeScorecards() counts against. Writing "2" here would have been a second
+        // opinion about what complete means, and it would have been wrong: this
+        // programme's effective rubric is five criteria, not the two it declares.
+        $ids = array_map(
+            static fn (object $r): int => (int) $r->id,
+            array_filter(\AfricaGates\Services\JudgeRubric::effective($this->programmeId),
+                         static fn (object $r): bool => (int) $r->is_active === 1)
+        );
+        $required = count($ids);
+        $this->assertGreaterThan(1, $required, 'no rubric to be incomplete against');
+
+        $j = $this->judge('Ada Obi');
+
+        $whole = $this->nominee('Whole');
+        foreach ($ids as $cid) $this->scoreById($j, $whole, $cid, 7);
+
+        $half = $this->nominee('Half');
+        foreach (array_slice($ids, 0, $required - 1) as $cid) $this->scoreById($j, $half, $cid, 9);
+
+        $inc = JudgingAudit::forProgramme($this->programmeId)['incomplete'];
+
+        $this->assertSame($required, $inc['required']);
+        $this->assertSame(1, $inc['pairs'], 'a complete scorecard was reported as partial');
+        $this->assertSame('Half', $inc['rows'][0]['nominee']);
+        $this->assertSame($required - 1, $inc['rows'][0]['marked']);
+        $this->assertSame((int) round(($required - 1) * 100 / $required), $inc['rows'][0]['covered']);
+    }
+
+    // ══ where the panel disagreed ════════════════════════════════════════════
+
+    /**
+     * The widest disagreement, not the lowest score — which is the row somebody appeals.
+     *
+     * Each judge's own WEIGHTED average, the same arithmetic the judge portal shows them
+     * about their own marking. A rubric where one criterion is worth more than another
+     * would otherwise report agreement that does not exist.
+     */
+    public function test_the_nominee_the_panel_could_not_agree_about_is_first(): void
+    {
+        $j1 = $this->judge('Ada Obi');
+        $j2 = $this->judge('Tunde Cole');
+
+        $agreed = $this->nominee('Agreed');
+        $this->score($j1, $agreed, 'impact', 7); $this->score($j1, $agreed, 'rigour', 7);
+        $this->score($j2, $agreed, 'impact', 7); $this->score($j2, $agreed, 'rigour', 7);
+
+        $split = $this->nominee('Split');
+        $this->score($j1, $split, 'impact', 9); $this->score($j1, $split, 'rigour', 9);
+        $this->score($j2, $split, 'impact', 3); $this->score($j2, $split, 'rigour', 3);
+
+        $d = JudgingAudit::forProgramme($this->programmeId)['disagreement'];
+
+        $this->assertSame('Split', $d[0]['nominee'], 'the widest disagreement is not first');
+        $this->assertSame(6.0, $d[0]['spread']);
+        $this->assertSame(3.0, $d[0]['low']);
+        $this->assertSame(9.0, $d[0]['high']);
+        // Named, so a challenge about one nominee is answered with the marks rather than
+        // with an average neither judge held.
+        $this->assertSame(['Ada Obi' => 9.0, 'Tunde Cole' => 3.0], $d[0]['marks']);
+    }
+
+    /**
+     * One judge cannot disagree with anybody, and must not be reported as agreeing.
+     *
+     * A spread of zero over a panel of one reads as "the panel was unanimous". It means
+     * nobody else looked, which coverage above already names as a thin panel.
+     */
+    public function test_a_nominee_with_one_judge_is_not_reported_as_unanimous(): void
+    {
+        $j = $this->judge('Ada Obi');
+        $n = $this->nominee('Alone');
+        $this->score($j, $n, 'impact', 8);
+        $this->score($j, $n, 'rigour', 8);
+
+        $this->assertSame([], JudgingAudit::forProgramme($this->programmeId)['disagreement'],
+            'a panel of one was reported as agreeing with itself');
+    }
+
+    // ══ how long they spent ══════════════════════════════════════════════════
+
+    /**
+     * The MEDIAN gap between marks, because judges score in sittings across days.
+     *
+     * A mean is destroyed by one overnight gap, and the span between first and last says
+     * nothing about the reading. Four seconds a mark across a hundred nominees is a fact
+     * an operator can weigh, and it is a different objection from any of the arithmetic.
+     */
+    public function test_the_typical_gap_between_marks_survives_an_overnight_break(): void
+    {
+        $j = $this->judge('Ada Obi');
+        $n1 = $this->nominee('One');
+        $n2 = $this->nominee('Two');
+
+        // Four marks five seconds apart, then a fourteen-hour break, then two more.
+        $this->score($j, $n1, 'impact', 5, '2026-11-01 09:00:00');
+        $this->score($j, $n1, 'rigour', 5, '2026-11-01 09:00:05');
+        $this->score($j, $n2, 'impact', 6, '2026-11-01 09:00:10');
+        $this->score($j, $n2, 'rigour', 6, '2026-11-01 23:00:10');
+
+        $judges = JudgingAudit::forProgramme($this->programmeId)['judges'];
+        $mine   = $judges[0];
+
+        $this->assertSame('Ada Obi', $mine['judge']);
+        // Gaps are 5, 5, 50400 — the median is 5, the mean would be 16,803.
+        $this->assertSame(5, $mine['median_gap'],
+            'an overnight break was allowed to describe how long they spent per mark');
+    }
+
+    /** A single mark has no gap, and reporting zero would read as instant. */
+    public function test_one_mark_reports_no_pace_rather_than_zero(): void
+    {
+        $j = $this->judge('Ada Obi');
+        $this->score($j, $this->nominee('One'), 'impact', 5);
+
+        $this->assertNull(JudgingAudit::forProgramme($this->programmeId)['judges'][0]['median_gap']);
+    }
+
+    /** §17 is only closed when something renders it. */
+    public function test_the_new_findings_reach_the_screen(): void
+    {
+        $t = (string) file_get_contents(
+            dirname(__DIR__, 2) . '/templates/admin/judging-audit.twig');
+
+        foreach (['audit.criteria', 'audit.incomplete', 'audit.disagreement', 'j.median_gap'] as $k) {
+            $this->assertStringContainsString($k, $t, $k . ' is computed and rendered nowhere');
+        }
     }
 }

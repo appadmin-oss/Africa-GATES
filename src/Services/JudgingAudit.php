@@ -62,6 +62,9 @@ final class JudgingAudit
      *   judges: list<array<string,mixed>>,
      *   changes: array{rows:list<array<string,mixed>>, total:int},
      *   conflicts: list<array<string,mixed>>,
+     *   criteria: list<array<string,mixed>>,
+     *   incomplete: array{pairs:int, rows:list<array<string,mixed>>, required:int},
+     *   disagreement: list<array<string,mixed>>,
      *   totals: array<string,int>
      * }
      */
@@ -71,7 +74,9 @@ final class JudgingAudit
 
         $empty = ['programme' => $programme, 'cycles' => [], 'judges' => [],
                   'changes' => ['rows' => [], 'total' => 0],
-                  'conflicts' => [], 'totals' => self::zeroTotals()];
+                  'conflicts' => [], 'criteria' => [],
+                  'incomplete' => ['pairs' => 0, 'rows' => [], 'required' => 0],
+                  'disagreement' => [], 'totals' => self::zeroTotals()];
         if (!$programme) return $empty;
 
         $cycles = self::cycles($programmeId);
@@ -88,7 +93,17 @@ final class JudgingAudit
             'judges'    => self::judgeConduct($programmeId, $scores),
             'changes'   => self::changes($nominees, $cycles, $changeLimit),
             'conflicts' => self::conflicts($programmeId, $scores),
-            'totals'    => self::totals($cycles, $nominees, $scores),
+            // ── THE THREE THAT ASK WHETHER THE RUBRIC ITSELF WORKED ──────────
+            //
+            // Everything above answers "was the process followed". These answer the
+            // question a serious challenge actually opens with — "and does following it
+            // decide anything?" A criterion nobody varied, a scorecard left half-marked,
+            // and the nominees the panel could not agree about are the three places where
+            // a result is thinnest, and none of them was visible.
+            'criteria'     => self::criteriaBehaviour($programmeId, $scores),
+            'incomplete'   => self::incompleteScorecards($programmeId, $scores),
+            'disagreement' => self::disagreement($programmeId, $scores),
+            'totals'       => self::totals($cycles, $nominees, $scores),
         ];
     }
 
@@ -283,7 +298,7 @@ final class JudgingAudit
             $jid = (int) $s->judge_id;
             $by[$jid] ??= ['judge_id' => $jid, 'judge' => (string) $s->judge_name,
                            'scores' => 0, 'nominees' => [], 'sum' => 0.0, 'gap' => 0.0,
-                           'compared' => 0, 'first' => '', 'last' => ''];
+                           'compared' => 0, 'first' => '', 'last' => '', 'at' => []];
 
             $by[$jid]['scores']++;
             $by[$jid]['nominees'][(int) $s->nominee_id] = true;
@@ -305,6 +320,7 @@ final class JudgingAudit
             if ($at !== '') {
                 if ($by[$jid]['first'] === '' || $at < $by[$jid]['first']) $by[$jid]['first'] = $at;
                 if ($at > $by[$jid]['last']) $by[$jid]['last'] = $at;
+                $by[$jid]['at'][] = $at;
             }
         }
 
@@ -324,12 +340,261 @@ final class JudgingAudit
                 'compared'    => $j['compared'],
                 'first_at'    => $j['first'],
                 'last_at'     => $j['last'],
+                // ── HOW LONG THEY SPENT ON EACH ONE ──────────────────────────
+                //
+                // The MEDIAN gap between consecutive marks, in seconds. Judges score in
+                // sittings across days, so a mean is meaningless — one overnight gap of
+                // fourteen hours swamps two hundred real ones — and the span between
+                // first and last says nothing about the reading either.
+                //
+                // The median is the typical gap and it is a fact an operator can weigh:
+                // a panel that averaged four seconds a mark across a hundred and twenty
+                // nominees did not open a dossier, and that is a different objection from
+                // any of the arithmetic above it. Null below two marks: a single mark has
+                // no gap, and reporting 0 would read as instant.
+                'median_gap'  => self::medianGap($j['at']),
             ];
         }
 
         usort($out, static fn (array $a, array $b): int => $b['scores'] <=> $a['scores']);
 
         return $out;
+    }
+
+    /**
+     * The median seconds between one mark and the next. Null when there is no gap to take.
+     *
+     * @param list<string> $stamps
+     */
+    private static function medianGap(array $stamps): ?int
+    {
+        if (count($stamps) < 2) return null;
+
+        sort($stamps);
+        $gaps = [];
+        for ($i = 1, $n = count($stamps); $i < $n; $i++) {
+            $a = strtotime($stamps[$i - 1]);
+            $b = strtotime($stamps[$i]);
+            if ($a === false || $b === false) continue;
+            $gaps[] = max(0, $b - $a);
+        }
+        if ($gaps === []) return null;
+
+        sort($gaps);
+        $mid = intdiv(count($gaps), 2);
+
+        return count($gaps) % 2 === 1
+            ? (int) $gaps[$mid]
+            : (int) round(($gaps[$mid - 1] + $gaps[$mid]) / 2);
+    }
+
+    /**
+     * What each criterion actually DID — and whether it did anything.
+     *
+     * ── THE QUESTION NOBODY COULD ASK ────────────────────────────────────────
+     *
+     * A rubric's weights say what the award claims to value. They do not say what
+     * separated the field. A criterion every judge marked 8 out of 10 on, for every
+     * nominee, decided nothing at all — and because it still carries its weight, the
+     * share of the decision it was given went nowhere. On a five-criterion rubric with an
+     * inert 25% criterion, the result was really decided by three criteria and nobody
+     * could see it.
+     *
+     * ── WHY `distinct` AND NOT A VARIANCE ────────────────────────────────────
+     *
+     * The scale is small integers. A standard deviation over eleven marks on a 1–10 scale
+     * invites a precision the data does not carry, and an operator cannot check it. "Every
+     * judge used one value" and "judges used four of the ten" are facts a person can act
+     * on: the first is a criterion to rewrite, the second is one that is working.
+     *
+     * The weight share travels WITH the finding rather than in a rubric screen somewhere
+     * else, because "this decided nothing" and "this was worth a quarter of the mark" only
+     * mean something together.
+     *
+     * @param list<object> $scores
+     * @return list<array<string,mixed>>
+     */
+    private static function criteriaBehaviour(int $programmeId, array $scores): array
+    {
+        if ($scores === []) return [];
+
+        $shares = JudgeRubric::shares($programmeId);
+
+        $by = [];
+        foreach ($scores as $s) {
+            $cid = (int) $s->criterion_id;
+            $by[$cid] ??= ['id' => $cid, 'label' => (string) ($s->criterion_name ?: 'Criterion #' . $cid),
+                           'marks' => 0, 'sum' => 0.0, 'min' => null, 'max' => null,
+                           'values' => [], 'nominees' => []];
+
+            $v = (float) $s->score;
+            $by[$cid]['marks']++;
+            $by[$cid]['sum'] += $v;
+            $by[$cid]['values'][(string) $v] = true;
+            $by[$cid]['nominees'][(int) $s->nominee_id] = true;
+            $by[$cid]['min'] = $by[$cid]['min'] === null ? $v : min($by[$cid]['min'], $v);
+            $by[$cid]['max'] = $by[$cid]['max'] === null ? $v : max($by[$cid]['max'], $v);
+        }
+
+        $out = [];
+        foreach ($by as $cid => $c) {
+            $distinct = count($c['values']);
+            $out[] = [
+                'id'       => $cid,
+                'label'    => $c['label'],
+                'marks'    => $c['marks'],
+                'nominees' => count($c['nominees']),
+                'mean'     => round($c['sum'] / max(1, $c['marks']), 2),
+                'low'      => $c['min'],
+                'high'     => $c['max'],
+                'spread'   => round((float) $c['max'] - (float) $c['min'], 2),
+                'distinct' => $distinct,
+                // Display only, and rounded by the rubric rather than here — one resolver.
+                'share'    => $shares[$cid] ?? null,
+                // A criterion every judge marked the same is not judging, it is a
+                // formality with a weight attached.
+                'inert'    => $distinct <= 1,
+            ];
+        }
+
+        // Worst first: an inert criterion is the finding, and among the rest the narrowest
+        // spread is the next thing worth looking at.
+        usort($out, static function (array $a, array $b): int {
+            return [$b['inert'], -$a['spread']] <=> [$a['inert'], -$b['spread']];
+        });
+
+        return $out;
+    }
+
+    /**
+     * Scorecards a judge left part-marked, which still counted.
+     *
+     * ── WHY THIS IS NOT THE SAME AS "UNJUDGED" ───────────────────────────────
+     *
+     * Coverage above counts nominees NOBODY marked. This counts nominees somebody marked
+     * INCOMPLETELY: three criteria of five, then the tab was closed. That mark is in the
+     * result — the weighted average divides by the weight actually marked, so a partial
+     * scorecard is not thrown away, it is silently reweighted onto whichever criteria the
+     * judge happened to finish.
+     *
+     * A nominee whose only judge marked the two criteria they scored well on is a real
+     * outcome of that, and it is invisible in every other number on this page.
+     *
+     * The required set is {@see JudgeRubric::effective()} — the same list the scorer uses
+     * and the same one `completeScorecards()` counts against. Retiring a criterion shrinks
+     * it, so an old scorecard does not become incomplete retrospectively.
+     *
+     * @param list<object> $scores
+     * @return array{pairs:int, rows:list<array<string,mixed>>, required:int}
+     */
+    private static function incompleteScorecards(int $programmeId, array $scores): array
+    {
+        $required = count(array_filter(
+            JudgeRubric::effective($programmeId),
+            static fn (object $r): bool => (int) $r->is_active === 1
+        ));
+        if ($required < 1 || $scores === []) {
+            return ['pairs' => 0, 'rows' => [], 'required' => $required];
+        }
+
+        $marked = [];
+        foreach ($scores as $s) {
+            $k = (int) $s->judge_id . ':' . (int) $s->nominee_id;
+            $marked[$k] ??= ['judge' => (string) $s->judge_name, 'nominee' => (string) $s->nominee_name,
+                             'judge_id' => (int) $s->judge_id, 'nominee_id' => (int) $s->nominee_id,
+                             'criteria' => [], 'missing' => []];
+            $marked[$k]['criteria'][(int) $s->criterion_id] = true;
+        }
+
+        $rows = [];
+        foreach ($marked as $m) {
+            $n = count($m['criteria']);
+            if ($n >= $required) continue;
+            $rows[] = [
+                'judge'    => $m['judge'],
+                'nominee'  => $m['nominee'],
+                'marked'   => $n,
+                'required' => $required,
+                // The share of the rubric that decided this scorecard, which is what
+                // reweighting actually means to the nominee.
+                'covered'  => (int) round($n * 100 / $required),
+            ];
+        }
+
+        usort($rows, static fn (array $a, array $b): int => $a['marked'] <=> $b['marked']);
+
+        return ['pairs' => count($rows), 'rows' => array_slice($rows, 0, 50), 'required' => $required];
+    }
+
+    /**
+     * The nominees the panel could not agree about.
+     *
+     * ── WHERE A CHALLENGE LANDS ──────────────────────────────────────────────
+     *
+     * Not the lowest scores and not the closest results — the widest DISAGREEMENT. A
+     * nominee two judges rated 8.4 and 4.1 has a mark that is the average of two different
+     * opinions, and averaging them produced a number neither judge held. That is the row
+     * somebody appeals, and it was on no screen.
+     *
+     * ── THE PER-JUDGE AVERAGE IS THE SCORER'S, NOT A NEW ONE ─────────────────
+     *
+     * `sum(score × weight) / sum(weight)`, which is what {@see JudgeService::activity()}
+     * shows a judge about their own marking. Weight comes from the rubric rather than
+     * being assumed equal: a rubric where one criterion is worth half the mark would
+     * otherwise report agreement that does not exist.
+     *
+     * Deliberately NOT a ranking. This page does not decide who won — it says where the
+     * panel was furthest from itself, and leaves the result to the screens that publish it.
+     *
+     * @param list<object> $scores
+     * @return list<array<string,mixed>>
+     */
+    private static function disagreement(int $programmeId, array $scores): array
+    {
+        if ($scores === []) return [];
+
+        $weights = [];
+        foreach (JudgeRubric::effective($programmeId) as $r) {
+            $weights[(int) $r->id] = max(1, (int) $r->weight);
+        }
+
+        // [nominee][judge] => weighted sum + weight total
+        $acc = [];
+        foreach ($scores as $s) {
+            $nid = (int) $s->nominee_id;
+            $jid = (int) $s->judge_id;
+            $w   = $weights[(int) $s->criterion_id] ?? 1;
+
+            $acc[$nid]['name'] ??= (string) $s->nominee_name;
+            $acc[$nid]['j'][$jid] ??= ['ws' => 0.0, 'wt' => 0, 'judge' => (string) $s->judge_name];
+            $acc[$nid]['j'][$jid]['ws'] += (float) $s->score * $w;
+            $acc[$nid]['j'][$jid]['wt'] += $w;
+        }
+
+        $out = [];
+        foreach ($acc as $nid => $a) {
+            $avgs = [];
+            foreach ($a['j'] as $j) {
+                if ($j['wt'] > 0) $avgs[$j['judge']] = round($j['ws'] / $j['wt'], 2);
+            }
+            // One judge cannot disagree with anybody. That nominee's problem is a thin
+            // panel and coverage above already names it.
+            if (count($avgs) < 2) continue;
+
+            $out[] = [
+                'nominee_id' => $nid,
+                'nominee'    => $a['name'],
+                'judges'     => count($avgs),
+                'low'        => min($avgs),
+                'high'       => max($avgs),
+                'spread'     => round(max($avgs) - min($avgs), 2),
+                'marks'      => $avgs,
+            ];
+        }
+
+        usort($out, static fn (array $a, array $b): int => $b['spread'] <=> $a['spread']);
+
+        return array_slice($out, 0, 25);
     }
 
     /**
