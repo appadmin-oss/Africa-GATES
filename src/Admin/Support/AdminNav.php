@@ -152,6 +152,10 @@ final class AdminNav
                     // sound, this one whether an award's judging can be defended across
                     // every cycle it has run.
                     ['page' => 'judging-audit', 'label' => 'Judging Audit',       'href' => '/admin/judging-audit'],
+                    // The scores that crown every winner. They had no screen at all —
+                    // scoreCategory() was read by the promotion, a snapshot writer and a
+                    // console command on a host with no shell.
+                    ['page' => 'result-release','label' => 'Result release',      'href' => '/admin/result-release'],
                     ['page' => 'data',          'label' => 'All data',            'href' => '/admin/data'],
                     ['page' => 'analytics',     'label' => 'Analytics',           'href' => '/admin/analytics'],
                     ['page' => 'registrations', 'label' => 'Event Registrations', 'href' => '/admin/registrations'],

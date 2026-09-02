@@ -1,0 +1,245 @@
+{% extends 'admin/layout.twig' %}
+
+{#
+  THE RESULT RELEASE.
+
+  Every number that decides an award on this platform comes out of
+  NomineeScoringService::scoreCategory(). It had three callers — the promotion that crowns
+  winners, a snapshot writer, and a console command on a host with no shell — and no screen
+  at all. An operator could see who had been crowned and not one figure behind it.
+
+  This screen DECIDES NOTHING. It draws the promotion's own ranking, using the promotion's
+  own comparator, and writes nothing. A page that could crown somebody by being looked at
+  is not an audit of a release.
+#}
+
+{% block head_styles %}
+<style nonce="{{ csp_nonce }}">
+  .ja-lede{ background:#fff; border:1px solid rgba(16,41,44,.1); border-radius:14px;
+    padding:18px 20px; margin-bottom:16px }
+  .ja-lede h2{ margin:0 0 6px; font-size:14.5px; color:#10292C }
+  .ja-lede p{ margin:8px 0 0; font-size:12.5px; line-height:1.7; color:#5a6d6f; max-width:76ch }
+  .ja-row{ display:flex; gap:10px; flex-wrap:wrap; align-items:flex-end; margin-bottom:14px }
+
+  .ja-stats{ display:grid; grid-template-columns:repeat(auto-fit,minmax(132px,1fr)); gap:1px;
+    background:rgba(16,41,44,.1); border:1px solid rgba(16,41,44,.1); border-radius:10px;
+    overflow:hidden; margin-bottom:16px }
+  .ja-stat{ background:#fff; padding:12px 14px }
+  .ja-stat__k{ font-family:var(--ag-font-mono,monospace); font-size:10px; font-weight:700;
+    letter-spacing:.09em; text-transform:uppercase; color:#5a6d6f; margin:0 }
+  .ja-stat__v{ font-family:var(--ag-font-mono,monospace); font-size:20px; font-weight:700;
+    color:#10292C; margin:4px 0 0; line-height:1 }
+  /* Reserved for a count that should be zero. Never used for a large number. */
+  .ja-stat--bad .ja-stat__v{ color:#8a2b18 }
+
+  .ja-card{ background:#fff; border:1px solid rgba(16,41,44,.1); border-radius:14px;
+    padding:18px 20px; margin-bottom:16px }
+  .ja-card h3{ margin:0 0 4px; font-size:13.5px; color:#10292C }
+  .ja-card > p{ margin:0 0 14px; font-size:12.5px; line-height:1.7; color:#5a6d6f; max-width:76ch }
+
+  .ja-t{ width:100%; border-collapse:collapse; font-size:12.5px }
+  .ja-t th{ text-align:left; font-family:var(--ag-font-mono,monospace); font-size:10px;
+    font-weight:700; letter-spacing:.09em; text-transform:uppercase; color:#5a6d6f;
+    padding:0 10px 8px 0; border-bottom:1px solid rgba(16,41,44,.12) }
+  .ja-t td{ padding:10px 10px 10px 0; border-bottom:1px solid rgba(16,41,44,.06);
+    color:#3d4b4d; vertical-align:top }
+  .ja-t tr:last-child td{ border-bottom:none }
+  .ja-num{ font-family:var(--ag-font-mono,monospace); font-variant-numeric:tabular-nums }
+  .ja-name{ font-weight:600; color:#10292C }
+  /* The denominator, set beside the figure it qualifies rather than under it. */
+  .ja-den{ display:block; margin-top:3px; font-size:11px; color:#5a6d6f }
+
+  .ja-flag{ font-family:var(--ag-font-mono,monospace); font-size:10px; font-weight:700;
+    letter-spacing:.05em; text-transform:uppercase; padding:3px 8px; border-radius:999px;
+    background:rgba(16,41,44,.07); color:#3d4b4d; white-space:nowrap }
+  .ja-flag--bad{ background:#fdecea; color:#8a2b18 }
+  .ja-flag--warn{ background:#fffaf0; color:#7a5605 }
+
+  .ja-fact{ border-left:3px solid #8a2b18; background:#fdf6f5; border-radius:0 10px 10px 0;
+    padding:13px 16px; margin-bottom:12px }
+  .ja-fact b{ color:#8a2b18 }
+  .ja-fact p{ margin:6px 0 0; font-size:12.5px; line-height:1.65; color:#5a4442 }
+
+  .ja-caveat{ margin:14px 0 0; padding:12px 15px; border-left:3px solid #d49a0e;
+    background:#fffaf0; border-radius:0 8px 8px 0; font-size:12.5px; line-height:1.65;
+    color:#7a5605 }
+  .ja-empty{ font-size:12.5px; line-height:1.7; color:#5a6d6f; margin:0 }
+
+  /* ── THE LINE ─────────────────────────────────────────────────────────────
+     Where the award falls. A rule across the table rather than a colour on a row,
+     because "these two are the result and these are not" is a boundary, not a state. */
+  .ja-t tr.rr--cut td{ border-bottom:2px solid #10292C }
+  .ja-t tr.rr--out td{ color:#6b7b7d; background:rgba(16,41,44,.02) }
+  .ja-rank{ font-family:var(--ag-font-mono,monospace); font-weight:700; color:#10292C }
+  .ja-bar{ display:block; height:5px; margin-top:5px; border-radius:999px;
+    background:rgba(16,41,44,.09); overflow:hidden }
+  .ja-bar i{ display:block; height:100%; background:#237b22; border-radius:999px }
+  .ja-cat{ display:flex; align-items:baseline; justify-content:space-between; gap:12px;
+    flex-wrap:wrap; margin:0 0 4px }
+</style>
+{% endblock %}
+
+{% block topbar_title %}Result release{% endblock %}
+
+{% block content %}
+
+<div class="ja-lede">
+  <h2>What the release will do, and why</h2>
+  <p>Every scored nominee, in the order the award is decided in. The ranking here is not a
+    preview computed for this page &mdash; it is the same comparator the promotion uses, so
+    what is drawn is what will happen. Nothing on this screen changes anything.</p>
+  <p>A nominee out of the running is still listed, with the reason. An exclusion nobody can
+    see is the part of a result that is hardest to defend later.</p>
+</div>
+
+<form method="get" action="/admin/result-release" class="ja-row">
+  <label>
+    <span class="ja-den">Cycle</span>
+    <select name="cycle" data-ag-do="submit-form">
+      {% for c in cycles %}
+        <option value="{{ c.id }}"{{ c.id == cycle_id ? ' selected' : '' }}>
+          {{ c.programme ?: 'Programme' }} &mdash; {{ c.edition_label ?: c.year }} ({{ c.status }})
+        </option>
+      {% endfor %}
+    </select>
+  </label>
+  <button type="submit" class="ad-btn">Show</button>
+</form>
+
+{% if failed %}
+  <div class="ja-fact">
+    <b>The scores could not be read.</b>
+    <p>This is not &ldquo;nothing has been scored&rdquo; &mdash; the query failed, and the
+      two look identical on a screen. The reason is in the error log.</p>
+  </div>
+{% elseif categories is empty %}
+  <div class="ja-card">
+    <h3>Nothing has been scored in this cycle</h3>
+    <p class="ja-empty">No nominee here has a Cultural Power Index yet. That is the normal
+      state of a cycle before judging, and it is not a fault.</p>
+  </div>
+{% else %}
+
+  {# ── WHAT TO LOOK AT FIRST ─────────────────────────────────────────────── #}
+  <div class="ja-stats">
+    <div class="ja-stat">
+      <p class="ja-stat__k">Categories</p>
+      <p class="ja-stat__v">{{ attention.categories }}</p>
+    </div>
+    <div class="ja-stat{% if attention.blocked > 0 %} ja-stat--bad{% endif %}">
+      <p class="ja-stat__k">Crown nobody</p>
+      <p class="ja-stat__v">{{ attention.blocked }}</p>
+    </div>
+    <div class="ja-stat{% if attention.dead_heats > 0 %} ja-stat--bad{% endif %}">
+      <p class="ja-stat__k">Dead heats</p>
+      <p class="ja-stat__v">{{ attention.dead_heats }}</p>
+    </div>
+    <div class="ja-stat{% if attention.thin_margins > 0 %} ja-stat--bad{% endif %}">
+      <p class="ja-stat__k">Won by &le;10</p>
+      <p class="ja-stat__v">{{ attention.thin_margins }}</p>
+    </div>
+    <div class="ja-stat">
+      <p class="ja-stat__k">Excluded</p>
+      <p class="ja-stat__v">{{ attention.excluded }}</p>
+    </div>
+    <div class="ja-stat">
+      <p class="ja-stat__k">Provisional</p>
+      <p class="ja-stat__v">{{ attention.provisional }}</p>
+    </div>
+  </div>
+
+  {% for c in categories %}
+    <div class="ja-card">
+      <div class="ja-cat">
+        <h3>{{ c.category.title|default('Category #' ~ c.category.id|default('?')) }}</h3>
+        <span class="ja-den">
+          {{ (c.weights.community * 100)|round }}% community &middot;
+          {{ (c.weights.judge * 100)|round }}% judges &middot;
+          quorum {{ c.quorum }} judge{{ c.quorum == 1 ? '' : 's' }}
+          {%- if c.shortlisted is not null %} &middot; shortlisted field of {{ c.shortlisted|length }}{% endif %}
+        </span>
+      </div>
+
+      {# ── THE THINGS THAT NEEDED A HUMAN AND WENT INTO A LOG ─────────────
+         "no nominee meets the judge quorum" and "DEAD HEAT ... this one needs a human"
+         were written into the maintenance log by the promotion. There is no shell on this
+         deployment, so nobody has ever read either sentence. #}
+      {% if c.blocked %}
+        <div class="ja-fact"><b>This category crowns nobody.</b><p>{{ c.blocked }}</p></div>
+      {% elseif c.dead_heat %}
+        <div class="ja-fact">
+          <b>Dead heat for first place.</b>
+          <p>{{ c.winner.name }} and {{ c.runner_up.name }} are on the same Cultural Power
+            Index with the same organic support. The methodology cannot separate them, so
+            the award goes to the lower nominee id to keep the promotion deterministic.
+            <strong>This one needs a person to decide.</strong></p>
+        </div>
+      {% elseif c.margin is not null and c.margin <= 10 %}
+        <p class="ja-caveat">First and second are <b>{{ c.margin }}</b> apart on a
+          0&ndash;1000 index. A result this close can turn on one judge changing one mark
+          &mdash; the <a href="/admin/judging-audit">judging audit</a> says whether one did.</p>
+      {% endif %}
+
+      <table class="ja-t">
+        <thead>
+          <tr>
+            <th>#</th><th>Nominee</th><th>CPI</th><th>Judges</th>
+            <th>Judge mark</th><th>Organic</th><th>All votes</th><th>Standing</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for r in c.rows %}
+            <tr class="{% if not r.in_running %}rr--out{% elseif r.rank == 2 %}rr--cut{% endif %}">
+              <td class="ja-rank">{{ r.rank ?: '&mdash;'|raw }}</td>
+              <td class="ja-name">{{ r.name }}
+                {%- if r.out_reason %}<span class="ja-den">{{ r.out_reason }}</span>{% endif %}</td>
+              <td class="ja-num">{{ r.cpi }}
+                {# The index as a bar, because a column of four-digit numbers does not
+                   show a gap and the gap is the whole question. #}
+                <span class="ja-bar"><i style="width:{{ (r.cpi / 10)|round }}%"></i></span>
+              </td>
+              <td class="ja-num">
+                {% if r.judges < c.quorum %}
+                  <span class="ja-flag ja-flag--warn">{{ r.judges }} of {{ c.quorum }}</span>
+                {% else %}{{ r.judges }}{% endif %}
+              </td>
+              <td class="ja-num">
+                {%- if r.judge_score is null %}&mdash;
+                {%- else %}{{ r.judge_score|round(1) }}{% endif %}
+                {%- if r.provisional %}<span class="ja-den">judge half not counted</span>{% endif %}
+              </td>
+              <td class="ja-num">{{ r.organic|number_format }}</td>
+              {# BOTH numbers. `organic` decided this; `vote_count` is what the public page
+                 shows and it includes purchased support, which must never move a rank. #}
+              <td class="ja-num">{{ r.vote_count|number_format }}
+                {%- if r.vote_count > r.organic %}
+                  <span class="ja-den">{{ (r.vote_count - r.organic)|number_format }} not organic</span>
+                {% endif %}
+              </td>
+              <td>
+                {% if r.status == 'winner' %}<span class="ja-flag">crowned</span>
+                {% elseif r.status == 'runner_up' %}<span class="ja-flag">runner-up</span>
+                {% elseif r.rank == 1 %}<span class="ja-flag">wins</span>
+                {% elseif r.rank == 2 %}<span class="ja-flag">second</span>
+                {% else %}&mdash;{% endif %}
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+
+      {% if c.margin is not null and c.margin > 10 %}
+        <p class="ja-den" style="margin-top:12px">First is {{ c.margin }} ahead of second on
+          a 0&ndash;1000 index.</p>
+      {% endif %}
+    </div>
+  {% endfor %}
+
+  <p class="ja-caveat">A provisional figure is not a Cultural Power Index. Where the judge
+    quorum has not been met the judge half is scored as absent rather than renormalised
+    away &mdash; the conservative direction, because renormalising would put an unjudged
+    nominee at the top of the board on popularity alone, which is the one thing this
+    platform exists to prevent.</p>
+{% endif %}
+
+{% endblock %}

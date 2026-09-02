@@ -280,35 +280,12 @@ final class CycleMaterialiser
      *
      * $announce=false promotes silently (stale backlog — see ANNOUNCE_GRACE_DAYS).
      */
-    /**
-     * Nominee ids on this category's published shortlist, or NULL when it has none.
-     *
-     * The null is load-bearing and is not the same as an empty list: "this category does
-     * not shortlist" and "this category shortlisted nobody" are different states, and
-     * collapsing them would stop a non-shortlisting programme from ever crowning anybody.
-     *
-     * @return list<int>|null
-     */
-    private function shortlistedIn(int $categoryId): ?array
-    {
-        try {
-            $shortlistId = (int) (DB::table('gates_shortlists')
-                ->where('category_id', $categoryId)->where('status', 'published')
-                ->orderByDesc('id')->value('id') ?? 0);
-
-            if ($shortlistId < 1) return null;
-
-            return array_map('intval', DB::table('gates_shortlist_entries')
-                ->where('shortlist_id', $shortlistId)->pluck('nominee_id')->all());
-        } catch (\Throwable $e) {
-            // The shortlist tables arrive in a migration. On a deployment that has not run
-            // it, NULL is the honest answer — there is no shortlist to respect — and the
-            // promotion behaves exactly as it did before shortlisting existed.
-            $this->log('    ! could not read the shortlist for category ' . $categoryId
-                       . ': ' . $e->getMessage());
-            return null;
-        }
-    }
+    // shortlistedIn() WAS HERE. It is now ResultRelease::shortlistedIn(), because the
+    // release screen has to ask the same question this promotion asks and a second copy
+    // of "which nominees are on the published shortlist" is the drift this codebase has
+    // a rule about. The null-versus-empty distinction that made it worth a docblock moved
+    // with it: "does not shortlist" and "shortlisted nobody" are different states, and
+    // collapsing them stops a non-shortlisting programme crowning anybody.
 
     private function promoteWinners(int $cycleId, bool $announce = true): int
     {
@@ -344,7 +321,7 @@ final class CycleMaterialiser
             // Applied ONLY when a published shortlist exists. A programme that does not
             // shortlist at all is a legitimate configuration, and an empty filter there
             // would crown nobody, ever.
-            $shortlisted = $this->shortlistedIn((int) $catId);
+            $shortlisted = ResultRelease::shortlistedIn((int) $catId);
             if ($shortlisted !== null) {
                 $dropped = array_values(array_diff($eligibleIds, $shortlisted));
                 if ($dropped !== []) {
@@ -370,7 +347,20 @@ final class CycleMaterialiser
                 // ORGANIC, not vote_count — see the note above. A nominee with nothing
                 // but purchased votes is not promotable.
                 ->filter(fn ($n) => $n->cpi > 0 || $n->organic > 0)
-                ->sort(fn ($a, $b) => [$b->cpi, $b->organic, $a->id] <=> [$a->cpi, $a->organic, $b->id])
+                // ── ONE COMPARATOR, SHARED WITH THE SCREEN THAT SHOWS IT ─────
+                //
+                // {@see ResultRelease::order()}. The release screen draws every scored
+                // nominee in the order the award is decided in; if it sorted with its own
+                // copy of this expression the two could drift, and the drift would be
+                // between what an operator was shown before the release and what the
+                // release then did. That is worse than showing them nothing.
+                //
+                // The tiebreak is ORGANIC and the reasoning is in that method: this broke
+                // on `vote_count` once, and at that single moment whoever had bought votes
+                // took the award while every guard upstream became decoration.
+                ->sort(fn ($a, $b) => ResultRelease::order(
+                    ['cpi' => $a->cpi, 'organic' => $a->organic, 'nominee_id' => (int) $a->id],
+                    ['cpi' => $b->cpi, 'organic' => $b->organic, 'nominee_id' => (int) $b->id]))
                 ->values();
             if ($ranked->isEmpty()) continue;
 

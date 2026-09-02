@@ -3139,6 +3139,19 @@ return function(App $app) {
         // every change to every mark since it was added and which nothing read.
         $a->get('/judging-audit', \AfricaGates\Admin\Controllers\JudgingAuditController::class.':index');
 
+        // ── THE SCORES THAT DECIDE AN AWARD ─────────────────────────────────
+        //
+        // NomineeScoringService::scoreCategory() crowns every winner on this platform and
+        // had three callers: the promotion, a snapshot writer, and a console command on a
+        // host with no shell. No screen. An operator could see who had won and not one
+        // figure behind it — not the CPI, not the community/judge split, not who was
+        // excluded for missing the quorum or for being off the shortlist, and not whether
+        // first and second were separated at all.
+        //
+        // Read-only by construction: it draws the promotion's own ranking rather than
+        // re-deriving it, and writes nothing. See ResultRelease.
+        $a->get('/result-release', \AfricaGates\Admin\Controllers\ResultReleaseController::class.':index');
+
         // ── WHAT VENDORS MUST SUPPLY, AND MAY SELL ──────────────────────────
         //
         // Both were constants in PHP, on a deployment with no SSH — so a craft market of
