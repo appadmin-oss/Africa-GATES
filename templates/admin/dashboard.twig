@@ -226,17 +226,32 @@
 </div>
 
 <div class="ad-card">
-  <div class="ad-card__head"><div class="ad-card__title">Recent admin activity<small>Latest 12 actions</small></div></div>
+  <div class="ad-card__head" style="display:flex;justify-content:space-between;align-items:center;gap:12px">
+    <div class="ad-card__title">Recent admin activity<small>Latest 12 actions</small></div>
+    {# The whole log, searchable. This strip is twelve rows — under a minute on a busy
+       morning — and until /admin/audit existed it was one of only two ways to read a
+       table 124 places write to. #}
+    <a class="ad-btn ad-btn--sm" href="/admin/audit">The whole log →</a>
+  </div>
   <div class="ad-card__body">
     <table class="ad-table">
       <thead><tr><th scope="col">When</th><th scope="col">Admin</th><th scope="col">Action</th><th scope="col">Target</th></tr></thead>
       <tbody>
         {% for e in recent_activity %}
         <tr>
-          <td style="color:var(--ad-text-soft);font-family:'Space Mono',monospace;font-size:12px">{{ e.created_at }}</td>
-          <td>{{ e.admin_name|default('—') }}</td>
+          {# |when, not the raw column: storage is UTC by this application's convention,
+             so printing it unconverted showed an operator in Lagos a time an hour off
+             with nothing on the page saying which zone it was. #}
+          <td style="color:var(--ad-text-soft);font-family:'Space Mono',monospace;font-size:12px">{{ e.created_at|when }}</td>
+          <td>{% if e.admin_id %}<a href="/admin/audit/actor/{{ e.admin_id }}">{{ e.admin_name|default('Admin #' ~ e.admin_id) }}</a>{% else %}<span style="color:var(--ad-text-mute)">Unattributed</span>{% endif %}</td>
           <td><span class="ad-chip ad-chip--grey">{{ e.action }}</span></td>
-          <td style="color:var(--ad-text-soft)">{{ e.target_type ?? '—' }}{% if e.target_id %} #{{ e.target_id }}{% endif %}</td>
+          {# The target NAMED. AuditService::search() resolves it now, so this strip no
+             longer says `nominee #412` at somebody who cannot look 412 up. #}
+          <td style="color:var(--ad-text-soft)">
+            {%- if e.target_type -%}
+              <a href="/admin/audit?type={{ e.target_key|url_encode }}{% if e.target_id %}&amp;tid={{ e.target_id }}{% endif %}">{{ e.target_name ?? (e.target_label ~ (e.target_id ? ' #' ~ e.target_id : '')) }}</a>
+            {%- else -%}—{%- endif -%}
+          </td>
         </tr>
         {% else %}
         <tr><td colspan="4" style="text-align:center;color:var(--ad-text-mute);padding:24px">No activity yet.</td></tr>

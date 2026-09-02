@@ -49,6 +49,7 @@ CREATE TABLE IF NOT EXISTS gates_audit_log (
 CREATE INDEX IF NOT EXISTS idx_audit_admin ON gates_audit_log(admin_id);
 CREATE INDEX IF NOT EXISTS idx_audit_action ON gates_audit_log(action);
 CREATE INDEX IF NOT EXISTS idx_audit_created ON gates_audit_log(created_at);
+CREATE INDEX IF NOT EXISTS idx_audit_target ON gates_audit_log(target_type, target_id);
 
 CREATE TABLE IF NOT EXISTS gates_judges (
   id INTEGER PRIMARY KEY AUTOINCREMENT,

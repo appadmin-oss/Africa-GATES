@@ -3152,6 +3152,36 @@ return function(App $app) {
         // re-deriving it, and writes nothing. See ResultRelease.
         $a->get('/result-release', \AfricaGates\Admin\Controllers\ResultReleaseController::class.':index');
 
+        // ── WHO DID WHAT, TO WHICH RECORD, FROM WHERE ───────────────────────
+        //
+        // gates_audit_log is written from 124 places across every admin controller —
+        // the admin, the action, the target, a JSON meta naming what changed, a hashed
+        // IP and the user agent. As a record it is close to complete.
+        //
+        // It could be READ two ways, and neither of them answers a question. The
+        // dashboard shows the last twelve rows, which on a busy morning is under a
+        // minute. /admin/data/audit-log dumps the raw columns: the admin is an integer,
+        // the target is an integer, `meta` is not a list column, and `ip_hash` ends in
+        // `_hash` so DataRegistry::isHidden() strips it from the detail page and the
+        // export both — it has never been rendered anywhere at all.
+        //
+        // So on a host with no shell: what has this admin been doing, everything that
+        // ever happened to this nominee, who changed the payment settings last month,
+        // was that run from the same machine as the rest of the session — all recorded,
+        // none reachable.
+        //
+        // Same roles as the raw dump it replaces (DataRegistry's see-all tier), so this
+        // adds a reader and changes nobody's access. Read-only, and deliberately not
+        // audited itself: a log that records being read fills with rows about itself.
+        $a->get('/audit',                    \AfricaGates\Admin\Controllers\AuditController::class.':index')
+            ->add(new RoleMiddleware('superadmin', 'admin', 'viewer'));
+        $a->get('/audit/actor/{id:[0-9]+}',  \AfricaGates\Admin\Controllers\AuditController::class.':actor')
+            ->add(new RoleMiddleware('superadmin', 'admin', 'viewer'));
+        // A writable-by-hand link for one record's history, so another screen can point
+        // at it from a type and an id without knowing the filter's query-string shape.
+        $a->get('/audit/on/{type}/{id:[0-9]+}', \AfricaGates\Admin\Controllers\AuditController::class.':target')
+            ->add(new RoleMiddleware('superadmin', 'admin', 'viewer'));
+
         // ── WHAT VENDORS MUST SUPPLY, AND MAY SELL ──────────────────────────
         //
         // Both were constants in PHP, on a deployment with no SSH — so a craft market of

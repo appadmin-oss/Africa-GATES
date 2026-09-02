@@ -1217,3 +1217,155 @@ The same one §19 named, and it held for all 76: **is there prose somewhere prom
 this column does?** A column nothing has claimed for is a vestige and costs nothing to
 leave. One a docblock, a migration comment or a screen has already promised is a lie with
 a schema behind it.
+
+---
+
+## 23. The record everything writes and nothing could ask (2026-09-02)
+
+§17 is a column nothing writes to. §22 asked it of all 1,759 columns. This is the same
+question's mirror image, and the sweeps could not see it because every counter said the
+data was fine: **a table 124 places write, that nothing could ask a question of.**
+
+### What was actually there
+
+`gates_audit_log` is written from 124 call sites across every admin controller — around a
+hundred distinct actions, each carrying the admin, the target type and id, a JSON `meta`
+naming what changed, a hashed IP and the user agent. As a *record* it is close to
+complete. Nothing in it was missing.
+
+It had two readers:
+
+1. **`AuditService::recent(12)`** on the dashboard. Twelve rows. On a busy morning that is
+   under a minute of activity, and there was no way to see the thirteenth.
+2. **`/admin/data/audit-log`**, the generic table browser. It dumps the raw columns: the
+   admin is `7`, the target is `412`, and the free-text search covers the `action` string
+   alone. `meta` — the column holding *what changed* — is not in its list. And `ip_hash`
+   ends in `_hash`, so `DataRegistry::isHidden()` strips it from the detail page **and the
+   CSV export**: it has never been rendered anywhere, in any form, since the table shipped.
+
+So on a host with no shell, every question anybody actually brings to an audit log was
+unanswerable. What has this admin been doing. Everything that ever happened to this
+nominee. Who changed the payment settings last month. Was that run from the same machine
+as the rest of their session. Each fact was on disk. None of them could be reached.
+
+### The sharper question this adds
+
+§17 asks *is anything reading this column*. §22 asks *is there prose promising what it
+does*. Both would clear `gates_audit_log` — 124 writers, two readers, a docblock that
+describes precisely what it stores and stores it.
+
+The question that catches it is about **shape**, not existence:
+
+> **Can the only reader answer the question the data was collected for?**
+
+Twelve unfiltered rows is a reader. It is not a reader of a log. A generic table dump is a
+reader. It is not a reader of a *relational* record, because the columns that carry the
+meaning — who, what, on which thing — are foreign keys, and a dump renders them as
+integers. Both readers pass a grep. Neither closes the loop.
+
+### What was built
+
+- `Admin\Support\AuditTargets` — 50 target types across ~40 tables resolved to names, in
+  **one batched query per type present on the page**, never one per row. Every lookup
+  degrades to the bare `type #id` the log already had: a target deleted two years ago is
+  the audit trail working, not failing.
+- `AuditService::search()` — the one query builder. Filters on admin (including the
+  unattributed rows, which had no way to be selected), area, action, target, date range
+  and free text; pages; counts before the limit so the screen can say *3 of 41,220*.
+- `AuditService::facets()` — the filter lists built from the log itself. A hardcoded list
+  would go stale the first time somebody added a controller, and a filter that silently
+  omits an action is how you conclude something never happened.
+- `AuditService::actorSummary()` — volume, span, and **distinct networks**, which is the
+  thing `ip_hash` was recorded for and had never been counted.
+- `/admin/audit`, `/admin/audit/actor/{id}`, `/admin/audit/on/{type}/{id}`. Same roles as
+  the raw dump it replaces, so this adds a reader and changes nobody's access. Read-only,
+  and deliberately **not** audited itself: a log that records being read fills with rows
+  about itself and buries what somebody opened it to find.
+- The dashboard strip now calls `search()`. It would have been less work to leave its own
+  query alone, and that is exactly how two readers of one table come to disagree — the
+  strip would keep printing `nominee #412` while the screen resolved it, and nobody would
+  know which was right.
+
+### Two defects only a reader could find
+
+- **One subject filed under two names.** `gates_site_events` is written as `'site_event'`
+  by `EventsController` and `'event'` by `StandsController`; `gates_settings` as both
+  `'settings'` and `'setting'`. So one event's history sits in two buckets, and anybody
+  filtering for it sees roughly half depending on which word they picked — a *complete
+  looking* answer that is wrong, which is worse than none. Reconciled in
+  `AuditTargets::ALIASES` rather than by rewriting the rows: the log is the record, and a
+  record edited to look tidier is not a record.
+- **The dashboard printed stored UTC raw.** Same fault as the tickets screen: an operator
+  in Lagos was shown a time an hour out with nothing on the page naming a zone. It is
+  `|when` now.
+
+### And the reader found a shipped bug in the writer
+
+Building the per-admin view meant asking what an "unattributed" row is, and the answer was
+that on production **there are none, because they were all refused.**
+
+`gates_audit_log.admin_id` carries `fk_audit_admin` to `gates_admins(id)` — in the base
+schema, both drivers, since the table shipped. There is no admin with id 0. And **71 call
+sites** pass `(int) ($_SESSION['admin_id'] ?? 0)`, so every action taken without a live
+session inserts a `0`:
+
+```
+mysql> INSERT INTO gates_audit_log (admin_id, action) VALUES (0, 'votes.deliver');
+ERROR 1452 (23000): Cannot add or update a child row: a foreign key constraint fails
+```
+
+`AuditService::record()` wraps the insert in a catch whose comment reads *"Audit failures
+must never break the app"*, which is correct and is also why nobody found out. So the
+audit log has been failing at precisely the moment it matters most: **the action nobody
+was logged in for** — scheduled work, the console, a session that expired between the page
+and the post.
+
+It was doubly invisible. The harness runs `PRAGMA foreign_keys = OFF` (`TestCase`), so the
+suite has always been green; and an audit write is deliberately forbidden from surfacing
+an error, so production could not report it either. Neither the §17 sweep nor the §22 one
+could see it: the column has 124 writers and a reader, and every counter said it was fine.
+
+**Fixed in `record()`, not at 71 call sites.** 0 was never an admin id — it is the "no
+session" sentinel `?? 0` leaks, and NULL is what the column already means by it. Pinned by
+asserting the **stored value**, so it holds on SQLite too, where the constraint is off and
+the wrong value sails straight in.
+
+**No repair migration, and nothing to repair.** The FK has been on the table from the
+start on MySQL, so no `admin_id = 0` row was ever written there. The rows that should have
+existed do not, and nothing here can invent them — stated plainly rather than papered
+over, the same as `2026_12_01_sms_optout_mask_widen.php`.
+
+### The LIKE escape, which is a MySQL/SQLite trap pointing the wrong way
+
+Filtering by area needs `action LIKE 'stand_call.%'`, and several areas contain an
+underscore — `stand_call`, `vendor_policy`, `stand_type`. Escaping it the obvious way
+gives `LIKE 'stand\_call.%'`, and **MySQL's default LIKE escape is a backslash while
+SQLite has none at all**. Measured on both engines here:
+
+| form | MySQL | SQLite |
+|---|---|---|
+| `LIKE 'stand\_call.%'` | 1 | **0** |
+| `LIKE 'stand!_call.%' ESCAPE '!'` | 1 | 1 |
+
+So the naive form works on production and silently returns nothing in dev and in the
+suite. That is §21's divergence running backwards, and it is the more dangerous direction:
+the failure looks like the feature simply not working, so somebody "fixes" a filter that
+was never broken where it runs.
+
+Spelling the clause out is the fix, but **not with a backslash**: `ESCAPE '\\'` is one
+character to MySQL and two to SQLite, which does not process escapes inside string
+literals, and `ESCAPE '\'` is an unterminated literal to MySQL. `!` needs no escaping in
+either dialect and is a wildcard in neither. See `AuditService::like()`.
+
+### Tests
+
+`tests/Unit/AuditLogReaderTest.php` (23) and `tests/Unit/AuditScreenRenderTest.php` (19).
+**Eleven mutations were run against them and all eleven were caught**: the naive LIKE
+escape (0 rows on SQLite), `aliasesOf()` returning only what was asked for, `recent()`
+growing its own query, the bare end-date bound not extended to end of day, a wrong table
+name in the target map, `record()` no longer normalising the sentinel, the summary growing
+its own admin predicate, the hidden action field dropped from the form, the area's actions
+not rendered, the inert admin control left on the per-admin view, and the target index
+removed from both the schema and the migration. The render test compiles the real template against a stubbed layout with
+`strict_variables` on — a route test proves a screen is *reachable*, which is a different
+claim from the screen *working*, and everything that 500s an admin page happens at render.

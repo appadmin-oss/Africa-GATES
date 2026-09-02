@@ -38,6 +38,21 @@ enforces:
 - MySQL normalises a `T`-separated datetime when it lands in a `TIMESTAMP` column. SQLite
   stores the string verbatim, so `2026-01-01T09:00` compares wrong and a comparison that
   passes every test silently rejects real input.
+- **SQLite does not enforce a foreign key here at all, and the harness turns them off.**
+  `gates_audit_log.admin_id` has an FK to `gates_admins`, and 71 call sites write
+  `(int) ($_SESSION['admin_id'] ?? 0)`. There is no admin 0, so MySQL refused every row
+  written without a live session — cron, the console, an expired session — and
+  `AuditService::record()`'s catch swallowed it. The audit log was failing at the one
+  moment it matters most, green in the suite the whole time. Normalise a sentinel where it
+  is written, not at 71 call sites, and pin it on the **stored value** so the assertion
+  survives `PRAGMA foreign_keys = OFF`.
+- **And one trap runs the other way, which is worse.** `LIKE` needs its wildcards escaped;
+  MySQL's default escape is a backslash and **SQLite has none at all**. So
+  `LIKE 'stand\_call.%'` matches on production and returns **zero** rows in dev and in the
+  suite — the failure looks like the feature simply not working, and somebody "fixes" a
+  filter that was never broken where it runs. Spell the clause out, and not with a
+  backslash: `ESCAPE '\\'` is one character to MySQL and two to SQLite, `ESCAPE '\'` is an
+  unterminated literal to MySQL. `!` is safe in both. See `AuditService::like()`.
 - Anything with a `NOT NULL` column and no default will pass in a test that omits it only
   if you got lucky; check the schema, not the fixture.
 
@@ -184,6 +199,15 @@ Full account in `docs/CODEBASE-INDEX.md` §16.
   renders it with `JSON_UNESCAPED_SLASHES`, so `</script>` in a campaign title closes the
   script element. Everything in `src/Support/Schema.php` goes through `text()`.
 - **No secrets, no model identifiers, and no operator email addresses in commits.**
+- **And its mirror image: a record everything writes that nothing can ask.** `gates_audit_log`
+  has 124 writers and passed every sweep — §17's (is anything reading it?) and §19's (does
+  prose promise it?) both. It still could not answer a single question anybody brings to an
+  audit log, because its two readers were the dashboard's last **twelve** rows and a generic
+  table dump rendering the admin as `7` and the target as `412`. `ip_hash` ends in `_hash`,
+  so `DataRegistry::isHidden()` stripped it from the detail page and the CSV export alike —
+  never rendered anywhere since the table shipped. The question that catches this shape is
+  not *is anything reading it* but **can the only reader answer the question the data was
+  collected for?** `docs/CODEBASE-INDEX.md` §23.
 - **A declared field with no reader is the most expensive bug available here.** Six have
   shipped: `AiCapability::$model` (read into the log, never onto the wire),
   `AiCapability::$timeout` (nothing at all — every summary ran on a 6s default and the

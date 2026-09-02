@@ -156,6 +156,12 @@ final class AdminNav
                     // scoreCategory() was read by the promotion, a snapshot writer and a
                     // console command on a host with no shell.
                     ['page' => 'result-release','label' => 'Result release',      'href' => '/admin/result-release'],
+                    // The record of every admin action. 124 places write it; the only
+                    // things that could read it were the dashboard's last twelve rows
+                    // and a raw table dump where the admin and the target are bare
+                    // integers. Same roles as that dump, so this adds a reader
+                    // rather than access.
+                    ['page' => 'audit',        'label' => 'Audit log',           'href' => '/admin/audit'],
                     ['page' => 'data',          'label' => 'All data',            'href' => '/admin/data'],
                     ['page' => 'analytics',     'label' => 'Analytics',           'href' => '/admin/analytics'],
                     ['page' => 'registrations', 'label' => 'Event Registrations', 'href' => '/admin/registrations'],

@@ -53,6 +53,10 @@ CREATE TABLE IF NOT EXISTS gates_audit_log (
   KEY idx_audit_admin (admin_id),
   KEY idx_audit_action (action),
   KEY idx_audit_created (created_at),
+  -- The per-record trail: WHERE target_type = ? AND target_id = ?. Composite and in
+  -- this order, so it also serves the type-only filter and the GROUP BY that builds
+  -- the filter list. See 2026_12_02_audit_target_index.php.
+  KEY idx_audit_target (target_type, target_id),
   CONSTRAINT fk_audit_admin FOREIGN KEY (admin_id) REFERENCES gates_admins(id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
