@@ -587,11 +587,24 @@
        14:00 read as a contradiction rather than a choice. #}
     <div style="border:1px solid var(--ad-line,#e2e8e6);border-radius:12px;padding:14px 16px;margin-top:6px;background:#fafcfa" x-data="evRepeater({{ session_seed|default([])|json_encode|e('html_attr') }}, {sid:0,title:'',body:'',from:'',until:'',room:'',track:'',who:'',live:true})">
       <strong style="font-size:14px">Agenda <small style="font-weight:400;color:#8a9a9c">(sessions — use this instead of the run of show for anything with tracks or more than one room)</small></strong>
-      <template x-for="r in rows" :key="r.id">
+      <template x-for="(r, i) in rows" :key="r.id">
         <div style="border-top:1px solid var(--ad-line,#e2e8e6);margin-top:10px;padding-top:10px">
           <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
             <input type="hidden" name="ses_id[]" :value="r.sid || ''">
             <input type="hidden" name="ses_live[]" :value="r.live ? '1' : '0'">
+            {# EventAgenda reads `sort_order` BEFORE `starts_at`, so this is the order the
+               agenda is published in even when the times disagree with it — which is the
+               case these arrows exist for. Two sessions in different rooms at the same
+               hour have no natural order, and a keynote that has not been timed yet must
+               still be able to sit at the top. #}
+            <span aria-hidden="true" class="ev-move__n" x-text="i + 1"></span>
+            <span style="display:inline-flex;flex:none">
+              <button type="button" class="ev-move" @click="move(r.id, -1)" :disabled="i === 0"
+                      :aria-label="'Move ' + (r.title || 'this session') + ' up'">▲</button>
+              <button type="button" class="ev-move" @click="move(r.id, 1)"
+                      :disabled="i === rows.length - 1"
+                      :aria-label="'Move ' + (r.title || 'this session') + ' down'">▼</button>
+            </span>
             <input name="ses_title[]" aria-label="Session title" x-model="r.title" maxlength="200" placeholder="Session title" style="flex:1;min-width:180px">
             <button type="button" @click="rm(r.id)" aria-label="Remove session" style="border:none;background:#fbeaea;color:#a4243a;font-weight:700;border-radius:8px;width:34px;height:34px;cursor:pointer;flex:none">×</button>
           </div>
@@ -618,8 +631,18 @@
     {# Run-of-show repeater #}
     <div style="border:1px solid var(--ad-line,#e2e8e6);border-radius:12px;padding:14px 16px;margin-top:6px;background:#fafcfa" x-data="evRepeater({{ sched_seed|json_encode|e('html_attr') }}, {time:'',title:'',body:''})">
       <strong style="font-size:14px">Run of show <small style="font-weight:400;color:#8a9a9c">(optional — renders as a timeline)</small></strong>
-      <template x-for="r in rows" :key="r.id">
+      <template x-for="(r, i) in rows" :key="r.id">
         <div style="display:flex;gap:8px;align-items:flex-start;margin-top:8px">
+          {# The run of show is stored as a JSON array in exactly this order — there is no
+             time field to fall back on, because "18:00" here is a free-text label and
+             "Doors" sorts before "9:00" as a string. The row order IS the timeline. #}
+          <span style="display:inline-flex;flex:none">
+            <button type="button" class="ev-move" @click="move(r.id, -1)" :disabled="i === 0"
+                    :aria-label="'Move ' + (r.title || 'this item') + ' up'">▲</button>
+            <button type="button" class="ev-move" @click="move(r.id, 1)"
+                    :disabled="i === rows.length - 1"
+                    :aria-label="'Move ' + (r.title || 'this item') + ' down'">▼</button>
+          </span>
           <input name="sched_time[]" aria-label="Schedule time" x-model="r.time" maxlength="40" placeholder="18:00" style="width:88px;flex:none">
           <div style="flex:1;display:flex;flex-direction:column;gap:6px;min-width:0">
             <input name="sched_title[]" aria-label="Schedule item title" x-model="r.title" maxlength="160" placeholder="Item title">

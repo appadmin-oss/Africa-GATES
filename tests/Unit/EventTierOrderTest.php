@@ -265,6 +265,39 @@ final class EventTierOrderTest extends TestCase
             'the arrows call a method the repeater does not define');
     }
 
+    /**
+     * All three repeaters on this form can be reordered, not just the tiers.
+     *
+     * They share `evRepeater`, and each stores its order by row position: tiers write
+     * `sort_order = $order++`, sessions write `$i * 10`, and the run of show is a JSON
+     * array built in loop order. `EventAgenda` reads `sort_order` BEFORE `starts_at`, so a
+     * moved session really does move — two sessions in different rooms at the same hour
+     * have no natural order, and an untimed keynote must still be able to sit at the top.
+     *
+     * The run of show has no time to fall back on at all: its "18:00" is a free-text
+     * label, and "Doors" sorts before "9:00" as a string. Row order is the timeline.
+     */
+    public function test_every_repeater_on_the_form_can_be_reordered(): void
+    {
+        $tpl = (string) file_get_contents(
+            dirname(__DIR__, 2) . '/templates/admin/events/form.twig');
+
+        // Three repeaters, so three indexed loops: `r in rows` gives no index, and without
+        // one neither arrow can know it is at an end.
+        $this->assertSame(3, substr_count($tpl, 'x-for="(r, i) in rows"'),
+            'a repeater is still looping without an index, so its arrows cannot pin the ends');
+
+        // Six arrows: up and down for tiers, sessions and the run of show.
+        $this->assertSame(3, substr_count($tpl, 'move(r.id, -1)'));
+        $this->assertSame(3, substr_count($tpl, 'move(r.id, 1)'));
+
+        foreach (['this tier', 'this session', 'this item'] as $what) {
+            $this->assertStringContainsString("'Move ' + (r." . ($what === 'this tier' ? 'name' : 'title')
+                . " || '" . $what . "') + ' up'", $tpl,
+                'the ' . $what . ' repeater has no labelled move control');
+        }
+    }
+
     /** Both ends of the ladder are pinned, so an arrow never walks a row off the list. */
     public function test_the_arrows_are_disabled_at_the_ends(): void
     {
