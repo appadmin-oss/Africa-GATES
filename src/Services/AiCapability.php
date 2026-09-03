@@ -3,6 +3,9 @@ declare(strict_types=1);
 
 namespace AfricaGates\Services;
 
+use AfricaGates\Support\Env;
+use Illuminate\Database\Capsule\Manager as DB;
+
 /**
  * The registry of things this platform is allowed to ask a model to do.
  *
@@ -134,33 +137,221 @@ final class AiCapability
     public const TIER_FAST   = 'fast';
 
     /**
-     * Primary model per tier. GROQ, whose relevant models are free-tier.
+     * The providers this platform can be pointed at, and what to call them on a screen.
      *
-     * This was briefly `openai:gpt-4o` / `openai:gpt-4o-mini`. That is wrong for this
-     * deployment: the OpenAI key is not on a paid plan, so every pinned call would
-     * 401 and fall through the ladder — turning the primary provider into a wasted
-     * round trip on the hot path of every AI feature, most damagingly on
-     * `moderation.classify`, which sits on the nomination submit and is capped at ONE
-     * attempt. Pinning a provider that cannot answer there does not degrade the
-     * feature gracefully; it disables it.
-     *
-     * `llama-3.3-70b-versatile` and `llama-3.1-8b-instant` are the two ids this
-     * codebase has been running against, so they are known-good here rather than
-     * guessed at. WRITE shares the 70b model with REASON and differs in its
-     * parameters — see {@see PARAMS}. That is still delegation: the axis is
-     * model-and-settings, and a classifier wanting a terse deterministic label and a
-     * flier wanting warm publishable copy are not the same job even on one model.
-     *
-     * Every id is overridable per provider through admin Settings (`ai_groq_model`,
-     * `ai_gemini_model`, …) or the environment, so moving to a newer Groq model — a
-     * bigger free one, or one released after this was written — is a configuration
-     * change, not a deploy.
+     * @var array<string,string>
      */
-    public const PRIMARY = [
-        self::TIER_REASON => 'groq:llama-3.3-70b-versatile',
-        self::TIER_WRITE  => 'groq:llama-3.3-70b-versatile',
-        self::TIER_FAST   => 'groq:llama-3.1-8b-instant',
+    public const PROVIDERS = [
+        'gemini'    => 'Google Gemini',
+        'groq'      => 'Groq',
+        'openai'    => 'OpenAI',
+        'anthropic' => 'Anthropic',
     ];
+
+    /** Where an operator's choice is kept. `.env` AI_PRIMARY is the fallback. */
+    public const PRIMARY_SETTING = 'ai_primary';
+
+    /**
+     * The SHIPPED per-tier default id for a provider whose tiers want different models.
+     *
+     * Only Groq is listed, because Groq is the one provider configured here that offers
+     * two ids worth distinguishing: a big model for a judgement and a small one for a
+     * suggestion somebody is waiting behind. Everywhere else the tiers differ in their
+     * parameters and in the order of their ladders, on one model.
+     *
+     * A DEFAULT, and behind the operator. {@see primary()} consults `ai_groq_model` first —
+     * a settings field the registry overruled would be a control that saves and does
+     * nothing — so this decides only for a deployment that has not chosen.
+     *
+     * @var array<string, array<string,string>>
+     */
+    private const TIER_MODELS = [
+        'groq' => [
+            self::TIER_REASON => 'llama-3.3-70b-versatile',
+            self::TIER_WRITE  => 'llama-3.3-70b-versatile',
+            self::TIER_FAST   => 'llama-3.1-8b-instant',
+        ],
+    ];
+
+    /**
+     * What a deployment leads with when nobody has said otherwise.
+     *
+     * ── WHY THIS MOVED OFF GROQ ──────────────────────────────────────────────
+     *
+     * It was Groq, for a reason that was true and has stopped being the whole story:
+     * Groq's relevant models are free-tier, and the alternative at the time was an OpenAI
+     * key that was not on a paid plan — so every pinned call 401'd and fell through the
+     * ladder, turning the primary into a wasted round trip on the hot path of every AI
+     * feature. Most damagingly on `moderation.classify`, capped at ONE attempt, where
+     * pinning a provider that cannot answer does not degrade the feature but disables it.
+     *
+     * Gemini also has a free tier, is already first in every fallback ladder here, and is
+     * the provider this deployment now leads with. Groq stays directly behind it, so the
+     * failure being guarded against — a primary that cannot answer — is one hop from
+     * recovery.
+     *
+     * ── AND IT IS ONE VALUE, NOT THREE ───────────────────────────────────────
+     *
+     * This was `PRIMARY`, a public per-tier array. Two things went wrong with that shape
+     * the moment the primary became a setting. It had no reader left — {@see primary()}
+     * resolves the operator's choice, and nothing consulted the constant — and a declared
+     * value nothing reads is the most expensive bug available in this codebase. Worse, it
+     * was a value somebody WOULD read: a constant called PRIMARY, naming a provider,
+     * while the provider was somewhere else entirely.
+     *
+     * Per-tier is also the wrong shape now. The three tiers differ in their parameters and
+     * in the order of their ladders, not in who they lead with; three identical entries
+     * invited a fourth to diverge silently. The one place tiers really do want different
+     * model ids is {@see TIER_MODELS}, which is about a provider's catalogue rather than
+     * about preference.
+     *
+     * It must stay a provider with a FREE TIER: an unconfigured platform still has to be
+     * able to think.
+     */
+    public const DEFAULT_PRIMARY = 'gemini';
+
+    /** The provider every un-pinned capability leads with, from settings or `.env`. */
+    private static ?string $primaryMemo = null;
+
+    public static function primaryProvider(): string
+    {
+        if (self::$primaryMemo !== null) return self::$primaryMemo;
+
+        $v = '';
+        try {
+            $v = (string) (DB::table('gates_settings')
+                ->where('key_name', self::PRIMARY_SETTING)->value('value') ?? '');
+        } catch (\Throwable) {
+            // No settings table yet. The shipped default still answers.
+        }
+        if (trim($v) === '') $v = (string) Env::get('AI_PRIMARY', '');
+
+        // Lower-cased and trimmed because this arrives from a form, and validated against
+        // PROVIDERS because anything else would become a pin like `chatgpt:gpt-4o` that
+        // every capability then carries to a router which has never heard of it — the
+        // platform going dark on a setting nobody can see is wrong.
+        $v = strtolower(trim($v));
+
+        return self::$primaryMemo = isset(self::PROVIDERS[$v]) ? $v : self::DEFAULT_PRIMARY;
+    }
+
+    /**
+     * The pin for a tier: the operator's provider, on a CONCRETE model.
+     *
+     * ── WHY THE MODEL HALF IS RESOLVED HERE AND NOT LEFT EMPTY ───────────────
+     *
+     * `gemini:` with no model would work — `AiService::modelFor()` falls through to the
+     * configured id and then to the shipped default — and it would be a pin that made no
+     * decision. The registry's whole job is that every capability's route is DATA somebody
+     * can read, and a half-written pin reads as a choice while being an absence.
+     *
+     * So the id is resolved HERE instead, from the same three places every other model id
+     * on this platform comes from: what the operator typed into the field beside the
+     * picker, then {@see TIER_MODELS} for a provider whose tiers want genuinely different
+     * ids rather than one model at different temperatures, then what this platform ships
+     * pointing at. That keeps the settings field meaningful and the pin concrete at once.
+     *
+     * A capability may still name a provider outright — {@see all()}'s
+     * `door.name_pronounce` does — and that beats this, because it is a choice about that
+     * one job rather than a preference about the platform.
+     */
+    public static function primary(string $tier): string
+    {
+        $p = self::primaryProvider();
+
+        // The operator's own id first, and the ORDER is the point. `ai_groq_model` is a
+        // field on the settings screen; if TIER_MODELS won, that field would save, redisplay
+        // its value, and change nothing — a control that does nothing is the exact shape of
+        // half the defects recorded in this file. TIER_MODELS is the shipped default for a
+        // provider whose tiers want different ids, not an override of a person.
+        $chosen = self::chosenModel($p);
+
+        return $p . ':' . ($chosen !== ''
+            ? $chosen
+            : (self::TIER_MODELS[$p][$tier] ?? self::shippedModel($p)));
+    }
+
+    /** @var array<string,string> provider => the operator's id, '' when they set none */
+    private static array $chosenMemo = [];
+
+    /**
+     * The model id a provider is currently set to: admin settings, `.env`, then the
+     * shipped default. One resolver, so the pin and the router cannot disagree about
+     * which model "Gemini" means.
+     */
+    public static function modelIdFor(string $provider): string
+    {
+        $chosen = self::chosenModel($provider);
+
+        return $chosen !== '' ? $chosen : self::shippedModel($provider);
+    }
+
+    /**
+     * The id an operator has actually CHOSEN for a provider, or '' — settings, then
+     * `.env`, and no shipped default.
+     *
+     * Split out from {@see modelIdFor()} because the two callers need different things
+     * and collapsing them loses one: a pin has a per-tier default to fall to, a bare
+     * ladder hop has only the shipped one, and both need to know whether the value they
+     * are looking at came from a person.
+     *
+     * Memoised per process because building the registry asks about the same handful of
+     * providers roughly eighty times — once per pin and once per ladder hop — and each
+     * miss is a settings query. {@see forget()} clears it.
+     */
+    private static function chosenModel(string $provider): string
+    {
+        if (isset(self::$chosenMemo[$provider])) return self::$chosenMemo[$provider];
+
+        $v = '';
+        try {
+            $v = (string) (DB::table('gates_settings')
+                ->where('key_name', 'ai_' . $provider . '_model')->value('value') ?? '');
+        } catch (\Throwable) {
+            // No settings table yet — the shipped default still names a model.
+        }
+        if (trim($v) === '') $v = (string) Env::get(strtoupper($provider) . '_MODEL', '');
+
+        return self::$chosenMemo[$provider] = trim($v);
+    }
+
+    /** What this platform ships pointing at, when nobody has said otherwise. */
+    private static function shippedModel(string $provider): string
+    {
+        return AiService::DEFAULT_MODELS[$provider] ?? AiService::DEFAULT_MODELS['openai'];
+    }
+
+    /**
+     * A hop written out in full, so two spellings of one request compare equal.
+     *
+     * `gemini:` means "this provider's configured model" and is the same call as
+     * `gemini:gemini-3.6-flash`. Nothing may compare two hops as strings without coming
+     * through here first — see {@see ladder()} for what that cost the last time — which
+     * is why this is public: the test that asserts a ladder never repeats its own pin is
+     * exactly the caller that must not do it by hand.
+     */
+    public static function concrete(string $hop): string
+    {
+        [$provider, $model] = array_pad(explode(':', $hop, 2), 2, '');
+        $model = trim($model);
+
+        return $provider . ':' . ($model !== '' ? $model : self::modelIdFor($provider));
+    }
+
+    /**
+     * Drop the memoised registry and the memoised provider.
+     *
+     * `all()` is built once per process and the pin is resolved while building it, so a
+     * change to the setting is invisible until the next request. That is right in
+     * production — a request must not change providers halfway — and wrong for a test that
+     * needs to see both, which is the only caller.
+     */
+    public static function forget(): void
+    {
+        self::$memo = null;
+        self::$primaryMemo = null;
+        self::$chosenMemo = [];
+    }
 
     /**
      * Generation parameters per tier, so the delegation is real and not nominal.
@@ -184,60 +375,51 @@ final class AiCapability
     ];
 
     /**
-     * Fallback ladder per tier, in order, used when a capability does not declare
-     * its own.
+     * Fallback ladder per tier, in order, used when a capability does not declare its own.
      *
-     * ORDERED BY WHAT THIS DEPLOYMENT CAN ACTUALLY REACH. Gemini has a free tier and
-     * comes first. OpenAI is LAST, deliberately: an unpaid key fails with a 401 rather
-     * than being absent, and `resolveRoute()` can only skip a provider with NO key —
-     * it cannot know a key is unfunded. So a hop for an unpaid provider costs a real
-     * timeout, and it belongs behind every provider that might answer.
+     * ── FREE-TIER ONLY, AND THAT IS THE RULE RATHER THAN THE ORDER ───────────
      *
-     * FAST does not climb to a heavier model: a 700ms suggestion that arrives after
-     * the user has finished typing is worse than no suggestion.
+     * `resolveRoute()` can skip a provider with NO key. It cannot tell a key that is
+     * unfunded, expired, quota-exhausted or region-blocked from one that works, because
+     * all of those fail at request time with a 401 or a 429 rather than being absent. So
+     * a hop for a provider that needs a billing relationship costs a real timeout, and a
+     * capability with three attempts must not spend one on a maybe.
+     *
+     * Anthropic and OpenAI are therefore not here, and that is deliberate rather than an
+     * omission. They are still REACHABLE two ways: a capability may name one outright —
+     * `door.name_pronounce` does, and says why beside its pin — and `resolveRoute()`
+     * appends every remaining CONFIGURED provider after the declared hops, so a
+     * deployment whose only key is Anthropic gets every feature. A pin decides
+     * preference, not eligibility.
+     *
+     * ── THREE ENTRIES, TWO SLOTS ─────────────────────────────────────────────
+     *
+     * The default cap is three attempts INCLUDING the pin, so a ladder may declare two.
+     * Three are listed because {@see ladder()} removes whichever one the pin has taken —
+     * the primary is a setting now, and it lands on one of these — leaving two either
+     * way. A rung nobody can stand on reads in review as coverage that exists, and this
+     * codebase has shipped that twice: OpenAI listed fourth and unreachable, then
+     * Anthropic fourth and unreachable after OpenAI moved out. `AiModelDelegationTest`
+     * asserts declared-hops <= maxAttempts for every capability, so the third instance
+     * fails the suite instead of shipping.
+     *
+     * Groq occupies two of the three slots rather than a third vendor taking one. Its
+     * free tier rate-limits PER MODEL, so a 429 on the 70b says nothing about whether the
+     * 8b can answer — that is the most likely recoverable failure on a provider this
+     * deployment can definitely reach, and it belongs ahead of anything needing a
+     * different key.
      */
     private const FALLBACKS = [
-        self::TIER_REASON => ['gemini:', 'groq:llama-3.1-8b-instant'],
-        self::TIER_WRITE  => ['gemini:', 'groq:llama-3.1-8b-instant'],
-        self::TIER_FAST   => ['gemini:', 'groq:llama-3.3-70b-versatile'],
+        self::TIER_REASON => ['gemini:', 'groq:llama-3.3-70b-versatile', 'groq:llama-3.1-8b-instant'],
+        self::TIER_WRITE  => ['gemini:', 'groq:llama-3.3-70b-versatile', 'groq:llama-3.1-8b-instant'],
+        // FAST climbs rather than descends, and only as a FALLBACK: a 700ms suggestion
+        // that arrives after the user has finished typing is worse than no suggestion, so
+        // the small model is tried before the big one.
+        self::TIER_FAST   => ['gemini:', 'groq:llama-3.1-8b-instant', 'groq:llama-3.3-70b-versatile'],
     ];
 
     /**
-     * TWO fallbacks, not three, because the default attempt cap is three hops total.
-     *
-     * A ladder longer than the ceiling has rungs nobody can stand on, and in review it
-     * reads as coverage that exists. This was got wrong twice in a row: OpenAI was
-     * listed fourth and unreachable, and moving it out left Anthropic fourth and
-     * unreachable. `AiModelDelegationTest` now asserts declared-hops ≤ maxAttempts for
-     * every capability, so the third instance of this fails the suite instead of
-     * shipping.
-     *
-     * Anthropic and OpenAI are NOT absent, and that is the point rather than an omission.
-     *
-     * It was listed last, and last was unreachable: `route()` truncates to
-     * `maxAttempts` (3 by default), so a four-entry ladder never got to its fourth
-     * hop. A declared slot nothing can reach reads as coverage that does not exist.
-     *
-     * `AiService::resolveRoute()` appends every remaining CONFIGURED provider after the
-     * declared hops, so a deployment holding an Anthropic or a funded OpenAI key still
-     * reaches it whenever the cap allows — and a deployment whose ONLY key is one of
-     * those gets every feature, because a pin decides preference, not eligibility.
-     *
-     * They simply do not occupy a declared slot ahead of a provider with a free tier.
-     * An unpaid key fails with a 401 rather than being absent, and `resolveRoute()`
-     * cannot tell those apart: it can skip a provider with NO key, not one whose key is
-     * unfunded. So the hop costs a real timeout, and a capped capability must not spend
-     * one of three attempts on it.
-     *
-     * The second Groq hop matters more than a third vendor here. Groq's free tier
-     * rate-limits PER MODEL, so a 429 on the 70b model says nothing about the 8b one —
-     * that is the most likely recoverable failure on this deployment's own primary
-     * provider, and it now sits ahead of anything that needs a different key.
-     */
-    private const LADDER_NOTE = 'see FALLBACKS';
-
-    /**
-     * The tier ladder, minus any hop that repeats the pin EXACTLY.
+     * A capability's fallback ladder, minus any hop that repeats the pin.
      *
      * Provider-and-model, not provider alone. The earlier rule dropped every hop
      * sharing the pin's provider, on the reasoning that a provider which just failed
@@ -247,18 +429,51 @@ final class AiCapability
      * can answer. Dropping the second Groq hop would throw away the most likely
      * successful retry on the platform's own primary provider.
      *
-     * An exact repeat is still removed, because retrying the identical
-     * provider-and-model immediately is only a doubled timeout.
+     * ── AND WHY THE COMPARISON IS NOT A STRING COMPARISON ────────────────────
      *
+     * This registry spells one hop two ways. A ladder entry is written `gemini:` —
+     * "whatever model this provider is configured to" — while {@see primary()} writes
+     * its pin out in full. So `$hop !== $pinned` saw `gemini:` and
+     * `gemini:gemini-3.6-flash` as two different hops and kept both, which is not a
+     * fallback: it is the pin, tried twice, spending one of only three attempts on the
+     * provider that has just failed. Silent, too — the route reads as a three-hop
+     * ladder in the audit log and is really two.
+     *
+     * Both sides go through {@see concrete()} first, so an exact repeat is removed
+     * however it happens to be written, and Groq's two ids still count as two hops.
+     *
+     * A DECLARED ladder gets the same filter — the hole is not the inherited list, it is
+     * the string comparison, and a capability that names its own hops can write the pin
+     * two ways just as easily. What it does NOT get is the trim: a declared ladder is a
+     * decision about that one capability, made beside its own attempt cap.
+     *
+     * @param list<string>|null $declared null to inherit the tier's ladder
      * @return list<string>
      */
-    private static function defaultFallbacks(string $pinned, string $tier): array
+    private static function ladder(?array $declared, string $pinned, string $tier): array
     {
-        return array_values(array_filter(
-            self::FALLBACKS[$tier] ?? self::FALLBACKS[self::TIER_FAST],
-            static fn (string $hop): bool => $hop !== $pinned
+        $pin  = self::concrete($pinned);
+        $hops = $declared ?? (self::FALLBACKS[$tier] ?? self::FALLBACKS[self::TIER_FAST]);
+
+        $out = array_values(array_filter(
+            $hops,
+            static fn (string $hop): bool => self::concrete($hop) !== $pin
         ));
+
+        // TWO, because the default attempt cap is three hops INCLUDING the pin. A rung
+        // nobody can stand on reads in review as coverage that exists, and this codebase
+        // has shipped that twice — once with OpenAI fourth, once with Anthropic fourth.
+        // `AiModelDelegationTest` asserts declared-hops <= maxAttempts for every
+        // capability; this is the line that keeps it true when the pin moves.
+        return $declared !== null ? $out : array_slice($out, 0, 2);
     }
+
+    /**
+     * The built registry. A `static $all` inside {@see all()} once, which no test could
+     * reach — and the pins are resolved from settings while it is built, so a suite that
+     * cannot clear it can only ever see one provider's worth of the registry.
+     */
+    private static ?array $memo = null;
 
     /**
      * Every declared capability.
@@ -272,8 +487,7 @@ final class AiCapability
      */
     public static function all(): array
     {
-        static $all = null;
-        if ($all !== null) return $all;
+        if (self::$memo !== null) return self::$memo;
 
         $c = static fn (string $name, array $o): self => new self(
             name:           $name,
@@ -281,7 +495,7 @@ final class AiCapability
             tier:           $o['tier'] ?? self::TIER_FAST,
             model:          $o['model'],
             maxAttempts:    $o['max_attempts'] ?? 3,
-            fallbacks:      $o['fallbacks'] ?? self::defaultFallbacks($o['model'], $o['tier'] ?? self::TIER_FAST),
+            fallbacks:      self::ladder($o['fallbacks'] ?? null, $o['model'], $o['tier'] ?? self::TIER_FAST),
             onFailure:      $o['on_failure'],
             advisory:       $o['advisory'] ?? true,
             maxTokens:      $o['max_tokens'] ?? 512,
@@ -297,14 +511,14 @@ final class AiCapability
             dataPurpose:    $o['data_purpose'] ?? $o['purpose'],
         );
 
-        return $all = [
+        return self::$memo = [
             // Reviewer-facing score + summary for a nomination. Interpolates the
             // nominator's free text, so it is the single most injection-exposed
             // capability on the platform.
             'nomination.triage' => $c('nomination.triage', [
                 'purpose'         => 'moderation',
                 'tier'            => self::TIER_REASON,
-                'model'           => self::PRIMARY[self::TIER_REASON],
+                'model'           => self::primary(self::TIER_REASON),
                 'on_failure'      => self::FAIL_ANNOUNCE,
                 'advisory'        => true,
                 'max_tokens'      => 250,
@@ -338,7 +552,7 @@ final class AiCapability
             'invite.sequence_draft' => $c('invite.sequence_draft', [
                 'purpose'         => 'general',
                 'tier'            => self::TIER_WRITE,
-                'model'           => self::PRIMARY[self::TIER_WRITE],
+                'model'           => self::primary(self::TIER_WRITE),
                 'on_failure'      => self::FAIL_ANNOUNCE,
                 'advisory'        => true,
                 'max_tokens'      => 3000,
@@ -359,7 +573,7 @@ final class AiCapability
             'moderation.classify' => $c('moderation.classify', [
                 'purpose'         => 'moderation',
                 'tier'            => self::TIER_REASON,
-                'model'           => self::PRIMARY[self::TIER_REASON],
+                'model'           => self::primary(self::TIER_REASON),
                 'on_failure'      => self::FAIL_ANNOUNCE,
                 'advisory'        => true,
                 'max_tokens'      => 80,
@@ -385,7 +599,7 @@ final class AiCapability
             'nomination.polish' => $c('nomination.polish', [
                 'purpose'         => 'assist',
                 'tier'            => self::TIER_FAST,
-                'model'           => self::PRIMARY[self::TIER_FAST],
+                'model'           => self::primary(self::TIER_FAST),
                 'on_failure'      => self::FAIL_DEGRADE,
                 'advisory'        => true,
                 'max_tokens'      => 700,
@@ -414,7 +628,7 @@ final class AiCapability
             'interview.brief' => $c('interview.brief', [
                 'purpose'         => 'assist',
                 'tier'            => self::TIER_REASON,
-                'model'           => self::PRIMARY[self::TIER_REASON],
+                'model'           => self::primary(self::TIER_REASON),
                 'on_failure'      => self::FAIL_DEGRADE,
                 'advisory'        => true,
                 // Six questions with follow-ups and a line of rationale each.
@@ -446,7 +660,7 @@ final class AiCapability
             'questionnaire.chat' => $c('questionnaire.chat', [
                 'purpose'         => 'assist',
                 'tier'            => self::TIER_FAST,
-                'model'           => self::PRIMARY[self::TIER_FAST],
+                'model'           => self::primary(self::TIER_FAST),
                 'on_failure'      => self::FAIL_DEGRADE,
                 'advisory'        => true,
                 'max_tokens'      => 90,
@@ -473,7 +687,7 @@ final class AiCapability
             'questionnaire.coach' => $c('questionnaire.coach', [
                 'purpose'         => 'assist',
                 'tier'            => self::TIER_FAST,
-                'model'           => self::PRIMARY[self::TIER_FAST],
+                'model'           => self::primary(self::TIER_FAST),
                 'on_failure'      => self::FAIL_DEGRADE,
                 'advisory'        => true,
                 'max_tokens'      => 70,
@@ -520,7 +734,7 @@ final class AiCapability
             'questionnaire.interview' => $c('questionnaire.interview', [
                 'purpose'         => 'assist',
                 'tier'            => self::TIER_REASON,
-                'model'           => self::PRIMARY[self::TIER_REASON],
+                'model'           => self::primary(self::TIER_REASON),
                 'on_failure'      => self::FAIL_DEGRADE,
                 'advisory'        => true,
                 'max_tokens'      => 900,
@@ -548,7 +762,7 @@ final class AiCapability
             'interview.followup' => $c('interview.followup', [
                 'purpose'         => 'assist',
                 'tier'            => self::TIER_FAST,
-                'model'           => self::PRIMARY[self::TIER_FAST],
+                'model'           => self::primary(self::TIER_FAST),
                 'on_failure'      => self::FAIL_DEGRADE,
                 'advisory'        => true,
                 'max_tokens'      => 90,
@@ -572,7 +786,7 @@ final class AiCapability
             'interview.review' => $c('interview.review', [
                 'purpose'         => 'assist',
                 'tier'            => self::TIER_REASON,
-                'model'           => self::PRIMARY[self::TIER_REASON],
+                'model'           => self::primary(self::TIER_REASON),
                 'on_failure'      => self::FAIL_DEGRADE,
                 'advisory'        => true,
                 // A transcript sorted into four criteria with quotes is the longest output
@@ -593,7 +807,7 @@ final class AiCapability
             'nomination.suggest_category' => $c('nomination.suggest_category', [
                 'purpose'         => 'assist',
                 'tier'            => self::TIER_FAST,
-                'model'           => self::PRIMARY[self::TIER_FAST],
+                'model'           => self::primary(self::TIER_FAST),
                 'on_failure'      => self::FAIL_DEGRADE,
                 'advisory'        => true,
                 'max_tokens'      => 200,
@@ -610,7 +824,7 @@ final class AiCapability
             'admin.filter_parse' => $c('admin.filter_parse', [
                 'purpose'        => 'assist',
                 'tier'           => self::TIER_FAST,
-                'model'          => self::PRIMARY[self::TIER_FAST],
+                'model'          => self::primary(self::TIER_FAST),
                 'on_failure'     => self::FAIL_DEGRADE,
                 'advisory'       => true,
                 'max_tokens'     => 200,
@@ -625,7 +839,7 @@ final class AiCapability
             'admin.assistant' => $c('admin.assistant', [
                 'purpose'         => 'assist',
                 'tier'            => self::TIER_REASON,
-                'model'           => self::PRIMARY[self::TIER_REASON],
+                'model'           => self::primary(self::TIER_REASON),
                 'on_failure'      => self::FAIL_ANNOUNCE,
                 'advisory'        => true,
                 'max_tokens'      => 1024,
@@ -642,7 +856,7 @@ final class AiCapability
             'guide.chat' => $c('guide.chat', [
                 'purpose'         => 'assist',
                 'tier'            => self::TIER_WRITE,
-                'model'           => self::PRIMARY[self::TIER_WRITE],
+                'model'           => self::primary(self::TIER_WRITE),
                 'on_failure'      => self::FAIL_DEGRADE,
                 'advisory'        => true,
                 'max_tokens'      => 1024,
@@ -669,7 +883,7 @@ final class AiCapability
             'support.plan' => $c('support.plan', [
                 'purpose'         => 'assist',
                 'tier'            => self::TIER_FAST,
-                'model'           => self::PRIMARY[self::TIER_FAST],
+                'model'           => self::primary(self::TIER_FAST),
                 // A planner that fails just means the agent answers with what it
                 // already has. That is a worse answer, never a broken page.
                 'on_failure'      => self::FAIL_DEGRADE,
@@ -714,7 +928,7 @@ final class AiCapability
             'nomination.decision_note' => $c('nomination.decision_note', [
                 'purpose'         => 'moderation',
                 'tier'            => self::TIER_WRITE,
-                'model'           => self::PRIMARY[self::TIER_WRITE],
+                'model'           => self::primary(self::TIER_WRITE),
                 'on_failure'      => self::FAIL_ANNOUNCE,
                 'advisory'        => true,
                 'max_tokens'      => 200,
@@ -731,7 +945,7 @@ final class AiCapability
             'community.thread_summary' => $c('community.thread_summary', [
                 'purpose'         => 'assist',
                 'tier'            => self::TIER_WRITE,
-                'model'           => self::PRIMARY[self::TIER_WRITE],
+                'model'           => self::primary(self::TIER_WRITE),
                 'on_failure'      => self::FAIL_DEGRADE,
                 'advisory'        => true,
                 'max_tokens'      => 320,
@@ -746,7 +960,7 @@ final class AiCapability
             'community.polish' => $c('community.polish', [
                 'purpose'         => 'assist',
                 'tier'            => self::TIER_FAST,
-                'model'           => self::PRIMARY[self::TIER_FAST],
+                'model'           => self::primary(self::TIER_FAST),
                 'on_failure'      => self::FAIL_DEGRADE,
                 'advisory'        => true,
                 'max_tokens'      => 600,
@@ -763,7 +977,7 @@ final class AiCapability
             'admin.content_assist' => $c('admin.content_assist', [
                 'purpose'         => 'assist',
                 'tier'            => self::TIER_WRITE,
-                'model'           => self::PRIMARY[self::TIER_WRITE],
+                'model'           => self::primary(self::TIER_WRITE),
                 'on_failure'      => self::FAIL_ANNOUNCE,
                 'advisory'        => true,
                 'max_tokens'      => 1400,
@@ -775,7 +989,7 @@ final class AiCapability
             'admin.form_design' => $c('admin.form_design', [
                 'purpose'         => 'assist',
                 'tier'            => self::TIER_WRITE,
-                'model'           => self::PRIMARY[self::TIER_WRITE],
+                'model'           => self::primary(self::TIER_WRITE),
                 'on_failure'      => self::FAIL_ANNOUNCE,
                 'advisory'        => true,
                 'max_tokens'      => 900,
@@ -787,7 +1001,7 @@ final class AiCapability
             'nominee.merge_suggest' => $c('nominee.merge_suggest', [
                 'purpose'         => 'assist',
                 'tier'            => self::TIER_REASON,
-                'model'           => self::PRIMARY[self::TIER_REASON],
+                'model'           => self::primary(self::TIER_REASON),
                 'on_failure'      => self::FAIL_ANNOUNCE,
                 'advisory'        => true,
                 'max_tokens'      => 400,
@@ -816,7 +1030,7 @@ final class AiCapability
             'nominee.rally_copy' => $c('nominee.rally_copy', [
                 'purpose'         => 'assist',
                 'tier'            => self::TIER_WRITE,
-                'model'           => self::PRIMARY[self::TIER_WRITE],
+                'model'           => self::primary(self::TIER_WRITE),
                 'on_failure'      => self::FAIL_DEGRADE,
                 'advisory'        => true,
                 'max_tokens'      => 160,
@@ -857,7 +1071,7 @@ final class AiCapability
             'vendor.category_match' => $c('vendor.category_match', [
                 'purpose'         => 'assist',
                 'tier'            => self::TIER_FAST,
-                'model'           => self::PRIMARY[self::TIER_FAST],
+                'model'           => self::primary(self::TIER_FAST),
                 'on_failure'      => self::FAIL_DEGRADE,
                 'advisory'        => true,
                 'max_tokens'      => 120,
@@ -887,7 +1101,7 @@ final class AiCapability
             'search.interpret' => $c('search.interpret', [
                 'purpose'         => 'assist',
                 'tier'            => self::TIER_REASON,
-                'model'           => self::PRIMARY[self::TIER_REASON],
+                'model'           => self::primary(self::TIER_REASON),
                 'on_failure'      => self::FAIL_DEGRADE,
                 'advisory'        => true,
                 'max_tokens'      => 220,
@@ -911,7 +1125,7 @@ final class AiCapability
             'questionnaire.summary' => $c('questionnaire.summary', [
                 'purpose'         => 'assist',
                 'tier'            => self::TIER_WRITE,
-                'model'           => self::PRIMARY[self::TIER_WRITE],
+                'model'           => self::primary(self::TIER_WRITE),
                 'on_failure'      => self::FAIL_ANNOUNCE,
                 'advisory'        => true,
                 'max_tokens'      => 600,
@@ -935,7 +1149,7 @@ final class AiCapability
             'judge.orientation' => $c('judge.orientation', [
                 'purpose'         => 'assist',
                 'tier'            => self::TIER_REASON,
-                'model'           => self::PRIMARY[self::TIER_REASON],
+                'model'           => self::primary(self::TIER_REASON),
                 'on_failure'      => self::FAIL_ANNOUNCE,
                 'advisory'        => true,
                 'max_tokens'      => 700,
@@ -998,7 +1212,7 @@ final class AiCapability
             'integrity.brief' => $c('integrity.brief', [
                 'purpose'        => 'assist',
                 'tier'           => self::TIER_REASON,
-                'model'          => self::PRIMARY[self::TIER_REASON],
+                'model'          => self::primary(self::TIER_REASON),
                 'on_failure'     => self::FAIL_ANNOUNCE,
                 'advisory'       => true,
                 'max_tokens'     => 800,
@@ -1034,7 +1248,31 @@ final class AiCapability
             'door.name_pronounce' => $c('door.name_pronounce', [
                 'purpose'         => 'general',
                 'tier'            => self::TIER_REASON,
-                'model'           => self::PRIMARY[self::TIER_REASON],
+                // ── THE ONE CAPABILITY THAT NAMES ITS OWN PROVIDER ──────────
+                //
+                // OpenAI, outright, and not the platform's primary. This is a knowledge
+                // question — is Ngozi Igbo, and where does the stress fall — rather than a
+                // reasoning one, and the answer is KEPT and then read aloud to somebody at
+                // their own door. A model that is merely fluent will produce a confident
+                // respelling of a name it does not know, which is worse than the offline
+                // rule because it is believed.
+                //
+                // Naming a provider here is a choice about THIS JOB. `primary()` is a
+                // preference about the platform, and an operator moving that should not
+                // silently move this — which is exactly what reading the setting here
+                // would do.
+                //
+                // Concrete, but resolved from `ai_openai_model` in Settings — so the
+                // provider is this capability's decision and the model stays the
+                // operator's, without leaving a half-written pin in the registry. Which
+                // also means the argument above is only half-bought by this line: the
+                // shipped default is the small model, and an operator who wants a bigger
+                // one for this reason has the field to say so. The offline rule staying
+                // underneath is what makes that safe either way.
+                'model'           => 'openai:' . self::modelIdFor('openai'),
+                // Behind it, the free-tier providers in the usual order — so a deployment
+                // with no OpenAI key still gets names worked out rather than nothing.
+                'fallbacks'       => ['gemini:', 'groq:llama-3.3-70b-versatile'],
                 // DEGRADE and not ANNOUNCE: the rule answers instead, so there is nothing
                 // for an operator to be told about and nothing for them to do.
                 'on_failure'      => self::FAIL_DEGRADE,

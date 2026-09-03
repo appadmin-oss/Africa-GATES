@@ -153,7 +153,8 @@ Thin HTTP layer; delegate to services. Home aggregates stats/leaderboard/feature
 | `QueueService` | Durable `gates_jobs` queue for slow side-effects (SMS/WA retry, AI triage, sheet sync) |
 | `WebhookService` | Outbound event webhooks (full catalog, HMAC-signed, `gates_webhooks`/`gates_webhook_deliveries`) |
 | `GoogleSheetsService` | Best-effort sync to the Apps Script endpoint |
-| **AI —** `AiService` | Pluggable provider gateway (Groq → Gemini → Anthropic → OpenAI), JSON mode, graceful degrade |
+| **AI —** `AiService` | Pluggable provider gateway, JSON mode, graceful degrade; the ROUTE comes from `AiCapability`, and this key order is only the tail once a route is spent |
+| `AiCapability` | The registry: every AI feature declared as data — tier, pinned `provider:model`, fallback ladder, budgets, advisory. The lead provider is `ai_primary` in Settings (Gemini by default); `door.name_pronounce` names OpenAI for itself and `evidence.analyse` names Gemini |
 | `AiHelper` | Small typed helpers over `AiService` (classify/summarize/suggest) |
 | `AiFilterService` | Plain-English → whitelisted admin list filters (nominations desk) |
 | `GuideService` | "Gee" the site guide — `AiService` chain + cached `siteState()` snapshot + optional Make agent bridge; scripted fallback |
@@ -438,7 +439,9 @@ graceful local fallback, no hardcoded demo values, and secrets write-only in the
 7. **Community v2** — guests view-only, members post/vote/cheer (401→login for guests); v3-design
    thread/comment templates; report → moderation queue; polls, follows, reposts, bookmarks; AI
    "summarize thread" + composer assist with silent fallback.
-8. **AI everywhere** — `AiService` provider chain (Groq → Gemini → Anthropic → OpenAI); Gee uses it
+8. **AI everywhere** — every feature routes through `AiCapability`'s declared pin and ladder;
+   the lead provider is an admin setting (`ai_primary`, Gemini by default) and `AiService`'s own
+   key order is only what remains once a route is spent. Gee uses it
    plus a cached `siteState()` snapshot and an optional bidirectional Make-agent bridge
    (`/api/agent/gee`, bearer-auth); `/admin/assistant` copilot grounded with live read-only stats;
    per-IP + global daily AI budget via `RateLimitService` degrades silently to the scripted tier.

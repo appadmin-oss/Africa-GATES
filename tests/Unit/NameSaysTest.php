@@ -252,6 +252,46 @@ final class NameSaysTest extends TestCase
         $this->assertStringNotContainsString('$ai->complete(', $src);
     }
 
+    /**
+     * OpenAI leads THIS job, and the free-tier providers stand behind it.
+     *
+     * The pin is a choice about the work rather than about the platform: whether Ngozi is
+     * Igbo, and where the stress falls, is a knowledge question, and the answer is KEPT
+     * and then read aloud to somebody at their own door. So an operator moving the
+     * platform's primary provider — which they can, from Settings — must not silently move
+     * this one with it. {@see AiModelDelegationTest} asserts that across every choice.
+     *
+     * What is asserted HERE, beside the reason, is the other half: the ladder behind the
+     * pin is free-tier, so a deployment with no OpenAI key still gets names worked out.
+     * Nothing about this feature may become a reason the greeting stops working — and
+     * under all of it, {@see DoorWelcome::suggest()} still respells the name with no
+     * provider at all.
+     */
+    public function test_the_name_job_leads_with_openai_and_still_works_without_it(): void
+    {
+        $cap = \AfricaGates\Services\AiCapability::find('door.name_pronounce');
+
+        $this->assertSame('openai', $cap->provider(),
+            'a merely fluent model produces a confident respelling of a name it does not '
+            . 'know, and this answer is kept and then said out loud');
+        $this->assertNotSame('', $cap->modelId(), 'the pin names no model');
+
+        $behind = array_map(
+            static fn (string $hop): string => explode(':', $hop, 2)[0],
+            $cap->fallbacks
+        );
+        $this->assertNotSame([], $behind, 'no OpenAI key would mean no names worked out');
+        foreach ($behind as $provider) {
+            $this->assertContains($provider, ['gemini', 'groq'],
+                "a deployment with no OpenAI key falls to {$provider}, which needs a key "
+                . 'it may not have either');
+        }
+
+        $this->assertSame(\AfricaGates\Services\AiCapability::FAIL_DEGRADE, $cap->onFailure,
+            'the rule answers instead, so there is nothing for an operator to be told and '
+            . 'nothing for them to do');
+    }
+
     /** The capability is declared, and declared as what it actually is. */
     public function test_the_capability_says_what_it_sends_and_fences_it(): void
     {

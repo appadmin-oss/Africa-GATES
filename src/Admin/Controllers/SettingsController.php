@@ -75,6 +75,10 @@ class SettingsController
             'azure_voices'      => \AfricaGates\Services\AzureVoice::VOICES,
             'azure_voice_pick'  => \AfricaGates\Services\AzureVoice::voice(),
             'azure_region'      => \AfricaGates\Services\AzureVoice::region(),
+            // Which provider leads. Was a constant the screen kept describing wrongly;
+            // now the screen reads the same value the router does.
+            'ai_primary_choices'  => \AfricaGates\Services\AiCapability::PROVIDERS,
+            'ai_primary'          => \AfricaGates\Services\AiCapability::primaryProvider(),
             'azure_tiers'       => \AfricaGates\Services\AzureVoice::TIERS,
             'azure_tier'        => \AfricaGates\Services\AzureVoice::tier(),
             // ── THE REVIEW SHEET ──────────────────────────────────────────
@@ -306,6 +310,10 @@ class SettingsController
                   // The TIER is here because it is a rate limit, not a price: F0 allows
                   // about twenty requests a minute, and a sweep that does not know which
                   // tier it is on collects 429s for most of the guest list.
+                  // Validated in AiCapability::primaryProvider() against the four it
+                  // knows; anything else falls back to the shipped default rather than
+                  // being sent to a router that would skip it silently.
+                  'ai_primary',
                   'azure_speech_region','azure_speech_voice','azure_speech_tier',
                   // Pacing. Both validated against their own lists in AzureVoice, because
                   // an out-of-range prosody value is a 400 during an unattended 06:00 run.

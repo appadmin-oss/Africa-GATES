@@ -306,8 +306,14 @@ class AiPrivacyTest extends TestCase
         $byProvider = [];
         foreach ($groups as $g) $byProvider[$g['provider']] = $g;
 
-        $this->assertArrayHasKey('groq', $byProvider, 'the pinned provider');
-        $this->assertTrue($byProvider['groq']['primary']);
+        // Read from the registry, not named. This asserted 'groq' by name and went red the
+        // day an operator-settable primary moved off it — a test that has to be edited
+        // whenever a setting changes is testing the setting, not the disclosure. The
+        // property is that whichever provider leads is disclosed AS the one that leads.
+        $lead = AiCapability::primaryProvider();
+        $this->assertArrayHasKey($lead, $byProvider, 'the leading provider is not disclosed at all');
+        $this->assertTrue($byProvider[$lead]['primary'],
+            "{$lead} leads every un-pinned capability and the notice lists it as a standby");
 
         // A destination reached only as a standby must still be disclosed AND still be
         // marked as a standby. That used to be a provider-level flag, and it stopped being

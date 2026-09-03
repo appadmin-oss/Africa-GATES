@@ -1098,28 +1098,55 @@
        the pin is honoured; the key order only decides what happens once every
        declared hop is exhausted. Leaving the old sentence would have an operator
        adding a Groq key expecting it to take over everything. #}
-    {# This named OPENAI as the pinned primary, falling back Gemini → Anthropic → Groq. That
-       is not what the code does and has not been for some time: AiCapability::PRIMARY pins
-       GROQ for all three tiers, because its relevant models are free-tier and this
-       deployment's OpenAI key is not on a paid plan — a pinned call there 401s and burns one
-       of only three attempts before anything can answer. Getting this backwards on the
-       screen is how "Groq is hardcoded" becomes the reading: the pin is a PREFERENCE, and
-       AiService::resolveRoute() appends every other configured provider after the declared
-       hops, so a deployment whose only key is Anthropic still gets every feature. #}
-    <p style="margin:0 0 10px;font-size:13px;color:var(--ad-text-mute,#5a6d6f)">Keys are stored server-side and never shown again. Each AI feature is pinned to a model chosen for the job — <strong>Groq</strong> first, because its models are free-tier and reachable, with a smaller one for throwaway suggestions — then falls back through <strong>Gemini</strong>, then anything else you have a key for. The pin decides preference, not eligibility: a feature only goes dark when none of them work. {% if ai_status.active %}Configured now: <strong>{{ ai_status.active|capitalize }}</strong>{% if ai_status.model %} ({{ ai_status.model }}){% endif %}.{% else %}No provider configured — using built-in heuristics.{% endif %}</p>
+    {# And then it named OPENAI as the pinned primary, and then GROQ, and each was wrong
+       within a commit or two of being written. THREE times is not carelessness, it is a
+       sentence that cannot be maintained: it restates a value that lives in the code, so
+       every move of that value silently falsifies it, and nothing fails when it does.
+       Getting it backwards on the screen is how "Groq is hardcoded" becomes the reading —
+       the pin is a PREFERENCE, and AiService::resolveRoute() appends every other
+       configured provider after the declared hops, so a deployment whose only key is
+       Anthropic still gets every feature.
+
+       So the provider is no longer NAMED here. It is interpolated from the same value the
+       picker below is bound to, which is the same value AiCapability::primaryProvider()
+       resolves — one resolver, and a paragraph that cannot disagree with it. #}
+    <p style="margin:0 0 10px;font-size:13px;color:var(--ad-text-mute,#5a6d6f)">Keys are stored server-side and never shown again. Every AI feature leads with <strong>{{ ai_primary_choices[ai_primary]|default('your primary provider') }}</strong> unless it names its own, then falls back through the others you hold a key for. The pin decides preference, not eligibility: a feature only goes dark when none of them work. {% if ai_status.active %}Configured now: <strong>{{ ai_status.active|capitalize }}</strong>{% if ai_status.model %} ({{ ai_status.model }}){% endif %}.{% else %}No provider configured — using built-in heuristics.{% endif %}</p>
+    {# ── WHICH PROVIDER LEADS ────────────────────────────────────────────────
+       This was a constant, and the screen described it wrongly twice — first as OpenAI
+       when the code pinned Groq, then as Groq after it had moved. A setting an operator
+       can see is also a setting the page cannot misdescribe: the hints below are written
+       from this value rather than from a sentence somebody has to remember to update. #}
+    <div style="margin-bottom:14px">
+      <label for="f-ai_primary">Primary provider
+        <small>tried first for every feature that has not named its own</small></label>
+      <select name="ai_primary" id="f-ai_primary" style="max-width:320px">
+        {% for id, label in ai_primary_choices %}
+          <option value="{{ id }}"{{ ai_primary == id ? ' selected' : '' }}>{{ label }}</option>
+        {% endfor %}
+      </select>
+      <p class="hint" style="margin:6px 0 0">
+        The others stay behind it as fallbacks, in the order shown below, and a feature
+        still reaches any provider you have a key for once the declared hops are spent
+        &mdash; a pin decides preference, not eligibility.
+        <strong>The door's name pronunciation is pinned to OpenAI</strong> whatever you
+        choose here: knowing how a Nigerian name is said is a different job from the rest,
+        and its answer is kept and then read aloud to somebody.
+      </p>
+    </div>
+
     <div class="ad-form">
       {% set ai_providers = [
-        {'name':'openai','label':'OpenAI API key','hint':'platform.openai.com — <strong>primary</strong>: every feature is pinned here first'},
-        {'name':'gemini','label':'Google Gemini API key','hint':'aistudio.google.com — 1st fallback, generous free tier'},
-        {'name':'anthropic','label':'Anthropic API key','hint':'console.anthropic.com — 2nd fallback (Claude)'},
-        {'name':'groq','label':'Groq API key','hint':'console.groq.com — last fallback, free &amp; fast (Llama)'}
+        {'name':'openai','label':'OpenAI API key','hint':'platform.openai.com'},
+        {'name':'gemini','label':'Google Gemini API key','hint':'aistudio.google.com — generous free tier'},
+        {'name':'anthropic','label':'Anthropic API key','hint':'console.anthropic.com (Claude)'},
+        {'name':'groq','label':'Groq API key','hint':'console.groq.com — free &amp; fast (Llama)'}
       ] %}
       {% for p in ai_providers %}
       <div>
         <label>{{ p.label }} {% if ai_status[p.name] %}<span style="color:#16794d;font-weight:600">● configured</span>{% else %}<span style="color:var(--ad-text-mute,#61728e)">not set</span>{% endif %}</label>
         <input type="password" name="ai_{{ p.name }}_key" aria-label="{{ p.label }} API key" autocomplete="new-password" placeholder="{% if ai_status[p.name] %}•••••••••• (leave blank to keep){% else %}paste key to enable{% endif %}">
         <div style="display:flex;justify-content:space-between;gap:8px;margin-top:3px">
-          <small style="font-size:11px;color:var(--ad-text-mute,#61728e)">{{ p.hint|raw }}</small>
+          <small style="font-size:11px;color:var(--ad-text-mute,#61728e)">{{ p.hint|raw }}{% if ai_primary == p.name %} &mdash; <strong>primary</strong>{% endif %}</small>
           {% if ai_status[p.name] %}<label style="font-size:11px;display:inline-flex;gap:4px;align-items:center"><input type="checkbox" name="ai_clear[{{ p.name }}]" value="1"> remove</label>{% endif %}
         </div>
       </div>
