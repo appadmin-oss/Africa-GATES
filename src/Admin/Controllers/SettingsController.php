@@ -88,6 +88,21 @@ class SettingsController
             // no pronunciation, which made this box homework: an operator had to fill it in
             // before the voice was any good. Every name here already has an answer, so the
             // screen asks somebody to listen rather than to teach.
+            // ── WHICH EVENT'S DOOR ────────────────────────────────────────
+            //
+            // The greeting prefix is taken from the EVENT's start in the EVENT's own
+            // timezone — "Good evening." at a gala, nothing at all at a 2am one — so a
+            // preview with no event previews a sentence the door never says. Offered as a
+            // choice rather than assumed, because an operator setting up next month's
+            // gala is not testing tonight's.
+            'door_events'         => (function (): array {
+                try {
+                    return \Illuminate\Database\Capsule\Manager::table('gates_site_events')->where('status', 'published')
+                        ->orderByDesc('event_date')->limit(20)
+                        ->get(['id', 'title', 'event_date'])
+                        ->map(static fn (object $r): array => (array) $r)->all();
+                } catch (\Throwable) { return []; }
+            })(),
             'voice_pending'       => \AfricaGates\Services\DoorWelcome::nameSheet(),
             'voice_known'         => \AfricaGates\Services\NameSays::count(),
             'voice_lead'          => \AfricaGates\Services\DoorWelcome::LEAD_DAYS,
@@ -1111,19 +1126,49 @@ class SettingsController
             return $r->withHeader('Content-Type', 'application/json')->withStatus($status);
         };
 
-        if (!\AfricaGates\Services\AzureVoice::configured()) {
-            return $out($res, ['ok' => false, 'why' => \AfricaGates\Services\AzureVoice::why()
-                ?: 'The voice is not configured.'], 400);
-        }
+        $body  = (array) $req->getParsedBody();
+        $kind  = (string) ($body['kind'] ?? 'guest');
+        $role  = trim((string) ($body['role'] ?? ''));
+        $event = (int) ($body['event'] ?? 0) > 0
+            ? \AfricaGates\Services\DoorWelcome::eventOf((int) $body['event'])
+            : null;
 
-        // Through the door's own resolver, not a sentence written here. A preview that
-        // built its line differently would be a preview of something nobody will hear —
-        // and the pronunciation list is matched on the FIRST name, which is exactly the
-        // part this would get wrong.
-        $line = \AfricaGates\Services\DoorWelcome::line($name);
+        // ── THE LINE COMES FIRST, AND IT COMES WITH THE EVENT ────────────────
+        //
+        // This asked whether Azure was configured BEFORE it built anything, so a
+        // deployment without a key could not check the wording — not the greeting, not
+        // the pronunciation list, not which of the four forms a name lands on. All of
+        // that is text and costs nothing to compute. Refusing to show it because a
+        // synthesiser is missing made "test the welcome voice" mean "buy a key first".
+        //
+        // And the EVENT is the correction that matters. The door calls
+        // `line($name, eventOfPass($pass))`, so a real guest hears "Good evening. Ada,
+        // you are welcome." This built the line with no event and previewed "Ada, you
+        // are welcome" — a different sentence, a different cache key, and a preview of
+        // something nobody will ever hear, on the one screen whose entire job is to let
+        // somebody hear it before the night.
+        $line = match ($kind) {
+            'honour'  => \AfricaGates\Services\DoorWelcome::honourLine($name, $role, $event),
+            // What plays when a name cannot be said aloud at all. Reachable nowhere
+            // before this, and it is the line that covers every failure on the door.
+            'generic' => \AfricaGates\Services\DoorWelcome::greeting($event)
+                         . \AfricaGates\Services\DoorWelcome::genericLine(),
+            default   => \AfricaGates\Services\DoorWelcome::line($name, $event),
+        };
+
         if ($line === '') {
             return $out($res, ['ok' => false,
                 'why' => 'That is not a name the door would say aloud — letters only, at least two.'], 422);
+        }
+
+        // From here the answer is always OK: the operator asked what the door will say
+        // and this is what it will say. `spoken` is the separate question of whether it
+        // could be heard, which has its own separate reasons.
+        if (!\AfricaGates\Services\AzureVoice::configured()) {
+            return $out($res, ['ok' => true, 'line' => \AfricaGates\Services\AzureVoice::plain($line),
+                'spoken' => false,
+                'why' => \AfricaGates\Services\AzureVoice::why()
+                    ?: 'No voice is configured, so this is the wording only.']);
         }
 
         if (!\AfricaGates\Services\DoorWelcome::render($line)) {
@@ -1131,17 +1176,22 @@ class SettingsController
             // operator to the wrong box for every failure that was not the key — and on
             // this screen, where somebody may press Hear twenty times in a minute, the
             // likeliest one by far is the free tier's rate limit.
-            return $out($res, ['ok' => false,
+            return $out($res, ['ok' => true, 'line' => \AfricaGates\Services\AzureVoice::plain($line),
+                'spoken' => false,
                 'why' => \AfricaGates\Services\AzureVoice::lastError()
-                    ?: 'Azure did not answer. Check the key and the region.'], 502);
+                    ?: 'Azure did not answer. Check the key and the region.']);
         }
 
         try { $this->audit->record($adminId, 'settings.voice_preview', null, null); } catch (\Throwable) {}
 
         return $out($res, [
-            'ok'   => true,
-            'line' => $line,
-            'url'  => '/admin/settings/voice-sample/' . \AfricaGates\Services\DoorWelcome::keyFor($line),
+            'ok'     => true,
+            // The readable form. The KEY is still taken from the raw line, because that is
+            // what was rendered — stripping the marker before hashing would look for a
+            // clip that was never made.
+            'line'   => \AfricaGates\Services\AzureVoice::plain($line),
+            'spoken' => true,
+            'url'    => '/admin/settings/voice-sample/' . \AfricaGates\Services\DoorWelcome::keyFor($line),
         ]);
     }
 

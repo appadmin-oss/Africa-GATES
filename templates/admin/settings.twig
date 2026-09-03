@@ -525,18 +525,62 @@
          outer form — the button would still render, still look right, and post the
          whole settings page to the preview route. Three of those have shipped here. #}
       <div style="margin-top:14px;padding-top:12px;border-top:1px solid rgba(16,41,44,.12)">
-        <label for="f-voice_try">Hear a name
-          <small>as the door will say it &mdash; nothing is saved</small></label>
-        <div style="display:flex;gap:8px;align-items:flex-start;flex-wrap:wrap">
+        <label for="f-voice_try">Test the welcome
+          <small>exactly what the door will say &mdash; nothing is saved</small></label>
+
+        {# ── WHY THIS IS THREE CONTROLS AND NOT A NAME BOX ──────────────────
+           It was a name box that built the line with NO EVENT, and the door builds it
+           WITH one: `line($name, eventOfPass($pass))`. The greeting prefix comes from
+           the event's start in the event's own timezone, so a real guest hears "Good
+           evening. Ada, you are welcome." and this previewed "Ada, you are welcome" —
+           a different sentence and a different cache key, on the one control whose whole
+           job is to let somebody hear it before the night.
+
+           And two of the three lines the door can say had no preview at all: the guest
+           of honour's, which is the one a nominee hears at their own ceremony, and the
+           generic line, which covers every name the voice cannot manage. #}
+        <div class="row" style="margin-bottom:8px">
+          <div>
+            <label for="f-voice_kind">Who is arriving</label>
+            <select id="f-voice_kind" data-ag-do="voice-kind">
+              <option value="guest">A ticket holder</option>
+              <option value="honour">A guest of honour</option>
+              <option value="generic">Somebody whose name we cannot say</option>
+            </select>
+          </div>
+          <div>
+            <label for="f-voice_event">At which door
+              <small>sets the greeting &mdash; and the hour is the event&rsquo;s, not now</small></label>
+            <select id="f-voice_event">
+              <option value="0">No event &mdash; no greeting</option>
+              {% for e in door_events %}
+                <option value="{{ e.id }}">{{ e.title }} &mdash; {{ e.event_date|date('j M, H:i') }}</option>
+              {% endfor %}
+            </select>
+          </div>
+        </div>
+
+        <div style="display:flex;gap:8px;align-items:flex-start;flex-wrap:wrap"
+             id="voice-name-row">
           <input type="text" id="f-voice_try" maxlength="40" placeholder="Chidinma"
-                 autocomplete="off" style="flex:1 1 180px;min-width:0">
+                 aria-label="First name" autocomplete="off" style="flex:1 1 160px;min-width:0">
+          <input type="text" id="f-voice_role" maxlength="40" placeholder="Guest of honour"
+                 aria-label="Their role this evening" autocomplete="off" hidden
+                 style="flex:1 1 160px;min-width:0">
+          {# NOT disabled without a key any more. The wording is text and costs nothing to
+             compute; refusing to show it because a synthesiser is missing made "test the
+             welcome" mean "buy a key first". #}
           <button type="button" class="btn btn--ghost" data-ag-do="voice-try"
                   data-target="f-voice_try" data-out="voice-try-out"
-                  {% if not azure_voice_on %}disabled{% endif %}
-                  style="min-height:40px">Hear it</button>
+                  data-kind="f-voice_kind" data-event="f-voice_event" data-role="f-voice_role"
+                  style="min-height:40px">{% if azure_voice_on %}Hear it{% else %}Show it{% endif %}</button>
         </div>
-        <p class="hint" id="voice-try-out" role="status" aria-live="polite" style="margin:8px 0 0;min-height:1.2em">
-          {%- if not azure_voice_on %}Set the key above and save, then this will speak.{% endif -%}
+
+        {# The line itself, always. Read it even with no key. #}
+        <p id="voice-try-line" role="status" aria-live="polite"
+           style="margin:10px 0 0;min-height:1.2em;font-size:14px;color:var(--ad-text,#10292C)"></p>
+        <p class="hint" id="voice-try-out" style="margin:4px 0 0;min-height:1.2em">
+          {%- if not azure_voice_on %}No key set, so this shows the wording without speaking it.{% endif -%}
         </p>
       </div>
 

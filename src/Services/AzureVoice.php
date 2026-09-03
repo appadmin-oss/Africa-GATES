@@ -483,6 +483,24 @@ final class AzureVoice
      * booking form. Control characters go because SSML is XML and a stray one is a 400 on a
      * sweep nobody is watching.
      */
+    /**
+     * The same line as a PERSON reads it, with the pause marker taken out.
+     *
+     * The counterpart of {@see ssml()}: that one renders {@see PAUSE} for a synthesiser,
+     * this one renders it for somebody checking the wording on a screen. Without it the
+     * preview shows `Chee-deen-mah,{{brk}} we have been expecting you` and an operator
+     * reasonably concludes the voice is broken — the marker is an implementation detail
+     * of the SSML document and has no business being read by anybody.
+     *
+     * The marker always follows a comma, so removing it leaves a double space; collapsing
+     * runs of whitespace afterwards is not tidying for its own sake, it is the difference
+     * between a sentence and one that looks mistyped.
+     */
+    public static function plain(string $text): string
+    {
+        return trim((string) preg_replace('/\s+/u', ' ', str_replace(self::PAUSE, '', $text)));
+    }
+
     public static function tidy(string $text): string
     {
         $text = preg_replace('/[\x00-\x08\x0B\x0C\x0E-\x1F]/u', '', trim($text)) ?? '';

@@ -268,18 +268,38 @@
   (function () {
     var busy = false;
 
+    /**
+     * Which of the three lines the door can say, and at whose door.
+     *
+     * The kind and the event are read from their own controls rather than assumed,
+     * because the line genuinely differs: a guest of honour hears a sentence naming why
+     * they are there, a name the voice cannot manage falls to the generic line, and the
+     * greeting prefix comes from the EVENT's start in the event's own timezone. A preview
+     * that assumed "ticket holder, no event" — which is what this used to send — showed a
+     * sentence the door never says.
+     */
     function agVoiceTry(btn) {
       if (busy || !btn) return;
-      var box = document.getElementById(btn.getAttribute('data-target') || '');
-      var out = document.getElementById(btn.getAttribute('data-out') || '');
+      var pick = function (attr) { return document.getElementById(btn.getAttribute(attr) || ''); };
+      var box  = pick('data-target');
+      var out  = document.getElementById(btn.getAttribute('data-out') || '');
+      var lineEl = document.getElementById('voice-try-line');
       var form = btn.closest('form');
+      var kindEl = pick('data-kind'), evEl = pick('data-event'), roleEl = pick('data-role');
+      var kind = kindEl ? kindEl.value : 'guest';
       var name = box ? box.value.trim() : '';
-      var say = function (t) { if (out) out.textContent = t; };
+      var say  = function (t) { if (out) out.textContent = t; };
+      var line = function (t) { if (lineEl) lineEl.textContent = t; };
 
-      if (name === '') { say('Type a first name first.'); if (box) box.focus(); return; }
+      // The generic line has no name in it, so asking for one would be asking for
+      // something the answer does not use.
+      if (kind !== 'generic' && name === '') {
+        say('Type a first name first.'); if (box) box.focus(); return;
+      }
 
       busy = true;
       btn.disabled = true;
+      line('');
       say('Asking for it\u2026');
 
       var tok = form && form.querySelector('input[name="_token"]');
@@ -291,21 +311,30 @@
           'Content-Type': 'application/x-www-form-urlencoded',
           'X-CSRF-Token': tok ? tok.value : '',
         },
-        body: 'name=' + encodeURIComponent(name),
+        body: 'name=' + encodeURIComponent(name)
+            + '&kind=' + encodeURIComponent(kind)
+            + '&event=' + encodeURIComponent(evEl ? evEl.value : '0')
+            + '&role=' + encodeURIComponent(roleEl ? roleEl.value.trim() : ''),
       })
         .then(function (r) { return r.json().catch(function () { return { ok: false }; }); })
         .then(function (d) {
-          if (!d || !d.ok || !d.url) {
+          if (!d || !d.ok) {
             say(d && d.why ? d.why : 'That could not be spoken. Check the key and the region.');
             return;
           }
-          say('\u201C' + d.line + '\u201D');
+          // THE WORDING ALWAYS. "What will the door say" and "can this deployment say it"
+          // are two questions, and only the second needs a key — so a failure to speak
+          // now reports itself beside the line rather than instead of it.
+          line('\u201C' + d.line + '\u201D');
+          if (!d.url) { say(d.why || 'The wording only \u2014 no voice is configured.'); return; }
+
+          say('');
           var a = new Audio(d.url);
           // A play() rejection is the ordinary case on a browser that wants a gesture it
           // did not see, not a fault in the voice — so it says so rather than blaming the
           // configuration the operator just set.
           var pl = a.play();
-          if (pl && pl.catch) pl.catch(function () { say('\u201C' + d.line + '\u201D \u2014 ready, but this browser would not play it.'); });
+          if (pl && pl.catch) pl.catch(function () { say('Ready, but this browser would not play it.'); });
         })
         .catch(function () { say('The request did not get through.'); })
         .then(function () { busy = false; btn.disabled = false; });
@@ -328,6 +357,23 @@
      * Names already in the box are left exactly as they are: an operator who has corrected
      * Ngozi by hand must not have it replaced by the machine's opinion of Ngozi.
      */
+    /**
+     * Show only the boxes the chosen line actually uses.
+     *
+     * `hidden` and not a class: the admin stylesheet sets `display` on `.row > div` in
+     * places, and any author display beats the UA stylesheet's `[hidden]` — so the
+     * elements are toggled directly rather than through a class that might lose.
+     */
+    function agVoiceKind(sel) {
+      var kind = sel.value;
+      var name = document.getElementById('f-voice_try');
+      var role = document.getElementById('f-voice_role');
+      if (name) name.hidden = (kind === 'generic');
+      if (role) role.hidden = (kind !== 'honour');
+      var lineEl = document.getElementById('voice-try-line');
+      if (lineEl) lineEl.textContent = '';
+    }
+
     function agVoiceFill(btn) {
       var box = document.getElementById(btn.getAttribute('data-target') || '');
       if (!box) return;
@@ -369,6 +415,14 @@
 
       var fill = e.target.closest('[data-ag-do="voice-fill"]');
       if (fill) { e.preventDefault(); agVoiceFill(fill); }
+    });
+
+    // A `change` on a <select> does not reach the click listener above — it is a
+    // different event, and a handler registered on the wrong one is a control that
+    // renders, looks right and silently does nothing.
+    document.addEventListener('change', function (e) {
+      var kindSel = e.target.closest && e.target.closest('[data-ag-do="voice-kind"]');
+      if (kindSel) agVoiceKind(kindSel);
     });
 
     document.addEventListener('keydown', function (e) {

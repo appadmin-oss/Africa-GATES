@@ -504,7 +504,22 @@ final class DoorWelcome
         $name = trim(preg_replace('/\s+/u', ' ', $name) ?? '');
         if ($name === '' || str_contains($name, '@')) return '';
 
-        $first = explode(' ', $name)[0] ?? '';
+        // ── A TITLE IS NOT A NAME ────────────────────────────────────────────
+        //
+        // This took the first whitespace token, full stop — so "HRM Oba Adeyemi" was
+        // greeted as "Hrm", "Chief Bola Ige" as "Chief", and "Dr Ngozi Eze" as "Dr". Said
+        // out loud, at their own ceremony, in front of a queue. Titles are the norm on a
+        // Nigerian guest list rather than the exception, and the more senior the guest the
+        // more likely they carry one — so the failure landed hardest on exactly the people
+        // {@see honourLine()} exists for.
+        //
+        // Conservative on purpose. A leading token is dropped only when it is a known
+        // title AND something usable follows: "Grace" stays Grace, and a guest actually
+        // called Chief keeps their name because there is nothing after it to prefer.
+        $parts = explode(' ', $name);
+        while (count($parts) > 1 && self::isTitle($parts[0])) array_shift($parts);
+
+        $first = $parts[0] ?? '';
 
         // ── \p{M} IS NOT OPTIONAL HERE ───────────────────────────────────────
         //
@@ -525,6 +540,31 @@ final class DoorWelcome
         if (preg_match('/^[\p{L}\p{M}\'’\-]{2,40}$/u', $first) !== 1) return '';
 
         return Name::title($first);
+    }
+
+    /**
+     * Honorifics a Nigerian guest list carries, and that nobody is called BY.
+     *
+     * Folded through {@see fold()} so a title written with marks, in caps, or with the
+     * full stop people put after an abbreviation all match the same entry — the list is
+     * about which word this is, not how it was typed.
+     *
+     * Deliberately short and deliberately unambiguous. A word that is a title for one
+     * person and a name for another does not belong here: dropping a real name is worse
+     * than reading a title, because the first is a stranger at the door and the second is
+     * merely stiff.
+     */
+    private const TITLES = [
+        'mr', 'mrs', 'ms', 'miss', 'dr', 'prof', 'professor', 'sir', 'lady', 'rev',
+        'pastor', 'bishop', 'imam', 'alhaji', 'alhaja', 'chief', 'engr', 'engineer',
+        'barr', 'barrister', 'arc', 'architect', 'hon', 'honourable', 'honorable',
+        'amb', 'ambassador', 'sen', 'senator', 'gen', 'general', 'capt', 'captain',
+        'otunba', 'oba', 'olu', 'igwe', 'emir', 'eze', 'obi', 'hrm', 'hrh', 'rt',
+    ];
+
+    private static function isTitle(string $word): bool
+    {
+        return in_array(self::fold(rtrim($word, '.')), self::TITLES, true);
     }
 
     // ══ the cache ════════════════════════════════════════════════════════════

@@ -152,6 +152,45 @@ final class DoorWelcomeTest extends TestCase
         $this->assertSame('Ngozi', DoorWelcome::firstName('  NGOZI   ADAEZE  '));
     }
 
+    /**
+     * A TITLE IS NOT A NAME, AND THIS SAID IT OUT LOUD.
+     *
+     * `firstName()` took the first whitespace token, so "HRM Oba Adeyemi" was greeted as
+     * "Hrm", "Chief Bola Ige" as "Chief" and "Dr Ngozi Eze" as "Dr" — at their own
+     * ceremony, in front of a queue. Titles are the norm on a Nigerian guest list rather
+     * than the exception, and the more senior the guest the more likely they carry one,
+     * so the failure landed hardest on exactly the people honourLine() exists for.
+     */
+    public function test_a_title_is_not_read_as_somebody_s_name(): void
+    {
+        foreach ([
+            'HRM Oba Adeyemi'   => 'Adeyemi',
+            'Chief Bola Ige'    => 'Bola',
+            'Dr. Ngozi Eze'     => 'Ngozi',
+            'Prof Wole Soyinka' => 'Wole',
+            'Alhaji Musa Danjuma' => 'Musa',
+            'Mrs Grace Abiodun' => 'Grace',
+            'Engr. Tunde Cole'  => 'Tunde',
+        ] as $written => $expected) {
+            $this->assertSame($expected, DoorWelcome::firstName($written),
+                "{$written} is greeted by their title rather than their name");
+        }
+    }
+
+    /**
+     * And a title is only dropped when there is a name behind it.
+     *
+     * Dropping a real name is worse than reading a title: the first is a stranger at their
+     * own door and the second is merely stiff. Somebody actually called Chief keeps it,
+     * because there is nothing after it to prefer.
+     */
+    public function test_a_name_that_happens_to_be_a_title_is_kept(): void
+    {
+        $this->assertSame('Chief', DoorWelcome::firstName('Chief'));
+        $this->assertSame('Grace', DoorWelcome::firstName('Grace'));
+        $this->assertSame('Oba', DoorWelcome::firstName('Oba'));
+    }
+
     /** A guest of honour is met differently, because their arrival is different. */
     public function test_a_guest_of_honour_is_greeted_as_one(): void
     {
@@ -163,6 +202,29 @@ final class DoorWelcomeTest extends TestCase
         // Never varied. Somebody arriving at an evening held for them gets the sentence
         // that names why they are there, every time, including on the way back from a call.
         $this->assertSame($l, DoorWelcome::honourLine('Tunde Cole', 'nominee'));
+    }
+
+    /**
+     * THE PAUSE MARKER IS FOR A SYNTHESISER, NEVER FOR A READER.
+     *
+     * `PAUSE` is `{{brk}}` and is replaced with an SSML break on the wire. Anything that
+     * shows a line to a PERSON — the preview on the settings screen, whose entire job is
+     * checking the wording before the night — must render it as it will be heard, or the
+     * operator reads "Chee-deen-mah,{{brk}} we have been expecting you" and reasonably
+     * concludes the voice is broken.
+     */
+    public function test_a_line_shown_to_a_person_carries_no_pause_marker(): void
+    {
+        $raw = DoorWelcome::line('Chidinma Okonkwo', $this->anEvent());
+        $this->assertStringContainsString(AzureVoice::PAUSE, $raw, 'the marker belongs in the line');
+
+        $read = AzureVoice::plain($raw);
+
+        $this->assertStringNotContainsString(AzureVoice::PAUSE, $read);
+        $this->assertStringNotContainsString('{{', $read);
+        // And the comma the marker followed does not leave a hole behind it.
+        $this->assertStringNotContainsString('  ', $read);
+        $this->assertStringContainsString('welcome', $read);
     }
 
     // ══ the beat, and the markup around it ═══════════════════════════════════
