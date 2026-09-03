@@ -165,12 +165,14 @@
       <p class="ja-stat__v">{{ audit.totals.cycles }}</p>
     </div>
     <div class="ja-stat">
-      <p class="ja-stat__k">Nominees</p>
+      <p class="ja-stat__k">Shortlisted</p>
       <p class="ja-stat__v">{{ audit.totals.nominees }}</p>
+      <span class="ja-den">the panel&rsquo;s list</span>
     </div>
     <div class="ja-stat{% if audit.totals.unjudged > 0 %} ja-stat--bad{% endif %}">
       <p class="ja-stat__k">Never scored</p>
       <p class="ja-stat__v">{{ audit.totals.unjudged }}</p>
+      <span class="ja-den">shortlisted, and nobody looked</span>
     </div>
     <div class="ja-stat">
       <p class="ja-stat__k">Judges</p>
@@ -260,11 +262,20 @@
     <h3>Coverage, cycle by cycle</h3>
     <p>The smallest panel any single nominee faced, not the average one. An average of four
       can contain a nominee seen by one judge, and that nominee is the question.</p>
+    {# ── WHOSE COVERAGE ──────────────────────────────────────────────────────
+       These counted every approved nominee, and the panel is only ever given the
+       published shortlist — so a nominee the shortlist rules correctly left off read as
+       "never scored", in red, on the audit's loudest column. Flagging the system working
+       is the fastest way to teach somebody to ignore a column. #}
+    <p class="ja-den" style="margin:-8px 0 12px">Counted over the <b>published
+      shortlist</b> &mdash; the nominees the panel was actually asked for. A category with
+      no shortlist has its whole field counted, because there nobody was left off.</p>
     <table class="ja-t">
       <thead>
         <tr>
-          <th>Cycle</th><th>Status</th><th>Nominees</th><th>Never scored</th>
+          <th>Cycle</th><th>Status</th><th>Shortlisted</th><th>Never scored</th>
           <th>One judge only</th><th>Smallest panel</th><th>No dossier</th>
+          <th>Scored off the list</th>
         </tr>
       </thead>
       <tbody>
@@ -286,6 +297,13 @@
                every other nominee's judges had. Written since day one, shown here first. #}
             <td class="ja-num">
               {% if c.no_dossier > 0 %}<span class="ja-flag ja-flag--warn">{{ c.no_dossier }}</span>
+              {% else %}0{% endif %}
+            </td>
+            {# Marks on somebody the panel was not asked for. Not hidden: it is either
+               panel time spent on a nominee who cannot win, or a shortlist republished
+               after judging began — and both are worth an operator's attention. #}
+            <td class="ja-num">
+              {% if c.off_list > 0 %}<span class="ja-flag ja-flag--warn">{{ c.off_list }}</span>
               {% else %}0{% endif %}
             </td>
           </tr>

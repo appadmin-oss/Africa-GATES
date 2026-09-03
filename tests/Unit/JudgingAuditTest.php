@@ -581,6 +581,176 @@ final class JudgingAuditTest extends TestCase
         $this->assertSame(50, $inc['rows'][0]['covered']);
     }
 
+
+    // ══ whose coverage this is ═══════════════════════════════════════════════
+
+    /**
+     * THE AUDIT'S LOUDEST COLUMN WAS FLAGGING THE SYSTEM WORKING.
+     *
+     * Coverage counted every approved nominee, and the panel is only ever given the
+     * published shortlist — so a nominee the shortlist rules correctly left off was
+     * reported as "never scored", in red, beside the ones who really were missed. On a
+     * programme that shortlists ten from two hundred, the column read 190 and meant
+     * nothing, which is the fastest way to teach an operator to skip it.
+     */
+    public function test_coverage_counts_the_shortlist_and_not_the_whole_field(): void
+    {
+        $j1 = $this->judge('Ada Obi');
+        $j2 = $this->judge('Tunde Cole');
+
+        $on   = $this->nominee('On the list');
+        $also = $this->nominee('Also on the list');
+        $off  = $this->nominee('Left off');
+
+        $this->score($j1, $on, 'impact', 8);
+        $this->score($j2, $on, 'impact', 7);
+        // `$also` is shortlisted and nobody scored them. THAT is the finding.
+        $this->publishShortlist($this->cycleId, $this->categoryId, [$on, $also]);
+
+        $audit = JudgingAudit::forProgramme($this->programmeId);
+
+        $this->assertSame(2, $audit['totals']['nominees'],
+            'the nominee left off the shortlist is counted as somebody the panel owed work');
+        $this->assertSame(1, $audit['totals']['unjudged'],
+            'never scored must mean shortlisted and nobody looked');
+
+        $c = $audit['cycles'][0];
+        $this->assertSame(2, $c['nominees']);
+        $this->assertSame(1, $c['unjudged']);
+        // And the one nobody was asked for is not dragging the smallest panel to zero.
+        $this->assertSame(0, $c['min_panel'], 'the unscored SHORTLISTED nominee still counts');
+
+        $this->assertSame(0, $c['off_list'], 'nobody scored anyone off the list');
+    }
+
+    /**
+     * And a nominee scored ANYWAY is reported rather than dropped.
+     *
+     * Filtering them out would be the same failure in a new place: marks in the record
+     * belonging to nobody the coverage table has heard of. Either the panel spent time on
+     * somebody who cannot win, or the shortlist was republished after judging began, and
+     * both are worth an operator's attention.
+     */
+    public function test_marks_on_somebody_left_off_the_list_are_reported(): void
+    {
+        $j = $this->judge('Ada Obi');
+
+        $on  = $this->nominee('On the list');
+        $off = $this->nominee('Left off');
+        $this->score($j, $on, 'impact', 8);
+        $this->score($j, $off, 'impact', 9);           // scored anyway
+        $this->publishShortlist($this->cycleId, $this->categoryId, [$on]);
+
+        $audit = JudgingAudit::forProgramme($this->programmeId);
+
+        $this->assertSame(1, $audit['totals']['nominees']);
+        $this->assertSame(0, $audit['totals']['unjudged']);
+        $this->assertSame(1, $audit['totals']['off_list'],
+            'a nominee the panel was not asked for was scored, and the audit is silent');
+        $this->assertSame(1, $audit['cycles'][0]['off_list']);
+
+        // Their marks are still in the record — the flag rides on the row precisely so
+        // that scores never belong to a nominee the coverage table has never heard of.
+        $this->assertGreaterThanOrEqual(2, $audit['totals']['scores']);
+    }
+
+    /**
+     * A CATEGORY WITH NO SHORTLIST IS NOT A CATEGORY THAT SHORTLISTED NOBODY.
+     *
+     * The load-bearing distinction, and the reason this resolves per CATEGORY through
+     * ResultRelease::shortlistedIn() rather than off a cycle-wide set of ids. A cycle-wide
+     * lookup cannot tell the two apart, so every nominee of an unshortlisted category
+     * would read as left off — the audit would report a programme that does not shortlist
+     * as having judged nobody at all.
+     */
+    public function test_a_category_that_does_not_shortlist_keeps_its_whole_field(): void
+    {
+        $j = $this->judge('Ada Obi');
+        $a = $this->nominee('A');
+        $b = $this->nominee('B');
+        $this->score($j, $a, 'impact', 8);
+        // No shortlist published for this category at all.
+
+        $audit = JudgingAudit::forProgramme($this->programmeId);
+
+        $this->assertSame(2, $audit['totals']['nominees'],
+            'a programme that does not shortlist had its whole field discounted');
+        $this->assertSame(1, $audit['totals']['unjudged'], 'B is genuinely unjudged');
+        $this->assertSame(0, $audit['totals']['off_list'],
+            'nobody can be off a list that does not exist');
+    }
+
+    /** And the screen says which universe the numbers describe. */
+    public function test_the_screen_says_the_counts_are_over_the_shortlist(): void
+    {
+        $tpl = (string) file_get_contents(
+            dirname(__DIR__, 2) . '/templates/admin/judging-audit.twig');
+        // Comments record the reasoning and would satisfy a naive scan on their own.
+        $body = (string) preg_replace('~\{#.*?#\}~s', '', $tpl);
+
+        // The COVERAGE card only. "Nominees" is a legitimate header on the panel table
+        // below it, where it counts how much of the field each judge saw — a scan of the
+        // whole document would fail on a column that is still correct.
+        $start = strpos($body, 'Coverage, cycle by cycle');
+        $this->assertNotFalse($start, 'the coverage card has been renamed or removed');
+        $card = substr($body, $start, (int) (strpos($body, '</table>', $start) - $start));
+
+        $this->assertStringContainsString('published', $card,
+            'the card does not say which universe it is counting');
+        $this->assertStringContainsString('off_list', $card,
+            'marks on somebody the panel was not asked for have no column');
+        $this->assertStringNotContainsString('<th>Nominees</th>', $card,
+            'the column still says "Nominees" while counting only the shortlist');
+    }
+
+    /**
+     * A FAILED DOSSIER ON SOMEBODY THE PANEL WAS NEVER ASKED ABOUT IS NOT A GAP.
+     *
+     * `no_dossier` sits in the same row as every other coverage figure, and those now
+     * count the published shortlist — so counting dossier failures across the whole field
+     * would put the exact false alarm that was just removed from "never scored" one cell
+     * to the right. The column had no test at all before this, in either direction.
+     */
+    public function test_a_dossier_gap_is_counted_over_the_shortlist(): void
+    {
+        $j = $this->judge('Ada Obi');
+
+        $on  = $this->nominee('On the list');
+        $off = $this->nominee('Left off');
+        $this->score($j, $on, 'impact', 8);
+
+        foreach ([$on, $off] as $nid) {
+            DB::table('gates_judge_orientation')->insert([
+                'nominee_id' => $nid, 'status' => 'failed',
+                'error' => 'the provider did not answer',
+                'created_at' => '2026-11-01 08:00:00',
+            ]);
+        }
+        $this->publishShortlist($this->cycleId, $this->categoryId, [$on]);
+
+        $this->assertSame(1, JudgingAudit::forProgramme($this->programmeId)['cycles'][0]['no_dossier'],
+            'a dossier that failed for somebody the panel was never asked about is '
+            . 'reported as a judging gap');
+    }
+
+    /** And a REGENERATED dossier is not a gap either — the latest row decides. */
+    public function test_a_dossier_that_failed_and_was_rebuilt_is_not_a_gap(): void
+    {
+        $j = $this->judge('Ada Obi');
+        $n = $this->nominee('On the list');
+        $this->score($j, $n, 'impact', 8);
+
+        foreach (['failed', 'ok'] as $status) {
+            DB::table('gates_judge_orientation')->insert([
+                'nominee_id' => $n, 'status' => $status,
+                'created_at' => '2026-11-01 08:00:00',
+            ]);
+        }
+        $this->publishShortlist($this->cycleId, $this->categoryId, [$n]);
+
+        $this->assertSame(0, JudgingAudit::forProgramme($this->programmeId)['cycles'][0]['no_dossier']);
+    }
+
     // ══ scorecards left part-marked ══════════════════════════════════════════
 
     /**

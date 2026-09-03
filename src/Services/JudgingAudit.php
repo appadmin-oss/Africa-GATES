@@ -145,25 +145,47 @@ final class JudgingAudit
             $thin     = 0;
             $panels   = [];
 
+            $onList    = 0;
+            $offList   = 0;
+            $noDossier = 0;
+            $gaps      = $orientationGaps[$cid] ?? [];
+
             foreach ($rows as $n) {
                 $panel = count($judged[$cid][(int) $n['id']] ?? []);
+
+                // A nominee the shortlist left off was never the panel's to judge, so
+                // counting them as "never scored" reports the system working as a
+                // failure. They are counted separately — and only when somebody scored
+                // them anyway, which IS a finding.
+                if (empty($n['shortlisted'])) {
+                    if ($panel > 0) $offList++;
+                    continue;
+                }
+
+                $onList++;
                 $panels[] = $panel;
                 if ($panel === 0)      $unjudged++;
                 elseif ($panel < 2)    $thin++;
+                if (isset($gaps[(int) $n['id']])) $noDossier++;
             }
 
             $out[] = $c + [
-                'nominees'  => count($rows),
+                'nominees'  => $onList,
                 'unjudged'  => $unjudged,
                 'thin'      => $thin,
+                // Marks on somebody the panel was not asked for: wasted panel time, or a
+                // shortlist republished after judging began. Never a silent omission —
+                // the whole reason the flag rides on the row rather than filtering it.
+                'off_list'  => $offList,
                 // The SMALLEST panel any nominee in this cycle faced. A mean would hide
                 // the one person judged by a single panellist inside an average of four,
                 // and that person is the whole question.
                 'min_panel' => $panels === [] ? 0 : min($panels),
                 'max_panel' => $panels === [] ? 0 : max($panels),
                 // Nominees judged without the orientation dossier the rest of the field
-                // had. See orientationGaps().
-                'no_dossier' => $orientationGaps[$cid] ?? 0,
+                // had. Counted over the shortlist like every other column in this row —
+                // see orientationGaps() for why it hands over ids rather than a total.
+                'no_dossier' => $noDossier,
             ];
         }
 
@@ -811,12 +833,46 @@ final class JudgingAudit
             ->join('gates_award_categories as c', 'c.id', '=', 'n.category_id')
             ->whereIn('c.cycle_id', $cycleIds)
             ->whereIn('n.status', ['approved', 'winner', 'runner_up'])
-            ->select('n.id', 'n.name', 'c.cycle_id');
+            ->select('n.id', 'n.name', 'c.cycle_id', 'n.category_id');
         MergeService::notMerged($q, 'n.merged_into');
 
+        $rows = $q->get();
+
+        // ── THE PANEL IS ASKED FOR THE SHORTLIST, SO THE AUDIT MEASURES IT ───
+        //
+        // This counted every approved nominee, and the panel is only ever given the
+        // published shortlist — so a nominee the shortlist rules correctly left off was
+        // reported as a coverage FAILURE. "Never scored: 1" in red, on a nominee nobody
+        // was ever supposed to score. The audit's loudest column was flagging the system
+        // working, which is the fastest way to teach an operator to ignore it.
+        //
+        // Per CATEGORY, not per cycle, and through {@see ResultRelease::shortlistedIn()}
+        // rather than a lookup written here: it returns NULL for "this category does not
+        // shortlist", which is a different state from "shortlisted nobody" and the one
+        // that must leave every nominee in scope. A cycle-wide id set cannot tell them
+        // apart — every nominee of an unshortlisted category would read as left off.
+        $listed = [];
+        foreach (array_unique(array_map(static fn ($r): int => (int) $r->category_id, $rows->all())) as $catId) {
+            $ids = ResultRelease::shortlistedIn($catId);
+            // null → this category does not shortlist, so its whole field is the panel's.
+            $listed[$catId] = $ids === null ? null : array_fill_keys($ids, true);
+        }
+
         $out = [];
-        foreach ($q->get() as $r) {
-            $out[(int) $r->cycle_id][] = ['id' => (int) $r->id, 'name' => (string) $r->name];
+        foreach ($rows as $r) {
+            $cat = (int) $r->category_id;
+            $map = $listed[$cat] ?? null;
+
+            $out[(int) $r->cycle_id][] = [
+                'id'   => (int) $r->id,
+                'name' => (string) $r->name,
+                // Kept on the row rather than filtered out here. A nominee left off the
+                // list who was scored ANYWAY is a real finding — panel time spent on
+                // somebody who cannot win, or a shortlist republished after judging
+                // began — and dropping them would make the marks in `scores` belong to
+                // nobody the coverage table has heard of.
+                'shortlisted' => $map === null || isset($map[(int) $r->id]),
+            ];
         }
 
         return $out;
@@ -868,8 +924,16 @@ final class JudgingAudit
      * `error` beside them have been written since the day the table was added and
      * rendered nowhere — §17 names both, and this is the screen they were missing.
      *
+     * ── WHICH NOMINEES, DECIDED BY THE CALLER ────────────────────────────────
+     *
+     * Returns the IDS rather than a count, because this figure sits in a row whose every
+     * other column is measured over the published shortlist. Counting here would put a
+     * failed dossier for somebody the panel was never asked about beside "shortlisted: 3"
+     * — the same false alarm the coverage column has just stopped raising, one cell to the
+     * right. {@see cycleCoverage()} holds the shortlist flags, so it does the counting.
+     *
      * @param list<int> $cycleIds
-     * @return array<int,int> cycle id => how many nominees have no usable orientation
+     * @return array<int, array<int,true>> cycle id => nominee ids with no usable orientation
      */
     private static function orientationGaps(array $cycleIds): array
     {
@@ -898,8 +962,8 @@ final class JudgingAudit
         }
 
         $out = [];
-        foreach ($latest as $v) {
-            if (!$v['ok']) $out[$v['cycle']] = ($out[$v['cycle']] ?? 0) + 1;
+        foreach ($latest as $nomineeId => $v) {
+            if (!$v['ok']) $out[$v['cycle']][(int) $nomineeId] = true;
         }
 
         return $out;
@@ -922,14 +986,24 @@ final class JudgingAudit
             $nomJudged[(int) $s->nominee_id] = true;
         }
 
-        $all = 0;
-        foreach ($nominees as $rows) $all += count($rows);
+        // The panel's own list, for the same reason cycleCoverage() uses it: "never
+        // scored" has to mean somebody who should have been and was not.
+        $all = 0; $judgedOnList = 0; $offList = 0;
+        foreach ($nominees as $rows) {
+            foreach ($rows as $n) {
+                $scored = isset($nomJudged[(int) $n['id']]);
+                if (empty($n['shortlisted'])) { if ($scored) $offList++; continue; }
+                $all++;
+                if ($scored) $judgedOnList++;
+            }
+        }
 
         return [
             'cycles'   => count($cycles),
             'nominees' => $all,
-            'judged'   => count($nomJudged),
-            'unjudged' => max(0, $all - count($nomJudged)),
+            'judged'   => $judgedOnList,
+            'unjudged' => max(0, $all - $judgedOnList),
+            'off_list' => $offList,
             'judges'   => count($judges),
             'scores'   => count($scores),
         ];
@@ -939,6 +1013,6 @@ final class JudgingAudit
     private static function zeroTotals(): array
     {
         return ['cycles' => 0, 'nominees' => 0, 'judged' => 0, 'unjudged' => 0,
-                'judges' => 0, 'scores' => 0];
+                'off_list' => 0, 'judges' => 0, 'scores' => 0];
     }
 }
