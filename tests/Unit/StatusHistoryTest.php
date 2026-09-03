@@ -4,6 +4,7 @@ declare(strict_types=1);
 namespace Tests\Unit;
 
 use AfricaGates\Services\SystemStatus;
+use Carbon\Carbon;
 use DI\ContainerBuilder;
 use Illuminate\Database\Capsule\Manager as DB;
 use Slim\Views\Twig;
@@ -42,27 +43,62 @@ final class StatusHistoryTest extends TestCase
 {
     private const NAMES = ['Voting and profiles', 'Payments', 'Email'];
 
+    /**
+     * Midday, fixed.
+     *
+     * ── WHY THE CLOCK IS PINNED AND NOT LEFT TO RUN ──────────────────────────
+     *
+     * `SystemStatus` buckets snapshots BY CALENDAR DAY (`substr($s['at'], 0, 10)`) and the
+     * assertions below read the LAST bucket, meaning "today". The fixtures place snapshots
+     * up to 240 minutes back — so on the wall clock, every one of those assertions quietly
+     * depends on the suite being run more than four hours after midnight.
+     *
+     * Run at 01:10 UTC and `snap(180, DEGRADED)` lands at 22:10 YESTERDAY. Today then holds
+     * only the healthy 60-minute reading, `test_the_worst_state_of_a_day_is_the_days_state`
+     * reads `operational`, and the failure says "averaging would turn a real outage into a
+     * pale shade of green" — accusing the production code of a fault that is entirely in
+     * the fixture. That is the expensive kind of red: it names code nobody touched.
+     *
+     * Midday gives twelve hours of headroom on either side of every offset in this file.
+     */
+    private const NOW = '2026-06-10 12:00:00';
+
     protected function setUp(): void
     {
         parent::setUp();
+        // `SystemStatus` reads `Carbon\Carbon::now()`, so this is the clock it sees.
+        Carbon::setTestNow(Carbon::parse(self::NOW));
         DB::table('gates_status_log')->delete();
+    }
+
+    protected function tearDown(): void
+    {
+        // Unconditionally, and before the rollback: a frozen clock that escapes this file
+        // is a time traveller loose in the rest of the suite, and the test it breaks will
+        // be somewhere else entirely.
+        Carbon::setTestNow();
+        parent::tearDown();
     }
 
     /**
      * One recorded snapshot, $minutesAgo ago.
+     *
+     * Measured from the SAME clock the code under test reads. Writing `date()` here while
+     * `SystemStatus` reads `Carbon::now()` is what made these assertions depend on the hour
+     * the suite happened to be run at.
      *
      * @param array<string,string> $parts component name => state
      */
     private function snap(int $minutesAgo, string $overall, array $parts = []): void
     {
         DB::table('gates_status_log')->insert([
-            'taken_at'        => date('Y-m-d H:i:s', strtotime('-' . $minutesAgo . ' minutes')),
+            'taken_at'        => Carbon::now()->subMinutes($minutesAgo)->toDateTimeString(),
             'overall'         => $overall,
             'components_json' => (string) json_encode(array_map(
                 static fn (string $n, string $s): array => ['name' => $n, 'status' => $s],
                 array_keys($parts), array_values($parts)
             )),
-            'created_at'      => date('Y-m-d H:i:s'),
+            'created_at'      => Carbon::now()->toDateTimeString(),
         ]);
     }
 

@@ -182,16 +182,29 @@ class CycleEditorTest extends TestCase
     {
         $id = $this->seedCycle();
 
+        // ── THE CLOCK IS READ ONCE ───────────────────────────────────────────
+        //
+        // This used to compute `+10 days` twice: once to build the POST and again to build
+        // the expectation. The two readings are normally the same string and are not the
+        // same string if the clock crosses midnight between them — so the test failed for
+        // roughly one second a day, saying "the divergence sweep must agree with the dates
+        // just saved" while the sweep and the save agreed perfectly.
+        //
+        // Caught at 00:58 UTC: posted `2026-09-12 23:58`, then asserted against
+        // `2026-09-13`. A failure that names production code and blames the fixture is the
+        // expensive kind, so the value is taken once and both sides use it.
+        $close = date('Y-m-d H:i', strtotime('+10 days'));
+
         $this->save([
             'cycle_id' => (string) $id, 'year' => (string) date('Y'), 'status' => 'voting',
             'voting_open'  => date('Y-m-d H:i', strtotime('-1 day')),
-            'voting_close' => date('Y-m-d H:i', strtotime('+10 days')),
+            'voting_close' => $close,
             'results_date' => date('Y-m-d H:i', strtotime('+20 days')),
             'nominations_open' => '', 'nominations_close' => '',
         ]);
 
         $at = (string) DB::table('gates_award_cycles')->where('id', $id)->value('next_boundary_at');
-        $this->assertStringStartsWith(date('Y-m-d', strtotime('+10 days')), $at,
+        $this->assertStringStartsWith(substr($close, 0, 10), $at,
             'the divergence sweep must agree with the dates just saved');
     }
 
