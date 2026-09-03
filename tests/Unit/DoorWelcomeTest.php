@@ -5,6 +5,7 @@ namespace Tests\Unit;
 
 use AfricaGates\Services\{AzureVoice, DoorWelcome};
 use Illuminate\Database\Capsule\Manager as DB;
+use Illuminate\Support\Carbon;
 use Tests\TestCase;
 
 /**
@@ -563,6 +564,147 @@ final class DoorWelcomeTest extends TestCase
         $folded = array_map([DoorWelcome::class, 'fold'], $names);
         $this->assertSame(count($names), count(array_unique($folded)),
             'two different names fold to one key, so one of them is greeted as the other');
+    }
+
+    // ══ the worklist, which is what made the table usable ════════════════════
+
+    /**
+     * A respelling an English voice can read, for the names it otherwise cannot.
+     *
+     * These languages are written in a Latin alphabet an English voice reads by ENGLISH
+     * rules — silent finals, long and short vowels, schwa in unstressed syllables — and
+     * almost none of that applies. The vowels are pure and every syllable is sounded.
+     */
+    public function test_a_nigerian_name_is_respelled_the_way_an_english_voice_reads_it(): void
+    {
+        $this->assertSame('N-goh-zee',      DoorWelcome::suggest('Ngozi'));
+        $this->assertSame('Chee-deen-mah',  DoorWelcome::suggest('Chidinma'));
+        $this->assertSame('Ah-dah-eh-zeh',  DoorWelcome::suggest('Adaeze'));
+        $this->assertSame('Oh-lah-mee-deh', DoorWelcome::suggest('Olamide'));
+        $this->assertSame('M-bah',          DoorWelcome::suggest('Mba'));
+
+        // The digraphs are one consonant each; split them and the voice says two.
+        $this->assertSame('Choo-kwoo-eh-meh-kah', DoorWelcome::suggest('Chukwuemeka'));
+    }
+
+    /** A nasal closes its syllable — at the end of a word as well as inside one. */
+    public function test_a_closing_nasal_does_not_become_its_own_syllable(): void
+    {
+        $this->assertSame('Oh-loo-wah-seh-oon', DoorWelcome::suggest('Oluwaseun'));
+        $this->assertSame('Oh-loo-wah-toh-seen', DoorWelcome::suggest('Oluwatosin'));
+        $this->assertStringNotContainsString('-n', DoorWelcome::suggest('Oluwaseun') . 'x');
+    }
+
+    /**
+     * AND IT KNOWS WHEN NOT TO GUESS.
+     *
+     * A Nigerian guest list is full of Graces and Johns. Offering "G-rah-ceh" and
+     * "Joh-h-n" costs the whole worklist its credibility, and the operator stops reading
+     * the suggestions that were right.
+     */
+    public function test_a_name_that_does_not_fit_the_pattern_gets_no_suggestion(): void
+    {
+        foreach (['Grace', 'John', 'Christopher', 'Blessing', 'Precious'] as $english) {
+            $this->assertSame('', DoorWelcome::suggest($english),
+                $english . ' was offered a Nigerian respelling');
+        }
+    }
+
+    /**
+     * THE WORKLIST. The names actually coming, that have no pronunciation yet.
+     *
+     * The table was the only mechanism that could fix a name and also the reason nobody
+     * used it: an operator was asked to write an entry for every guest with no way of
+     * knowing which the voice would get wrong, so it stayed empty and every name was
+     * mispronounced.
+     */
+    public function test_the_worklist_names_the_guests_who_have_no_pronunciation_yet(): void
+    {
+        $ev = $this->soonEventWithGuests(
+            ['Ngozi Eze', 'Chidinma Okonkwo', 'Ngozi Adeyemi', 'Yetunde Cole', 'Ngozi Bello']);
+
+        DB::table('gates_settings')->insert(
+            ['key_name' => 'door_welcome_says', 'value' => 'Yetunde = Yeh-TOON-deh']);
+
+        $pending = DoorWelcome::pendingNames();
+        $names   = array_column($pending, 'name');
+
+        $this->assertContains('Ngozi', $names);
+        $this->assertContains('Chidinma', $names);
+        $this->assertNotContains('Yetunde', $names,
+            'a name the operator has already corrected is being asked for again');
+
+        // Commonest first: the name three guests share is worth more of an afternoon than
+        // the one nobody shares.
+        $this->assertSame('Ngozi', $pending[0]['name']);
+        $this->assertSame(3, $pending[0]['count']);
+        $this->assertSame('N-goh-zee', $pending[0]['suggestion']);
+
+        $this->assertGreaterThan(0, $ev);
+    }
+
+    /** Only the events about to be rendered — a list of every name ever is not a job. */
+    public function test_the_worklist_ignores_events_that_are_not_close(): void
+    {
+        $this->soonEventWithGuests(['Chidinma Okonkwo']);
+
+        $far = (int) DB::table('gates_site_events')->insertGetId([
+            'title' => 'Next year', 'slug' => 'far-' . bin2hex(random_bytes(3)),
+            'status' => 'published',
+            'event_date' => Carbon::now()->addDays(DoorWelcome::LEAD_DAYS + 30)->toDateTimeString(),
+        ]);
+        DB::table('gates_event_registrations')->insert([
+            'event_id' => $far, 'name' => 'Obiageli Nwosu', 'email' => 'far@example.test',
+            'tier' => 'x', 'quantity' => 1, 'amount_naira' => 1, 'ticket_code' => 'FAR-1',
+            'status' => 'confirmed', 'reference' => 'FR', 'created_at' => Carbon::now()->toDateTimeString(),
+        ]);
+
+        $names = array_column(DoorWelcome::pendingNames(), 'name');
+
+        $this->assertContains('Chidinma', $names);
+        $this->assertNotContains('Obiageli', $names,
+            'a guest list three days out is a worklist; one three months out is a distraction');
+    }
+
+    /**
+     * NOTHING IS APPLIED. A suggestion reaches a guest only after a person has read it.
+     *
+     * The rule works over bare letters, and most names are written without the tone marks
+     * that would tell it which name it is looking at — so it is a starting point and never
+     * a correction. A confident wrong pronunciation said at somebody's own door is worse
+     * than an English one.
+     */
+    public function test_a_suggestion_never_becomes_a_pronunciation_on_its_own(): void
+    {
+        $this->soonEventWithGuests(['Chidinma Okonkwo']);
+
+        DoorWelcome::pendingNames();
+
+        $this->assertSame([], DoorWelcome::dictionary(),
+            'the worklist wrote itself into the dictionary — nobody read those');
+        $this->assertStringContainsString('Chidinma', DoorWelcome::line('Chidinma Okonkwo'),
+            'an unreviewed suggestion is already being spoken');
+    }
+
+    /** One upcoming event with a guest list, for the worklist tests. */
+    private function soonEventWithGuests(array $names): int
+    {
+        $ev = (int) DB::table('gates_site_events')->insertGetId([
+            'title' => 'Gala', 'slug' => 'soon-' . bin2hex(random_bytes(3)),
+            'status' => 'published',
+            'event_date' => Carbon::now()->addDay()->toDateTimeString(),
+        ]);
+
+        foreach ($names as $i => $n) {
+            DB::table('gates_event_registrations')->insert([
+                'event_id' => $ev, 'name' => $n, 'email' => 'g' . $i . bin2hex(random_bytes(2)) . '@example.test',
+                'tier' => 'Standard', 'quantity' => 1, 'amount_naira' => 5000,
+                'ticket_code' => 'TK-' . $i . bin2hex(random_bytes(2)), 'status' => 'confirmed',
+                'reference' => 'R' . $i, 'created_at' => Carbon::now()->toDateTimeString(),
+            ]);
+        }
+
+        return $ev;
     }
 
     /** A name with no entry is spoken as it was written, not as an empty string. */

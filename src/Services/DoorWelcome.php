@@ -254,6 +254,164 @@ final class DoorWelcome
         return mb_strtolower($s);
     }
 
+    /**
+     * ══════════════════════════════════════════════════════════════════════════
+     * A RESPELLING TO START FROM — NEVER ONE THAT IS APPLIED
+     * ══════════════════════════════════════════════════════════════════════════
+     *
+     * The table is the only mechanism that fixes a name, and until now it was also the
+     * reason nobody used it: an operator was asked to hand-write an entry for every guest,
+     * having no idea which of three hundred names the voice would get wrong. So the table
+     * stayed empty and every name was mispronounced.
+     *
+     * This is the other half. Yoruba, Igbo and Hausa are written in a Latin alphabet an
+     * English voice reads by ENGLISH rules — silent finals, long and short vowels, schwa
+     * in unstressed syllables — and almost none of that applies. The vowels in these
+     * languages are pure and every syllable is sounded, so respelling them the way an
+     * English reader would have to see them gets much closer:
+     *
+     *     Ngozi     → Ngoh-zee          Adaeze   → Ah-dah-eh-zeh
+     *     Chidinma  → Chee-deen-mah     Olamide  → Oh-lah-mee-deh
+     *
+     * ── WHY IT IS A SUGGESTION AND NOT A CORRECTION ──────────────────────────
+     *
+     * Because it is a guess, and a confident wrong pronunciation said out loud to somebody
+     * at their own door is worse than an English one — the difference between sounding
+     * foreign and sounding careless. Tone is not written here at all (that is the whole
+     * point of `àmì`), so a rule over the bare letters cannot know which of two names it
+     * is looking at.
+     *
+     * So nothing here reaches a guest until a person has read it, edited what is wrong and
+     * pressed save. It exists to turn "write three hundred entries from nothing" into
+     * "check forty lines", which is a job somebody will actually do on the afternoon of a
+     * gala.
+     */
+    public static function suggest(string $first): string
+    {
+        $s = self::fold($first);
+        if ($s === '' || mb_strlen($s) < 2) return '';
+
+        // Digraphs that are ONE consonant in these languages. Split them and an English
+        // voice says two.
+        $onsets = ['gb', 'gh', 'kp', 'kw', 'gw', 'ch', 'sh', 'ny', 'nw', 'ts'];
+        $vowels = ['a' => 'ah', 'e' => 'eh', 'i' => 'ee', 'o' => 'oh', 'u' => 'oo'];
+
+        $out = [];
+        $i   = 0;
+        $len = mb_strlen($s);
+
+        while ($i < $len) {
+            $onset = '';
+            foreach ($onsets as $o) {
+                if (mb_substr($s, $i, 2) === $o) { $onset = $o; break; }
+            }
+            if ($onset === '') {
+                $c = mb_substr($s, $i, 1);
+                if (!isset($vowels[$c])) $onset = $c;
+            }
+            $i += mb_strlen($onset);
+
+            $v = mb_substr($s, $i, 1);
+            if ($v !== '' && isset($vowels[$v])) {
+                $i++;
+                $syl = $onset . $vowels[$v];
+
+                // A nasal closes the syllable rather than opening the next one, both
+                // before another consonant and at the end of the word: Chidinma is
+                // Chee-DEEN-ma and Oluwaseun ends in -seun, never -seh-oo-n.
+                $n = mb_substr($s, $i, 1);
+                if ($n === 'n' || $n === 'm') {
+                    $after = mb_substr($s, $i + 1, 1);
+                    if ($after === '' || !isset($vowels[$after])) { $syl .= $n; $i++; }
+                }
+
+                $out[] = $syl;
+            } elseif ($onset !== '') {
+                // A syllabic nasal, as in Ngozi or Mba — it carries its own beat.
+                $out[] = $onset;
+            } else {
+                $i++;   // nothing matched; never loop on the same character
+            }
+        }
+
+        if ($out === []) return '';
+
+        // ── WHEN NOT TO SUGGEST AT ALL ───────────────────────────────────────
+        //
+        // These languages are overwhelmingly consonant-vowel, so a syllable that came out
+        // as a bare consonant means the name did not fit the model — and a guest list at a
+        // Nigerian gala is full of Graces and Johns, which this would otherwise offer as
+        // "G-rah-ceh" and "Joh-h-n". A visibly silly suggestion costs the whole list its
+        // credibility, and the operator stops reading the ones that were right.
+        //
+        // A LEADING nasal is the exception and not an accident: Ngozi and Mba really do
+        // begin with a consonant carrying its own beat.
+        foreach ($out as $at => $syl) {
+            $bare = !preg_match('/[aeiou]/', $syl);
+            if ($bare && !($at === 0 && ($syl === 'n' || $syl === 'm'))) return '';
+        }
+
+        $out[0] = mb_strtoupper(mb_substr($out[0], 0, 1)) . mb_substr($out[0], 1);
+
+        return implode('-', $out);
+    }
+
+    /**
+     * First names on the way that have no pronunciation set — the worklist.
+     *
+     * Only the events the sweep is about to render, because a list of every name the
+     * platform has ever seen is not a job anybody starts. Deduplicated on the folded key,
+     * so one line of work covers every guest who shares the name.
+     *
+     * @return list<array{name:string, suggestion:string, count:int}>
+     */
+    public static function pendingNames(int $limit = 60): array
+    {
+        $known = self::dictionary();
+        $seen  = [];
+
+        foreach (self::soonEvents() as $eventId) {
+            foreach (self::guestNames($eventId) as $full) {
+                $first = self::firstName((string) $full);
+                if ($first === '') continue;
+
+                $key = self::fold($first);
+                if ($key === '' || isset($known[$key])) continue;
+
+                if (isset($seen[$key])) { $seen[$key]['count']++; continue; }
+                $seen[$key] = ['name' => $first, 'suggestion' => self::suggest($first), 'count' => 1];
+            }
+        }
+
+        // Commonest first: the name shared by nine guests is worth more of the operator's
+        // afternoon than the one shared by nobody.
+        uasort($seen, static fn (array $a, array $b): int
+            => [$b['count'], $a['name']] <=> [$a['count'], $b['name']]);
+
+        return array_slice(array_values($seen), 0, max(1, $limit));
+    }
+
+    /** Every name expected at one event — ticket holders and guests of honour alike. */
+    private static function guestNames(int $eventId): array
+    {
+        $out = [];
+
+        try {
+            foreach (DB::table('gates_event_registrations')
+                ->where('event_id', $eventId)->where('status', 'confirmed')
+                ->orderBy('id')->limit(2000)->pluck('name') as $n) $out[] = (string) $n;
+        } catch (\Throwable) { /* no tickets is not a fault */ }
+
+        try {
+            foreach (DB::table('gates_event_invites')
+                ->where('event_id', $eventId)->whereNotNull('sent_at')
+                ->where('reference', 'not like', 'AGI-SAMPLE%')
+                ->orderBy('id')->limit(1000)->pluck('name') as $n) $out[] = (string) $n;
+        } catch (\Throwable) { /* nor is no invitations */ }
+
+        return $out;
+    }
+
     /** @return array<string,string> folded written form => spoken form */
     public static function dictionary(): array
     {

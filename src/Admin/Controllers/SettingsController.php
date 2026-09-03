@@ -77,6 +77,21 @@ class SettingsController
             'azure_region'      => \AfricaGates\Services\AzureVoice::region(),
             'azure_tiers'       => \AfricaGates\Services\AzureVoice::TIERS,
             'azure_tier'        => \AfricaGates\Services\AzureVoice::tier(),
+            // ── THE WORKLIST ──────────────────────────────────────────────
+            //
+            // The names actually coming, that have no pronunciation set. Without this the
+            // table was a box an operator was asked to fill from nothing, having no way to
+            // know which of three hundred names the voice would get wrong — so it stayed
+            // empty and every name was mispronounced.
+            'voice_pending'       => $pendingNames = \AfricaGates\Services\DoorWelcome::pendingNames(),
+            'voice_lead'          => \AfricaGates\Services\DoorWelcome::LEAD_DAYS,
+            // Pre-built `Written = Spoken` lines, so the button that fills the box does no
+            // string assembly in the browser — a suggestion the operator has not read is
+            // the one thing this feature must not produce.
+            'voice_pending_lines' => array_values(array_filter(array_map(
+                static fn (array $p): string => $p['suggestion'] !== ''
+                    ? $p['name'] . ' = ' . $p['suggestion'] : '',
+                $pendingNames))),
             'azure_rates'       => \AfricaGates\Services\AzureVoice::RATES,
             'azure_pitches'     => \AfricaGates\Services\AzureVoice::PITCHES,
             // Resolved, not echoed: these come back '' when neutral, and the picker needs

@@ -311,9 +311,54 @@
         .then(function () { busy = false; btn.disabled = false; });
     }
 
+    /**
+     * Put the suggested respellings into the pronunciation box.
+     *
+     * INTO THE BOX, never into the database. Every line here is a guess made by a rule
+     * over bare letters, and most Nigerian names are written without the tone marks that
+     * would tell the rule which name it is looking at — so a person reads them, fixes what
+     * is wrong and presses save. A confident wrong pronunciation said out loud at somebody's
+     * own door is worse than an English one.
+     *
+     * Names already in the box are left exactly as they are: an operator who has corrected
+     * Ngozi by hand must not have it quietly replaced by the machine's opinion of Ngozi.
+     */
+    function agVoiceFill(btn) {
+      var box = document.getElementById(btn.getAttribute('data-target') || '');
+      if (!box) return;
+
+      var lines;
+      try { lines = JSON.parse(btn.getAttribute('data-lines') || '[]'); }
+      catch (err) { return; }
+      if (!lines.length) return;
+
+      var have = {};
+      box.value.split(/\r?\n/).forEach(function (l) {
+        var at = l.indexOf('=');
+        if (at > 0) have[l.slice(0, at).trim().toLowerCase()] = true;
+      });
+
+      var add = lines.filter(function (l) {
+        return !have[l.slice(0, l.indexOf('=')).trim().toLowerCase()];
+      });
+      if (!add.length) { btn.textContent = 'They are all in the box already'; return; }
+
+      var cur = box.value.replace(/\s+$/, '');
+      box.value = (cur ? cur + '\n' : '') + add.join('\n') + '\n';
+
+      // So the unsaved-changes dot appears and the operator knows there is something to save.
+      box.dispatchEvent(new Event('input', { bubbles: true }));
+      box.focus();
+      box.setSelectionRange(box.value.length, box.value.length);
+      btn.textContent = 'Added ' + add.length + ' — read them before saving';
+    }
+
     document.addEventListener('click', function (e) {
       var btn = e.target.closest('[data-ag-do="voice-try"]');
-      if (btn) { e.preventDefault(); agVoiceTry(btn); }
+      if (btn) { e.preventDefault(); agVoiceTry(btn); return; }
+
+      var fill = e.target.closest('[data-ag-do="voice-fill"]');
+      if (fill) { e.preventDefault(); agVoiceFill(fill); }
     });
 
     document.addEventListener('keydown', function (e) {
