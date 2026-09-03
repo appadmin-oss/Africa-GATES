@@ -77,6 +77,12 @@ class SettingsController
             'azure_region'      => \AfricaGates\Services\AzureVoice::region(),
             'azure_tiers'       => \AfricaGates\Services\AzureVoice::TIERS,
             'azure_tier'        => \AfricaGates\Services\AzureVoice::tier(),
+            'azure_rates'       => \AfricaGates\Services\AzureVoice::RATES,
+            'azure_pitches'     => \AfricaGates\Services\AzureVoice::PITCHES,
+            // Resolved, not echoed: these come back '' when neutral, and the picker needs
+            // the value that was actually stored so it can select the right row.
+            'azure_rate'        => \AfricaGates\Services\AzureVoice::conf('azure_speech_rate'),
+            'azure_pitch'       => \AfricaGates\Services\AzureVoice::conf('azure_speech_pitch'),
             // How many greetings one run may attempt, so the screen can say what the
             // choice above actually does rather than leaving it as a word.
             'azure_per_run'     => min(\AfricaGates\Services\DoorWelcome::CAP,
@@ -291,6 +297,9 @@ class SettingsController
                   // about twenty requests a minute, and a sweep that does not know which
                   // tier it is on collects 429s for most of the guest list.
                   'azure_speech_region','azure_speech_voice','azure_speech_tier',
+                  // Pacing. Both validated against their own lists in AzureVoice, because
+                  // an out-of-range prosody value is a 400 during an unattended 06:00 run.
+                  'azure_speech_rate','azure_speech_pitch',
                   // How to SAY a name the voice gets wrong. Free text, parsed and
                   // clamped in DoorWelcome::dictionary() rather than trusted here.
                   'door_welcome_says',

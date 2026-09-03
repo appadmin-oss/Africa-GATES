@@ -391,7 +391,30 @@
      Azure's free tier is 0.5M characters a month and a welcome is about twenty-five,
      so this is roughly twenty thousand people a month — a standing feature rather
      than a budget line. #}
-  <div class="ad-card" data-sec="media" data-keys="door voice welcome greeting azure speech tts text to speech nigerian ezinne abeo attendee name check in audio" x-show="show($el)"><div class="ad-card__head"><div class="ad-card__title">The voice at the door<small>{% if azure_voice_on %}Azure Speech is configured — greetings are rendered ahead of each event.{% else %}Not configured — the door works exactly as it does now, in silence.{% endif %}</small></div></div><div class="ad-card__body">
+  {# ── WHY THIS CARD IS UNDER "AI" AND NOT UNDER "MEDIA" ──────────────────
+     It was under Media, beside Cloudinary, because a voice clip is a media file. That is
+     true and it is not how anybody looks for it: ElevenLabs — the other text-to-speech
+     provider on this platform — sits in AI with the model keys, so an operator setting up
+     a voice went to AI, found ElevenLabs and nothing else, and concluded Azure was not
+     supported. The card was reachable the whole time and nobody could find it.
+
+     Two speech providers filed under two different headings is the same class of mistake
+     as two resolvers for one setting: whichever one you find first becomes the answer. #}
+  <div class="ad-card" data-sec="ai" data-keys="door voice welcome greeting azure speech tts text to speech nigerian ezinne abeo attendee name check in audio resource key region subscription cognitive services api credential pronunciation say names accent robotic pacing" x-show="show($el)"><div class="ad-card__head"><div class="ad-card__title">The voice at the door<small>{% if azure_voice_on %}Azure Speech is configured — greetings are rendered ahead of each event.{% else %}Not configured — the door works exactly as it does now, in silence.{% endif %}</small></div></div><div class="ad-card__body">
+
+      {# The three facts somebody needs BEFORE the boxes below mean anything. This card
+         asked for a "key" and a "region" and said nowhere what to create in order to have
+         them, which is its own kind of unreachable. #}
+      {% if not azure_voice_on %}
+        <div style="margin:0 0 14px;padding:12px 14px;border:1px solid rgba(16,41,44,.14);border-radius:10px;background:rgba(16,41,44,.03)">
+          <p style="margin:0 0 6px;font-weight:600;font-size:13px">Where these come from</p>
+          <ol style="margin:0;padding-left:18px;font-size:12.5px;line-height:1.65">
+            <li>In the Azure portal, create a <strong>Speech service</strong> resource — free tier <strong>F0</strong> is enough for this and costs nothing.</li>
+            <li>Open it and go to <strong>Keys and Endpoint</strong>. Copy <strong>KEY 1</strong> into the key box, and the <strong>Location/Region</strong> value (like <code>southafricanorth</code>) into the region box.</li>
+            <li>Save, then press <strong>Hear it</strong> below. If anything is wrong, the reason appears here in words rather than in a log.</li>
+          </ol>
+        </div>
+      {% endif %}
 
       <label style="display:flex;gap:8px;align-items:flex-start;cursor:pointer">
         <input type="checkbox" name="door_welcome_enabled" id="f-door_welcome_enabled" value="1"{% if door_welcome_on %} checked{% endif %} style="margin-top:3px">
@@ -439,6 +462,38 @@
         Up to <strong>{{ azure_per_run }}</strong> greetings are rendered each run, so a
         few hundred guests are ready well inside the three days before an evening. Getting
         this wrong does not cost money — it costs the greetings.
+      </p>
+
+      {# ── PACING ────────────────────────────────────────────────────────────
+         These were fixed in code at -10% and -2 semitones, and the pitch shift is what
+         made the voice sound processed: a neural voice already has its own intonation, so
+         asking for a semitone down does not make it speak lower — it resamples what the
+         model produced. The default is now no pitch shift at all. Both are here because
+         "it sounds off" is a judgement nobody can make from a source file, and Hear it is
+         a few lines below. #}
+      <div class="row" style="margin-top:12px">
+        <div>
+          <label for="f-azure_speech_rate">Speaking rate
+            <small>slower carries better in a hall</small></label>
+          <select name="azure_speech_rate" id="f-azure_speech_rate">
+            {% for id, label in azure_rates %}
+              <option value="{{ id }}"{{ azure_rate == id ? ' selected' : '' }}>{{ label }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div>
+          <label for="f-azure_speech_pitch">Pitch
+            <small>anything but none is a resample</small></label>
+          <select name="azure_speech_pitch" id="f-azure_speech_pitch">
+            {% for id, label in azure_pitches %}
+              <option value="{{ id }}"{{ azure_pitch == id ? ' selected' : '' }}>{{ label }}</option>
+            {% endfor %}
+          </select>
+        </div>
+      </div>
+      <p class="hint" style="margin:6px 0 0">
+        Changing either re-renders every greeting on the next run — the old clips stay on
+        disk until they expire, so nothing is lost if you change your mind.
       </p>
 
       {% if azure_voice_on %}
@@ -492,10 +547,13 @@
                   placeholder="Ol&#225;&#7779;ub&#7885;&#768;mi = Ola-shu-BOR-mi&#10;Nne&#7885;ma = Nne-OH-ma">{{ values.door_welcome_says|default('') }}</textarea>
         <p class="hint" style="margin:6px 0 0">
           For the names the voice gets wrong. Matched on the <strong>first name</strong>,
-          ignoring case, because the first name is the part that gets spoken. Write the
-          right-hand side the way you would tell a stranger to say it &mdash; hyphens and
-          capitals for the stressed part. Clips already made keep the old pronunciation
-          until the next run, so change it and run <code>welcome</code> to hear the fix.
+          ignoring case <strong>and tone marks</strong> &mdash; so one line covers
+          <code>Ọláṣubọ̀mí</code>, <code>Olasubomi</code> and <code>OLÁSUBOMI</code>, which
+          is how the same person's name actually arrives from a booking form. Write it
+          either way. The right-hand side goes the way you would tell a stranger to say it
+          &mdash; hyphens and capitals for the stressed part. Clips already made keep the
+          old pronunciation until the next run, so change it and run <code>welcome</code>
+          to hear the fix.
         </p>
       </div>
   </div></div>

@@ -136,6 +136,43 @@ final class AzureVoice
         // guess that produces the silent failure above.
         'azure_speech_tier'   => ['env' => 'AZURE_SPEECH_TIER', 'default' => self::DEFAULT_TIER,
                                   'secret' => false, 'label' => 'Azure tier'],
+        // ── PACING, AND WHY THE DEFAULTS CHANGED ─────────────────────────────
+        //
+        // These were fixed at `rate="-10%" pitch="-2st"`, and the pitch shift is what made
+        // the voice sound processed. A neural voice has its OWN learned prosody; asking
+        // for a semitone down does not make it speak lower, it resamples what the model
+        // produced — so the warmth that was wanted arrived as artefact. Rate is gentler
+        // but does the same thing in kind.
+        //
+        // So the default is now the voice as Azure renders it, with a small slowdown for a
+        // noisy hall and no pitch shift at all. Both are settable, because "it sounds off"
+        // is a judgement nobody can make from a source file — the Hear it button on the
+        // settings screen is right beside these, so an operator can turn one and listen.
+        'azure_speech_rate'   => ['env' => 'AZURE_SPEECH_RATE', 'default' => '-5%',
+                                  'secret' => false, 'label' => 'Speaking rate'],
+        'azure_speech_pitch'  => ['env' => 'AZURE_SPEECH_PITCH', 'default' => '0st',
+                                  'secret' => false, 'label' => 'Pitch'],
+    ];
+
+    /** What the rate box will accept, and what each is for. */
+    public const RATES = [
+        '-15%' => 'Slowest — a very noisy hall',
+        '-10%' => 'Slower',
+        '-5%'  => 'Slightly slower (recommended)',
+        '0%'   => 'The voice as Azure renders it',
+        '+5%'  => 'Slightly quicker',
+    ];
+
+    /**
+     * Pitch, in semitones. Anything but `0st` is a resample of the neural output — offered
+     * because somebody may want it, defaulted to none because it is what "robotic" was.
+     */
+    public const PITCHES = [
+        '-3st' => 'Lower — noticeably processed',
+        '-2st' => 'Slightly lower',
+        '-1st' => 'A shade lower',
+        '0st'  => 'The voice as Azure renders it (recommended)',
+        '+1st' => 'A shade higher',
     ];
 
     /** Where the last failure is left, because `error_log` has no reader on this host. */
@@ -160,6 +197,22 @@ final class AzureVoice
 
     public static function key(): string    { return self::conf('azure_speech_key'); }
     public static function region(): string { return self::conf('azure_speech_region') ?: self::DEFAULT_REGION; }
+
+    /** The speaking rate, validated against the list. '' when it is the voice's own. */
+    public static function rate(): string
+    {
+        $v = trim(self::conf('azure_speech_rate'));
+
+        return (isset(self::RATES[$v]) && $v !== '0%') ? $v : '';
+    }
+
+    /** The pitch shift, validated. '' when none — which is the default and the point. */
+    public static function pitch(): string
+    {
+        $v = trim(self::conf('azure_speech_pitch'));
+
+        return (isset(self::PITCHES[$v]) && $v !== '0st') ? $v : '';
+    }
 
     /** The chosen tier, validated against the list. */
     public static function tier(): string
@@ -363,22 +416,28 @@ final class AzureVoice
     /**
      * The markup, not just the words.
      *
-     * ── WHY A DOOR NEEDS PROSODY ─────────────────────────────────────────────
+     * ── WHY A DOOR NEEDS PROSODY, AND WHY IT NEEDS LESS OF IT ────────────────
      *
      * The first version sent bare text and it read like an announcement at a railway
-     * station: even, fast, and hard to catch in a hall with two hundred people in it. Three
-     * changes, each for a reason somebody standing at a gate would recognise:
+     * station: even, fast, and hard to catch in a hall with two hundred people in it. The
+     * fix was `rate="-10%" pitch="-2st"`, and the second half of that was a mistake.
      *
-     *   THE BEAT AFTER THE NAME. "Ada, <pause> you are welcome" is how the sentence is
-     *   actually said. Without it the name runs into the greeting and the one word the
-     *   person is listening for — their own — is the one they miss.
+     * A NEURAL VOICE ALREADY HAS PROSODY. It is not a formant synthesiser waiting to be
+     * told how to sound — the model produces intonation, stress and a pitch contour, and
+     * `<prosody pitch>` does not change what it decided to say, it RESAMPLES the audio
+     * afterwards. That is precisely the artefact people hear as robotic: a natural reading
+     * with a signal-processing pass over the top. Rate does the same thing in kind, which
+     * is why the default is now a fraction of what it was.
      *
-     *   SLOWER, BY A TENTH. A door is noisy and the listener is not expecting to be spoken
-     *   to. Azure allows 0.5–2×; -10% is the difference between a sentence you catch and
-     *   one you ask to have repeated, and it costs a quarter of a second.
+     * So the wrapper is emitted ONLY when somebody has asked for one. Neutral settings
+     * produce no `<prosody>` element at all, which is the cleanest audio Azure will give
+     * us and is now what a fresh installation gets.
      *
-     *   A LITTLE LOWER. Two semitones down reads as warmth rather than as a notification.
-     *   The range is bounded at 0.5–1.5× the original, so this is nowhere near the edge.
+     * THE BEAT AFTER THE NAME STAYS, and it is doing the work people credited the pitch
+     * with. "Ada, <pause> you are welcome" is how the sentence is actually said. Without
+     * it the name runs into the greeting and the one word the person is listening for —
+     * their own — is the one they miss. A break is not a resample: it is a rest the model
+     * renders around, so it costs nothing in quality.
      *
      * `<mstts:express-as>` is deliberately absent: Microsoft's own voice list says styles
      * and roles are NOT supported for either Nigerian English voice, and sending one gets
@@ -394,9 +453,19 @@ final class AzureVoice
         $safe = htmlspecialchars(self::tidy($text), ENT_QUOTES | ENT_XML1, 'UTF-8');
         $safe = str_replace(self::PAUSE, '<break time="260ms"/>', $safe);
 
+        $rate  = self::rate();
+        $pitch = self::pitch();
+
+        if ($rate !== '' || $pitch !== '') {
+            $safe = '<prosody'
+                  . ($rate !== ''  ? ' rate="' . $rate . '"' : '')
+                  . ($pitch !== '' ? ' pitch="' . $pitch . '"' : '')
+                  . '>' . $safe . '</prosody>';
+        }
+
         return '<speak version="1.0" xmlns="http://www.w3.org/2001/10/synthesis" xml:lang="en-NG">'
              . '<voice name="' . htmlspecialchars(self::voice(), ENT_QUOTES | ENT_XML1, 'UTF-8') . '">'
-             . '<prosody rate="-10%" pitch="-2st">' . $safe . '</prosody>'
+             . $safe
              . '</voice></speak>';
     }
 

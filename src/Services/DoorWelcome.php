@@ -193,12 +193,68 @@ final class DoorWelcome
     private static function saidAs(string $first): string
     {
         $map = self::dictionary();
-        $key = mb_strtolower($first);
 
-        return $map[$key] ?? $first;
+        // Folded on BOTH sides, so one entry covers every way the name gets typed into a
+        // booking form. See {@see fold()} for why an exact match missed almost everybody.
+        return $map[self::fold($first)] ?? $first;
     }
 
-    /** @return array<string,string> lower-cased written form => spoken form */
+    /**
+     * The letters a name has in common with every other spelling of itself.
+     *
+     * ══════════════════════════════════════════════════════════════════════════
+     * WHY THE DICTIONARY MISSED THE NAMES IT EXISTS FOR
+     * ══════════════════════════════════════════════════════════════════════════
+     *
+     * Entries were matched on the exact lower-cased string. So an operator who wrote
+     * `Ọláṣubọ̀mí = Ola-shu-BOR-mi` corrected that name only for the guests who had typed
+     * it into the booking form WITH the sub-dots and the tone marks — and most people type
+     * `Olasubomi`, because most keyboards do not have ọ. The correction silently did
+     * nothing for almost everybody it was written for, and the failure looked exactly like
+     * the voice being bad at Nigerian names.
+     *
+     * The reverse missed too: an operator typing the plain form got no match for the guest
+     * who had spelled their own name properly.
+     *
+     * So both sides are folded to the same key. `Ọláṣubọ̀mí`, `Olàsubomi` and `OLASUBOMI`
+     * are one entry, which is what makes a table of a few dozen names cover a gala.
+     *
+     * ── HOW, AND WHY NOT JUST Normalizer ────────────────────────────────────
+     *
+     * NFD splits `ẹ` into `e` + combining dot, so one pass over `\p{Mn}` removes every
+     * tone mark at once — but `intl` is not in this project's composer requirements and a
+     * shared cPanel host may not have it. A fold that behaved differently depending on an
+     * extension would put dev and production on different dictionaries, which is this
+     * codebase's most productive source of bugs. So the letters that actually occur in
+     * Nigerian orthography are mapped EXPLICITLY, and Normalizer is used afterwards only
+     * as a catch-all for everything else.
+     */
+    public static function fold(string $s): string
+    {
+        // Yoruba and Igbo sub-dot letters, and the Hausa hooked consonants — the second
+        // group has no decomposition at all, so no amount of normalising would reach them.
+        $s = strtr($s, [
+            'ẹ' => 'e', 'Ẹ' => 'e', 'ọ' => 'o', 'Ọ' => 'o', 'ṣ' => 's', 'Ṣ' => 's',
+            'ị' => 'i', 'Ị' => 'i', 'ụ' => 'u', 'Ụ' => 'u', 'ṅ' => 'n', 'Ṅ' => 'n',
+            'ɓ' => 'b', 'Ɓ' => 'b', 'ɗ' => 'd', 'Ɗ' => 'd',
+            'ƙ' => 'k', 'Ƙ' => 'k', 'ƴ' => 'y', 'Ƴ' => 'y',
+            // The glottal stop in Hausa, and the apostrophes people type instead of it.
+            'ʼ' => '', '’' => '', "'" => '', '`' => '', '´' => '',
+        ]);
+
+        if (class_exists(\Normalizer::class)) {
+            $s = (string) (\Normalizer::normalize($s, \Normalizer::FORM_D) ?: $s);
+        }
+
+        // Every remaining tone mark, and then everything that is not a letter: a name
+        // matched on its letters is a name matched however it was typed.
+        $s = (string) preg_replace('/\p{Mn}+/u', '', $s);
+        $s = (string) preg_replace('/[^\p{L}]+/u', '', $s);
+
+        return mb_strtolower($s);
+    }
+
+    /** @return array<string,string> folded written form => spoken form */
     public static function dictionary(): array
     {
         try {
@@ -215,7 +271,11 @@ final class DoorWelcome
             // Both halves required: a written form with no spoken one would silently erase
             // the name rather than correct it, which is the worst outcome available here.
             if ($written === '' || $spoken === '') continue;
-            $out[mb_strtolower($written)] = mb_substr($spoken, 0, 60);
+
+            $key = self::fold($written);
+            if ($key === '') continue;
+
+            $out[$key] = mb_substr($spoken, 0, 60);
         }
 
         return $out;
@@ -240,9 +300,24 @@ final class DoorWelcome
         if ($name === '' || str_contains($name, '@')) return '';
 
         $first = explode(' ', $name)[0] ?? '';
-        // Letters, and the marks that belong inside real names. No digits: a "name" with a
-        // number in it is a reference somebody pasted into the wrong box.
-        if (preg_match('/^[\p{L}\'’\-]{2,40}$/u', $first) !== 1) return '';
+
+        // ── \p{M} IS NOT OPTIONAL HERE ───────────────────────────────────────
+        //
+        // This said "letters, and the marks that belong inside real names" and then
+        // allowed only `\p{L}` plus two apostrophes and a hyphen. `\p{L}` does not match
+        // a COMBINING mark, and that is what a Yoruba tone mark is: `ọ̀` is U+1ECD followed
+        // by U+0300. So `Ọláṣubọ̀mí` failed this check outright, `line()` returned '', and
+        // the guest whose name was spelled correctly was the one guest who got no greeting
+        // at all — they fell through to the generic clip while `Olasubomi` was welcomed by
+        // name.
+        //
+        // Nothing anywhere said so. It is not a mispronunciation, it is a rejection, and
+        // it reads as the voice quietly not working for exactly the names this feature was
+        // built for.
+        //
+        // No digits still: a "name" with a number in it is a reference somebody pasted
+        // into the wrong box.
+        if (preg_match('/^[\p{L}\p{M}\'’\-]{2,40}$/u', $first) !== 1) return '';
 
         return Name::title($first);
     }
@@ -250,12 +325,30 @@ final class DoorWelcome
     // ══ the cache ════════════════════════════════════════════════════════════
 
     /**
-     * The key for a line. Voice-scoped, so changing the voice in settings re-renders rather
-     * than serving an evening in the old one.
+     * The key for a line. Scoped to everything that changes how it SOUNDS, not just to
+     * what it says.
+     *
+     * ── WHY THE RATE AND THE PITCH ARE IN HERE ───────────────────────────────
+     *
+     * The voice has always been, for the reason the name suggests: change it in settings
+     * and the clips re-render rather than serving an evening in the old one. Pacing was
+     * added later and is exactly the same kind of value — and leaving it out would have
+     * made the setting appear to do nothing, which is worse than not having it.
+     *
+     * `have()` finds a clip by this key, so an unchanged key means an unchanged file. An
+     * operator who decided the voice sounded robotic, turned the pitch shift off and
+     * pressed save would have got the identical audio for every guest already rendered,
+     * with no way to tell whether the setting or their ears were at fault. The only names
+     * that would have changed are the ones nobody had booked yet.
+     *
+     * Widening a cache key retires every clip that was under the old one. That is the
+     * intended cost and it is paid once: the sweep re-renders inside its budget, and
+     * {@see prune()} removes what nothing asks for any more.
      */
     public static function keyFor(string $line): string
     {
-        return sha1(AzureVoice::voice() . '|' . AzureVoice::tidy($line));
+        return sha1(AzureVoice::voice() . '|' . AzureVoice::rate() . '|' . AzureVoice::pitch()
+                  . '|' . AzureVoice::tidy($line));
     }
 
     public static function dir(): ?string

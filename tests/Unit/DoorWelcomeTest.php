@@ -199,21 +199,88 @@ final class DoorWelcomeTest extends TestCase
      * so sending one gets the markup dropped at best and the request refused at worst,
      * during a sweep nobody is watching.
      */
-    public function test_the_voice_is_slowed_and_lowered_with_core_ssml_only(): void
+    public function test_the_voice_carries_its_pacing_in_core_ssml_only(): void
     {
         $ssml = AzureVoice::ssml('Ada, welcome.');
 
-        $this->assertStringContainsString('<prosody', $ssml);
-        $this->assertMatchesRegularExpression('/rate="-\d+%"/', $ssml, 'no rate — it reads as an announcement');
-        $this->assertMatchesRegularExpression('/pitch="-\d+st"/', $ssml);
         $this->assertStringContainsString('xml:lang="en-NG"', $ssml);
         $this->assertStringContainsString(AzureVoice::voice(), $ssml);
         $this->assertStringNotContainsString('mstts', $ssml,
             'styles and roles are not supported for en-NG — this is silently dropped');
 
-        // Azure's bounds: rate 0.5-2x, pitch 0.5-1.5x. Well inside, deliberately.
+        // A small slowdown by default: a door is noisy and the listener is not expecting
+        // to be spoken to. Azure's floor is 0.5x and this is nowhere near it.
+        $this->assertMatchesRegularExpression('/rate="-\d+%"/', $ssml,
+            'no rate at all — it reads as an announcement');
         preg_match('/rate="-(\d+)%"/', $ssml, $r);
         $this->assertLessThanOrEqual(50, (int) ($r[1] ?? 99), 'below Azure\'s 0.5x floor');
+    }
+
+    /**
+     * NO PITCH SHIFT BY DEFAULT, and this is the change that answered "it sounds robotic".
+     *
+     * It used to ship `pitch="-2st"` for warmth. A neural voice already has its own
+     * intonation and contour — `<prosody pitch>` does not make the model speak lower, it
+     * RESAMPLES the audio it produced. So the warmth arrived as artefact, on every clip,
+     * and the only way to hear what Azure actually sounds like was to edit a source file.
+     */
+    public function test_there_is_no_pitch_shift_unless_somebody_asks_for_one(): void
+    {
+        $this->assertStringNotContainsString('pitch=', AzureVoice::ssml('Ada, welcome.'),
+            'the neural voice is being resampled by default, which is what robotic was');
+
+        DB::table('gates_settings')->insert(
+            ['key_name' => 'azure_speech_pitch', 'value' => '-2st']);
+
+        $this->assertStringContainsString('pitch="-2st"', AzureVoice::ssml('Ada, welcome.'),
+            'somebody who wants the old sound back cannot have it');
+    }
+
+    /**
+     * And with everything neutral there is no wrapper at all — the cleanest audio Azure
+     * will give us, rather than a no-op element around it.
+     */
+    public function test_neutral_settings_emit_no_prosody_element(): void
+    {
+        DB::table('gates_settings')->insert([
+            ['key_name' => 'azure_speech_rate',  'value' => '0%'],
+            ['key_name' => 'azure_speech_pitch', 'value' => '0st'],
+        ]);
+
+        $this->assertStringNotContainsString('<prosody', AzureVoice::ssml('Ada, welcome.'));
+    }
+
+    /** A value outside the offered set is not passed through to Azure as markup. */
+    public function test_a_prosody_value_we_do_not_offer_is_refused(): void
+    {
+        DB::table('gates_settings')->insert([
+            ['key_name' => 'azure_speech_rate',  'value' => '-400%'],
+            ['key_name' => 'azure_speech_pitch', 'value' => '"><script>'],
+        ]);
+
+        $ssml = AzureVoice::ssml('Ada, welcome.');
+
+        $this->assertStringNotContainsString('-400%', $ssml,
+            'an out-of-range rate reaches Azure as a 400 during an unattended run');
+        $this->assertStringNotContainsString('script', $ssml);
+    }
+
+    /**
+     * The pacing is part of the cache key, or the setting silently does nothing.
+     *
+     * `have()` finds a clip by this key. An operator who turned the pitch shift off and
+     * saved would otherwise get the identical audio for every guest already rendered, and
+     * no way to tell whether the setting or their ears were at fault.
+     */
+    public function test_changing_the_pacing_retires_the_clips_it_changes(): void
+    {
+        $before = DoorWelcome::keyFor('Ada, you are welcome.');
+
+        DB::table('gates_settings')->insert(
+            ['key_name' => 'azure_speech_rate', 'value' => '-15%']);
+
+        $this->assertNotSame($before, DoorWelcome::keyFor('Ada, you are welcome.'),
+            'the pacing changed and every clip already on disk answers for the old one');
     }
 
     /** A cap landing mid-marker would leave "{{br" to be read aloud at a door. */
@@ -410,6 +477,101 @@ final class DoorWelcomeTest extends TestCase
 
         // A guest of honour is corrected too — the same name, the same mouth.
         $this->assertStringContainsString('Chi-DEEN-ma', DoorWelcome::honourLine('Chidinma Okonkwo', 'nominee'));
+    }
+
+    /**
+     * THE ONE THAT MADE THE TABLE WORTH HAVING. One entry covers every spelling.
+     *
+     * Entries were matched on the exact lower-cased string, so an operator who wrote
+     * `Ọláṣubọ̀mí = Ola-shu-BOR-mi` corrected that name only for guests who had typed it
+     * WITH the sub-dots and the tone marks — and most people type `Olasubomi`, because
+     * most keyboards do not have ọ. The correction silently did nothing for almost
+     * everybody it was written for, and the failure looked exactly like the voice being
+     * bad at Nigerian names.
+     */
+    public function test_one_entry_covers_every_way_the_name_gets_typed(): void
+    {
+        DB::table('gates_settings')->insert(['key_name' => 'door_welcome_says',
+            'value' => "\u{1ECC}l\u{E1}\u{1E63}ub\u{1ECD}\u{300}m\u{ED} = Ola-shu-BOR-mi"]);
+
+        foreach (['Olasubomi Adewale',            // the plain form a booking form receives
+                  "\u{1ECC}l\u{E1}\u{1E63}ub\u{1ECD}\u{300}m\u{ED} Adewale",  // exactly as written
+                  "Ol\u{E1}subomi Adewale",       // half the marks, which is what people do
+                  'OLASUBOMI ADEWALE'] as $typed) {
+            $this->assertStringContainsString('Ola-shu-BOR-mi', DoorWelcome::line($typed),
+                'the correction missed "' . $typed . '", which is how the name arrives');
+        }
+    }
+
+    /**
+     * THE ONE THAT COST THE MOST, and it was not a mispronunciation.
+     *
+     * `firstName()` validated on `\p{L}` plus two apostrophes and a hyphen, and `\p{L}`
+     * does not match a COMBINING mark — which is what a Yoruba tone mark is. So a name
+     * spelled properly was REJECTED, `line()` returned '', and that guest got the generic
+     * clip while the same name typed plainly was welcomed by name.
+     *
+     * No dictionary here on purpose: this is about whether the name is usable at all, not
+     * about whether it is corrected.
+     */
+    public function test_a_name_spelled_with_its_tone_marks_is_still_greeted(): void
+    {
+        foreach (["\u{1ECC}l\u{E1}\u{1E63}ub\u{1ECD}\u{300}m\u{ED} Adewale",
+                  "Nna\u{1EB9}m\u{1EB9}ka Obi",
+                  "Ol\u{289}\u{300}wat\u{1ECD}\u{301}s\u{ED}n Bello"] as $typed) {
+            $line = DoorWelcome::line($typed);
+            $this->assertNotSame('', $line,
+                'the guest who spells their own name properly is the one who gets no '
+                . 'greeting: ' . $typed);
+            // The greeting form varies deterministically by name, so the invariant is
+            // that the person is named and welcomed — not which of the four they get.
+            $this->assertMatchesRegularExpression('/welcome/i', $line);
+            $this->assertStringContainsString(explode(' ', $typed)[0], $line,
+                'the greeting no longer contains the name it is greeting');
+        }
+    }
+
+    /** And the other direction: a plain entry corrects a guest who spells it properly. */
+    public function test_a_plainly_written_entry_still_catches_the_marked_spelling(): void
+    {
+        DB::table('gates_settings')->insert(['key_name' => 'door_welcome_says',
+            'value' => 'Nnaemeka = Nna-EH-me-ka']);
+
+        $this->assertStringContainsString('Nna-EH-me-ka',
+            DoorWelcome::line("Nna\u{1EB9}m\u{1EB9}ka Obi"));
+    }
+
+    /** Hausa's hooked letters decompose to nothing, so they need naming outright. */
+    public function test_the_hausa_hooked_letters_fold_too(): void
+    {
+        $this->assertSame(DoorWelcome::fold('Bello'),  DoorWelcome::fold("\u{253}ello"));
+        $this->assertSame(DoorWelcome::fold('Danladi'), DoorWelcome::fold("\u{257}anladi"));
+        $this->assertSame(DoorWelcome::fold("Ya\u{2BC}u"), DoorWelcome::fold('Yau'));
+    }
+
+    /**
+     * Folding must not merge two different people.
+     *
+     * It strips marks, not letters. A table that corrected Ada and answered for Adaeze
+     * would be worse than no table — a guest greeted by somebody else's name at their own
+     * door is the one failure here nobody would forgive.
+     */
+    public function test_folding_does_not_collapse_different_names(): void
+    {
+        $names = ['Ada', 'Adaeze', 'Chidi', 'Chidinma', 'Ola', 'Olamide', 'Ngozi', 'Ngo'];
+
+        $folded = array_map([DoorWelcome::class, 'fold'], $names);
+        $this->assertSame(count($names), count(array_unique($folded)),
+            'two different names fold to one key, so one of them is greeted as the other');
+    }
+
+    /** A name with no entry is spoken as it was written, not as an empty string. */
+    public function test_a_name_with_no_entry_is_left_alone(): void
+    {
+        DB::table('gates_settings')->insert(['key_name' => 'door_welcome_says',
+            'value' => 'Chidinma = Chi-DEEN-ma']);
+
+        $this->assertStringContainsString('Ngozi', DoorWelcome::line('Ngozi Eze'));
     }
 
     /**
