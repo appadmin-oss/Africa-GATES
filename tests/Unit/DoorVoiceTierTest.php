@@ -200,6 +200,82 @@ final class DoorVoiceTierTest extends TestCase
             'the tier is offered as a word with no consequence attached to it');
     }
 
+    // ══ the worklist can be heard, one row at a time ═════════════════════════
+
+    /**
+     * Every row carries its own field and its own Hear, wired to each other.
+     *
+     * A suggestion nobody can listen to is a guess an operator has no way to check, and
+     * these are guesses by construction — a rule over letters with no tone in them. The
+     * field is EDITABLE and the button reads it live, so pressing Hear after a correction
+     * speaks the correction rather than the guess it replaced.
+     */
+    public function test_each_row_can_be_heard_and_the_button_reads_the_edited_field(): void
+    {
+        $tpl = (string) file_get_contents(dirname(__DIR__, 2) . '/templates/admin/settings.twig');
+
+        // The field the operator types into, keyed per row.
+        $this->assertMatchesRegularExpression(
+            '~<input type="text" id="vp-\{\{ loop\.index0 \}\}" class="vp-say"~', $tpl,
+            'the suggestion is not editable, so a wrong one cannot be corrected where it is read');
+
+        // The button beside it, pointed at that row and nothing else.
+        $this->assertMatchesRegularExpression(
+            '~data-ag-do="voice-try"\s+data-target="vp-\{\{ loop\.index0 \}\}"~', $tpl,
+            'the row has no Hear button, or it is not wired to its own field');
+
+        // It reuses the preview handler, which already posts the field's CURRENT value —
+        // that is what makes the row dynamic rather than a rendering of the suggestion.
+        $js = (string) file_get_contents(dirname(__DIR__, 2) . '/public/assets/js/admin.js');
+        $this->assertStringContainsString("box ? box.value.trim() : ''", $js,
+            'the preview sends something other than what is in the field right now');
+    }
+
+    /**
+     * And the fill button takes what is in the rows, not a copy the server rendered.
+     *
+     * The rows are editable, so a second copy would be a second source of truth — and the
+     * one that got pasted would be the one nobody had corrected, silently discarding the
+     * exact work this list exists to collect.
+     */
+    public function test_the_fill_button_takes_the_live_rows_and_not_a_server_copy(): void
+    {
+        $tpl = (string) file_get_contents(dirname(__DIR__, 2) . '/templates/admin/settings.twig');
+        $ctl = (string) file_get_contents(
+            dirname(__DIR__, 2) . '/src/Admin/Controllers/SettingsController.php');
+        $js  = (string) file_get_contents(dirname(__DIR__, 2) . '/public/assets/js/admin.js');
+
+        $this->assertStringContainsString('data-rows="vp-say"', $tpl);
+        $this->assertStringNotContainsString('data-lines=', $tpl,
+            'the suggestions are rendered a second time, so an edited row can be overwritten '
+            . 'by the version nobody read');
+        $this->assertStringNotContainsString('voice_pending_lines', $ctl,
+            'the server still builds its own copy of the lines');
+
+        $this->assertStringContainsString("querySelectorAll('.' + (btn.getAttribute('data-rows')", $js,
+            'the fill does not read the rows');
+        $this->assertStringContainsString("el.getAttribute('data-name')", $js);
+    }
+
+    /**
+     * A throttle on this screen says so, because on this screen it is the likeliest fault.
+     *
+     * Somebody working a worklist may press Hear twenty times in a minute, which is F0's
+     * entire budget. "Check the key and the region" would send them to a box that is
+     * perfectly correct.
+     */
+    public function test_a_failed_preview_reports_the_recorded_reason(): void
+    {
+        $ctl = (string) file_get_contents(
+            dirname(__DIR__, 2) . '/src/Admin/Controllers/SettingsController.php');
+
+        $at = strpos($ctl, 'if (!\AfricaGates\Services\DoorWelcome::render($line))');
+        $this->assertNotFalse($at, 'the preview no longer renders; this test must follow it');
+
+        $this->assertStringContainsString('AzureVoice::lastError()', substr($ctl, $at, 600),
+            'a rate-limited preview blames the key, which is the one thing that is right');
+    }
+
     /** Every tier offered on the screen is one the budget knows about. */
     public function test_the_screen_offers_only_tiers_the_budget_understands(): void
     {

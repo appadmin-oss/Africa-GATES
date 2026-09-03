@@ -83,15 +83,8 @@ class SettingsController
             // table was a box an operator was asked to fill from nothing, having no way to
             // know which of three hundred names the voice would get wrong — so it stayed
             // empty and every name was mispronounced.
-            'voice_pending'       => $pendingNames = \AfricaGates\Services\DoorWelcome::pendingNames(),
+            'voice_pending'       => \AfricaGates\Services\DoorWelcome::pendingNames(),
             'voice_lead'          => \AfricaGates\Services\DoorWelcome::LEAD_DAYS,
-            // Pre-built `Written = Spoken` lines, so the button that fills the box does no
-            // string assembly in the browser — a suggestion the operator has not read is
-            // the one thing this feature must not produce.
-            'voice_pending_lines' => array_values(array_filter(array_map(
-                static fn (array $p): string => $p['suggestion'] !== ''
-                    ? $p['name'] . ' = ' . $p['suggestion'] : '',
-                $pendingNames))),
             'azure_rates'       => \AfricaGates\Services\AzureVoice::RATES,
             'azure_pitches'     => \AfricaGates\Services\AzureVoice::PITCHES,
             // Resolved, not echoed: these come back '' when neutral, and the picker needs
@@ -1124,8 +1117,13 @@ class SettingsController
         }
 
         if (!\AfricaGates\Services\DoorWelcome::render($line)) {
+            // The recorded reason, not a guess. "Check the key and the region" sent an
+            // operator to the wrong box for every failure that was not the key — and on
+            // this screen, where somebody may press Hear twenty times in a minute, the
+            // likeliest one by far is the free tier's rate limit.
             return $out($res, ['ok' => false,
-                'why' => 'Azure did not answer. Check the key and the region.'], 502);
+                'why' => \AfricaGates\Services\AzureVoice::lastError()
+                    ?: 'Azure did not answer. Check the key and the region.'], 502);
         }
 
         try { $this->audit->record($adminId, 'settings.voice_preview', null, null); } catch (\Throwable) {}

@@ -312,25 +312,28 @@
     }
 
     /**
-     * Put the suggested respellings into the pronunciation box.
+     * Put what is IN THE ROWS into the pronunciation box.
      *
-     * INTO THE BOX, never into the database. Every line here is a guess made by a rule
-     * over bare letters, and most Nigerian names are written without the tone marks that
-     * would tell the rule which name it is looking at — so a person reads them, fixes what
-     * is wrong and presses save. A confident wrong pronunciation said out loud at somebody's
-     * own door is worse than an English one.
+     * Read live from the inputs rather than from a copy the server rendered, because the
+     * rows are editable and the whole point of the list is that somebody presses Hear,
+     * decides the guess is wrong and fixes it. A button that pasted the original
+     * suggestions would quietly discard exactly the work this screen exists to collect.
+     *
+     * INTO THE BOX, never into the database. Every suggestion is a rule's guess over bare
+     * letters, and most Nigerian names carry no tone marks to tell the rule which name it
+     * is looking at — so a person reads them, fixes what is wrong and presses save. A
+     * confident wrong pronunciation said out loud at somebody's own door is worse than an
+     * English one.
      *
      * Names already in the box are left exactly as they are: an operator who has corrected
-     * Ngozi by hand must not have it quietly replaced by the machine's opinion of Ngozi.
+     * Ngozi by hand must not have it replaced by the machine's opinion of Ngozi.
      */
     function agVoiceFill(btn) {
       var box = document.getElementById(btn.getAttribute('data-target') || '');
       if (!box) return;
 
-      var lines;
-      try { lines = JSON.parse(btn.getAttribute('data-lines') || '[]'); }
-      catch (err) { return; }
-      if (!lines.length) return;
+      var rows = document.querySelectorAll('.' + (btn.getAttribute('data-rows') || 'vp-say'));
+      if (!rows.length) return;
 
       var have = {};
       box.value.split(/\r?\n/).forEach(function (l) {
@@ -338,10 +341,17 @@
         if (at > 0) have[l.slice(0, at).trim().toLowerCase()] = true;
       });
 
-      var add = lines.filter(function (l) {
-        return !have[l.slice(0, l.indexOf('=')).trim().toLowerCase()];
+      var add = [];
+      Array.prototype.forEach.call(rows, function (el) {
+        var name = (el.getAttribute('data-name') || '').trim();
+        var say  = (el.value || '').trim();
+        // A row nobody filled in is a row nobody has an answer for yet — skipping it is
+        // the honest outcome, and it stays in the list to come back to.
+        if (!name || !say || have[name.toLowerCase()]) return;
+        add.push(name + ' = ' + say);
       });
-      if (!add.length) { btn.textContent = 'They are all in the box already'; return; }
+
+      if (!add.length) { btn.textContent = 'Nothing new to add'; return; }
 
       var cur = box.value.replace(/\s+$/, '');
       box.value = (cur ? cur + '\n' : '') + add.join('\n') + '\n';
@@ -350,7 +360,7 @@
       box.dispatchEvent(new Event('input', { bubbles: true }));
       box.focus();
       box.setSelectionRange(box.value.length, box.value.length);
-      btn.textContent = 'Added ' + add.length + ' — read them before saving';
+      btn.textContent = 'Added ' + add.length + ' \u2014 read them before saving';
     }
 
     document.addEventListener('click', function (e) {
