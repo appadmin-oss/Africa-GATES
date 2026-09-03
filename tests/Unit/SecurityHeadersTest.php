@@ -469,26 +469,24 @@ class SecurityHeadersTest extends TestCase
         $this->assertStringNotContainsString('cdn.jsdelivr.net/npm/jsqr', $door,
             'the decoder is fetched from a third party at the door');
 
-        // ── THE BUTTON'S EXISTENCE MUST NOT DEPEND ON BarcodeDetector ────────
+        // ── OPENING THE CAMERA MUST NOT DEPEND ON BarcodeDetector ───────────
         //
-        // Only WHICH decoder runs may. Asserted over the span between finding the widget
-        // and revealing it, because that span IS the gate — a blunter check for the name
-        // anywhere in the file fails on the decoder-selection function, which is allowed
-        // to ask and which the first version of this test wrongly flagged.
-        $from = strpos($door, "var wrap   = document.getElementById('drCamWrap')");
-        // The reveal is on the BUTTON. `wrap.hidden` is the viewfinder, which is opened
-        // later and only once there is a stream — anchoring on that would slice in the
-        // decoder-selection function and flag a check that is allowed to happen.
-        $to   = strpos($door, 'camBtn.hidden = false;');
-        $this->assertIsInt($from, 'the camera widget lookup moved; this test must follow it');
+        // Only WHICH decoder runs may. The redesign made the camera the ground state
+        // rather than a button, so the gate is now the span from entering startCamera()
+        // to the point where a stream exists and a decoder is chosen — that span IS the
+        // gate. A blunter check for the name anywhere in the file would fail on the
+        // decoder-selection function, which is allowed to ask.
+        $from = strpos($door, 'async function startCamera()');
+        $to   = strpos($door, 'native = await nativeDecoder();');
+        $this->assertIsInt($from, 'the camera opener moved; this test must follow it');
         $this->assertIsInt($to);
         $this->assertGreaterThan($from, $to);
 
         $gate = substr($door, $from, $to - $from);
         $this->assertStringNotContainsString('BarcodeDetector', $gate,
-            'the camera button is hidden outright on every iOS browser and on Firefox');
+            'the camera is refused outright on every iOS browser and on Firefox');
         $this->assertStringContainsString('getUserMedia', $gate,
-            'the button is offered where a camera cannot actually open');
+            'the camera is opened where one cannot actually open');
     }
 
     public function test_the_opener_policy_still_allows_a_popup_checkout(): void

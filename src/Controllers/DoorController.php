@@ -191,7 +191,54 @@ final class DoorController
             // sweep would vanish silently on exactly the older venue phones this page is
             // written for.
             'accent_soft' => self::soften($accent, 0.55),
+            // ── THE ACCENT, LIFTED FOR A DARK FRAME ───────────────────────
+            //
+            // Every other surface resolves this event's colour for PAPER, and the door's
+            // frame runs #2C3838 to #080D0E. `EventTicketDesign::DEFAULT_ACCENT` is
+            // #10292C — a near-black teal that is exactly right on a printed ticket and
+            // invisible here. `DoorTone` walks it lighter along its own hue until it
+            // clears the frame, so the organiser's colour stays theirs.
+            'tone'        => \AfricaGates\Services\DoorTone::forEvent($r['event']),
+            // ── THE ARRIVALS LIST, SEEDED ─────────────────────────────────
+            //
+            // A steward taking a gate over at nine o'clock used to open Arrivals and find
+            // it empty, because the list was only ever built from scans this browser had
+            // made. An empty list on a half-full room does not read as "this phone has
+            // seen nothing" — it reads as "nobody has come in".
+            'arrivals'    => $this->arrivalsSeed((int) $r['event']->id, $r['event']),
         ])->withHeader('X-Robots-Tag', 'noindex, nofollow');
+    }
+
+    /**
+     * The arrivals log as the door draws it: newest first, times already in the event's
+     * zone, and nothing in it that the door's own promise forbids.
+     *
+     * THE DOOR CANNOT SHOW THE GUEST LIST. That is the constraint this method is written
+     * around, and it is why the seed is capped and why it carries no codes: what is
+     * published here is the history of scans AT THIS GATE, which the steward performed and
+     * already saw. A longer window, or the ticket codes, would turn a mislaid phone into
+     * the attendee list.
+     *
+     * @return list<array{t:string, n:string, v:string}>
+     */
+    private function arrivalsSeed(int $eventId, ?object $event): array
+    {
+        $out = [];
+        foreach (EventArrivals::recent($eventId, 60) as $row) {
+            $who = trim((string) ($row['who'] ?? ''));
+            if ($who === '') continue;
+
+            $seats = (int) ($row['seats'] ?? 0);
+            $out[] = [
+                't' => EventTime::at($event, (string) ($row['created_at'] ?? ''), 'H:i'),
+                'n' => $who . ($seats > 1 ? ' · ' . $seats : ''),
+                // The log's own vocabulary, which is narrower than the screen's: a refusal
+                // is never written to it, so only these two can appear.
+                'v' => ((string) ($row['action'] ?? '')) === 'undo' ? 'back' : 'in',
+            ];
+        }
+
+        return $out;
     }
 
     /**
@@ -263,6 +310,48 @@ final class DoorController
         // ticket always sends — means "everyone still to come on this ticket".
         $want = max(0, (int) ($body['seats'] ?? 0));
 
+        // ── A PARTY IS ASKED ABOUT BEFORE ANYBODY IS ADMITTED ────────────────
+        //
+        // The door used to admit ONE seat on the first scan and then offer to add more.
+        // So a steward who scanned a table of four and turned away to talk had admitted
+        // one person and recorded three as still to come — and the only way back was the
+        // undo, which they had no reason to think they needed.
+        //
+        // Now a multi-seat ticket with more than one seat free stops and asks, and writes
+        // nothing until it is answered. The verdict is still the SERVER's: this is a
+        // decision the door makes, not the browser, so an offline queue or a second gate
+        // cannot skip it by leaving the field out.
+        //
+        // It refuses to become an oracle. Anything that does not resolve to a confirmed
+        // multi-seat ticket ON THIS EVENT falls through to the ordinary path and gets the
+        // ordinary answer — a code that is unknown here and a code that is unknown
+        // everywhere must remain indistinguishable.
+        if ($want === 0) {
+            $peek  = EventTicketService::byTicketCode($code);
+            $seats = $peek !== null ? max(0, (int) ($peek->quantity ?? 1)) : 0;
+            $in    = $peek !== null ? max(0, (int) ($peek->checked_in_seats ?? 0)) : 0;
+
+            if ($peek !== null
+                && (int) ($peek->event_id ?? 0) === (int) $pass->event_id
+                && (string) ($peek->status ?? '') === 'confirmed'
+                && $seats > 1 && ($seats - $in) > 1) {
+
+                EventScanPass::touch((int) $pass->id);
+
+                return $this->json($res, [
+                    'ok' => false, 'verdict' => 'ask', 'honour' => false,
+                    'title'  => 'How many are here?',
+                    'detail' => ($seats - $in) . ' of ' . $seats . ' still to come.',
+                    'name'   => (string) ($peek->name ?? ''),
+                    'tier'   => (string) ($peek->tier ?? ''),
+                    'seats'  => $seats, 'code' => $code, 'welcome' => '',
+                    'seats_in' => $in, 'seats_left' => $seats - $in, 'admitted_now' => 0,
+                    'at_short' => '', 'via_label' => trim((string) ($pass->label ?? '')),
+                    'admitted' => $this->admitted((int) $pass->event_id),
+                ]);
+            }
+        }
+
         $v = EventTicketService::checkIn($code, (int) $pass->event_id, $this->via($pass),
                                          null, '', $want);
 
@@ -299,6 +388,23 @@ final class DoorController
             // nothing. Only on an admit — a refusal is not a welcome, and greeting somebody
             // by name while turning them away would be worse than silence.
             'welcome'  => $welcome,
+            // ── THREE THE SCREEN NEEDS AND COULD NOT INFER ────────────────────
+            //
+            // `honour` is stated rather than left absent. The invitation path has always
+            // returned it and the ticket path never did, so the door read `undefined` and
+            // got the right answer by luck — a ticket is never a guest of honour. A
+            // contract that happens to work is not one, and the screen branches on this to
+            // decide between a green frame and a gold one.
+            'honour'   => (bool) ($v['honour'] ?? false),
+            // The clock a duplicate was first admitted at, FORMATTED HERE in the event's
+            // own zone. The raw column is UTC by this application's convention, so a
+            // browser formatting it would tell a steward in Lagos an hour that never
+            // happened — the same fault the closing time had before it was moved here.
+            'at_short' => ($v['verdict'] ?? '') === 'duplicate' && ($v['at'] ?? '') !== ''
+                ? EventTime::at(self::eventOfPass($pass), (string) $v['at'], 'H:i') : '',
+            // Which gate, so "Came in 21:11 · Main gate" can name the door rather than
+            // implying there was only ever one.
+            'via_label' => trim((string) ($pass->label ?? '')),
             // Recomputed after the write, so the running count on the page is the real one
             // rather than a number the browser has been incrementing since it was opened.
             'admitted' => $this->admitted((int) $pass->event_id),

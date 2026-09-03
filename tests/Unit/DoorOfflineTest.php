@@ -264,9 +264,14 @@ final class DoorOfflineTest extends TestCase
 
         $body = substr($s, $at, 600);
         $this->assertStringContainsString("verdict: 'held'", $body);
-        $this->assertStringContainsString('not checked', $body);
         $this->assertStringNotContainsString("verdict: 'admit'", $body,
             'an unverified scan is being painted as an admission');
+
+        // And `held` says so on the screen. The kicker lives in the verdict table rather
+        // than at the catch, so the words are asserted where they are written — a window
+        // around the fetch would pass on a state that renders as an admission.
+        $this->assertStringContainsString("held:      { mark: '⋯', kicker: 'Not checked'", $s,
+            'the offline verdict does not announce itself as unchecked');
     }
 
     /** And it tells the steward what to do, because they are the check now. */
@@ -308,8 +313,8 @@ final class DoorOfflineTest extends TestCase
         $s = $this->door();
 
         $this->assertStringContainsString("window.addEventListener('online'", $s);
-        $this->assertStringContainsString('setInterval(function () { if (pending.length) flush(true); }', $s);
-        $this->assertStringContainsString('id="drFlush"', $s, 'no way to push the queue by hand');
+        $this->assertStringContainsString('setInterval(function () { if (pending.length) flush(); }', $s);
+        $this->assertStringContainsString('id="drSend"', $s, 'no way to push the queue by hand');
     }
 
     /** Retiring by id, not by clearing: anything scanned mid-request must survive. */

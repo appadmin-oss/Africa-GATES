@@ -1,418 +1,240 @@
-{% extends "layout/gates.twig" %}
-
 {#
-  THE DOOR.
+  THE DOOR — the scanner a steward holds at the entrance.
 
-  EVERY TIME ON THIS PAGE IS PRE-FORMATTED BY THE CONTROLLER, in the EVENT's own zone.
-  These were `|slice(11, 5)` over the stored string — and storage is UTC by this
-  application's convention, so a gate closing at 23:00 in Lagos told its steward it
-  closed at 22:00. Slicing a datetime is not formatting it; it is reading the storage
-  convention out loud.
+  ── WHY THIS TEMPLATE DOES NOT EXTEND layout/gates.twig ────────────────────
+  It used to, and that put the ENTIRE SITE on a door: the desktop nav, the footer, the
+  community FAB, the Gee launcher, and — because `.ag-nav` hides below 900px and
+  `.ag-mobnav` takes over — a bottom tab bar under the steward's thumb offering Home,
+  Pulse, Nominate, Ranks and Menu. On a phone, mid-queue, the largest tap targets on the
+  door were five ways to leave it.
 
-  Used one-handed, outdoors, at night, by somebody who has never seen it before, with a queue
-  behind them. Three rules drive every choice here:
+  So this is a standalone document that loads one stylesheet. It is not an optimisation;
+  it is the first thing the redesign fixes.
 
-    1. The verdict is a WORD before it is a colour. Colour alone fails WCAG 1.4.1 and fails
-       harder in sunlight and colour blindness, so ADMIT / ALREADY IN / REFUSE carry an icon
-       and a word, and the colour is confirmation rather than information.
-    2. The typed box is the door, not the fallback. BarcodeDetector does not exist on iOS
-       Safari and a camera fails on a wet lens — so manual entry is always present and holds
-       focus, and the camera is the addition.
-    3. Nothing reloads. A page load per attendee IS the queue.
-#}
+  ── EVERY TIME HERE IS PRE-FORMATTED BY THE CONTROLLER ─────────────────────
+  In the EVENT's own zone. These were once `|slice(11, 5)` over the stored string, and
+  storage is UTC by this application's convention — so a gate closing at 23:00 in Lagos
+  told its steward it closed at 22:00. Slicing a datetime is not formatting it; it is
+  reading the storage convention out loud. Nothing below formats a time.
 
-{% block content %}
-<canvas class="dr__conf" id="dr-conf" aria-hidden="true"></canvas>
+  ── THE THREE RULES THE OLD PAGE WAS BUILT ON, AND WHERE THEY WENT ─────────
+    1. "The verdict is a WORD before it is a colour." KEPT, and strengthened: every state
+       has its own word AND its own mark glyph, so the colour is confirmation. The
+       redesign adds that the whole FRAME carries the hue, because a steward reads it at
+       arm's length in the dark and colour arrives before typography.
+    2. "The typed box is the door, not the fallback." REVERSED, deliberately. The camera
+       is now the ground state and the keypad is behind `123` — because the two reasons
+       the camera never worked in production were a `Permissions-Policy` header and a
+       feature gate on `BarcodeDetector`, and both are fixed. The keypad is kept for the
+       wet lens and for iOS, and it is one tap away.
+    3. "Nothing reloads." KEPT. A page load per attendee IS the queue.
+#}<!doctype html>
+<html lang="en" class="dr-html">
+<head>
+<meta charset="utf-8">
+{# `viewport-fit=cover` so the dock can pad past the home indicator rather than under it. #}
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#04080a">
+<meta name="robots" content="noindex, nofollow">
+<title>{{ page_title|default('Door — Africa GATES') }}</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="{{ asset('/assets/css/components/door.css') }}">
+{% if ok %}
+{# The organiser's own accent, lifted by DoorTone until it clears the dark frame. Three
+   values and not one: `accent` owes 3:1 as a user-interface component (the sweep, the
+   torch, the rule, the mark), `accent_text` owes 4.5:1 because a guest of honour's name
+   is 21px at weight 500 and somebody has to read it, and `soft` is the sweep gradient's
+   mid stop as a resolved rgba — a browser that does not know color-mix() drops the whole
+   background declaration and takes the scan line with it. #}
 <style nonce="{{ csp_nonce }}">
-  .dr{ max-width:560px; margin:0 auto; padding:16px 14px 40px }
-  .dr__head{ display:flex; align-items:center; justify-content:space-between; gap:12px;
-    margin-bottom:12px }
-  .dr__head__id{ min-width:0 }
-  .dr__ev{ font-size:16px; font-weight:700; color:#10292C; margin:0;
-    overflow:hidden; text-overflow:ellipsis; white-space:nowrap }
-  .dr__gate{ font-size:12.5px; color:#5a6d6f }
-
-  /* THE HEADCOUNT, as a figure rather than a footnote. It was 12.5px grey in the corner
-     of the screen hardest to read and reach, and it is the number an organiser is asked
-     for all evening. Tabular so it does not jitter as it climbs. */
-  .dr__tally{ display:flex; flex-direction:column; align-items:flex-end; line-height:1.05 }
-  .dr__tally__n{ font-size:30px; font-weight:800; color:#10292C;
-    font-variant-numeric:tabular-nums; letter-spacing:-.02em }
-  .dr__tally__l{ font-size:11px; color:#5a6d6f; letter-spacing:.02em; white-space:nowrap }
-
-  /* ── THE STAGE ──────────────────────────────────────────────────────────────
-     One box for the viewfinder and the verdict, because they are never both wanted.
-     A fixed shape, held before either child exists, is what stops the page reflowing
-     under the operator's thumb between scans. */
-  .dr__stage{ position:relative; aspect-ratio:4/3; min-height:200px; max-height:46vh;
-    border-radius:14px; overflow:hidden; background:#0b1a1c }
-
-  /* ── THE VERDICT ────────────────────────────────────────────────────────────
-     min-height so the panel does not jump between states — a layout shift at a
-     door is a mis-read. clamp() so it is large on a phone held at arm's length. */
-  .dr__v{ position:absolute; inset:0; display:flex; flex-direction:column; align-items:center;
-    justify-content:center; text-align:center; gap:6px; border-radius:14px; padding:20px 16px;
-    border:2px solid #d9e2e0; background:#f3f6f5; color:#3d5457 }
-  /* While the camera runs, the verdict shows for the glance and then gets out of the way
-     so the operator can keep aiming. With the camera off it simply stays — there is
-     nothing behind it to return to. */
-  .dr__stage.is-live .dr__v{ opacity:0; pointer-events:none;
-    transition:opacity .18s linear }
-  .dr__stage.is-live .dr__v.is-fresh{ opacity:1 }
-  .dr__v b{ font-size:clamp(26px, 8vw, 40px); line-height:1.05; letter-spacing:-0.01em }
-  .dr__v .dr__who{ font-size:17px; font-weight:600 }
-  .dr__v .dr__sub{ font-size:13.5px; opacity:.85; max-width:34ch }
-  .dr__mark{ font-size:34px; line-height:1 }
-
-  .dr__v--admit{ background:#eaf7ec; border-color:#237b22; color:#14531a }
-  .dr__v--dup  { background:#fff4e5; border-color:#b4671a; color:#7a3f0b }
-  .dr__v--refuse{ background:#fdeceb; border-color:#a32b1f; color:#7d1d14 }
-  .dr__v--closed{ background:#fdeceb; border-color:#a32b1f; color:#7d1d14 }
-
-  .dr__form{ display:flex; gap:8px }
-  /* 16px minimum, or iOS zooms the whole page on focus and the operator loses the queue. */
-  /* #849693 is 3.1:1 on white; the #cfdad8 all three of these carried was 1.43:1.
-     WCAG 1.4.11 asks 3:1 of the visual information needed to IDENTIFY a control, and for
-     a text box the border is the whole of that — there is no label inside it to fall back
-     on. It matters here more than on most screens: this box IS the door, and it is looked
-     for outdoors, at night, on a phone turned down to save battery. */
-  .dr__form input{ flex:1; min-width:0; font-size:19px; font-family:ui-monospace,monospace;
-    letter-spacing:.06em; text-transform:uppercase; padding:14px 12px; min-height:52px;
-    border:2px solid #849693; border-radius:10px; background:#fff; color:#10292C }
-  .dr__form input:focus{ outline:3px solid #237b22; outline-offset:1px; border-color:#237b22 }
-  /* 52px: comfortably past the 44×44 touch recommendation, one-handed, in the dark. */
-  .dr__form button{ min-height:52px; min-width:88px; padding:0 18px; font-size:16px;
-    font-weight:700; border:0; border-radius:10px; background:#10292C; color:#fff; cursor:pointer }
-  .dr__form button:disabled{ opacity:.55; cursor:default }
-
-  /* The viewfinder fills the stage. `cover` rather than `contain`: a letterboxed video
-     wastes the aiming area on a phone held in portrait over a ticket held in landscape. */
-  .dr__cam{ position:absolute; inset:0 }
-  .dr__video{ width:100%; height:100%; object-fit:cover; background:#0b1a1c; display:block }
-
-  /* Where to hold the ticket. Not decoration — without it people aim at the middle of
-     the phone rather than the middle of the lens, and the first scan takes four seconds. */
-  .dr__reticle{ position:absolute; left:50%; top:50%; width:62%; aspect-ratio:1;
-    transform:translate(-50%,-50%); border:3px solid rgba(255,255,255,.92); border-radius:16px;
-    box-shadow:0 0 0 100vmax rgba(8,20,22,.42); pointer-events:none }
-
-  .dr__cam__msg{ font-size:13px; color:#5a6d6f; margin:8px 2px 0; min-height:1.3em;
-    text-align:center }
-
-  /* ── THE RESERVED SLOT ─────────────────────────────────────────────────────
-     Holds its height whether or not anything is in it, so the rail below never moves.
-     Three widgets used to insert themselves into the flow here and the page shifted
-     up to three times between two scans. */
-  .dr__slot{ min-height:56px; margin-top:6px; display:flex; flex-direction:column;
-    justify-content:center }
-
-  /* ── THE RAIL ──────────────────────────────────────────────────────────────
-     Both inputs together in the bottom third, which is the part of a phone a person
-     holding it one-handed can actually reach. */
-  .dr__rail{ display:flex; flex-direction:column; gap:8px; margin-top:2px }
-
-  .dr__cam__b{ display:flex; align-items:center; justify-content:center; gap:9px;
-    width:100%; min-height:54px; font-size:16px; font-weight:700; cursor:pointer;
-    border:2px solid #10292C; border-radius:12px; background:#10292C; color:#fff }
-  .dr__cam__b:disabled{ opacity:.6; cursor:default }
-  .dr__cam__b:focus-visible{ outline:3px solid #f3b416; outline-offset:2px }
-  .dr__cam__i{ font-size:18px; line-height:1 }
-  /* Stopping is the secondary act — it loses the emphasis rather than gaining alarm. */
-  .dr__cam__b.is-on{ background:#fff; color:#10292C }
-
-  /* 48px and full width: pressed one-handed, in the dark, by somebody who has just
-     realised they admitted the wrong person. Deliberately NOT red until it is armed —
-     an alarm-coloured control sitting under every successful scan reads as an error. */
-  .dr__undo{ margin:0 }
-  .dr__undo__b{ width:100%; min-height:48px; font-size:15px; font-weight:600; cursor:pointer;
-    border:2px solid #849693; border-radius:10px; background:#fff; color:#5a6d6f }
-  .dr__undo__b.is-armed{ border-color:#a32b1f; color:#7d1d14; background:#fdeceb }
-  .dr__undo__b:focus-visible{ outline:3px solid #237b22; outline-offset:2px }
-
-  .dr__v--undone{ background:#eef1f5; border-color:#5a6d6f; color:#39464a }
-
-  .dr__log{ margin:18px 0 0; padding:0; list-style:none; border-top:1px solid #e3eae9 }
-  .dr__log li{ display:flex; gap:10px; align-items:baseline; padding:9px 2px;
-    border-bottom:1px solid #eef3f2; font-size:13.5px }
-  .dr__log .t{ font-variant-numeric:tabular-nums; color:#7d8f90; font-size:12px }
-  .dr__log .v{ font-weight:700; font-size:12px; letter-spacing:.04em; text-transform:uppercase }
-  .dr__log .v--admit{ color:#237b22 } .dr__log .v--dup{ color:#b4671a }
-  .dr__log .v--refuse{ color:#a32b1f } .dr__log .v--undone{ color:#5a6d6f }
-  .dr__log .v--slow{ color:#5a6d6f } .dr__log .v--held{ color:#243d4e }
-
-  .dr__note{ font-size:12.5px; color:#5a6d6f; line-height:1.6; margin-top:16px }
-  @media (prefers-reduced-motion: no-preference){
-    .dr__v{ transition: background-color .12s linear, border-color .12s linear }
-  }
-
-  /* ── A GUEST OF HONOUR ────────────────────────────────────────────────────
-     A green tick is the right answer for a ticket and the wrong one for somebody
-     arriving at an evening held for them. Gold, their role named, and a burst — while
-     still carrying the WORD, because rule 1 above does not get an exception for
-     ceremony. */
-  .dr__v--honour{background:#10292c;border-color:#f3b416}
-  .dr__v--honour .dr__mark{color:#f3b416}
-  .dr__v--honour b{color:#fff}
-  .dr__v--honour .dr__who{color:#f3b416}
-  .dr__conf{position:fixed;inset:0;width:100%;height:100%;pointer-events:none;z-index:60;
-       display:none}
-  .dr__conf.is-on{display:block}
-  @media (prefers-reduced-motion:reduce){ .dr__conf{display:none !important} }
-
-  /* ── THE ORDINARY ADMIT ───────────────────────────────────────────────────
-     A band of the organiser's own accent crossing the panel once. The colour is
-     resolved server-side and printed here: a hardcoded one would be a second opinion
-     about an event's identity and the only one the organiser cannot change.
-
-     420ms because this is the effect that fires most. A steward sees it four hundred
-     times in an evening, so it has to be something they stop noticing — the burst is
-     reserved for the arrival that is genuinely rare.
-
-     overflow:hidden on the panel so the band is clipped to it rather than running
-     across the page, and the pseudo-element is aria-hidden by construction. */
-  .dr__v{ position:relative; overflow:hidden }
-  .dr__v::after{ content:''; position:absolute; inset:0; pointer-events:none;
-    opacity:0; background:linear-gradient(100deg, transparent 30%,
-      {{ accent_soft|default('rgba(35,123,34,0.55)') }} 50%, transparent 70%);
-    transform:translateX(-100%) }
-  .dr__v.is-sweep::after{ animation:dr-sweep .42s cubic-bezier(.22,.61,.36,1) 1 }
-  @keyframes dr-sweep{
-    0%   { opacity:0; transform:translateX(-100%) }
-    35%  { opacity:1 }
-    100% { opacity:0; transform:translateX(100%) }
-  }
-
-  /* ── STOP AND LOOK ────────────────────────────────────────────────────────
-     A duplicate, a refusal and a throttle all shake. Small — 5px — and twice: a
-     violent movement at a door reads as a broken screen rather than a wrong ticket,
-     and the steward is holding the phone one-handed.
-
-     translate3d rather than `left`, so this runs on the compositor and cannot cost a
-     layout pass on a phone that is also decoding a camera frame. */
-  .dr__v.is-nudge{ animation:dr-nudge .3s ease-in-out 1 }
-  @keyframes dr-nudge{
-    0%,100% { transform:translate3d(0,0,0) }
-    20%     { transform:translate3d(-5px,0,0) }
-    50%     { transform:translate3d(5px,0,0) }
-    80%     { transform:translate3d(-3px,0,0) }
-  }
-
-  /* Both are OFF, not merely slowed, under reduced motion. A full-width band and a
-     shaking panel are precisely what that setting is for, and the word and the mark
-     carry the verdict without either of them. */
-  @media (prefers-reduced-motion:reduce){
-    .dr__v.is-sweep::after{ animation:none; opacity:0 }
-    .dr__v.is-nudge{ animation:none }
-  }
-
-  /* The throttle. Its own ground rather than the refusal's: a steward whose gate has
-     been told to slow down has not been shown a bad ticket, and painting it red would
-     send them to argue with somebody who has paid. */
-  .dr__v--slow{ background:#eef1f5; border-color:#5a6d6f; color:#39464a }
-
-  /* ── RECORDED, NOT CHECKED ────────────────────────────────────────────────
-     Its own ground, and deliberately neither green nor red. This is the one verdict
-     where the door does not know the answer, and painting it as either would be the
-     screen deciding on the steward's behalf. Slate reads as "held", which is what it
-     is. The word says the rest. */
-  .dr__v--held{ background:#eef4f8; border-color:#3a5c73; color:#243d4e }
-
-  /* The waiting count. A bar rather than a line of text because it has a button in it,
-     and 44px on that button because it is pressed one-handed in the dark. */
-  /* The party picker. 52px to match the Check button beside it — this is pressed in
-     the same posture, one-handed, with people waiting. The buttons wrap rather than
-     scroll: a ten-seat table on a narrow phone must not hide its last option. */
-  .dr__party{ margin-top:12px; padding:12px; border-radius:12px;
-    background:#f3f6f5; border:2px solid #849693 }
-  .dr__party__q{ margin:0 0 9px; font-size:14.5px; font-weight:700; color:#10292C }
-  .dr__party__row{ display:flex; flex-wrap:wrap; gap:8px }
-  .dr__party__b{ flex:1 1 64px; min-height:52px; min-width:64px; cursor:pointer;
-    font:inherit; font-size:17px; font-weight:700; border:2px solid #849693;
-    border-radius:10px; background:#fff; color:#10292C }
-  /* "All of them" is the common answer, so it leads and is the filled one. */
-  .dr__party__b--all{ flex:1 1 120px; background:#10292C; color:#fff; border-color:#10292C }
-  .dr__party__b:focus-visible{ outline:3px solid #237b22; outline-offset:2px }
-
-  .dr__pend{ margin-top:10px; display:flex; align-items:center; gap:10px; flex-wrap:wrap;
-    padding:10px 12px; border-radius:10px; background:#eef4f8; border:1.5px solid #3a5c73 }
-  .dr__pend__n{ flex:1; min-width:0; font-size:13.5px; font-weight:600; color:#243d4e }
-  .dr__pend__b{ min-height:44px; padding:0 16px; cursor:pointer; font:inherit; font-size:14px;
-    font-weight:700; border:0; border-radius:9px; background:#243d4e; color:#fff }
-  .dr__pend__b:focus-visible{ outline:3px solid #237b22; outline-offset:2px }
+.dr{--dr-accent:{{ tone.accent }};--dr-accent-text:{{ tone.accent_text }};--dr-accent-soft:{{ tone.soft }}}
 </style>
-
-<div class="dr">
+{% endif %}
+</head>
+<body class="dr-body">
 
 {% if not ok %}
-  {# A refused pass still gets a page. The holder is standing at a door, and "opens at 18:00"
-     is the difference between waiting two minutes and ringing an organiser mid-event. #}
-  <div class="dr__v dr__v--closed" role="status">
-    <span class="dr__mark" aria-hidden="true">✕</span>
-    <b>Door closed</b>
-    <span class="dr__sub">{{ message }}</span>
-    {% if reason == 'early' and opens_at %}
-      <span class="dr__sub">It opens at <strong>{{ opens_at }}</strong>.</span>
-    {% elseif reason == 'expired' and closes_at %}
-      <span class="dr__sub">It closed at <strong>{{ closes_at }}</strong>.</span>
-    {% endif %}
+  {# ── THE PASS IS DEAD ───────────────────────────────────────────────────
+     Camera off, light out. A dead gate should look dead — there is nothing this person
+     can do but read the time, so the screen gives them the time and nothing else. It is
+     still a PAGE and not a 404, because somebody is standing at a door and "this opens at
+     18:00" is the difference between waiting two minutes and ringing an organiser. #}
+  <div class="dr" data-state="closed">
+    <div class="dr__shut">
+      <span class="dr__shut__m" aria-hidden="true">✕</span>
+      <p class="dr__shut__k">This pass</p>
+      <p class="dr__shut__w">{{ reason == 'early' ? 'Not open yet' : 'Door closed' }}</p>
+      {% if reason == 'early' and opens_at %}
+        <p class="dr__shut__l">It opens at {{ opens_at }}</p>
+      {% elseif closes_at %}
+        <p class="dr__shut__l">It closed at {{ closes_at }}</p>
+      {% endif %}
+      <p class="dr__shut__b">
+        {{ message }}
+        {%- if opens_at and closes_at %} Valid from {{ opens_at }} to {{ closes_at }}.{% endif %}
+        Ask whoever sent the link for a new one.
+      </p>
+    </div>
   </div>
-  <p class="dr__note">Ask whoever sent you this link for a new one. Nothing you scan here will
-    be recorded.</p>
 
 {% else %}
-  <div class="dr__head">
-    <div class="dr__head__id">
+
+<div class="dr" id="dr" data-state="idle">
+
+  {# The light. Two blurred fields drifting on unequal cycles behind everything, a
+     hairline rim, and one flare per scan that settles by itself. Every colour in here
+     comes from the custom properties `data-state` sets. #}
+  <div class="dr__aura" id="drAura" aria-hidden="true"></div>
+  <div class="dr__vig" aria-hidden="true"></div>
+  <div class="dr__rim" aria-hidden="true"></div>
+
+  {# ── THE VIEWFINDER, WHICH IS THE GROUND STATE ────────────────────────
+     The camera never leaves. A verdict FREEZES and dims it rather than emptying the
+     frame, so the screen reads as held rather than blank. #}
+  <div class="dr__feed" id="drFeed" aria-hidden="true">
+    <video class="dr__video" id="drVideo" playsinline muted autoplay></video>
+    <div class="dr__reticle"><i class="dr__sweep" id="drSweep"></i></div>
+  </div>
+
+  {# The camera is started on load, but a browser may refuse to open one without a
+     gesture and every browser may refuse without permission. Rather than a dead black
+     rectangle, the reticle itself becomes the button — one tap, in the place the
+     steward is already looking. #}
+  <button type="button" class="dr__tap" id="drTap" hidden>
+    <span class="dr__tap__t" id="drTapT">Tap to start the camera</span>
+  </button>
+
+  <header class="dr__head">
+    <div class="dr__head__l">
       <p class="dr__ev">{{ event.title }}</p>
-      <span class="dr__gate">{{ label ?: 'Door' }} · closes {{ closes_short }}</span>
+      <p class="dr__gate">
+        {{- label ?: 'Door' }}{% if closes_short %} · closes {{ closes_short }}{% endif -%}
+      </p>
     </div>
-    {# The number an organiser is asked for all evening — and it was 12.5px grey in the
-       corner hardest to read and reach. It is a headline figure now, tabular so it does
-       not jitter as it climbs. #}
-    <div class="dr__tally">
-      <span class="dr__tally__n" id="drCount" aria-live="polite">{{ admitted }}</span>
-      <span class="dr__tally__l">{% if expected %}of {{ expected }} in{% else %}in the room{% endif %}</span>
-    </div>
+    <p class="dr__tally">
+      <span id="drCount">{{ admitted }}</span><i>/{{ expected }}</i>
+      <span class="dr__sr" aria-live="polite" id="drCountSr">{{ admitted }} of {{ expected }} in</span>
+    </p>
+  </header>
+
+  {# Scans taken while the line was down. A hairline under the header, never a chip. #}
+  <div class="dr__held" id="drHeld" hidden>
+    <span class="dr__held__t" id="drHeldT"></span>
+    <button type="button" class="dr__held__b" id="drSend">Send</button>
   </div>
 
-  {# ══ THE STAGE ═══════════════════════════════════════════════════════════
-     ONE box, ONE height, for the two things that are never wanted at once: the
-     viewfinder while you are aiming, and the verdict the instant there is one.
+  <div class="dr__spacer"></div>
 
-     They used to be separate blocks stacked seven apart, each independently hidden, so
-     opening the camera pushed the page down by the height of a video and every scan
-     reflowed the layout under the operator's thumb. At a door — one-handed, at night,
-     with a queue — a control that moves between taps is a control that gets mis-hit,
-     and a mis-hit here admits the wrong person.
+  {# ── THE VERDICT ──────────────────────────────────────────────────────
+     `aria-live="assertive"` because it interrupts for a reason: the steward is looking
+     at a person, not at the phone, and this is the one thing on the screen that must
+     reach them without being looked for. #}
+  <section class="dr__slab" id="drSlab" role="status" aria-live="assertive" hidden>
+    <i class="dr__slab__rule" id="drRule" aria-hidden="true"></i>
 
-     `aspect-ratio` rather than a pixel height so it holds its shape on every phone
-     without a media query, and the box exists before either child does. #}
-  <div class="dr__stage">
-    <div class="dr__cam" id="drCamWrap" hidden>
-      <video id="drVideo" class="dr__video" playsinline muted autoplay></video>
-      <div class="dr__reticle" aria-hidden="true"></div>
+    <div class="dr__vh">
+      <span class="dr__mark" id="drMark" aria-hidden="true"></span>
+      <span class="dr__kicker" id="drKicker"></span>
+      <span class="dr__code" id="drCode"></span>
+      <button type="button" class="dr__x" id="drDismiss" aria-label="Back to scanning">✕</button>
     </div>
 
-    {#
-      aria-live="assertive": the verdict is the entire purpose of the page and it replaces
-      itself faster than a screen-reader user could go looking for it. This is one of the few
-      places assertive is the correct choice rather than the rude one.
-    #}
-    <div class="dr__v" id="drV" role="status" aria-live="assertive">
-      <span class="dr__mark" aria-hidden="true">⌁</span>
-      <b>Ready</b>
-      <span class="dr__sub">Point the camera at a ticket, or type the code.</span>
-    </div>
-  </div>
+    <p class="dr__word" id="drWord"></p>
+    <p class="dr__name" id="drName" hidden></p>
+    <p class="dr__meta" id="drMeta" hidden></p>
 
-  {# NAMED failures, not "unavailable". A refused prompt, a camera another app is
-     holding, and a device with no lens need three different actions from the operator,
-     and one word for all three sent somebody to the wrong fix while a queue waited. #}
-  <p class="dr__cam__msg" id="drCamMsg" role="status" aria-live="polite"></p>
+    {# A multi-seat ticket with more than one seat free admits NOBODY until a count is
+       chosen. Guests of honour skip it entirely. #}
+    <div class="dr__party" id="drParty" role="group" aria-label="How many are here" hidden></div>
 
-  {# ══ THE RESERVED SLOT ═══════════════════════════════════════════════════
-     Everything conditional lives HERE, in one place that always occupies the same
-     space: how many of a party are here, an offline queue waiting to go, and taking
-     back the admission on screen. Only one is ever relevant at a time, and holding
-     the room for it is what keeps the rail below from moving. #}
-  <div class="dr__slot">
-    {# ── HOW MANY OF THEM ARE HERE ──────────────────────────────────────────
-       Only for a ticket with more than one seat, and only while some are still to
-       come. A single-seat ticket — which is most of them — never sees this.
+    {# Two taps, no dialog. A modal at a door is a second thing to dismiss one-handed
+       with a queue waiting, and the relabel carries what a confirm box would. #}
+    <button type="button" class="dr__undo" id="drUndo" hidden>Not them — take it back</button>
+  </section>
 
-       "All N" leads, because a party usually arrives together, and it is a real button
-       rather than a default that fires on its own: the steward is looking at the people
-       and already knows the number before they scan.
-
-       A row of whole numbers rather than a stepper — at a door, a control you have to
-       press four times is worse than four you press once. #}
-    <div class="dr__party" id="drParty" hidden>
-      <p class="dr__party__q" id="drPartyQ"></p>
-      <div class="dr__party__row" id="drPartyRow" role="group" aria-labelledby="drPartyQ"></div>
-    </div>
-
-    {# ── WHAT IS WAITING ───────────────────────────────────────────────────
-       A steward has to be able to see, without asking anybody, that the gate is
-       carrying scans nobody has checked yet — and to push them through the moment the
-       line is back rather than waiting for the page to notice. #}
-    <div class="dr__pend" id="drPend" hidden>
-      <span class="dr__pend__n" role="status" aria-live="polite"></span>
-      <button type="button" id="drFlush" class="dr__pend__b">Send them now</button>
-    </div>
-
-    {# ── TAKING IT BACK ────────────────────────────────────────────────────
-       Shown only after an admit, and hidden again on the next scan. A permanent
-       "undo" beside a queue gets pressed by accident; one that appears for the person
-       who just came through can only ever mean the scan on screen.
-
-       Two taps rather than a confirm dialog: at a door a modal is a second thing to
-       dismiss one-handed, and the second tap is the confirmation. #}
-    <div class="dr__undo" id="drUndoWrap" hidden>
-      <button type="button" id="drUndo" class="dr__undo__b">Not them — take it back</button>
-    </div>
-  </div>
-
-  {# ══ THE RAIL ════════════════════════════════════════════════════════════
-     The two inputs, together, in the bottom third — which is the only part of a phone
-     a person holding it one-handed can actually reach. The camera used to be seventh
-     on the page, under three collapsing widgets; scanning is the primary act at a door
-     and it was the hardest thing to get to.
-
-     The camera leads because it is what a steward reaches for; the typed box is beside
-     it and always works, which is what makes a wet lens or a torn ticket a non-event. #}
-  <div class="dr__rail">
-    <button type="button" id="drCam" class="dr__cam__b" hidden>
-      <span class="dr__cam__i" aria-hidden="true">▢</span>
-      <span class="dr__cam__t">Scan with the camera</span>
+  <div class="dr__dock">
+    <button type="button" class="dr__circ" id="drTorch" aria-label="Torch" aria-pressed="false">☀</button>
+    <button type="button" class="dr__arr" id="drOpenLog">
+      <span class="dr__arr__last" id="drLast">Nothing scanned yet tonight</span>
+      <span class="dr__arr__w">Arrivals</span>
     </button>
+    <button type="button" class="dr__circ dr__circ--pad" id="drOpenPad" aria-label="Type a code instead">123</button>
+  </div>
 
-    <form class="dr__form" id="drForm" autocomplete="off">
-      <label for="drCode" class="sr-only">Ticket code</label>
-      <input id="drCode" name="code" inputmode="latin" autocapitalize="characters"
-             spellcheck="false" placeholder="ABCD-2468" required
-             aria-describedby="drHelp">
-      <button type="submit" id="drGo">Check</button>
+  {# ── THE KEYPAD — kept because iOS Safari has no BarcodeDetector and lenses get wet.
+     A fallback, never the default. #}
+  <div class="dr__pad" id="drPad" hidden>
+    <div class="dr__pad__h">
+      <p class="dr__pad__l" id="drPadL">Type it instead</p>
+      <button type="button" class="dr__x" id="drClosePad" aria-label="Close the keypad">✕</button>
+    </div>
+    <form class="dr__pad__f" id="drForm" autocomplete="off">
+      <input class="dr__pad__i" id="drInput" name="code" placeholder="ABCD-2468"
+             aria-labelledby="drPadL" autocomplete="off" spellcheck="false"
+             autocapitalize="characters" inputmode="latin" maxlength="64">
+      <button type="submit" class="dr__pad__go" id="drGo">Check</button>
     </form>
   </div>
 
-  {# The running list. Not decoration: it is how somebody proves what happened when an
-     attendee disputes being turned away ten minutes later. #}
-  <ul class="dr__log" id="drLog" aria-label="Recent scans"></ul>
+  {# ── ARRIVALS — every admission, refusal and reversal, newest first ────
+     Seeded from `gates_event_checkin_log` so a steward taking over a gate mid-evening
+     sees what happened before they arrived, rather than an empty list that reads as
+     "nobody has come in". #}
+  <div class="dr__log" id="drLog" role="dialog" aria-modal="true" aria-label="Arrivals" hidden>
+    <div class="dr__log__h">
+      <p class="dr__log__t">Arrivals</p>
+      <p class="dr__log__n" id="drLogN"></p>
+      <button type="button" class="dr__x dr__x--lg" id="drCloseLog" aria-label="Close arrivals">✕</button>
+    </div>
+    <div class="dr__log__b">
+      <p class="dr__log__e" id="drLogE" hidden>Nobody yet tonight. Every admission, refusal and reversal is written here as it happens.</p>
+      <div id="drRows"></div>
+    </div>
+  </div>
 
-  <p class="dr__note" id="drHelp">
-    Codes are not case sensitive. This link works until
-    <strong>{{ closes_at }}</strong> and then stops by itself —
-    it cannot be used for any other event, and it cannot show you the guest list.
-  </p>
-{% endif %}
 </div>
 
-{% if ok %}
 <script nonce="{{ csp_nonce }}">
 (function () {
-  // Captured HERE, synchronously. `document.currentScript` is only set while a script is
-  // executing its initial pass — read inside a click handler it is null, and the decoder
-  // below would be injected with an empty nonce.
+  'use strict';
+
+  // Captured HERE, synchronously. `document.currentScript` is only set during a script's
+  // initial pass — read inside a click handler it is null, and the decoder injected below
+  // would carry an empty nonce.
   var NONCE = (document.currentScript && document.currentScript.nonce) || '';
 
-  var form  = document.getElementById('drForm');
-  var input = document.getElementById('drCode');
-  var go    = document.getElementById('drGo');
-  var panel = document.getElementById('drV');
-  var logEl = document.getElementById('drLog');
-  var count = document.getElementById('drCount');
-  var stage = document.querySelector('.dr__stage');
-  var freshFor = null;
-  var url   = {{ ('/door/' ~ token ~ '/check')|json_encode|raw }};
-  if (!form || !input || !panel) return;
+  var TOKEN = {{ token|json_encode|raw }};
+  var URL_CHECK = '/door/' + TOKEN + '/check';
+  var URL_UNDO  = '/door/' + TOKEN + '/undo';
+  var URL_SYNC  = '/door/' + TOKEN + '/sync';
 
-  {# ── THE VOICE ──────────────────────────────────────────────────────────
-     One <audio> element, reused. Created once rather than per scan because a phone
-     that has been granted playback keeps it on the same element, and a fresh element
-     per attendee would be blocked by autoplay policy after the first one.
+  var $ = function (id) { return document.getElementById(id); };
+  var root = $('dr'), aura = $('drAura'), slab = $('drSlab');
+  if (!root || !slab) return;
 
-     The src is a key the server rendered HOURS ago. Nothing is synthesised here and
-     nothing is awaited — play() is fired and forgotten, so a slow clip, a muted
-     phone or a refused autoplay cannot hold up the verdict or the queue. #}
+  var el = {
+    feed: $('drFeed'), video: $('drVideo'), sweep: $('drSweep'), tap: $('drTap'), tapT: $('drTapT'),
+    count: $('drCount'), countSr: $('drCountSr'),
+    held: $('drHeld'), heldT: $('drHeldT'), send: $('drSend'),
+    rule: $('drRule'), mark: $('drMark'), kicker: $('drKicker'), code: $('drCode'),
+    word: $('drWord'), name: $('drName'), meta: $('drMeta'),
+    party: $('drParty'), undo: $('drUndo'), dismiss: $('drDismiss'),
+    torch: $('drTorch'), openLog: $('drOpenLog'), last: $('drLast'), openPad: $('drOpenPad'),
+    pad: $('drPad'), form: $('drForm'), input: $('drInput'), go: $('drGo'), closePad: $('drClosePad'),
+    log: $('drLog'), logN: $('drLogN'), logE: $('drLogE'), rows: $('drRows'), closeLog: $('drCloseLog')
+  };
+
+  // ══ THE VOICE ═══════════════════════════════════════════════════════════
+  //
+  // One <audio> element, reused. Created once rather than per scan because a phone that
+  // has been granted playback keeps it on the same element, and a fresh element per
+  // attendee is blocked by autoplay policy after the first.
+  //
+  // The src is a key the server rendered HOURS ago by a maintenance sweep. Nothing is
+  // synthesised here and nothing is awaited: play() is fired and forgotten, so a slow
+  // clip, a muted phone or a refused autoplay cannot hold up the verdict or the queue.
   var welcomeOn = {{ welcome_on|default(false) ? 'true' : 'false' }};
   var audio = null;
 
@@ -420,365 +242,267 @@
     if (!welcomeOn || !key) return;
     try {
       if (!audio) { audio = new Audio(); audio.preload = 'none'; }
-      audio.src = '/door/' + {{ token|json_encode|raw }} + '/welcome/' + key;
-      // Deliberately not awaited, and the rejection is swallowed. A browser that refuses
-      // autoplay until the operator has tapped something is the normal case on a phone,
-      // and it must read as "no sound yet", never as a failed scan.
+      audio.src = '/door/' + TOKEN + '/welcome/' + key;
       var p = audio.play();
       if (p && p.catch) p.catch(function () {});
     } catch (e) { /* a door with no sound is a working door */ }
   }
 
-  var partyEl  = document.getElementById('drParty');
-  var partyRow = document.getElementById('drPartyRow');
-  var partyQ   = document.getElementById('drPartyQ');
+  // ══ THE LIGHT ═══════════════════════════════════════════════════════════
 
-  var pendEl  = document.getElementById('drPend');
-  var syncUrl = {{ ('/door/' ~ token ~ '/sync')|json_encode|raw }};
-
-  var undoWrap = document.getElementById('drUndoWrap');
-  var undoBtn  = document.getElementById('drUndo');
-  var undoUrl  = {{ ('/door/' ~ token ~ '/undo')|json_encode|raw }};
-
-  var MARK = { admit: '✓', duplicate: '!', refuse: '✕', closed: '✕', undone: '↩',
-               slow: '⏳', held: '⋯' };
-  var CLS  = { admit: 'admit', duplicate: 'dup', refuse: 'refuse', closed: 'closed',
-               undone: 'undone', slow: 'slow', held: 'held' };
-
-  // The ticket currently on the panel, and whether the undo button is armed. Held here
-  // rather than read off the DOM so a re-render cannot leave the button pointing at a
-  // code that is no longer displayed — which is the one way this control could admit
-  // the wrong reversal.
-  var onPanel = '', armed = false;
-
-  function disarm() {
-    armed = false;
-    if (!undoBtn || !undoWrap) return;
-    undoBtn.classList.remove('is-armed');
-    undoBtn.textContent = 'Not them — take it back';
-    undoWrap.hidden = true;
+  function restart(node, css) {
+    if (!node) return;
+    node.style.animation = 'none';
+    void node.offsetWidth;            // reflow, or the reassignment is coalesced away
+    node.style.animation = css;
   }
 
-  function paint(v) {
-    var kind = CLS[v.verdict] || 'refuse';
-    // A guest of honour still gets the admit WORD and mark — the gold is added to it, not
-    // substituted for it, so the panel reads the same way in sunlight and to a steward who
-    // cannot tell the two colours apart.
-    panel.className = 'dr__v dr__v--' + kind + (v.honour && v.verdict === 'admit' ? ' dr__v--honour' : '');
-    panel.innerHTML = '';
+  /** One acknowledgement per scan that settles by itself. */
+  function flare() {
+    restart(aura, 'dr-flare 1.8s cubic-bezier(.22,.61,.36,1) forwards, '
+                + 'dr-breathe 9s ease-in-out 1.8s infinite');
+  }
 
-    // ── HOW LONG THE VERDICT HOLDS THE STAGE ─────────────────────────────
-    //
-    // While the camera is running the viewfinder is underneath, and the operator needs
-    // it back to aim at the next ticket — so the verdict shows for a glance and then
-    // steps aside. Long enough to read a name out loud; short enough that the queue
-    // does not wait on it.
-    //
-    // With the camera OFF nothing steps aside, because there is nothing behind it: a
-    // typed-entry door keeps its last verdict until the next one replaces it. The CSS
-    // does that distinction — this only marks the moment.
-    panel.classList.add('is-fresh');
-    if (freshFor) clearTimeout(freshFor);
-    freshFor = setTimeout(function () { panel.classList.remove('is-fresh'); }, 2600);
+  // ══ THE VERDICT ═════════════════════════════════════════════════════════
 
-    var mark = document.createElement('span');
-    mark.className = 'dr__mark'; mark.setAttribute('aria-hidden', 'true');
-    mark.textContent = MARK[v.verdict] || '✕';
+  // Copy lives here, in one table, because it is the screen's entire vocabulary and a
+  // sentence spread across four branches is how two states come to say the same thing.
+  // Each carries a distinct WORD and a distinct MARK, so the frame's colour is
+  // confirmation rather than information — a steward with any kind of colour vision, or
+  // a phone in direct sun, reads the same verdict.
+  var SAY = {
+    admit:     { mark: '✓', kicker: 'Let them in',     word: 'Admit' },
+    honour:    { mark: '★', kicker: 'Guest of honour', word: 'Admit' },
+    ask:       { mark: '',  kicker: 'How many',        word: '' },
+    duplicate: { mark: '!', kicker: 'Stop and look',   word: 'Already in' },
+    refuse:    { mark: '✕', kicker: 'Stop and look',   word: 'No ticket' },
+    held:      { mark: '⋯', kicker: 'Not checked',     word: 'Recorded' },
+    undone:    { mark: '↩', kicker: 'Taken back',      word: 'Un-admitted' },
+    // The rate limiter. The design has no state for it, so it borrows refuse's light —
+    // it IS a refusal — and takes its word and detail from the server, which is the only
+    // thing that knows how long the steward has to wait.
+    slow:      { mark: '»', kicker: 'Slow down',       word: 'Too fast' }
+  };
 
-    var title = document.createElement('b');
-    title.textContent = v.title || '';
+  var LOGWORD  = { admit: 'in', honour: 'in', duplicate: 'again', refuse: 'no',
+                   held: 'held', undone: 'back', slow: 'no' };
 
-    panel.appendChild(mark);
-    panel.appendChild(title);
+  var cur = null;          // the verdict on screen, or null
+  var onCode = '';         // the code the undo would reverse
+  var armed = false;
+  var busy = false;
+  var dismissAt = null;
 
-    // The NAME is the second thing on the panel, because the person on the door is about to
-    // say it out loud. textContent throughout — an attendee's name is user input and this
-    // string is being written into the DOM.
-    if (v.name) {
-      var who = document.createElement('span');
-      who.className = 'dr__who';
-      who.textContent = v.name + (v.seats > 1 ? ' · ' + v.seats + ' seats' : '');
-      panel.appendChild(who);
-    }
-    if (v.detail) {
-      var sub = document.createElement('span');
-      sub.className = 'dr__sub'; sub.textContent = v.detail;
-      panel.appendChild(sub);
-    }
+  // The verdict is the SERVER's, and `ask` is one of its answers rather than something
+  // the browser works out from a seat count. A door that decided locally when to stop and
+  // ask could be talked out of stopping — by a stale page, by an offline queue, or by a
+  // second gate — and the whole point of the question is that nobody is admitted until it
+  // has been answered.
+  function kindOf(v) {
+    if (!v) return 'idle';
+    if (v.verdict === 'admit' && v.honour) return 'honour';
+    return v.verdict || 'refuse';
+  }
 
-    if (typeof v.admitted === 'number' && count) {
-      count.textContent = v.admitted;
-    }
+  function setState(k) { root.setAttribute('data-state', k); }
 
-    // A short buzz on anything that is not a clean admit. The operator is looking at the
-    // queue, not the screen, and this is the cheapest way to make them look down.
-    if (v.verdict !== 'admit' && navigator.vibrate) { try { navigator.vibrate(180); } catch (e) {} }
-
-    // One effect per verdict, and never one that could be mistaken for another. A
-    // duplicate and a refusal both shake, because both mean "stop and look"; only an
-    // admit sweeps; only a guest of honour bursts.
-    if (v.honour && v.verdict === 'admit') celebrate();
-    else if (v.verdict === 'admit') sweep();
-    else if (v.verdict === 'duplicate' || v.verdict === 'refuse' || v.verdict === 'slow') nudge();
-    else fxStop();
-
-    greet(v.welcome);
-
-    // Offered only for a ticket that was just admitted here. Not for a duplicate (the
-    // admission being undone would be somebody else's, minutes ago), not for a guest of
-    // honour (there is no registration to reverse), and never for a refusal.
-    disarm();
-    onPanel = (v.verdict === 'admit' && !v.honour && v.code) ? String(v.code) : '';
-    if (onPanel && undoWrap) undoWrap.hidden = false;
-
-    offerParty(v);
+  function clear() {
+    cur = null; armed = false;
+    if (dismissAt) { clearTimeout(dismissAt); dismissAt = null; }
+    slab.hidden = true;
+    root.classList.remove('is-frozen');
+    el.undo.classList.remove('is-armed');
+    setState('idle');
   }
 
   /**
-   * Offer a split, but only where one is possible.
+   * Draw a server verdict.
    *
-   * Shown after an admit that left seats on the ticket, and after a duplicate that
-   * still has some — the second is the case that used to be a dead end, where a
-   * steward was told "already checked in" about a ticket with two people still to
-   * come and had to decide on their own authority.
+   * Nothing here decides anything. `kind` is the server's; the client owns the
+   * presentation, the arming of undo and the offline queue, and nothing else. A door that
+   * inferred "admit" locally would be guessing on the steward's behalf.
    */
-  function offerParty(v) {
-    if (!partyEl || !partyRow) return;
-    partyEl.hidden = true;
-    partyRow.innerHTML = '';
+  function paint(v) {
+    var kind = kindOf(v);
+    var say  = SAY[kind] || SAY.refuse;
 
-    var left = Number(v.seats_left || 0);
-    var code = v.code ? String(v.code) : '';
-    if (v.honour || !code || left < 1 || Number(v.seats || 0) < 2) return;
+    cur = v;
+    armed = false;
+    el.undo.classList.remove('is-armed');
+    el.undo.textContent = 'Not them — take it back';
 
-    partyQ.textContent = left + (left === 1 ? ' seat on this ticket is'
-                                            : ' seats on this ticket are') + ' still to come — how many are here?';
+    setState(kind);
+    root.classList.add('is-frozen');
 
-    // Whole numbers, largest first, capped so a fifty-seat table does not paint fifty
-    // buttons at a gate. "All" always shows the real figure.
-    var opts = [{ n: left, label: 'All ' + left, all: true }];
-    for (var i = Math.min(left - 1, 5); i >= 1; i--) opts.push({ n: i, label: String(i), all: false });
+    el.mark.textContent = say.mark;
+    el.mark.hidden = say.mark === '';
+    el.kicker.textContent = say.kicker;
+    el.code.textContent = v.code || '';
 
-    opts.forEach(function (o) {
+    // `ask` names the size of the party and `slow` is the server's own sentence; every
+    // other word is fixed copy.
+    el.word.textContent = kind === 'ask'
+      ? 'Party of ' + Number(v.seats || 0)
+      : (kind === 'slow' ? (v.title || say.word) : say.word);
+
+    var name = v.name || '';
+    el.name.textContent = name;
+    el.name.hidden = name === '';
+    el.name.classList.toggle('is-honour', kind === 'honour');
+
+    el.meta.textContent = metaFor(kind, v);
+    el.meta.hidden = el.meta.textContent === '';
+
+    party(kind, v);
+    el.undo.hidden = !(kind === 'admit');
+
+    slab.hidden = false;
+    restart(slab, (kind === 'refuse' || kind === 'duplicate' || kind === 'held' || kind === 'slow')
+      ? 'dr-nudge .3s ease-in-out'
+      : 'dr-rise .3s cubic-bezier(.22,.61,.36,1)');
+    restart(el.rule, 'dr-rule .55s cubic-bezier(.22,.61,.36,1)');
+    flare();
+
+    if (kind === 'admit' || kind === 'honour') { onCode = v.code || ''; greet(v.welcome); }
+    if (typeof v.admitted === 'number') tally(v.admitted);
+
+    // A queue should not need a tap per guest, so a verdict clears itself — except the
+    // two that say STOP AND LOOK, and the one waiting on a count. Those are the states
+    // where the steward has something to do, and a screen that wipes itself mid-decision
+    // is worse than one tap.
+    if (kind === 'admit' || kind === 'honour' || kind === 'undone') {
+      dismissAt = setTimeout(clear, 6000);
+    }
+  }
+
+  function metaFor(kind, v) {
+    var seats = Number(v.seats || 0), left = Number(v.seats_left || 0), took = Number(v.admitted_now || 0);
+
+    if (kind === 'honour') return v.detail || 'Received as a guest of honour.';
+    if (kind === 'admit') {
+      if (seats > 1) return took + ' of ' + seats + ' seats · ' + left + ' still to come';
+      return (v.tier ? v.tier : 'Standard') + ' · seat 1 of 1';
+    }
+    if (kind === 'ask')       return left + ' of ' + seats + ' still to come — how many are here?';
+    // The check-in clock comes pre-formatted in the EVENT's zone; a browser formatting the
+    // stored value would show a steward in Lagos an hour that never happened.
+    if (kind === 'duplicate') return 'Came in ' + (v.at_short || '') + (v.via_label ? ' · ' + v.via_label : '');
+    if (kind === 'refuse')    return 'This code is not on tonight’s event.';
+    // ── THE ONE PLACE THIS DEPARTS FROM THE DESIGN'S COPY ─────────────────
+    //
+    // The handoff gives "The gate is offline. Checked the moment the line is back." —
+    // which describes a system state, and the same document's copy rule says the sentence
+    // must tell the steward what to DO. Offline, the steward IS the check: nothing has
+    // verified this ticket and nothing will until the line returns. A line that omits
+    // that leaves them to guess whether to let the person in, which is the one decision
+    // this screen exists to take off them.
+    if (kind === 'held')      return 'The gate is offline. Check the ticket yourself and let '
+                                   + 'them through if it looks right — it is checked the moment '
+                                   + 'the line is back.';
+    if (kind === 'undone')    return 'Their seat is back and the arrivals log says so.';
+    return v.detail || '';
+  }
+
+  function party(kind, v) {
+    el.party.innerHTML = '';
+    el.party.hidden = kind !== 'ask';
+    if (kind !== 'ask') return;
+
+    var left = Number(v.seats_left || 0), code = v.code || '';
+    var add = function (n, label, all) {
       var b = document.createElement('button');
       b.type = 'button';
-      b.className = 'dr__party__b' + (o.all ? ' dr__party__b--all' : '');
-      b.textContent = o.label;
-      b.addEventListener('click', function () {
-        partyEl.hidden = true;
-        check(code, o.n);
-      });
-      partyRow.appendChild(b);
+      b.textContent = label;
+      if (all) b.className = 'is-all';
+      b.addEventListener('click', function () { check(code, n); });
+      el.party.appendChild(b);
+    };
+    add(left, 'All ' + left, true);
+    for (var i = Math.min(left - 1, 3); i >= 1; i--) add(i, String(i), false);
+  }
+
+  function tally(n) {
+    el.count.textContent = String(n);
+    el.countSr.textContent = n + ' of ' + el.count.parentNode.querySelector('i').textContent.slice(1) + ' in';
+  }
+
+  // ══ ARRIVALS ════════════════════════════════════════════════════════════
+
+  var log = {{ arrivals|default([])|json_encode|raw }};
+
+  function remember(v, seatsNote) {
+    var kind = kindOf(v);
+    log.unshift({
+      t: clock(),
+      v: LOGWORD[kind] || 'no',
+      n: (v.name || v.code || '') + (seatsNote || '')
     });
-
-    partyEl.hidden = false;
+    log = log.slice(0, 200);
+    drawLog();
   }
 
-  /**
-   * ── THE EFFECTS ───────────────────────────────────────────────────────────
-   *
-   * Hand-rolled on one canvas rather than a library: this page is opened on a venue's
-   * wifi by a steward who needs it working, and a CDN script is a thing that can fail
-   * to arrive. Sixty lines is cheaper than that risk.
-   *
-   * FOUR RULES, and each one is a bug this replaced:
-   *
-   *  1. ONE LOOP, CANCELLABLE. The previous burst started a fresh requestAnimationFrame
-   *     on every call with nothing stopping the last one — two guests of honour scanned
-   *     inside its 2.6s and both loops wrote to the same canvas, each clearing the
-   *     other's frame. At a door, effects overlap by definition.
-   *  2. PAINTED IN THE ORGANISER'S ACCENT. It hardcoded gold and green. A tier's colour
-   *     is a slot resolved from the event's own accent everywhere else on this platform
-   *     — the ticket, the flier, the selection light — and a gold gala bursting emerald
-   *     at its own door is exactly what that rule exists to prevent.
-   *  3. NEVER THE SIGNAL. The word and the mark carry the verdict; these are added to
-   *     it. A steward who cannot tell the colours apart, or whose phone is in sunlight,
-   *     or who has motion switched off, loses nothing that matters.
-   *  4. IT NEVER DELAYS THE NEXT SCAN. Fired and forgotten, capped in duration, and the
-   *     input keeps focus throughout. A queue does not wait for confetti.
-   */
-  var ACCENT = {{ accent|default('#f3b416')|json_encode|raw }};
-  var fx = { cv: null, ctx: null, raf: 0, until: 0 };
-
-  function fxReady() {
-    if (fx.cv) return fx.ctx;
-    var cv = document.getElementById('dr-conf');
-    if (!cv || !cv.getContext) return null;
-    fx.cv = cv; fx.ctx = cv.getContext('2d');
-    return fx.ctx;
+  function clock() {
+    var d = new Date(), p = function (n) { return (n < 10 ? '0' : '') + n; };
+    return p(d.getHours()) + ':' + p(d.getMinutes());
   }
 
-  function fxStop() {
-    if (fx.raf) cancelAnimationFrame(fx.raf);
-    fx.raf = 0;
-    if (fx.ctx && fx.cv) fx.ctx.clearRect(0, 0, fx.cv.width, fx.cv.height);
-    if (fx.cv) fx.cv.classList.remove('is-on');
-  }
+  function drawLog() {
+    el.last.textContent = log.length ? (log[0].t + ' · ' + log[0].n) : 'Nothing scanned yet tonight';
+    el.logN.textContent = log.length + (log.length === 1 ? ' entry' : ' entries');
+    el.logE.hidden = log.length !== 0;
 
-  function reduced() {
-    return window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-  }
-
-  /**
-   * The burst, for somebody arriving at an evening held for them.
-   *
-   * Their accent leads, with white and the platform's gold behind it — three colours
-   * rather than one so the field reads as celebration rather than as a coloured smear,
-   * and white because it survives every accent an organiser can choose.
-   */
-  function celebrate() {
-    var ctx = fxReady();
-    if (!ctx || reduced()) return;
-    fxStop();
-
-    var cv = fx.cv;
-    var dpr = Math.min(2, window.devicePixelRatio || 1);
-    cv.width = Math.floor(cv.clientWidth * dpr);
-    cv.height = Math.floor(cv.clientHeight * dpr);
-    cv.classList.add('is-on');
-
-    var COLOURS = [ACCENT, '#ffffff', '#f3b416', ACCENT];
-    var bits = [];
-    for (var i = 0; i < 90; i++) {
-      bits.push({
-        x: cv.width * (0.2 + Math.random() * 0.6),
-        y: cv.height * (0.35 + Math.random() * 0.1),
-        vx: (Math.random() - 0.5) * 9 * dpr,
-        vy: (-7 - Math.random() * 8) * dpr,
-        r: (3 + Math.random() * 4) * dpr,
-        spin: (Math.random() - 0.5) * 0.3,
-        a: Math.random() * Math.PI,
-        c: COLOURS[i % COLOURS.length]
-      });
+    var frag = document.createDocumentFragment();
+    for (var i = 0; i < log.length; i++) {
+      var r = log[i];
+      var row = document.createElement('div'); row.className = 'dr__row';
+      var t = document.createElement('span'); t.className = 'dr__row__t'; t.textContent = r.t;
+      var n = document.createElement('span'); n.className = 'dr__row__n'; n.textContent = r.n;
+      var w = document.createElement('span'); w.className = 'dr__row__v';
+      w.setAttribute('data-v', r.v); w.textContent = r.v;
+      row.appendChild(t); row.appendChild(n); row.appendChild(w);
+      frag.appendChild(row);
     }
-
-    var started = Date.now();
-    (function frame() {
-      var age = Date.now() - started;
-      ctx.clearRect(0, 0, cv.width, cv.height);
-      for (var j = 0; j < bits.length; j++) {
-        var b = bits[j];
-        b.vy += 0.28 * dpr;          // gravity
-        b.x += b.vx; b.y += b.vy; b.a += b.spin;
-        ctx.save();
-        ctx.globalAlpha = Math.max(0, 1 - age / 2600);
-        ctx.translate(b.x, b.y); ctx.rotate(b.a);
-        ctx.fillStyle = b.c;
-        ctx.fillRect(-b.r, -b.r * 0.4, b.r * 2, b.r * 0.8);
-        ctx.restore();
-      }
-      if (age < 2600) fx.raf = requestAnimationFrame(frame);
-      else fxStop();
-    })();
+    el.rows.innerHTML = '';
+    el.rows.appendChild(frag);
   }
 
-  /**
-   * The ordinary admit: a band of the accent crossing the panel once.
-   *
-   * Short — 420ms — because this is the effect that fires most, and an effect a steward
-   * sees four hundred times in an evening has to be something they stop noticing. The
-   * burst is reserved for the arrival that is genuinely rare.
-   */
-  function sweep() {
-    if (reduced()) return;
-    panel.classList.remove('is-sweep');
-    // Reading offsetWidth forces the style recalculation that makes removing and
-    // re-adding a class actually restart the animation. Without it, two admits in a row
-    // play the effect once.
-    void panel.offsetWidth;
-    panel.classList.add('is-sweep');
-  }
-
-  /** A shake, for the two verdicts that need the operator to look down. */
-  function nudge() {
-    if (reduced()) return;
-    panel.classList.remove('is-nudge');
-    void panel.offsetWidth;
-    panel.classList.add('is-nudge');
-  }
-
-  function remember(v) {
-    if (!logEl) return;
-    var li = document.createElement('li');
-    var t  = document.createElement('span');
-    t.className = 't';
-    t.textContent = new Date().toTimeString().slice(0, 5);
-    var k = document.createElement('span');
-    k.className = 'v v--' + (CLS[v.verdict] || 'refuse');
-    k.textContent = v.verdict === 'duplicate' ? 'again'
-                  : v.verdict === 'undone' ? 'back'
-                  : v.verdict === 'slow' ? 'wait'
-                  : v.verdict === 'held' ? 'held'
-                  : (v.verdict === 'admit' ? 'in' : 'no');
-    var n = document.createElement('span');
-    n.textContent = (v.name || v.code || '—')
-                  + (Number(v.admitted_now || 0) > 0 && Number(v.seats || 0) > 1
-                      ? ' · ' + v.admitted_now + ' of ' + v.seats : '');
-    li.appendChild(t); li.appendChild(k); li.appendChild(n);
-    logEl.insertBefore(li, logEl.firstChild);
-    while (logEl.children.length > 12) logEl.removeChild(logEl.lastChild);
-  }
-
-  /**
-   * ── THE LINE GOING DOWN ───────────────────────────────────────────────────
-   *
-   * Before this, a failed fetch stopped the door: the message was honest and the queue
-   * stopped moving, which at a gate is the whole failure.
-   *
-   * An offline scan is RECORDED, never decided. The server is the only thing that ever
-   * says admit — see DoorController::sync() for why shipping the code list to this phone
-   * was considered and rejected — so the panel says what actually happened, in words
-   * that are not "admit", and the steward looks at the physical ticket in their hand.
-   *
-   * The queue lives in localStorage, and that is not a detail: a phone at a venue
-   * suspends tabs to save memory, and losing fifty admissions to a tab reload would be
-   * worse than having no offline mode at all. It is keyed to this pass, so two gates on
-   * one borrowed phone never flush each other's scans.
-   */
-  var QKEY = 'ag-door-q:' + {{ token|json_encode|raw }}.slice(0, 12);
+  // ══ THE OFFLINE QUEUE ═══════════════════════════════════════════════════
+  //
+  // Keyed to this pass, so two gates on one borrowed phone never flush each other's
+  // scans. The door must never show `Admit` on a guess: a queued scan is RECORDED and
+  // said to be unchecked, which is a different promise and the only honest one.
+  var QKEY = 'ag-door-q:' + TOKEN.slice(0, 12);
   var pending = [];
 
   function qLoad() {
-    try {
-      var raw = localStorage.getItem(QKEY);
-      pending = raw ? (JSON.parse(raw) || []) : [];
-    } catch (e) { pending = []; }
+    try { var raw = localStorage.getItem(QKEY); pending = raw ? (JSON.parse(raw) || []) : []; }
+    catch (e) { pending = []; }
     if (!Array.isArray(pending)) pending = [];
     paintPending();
   }
-
   function qSave() {
     try { localStorage.setItem(QKEY, JSON.stringify(pending)); }
     catch (e) { /* a full or disabled store must not stop the door; the queue lives in memory */ }
     paintPending();
   }
-
   function paintPending() {
-    if (!pendEl) return;
-    pendEl.hidden = pending.length === 0;
-    if (pending.length) {
-      pendEl.querySelector('.dr__pend__n').textContent =
-        pending.length + (pending.length === 1 ? ' scan waiting' : ' scans waiting');
-    }
+    el.held.hidden = pending.length === 0;
+    el.heldT.textContent = pending.length
+      + (pending.length === 1 ? ' scan held — not checked yet' : ' scans held — not checked yet');
   }
-
   function qAdd(code, seats) {
     pending.push({
-      // A client id so a flush that half-succeeds, or is retried after a timeout, cannot
+      // A client id, so a flush that half-succeeds or is retried after a timeout cannot
       // record the same person twice.
       id: (Date.now().toString(36) + Math.random().toString(36).slice(2, 8)),
       code: code,
-      // How many of the party the steward said were there. Carried through the outage
-      // so a group that arrived in two halves does not flush as one whole ticket.
       seats: Number(seats || 0),
-      // The moment it HAPPENED. Sent so the arrivals log reads as an evening rather than
-      // as forty people arriving in the same second half an hour later.
+      // The moment it HAPPENED. Sent so the log reads as an evening rather than as forty
+      // people arriving in the same second half an hour later.
       at: stamp()
     });
     qSave();
   }
-
-  /** 'YYYY-MM-DD HH:MM:SS' in the phone's own clock — the server clamps it. */
   function stamp() {
     var d = new Date(), p = function (n) { return (n < 10 ? '0' : '') + n; };
     return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate()) + ' '
@@ -786,233 +510,199 @@
   }
 
   var flushing = false;
-  async function flush(quiet) {
+  async function flush() {
     if (flushing || !pending.length) return;
     flushing = true;
     var sending = pending.slice(0, 200);
-
     try {
-      var r = await fetch(syncUrl, {
+      var r = await fetch(URL_SYNC, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
         body: JSON.stringify({ scans: sending })
       });
       var d = await r.json();
-      if (!d || !d.ok) { flushing = false; return; }
-
-      // Retire exactly what the server answered for, by id. Clearing the whole queue would
-      // drop anything scanned while the request was in the air.
       var done = {};
       (d.results || []).forEach(function (x) { if (x && x.id) done[x.id] = x; });
       pending = pending.filter(function (i) { return !done[i.id]; });
       qSave();
-
+      if (typeof d.admitted === 'number') tally(d.admitted);
       (d.results || []).forEach(function (x) {
-        remember({ verdict: x.verdict, name: x.name, code: x.code, title: x.title });
+        if (x && x.verdict) remember({ verdict: x.verdict, name: x.name || '', code: x.code || '' });
       });
-
-      if (typeof d.admitted === 'number' && count) {
-        count.textContent = d.admitted;
-      }
-
-      if (!quiet) {
-        var went = (d.results || []).length;
-        var no = (d.results || []).filter(function (x) { return x.verdict !== 'admit'; }).length;
-        paint({
-          verdict: no ? 'duplicate' : 'admit',
-          title: went + ' sent',
-          // The failures are the point of saying anything at all. A steward who admitted
-          // somebody on a code the server later refused needs to know it happened while
-          // that person is still in the room.
-          detail: no
-            ? no + ' of them were not admitted — the list below says which.'
-            : 'Everything scanned while the line was down has gone through.'
-        });
-      }
-    } catch (e) { /* still down: the queue keeps, and the next reconnect tries again */ }
-
+    } catch (e) { /* still down; the queue keeps it and the strip keeps saying so */ }
     flushing = false;
   }
 
-  var busy = false;
-  /** @param seats 0 — the default and what a one-seat ticket always sends — is "everyone left". */
+  // ══ CHECKING ════════════════════════════════════════════════════════════
+
   async function check(code, seats) {
     code = (code || '').trim();
     if (!code || busy) return;
-    busy = true; go.disabled = true;
+    busy = true; el.go.disabled = true;
+
     try {
-      var r = await fetch(url, {
+      var r = await fetch(URL_CHECK, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
         body: JSON.stringify({ code: code, seats: Number(seats || 0) })
       });
       var v = await r.json();
-      paint(v); remember(v);
+      paint(v);
+      // `ask` is a QUESTION, not an arrival. Writing it to the log put a name in the list
+      // and on the dock's last line for somebody standing in front of the steward who had
+      // not been admitted, refused, or anything else — and it was logged as a refusal,
+      // because `ask` has no word in the log's vocabulary and the fallback is 'no'.
+      if (kindOf(v) !== 'ask') {
+        remember(v, (Number(v.seats || 0) > 1 && v.verdict === 'admit')
+          ? ' · ' + Number(v.admitted_now || 0) + ' of ' + Number(v.seats || 0) : '');
+      }
     } catch (e) {
-      // The line is down. RECORD it and keep the queue moving — but say exactly what that
-      // means, because this verdict is the one place the door does not know the answer.
-      // "Admit" here would be the screen guessing on the steward's behalf.
+      // The line is down. RECORD it and keep the queue moving — and say exactly what that
+      // means, because this is the one verdict the door does not know the answer to.
       qAdd(code, Number(seats || 0));
-      paint({
-        verdict: 'held',
-        title: 'Recorded — not checked',
-        detail: 'This gate is offline. Check the ticket yourself and let them through if it '
-              + 'looks right. It will be checked as soon as the line is back.',
-        code: code
-      });
+      paint({ verdict: 'held', code: code });
       remember({ verdict: 'held', code: code });
-      input.value = '';
-      input.focus();
-      busy = false; go.disabled = false;
+    }
+
+    el.input.value = '';
+    busy = false; el.go.disabled = false;
+  }
+
+  el.form.addEventListener('submit', function (e) {
+    e.preventDefault();
+    // READ BEFORE CLOSING. `closePad()` empties the field, so passing `el.input.value`
+    // after it hands `check()` an empty string and it returns without asking anything —
+    // the keypad looked completely normal and did nothing at all, on the one path every
+    // iOS phone depends on.
+    var code = el.input.value;
+    closePad();
+    check(code);
+  });
+
+  el.dismiss.addEventListener('click', clear);
+
+  el.undo.addEventListener('click', async function () {
+    if (!onCode || busy) return;
+
+    if (!armed) {
+      armed = true;
+      el.undo.classList.add('is-armed');
+      // First name only: the full name overruns the pill at 400px, and the point is that
+      // it names a person rather than which person exactly.
+      var first = (cur && cur.name) ? String(cur.name).split(/\s+/)[0] : 'them';
+      el.undo.textContent = 'Press again to un-admit ' + first;
+      if (dismissAt) { clearTimeout(dismissAt); dismissAt = null; }
       return;
     }
-    input.value = '';
-    input.focus();
-    busy = false; go.disabled = false;
+
+    busy = true; el.undo.disabled = true;
+    try {
+      var r = await fetch(URL_UNDO, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+        body: JSON.stringify({ code: onCode })
+      });
+      var v = await r.json();
+      paint(v); remember(v);
+    } catch (e) {
+      paint({ verdict: 'refuse', code: onCode, detail: 'Nothing was changed. Scan again and retry.' });
+    }
+    busy = false; el.undo.disabled = false;
+  });
+
+  // ══ SHEETS — mutually exclusive, and the keypad clears the verdict ══════
+
+  function openPad() {
+    closeLog();
+    clear();
+    el.pad.hidden = false;
+    root.classList.add('is-frozen');
+    el.input.focus();
   }
+  function closePad() {
+    el.pad.hidden = true;
+    el.input.value = '';
+    if (!cur) root.classList.remove('is-frozen');
+  }
+  function openLog()  { closePad(); el.log.hidden = false; el.closeLog.focus(); }
+  function closeLog() { el.log.hidden = true; }
 
-  form.addEventListener('submit', function (e) { e.preventDefault(); check(input.value); });
-  input.focus();
+  el.openPad.addEventListener('click', openPad);
+  el.closePad.addEventListener('click', closePad);
+  el.openLog.addEventListener('click', openLog);
+  el.closeLog.addEventListener('click', closeLog);
+  el.send.addEventListener('click', function () { flush(); });
 
-  // ── COMING BACK ──────────────────────────────────────────────────────────
+  document.addEventListener('keydown', function (e) {
+    if (e.key !== 'Escape') return;
+    if (!el.log.hidden) closeLog();
+    else if (!el.pad.hidden) closePad();
+    else if (cur) clear();
+  });
+
+  // ══ COMING BACK ═════════════════════════════════════════════════════════
   //
-  // Three ways, because none of them is reliable on its own at a venue. `online` does not
-  // fire on every recovery and `navigator.onLine` reports the wifi association rather than
+  // Three ways, because none is reliable alone at a venue: `online` does not fire on
+  // every recovery, and `navigator.onLine` reports the wifi association rather than
   // whether anything is reachable through it — a captive portal is "online" and useless.
-  // So: the browser's hint, a slow poll, and a button the steward can press.
+  // So the browser's hint, a slow poll, and a button the steward can press.
   qLoad();
-  flush(true);
-  window.addEventListener('online', function () { flush(true); });
-  setInterval(function () { if (pending.length) flush(true); }, 20000);
-  var flushBtn = document.getElementById('drFlush');
-  if (flushBtn) flushBtn.addEventListener('click', function () { flush(false); });
+  drawLog();
+  flush();
+  window.addEventListener('online', function () { flush(); });
+  setInterval(function () { if (pending.length) flush(); }, 20000);
 
-  // Two taps, no dialog. The first arms and relabels; the second sends. A modal at a door
-  // is a second thing to dismiss one-handed with a queue waiting, and the relabel carries
-  // the same information a confirm box would — including the name, so the steward is
-  // reversing a person rather than a code.
-  if (undoBtn) {
-    undoBtn.addEventListener('click', async function () {
-      if (!onPanel || busy) return;
-
-      if (!armed) {
-        armed = true;
-        undoBtn.classList.add('is-armed');
-        undoBtn.textContent = 'Press again to un-admit';
-        return;
-      }
-
-      busy = true; undoBtn.disabled = true;
-      try {
-        var r = await fetch(undoUrl, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
-          body: JSON.stringify({ code: onPanel })
-        });
-        var v = await r.json();
-        paint(v); remember(v);
-      } catch (e) {
-        paint({ verdict: 'refuse', title: 'No connection',
-                detail: 'Nothing was changed. Scan the ticket again and retry.' });
-      }
-      busy = false; undoBtn.disabled = false;
-      input.focus();
-    });
-  }
-
-  // ── THE CAMERA ───────────────────────────────────────────────────────────
+  // ══ THE CAMERA ══════════════════════════════════════════════════════════
   //
   // TWO THINGS KEPT THIS FROM EVER WORKING IN PRODUCTION, and both failed silently.
   //
   //   1. `Permissions-Policy: camera=()` denied the camera on every page of the site.
-  //      getUserMedia was rejected by the browser before any of this ran, and the catch
-  //      below wrote "Camera unavailable", which is exactly what a refused prompt or a
-  //      broken lens looks like. Fixed in SecurityHeadersMiddleware; a test now holds it.
+  //      getUserMedia was rejected before any of this ran, and the catch wrote "Camera
+  //      unavailable" — indistinguishable from a refused prompt or a broken lens.
+  //   2. The camera was gated on `BarcodeDetector`, which exists on no iOS browser (they
+  //      are all WebKit) and not on Firefox. A steward holding an iPhone saw no camera at
+  //      all, which at a Nigerian gala is a large share of the people working a gate.
   //
-  //   2. The button's existence was gated on `BarcodeDetector`, which does not exist on
-  //      ANY iOS browser — they are all WebKit — nor on Firefox. A steward holding an
-  //      iPhone saw no camera at all. At a Nigerian gala that is a large share of the
-  //      people working the gate.
-  //
-  // So the gate is now getUserMedia alone, and WHICH decoder runs is decided after the
-  // stream opens: the native one where it exists, jsQR where it does not. jsQR is
-  // vendored and lazy — a door on venue wifi cannot fetch a script from a third party at
-  // the moment a queue forms, and a Chrome phone should not download 130KB it never uses.
-  var wrap   = document.getElementById('drCamWrap');
-  var vid    = document.getElementById('drVideo');
-  var camBtn = document.getElementById('drCam');
-  var camMsg = document.getElementById('drCamMsg');
+  // So the gate is getUserMedia alone, and WHICH decoder runs is decided after the stream
+  // opens: the native one where it exists, jsQR where it does not. jsQR is vendored and
+  // lazy — a door on venue wifi cannot fetch a third-party script the moment a queue
+  // forms, and a Chrome phone should not download 130KB it never uses.
+  var vid = el.video;
   var secure = window.isSecureContext || location.hostname === 'localhost';
-
-  if (!wrap || !vid || !camBtn) return;
-
-  // The typed box is the door and it always works. The camera is only ever offered where
-  // it can actually open — an offer that cannot be honoured costs the operator the queue.
-  if (!secure || !navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) return;
-  // The BUTTON becomes available; the viewfinder stays hidden until there is a stream to
-  // put in it. Revealing an empty black box under the verdict is how the stage came to
-  // have two things in it at once.
-  camBtn.hidden = false;
-
   var stream = null, timer = null, native = null, jsqr = null, canvas = null, ctx = null;
+  var lastRaw = '', lastAt = 0;
 
-  function say(msg) { if (camMsg) camMsg.textContent = msg || ''; }
-
-  /* The button carries an icon beside its words, so its label is a span rather than the
-     button's own textContent — writing that would delete the icon on the first press. */
-  function setCamLabel(t) {
-    var el = camBtn.querySelector('.dr__cam__t');
-    if (el) el.textContent = t; else camBtn.textContent = t;
+  function offer(msg) {
+    el.tapT.textContent = msg;
+    el.tap.hidden = false;
   }
 
-  /** The native decoder, or null. Chrome and Edge have it; WebKit and Firefox do not. */
   async function nativeDecoder() {
     if (!('BarcodeDetector' in window)) return null;
     try {
-      var formats = await BarcodeDetector.getSupportedFormats();
-      if (formats.indexOf('qr_code') === -1) return null;
+      var f = await BarcodeDetector.getSupportedFormats();
+      if (f.indexOf('qr_code') === -1) return null;
       return new BarcodeDetector({ formats: ['qr_code'] });
     } catch (e) { return null; }
   }
 
-  /** jsQR, fetched once, only when it is the only option. */
   function loadJsQR() {
     if (window.jsQR) return Promise.resolve(window.jsQR);
     return new Promise(function (resolve, reject) {
-      var el = document.createElement('script');
-      // The nonce is carried over deliberately. `script-src` here is `'self'` plus a
-      // nonce, so a same-origin src would load without it today — but the day this
-      // policy gains `strict-dynamic`, host sources stop applying and an un-nonced
-      // injected script is refused. The failure then would be a scanner that stops
-      // working on exactly the phones that need it, months after the change that did it.
-      el.nonce = NONCE;
-      el.src = '/assets/vendor/jsqr.min.js';
-      el.onload  = function () { resolve(window.jsQR || null); };
-      el.onerror = function () { reject(new Error('decoder')); };
-      document.head.appendChild(el);
+      var s = document.createElement('script');
+      // The nonce is carried deliberately. `script-src` is `'self'` plus a nonce, so a
+      // same-origin src loads without it today — but the day this policy gains
+      // `strict-dynamic`, host sources stop applying and an un-nonced injected script is
+      // refused. The failure then is a scanner that stops working on exactly the phones
+      // that need it, months after the change that did it.
+      s.nonce = NONCE;
+      s.src = '/assets/vendor/jsqr.min.js';
+      s.onload = function () { resolve(window.jsQR || null); };
+      s.onerror = function () { reject(new Error('decoder')); };
+      document.head.appendChild(s);
     });
   }
 
-  function stop() {
-    if (stream) { stream.getTracks().forEach(function (t) { t.stop(); }); stream = null; }
-    if (timer) { clearInterval(timer); timer = null; }
-    wrap.hidden = true;
-    if (stage) stage.classList.remove('is-live');
-    camBtn.classList.remove('is-on');
-    // The verdict stays put once the viewfinder is gone — there is nothing behind it.
-    panel.classList.add('is-fresh');
-    setCamLabel('Scan with the camera');
-    say('');
-    input.focus();
-  }
-
-  /**
-   * One frame, decoded by whichever engine we have. Returns the raw string or ''.
-   *
-   * jsQR needs pixels, so the frame goes through a canvas sized to the VIDEO's own
-   * dimensions — not the element's. A CSS-scaled video would otherwise hand the decoder a
-   * stretched image, and a QR symbol decodes from its geometry.
-   */
   async function readFrame() {
     if (native) {
       var found = await native.detect(vid);
@@ -1024,54 +714,46 @@
     if (!canvas) { canvas = document.createElement('canvas'); ctx = canvas.getContext('2d', { willReadFrequently: true }); }
     if (canvas.width !== w) { canvas.width = w; canvas.height = h; }
     ctx.drawImage(vid, 0, 0, w, h);
+    // A QR symbol decodes from its geometry, so the frame is sized to the VIDEO's own
+    // dimensions and not the element's — a CSS-scaled video hands the decoder a stretched
+    // image it cannot read.
     var r = jsqr(ctx.getImageData(0, 0, w, h).data, w, h, { inversionAttempts: 'dontInvert' });
     return r && r.data ? String(r.data) : '';
   }
 
-  var last = '', lastAt = 0;
-
-  camBtn.addEventListener('click', async function () {
-    if (stream) { stop(); return; }
-
-    camBtn.disabled = true;
-    say('Opening the camera\u2026');
+  async function startCamera() {
+    if (stream) return true;
+    if (!secure || !navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      offer('No camera here — type the code');
+      return false;
+    }
     try {
-      // The REAR camera: the operator holds the phone and the ticket faces it.
+      // The REAR camera: the steward holds the phone and the ticket faces it.
       stream = await navigator.mediaDevices.getUserMedia({
         video: { facingMode: { ideal: 'environment' } }, audio: false });
       vid.srcObject = stream;
-      // iOS will not start an inline video without this even with the attribute set.
-      vid.setAttribute('playsinline', '');
+      vid.setAttribute('playsinline', '');   // iOS will not start an inline video without it
       await vid.play();
     } catch (e) {
       stream = null;
-      camBtn.disabled = false;
       // NAMED, because "unavailable" sent an operator to the wrong fix for two of these.
       var n = (e && e.name) || '';
-      say(n === 'NotAllowedError'  ? 'Camera blocked. Allow it in the browser\u2019s address bar, then press again.'
-        : n === 'NotFoundError'    ? 'This device has no camera. Type the code instead.'
-        : n === 'NotReadableError' ? 'Another app is using the camera. Close it and press again.'
-        : 'The camera would not open. Type the code instead.');
-      return;
+      offer(n === 'NotAllowedError'  ? 'Camera blocked — allow it, then tap'
+          : n === 'NotFoundError'    ? 'No camera on this phone — type the code'
+          : n === 'NotReadableError' ? 'Another app has the camera — close it and tap'
+          : 'Tap to start the camera');
+      return false;
     }
 
     native = await nativeDecoder();
     if (!native) {
-      say('Getting the scanner ready\u2026');
-      try { jsqr = await loadJsQR(); }
-      catch (e) { jsqr = null; }
-      if (!jsqr) { stop(); say('The scanner could not load. Type the code instead.'); camBtn.disabled = false; return; }
+      try { jsqr = await loadJsQR(); } catch (e) { jsqr = null; }
+      if (!jsqr) { stopCamera(); offer('The scanner would not load — type the code'); return false; }
     }
 
-    camBtn.disabled = false;
-    setCamLabel('Stop the camera');
-    camBtn.classList.add('is-on');
-    wrap.hidden = false;
-    if (stage) stage.classList.add('is-live');
-    say('Point it at the ticket.');
-
+    el.tap.hidden = true;
     timer = setInterval(async function () {
-      if (busy || vid.readyState < 2) return;
+      if (busy || cur || !el.pad.hidden || vid.readyState < 2) return;
       try {
         var raw = (await readFrame()).trim();
         if (!raw) return;
@@ -1079,19 +761,48 @@
         // three seconds is the same person, and re-sending it would report them as a
         // duplicate of themselves — the one wrong answer that looks like fraud.
         var now = Date.now();
-        if (raw === last && now - lastAt < 3000) return;
-        last = raw; lastAt = now;
+        if (raw === lastRaw && now - lastAt < 3000) return;
+        lastRaw = raw; lastAt = now;
         check(raw);
       } catch (e) { /* a bad frame is not an error */ }
     }, native ? 300 : 180);
+    return true;
+  }
+
+  function stopCamera() {
+    if (stream) { stream.getTracks().forEach(function (t) { t.stop(); }); stream = null; }
+    if (timer) { clearInterval(timer); timer = null; }
+  }
+
+  el.tap.addEventListener('click', function () { el.tap.hidden = true; startCamera(); });
+
+  // ── THE TORCH ────────────────────────────────────────────────────────────
+  // Only where the track advertises it. A button that does nothing on a phone whose
+  // camera has no lamp is worse than no button, so it hides itself rather than lying.
+  var torchOn = false;
+  el.torch.addEventListener('click', async function () {
+    if (!stream) return;
+    var track = stream.getVideoTracks()[0];
+    if (!track || typeof track.applyConstraints !== 'function') return;
+    try {
+      torchOn = !torchOn;
+      await track.applyConstraints({ advanced: [{ torch: torchOn }] });
+      el.torch.classList.toggle('is-on', torchOn);
+      el.torch.setAttribute('aria-pressed', torchOn ? 'true' : 'false');
+    } catch (e) { torchOn = false; el.torch.classList.remove('is-on'); }
   });
 
   // A camera left running behind a locked screen is a flat battery an hour into a gala.
   document.addEventListener('visibilitychange', function () {
-    if (document.hidden && stream) stop();
+    if (document.hidden) stopCamera();
+    else if (!stream && el.tap.hidden) startCamera();
   });
+
+  startCamera();
 
 })();
 </script>
 {% endif %}
-{% endblock %}
+
+</body>
+</html>

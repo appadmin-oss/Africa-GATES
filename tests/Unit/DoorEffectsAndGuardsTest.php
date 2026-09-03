@@ -36,44 +36,70 @@ final class DoorEffectsAndGuardsTest extends TestCase
         return (string) file_get_contents(dirname(__DIR__, 2) . '/templates/pages/events/door.twig');
     }
 
-    // ══ 1 · one loop, cancellable ════════════════════════════════════════════
+    private function css(): string
+    {
+        return (string) file_get_contents(
+            dirname(__DIR__, 2) . '/public/assets/css/components/door.css');
+    }
+
+    // ══ 1 · one acknowledgement, restartable ═════════════════════════════════
 
     /**
-     * THE BUG THIS REPLACED. The burst started a fresh requestAnimationFrame on every call
-     * with nothing stopping the last — two guests of honour scanned inside its 2.6 seconds
-     * left two loops writing to one canvas, each clearing the other's frame. At a door,
-     * effects overlap by definition.
+     * THE BUG THIS REPLACED, IN ITS SECOND FORM.
+     *
+     * The old burst started a fresh requestAnimationFrame per call with nothing stopping
+     * the last, so two guests of honour inside 2.6 seconds left two loops writing to one
+     * canvas. The canvas is gone — the redesign acknowledges a scan by flaring the frame's
+     * own light, which cannot fight itself — but the same hazard moved rather than
+     * disappearing: assigning an animation a second time does NOT replay it, because the
+     * browser coalesces the two assignments and sees no change.
+     *
+     * So the reflow between them is the whole mechanism. Without `void offsetWidth` the
+     * second guest of honour gets no acknowledgement at all, which is a silent failure at
+     * exactly the moment the door is busiest. Asserting the two assignments alone would
+     * pass against the broken version.
      */
-    public function test_a_second_effect_cancels_the_first(): void
+    public function test_a_second_scan_replays_the_acknowledgement(): void
     {
         $s = $this->door();
 
-        // The guard AND the call as one unit. Asserting the call alone passes against
-        // `if (false) cancelAnimationFrame(...)`, which is a live regression wearing the
-        // right words — a structural test that only proves a string is present proves the
-        // author typed it, not that it runs.
         $this->assertMatchesRegularExpression(
-            '~if \(fx\.raf\)\s*cancelAnimationFrame\(fx\.raf\);~', $s,
-            'nothing stops a running effect, so two scans in quick succession fight');
-        $this->assertStringContainsString('fx.raf = requestAnimationFrame(frame)', $s,
-            'the handle is not kept, so it cannot be cancelled');
+            '~node\.style\.animation = \'none\';\s*\n\s*void node\.offsetWidth;~', $s,
+            'the animation is reassigned with no reflow between, so it never replays and a '
+            . 'second scan in quick succession is acknowledged with nothing');
 
-        $from = (int) strpos($s, 'function celebrate()');
-        $body = substr($s, $from, 400);
-        $this->assertStringContainsString('fxStop()', $body,
-            'celebrate() does not clear whatever was already running');
+        $this->assertMatchesRegularExpression('~function flare\(\)\s*\{\s*restart\(aura,~', $s,
+            'the flare does not go through the restart helper');
+        $this->assertStringContainsString('restart(slab,', $s, 'the slab entry is not replayed');
+        $this->assertStringContainsString('restart(el.rule,', $s, 'the rule does not redraw');
     }
 
     // ══ 2 · the organiser's colour ═══════════════════════════════════════════
 
+    /**
+     * The light is the organiser's, and it is lifted for a dark frame rather than reused.
+     *
+     * Everywhere else on this platform an event's colour is resolved for PAPER. The door
+     * hardcoded gold and green once, so a gold gala burst emerald at its own door; using
+     * the ticket accent raw would be the opposite failure, since
+     * `EventTicketDesign::DEFAULT_ACCENT` is a near-black teal that cannot be seen here.
+     */
     public function test_the_effects_take_the_events_own_accent(): void
     {
         $s = $this->door();
 
-        $this->assertStringContainsString('var ACCENT = {{ accent', $s,
-            'the burst is painted in a colour the organiser cannot change');
-        $this->assertStringContainsString('[ACCENT,', $s, 'ACCENT does not lead the palette');
-        $this->assertStringContainsString('accent_soft', $s, 'the sweep is not accent-driven');
+        $this->assertStringContainsString('DoorTone', (string) file_get_contents(
+            dirname(__DIR__, 2) . '/src/Controllers/DoorController.php'),
+            'the door paints itself in a colour the organiser cannot change');
+
+        foreach (['--dr-accent:{{ tone.accent }}',
+                  '--dr-accent-text:{{ tone.accent_text }}',
+                  '--dr-accent-soft:{{ tone.soft }}'] as $decl) {
+            $this->assertStringContainsString($decl, $s, 'the door does not take ' . $decl);
+        }
+
+        $this->assertStringContainsString('var(--dr-accent-soft)', $this->css(),
+            'the sweep is not accent-driven');
     }
 
     /**
@@ -83,49 +109,103 @@ final class DoorEffectsAndGuardsTest extends TestCase
      */
     public function test_the_sweep_needs_no_css_colour_function(): void
     {
-        $this->assertStringNotContainsString('color-mix', $this->door());
+        // Comments are stripped first, and that is not tidying: the note explaining WHY
+        // this rule exists names `color-mix()`, so scanning raw source made the
+        // documentation fail the assertion its own code satisfies. A test that reads
+        // prose as markup breaks on the next person who explains themselves.
+        $strip = static fn (string $s): string => (string) preg_replace(
+            ['~\{#.*?#\}~s', '~/\*.*?\*/~s', '~^\s*//.*$~m'], '', $s);
+
+        $this->assertStringNotContainsString('color-mix', $strip($this->door()));
+        $this->assertStringNotContainsString('color-mix', $strip($this->css()));
     }
 
     // ══ 3 · the accessibility floor ══════════════════════════════════════════
 
-    /** Off, not slowed. A full-width band and a shaking panel are what the setting is for. */
+    /**
+     * Off, not slowed — and ALL of it.
+     *
+     * The frame's two drifting fields, the breathing, the flare, the reticle's sweep and
+     * every entry animation. The setting exists for exactly this kind of screen, and a
+     * door that keeps one of five moving parts has not honoured it.
+     */
     public function test_every_effect_is_off_under_reduced_motion(): void
     {
-        $s = $this->door();
-        $at = strpos($s, '@media (prefers-reduced-motion:reduce){\n    .dr__v.is-sweep');
-        $at = $at !== false ? $at : strpos($s, '.dr__v.is-sweep::after{ animation:none');
+        $css = $this->css();
 
-        $this->assertNotFalse($at, 'the sweep still animates under reduced motion');
-        $this->assertStringContainsString('.dr__v.is-nudge{ animation:none }', $s);
-        // And the JS half, because a hidden canvas still costs animation frames.
-        $this->assertStringContainsString('if (!ctx || reduced()) return;', $s);
-        $this->assertMatchesRegularExpression('~function sweep\(\)\s*\{\s*if \(reduced\(\)\) return;~', $s);
-        $this->assertMatchesRegularExpression('~function nudge\(\)\s*\{\s*if \(reduced\(\)\) return;~', $s);
+        $at = strpos($css, '@media (prefers-reduced-motion:reduce)');
+        $this->assertNotFalse($at, 'the door has no reduced-motion block at all');
+
+        $block = substr($css, $at);
+        $this->assertStringContainsString('animation:none !important', $block,
+            'reduced motion does not stop the animations');
+
+        // The pseudo-elements carry the two drifting fields, so a rule that names only
+        // elements leaves the light moving — which is the largest motion on the screen.
+        $this->assertStringContainsString('.dr__aura::before', $block,
+            'the drifting light keeps moving under reduced motion');
+        $this->assertStringContainsString('.dr__aura::after', $block);
     }
 
-    /** A verdict must never be distinguishable by its effect alone. */
+    /**
+     * A verdict must never be distinguishable by its effect, or its colour, alone.
+     *
+     * Every state carries its own WORD and its own MARK. `ask` is the one exception and it
+     * is the design's: it has no glyph, because it is a question rather than a verdict, and
+     * its word names the size of the party instead.
+     */
     public function test_the_verdict_still_carries_a_word_and_a_mark(): void
     {
         $s = $this->door();
 
-        $this->assertStringContainsString("var MARK = { admit: '✓'", $s);
-        $this->assertStringContainsString("slow: '⏳'", $s, 'the throttle has no mark');
-        $this->assertStringContainsString('title.textContent = v.title', $s,
-            'the verdict word is not written');
+        $at = strpos($s, 'var SAY = {');
+        $this->assertNotFalse($at, 'the verdict vocabulary is not in one table');
+        $table = substr($s, $at, (int) strpos($s, '};', $at) - $at);
+
+        $words = [];
+        $marks = [];
+        foreach (['admit', 'honour', 'ask', 'duplicate', 'refuse', 'held', 'undone', 'slow'] as $kind) {
+            $this->assertMatchesRegularExpression(
+                '~\b' . $kind . ':\s*\{\s*mark: \'([^\']*)\',\s*kicker: \'([^\']+)\',\s*word: \'([^\']*)\'~',
+                $table, $kind . ' has no entry with a mark, a kicker and a word');
+
+            preg_match('~\b' . $kind . ':\s*\{\s*mark: \'([^\']*)\',\s*kicker: \'([^\']+)\',\s*word: \'([^\']*)\'~',
+                       $table, $m);
+            if ($m[1] !== '') $marks[] = $m[1];
+            if ($m[3] !== '') $words[] = $m[3];
+        }
+
+        // `admit` and `honour` deliberately share the word "Admit" — the steward's action
+        // is identical and the star and the gold say the rest. Everything else is its own.
+        $this->assertSame(count($marks), count(array_unique($marks)),
+            'two states share a mark glyph, so the mark stops distinguishing them');
+
+        $this->assertStringContainsString('el.word.textContent', $s, 'the verdict word is not written');
+        $this->assertStringContainsString('el.mark.textContent', $s, 'the mark is not written');
     }
 
-    /** A duplicate and a refusal shake; only an admit sweeps; only honour bursts. */
+    /**
+     * The three that say STOP AND LOOK shake; everything else rises.
+     *
+     * A shake is an interruption and it is spent on the states where the steward has to do
+     * something about it. Spending it on an admit would make the ordinary case feel like a
+     * fault.
+     */
     public function test_each_verdict_gets_its_own_effect(): void
     {
         $s = $this->door();
-        $from = (int) strpos($s, "if (v.honour && v.verdict === 'admit') celebrate();");
-        $body = substr($s, $from, 420);
 
-        $this->assertStringContainsString("else if (v.verdict === 'admit') sweep()", $body);
-        $this->assertStringContainsString("'duplicate'", $body);
-        $this->assertStringContainsString('nudge()', $body);
-        $this->assertStringContainsString('else fxStop()', $body,
-            'a verdict with no effect leaves the previous one on screen');
+        $this->assertMatchesRegularExpression(
+            "~kind === 'refuse' \|\| kind === 'duplicate' \|\| kind === 'held' \|\| kind === 'slow'~", $s,
+            'the shake is not spent on exactly the verdicts that need looking at');
+        $this->assertStringContainsString("'dr-nudge .3s ease-in-out'", $s);
+        $this->assertStringContainsString("'dr-rise .3s cubic-bezier(.22,.61,.36,1)'", $s);
+
+        // Every verdict repaints the whole slab, so nothing can be left behind from the
+        // last one — the fault `else fxStop()` used to guard against.
+        $this->assertStringContainsString('function paint(v)', $s);
+        $this->assertStringContainsString('el.party.innerHTML = \'\'', $s,
+            'the party buttons from a previous verdict survive into the next');
     }
 
     // ══ 4 · a cancelled event admits nobody ══════════════════════════════════

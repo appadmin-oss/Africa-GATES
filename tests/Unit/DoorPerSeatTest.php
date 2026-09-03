@@ -3,9 +3,12 @@ declare(strict_types=1);
 
 namespace Tests\Unit;
 
-use AfricaGates\Services\{EventArrivals, EventTicketService};
+use AfricaGates\Controllers\DoorController;
+use AfricaGates\Services\{EventArrivals, EventScanPass, EventTicketService, RateLimitService};
 use Illuminate\Database\Capsule\Manager as DB;
 use Illuminate\Support\Carbon;
+use Slim\Psr7\Factory\{ResponseFactory, ServerRequestFactory};
+use Slim\Views\Twig;
 use Tests\TestCase;
 
 /**
@@ -290,30 +293,119 @@ final class DoorPerSeatTest extends TestCase
 
     // ══ 6 · the door only asks when there is something to ask ════════════════
 
+    /**
+     * The scan pass and the endpoint, so these are answers the DOOR gave rather than
+     * strings in its template.
+     */
+    private function scan(string $code, int $seats = 0): array
+    {
+        $token = (string) EventScanPass::issue(
+            $this->eventId, Carbon::now()->addHours(6)->toDateTimeString(), null, 'Main gate');
+
+        $ctrl = new DoorController(
+            Twig::create(dirname(__DIR__, 2) . '/templates', ['cache' => false]),
+            new RateLimitService());
+
+        $req = (new ServerRequestFactory())
+            ->createServerRequest('POST', '/door/' . $token . '/check')
+            ->withParsedBody(['code' => $code, 'seats' => $seats]);
+
+        $res = $ctrl->check($req, (new ResponseFactory())->createResponse(), ['token' => $token]);
+
+        return json_decode((string) $res->getBody(), true) ?: [];
+    }
+
     /** A single-seat ticket — most of them — must cost no extra tap. */
     public function test_the_picker_is_not_offered_for_a_one_seat_ticket(): void
     {
-        $s = (string) file_get_contents(dirname(__DIR__, 2) . '/templates/pages/events/door.twig');
-        $from = (int) strpos($s, 'function offerParty(v)');
-        $body = substr($s, $from, 700);
+        $this->ticket('SOLO-1', 1);
 
-        $this->assertStringContainsString("Number(v.seats || 0) < 2", $body,
+        $v = $this->scan('SOLO-1');
+
+        $this->assertSame('admit', $v['verdict'],
             'a one-seat ticket is being asked how many of it are present');
-        $this->assertStringContainsString('left < 1', $body,
-            'a fully admitted ticket still offers a split');
+        $this->assertSame(1, $v['admitted_now']);
     }
 
     /**
-     * And it IS offered after a duplicate that has seats left — the case that used to be a
-     * dead end, where a steward was told "already checked in" about a ticket with two
-     * people still to come and had to decide on their own authority.
+     * THE ONE THAT MATTERS NOW. A party is asked about BEFORE anybody is admitted.
+     *
+     * The door used to admit one seat on the first scan and then offer to add more, so a
+     * steward who scanned a table of four and turned away to talk had admitted one person
+     * and recorded three as still to come — with the undo as the only way back, and no
+     * reason to think they needed it.
      */
-    public function test_the_picker_is_offered_on_a_partly_used_ticket(): void
+    public function test_a_party_is_asked_about_before_anybody_is_admitted(): void
     {
-        $s = (string) file_get_contents(dirname(__DIR__, 2) . '/templates/pages/events/door.twig');
-        $from = (int) strpos($s, 'function offerParty(v)');
+        $this->ticket('SEAT-4', 4);
 
-        $this->assertStringNotContainsString("v.verdict === 'admit'", substr($s, $from, 700),
-            'the split is gated on the verdict, so a partly-used ticket is a dead end again');
+        $v = $this->scan('SEAT-4');
+
+        $this->assertSame('ask', $v['verdict'], 'a four-seat ticket admitted somebody unasked');
+        $this->assertSame(4, $v['seats']);
+        $this->assertSame(4, $v['seats_left']);
+        $this->assertSame(0, $v['admitted_now']);
+
+        // And NOTHING was written. That is the whole claim.
+        $this->assertSame(0, $this->seatsIn('SEAT-4'),
+            'the question was asked and a seat was taken anyway');
+    }
+
+    /** Answering it admits exactly what was chosen. */
+    public function test_answering_the_question_admits_that_many(): void
+    {
+        $this->ticket('SEAT-4', 4);
+        $this->scan('SEAT-4');
+
+        $v = $this->scan('SEAT-4', 2);
+
+        $this->assertSame('admit', $v['verdict']);
+        $this->assertSame(2, $v['admitted_now']);
+        $this->assertSame(2, $this->seatsIn('SEAT-4'));
+    }
+
+    /**
+     * And it IS asked again on a partly-used ticket — the case that used to be a dead end,
+     * where a steward was told "already checked in" about a ticket with two people still
+     * to come and had to decide on their own authority.
+     */
+    public function test_the_question_is_asked_again_on_a_partly_used_ticket(): void
+    {
+        $this->ticket('SEAT-4', 4);
+        $this->admit('SEAT-4', 1);
+
+        $v = $this->scan('SEAT-4');
+
+        $this->assertSame('ask', $v['verdict'], 'a partly-used ticket is a dead end again');
+        $this->assertSame(3, $v['seats_left']);
+    }
+
+    /** With one seat left there is nothing to ask, so it just admits. */
+    public function test_the_last_seat_is_not_worth_a_question(): void
+    {
+        $this->ticket('SEAT-2', 2);
+        $this->admit('SEAT-2', 1);
+
+        $v = $this->scan('SEAT-2');
+
+        $this->assertSame('admit', $v['verdict'],
+            'the door asked how many when only one seat could possibly be meant');
+        $this->assertSame(2, $this->seatsIn('SEAT-2'));
+    }
+
+    /**
+     * A fully-used ticket is a duplicate, not a question.
+     *
+     * And the door must not become an oracle on the way: an unknown code and a code from
+     * another event get the same refusal, so a stranger cannot learn which namespace they
+     * missed.
+     */
+    public function test_a_used_ticket_is_a_duplicate_and_an_unknown_one_is_refused(): void
+    {
+        $this->ticket('SEAT-1', 1);
+        $this->admit('SEAT-1', 1);
+
+        $this->assertSame('duplicate', $this->scan('SEAT-1')['verdict']);
+        $this->assertSame('refuse', $this->scan('NOPE-9999')['verdict']);
     }
 }

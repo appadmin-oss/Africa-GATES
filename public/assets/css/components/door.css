@@ -1,0 +1,380 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   THE DOOR — the scanner a steward holds at the entrance.
+
+   Loaded ALONE. This page does not extend the site layout, so none of
+   main.css, nav.css, footer.css or the Gee launcher is on it. That is the
+   redesign's first decision, not an optimisation: `.ag-nav` hides below 900px
+   and `.ag-mobnav` takes over, so on a phone the old door put a bottom tab
+   bar under the steward's thumb inviting them to leave the queue.
+
+   ── HOW THE COLOUR WORKS ─────────────────────────────────────────────────
+   The whole frame carries the verdict, not a badge. Nine states each set six
+   custom properties on `.dr` via `data-state`, and everything downstream —
+   the two drifting fields, the rim, the mark, the kicker, the rule — reads
+   those. So a state change is one attribute, and there is exactly one place
+   a hue is written down.
+
+   Colour is never the only signal: every state also has its own word and its
+   own mark glyph, and the slab stays neutral glass so the type keeps its
+   contrast whatever the light is doing.
+   ═══════════════════════════════════════════════════════════════════════ */
+
+/* ── motion ─────────────────────────────────────────────────────────────── */
+
+@keyframes dr-rise   { from { opacity:0; transform:translateY(18px) } to { opacity:1; transform:none } }
+@keyframes dr-nudge  { 0%,100% { transform:translate3d(0,0,0) }
+                       22%     { transform:translate3d(-5px,0,0) }
+                       55%     { transform:translate3d(5px,0,0) }
+                       82%     { transform:translate3d(-2px,0,0) } }
+@keyframes dr-rule   { 0% { transform:scaleX(0) } 100% { transform:scaleX(1) } }
+@keyframes dr-sweep  { 0%   { transform:translateY(-96px); opacity:0 }
+                       12%  { opacity:1 }
+                       88%  { opacity:1 }
+                       100% { transform:translateY(96px); opacity:0 } }
+
+/* Two fields on unequal cycles, so the frame is never still and never asks to
+   be looked at. 24s against 31s never repeats a pairing within a shift. */
+@keyframes dr-driftA { 0%   { transform:translate(-4%,-3%) scale(1) }
+                       50%  { transform:translate(7%,5%) scale(1.14) }
+                       100% { transform:translate(-4%,-3%) scale(1) } }
+@keyframes dr-driftB { 0%   { transform:translate(5%,4%) scale(1.1) }
+                       50%  { transform:translate(-6%,-5%) scale(.94) }
+                       100% { transform:translate(5%,4%) scale(1.1) } }
+@keyframes dr-breathe{ 0%,100% { opacity:.62 } 50% { opacity:1 } }
+@keyframes dr-flare  { 0% { opacity:.55 } 18% { opacity:1 } 100% { opacity:.7 } }
+
+/* ── the frame ──────────────────────────────────────────────────────────── */
+
+html.dr-html, body.dr-body {
+  margin:0; padding:0; height:100%;
+  background:#04080a; color:#f6faf9;
+  font-family:"DM Sans",system-ui,-apple-system,"Segoe UI",sans-serif;
+  /* A door is a fixed app, not a document. Nothing on it scrolls except the
+     arrivals list, and a rubber-band bounce on a queue reads as a fault. */
+  overflow:hidden; overscroll-behavior:none;
+  -webkit-text-size-adjust:100%;
+}
+
+.dr {
+  position:relative; display:flex; flex-direction:column;
+  width:100%; height:100dvh; min-height:100dvh;
+  margin:0 auto; overflow:hidden;
+  background:linear-gradient(168deg,#2c3838 0%,#1c2525 38%,#111818 70%,#080d0e 100%);
+
+  /* idle — the platform's greens against a cool counter-light, so the door
+     feels like Africa GATES at rest rather than like a device waiting. */
+  --dr-a:rgba(74,186,124,.24);
+  --dr-b:rgba(120,180,220,.16);
+  --dr-rim:rgba(150,220,180,.10);
+  --dr-dot:#79d3a0;
+
+  --dr-sans:"DM Sans",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --dr-mono:"JetBrains Mono",ui-monospace,Menlo,Consolas,monospace;
+
+  --dr-accent:#f3b416;
+  --dr-accent-text:#f3b416;
+  --dr-accent-soft:rgba(243,180,22,.55);
+}
+
+/* On a tablet or a desk the column caps and centres; there is no
+   desktop-specific layout, because there is no desktop steward. */
+@media (min-width:520px) {
+  .dr { max-width:440px; box-shadow:0 0 0 1px rgba(255,255,255,.06) }
+}
+
+.dr[data-state="admit"]     { --dr-a:rgba(74,206,118,.46);  --dr-b:rgba(40,150,80,.32);
+                              --dr-rim:rgba(120,230,160,.22); --dr-dot:#7fdca0 }
+.dr[data-state="honour"]    { --dr-a:rgba(243,180,22,.42);  --dr-b:rgba(190,130,10,.3);
+                              --dr-rim:rgba(243,200,90,.24);  --dr-dot:var(--dr-accent) }
+.dr[data-state="ask"]       { --dr-a:rgba(120,178,235,.34); --dr-b:rgba(70,120,180,.24);
+                              --dr-rim:rgba(160,205,245,.2);  --dr-dot:#9cc8f0 }
+.dr[data-state="duplicate"] { --dr-a:rgba(224,164,92,.42);  --dr-b:rgba(160,100,30,.28);
+                              --dr-rim:rgba(235,190,130,.22); --dr-dot:#e6b273 }
+.dr[data-state="refuse"]    { --dr-a:rgba(214,96,78,.46);   --dr-b:rgba(140,42,30,.3);
+                              --dr-rim:rgba(230,140,120,.24); --dr-dot:#e28c7c }
+.dr[data-state="held"]      { --dr-a:rgba(96,158,196,.4);   --dr-b:rgba(46,92,124,.28);
+                              --dr-rim:rgba(150,200,230,.22); --dr-dot:#8ec8e8 }
+.dr[data-state="undone"]    { --dr-a:rgba(150,168,168,.26); --dr-b:rgba(90,108,110,.2);
+                              --dr-rim:rgba(200,215,215,.14); --dr-dot:rgba(226,238,235,.6) }
+.dr[data-state="closed"]    { --dr-a:rgba(120,44,32,.3);    --dr-b:rgba(70,22,16,.24);
+                              --dr-rim:rgba(210,110,90,.18); --dr-dot:#e2725e }
+
+/* `slow` is the rate limiter, which the design has no state for — see the note
+   in door.twig. It borrows refuse's light because it IS a refusal, and earns a
+   distinct word and mark of its own rather than a distinct colour. */
+.dr[data-state="slow"]      { --dr-a:rgba(214,96,78,.46);   --dr-b:rgba(140,42,30,.3);
+                              --dr-rim:rgba(230,140,120,.24); --dr-dot:#e28c7c }
+
+.dr__aura { position:absolute; inset:0; pointer-events:none;
+            animation:dr-breathe 9s ease-in-out infinite }
+.dr__aura::before, .dr__aura::after { content:""; position:absolute; border-radius:50% }
+.dr__aura::before { left:-30%; top:-20%; width:100%; height:66%; filter:blur(58px);
+                    background:radial-gradient(ellipse,var(--dr-a),transparent 70%);
+                    animation:dr-driftA 24s ease-in-out infinite }
+.dr__aura::after  { right:-26%; bottom:-22%; width:96%; height:60%; filter:blur(60px);
+                    background:radial-gradient(ellipse,var(--dr-b),transparent 72%);
+                    animation:dr-driftB 31s ease-in-out infinite }
+
+/* One acknowledgement per scan that settles by itself. Re-triggered from JS by
+   clearing the animation, forcing reflow, then reassigning. */
+.dr__aura.is-flare { animation:dr-flare 1.8s cubic-bezier(.22,.61,.36,1) forwards,
+                               dr-breathe 9s ease-in-out 1.8s infinite }
+
+.dr__vig { position:absolute; inset:0; pointer-events:none;
+           background:radial-gradient(ellipse at 50% 40%,transparent 40%,rgba(2,5,6,.72) 100%) }
+.dr__rim { position:absolute; inset:0; pointer-events:none;
+           box-shadow:inset 0 0 0 1px var(--dr-rim) }
+
+/* ── the viewfinder, which is the ground state ───────────────────────────── */
+
+.dr__feed { position:absolute; inset:0; pointer-events:none;
+            opacity:1; transition:opacity .3s linear }
+/* A verdict FREEZES the feed rather than emptying the frame. Only an expired
+   pass blanks it — a dead gate should look dead. */
+.dr.is-frozen .dr__feed { opacity:.34 }
+
+.dr__video { position:absolute; inset:0; width:100%; height:100%; object-fit:cover;
+             /* Mirroring a rear camera would put the ticket's code back to front. */
+             background:#0a0f10 }
+
+.dr__reticle {
+  position:absolute; left:50%; top:40%; transform:translate(-50%,-50%);
+  width:226px; height:226px; border-radius:28px; overflow:hidden;
+  /* The second shadow IS the scrim: it darkens everything outside the reticle
+     in one declaration, so there is no extra element to keep in sync. */
+  box-shadow:0 0 0 1px rgba(255,255,255,.32), 0 0 0 2000px rgba(3,6,7,.4);
+}
+.dr__sweep { position:absolute; left:0; right:0; top:50%; height:1px;
+             background:linear-gradient(90deg,transparent,var(--dr-accent-soft),transparent);
+             animation:dr-sweep 3.4s cubic-bezier(.45,0,.55,1) infinite }
+.dr.is-frozen .dr__sweep { animation:none; opacity:0 }
+
+/* The camera is started on load, but a browser may refuse to open one without a
+   gesture and any browser may refuse without permission. Rather than leave a dead
+   black rectangle where the viewfinder should be, the reticle itself becomes the
+   button — one tap, in the place the steward is already looking. */
+.dr__tap { position:absolute; left:50%; top:40%; transform:translate(-50%,-50%);
+           width:226px; height:226px; border-radius:28px; z-index:6;
+           border:1px solid rgba(255,255,255,.32); background:rgba(3,6,7,.4);
+           color:#f4f8f7; cursor:pointer;
+           display:flex; align-items:center; justify-content:center; padding:24px }
+.dr__tap__t { font:400 13px/1.5 var(--dr-sans); color:rgba(226,238,235,.8);
+              text-wrap:balance; text-align:center }
+
+/* ── header ─────────────────────────────────────────────────────────────── */
+
+.dr__head { position:relative; flex:0 0 auto; padding:30px 24px 0;
+            display:flex; align-items:flex-start; gap:16px }
+.dr__head__l { flex:1; min-width:0 }
+
+/* Straight on the feed, no pill and no glass. Legibility is the shadow. */
+.dr__ev { margin:0 0 5px; font:500 15px/1.2 var(--dr-sans); letter-spacing:-.012em; color:#f4f8f7;
+          text-shadow:0 2px 12px rgba(0,0,0,.7);
+          white-space:nowrap; overflow:hidden; text-overflow:ellipsis }
+.dr__gate { margin:0; font:400 10px/1 var(--dr-mono); letter-spacing:.22em;
+            text-transform:uppercase; color:rgba(226,238,235,.55);
+            text-shadow:0 2px 10px rgba(0,0,0,.7) }
+.dr__tally { flex:0 0 auto; margin:0; text-align:right;
+             font:300 22px/1 var(--dr-sans); letter-spacing:-.03em;
+             font-variant-numeric:tabular-nums; color:#f4f8f7;
+             text-shadow:0 2px 12px rgba(0,0,0,.7) }
+.dr__tally i { font-style:normal; color:rgba(226,238,235,.45) }
+
+/* ── offline strip: a hairline, not a chip ──────────────────────────────── */
+
+.dr__held { position:relative; flex:0 0 auto; margin:20px 24px 0; padding-top:14px;
+            border-top:1px solid rgba(255,255,255,.10);
+            display:flex; align-items:center; gap:14px }
+.dr__held__t { flex:1; font:400 12.5px/1.4 var(--dr-sans); color:#a9c9dc }
+.dr__held__b { min-height:34px; padding:0 14px; font:500 12px/1 var(--dr-sans);
+               border:1px solid rgba(169,201,220,.4); border-radius:999px;
+               background:transparent; color:#c8e2f2; cursor:pointer }
+
+.dr__spacer { flex:1 }
+
+/* ── the verdict slab ───────────────────────────────────────────────────── */
+
+.dr__slab {
+  position:relative; flex:0 0 auto; margin:0 14px 12px; padding:26px 24px 24px;
+  border-radius:28px;
+  /* Neutral glass ALWAYS. The slab is never tinted by the verdict — the colour
+     lives in the light behind it and in three small marks, so the type keeps a
+     constant ground and a constant contrast whatever the state. */
+  background:rgba(9,15,16,.72); -webkit-backdrop-filter:blur(26px); backdrop-filter:blur(26px);
+  box-shadow:0 0 0 1px rgba(255,255,255,.09), 0 -18px 50px rgba(0,0,0,.5);
+  animation:dr-rise .3s cubic-bezier(.22,.61,.36,1);
+}
+.dr__slab.is-nudge { animation:dr-nudge .3s ease-in-out }
+
+.dr__slab__rule { position:absolute; left:24px; right:24px; top:0; height:1px;
+                  background:var(--dr-dot); transform-origin:left;
+                  animation:dr-rule .55s cubic-bezier(.22,.61,.36,1) }
+
+.dr__vh { display:flex; align-items:center; gap:11px; margin-bottom:22px }
+.dr__mark   { font-size:15px; line-height:1; color:var(--dr-dot) }
+.dr__kicker { font:400 10px/1 var(--dr-mono); letter-spacing:.26em;
+              text-transform:uppercase; color:var(--dr-dot) }
+.dr__code   { margin-left:auto; font:400 11.5px/1 var(--dr-mono); letter-spacing:.14em;
+              color:rgba(226,238,235,.68) }
+
+.dr__word { margin:0; font:300 46px/.98 var(--dr-sans); letter-spacing:-.042em;
+            color:#f6faf9; text-wrap:balance }
+.dr__name { margin:16px 0 0; font:500 21px/1.2 var(--dr-sans); letter-spacing:-.018em;
+            color:#f6faf9; text-wrap:pretty }
+.dr__name.is-honour { color:var(--dr-accent-text) }
+.dr__meta { margin:8px 0 0; font:400 13px/1.5 var(--dr-sans); color:rgba(226,238,235,.5);
+            max-width:32ch; text-wrap:pretty }
+
+/* ── the party split ────────────────────────────────────────────────────── */
+
+.dr__party { margin-top:22px; display:flex; gap:8px }
+.dr__party button { min-height:52px; border-radius:999px; font:500 17px/1 var(--dr-sans);
+                    cursor:pointer; border:1px solid rgba(255,255,255,.22);
+                    background:transparent; color:#f6faf9; flex:1 1 0 }
+/* The only filled button on the screen at a time, and it is always the primary. */
+.dr__party button.is-all { flex:2 1 0; border:0; background:#eef4f2; color:#08100f }
+
+/* ── undo: two taps, no dialog ──────────────────────────────────────────── */
+
+.dr__undo { width:100%; margin-top:20px; min-height:50px; padding:0 20px;
+            font:500 14px/1.3 var(--dr-sans); cursor:pointer; border-radius:999px;
+            background:transparent;
+            border:1px solid rgba(255,255,255,.18); color:rgba(226,238,235,.7);
+            transition:border-color .16s linear, color .16s linear;
+            white-space:nowrap; overflow:hidden; text-overflow:ellipsis }
+.dr__undo.is-armed { border-color:rgba(226,136,122,.7); color:#e2887a }
+
+/* ── the dock, always in the thumb zone ─────────────────────────────────── */
+
+.dr__dock { position:relative; flex:0 0 auto; padding:0 24px 30px;
+            display:flex; align-items:center; gap:18px;
+            /* A phone's home indicator sits exactly where this bar does. */
+            padding-bottom:max(30px, env(safe-area-inset-bottom)) }
+
+.dr__circ { width:44px; height:44px; flex:0 0 auto; border-radius:50%;
+            border:1px solid rgba(255,255,255,.18); background:transparent;
+            color:rgba(226,238,235,.85); font-size:15px; line-height:1; cursor:pointer;
+            display:flex; align-items:center; justify-content:center }
+.dr__circ--pad { font:400 11.5px/1 var(--dr-mono) }
+.dr__circ.is-on { border-color:rgba(243,180,22,.7); color:var(--dr-accent) }
+
+.dr__arr { flex:1; min-width:0; height:44px; padding:0; border:0; background:transparent;
+           cursor:pointer; display:flex; align-items:center; gap:10px; text-align:left }
+.dr__arr__last { flex:1; min-width:0; font:400 12px/1.3 var(--dr-sans); color:rgba(226,238,235,.5);
+                 white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+                 text-shadow:0 2px 10px rgba(0,0,0,.7) }
+.dr__arr__w { font:500 12px/1 var(--dr-sans); color:rgba(226,238,235,.8) }
+
+/* ── sheets ─────────────────────────────────────────────────────────────── */
+
+/* 28px is the design's circle. A 28px TARGET is not, so the hit area is grown
+   to 44 with a pseudo-element rather than by resizing the ring — the mark stays
+   the size it was drawn and the thumb gets what WCAG 2.5.8 asks for. */
+.dr__x { position:relative; width:28px; height:28px; flex:0 0 auto; border-radius:50%;
+         border:1px solid rgba(255,255,255,.14); background:transparent;
+         color:rgba(226,238,235,.55); font-size:11px; line-height:1; cursor:pointer;
+         display:flex; align-items:center; justify-content:center }
+.dr__x::after { content:""; position:absolute; left:50%; top:50%;
+                width:44px; height:44px; transform:translate(-50%,-50%) }
+.dr__x--lg { width:32px; height:32px; font-size:12px;
+             border-color:rgba(255,255,255,.16); color:#eef4f2 }
+
+.dr__pad { position:absolute; left:14px; right:14px; bottom:14px; z-index:14; padding:22px;
+           border-radius:28px; background:rgba(9,15,16,.86);
+           -webkit-backdrop-filter:blur(26px); backdrop-filter:blur(26px);
+           box-shadow:0 0 0 1px rgba(255,255,255,.10);
+           animation:dr-rise .24s cubic-bezier(.22,.61,.36,1) }
+.dr__pad__h { display:flex; align-items:center; gap:10px; margin-bottom:16px }
+.dr__pad__l { flex:1; margin:0; font:400 10px/1 var(--dr-mono); letter-spacing:.26em;
+              text-transform:uppercase; color:rgba(226,238,235,.5) }
+.dr__pad__f { display:flex; gap:10px }
+/* ── THE ONE PLACE THE HANDOFF'S VALUE IS RAISED ──────────────────────────
+   The design gives this border `rgba(255,255,255,.18)`, the same hairline as the dock's
+   circles. On the circles that is fine: a torch glyph and `123` identify those controls,
+   and the ring is decoration. A TEXT FIELD has nothing inside it to fall back on, so its
+   boundary IS the thing that says a control is there — which is WCAG 1.4.11, and .18
+   measures 1.51:1 against its own fill.
+
+   This door has shipped that exact fault before: all three of its controls once carried a
+   1.43:1 border against a 3.0 floor, on the box that IS the door. .38 is the lowest value
+   that clears 3:1 against both the field and the sheet behind it (3.19 and 3.54).
+   `DoorAndBallotContrastTest` computes it rather than trusting this comment. */
+.dr__pad__i { flex:1; min-width:0; height:56px; padding:0 18px; border-radius:999px;
+              background:rgba(255,255,255,.05); border:1px solid rgba(255,255,255,.38);
+              color:#f2f7f5; font:400 19px/1 var(--dr-mono); letter-spacing:.14em;
+              text-transform:uppercase; outline:none }
+.dr__pad__i:focus-visible { border-color:var(--dr-accent) }
+/* The placeholder is a worked example of the code's shape, not the field's label — that
+   is `TYPE IT INSTEAD`, wired with aria-labelledby. Still raised from the handoff's .32
+   (2.64:1), because a hint nobody can read is a hint nobody has. */
+.dr__pad__i::placeholder { color:rgba(226,238,235,.5) }
+.dr__pad__go { flex:0 0 auto; min-width:92px; height:56px; border:0; border-radius:999px;
+               background:#eef4f2; color:#08100f; font:600 15px/1 var(--dr-sans); cursor:pointer }
+
+.dr__log { position:absolute; inset:0; z-index:16; display:flex; flex-direction:column;
+           background:rgba(6,11,12,.9);
+           -webkit-backdrop-filter:blur(30px); backdrop-filter:blur(30px);
+           animation:dr-rise .24s cubic-bezier(.22,.61,.36,1) }
+.dr__log__h { flex:0 0 auto; display:flex; align-items:baseline; gap:14px; padding:34px 26px 20px }
+.dr__log__t { flex:1; margin:0; font:300 26px/1 var(--dr-sans); letter-spacing:-.03em; color:#f4f8f7 }
+.dr__log__n { margin:0; font:400 10px/1 var(--dr-mono); letter-spacing:.22em;
+              text-transform:uppercase; color:rgba(226,238,235,.45) }
+.dr__log__b { flex:1; min-height:0; overflow:auto; padding:0 26px 30px;
+              -webkit-overflow-scrolling:touch }
+.dr__log__e { margin:10px 0 0; font:400 14px/1.65 var(--dr-sans); color:rgba(226,238,235,.5);
+              max-width:34ch }
+.dr__row { display:flex; align-items:baseline; gap:16px; padding:15px 0;
+           border-bottom:1px solid rgba(255,255,255,.06) }
+.dr__row__t { flex:0 0 40px; font:400 11.5px/1 var(--dr-mono);
+              font-variant-numeric:tabular-nums; color:rgba(226,238,235,.4) }
+.dr__row__n { flex:1; font:400 15px/1.35 var(--dr-sans); color:#eef4f2 }
+.dr__row__v { flex:0 0 auto; font:400 10px/1 var(--dr-mono); letter-spacing:.2em;
+              text-transform:uppercase }
+.dr__row__v[data-v="in"]    { color:#7fd07c }
+.dr__row__v[data-v="again"] { color:#e0a45c }
+.dr__row__v[data-v="no"]    { color:#e2887a }
+.dr__row__v[data-v="held"]  { color:#8ec8e8 }
+.dr__row__v[data-v="back"]  { color:rgba(226,238,235,.45) }
+
+/* ── door closed / expired pass ─────────────────────────────────────────── */
+
+.dr__shut { position:absolute; inset:0; z-index:20; display:flex; flex-direction:column;
+            justify-content:center; padding:40px 30px; background:#0a0d0e }
+.dr__shut__m { font-size:15px; line-height:1; color:#e2725e }
+.dr__shut__k { margin:18px 0 0; font:400 10px/1 var(--dr-mono); letter-spacing:.26em;
+               text-transform:uppercase; color:#e2725e }
+.dr__shut__w { margin:16px 0 0; font:300 46px/.98 var(--dr-sans); letter-spacing:-.042em; color:#f6faf9 }
+.dr__shut__l { margin:16px 0 0; font:500 21px/1.2 var(--dr-sans); color:#f6faf9 }
+.dr__shut__b { margin:10px 0 0; font:400 13px/1.55 var(--dr-sans); color:rgba(226,238,235,.5);
+               max-width:32ch }
+
+/* ── focus, for the keyboard the desk-bound tester will use ─────────────── */
+
+.dr :focus-visible { outline:2px solid var(--dr-accent); outline-offset:2px }
+
+.dr__sr { position:absolute; width:1px; height:1px; padding:0; margin:-1px;
+          overflow:hidden; clip:rect(0 0 0 0); white-space:nowrap; border:0 }
+
+/* ── `hidden` HAS TO WIN ─────────────────────────────────────────────────
+   The attribute is only `display:none` in the UA stylesheet, so ANY author
+   `display` beats it — and the arrivals sheet, the offline strip and the party
+   buttons are all `display:flex`. Every one of them was drawn as hidden and left
+   a full-screen layer sitting over the dock swallowing taps: the sheet was
+   invisible and the torch, the arrivals button and the keypad were dead.
+
+   Nothing on the page looks wrong when this breaks, which is why it needs a rule
+   rather than a convention. Toggle visibility with `.hidden`, never by writing
+   `style.display`, and this keeps holding. */
+.dr [hidden] { display:none !important }
+
+/* ── reduced motion ─────────────────────────────────────────────────────── */
+
+/* Every drift, flare, sweep and entry stops. The verdict still reads in colour,
+   word and mark — none of which was ever carried by the animation. */
+@media (prefers-reduced-motion:reduce) {
+  .dr *, .dr *::before, .dr *::after,
+  .dr__aura, .dr__aura::before, .dr__aura::after {
+    animation:none !important;
+    transition-duration:.01ms !important;
+  }
+}
