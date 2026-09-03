@@ -136,6 +136,29 @@
   .tka__val{ flex:0 0 38px; text-align:right; font-family:var(--ag-font-mono,monospace);
     font-size:11px; color:#10292C }
   .tka__defs{ position:absolute; width:0; height:0; overflow:hidden }
+
+  /* ── the tier reorder arrows ─────────────────────────────────────────────
+     A class, and specifically NOT a bound `:style`. These buttons have one piece of
+     state — whether the row is already at the end of the ladder — and the obvious way
+     to draw it is `:style="i === 0 ? 'opacity:.3' : ''"`. That is the fault
+     AlpineStyleClobberTest exists for: `:style` with a string assigns `el.style`, which
+     REPLACES the whole attribute, so the arrows would keep working while silently
+     losing their border, background, radius and size the instant Alpine booted. The
+     buttons still click, which is exactly why a functional check does not catch it.
+
+     So the state is the native `disabled` attribute and the look is `[disabled]` —
+     nothing to bind, nothing to clobber, and the control is correctly inert for a
+     keyboard and a screen reader rather than merely faded. */
+  .ev-move{ border:1px solid var(--ad-line,#e2e8e6); background:#fff; color:#3d4b4d;
+    font-size:11px; line-height:1; width:26px; height:34px; cursor:pointer }
+  .ev-move:first-child{ border-radius:8px 0 0 8px }
+  .ev-move:last-child{ border-radius:0 8px 8px 0 }
+  .ev-move + .ev-move{ margin-left:-1px }
+  .ev-move:hover:not([disabled]){ background:#f0f2f2 }
+  .ev-move:focus-visible{ outline:2px solid #f3b416; outline-offset:1px; z-index:1 }
+  .ev-move[disabled]{ opacity:.3; cursor:default }
+  .ev-move__n{ font-size:11px; font-weight:700; color:#8a9a9c;
+    font-variant-numeric:tabular-nums; width:16px; text-align:right }
 </style>
 {% endblock %}
 
@@ -447,11 +470,32 @@
         {% endfor %}
       </div>
       {% endif %}
-      <template x-for="r in rows" :key="r.id">
+      <template x-for="(r, i) in rows" :key="r.id">
         <div style="border-top:1px solid var(--ad-line,#e2e8e6);margin-top:10px;padding-top:10px">
           <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
             <input type="hidden" name="tier_id[]" :value="r.tid || ''">
             <input type="hidden" name="tier_active[]" :value="r.active ? '1' : '0'">
+            {# ── THE LADDER, MOVED ────────────────────────────────────────────
+               `sort_order` is written from the POSITION OF THESE FIELDS on save, so these
+               two buttons are the entire reordering mechanism — no route, no endpoint, no
+               schema change. The row number is shown because "third on the page" is the
+               thing being changed, and a pair of arrows with nothing between them gives an
+               organiser no way to confirm the move landed where they meant.
+
+               `type="button"` on both, and this is not a style preference: the tier list
+               sits INSIDE the event's own <form>, and a <button> with no type defaults to
+               `submit`. Without it, nudging a tier down would save and redirect the whole
+               event — the same family of fault as the nested <form> that used to eat the
+               questionnaire's outcome list, and just as invisible, because saving the form
+               is exactly what the page looks like it should do. #}
+            <span aria-hidden="true" class="ev-move__n" x-text="i + 1"></span>
+            <span style="display:inline-flex">
+              <button type="button" class="ev-move" @click="move(r.id, -1)" :disabled="i === 0"
+                      :aria-label="'Move ' + (r.name || 'this tier') + ' up'">▲</button>
+              <button type="button" class="ev-move" @click="move(r.id, 1)"
+                      :disabled="i === rows.length - 1"
+                      :aria-label="'Move ' + (r.name || 'this tier') + ' down'">▼</button>
+            </span>
             <input name="tier_name[]" aria-label="Ticket tier name" x-model="r.name" maxlength="120" placeholder="Tier (e.g. VIP)" style="width:150px">
             <input name="tier_price[]" aria-label="Ticket tier price in naira" type="number" min="0" step="1" x-model.number="r.price" placeholder="₦ 0" style="width:110px">
             {# THE point of this change. Blank = as many as the room allows. #}
@@ -505,7 +549,12 @@
       </template>
       <button type="button" @click="add()" style="margin-top:10px;border:none;background:#eef7ee;color:#1a6118;font-weight:600;border-radius:999px;padding:8px 14px;cursor:pointer;font-size:13px">+ Add tier</button>
       <p style="font-size:12px;color:#8a9a9c;margin:8px 0 0">
-        Prices in ₦. A tier is never deleted once anything has been sold against it — clearing
+        Prices in ₦. {# Said out loud because the list is NOT sorted by price and looks as
+        though it might be: an organiser who puts their premium row first is making a
+        deliberate choice, and nothing else on this screen would tell them it had taken. #}
+        <b style="color:#3d4b4d;font-weight:600">The order here is the order buyers see</b> — use
+        ▲▼ to arrange it. Colour and prominence still follow the price, not the position.
+        A tier is never deleted once anything has been sold against it — clearing
         "On sale" takes it off the page and keeps the record straight for the people who bought one.
         {% if row.id is defined %}<a href="/admin/events/{{ row.id }}/tickets" style="font-weight:600">See who is coming →</a>{% endif %}
       </p>
@@ -942,7 +991,26 @@ function evRepeater(seed, blank){
   return {
     rows,
     add(){ this.rows.push(Object.assign({id: nextId++}, blank)); },
-    rm(id){ this.rows = this.rows.filter(r => r.id !== id); if(!this.rows.length) this.add(); }
+    rm(id){ this.rows = this.rows.filter(r => r.id !== id); if(!this.rows.length) this.add(); },
+
+    /* ── MOVING A ROW IS THE WHOLE ORDERING FEATURE ───────────────────────────
+       There is no reorder route and there does not need to be one: saveTiers() walks the
+       submitted rows and writes `sort_order = $order++`, so the ORDER OF THE FIELDS IN
+       THIS FORM is the order the ladder is stored in. Every reader — the public event
+       page, the registration card, the admin list, the ticket service and the support
+       context — selects `orderBy('sort_order')->orderBy('id')`. So moving the inputs
+       moves the tier everywhere, and a row that never moves keeps the id tiebreak it
+       already had.
+
+       Splice rather than swap: a swap is only correct for a step of one, and writing the
+       general form here means a future "move to top" cannot silently corrupt the ladder
+       by reusing a helper that was never that. */
+    move(id, delta){
+      const i = this.rows.findIndex(r => r.id === id);
+      const j = i + delta;
+      if (i < 0 || j < 0 || j >= this.rows.length) return;
+      this.rows.splice(j, 0, this.rows.splice(i, 1)[0]);
+    }
   };
 }
 
