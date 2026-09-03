@@ -111,7 +111,7 @@ final class ResultReleaseScreenRenderTest extends TestCase
      * `strict_variables`, so an undefined key is a failure here rather than a blank cell
      * in production.
      */
-    private function render(): string
+    private function render(?string $resultsDate = null): string
     {
         $categories = ResultRelease::forCycle($this->cycleId);
 
@@ -125,11 +125,11 @@ final class ResultReleaseScreenRenderTest extends TestCase
             'page_title' => 'Result release',
             'admin_page' => 'result-release',
             'cycles'     => [['id' => $this->cycleId, 'year' => 2026, 'status' => 'judging',
-                              'edition_label' => null, 'results_date' => null,
+                              'edition_label' => null, 'results_date' => $resultsDate,
                               'programme' => 'Incredible Principal Awards']],
             'cycle_id'   => $this->cycleId,
             'cycle'      => ['id' => $this->cycleId, 'year' => 2026, 'status' => 'judging',
-                             'edition_label' => null, 'results_date' => null,
+                             'edition_label' => null, 'results_date' => $resultsDate,
                              'programme' => 'Incredible Principal Awards'],
             'categories' => $categories,
             'attention'  => ResultRelease::attention($categories),
@@ -328,5 +328,112 @@ final class ResultReleaseScreenRenderTest extends TestCase
             dirname(__DIR__, 2) . '/public/assets/js/admin.js');
         $this->assertStringContainsString('submit-form', $js,
             'the picker names a behaviour nothing in admin.js implements');
+    }
+
+    // ══ what the page says will happen ═══════════════════════════════════════
+
+    /**
+     * THE SENTENCE THE PAGE WAS MISSING, and the reason it read as confusing.
+     *
+     * "Result release" and "what the release WILL do" describe a screen with a button on
+     * it, and there is none: nobody releases anything. `CycleMaterialiser` advances the
+     * cycle on its results_date, from the unattended maintenance run, and crowns the
+     * winners drawn below. So the page was asking somebody to review a decision without
+     * telling them it takes effect by itself, or when — and "this one needs a person to
+     * decide" beside a dead heat means something quite different once you know there is a
+     * date on it.
+     *
+     * The date was already handed to this template and nothing read it.
+     */
+    public function test_the_page_says_the_release_happens_by_itself_and_when(): void
+    {
+        $j1 = $this->judge('Ada Obi');
+        $j2 = $this->judge('Tunde Cole');
+        $n  = $this->nominee('Grace Abiodun', 420);
+        $this->scoreAll($j1, $n, 9); $this->scoreAll($j2, $n, 9);
+
+        $html = $this->render('2026-12-01 09:00:00');
+
+        $this->assertStringContainsString('Nobody presses anything', $html);
+        $this->assertStringContainsString('1 December 2026', $html,
+            'the page does not say WHEN this becomes a published result');
+    }
+
+    /** And says so differently when there is no date, rather than saying nothing. */
+    public function test_a_cycle_with_no_results_date_is_told_it_will_not_publish(): void
+    {
+        $j1 = $this->judge('Ada Obi');
+        $j2 = $this->judge('Tunde Cole');
+        $n  = $this->nominee('Grace Abiodun', 420);
+        $this->scoreAll($j1, $n, 9); $this->scoreAll($j2, $n, 9);
+
+        // Whitespace-collapsed: the sentence wraps in the template, so a literal match on
+        // the phrase asserts the line breaks rather than the words.
+        $html = (string) preg_replace('/\s+/', ' ', $this->render());
+
+        $this->assertStringContainsString('has no results date set', $html);
+        $this->assertStringContainsString('set it on the cycle', $html,
+            'told it will not publish, and not told what to do about it');
+        $this->assertStringNotContainsString('This cycle turns into a published result on', $html);
+    }
+
+    /**
+     * The working reaches the page, and adds up on the page.
+     *
+     * The service holding halves that sum to the index is worth nothing if the template
+     * prints a different pair, and the whole reason to print them is that somebody can
+     * check the arithmetic without leaving the screen.
+     */
+    public function test_the_working_is_drawn_beside_the_index(): void
+    {
+        $j1 = $this->judge('Ada Obi');
+        $j2 = $this->judge('Tunde Cole');
+
+        $lead = $this->nominee('Grace Abiodun', 400);
+        $half = $this->nominee('Fatima Bello', 200);
+        $this->scoreAll($j1, $lead, 9); $this->scoreAll($j2, $lead, 9);
+        $this->scoreAll($j1, $half, 8); $this->scoreAll($j2, $half, 8);
+
+        $html = $this->render();
+
+        $c  = ResultRelease::category($this->categoryId);
+        $by = [];
+        foreach ($c['rows'] as $r) $by[$r['name']] = $r;
+
+        foreach ($by as $name => $r) {
+            $this->assertStringContainsString(
+                $r['community_points'] . ' + ' . $r['judge_points'], $html,
+                "{$name}'s working is not on the page");
+        }
+
+        // And the leader is not told they have 100% of their own votes.
+        $this->assertStringContainsString('sets the scale', $html);
+        $this->assertStringNotContainsString('100% of Grace Abiodun&rsquo;s 400', $html);
+    }
+
+    /**
+     * The rule marks WHERE THE AWARD FALLS, so it may only be drawn with a row below it.
+     *
+     * Applied to rank 2 unconditionally, it put a heavy line under the last row of every
+     * two-nominee category — a boundary with nothing on the other side, which reads as a
+     * total rather than a cut.
+     */
+    public function test_the_cut_rule_is_not_drawn_under_the_last_row(): void
+    {
+        $j1 = $this->judge('Ada Obi');
+        $j2 = $this->judge('Tunde Cole');
+
+        foreach (['Grace Abiodun', 'Fatima Bello'] as $i => $name) {
+            $n = $this->nominee($name, 400 - $i * 100);
+            $this->scoreAll($j1, $n, 9 - $i); $this->scoreAll($j2, $n, 9 - $i);
+        }
+
+        // The BODY, not the stylesheet: `.ja-t tr.rr--cut` is defined in the page's own
+        // <style> block, so a scan of the whole document finds the class name whether or
+        // not any row carries it. This codebase has shipped that mistake four times.
+        $body = (string) preg_replace('~<style\b.*?</style>~s', '', $this->render());
+
+        $this->assertStringNotContainsString('rr--cut', $body,
+            'a two-nominee category drew the award line under its own last row');
     }
 }

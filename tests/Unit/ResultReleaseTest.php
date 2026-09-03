@@ -82,6 +82,37 @@ final class ResultReleaseTest extends TestCase
         ]);
     }
 
+    /**
+     * A COMPLETE scorecard with a different mark per criterion.
+     *
+     * Complete matters and is easy to get wrong: `judgeAveragesFor()` counts only
+     * scorecards covering every EFFECTIVE criterion, which is the programme's own plus the
+     * global rubric it inherits. Marking the two the programme declared leaves the
+     * scorecard short, the nominee below quorum, and the judge half scored as absent — so
+     * a test meaning to exercise the judge half exercises a community-only figure instead
+     * and passes for the wrong reason.
+     *
+     * A different mark per criterion is the other half of the point: {@see scoreAll()}
+     * gives them all the same one, which can only ever produce a whole-number average, and
+     * a whole-number average is exactly the case where the two halves of the index round
+     * without ever disagreeing.
+     *
+     * @param list<int> $marks one per effective criterion, in rubric order; cycled if short
+     */
+    private function scoreEach(int $judge, int $nominee, array $marks): void
+    {
+        $i = 0;
+        foreach (\AfricaGates\Services\JudgeRubric::effective($this->programmeId) as $c) {
+            if ((int) $c->is_active !== 1) continue;
+            DB::table('gates_judge_criteria_scores')->insert([
+                'judge_id' => $judge, 'nominee_id' => $nominee,
+                'category_id' => $this->categoryId, 'criterion_id' => (int) $c->id,
+                'score' => $marks[$i++ % count($marks)],
+                'created_at' => '2026-11-01 09:00:00', 'updated_at' => '2026-11-01 09:00:00',
+            ]);
+        }
+    }
+
     /** A COMPLETE scorecard: every effective criterion, which is what the quorum counts. */
     private function scoreAll(int $judge, int $nominee, int $score): void
     {
@@ -360,6 +391,213 @@ final class ResultReleaseTest extends TestCase
     // ══ it must not decide anything ══════════════════════════════════════════
 
     /** Looking at the screen must not crown anybody. */
+
+    // ══ the working ══════════════════════════════════════════════════════════
+
+    /**
+     * A CPI NOBODY COULD CHECK.
+     *
+     * The screen showed organic votes, a judge mark out of ten, the two weights and an
+     * index out of a thousand, and no way to get from any of them to the last one. That is
+     * the wrong shape for the one page somebody has to defend in public: an operator could
+     * read every input to the decision and still not say why the number was the number.
+     *
+     * It is not derivable by eye either, because the community half is scaled against the
+     * COHORT MAXIMUM rather than against the votes cast — the same 2,650 votes are worth
+     * 247 points behind a leader on 4,820 and 450 on their own. The denominator is the
+     * whole explanation and it appeared on no screen.
+     */
+    public function test_the_two_halves_of_the_index_add_up_to_the_index(): void
+    {
+        $j1 = $this->judge('Ada Obi');
+        $j2 = $this->judge('Tunde Cole');
+
+        $lead = $this->nominee('Grace Abiodun', 4820);
+        $mid  = $this->nominee('Fatima Bello', 2650);
+        $this->scoreAll($j1, $lead, 9); $this->scoreAll($j2, $lead, 9);
+        $this->scoreAll($j1, $mid, 8);  $this->scoreAll($j2, $mid, 8);
+
+        $c  = ResultRelease::category($this->categoryId);
+        $by = [];
+        foreach ($c['rows'] as $r) $by[$r['name']] = $r;
+
+        // EXACTLY, on every row. `cpi_score` rounds the sum once, so two independently
+        // rounded halves can differ from it by a point — and a sum printed beside a figure
+        // it does not equal is worse than printing no working at all. ResultRelease gives
+        // the judge half the single rounding step for that reason.
+        foreach ($by as $name => $r) {
+            $this->assertSame($r['cpi'], $r['community_points'] + $r['judge_points'],
+                "the working printed under {$name}'s index does not add up to it");
+        }
+
+        // And the halves are the halves: 45% of a full community share is 450 of 1000.
+        $this->assertSame(450, $by['Grace Abiodun']['community_points']);
+        $this->assertSame(100, $by['Grace Abiodun']['community_share']);
+        $this->assertSame(247, $by['Fatima Bello']['community_points'],
+            '2,650 votes behind a leader on 4,820 is 55% of the community weight');
+        $this->assertSame(55, $by['Fatima Bello']['community_share']);
+    }
+
+    /**
+     * And it holds across the space, not at the one point a fixture happens to pick.
+     *
+     * `cpi_score` rounds the SUM once. Two independently rounded halves agree with that
+     * most of the time and not always — a community half of x.5 beside a judge half of
+     * y.5 is off by a point — so an example-based test passes on whichever numbers were
+     * chosen and says nothing about the next ones. Swept instead: forty nominees across
+     * the whole range of vote shares and every half-mark the panel can produce.
+     */
+    public function test_the_halves_add_up_across_the_whole_range(): void
+    {
+        $j1 = $this->judge('Ada Obi');
+        $j2 = $this->judge('Tunde Cole');
+
+        // One nominee per vote share, each on a different run of marks, so the community
+        // half sweeps 0–100% of the leader and the judge half lands all over the weighted
+        // average the rubric can produce.
+        for ($i = 1; $i <= 40; $i++) {
+            $n = $this->nominee('N' . $i, $i);
+            $marks = [$i % 11, ($i + 3) % 11, ($i + 7) % 11];
+            $this->scoreEach($j1, $n, $marks);
+            $this->scoreEach($j2, $n, $marks);
+        }
+
+        $c = ResultRelease::category($this->categoryId);
+        $this->assertCount(40, $c['rows']);
+
+        $judged = 0;
+        foreach ($c['rows'] as $r) {
+            $this->assertSame($r['cpi'], $r['community_points'] + $r['judge_points'],
+                "{$r['name']}: {$r['community_points']} + {$r['judge_points']} does not "
+                . "equal the {$r['cpi']} printed beside it");
+            if (!$r['provisional']) $judged++;
+        }
+
+        // Or the sweep is only ever exercising community-only figures, where the judge
+        // half is zero and cannot disagree with anything.
+        $this->assertSame(40, $judged, 'every scorecard here should be complete');
+    }
+
+    /**
+     * WHOSE VOTES SET THE SCALE, AND WHETHER THEY CAN WIN.
+     *
+     * The cohort maximum is taken before the quorum and the shortlist are applied, so a
+     * nominee who cannot win still decides how much everybody else's support is worth. It
+     * holds the whole field's community half down, and it was visible nowhere — which
+     * makes it something a challenger discovers rather than something the platform says.
+     */
+    public function test_a_nominee_out_of_the_running_can_still_set_the_scale(): void
+    {
+        $j1 = $this->judge('Ada Obi');
+        $j2 = $this->judge('Tunde Cole');
+
+        $on  = $this->nominee('Yetunde Adeyemi', 1900);
+        $off = $this->nominee('Samuel Oyelaran', 5100);
+        foreach ([$on, $off] as $n) { $this->scoreAll($j1, $n, 7); $this->scoreAll($j2, $n, 7); }
+        $this->publishShortlist($this->cycleId, $this->categoryId, [$on]);
+
+        $c = ResultRelease::category($this->categoryId);
+
+        $this->assertSame(5100, $c['cohort_max']);
+        $this->assertSame('Samuel Oyelaran', $c['scale_set_by']);
+        $this->assertTrue($c['scale_is_out'],
+            'the excluded nominee setting the scale for everybody else was not reported');
+
+        // And the consequence is real, not theoretical: the winner's community half is
+        // scaled by somebody who is not in the running.
+        $by = [];
+        foreach ($c['rows'] as $r) $by[$r['name']] = $r;
+        $this->assertSame(37, $by['Yetunde Adeyemi']['community_share']);
+        $this->assertLessThan(450, $by['Yetunde Adeyemi']['community_points']);
+    }
+
+    /**
+     * And the warning is silent when it would be a warning about nobody.
+     *
+     * A category whose only nominee is below the quorum has a scale-setter who is
+     * technically "out", and there is no field for them to be holding down. Firing there
+     * teaches an operator to skip the box on the categories where it means something,
+     * which is how a real finding stops being read.
+     */
+    public function test_the_scale_warning_is_silent_when_it_would_warn_about_nobody(): void
+    {
+        $j = $this->judge('Ada Obi');
+        $n = $this->nominee('Prof. Olusegun Ade', 900);
+        $this->scoreAll($j, $n, 10);                     // one judge, below quorum
+
+        $c = ResultRelease::category($this->categoryId);
+
+        $this->assertNotNull($c['blocked'], 'this category crowns nobody');
+        $this->assertFalse($c['scale_is_out'],
+            'a category with nobody in the running warned that somebody out of the '
+            . 'running was holding the field down');
+    }
+
+    // ══ the summary strip ════════════════════════════════════════════════════
+
+    /**
+     * A DEAD HEAT IS NOT ALSO A THIN MARGIN.
+     *
+     * It counted as both, because a dead heat has a margin of zero and zero is inside ten.
+     * So one category appeared under two headings and an operator adding the tiles up got
+     * more things to look at than the page beneath them showed. A summary whose numbers
+     * cannot be reconciled with the evidence under it is worse than no summary.
+     */
+    public function test_a_dead_heat_is_not_counted_again_as_a_thin_margin(): void
+    {
+        $j1 = $this->judge('Ada Obi');
+        $j2 = $this->judge('Tunde Cole');
+
+        foreach (['Chidi Okafor', 'Amara Nwosu'] as $name) {
+            $n = $this->nominee($name, 3300);
+            $this->scoreAll($j1, $n, 8); $this->scoreAll($j2, $n, 8);
+        }
+
+        $a = ResultRelease::attention(ResultRelease::forCycle($this->cycleId));
+
+        $this->assertSame(1, $a['dead_heats']);
+        $this->assertSame(0, $a['thin_margins'], 'the dead heat was counted twice');
+        $this->assertSame(1, $a['needs_person'],
+            'one category needs a person, however many ways it is described');
+    }
+
+    /** And a genuinely thin margin still counts, once. */
+    public function test_a_thin_margin_is_counted_and_a_wide_one_is_not(): void
+    {
+        $j1 = $this->judge('Ada Obi');
+        $j2 = $this->judge('Tunde Cole');
+
+        $a = $this->nominee('Ibrahim Sule', 2101);
+        $b = $this->nominee('Blessing Eke', 2088);
+        foreach ([$a, $b] as $n) { $this->scoreAll($j1, $n, 7); $this->scoreAll($j2, $n, 7); }
+
+        $at = ResultRelease::attention(ResultRelease::forCycle($this->cycleId));
+
+        $this->assertSame(0, $at['dead_heats']);
+        $this->assertSame(1, $at['thin_margins']);
+        $this->assertSame(1, $at['needs_person']);
+    }
+
+    /**
+     * The headline counts CATEGORIES, once, however many reasons a category has.
+     *
+     * Three tiles asked an operator to do an addition that was not the right addition: a
+     * category can be blocked and nothing else, or blocked with a dead heat behind the
+     * block, and adding the tiles gives a number that is in neither case the number of
+     * things to look at.
+     */
+    public function test_a_category_with_two_reasons_needs_one_person(): void
+    {
+        $j = $this->judge('Ada Obi');
+        foreach (['A', 'B'] as $name) $this->scoreAll($j, $this->nominee($name, 500), 8);
+
+        $a = ResultRelease::attention(ResultRelease::forCycle($this->cycleId));
+
+        $this->assertSame(1, $a['blocked'], 'nobody meets the quorum');
+        $this->assertSame(1, $a['needs_person']);
+        $this->assertSame(2, $a['provisional'], 'and the nominee-level count is separate');
+    }
+
     public function test_reading_the_release_changes_nothing(): void
     {
         $j1 = $this->judge('Ada Obi');

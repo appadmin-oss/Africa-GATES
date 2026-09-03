@@ -68,7 +68,11 @@ final class ResultRelease
      *   runner_up: ?array<string,mixed>,
      *   margin: ?int,
      *   dead_heat: bool,
-     *   blocked: ?string
+     *   blocked: ?string,
+     *   cohort_max: int,
+     *   scale_set_by: ?string,
+     *   scale_set_by_id: int,
+     *   scale_is_out: bool
      * }
      */
     public static function category(int $categoryId, ?NomineeScoringService $scoring = null): array
@@ -87,7 +91,9 @@ final class ResultRelease
 
         $empty = ['category' => $cat, 'quorum' => $quorum, 'weights' => $weights,
                   'shortlisted' => null, 'rows' => [], 'winner' => null, 'runner_up' => null,
-                  'margin' => null, 'dead_heat' => false, 'blocked' => null];
+                  'margin' => null, 'dead_heat' => false, 'blocked' => null,
+                  'cohort_max' => 0, 'scale_set_by' => null, 'scale_set_by_id' => 0,
+                  'scale_is_out' => false];
 
         $scores = ($scoring ?? new NomineeScoringService())->scoreCategory($categoryId);
         if ($scores === []) return $empty + [];
@@ -100,9 +106,10 @@ final class ResultRelease
 
         $rows = [];
         foreach ($scores as $nid => $s) {
-            $n       = $nominees[$nid] ?? null;
-            $organic = (int) ($n->organic_vote_count ?? 0);
-            $cpi     = (int) ($s['cpi_score'] ?? 0);
+            $n         = $nominees[$nid] ?? null;
+            $organic   = (int) ($n->organic_vote_count ?? 0);
+            $cpi       = (int) ($s['cpi_score'] ?? 0);
+            $cohortMax = max(1, (int) ($s['cohort_max'] ?? 1));
 
             // Applied in the order the promotion applies them, so the reason shown is the
             // FIRST one that put them out — which is the one an operator has to answer for.
@@ -112,11 +119,37 @@ final class ResultRelease
                                                                           $out = self::OUT_SHORTLIST;
             elseif ($cpi <= 0 && $organic <= 0)                          $out = self::OUT_NO_SUPPORT;
 
+            // ── THE ARITHMETIC, SPLIT SO IT CAN BE CHECKED ───────────────────
+            //
+            // The screen showed organic votes, a judge mark out of ten, a pair of
+            // weights, and a CPI out of a thousand — and no way to get from any of them
+            // to the last one. Somebody defending a result in public could read every
+            // input and still not say why the number was the number.
+            //
+            // It is not derivable by eye, either, because the community half is scaled
+            // against the COHORT MAXIMUM rather than against the votes cast: 2,650
+            // organic is worth 247 points behind a leader on 4,820 and 450 points on its
+            // own. The denominator is the whole explanation and it appeared nowhere.
+            $share = $cohortMax > 0 ? min(1.0, $organic / $cohortMax) : 0.0;
+            $cPart = $weights['community'] * $share * 1000;
+
+            // The judge half takes the rounding, deliberately. `cpi_score` rounds the SUM
+            // once, so two independently rounded halves can differ from it by a point —
+            // and a sum that does not equal the figure printed beside it defeats the only
+            // reason to print the working at all.
+            $cPts = (int) round($cPart);
+            $jPts = $cpi - $cPts;
+
             $rows[] = [
                 'nominee_id'  => (int) $nid,
                 'name'        => (string) ($n->name ?? 'Nominee #' . $nid),
                 'status'      => (string) ($n->status ?? ''),
                 'cpi'         => $cpi,
+                'community_points' => $cPts,
+                'judge_points'     => $jPts,
+                // What fraction of the leader's support this is — the step between a vote
+                // count and a number of points, which is the step nobody could take.
+                'community_share'  => (int) round($share * 100),
                 // BOTH numbers, because they are different claims. `organic` is what the
                 // ranking and the tiebreak use; `vote_count` is what the public page
                 // shows, and it includes purchased support that must never move a rank.
@@ -152,12 +185,35 @@ final class ResultRelease
         $winner   = $running[0] ?? null;
         $runnerUp = $running[1] ?? null;
 
+        // ── WHOSE VOTES SET THE SCALE ────────────────────────────────────────
+        //
+        // The cohort maximum is the denominator of every community half in this category,
+        // and it is whichever scored nominee has the most organic votes — the quorum and
+        // the shortlist are applied AFTER it is taken. So somebody who cannot win still
+        // decides how much everybody else's support is worth, and when that happens the
+        // whole field's community half is scaled down by a nominee who is not in the
+        // running. That is defensible and it is not obvious, which is exactly the kind of
+        // thing a release screen has to say out loud rather than leave to be discovered
+        // during a challenge.
+        $scale = null;
+        foreach ($rows as $r) {
+            if ($scale === null || $r['organic'] > $scale['organic']) $scale = $r;
+        }
+
         return [
             'category'    => $cat,
             'quorum'      => $quorum,
             'weights'     => $weights,
             'shortlisted' => $shortlisted,
             'rows'        => $rows,
+            'cohort_max'     => (int) ($scale['organic'] ?? 0),
+            'scale_set_by'   => $scale['name'] ?? null,
+            'scale_set_by_id' => (int) ($scale['nominee_id'] ?? 0),
+            // Out of the running AND holding somebody else down. A category whose only
+            // nominee is below the quorum has a scale-setter who is technically "out",
+            // and warning about it there is a warning about nobody — which teaches an
+            // operator to skip the box on the categories where it means something.
+            'scale_is_out'   => $scale !== null && !$scale['in_running'] && $running !== [],
             'winner'      => $winner,
             'runner_up'   => $runnerUp,
             // How much of a result this is. A one-point margin on a 0–1000 index is a
@@ -262,15 +318,31 @@ final class ResultRelease
      */
     public static function attention(array $categories): array
     {
-        $n = ['categories' => count($categories), 'blocked' => 0, 'dead_heats' => 0,
-              'thin_margins' => 0, 'excluded' => 0, 'provisional' => 0];
+        $n = ['categories' => count($categories), 'needs_person' => 0, 'blocked' => 0,
+              'dead_heats' => 0, 'thin_margins' => 0, 'excluded' => 0, 'provisional' => 0];
 
         foreach ($categories as $c) {
-            if ($c['blocked'] !== null)  $n['blocked']++;
-            if ($c['dead_heat'])         $n['dead_heats']++;
+            $dead = (bool) $c['dead_heat'];
+            // ── A DEAD HEAT IS NOT ALSO A THIN MARGIN ────────────────────────
+            //
+            // It counted as both, because a dead heat has a margin of zero and zero is
+            // inside ten. So one category appeared under two headings, and an operator
+            // adding the tiles up got four things to look at in a cycle that had three.
+            // A summary whose numbers overlap is worse than no summary: it cannot be
+            // reconciled with the page under it, and the page under it is the evidence.
+            $thin = !$dead && $c['margin'] !== null && $c['margin'] <= 10;
+
+            if ($c['blocked'] !== null) $n['blocked']++;
+            if ($dead) $n['dead_heats']++;
             // A margin inside ten points of a thousand is a result that could turn on one
             // judge changing one mark, and the audit screen can say whether one did.
-            if ($c['margin'] !== null && $c['margin'] <= 10) $n['thin_margins']++;
+            if ($thin) $n['thin_margins']++;
+
+            // And the count that is actually the question. Three tiles asked an operator
+            // to work out how many CATEGORIES were involved, which is not the same
+            // addition — a category can be blocked and nothing else, or blocked with a
+            // dead heat behind the block.
+            if ($c['blocked'] !== null || $dead || $thin) $n['needs_person']++;
 
             foreach ($c['rows'] as $r) {
                 if ($r['out_reason'] !== null) $n['excluded']++;

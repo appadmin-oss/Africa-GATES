@@ -63,7 +63,9 @@ final class JudgingAudit
      *   changes: array{rows:list<array<string,mixed>>, total:int},
      *   conflicts: list<array<string,mixed>>,
      *   criteria: list<array<string,mixed>>,
-     *   incomplete: array{pairs:int, rows:list<array<string,mixed>>, required:int},
+     *   incomplete: array{pairs:int, rows:list<array<string,mixed>>, required:int, in_play:int,
+     *                       never_marked:list<array{label:string, share:float|null}>,
+     *                       dead_share:float},
      *   disagreement: list<array<string,mixed>>,
      *   totals: array<string,int>
      * }
@@ -75,7 +77,8 @@ final class JudgingAudit
         $empty = ['programme' => $programme, 'cycles' => [], 'judges' => [],
                   'changes' => ['rows' => [], 'total' => 0],
                   'conflicts' => [], 'criteria' => [],
-                  'incomplete' => ['pairs' => 0, 'rows' => [], 'required' => 0],
+                  'incomplete' => ['pairs' => 0, 'rows' => [], 'required' => 0, 'in_play' => 0,
+                                   'never_marked' => [], 'dead_share' => 0.0],
                   'disagreement' => [], 'totals' => self::zeroTotals()];
         if (!$programme) return $empty;
 
@@ -245,6 +248,10 @@ final class JudgingAudit
                 // Computed here rather than left to a template to work out with a date
                 // comparison in Twig.
                 'after_results' => $resultsAt !== '' && strtotime($changedAt) > strtotime($resultsAt),
+                // AND the date it is after. Carried with the flag because a flag whose
+                // threshold is invisible cannot be checked, and this is the one row on
+                // that screen that is a record rather than an inference.
+                'results_at'    => $resultsAt,
             ];
         }
 
@@ -320,7 +327,27 @@ final class JudgingAudit
             if ($at !== '') {
                 if ($by[$jid]['first'] === '' || $at < $by[$jid]['first']) $by[$jid]['first'] = $at;
                 if ($at > $by[$jid]['last']) $by[$jid]['last'] = $at;
-                $by[$jid]['at'][] = $at;
+
+                // ── ONE STAMP PER SCORECARD, NOT PER MARK ────────────────────
+                //
+                // This collected every criterion row's timestamp, and a scorecard writes
+                // all of its criterion rows in one loop off a single Carbon::now() — so
+                // most of the gaps between consecutive stamps were exactly zero, and with
+                // the shipped four-criterion rubric three out of every four were. The
+                // median of that is 0 whatever the judge did, so the column read "0s" and
+                // the amber flag fired for every judge on every panel, permanently.
+                //
+                // An alarm that cannot not fire is not an alarm; it teaches an operator
+                // that this column means nothing, which is worse than the column being
+                // absent, because the real signal it was built for — a panel that spent
+                // four seconds a nominee — now has nowhere to appear.
+                //
+                // The earliest stamp per NOMINEE is when that judge opened that scorecard,
+                // and the gap between consecutive ones is the time they gave it.
+                $nid = (int) $s->nominee_id;
+                if (!isset($by[$jid]['at'][$nid]) || $at < $by[$jid]['at'][$nid]) {
+                    $by[$jid]['at'][$nid] = $at;
+                }
             }
         }
 
@@ -342,17 +369,17 @@ final class JudgingAudit
                 'last_at'     => $j['last'],
                 // ── HOW LONG THEY SPENT ON EACH ONE ──────────────────────────
                 //
-                // The MEDIAN gap between consecutive marks, in seconds. Judges score in
-                // sittings across days, so a mean is meaningless — one overnight gap of
-                // fourteen hours swamps two hundred real ones — and the span between
-                // first and last says nothing about the reading either.
+                // The MEDIAN gap between one SCORECARD and the next, in seconds. Judges
+                // score in sittings across days, so a mean is meaningless — one overnight
+                // gap of fourteen hours swamps two hundred real ones — and the span
+                // between first and last says nothing about the reading either.
                 //
-                // The median is the typical gap and it is a fact an operator can weigh:
-                // a panel that averaged four seconds a mark across a hundred and twenty
-                // nominees did not open a dossier, and that is a different objection from
-                // any of the arithmetic above it. Null below two marks: a single mark has
-                // no gap, and reporting 0 would read as instant.
-                'median_gap'  => self::medianGap($j['at']),
+                // The median is the typical time a nominee got, and it is a fact an
+                // operator can weigh: a judge who averaged four seconds across a hundred
+                // and twenty nominees did not open a dossier, and that is a different
+                // objection from any of the arithmetic above it. Null below two
+                // scorecards: one has no gap, and reporting 0 would read as instant.
+                'median_gap'  => self::medianGap(array_values($j['at'])),
             ];
         }
 
@@ -362,7 +389,10 @@ final class JudgingAudit
     }
 
     /**
-     * The median seconds between one mark and the next. Null when there is no gap to take.
+     * The median seconds between one scorecard and the next. Null with no gap to take.
+     *
+     * The caller passes ONE stamp per nominee, never one per criterion row — see the note
+     * at the call site for what happened when it did.
      *
      * @param list<string> $stamps
      */
@@ -457,10 +487,53 @@ final class JudgingAudit
             ];
         }
 
-        // Worst first: an inert criterion is the finding, and among the rest the narrowest
-        // spread is the next thing worth looking at.
+        // ── AND THE CRITERIA NOBODY HAS EVER MARKED ──────────────────────────
+        //
+        // This listed only criteria that appear in the scores, which is every criterion
+        // that WAS used and none of the ones that were not. So a rubric where three of
+        // six criteria have never been marked by anybody on any nominee rendered as a
+        // tidy three-row table — whose "worth" column added up to 57% and was left to be
+        // read as a rounding oddity.
+        //
+        // It is the opposite of an oddity. Those criteria are in force: the scorer
+        // divides by the weight actually marked, so 43% of every mark in this programme
+        // was silently reweighted onto the three the panel did use. That is the largest
+        // single fact about how this award decides, and the page could not say it because
+        // the row was not there to carry it.
+        //
+        // Listed with `marks: 0` and a null mean rather than omitted, because a criterion
+        // that decided nothing BY BEING UNUSED is the same finding as one that decided
+        // nothing by being marked identically — and an operator scanning for "does this
+        // add up to a hundred" needs every row that carries a share.
+        foreach (JudgeRubric::effective($programmeId) as $r) {
+            $cid = (int) $r->id;
+            if ((int) $r->is_active !== 1 || isset($by[$cid])) continue;
+
+            $out[] = [
+                'id'       => $cid,
+                'label'    => (string) $r->label,
+                'marks'    => 0,
+                'nominees' => 0,
+                'mean'     => null,
+                'low'      => null,
+                'high'     => null,
+                'spread'   => 0.0,
+                'distinct' => 0,
+                'share'    => $shares[$cid] ?? null,
+                'inert'    => true,
+                // Distinct from `inert`, because the remedy is different: an inert
+                // criterion needs rewriting, an unmarked one needs either putting on the
+                // ballot or taking out of the rubric.
+                'unmarked' => true,
+            ];
+        }
+        foreach ($out as $i => $c) $out[$i]['unmarked'] ??= false;
+
+        // Worst first: a criterion nobody marked, then an inert one, then the narrowest
+        // spread among the rest.
         usort($out, static function (array $a, array $b): int {
-            return [$b['inert'], -$a['spread']] <=> [$a['inert'], -$b['spread']];
+            return [$b['unmarked'], $b['inert'], -$a['spread']]
+               <=> [$a['unmarked'], $a['inert'], -$b['spread']];
         });
 
         return $out;
@@ -484,46 +557,84 @@ final class JudgingAudit
      * and the same one `completeScorecards()` counts against. Retiring a criterion shrinks
      * it, so an old scorecard does not become incomplete retrospectively.
      *
+     * ── TWO FINDINGS, AND THEY WERE BEING REPORTED AS ONE ────────────────────
+     *
+     * Measured against the whole rubric, this card said the same thing about a judge who
+     * abandoned a scorecard halfway and a judge who marked every criterion that has ever
+     * been on the ballot. That second case is not rare: `effective()` is the programme's
+     * own criteria PLUS the global rubric it inherits, so a programme that adds three
+     * criteria without retiring the four it inherits has a seven-criterion rubric that
+     * every judge answers three of. Every scorecard in the programme then appears here,
+     * identically, reading as a panel that could not finish anything.
+     *
+     * It is a rubric fault and it belongs stated once. `never_marked` is the set no
+     * scorecard has EVER covered — criteria in force, carrying a share of every mark,
+     * that nobody has been asked. What remains is measured against what the panel
+     * actually had in play, so a judge is listed here only when they fell short of what
+     * their colleagues managed on the same rubric.
+     *
      * @param list<object> $scores
-     * @return array{pairs:int, rows:list<array<string,mixed>>, required:int}
+     * @return array{pairs:int, rows:list<array<string,mixed>>, required:int, in_play:int,
+     *               never_marked:list<array{label:string, share:float|null}>, dead_share:float}
      */
     private static function incompleteScorecards(int $programmeId, array $scores): array
     {
-        $required = count(array_filter(
+        $active = array_values(array_filter(
             JudgeRubric::effective($programmeId),
             static fn (object $r): bool => (int) $r->is_active === 1
         ));
-        if ($required < 1 || $scores === []) {
-            return ['pairs' => 0, 'rows' => [], 'required' => $required];
-        }
+        $required = count($active);
+        $blank = ['pairs' => 0, 'rows' => [], 'required' => $required, 'in_play' => 0,
+                  'never_marked' => [], 'dead_share' => 0.0];
+
+        if ($required < 1 || $scores === []) return $blank;
 
         $marked = [];
+        $used   = [];
         foreach ($scores as $s) {
             $k = (int) $s->judge_id . ':' . (int) $s->nominee_id;
             $marked[$k] ??= ['judge' => (string) $s->judge_name, 'nominee' => (string) $s->nominee_name,
                              'judge_id' => (int) $s->judge_id, 'nominee_id' => (int) $s->nominee_id,
-                             'criteria' => [], 'missing' => []];
+                             'criteria' => []];
             $marked[$k]['criteria'][(int) $s->criterion_id] = true;
+            $used[(int) $s->criterion_id] = true;
         }
+
+        // The rubric fault, separated out before anybody's name is attached to it.
+        $shares  = JudgeRubric::shares($programmeId);
+        $never   = [];
+        $deadPct = 0.0;
+        foreach ($active as $r) {
+            $cid = (int) $r->id;
+            if (isset($used[$cid])) continue;
+            $never[] = ['label' => (string) $r->label, 'share' => $shares[$cid] ?? null];
+            $deadPct += (float) ($shares[$cid] ?? 0);
+        }
+
+        // And what a scorecard is now measured against: the criteria this panel was
+        // actually asked, never the ones nobody was.
+        $inPlay = count($used);
 
         $rows = [];
         foreach ($marked as $m) {
             $n = count($m['criteria']);
-            if ($n >= $required) continue;
+            if ($n >= $inPlay) continue;
             $rows[] = [
                 'judge'    => $m['judge'],
                 'nominee'  => $m['nominee'],
                 'marked'   => $n,
-                'required' => $required,
-                // The share of the rubric that decided this scorecard, which is what
-                // reweighting actually means to the nominee.
-                'covered'  => (int) round($n * 100 / $required),
+                'required' => $inPlay,
+                // The share of what was in play that decided this scorecard, which is
+                // what reweighting actually means to the nominee.
+                'covered'  => (int) round($n * 100 / max(1, $inPlay)),
             ];
         }
 
         usort($rows, static fn (array $a, array $b): int => $a['marked'] <=> $b['marked']);
 
-        return ['pairs' => count($rows), 'rows' => array_slice($rows, 0, 50), 'required' => $required];
+        return ['pairs' => count($rows), 'rows' => array_slice($rows, 0, 50),
+                'required' => $required, 'in_play' => $inPlay,
+                'never_marked' => $never, 'dead_share' => round($deadPct, 1)];
     }
 
     /**
@@ -565,7 +676,8 @@ final class JudgingAudit
             $jid = (int) $s->judge_id;
             $w   = $weights[(int) $s->criterion_id] ?? 1;
 
-            $acc[$nid]['name'] ??= (string) $s->nominee_name;
+            $acc[$nid]['name']   ??= (string) $s->nominee_name;
+            $acc[$nid]['status'] ??= (string) ($s->nominee_status ?? '');
             $acc[$nid]['j'][$jid] ??= ['ws' => 0.0, 'wt' => 0, 'judge' => (string) $s->judge_name];
             $acc[$nid]['j'][$jid]['ws'] += (float) $s->score * $w;
             $acc[$nid]['j'][$jid]['wt'] += $w;
@@ -584,6 +696,18 @@ final class JudgingAudit
             $out[] = [
                 'nominee_id' => $nid,
                 'nominee'    => $a['name'],
+                // ── DID THIS LAND ON A RESULT? ───────────────────────────────
+                //
+                // The card said where the panel was furthest from itself and stopped
+                // there, which left the reader to hold twenty-five names in their head and
+                // go and look up each one. Whether the nominee was crowned is the whole
+                // difference between an interesting row and the row somebody appeals: a
+                // 4.4 spread on a nominee who finished ninth is a note about the rubric,
+                // and the same spread on the winner is the challenge.
+                //
+                // It reports a placing that already happened; it still decides nothing.
+                'crowned'    => in_array($a['status'] ?? '', ['winner', 'runner_up'], true)
+                    ? (string) $a['status'] : null,
                 'judges'     => count($avgs),
                 'low'        => min($avgs),
                 'high'       => max($avgs),
@@ -592,7 +716,13 @@ final class JudgingAudit
             ];
         }
 
-        usort($out, static fn (array $a, array $b): int => $b['spread'] <=> $a['spread']);
+        usort($out, static function (array $a, array $b): int {
+            // Spread first — it is the finding. A crowned nominee breaks the tie, because
+            // between two equally contested rows the one that decided something is the
+            // one to read first.
+            return [$b['spread'], $b['crowned'] !== null]
+               <=> [$a['spread'], $a['crowned'] !== null];
+        });
 
         return array_slice($out, 0, 25);
     }
@@ -716,6 +846,9 @@ final class JudgingAudit
             ->whereIn('c.cycle_id', $cycleIds)
             ->select('s.judge_id', 's.nominee_id', 's.criterion_id', 's.score', 's.created_at',
                      'c.cycle_id', 'n.name as nominee_name', 'j.name as judge_name',
+                     // Whether this nominee ended up crowned. Selected here so a finding
+                     // can say whether it landed on a RESULT — see disagreement().
+                     'n.status as nominee_status',
                      'cr.label as criterion_name')
             ->get()
             ->all();

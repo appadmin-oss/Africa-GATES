@@ -23,7 +23,7 @@ class NomineeScoringService
     /**
      * Per-nominee scores for one category (cohort-normalised community + judges,
      * with the effective per-cycle CPI weights from the rule engine).
-     * @return array<int, array{vote_count:int, judge_score:float|null, cpi_score:int}>
+     * @return array<int, array{vote_count:int, cohort_max:int, judge_score:float|null, cpi_score:int}>
      */
     public function scoreCategory(int $categoryId): array
     {
@@ -56,6 +56,19 @@ class NomineeScoringService
             $eligible = $judges >= $quorum;                        // winner-eligible only at quorum
             $out[(int) $n->id] = [
                 'vote_count'  => (int) $n->vote_count,            // total display support
+                // ── THE DENOMINATOR THE COMMUNITY HALF IS MEASURED AGAINST ───
+                //
+                // Returned rather than kept local, because without it NOBODY can check a
+                // CPI. The community component is `organic / cohortMax`, so 2,650 votes
+                // is worth 55% of the community weight or 26% of it depending entirely on
+                // a number that appeared on no screen — and `ResultRelease` recomputing it
+                // would be a second reader of the one fact that decides the award.
+                //
+                // It also carries a consequence worth seeing: the cohort is every scored
+                // nominee in the category, INCLUDING one the shortlist or the quorum has
+                // put out of the running. Somebody who cannot win still sets the scale
+                // everybody else is measured on.
+                'cohort_max'  => $cohortMax,
                 'judge_score' => $ja,
                 'judges'      => $judges,                          // COMPLETE scorecards only
                 'eligible'    => $eligible,

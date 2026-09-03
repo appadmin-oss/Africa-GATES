@@ -83,13 +83,41 @@
 
 {% block content %}
 
+{# ── THE SENTENCE THE PAGE WAS MISSING ────────────────────────────────────────
+   "Result release" and "what the release WILL do" read as a screen with a button on
+   it, and there is no button anywhere: the release is not something an operator
+   performs. CycleMaterialiser advances a cycle on its results_date, from the
+   unattended maintenance run, and promotes the winners drawn below.
+
+   So the page was asking somebody to review a decision without telling them it takes
+   effect by itself, or when. "This one needs a person to decide" on a category, with
+   no indication that the person has until Thursday, is the whole confusion. The date
+   was already passed to this template and nothing read it. #}
 <div class="ja-lede">
-  <h2>What the release will do, and why</h2>
-  <p>Every scored nominee, in the order the award is decided in. The ranking here is not a
-    preview computed for this page &mdash; it is the same comparator the promotion uses, so
-    what is drawn is what will happen. Nothing on this screen changes anything.</p>
-  <p>A nominee out of the running is still listed, with the reason. An exclusion nobody can
-    see is the part of a result that is hardest to defend later.</p>
+  <h2>What will be published, and when</h2>
+  <p>Every scored nominee, in the order the award is decided in. This is not a preview
+    computed for this page &mdash; it is the same ranking the promotion itself uses, so
+    what is drawn here is what will be published.</p>
+  {% if cycle and cycle.results_date %}
+    <p><strong>Nobody presses anything.</strong> This cycle turns into a published result
+      on <strong>{{ cycle.results_date|date('j F Y') }}</strong>, by itself, from the
+      scheduled maintenance run &mdash; the winners below are crowned and told. Anything
+      on this page that needs a person needs them <em>before</em> then.</p>
+  {% else %}
+    <p><strong>Nobody presses anything.</strong> A cycle turns into a published result on
+      its results date, by itself, from the scheduled maintenance run. This one has no
+      results date set, so nothing will be published until one is
+      &mdash; <a href="/admin/programmes">set it on the cycle</a>.</p>
+  {% endif %}
+  <p>Nothing on this screen changes anything. A nominee out of the running is still
+    listed, with the reason: an exclusion nobody can see is the part of a result that is
+    hardest to defend later.</p>
+  <p><b>Reading the index.</b> Each nominee&rsquo;s score out of 1000 is a community half
+    plus a judge half, printed under it so it can be added up. The community half is
+    measured against the <em>largest organic vote count in the category</em> rather than
+    against the votes cast &mdash; so the leader on votes earns the whole community
+    weight, and somebody on half their votes earns half of it. The judge half is the
+    panel&rsquo;s weighted average out of ten.</p>
 </div>
 
 <form method="get" action="/admin/result-release" class="ja-row">
@@ -120,31 +148,48 @@
   </div>
 {% else %}
 
-  {# ── WHAT TO LOOK AT FIRST ─────────────────────────────────────────────── #}
+  {# ── WHAT TO LOOK AT FIRST ───────────────────────────────────────────────
+     Six tiles that could not be added up. Three counted CATEGORIES and two counted
+     NOMINEES, with nothing saying which was which, and a dead heat was counted twice
+     over — once as a dead heat and again under "won by ≤10", because its margin is
+     zero and zero is inside ten. So a cycle with three categories needing attention
+     presented as four, in units an operator had to guess at, above a page that said
+     three. A summary that cannot be reconciled with the evidence under it is worse
+     than no summary.
+
+     One headline now — how many categories need a person, counted once — with the
+     reasons behind it, and the nominee-level counts kept visibly apart. #}
   <div class="ja-stats">
-    <div class="ja-stat">
-      <p class="ja-stat__k">Categories</p>
-      <p class="ja-stat__v">{{ attention.categories }}</p>
+    <div class="ja-stat{% if attention.needs_person > 0 %} ja-stat--bad{% endif %}">
+      <p class="ja-stat__k">Need a person</p>
+      <p class="ja-stat__v">{{ attention.needs_person }}</p>
+      <span class="ja-den">of {{ attention.categories }}
+        categor{{ attention.categories == 1 ? 'y' : 'ies' }}</span>
     </div>
     <div class="ja-stat{% if attention.blocked > 0 %} ja-stat--bad{% endif %}">
       <p class="ja-stat__k">Crown nobody</p>
       <p class="ja-stat__v">{{ attention.blocked }}</p>
+      <span class="ja-den">categories</span>
     </div>
     <div class="ja-stat{% if attention.dead_heats > 0 %} ja-stat--bad{% endif %}">
       <p class="ja-stat__k">Dead heats</p>
       <p class="ja-stat__v">{{ attention.dead_heats }}</p>
+      <span class="ja-den">categories</span>
     </div>
     <div class="ja-stat{% if attention.thin_margins > 0 %} ja-stat--bad{% endif %}">
       <p class="ja-stat__k">Won by &le;10</p>
       <p class="ja-stat__v">{{ attention.thin_margins }}</p>
+      <span class="ja-den">categories, dead heats excluded</span>
     </div>
     <div class="ja-stat">
       <p class="ja-stat__k">Excluded</p>
       <p class="ja-stat__v">{{ attention.excluded }}</p>
+      <span class="ja-den">nominees</span>
     </div>
     <div class="ja-stat">
       <p class="ja-stat__k">Provisional</p>
       <p class="ja-stat__v">{{ attention.provisional }}</p>
+      <span class="ja-den">nominees</span>
     </div>
   </div>
 
@@ -160,6 +205,26 @@
         </span>
       </div>
 
+      {# ── THE DENOMINATOR ──────────────────────────────────────────────────
+         The community half is votes measured against the BIGGEST vote count in the
+         category, not against the votes cast — so 2,650 organic is worth 247 points
+         behind a leader on 4,820 and 450 points on its own. Every column needed to
+         check a CPI was on this page except this one, which is the only one that
+         cannot be guessed.
+
+         And the cohort is taken before the quorum and the shortlist are applied, so a
+         nominee who cannot win still sets the scale for everybody who can. That is
+         defensible; being discovered during a challenge is not. #}
+      {% if c.scale_is_out %}
+        <p class="ja-caveat">The community half here is measured against
+          <b>{{ c.cohort_max|number_format }}</b> votes &mdash; {{ c.scale_set_by }}&rsquo;s,
+          and {{ c.scale_set_by }} is <b>out of the running</b>. Somebody who cannot win
+          is setting how much everybody else&rsquo;s support is worth, which holds the
+          whole field&rsquo;s community half down. Measured against the field that can
+          win, every score below would be higher; whether the ORDER changes is the
+          question to ask.</p>
+      {% endif %}
+
       {# ── THE THINGS THAT NEEDED A HUMAN AND WENT INTO A LOG ─────────────
          "no nominee meets the judge quorum" and "DEAD HEAT ... this one needs a human"
          were written into the maintenance log by the promotion. There is no shell on this
@@ -174,22 +239,34 @@
             the award goes to the lower nominee id to keep the promotion deterministic.
             <strong>This one needs a person to decide.</strong></p>
         </div>
-      {% elseif c.margin is not null and c.margin <= 10 %}
-        <p class="ja-caveat">First and second are <b>{{ c.margin }}</b> apart on a
-          0&ndash;1000 index. A result this close can turn on one judge changing one mark
-          &mdash; the <a href="/admin/judging-audit">judging audit</a> says whether one did.</p>
       {% endif %}
 
+      {# ── THE WORKING ──────────────────────────────────────────────────────
+         The table showed the inputs and the answer and no way between them. An
+         operator defending a result could read the votes, the mark, the weights and
+         the index and still not say why 2,650 organic votes and an 8 produce 687.
+
+         So the two halves are printed as the points they contribute, and they sum
+         EXACTLY to the CPI beside them — ResultRelease gives the judge half the single
+         rounding step for that reason. A sum that does not equal the figure next to it
+         would be worse than showing no working at all. #}
       <table class="ja-t">
         <thead>
           <tr>
-            <th>#</th><th>Nominee</th><th>CPI</th><th>Judges</th>
-            <th>Judge mark</th><th>Organic</th><th>All votes</th><th>Standing</th>
+            <th>#</th><th>Nominee</th><th>Index<span class="ja-den">of 1000</span></th>
+            <th>Community<span class="ja-den">{{ (c.weights.community * 100)|round }}% of it</span></th>
+            <th>Judges<span class="ja-den">{{ (c.weights.judge * 100)|round }}% of it</span></th>
+            <th>Organic</th><th>All votes</th><th>Standing</th>
           </tr>
         </thead>
         <tbody>
           {% for r in c.rows %}
-            <tr class="{% if not r.in_running %}rr--out{% elseif r.rank == 2 %}rr--cut{% endif %}">
+            {# The rule marks WHERE THE AWARD FALLS, so it may only be drawn when there
+               is something on the other side of it. Applied to rank 2 unconditionally it
+               drew a heavy line under the last row of every two-nominee category — a
+               boundary with nothing below it, which reads as a total. #}
+            {% set cut = r.rank == 2 and c.rows|length > loop.index %}
+            <tr class="{% if not r.in_running %}rr--out{% elseif cut %}rr--cut{% endif %}">
               <td class="ja-rank">{{ r.rank ?: '&mdash;'|raw }}</td>
               <td class="ja-name">{{ r.name }}
                 {%- if r.out_reason %}<span class="ja-den">{{ r.out_reason }}</span>{% endif %}</td>
@@ -197,16 +274,30 @@
                 {# The index as a bar, because a column of four-digit numbers does not
                    show a gap and the gap is the whole question. #}
                 <span class="ja-bar"><i style="width:{{ (r.cpi / 10)|round }}%"></i></span>
+                <span class="ja-den">{{ r.community_points }} + {{ r.judge_points }}</span>
               </td>
-              <td class="ja-num">
-                {% if r.judges < c.quorum %}
+              <td class="ja-num">{{ r.community_points }}
+                {# The step nobody could take: from a vote count to a number of points.
+                   Except on the row of the nominee who IS the scale, where "100% of their
+                   own votes" is a tautology dressed as a denominator — and the fact worth
+                   stating there is the other one. #}
+                {% if r.nominee_id == c.scale_set_by_id %}
+                  <span class="ja-den">most organic votes here &mdash; sets the scale</span>
+                {% else %}
+                  <span class="ja-den">{{ r.community_share }}% of
+                    {{ c.scale_set_by }}&rsquo;s {{ c.cohort_max|number_format }}</span>
+                {% endif %}
+              </td>
+              <td class="ja-num">{{ r.judge_points }}
+                {%- if r.provisional %}
+                  <span class="ja-den">judge half not counted</span>
+                {%- elseif r.judge_score is not null %}
+                  <span class="ja-den">{{ r.judge_score|round(1) }}/10 from
+                    {{ r.judges }} judge{{ r.judges == 1 ? '' : 's' }}</span>
+                {%- endif %}
+                {%- if r.judges < c.quorum %}
                   <span class="ja-flag ja-flag--warn">{{ r.judges }} of {{ c.quorum }}</span>
-                {% else %}{{ r.judges }}{% endif %}
-              </td>
-              <td class="ja-num">
-                {%- if r.judge_score is null %}&mdash;
-                {%- else %}{{ r.judge_score|round(1) }}{% endif %}
-                {%- if r.provisional %}<span class="ja-den">judge half not counted</span>{% endif %}
+                {%- endif %}
               </td>
               <td class="ja-num">{{ r.organic|number_format }}</td>
               {# BOTH numbers. `organic` decided this; `vote_count` is what the public page
@@ -228,13 +319,31 @@
         </tbody>
       </table>
 
-      {% if c.margin is not null and c.margin > 10 %}
-        <p class="ja-den" style="margin-top:12px">First is {{ c.margin }} ahead of second on
-          a 0&ndash;1000 index.</p>
+      {# ── THE MARGIN, IN ONE PLACE ─────────────────────────────────────────
+         It was stated twice: a yellow warning above the table when the gap was ten or
+         under, and a grey line below it when the gap was larger. Same fact, two
+         locations, two styles — so an operator scanning several categories learnt to
+         read the margin off whichever one they happened to find, and a category with
+         the warning looked structurally different from one without it rather than
+         merely closer. One element, always in the same place; the severity changes,
+         the position does not. #}
+      {% if c.margin is not null and not c.dead_heat %}
+        {% if c.margin <= 10 %}
+          <p class="ja-caveat">First and second are <b>{{ c.margin }}</b> apart on a
+            0&ndash;1000 index. A result this close can turn on one judge changing one
+            mark &mdash; the <a href="/admin/judging-audit">judging audit</a> says whether
+            one did.</p>
+        {% else %}
+          <p class="ja-den" style="margin-top:12px">First is {{ c.margin }} ahead of second
+            on a 0&ndash;1000 index.</p>
+        {% endif %}
       {% endif %}
     </div>
   {% endfor %}
 
+  <p class="ja-den" style="margin-top:16px">&ldquo;Index&rdquo; is the Cultural Power
+    Index: the community half and the judge half, weighted as shown on each category and
+    scaled to 1000.</p>
   <p class="ja-caveat">A provisional figure is not a Cultural Power Index. Where the judge
     quorum has not been met the judge half is scored as absent rather than renormalised
     away &mdash; the conservative direction, because renormalising would put an unjudged

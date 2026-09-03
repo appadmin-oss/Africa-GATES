@@ -495,8 +495,90 @@ final class JudgingAuditTest extends TestCase
         // mark" only mean something together.
         $this->assertNotNull($by['Rigour']['share']);
 
-        // Worst first, so the inert one is not buried under a working rubric.
-        $this->assertSame('Rigour', $crit[0]['label']);
+        // Worst first, so the inert one is not buried under a working rubric. It is no
+        // longer FIRST first: a criterion nobody has ever been asked outranks one that was
+        // asked and marked identically, because the remedies differ — the second needs
+        // rewriting and the first needs putting on the ballot or taking out of the rubric.
+        // This programme inherits the global rubric it never overrode, so those criteria
+        // are here too.
+        $order = array_column($crit, 'label');
+        $this->assertLessThan(
+            array_search('Impact', $order, true),
+            array_search('Rigour', $order, true),
+            'the inert criterion was buried under a working one'
+        );
+        $this->assertTrue($crit[0]['unmarked'] ?? false,
+            'a criterion nobody has ever been asked must sort above one that was');
+    }
+
+    /**
+     * THE FINDING THAT HAD NOWHERE TO APPEAR, and it is the biggest one on the page.
+     *
+     * `JudgeRubric::effective()` is the programme's own criteria PLUS the global rubric it
+     * inherits, so a programme that adds its own without retiring the inherited ones has a
+     * rubric its ballot only ever asks part of. The scorer divides by the weight actually
+     * marked, so the rest is silently reweighted onto the criteria the panel did use — on
+     * every nominee, in every cycle.
+     *
+     * It was invisible three ways at once: the criteria table listed only criteria that
+     * appeared in the scores, so its "worth" column added up to 57% with nothing to explain
+     * the other 43%; the part-marked card measured every scorecard against the whole rubric
+     * and so listed EVERY scorecard in the programme as half-finished; and no line anywhere
+     * said the rubric was the reason. A rubric fault was being reported as a panel of
+     * judges who could not finish anything.
+     */
+    public function test_criteria_in_force_that_nobody_has_ever_marked_are_named(): void
+    {
+        $j = $this->judge('Ada Obi');
+        $n = $this->nominee('A');
+        // Both of the PROGRAMME's criteria, fully. Nothing from the inherited rubric.
+        $this->score($j, $n, 'impact', 7);
+        $this->score($j, $n, 'rigour', 8);
+
+        $audit = JudgingAudit::forProgramme($this->programmeId);
+        $inc   = $audit['incomplete'];
+
+        $never = array_column($inc['never_marked'], 'label');
+        $this->assertNotSame([], $never,
+            'the inherited criteria nobody has been asked are not reported at all');
+        $this->assertGreaterThan(0, $inc['dead_share'],
+            'the share of every mark decided by a criterion nobody was asked is not stated');
+
+        // AND the judge is not blamed for it. They answered every question they were put.
+        $this->assertSame(0, $inc['pairs'],
+            'a judge who marked everything the panel was actually asked is listed as '
+            . 'having left a scorecard part-marked');
+        $this->assertSame(2, $inc['in_play'], 'what the panel was asked');
+        $this->assertGreaterThan($inc['in_play'], $inc['required'], 'what the rubric holds');
+
+        // And every criterion carrying a share has a row, so the column adds up.
+        $shown = array_column($audit['criteria'], 'label');
+        foreach ($never as $label) {
+            $this->assertContains($label, $shown,
+                "{$label} carries a share of every mark and has no row to say so");
+        }
+    }
+
+    /** A judge who fell short of what their colleagues managed is still reported. */
+    public function test_a_scorecard_short_of_what_the_panel_was_asked_is_still_reported(): void
+    {
+        $j = $this->judge('Ada Obi');
+        $a = $this->nominee('A');
+        $b = $this->nominee('B');
+
+        $this->score($j, $a, 'impact', 7);
+        $this->score($j, $a, 'rigour', 8);
+        $this->score($j, $b, 'impact', 7);          // opened, abandoned
+
+        $inc = JudgingAudit::forProgramme($this->programmeId)['incomplete'];
+
+        $this->assertSame(1, $inc['pairs']);
+        $this->assertSame('B', $inc['rows'][0]['nominee']);
+        $this->assertSame(1, $inc['rows'][0]['marked']);
+        $this->assertSame(2, $inc['rows'][0]['required'],
+            'measured against what the panel was asked, not against a rubric half of '
+            . 'which has never been on a ballot');
+        $this->assertSame(50, $inc['rows'][0]['covered']);
     }
 
     // ══ scorecards left part-marked ══════════════════════════════════════════
@@ -593,34 +675,107 @@ final class JudgingAuditTest extends TestCase
             'a panel of one was reported as agreeing with itself');
     }
 
+    /**
+     * WHETHER THE DISAGREEMENT LANDED ON A RESULT.
+     *
+     * The card named the twenty-five nominees the panel was furthest from itself about and
+     * stopped there, leaving a reader to look each one up. That is the whole difference
+     * between an interesting row and the row somebody appeals: a 4.4 spread on a nominee
+     * who finished ninth is a note about the rubric, and the same spread on the winner is
+     * the challenge. It reports a placing that already happened and decides nothing.
+     */
+    public function test_a_disagreement_says_whether_it_landed_on_a_crowned_nominee(): void
+    {
+        $j1 = $this->judge('Ada Obi');
+        $j2 = $this->judge('Tunde Cole');
+
+        $won  = $this->nominee('Grace Abiodun');
+        $also = $this->nominee('Emeka Nwachukwu');
+        DB::table('gates_nominees')->where('id', $won)->update(['status' => 'winner']);
+
+        foreach ([$won, $also] as $n) {
+            $this->score($j1, $n, 'impact', 9);
+            $this->score($j2, $n, 'impact', 3);
+        }
+
+        $rows = JudgingAudit::forProgramme($this->programmeId)['disagreement'];
+        $by   = [];
+        foreach ($rows as $r) $by[$r['nominee']] = $r;
+
+        $this->assertSame('winner', $by['Grace Abiodun']['crowned'],
+            'the panel disagreed most about somebody who went on to be crowned, and the '
+            . 'audit did not say so');
+        $this->assertNull($by['Emeka Nwachukwu']['crowned'],
+            'a nominee who was never crowned must not be flagged as one');
+
+        // Spread still decides the order; being crowned only breaks a tie. An audit that
+        // sorted by outcome would be ranking nominees, which this page must never do.
+        $this->assertSame($by['Grace Abiodun']['spread'], $by['Emeka Nwachukwu']['spread']);
+        $this->assertSame('Grace Abiodun', $rows[0]['nominee']);
+    }
+
     // ══ how long they spent ══════════════════════════════════════════════════
 
     /**
-     * The MEDIAN gap between marks, because judges score in sittings across days.
+     * The MEDIAN gap between SCORECARDS, because judges score in sittings across days.
      *
      * A mean is destroyed by one overnight gap, and the span between first and last says
-     * nothing about the reading. Four seconds a mark across a hundred nominees is a fact
+     * nothing about the reading. Four seconds a nominee across a hundred of them is a fact
      * an operator can weigh, and it is a different objection from any of the arithmetic.
      */
-    public function test_the_typical_gap_between_marks_survives_an_overnight_break(): void
+    public function test_the_typical_gap_survives_an_overnight_break(): void
     {
         $j = $this->judge('Ada Obi');
-        $n1 = $this->nominee('One');
-        $n2 = $this->nominee('Two');
 
-        // Four marks five seconds apart, then a fourteen-hour break, then two more.
-        $this->score($j, $n1, 'impact', 5, '2026-11-01 09:00:00');
-        $this->score($j, $n1, 'rigour', 5, '2026-11-01 09:00:05');
-        $this->score($j, $n2, 'impact', 6, '2026-11-01 09:00:10');
-        $this->score($j, $n2, 'rigour', 6, '2026-11-01 23:00:10');
+        // Three nominees at a steady thirty seconds each, then a fourteen-hour break
+        // before the fourth. Each scorecard written in one instant, which is how the
+        // ballot writes: JudgeService takes Carbon::now() once and stamps every criterion
+        // row of the scorecard with it.
+        foreach ([['One', '09:00:00'], ['Two', '09:00:30'], ['Three', '09:01:00'],
+                  ['Four', '23:01:00']] as [$name, $at]) {
+            $n = $this->nominee($name);
+            $this->score($j, $n, 'impact', 5, '2026-11-01 ' . $at);
+            $this->score($j, $n, 'rigour', 6, '2026-11-01 ' . $at);
+        }
 
-        $judges = JudgingAudit::forProgramme($this->programmeId)['judges'];
-        $mine   = $judges[0];
+        $mine = JudgingAudit::forProgramme($this->programmeId)['judges'][0];
 
         $this->assertSame('Ada Obi', $mine['judge']);
-        // Gaps are 5, 5, 50400 — the median is 5, the mean would be 16,803.
-        $this->assertSame(5, $mine['median_gap'],
-            'an overnight break was allowed to describe how long they spent per mark');
+        // Gaps are 30, 30, 50400 — the median is 30, the mean would be 16,820.
+        $this->assertSame(30, $mine['median_gap'],
+            'an overnight break was allowed to describe how long they spent per nominee');
+    }
+
+    /**
+     * THE ALARM THAT COULD NOT NOT FIRE.
+     *
+     * This collected one timestamp per criterion ROW, and a scorecard writes all of its
+     * rows off a single `Carbon::now()` — so most consecutive gaps were exactly zero, and
+     * with the shipped four-criterion rubric three of every four were. The median of that
+     * is 0 no matter what the judge did, so the column read "0s" and the amber flag fired
+     * for every judge on every panel, permanently.
+     *
+     * An alarm that cannot not fire is worse than no alarm: it teaches an operator that
+     * the column means nothing, and the real signal it exists for — a panel that spent
+     * four seconds a nominee — then has nowhere to appear.
+     */
+    public function test_a_rubric_written_in_one_save_does_not_report_an_instant_panel(): void
+    {
+        $j = $this->judge('Ada Obi');
+
+        // Two nominees, five minutes apart, every criterion of each stamped identically.
+        foreach ([['One', '09:00:00'], ['Two', '09:05:00']] as [$name, $at]) {
+            $n = $this->nominee($name);
+            foreach (\AfricaGates\Services\JudgeRubric::effective($this->programmeId) as $c) {
+                $this->scoreById($j, $n, (int) $c->id, 7, '2026-11-01 ' . $at);
+            }
+        }
+
+        $mine = JudgingAudit::forProgramme($this->programmeId)['judges'][0];
+
+        $this->assertSame(300, $mine['median_gap'],
+            'the gap is being measured between criterion rows of one scorecard, which are '
+            . 'always written at the same instant — so it can only ever report zero');
     }
 
     /** A single mark has no gap, and reporting zero would read as instant. */
