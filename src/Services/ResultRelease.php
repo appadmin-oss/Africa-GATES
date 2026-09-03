@@ -69,6 +69,7 @@ final class ResultRelease
      *   margin: ?int,
      *   dead_heat: bool,
      *   blocked: ?string,
+     *   tie_broken_by_votes: bool,
      *   cohort_max: int,
      *   scale_set_by: ?string,
      *   scale_set_by_id: int,
@@ -91,7 +92,8 @@ final class ResultRelease
 
         $empty = ['category' => $cat, 'quorum' => $quorum, 'weights' => $weights,
                   'shortlisted' => null, 'rows' => [], 'winner' => null, 'runner_up' => null,
-                  'margin' => null, 'dead_heat' => false, 'blocked' => null,
+                  'margin' => null, 'dead_heat' => false, 'tie_broken_by_votes' => false,
+                  'blocked' => null,
                   'cohort_max' => 0, 'scale_set_by' => null, 'scale_set_by_id' => 0,
                   'scale_is_out' => false];
 
@@ -226,6 +228,20 @@ final class ResultRelease
             'dead_heat'   => (bool) ($winner && $runnerUp
                                      && $winner['cpi'] === $runnerUp['cpi']
                                      && $winner['organic'] === $runnerUp['organic']),
+            // ── THE INDEX TIED AND SOMETHING ELSE DECIDED IT ─────────────────
+            //
+            // Equal CPI with DIFFERENT organic support is not a dead heat — the comparator
+            // separates them, on votes — but the screen could not say so. It reported
+            // "first and second are 0 apart" beside a WINS badge and left the reader to
+            // work out what broke a tie the page had just called exact.
+            //
+            // The tiebreak is the platform's own argument: paid votes move `vote_count`
+            // and never `organic_vote_count`, so a tie falls to genuine support rather
+            // than to whoever bought more. That is worth SAYING at the one moment it
+            // decides an award, which is the only moment anybody will question it.
+            'tie_broken_by_votes' => (bool) ($winner && $runnerUp
+                                     && $winner['cpi'] === $runnerUp['cpi']
+                                     && $winner['organic'] !== $runnerUp['organic']),
             'blocked'     => $running === []
                 ? 'No nominee here meets the judge quorum, so this category crowns nobody '
                   . 'until somebody looks at it.'

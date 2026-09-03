@@ -3,7 +3,7 @@ declare(strict_types=1);
 
 namespace Tests\Unit;
 
-use AfricaGates\Services\{CycleMaterialiser, ResultRelease};
+use AfricaGates\Services\{CycleMaterialiser, JudgeScorecard, ResultRelease};
 use Illuminate\Database\Capsule\Manager as DB;
 use Illuminate\Support\Carbon;
 use Tests\TestCase;
@@ -531,6 +531,141 @@ final class ResultReleaseTest extends TestCase
         $this->assertFalse($c['scale_is_out'],
             'a category with nobody in the running warned that somebody out of the '
             . 'running was holding the field down');
+    }
+
+
+    // ══ when the index cannot separate two people ════════════════════════════
+
+    /**
+     * A DEAD HEAT IS NOT TWO IDENTICAL NOMINEES. It is two identical AVERAGES.
+     *
+     * Everything the release can show about these two is the same figure — the index, both
+     * halves of it, the panel average, the vote count. That is what "the methodology
+     * cannot separate them" means, and it is why the page asks for a person.
+     *
+     * What the page could not show is that the panels said completely different things: a
+     * board that agreed flatly on 8, against two judges who disagreed on every criterion
+     * in opposite directions and cancelled out. The person being asked to decide had the
+     * tie explained to them and no evidence to decide it on.
+     */
+    public function test_a_dead_heat_can_hide_two_completely_different_panels(): void
+    {
+        $j1 = $this->judge('Ada Obi');
+        $j2 = $this->judge('Tunde Cole');
+
+        $flat  = $this->nominee('Chidi Okafor', 3300);
+        $split = $this->nominee('Amara Nwosu', 3300);
+
+        // Unanimous.
+        $this->scoreEach($j1, $flat, [8, 8]);
+        $this->scoreEach($j2, $flat, [8, 8]);
+        // Opposed on both criteria, cancelling to the same weighted average.
+        $this->scoreEach($j1, $split, [9, 7]);
+        $this->scoreEach($j2, $split, [7, 9]);
+
+        $c  = ResultRelease::category($this->categoryId);
+        $by = [];
+        foreach ($c['rows'] as $r) $by[$r['name']] = $r;
+
+        $this->assertTrue($c['dead_heat']);
+        $this->assertSame(0, $c['margin']);
+
+        // Every figure the release can print is identical.
+        foreach (['cpi', 'community_points', 'judge_points', 'judge_score', 'organic'] as $f) {
+            $this->assertSame($by['Chidi Okafor'][$f], $by['Amara Nwosu'][$f],
+                "the two are not actually tied on {$f}, so this is not the case under test");
+        }
+
+        // And the panels are not remotely the same. THIS is what the person deciding
+        // needs, and it exists only in the marks.
+        $flatCard  = JudgeScorecard::forNominee($flat);
+        $splitCard = JudgeScorecard::forNominee($split);
+
+        $this->assertSame($flatCard['panel']['average'], $splitCard['panel']['average']);
+        $this->assertSame([8.0, 8.0], array_column($flatCard['judges'], 'average'),
+            'the unanimous panel');
+        $this->assertNotSame(
+            array_column($flatCard['judges'], 'average'),
+            array_column($splitCard['judges'], 'average'),
+            'the two panels agreed identically, so the fixture is not exercising the point'
+        );
+    }
+
+    /**
+     * And the screen points at that evidence from the sentence that asks for a decision.
+     *
+     * §18 in its sharpest form: the mechanism exists, the route exists, and a page that
+     * says "this one needs a person to decide" without linking to what they decide ON is
+     * still asking somebody to go and look for it.
+     */
+    public function test_the_dead_heat_notice_links_to_both_scorecards(): void
+    {
+        $tpl = (string) file_get_contents(
+            dirname(__DIR__, 2) . '/templates/admin/result-release.twig');
+
+        // The Twig comment above it quotes the reasoning, so strip comments first: this
+        // codebase has shipped a scanner fooled by its own explanation four times.
+        $body = (string) preg_replace('~\{#.*?#\}~s', '', $tpl);
+
+        $this->assertMatchesRegularExpression(
+            '~needs a person to decide.*?scorecard/\{\{ c\.winner\.nominee_id~s', $body,
+            'the notice asks for a decision and does not link to the winner\'s marks');
+        $this->assertStringContainsString('scorecard/{{ c.runner_up.nominee_id }}', $body,
+            'and not to the runner-up\'s either — a dead heat is decided between TWO cards');
+    }
+
+    /**
+     * AN EXACT TIE THE VOTES BROKE IS NOT A DEAD HEAT, AND MUST NOT READ AS "0 APART".
+     *
+     * Equal CPI with different organic support is separated by the comparator, on votes.
+     * The screen reported "first and second are 0 apart on a 0–1000 index" beside a WINS
+     * badge and said nothing about what broke a tie it had just called exact — so the one
+     * moment the organic tiebreak decides an award was the one moment it was invisible.
+     *
+     * The tiebreak is the platform's whole argument: paid votes move `vote_count` and
+     * never `organic_vote_count`, so a nominee with more TOTAL votes does not necessarily
+     * win a tie. That is exactly the thing somebody challenges, and it now says so.
+     */
+    public function test_an_index_tie_broken_by_organic_votes_says_so(): void
+    {
+        $j1 = $this->judge('Ada Obi');
+        $j2 = $this->judge('Tunde Cole');
+
+        // Same index by different routes: more votes and a lower mark, against fewer
+        // votes and a higher one. 1000 sets the cohort scale.
+        $loud  = $this->nominee('More votes, lower mark', 1000);
+        $quiet = $this->nominee('Fewer votes, higher mark', 756);
+        $this->scoreAll($j1, $loud, 6);  $this->scoreAll($j2, $loud, 6);
+        $this->scoreAll($j1, $quiet, 8); $this->scoreAll($j2, $quiet, 8);
+
+        $c  = ResultRelease::category($this->categoryId);
+        $by = [];
+        foreach ($c['rows'] as $r) $by[$r['name']] = $r;
+
+        $this->assertSame($by['More votes, lower mark']['cpi'],
+                          $by['Fewer votes, higher mark']['cpi'], 'the index must be level');
+        $this->assertSame(0, $c['margin']);
+        $this->assertFalse($c['dead_heat'], 'different organic support is not a dead heat');
+        $this->assertTrue($c['tie_broken_by_votes'],
+            'the index tied, something separated them, and the screen cannot say what');
+        $this->assertSame('More votes, lower mark', $c['winner']['name']);
+    }
+
+    /** And it is not claimed on a category that is merely close. */
+    public function test_a_close_result_is_not_reported_as_a_tie(): void
+    {
+        $j1 = $this->judge('Ada Obi');
+        $j2 = $this->judge('Tunde Cole');
+
+        $a = $this->nominee('Ibrahim Sule', 2101);
+        $b = $this->nominee('Blessing Eke', 2088);
+        foreach ([$a, $b] as $n) { $this->scoreAll($j1, $n, 7); $this->scoreAll($j2, $n, 7); }
+
+        $c = ResultRelease::category($this->categoryId);
+
+        $this->assertGreaterThan(0, $c['margin']);
+        $this->assertFalse($c['tie_broken_by_votes']);
+        $this->assertFalse($c['dead_heat']);
     }
 
     // ══ the summary strip ════════════════════════════════════════════════════
