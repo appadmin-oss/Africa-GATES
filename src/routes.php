@@ -3152,6 +3152,16 @@ return function(App $app) {
         // re-deriving it, and writes nothing. See ResultRelease.
         $a->get('/result-release', \AfricaGates\Admin\Controllers\ResultReleaseController::class.':index');
 
+        // ── AND THE MARKS UNDER IT ──────────────────────────────────────────
+        //
+        // Every screen built on gates_judge_criteria_scores showed arithmetic over the
+        // marks — an index, a panel average, a lean, a criterion's range — and not one
+        // showed a MARK. "What did the judges give her" is the first question anybody
+        // asks about an award and the one a nominee asks when they lose, and it had no
+        // screen. Linked from the judge half of the release and from the disagreement
+        // rows on the audit, because those are the two places somebody is already asking.
+        $a->get('/scorecard/{id:[0-9]+}', \AfricaGates\Admin\Controllers\ScorecardController::class.':show');
+
         // ── WHO DID WHAT, TO WHICH RECORD, FROM WHERE ───────────────────────
         //
         // gates_audit_log is written from 124 places across every admin controller —

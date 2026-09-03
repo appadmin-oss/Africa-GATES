@@ -458,7 +458,10 @@
       <tbody>
         {% for d in audit.disagreement %}
           <tr>
-            <td class="ja-name">{{ d.nominee }}
+            {# Straight to the marks. This card says two judges were 4.4 apart and names
+               neither number, which is the point at which a reader has to go and look —
+               and until this link there was nowhere to look. #}
+            <td class="ja-name"><a href="/admin/scorecard/{{ d.nominee_id }}">{{ d.nominee }}</a>
               {%- if d.crowned == 'winner' %}
                 <span class="ja-flag ja-flag--bad">crowned</span>
               {%- elseif d.crowned == 'runner_up' %}

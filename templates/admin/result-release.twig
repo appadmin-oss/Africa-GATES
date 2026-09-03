@@ -288,6 +288,9 @@
                     {{ c.scale_set_by }}&rsquo;s {{ c.cohort_max|number_format }}</span>
                 {% endif %}
               </td>
+              {# The judge half is an average of averages of marks, three steps from
+                 anything a judge wrote — so it is the one figure on this page that
+                 cannot be checked ON this page. The link is the rest of the answer. #}
               <td class="ja-num">{{ r.judge_points }}
                 {%- if r.provisional %}
                   <span class="ja-den">judge half not counted</span>
@@ -298,6 +301,7 @@
                 {%- if r.judges < c.quorum %}
                   <span class="ja-flag ja-flag--warn">{{ r.judges }} of {{ c.quorum }}</span>
                 {%- endif %}
+                <span class="ja-den"><a href="/admin/scorecard/{{ r.nominee_id }}">see the marks</a></span>
               </td>
               <td class="ja-num">{{ r.organic|number_format }}</td>
               {# BOTH numbers. `organic` decided this; `vote_count` is what the public page

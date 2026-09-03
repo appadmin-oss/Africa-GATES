@@ -147,10 +147,74 @@ class NomineeScoringService
      * a single average; {@see \AfricaGates\Services\JudgeAnomalyService} uses it
      * to spot a judge who is a statistical outlier vs. the rest of the panel.
      *
+     * A reduction of {@see panelDetailFor()}, which is where the rules live.
+     *
      * @param int[] $nomineeIds
      * @return array<int, array<int,float>> nomineeId => [judgeId => weightedAvg]
      */
     public function judgePanelsFor(array $nomineeIds): array
+    {
+        $out = [];
+        foreach ($this->panelDetailFor($nomineeIds) as $nomId => $d) {
+            $keep = [];
+            foreach ($d['judges'] as $jid => $j) {
+                if ($j['counts']) $keep[(int) $jid] = (float) $j['avg'];
+            }
+            if ($keep) $out[(int) $nomId] = $keep;
+        }
+
+        return $out;
+    }
+
+    /**
+     * EVERY mark on record for these nominees, and whether each one counts.
+     *
+     * ══════════════════════════════════════════════════════════════════════════
+     * THE PLATFORM COULD NOT SHOW ANYBODY A SCORE
+     * ══════════════════════════════════════════════════════════════════════════
+     *
+     * `gates_judge_criteria_scores` is one row per judge per nominee per criterion, and
+     * every screen built on it showed arithmetic OVER those rows — a panel average, a
+     * lean against the rest of the panel, a criterion's mean and range, the spread
+     * between the highest and lowest judge. Not one showed a MARK. An organiser asked
+     * "what did the panel actually give her" could answer with a weighted average to two
+     * decimal places and could not name a single number any judge wrote down.
+     *
+     * ══════════════════════════════════════════════════════════════════════════
+     * AND WHY THE ANSWER IS NOT "SELECT THE ROWS"
+     * ══════════════════════════════════════════════════════════════════════════
+     *
+     * Because a screen that read the table would DISAGREE with the result, and look
+     * broken while being right about the rows. Three rules sit between a stored mark and
+     * the average that decides an award, and each one silently drops marks:
+     *
+     *   • a judge who recused themselves on this programme — every mark dropped, not
+     *     merely no further ones accepted;
+     *   • a judge taken off the panel (`is_active = 0`) — the same;
+     *   • a scorecard that does not cover every active criterion — dropped whole, so a
+     *     judge who marked four of five contributes nothing at all.
+     *
+     * A screen reproducing those rules would be a second reader of the one fact that
+     * decides the award, and the first thing to drift. So this is the SINGLE traversal:
+     * {@see judgePanelsFor()} reduces it to the map the scorer uses, and the scorecard
+     * screen renders the same structure with the reasons attached. They cannot disagree,
+     * because there is nothing to disagree with.
+     *
+     * Barred and incomplete cards are RETURNED, marked, rather than filtered out here.
+     * A mark a judge really wrote and the platform really ignored is the thing somebody
+     * appealing a result most needs to see, and silently omitting it is how a screen
+     * comes to look like it is hiding something.
+     *
+     * @param int[] $nomineeIds
+     * @return array<int, array{programme_id:int, weights:array<int,int>, judges:array<int, array{
+     *     marks:array<int,int>, covered:int, required:int, avg:?float,
+     *     counts:bool, why:?string}>}>
+     */
+    public const NOT_COUNTED_RECUSED    = 'recused';
+    public const NOT_COUNTED_REMOVED    = 'removed';
+    public const NOT_COUNTED_INCOMPLETE = 'incomplete';
+
+    public function panelDetailFor(array $nomineeIds): array
     {
         if (!$nomineeIds) return [];
 
@@ -177,42 +241,67 @@ class NomineeScoringService
         // sits in. See {@see disqualifiedJudges()}.
         $barred = $this->disqualifiedJudges(array_values(array_unique($programmeOf)));
 
+        // Every mark, including the ones that will not count. The filtering used to
+        // happen HERE, which is why nothing downstream could ever explain an absence.
         $tree = [];
         foreach (DB::table('gates_judge_criteria_scores')->whereIn('nominee_id', $nomineeIds)->get() as $s) {
-            $judgeId = (int) $s->judge_id;
-            $prog    = $programmeOf[(int) $s->nominee_id] ?? 0;
-
-            // A recused or removed judge's marks are dropped ENTIRELY — not merely
-            // stopped from growing. Leaving them in is the failure this guard exists for.
-            if (isset($barred['inactive'][$judgeId]))    continue;
-            if (isset($barred['coi'][$prog][$judgeId]))  continue;
-
-            $tree[(int) $s->nominee_id][$judgeId][(int) $s->criterion_id] = (int) $s->score;
+            $tree[(int) $s->nominee_id][(int) $s->judge_id][(int) $s->criterion_id] = (int) $s->score;
         }
+
         $out = [];
         foreach ($tree as $nomId => $byJudge) {
-            $weights   = $this->criteriaWeights($programmeOf[(int) $nomId] ?? 0);
+            $prog      = $programmeOf[(int) $nomId] ?? 0;
+            $weights   = $this->criteriaWeights($prog);
             $activeIds = array_keys($weights);
             $required  = count($activeIds);
             if ($required === 0) continue;
 
-            $perJudge = [];
+            $judges = [];
             foreach ($byJudge as $judgeId => $scoresByCrit) {
-                $ws = 0; $wt = 0; $covered = 0;
+                $judgeId = (int) $judgeId;
+                $ws = 0; $wt = 0; $covered = 0; $marks = [];
+
                 foreach ($activeIds as $cid) {
                     if (!array_key_exists($cid, $scoresByCrit)) continue;
                     $covered++;
-                    $w = $weights[$cid];
+                    $marks[$cid] = $scoresByCrit[$cid];
+                    $w  = $weights[$cid];
                     $ws += $scoresByCrit[$cid] * $w;
                     $wt += $w;
                 }
-                // Only a COMPLETE scorecard (every required criterion scored) counts.
-                if ($covered === $required && $wt > 0) {
-                    $perJudge[(int) $judgeId] = $ws / $wt;
-                }
+
+                // ── WHY A MARK DOES NOT COUNT, IN THE ORDER IT IS DECIDED ────
+                //
+                // Removal and recusal first, because they are facts about the JUDGE and
+                // they drop a card however complete it is. A recused judge's finished
+                // scorecard is not "incomplete"; saying so would name the wrong reason on
+                // the screen somebody reads during an appeal.
+                $why = null;
+                if (isset($barred['inactive'][$judgeId]))          $why = self::NOT_COUNTED_REMOVED;
+                elseif (isset($barred['coi'][$prog][$judgeId]))    $why = self::NOT_COUNTED_RECUSED;
+                elseif ($covered !== $required || $wt <= 0)        $why = self::NOT_COUNTED_INCOMPLETE;
+
+                $judges[$judgeId] = [
+                    'marks'    => $marks,
+                    'covered'  => $covered,
+                    'required' => $required,
+                    // The weighted average is computed for a complete card whatever its
+                    // standing, so a screen can show what a recused judge's assessment
+                    // WOULD have been — but `counts` is what the scorer reduces on, and
+                    // only that.
+                    'avg'      => ($covered === $required && $wt > 0) ? $ws / $wt : null,
+                    'counts'   => $why === null,
+                    'why'      => $why,
+                ];
             }
-            if ($perJudge) $out[(int) $nomId] = $perJudge;
+
+            $out[(int) $nomId] = [
+                'programme_id' => $prog,
+                'weights'      => $weights,
+                'judges'       => $judges,
+            ];
         }
+
         return $out;
     }
 
