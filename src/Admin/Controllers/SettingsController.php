@@ -75,6 +75,12 @@ class SettingsController
             'azure_voices'      => \AfricaGates\Services\AzureVoice::VOICES,
             'azure_voice_pick'  => \AfricaGates\Services\AzureVoice::voice(),
             'azure_region'      => \AfricaGates\Services\AzureVoice::region(),
+            'azure_tiers'       => \AfricaGates\Services\AzureVoice::TIERS,
+            'azure_tier'        => \AfricaGates\Services\AzureVoice::tier(),
+            // How many greetings one run may attempt, so the screen can say what the
+            // choice above actually does rather than leaving it as a word.
+            'azure_per_run'     => min(\AfricaGates\Services\DoorWelcome::CAP,
+                                       \AfricaGates\Services\AzureVoice::perMinute()),
             'door_welcome_on'   => \AfricaGates\Services\DoorWelcome::enabled(),
             'questionnaire_reminder_marks' => \AfricaGates\Services\QuestionnaireReminders::marks(),
             'questionnaire_reminder_days_default' =>
@@ -281,7 +287,10 @@ class SettingsController
                   // The KEY is deliberately absent here and handled by the write-only path
                   // below — a credential in this list is a credential in the page source of
                   // every settings render.
-                  'azure_speech_region','azure_speech_voice',
+                  // The TIER is here because it is a rate limit, not a price: F0 allows
+                  // about twenty requests a minute, and a sweep that does not know which
+                  // tier it is on collects 429s for most of the guest list.
+                  'azure_speech_region','azure_speech_voice','azure_speech_tier',
                   // How to SAY a name the voice gets wrong. Free text, parsed and
                   // clamped in DoorWelcome::dictionary() rather than trusted here.
                   'door_welcome_says',

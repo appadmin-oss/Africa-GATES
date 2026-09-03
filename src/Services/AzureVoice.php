@@ -93,6 +93,36 @@ final class AzureVoice
     /** Hours before the event, not seconds during it — see the class note. */
     private const TIMEOUT = 20;
 
+    /**
+     * ══════════════════════════════════════════════════════════════════════════
+     * THE TIER, WHICH IS A RATE LIMIT AND NOT A PRICE
+     * ══════════════════════════════════════════════════════════════════════════
+     *
+     * F0 is the free tier this whole feature is built on, and its constraint is not the
+     * half-million characters a month — a gala spends about 13,500 of those. It is
+     * **20 requests per minute**. A sweep that renders sixty clips back to back gets
+     * twenty and then forty `429`s.
+     *
+     * That was the shape of the bug this constant exists to fix. `sweep()` counted
+     * SUCCESSES against its cap, so a throttled run never reached the cap and walked the
+     * entire guest list — every remaining name a request, every request a 429, every hour,
+     * for as long as the event was inside the lead window. On a host with no shell the
+     * only symptom was most guests not being greeted, which looks exactly like a feature
+     * somebody forgot to switch on.
+     *
+     * So the tier is asked for, and the per-tick budget comes from it. The numbers are
+     * requests per minute, taken a little under Microsoft's published figures because a
+     * limiter that admits exactly its quota does not exist.
+     *
+     * @var array<string, array{label:string, rpm:int}>
+     */
+    public const TIERS = [
+        'f0' => ['label' => 'Free (F0) — 20 requests a minute', 'rpm' => 18],
+        's0' => ['label' => 'Standard (S0) — pay as you go',    'rpm' => 120],
+    ];
+
+    public const DEFAULT_TIER = 'f0';
+
     /** @var array<string, array{env:string, default:string, secret:bool, label:string}> */
     public const SETTINGS = [
         'azure_speech_key'    => ['env' => 'AZURE_SPEECH_KEY', 'default' => '', 'secret' => true,
@@ -101,7 +131,15 @@ final class AzureVoice
                                   'secret' => false, 'label' => 'Azure region'],
         'azure_speech_voice'  => ['env' => 'AZURE_SPEECH_VOICE', 'default' => self::DEFAULT_VOICE,
                                   'secret' => false, 'label' => 'Voice'],
+        // Defaults to F0 because that is what somebody following this platform's own
+        // instructions will have created, and because guessing the GENEROUS tier is the
+        // guess that produces the silent failure above.
+        'azure_speech_tier'   => ['env' => 'AZURE_SPEECH_TIER', 'default' => self::DEFAULT_TIER,
+                                  'secret' => false, 'label' => 'Azure tier'],
     ];
+
+    /** Where the last failure is left, because `error_log` has no reader on this host. */
+    public const LAST_ERROR = 'azure_speech_last_error';
 
     public static function conf(string $key): string
     {
@@ -123,6 +161,79 @@ final class AzureVoice
     public static function key(): string    { return self::conf('azure_speech_key'); }
     public static function region(): string { return self::conf('azure_speech_region') ?: self::DEFAULT_REGION; }
 
+    /** The chosen tier, validated against the list. */
+    public static function tier(): string
+    {
+        $t = strtolower(trim(self::conf('azure_speech_tier')));
+
+        return isset(self::TIERS[$t]) ? $t : self::DEFAULT_TIER;
+    }
+
+    /**
+     * How many requests one sweep may make.
+     *
+     * The whole point of asking for the tier. A run that exceeds this does not fail
+     * loudly — it collects `429`s, one per guest, and the door stays quiet for everybody
+     * after the twentieth.
+     */
+    public static function perMinute(): int
+    {
+        return max(1, (int) (self::TIERS[self::tier()]['rpm'] ?? self::TIERS[self::DEFAULT_TIER]['rpm']));
+    }
+
+    /**
+     * The HTTP status of the last call, so a caller can tell a throttle from a fault.
+     *
+     * A sweep must stop on a `429` — the quota is spent for this minute and every further
+     * request is guaranteed to fail — and must keep going past a one-off `500`, which is
+     * about that clip rather than about the run.
+     */
+    private static int $lastStatus = 0;
+
+    public static function throttled(): bool { return self::$lastStatus === 429; }
+
+    /**
+     * Leave the reason where a person can read it.
+     *
+     * `error_log()` was the only record this class kept, and there is no shell on this
+     * deployment — so "the key is wrong" and "the tier is exhausted" and "the region does
+     * not host this voice" all presented as a door that simply did not speak. This lands
+     * in `gates_settings` and {@see why()} publishes it on the screen where the key was
+     * typed, which is the only place anybody goes to ask about it.
+     */
+    private static function note(string $reason): void
+    {
+        error_log('[azure-voice] ' . $reason);
+
+        try {
+            $row = ['key_name' => self::LAST_ERROR,
+                    'value' => mb_substr(date('Y-m-d H:i') . ' · ' . $reason, 0, 500)];
+
+            DB::table('gates_settings')->where('key_name', self::LAST_ERROR)->exists()
+                ? DB::table('gates_settings')->where('key_name', self::LAST_ERROR)->update(['value' => $row['value']])
+                : DB::table('gates_settings')->insert($row);
+        } catch (\Throwable) {
+            // No settings table, or a schema without it. The error log still has the line;
+            // this is the half that has a reader, not the half that must not throw.
+        }
+    }
+
+    /** A clip came back. Clears a stale complaint so the screen stops crying wolf. */
+    private static function clearNote(): void
+    {
+        try { DB::table('gates_settings')->where('key_name', self::LAST_ERROR)->delete(); }
+        catch (\Throwable) {}
+    }
+
+    /** The last recorded failure, or ''. */
+    public static function lastError(): string
+    {
+        try {
+            return trim((string) (DB::table('gates_settings')
+                ->where('key_name', self::LAST_ERROR)->value('value') ?? ''));
+        } catch (\Throwable) { return ''; }
+    }
+
     /**
      * The chosen voice, validated against the list.
      *
@@ -142,7 +253,18 @@ final class AzureVoice
         return self::key() !== '';
     }
 
-    /** What is wrong, in the words the settings screen shows. '' when nothing is. */
+    /**
+     * What is wrong, in the words the settings screen shows. '' when nothing is.
+     *
+     * ONE RESOLVER. The screen, the status page and anything else asking "is the voice
+     * working" go through here — two readers of that question is how the halves of an
+     * integration come to disagree about whether it is configured.
+     *
+     * The last recorded failure is included, and it is the part that matters: everything
+     * above this line is a check the screen could make for itself, and a key Azure REFUSED
+     * looks identical to a key that works until somebody tries to use it. That attempt
+     * happens at 06:00, unattended, on a host with no shell.
+     */
     public static function why(): string
     {
         if (self::key() === '') {
@@ -151,7 +273,8 @@ final class AzureVoice
         if (self::region() === '') {
             return 'No Azure region set.';
         }
-        return '';
+
+        return self::lastError();
     }
 
     private static function endpoint(): string
@@ -195,9 +318,29 @@ final class AzureVoice
         $err  = curl_error($ch);
         curl_close($ch);
 
+        self::$lastStatus = $code;
+
         if (!is_string($raw) || $raw === '' || $code !== 200) {
-            error_log('[azure-voice] HTTP ' . $code . ($err !== '' ? ' ' . $err : '')
-                    . ' — ' . substr(is_string($raw) ? $raw : '', 0, 200));
+            // NAMED, in the words somebody can act on. "HTTP 401" sends an operator to
+            // search engines; "the key was refused" sends them to the box they typed it
+            // into. Every one of these is a different fix and they were indistinguishable.
+            self::note(match (true) {
+                $code === 401 || $code === 403
+                    => 'Azure refused the key. Check it, and that it belongs to the region below.',
+                $code === 429
+                    => 'Azure is rate-limiting this key — the ' . strtoupper(self::tier())
+                     . ' tier allows about ' . self::perMinute() . ' requests a minute. '
+                     . 'The rest of the guest list is rendered on the next run.',
+                $code === 404
+                    => 'No Speech endpoint at region "' . self::region() . '". Check the region.',
+                $code === 400
+                    => 'Azure rejected the request — usually a voice its region does not host.',
+                $code === 0
+                    => 'Could not reach Azure' . ($err !== '' ? ': ' . $err : '.'),
+                default
+                    => 'Azure answered ' . $code . ' — ' . substr(is_string($raw) ? $raw : '', 0, 120),
+            });
+
             return null;
         }
 
@@ -206,9 +349,13 @@ final class AzureVoice
         // sync. Writing a JSON error into a .mp3 file would cache a clip that plays nothing
         // and never retries, which is worse than not caching at all.
         if (!self::looksLikeMp3($raw)) {
-            error_log('[azure-voice] the response was not audio.');
+            self::note('Azure answered 200 with something that is not audio — the clip was '
+                     . 'not cached, because a JSON error written into a .mp3 plays silence '
+                     . 'and never retries.');
             return null;
         }
+
+        self::clearNote();
 
         return $raw;
     }

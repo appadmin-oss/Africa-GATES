@@ -48,7 +48,14 @@ use Illuminate\Support\Carbon;
  */
 final class DoorWelcome
 {
-    /** Rendered per tick. A gala is a few hundred names and the sweep runs hourly. */
+    /**
+     * The most one tick will ATTEMPT — a ceiling, not the figure actually used.
+     *
+     * {@see sweep()} takes the lower of this and the Azure tier's requests-per-minute, so
+     * on F0 the real budget is eighteen. A gala is a few hundred names, the sweep runs
+     * hourly, and an event is rendered from three days out: eighteen an hour over
+     * seventy-two hours is far more room than any guest list here needs.
+     */
     public const CAP = 60;
 
     /** How far ahead a guest list is worth rendering. */
@@ -336,21 +343,46 @@ final class DoorWelcome
     {
         if (!self::ready()) return 0;
 
-        $cap  = $cap ?? self::CAP;
-        $made = 0;
+        // ══ THE BUDGET IS ATTEMPTS, NOT CLIPS ════════════════════════════════
+        //
+        // This counted SUCCESSES against the cap, and that is a budget only while nothing
+        // is failing. On Azure's F0 tier — the free one this whole feature is built on,
+        // and the one an operator following our own instructions will have — the limit is
+        // twenty REQUESTS a minute. So the first twenty names rendered, the twenty-first
+        // came back 429, `$made` stopped rising, the cap was never reached, and the loop
+        // walked the entire remaining guest list: several hundred requests, all refused,
+        // once an hour, for the three days an event sits inside the lead window.
+        //
+        // Nothing about that is visible from here. There is no shell on this host, the
+        // only record was an error_log line, and the symptom at the door is most guests
+        // not being greeted — indistinguishable from the feature being switched off.
+        //
+        // Counting attempts fixes the runaway; taking the cap from the tier stops the
+        // throttle happening in the first place.
+        $cap   = $cap ?? min(self::CAP, AzureVoice::perMinute());
+        $made  = 0;
+        $tried = 0;
 
-        // The generic clip first, always. It is the one that covers every walk-up, every
-        // late booking and every name the renderer could not use — so a door with only this
-        // still greets everybody, and a door with none of it is silent.
-        if (self::render(self::genericLine())) $made++;
-        if ($made >= $cap) return $made;
-
+        // The generic clip FIRST, always. It covers every walk-up, every late booking and
+        // every name the renderer could not use — so a door with only this still greets
+        // everybody, and a door with none of it is silent.
+        $queue = [self::genericLine()];
         foreach (self::soonEvents() as $eventId) {
-            foreach (self::linesFor($eventId) as $line) {
-                if ($made >= $cap) return $made;
-                if (self::have($line)) continue;
-                if (self::render($line)) $made++;
-            }
+            foreach (self::linesFor($eventId) as $line) $queue[] = $line;
+        }
+
+        foreach ($queue as $line) {
+            if ($tried >= $cap) break;
+            if ($line === '' || self::have($line)) continue;
+
+            $tried++;
+            if (self::render($line)) { $made++; continue; }
+
+            // A 429 means the quota for this minute is spent, so every further request in
+            // this run is guaranteed to fail. Stopping is not giving up: the next tick
+            // takes the next batch, and `have()` means nothing already on disk is retried.
+            // Any other failure is about that one clip, and the run carries on past it.
+            if (AzureVoice::throttled()) break;
         }
 
         return $made;

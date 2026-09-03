@@ -408,14 +408,38 @@
           <input type="text" name="azure_speech_region" id="f-azure_speech_region" value="{{ azure_region }}" maxlength="40"></div>
       </div>
 
-      <div style="margin-top:10px">
-        <label for="f-azure_speech_voice">Voice</label>
-        <select name="azure_speech_voice" id="f-azure_speech_voice">
-          {% for id, label in azure_voices %}
-            <option value="{{ id }}"{{ azure_voice_pick == id ? ' selected' : '' }}>{{ label }}</option>
-          {% endfor %}
-        </select>
+      <div class="row" style="margin-top:10px">
+        <div>
+          <label for="f-azure_speech_voice">Voice</label>
+          <select name="azure_speech_voice" id="f-azure_speech_voice">
+            {% for id, label in azure_voices %}
+              <option value="{{ id }}"{{ azure_voice_pick == id ? ' selected' : '' }}>{{ label }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        {# ── THE TIER IS A RATE LIMIT, NOT A PRICE ──────────────────────────
+           F0's real constraint is not its half-million characters a month — a gala
+           spends about thirteen thousand — it is TWENTY REQUESTS A MINUTE. The nightly
+           run used to render sixty greetings back to back, get twenty, and then ask
+           Azure for the rest of the guest list one refusal at a time, every hour, for
+           the three days an event sits inside the lead window. The only symptom was
+           most guests not being greeted, which looks exactly like a feature nobody
+           switched on. So the run now asks what tier this is and sizes itself. #}
+        <div>
+          <label for="f-azure_speech_tier">Tier
+            <small>on the Speech resource's Overview page</small></label>
+          <select name="azure_speech_tier" id="f-azure_speech_tier">
+            {% for id, t in azure_tiers %}
+              <option value="{{ id }}"{{ azure_tier == id ? ' selected' : '' }}>{{ t.label }}</option>
+            {% endfor %}
+          </select>
+        </div>
       </div>
+      <p class="hint" style="margin:6px 0 0">
+        Up to <strong>{{ azure_per_run }}</strong> greetings are rendered each run, so a
+        few hundred guests are ready well inside the three days before an evening. Getting
+        this wrong does not cost money — it costs the greetings.
+      </p>
 
       {% if azure_voice_on %}
         <label style="display:flex;gap:8px;align-items:center;margin-top:10px;cursor:pointer">
