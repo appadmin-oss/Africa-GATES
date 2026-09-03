@@ -1005,6 +1005,56 @@ final class AiCapability
                 'calls_per_day'  => 200,
                 'tokens_per_day' => 200_000,
             ]),
+
+            // ── HOW A NAME IS SAID, WORKED OUT ONCE ─────────────────────────
+            //
+            // The door greets people by name in a Nigerian voice, and Azure reads Yoruba,
+            // Igbo and Hausa names by ENGLISH rules: silent finals, long and short vowels,
+            // schwa where there should be a pure vowel. An operator could correct them one
+            // at a time in Settings and nobody ever did — three hundred names is not an
+            // afternoon anybody has. This is the platform doing that work instead.
+            //
+            // UNTRUSTED, because every name came off a public booking form. The fence is
+            // the point: a guest who names themselves with an instruction gets their
+            // instruction treated as data, and the worst case is one silly respelling
+            // rather than a model doing as it was told by an attendee.
+            //
+            // MINIMISE OFF, and deliberately. Only first names are sent — no email, no
+            // phone, nothing the minimiser exists to strip — and it rewrites things that
+            // look like contact details, which is a good way to corrupt a name.
+            //
+            // TIER_REASON, though this is a small job: it is asked once per name ever, for
+            // a few dozen names an evening, and the whole value is knowing that Ngozi is
+            // Igbo. A fast model that guesses is worse than no model, because the answer is
+            // KEPT and then read aloud to somebody at their own door.
+            //
+            // ADVISORY, and the fallbacks matter more than usual: with no provider, no
+            // budget or no answer, DoorWelcome::suggest() still respells the name offline.
+            // Nothing here may become a reason the greeting stops working.
+            'door.name_pronounce' => $c('door.name_pronounce', [
+                'purpose'         => 'general',
+                'tier'            => self::TIER_REASON,
+                'model'           => self::PRIMARY[self::TIER_REASON],
+                // DEGRADE and not ANNOUNCE: the rule answers instead, so there is nothing
+                // for an operator to be told about and nothing for them to do.
+                'on_failure'      => self::FAIL_DEGRADE,
+                'advisory'        => true,
+                'max_tokens'      => 700,
+                // A batch covers an evening, and an evening happens rarely. This is a
+                // ceiling against a loop, not a working budget.
+                'calls_per_day'   => 60,
+                'tokens_per_day'  => 120_000,
+                'timeout'         => 25,
+                'untrusted_input' => true,
+                'minimise'        => false,
+                'public_content'  => false,
+                'data_sent'       => 'The FIRST NAMES of guests expected in the next few days, and '
+                    . 'nothing else. No surname, no email address, no phone number, no ticket '
+                    . 'reference, and nothing that says which event anybody is coming to.',
+                'data_purpose'    => 'To work out how each name is pronounced, so the door can greet '
+                    . 'people by name in a Nigerian voice instead of reading their name by English '
+                    . 'rules. The answer is kept so a name is only ever asked about once.',
+            ]),
         ];
     }
 

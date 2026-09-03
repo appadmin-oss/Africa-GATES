@@ -77,13 +77,15 @@ class SettingsController
             'azure_region'      => \AfricaGates\Services\AzureVoice::region(),
             'azure_tiers'       => \AfricaGates\Services\AzureVoice::TIERS,
             'azure_tier'        => \AfricaGates\Services\AzureVoice::tier(),
-            // ── THE WORKLIST ──────────────────────────────────────────────
+            // ── THE REVIEW SHEET ──────────────────────────────────────────
             //
-            // The names actually coming, that have no pronunciation set. Without this the
-            // table was a box an operator was asked to fill from nothing, having no way to
-            // know which of three hundred names the voice would get wrong — so it stayed
-            // empty and every name was mispronounced.
-            'voice_pending'       => \AfricaGates\Services\DoorWelcome::pendingNames(),
+            // How every name on the way is CURRENTLY said, and who decided — the operator,
+            // what the platform worked out, or the rule. It used to be a list of names with
+            // no pronunciation, which made this box homework: an operator had to fill it in
+            // before the voice was any good. Every name here already has an answer, so the
+            // screen asks somebody to listen rather than to teach.
+            'voice_pending'       => \AfricaGates\Services\DoorWelcome::nameSheet(),
+            'voice_known'         => \AfricaGates\Services\NameSays::count(),
             'voice_lead'          => \AfricaGates\Services\DoorWelcome::LEAD_DAYS,
             'azure_rates'       => \AfricaGates\Services\AzureVoice::RATES,
             'azure_pitches'     => \AfricaGates\Services\AzureVoice::PITCHES,

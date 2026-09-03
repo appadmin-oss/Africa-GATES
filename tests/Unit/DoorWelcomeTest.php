@@ -3,7 +3,7 @@ declare(strict_types=1);
 
 namespace Tests\Unit;
 
-use AfricaGates\Services\{AzureVoice, DoorWelcome};
+use AfricaGates\Services\{AzureVoice, DoorWelcome, NameSays};
 use Illuminate\Database\Capsule\Manager as DB;
 use Illuminate\Support\Carbon;
 use Tests\TestCase;
@@ -84,6 +84,21 @@ final class DoorWelcomeTest extends TestCase
      * varies what it says (see the next test for why), so an equality check would pin one
      * form and quietly stop covering the other three the day a fifth is added.
      */
+    /**
+     * What the door will actually SAY for a first name.
+     *
+     * Since the respelling rule is applied rather than merely offered, the raw spelling is
+     * no longer what appears in the line — `Ngozi` is spoken as `N-goh-zee`. The property
+     * these tests protect is that the line NAMES THE PERSON, so they ask for the spoken
+     * form rather than the written one.
+     */
+    private function spoken(string $first): string
+    {
+        $said = DoorWelcome::suggest($first);
+
+        return $said !== '' ? $said : $first;
+    }
+
     public function test_the_greeting_is_the_nigerian_one(): void
     {
         foreach (self::GUESTS as $g) {
@@ -91,7 +106,7 @@ final class DoorWelcomeTest extends TestCase
             $first = DoorWelcome::firstName($g);
 
             $this->assertNotSame('', $l, 'said nothing for: ' . $g);
-            $this->assertStringContainsString($first, $l, 'did not name: ' . $g);
+            $this->assertStringContainsString($this->spoken($first), $l, 'did not name: ' . $g);
             $this->assertMatchesRegularExpression('/you are (most )?welcome/i', $l,
                 'not the Nigerian form: ' . $l);
             // The surname is never spoken — warmer, and it halves the chance of the voice
@@ -132,7 +147,7 @@ final class DoorWelcomeTest extends TestCase
     /** First name only: warmer, and it halves the chance of mangling a surname. */
     public function test_only_the_first_name_is_spoken(): void
     {
-        $this->assertStringContainsString('Chidinma', DoorWelcome::line('chidinma okonkwo'));
+        $this->assertStringContainsString($this->spoken('Chidinma'), DoorWelcome::line('chidinma okonkwo'));
         $this->assertStringNotContainsString('Okonkwo', DoorWelcome::line('chidinma okonkwo'));
         $this->assertSame('Ngozi', DoorWelcome::firstName('  NGOZI   ADAEZE  '));
     }
@@ -142,7 +157,7 @@ final class DoorWelcomeTest extends TestCase
     {
         $l = DoorWelcome::honourLine('Tunde Cole', 'nominee');
 
-        $this->assertStringContainsString('Tunde', $l);
+        $this->assertStringContainsString($this->spoken('Tunde'), $l);
         $this->assertStringContainsString('you are most welcome', $l);
         $this->assertStringContainsString('nominee', $l);
         // Never varied. Somebody arriving at an evening held for them gets the sentence
@@ -527,7 +542,7 @@ final class DoorWelcomeTest extends TestCase
             // The greeting form varies deterministically by name, so the invariant is
             // that the person is named and welcomed — not which of the four they get.
             $this->assertMatchesRegularExpression('/welcome/i', $line);
-            $this->assertStringContainsString(explode(' ', $typed)[0], $line,
+            $this->assertStringContainsString($this->spoken(explode(' ', $typed)[0]), $line,
                 'the greeting no longer contains the name it is greeting');
         }
     }
@@ -618,33 +633,40 @@ final class DoorWelcomeTest extends TestCase
      * knowing which the voice would get wrong, so it stayed empty and every name was
      * mispronounced.
      */
-    public function test_the_worklist_names_the_guests_who_have_no_pronunciation_yet(): void
+    /**
+     * The sheet shows how every name WILL be said, and who decided.
+     *
+     * It used to list the names with no pronunciation — homework an operator had to do
+     * before the voice was any good. Every name here already has an answer, so the screen
+     * asks somebody to listen rather than to teach.
+     */
+    public function test_the_sheet_shows_how_each_name_will_be_said_and_who_decided(): void
     {
-        $ev = $this->soonEventWithGuests(
+        $this->soonEventWithGuests(
             ['Ngozi Eze', 'Chidinma Okonkwo', 'Ngozi Adeyemi', 'Yetunde Cole', 'Ngozi Bello']);
 
         DB::table('gates_settings')->insert(
             ['key_name' => 'door_welcome_says', 'value' => 'Yetunde = Yeh-TOON-deh']);
+        NameSays::remember('Chidinma', 'chee-DEEN-mah', 'ai');
 
-        $pending = DoorWelcome::pendingNames();
-        $names   = array_column($pending, 'name');
+        $sheet = DoorWelcome::nameSheet();
+        $by    = array_column($sheet, null, 'name');
 
-        $this->assertContains('Ngozi', $names);
-        $this->assertContains('Chidinma', $names);
-        $this->assertNotContains('Yetunde', $names,
-            'a name the operator has already corrected is being asked for again');
+        // Commonest first: the name three guests share is heard before the one nobody does.
+        $this->assertSame('Ngozi', $sheet[0]['name']);
+        $this->assertSame(3, $sheet[0]['count']);
 
-        // Commonest first: the name three guests share is worth more of an afternoon than
-        // the one nobody shares.
-        $this->assertSame('Ngozi', $pending[0]['name']);
-        $this->assertSame(3, $pending[0]['count']);
-        $this->assertSame('N-goh-zee', $pending[0]['suggestion']);
-
-        $this->assertGreaterThan(0, $ev);
+        // Every row carries what the door will actually say, and its provenance.
+        $this->assertSame('N-goh-zee',      $by['Ngozi']['said']);
+        $this->assertSame('rule',           $by['Ngozi']['source']);
+        $this->assertSame('Yeh-TOON-deh',   $by['Yetunde']['said']);
+        $this->assertSame('you',            $by['Yetunde']['source']);
+        $this->assertSame('chee-DEEN-mah',  $by['Chidinma']['said']);
+        $this->assertSame('worked out',     $by['Chidinma']['source']);
     }
 
     /** Only the events about to be rendered — a list of every name ever is not a job. */
-    public function test_the_worklist_ignores_events_that_are_not_close(): void
+    public function test_the_sheet_ignores_events_that_are_not_close(): void
     {
         $this->soonEventWithGuests(['Chidinma Okonkwo']);
 
@@ -659,7 +681,7 @@ final class DoorWelcomeTest extends TestCase
             'status' => 'confirmed', 'reference' => 'FR', 'created_at' => Carbon::now()->toDateTimeString(),
         ]);
 
-        $names = array_column(DoorWelcome::pendingNames(), 'name');
+        $names = array_column(DoorWelcome::nameSheet(), 'name');
 
         $this->assertContains('Chidinma', $names);
         $this->assertNotContains('Obiageli', $names,
@@ -674,16 +696,18 @@ final class DoorWelcomeTest extends TestCase
      * a correction. A confident wrong pronunciation said at somebody's own door is worse
      * than an English one.
      */
-    public function test_a_suggestion_never_becomes_a_pronunciation_on_its_own(): void
+    public function test_nothing_writes_into_the_operators_own_list(): void
     {
         $this->soonEventWithGuests(['Chidinma Okonkwo']);
 
-        DoorWelcome::pendingNames();
+        DoorWelcome::nameSheet();
+        NameSays::learn(['Chidinma Okonkwo']);
 
+        // `door_welcome_says` is the operator's. What the platform works out lives in its
+        // own table, so a person opening that box sees only what a person put there — and
+        // clearing it never wipes the platform's own work.
         $this->assertSame([], DoorWelcome::dictionary(),
-            'the worklist wrote itself into the dictionary — nobody read those');
-        $this->assertStringContainsString('Chidinma', DoorWelcome::line('Chidinma Okonkwo'),
-            'an unreviewed suggestion is already being spoken');
+            'the machine wrote into the box a person types into');
     }
 
     /** One upcoming event with a guest list, for the worklist tests. */
@@ -708,12 +732,29 @@ final class DoorWelcomeTest extends TestCase
     }
 
     /** A name with no entry is spoken as it was written, not as an empty string. */
-    public function test_a_name_with_no_entry_is_left_alone(): void
+    /**
+     * A name nobody has written an entry for is still said properly.
+     *
+     * THE POINT OF THE WHOLE CHANGE. This used to assert the opposite — that an unentered
+     * name was "left alone" — and being left alone meant being read by English rules,
+     * which for a Yoruba or Igbo name is not a neutral default but a wrong answer chosen
+     * on purpose. Nobody has an afternoon to teach three hundred names, so the rule
+     * answers where a person has not.
+     */
+    public function test_a_name_nobody_entered_is_still_said_properly(): void
     {
         DB::table('gates_settings')->insert(['key_name' => 'door_welcome_says',
             'value' => 'Chidinma = Chi-DEEN-ma']);
 
-        $this->assertStringContainsString('Ngozi', DoorWelcome::line('Ngozi Eze'));
+        $line = DoorWelcome::line('Ngozi Eze');
+
+        $this->assertStringContainsString('N-goh-zee', $line,
+            'a name with no entry fell back to being read as English');
+        $this->assertStringNotContainsString('Ngozi', $line);
+
+        // And a name the rule cannot improve is genuinely left as written — an English
+        // voice already says Grace correctly, and respelling it would make it worse.
+        $this->assertStringContainsString('Grace', DoorWelcome::line('Grace Johnson'));
     }
 
     /**
@@ -728,7 +769,9 @@ final class DoorWelcomeTest extends TestCase
         DB::table('gates_settings')->insert(['key_name' => 'door_welcome_says',
             'value' => "Chidinma =\n= Chi-DEEN-ma\nnot a rule at all\n\nAda = Ah-DAH"]);
 
-        $this->assertStringContainsString('Chidinma', DoorWelcome::line('Chidinma Okonkwo'));
+        // The malformed line is dropped, so Chidinma falls through to the rule rather
+        // than to a half-written entry that would have erased the name.
+        $this->assertStringContainsString('Chee-deen-mah', DoorWelcome::line('Chidinma Okonkwo'));
         $this->assertStringContainsString('Ah-DAH', DoorWelcome::line('Ada Obi'));
         $this->assertSame([], array_filter(DoorWelcome::dictionary(), static fn ($v) => trim($v) === ''));
     }

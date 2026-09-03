@@ -190,13 +190,43 @@ final class DoorWelcome
      * right on the night. Matched case-insensitively on the first name, because that is
      * what gets spoken.
      */
+    /**
+     * ══════════════════════════════════════════════════════════════════════════
+     * THREE ANSWERS, IN ONE ORDER, AND THE ORDER IS THE DESIGN
+     * ══════════════════════════════════════════════════════════════════════════
+     *
+     *   1. WHAT A PERSON SAID. The operator's list always wins. Somebody who has heard the
+     *      clip and corrected it knows something no rule and no model does, and nothing
+     *      below may quietly overrule them.
+     *   2. WHAT THE PLATFORM WORKED OUT. {@see NameSays}, filled ahead of time by the
+     *      sweep and kept, so a name is worked out once ever rather than typed in by
+     *      somebody once per gala.
+     *   3. THE RULE. {@see suggest()} — offline, no dependency, and it abstains on anything
+     *      that does not fit the consonant-vowel shape rather than mangling a Grace.
+     *
+     * Everything is folded, so one answer covers every way the name gets typed into a
+     * booking form: `Ọláṣubọ̀mí`, `Olasubomi` and `OLASUBOMI` are one person.
+     *
+     * ── WHY THE RULE IS APPLIED AND NOT MERELY OFFERED ───────────────────────
+     *
+     * It used to be a suggestion on a screen, which meant a name was only ever said
+     * properly if somebody sat down and approved it. That is teaching, and nobody has an
+     * afternoon for it on the day of a gala. Reading `Adaeze` by English rules is not a
+     * neutral default — it is a wrong answer this codebase was choosing on purpose.
+     */
     private static function saidAs(string $first): string
     {
+        $key = self::fold($first);
         $map = self::dictionary();
 
-        // Folded on BOTH sides, so one entry covers every way the name gets typed into a
-        // booking form. See {@see fold()} for why an exact match missed almost everybody.
-        return $map[self::fold($first)] ?? $first;
+        if (isset($map[$key])) return $map[$key];
+
+        $known = NameSays::known($key);
+        if ($known !== null) return $known;
+
+        $rule = self::suggest($first);
+
+        return $rule !== '' ? $rule : $first;
     }
 
     /**
@@ -357,18 +387,28 @@ final class DoorWelcome
     }
 
     /**
-     * First names on the way that have no pronunciation set — the worklist.
+     * How every name on the way is currently said, and who decided.
      *
-     * Only the events the sweep is about to render, because a list of every name the
-     * platform has ever seen is not a job anybody starts. Deduplicated on the folded key,
-     * so one line of work covers every guest who shares the name.
+     * ── A REVIEW LIST, NOT A WORKLIST ────────────────────────────────────────
      *
-     * @return list<array{name:string, suggestion:string, count:int}>
+     * This used to be the names with NO pronunciation — a list of work an operator had to
+     * do before the voice was any good, which is teaching, and nobody has an afternoon for
+     * it on the day of a gala. Every name here now already has an answer: from the
+     * operator, from what the platform worked out, or from the rule.
+     *
+     * So the screen's job changed. It is no longer "fill these in" but "here is what it
+     * will say — listen, and fix the ones that are wrong", and an operator who does
+     * nothing at all still gets names said properly.
+     *
+     * Commonest first: the name six guests share is worth listening to before the one
+     * nobody shares.
+     *
+     * @return list<array{name:string, said:string, source:string, count:int}>
      */
-    public static function pendingNames(int $limit = 60): array
+    public static function nameSheet(int $limit = 60): array
     {
-        $known = self::dictionary();
-        $seen  = [];
+        $hand = self::dictionary();
+        $seen = [];
 
         foreach (self::soonEvents() as $eventId) {
             foreach (self::guestNames($eventId) as $full) {
@@ -376,15 +416,22 @@ final class DoorWelcome
                 if ($first === '') continue;
 
                 $key = self::fold($first);
-                if ($key === '' || isset($known[$key])) continue;
+                if ($key === '') continue;
 
                 if (isset($seen[$key])) { $seen[$key]['count']++; continue; }
-                $seen[$key] = ['name' => $first, 'suggestion' => self::suggest($first), 'count' => 1];
+
+                // Asked in the same order the door asks, so the screen shows what will
+                // actually be said rather than a second opinion about it.
+                if (isset($hand[$key]))                     $src = 'you';
+                elseif (NameSays::known($key) !== null)      $src = 'worked out';
+                elseif (self::suggest($first) !== '')        $src = 'rule';
+                else                                        $src = 'as written';
+
+                $seen[$key] = ['name' => $first, 'said' => self::saidAs($first),
+                               'source' => $src, 'count' => 1];
             }
         }
 
-        // Commonest first: the name shared by nine guests is worth more of the operator's
-        // afternoon than the one shared by nobody.
         uasort($seen, static fn (array $a, array $b): int
             => [$b['count'], $a['name']] <=> [$a['count'], $b['name']]);
 
@@ -614,11 +661,27 @@ final class DoorWelcome
         $made  = 0;
         $tried = 0;
 
+        // ── WORK OUT THE NAMES BEFORE RENDERING THEM ─────────────────────────
+        //
+        // Here and not at the door, for the same reason nothing else is at the door: a
+        // queue cannot wait on a model. One batched call covers an evening's distinct
+        // first names, they are kept for good, and a name already answered by the
+        // operator or by a previous run is never asked about again.
+        //
+        // Before the queue is built, because `linesFor()` bakes the pronunciation INTO
+        // the line — and the line is the cache key. Learning afterwards would render every
+        // clip with the old reading and then quietly orphan all of them.
+        $soon = self::soonEvents();
+        foreach ($soon as $eventId) {
+            try { NameSays::learn(self::guestNames($eventId)); }
+            catch (\Throwable $e) { error_log('[door-welcome] could not work out names: ' . $e->getMessage()); }
+        }
+
         // The generic clip FIRST, always. It covers every walk-up, every late booking and
         // every name the renderer could not use — so a door with only this still greets
         // everybody, and a door with none of it is silent.
         $queue = [self::genericLine()];
-        foreach (self::soonEvents() as $eventId) {
+        foreach ($soon as $eventId) {
             foreach (self::linesFor($eventId) as $line) $queue[] = $line;
         }
 

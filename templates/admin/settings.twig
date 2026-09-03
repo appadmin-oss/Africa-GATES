@@ -572,21 +572,23 @@
         {% if voice_pending is not empty %}
         <div style="margin-top:14px;padding-top:12px;border-top:1px solid rgba(16,41,44,.12)">
           <p style="margin:0 0 4px;font-weight:600;font-size:13px">
-            {{ voice_pending|length }} name{{ voice_pending|length == 1 ? '' : 's' }} coming up with no pronunciation set
+            How the {{ voice_pending|length }} name{{ voice_pending|length == 1 ? '' : 's' }} coming up will be said
           </p>
           <p class="hint" style="margin:0 0 10px">
-            From the guest lists for the next {{ voice_lead }} days. The right-hand column is
-            a <strong>suggestion</strong>, not a correction &mdash; Yoruba, Igbo and Hausa are
-            read by English rules by default, and these respell them the way an English voice
-            has to see them. Tone is not written in most names, so a rule over bare letters
-            cannot know which name it is looking at. Read them before you save.
+            From the guest lists for the next {{ voice_lead }} days.
+            <strong>Nothing here needs doing.</strong> Every name already has a pronunciation
+            &mdash; worked out ahead of each event and kept, so it is worked out once and never
+            again. Press Hear on any of them; if one is wrong, fix it and save, and yours wins
+            from then on.
+            {%- if voice_known %} {{ voice_known }} name{{ voice_known == 1 ? '' : 's' }} worked out so far.{% endif %}
           </p>
           <div style="max-height:280px;overflow:auto;border:1px solid rgba(16,41,44,.12);border-radius:9px">
             <table style="width:100%;border-collapse:collapse;font-size:12.5px">
               <thead><tr>
                 <th style="text-align:left;padding:7px 10px;font-weight:600;border-bottom:1px solid rgba(16,41,44,.12)">Name</th>
                 <th style="text-align:left;padding:7px 10px;font-weight:600;border-bottom:1px solid rgba(16,41,44,.12)">Guests</th>
-                <th style="text-align:left;padding:7px 10px;font-weight:600;border-bottom:1px solid rgba(16,41,44,.12)">How to say it</th>
+                <th style="text-align:left;padding:7px 10px;font-weight:600;border-bottom:1px solid rgba(16,41,44,.12)">How it is said</th>
+                <th style="text-align:left;padding:7px 10px;font-weight:600;border-bottom:1px solid rgba(16,41,44,.12)">From</th>
                 <th style="border-bottom:1px solid rgba(16,41,44,.12)"><span class="sr-only">Hear it</span></th>
               </tr></thead>
               <tbody>
@@ -601,10 +603,11 @@
                          speaks the correction rather than the guess. #}
                       <label class="sr-only" for="vp-{{ loop.index0 }}">How to say {{ p.name }}</label>
                       <input type="text" id="vp-{{ loop.index0 }}" class="vp-say"
-                             data-name="{{ p.name }}" value="{{ p.suggestion }}"
+                             data-name="{{ p.name }}" value="{{ p.said }}"
                              placeholder="say it how it sounds" maxlength="60" autocomplete="off"
                              style="width:100%;min-width:150px;font-family:var(--ag-font-mono,monospace);font-size:12.5px">
                     </td>
+                    <td style="padding:5px 10px;border-bottom:1px solid rgba(16,41,44,.07);color:#8a9a9c;white-space:nowrap">{{ p.source }}</td>
                     <td style="padding:5px 10px 5px 0;border-bottom:1px solid rgba(16,41,44,.07)">
                       <button type="button" class="btn btn--ghost" data-ag-do="voice-try"
                               data-target="vp-{{ loop.index0 }}" data-out="voice-row-out"
@@ -618,13 +621,13 @@
             </table>
           </div>
           <p class="hint" id="voice-row-out" role="status" aria-live="polite" style="margin:8px 0 0;min-height:1.2em">
-            {%- if not azure_voice_on %}Set the key above and save, then each row will speak.{% else %}Edit a line and press Hear until it sounds right.{% endif -%}
+            {%- if not azure_voice_on %}Set the key above and save, then each row will speak.{% else %}Press Hear on any name. Edit it only if it sounds wrong.{% endif -%}
           </p>
           <button type="button" class="btn btn--ghost" style="margin-top:10px;min-height:38px"
                   data-ag-do="voice-fill" data-target="f-door_welcome_says" data-rows="vp-say">
-            Put these in the box above
+            Copy these into the box above
           </button>
-          <span class="hint" style="margin-left:8px">Then read them, fix what is wrong, and save.</span>
+          <span class="hint" style="margin-left:8px">Only needed if you want to change one &mdash; edit it here first.</span>
         </div>
         {% endif %}
       </div>
