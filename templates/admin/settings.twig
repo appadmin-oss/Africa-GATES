@@ -812,7 +812,7 @@
         <div><label for="f-points_per_1000_naira">Points earned per ₦1,000 spent</label><input type="number" name="points_per_1000_naira" id="f-points_per_1000_naira" min="0" step="1" value="{{ values.points_per_1000_naira|default('50') }}"></div>
         <div><label for="f-points_per_vote">Points to redeem one vote</label><input type="number" name="points_per_vote" id="f-points_per_vote" min="1" step="1" value="{{ values.points_per_vote|default('500') }}"></div>
       </div>
-      <p style="margin:6px 0 0;font-size:12px;color:var(--ad-text-mute,#5a6d6f)">Redeemed votes count toward the public tally only — they never affect judged/CPI rank.</p>
+      <p style="margin:6px 0 0;font-size:12px;color:var(--ad-text-mute,#5a6d6f)">A redeemed vote counts toward the public tally <strong>and, through it, the community half of the index</strong> — the CPI normalises over a nominee's full tally, whatever any single vote cost. It never reaches the judging half: judges are not shown a vote count. This line used to say redeemed votes could not affect rank, which stopped being true when the index started reading every vote.</p>
     </div>
   </div></div>
   {# ── WHERE THE MONEY SETTLES ─────────────────────────────────────────────────
@@ -977,7 +977,7 @@
       </div>
 
       <p style="margin:12px 0 0;font-size:12px;color:var(--ad-text-mute,#5a6d6f)">A bulk buyer purchasing {{ paid_max_qty|default(1000)|number_format }} votes in one order is <strong>one database row</strong>, so a large order costs the site no more work than a small one. The effective maximum is currently <strong>{{ paid_max_qty|default(1000)|number_format }}</strong> — the lower of this field and the quantity whose price stays under ₦{{ (paid_max_order_naira|default(100000000))|number_format }} per transaction. Your payment gateway and the buyer's bank impose their own, usually lower, per-transaction limits.</p>
-      <p style="margin:6px 0 0;font-size:12px;color:var(--ad-text-mute,#5a6d6f)">Every total is computed server-side from this ladder — the browser never decides a price. Discounts are capped at 90% (a 100% discount is a ₦0 order no gateway will accept) and every charge is floored at ₦100. Paid votes raise the <strong>public tally only</strong> — the organic CPI community signal is never moved by money. With free voting disabled, CPI ranking is effectively decided by the jury component.</p>
+      <p style="margin:6px 0 0;font-size:12px;color:var(--ad-text-mute,#5a6d6f)">Every total is computed server-side from this ladder — the browser never decides a price. Discounts are capped at 90% (a 100% discount is a ₦0 order no gateway will accept) and every charge is floored at ₦100. A paid vote counts toward the Cultural Power Index <strong>exactly as a free one does</strong>, with no ceiling: the community half is a nominee's share of the largest tally in their category, and a tally is a tally. What money cannot reach is the judging half — judges never see a vote count. Every result publishes the full tally beside how much of it was bought, so the composition is visible without being penalised.</p>
       <p style="margin:6px 0 0;font-size:12px;color:var(--ad-text-mute,#5a6d6f)">Buyers appear on the nominee's public <strong>supporters list</strong> when they fill in the optional name field; leaving it blank gives anonymously. Free OTP votes are never listed (that path requires a name, so giving one is not a choice). Orders placed before the field said this are treated as not consented and stay private. See <a href="/privacy#supporters" style="color:var(--ad-accent,#237b22)">the supporter-names policy</a>.</p>
     </div>
   </div></div>
@@ -993,6 +993,13 @@
   <div class="ad-card" data-sec="money" data-keys="community return share nominee earnings payout revenue split qualifying support threshold cap supporters percentage" x-show="show($el)"><div class="ad-card__head"><div class="ad-card__title">Community return<small>The share a nominee keeps of contributions made in their name — win or lose.</small></div></div><div class="ad-card__body">
     <input type="hidden" name="community_return_settings" value="1">
     <div class="ad-form">
+      {# The return accrues from bought votes and nothing else, so with paid voting off
+         every field below is inert and the operator has no way to tell — they would be
+         tuning a share of a revenue stream that does not exist, while /integrity and the
+         Help Centre published the rule to nominees in the present tense. #}
+      {% if community_return.off_reason|default('') == 'no_paid_voting' %}
+        <p style="margin:0 0 12px;padding:9px 11px;border-radius:8px;background:rgba(243,180,22,.12);border:1px solid rgba(243,180,22,.35);font-size:12.5px;line-height:1.55;color:var(--ad-text,#10292c)"><strong>Nothing is accruing.</strong> The return is a share of what supporters contribute for votes, and <strong>paid voting is switched off</strong> — so there is no contribution to take a share of. These settings are saved and will apply the moment vote contribution is enabled above. Both <a href="/integrity#return" style="color:var(--ad-accent,#237b22)">the integrity page</a> and the Help Centre say so to the public while it is off.</p>
+      {% endif %}
       <div class="row">
         <div>
           <label for="f-community_return_pct">Share of each contribution (%)</label>
@@ -1019,6 +1026,7 @@
 
       <p style="margin:12px 0 0;font-size:12px;color:var(--ad-text-mute,#5a6d6f)"><strong>How qualifying support is counted.</strong> Votes, not heads — somebody who bought twenty-five votes did more than somebody who cast one. But no single supporter's votes count for more than the ceiling above, so a raw threshold cannot be bought by one person in one order. The minimum number of people is <em>derived</em> from that ceiling, never set separately: two knobs describing one rule is how a page publishes one number while the engine enforces another.</p>
       <p style="margin:6px 0 0;font-size:12px;color:var(--ad-text-mute,#5a6d6f)">Free votes and contributions are added together per person, so splitting an order cannot buy a second allowance. Refunded and undelivered orders count for nothing.</p>
+      <p style="margin:6px 0 0;font-size:12px;color:var(--ad-text-mute,#5a6d6f)"><strong>Qualifying support is a turnout test, not a revenue test.</strong> It counts every vote a nominee has — free, bought, or awarded — because what it is checking is that a real community showed up. What the nominee then earns is a share of money, and only money accrues.</p>
       <p style="margin:6px 0 0;font-size:12px;color:var(--ad-text-mute,#5a6d6f)">Earning is <strong>prospective</strong>: crossing the line changes what happens next, never what already happened. Contributions made before a nominee qualified stay unshared however many times accrual is re-run over them.</p>
       <p style="margin:6px 0 0;font-size:12px;color:var(--ad-text-mute,#5a6d6f)">Nothing is payable until a cycle reaches its results, and <strong>no payout path exists yet</strong> — the ledger accrues and displays. Set the share to <strong>0%</strong> to stop accruing entirely for new contributions; entries already written are unaffected, because the ledger is append-only. These figures are published on the <a href="/integrity#return" style="color:var(--ad-accent,#237b22)">integrity page</a> exactly as set here.</p>
     </div>

@@ -572,8 +572,17 @@ class SettingsController
         }
 
         // Paid voting — admin-toggleable business model (OFF by default).
-        // Paid votes bump the public tally only; the organic CPI signal is
-        // never moved by money (enforced in PaidVoteService::mint).
+        //
+        // A paid vote counts in the index exactly as a free one does: the community
+        // half normalises over `vote_count`, the full tally. It did once read
+        // `organic_vote_count` alone, and this comment described that — but where
+        // `paid_voting_disable_free` is set nothing can ever write that column, so
+        // the community half was structurally zero and the panel silently decided
+        // every award at 100%. See CpiService and NomineeScoringService.
+        //
+        // Switching paid voting OFF also switches the community return off, because
+        // that ledger accrues from bought votes and nothing else — see
+        // CommunityReturnService::active(), which is what the public pages read.
         if (array_key_exists('paid_vote_settings', $b)) {
             $this->settings->set('paid_voting_enabled', isset($b['paid_voting_enabled']) ? '1' : '', $adminId);
             $this->settings->set('paid_voting_disable_free', isset($b['paid_voting_disable_free']) ? '1' : '', $adminId);

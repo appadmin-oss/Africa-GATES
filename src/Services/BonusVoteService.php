@@ -9,27 +9,91 @@ use Illuminate\Database\Capsule\Manager as DB;
 use Psr\Log\LoggerInterface;
 
 /**
- * Paid / bonus votes — wires the previously-dead gates_donations.bonus_votes.
+ * Bonus votes — the votes granted against a confirmed contribution.
  *
  * A CONFIRMED donation grants N bonus votes. Redeeming them mints ONE weighted
  * row in gates_votes (vote_type='bonus', weight=N, donation_id=…) and bumps the
- * nominee's vote_count — the public "total support" display — by N.
+ * nominee's vote_count by N. Each is auditable (donation_id) and reversible.
  *
- * INTEGRITY: bonus votes are EXCLUDED from the Cultural Power Index. CPI's
- * community component is cohort-normalised over organic_vote_count only, which
- * this path never touches — so purchased votes are visible as supporter backing
- * but cannot move rank or winner selection. They also never touch the judge
- * component. Each bonus vote is auditable (donation_id) and reversible.
+ * ── WHAT THIS DOCBLOCK USED TO CLAIM ─────────────────────────────────────────
+ *
+ * "Bonus votes are EXCLUDED from the Cultural Power Index. CPI's community
+ * component is cohort-normalised over organic_vote_count only … so purchased votes
+ * are visible as supporter backing but cannot move rank or winner selection."
+ *
+ * That was true and is not. The community half normalises over `vote_count`, the
+ * full tally, so a bonus vote counts exactly as a free one does — because the old
+ * rule deleted the community half entirely wherever free voting was switched off,
+ * and the panel decided every award alone while every page said 45/55.
+ *
+ * What money still cannot reach is the JUDGE half: judges are never shown a vote
+ * count. That is the separation this platform actually maintains, and it is the
+ * one worth stating.
+ *
+ * ── THE CAP, AND WHY IT NO LONGER MEASURES WHAT IT USED TO ───────────────────
+ *
+ * A per-nominee ceiling (RuleEngine `max_paid_weight_pct`) bounds how much of a
+ * nominee's support may be granted rather than cast. It was a percentage of
+ * `organic_vote_count`, which made it a dead rule twice over:
+ *
+ *   · Where `paid_voting_disable_free` is set that column is permanently zero, so
+ *     the cap collapsed to its floor — TEN bonus votes per nominee, forever,
+ *     whatever anybody contributed — and the refusal read "capped at 10 (50% of
+ *     organic support)" to an operator whose site has no organic votes by design.
+ *   · And it was measuring against a column the index had stopped reading, so the
+ *     thing it was protecting no longer existed.
+ *
+ * It is a percentage of NON-BONUS support now — everything cast or bought, minus
+ * the grants themselves. Excluding the grants is load-bearing: bonus weight
+ * increments `vote_count`, so a cap read straight off the tally would raise its own
+ * ceiling with every grant and stop being a cap at all.
+ *
+ * {@see capFor()} — ONE resolver. PointsService carried its own copy of this
+ * formula and was broken in exactly the same way, which is what two copies of a
+ * rule are for.
  *
  * Integrity guards mirror the organic path: confirmed donation only, cannot
  * redeem more than remain, nominee must be approved, cycle must be in 'voting'.
- * A per-nominee cap (RuleEngine 'max_paid_weight_pct', default 50% of organic
- * support, with a small floor) bounds how large the paid display boost can get.
  */
 class BonusVoteService
 {
-    /** Floor for the paid-vote cap so early donations aren't blocked at 0 organic. */
-    private const MIN_BONUS_CAP = 10;
+    /** Floor for the bonus cap, so the first contributions are not blocked at 0 support. */
+    public const MIN_BONUS_CAP = 10;
+
+    /**
+     * How much bonus weight this nominee may hold, and what that was measured against.
+     *
+     * Returned as parts rather than one integer because the refusal has to be able to
+     * SAY the arithmetic. "Capped at 10 (50% of organic support)" was the old message on
+     * a site with no organic votes — a true sentence about a rule, and useless to the
+     * person reading it, who cannot tell a ceiling they have reached from a ceiling that
+     * was never going to move.
+     *
+     * @param  int $tally  the nominee's `vote_count`; passed in because both callers have
+     *                     the row loaded and re-reading it inside a transaction that is
+     *                     about to increment it invites two answers to one question.
+     * @return array{cap:int, used:int, base:int, pct:int}
+     */
+    public static function capFor(int $nomineeId, int $tally,
+                                  ?int $programmeId, ?int $cycleId): array
+    {
+        $pct = (int) ((new RuleEngine())->effective($programmeId, $cycleId)['max_paid_weight_pct'] ?? 50);
+
+        $used = (int) DB::table('gates_votes')->where('nominee_id', $nomineeId)
+            ->where('vote_type', 'bonus')->sum('weight');
+
+        // Non-bonus support: everything cast or bought, less what has been granted. See
+        // the class docblock — measuring against the raw tally makes each grant raise its
+        // own ceiling, and the cap silently stops being one.
+        $base = max(0, $tally - $used);
+
+        return [
+            'cap'  => max(self::MIN_BONUS_CAP, (int) floor($base * $pct / 100)),
+            'used' => $used,
+            'base' => $base,
+            'pct'  => $pct,
+        ];
+    }
 
     public function __construct(private readonly ?LoggerInterface $log = null) {}
 
@@ -83,16 +147,16 @@ class BonusVoteService
                 return ['ok' => false, 'message' => $e->getMessage(), 'code' => $e->errorCode];
             }
 
-            // Cap paid influence: total bonus weight on a nominee may not exceed a
-            // configurable % of its ORGANIC votes (RuleEngine 'max_paid_weight_pct'),
-            // so money cannot swamp the community signal. A small floor lets early
-            // donations through before a nominee has built organic support.
-            $pct = (int) ((new RuleEngine())->effective((int) $cycle->programme_id, (int) $cycle->id)['max_paid_weight_pct'] ?? 50);
-            $bonusSoFar = (int) DB::table('gates_votes')->where('nominee_id', $nomineeId)->where('vote_type', 'bonus')->sum('weight');
-            $organic = (int) $nominee->organic_vote_count;   // stable organic base (excludes paid)
-            $cap = max(self::MIN_BONUS_CAP, (int) floor($organic * $pct / 100));
-            if ($bonusSoFar + $count > $cap) {
-                return ['ok' => false, 'message' => "Bonus votes for this nominee are capped at {$cap} ({$pct}% of organic support)."];
+            // How much of a nominee's support may be GRANTED rather than cast. One
+            // resolver, shared with PointsService — see capFor().
+            $c = self::capFor($nomineeId, (int) $nominee->vote_count,
+                              (int) $cycle->programme_id, (int) $cycle->id);
+            if ($c['used'] + $count > $c['cap']) {
+                // The base is named, so an operator can tell "this nominee has reached
+                // their ceiling" from "this nominee has almost no support yet".
+                return ['ok' => false, 'message' => "Bonus votes for this nominee are capped at "
+                    . "{$c['cap']} — {$c['pct']}% of their {$c['base']} votes cast or bought, "
+                    . "and {$c['used']} have already been granted."];
             }
 
             // ONE weighted row represents the whole redemption. The synthetic,
@@ -111,9 +175,10 @@ class BonusVoteService
                 'voted_at'         => Carbon::now()->toDateTimeString(),
             ]);
 
-            // Bonus weight bumps ONLY the display total (vote_count). organic_vote_count
-            // is left untouched, so paid votes never enter the cohort-normalised CPI
-            // community signal — money cannot move rank, only the visible support tally.
+            // vote_count only. organic_vote_count stays untouched because it means one
+            // thing — a free vote from a code-verified person — and every page that
+            // prints "N of those were contributed" is reading the difference. It is a
+            // DISCLOSURE now, not a second ranking figure: the index reads the tally.
             DB::table('gates_nominees')->where('id', $nomineeId)->increment('vote_count', $count);
             DB::table('gates_donations')->where('id', $donationId)->increment('votes_used', $count);
 

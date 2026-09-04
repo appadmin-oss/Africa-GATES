@@ -57,25 +57,62 @@ class BonusVoteServiceTest extends TestCase
         // vote_count 10 → 13 (increment by weight), donation 0 → 3 used.
         $this->assertSame(13, (int) DB::table('gates_nominees')->where('id', 1)->value('vote_count'));
         $this->assertSame(3, (int) DB::table('gates_donations')->where('id', 1)->value('votes_used'));
-        // Organic count is untouched — paid votes never enter the CPI community signal.
+        // Organic stays put: it means one thing — a free vote from a code-verified
+        // person — and the pages that print "N of those were contributed" read the
+        // difference. It is a disclosure, not a second ranking figure.
         $this->assertSame(10, (int) DB::table('gates_nominees')->where('id', 1)->value('organic_vote_count'));
     }
 
-    public function test_cap_is_based_on_organic_not_inflated_display_total(): void
+    /**
+     * THE CEILING FOLLOWS SUPPORT THAT EXISTS, AND CANNOT RAISE ITSELF.
+     *
+     * ── WHAT THIS TEST USED TO ASSERT ────────────────────────────────────────
+     *
+     * "The cap must follow ORGANIC (20 → 50% = 10), NOT the inflated vote_count."
+     * With 20 organic against a 200 tally it required `redeem(50)` to be refused.
+     *
+     * ── WHY IT CHANGED ───────────────────────────────────────────────────────
+     *
+     * `organic_vote_count` can only be written by `VoteService::castVote()`, which
+     * answers 403 wherever `paid_voting_disable_free` is set. On such a deployment the
+     * column is permanently zero, so this ceiling collapsed to its floor and every
+     * nominee was capped at TEN granted votes forever, whatever anybody contributed —
+     * refused with "capped at 10 (50% of organic support)" to an operator whose site
+     * cannot have organic support. It was also guarding a figure the index had stopped
+     * reading: the community half normalises over the full tally now.
+     *
+     * ── AND THE PROPERTY THAT SURVIVED, WHICH IS THE REAL ONE ────────────────
+     *
+     * The fear behind the old assertion was a ceiling that inflates itself, and that
+     * fear is correct — bonus weight increments `vote_count`, so a cap read straight off
+     * the tally would rise with every grant it allowed and stop being a cap. The base is
+     * the tally MINUS what has already been granted, and the second half of this test
+     * walks the nominee to the ceiling and proves it does not move.
+     */
+    public function test_the_ceiling_follows_real_support_and_never_raises_itself(): void
     {
-        // Diverge the two columns: 20 organic, but a 200 display total (e.g. a
-        // history of paid boosts). The cap must follow ORGANIC (20 → 50% = 10),
-        // NOT the inflated vote_count (which would allow 100).
+        // 200 votes cast or bought, none of them granted. organic is 0 — as it is on
+        // every paid-only deployment, and as it was NOT in this fixture before.
         $this->seed(bonus: 200);
         DB::table('gates_nominees')->where('id', 1)->update([
-            'vote_count' => 200, 'organic_vote_count' => 20,
+            'vote_count' => 200, 'organic_vote_count' => 0,
         ]);
         $svc = new BonusVoteService();
 
-        $this->assertFalse($svc->redeem(1, 1, 50)['ok']);   // 50 > cap(10)
+        // base 200, 50% → 100.
+        $this->assertFalse($svc->redeem(1, 1, 150)['ok'], '150 is over a ceiling of 100');
         $this->assertSame(0, DB::table('gates_votes')->count());
 
-        $this->assertTrue($svc->redeem(1, 1, 10)['ok']);    // exactly at cap
+        $this->assertTrue($svc->redeem(1, 1, 100)['ok'],
+            'a nominee with 200 votes was refused 100 grants — the ceiling is reading '
+            . 'organic_vote_count again, which is zero here by design');
+
+        // THE RATCHET. The tally is 300 now, 100 of it granted, so the base is still 200
+        // and the ceiling is still 100 — already spent. Read straight off the tally it
+        // would be 150, and the next grant would raise it again.
+        $this->assertSame(300, (int) DB::table('gates_nominees')->where('id', 1)->value('vote_count'));
+        $this->assertFalse($svc->redeem(1, 1, 1)['ok'],
+            'the ceiling rose because the grants it permitted counted toward it');
     }
 
     public function test_cannot_redeem_more_than_remaining(): void

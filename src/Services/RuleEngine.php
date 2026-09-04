@@ -23,7 +23,7 @@ class RuleEngine
         'fraud_block'      => 80,
         'fraud_flag'       => 60,
         'fraud_monitor'    => 30,
-        'max_paid_weight_pct' => 50,   // bonus-vote ceiling, as % of a nominee's ORGANIC votes
+        'max_paid_weight_pct' => 50,   // bonus-vote ceiling, as % of a nominee's NON-BONUS votes
         'min_judges_per_nominee' => 2, // COMPLETE judge scorecards required to be winner-eligible
 
         // ── How steep the index is ───────────────────────────────────────────

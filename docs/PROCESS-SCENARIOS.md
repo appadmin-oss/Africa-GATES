@@ -49,17 +49,17 @@ Opening `/nominate?share=<token>` prefills the nominee's details (name, contact,
 5. Voter gets a confirmation email; `vote.cast` webhook fires; members see it in their dashboard history.
 
 ### Scenario 2 — member redeems voting points
-Members earn points from shop orders, tickets and donations (rates in Settings → Voting points). On the ballot, a member with enough points can redeem instantly — **no OTP**. This mints a `bonus` vote that bumps the **public tally only**; a cap (default: 50% of organic votes) stops purchased weight from swamping the community signal.
+Members earn points from shop orders, tickets and donations (rates in Settings → Voting points). On the ballot, a member with enough points can redeem instantly — **no OTP**. This mints a `bonus` vote that bumps `vote_count`, which the community half of the CPI normalises over — so a redeemed vote counts like any other. A cap (default: 50% of a nominee's **non-bonus** votes) bounds how much of a tally may be granted rather than cast; it read *organic* votes until that column became structurally zero wherever free voting is disabled. Nothing here reaches the judging half.
 
 ### Scenario 3 — donation bonus votes
-When enabled, donors receive bonus votes per ₦1,000 given, redeemable on any open nominee — same rules as Scenario 2: public tally only, capped, never the CPI.
+When enabled, donors receive bonus votes per ₦1,000 given, redeemable on any open nominee — same rules as Scenario 2: capped against non-bonus support, counted in the community half like any other vote, and never in the judging half.
 
 ### Scenario 4 — PAID voting enabled, free voting still on
 Settings → Paid voting → **Enable paid voting**. The ballot now leads with **"Buy votes"**:
 1. Supporter picks a quantity; price is computed **server-side**: the cheaper of (votes × per-vote price) or (full ₦1,000 bundles + per-vote remainder). Example with ₦150/vote and 10 votes/₦1000: 1 vote = ₦150, 10 votes = ₦1,000, 11 votes = ₦1,150.
 2. Checkout via Paystack/Flutterwave; the charge is verified server-to-server (amount must match) before anything counts.
 3. On confirmation, the votes are **minted once** (idempotent — gateway webhook and browser return can both land safely) as a weighted `paid` vote: the public tally rises immediately, `vote.paid` webhook fires.
-4. **The organic CPI signal is never touched by money.** Free OTP voting remains available below the paid module.
+4. **The judging half is never touched by money.** Judges are not shown a vote count. The community half reads a nominee's full tally, so a bought vote counts exactly as a free one does — with the composition published beside every result. (This point used to read "the organic CPI signal is never touched by money"; that rule zeroed the community half entirely wherever free voting was switched off.)
 
 ### Scenario 5 — paid voting with FREE VOTING DISABLED ("paid by default")
 Tick **"Disable free voting"** as well. The OTP flow disappears from the ballot and the API rejects free-vote attempts (`PAID_VOTING_ONLY`). All voting is purchased. Consequence to understand: with no organic votes accruing, the CPI's 45% community component stays flat, so **ranking is effectively decided by the independent jury (55%)** plus paid-vote public tallies for display. The audited vote pipeline is untouched — the switch closes the gate at the API boundary only, and unticking it restores free voting instantly.

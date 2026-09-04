@@ -82,10 +82,17 @@ final class SupportKnowledge
         ABOUT THE PLATFORM
         Africa GATES is a continental awards platform run by Afrovanguard from Lagos.
         People are nominated into categories, a jury scores them, and the public
-        votes. A nominee's public standing is the vote tally. A separate figure, the
-        Cultural Power Index (CPI), combines jury scoring with organic community
-        signal and is NEVER moved by money — say so plainly if anyone implies that
-        buying votes buys an award.
+        votes. A nominee's public standing is the vote tally. The Cultural Power
+        Index (CPI) combines that community support with the jury's scoring.
+
+        BE ACCURATE ABOUT MONEY, INCLUDING WHERE IT IS UNCOMFORTABLE. Votes can be
+        bought, and a bought vote counts toward the community half of the CPI exactly
+        as a free one does — there is no ceiling, so a well-funded campaign can take a
+        category on spending alone. Never tell anyone that buying votes cannot affect
+        a result. What money does not reach is the JURY half: judges are never shown a
+        nominee's vote count. Every published result states a nominee's full tally
+        beside how much of it was contributed, so anybody can see what a standing is
+        made of.
 
         The parts of the site people ask about:
           /vote                 the ballot — pick a nominee, vote free or buy votes

@@ -146,6 +146,41 @@ final class CommunityReturnService
     }
 
     /**
+     * Is there any way for this mechanism to set money aside on this deployment?
+     *
+     * ── WHY THE ANSWER IS NOT "THE RATE IS ABOVE ZERO" ───────────────────────
+     *
+     * {@see accrue()} refuses anything whose tier is not `paid-vote`. Every kobo this
+     * ledger has ever held came from somebody buying votes on a ballot — there is no
+     * other producer, and a general contribution to the programme does not accrue.
+     *
+     * So where {@see PaidVoteService::enabled()} is off, nothing can raise a naira in
+     * a nominee's name and the return is inert. And that toggle is OFF BY DEFAULT, so
+     * the inert state is the state a fresh deployment ships in.
+     *
+     * Meanwhile /integrity §06, the Help Centre article and the settings screen all
+     * described the return in the present tense, gated on nothing but the rate. A
+     * nominee reading "you keep 50% of what your supporters raise" on a site that
+     * sells no votes has been told something that cannot happen — the exact shape
+     * this codebase has paid for six times over (docs/CODEBASE-INDEX.md §19), and the
+     * worse half of it, because the prose is here promising the behaviour rather than
+     * merely describing it.
+     *
+     * ── AND WHY {@see accrue()} IS DELIBERATELY NOT GATED ON THIS ────────────
+     *
+     * An operator switching paid voting off must not retrospectively cancel a share
+     * on money already taken. A webhook can land days after its order — the contract
+     * was live when the supporter paid, and this ledger's whole principle is that a
+     * contribution's own moment decides it, forwards and backwards alike. So the gate
+     * is on the PROMISE, never on the payment, and balances already earned are
+     * untouched by it.
+     */
+    public static function active(): bool
+    {
+        return PaidVoteService::enabled();
+    }
+
+    /**
      * The same rules, shaped for PUBLISHING rather than for arithmetic.
      *
      * /integrity and the Help Centre both state these numbers, and both were
@@ -158,7 +193,8 @@ final class CommunityReturnService
      * describing the programme's rule in general and have no nominee in hand.
      *
      * @param  array<string,mixed> $eff a RuleEngine::effective() result
-     * @return array{pct:string, bps:int, threshold:int, cap_pct:int, cap_votes:int, min_supporters:int, on:bool}
+     * @return array{pct:string, bps:int, threshold:int, cap_pct:int, cap_votes:int,
+     *                min_supporters:int, on:bool, off_reason:string}
      */
     public static function displayRules(array $eff): array
     {
@@ -171,6 +207,13 @@ final class CommunityReturnService
         // measurement taken rather than a rule decided.
         $pct = rtrim(rtrim(number_format($bps / 100, 2, '.', ''), '0'), '.');
 
+        // TWO reasons this can be off, and they are not interchangeable. "The share is
+        // set to 0%" is a decision an operator made about a live mechanism; "no votes
+        // are sold here" is the mechanism having no input at all. A page that prints
+        // one sentence for both tells half its readers something false, so the cause
+        // travels with the flag rather than being re-derived by each caller.
+        $paid = self::active();
+
         return [
             'pct'            => $pct === '' ? '0' : $pct,
             'bps'            => $bps,
@@ -178,7 +221,10 @@ final class CommunityReturnService
             'cap_pct'        => $capPct,
             'cap_votes'      => max(1, (int) ceil($threshold * $capPct / 100)),
             'min_supporters' => (int) ceil(100 / $capPct),
-            'on'             => $bps > 0,
+            'on'             => $bps > 0 && $paid,
+            // Paid voting first: with no vote sales the rate is moot, and naming the
+            // rate there would send an operator to fix a setting that changes nothing.
+            'off_reason'     => !$paid ? 'no_paid_voting' : ($bps > 0 ? '' : 'rate_zero'),
         ];
     }
 

@@ -348,6 +348,37 @@
       {# ── COMMUNITY RETURN ────────────────────────────────────────────── #}
       <section class="ar-sec" id="return" data-ag-reveal>
         <h3><span class="ar-sn">06</span>The community return</h3>
+
+        {# ── DOES THIS MECHANISM EXIST HERE AT ALL? ────────────────────────
+           The return accrues from one thing and one thing only: somebody buying votes
+           on a ballot. Where this site sells no votes there is no contribution to take
+           a share OF, so every sentence below describes something that cannot happen —
+           and this section used to print all of them in the present tense with nothing
+           but the rate to gate it.
+
+           Stated FIRST, above the rules, and not as a clause at the end. A nominee who
+           reads three paragraphs about what they keep and then meets a caveat has
+           already been told they are earning. The two reasons are named separately
+           because they are different facts about the site: `rate_zero` is a decision
+           somebody made about a live mechanism, `no_paid_voting` is the mechanism
+           having no input. One sentence covering both would be false to half the
+           people reading it. #}
+        {% if return_off_reason|default('') == 'no_paid_voting' %}
+          <div class="ar-note">
+            <h4>Not running on this site</h4>
+            <p>The return is a share of what supporters <em>contribute</em>, and this site does not
+               sell votes — voting here is free, and nothing is being raised in anybody’s name. So
+               nothing accrues, and no nominee is earning. The rules below are the ones that would
+               apply if vote contribution were opened.</p>
+          </div>
+        {% elseif return_off_reason|default('') == 'rate_zero' %}
+          <div class="ar-note">
+            <h4>Currently set to nothing</h4>
+            <p>The share is set to <strong>0%</strong>, so no new contribution is accruing anything for
+               a nominee. Shares already recorded are unaffected — the ledger only ever grows.</p>
+          </div>
+        {% endif %}
+
         <p>If money is going to be part of this, the people whose communities raised it should see
            some of it back. A nominee keeps a share of what supporters contribute in their name —
            whether or not they win, because they raised it either way.</p>
@@ -401,9 +432,7 @@
            back, the share accrued on it is reversed and the reversal stays on the record beside the
            original. Nothing is payable until that cycle has ended and its results have been
            announced — a nominee cannot cash out mid-race, and the platform is not paying out money an
-           integrity finding might still reverse.
-           {% if not return_on|default(true) %}The share is currently set to 0%, so nothing is accruing
-           at all.{% endif %}</p>
+           integrity finding might still reverse.</p>
 
         <div class="ar-refs">
           <span>Further reading</span>

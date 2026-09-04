@@ -768,6 +768,19 @@ final class HelpCentre
                            'withdraw', 'money back to nominee', 'supporters raised', 'what do i earn',
                            'nominee earnings'],
             'body' => [
+                // FIRST, and conditional. The return accrues from bought votes and nothing
+                // else, so on a site that sells none this whole article describes something
+                // that cannot happen. It was written in the present tense and gated on
+                // nothing — a nominee searching "what do I earn" was answered with a
+                // mechanism their programme does not run.
+                ['when' => 'no_paid_voting',
+                 'note' => 'This is not running on this site. The return is a share of what supporters '
+                         . '<strong>contribute</strong>, and votes are not sold here — so nothing is '
+                         . 'being raised in a nominee\'s name and nothing is accruing. What follows is '
+                         . 'the rule that would apply if vote contribution were opened.'],
+                ['when' => 'rate_zero',
+                 'note' => 'The share is currently set to <strong>0%</strong>, so no new contribution is '
+                         . 'accruing anything. Shares already recorded are unaffected.'],
                 ['p' => 'When supporters contribute in a nominee\'s name, a share of that money is set '
                       . 'aside <strong>for the nominee</strong>. It is not a prize and it does not depend '
                       . 'on winning — they raised it either way, and a nominee who mobilised a community '
@@ -801,6 +814,9 @@ final class HelpCentre
                 ['note' => 'The share, the threshold and the per-supporter ceiling are all per-cycle '
                          . 'settings, and this page always states the ones currently in force. It is '
                          . '{return_pct}% today.'],
+                ['note' => 'Qualifying support counts <strong>every</strong> vote a nominee has — free, '
+                         . 'bought, or awarded against a contribution — because it is a measure of how '
+                         . 'many people turned out, not of what they paid.'],
             ],
             'related' => ['what-paid-votes-do', 'refund-when-votes-cannot-count', 'how-cpi-works'],
         ],
@@ -1174,11 +1190,24 @@ final class HelpCentre
         return $out;
     }
 
-    /** An article's prose with markup stripped — for searching and for the model. */
+    /**
+     * An article's prose with markup stripped — for searching and for the model.
+     *
+     * `when` blocks are filtered here TOO, and not only in {@see resolve()}. Most
+     * callers of this method pass a RAW article straight out of {@see search()}, which
+     * does not resolve — so without this the support assistant would read every branch
+     * of a conditional article at once and could answer "the community return is not
+     * running on this site" on a site where it is. A block that does not apply is not
+     * merely undisplayed; it is not true here, and the model must never see it.
+     */
     public static function plainText(array $a): string
     {
+        $state = self::conditionState();
+
         $out = [(string) ($a['summary'] ?? '')];
         foreach ((array) ($a['body'] ?? []) as $block) {
+            $when = (string) ($block['when'] ?? '');
+            if ($when !== '' && $when !== $state) continue;
             foreach (['p', 'note'] as $k) {
                 if (isset($block[$k])) $out[] = (string) $block[$k];
             }
@@ -1211,7 +1240,30 @@ final class HelpCentre
         };
 
         $a['summary'] = $swap((string) ($a['summary'] ?? ''));
-        foreach ((array) ($a['body'] ?? []) as $i => $block) {
+
+        // ── BLOCKS THAT ONLY APPLY IN ONE STATE ──────────────────────────────
+        //
+        // A `when` block is kept only if it names the state this site is actually in.
+        // Dropped HERE rather than in the template because help-article.twig renders a
+        // flat list of blocks and knows nothing about settings — an unknown key there
+        // renders nothing at all, so two mutually exclusive notes would BOTH print, and
+        // the reader gets "this is not running here" directly above "it is 50% today".
+        //
+        // Filtered before the token swap so a dropped block costs no substitution, and
+        // reindexed so the body stays a list: help-article.twig iterates it, but
+        // plainText() and the assistant's retrieval walk it too, and a body with holes
+        // in its keys is the kind of thing that works everywhere except JSON.
+        $state = self::conditionState();
+        $body  = [];
+        foreach ((array) ($a['body'] ?? []) as $block) {
+            $when = (string) ($block['when'] ?? '');
+            if ($when !== '' && $when !== $state) continue;
+            unset($block['when']);
+            $body[] = $block;
+        }
+        $a['body'] = $body;
+
+        foreach ($a['body'] as $i => $block) {
             foreach (['p', 'note'] as $k) {
                 if (isset($block[$k])) $a['body'][$i][$k] = $swap((string) $block[$k]);
             }
@@ -1220,6 +1272,29 @@ final class HelpCentre
             }
         }
         return $a;
+    }
+
+    /**
+     * The one state name a `when` block may match.
+     *
+     * A single string rather than a set of booleans: two conditions that can both be
+     * true is how an article comes to print two contradicting notes, and there is no
+     * article here that needs to say more than one thing about its own applicability.
+     *
+     * Read from {@see CommunityReturnService::displayRules()} — the same resolver
+     * /integrity uses — so the summary page and the deep dive it links to cannot end
+     * up in different states.
+     */
+    private static function conditionState(): string
+    {
+        try {
+            return CommunityReturnService::displayRules((new RuleEngine())->effective())['off_reason'];
+        } catch (\Throwable) {
+            // Unreadable settings are not evidence that a mechanism is off. Falling back
+            // to "on" keeps the article describing the rule rather than announcing a
+            // shutdown that has not happened.
+            return '';
+        }
     }
 
     /**

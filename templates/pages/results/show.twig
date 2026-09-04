@@ -5,13 +5,18 @@
 
   ── THE DESIGN POSITION ──────────────────────────────────────────────────────
   A court record, not a trophy case. Paper ground, hairline rules, mono micro-labels; one
-  gold accent, reserved for the index itself; emerald reserved for the community half so
-  the half that cannot be bought is the one the eye finds first.
+  gold accent, reserved for the index itself; emerald reserved for the community half, which
+  is the half a reader came to check.
 
   The standing is a LEDGER: every nominee who scored, in the order the award was decided,
   each index decomposing in place into the two halves and the denominator behind them. A
-  page that prints one name is an announcement. This platform's whole claim is that a
-  ranking cannot be bought, and the only public form that claim can take is the arithmetic.
+  page that prints one name is an announcement.
+
+  And the claim this page exists to support is NOT "a ranking cannot be bought" — it can,
+  and every public surface now says so plainly. It is that a ranking can be CHECKED: the
+  tally, how much of it was contributed, the denominator it was measured against, the judge
+  average and the quorum behind it, all on one page, so anybody who doubts a result can
+  redo it rather than take our word.
 
   ── TWIG BLOCK SCOPE ─────────────────────────────────────────────────────────
   Everything used by more than one block is set at TEMPLATE scope, above `content`. A
@@ -193,9 +198,9 @@
         stays the same every time it is recomputed — that is an arbitrary rule, and it is
         named here rather than hidden inside a sort.</p>
     {% elseif r.tie_broken_by_votes %}
-      <p class="rs-note">The index tied exactly. Community support broke it — which is the
-        point of keeping purchased votes out of the ranking: the tiebreak reads organic
-        support only, so it cannot be bought.</p>
+      <p class="rs-note">The index tied exactly, and votes broke it — the same tally the
+        community half is measured from, so the tiebreak cannot disagree with the half it
+        is breaking.</p>
     {% elseif r.margin is not null and r.margin <= 10 %}
       <p class="rs-note">Decided by {{ r.margin }} point{{ r.margin == 1 ? '' : 's' }} on a
         thousand-point index. Every figure behind that margin is below.</p>

@@ -303,9 +303,23 @@ final class CheckoutMailer
             . 'style="display:inline-block;padding:13px 30px;background:#10292C;color:#fff;border-radius:999px;'
             . 'font-weight:700;text-decoration:none;font-size:15px">See the live standing &rarr;</a></p>'
             . '<p style="margin:0;font-size:12.5px;color:#9ca3af;font-family:monospace">Receipt ' . $e($ref) . '</p>'
-            . '<p style="margin:10px 0 0;font-size:13px;color:#9ca3af">Purchased votes carry weight in the public tally. '
-            . 'The jury score and the organic community signal that feed the Cultural Power Index are separate and are '
-            . 'never moved by money — keep this receipt for your records.</p>';
+            // WHAT THIS PARAGRAPH USED TO SAY, AND WHY IT MATTERED MOST HERE.
+            //
+            // "The jury score and the organic community signal that feed the Cultural Power
+            // Index are separate and are never moved by money." That was the methodology
+            // when it was written and it is not now — the community half normalises over a
+            // nominee's full tally, so the votes this person just bought do count.
+            //
+            // Of every surface that carried the old claim, this one was the worst: it is a
+            // receipt, sent to somebody who has just paid, and it told them their money had
+            // bought no influence over the ranking. Whichever way the rule ran, one of the
+            // two readings left them misled about what they had paid for — and a receipt is
+            // the document a dispute is argued from.
+            . '<p style="margin:10px 0 0;font-size:13px;color:#9ca3af">These votes count toward '
+            . $e($name) . '&rsquo;s public tally and toward the community half of the Cultural Power '
+            . 'Index, exactly as a free vote does. They do not reach the judging half — judges are '
+            . 'never shown a nominee&rsquo;s vote count. Every published result states a nominee&rsquo;s '
+            . 'full tally beside how much of it was contributed. Keep this receipt for your records.</p>';
 
         $text = "Hi {$don->donor_name},\n\nYour payment is confirmed and {$votes} vote(s) for {$name} are now in the "
             . "public tally.\n\nAmount paid: {$total}\nReceipt: {$ref}\n\nSee the live standing: {$ballot}\n\n"

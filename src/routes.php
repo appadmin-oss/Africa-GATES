@@ -2450,6 +2450,11 @@ return function(App $app) {
                 'fraud_monitor'    => (int) ($eff['fraud_monitor'] ?? 30),
                 'return_pct'       => $ret['pct'],
                 'return_on'        => $ret['on'],
+                // WHY it is off, not just that it is. The section prints a different
+                // note for "the share is 0%" than for "this site sells no votes", and
+                // a template deriving that itself would be a second reader of a
+                // setting the service already resolves.
+                'return_off_reason'=> $ret['off_reason'],
                 'return_threshold' => $ret['threshold'],
                 'return_cap_pct'   => $ret['cap_pct'],
                 'return_cap_votes' => $ret['cap_votes'],

@@ -93,10 +93,20 @@ What this does mean: 50,000 votes arrive as **one** timestamped row. Anything re
 timing sees a single event, which is correct — it *was* a single purchase — and is why the
 24-hour momentum figure on the flier can jump by a bulk order in one step.
 
-The integrity model is unchanged at any scale. Paid votes are `vote_type = 'paid'` weighted
-rows that move the **public tally only**; `organic_vote_count`, the CPI community signal, is
-never touched by money. A 50,000-vote order moves the CPI signal by zero, and that is
-asserted directly.
+The integrity model is unchanged at any scale, but it is no longer the model this paragraph
+described. Paid votes are `vote_type = 'paid'` weighted rows that move `vote_count`, and the
+community half of the CPI normalises over `vote_count` — so a 50,000-vote order moves the
+community half a great deal, deliberately and with no ceiling.
+
+It used to move it by zero, because the community half read `organic_vote_count` alone. That
+rule did not protect a community vote where free voting is switched off — it deleted one:
+that column can only be written by `VoteService::castVote()`, which answers 403 on such a
+deployment, so the community half was permanently zero for every nominee and the panel
+decided 100% of every award while every page published 45/55.
+
+What money does not reach is the **judging half**: judges are never shown a vote count. Every
+published result states a nominee's full tally beside how much of it was contributed, so the
+composition of a tally is visible without being discounted.
 
 ## 4. Bulk pricing
 

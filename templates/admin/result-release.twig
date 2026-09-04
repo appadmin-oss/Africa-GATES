@@ -503,15 +503,21 @@
          the position does not. #}
       {% if c.tie_broken_by_votes %}
         {# "First and second are 0 apart" beside a WINS badge, and nothing saying what
-           broke a tie the page had just called exact. The tiebreak is the platform's own
-           argument — paid votes move the public count and never the organic one — and
-           this is the single moment it decides an award, so it is the moment to say it. #}
+           broke a tie the page had just called exact. This is the single moment the
+           tiebreak decides an award, so it is the moment to say what it read.
+
+           IT USED TO SAY "organic support", and printed the two organic counts. That was
+           the old comparator, and on any deployment with free voting switched off it
+           would have rendered as "takes it on organic support — 0 votes against 0":
+           self-refuting, at the exact moment an operator is deciding whether to sign a
+           result off. The comparator reads the full tally now, the same figure the index
+           normalises over, and this reads it from the same key. #}
         <p class="ja-caveat">The index is <b>exactly level</b> at {{ c.winner.cpi }}.
-          {{ c.winner.name }} takes it on <b>organic support</b> &mdash;
-          {{ c.winner.organic|number_format }} votes against
-          {{ c.runner_up.organic|number_format }}. Purchased votes cannot break this tie:
-          the tiebreak reads organic support only, which is why a nominee with more
-          <em>total</em> votes does not necessarily win one.</p>
+          {{ c.winner.name }} takes it on <b>votes</b> &mdash;
+          {{ c.winner.votes|number_format }} against
+          {{ c.runner_up.votes|number_format }}. The tiebreak reads the same tally the
+          community half normalises over, so it cannot disagree with the half it is
+          breaking.</p>
       {% elseif c.margin is not null and not c.dead_heat %}
         {% if c.margin <= 10 %}
           <p class="ja-caveat">First and second are <b>{{ c.margin }}</b> apart on a

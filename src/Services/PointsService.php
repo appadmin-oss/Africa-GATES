@@ -195,12 +195,17 @@ final class PointsService
                     return ['ok' => false, 'message' => $e->getMessage(), 'code' => $e->errorCode];
                 }
 
-                // Shared paid-weight cap (RuleEngine) so points can't swamp the community signal.
-                $pct = (int) ((new RuleEngine())->effective((int) $cycle->programme_id, (int) $cycle->id)['max_paid_weight_pct'] ?? 50);
-                $bonusSoFar = (int) DB::table('gates_votes')->where('nominee_id', $nomineeId)->where('vote_type', 'bonus')->sum('weight');
-                $cap = max(10, (int) floor((int) $nom->organic_vote_count * $pct / 100));
-                if ($bonusSoFar + 1 > $cap) {
-                    return ['ok' => false, 'message' => 'Redeemed votes for this nominee are capped right now (protecting the community signal).'];
+                // The bonus ceiling, from the ONE place that resolves it. This was a
+                // second copy of BonusVoteService's formula and carried the same fault:
+                // a percentage of `organic_vote_count`, which is permanently zero
+                // wherever free voting is switched off — so redemption was capped at a
+                // flat ten per nominee forever, and said only "capped right now".
+                $c = BonusVoteService::capFor($nomineeId, (int) $nom->vote_count,
+                                              (int) $cycle->programme_id, (int) $cycle->id);
+                if ($c['used'] + 1 > $c['cap']) {
+                    return ['ok' => false, 'message' => "Redeemed votes for this nominee are "
+                        . "capped at {$c['cap']} and {$c['used']} have been granted already. "
+                        . "The ceiling rises as more people vote for them."];
                 }
 
                 // Spend points.
@@ -211,7 +216,8 @@ final class PointsService
                     'ref_type' => 'nominee', 'ref_id' => (string) $nomineeId, 'balance_after' => $newBal,
                     'note' => 'Redeemed for 1 vote', 'created_at' => Carbon::now()->toDateTimeString(),
                 ]);
-                // Mint the CPI-excluded vote + bump the visible tally only.
+                // One weighted row and the tally. The vote counts in the community half
+                // like any other — what it does not reach is the judging half.
                 DB::table('gates_votes')->insert([
                     'nominee_id'       => $nomineeId,
                     'category_id'      => (int) $nom->category_id,
