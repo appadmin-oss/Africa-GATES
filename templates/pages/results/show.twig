@@ -88,14 +88,25 @@
   .rs-bar .j{ background:var(--ag-ink); opacity:.42; }
 
   /* ── the method ── */
-  .rs-grid{ display:grid; gap:1px; background:var(--ag-line-strong);
+  /* The hairlines are drawn BY THE CELLS, not by a 1px gap over a coloured container.
+     With the gap trick, a row that does not fill its tracks shows the container's colour
+     through the empty ones — so adding a sixth figure here left a grey slab beside the
+     last cell that read as a broken box rather than as empty space. A shadow on each cell
+     draws only where a cell is, and the container's own border and clip take care of the
+     outer edges. */
+  .rs-grid{ display:grid; gap:0; background:var(--ag-surface);
             border:1px solid var(--ag-line-strong); border-radius:var(--ag-r-md); overflow:hidden;
             grid-template-columns:repeat(auto-fit,minmax(11rem,1fr)); }
-  .rs-cell{ background:var(--ag-surface); padding:16px 18px; }
+  .rs-cell{ background:var(--ag-surface); padding:16px 18px;
+            box-shadow:1px 0 0 var(--ag-line-strong), 0 1px 0 var(--ag-line-strong); }
   .rs-cell dt{ margin:0 0 6px; font:600 10.5px/1 var(--ag-font-mono); letter-spacing:.1em;
                text-transform:uppercase; color:var(--ag-ink-soft); }
   .rs-cell dd{ margin:0; font-size:14.5px; line-height:1.5; font-weight:600; overflow-wrap:anywhere; }
 
+  .rs-h3{ margin:24px 0 0; font-family:var(--ag-font-display); font-weight:700;
+          font-size:1.12rem; letter-spacing:-.01em; }
+  .rs-note strong{ font-weight:700; color:var(--ag-ink); }
+  .rs-note a{ color:var(--ag-green); font-weight:600; }
   .rs-note{ margin:18px 0 0; padding:14px 16px; border-left:3px solid var(--ag-gold);
             background:rgba(201,162,75,.07); font-size:13.5px; line-height:1.62; color:#4a5256; }
   .rs-note--held{ border-color:var(--ag-pulse); background:rgba(224,36,94,.05); }
@@ -205,8 +216,23 @@
             {% if row.out_reason %}
               <p class="rs-why">Out of the running — {{ row.out_reason }}.</p>
             {% else %}
-              <p class="rs-why">{{ row.organic }} community vote{{ row.organic == 1 ? '' : 's' }}
-                 ({{ row.community_share }}% of this category’s highest){% if row.judge_score is not null %} ·
+              {#
+                BOTH NUMBERS, ALWAYS, AND THE SECOND ONE ONLY WHEN IT DIFFERS.
+
+                This line used to print the organic count alone, under the label "community
+                votes" — while the nominee's own vote page prints `vote_count`, the full
+                tally. So the same person carried two different vote numbers on two pages
+                of one platform, and nothing on either said why. That reads as a figure
+                being quietly revised down on the page where the award is decided, which
+                is the worst possible thing for this page to look like.
+
+                The distinction was written down, in full, on /integrity — an FAQ two
+                clicks away. Being documented somewhere is not the same as being stated
+                where the numbers collide.
+              #}
+              <p class="rs-why">{{ row.vote_count|number_format }} vote{{ row.vote_count == 1 ? '' : 's' }} cast{% if row.vote_count != row.organic %},
+                 {{ row.organic|number_format }} of them organic{% endif %} ·
+                 {{ row.community_share }}% of this category’s highest{% if row.judge_score is not null %} ·
                  panel {{ row.judge_score|number_format(1) }}/10 from {{ row.judges }}
                  judge{{ row.judges == 1 ? '' : 's' }}{% endif %}{% if row.provisional %} · provisional{% endif %}</p>
             {% endif %}
@@ -234,11 +260,49 @@
         <div class="rs-cell"><dt>Weighting</dt><dd>{{ cpct }}% community · {{ jpct }}% judges</dd></div>
         <div class="rs-cell"><dt>Judging quorum</dt>
           <dd>{{ r.quorum }} complete scorecard{{ r.quorum == 1 ? '' : 's' }}</dd></div>
+        <div class="rs-cell"><dt>Votes cast</dt>
+          <dd>{{ r.votes.cast|number_format }}</dd></div>
+        {# Named on its own, not folded into the line above. The whole point is that this
+           number exists and is excluded — a figure the reader has to subtract for
+           themselves has not been disclosed, it has been mentioned. #}
+        <div class="rs-cell"><dt>Of those, counted</dt>
+          <dd>{{ r.votes.organic|number_format }} organic</dd></div>
         <div class="rs-cell"><dt>Community denominator</dt>
-          <dd>{% if r.cohort_max > 0 %}{{ r.cohort_max }} votes{% else %}—{% endif %}</dd></div>
+          <dd>{% if r.cohort_max > 0 %}{{ r.cohort_max|number_format }} organic{% else %}—{% endif %}</dd></div>
         <div class="rs-cell"><dt>Scale set by</dt>
           <dd>{{ r.scale_set_by ?: '—' }}</dd></div>
       </dl>
+
+      {#
+        ── THE TWO KINDS OF VOTE, SAID WHERE THEY COLLIDE ────────────────────
+
+        This was written down in full on /integrity, which is an FAQ two clicks away. It
+        was not said HERE — on the page that prints an organic count under an award while
+        the same nominee's vote page prints a larger number under the word "Votes". One
+        person, two vote figures, two pages of one platform, and no explanation on either.
+
+        A reader who notices that does not conclude "there must be a methodology". They
+        conclude the number was revised down where the award was decided, which is the
+        single worst thing this page could be mistaken for.
+      #}
+      <h3 class="rs-h3">Two kinds of vote, and only one of them counts</h3>
+      <p class="rs-note">
+        <strong>Votes cast</strong> is every vote a nominee received, and it is the number
+        their vote page shows — {{ r.votes.cast|number_format }} across this category.
+        <strong>Organic</strong> is the part that came from a verified person voting free,
+        one vote per category, and it is the only part the index reads:
+        {{ r.votes.organic|number_format }} here.
+        {% if r.votes.bought > 0 %}The remaining {{ r.votes.bought|number_format }} were
+        bought in a pack or awarded as a bonus against a contribution. They are added to the
+        public tally and held in a separate column the scorer never reads.{% else %}No vote
+        in this category was bought or awarded — the two figures are the same.{% endif %}
+      </p>
+      <p class="rs-note">Money can make a nominee look more popular here. It cannot make
+        them win, and that is enforced in three places rather than promised in one:
+        purchased votes are excluded from the index, they are excluded from the tiebreak
+        (so the closest possible race is decided by people rather than by spending), and
+        they are capped at {{ r.paid_cap_pct }}% of the organic support a nominee has already
+        earned. <a href="/integrity">How that is enforced and audited</a>.</p>
 
       {#
         The denominator IS the explanation, and it is the step nobody could take from the
@@ -249,9 +313,8 @@
       <p class="rs-note">A nominee’s community half is their organic votes as a share of the
         most-supported nominee in this category — so the leader’s share is the full
         {{ cpct }}%, and everybody else is measured against them rather than against the
-        total votes cast. Purchased and bonus votes are counted in nothing here: they move
-        the public tally and never the ranking.
-        {% if r.shortlisted is not null %} The field is this category’s published shortlist.{% endif %}</p>
+        total votes cast.
+        {% if r.shortlisted is not null %}The field is this category’s published shortlist.{% endif %}</p>
     </section>
 
     {# ── share ────────────────────────────────────────────────────────── #}

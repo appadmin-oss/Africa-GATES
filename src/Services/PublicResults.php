@@ -83,6 +83,15 @@ final class PublicResults
 
         return $drawn + [
             'held'        => self::heldReason($drawn),
+            // ── BOTH VOTE FIGURES, FOR THE WHOLE CATEGORY ────────────────────
+            //
+            // The page showed the organic count alone while a nominee's vote page shows
+            // the full tally, so one person carried two different vote numbers on two
+            // pages of one platform with nothing saying why. Summed here rather than in
+            // the template or the controller: it is an aggregate of figures the scorer
+            // already produced, and a template that adds up an award's votes is a second
+            // place those totals live.
+            'votes'       => self::tally($drawn['rows']),
             'programme'   => (string) ($ctx->programme ?? ''),
             'programme_slug' => (string) ($ctx->programme_slug ?? ''),
             'cycle_id'    => (int) $ctx->cycle_id,
@@ -92,6 +101,33 @@ final class PublicResults
             'url'         => '/results/' . self::slug($categoryId, (string) ($ctx->title ?? '')),
             'released_at' => (string) ($ctx->results_date ?? ''),
         ];
+    }
+
+    /**
+     * What this category's votes actually were.
+     *
+     * `cast` is every vote counted toward a nominee's public tally. `organic` is the
+     * subset the index reads — free, one per verified person per category. `bought` is
+     * the remainder: votes purchased in a pack, or awarded as a bonus against a
+     * contribution. It is a subtraction and not its own column because that is exactly
+     * what it is, and inventing a third stored figure is how the three come to disagree.
+     *
+     * @param list<array<string,mixed>> $rows
+     * @return array{cast:int, organic:int, bought:int}
+     */
+    private static function tally(array $rows): array
+    {
+        $cast = $organic = 0;
+        foreach ($rows as $r) {
+            $cast    += (int) ($r['vote_count'] ?? 0);
+            $organic += (int) ($r['organic'] ?? 0);
+        }
+
+        // Floored at zero. `vote_count` and `organic_vote_count` are two denormalised
+        // counters maintained by different paths, and a drifted pair can leave organic
+        // ABOVE the tally — see VoteRecount, which exists for exactly that. "−40 bought
+        // votes" on a public page is a worse answer than none.
+        return ['cast' => $cast, 'organic' => $organic, 'bought' => max(0, $cast - $organic)];
     }
 
     /**

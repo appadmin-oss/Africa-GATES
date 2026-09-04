@@ -41,6 +41,11 @@
   .vn-stat__n{ font-family:var(--ag-font-mono); font-weight:700; font-size:clamp(24px,3.5vw,30px); line-height:1; color:#fff; }
   .vn-stat__n.g{ color:#7FC87C; }
   .vn-stat__l{ font-size:10px; letter-spacing:.06em; text-transform:uppercase; color:rgba(255,255,255,.62); margin-top:4px; }
+  /* Under the tally, not beside it: this is a caveat on a number, and a caveat set at the
+     same level as the thing it qualifies reads as a second statistic. */
+  .vn-vsplit{ margin:14px 0 0; max-width:56ch; font-size:13px; line-height:1.55;
+              color:rgba(255,255,255,.72); }
+  .vn-vsplit a{ color:#7FC87C; font-weight:600; }
   .vn-stat__div{ width:1px; height:40px; background:rgba(255,255,255,.18); }
   .vn-cta{ display:flex; gap:11px; margin-top:28px; flex-wrap:wrap; }
   .vn-btn{ cursor:pointer; text-decoration:none; font-family:inherit; font-weight:600; font-size:15px; padding:14px 28px; border-radius:999px; display:inline-flex; align-items:center; gap:8px; border:1px solid transparent; }
@@ -352,6 +357,36 @@
           <div><div class="vn-stat__n" x-text="votes.toLocaleString()">{{ n.vote_count }}</div><div class="vn-stat__l">Votes</div></div>
           {% if rank %}<div class="vn-stat__div" aria-hidden="true"></div><div><div class="vn-stat__n">#{{ rank }}</div><div class="vn-stat__l">In {{ n.category }}</div></div>{% endif %}
         </div>
+
+        {#
+          ── THE OTHER HALF OF "VOTES" ────────────────────────────────────────
+
+          The figure above is the full public tally: free votes, votes bought in a pack,
+          and votes awarded as a bonus against a contribution, added together. The award's
+          result page prints only the organic subset, because that is the only part the
+          index reads — so this nominee carried two different vote numbers on two pages of
+          one platform, and neither page said why.
+
+          A reader who notices that does not go looking for a methodology; they conclude
+          the number was revised down where the award was decided. The distinction was
+          documented on /integrity, which is an FAQ two clicks from here. Being written
+          down elsewhere is not the same as being stated where the number is.
+
+          Drawn only when the two actually differ. On a nominee nobody has bought a vote
+          for, a line explaining that none were bought is noise on the page that is trying
+          to get somebody to vote.
+
+          `is defined` guards the column: it is selected optionally, because this is the
+          ballot and a bare column name on an un-migrated deployment takes the whole page
+          down rather than one line of it.
+        #}
+        {% if n.organic_vote_count is defined and n.organic_vote_count is not null
+              and n.vote_count > n.organic_vote_count %}
+          <p class="vn-vsplit">{{ n.organic_vote_count|number_format }} of those are organic —
+            free, one per verified person — and the organic count is the only one the
+            Cultural Power Index reads. The rest were bought or awarded; they show here and
+            never move a rank. <a href="/integrity">Why</a>.</p>
+        {% endif %}
 
         {# ── WHAT WE PUT ON THIS TALLY OURSELVES ─────────────────────────────
            When a vote code fails to send, the platform records its own failure and

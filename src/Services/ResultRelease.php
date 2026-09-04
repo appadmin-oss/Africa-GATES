@@ -87,10 +87,20 @@ final class ResultRelease
 
         $rules   = new RuleEngine();
         $weights = $rules->weights($ctx->programme_id ?? null, $ctx->cycle_id ?? null);
-        $quorum  = (int) ($rules->effective($ctx->programme_id ?? null, $ctx->cycle_id ?? null)['min_judges_per_nominee']
+        // ONE read of the effective ruleset, not one per value. This used to resolve the
+        // quorum here and leave the paid-vote cap to whoever needed it — and the two would
+        // then be scoped separately, so a cycle-level override could move one and not the
+        // other while both were being reported as this category's rules.
+        $eff     = $rules->effective($ctx->programme_id ?? null, $ctx->cycle_id ?? null);
+        $quorum  = (int) ($eff['min_judges_per_nominee']
                           ?? RuleEngine::DEFAULTS['min_judges_per_nominee']);
+        // The ceiling on purchased votes, as a percentage of a nominee's organic support.
+        // Part of the methodology a public page has to be able to state, so it travels
+        // with the quorum and the weights rather than being fetched again downstream.
+        $paidCap = (int) ($eff['max_paid_weight_pct'] ?? 50);
 
         $empty = ['category' => $cat, 'quorum' => $quorum, 'weights' => $weights,
+                  'paid_cap_pct' => $paidCap,
                   'shortlisted' => null, 'rows' => [], 'winner' => null, 'runner_up' => null,
                   'margin' => null, 'dead_heat' => false, 'tie_broken_by_votes' => false,
                   'blocked' => null,
@@ -238,6 +248,7 @@ final class ResultRelease
             'category'    => $cat,
             'quorum'      => $quorum,
             'weights'     => $weights,
+            'paid_cap_pct' => $paidCap,
             // True when NOT ONE nominee has an organic vote. Distinct from `cohort_max` being
             // zero, which a template could work out for itself and which does not say what
             // the consequence is.

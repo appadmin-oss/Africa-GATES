@@ -428,7 +428,21 @@ class VoteController {
                 // would throw on any deployment whose migrations have not been applied,
                 // and this is THE BALLOT — the failure would be the whole voting page
                 // rather than one missing paragraph.
-                \AfricaGates\Support\OptionalColumn::on('gates_nominees', 'story') ? ['n.story'] : []))
+                \AfricaGates\Support\OptionalColumn::on('gates_nominees', 'story') ? ['n.story'] : [],
+                // ── THE OTHER VOTE FIGURE ────────────────────────────────────
+                //
+                // This page prints `vote_count` under the word "Votes" — the full public
+                // tally, purchased and awarded votes included. The award's result page
+                // prints the organic subset, because that is the only part the index
+                // reads. So one nominee carried two different vote numbers on two pages
+                // of this platform and neither said why, which reads as a figure being
+                // quietly revised down where the award is decided.
+                //
+                // Optional, like the two above and for the same reason: this is THE
+                // BALLOT, and a bare column name on a deployment whose migrations have
+                // not run takes down the whole voting page rather than one line of it.
+                \AfricaGates\Support\OptionalColumn::on('gates_nominees', 'organic_vote_count')
+                    ? ['n.organic_vote_count'] : []))
             ->first();
         if (!$nom) throw new \Slim\Exception\HttpNotFoundException($req);
 

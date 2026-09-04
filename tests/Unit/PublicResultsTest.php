@@ -616,10 +616,127 @@ final class PublicResultsTest extends TestCase
             'a nominee was left off the standing with no reason given');
 
         // The two halves, the weighting and the denominator — the working, not a summary.
+        // Thousands-separated, which is why this asserts the formatted figure: a public
+        // page that prints 1536 has technically disclosed a denominator and has not made
+        // it readable, and every other number on the page is grouped.
         $this->assertStringContainsString((string) $r['winner']['community_points'], $html);
         $this->assertStringContainsString((string) $r['winner']['judge_points'], $html);
         $this->assertStringContainsString('45% community', $html);
-        $this->assertStringContainsString((string) $r['cohort_max'], $html);
+        $this->assertStringContainsString(number_format($r['cohort_max']), $html);
+    }
+
+    /**
+     * BOTH VOTE NUMBERS, AND THE DIFFERENCE BETWEEN THEM, SAID HERE.
+     *
+     * This page printed the organic count alone — under the label "community votes" —
+     * while the same nominee's vote page prints `vote_count`, the full tally. One person,
+     * two different vote figures, two pages of one platform, and no explanation on either.
+     *
+     * The distinction WAS documented: `/integrity` sets it out in full. Being written down
+     * two clicks away is not the same as being stated where the numbers collide, and a
+     * reader who spots the gap does not conclude there is a methodology. They conclude the
+     * number was quietly revised down on the page where the award was decided.
+     */
+    public function test_the_page_states_both_vote_figures_and_names_the_difference(): void
+    {
+        $a = $this->nominee('Dr. Adegboyega Aborode', 1500, 300);   // 300 bought
+        $b = $this->nominee('Ajayi Temitope Oluwarotimi', 620);
+        $this->panel($a, 9.0);
+        $this->panel($b, 7.0);
+
+        $r    = PublicResults::category($this->categoryId);
+        $html = self::flat($this->renderShow($r));
+
+        // The tally is the sum of what the scorer already produced — not a second count.
+        $this->assertSame(2420, $r['votes']['cast']);
+        $this->assertSame(2120, $r['votes']['organic']);
+        $this->assertSame(300,  $r['votes']['bought']);
+
+        // Both figures on the row, and the second one only where it differs.
+        $this->assertStringContainsString('1,800 votes cast, 1,500 of them organic', $html,
+            'a nominee with purchased votes shows only one of their two vote figures');
+        $this->assertStringContainsString('620 votes cast ·', $html,
+            'a nominee with no purchased votes was given a redundant second figure');
+
+        // And the difference is named in words, on this page, with the number in it.
+        $this->assertStringContainsString('300', $html);
+        $this->assertStringContainsString('bought in a pack or awarded as a bonus', $html,
+            'the page shows two different vote numbers and does not say what separates them');
+        $this->assertStringContainsString('/integrity', $html,
+            'nothing links from the claim to where it is enforced and audited');
+    }
+
+    /**
+     * AND IT DOES NOT INVENT A DIFFERENCE WHERE THERE IS NONE.
+     *
+     * A category nobody bought a vote in must say so rather than leaving a reader to
+     * subtract two equal numbers and wonder what they missed.
+     */
+    public function test_a_category_with_no_purchased_votes_says_so(): void
+    {
+        $this->decided();
+
+        $r    = PublicResults::category($this->categoryId);
+        $html = self::flat($this->renderShow($r));
+
+        $this->assertSame(0, $r['votes']['bought']);
+        $this->assertStringContainsString('No vote in this category was bought or awarded',
+            $html);
+        $this->assertStringNotContainsString('bought in a pack or awarded as a bonus', $html);
+    }
+
+    /**
+     * AND THE BALLOT PAGE SAYS IT TOO, WHERE THE LARGER NUMBER IS PRINTED.
+     *
+     * The disclosure is only complete if it is on BOTH pages that show a vote figure. The
+     * result page prints the organic subset; `/vote/…` prints the full tally under the
+     * single word "Votes". Fixing one and not the other leaves exactly the discrepancy
+     * this is for — it just moves which page looks like it is hiding something.
+     *
+     * Asserted from source: that template needs Twig extensions the harness does not
+     * register, so it cannot be rendered here. The markup and the guard are what matter,
+     * and both are static properties of the file.
+     */
+    public function test_the_ballot_page_says_which_part_of_its_tally_counts(): void
+    {
+        $root = dirname(__DIR__, 2);
+        $tpl  = (string) file_get_contents($root . '/templates/pages/vote-nominee.twig');
+
+        $this->assertStringContainsString('n.organic_vote_count|number_format', $tpl,
+            'the ballot page prints a tally and never says how much of it counts');
+        $this->assertStringContainsString('only one the', $tpl);
+
+        // Only where the two differ. On a nominee nobody bought a vote for, a line saying
+        // none were bought is noise on the page trying to get somebody to vote.
+        $this->assertStringContainsString('n.vote_count > n.organic_vote_count', $tpl,
+            'the caveat is drawn even where there is nothing to caveat');
+
+        // And the column is selected optionally. This is THE BALLOT: a bare column name on
+        // a deployment whose migrations have not run takes down the whole voting page
+        // rather than one line of it — which is the trade the two columns beside it
+        // already make.
+        $ctl = self::code($root . '/src/Controllers/VoteController.php');
+        $this->assertMatchesRegularExpression(
+            "~OptionalColumn::on\('gates_nominees', 'organic_vote_count'\)~", $ctl,
+            'the organic count is selected unguarded on the ballot page');
+    }
+
+    /**
+     * A DRIFTED COUNTER CANNOT PRINT A NEGATIVE.
+     *
+     * `vote_count` and `organic_vote_count` are two denormalised counters maintained by
+     * different paths, and a drifted pair can leave organic ABOVE the tally — which is the
+     * whole reason {@see \AfricaGates\Services\VoteRecount} exists. "−40 votes bought"
+     * on a public page is a worse answer than none.
+     */
+    public function test_a_drifted_counter_cannot_report_negative_purchased_votes(): void
+    {
+        $a = $this->nominee('Dr. Adegboyega Aborode', 1500);
+        DB::table('gates_nominees')->where('id', $a)->update(['vote_count' => 900]);
+        $this->panel($a, 9.0);
+        $this->nominee('Ajayi Temitope Oluwarotimi', 620);
+
+        $this->assertSame(0, PublicResults::category($this->categoryId)['votes']['bought']);
     }
 
     /** The index page draws, with and without anything on it. */
@@ -794,6 +911,19 @@ final class PublicResultsTest extends TestCase
                 (string) file_get_contents($root . '/' . $f),
                 $what . ' has no way into the results');
         }
+    }
+
+    /**
+     * Rendered HTML with every run of whitespace collapsed to one space.
+     *
+     * A sentence in a template is wrapped for the file it lives in, so it reaches the
+     * browser with newlines and indentation inside it. Asserting on the raw output would
+     * pin where a line happens to break in the source, which is a property nobody wants
+     * to preserve and which fails on the first reflow.
+     */
+    private static function flat(string $html): string
+    {
+        return (string) preg_replace('~\s+~u', ' ', $html);
     }
 
     /**
