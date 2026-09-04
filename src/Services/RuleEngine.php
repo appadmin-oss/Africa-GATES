@@ -45,6 +45,11 @@ class RuleEngine
         // this award, and the operator who has to defend a number to a nominee should own
         // it. See CpiService::nomineeScore() for the arithmetic and the worked example.
         'community_curve' => 2.0,
+        // The category-leader vote count at which the community half pays in full. Below
+        // it the whole category's community weight is discounted, because the half was
+        // purely relative and paid the leader of a category with 89 votes exactly what it
+        // paid the leader of one with 1,955. Set to 1 for the old behaviour.
+        'community_full_credit_votes' => 1000,
         'judge_floor'     => 5.0,
         'judge_curve'     => 1.5,
 

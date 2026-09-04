@@ -49,6 +49,13 @@ class CpiRecomputeTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
+        // The community half is scaled by how deep the support in a category actually was
+        // (CpiService::depth) — a leader on 89 votes no longer collects what a leader on
+        // 1,955 collects. These fixtures use small counts to keep their arithmetic legible,
+        // so the mark is set to 1: depth becomes 1.0 and the test is about the thing it is
+        // about. The discount has its own tests in CpiServiceTest.
+        (new \AfricaGates\Services\RuleEngine())->set('global', null,
+            ['community_full_credit_votes' => 1]);
 
         // The suite's own criteria, so "complete scorecard" is a fact this file controls.
         // Anything already active would otherwise decide whether a judge here counts.

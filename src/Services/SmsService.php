@@ -152,6 +152,43 @@ class SmsService
             'wa_provider' => $this->whatsappProvider(),
             'sms_enabled' => $this->smsEnabled,
             'wa_enabled'  => $this->waEnabled,
+            // ── WHY NOTHING ARRIVED ──────────────────────────────────────────
+            //
+            // Every failed send has been written to `gates_messages.error` since the
+            // service shipped, and the only thing that read it back was a generic table
+            // dump under Data. So an operator whose SMS was not sending had a settings
+            // screen saying "configured", a provider name, and no way to learn that the
+            // gateway had been answering "Invalid sender id" for a week.
+            //
+            // Reported HERE, beside the configuration it is about, which is the one screen
+            // somebody looks at when they are asking this question.
+            'last_failure' => self::lastFailure(),
+        ];
+    }
+
+    /**
+     * The most recent delivery failure, or null.
+     *
+     * @return array{at:string, channel:string, provider:string, to:string, error:string}|null
+     */
+    public static function lastFailure(): ?array
+    {
+        try {
+            $r = DB::table('gates_messages')->where('status', 'failed')
+                ->orderByDesc('id')->first(['created_at', 'channel', 'provider', 'to_masked', 'error']);
+        } catch (\Throwable) {
+            return null;
+        }
+        if ($r === null) return null;
+
+        return [
+            'at'       => (string) ($r->created_at ?? ''),
+            'channel'  => (string) ($r->channel ?? ''),
+            'provider' => (string) ($r->provider ?? ''),
+            // Masked at the point it was stored — a diagnostic must not put a supporter's
+            // number on an admin screen to answer a question about a gateway.
+            'to'       => (string) ($r->to_masked ?? ''),
+            'error'    => (string) ($r->error ?? ''),
         ];
     }
 
@@ -286,6 +323,27 @@ class SmsService
      *
      * @return array{0:string,1:bool,2:?string,3:?string}
      */
+    /**
+     * SANDBOX AND LIVE ARE DIFFERENT HOSTS, AND THE HOST WAS HARDCODED.
+     *
+     * Africa's Talking issues every account a sandbox alongside it, and the sandbox has its
+     * OWN endpoint — `api.sandbox.africastalking.com`. Sandbox credentials sent to the live
+     * host are simply rejected, so an operator who set the platform up with the sandbox
+     * key they were given first had SMS that never sent and a settings screen that said
+     * "configured".
+     *
+     * The username is the switch, because that is how Africa's Talking itself decides:
+     * a sandbox account IS the literal username `sandbox`. Nothing else needs configuring
+     * and nothing can be set inconsistently.
+     */
+    public const AT_LIVE    = 'https://api.africastalking.com/version1/messaging';
+    public const AT_SANDBOX = 'https://api.sandbox.africastalking.com/version1/messaging';
+
+    public static function atEndpoint(string $username): string
+    {
+        return strtolower(trim($username)) === 'sandbox' ? self::AT_SANDBOX : self::AT_LIVE;
+    }
+
     private function attemptAfricasTalking(string $to, string $body): array
     {
         $form = [
@@ -296,7 +354,7 @@ class SmsService
         if ((string) $this->atFrom !== '') $form['from'] = (string) $this->atFrom;
 
         $resp = $this->http(
-            'https://api.africastalking.com/version1/messaging',
+            self::atEndpoint((string) $this->atUsername),
             ['Content-Type: application/x-www-form-urlencoded', 'Accept: application/json',
              'apiKey: ' . $this->atApiKey],
             $form,

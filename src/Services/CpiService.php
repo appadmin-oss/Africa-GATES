@@ -100,9 +100,10 @@ class CpiService
         float $judgeWeight = 0.55,
         ?float $communityCurve = null,
         ?float $judgeFloor = null,
-        ?float $judgeCurve = null
+        ?float $judgeCurve = null,
+        ?int $fullCredit = null
     ): int {
-        $publicPart = self::communityPart($voteCount, $cohortMaxVotes, $communityCurve);
+        $publicPart = self::communityPart($voteCount, $cohortMaxVotes, $communityCurve, $fullCredit);
         $judgeNorm  = self::judgePart($judgeAvg0to10, $judgeFloor, $judgeCurve);
 
         return self::split($publicPart, $judgeNorm, $communityWeight, $judgeWeight)['cpi'];
@@ -149,12 +150,72 @@ class CpiService
      * {@see nomineeScore()} uses. Two spellings of one curve is the fault this whole
      * refactor exists to remove.
      */
-    public static function communityPart(int $voteCount, int $cohortMaxVotes, ?float $curve = null): float
+    public static function communityPart(int $voteCount, int $cohortMaxVotes,
+                                         ?float $curve = null, ?int $fullCredit = null): float
     {
         $share = min(1.0, max(0.0, $voteCount / max(1, $cohortMaxVotes)));
+        $rel   = $share ** self::clampCurve($curve ?? self::COMMUNITY_CURVE);
 
-        return $share ** self::clampCurve($curve ?? self::COMMUNITY_CURVE);
+        return $rel * self::depth($cohortMaxVotes, $fullCredit);
     }
+
+    /**
+     * HOW MUCH COMMUNITY THERE WAS TO WIN, 0..1.
+     *
+     * ══ THE FAULT THIS CLOSES ═══════════════════════════════════════════════
+     *
+     * The community half was purely RELATIVE — a nominee's share of the leader of their own
+     * category — so the leader of any category got the whole weight whatever their support
+     * actually was. Two released categories, side by side on the operator's screen:
+     *
+     *     Ajayi Temitope Oluwarotimi   1,955 votes   community 450
+     *     Idowu Olayemi Olubukunola       89 votes   community 450
+     *
+     * Eighty-nine votes and nearly two thousand, paid identically. The operator's word for
+     * it was "rigged", and that is the right word: a number that does not move when the
+     * thing it measures changes by a factor of twenty is not measuring it.
+     *
+     * ── AND THE ARGUMENT THE OTHER WAY, WHICH IS ALSO REAL ──────────────────
+     *
+     * The relative design was deliberate: "a nominee in a small field is not punished for
+     * being in one." That is a fair principle and it has a limit — it protects somebody in
+     * a small FIELD, and it was being used to protect somebody with almost no SUPPORT.
+     * Those are different things, and only the second one is a credibility problem. This
+     * scales on the depth of support in the category, not on how many nominees are in it,
+     * so a two-horse race with real backing behind it is unaffected.
+     *
+     * ── THE SHAPE ───────────────────────────────────────────────────────────
+     *
+     * `min(1, cohortMax / fullCredit)`, square-rooted so it is a discount rather than a
+     * cliff. At the default full-credit mark of 1,000 votes:
+     *
+     *     leader on 1,955 → capped at 1.00 → the full community weight
+     *     leader on   500 → 0.71           → seventy-one per cent of it
+     *     leader on    89 → 0.30           → thirty per cent of it
+     *
+     * A SETTING, because "what a full community mandate looks like" is a judgement about
+     * this award — a continental prize and a school prize do not have the same number —
+     * and the operator who defends a result should own it. Setting it to 1 restores the
+     * old purely-relative behaviour exactly.
+     */
+    public static function depth(int $cohortMaxVotes, ?int $fullCredit = null): float
+    {
+        $target = max(1, $fullCredit ?? self::FULL_CREDIT_VOTES);
+
+        // FLOORED AT ONE, exactly as the share's denominator is. Without it a cohort
+        // maximum of zero — the guarded degenerate case the share already handles — made
+        // depth zero and took the whole community half with it, so a category nobody had
+        // voted in scored differently from one whose votes had not loaded yet.
+        return sqrt(min(1.0, max(1, $cohortMaxVotes) / $target));
+    }
+
+    /**
+     * The category-leader vote count at which the community half pays in full.
+     *
+     * Below it the whole category's community weight is discounted — nobody in a field
+     * nobody voted in can earn what somebody in a field thousands voted in earns.
+     */
+    public const FULL_CREDIT_VOTES = 1000;
 
     /** The judge component, 0..1, re-based on the range a panel uses and curved. */
     public static function judgePart(?float $judgeAvg0to10, ?float $floor = null, ?float $curve = null): float

@@ -48,6 +48,9 @@
   .ja-name{ font-weight:600; color:#10292C }
   /* The denominator, set beside the figure it qualifies rather than under it. */
   .ja-den{ display:block; margin-top:3px; font-size:11px; color:#5a6d6f }
+  /* A discount an operator has to be able to SEE — without it the leader's lower
+     community half looks like the page has miscounted. */
+  .ja-den--warn{ color:#8a6100; font-weight:600 }
 
   .ja-flag{ font-family:var(--ag-font-mono,monospace); font-size:10px; font-weight:700;
     letter-spacing:.05em; text-transform:uppercase; padding:3px 8px; border-radius:999px;
@@ -410,16 +413,39 @@
                    Except on the row of the nominee who IS the scale, where "100% of their
                    own votes" is a tautology dressed as a denominator — and the fact worth
                    stating there is the other one. #}
+                {#
+                  THE WORD "ORGANIC" WAS WRONG HERE AND IT LOOKED LIKE FRAUD.
+
+                  These lines said "most organic votes here" and "79% of Ajayi's 1,955"
+                  while the ORGANIC column beside them read 0 — because the index counts
+                  every vote now and this copy still described the old rule. An operator
+                  reading a screen that credits 1,955 "organic" votes to somebody with none
+                  is reading, correctly, a screen they cannot trust.
+                #}
                 {% if c.community_dark %}
-                  {# With nobody holding an organic vote there is no scale and no
-                     scale-setter, and the fraction printed here came out as
-                     "0% of ’s 0" — a broken sentence where the explanation should be. #}
-                  <span class="ja-den">no organic votes to weigh</span>
+                  {# Nobody in the field has a single vote, so there is no scale and no
+                     scale-setter, and the fraction printed here came out as "0% of ’s 0" —
+                     a broken sentence where the explanation should be. #}
+                  <span class="ja-den">no votes to weigh</span>
                 {% elseif r.nominee_id == c.scale_set_by_id %}
-                  <span class="ja-den">most organic votes here &mdash; sets the scale</span>
+                  <span class="ja-den">most votes here &mdash; sets the scale</span>
                 {% else %}
                   <span class="ja-den">{{ r.community_share }}% of
                     {{ c.scale_set_by }}&rsquo;s {{ c.cohort_max|number_format }}</span>
+                {% endif %}
+                {#
+                  AND WHY THE LEADER'S 450 IS NOT ALWAYS 450.
+
+                  The half is relative to the category leader AND scaled by how deep the
+                  support in that category actually was, so the leader of a category with
+                  89 votes no longer collects exactly what the leader of one with 1,955
+                  collects. Without this line the discount is invisible and the screen
+                  looks like it has miscounted.
+                #}
+                {% if not c.community_dark and c.cohort_max < c.community_full_credit %}
+                  <span class="ja-den ja-den--warn">category discounted &mdash;
+                    {{ c.cohort_max|number_format }} votes against a full-credit mark of
+                    {{ c.community_full_credit|number_format }}</span>
                 {% endif %}
               </td>
               {# The judge half is an average of averages of marks, three steps from
@@ -438,11 +464,13 @@
                 <span class="ja-den"><a href="/admin/scorecard/{{ r.nominee_id }}">see the marks</a></span>
               </td>
               <td class="ja-num">{{ r.organic|number_format }}</td>
-              {# BOTH numbers. `organic` decided this; `vote_count` is what the public page
-                 shows and it includes purchased support, which must never move a rank. #}
+              {# BOTH numbers, and the roles have swapped: `vote_count` is what the index
+                 counts AND what the public page shows; `organic` is how much of it was not
+                 bought, which decides nothing now but is published everywhere the total is
+                 so a reader can see what a tally is made of. #}
               <td class="ja-num">{{ r.vote_count|number_format }}
                 {%- if r.vote_count > r.organic %}
-                  <span class="ja-den">{{ (r.vote_count - r.organic)|number_format }} not organic</span>
+                  <span class="ja-den">{{ (r.vote_count - r.organic)|number_format }} bought or awarded</span>
                 {% endif %}
               </td>
               <td>

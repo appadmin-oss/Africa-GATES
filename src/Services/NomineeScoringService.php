@@ -45,6 +45,8 @@ class NomineeScoringService
         $cCurve = (float) ($eff['community_curve'] ?? RuleEngine::DEFAULTS['community_curve']);
         $jFloor = (float) ($eff['judge_floor']     ?? RuleEngine::DEFAULTS['judge_floor']);
         $jCurve = (float) ($eff['judge_curve']     ?? RuleEngine::DEFAULTS['judge_curve']);
+        $full   = (int)   ($eff['community_full_credit_votes']
+                           ?? RuleEngine::DEFAULTS['community_full_credit_votes']);
 
         // ══ EVERY VOTE COUNTS, WHATEVER IT COST ══════════════════════════════
         //
@@ -135,7 +137,7 @@ class NomineeScoringService
             $eligible = $judges >= $quorum;                        // winner-eligible only at quorum
 
             $split = CpiService::split(
-                CpiService::communityPart((int) $n->vote_count, $cohortMax, $cCurve),
+                CpiService::communityPart((int) $n->vote_count, $cohortMax, $cCurve, $full),
                 CpiService::judgePart($eligible ? $ja : null, $jFloor, $jCurve),
                 $w['community'], $w['judge']);
             $out[(int) $n->id] = [

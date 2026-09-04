@@ -33,6 +33,13 @@ final class JudgingIntegrityAuditTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
+        // The community half is scaled by how deep the support in a category actually was
+        // (CpiService::depth) — a leader on 89 votes no longer collects what a leader on
+        // 1,955 collects. These fixtures use small counts to keep their arithmetic legible,
+        // so the mark is set to 1: depth becomes 1.0 and the test is about the thing it is
+        // about. The discount has its own tests in CpiServiceTest.
+        (new \AfricaGates\Services\RuleEngine())->set('global', null,
+            ['community_full_credit_votes' => 1]);
 
         $this->prog = (int) DB::table('gates_award_programmes')->insertGetId([
             'slug' => 'p', 'title' => 'P', 'is_active' => 1,
@@ -372,8 +379,11 @@ final class JudgingIntegrityAuditTest extends TestCase
     {
         $cpi = new \AfricaGates\Services\CpiService();
 
-        $judged     = $cpi->nomineeScore(100, 100, 6.0);   // cohort max, middling marks
-        $unjudged   = $cpi->nomineeScore(100, 100, null);  // cohort max, nobody has judged
+        // Called directly, so the RuleEngine row in setUp does not reach it: the full-credit
+        // mark is passed here instead. 100 votes against the live default of 1,000 would be
+        // discounted to a third, which is correct and is a different test.
+        $judged     = $cpi->nomineeScore(100, 100, 6.0, 0.45, 0.55, null, null, null, 1);
+        $unjudged   = $cpi->nomineeScore(100, 100, null, 0.45, 0.55, null, null, null, 1);
         $renormed   = 1000;                                // what community-only would give
 
         $this->assertSame(499, $judged);

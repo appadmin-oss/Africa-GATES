@@ -37,6 +37,11 @@ class RuleEngineTest extends TestCase
 
     public function test_override_changes_computed_cpi(): void
     {
+        // Small fixtures: the community half is scaled by how deep a category's support
+        // was (CpiService::depth), so the full-credit mark is set to 1 here and depth
+        // becomes 1.0. The discount has its own tests in CpiServiceTest.
+        (new \AfricaGates\Services\RuleEngine())->set('global', null,
+            ['community_full_credit_votes' => 1]);
         DB::table('gates_award_programmes')->insert(['id' => 1, 'slug' => 'p1', 'title' => 'P1']);
         DB::table('gates_award_cycles')->insert(['id' => 1, 'programme_id' => 1, 'year' => (int) date('Y'), 'status' => 'voting']);
         DB::table('gates_award_categories')->insert(['id' => 1, 'cycle_id' => 1, 'slug' => 'c1', 'title' => 'C1']);

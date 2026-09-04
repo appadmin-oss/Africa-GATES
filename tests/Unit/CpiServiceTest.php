@@ -8,6 +8,15 @@ use AfricaGates\Services\CpiService;
 
 class CpiServiceTest extends TestCase
 {
+    /**
+     * Pure math, so the RuleEngine plays no part: every call here passes the full-credit
+     * mark explicitly. The community half is scaled by how DEEP a category's support was
+     * as well as by a nominee's share of its leader — see CpiService::depth(), and the
+     * dedicated tests at the bottom of this file. Passing 1 makes that factor 1.0 so these
+     * expectations are about the curve alone.
+     */
+    private const FULL = 1;
+
     public function test_tier_thresholds(): void
     {
         $s = new CpiService();
@@ -41,9 +50,9 @@ class CpiServiceTest extends TestCase
         $s = new CpiService();
         // Full share → 1.0^2 = 1.0. Judge 8/10 → ((8−5)/5)^1.5 = 0.6^1.5 = 0.4648.
         // 0.45×1000 + 0.55×0.4648×1000 = 450 + 256 = 706.
-        $this->assertSame(706, $s->nomineeScore(10, 10, 8.0));
+        $this->assertSame(706, $s->nomineeScore(10, 10, 8.0, 0.45, 0.55, null, null, null, self::FULL));
         // no judge score -> only the 45% public component
-        $this->assertSame(450, $s->nomineeScore(10, 10, null));
+        $this->assertSame(450, $s->nomineeScore(10, 10, null, 0.45, 0.55, null, null, null, self::FULL));
         // Was `500` — the MEAN, which punished a person for being nominated twice: a 900
         // and a 100 came out below a lone 900. It is the best result lifted by each
         // further one now, so 600 with a 400 beside it is 640. The properties that must
@@ -57,8 +66,8 @@ class CpiServiceTest extends TestCase
     {
         $s = new CpiService();
         // Same raw votes (5), different cohort maxes -> different public share.
-        $lowCohort  = $s->nomineeScore(5, 5,  null);   // 5/5  = full share
-        $highCohort = $s->nomineeScore(5, 50, null);   // 5/50 = a tenth of the leader
+        $lowCohort  = $s->nomineeScore(5, 5,  null, 0.45, 0.55, null, null, null, self::FULL);   // 5/5  = full share
+        $highCohort = $s->nomineeScore(5, 50, null, 0.45, 0.55, null, null, null, self::FULL);   // 5/50 = a tenth of the leader
         $this->assertGreaterThan($highCohort, $lowCohort);
         $this->assertSame(450, $lowCohort);
         // 0.1^2 = 0.01 → 4.5, rounds to 5. Under the old linear share this was 45 — a tenth
@@ -79,17 +88,17 @@ class CpiServiceTest extends TestCase
     public function test_nominee_score_boundary_cases(): void
     {
         $s = new CpiService();
-        $this->assertSame(0,    $s->nomineeScore(0, 0, null));    // zero cohort + zero votes → no divide-by-zero
-        $this->assertSame(450,  $s->nomineeScore(5, 0, null));    // cohortMax 0 guarded to 1 → full public share
-        $this->assertSame(450,  $s->nomineeScore(20, 10, null));  // votes > cohort max clamps at 1.0 (not 900)
-        $this->assertSame(450,  $s->nomineeScore(10, 10, 0.0));   // judge 0.0 is a real low score
-        $this->assertSame(1000, $s->nomineeScore(10, 10, 10.0));  // full public + full judge
+        $this->assertSame(0,    $s->nomineeScore(0, 0, null, 0.45, 0.55, null, null, null, self::FULL));    // zero cohort + zero votes → no divide-by-zero
+        $this->assertSame(450,  $s->nomineeScore(5, 0, null, 0.45, 0.55, null, null, null, self::FULL));    // cohortMax 0 guarded to 1 → full public share
+        $this->assertSame(450,  $s->nomineeScore(20, 10, null, 0.45, 0.55, null, null, null, self::FULL));  // votes > cohort max clamps at 1.0 (not 900)
+        $this->assertSame(450,  $s->nomineeScore(10, 10, 0.0, 0.45, 0.55, null, null, null, self::FULL));   // judge 0.0 is a real low score
+        $this->assertSame(1000, $s->nomineeScore(10, 10, 10.0, 0.45, 0.55, null, null, null, self::FULL));  // full public + full judge
         // A mark AT the floor is worth nothing on the judge half — that is what the floor
         // means. It was 725 (half the judge weight) and a panel does not call 5/10 half
         // distinguished.
-        $this->assertSame(450,  $s->nomineeScore(10, 10, 5.0));
+        $this->assertSame(450,  $s->nomineeScore(10, 10, 5.0, 0.45, 0.55, null, null, null, self::FULL));
         // And below it cannot go negative.
-        $this->assertSame(450,  $s->nomineeScore(10, 10, 3.0));
+        $this->assertSame(450,  $s->nomineeScore(10, 10, 3.0, 0.45, 0.55, null, null, null, self::FULL));
 
         // ── THE CURVES ARE SETTINGS, AND A BAD ONE CANNOT INVERT THE MEASURE ─
         //
@@ -97,9 +106,73 @@ class CpiServiceTest extends TestCase
         // a tuning knob rather than a rewrite. And an exponent of zero would make every
         // share return 1.0 — the whole community half collapsing to a constant, silently,
         // from one bad setting — so it is clamped.
-        $this->assertSame(45,  $s->nomineeScore(5, 50, null, 0.45, 0.55, 1.0));
-        $this->assertSame(725, $s->nomineeScore(10, 10, 5.0, 0.45, 0.55, 1.0, 0.0, 1.0));
-        $this->assertGreaterThan(0, $s->nomineeScore(5, 50, null, 0.45, 0.55, 0.0),
+        $this->assertSame(45,  $s->nomineeScore(5, 50, null, 0.45, 0.55, 1.0, null, null, self::FULL));
+        $this->assertSame(725, $s->nomineeScore(10, 10, 5.0, 0.45, 0.55, 1.0, 0.0, 1.0, self::FULL));
+        $this->assertGreaterThan(0, $s->nomineeScore(5, 50, null, 0.45, 0.55, 0.0, null, null, self::FULL),
             'an exponent of zero was accepted and flattened the community half to a constant');
+    }
+
+    /**
+     * EIGHTY-NINE VOTES IS NOT NINETEEN HUNDRED, AND IT USED TO SCORE THE SAME.
+     *
+     * The community half was purely relative — a share of the leader of your own category
+     * — so the leader of ANY category collected the whole weight whatever their support
+     * was. Two released categories, side by side on the operator's screen:
+     *
+     *     Ajayi Temitope Oluwarotimi   1,955 votes   community 450
+     *     Idowu Olayemi Olubukunola       89 votes   community 450
+     *
+     * The operator's word was "rigged", and it is the right word: a figure that does not
+     * move when the thing it measures changes twentyfold is not measuring it.
+     */
+    public function test_a_thin_category_does_not_pay_its_leader_what_a_deep_one_does(): void
+    {
+        $s = new CpiService();
+
+        $deep = $s->nomineeScore(1955, 1955, null);   // leads a category with real backing
+        $thin = $s->nomineeScore(89, 89, null);       // leads a category with almost none
+
+        $this->assertSame(450, $deep, 'a leader past the full-credit mark is paid in full');
+        $this->assertSame(134, $thin);
+        $this->assertGreaterThan($thin, $deep,
+            'eighty-nine votes still pays what nineteen hundred pays');
+    }
+
+    /**
+     * AND IT IS A DISCOUNT, NOT A CLIFF.
+     *
+     * Square-rooted on purpose. A category at half the full-credit mark keeps seventy per
+     * cent of the weight rather than fifty, because a field with five hundred people
+     * behind it is a real field — the shape has to punish emptiness without punishing
+     * being smaller.
+     */
+    public function test_the_discount_is_gentle_and_monotonic(): void
+    {
+        $s = new CpiService();
+
+        $this->assertSame(318, $s->nomineeScore(500, 500, null));   // 0.71 of the weight
+        $this->assertSame(450, $s->nomineeScore(5000, 5000, null)); // capped, never above
+
+        // Monotonic: more support behind a category is never worth less.
+        $last = -1;
+        foreach ([10, 50, 100, 400, 900, 1000, 4000] as $votes) {
+            $now = $s->nomineeScore($votes, $votes, null);
+            $this->assertGreaterThanOrEqual($last, $now, "depth went backwards at {$votes}");
+            $last = $now;
+        }
+    }
+
+    /**
+     * SETTING IT TO ONE RESTORES THE OLD BEHAVIOUR EXACTLY.
+     *
+     * Which is what makes it a judgement an operator owns rather than a rule imposed here.
+     * A continental prize and a school prize do not have the same "full mandate" number.
+     */
+    public function test_the_full_credit_mark_is_a_setting_that_can_be_turned_off(): void
+    {
+        $s = new CpiService();
+
+        $this->assertSame(450, $s->nomineeScore(89, 89, null, 0.45, 0.55, null, null, null, 1),
+            'the discount cannot be switched off, so it is a rule rather than a setting');
     }
 }
