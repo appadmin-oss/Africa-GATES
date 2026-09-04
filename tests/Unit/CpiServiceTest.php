@@ -25,7 +25,12 @@ class CpiServiceTest extends TestCase
         $this->assertSame(890, $s->nomineeScore(10, 10, 8.0));
         // no judge score -> only the 45% public component
         $this->assertSame(450, $s->nomineeScore(10, 10, null));
-        $this->assertSame(500, $s->profileRollup([400, 600]));
+        // Was `500` — the MEAN, which punished a person for being nominated twice: a 900
+        // and a 100 came out below a lone 900. It is the best result lifted by each
+        // further one now, so 600 with a 400 beside it is 640. The properties that must
+        // hold whatever the lift is set to live in CpiRollupTest.
+        $this->assertSame(640, $s->profileRollup([400, 600]));
+        $this->assertSame(640, $s->profileRollup([600, 400]), 'order changed the answer');
         $this->assertNull($s->profileRollup([]));
     }
 

@@ -98,7 +98,20 @@
      (.is-center/.is-left/.is-right) sets transform + depth, and transitions
      animate cards gliding between slots. Card identity (gradient, content)
      stays with the card as it rotates. */
-  .hm-reels{ position:relative; height:380px; }
+  /* ── AN INVISIBLE CARD CAN STILL DRAG THE PAGE SIDEWAYS ──────────────────
+     Below 430px the two side reels are hidden with `opacity:0` rather than
+     `display:none`, deliberately — see the note in that media query: they stay in the
+     deck so the rotation keeps bringing each card to the front. But opacity removes
+     nothing from layout, and an absolutely-positioned child still contributes to its
+     ancestor's scrollable overflow. `.is-right` translates to `-50% + 92px`, which on a
+     320px phone puts its edge at 322 — so the homepage scrolled two pixels sideways, on
+     every vertical swipe, because of a card nobody could see.
+     `overflow-x: clip` rather than `hidden`: clip does not make this a scroll container,
+     so nothing here starts trapping scroll or breaking a sticky ancestor, and it clips
+     one axis only so the cards' own shadows still fall below them. A browser that does
+     not know the value drops the declaration and gets today's two pixels back, which is
+     the failure this is worth having. */
+  .hm-reels{ position:relative; height:380px; overflow-x:clip; }
   .hm-reel{ position:absolute; left:50%; top:50%; width:168px; height:300px;
     border-radius:22px; overflow:hidden; box-shadow:0 28px 56px -26px rgba(16,41,44,.6);
     display:flex; align-items:flex-end;

@@ -44,7 +44,52 @@ class CpiService
     }
 
     /**
-     * Profile-level CPI = mean of its linked nominees' final scores.
+     * How much of the remaining distance to 1000 each FURTHER nomination closes.
+     *
+     * A quarter, so a second recognition is a real lift and a fifth is a small one. The
+     * exact figure is a judgement; the two properties it has to preserve are not, and both
+     * are held in CpiRollupTest: an extra nomination can never LOWER a standing, and no
+     * amount of breadth can reach 1000 without a result that deserves it.
+     */
+    private const FURTHER_LIFT = 0.25;
+
+    /**
+     * Profile-level CPI: the best result, lifted by each further one.
+     *
+     * ══════════════════════════════════════════════════════════════════════════
+     * IT USED TO BE THE MEAN, AND THE MEAN PUNISHES BEING RECOGNISED TWICE
+     * ══════════════════════════════════════════════════════════════════════════
+     *
+     * A profile with one nomination at 900 scored 900. Nominated a second time, in a
+     * category they were weaker in, at 100 — they scored 500. The second nomination, which
+     * nobody asked for and which is a recognition rather than a demerit, cost them four
+     * hundred points and three tiers, from `diamond` to `gold`. Somebody nominated once in
+     * their strongest category outranked them.
+     *
+     * That is not a rounding argument, it is backwards: an index of cultural power that
+     * falls when the culture recognises you again is measuring something else. And it is
+     * gameable in the one direction nobody wants — the play is to be nominated as little
+     * as possible.
+     *
+     * ══════════════════════════════════════════════════════════════════════════
+     * WHY NOT SIMPLY THE BEST RESULT
+     * ══════════════════════════════════════════════════════════════════════════
+     *
+     * It was the first candidate and it is nearly right: it can never punish breadth, and
+     * "your index is your strongest result this year" is an answer anybody can give to a
+     * nominee who asks. It throws away the thing the index is actually named for, though.
+     * Somebody carried in four categories is not in the same position as somebody carried
+     * in one, and a registry that ranks them identically has stopped ranking.
+     *
+     * So: the best result stands as the floor, and every further nomination closes a
+     * fraction of what is left between it and 1000 — a fraction proportional to how good
+     * that further result was. A weak second nomination adds almost nothing; a strong one
+     * adds real ground; neither can ever subtract. Sorted first, so the arithmetic does
+     * not depend on the order rows come back in.
+     *
+     * Worked, from the case above:  900 alone → 900.  900 with a 100 → 903.  900 with a
+     * second 900 → 923.  Four 400s → 563, which still sits below a single 600.
+     *
      * @param int[] $linkedFinals
      */
     public function profileRollup(array $linkedFinals): ?int
@@ -52,7 +97,27 @@ class CpiService
         if (!$linkedFinals) {
             return null;
         }
-        return (int) round(array_sum($linkedFinals) / count($linkedFinals));
+
+        $sorted = $linkedFinals;
+        rsort($sorted);
+
+        // BOTH ends are clamped, and the seed matters as much as the lift. `nomineeScore()`
+        // cannot return outside 0–1000 today, so this guards a row rather than a caller —
+        // a judge average stored above ten, a column somebody backfilled — but the seed is
+        // the best result, and an uncapped one is published verbatim: [900, 4000] came out
+        // at 3325 "of 1000" with the lift alone clamped. The ceiling has to be a property
+        // of this function, not of its inputs.
+        $score = max(0.0, min(1000.0, (float) array_shift($sorted)));
+
+        foreach ($sorted as $further) {
+            // A further result cannot be worth negative ground — that is the mean's defect
+            // coming back through the other door — and one above the ceiling would close
+            // MORE than the distance remaining.
+            $weight = max(0.0, min(1.0, (float) $further / 1000.0));
+            $score += (1000.0 - $score) * $weight * self::FURTHER_LIFT;
+        }
+
+        return (int) round($score);
     }
 
     /**
