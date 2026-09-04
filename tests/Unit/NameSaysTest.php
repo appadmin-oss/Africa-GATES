@@ -38,6 +38,25 @@ use Tests\TestCase;
  */
 final class NameSaysTest extends TestCase
 {
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        // ── THESE TESTS ARE ABOUT THE RESPELLING, SO THEY PICK A VOICE THAT NEEDS IT ──
+        //
+        // `DoorWelcome::saidAs()` only respells for a voice that does not know these names.
+        // Azure's `en-NG` voices — the default — say Ada and Ngozi correctly and are handed
+        // the name as written, which is the fix for the door sounding stilted. OpenAI's are
+        // American and need every syllable, which is the case this whole mechanism exists
+        // for. Without this line the assertions below would be checking a respelling
+        // through a path that deliberately switches it off.
+        DB::table('gates_settings')->where('key_name', \AfricaGates\Services\DoorVoice::SETTING)->delete();
+        DB::table('gates_settings')->insert([
+            'key_name' => \AfricaGates\Services\DoorVoice::SETTING,
+            'value'    => \AfricaGates\Services\DoorVoice::OPENAI,
+        ]);
+    }
+
     /** A model that answers with whatever the test hands it. */
     private function ai(?string $reply): AiService
     {

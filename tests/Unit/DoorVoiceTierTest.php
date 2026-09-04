@@ -114,11 +114,24 @@ final class DoorVoiceTierTest extends TestCase
         $this->assertLessThan(DoorWelcome::CAP, AzureVoice::perMinute(),
             'the fixture no longer exercises the case this test is about');
 
-        $src = $this->sweepSource();
-        $this->assertStringContainsString(
-            'min(self::CAP, AzureVoice::perMinute())', $src,
+        // Asserted as BEHAVIOUR through the resolver the sweep actually calls, not as a
+        // string in the source. The door gained a second provider and the budget is now
+        // read through `DoorVoice`; a scan for the old literal would have failed on a
+        // change that kept the property exactly, which teaches somebody to edit the test.
+        $this->assertLessThan(DoorWelcome::CAP, \AfricaGates\Services\DoorVoice::perMinute(),
             'the run takes its budget from the ceiling alone, so on F0 it asks for three '
             . 'times the tier\'s entire minute');
+
+        $this->assertStringContainsString(
+            'min(self::CAP, DoorVoice::perMinute())', $this->sweepSource(),
+            'the sweep no longer takes its budget from the resolver that knows the tier');
+
+        // And the deliberate difference: OpenAI has no free-tier minute to stay under, so
+        // the ceiling is the whole bound there. Stated so nobody reads the Azure number as
+        // a platform-wide rule and "fixes" it.
+        $this->set(\AfricaGates\Services\DoorVoice::SETTING, \AfricaGates\Services\DoorVoice::OPENAI);
+        $this->assertSame(DoorWelcome::CAP, \AfricaGates\Services\DoorVoice::perMinute(),
+            'a tier limit that belongs to Azure is being applied to a provider without one');
     }
 
     /**
@@ -141,9 +154,15 @@ final class DoorVoiceTierTest extends TestCase
     public function test_a_throttle_stops_the_run(): void
     {
         $this->assertMatchesRegularExpression(
-            '~if \(AzureVoice::throttled\(\)\) break;~', $this->sweepSource(),
+            '~if \(DoorVoice::throttled\(\)\) break;~', $this->sweepSource(),
             'a 429 does not stop the sweep, so the rest of the guest list is asked for one '
             . 'refusal at a time');
+
+        // Through the resolver, and only Azure meters this way — a throttle flag left by
+        // Azure must not stop a run that is now going to OpenAI.
+        $this->set(\AfricaGates\Services\DoorVoice::SETTING, \AfricaGates\Services\DoorVoice::OPENAI);
+        $this->assertFalse(\AfricaGates\Services\DoorVoice::throttled(),
+            'an Azure rate limit is stopping a sweep that is not calling Azure');
     }
 
     /** Only a 429 counts as throttled; a one-off fault must not end the whole run. */

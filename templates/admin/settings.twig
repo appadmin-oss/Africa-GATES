@@ -423,6 +423,36 @@
         </span>
       </label>
 
+      {# ── WHICH VOICE SPEAKS, AND WHAT IT COSTS EITHER WAY ────────────────
+         A real trade-off, so it is stated rather than buried: Azure's Nigerian voices say
+         these names as their owners do; OpenAI's sound more like a person and will
+         anglicise a Nigerian name unless the platform spells it out for them, which it
+         does automatically for that provider and does NOT do for Azure — handing a
+         respelling to a voice that already knows the name is what made the door sound
+         like a machine spelling at a guest. #}
+      <div class="row" style="margin-top:14px">
+        <div>
+          <label for="f-door_voice_provider">Who speaks</label>
+          <select name="door_voice_provider" id="f-door_voice_provider">
+            {% for id, label in door_voice_providers %}
+              <option value="{{ id }}"{{ door_voice_provider == id ? ' selected' : '' }}>{{ label }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div>
+          <label for="f-door_voice_openai">OpenAI voice <small>only used when OpenAI speaks</small></label>
+          <select name="door_voice_openai" id="f-door_voice_openai">
+            {% for id, label in openai_voices %}
+              <option value="{{ id }}"{{ openai_voice_pick == id ? ' selected' : '' }}>{{ label }}</option>
+            {% endfor %}
+          </select>
+        </div>
+      </div>
+      <p style="margin:8px 0 0;font-size:12px;line-height:1.6;color:var(--ad-text-mute,#5a6d6f)">
+        OpenAI uses the key under <strong>AI providers</strong> below — there is no second key to add.
+        Changing who speaks <strong>retires every greeting already made</strong>: they are cached by
+        voice, so the next scheduled run remakes them in the new one.</p>
+
       <div class="row" style="margin-top:12px">
         <div><label for="f-azure_speech_key">Azure Speech key</label>
           <input type="password" name="azure_speech_key" id="f-azure_speech_key" autocomplete="off"

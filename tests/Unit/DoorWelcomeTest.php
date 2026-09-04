@@ -40,12 +40,32 @@ final class DoorWelcomeTest extends TestCase
     {
         parent::setUp();
         foreach (glob(dirname(__DIR__, 2) . '/var/cache/door-welcome/*.mp3') ?: [] as $f) @unlink($f);
+
     }
 
     protected function tearDown(): void
     {
         foreach (glob(dirname(__DIR__, 2) . '/var/cache/door-welcome/*.mp3') ?: [] as $f) @unlink($f);
         parent::tearDown();
+    }
+
+    /**
+     * Choose a voice that NEEDS the names spelled out for it.
+     *
+     * `saidAs()` only respells for a voice that does not know these names. Azure's `en-NG`
+     * voices — the default — say Ada and Ngozi correctly and are handed the name as
+     * written, which is what stopped the door sounding stilted. OpenAI's are American and
+     * need every syllable, which is the case the respelling exists for. A test asserting a
+     * respelling without saying so would be checking a mechanism through a path that
+     * deliberately switches it off.
+     */
+    private function needsRespelling(): void
+    {
+        DB::table('gates_settings')->where('key_name', \AfricaGates\Services\DoorVoice::SETTING)->delete();
+        DB::table('gates_settings')->insert([
+            'key_name' => \AfricaGates\Services\DoorVoice::SETTING,
+            'value'    => \AfricaGates\Services\DoorVoice::OPENAI,
+        ]);
     }
 
     private function on(): void
@@ -101,6 +121,7 @@ final class DoorWelcomeTest extends TestCase
 
     public function test_the_greeting_is_the_nigerian_one(): void
     {
+        $this->needsRespelling();
         foreach (self::GUESTS as $g) {
             $l = DoorWelcome::line($g);
             $first = DoorWelcome::firstName($g);
@@ -147,6 +168,7 @@ final class DoorWelcomeTest extends TestCase
     /** First name only: warmer, and it halves the chance of mangling a surname. */
     public function test_only_the_first_name_is_spoken(): void
     {
+        $this->needsRespelling();
         $this->assertStringContainsString($this->spoken('Chidinma'), DoorWelcome::line('chidinma okonkwo'));
         $this->assertStringNotContainsString('Okonkwo', DoorWelcome::line('chidinma okonkwo'));
         $this->assertSame('Ngozi', DoorWelcome::firstName('  NGOZI   ADAEZE  '));
@@ -194,6 +216,7 @@ final class DoorWelcomeTest extends TestCase
     /** A guest of honour is met differently, because their arrival is different. */
     public function test_a_guest_of_honour_is_greeted_as_one(): void
     {
+        $this->needsRespelling();
         $l = DoorWelcome::honourLine('Tunde Cole', 'nominee');
 
         $this->assertStringContainsString($this->spoken('Tunde'), $l);
@@ -594,6 +617,7 @@ final class DoorWelcomeTest extends TestCase
      */
     public function test_a_name_spelled_with_its_tone_marks_is_still_greeted(): void
     {
+        $this->needsRespelling();
         foreach (["\u{1ECC}l\u{E1}\u{1E63}ub\u{1ECD}\u{300}m\u{ED} Adewale",
                   "Nna\u{1EB9}m\u{1EB9}ka Obi",
                   "Ol\u{289}\u{300}wat\u{1ECD}\u{301}s\u{ED}n Bello"] as $typed) {
@@ -704,6 +728,7 @@ final class DoorWelcomeTest extends TestCase
      */
     public function test_the_sheet_shows_how_each_name_will_be_said_and_who_decided(): void
     {
+        $this->needsRespelling();
         $this->soonEventWithGuests(
             ['Ngozi Eze', 'Chidinma Okonkwo', 'Ngozi Adeyemi', 'Yetunde Cole', 'Ngozi Bello']);
 
@@ -805,6 +830,7 @@ final class DoorWelcomeTest extends TestCase
      */
     public function test_a_name_nobody_entered_is_still_said_properly(): void
     {
+        $this->needsRespelling();
         DB::table('gates_settings')->insert(['key_name' => 'door_welcome_says',
             'value' => 'Chidinma = Chi-DEEN-ma']);
 
@@ -828,6 +854,7 @@ final class DoorWelcomeTest extends TestCase
      */
     public function test_a_half_written_pronunciation_is_ignored(): void
     {
+        $this->needsRespelling();
         DB::table('gates_settings')->insert(['key_name' => 'door_welcome_says',
             'value' => "Chidinma =\n= Chi-DEEN-ma\nnot a rule at all\n\nAda = Ah-DAH"]);
 

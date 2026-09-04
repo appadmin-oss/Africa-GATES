@@ -72,6 +72,13 @@ class SettingsController
             // every other credential screen here.
             'azure_voice_on'    => \AfricaGates\Services\AzureVoice::configured(),
             'azure_voice_why'   => \AfricaGates\Services\AzureVoice::why(),
+            // Who speaks at the door, and the OpenAI voice for when it is OpenAI. The
+            // trade-off between them is real — name accuracy against naturalness — so both
+            // sides are named on the screen rather than left to be discovered on the night.
+            'door_voice_providers' => \AfricaGates\Services\DoorVoice::PROVIDERS,
+            'door_voice_provider'  => \AfricaGates\Services\DoorVoice::provider(),
+            'openai_voices'        => \AfricaGates\Services\OpenAiVoice::VOICES,
+            'openai_voice_pick'    => \AfricaGates\Services\OpenAiVoice::voice(),
             'azure_voices'      => \AfricaGates\Services\AzureVoice::VOICES,
             'azure_voice_pick'  => \AfricaGates\Services\AzureVoice::voice(),
             'azure_region'      => \AfricaGates\Services\AzureVoice::region(),
@@ -329,6 +336,11 @@ class SettingsController
                   // knows; anything else falls back to the shipped default rather than
                   // being sent to a router that would skip it silently.
                   'ai_primary',
+                  // WHO speaks at the door, and the OpenAI voice for when it is OpenAI.
+                  // Both validated against their own lists in DoorVoice and OpenAiVoice —
+                  // an unknown value falls back to the shipped default rather than
+                  // silencing the door on the night somebody mistypes it.
+                  'door_voice_provider','door_voice_openai',
                   'azure_speech_region','azure_speech_voice','azure_speech_tier',
                   // Pacing. Both validated against their own lists in AzureVoice, because
                   // an out-of-range prosody value is a 400 during an unattended 06:00 run.

@@ -87,7 +87,7 @@ final class DoorWelcome
 
     public static function ready(): bool
     {
-        return self::enabled() && AzureVoice::configured() && self::dir() !== null;
+        return self::enabled() && DoorVoice::configured() && self::dir() !== null;
     }
 
     // ══ the words ════════════════════════════════════════════════════════════
@@ -219,7 +219,25 @@ final class DoorWelcome
         $key = self::fold($first);
         $map = self::dictionary();
 
+        // AN OPERATOR'S OWN CORRECTION OUTRANKS EVERYTHING BELOW IT, ALWAYS.
+        // Somebody heard a name said wrong and typed how it goes. No rule here is entitled
+        // to overrule that, whichever voice is speaking.
         if (isset($map[$key])) return $map[$key];
+
+        // ── AND THE REST IS A CRUTCH FOR A VOICE THAT DOES NOT KNOW THESE NAMES ──
+        //
+        // `suggest()` turns Ada into `Ah-dah` and Ngozi into `N-goh-zee`. It was written for
+        // a voice that reads Nigerian names by English rules, and for that voice it fixed a
+        // real fault. The default voice is now `en-NG-EzinneNeural`, trained on Nigerian
+        // English, which says Ada correctly — and handing IT a respelling does not help: it
+        // hands a neural voice a hyphenated non-word to over-articulate. That is what a
+        // steward hears as the voice not sounding smart, and it is the crutch becoming the
+        // limp.
+        //
+        // `NameSays::known()` is in here rather than above because it is the same kind of
+        // thing: a respelling, worked out by rule or by a model rather than heard by a
+        // person. Only the hand-written map is a judgement.
+        if (!DoorVoice::needsRespelling()) return $first;
 
         $known = NameSays::known($key);
         if ($known !== null) return $known;
@@ -592,8 +610,12 @@ final class DoorWelcome
      */
     public static function keyFor(string $line): string
     {
-        return sha1(AzureVoice::voice() . '|' . AzureVoice::rate() . '|' . AzureVoice::pitch()
-                  . '|' . AzureVoice::tidy($line));
+        // THE PROVIDER IS PART OF THE KEY. Clips are rendered hours ahead and looked up by
+        // this hash; without the provider in it, switching from Azure to OpenAI leaves every
+        // file on disk matching a key that no longer describes the voice that made it, and
+        // the door goes on serving the old provider's audio for as long as those files live
+        // — silently, because the only question the door asks is whether the file exists.
+        return sha1(DoorVoice::signature() . '|' . AzureVoice::tidy($line));
     }
 
     public static function dir(): ?string
@@ -653,13 +675,13 @@ final class DoorWelcome
      */
     public static function render(string $line): bool
     {
-        if ($line === '' || !AzureVoice::configured()) return false;
+        if ($line === '' || !DoorVoice::configured()) return false;
         if (self::have($line)) return true;
 
         $path = self::pathFor(self::keyFor($line));
         if ($path === null) return false;
 
-        $mp3 = AzureVoice::say($line);
+        $mp3 = DoorVoice::say($line);
         if ($mp3 === null) return false;
 
         // Written to a temporary name and moved into place: a sweep that dies mid-write
@@ -696,7 +718,7 @@ final class DoorWelcome
         if (!self::ready()) {
             if (self::enabled()) {
                 error_log('[door-welcome] switched on but cannot render: '
-                    . (AzureVoice::configured() ? 'cache directory not writable' : AzureVoice::why()));
+                    . (DoorVoice::configured() ? 'cache directory not writable' : DoorVoice::why()));
             }
             return 0;
         }
@@ -717,7 +739,7 @@ final class DoorWelcome
         //
         // Counting attempts fixes the runaway; taking the cap from the tier stops the
         // throttle happening in the first place.
-        $cap   = $cap ?? min(self::CAP, AzureVoice::perMinute());
+        $cap   = $cap ?? min(self::CAP, DoorVoice::perMinute());
         $made  = 0;
         $tried = 0;
 
@@ -756,7 +778,7 @@ final class DoorWelcome
             // this run is guaranteed to fail. Stopping is not giving up: the next tick
             // takes the next batch, and `have()` means nothing already on disk is retried.
             // Any other failure is about that one clip, and the run carries on past it.
-            if (AzureVoice::throttled()) break;
+            if (DoorVoice::throttled()) break;
         }
 
         return $made;
@@ -858,7 +880,7 @@ final class DoorWelcome
     public static function readiness(?int $eventId = null): array
     {
         $on       = self::enabled();
-        $voice    = AzureVoice::configured();
+        $voice    = DoorVoice::configured();
         $writable = self::dir() !== null;
 
         $inWindow = $eventId === null || in_array((int) $eventId, self::soonEvents(), true);
@@ -878,9 +900,13 @@ final class DoorWelcome
             // `why()` describes the SYMPTOM ("nobody is greeted by name"), which is the
             // sentence the operator is already looking at. What is missing from it is
             // where to go, so the instruction is stated here and its detail appended.
+            // Named for the provider actually chosen. "Add the Azure key" is the wrong
+            // instruction, confidently given, on a deployment that has selected OpenAI.
             !$voice => ['No speech voice is configured, so no greeting can be made.',
-                        'Add the Azure Speech key and region under Settings → AI.'
-                        . (AzureVoice::why() !== '' ? ' (' . AzureVoice::why() . ')' : '')],
+                        (DoorVoice::provider() === DoorVoice::OPENAI
+                            ? 'Add the OpenAI key under Settings → AI providers.'
+                            : 'Add the Azure Speech key and region under Settings → AI.')
+                        . (DoorVoice::why() !== '' ? ' (' . DoorVoice::why() . ')' : '')],
             !$writable => ['The greeting cache is not writable, so nothing can be saved.',
                            'var/cache/door-welcome cannot be created or written to.'],
             !$inWindow => ['This event is outside the ' . self::LEAD_DAYS . '-day window the '
