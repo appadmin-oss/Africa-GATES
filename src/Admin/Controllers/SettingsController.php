@@ -760,7 +760,12 @@ class SettingsController
 
         // Display constants — values that used to be hardcoded in copy across the site.
         if (array_key_exists('display_settings', $b)) {
-            foreach (['nations_count', 'cpi_recompute_hours', 'review_sla_hours', 'nomination_seconds', 'otp_expiry_minutes'] as $k) {
+            // `donation_goal_naira` rides here because it is the same kind of value: a
+            // number the public copy states, which used not to exist at all. Zero is a
+            // real answer and means "no target" — the donation page then draws exactly
+            // what it drew before, rather than a bar against a figure nobody chose.
+            foreach (['nations_count', 'cpi_recompute_hours', 'review_sla_hours',
+                      'nomination_seconds', 'otp_expiry_minutes', 'donation_goal_naira'] as $k) {
                 if (array_key_exists($k, $b)) $this->settings->set($k, (string) max(0, (int) $b[$k]), $adminId);
             }
             if (array_key_exists('processing_fee_pct', $b)) {

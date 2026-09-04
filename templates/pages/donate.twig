@@ -152,6 +152,19 @@
   /* Appeal progress. The bar carries an aria-label with the real figures, because a
      width is not readable — and the numbers sit under it in text for everybody else,
      since a bar alone invites "90% is nearly there" on a fifty-million-naira target. */
+  /* The fund's own target. Same instrument as `.dn-prog` below, which is the campaign
+     bar — taller only because this one sits in a masthead rather than inside a form
+     card, and a 8px rule under a 40px figure reads as a hairline rather than a gauge. */
+  .dn-goal{ margin:30px 0 0; max-width:44rem; }
+  .dn-goal__bar{ height:11px; border-radius:99px; background:rgba(16,41,44,.10);
+                 overflow:hidden; }
+  .dn-goal__bar i{ display:block; height:100%; border-radius:99px;
+                   background:var(--dn-gold-ink,#8a6005); }
+  .dn-goal__nums{ margin:11px 0 0; font-size:13.5px; line-height:1.6; color:var(--dn-ink-2); }
+  .dn-goal__nums b{ font-family:var(--ag-font-mono,monospace); font-weight:700;
+                    font-variant-numeric:tabular-nums; color:var(--dn-ink); }
+  .dn-goal__met{ color:var(--ag-green-dark,#1a6118); font-weight:600; }
+
   .dn-prog{ margin:16px 0 0; }
   .dn-prog__bar{ height:8px; border-radius:99px; background:rgba(16,41,44,.10);
     overflow:hidden; }
@@ -316,6 +329,13 @@
     overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
   /* `tabular-nums` so a column of amounts lines up on its digits rather than
      roughly. A ledger whose figures do not align is not being read as a ledger. */
+  /* When it arrived, between the giver and the amount. `flex:none` so it never squeezes
+     the name, and the name keeps `flex:1` so a long one still ellipsises rather than
+     pushing the figure off a phone. */
+  .dn-led__w{ flex:none; font-size:12px; color:var(--dn-mute);
+              font-variant-numeric:tabular-nums; white-space:nowrap; }
+  .dn-sec--share .dn-share__l{ margin:10px 0 18px; max-width:58ch; font-size:14.5px;
+                               line-height:1.65; color:var(--dn-ink-2); }
   .dn-led__a{ flex:none; font-family:var(--ag-font-mono,monospace); font-weight:700;
     font-size:14.5px; font-variant-numeric:tabular-nums; color:var(--dn-ink); }
 
@@ -409,16 +429,48 @@
           mentorship, scholarships, and the classrooms where tomorrow’s icons begin.</p>
       {% endif %}
 
+      {# ── THE TARGET ──────────────────────────────────────────────────────
+         A partner's appeal has had a goal and a bar since it shipped; this fund had a
+         raised figure and nothing to measure it against. "₦2,400,000 raised" is a fact
+         with no shape — a stranger cannot tell whether that is nearly done or barely
+         started, and a number that cannot be read as progress does not read as an ask.
+
+         It draws only when an operator has set one. An invented target is worse than
+         none, and `donation_goal_naira` is unset by default — so a deployment that has
+         not decided what it is raising for keeps exactly the page it had.
+
+         The bar is capped at 100%; the FIGURE beside it is not. A bar running past its
+         own track reads as a rendering fault, and passing the target is good news. #}
+      {% if fund_goal %}
+        <div class="dn-goal">
+          <div class="dn-goal__bar" role="img"
+               aria-label="₦{{ fund_goal.raised|number_format }} raised of a ₦{{ fund_goal.goal|number_format }} target">
+            <i style="width:{{ fund_goal.pct }}%"></i>
+          </div>
+          <p class="dn-goal__nums">
+            <b>₦{{ fund_goal.raised|number_format }}</b> raised of
+            <b>₦{{ fund_goal.goal|number_format }}</b>
+            {%- if fund_goal.met %} — <span class="dn-goal__met">target reached, and still open</span>
+            {%- else %} · <b>₦{{ fund_goal.remaining|number_format }}</b> to go{% endif %}
+          </p>
+        </div>
+      {% endif %}
+
       {# ── THE FIGURES, OR THE ABSENCE OF THEM ──
          Confirmed rows only. With none yet the space says so plainly rather than
          printing a zero, because "₦0 raised" beside an ask reads as a verdict. #}
       {% if stats.gifts > 0 %}
         <div class="dn-fig">
+          {# The raised figure is in the target line above when there is one, and printing
+             it again forty pixels below is the masthead saying the same thing twice. The
+             count is the half the bar cannot carry. #}
+          {% if not fund_goal %}
           <div>
             <div class="dn-fig__n">₦{{ stats.raised_naira|number_format }}</div>
             <div class="dn-fig__l">Raised {% if campaign %}for this appeal{% elseif org %}for
               {{ org.name }}{% else %}in community donations{% endif %}</div>
           </div>
+          {% endif %}
           <div>
             <div class="dn-fig__n">{{ stats.gifts|number_format }}</div>
             <div class="dn-fig__l">Donation{{ stats.gifts == 1 ? '' : 's' }} received</div>
@@ -665,7 +717,13 @@
       </blockquote>
 
       {# Held back below three, because a ledger carrying a single anonymised row says less
-         than the figure in the masthead already does. #}
+         than the figure in the masthead already does.
+
+         WHEN each gift arrived is the half that was missing. The timestamp has been
+         collected and handed to this template since the ledger shipped and was printed
+         nowhere, so a page whose whole job is to show that other people are giving could
+         not say whether the last one came this morning or last year — which is the
+         difference between a live appeal and an archive. #}
       {% if givers|length >= 3 %}
       <section class="dn-sec">
         <span class="dn-kick">Confirmed</span>
@@ -674,12 +732,35 @@
           {% for g in givers %}
             <div class="dn-led__r">
               <span class="dn-led__n">{{ g.name }}</span>
+              {% if g.ago %}<span class="dn-led__w">{{ g.ago }}</span>{% endif %}
               <span class="dn-led__a">₦{{ g.amount|number_format }}</span>
             </div>
           {% endfor %}
         </div>
       </section>
       {% endif %}
+
+      {# ── PASSING IT ON ───────────────────────────────────────────────────
+         The one thing a fundraising page cannot do for itself. Every other surface here
+         that asks somebody to pass a link on renders the same partial, so the
+         destinations, the copy and the no-JavaScript fallback cannot drift apart between
+         a ballot and an appeal.
+
+         Placed AFTER the case has been made and never before it: a share row above the
+         reason to share is asking for a favour from somebody who has not been given one. #}
+      <section class="dn-sec dn-sec--share">
+        <span class="dn-kick">Pass it on</span>
+        <h2 class="dn-h2">{% if campaign %}Share this appeal{% elseif org %}Share {{ org.name }}{% else %}Share the fund{% endif %}</h2>
+        <p class="dn-share__l">Most gifts here arrive because somebody sent the link to
+          somebody else. It costs nothing and it is the single most useful thing you can do
+          if you cannot give today.</p>
+        {% include 'partials/share.twig' with {
+          share_label: '',
+          share_text: campaign ? campaign.title
+                    : (org ? ('Support ' ~ org.name ~ ' on Africa GATES')
+                           : 'Fund the next generation of African leaders — Africa GATES')
+        } only %}
+      </section>
 
       {# Only below the breakpoint, where the form is not beside the reader any more. On a
          desktop the rail is still on screen and a "donate" link that scrolls to something

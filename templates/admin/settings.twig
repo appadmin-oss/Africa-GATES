@@ -993,7 +993,7 @@
       <p style="margin:6px 0 0;font-size:12px;color:var(--ad-text-mute,#5a6d6f)">Nothing is payable until a cycle reaches its results, and <strong>no payout path exists yet</strong> — the ledger accrues and displays. Set the share to <strong>0%</strong> to stop accruing entirely for new contributions; entries already written are unaffected, because the ledger is append-only. These figures are published on the <a href="/integrity#return" style="color:var(--ad-accent,#237b22)">integrity page</a> exactly as set here.</p>
     </div>
   </div></div>
-  <div class="ad-card" data-sec="site" data-keys="display values nations count cpi recompute interval review sla nomination seconds otp expiry processing fee" x-show="show($el)"><div class="ad-card__head"><div class="ad-card__title">Display values<small>Numbers shown in site copy — edit here instead of hardcoding them in templates.</small></div></div><div class="ad-card__body">
+  <div class="ad-card" data-sec="site" data-keys="display values nations count cpi recompute interval review sla nomination seconds otp expiry processing fee donation goal target fundraising" x-show="show($el)"><div class="ad-card__head"><div class="ad-card__title">Display values<small>Numbers shown in site copy — edit here instead of hardcoding them in templates.</small></div></div><div class="ad-card__body">
     <input type="hidden" name="display_settings" value="1">
     <div class="ad-form">
       <div class="row">
@@ -1008,6 +1008,11 @@
         <div><label for="f-otp_expiry_minutes">OTP code expiry (minutes)</label><input type="number" name="otp_expiry_minutes" id="f-otp_expiry_minutes" min="0" step="1" value="{{ values.otp_expiry_minutes|default('10') }}"></div>
         <div><label for="f-processing_fee_pct">Payment processing fee (%)</label><input type="number" name="processing_fee_pct" id="f-processing_fee_pct" min="0" step="0.1" value="{{ values.processing_fee_pct|default('1.5') }}"></div>
       </div>
+      <div class="row">
+        <div><label for="f-donation_goal_naira">Donation target (₦)</label><input type="number" name="donation_goal_naira" id="f-donation_goal_naira" min="0" step="1000" value="{{ values.donation_goal_naira|default('0') }}"></div>
+        <div></div>
+      </div>
+      <p style="margin:6px 0 0;font-size:12px;color:var(--ad-text-mute,#5a6d6f)">The target the <a href="/donate" style="color:var(--ad-accent,#237b22)">donation page</a> shows progress against. <strong>0 means no target</strong> — the page then prints the raised figure alone, exactly as it did before, because an invented target is worse than none. Progress is summed from confirmed donations on every page load, so it can never drift from the rows underneath it.</p>
     </div>
   </div></div>
   <div class="ad-card" data-sec="integrity" data-keys="moderation thresholds quarantine auto reject comments threads nominations review queue" x-show="show($el)"><div class="ad-card__head"><div class="ad-card__title">Moderation thresholds<small>Where content scores (0–1) flip to review or auto-reject. Applies to comments, threads &amp; nominations.</small></div></div><div class="ad-card__body">

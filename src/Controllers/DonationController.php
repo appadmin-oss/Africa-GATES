@@ -112,6 +112,8 @@ final class DonationController
                         'providers'  => [], 'stats' => $this->stats(), 'givers' => [],
                     'org_totals' => \AfricaGates\Services\PartnerOrg::platformTotals(),
                         'org' => null, 'campaign' => null, 'org_closed' => true,
+                    'fund_goal' => null,
+                        'fund_goal' => null,
                         'min_naira' => self::MIN_NAIRA, 'max_naira' => self::MAX_NAIRA,
                         'processing_fee_pct' => $this->processingFeePct(),
                     ])->withHeader('X-Robots-Tag', 'noindex, nofollow');
@@ -132,6 +134,16 @@ final class DonationController
             }
         }
 
+        // Once. `stats()` is a sum and a count over the same table, and the goal panel needs
+        // the same figure the masthead prints — two reads could not disagree by much, but
+        // they would be two reads of the number this page exists to be trusted about.
+        $stats = $campaign
+            ? (function () use ($campaign): array {
+                $p = \AfricaGates\Services\OrgCampaign::progress((int) $campaign->id);
+                return ['raised_naira' => $p['raised'], 'gifts' => $p['count']];
+            })()
+            : ($org ? $this->orgStats((int) $org->id) : $this->stats());
+
         return $this->view->render($res, 'pages/donate.twig', [
             'error'            => self::GIVE_REASONS[trim((string) ($req->getQueryParams()['give'] ?? ''))] ?? null,
             'page_title'       => $campaign
@@ -146,11 +158,12 @@ final class DonationController
             'gates_page'       => 'donate',
             'has_hero'         => false,
             'providers'        => $this->payments->enabledProviders(),
-            'stats'            => $campaign
-                ? ['raised_naira' => \AfricaGates\Services\OrgCampaign::progress((int) $campaign->id)['raised'],
-                   'gifts'        => \AfricaGates\Services\OrgCampaign::progress((int) $campaign->id)['count']]
-                : ($org ? $this->orgStats((int) $org->id) : $this->stats()),
+            'stats'            => $stats,
             'givers'           => $org ? [] : $this->recentGivers(),
+            // Only for the Africa GATES fund. A partner's appeal already has a campaign
+            // goal of its own, and a second target beside it would be this platform's
+            // ambition printed over somebody else's ask.
+            'fund_goal'        => $org ? null : $this->fundGoal($stats),
             'org'              => $org,
             'campaign'         => $campaign,
             // Summed from confirmed rows on every read, never cached. A fundraising figure
@@ -248,12 +261,71 @@ final class DonationController
         return ['raised_naira' => $raised, 'gifts' => $gifts];
     }
 
+    /**
+     * The fund's own goal and how far along it is — the thing this page did not have.
+     *
+     * ══════════════════════════════════════════════════════════════════════════
+     * WHY A TARGET AND NOT JUST A TOTAL
+     * ══════════════════════════════════════════════════════════════════════════
+     *
+     * A partner's appeal has had a goal and a progress bar since it shipped; the Africa
+     * GATES fund, on the same template, had a raised figure and nothing to measure it
+     * against. "₦2,400,000 raised" is a fact with no shape — a stranger cannot tell whether
+     * that is nearly done or barely started, and a number that cannot be read as progress
+     * does not read as an ask.
+     *
+     * ── AND WHY IT IS NULL UNTIL SOMEBODY SETS ONE ───────────────────────────
+     *
+     * An invented target is worse than none. `donation_goal_naira` is unset by default and
+     * this returns null, which leaves the page exactly as it was — the operator decides what
+     * this fund is raising for, on the settings screen, because there is no shell on
+     * production and a target that can only be edited in a template cannot be moved.
+     *
+     * Summed from CONFIRMED rows on every read, never cached, for the same reason the
+     * campaign progress is: a fundraising figure that drifts from the rows underneath it is
+     * the one number nobody forgives.
+     *
+     * @return array{goal:int, raised:int, pct:int, remaining:int, met:bool}|null
+     */
+    private function fundGoal(array $stats): ?array
+    {
+        try {
+            $goal = (int) (DB::table('gates_settings')
+                ->where('key_name', 'donation_goal_naira')->value('value') ?? 0);
+        } catch (\Throwable) {
+            return null;
+        }
+
+        if ($goal < 1) return null;
+
+        $raised = max(0, (int) ($stats['raised_naira'] ?? 0));
+
+        return [
+            'goal'   => $goal,
+            'raised' => $raised,
+            // Capped for the BAR only. `raised` above is the true figure and the page prints
+            // it — a bar that runs past its own track reads as a rendering fault rather than
+            // as good news, and passing the target is good news.
+            'pct'    => (int) min(100, (int) round($raised / $goal * 100)),
+            'remaining' => max(0, $goal - $raised),
+            'met'    => $raised >= $goal,
+        ];
+    }
+
     /** Recent confirmed gifts, lightly anonymised (first name + last initial). */
     private function recentGivers(): array
     {
         try {
+            // BY TIME, then by id. It ordered by id alone, which is insertion order and
+            // only coincides with chronology while nothing is ever written late — a
+            // reconciled gift, a webhook that arrived after a retry, a backfill. The
+            // mismatch was invisible while the ledger printed no dates; the moment it
+            // started printing them, "Recent donations" was showing an April gift above a
+            // two-minute-old one. `id` stays as the tiebreak so two gifts in the same
+            // second still order deterministically.
             $rows = DB::table('gates_donations')->where('status', 'confirmed')
-                ->orderByDesc('id')->limit(5)->get(['donor_name', 'amount_naira', 'created_at']);
+                ->orderByDesc('created_at')->orderByDesc('id')
+                ->limit(5)->get(['donor_name', 'amount_naira', 'created_at']);
         } catch (\Throwable $e) { return []; }
         $out = [];
         foreach ($rows as $r) {
@@ -261,9 +333,55 @@ final class DonationController
                 'name'   => $this->anon((string)($r->donor_name ?? '')),
                 'amount' => (int)$r->amount_naira,
                 'when'   => (string)($r->created_at ?? ''),
+                // ── THE COLUMN THAT WAS COLLECTED AND NEVER RENDERED ─────────
+                //
+                // `when` has been selected, carried and handed to the template since this
+                // ledger shipped, and the template printed a name and an amount. So a page
+                // whose whole job is to show that other people are giving could not say
+                // whether the last gift arrived this morning or last year — which is the
+                // difference between a live appeal and an archive.
+                'ago'    => self::ago((string)($r->created_at ?? '')),
             ];
         }
         return $out;
+    }
+
+    /**
+     * A timestamp as a person would say it: "just now", "3 hours ago", "4 Sep".
+     *
+     * Private and small on purpose. A site-wide relative-time helper with one caller is the
+     * declaration-with-no-reader this codebase keeps paying for; when a second surface wants
+     * this, it moves to Support and gets its own tests.
+     *
+     * Falls to the DATE past a day rather than counting on — "47 days ago" is arithmetic a
+     * reader has to undo, and by then the useful fact is when, not how long.
+     */
+    private static function ago(string $stamp): string
+    {
+        $stamp = trim($stamp);
+        if ($stamp === '') return '';
+
+        try {
+            $then = new \DateTimeImmutable($stamp, new \DateTimeZone('UTC'));
+        } catch (\Throwable) {
+            return '';
+        }
+
+        $secs = time() - $then->getTimestamp();
+        // A clock ahead of the row is a deployment detail, not a gift from the future.
+        if ($secs < 60) return 'just now';
+
+        if ($secs < 3600) {
+            $m = (int) floor($secs / 60);
+            return $m . ' minute' . ($m === 1 ? '' : 's') . ' ago';
+        }
+        if ($secs < 86400) {
+            $h = (int) floor($secs / 3600);
+            return $h . ' hour' . ($h === 1 ? '' : 's') . ' ago';
+        }
+
+        // In the platform's own display zone, like every other date a visitor reads here.
+        return \AfricaGates\Support\DisplayTime::show($stamp, 'j M');
     }
 
     /** "Amara Okonkwo" → "Amara O."; blank/default → "A supporter". */
