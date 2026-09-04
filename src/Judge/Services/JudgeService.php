@@ -271,25 +271,6 @@ class JudgeService
         }
     }
 
-    /**
-     * Nominee ids on a published shortlist in this cycle.
-     *
-     * Separated from {@see \AfricaGates\Services\ShortlistService::shortlistedIn()} only by
-     * being fault-tolerant: the shortlist tables arrive in a migration, and a judging portal
-     * that 500s on a deployment mid-upgrade is worse than one that locks and says why.
-     *
-     * @return array<int,true>
-     */
-    private function shortlistedIn(int $cycleId): array
-    {
-        try {
-            return \AfricaGates\Services\ShortlistService::shortlistedIn($cycleId);
-        } catch (\Throwable $e) {
-            error_log('[judge] shortlist lookup for cycle ' . $cycleId . ': ' . $e->getMessage());
-            return [];
-        }
-    }
-
     /** All criteria (currently global; programme-specific override supported). */
     public function criteria(int $programmeId): array
     {
@@ -397,11 +378,50 @@ class JudgeService
         // tell the difference between "this category has no shortlist yet" and "this
         // category has one and you have finished it". An empty ballot with no explanation
         // is the failure mode this file already exists to prevent once.
-        $shortlisted = $this->shortlistedIn((int) $cycle->id);
-        $beforeCut   = count($nominees);
-        $nominees    = array_values(array_filter(
+        //
+        // ── AND PER CATEGORY, WHICH IS WHERE A SHORTLIST LIVES ───────────────
+        //
+        // This asked for the whole CYCLE's shortlisted ids in one set and kept any nominee
+        // in it. A shortlist belongs to a category, so on a cycle where one category had
+        // published and another had not, every nominee of the second was absent from the
+        // set and silently dropped — the panel got an empty category with no explanation,
+        // and the cycle-wide `$noShortlist` lock below could not fire because the FIRST
+        // category still had nominees. Judging read as open, the category read as
+        // finished, and nobody could be scored in it.
+        //
+        // {@see ResultRelease::shortlistedIn()} answers per category. NULL means no
+        // PUBLISHED shortlist — never created, or withdrawn — and per this file's own
+        // rule that is a LOCK rather than an open field: a judge scoring somebody who was
+        // never shortlisted produces marks the results stage has no place for. What
+        // changes here is only the SCOPE of the question, from cycle to category, and
+        // that an empty category now says which of the two reasons it is empty for.
+        //
+        // The fault tolerance a local wrapper used to add is already inside that resolver:
+        // the shortlist tables arrive in a migration, and it catches and returns null
+        // rather than throwing. A judging portal that 500s mid-upgrade is worse than one
+        // that locks and says why — and null locks, which is the safe direction. It will
+        // name the wrong cause on such a deployment, and that is the right trade against
+        // opening the whole field to scoring.
+        $listed = [];
+        foreach ($catIds as $catId) {
+            $ids = \AfricaGates\Services\ResultRelease::shortlistedIn((int) $catId);
+            $listed[(int) $catId] = $ids === null ? null : array_fill_keys($ids, true);
+        }
+
+        // Counted per category as well, so an empty one can say WHICH of the two reasons
+        // it is empty for. A cycle-wide count could only ever describe the cycle.
+        $beforeCut = [];
+        foreach ($nominees as $n) {
+            $beforeCut[(int) $n['category_id']] = ($beforeCut[(int) $n['category_id']] ?? 0) + 1;
+        }
+
+        $nominees = array_values(array_filter(
             $nominees,
-            static fn (array $n): bool => isset($shortlisted[(int) $n['id']])
+            static function (array $n) use ($listed): bool {
+                $map = $listed[(int) $n['category_id']] ?? null;
+                // null → no published shortlist for that category → nobody from it.
+                return $map !== null && isset($map[(int) $n['id']]);
+            }
         ));
 
         $seat = static fn(array $n): string =>
@@ -423,9 +443,50 @@ class JudgeService
         $notes = DB::table('gates_judge_notes')->where('judge_id', $judgeId)
             ->get()->keyBy('nominee_id');
 
+        // What actually survived the cut, per category, so an empty one can say which of
+        // the two reasons it is empty FOR. Measured after the filter rather than guessed
+        // from the shortlist state: a category with no published shortlist keeps its whole
+        // field, so reaching the second branch below means something specific.
+        $onBallot = [];
+        foreach ($nominees as $n) {
+            $onBallot[(int) $n['category_id']] = ($onBallot[(int) $n['category_id']] ?? 0) + 1;
+        }
+
         $byCategory = [];
         foreach ($cats as $c) {
-            $byCategory[$c['id']] = ['category' => $c, 'nominees' => []];
+            $cid = (int) $c['id'];
+
+            // A category that renders empty and says nothing is indistinguishable from
+            // one a judge has finished. The cycle-level lock below could only ever speak
+            // for the cycle, and was silenced entirely by any OTHER category having
+            // people; this speaks for the category it is about.
+            $why = '';
+            if (($onBallot[$cid] ?? 0) === 0) {
+                if (($beforeCut[$cid] ?? 0) === 0) {
+                    // Different problem, different person, different next step —
+                    // "publish the shortlist" is useless advice when there is nothing
+                    // to shortlist.
+                    $why = 'No entries have been approved in this category yet.';
+                } elseif (($listed[$cid] ?? null) === null) {
+                    $why = 'The shortlist for this category has not been published yet, so '
+                         . 'there is nobody here to judge. The panel scores the shortlist '
+                         . 'rather than every entry. This is a step for the organisers, not '
+                         . 'something you can fix.';
+                } else {
+                    // Published, and naming nobody who is still an approved entry: a
+                    // withdrawal or a merge after the list was frozen. A different fix
+                    // from publishing one, so a different sentence.
+                    $why = 'This category has entries, and its published shortlist names '
+                         . 'none of them — so there is nobody here to judge. The list may '
+                         . 'need rebuilding. This is a step for the organisers.';
+                }
+            }
+
+            $byCategory[$c['id']] = [
+                'category'  => $c,
+                'nominees'  => [],
+                'empty_why' => $why,
+            ];
         }
         // The dossier, in one query for the whole ballot rather than one per nominee on
         // the screen a judge keeps open for hours. See EvidenceService.
@@ -510,7 +571,11 @@ class JudgeService
         // nominees that EXIST, so "there are entries but none are shortlisted" is a
         // different message from "there are no entries", and only the first one is
         // somebody's outstanding task.
-        $noShortlist = $nominees === [] && $beforeCut > 0;
+        // Every category that HAS entries has been cut to nothing. Still cycle-level,
+        // because `judging_open` is — but now it cannot be defeated by one category
+        // having published while the rest have not, which is what let a half-configured
+        // cycle render as open with empty categories in it.
+        $noShortlist = $nominees === [] && array_sum($beforeCut) > 0;
 
         $judgingOpen = ($cycle->status === 'judging') && !$coi && !$noRubric && !$noShortlist;
         $lockReason = $coi
@@ -520,6 +585,10 @@ class JudgeService
                   . 'yet. This is a setup step for the organisers, not something you can fix — please '
                   . 'tell them the rubric is missing.'
                 : ($noShortlist
+                    // Still the programme-level lock, for the case where NOTHING is
+                    // judgeable. The per-category sentences above cover the half-configured
+                    // cycle this lock could never see: it is silenced by any one category
+                    // having nominees, which is exactly when the others went quietly empty.
                     ? 'The shortlist for this programme has not been published yet, so there is nobody '
                       . 'to judge. The panel scores the shortlist rather than every entry — this is a '
                       . 'step for the organisers, not something you can fix. Please tell them the '
