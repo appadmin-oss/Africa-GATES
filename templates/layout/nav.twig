@@ -35,6 +35,10 @@
           <a href="/account/register" class="ag-mega__item"><span class="ag-mega__ico" style="background:#fff8df;color:#7a5600">✦</span><span class="ag-mega__txt"><strong>Create an account</strong><small>Free — earn voting points and redeem them for votes</small></span></a>
           <a href="/awards" class="ag-mega__item"><span class="ag-mega__ico" style="background:#fff8df;color:#7a5600">🏅</span><span class="ag-mega__txt"><strong>Awards</strong><small>Education, integrity, choral &amp; business</small></span></a>
           <a href="/leaderboard" class="ag-mega__item"><span class="ag-mega__ico" style="background:#e9efef;color:#2b373d">📊</span><span class="ag-mega__txt"><strong>Leaderboard</strong><small>Live CPI rankings, refreshed every {{ cpi_recompute_hours }} hours</small></span></a>
+          {# The awards themselves. Without this the only way into a decided result is a
+             link somebody sent you: the page existed, the Pulse and the emails pointed at
+             it, and nobody browsing the site could find it. #}
+          <a href="/results" class="ag-mega__item"><span class="ag-mega__ico" style="background:#fff8df;color:#7a5600">🏆</span><span class="ag-mega__txt"><strong>Results</strong><small>Every award decided, with the working shown</small></span></a>
           <a href="/integrity" class="ag-mega__item"><span class="ag-mega__ico" style="background:#f0f2f2;color:#5d7374">⚖️</span><span class="ag-mega__txt"><strong>Integrity Center</strong><small>How voting, scoring and audits work</small></span></a>
           <a href="/donate" class="ag-mega__item"><span class="ag-mega__ico" style="background:#fdeaf0;color:#b03a5b">♥</span><span class="ag-mega__txt"><strong>Donate</strong><small>Fund child leadership programmes</small></span></a>
         </div>
@@ -116,6 +120,7 @@
       <a href="/account/register" class="ag-menu__link"><span class="ag-menu__ico" style="background:#fff8df;color:#7a5600">✦</span><span class="ag-menu__txt"><strong>Create an account</strong><small>Free — earn voting points and redeem them for votes</small></span></a>
       <a href="/awards" class="ag-menu__link {% if _p=='awards' %}is-active{% endif %}"{% if _p=='awards' %} aria-current="page"{% endif %}><span class="ag-menu__ico" style="background:#fff8df;color:#7a5600">🏅</span><span class="ag-menu__txt"><strong>Awards</strong><small>Education, integrity, choral &amp; business</small></span></a>
       <a href="/leaderboard" class="ag-menu__link {% if _p=='leaderboard' %}is-active{% endif %}"{% if _p=='leaderboard' %} aria-current="page"{% endif %}><span class="ag-menu__ico" style="background:#e9efef;color:#2b373d">📊</span><span class="ag-menu__txt"><strong>Leaderboard</strong><small>Live CPI rankings, every {{ cpi_recompute_hours }} hours</small></span></a>
+      <a href="/results" class="ag-menu__link {% if _p=='results' %}is-active{% endif %}"{% if _p=='results' %} aria-current="page"{% endif %}><span class="ag-menu__ico" style="background:#fff8df;color:#7a5600">🏆</span><span class="ag-menu__txt"><strong>Results</strong><small>Every award decided, with the working shown</small></span></a>
       <a href="/integrity" class="ag-menu__link"><span class="ag-menu__ico" style="background:#f0f2f2;color:#5d7374">⚖️</span><span class="ag-menu__txt"><strong>Integrity Center</strong><small>How voting, scoring and audits work</small></span></a>
       <a href="/donate" class="ag-menu__link {% if _p=='donate' %}is-active{% endif %}"{% if _p=='donate' %} aria-current="page"{% endif %}><span class="ag-menu__ico" style="background:#fdeaf0;color:#b03a5b">♥</span><span class="ag-menu__txt"><strong>Donate</strong><small>Fund child leadership programmes</small></span></a>
     </div>

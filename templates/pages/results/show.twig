@@ -320,6 +320,23 @@
 (function () {
   'use strict';
 
+  /*
+   * ── WHY THIS WAITS, AND WHAT HAPPENED WHEN IT DID NOT ─────────────────────
+   *
+   * `ag-social.js` is loaded with `defer`, so it executes AFTER the document is parsed —
+   * which is after this block runs. The first version read `window.agSocial` at the top
+   * and returned early when it was undefined, so no listener was ever bound: the reply box
+   * rendered, the textarea accepted text, the button was enabled and styled, and pressing
+   * it did nothing at all. No error, no console line, no failed request — there was no
+   * request. Found by clicking it in a real browser; nothing short of that would have.
+   *
+   * A deferred script runs BEFORE `DOMContentLoaded`, so that event is the correct gate.
+   * The `readyState` branch matters too: this page is cached, and a bfcache restore or a
+   * late-parsed script can land here after the event has already fired, where a listener
+   * for it would never run.
+   */
+  function boot() {
+
   // Share: the OS sheet where there is one, clipboard where there is not. agSocial owns
   // both — a second implementation here is how one surface stops handling the abort case
   // and starts telling people a share failed when they simply closed the sheet.
@@ -394,6 +411,14 @@
       })
       .catch(function () { send.disabled = false; say('Network error — please try again.'); });
   });
+
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', boot, { once: true });
+  } else {
+    boot();
+  }
 })();
 </script>
 {% endblock %}

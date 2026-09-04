@@ -560,6 +560,120 @@ final class PublicResultsTest extends TestCase
         $this->assertStringContainsString('Primary School Principal', $full);
     }
 
+    // ══ the reply box ════════════════════════════════════════════════════════
+
+    /**
+     * THE COMPOSER RENDERS FOR A MEMBER, AND ITS SCRIPT PARSES.
+     *
+     * The guest branch is what the other render tests exercise, and it is the branch that
+     * cannot break: it is a sentence and a link. The member branch is a textarea, a button
+     * and eighty lines of JavaScript, and none of it is reached by a guest — so without
+     * this the reply box could be missing, or its script a syntax error, and every test
+     * here would still pass. A page whose whole second half only exists for signed-in
+     * people has to be rendered as one.
+     */
+    public function test_a_signed_in_member_gets_a_working_reply_box(): void
+    {
+        $this->decided();
+        // A decoy post FIRST, so the announcement's thread id and the category id are
+        // different numbers. They are both small integers on a fresh database and both
+        // land in the markup; with them equal, a template reading the wrong one renders
+        // identically and the assertion below proves nothing. A reply posted to the wrong
+        // small integer does not error — it lands on somebody else's post.
+        DB::table('gates_threads')->insert([
+            'slug' => 'decoy', 'title' => 'Decoy', 'body' => 'x',
+            'author_name' => 'A Member', 'author_email_hash' => str_repeat('a', 64),
+            'status' => 'approved',
+        ]);
+        ResultThread::ensure($this->categoryId);
+
+        $r    = PublicResults::category($this->categoryId);
+        $html = $this->renderShow($r, member: true);
+
+        $this->assertStringContainsString('data-rs-body', $html, 'no reply box for a member');
+        $this->assertStringContainsString('data-rs-send', $html);
+        $this->assertStringNotContainsString('Sign in</a>', $html,
+            'a signed-in member was told to sign in');
+
+        // It posts through the endpoint that already exists — the member gate, the rate
+        // limit, the spam verdict and the moderation queue come with it. A reply path of
+        // its own would be a second one of each.
+        $this->assertStringContainsString("targetType: 'thread'", $html);
+        $this->assertStringContainsString('targetId: id', $html);
+
+        // And the id it posts to is the announcement thread's, not the category's. They
+        // are both small integers, so getting it wrong lands the reply on somebody else's
+        // post rather than erroring.
+        $t = ResultThread::forCategory($this->categoryId);
+        $this->assertStringContainsString('data-thread="' . $t['id'] . '"', $html);
+        $this->assertNotSame($t['id'], $this->categoryId,
+            'the fixture cannot tell the two ids apart, so this assertion proves nothing');
+    }
+
+    /**
+     * AND THE BUTTON IS BOUND TO SOMETHING.
+     *
+     * `ag-social.js` is loaded with `defer`, so it executes after the document is parsed —
+     * which is after this page's own inline script runs. The first version read
+     * `window.agSocial` at the top and returned early when it was undefined, so no listener
+     * was ever attached: the box rendered, the textarea took text, the button was enabled
+     * and styled, and pressing it did nothing. No error, no console line, no failed
+     * request — there was no request. It was found by clicking it in a browser, and nothing
+     * short of that would have found it.
+     *
+     * A deferred script runs BEFORE `DOMContentLoaded`, so that is the correct gate; and
+     * the `readyState` branch matters because a bfcache restore can land here after the
+     * event has already fired, where a listener for it would never run.
+     */
+    public function test_the_reply_script_waits_for_the_deferred_helper_it_needs(): void
+    {
+        $this->decided();
+        ResultThread::ensure($this->categoryId);
+
+        $html = $this->renderShow(PublicResults::category($this->categoryId), member: true);
+
+        $this->assertStringContainsString("document.addEventListener('DOMContentLoaded'", $html,
+            'the reply box binds its listener before ag-social.js has run, so the button '
+            . 'does nothing at all');
+        $this->assertStringContainsString("document.readyState === 'loading'", $html,
+            'nothing runs the setup when the document is already parsed — a bfcache restore '
+            . 'lands on a page whose button is inert');
+
+        // And the layout still loads the helper this depends on. A page that waits for a
+        // script nobody includes waits forever, which looks exactly like the bug above.
+        $layout = (string) file_get_contents(dirname(__DIR__, 2) . '/templates/layout/gates.twig');
+        $this->assertStringContainsString('js/ag-social.js', $layout);
+    }
+
+    /**
+     * A QUARANTINED REPLY IS NOT DRAWN INTO THE THREAD.
+     *
+     * Rendering it as live tells its author their words are public before a moderator has
+     * seen them. On a platform with children in the audience that is the one lie that
+     * matters most — and the shared helper's own docblock says the caller MUST honour the
+     * difference, which is precisely the kind of instruction a second implementation
+     * forgets.
+     */
+    public function test_the_reply_box_honours_a_quarantine_verdict(): void
+    {
+        $this->decided();
+        ResultThread::ensure($this->categoryId);
+
+        $html = $this->renderShow(PublicResults::category($this->categoryId), member: true);
+
+        $this->assertStringContainsString("r.status !== 'approved'", $html,
+            'the reply box shows every reply as live, including quarantined ones');
+
+        // And a reply that IS drawn goes in as TEXT, never as markup: this is somebody's
+        // typed words returning to the page they were typed on. Asserted on the node the
+        // body is written to rather than as a blanket ban on innerHTML — the flash line
+        // beside it legitimately renders an anchor this file wrote, and a rule broad
+        // enough to forbid that is a rule somebody deletes.
+        $this->assertMatchesRegularExpression(
+            '~p\.className = \'rs-c__b\';\s*(?://[^\n]*\n\s*)*p\.textContent = text;~', $html,
+            'a reply is written into the thread as markup rather than as text');
+    }
+
     // ══ and something links to it ════════════════════════════════════════════
 
     /**
@@ -590,6 +704,22 @@ final class PublicResultsTest extends TestCase
         $feed = self::code($root . '/src/Services/ActivityFeedService.php');
         $this->assertStringNotContainsString("url:    '/leaderboard'", $feed,
             'the searchable timeline still sends a result to the profile ranking');
+        $this->assertStringContainsString("'/results'", $feed,
+            'the site search cannot find the results page — its page list is hand-written '
+            . 'and says so, and a page missing from it is a page nobody can search for');
+
+        // ── AND A PERSON BROWSING CAN REACH IT ───────────────────────────────
+        //
+        // Everything above is a link somebody was SENT. A page reachable only from an
+        // email, a feed card and a search result is one nobody finds on their own, which
+        // is the same shape as this codebase's most expensive class of bug: a mechanism
+        // complete and correct in every part except the route in.
+        foreach (['templates/layout/nav.twig'    => 'the navigation',
+                  'templates/layout/footer.twig' => 'the footer'] as $f => $what) {
+            $this->assertStringContainsString('href="/results"',
+                (string) file_get_contents($root . '/' . $f),
+                $what . ' has no way into the results');
+        }
     }
 
     /**
@@ -616,13 +746,13 @@ final class PublicResultsTest extends TestCase
         return $t;
     }
 
-    private function renderShow(array $r): string
+    private function renderShow(array $r, bool $member = false): string
     {
         $thread = ResultThread::forCategory($this->categoryId);
 
         return $this->twig()->render('pages/results/show.twig', [
             'page_title' => 'Result', 'gates_page' => 'results',
-            'r' => $r, 'thread' => $thread, 'replies' => [],
+            'r' => $r, 'thread' => $thread, 'replies' => [], 'is_member' => $member,
             'og_image' => '', 'og_image_w' => ResultCard::W, 'og_image_h' => ResultCard::H,
         ]);
     }

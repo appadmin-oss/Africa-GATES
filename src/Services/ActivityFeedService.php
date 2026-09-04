@@ -649,6 +649,7 @@ final class ActivityFeedService
         $pages = [
             ['Vote',              '/vote',              'cast a ballot voting how to vote ballot categories'],
             ['Nominate someone',  '/nominate',          'nomination submit put forward entry enter'],
+            ['Results',           '/results',           'winner winners who won award awards decided standing outcome announcement'],
             ['Leaderboard',       '/leaderboard',       'rankings standings cpi cultural power index scores top'],
             ['The Registry',      '/registry',          'profiles directory people search nominees browse'],
             ['Integrity Center',  '/integrity',         'how voting works fraud audit methodology scoring rules trust'],
