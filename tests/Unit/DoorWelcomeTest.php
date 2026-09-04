@@ -1026,9 +1026,72 @@ final class DoorWelcomeTest extends TestCase
         $c = (string) file_get_contents(dirname(__DIR__, 2) . '/src/Admin/Controllers/EventsController.php');
         $t = (string) file_get_contents(dirname(__DIR__, 2) . '/templates/admin/events/tickets.twig');
 
-        $this->assertStringContainsString('DoorWelcome::costOf(', $c);
-        $this->assertStringContainsString('welcome_ready', $t,
+        $this->assertStringContainsString('DoorWelcome::readiness(', $c);
+        $this->assertStringContainsString('welcome_state', $t,
             'the count is computed and rendered nowhere');
+    }
+
+    /**
+     * AND THE COUNT IS NOT ENOUGH, BECAUSE FIVE FAULTS SHARE ONE SYMPTOM.
+     *
+     * The panel drew only when the voice was already switched ON, so the likeliest reason
+     * for a silent door — nobody ticked the box — said nothing at all. Nor did a missing
+     * key, an unwritable cache, an event outside the render window, or a sweep that has
+     * never run because scheduled maintenance was never set up. All five sound identical
+     * at the door: silence, which is what a working door sounds like when the voice is
+     * off on purpose.
+     */
+    public function test_a_silent_door_says_which_link_is_broken(): void
+    {
+        // Nothing configured at all: the first link, named.
+        $off = DoorWelcome::readiness();
+        $this->assertFalse($off['on']);
+        $this->assertStringContainsString('switched off', $off['blocker']);
+        $this->assertNotSame('', $off['fix'], 'a blocker with no next step is a shrug');
+
+        // Switched on, still no voice: the NEXT link, not the one already satisfied.
+        DB::table('gates_settings')->insert(['key_name' => 'door_welcome_enabled', 'value' => '1']);
+        $on = DoorWelcome::readiness();
+        $this->assertTrue($on['on']);
+        $this->assertFalse($on['voice']);
+        $this->assertStringNotContainsString('switched off', $on['blocker'],
+            'the fix already applied is still being reported as the fault');
+        $this->assertStringContainsString('voice', strtolower($on['blocker']));
+    }
+
+    /** And when everything is ready it says so rather than inventing a fault. */
+    public function test_a_working_door_reports_no_blocker(): void
+    {
+        $this->on();                                   // enabled + a key
+        $e = $this->anEvent(['event_date' => Carbon::now()->addDay()->toDateTimeString()]);
+
+        $r = DoorWelcome::readiness((int) $e->id);
+
+        $this->assertTrue($r['on']);
+        $this->assertTrue($r['voice']);
+        $this->assertTrue($r['writable']);
+        $this->assertTrue($r['in_window'], 'an event tomorrow is inside the render window');
+    }
+
+    /**
+     * §18 · and there is a step an operator can actually take.
+     *
+     * The sweep runs from scheduled maintenance, and on a deployment where that has never
+     * been set up it never runs — so the feature can be switched on, configured, tested
+     * from Settings and still produce silence, with the screen pointing at a cron page on
+     * a host with no shell. There is no shell; there has to be a button.
+     */
+    public function test_the_greetings_can_be_made_without_waiting_for_cron(): void
+    {
+        $root = dirname(__DIR__, 2);
+
+        $this->assertStringContainsString("'/events/{id:[0-9]+}/welcome-render'",
+            (string) file_get_contents($root . '/src/routes.php'), 'no route reaches it');
+        $this->assertStringContainsString('function welcomeRender',
+            (string) file_get_contents($root . '/src/Admin/Controllers/EventsController.php'));
+        $this->assertStringContainsString('/welcome-render',
+            (string) file_get_contents($root . '/templates/admin/events/tickets.twig'),
+            'the action exists and no screen offers it');
     }
 
     /**

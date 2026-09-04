@@ -679,7 +679,27 @@ final class DoorWelcome
      */
     public static function sweep(?int $cap = null): int
     {
-        if (!self::ready()) return 0;
+        // ── "ON BUT UNUSABLE" IS LOGGED HERE AND REPORTED SOMEWHERE ELSE ─────
+        //
+        // Switched on and unable to render is a real fault and it is NOT reported as a
+        // failed maintenance task, which was the first thing tried here. `TASK_FAILED`
+        // makes `/__cron/run` answer `ok:false`, and this platform has already been
+        // bitten by that once: webcron services react to a failing job by DISABLING it,
+        // which stops the tasks that were still working — payment reconciliation and
+        // refunds among them. A half-configured voice must not be able to switch off the
+        // cron for everything else.
+        //
+        // So the fault is written to the log and answered on the screen instead:
+        // {@see readiness()} names the broken link on the event's own ticket panel, which
+        // is where somebody asks why nobody was greeted. 0 remains the honest return —
+        // this run rendered nothing — and it no longer has to carry the explanation.
+        if (!self::ready()) {
+            if (self::enabled()) {
+                error_log('[door-welcome] switched on but cannot render: '
+                    . (AzureVoice::configured() ? 'cache directory not writable' : AzureVoice::why()));
+            }
+            return 0;
+        }
 
         // ══ THE BUDGET IS ATTEMPTS, NOT CLIPS ════════════════════════════════
         //
@@ -804,6 +824,82 @@ final class DoorWelcome
         } catch (\Throwable) { /* likewise */ }
 
         return array_keys($out);
+    }
+
+    /**
+     * WILL THE DOOR ACTUALLY SPEAK TONIGHT, AND IF NOT, WHICH LINK IS BROKEN.
+     *
+     * ══════════════════════════════════════════════════════════════════════════
+     * SILENCE IS THE ONE ANSWER THIS FEATURE CANNOT EXPLAIN
+     * ══════════════════════════════════════════════════════════════════════════
+     *
+     * Five things have to be true before a guest hears their name, and every one of them
+     * fails the same way: the door plays nothing. The steward sees a green tick and hears
+     * silence, which is exactly what a working door looks like when the voice is switched
+     * off on purpose.
+     *
+     *   1. somebody ticked the box
+     *   2. Azure has a key, a region and a voice
+     *   3. `var/cache/door-welcome` is writable
+     *   4. the event is published and inside the lead window, so the sweep looks at it
+     *   5. the sweep has actually run since the guest list was imported
+     *
+     * The last is the one that catches people, because it needs the scheduled run — and
+     * on a deployment where maintenance has never been set up, NOTHING is ever rendered
+     * and every guest gets the generic clip at best, silence at worst. The admin already
+     * warns that maintenance has never run; nothing connected that warning to this.
+     *
+     * Returns the first broken link in words, so a screen can print a cause instead of a
+     * count. `blocker` empty means the door will speak.
+     *
+     * @return array{on:bool, voice:bool, writable:bool, in_window:bool,
+     *               lines:int, ready:int, blocker:string, fix:string}
+     */
+    public static function readiness(?int $eventId = null): array
+    {
+        $on       = self::enabled();
+        $voice    = AzureVoice::configured();
+        $writable = self::dir() !== null;
+
+        $inWindow = $eventId === null || in_array((int) $eventId, self::soonEvents(), true);
+
+        $lines = 0; $ready = 0;
+        if ($eventId !== null && $on && $writable) {
+            $cost  = self::costOf((int) $eventId);
+            $lines = (int) $cost['lines'];
+            $ready = (int) $cost['ready'];
+        }
+
+        // Ordered as the chain is: naming a later link while an earlier one is broken
+        // sends somebody to fix the wrong thing.
+        [$blocker, $fix] = match (true) {
+            !$on => ['The door voice is switched off, so nobody is greeted by name.',
+                     'Turn it on under Settings → AI, in “The voice at the door”.'],
+            // `why()` describes the SYMPTOM ("nobody is greeted by name"), which is the
+            // sentence the operator is already looking at. What is missing from it is
+            // where to go, so the instruction is stated here and its detail appended.
+            !$voice => ['No speech voice is configured, so no greeting can be made.',
+                        'Add the Azure Speech key and region under Settings → AI.'
+                        . (AzureVoice::why() !== '' ? ' (' . AzureVoice::why() . ')' : '')],
+            !$writable => ['The greeting cache is not writable, so nothing can be saved.',
+                           'var/cache/door-welcome cannot be created or written to.'],
+            !$inWindow => ['This event is outside the ' . self::LEAD_DAYS . '-day window the '
+                           . 'sweep looks at, so its greetings are not being made yet.',
+                           'Greetings are rendered from ' . self::LEAD_DAYS . ' days out. '
+                           . 'They will be made automatically closer to the day.'],
+            $lines > 0 && $ready === 0 => ['No greeting has been rendered yet, so every guest '
+                           . 'hears the same “you are welcome” at best.',
+                           'Render them now, or wait for the scheduled run — which has to be '
+                           . 'set up under Settings → Automation & cron before it happens at all.'],
+            $ready < $lines => [($lines - $ready) . ' of ' . $lines . ' greetings have not been '
+                           . 'rendered yet; those guests hear the generic welcome.',
+                           'Render them now, or wait for the next scheduled run.'],
+            default => ['', ''],
+        };
+
+        return ['on' => $on, 'voice' => $voice, 'writable' => $writable,
+                'in_window' => $inWindow, 'lines' => $lines, 'ready' => $ready,
+                'blocker' => $blocker, 'fix' => $fix];
     }
 
     /** How much of the free tier a given event would spend. For the admin screen. */

@@ -867,6 +867,69 @@ class EventsController
      * door list is doing a different job from one editing a description, and on the morning
      * of an event this is the only page they want.
      */
+    /**
+     * POST /admin/events/{id}/welcome-render — make the greetings now.
+     *
+     * ── WHY THIS BUTTON EXISTS ───────────────────────────────────────────────
+     *
+     * Greetings are rendered by a maintenance sweep, and on a deployment where the
+     * scheduled run has never been set up that sweep NEVER HAPPENS. So the whole feature
+     * can be switched on, configured, tested from Settings, and still produce complete
+     * silence at the door — with no step anywhere that an operator can take. The screen
+     * used to point at "run `welcome` from Automation & cron", which is a page about
+     * setting up a cron on a host with no shell, three clicks from the person standing in
+     * front of the guest list with an hour to go.
+     *
+     * ── AND WHY IT IS BOUNDED ────────────────────────────────────────────────
+     *
+     * Azure's free tier allows about eighteen requests a minute, and a gala is a few
+     * hundred names. `sweep()` already budgets ATTEMPTS against that ceiling and stops on
+     * a 429, so this renders one tier-sized batch and says what is left rather than
+     * holding a browser request open through several hundred refusals. Pressing it again
+     * takes the next batch; nothing already on disk is re-rendered.
+     */
+    public function welcomeRender(Request $req, Response $res, array $args): Response
+    {
+        $id  = (int) $args['id'];
+        $to  = '/admin/events/' . $id . '/tickets';
+        $was = \AfricaGates\Services\DoorWelcome::readiness($id);
+
+        // Nothing to press through: say the actual blocker rather than making a batch of
+        // zero clips and reporting success.
+        if (!$was['on'] || !$was['voice'] || !$was['writable']) {
+            $_SESSION['flash_error'] = $was['blocker'] . ' ' . $was['fix'];
+            return $res->withHeader('Location', $to)->withStatus(302);
+        }
+
+        $made = (int) \AfricaGates\Services\DoorWelcome::sweep();
+        $now  = \AfricaGates\Services\DoorWelcome::readiness($id);
+        $left = max(0, $now['lines'] - $now['ready']);
+
+        try {
+            $this->audit->record((int) ($_SESSION['admin_id'] ?? 0),
+                'event.welcome_render', 'event', $id, ['made' => $made]);
+        } catch (\Throwable) {}
+
+        if ($made < 1 && $left > 0) {
+            // The likeliest cause by far on the free tier, and the one an operator cannot
+            // guess: the per-minute quota is spent. Naming it stops them pressing again
+            // for a minute and concluding the button does nothing.
+            $_SESSION['flash_error'] = 'No greetings could be made just now. '
+                . (\AfricaGates\Services\AzureVoice::lastError()
+                   ?: 'The voice did not answer. If you have pressed this a few times, wait a '
+                      . 'minute — the free tier allows about '
+                      . \AfricaGates\Services\AzureVoice::perMinute() . ' a minute.');
+            return $res->withHeader('Location', $to)->withStatus(302);
+        }
+
+        $_SESSION['flash_ok'] = $left > 0
+            ? $made . ' greeting' . ($made === 1 ? '' : 's') . ' made. ' . $left
+              . ' still to go — press again in a minute for the next batch.'
+            : 'Every guest on this list will be welcomed by name.';
+
+        return $res->withHeader('Location', $to)->withStatus(302);
+    }
+
     public function tickets(Request $req, Response $res, array $args): Response
     {
         $id    = (int) ($args['id'] ?? 0);
@@ -906,8 +969,19 @@ class EventsController
             //
             // Null when the voice is off, so the panel says nothing rather than reporting
             // "0 of 90 ready" about a feature nobody switched on.
-            'welcome_ready' => \AfricaGates\Services\DoorWelcome::enabled()
-                ? \AfricaGates\Services\DoorWelcome::costOf($id) : null,
+            // ── WILL THE DOOR SPEAK, AND IF NOT, WHY NOT ────────────────
+            //
+            // `welcome_ready` above is null whenever the voice is switched off, so the
+            // panel said NOTHING in the one case that is both the most likely and the
+            // easiest to fix. Every other broken link — no key, no writable cache, an
+            // event outside the render window, a sweep that has never run — was equally
+            // invisible, and all of them sound identical at the door: silence, which is
+            // what a working door sounds like when the voice is deliberately off.
+            //
+            // Replaces a `welcome_ready` that was `costOf()` or NULL — null being exactly
+            // the switched-off case the panel most needed to describe. readiness() calls
+            // costOf() itself, so the counts are the same numbers from the same place.
+            'welcome_state' => \AfricaGates\Services\DoorWelcome::readiness($id),
             // ── THE ARRIVALS LOG ─────────────────────────────────────────
             //
             // The first reader `checked_in_via` and `checked_in_by` have ever had. Both were

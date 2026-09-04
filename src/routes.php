@@ -3433,6 +3433,15 @@ return function(App $app) {
         $a->get('/events/{id:[0-9]+}/invites/{reference}/letter.pdf', \AfricaGates\Admin\Controllers\InvitesController::class.':letter');
 
         $a->get('/events/{id:[0-9]+}/tickets',   AdminEventsController::class.':tickets');
+
+        // ── MAKE THE DOOR'S GREETINGS NOW ───────────────────────────────────
+        //
+        // The sweep that renders them runs from scheduled maintenance, and on a deployment
+        // where that has never been set up it never runs at all — so the whole feature can
+        // be switched on, configured and tested, and still produce silence at the door
+        // with no step an operator can take. There is no shell on this host; this is the
+        // step. Bounded to one free-tier batch, beside the guest list it is about.
+        $a->post('/events/{id:[0-9]+}/welcome-render', AdminEventsController::class.':welcomeRender');
         $a->post('/events/{id:[0-9]+}/check-in', AdminEventsController::class.':checkIn');
         // Door passes: minted and revoked on the event's own tickets screen, because a door
         // belongs to an event and the person who needs one is already on that page an hour
