@@ -60,6 +60,15 @@
   .ja-fact b{ color:#8a2b18 }
   .ja-fact p{ margin:6px 0 0; font-size:12.5px; line-height:1.65; color:#5a4442 }
 
+  /* Six numeric columns do not fold onto a phone. Either the table scrolls in its own
+     box or the page does — and the page scrolling sideways is the failure that makes
+     every vertical swipe drift. `-webkit-overflow-scrolling` is gone: it has been the
+     default on iOS since 13 and the property was removed. */
+  .ja-scroll{ overflow-x:auto; }
+  .ja-card--overall{ border-color:rgba(212,154,14,.45); }
+  .ja-overall__name{ margin:14px 0 2px; font-family:var(--ag-font-display,inherit);
+                     font-weight:800; font-size:26px; line-height:1.1; color:var(--ag-ink,#10292C); }
+  .ja-t tr.is-win td{ font-weight:600; }
   .ja-caveat{ margin:14px 0 0; padding:12px 15px; border-left:3px solid #d49a0e;
     background:#fffaf0; border-radius:0 8px 8px 0; font-size:12.5px; line-height:1.65;
     color:#7a5605 }
@@ -193,6 +202,75 @@
     </div>
   </div>
 
+  {# ── THE ONE AWARD FOR THE WHOLE CYCLE ──────────────────────────────────
+     Drawn from the category winners, on the same CPI and the same comparator the
+     categories were decided with — nothing recomputed, no second score invented.
+
+     The comparability caveat is printed WITH it rather than left to be discovered.
+     A CPI's judge half is absolute; its community half is a share of the winner's own
+     cohort, so leading a three-person category on fifty votes is a full community half
+     and a close second in a fifty-thousand-vote category is not. There is no neutral
+     denominator — normalising across the cycle inverts the bias and hands the award to
+     whoever stands in the most popular category. So the screen shows the field size and
+     the denominator beside every contender and lets a person decide. #}
+  {% if overall and overall.winner %}
+    <div class="ja-card ja-card--overall">
+      <div class="ja-cat">
+        <h3>Overall winner &mdash; the whole cycle</h3>
+        <span class="ja-den">{{ overall.contenders|length }} category winner{{ overall.contenders|length == 1 ? '' : 's' }} in contention</span>
+      </div>
+
+      <p class="ja-overall__name">{{ overall.winner.name }}</p>
+      <p class="ja-den">{{ overall.winner.category }} &middot; CPI {{ overall.winner.cpi }}
+        {%- if overall.margin is not null %} &middot; {{ overall.margin }} ahead of {{ overall.runner_up.name }}{% endif %}</p>
+
+      {% if overall.dead_heat %}
+        <p class="ja-caveat"><b>Dead heat.</b> {{ overall.winner.name }} and {{ overall.runner_up.name }}
+          are level on CPI <b>{{ overall.winner.cpi }}</b> and on <b>{{ overall.winner.organic|number_format }}</b>
+          organic votes. The methodology cannot separate them; the order above falls back to the
+          lower nominee id, which is deterministic and is not a result. This one needs a person.</p>
+      {% endif %}
+
+      <p class="ja-caveat">A CPI compares cleanly <b>inside</b> a category and only half compares
+        across them. The judge half is absolute &mdash; six out of ten is six out of ten anywhere.
+        The community half is a share of that category&rsquo;s own leader, so a winner from a small
+        field starts with an advantage no amount of votes elsewhere can answer.
+        {% if overall.thinnest_field is not null and overall.thinnest_field <= 3 %}
+          The smallest field here is <b>{{ overall.thinnest_field }}</b>.
+        {% endif %}
+        The field size and denominator for every contender are below.</p>
+
+      <div class="ja-scroll">
+        <table class="ja-t">
+          <thead><tr>
+            <th>Winner</th><th>Category</th><th class="ja-num">CPI</th>
+            <th class="ja-num">Field</th><th class="ja-num">Organic</th>
+            <th class="ja-num">Cohort max</th>
+          </tr></thead>
+          <tbody>
+            {% for c in overall.contenders %}
+              <tr{% if loop.first %} class="is-win"{% endif %}>
+                <td>{{ c.name }}</td>
+                <td>{{ c.category }}</td>
+                <td class="ja-num">{{ c.cpi }}</td>
+                <td class="ja-num">{{ c.field }}
+                  {%- if c.field <= 3 %} <span class="ja-den">thin</span>{% endif %}</td>
+                <td class="ja-num">{{ c.organic|number_format }}</td>
+                <td class="ja-num">{{ c.cohort_max|number_format }}</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  {% elseif overall %}
+    <div class="ja-card">
+      <div class="ja-cat"><h3>Overall winner &mdash; the whole cycle</h3></div>
+      <p class="ja-empty">No category has crowned anybody yet, so there is nobody to draw an
+        overall winner from. This is the ordinary state before a release, not a fault.</p>
+    </div>
+  {% endif %}
+
   {% for c in categories %}
     <div class="ja-card">
       <div class="ja-cat">
@@ -263,6 +341,7 @@
          EXACTLY to the CPI beside them — ResultRelease gives the judge half the single
          rounding step for that reason. A sum that does not equal the figure next to it
          would be worse than showing no working at all. #}
+      <div class="ja-scroll">
       <table class="ja-t">
         <thead>
           <tr>
@@ -335,6 +414,7 @@
           {% endfor %}
         </tbody>
       </table>
+      </div>
 
       {# ── THE MARGIN, IN ONE PLACE ─────────────────────────────────────────
          It was stated twice: a yellow warning above the table when the gap was ten or

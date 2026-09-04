@@ -133,8 +133,44 @@ final class ResultReleaseScreenRenderTest extends TestCase
                              'programme' => 'Incredible Principal Awards'],
             'categories' => $categories,
             'attention'  => ResultRelease::attention($categories),
+            // The service's own output here too, and for the same reason as `attention`:
+            // a payload this test invents can render a card the controller would never
+            // produce. Passed the categories already drawn, exactly as the controller
+            // does, so the cycle is not scored twice to reach the same answer.
+            'overall'    => ResultRelease::overall($this->cycleId, $categories),
             'failed'     => false,
         ]);
+    }
+
+    // ══ the overall award ════════════════════════════════════════════════════
+
+    /**
+     * The cycle's one award draws, WITH the caveat that makes it defensible.
+     *
+     * A CPI compares cleanly inside a category and only half compares across them — the
+     * judge half is absolute, the community half is a share of that category's own leader.
+     * The screen cannot fix that, so it has to say it, next to the figures that let an
+     * operator check it: how big each field was and what denominator each winner's
+     * community half was measured against.
+     */
+    public function test_the_overall_winner_draws_with_its_comparability_caveat(): void
+    {
+        $j1 = $this->judge('Ada Obi');
+        $j2 = $this->judge('Tunde Cole');
+        $win = $this->nominee('Yetunde Adeyemi', 1900);
+        $two = $this->nominee('Samuel Oyelaran', 900);
+        foreach ([$win, $two] as $n) { $this->scoreAll($j1, $n, 7); $this->scoreAll($j2, $n, 7); }
+
+        $html = (string) preg_replace('~\s+~', ' ', $this->render());
+
+        $this->assertStringContainsString('Overall winner', $html);
+        $this->assertStringContainsString('Yetunde Adeyemi', $html);
+        $this->assertStringContainsString('only half compares', $html,
+            'the overall award is published with no word about comparing across categories');
+        $this->assertStringContainsString('Cohort max', $html,
+            'the denominator behind each contender is not on the screen');
+        $this->assertStringContainsString('Field', $html,
+            'the size of the field each winner beat is not on the screen');
     }
 
     // ══ it draws at all ══════════════════════════════════════════════════════

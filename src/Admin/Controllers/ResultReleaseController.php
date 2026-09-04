@@ -79,6 +79,14 @@ final class ResultReleaseController
             // because a template deriving it would be a second opinion about what needs
             // attention.
             'attention'  => ResultRelease::attention($categories),
+            // ── THE ONE AWARD FOR THE WHOLE CYCLE ────────────────────────────
+            //
+            // Passed the categories this page already drew rather than the cycle id: it is
+            // computed from the category winners, and letting it re-run `forCycle()` would
+            // score every nominee in the cycle a second time to reach the same answer.
+            'overall'    => $wanted > 0 && !$failed
+                            ? ResultRelease::overall($wanted, $categories)
+                            : null,
             // Said out loud rather than rendered as an empty table. "Nothing scored yet"
             // and "the query failed" look identical on a screen and mean opposite things.
             'failed'     => $failed,

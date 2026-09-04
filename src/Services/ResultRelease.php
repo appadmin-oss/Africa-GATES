@@ -380,4 +380,106 @@ final class ResultRelease
 
         return $n;
     }
+
+    /**
+     * The one award for the whole cycle, drawn from the category winners.
+     *
+     * ══════════════════════════════════════════════════════════════════════════
+     * WHY IT IS DRAWN FROM THE WINNERS AND NOT FROM EVERY NOMINEE
+     * ══════════════════════════════════════════════════════════════════════════
+     *
+     * Because an overall award that could go to somebody who did not win their own
+     * category is not an overall award, it is a second opinion — and the first question
+     * anybody would ask is why the person who beat them in their own field is not holding
+     * this one. The contenders are exactly the people who won something.
+     *
+     * ══════════════════════════════════════════════════════════════════════════
+     * AND THE THING THIS CANNOT FIX, WHICH IS WHY IT REPORTS IT
+     * ══════════════════════════════════════════════════════════════════════════
+     *
+     * A CPI is only half comparable across categories, and an overall award is the one
+     * place that matters. The judge half is absolute — six out of ten is six out of ten in
+     * any field. The community half is a SHARE OF THE WINNER'S OWN COHORT, so leading a
+     * three-person category on fifty votes is a full community half, and coming a close
+     * second in a fifty-thousand-vote category is not.
+     *
+     * There is no neutral denominator available. Normalising across the whole cycle instead
+     * just inverts the bias — it hands the award to whoever stands in the most popular
+     * category, and a niche field could never win it. Ranking on the judge half alone
+     * throws away the community half entirely, on a platform whose entire thesis is that
+     * both count. Every option here is a position, not a calculation.
+     *
+     * So this takes the conservative one — the same CPI, the same comparator, no second
+     * score invented and nothing recomputed — and it hands back the figures that make the
+     * bias VISIBLE rather than leaving it to be found during a challenge: how big each
+     * contender's field was, and how many votes their cohort's leader had. An operator who
+     * can see that the top CPI came out of a three-person category can decide what to do
+     * about it. One who cannot see it will publish it and find out afterwards.
+     *
+     * `field` is the number of nominees who were in the running in that category — the
+     * people the winner actually beat.
+     *
+     * @return array{
+     *   winner: ?array<string,mixed>, runner_up: ?array<string,mixed>,
+     *   contenders: list<array<string,mixed>>, margin: ?int, dead_heat: bool,
+     *   thinnest_field: ?int
+     * }
+     */
+    public static function overall(int $cycleId, ?array $categories = null): array
+    {
+        $none = ['winner' => null, 'runner_up' => null, 'contenders' => [],
+                 'margin' => null, 'dead_heat' => false, 'thinnest_field' => null];
+
+        // Reuses the cycle the caller already drew where there is one. `forCycle()` scores
+        // every category, and a release screen computing this after rendering would run
+        // the whole cycle twice.
+        $cats = $categories ?? self::forCycle($cycleId);
+
+        $contenders = [];
+        foreach ($cats as $c) {
+            if (($c['winner'] ?? null) === null) continue;
+
+            $field = 0;
+            foreach ($c['rows'] as $r) if ($r['in_running']) $field++;
+
+            $contenders[] = $c['winner'] + [
+                'category'   => (string) ($c['category']->title ?? ''),
+                'category_id' => (int) ($c['category']->id ?? 0),
+                // The two figures that say whether this CPI is comparable with the one
+                // below it. Carried rather than derivable: the screen must not be the
+                // second place this is worked out.
+                'field'      => $field,
+                'cohort_max' => (int) ($c['cohort_max'] ?? 0),
+            ];
+        }
+
+        if ($contenders === []) return $none;
+
+        // THE SAME COMPARATOR the categories were decided with. A second expression here
+        // would let the overall award disagree with the awards it is drawn from, and the
+        // disagreement would appear at the one moment nobody can afford it.
+        usort($contenders, self::order(...));
+
+        $winner   = $contenders[0];
+        $runnerUp = $contenders[1] ?? null;
+
+        $thinnest = null;
+        foreach ($contenders as $c) {
+            $thinnest = $thinnest === null ? $c['field'] : min($thinnest, $c['field']);
+        }
+
+        return [
+            'winner'     => $winner,
+            'runner_up'  => $runnerUp,
+            'contenders' => $contenders,
+            'margin'     => $runnerUp !== null ? $winner['cpi'] - $runnerUp['cpi'] : null,
+            // The comparator falls back to the lower nominee id, which is deterministic and
+            // is not a result. Named here for the same reason it is named per category:
+            // this one needs a human, and a silent tiebreak is how it stops needing one.
+            'dead_heat'  => $runnerUp !== null
+                            && $winner['cpi'] === $runnerUp['cpi']
+                            && $winner['organic'] === $runnerUp['organic'],
+            'thinnest_field' => $thinnest,
+        ];
+    }
 }
