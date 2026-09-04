@@ -212,17 +212,19 @@
          check a CPI was on this page except this one, which is the only one that
          cannot be guessed.
 
-         And the cohort is taken before the quorum and the shortlist are applied, so a
-         nominee who cannot win still sets the scale for everybody who can. That is
-         defensible; being discovered during a challenge is not. #}
+         The cohort is the published field where a category shortlists, so somebody taken
+         off the list no longer sets the scale for the people still in it. The QUORUM is
+         deliberately not applied to it — below quorum is pending rather than out, and
+         dropping an unjudged nominee from the denominator would move every score here the
+         moment their panel finished. That leaves one case worth saying out loud. #}
       {% if c.scale_is_out %}
         <p class="ja-caveat">The community half here is measured against
           <b>{{ c.cohort_max|number_format }}</b> votes &mdash; {{ c.scale_set_by }}&rsquo;s,
-          and {{ c.scale_set_by }} is <b>out of the running</b>. Somebody who cannot win
-          is setting how much everybody else&rsquo;s support is worth, which holds the
-          whole field&rsquo;s community half down. Measured against the field that can
-          win, every score below would be higher; whether the ORDER changes is the
-          question to ask.</p>
+          and {{ c.scale_set_by }}&rsquo;s panel has <b>not finished</b>. They are in the
+          field, so their votes set the scale for it; they are not yet winner-eligible, so
+          they are not in the ranking below. Nothing here is wrong &mdash; but if their
+          scorecards land before you release, every community half on this page changes,
+          and the order can change with it. Finish that panel first.</p>
       {% endif %}
 
       {# ── THE THINGS THAT NEEDED A HUMAN AND WENT INTO A LOG ─────────────

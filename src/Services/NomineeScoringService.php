@@ -43,7 +43,55 @@ class NomineeScoringService
         // Community CPI is normalised over ORGANIC votes only — purchased "bonus"
         // votes (folded into vote_count for display) must never move the cohort
         // max or any nominee's community share, or money could buy rank.
-        $cohortMax = max(1, (int) $nominees->max('organic_vote_count'));
+        //
+        // ══ THE DENOMINATOR IS THE FIELD, NOT THE ENTRY LIST ══════════════════
+        //
+        // This used to be every scored nominee in the category, with the shortlist applied
+        // afterwards — so somebody who could not win still decided what everybody else's
+        // support was worth, and the more popular they were the less everybody else's
+        // votes counted.
+        //
+        // The damage is not marginal, it is the community half of a whole final. Ten
+        // entrants, the popular one on 5,000 organic votes is not shortlisted, the three
+        // finalists hold 500, 400 and 300. Their community shares came out at 0.10, 0.08
+        // and 0.06 — a span of four points on a thousand-point index — so the judges
+        // decided the final on their own, silently, and only because of who had been left
+        // off the list. Against the actual field it is 1.00, 0.80 and 0.60, and the votes
+        // mean what the rules say they mean.
+        //
+        // ── AND WHY THE QUORUM IS NOT APPLIED HERE ───────────────────────────
+        //
+        // Being below quorum is PENDING, not out: a panel may still finish. Shrinking the
+        // denominator for it would move every published score in the category each time a
+        // scorecard was completed — more movement, not less — and it runs perversely: an
+        // unjudged popular nominee would be dropped from the scale, inflating everybody's
+        // community share, and then rejoin it when they were judged and take it all back.
+        // It would also let a judging fact decide a voting denominator, which is not
+        // something anybody could explain to a nominee who lost by it.
+        //
+        // A published shortlist is the opposite: an explicit, dated, final decision that
+        // these are the people in contention. That is a scale worth measuring against.
+        //
+        // Same resolver as the ballot, the audit and the release screen — `null` means
+        // this category does not shortlist, which changes nothing.
+        $listed = ResultRelease::shortlistedIn($categoryId);
+        $field  = $listed === null
+            ? $nominees
+            : $nominees->filter(static fn ($n): bool => in_array((int) $n->id, $listed, true));
+
+        // A published list naming nobody who still scores — every entry withdrawn, rejected
+        // or merged away since — must not be allowed to empty the cohort. An empty
+        // collection's max() is null, so the floor below would make the denominator ONE and
+        // hand every nominee in the category a full community half: not a category scored
+        // to zero, which somebody would notice, but a whole field scored identically at the
+        // top of the range, which reads like a close contest.
+        //
+        // Falling back to the entry list is the pre-shortlist behaviour. It is wrong in
+        // exactly the way this fix is about, and it is wrong in a way that stays visible on
+        // the release screen rather than one that flatters everybody.
+        if ($field->isEmpty()) $field = $nominees;
+
+        $cohortMax = max(1, (int) $field->max('organic_vote_count'));
         $quorum = (int) ($this->rules->effective($ctx->programme_id ?? null, $ctx->cycle_id ?? null)['min_judges_per_nominee']
             ?? RuleEngine::DEFAULTS['min_judges_per_nominee']);
         $stats = $this->judgeStatsFor($nominees->pluck('id')->all());
@@ -64,10 +112,11 @@ class NomineeScoringService
                 // a number that appeared on no screen — and `ResultRelease` recomputing it
                 // would be a second reader of the one fact that decides the award.
                 //
-                // It also carries a consequence worth seeing: the cohort is every scored
-                // nominee in the category, INCLUDING one the shortlist or the quorum has
-                // put out of the running. Somebody who cannot win still sets the scale
-                // everybody else is measured on.
+                // The cohort is the FIELD — the published shortlist where there is one,
+                // every scored nominee where there is not. It is deliberately not narrowed
+                // by the quorum: below quorum is pending, not out, and see the note above
+                // for why letting a judging fact move a voting denominator is worse than
+                // the thing it would fix.
                 'cohort_max'  => $cohortMax,
                 'judge_score' => $ja,
                 'judges'      => $judges,                          // COMPLETE scorecards only

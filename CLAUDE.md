@@ -228,6 +228,22 @@ Full account in `docs/CODEBASE-INDEX.md` §16.
 - **A criterion, code, or record that has been used is retired, never deleted.** Ballots,
   receipts and published results point at rows by id; deleting one changes history that has
   already been published. See `src/Services/JudgeRubric.php` for the worked example.
+- **The CPI's denominator is the FIELD, and exactly one thing computes it.** The community
+  half is `organic / cohortMax`, and `cohortMax` used to be the most-voted nominee in the
+  whole *entry list* — with the shortlist applied afterwards. So a popular nominee who had
+  been left off the list still decided what the finalists' votes were worth: three
+  finalists on 500, 400 and 300 behind a 5,000-vote non-finalist came out at 0.10, 0.08 and
+  0.06, four points apart on a thousand-point index, and the panel decided the final alone.
+  It is the published shortlist now, where a category shortlists. The **quorum deliberately
+  does not narrow it** — below quorum is pending, not out, and dropping an unjudged nominee
+  would move every published score in the category the moment their panel finished, then
+  hand it all back. And a published list naming nobody who still scores falls back to the
+  entry list, because an empty collection's `max()` is null and the floor would make the
+  denominator **one**, handing the whole field a full community half — a flattened field
+  reads like a close contest, where a zeroed one gets noticed. `ResultRelease` used to take
+  its own `max()` over the rows for the same figure; the two agreed only while both meant
+  "everybody who scored", and it is read from the scorer now. `ResultReleaseTest` holds the
+  identity rather than the value.
 - **The sandbox must never reach the public.** `DemoSeeder` creates real rows with real
   flags, because the sandbox exists to be walked through for real. Every public reader has
   to exclude them — `JudgeService::realJudges()` is the pattern.

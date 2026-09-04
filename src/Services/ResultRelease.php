@@ -190,16 +190,22 @@ final class ResultRelease
         // ── WHOSE VOTES SET THE SCALE ────────────────────────────────────────
         //
         // The cohort maximum is the denominator of every community half in this category,
-        // and it is whichever scored nominee has the most organic votes — the quorum and
-        // the shortlist are applied AFTER it is taken. So somebody who cannot win still
-        // decides how much everybody else's support is worth, and when that happens the
-        // whole field's community half is scaled down by a nominee who is not in the
-        // running. That is defensible and it is not obvious, which is exactly the kind of
-        // thing a release screen has to say out loud rather than leave to be discovered
-        // during a challenge.
+        // and it is TAKEN FROM THE SCORER rather than worked out again here. This used to
+        // be a second `max()` over the rows on this page, which agreed with the scorer only
+        // for as long as both happened to mean "everybody who scored" — the moment the
+        // scorer narrowed its cohort to the published field, this screen went on telling an
+        // operator the denominator was a nominee who was not in it. A screen whose whole
+        // job is showing how a number was reached must not compute any part of it twice.
+        //
+        // The scale-setter is then simply whoever HOLDS that denominator. Null where nobody
+        // does, which is the all-zero category: the scorer floors the denominator at 1 so
+        // nothing divides by nought, and no nominee has one vote.
+        $cohortMax = 0;
+        foreach ($scores as $s) { $cohortMax = max(1, (int) ($s['cohort_max'] ?? 1)); break; }
+
         $scale = null;
         foreach ($rows as $r) {
-            if ($scale === null || $r['organic'] > $scale['organic']) $scale = $r;
+            if ($r['organic'] === $cohortMax) { $scale = $r; break; }
         }
 
         return [
@@ -208,13 +214,19 @@ final class ResultRelease
             'weights'     => $weights,
             'shortlisted' => $shortlisted,
             'rows'        => $rows,
-            'cohort_max'     => (int) ($scale['organic'] ?? 0),
+            'cohort_max'     => $scale !== null ? $cohortMax : 0,
             'scale_set_by'   => $scale['name'] ?? null,
             'scale_set_by_id' => (int) ($scale['nominee_id'] ?? 0),
             // Out of the running AND holding somebody else down. A category whose only
             // nominee is below the quorum has a scale-setter who is technically "out",
             // and warning about it there is a warning about nobody — which teaches an
             // operator to skip the box on the categories where it means something.
+            //
+            // Narrower than it was, and better for it. The shortlist now scopes the
+            // scorer's cohort, so this can no longer fire for somebody taken off the list;
+            // what remains is the case the quorum leaves open on purpose — a nominee who
+            // is in the field and whose panel has not finished. Below quorum is pending
+            // rather than out, so they keep the scale, and the screen says whose it is.
             'scale_is_out'   => $scale !== null && !$scale['in_running'] && $running !== [],
             'winner'      => $winner,
             'runner_up'   => $runnerUp,

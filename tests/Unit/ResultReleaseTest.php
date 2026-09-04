@@ -479,14 +479,24 @@ final class ResultReleaseTest extends TestCase
     }
 
     /**
-     * WHOSE VOTES SET THE SCALE, AND WHETHER THEY CAN WIN.
+     * THE SCALE IS THE FIELD, NOT THE ENTRY LIST.
      *
-     * The cohort maximum is taken before the quorum and the shortlist are applied, so a
-     * nominee who cannot win still decides how much everybody else's support is worth. It
-     * holds the whole field's community half down, and it was visible nowhere — which
-     * makes it something a challenger discovers rather than something the platform says.
+     * The cohort maximum used to be taken before the shortlist was applied, so a nominee
+     * who could not win decided what everybody else's support was worth — and the more
+     * popular they were, the less the finalists' votes counted.
+     *
+     * These are the numbers from the version that shipped. Yetunde is the only person
+     * shortlisted and holds 1,900 organic votes; Samuel, who is not on the list, holds
+     * 5,100. Her community share came out at 37% and her community half at 168 of a
+     * possible 450 — so two thirds of the community weight was removed from a final by
+     * somebody who had already been taken out of it, and the panel decided alone. Nothing
+     * on any screen said the denominator was a person who could not win.
+     *
+     * Against the field she is actually in, her share is 100% and her community half is
+     * the full 450. Samuel's votes are still counted, still shown, and still his — they
+     * are simply no longer the yardstick for a contest he is not in.
      */
-    public function test_a_nominee_out_of_the_running_can_still_set_the_scale(): void
+    public function test_somebody_off_the_shortlist_no_longer_sets_the_scale(): void
     {
         $j1 = $this->judge('Ada Obi');
         $j2 = $this->judge('Tunde Cole');
@@ -498,17 +508,149 @@ final class ResultReleaseTest extends TestCase
 
         $c = ResultRelease::category($this->categoryId);
 
-        $this->assertSame(5100, $c['cohort_max']);
-        $this->assertSame('Samuel Oyelaran', $c['scale_set_by']);
-        $this->assertTrue($c['scale_is_out'],
-            'the excluded nominee setting the scale for everybody else was not reported');
+        $this->assertSame(1900, $c['cohort_max'],
+            'the denominator is still a nominee who is not in the running');
+        $this->assertSame('Yetunde Adeyemi', $c['scale_set_by']);
+        $this->assertFalse($c['scale_is_out'],
+            'the scale is set from inside the field now; the warning is about nobody');
 
-        // And the consequence is real, not theoretical: the winner's community half is
-        // scaled by somebody who is not in the running.
         $by = [];
         foreach ($c['rows'] as $r) $by[$r['name']] = $r;
-        $this->assertSame(37, $by['Yetunde Adeyemi']['community_share']);
-        $this->assertLessThan(450, $by['Yetunde Adeyemi']['community_points']);
+
+        $this->assertSame(100, $by['Yetunde Adeyemi']['community_share'],
+            'the shortlisted leader is still measured against somebody outside the final');
+        $this->assertSame(450, $by['Yetunde Adeyemi']['community_points'],
+            'the community half is still being suppressed — 450 is its full weight');
+
+        // Nothing is hidden. He is still scored, still listed, still holds every vote he
+        // was given; the change is what the OTHERS are divided by, not what he is worth.
+        $this->assertSame(5100, $by['Samuel Oyelaran']['organic']);
+    }
+
+    /**
+     * A PUBLISHED LIST NAMING NOBODY WHO SCORES MUST NOT EMPTY THE COHORT.
+     *
+     * Every entry withdrawn, rejected or merged away after publication is an ordinary end
+     * to a bad year in a category, and it leaves the shortlist pointing at nobody the
+     * scorer can see. An empty collection's `max()` is null, so the floor that stops a
+     * division by nought would make the denominator ONE — and every nominee in the
+     * category would take the FULL community half.
+     *
+     * That is the dangerous direction. A category scored to zero is noticed within the
+     * hour; a whole field scored identically at the top of the range reads like a close
+     * contest, and the release screen has nothing to say about it.
+     */
+    public function test_a_shortlist_naming_nobody_who_scores_does_not_flatten_the_field(): void
+    {
+        $j1 = $this->judge('Ada Obi');
+        $j2 = $this->judge('Tunde Cole');
+
+        $a = $this->nominee('Yetunde Adeyemi', 1000);
+        $b = $this->nominee('Ngozi Eze', 250);
+        foreach ([$a, $b] as $n) { $this->scoreAll($j1, $n, 7); $this->scoreAll($j2, $n, 7); }
+
+        // Shortlisted, then pulled back for review — so the published list names somebody
+        // the scorer no longer returns. `pending` and not `rejected`: the status column
+        // permits only pending/approved/winner/runner_up, and a fixture that invents a
+        // value passes on SQLite and is `Data truncated` on the database this runs on.
+        $gone = $this->nominee('Samuel Oyelaran', 4000);
+        DB::table('gates_nominees')->where('id', $gone)->update(['status' => 'pending']);
+        $this->publishShortlist($this->cycleId, $this->categoryId, [$gone]);
+
+        $c = ResultRelease::category($this->categoryId);
+
+        $by = [];
+        foreach ($c['rows'] as $r) $by[$r['name']] = $r;
+
+        $this->assertSame(1000, $c['cohort_max'],
+            'the cohort emptied out and the denominator fell back to the floor of one');
+        $this->assertSame(450, $by['Yetunde Adeyemi']['community_points']);
+        $this->assertSame(113, $by['Ngozi Eze']['community_points'],
+            'a nominee on a quarter of the votes was handed the same community half as '
+            . 'the leader — the field was flattened, not scored');
+    }
+
+    /**
+     * THE SCREEN DIVIDES BY THE NUMBER THE SCORER DIVIDED BY.
+     *
+     * This page's whole purpose is showing how a CPI was reached, and the denominator is
+     * the half of that which cannot be guessed from anything else on it. It used to be
+     * computed twice — once inside `NomineeScoringService`, and again here as a `max()`
+     * over the rows on the page. The two agreed only for as long as both happened to mean
+     * "everybody who scored"; the moment the scorer narrowed its cohort to the published
+     * field, this screen carried on naming a nominee who was not in it, and every "37% of
+     * Samuel's 5,100" on the page explained the arithmetic with a number that had not
+     * produced it.
+     *
+     * Held as an identity rather than as a value, so it survives any later change to what
+     * the cohort MEANS: whatever the scorer divided by is what the screen must say, and
+     * every row's share must come back out of it.
+     */
+    public function test_the_screen_and_the_scorer_use_one_denominator(): void
+    {
+        $j1 = $this->judge('Ada Obi');
+        $j2 = $this->judge('Tunde Cole');
+
+        $on  = $this->nominee('Yetunde Adeyemi', 1900);
+        $mid = $this->nominee('Ngozi Eze', 950);
+        $off = $this->nominee('Samuel Oyelaran', 5100);
+        foreach ([$on, $mid, $off] as $n) { $this->scoreAll($j1, $n, 7); $this->scoreAll($j2, $n, 7); }
+        $this->publishShortlist($this->cycleId, $this->categoryId, [$on, $mid]);
+
+        $scored = (new \AfricaGates\Services\NomineeScoringService())
+            ->scoreCategory($this->categoryId);
+        $c = ResultRelease::category($this->categoryId);
+
+        $fromScorer = (int) $scored[$on]['cohort_max'];
+        $this->assertSame($fromScorer, $c['cohort_max'],
+            'the release screen is explaining the arithmetic with a denominator the '
+            . 'scorer did not use');
+
+        // And the per-row share the screen prints is that denominator, applied. Checked on
+        // a row that is NOT the scale-setter, because "100% of their own votes" is true
+        // whatever the denominator is and would pass a broken one.
+        $by = [];
+        foreach ($c['rows'] as $r) $by[$r['name']] = $r;
+
+        $this->assertSame((int) round(950 / $fromScorer * 100), $by['Ngozi Eze']['community_share']);
+        $this->assertSame(50, $by['Ngozi Eze']['community_share'],
+            '950 of 1,900 is half the field\'s best, and the page said otherwise');
+    }
+
+    /**
+     * AND THE QUORUM DELIBERATELY DOES NOT NARROW IT, WHICH IS WHY THE WARNING SURVIVES.
+     *
+     * Below quorum is PENDING, not out — a panel may still finish. Narrowing the
+     * denominator for it would move every published score in the category each time a
+     * scorecard was completed, and it runs perversely: drop the unjudged leader, inflate
+     * everybody's share, then hand it all back when they are judged.
+     *
+     * So a shortlisted nominee nobody has finished judging can still set the scale, and
+     * that is the case `scale_is_out` exists to name. It is a smaller and more honest
+     * warning than the one it replaces: not "somebody who cannot win", but "somebody the
+     * panel has not got to yet".
+     */
+    public function test_a_shortlisted_nominee_below_quorum_still_sets_the_scale(): void
+    {
+        $j1 = $this->judge('Ada Obi');
+        $j2 = $this->judge('Tunde Cole');
+
+        $lead    = $this->nominee('Chidinma Okeke', 4000);   // shortlisted, ONE judge
+        $decided = $this->nominee('Yetunde Adeyemi', 1000);  // shortlisted, at quorum
+        $this->scoreAll($j1, $lead, 8);
+        $this->scoreAll($j1, $decided, 7);
+        $this->scoreAll($j2, $decided, 7);
+        $this->publishShortlist($this->cycleId, $this->categoryId, [$lead, $decided]);
+
+        $c = ResultRelease::category($this->categoryId);
+
+        $this->assertSame(4000, $c['cohort_max'],
+            'an unjudged nominee was dropped from the scale, which moves every other '
+            . 'published score the moment their panel finishes');
+        $this->assertSame('Chidinma Okeke', $c['scale_set_by']);
+        $this->assertTrue($c['scale_is_out'],
+            'the field is being measured against somebody the panel has not finished, '
+            . 'and the release screen did not say so');
     }
 
     /**
