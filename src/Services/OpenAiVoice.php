@@ -47,13 +47,30 @@ final class OpenAiVoice
      */
     public const MODEL = 'gpt-4o-mini-tts';
 
-    /** @var array<string,string> */
+    /**
+     * Every built-in voice this endpoint accepts.
+     *
+     * FIVE WERE MISSING — fable, onyx, nova, marin and cedar — so an operator picking a
+     * door voice was choosing from eight of thirteen with nothing saying so. `marin` and
+     * `cedar` are the newest and the most natural of them, which is the whole reason to
+     * pick this provider over Azure, and neither could be selected.
+     *
+     * A wrong name here is a 400 the door swallows, so this list is the API's own and not
+     * a preference: checked against the published parameter list rather than remembered.
+     *
+     * @var array<string,string>
+     */
     public const VOICES = [
+        'marin'   => 'Marin — newest, most natural',
+        'cedar'   => 'Cedar — newest, most natural',
         'alloy'   => 'Alloy — even, unhurried',
         'ash'     => 'Ash — warm, low',
         'ballad'  => 'Ballad — soft, lyrical',
         'coral'   => 'Coral — bright, welcoming',
         'echo'    => 'Echo — calm, male',
+        'fable'   => 'Fable — expressive, storytelling',
+        'nova'    => 'Nova — bright, energetic',
+        'onyx'    => 'Onyx — deep, authoritative',
         'sage'    => 'Sage — measured, female',
         'shimmer' => 'Shimmer — light, female',
         'verse'   => 'Verse — expressive, male',

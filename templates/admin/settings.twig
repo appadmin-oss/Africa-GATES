@@ -543,6 +543,19 @@
           goes to when the voice seems broken. -#}
       {% if door_voice_why %}<p class="hint" style="margin:10px 0 0;color:#8a2020">{{ door_voice_why }}</p>{% endif %}
 
+      {#- CONFIGURED AND REFUSING — the state that showed nothing at all.
+          `door_voice_why` is empty the moment a key exists, so a key that is present and
+          wrong (expired, revoked, wrong project, no credit) left this card clean and the
+          door silent. The recorded reason has been written to gates_settings since the
+          provider shipped; this is the first thing to read it. -#}
+      {% if not door_voice_why and door_voice_error %}
+        <p class="hint" style="margin:10px 0 0;padding:9px 11px;border-radius:8px;background:rgba(138,32,32,.08);border:1px solid rgba(138,32,32,.25);color:#8a2020">
+          <strong>The key is set, and {{ door_voice_label|split(' —')|first }} refused the last attempt.</strong><br>
+          {{ door_voice_error }}<br>
+          <span style="color:var(--ad-text-mute,#5a6d6f)">Press <strong>Hear it</strong> below to try again — this clears itself on the first success.</span>
+        </p>
+      {% endif %}
+
       <p class="hint" style="margin:10px 0 0">
         <strong>Nothing is generated while somebody is standing at the door.</strong> Every
         greeting is rendered by the daily run, up to three days before an event, and the door

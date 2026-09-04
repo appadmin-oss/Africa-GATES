@@ -89,6 +89,14 @@ class SettingsController
             'door_voice_why'    => \AfricaGates\Services\DoorVoice::why(),
             'door_voice_label'  => \AfricaGates\Services\DoorVoice::PROVIDERS[
                                        \AfricaGates\Services\DoorVoice::provider()] ?? '',
+            // THE CASE NOTHING RENDERED: configured, and refusing.
+            //
+            // `why()` is empty whenever a key is present, so a key that is present and
+            // WRONG — expired, revoked, wrong project, out of credit — produced a card
+            // with no warning on it at all and a door that made no sound. That is
+            // indistinguishable from working, and it is exactly what "my key is intact
+            // but it still does not function" looks like from the inside.
+            'door_voice_error'  => \AfricaGates\Services\DoorVoice::lastError(),
             // Who speaks at the door, and the OpenAI voice for when it is OpenAI. The
             // trade-off between them is real — name accuracy against naturalness — so both
             // sides are named on the screen rather than left to be discovered on the night.
