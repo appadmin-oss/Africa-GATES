@@ -48,7 +48,33 @@ class CpiRecomputeCommand extends Command
             foreach ($scores as $nomId => $s) {
                 $scored++;
                 $pid = $profByNom[$nomId] ?? null;
-                if (!empty($pid)) $byProf[$pid][] = $s['cpi_score'];
+                if (empty($pid)) continue;
+
+                // ── A PROVISIONAL SCORE IS NOT A PUBLIC STANDING ─────────────
+                //
+                // Below quorum the judge half is scored ZERO rather than renormalised
+                // away — deliberately, so an unjudged nominee cannot top a board on
+                // popularity alone. `scoreCategory()` says so in as many words and hands
+                // out a `provisional` flag whose entire stated purpose is that "a
+                // community-only score sits in the same column as a full CPI and reads as
+                // one — the figures are not comparable and nothing said so".
+                //
+                // This rollup was the one caller that most needed the flag and was the one
+                // that dropped it. The consequence is not internal: `cpi_score` and
+                // `cpi_tier` are printed on the vote page, the leaderboard, the registry
+                // index and a person's own public profile, with a gold star beside them.
+                // So a nominee no judge has yet opened was published at 450/1000 — which
+                // `tierFor()` calls GOLD — on the strength of the votes alone, and the
+                // understatement the zero was chosen for became a verdict the moment it
+                // was averaged into somebody's standing.
+                //
+                // Left out entirely rather than counted low. A profile whose nominations
+                // are all still unjudged falls through to the baseline below, which is the
+                // score it carried the day before it was nominated — the honest answer to
+                // "what is their standing?" being "we do not have a judged one yet".
+                if (!empty($s['provisional'])) continue;
+
+                $byProf[$pid][] = $s['cpi_score'];
             }
         }
         $io->writeln('Computed ' . $scored . ' nominee scores.');
@@ -61,19 +87,39 @@ class CpiRecomputeCommand extends Command
             $final  = $cpi->profileRollup($linked)
                 ?? $cpi->baselineScore($p->verification_tier ?? null, (float)$p->completeness_pct, (int)$p->view_count);
             $tier   = $cpi->tierFor($final);
+            $was    = $p->cpi_score === null ? null : (int) $p->cpi_score;
+
             DB::table('gates_profiles')->where('id', $p->id)->update([
                 'cpi_score'         => $final,
                 'cpi_tier'          => $tier,
                 'cpi_last_computed' => Carbon::now()->toDateTimeString(),
             ]);
-            try {
-                DB::table('gates_cpi_history')->insert([
-                    'profile_id'  => $p->id,
-                    'cpi_score'   => $final,
-                    'cpi_tier'    => $tier,
-                    'computed_at' => Carbon::now()->toDateTimeString(),
-                ]);
-            } catch (\Throwable $e) {}
+
+            // ── A HISTORY OF MOVEMENTS, NOT A LOG OF TICKS ───────────────────
+            //
+            // This ran every six hours and wrote a row per approved profile whatever
+            // happened, so the table was four rows a day each, forever, of which
+            // essentially all were identical to the one before — two indexes maintained on
+            // every insert of a value nobody had changed. `cpi_last_computed` above already
+            // answers "did the recompute run"; this column set can only usefully answer
+            // "did their standing MOVE, and when", which is the question its own
+            // profile_id/computed_at indexes were cut for, and which a wall of duplicates
+            // buries. The value between two rows is the earlier row's, so nothing is lost.
+            //
+            // A profile's first computed score is a movement too — `cpi_score` starts at
+            // 0, so the first run that produces anything writes the opening row. One that
+            // has only ever been zero has no rows at all, which is the right answer: it has
+            // never moved.
+            if ($was !== $final) {
+                try {
+                    DB::table('gates_cpi_history')->insert([
+                        'profile_id'  => $p->id,
+                        'cpi_score'   => $final,
+                        'cpi_tier'    => $tier,
+                        'computed_at' => Carbon::now()->toDateTimeString(),
+                    ]);
+                } catch (\Throwable $e) {}
+            }
             $count++;
         }
         $io->success("Recomputed CPI for $count profiles.");
