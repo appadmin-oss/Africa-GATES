@@ -70,8 +70,25 @@ class SettingsController
             // The door's voice: whether it is configured, what is wrong when it is not, and
             // the two Nigerian voices Azure publishes. Resolved rather than echoed, same as
             // every other credential screen here.
+            // ── TWO DIFFERENT QUESTIONS, AND THE SCREEN ASKED ONLY ONE ──────
+            //
+            // `azure_*` answers "is the Azure BOX filled in", which is what the Azure key
+            // and region fields need. `door_voice_*` answers "can this door speak", which
+            // is what every other control on the card needs — the subtitle, the Hear
+            // buttons, and whether the pronunciation rows are disabled.
+            //
+            // Seven places used the Azure answer for the door question. With OpenAI
+            // selected and its key set, the card said "Not configured — the door works
+            // exactly as it does now, in silence", disabled every Hear button, and told
+            // the operator to set an Azure key. Their key was right, the provider was
+            // right, the door would have spoken, and every control on the screen said
+            // otherwise.
             'azure_voice_on'    => \AfricaGates\Services\AzureVoice::configured(),
             'azure_voice_why'   => \AfricaGates\Services\AzureVoice::why(),
+            'door_voice_on'     => \AfricaGates\Services\DoorVoice::configured(),
+            'door_voice_why'    => \AfricaGates\Services\DoorVoice::why(),
+            'door_voice_label'  => \AfricaGates\Services\DoorVoice::PROVIDERS[
+                                       \AfricaGates\Services\DoorVoice::provider()] ?? '',
             // Who speaks at the door, and the OpenAI voice for when it is OpenAI. The
             // trade-off between them is real — name accuracy against naturalness — so both
             // sides are named on the screen rather than left to be discovered on the night.
@@ -1231,22 +1248,48 @@ class SettingsController
         // From here the answer is always OK: the operator asked what the door will say
         // and this is what it will say. `spoken` is the separate question of whether it
         // could be heard, which has its own separate reasons.
-        if (!\AfricaGates\Services\AzureVoice::configured()) {
-            return $out($res, ['ok' => true, 'line' => \AfricaGates\Services\AzureVoice::plain($line),
+        // ── IT ASKED THE WRONG PROVIDER, AND TOLD THE OPERATOR TO FIX IT ────
+        //
+        // Every branch below used to name AzureVoice — `configured()`, `why()`,
+        // `lastError()`, `plain()` — while {@see DoorWelcome::render()}, the thing that
+        // actually speaks, dispatches on {@see DoorVoice::provider()}.
+        //
+        // So on a deployment with OpenAI selected and its key set, this screen — the ONE
+        // place built to answer "does the voice work" — checked Azure, found no Azure key,
+        // and answered "No voice is configured" with Azure's own instruction to go and add
+        // an Azure Speech key. The operator's key was correct, the provider was correct,
+        // the door would have spoken, and the diagnostic said it could not and sent them
+        // to the wrong box. There was no way to discover otherwise short of standing at a
+        // door with a guest.
+        //
+        // Worse in the branch below it: with Azure configured but OpenAI selected, a
+        // failure reported `AzureVoice::lastError()` — the recorded reason from a provider
+        // that had not been asked to do anything, usually empty, so it fell through to
+        // "Azure did not answer. Check the key and the region" for a fault in OpenAI.
+        //
+        // ONE RESOLVER. DoorVoice answers all four questions about whoever is actually
+        // speaking. This is the exact "two readers of one setting" fault CLAUDE.md names,
+        // sitting inside the tool for finding it.
+        if (!\AfricaGates\Services\DoorVoice::configured()) {
+            return $out($res, ['ok' => true, 'line' => \AfricaGates\Services\DoorVoice::plain($line),
                 'spoken' => false,
-                'why' => \AfricaGates\Services\AzureVoice::why()
+                'why' => \AfricaGates\Services\DoorVoice::why()
                     ?: 'No voice is configured, so this is the wording only.']);
         }
 
         if (!\AfricaGates\Services\DoorWelcome::render($line)) {
-            // The recorded reason, not a guess. "Check the key and the region" sent an
-            // operator to the wrong box for every failure that was not the key — and on
-            // this screen, where somebody may press Hear twenty times in a minute, the
-            // likeliest one by far is the free tier's rate limit.
-            return $out($res, ['ok' => true, 'line' => \AfricaGates\Services\AzureVoice::plain($line),
+            // The recorded reason, not a guess, and from the provider that was ASKED.
+            // "Check the key and the region" sent an operator to the wrong box for every
+            // failure that was not the key — and on this screen, where somebody may press
+            // Hear twenty times in a minute, the likeliest one is a rate limit.
+            $who = \AfricaGates\Services\DoorVoice::PROVIDERS[
+                       \AfricaGates\Services\DoorVoice::provider()] ?? 'The voice';
+            return $out($res, ['ok' => true, 'line' => \AfricaGates\Services\DoorVoice::plain($line),
                 'spoken' => false,
-                'why' => \AfricaGates\Services\AzureVoice::lastError()
-                    ?: 'Azure did not answer. Check the key and the region.']);
+                // Named, so the operator knows which key and which dashboard to open —
+                // this screen offers two and the message used to assume one.
+                'why' => \AfricaGates\Services\DoorVoice::lastError()
+                    ?: (explode(' —', $who)[0] . ' did not answer. Check its key.')]);
         }
 
         try { $this->audit->record($adminId, 'settings.voice_preview', null, null); } catch (\Throwable) {}
@@ -1256,7 +1299,7 @@ class SettingsController
             // The readable form. The KEY is still taken from the raw line, because that is
             // what was rendered — stripping the marker before hashing would look for a
             // clip that was never made.
-            'line'   => \AfricaGates\Services\AzureVoice::plain($line),
+            'line'   => \AfricaGates\Services\DoorVoice::plain($line),
             'spoken' => true,
             'url'    => '/admin/settings/voice-sample/' . \AfricaGates\Services\DoorWelcome::keyFor($line),
         ]);

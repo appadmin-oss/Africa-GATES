@@ -914,11 +914,14 @@ class EventsController
             // The likeliest cause by far on the free tier, and the one an operator cannot
             // guess: the per-minute quota is spent. Naming it stops them pressing again
             // for a minute and concluding the button does nothing.
+            // From whoever was ASKED. This read AzureVoice::lastError() and quoted
+            // Azure's free-tier rate, so a failure in OpenAI reported an empty Azure
+            // error and then advised waiting for an Azure quota that was never involved.
             $_SESSION['flash_error'] = 'No greetings could be made just now. '
-                . (\AfricaGates\Services\AzureVoice::lastError()
+                . (\AfricaGates\Services\DoorVoice::lastError()
                    ?: 'The voice did not answer. If you have pressed this a few times, wait a '
-                      . 'minute — the free tier allows about '
-                      . \AfricaGates\Services\AzureVoice::perMinute() . ' a minute.');
+                      . 'minute — the limit is about '
+                      . \AfricaGates\Services\DoorVoice::perMinute() . ' a minute.');
             return $res->withHeader('Location', $to)->withStatus(302);
         }
 

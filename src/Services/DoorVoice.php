@@ -96,6 +96,37 @@ final class DoorVoice
     }
 
     /**
+     * WHY THE LAST ATTEMPT FAILED, FROM WHICHEVER PROVIDER ACTUALLY TRIED.
+     *
+     * {@see why()} answers "could this deployment speak at all" — a configuration
+     * question, answerable before anything is attempted. This answers the different one:
+     * something WAS attempted and did not come back. A rate limit, a rejected key, a
+     * region that does not host the voice.
+     *
+     * Split because the settings screen needs both and they have opposite failure modes:
+     * `why()` empty and `lastError()` full is a configured provider that is refusing, and
+     * that combination used to render as silence with no explanation anywhere.
+     */
+    public static function lastError(): string
+    {
+        return self::provider() === self::OPENAI
+            ? OpenAiVoice::lastError() : AzureVoice::lastError();
+    }
+
+    /**
+     * The line as a person would read it — pause markers out, whitespace collapsed.
+     *
+     * Delegated rather than reimplemented. Both providers consume the same marker
+     * convention (Azure translates it into SSML, OpenAI strips it), so there is one
+     * normalisation and it lives where the marker constant does. A second spelling here
+     * is how a preview comes to show wording the door does not actually say.
+     */
+    public static function plain(string $text): string
+    {
+        return AzureVoice::plain($text);
+    }
+
+    /**
      * DOES THIS VOICE NEED THE NAMES SPELLED OUT FOR IT?
      *
      * A property of the voice, not a preference. Azure's `en-NG` voices are trained on

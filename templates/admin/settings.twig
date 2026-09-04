@@ -400,12 +400,16 @@
 
      Two speech providers filed under two different headings is the same class of mistake
      as two resolvers for one setting: whichever one you find first becomes the answer. #}
-  <div class="ad-card" data-sec="ai" data-keys="door voice welcome greeting azure speech tts text to speech nigerian ezinne abeo attendee name check in audio resource key region subscription cognitive services api credential pronunciation say names accent robotic pacing" x-show="show($el)"><div class="ad-card__head"><div class="ad-card__title">The voice at the door<small>{% if azure_voice_on %}Azure Speech is configured — greetings are rendered ahead of each event.{% else %}Not configured — the door works exactly as it does now, in silence.{% endif %}</small></div></div><div class="ad-card__body">
+  <div class="ad-card" data-sec="ai" data-keys="door voice welcome greeting azure speech tts text to speech nigerian ezinne abeo attendee name check in audio resource key region subscription cognitive services api credential pronunciation say names accent robotic pacing" x-show="show($el)"><div class="ad-card__head"><div class="ad-card__title">The voice at the door<small>{% if door_voice_on %}{{ door_voice_label|split(' —')|first }} is configured — greetings are rendered ahead of each event.{% else %}Not configured — the door works exactly as it does now, in silence.{% endif %}</small></div></div><div class="ad-card__body">
 
       {# The three facts somebody needs BEFORE the boxes below mean anything. This card
          asked for a "key" and a "region" and said nowhere what to create in order to have
          them, which is its own kind of unreachable. #}
-      {% if not azure_voice_on %}
+      {#- Only when Azure is the one being asked to speak. A four-step Azure portal
+          walkthrough on a deployment that has chosen OpenAI reads as "this is what you
+          still have to do", which is how an operator comes to believe a working voice
+          is unconfigured. -#}
+      {% if not azure_voice_on and door_voice_provider == 'azure' %}
         <div style="margin:0 0 14px;padding:12px 14px;border:1px solid rgba(16,41,44,.14);border-radius:10px;background:rgba(16,41,44,.03)">
           <p style="margin:0 0 6px;font-weight:600;font-size:13px">Where these come from</p>
           <ol style="margin:0;padding-left:18px;font-size:12.5px;line-height:1.65">
@@ -533,7 +537,11 @@
         </label>
       {% endif %}
 
-      {% if azure_voice_why %}<p class="hint" style="margin:10px 0 0;color:#8a2020">{{ azure_voice_why }}</p>{% endif %}
+      {#- The reason for whoever is SPEAKING. This printed Azure's complaint whatever
+          was selected, so a correctly configured OpenAI door carried "No Azure Speech
+          key — add it under Settings" in red, permanently, on the screen the operator
+          goes to when the voice seems broken. -#}
+      {% if door_voice_why %}<p class="hint" style="margin:10px 0 0;color:#8a2020">{{ door_voice_why }}</p>{% endif %}
 
       <p class="hint" style="margin:10px 0 0">
         <strong>Nothing is generated while somebody is standing at the door.</strong> Every
@@ -603,14 +611,14 @@
           <button type="button" class="btn btn--ghost" data-ag-do="voice-try"
                   data-target="f-voice_try" data-out="voice-try-out"
                   data-kind="f-voice_kind" data-event="f-voice_event" data-role="f-voice_role"
-                  style="min-height:40px">{% if azure_voice_on %}Hear it{% else %}Show it{% endif %}</button>
+                  style="min-height:40px">{% if door_voice_on %}Hear it{% else %}Show it{% endif %}</button>
         </div>
 
         {# The line itself, always. Read it even with no key. #}
         <p id="voice-try-line" role="status" aria-live="polite"
            style="margin:10px 0 0;min-height:1.2em;font-size:14px;color:var(--ad-text,#10292C)"></p>
         <p class="hint" id="voice-try-out" style="margin:4px 0 0;min-height:1.2em">
-          {%- if not azure_voice_on %}No key set, so this shows the wording without speaking it.{% endif -%}
+          {%- if not door_voice_on %}{{ door_voice_why ?: 'No key set' }} — so this shows the wording without speaking it.{% endif -%}
         </p>
       </div>
 
@@ -686,7 +694,7 @@
                       <button type="button" class="btn btn--ghost" data-ag-do="voice-try"
                               data-target="vp-{{ loop.index0 }}" data-out="voice-row-out"
                               aria-label="Hear {{ p.name }}"
-                              {% if not azure_voice_on %}disabled{% endif %}
+                              {% if not door_voice_on %}disabled{% endif %}
                               style="min-height:32px;padding:0 12px;white-space:nowrap">Hear</button>
                     </td>
                   </tr>
@@ -695,7 +703,7 @@
             </table>
           </div>
           <p class="hint" id="voice-row-out" role="status" aria-live="polite" style="margin:8px 0 0;min-height:1.2em">
-            {%- if not azure_voice_on %}Set the key above and save, then each row will speak.{% else %}Press Hear on any name. Edit it only if it sounds wrong.{% endif -%}
+            {%- if not door_voice_on %}Set the key for whoever speaks and save, then each row will speak.{% else %}Press Hear on any name. Edit it only if it sounds wrong.{% endif -%}
           </p>
           <button type="button" class="btn btn--ghost" style="margin-top:10px;min-height:38px"
                   data-ag-do="voice-fill" data-target="f-door_welcome_says" data-rows="vp-say">

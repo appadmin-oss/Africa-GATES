@@ -289,17 +289,32 @@ final class DoorVoiceTierTest extends TestCase
      * Somebody working a worklist may press Hear twenty times in a minute, which is F0's
      * entire budget. "Check the key and the region" would send them to a box that is
      * perfectly correct.
+     *
+     * ── AND IT HAS TO BE THE REASON FROM THE PROVIDER THAT WAS ASKED ─────────
+     *
+     * This used to pin `AzureVoice::lastError()` by name. The intent was right and the
+     * spelling was not: the preview speaks through {@see DoorVoice}, so on a deployment
+     * that has chosen OpenAI it was reading a recorded reason from a provider nothing had
+     * asked to do anything — empty, so the message fell through to advice about an Azure
+     * quota that was never involved. Same assertion, one resolver.
      */
     public function test_a_failed_preview_reports_the_recorded_reason(): void
     {
-        $ctl = (string) file_get_contents(
-            dirname(__DIR__, 2) . '/src/Admin/Controllers/SettingsController.php');
+        // Comments stripped BEFORE the window is cut, for two reasons: the note explaining
+        // this fix quotes the call it replaced (so a raw scan reports the repair as the
+        // fault), and a long note pushes the code being asserted out of a fixed window.
+        $ctl = (string) preg_replace(['~/\*.*?\*/~s', '~(?<!:)//[^\n]*~'], ' ',
+            (string) file_get_contents(
+                dirname(__DIR__, 2) . '/src/Admin/Controllers/SettingsController.php'));
 
         $at = strpos($ctl, 'if (!\AfricaGates\Services\DoorWelcome::render($line))');
         $this->assertNotFalse($at, 'the preview no longer renders; this test must follow it');
 
-        $this->assertStringContainsString('AzureVoice::lastError()', substr($ctl, $at, 600),
+        $window = substr($ctl, $at, 700);
+        $this->assertStringContainsString('DoorVoice::lastError()', $window,
             'a rate-limited preview blames the key, which is the one thing that is right');
+        $this->assertStringNotContainsString('AzureVoice::lastError()', $window,
+            'the failure reason is read from Azure whatever is actually speaking');
     }
 
     /** Every tier offered on the screen is one the budget knows about. */
