@@ -10,10 +10,27 @@
   {% set _pL = 'Sign in to continue' %}{% set _pU = '/account/login' %}
   {% set _gL = 'Go home' %}{% set _gU = '/' %}
 {% elseif dark %}
+  {#
+    ── WHAT THIS USED TO SAY ──────────────────────────────────────────────────
+    "Our team has been notified and is on it. Your votes and data are safe —
+    please try again in a moment."
+
+    Nobody is notified. The exception is appended to var/logs/error-detail.log,
+    whose only reader is a diagnostics route an operator has to remember to open,
+    on a host with no shell and no alerting. The sentence was false — and worse
+    than false, because telling somebody their problem is already being handled
+    is the most effective way to stop them reporting it. That is how a fault
+    survives for months with nobody having said anything.
+
+    What replaces it has to do two things the old copy did not: say plainly that
+    this is not the reader's fault and nothing of theirs is lost, and give them
+    something to DO. The reference below is that something — it is on the log
+    line, so quoting it lands support on the exact stack trace.
+  #}
   {% set _h = 'Something went wrong on our end' %}
-  {% set _m = 'Our team has been notified and is on it. Your votes and data are safe — please try again in a moment.' %}
-  {% set _pL = 'Reload page' %}{% set _pU = 'reload' %}
-  {% set _gL = 'Status page' %}{% set _gU = '/status' %}
+  {% set _m = 'This one is ours, not anything you did — your votes, entries and payments are unaffected. Try again in a moment; if it happens twice, tell us and quote the reference below and we can see exactly what failed.' %}
+  {% set _pL = 'Try again' %}{% set _pU = 'reload' %}
+  {% set _gL = 'Tell us what happened' %}{% set _gU = '/support' %}
 {% elseif code == 404 %}
   {% set _h = 'This path leads nowhere' %}
   {% set _m = 'The page you’re looking for has moved or never existed. The road to recognition is still wide open — let’s get you back on it.' %}
@@ -28,7 +45,11 @@
 {% endif %}
 
 {% set heading = heading|default(_h) %}
-{% set message = message|default(_m) %}
+{#- `|default` only fires on undefined/null, and the handler passes an EMPTY STRING
+    for a 500 so this template owns the copy. Without the explicit test the page
+    renders a blank paragraph under the heading — which is how a reader learns
+    nothing at all about what happened. -#}
+{% set message = (message is defined and message) ? message : _m %}
 {% set hasIllo = (_illo is defined) and not dark %}
 
 {% block head_styles %}

@@ -315,7 +315,8 @@ HTML;
         $b=(array)$req->getParsedBody();
         try {
             $token=(new \AfricaGates\Services\NominationLinkService())->create($b,$this->ip($req));
-        } catch(\RuntimeException $e){ return $this->err($res,$e->getMessage()); }
+        } catch(\RuntimeException $e){ return $this->err($res,\AfricaGates\Support\PublicFault::line($e,
+            'That could not be recorded. Nothing was saved, so trying again is safe.', 'api vote')); }
         $base=\AfricaGates\Support\SiteUrl::base($req);
         return $this->ok($res,['token'=>$token,'url'=>$base.'/nominate?share='.$token,'expires_days'=>\AfricaGates\Services\NominationLinkService::DEFAULT_TTL_DAYS]);
     }
@@ -393,7 +394,12 @@ HTML;
         if($ne==='' && $np==='') return $this->err($res,"Provide 'nominee_email' or 'nominee_phone' — at least one is required.");
         if($ne!=='' && !filter_var($ne,FILTER_VALIDATE_EMAIL)) return $this->err($res,'Invalid nominee email.');
         if($np!=='' && \AfricaGates\Support\Phone::normalize($np,(string)($b['country_code']??''))===null) return $this->err($res,'Invalid nominee phone — use E.164 (e.g. +2348031234567).');
-        try{ $id=$this->awards->submitNomination($b,$ip); }catch(\RuntimeException $e){ return $this->err($res,$e->getMessage()); }
+        // Same reasoning as the form: our validation copy is the useful part of this
+        // response, and a library's RuntimeException is not for this reader.
+        try{ $id=$this->awards->submitNomination($b,$ip); }
+        catch(\RuntimeException $e){ return $this->err($res,\AfricaGates\Support\PublicFault::line($e,
+            'We could not record that nomination. Nothing was saved, so trying once more is safe.',
+            'api nomination')); }
         // Everything after the insert. This endpoint used to stop at the line above
         // and return `ok`, so a nomination arriving here was invisible: no operator
         // was told, the nominator got no confirmation and no reference, the nominee

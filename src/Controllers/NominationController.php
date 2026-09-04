@@ -98,7 +98,14 @@ class NominationController {
                 $photoNote = "\n\nPhoto: (attachment rejected — " . $e->getMessage() . ")";
             }
         }
-        try{ $nominationId = $this->awards->submitNomination($b,$ip); }catch(\RuntimeException $e){ return $rerender($e->getMessage()); }
+        // Our own refusals here are written for the person filling the form ("that
+        // category has closed") and must reach them verbatim — a generic error on a
+        // nomination form is how somebody gives up on entering. Anything that is not
+        // ours becomes a next step and a reference. See Support\PublicFault.
+        try{ $nominationId = $this->awards->submitNomination($b,$ip); }
+        catch(\RuntimeException $e){ return $rerender(\AfricaGates\Support\PublicFault::line($e,
+            'We could not record that nomination. Nothing was saved, so trying once more is safe.',
+            'nomination submit')); }
 
         // Optional supporting document — stored securely (validated PDF/image); its
         // URL is surfaced to operators in the alert for review, never shown publicly.

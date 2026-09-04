@@ -381,8 +381,14 @@ final class OrgDashboardController
                             $orgId, (int) ($r['id'] ?? 0), $path);
                     }
                 } catch (\Throwable $e) {
-                    $_SESSION['flash_error'] = 'The item was saved, but the photograph '
-                        . 'did not upload — ' . $e->getMessage();
+                    // The catch is \Throwable, so this line printed whatever failed
+                    // underneath — a PDO error, a path, a stack frame — to a partner
+                    // organisation. UploadService's own refusals ARE written for a person
+                    // ("File larger than 15MB") and still show; anything else becomes a
+                    // next step and a reference. See Support\PublicFault.
+                    $_SESSION['flash_error'] = 'The item was saved, but the photograph did '
+                        . 'not upload. ' . \AfricaGates\Support\PublicFault::line($e,
+                            'Try a JPEG or PNG under the size limit.', 'org catalogue photo');
                 }
             }
         }
@@ -454,7 +460,8 @@ final class OrgDashboardController
                     if ($path !== '') \AfricaGates\Services\OrgBrand::attach($orgId, $path);
                 } catch (\Throwable $e) {
                     $_SESSION['flash_error'] = 'Your page was saved, but the logo did not '
-                        . 'upload — ' . $e->getMessage();
+                        . 'upload. ' . \AfricaGates\Support\PublicFault::line($e,
+                            'Try a JPEG or PNG under the size limit.', 'org logo upload');
                 }
             }
         }
@@ -494,7 +501,9 @@ final class OrgDashboardController
             $r = $this->uploads->uploadDocument($file, 'org-docs', 15, (int) $user->id, 'public',
                                                 'partner_org', $orgId);
         } catch (\Throwable $e) {
-            $_SESSION['org_flash_error'] = 'Could not upload — ' . $e->getMessage();
+            $_SESSION['org_flash_error'] = \AfricaGates\Support\PublicFault::line($e,
+                'That file could not be uploaded. A PDF or an image under the size limit '
+                . 'will work.', 'org document upload');
             return $this->redirect($res, '/org');
         }
 
