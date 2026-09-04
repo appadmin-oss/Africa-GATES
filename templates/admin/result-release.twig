@@ -65,6 +65,12 @@
      every vertical swipe drift. `-webkit-overflow-scrolling` is gone: it has been the
      default on iOS since 13 and the property was removed. */
   .ja-scroll{ overflow-x:auto; }
+  /* A repair, so it looks like an action and not like a link in a sentence. */
+  .ja-recount{ margin:12px 0 0; }
+  .ja-recount__b{ cursor:pointer; font-family:inherit; font-size:13px; font-weight:600;
+                  min-height:40px; padding:9px 18px; border-radius:999px;
+                  border:1px solid rgba(212,154,14,.55); background:transparent; color:#7a5600; }
+  .ja-recount__b:hover{ background:rgba(212,154,14,.08); }
   .ja-card--overall{ border-color:rgba(212,154,14,.45); }
   .ja-overall__name{ margin:14px 0 2px; font-family:var(--ag-font-display,inherit);
                      font-weight:800; font-size:26px; line-height:1.1; color:var(--ag-ink,#10292C); }
@@ -168,6 +174,10 @@
 
      One headline now — how many categories need a person, counted once — with the
      reasons behind it, and the nominee-level counts kept visibly apart. #}
+  {% if recount_said %}
+    <p class="ja-caveat" role="status">{{ recount_said }}</p>
+  {% endif %}
+
   <div class="ja-stats">
     <div class="ja-stat{% if attention.needs_person > 0 %} ja-stat--bad{% endif %}">
       <p class="ja-stat__k">Need a person</p>
@@ -295,6 +305,33 @@
          deliberately not applied to it — below quorum is pending rather than out, and
          dropping an unjudged nominee from the denominator would move every score here the
          moment their panel finished. That leaves one case worth saying out loud. #}
+      {# ── THE WHOLE COMMUNITY HALF IS OFF ─────────────────────────────────
+         Said before the table, not after it, because everything below is a ranking
+         decided by the panel alone and a reader has to know that before they read it.
+
+         The number in the heading still says what the rules weigh the community at, and
+         that is the point: the gap between "45% of it" at the top and zero in every row
+         is the finding. #}
+      {% if c.community_dark %}
+        <p class="ja-caveat"><b>Not one nominee here has an organic vote</b>, so the
+          community half is zero for the entire field and this category is decided by the
+          panel alone &mdash; at {{ (c.weights.judge * 100)|round }}% of the index doing
+          100% of the work. The order below is the judges&rsquo; order.<br>
+          Votes ARE recorded against these nominees. What is missing is the organic count
+          the community half is measured from, and the usual cause is a counter that has
+          drifted from the vote ledger rather than an absence of votes.</p>
+        {# A POST, and this screen's docblock is why: it audits a release and writes
+           nothing, so a repair reachable by a link could be fired by a prefetch, a
+           bookmark or a reload — on the numbers an award is decided by. #}
+        <form method="post" action="/admin/result-release/recount" class="ja-recount"
+              data-confirm="Recount this category's votes from the ballots? It rewrites the stored totals.">
+          <input type="hidden" name="_token" value="{{ csrf_token }}">
+          <input type="hidden" name="category" value="{{ c.category.id }}">
+          <input type="hidden" name="cycle" value="{{ cycle_id }}">
+          <button type="submit" class="ja-recount__b">Recount this category from the ballots</button>
+        </form>
+      {% endif %}
+
       {% if c.scale_is_out %}
         <p class="ja-caveat">The community half here is measured against
           <b>{{ c.cohort_max|number_format }}</b> votes &mdash; {{ c.scale_set_by }}&rsquo;s,
@@ -373,7 +410,12 @@
                    Except on the row of the nominee who IS the scale, where "100% of their
                    own votes" is a tautology dressed as a denominator — and the fact worth
                    stating there is the other one. #}
-                {% if r.nominee_id == c.scale_set_by_id %}
+                {% if c.community_dark %}
+                  {# With nobody holding an organic vote there is no scale and no
+                     scale-setter, and the fraction printed here came out as
+                     "0% of ’s 0" — a broken sentence where the explanation should be. #}
+                  <span class="ja-den">no organic votes to weigh</span>
+                {% elseif r.nominee_id == c.scale_set_by_id %}
                   <span class="ja-den">most organic votes here &mdash; sets the scale</span>
                 {% else %}
                   <span class="ja-den">{{ r.community_share }}% of

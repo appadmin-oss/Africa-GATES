@@ -3159,6 +3159,10 @@ return function(App $app) {
         // Read-only by construction: it draws the promotion's own ranking rather than
         // re-deriving it, and writes nothing. See ResultRelease.
         $a->get('/result-release', \AfricaGates\Admin\Controllers\ResultReleaseController::class.':index');
+        // The one write on a screen whose whole contract is that it writes nothing. A POST
+        // because as a link it could be fired by a prefetch or a reload, on the numbers an
+        // award is decided by. See the method's own note.
+        $a->post('/result-release/recount', \AfricaGates\Admin\Controllers\ResultReleaseController::class.':recount');
 
         // ── AND THE MARKS UNDER IT ──────────────────────────────────────────
         //

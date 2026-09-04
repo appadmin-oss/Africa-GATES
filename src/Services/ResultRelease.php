@@ -95,7 +95,7 @@ final class ResultRelease
                   'margin' => null, 'dead_heat' => false, 'tie_broken_by_votes' => false,
                   'blocked' => null,
                   'cohort_max' => 0, 'scale_set_by' => null, 'scale_set_by_id' => 0,
-                  'scale_is_out' => false];
+                  'scale_is_out' => false, 'community_dark' => false];
 
         $scores = ($scoring ?? new NomineeScoringService())->scoreCategory($categoryId);
         if ($scores === []) return $empty + [];
@@ -208,10 +208,32 @@ final class ResultRelease
             if ($r['organic'] === $cohortMax) { $scale = $r; break; }
         }
 
+        // ── THE COMMUNITY HALF IS SWITCHED OFF FOR THIS WHOLE CATEGORY ───────
+        //
+        // Nobody in the field has a single organic vote, so every community share is 0/1 and
+        // every community half is zero — the panel decides the award alone, at whatever
+        // weight the rules say the community was worth.
+        //
+        // It is not a hypothetical. A live cycle ran with four nominees holding 1,536, 1,955,
+        // 126 and 398 votes and organic counts of zero on all four, and the second-most-voted
+        // nominee lost to the most-judged one with nothing on the screen saying the 45% had
+        // been dropped. The operator found it by reading the numbers and calling it cheating.
+        //
+        // The commonest cause is not fraud, it is a STALE COUNTER: `organic_vote_count` is
+        // denormalised, `gates_votes` is the ledger, and votes that arrived by any path that
+        // does not maintain the counter — an import, a restore, a code path that predates the
+        // column — leave the two disagreeing with nothing to notice it. Hence `recount()`.
+        $dark = $rows !== [];
+        foreach ($rows as $r) { if ((int) $r['organic'] > 0) { $dark = false; break; } }
+
         return [
             'category'    => $cat,
             'quorum'      => $quorum,
             'weights'     => $weights,
+            // True when NOT ONE nominee has an organic vote. Distinct from `cohort_max` being
+            // zero, which a template could work out for itself and which does not say what
+            // the consequence is.
+            'community_dark' => $dark,
             'shortlisted' => $shortlisted,
             'rows'        => $rows,
             'cohort_max'     => $scale !== null ? $cohortMax : 0,

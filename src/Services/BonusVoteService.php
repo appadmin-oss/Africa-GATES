@@ -203,16 +203,17 @@ class BonusVoteService
         return ['ok' => true] + $out;
     }
 
-    /** Rebuild a nominee's vote counters from surviving rows (vote_count = all weight; organic = 'standard' only). */
+    /**
+     * Rebuild a nominee's vote counters from surviving rows.
+     *
+     * The arithmetic lives in {@see VoteRecount} now, and this delegates rather than
+     * keeping a second copy — it was private here and reachable only as a side effect of
+     * clawing back a donation, which meant the platform had a repair for drifted vote
+     * counters and no way to run it. A live cycle then released with the community half
+     * reading zero for an entire category.
+     */
     private static function recountNominee(int $nomineeId): void
     {
-        try {
-            $all     = (int) DB::table('gates_votes')->where('nominee_id', $nomineeId)->sum('weight');
-            $organic = (int) DB::table('gates_votes')->where('nominee_id', $nomineeId)->where('vote_type', 'standard')->sum('weight');
-            DB::table('gates_nominees')->where('id', $nomineeId)->update([
-                'vote_count'         => $all,
-                'organic_vote_count' => $organic,
-            ]);
-        } catch (\Throwable) {}
+        VoteRecount::applyNominee($nomineeId);
     }
 }

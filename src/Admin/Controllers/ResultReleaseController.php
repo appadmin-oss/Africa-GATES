@@ -90,6 +90,72 @@ final class ResultReleaseController
             // Said out loud rather than rendered as an empty table. "Nothing scored yet"
             // and "the query failed" look identical on a screen and mean opposite things.
             'failed'     => $failed,
+            // What the last repair did, said once and then gone. An operator who has just
+            // rewritten the numbers an award is decided on must be told what moved.
+            'recount_said' => (function (): ?string {
+                $m = $_SESSION['flash_ok'] ?? null;
+                unset($_SESSION['flash_ok']);
+                return is_string($m) && $m !== '' ? $m : null;
+            })(),
         ]);
+    }
+
+    /**
+     * POST /admin/result-release/recount — rebuild one category's counters from the ballots.
+     *
+     * ══════════════════════════════════════════════════════════════════════════
+     * WHY THIS IS A POST ON A SCREEN THAT OTHERWISE WRITES NOTHING
+     * ══════════════════════════════════════════════════════════════════════════
+     *
+     * The index above audits a release and touches nothing, deliberately — a screen that
+     * could crown somebody by being looked at is not an audit. This is the one write, and
+     * it is a POST for exactly that reason: as a link it could be fired by a prefetch, a
+     * bookmark or a reload, on the numbers an award is decided by.
+     *
+     * It repairs a DISCREPANCY and cannot invent support. `gates_votes` is the ledger and
+     * the counters are a cache of it; this makes the cache agree. A nominee with no ballots
+     * comes out of it with no votes.
+     */
+    public function recount(Request $req, Response $res): Response
+    {
+        $b     = (array) $req->getParsedBody();
+        $catId = (int) ($b['category'] ?? 0);
+        $cycle = (int) ($b['cycle'] ?? 0);
+        $back  = '/admin/result-release' . ($cycle > 0 ? '?cycle=' . $cycle : '');
+
+        if ($catId < 1) {
+            $_SESSION['flash_ok'] = 'No category was named, so nothing was recounted.';
+            return $res->withHeader('Location', $back)->withStatus(302);
+        }
+
+        $r = \AfricaGates\Services\VoteRecount::category($catId);
+
+        // Named nominee by nominee. "3 rows updated" on the figures an award turns on is
+        // not a report anybody can check, and this is the one action on this screen that
+        // changes a result.
+        if ($r['changed'] === []) {
+            $_SESSION['flash_ok'] = 'Recounted ' . $r['checked'] . ' nominee'
+                . ($r['checked'] === 1 ? '' : 's') . ' against the ballots — every stored '
+                . 'total already agreed, so nothing changed. The missing community half is '
+                . 'not a drifted counter; those votes are genuinely not organic.';
+        } else {
+            $said = [];
+            foreach ($r['changed'] as $c) {
+                $said[] = $c['name'] . ': ' . $c['was']['organic_vote_count'] . ' → '
+                        . $c['now']['organic_vote_count'] . ' organic of '
+                        . $c['now']['vote_count'];
+            }
+            $_SESSION['flash_ok'] = 'Recounted ' . $r['checked'] . ' nominee'
+                . ($r['checked'] === 1 ? '' : 's') . '; ' . count($r['changed'])
+                . ' corrected — ' . implode(' · ', $said);
+        }
+
+        try {
+            (new \AfricaGates\Admin\Services\AuditService())->record(
+                (int) ($_SESSION['admin_id'] ?? 0), 'results.recount', 'category', $catId,
+                ['checked' => $r['checked'], 'changed' => $r['changed']]);
+        } catch (\Throwable) {}
+
+        return $res->withHeader('Location', $back)->withStatus(302);
     }
 }

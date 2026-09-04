@@ -138,6 +138,10 @@ final class ResultReleaseScreenRenderTest extends TestCase
             // produce. Passed the categories already drawn, exactly as the controller
             // does, so the cycle is not scored twice to reach the same answer.
             'overall'    => ResultRelease::overall($this->cycleId, $categories),
+            // What the last recount said, or nothing. Passed here because the controller
+            // always passes it and `strict_variables` is on — an undefined key is a failure
+            // in this file rather than a blank space in production.
+            'recount_said' => null,
             'failed'     => false,
         ]);
     }
