@@ -45,6 +45,11 @@ class NomineeScoringService
         $cCurve = (float) ($eff['community_curve'] ?? RuleEngine::DEFAULTS['community_curve']);
         $jFloor = (float) ($eff['judge_floor']     ?? RuleEngine::DEFAULTS['judge_floor']);
         $jCurve = (float) ($eff['judge_curve']     ?? RuleEngine::DEFAULTS['judge_curve']);
+        // Normalised through CpiService rather than compared here: an unrecognised value
+        // has to fall back to today's behaviour, and a template or a settings form is one
+        // typo away from writing one. A silent switch of scoring basis is the worst
+        // possible thing for a stray string to do.
+        $cBasis = CpiService::basis($eff['community_basis'] ?? null);
         $full   = (int)   ($eff['community_full_credit_votes']
                            ?? RuleEngine::DEFAULTS['community_full_credit_votes']);
 
@@ -137,7 +142,7 @@ class NomineeScoringService
             $eligible = $judges >= $quorum;                        // winner-eligible only at quorum
 
             $split = CpiService::split(
-                CpiService::communityPart((int) $n->vote_count, $cohortMax, $cCurve, $full),
+                CpiService::communityPart((int) $n->vote_count, $cohortMax, $cCurve, $full, $cBasis),
                 CpiService::judgePart($eligible ? $ja : null, $jFloor, $jCurve),
                 $w['community'], $w['judge']);
             $out[(int) $n->id] = [

@@ -50,6 +50,20 @@ class RuleEngine
         // purely relative and paid the leader of a category with 89 votes exactly what it
         // paid the leader of one with 1,955. Set to 1 for the old behaviour.
         'community_full_credit_votes' => 1000,
+        // WHAT THE COMMUNITY HALF IS A SHARE OF: 'relative' (a nominee's share of their
+        // own category's leader) or 'absolute' (their own turnout against the mark above).
+        //
+        // Relative is what decides a category; absolute is what can be compared across
+        // them. Under relative, a 19-vote category LEADER out-scored a 691-vote nominee
+        // who was 35% of a big field — both figures correct, neither comparable to the
+        // other, and the cross-category overall winner is drawn from exactly that
+        // comparison.
+        //
+        // DEFAULTED TO RELATIVE, and that is not indecision. Results on this platform are
+        // published and printed onto physical awards; a cycle that has announced its
+        // standings must keep them to the digit. Per-cycle, so a later cycle opts in
+        // without moving a released one. See CpiService::basis().
+        'community_basis' => CpiService::BASIS_RELATIVE,
         'judge_floor'     => 5.0,
         'judge_curve'     => 1.5,
 

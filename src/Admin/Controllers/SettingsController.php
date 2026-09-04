@@ -262,6 +262,10 @@ class SettingsController
             'community_return' => \AfricaGates\Services\CommunityReturnService::displayRules(
                 (new \AfricaGates\Services\RuleEngine())->effective()
             ),
+            // The scoring curves, so the form can show what is actually in force rather
+            // than the defaults. Whole ruleset rather than five picked keys: the template
+            // reads them by name and a missing one under strict_variables is a 500.
+            'scoring'    => (new \AfricaGates\Services\RuleEngine())->effective(),
 
             // Automation / webcron status for the no-SSH setup card.
             'app_url'        => rtrim((string) Env::get('APP_URL', ''), '/'),
@@ -770,6 +774,43 @@ class SettingsController
                 // trusted input just because an admin typed it: 0 would lock every
                 // nominee out of qualifying forever, and >100 would stop being a cap.
                 'community_return_supporter_cap_pct' => max(1, min(100, (int) ($b['community_return_supporter_cap_pct'] ?? 10))),
+            ]));
+        }
+
+        // ── The scoring curves ───────────────────────────────────────────────
+        //
+        // Four rules decided every published index and NONE of them had a form. They are
+        // read from RuleEngine, documented on /integrity, and were reachable only by
+        // editing a JSON column by hand — on a host with no shell. A rule an operator
+        // cannot change is a rule they cannot defend, and `community_basis` in particular
+        // would have been a declared setting with no writer, which is the most expensive
+        // shape of bug in this codebase.
+        //
+        // Same merge discipline as the community return above: the global scope carries
+        // the weights, the fraud bands and the quorum too, and writing only these keys
+        // would erase them.
+        if (array_key_exists('scoring_settings', $b)) {
+            $engine  = new \AfricaGates\Services\RuleEngine();
+            $current = [];
+            try {
+                $row = \Illuminate\Database\Capsule\Manager::table('gates_rule_sets')
+                    ->where('scope', 'global')->whereNull('scope_id')->value('rules');
+                $decoded = json_decode((string) $row, true);
+                if (is_array($decoded)) $current = $decoded;
+            } catch (\Throwable) {}
+
+            $engine->set('global', null, array_merge($current, [
+                // Normalised through the scorer, never trusted as typed: an unrecognised
+                // value must fall back to the published behaviour rather than silently
+                // switch how every award in the system is decided.
+                'community_basis' => \AfricaGates\Services\CpiService::basis(
+                    (string) ($b['community_basis'] ?? '')),
+                // Clamped to the same range CpiService clamps to, so the form cannot show
+                // an operator a number the scorer will quietly refuse to use.
+                'community_curve' => max(0.1, min(6.0, (float) ($b['community_curve'] ?? 2.0))),
+                'community_full_credit_votes' => max(1, (int) ($b['community_full_credit_votes'] ?? 1000)),
+                'judge_floor'     => max(0.0, min(9.0, (float) ($b['judge_floor'] ?? 5.0))),
+                'judge_curve'     => max(0.1, min(6.0, (float) ($b['judge_curve'] ?? 1.5))),
             ]));
         }
 

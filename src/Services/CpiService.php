@@ -101,9 +101,11 @@ class CpiService
         ?float $communityCurve = null,
         ?float $judgeFloor = null,
         ?float $judgeCurve = null,
-        ?int $fullCredit = null
+        ?int $fullCredit = null,
+        ?string $communityBasis = null
     ): int {
-        $publicPart = self::communityPart($voteCount, $cohortMaxVotes, $communityCurve, $fullCredit);
+        $publicPart = self::communityPart($voteCount, $cohortMaxVotes, $communityCurve,
+                                          $fullCredit, $communityBasis);
         $judgeNorm  = self::judgePart($judgeAvg0to10, $judgeFloor, $judgeCurve);
 
         return self::split($publicPart, $judgeNorm, $communityWeight, $judgeWeight)['cpi'];
@@ -151,12 +153,76 @@ class CpiService
      * refactor exists to remove.
      */
     public static function communityPart(int $voteCount, int $cohortMaxVotes,
-                                         ?float $curve = null, ?int $fullCredit = null): float
+                                         ?float $curve = null, ?int $fullCredit = null,
+                                         ?string $basis = null): float
     {
+        if (($basis ?? self::BASIS_RELATIVE) === self::BASIS_ABSOLUTE) {
+            // A nominee's OWN turnout, on the same curve as the depth discount, so the
+            // two bases agree exactly for a category leader: at v = cohortMax the
+            // relative share is 1 and this reduces to depth(v). Switching bases can
+            // therefore never move a category's winner by itself.
+            return self::depth($voteCount, $fullCredit);
+        }
+
         $share = min(1.0, max(0.0, $voteCount / max(1, $cohortMaxVotes)));
         $rel   = $share ** self::clampCurve($curve ?? self::COMMUNITY_CURVE);
 
         return $rel * self::depth($cohortMaxVotes, $fullCredit);
+    }
+
+    /**
+     * WHAT THE COMMUNITY HALF IS A SHARE OF.
+     *
+     * ══ THE FAULT THIS EXISTS TO ANSWER ═════════════════════════════════════
+     *
+     * `relative` measures a nominee against the leader of their OWN category. That is the
+     * right question for deciding a category — being top of your field is what wins one —
+     * and it is meaningless outside it. Three real rows, all on the same 0–1000 index:
+     *
+     *     Mr Aoyera Kayode John        19 votes, LEADER of a 19-vote field  → community 62
+     *     Ogunyemi Olusola Titilope   691 votes, 35% of a 1,955-vote field  → community 56
+     *     Amb. Ojewola Olawale        161 votes,  8% of the same field      → community  3
+     *
+     * Nineteen votes out-scoring six hundred and ninety-one. Both figures are correct and
+     * neither is comparable to the other, because they are shares of different things. The
+     * depth discount shrinks the small category's credit — 0.138 of full here — but the
+     * share term still hands its leader the whole of that, while 8% squared is 0.68% of a
+     * category that gets the whole discount waived.
+     *
+     * `absolute` measures a nominee against the full-credit mark itself, so the number
+     * means the same thing in every category and can be ranked across them.
+     *
+     * ── WHY IT IS A SETTING AND NOT A CORRECTION ────────────────────────────
+     *
+     * Both are defensible and they answer different questions, so neither is a bug fix for
+     * the other. More practically: results are PUBLISHED, and on this platform they are
+     * printed onto physical awards. A cycle that has announced its standings must keep
+     * them exactly, so the default is `relative` — today's behaviour, to the digit — and a
+     * later cycle opts in. RuleEngine resolves it per programme and per cycle, which is
+     * what makes that possible.
+     *
+     * ── WHAT CHANGES, MEASURED RATHER THAN ASSERTED ─────────────────────────
+     *
+     * No category winner and no overall position moved in either released cycle at a
+     * full-credit mark of 2,000. What did move was one 3rd/4th place: 918 votes at 6.8
+     * overtaking 398 votes at 7.6. That is the trade the switch makes — turnout against
+     * panel mark — and it is the thing to look at before turning it on.
+     *
+     * Note the interaction, because it is not obvious: under `absolute` the full-credit
+     * mark stops being a per-category discount and becomes the scale every nominee is
+     * measured on, so everybody above it ties at full credit. At 1,000 both a 1,955-vote
+     * and a 1,536-vote nominee collect the whole community half and the panel decides
+     * between them — which DID flip a category winner. Raising the mark above the largest
+     * real tally is what keeps turnout meaningful. {@see fullCredit()}.
+     */
+    public const BASIS_RELATIVE = 'relative';
+    public const BASIS_ABSOLUTE = 'absolute';
+
+    /** The basis, normalised — anything unrecognised is today's behaviour, never a guess. */
+    public static function basis(?string $raw): string
+    {
+        return trim((string) $raw) === self::BASIS_ABSOLUTE
+            ? self::BASIS_ABSOLUTE : self::BASIS_RELATIVE;
     }
 
     /**

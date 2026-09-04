@@ -981,6 +981,60 @@
       <p style="margin:6px 0 0;font-size:12px;color:var(--ad-text-mute,#5a6d6f)">Buyers appear on the nominee's public <strong>supporters list</strong> when they fill in the optional name field; leaving it blank gives anonymously. Free OTP votes are never listed (that path requires a name, so giving one is not a choice). Orders placed before the field said this are treated as not consented and stay private. See <a href="/privacy#supporters" style="color:var(--ad-accent,#237b22)">the supporter-names policy</a>.</p>
     </div>
   </div></div>
+  {# ── THE SCORING CURVES ────────────────────────────────────────────────────
+     Four rules decided every published index and none of them had a form. They were
+     reachable only by editing a JSON column by hand, on a host with no shell — so an
+     operator could read the methodology on /integrity and could not change a line of it.
+
+     The basis is first because it is the only one that changes what a number MEANS
+     rather than how steep it is, and because switching it moves published standings. #}
+  <div class="ad-card" data-sec="site" data-keys="scoring cpi index community curve judge floor basis full credit depth cohort rank methodology" x-show="show($el)"><div class="ad-card__head"><div class="ad-card__title">Scoring &mdash; the Cultural Power Index<small>How votes and marks become a number. Published in full on the integrity page.</small></div></div><div class="ad-card__body">
+    <input type="hidden" name="scoring_settings" value="1">
+    <div class="ad-form">
+      <p style="margin:0 0 12px;padding:9px 11px;border-radius:8px;background:rgba(243,180,22,.12);border:1px solid rgba(243,180,22,.35);font-size:12.5px;line-height:1.55"><strong>These change published standings.</strong> A cycle whose results are announced &mdash; or printed &mdash; keeps the numbers it was announced with only if you leave these alone. Change them for the next cycle, not the one on the wall.</p>
+
+      <div class="row">
+        <div>
+          <label for="f-community_basis">What the community half measures</label>
+          <select name="community_basis" id="f-community_basis">
+            <option value="relative" {% if scoring.community_basis|default('relative') != 'absolute' %}selected{% endif %}>Share of their own category&rsquo;s leader</option>
+            <option value="absolute" {% if scoring.community_basis|default('relative') == 'absolute' %}selected{% endif %}>Their own turnout, on one scale</option>
+          </select>
+        </div>
+        <div>
+          <label for="f-community_full_credit_votes">Votes that earn the full community half</label>
+          <input type="number" name="community_full_credit_votes" id="f-community_full_credit_votes" min="1" step="1" value="{{ scoring.community_full_credit_votes|default(1000) }}">
+        </div>
+      </div>
+
+      <p style="margin:10px 0 0;font-size:12px;line-height:1.6;color:var(--ad-text-mute,#5a6d6f)"><strong>Share of their own leader</strong> is what decides a category &mdash; being top of your field is what wins one &mdash; and it means nothing outside that field. On a real cycle it put a 19-vote nominee who <em>led</em> a 19-vote category above a nominee with 691 votes who was a third of a large one. Both figures were right; neither was comparable to the other, and the overall winner across categories is drawn from exactly that comparison.</p>
+      <p style="margin:6px 0 0;font-size:12px;line-height:1.6;color:var(--ad-text-mute,#5a6d6f)"><strong>Their own turnout</strong> puts every nominee on one scale, so the index can be compared across categories. It never changes the order <em>within</em> a category. It does change the balance between the two halves &mdash; set the full-credit mark above your largest realistic tally, or every nominee past it ties on the community half and the panel decides between them.</p>
+
+      <div class="row">
+        <div>
+          <label for="f-community_curve">Community curve</label>
+          <input type="number" name="community_curve" id="f-community_curve" min="0.1" max="6" step="0.1" value="{{ scoring.community_curve|default(2.0) }}">
+        </div>
+        <div>
+          <label>What that does</label>
+          <p style="margin:9px 0 0;font-size:13px;line-height:1.55;color:var(--ad-text-mute,#5a6d6f)">1.0 is linear. At <strong>2.0</strong>, half the leader&rsquo;s support is worth a quarter of the weight. Ignored when the basis is turnout.</p>
+        </div>
+      </div>
+
+      <div class="row">
+        <div>
+          <label for="f-judge_floor">Judge floor (out of 10)</label>
+          <input type="number" name="judge_floor" id="f-judge_floor" min="0" max="9" step="0.1" value="{{ scoring.judge_floor|default(5.0) }}">
+        </div>
+        <div>
+          <label for="f-judge_curve">Judge curve</label>
+          <input type="number" name="judge_curve" id="f-judge_curve" min="0.1" max="6" step="0.1" value="{{ scoring.judge_curve|default(1.5) }}">
+        </div>
+      </div>
+      <p style="margin:10px 0 0;font-size:12px;line-height:1.6;color:var(--ad-text-mute,#5a6d6f)">The floor is a statement about the scale, not a pass mark. Panels rarely award below five, so treating 0&ndash;5 as live range handed every judged nominee a third of the judge weight for turning up. A mark at or below the floor is worth nothing; ten is worth all of it.</p>
+      <p style="margin:6px 0 0;font-size:12px;line-height:1.6;color:var(--ad-text-mute,#5a6d6f)">Every value here is overridable per programme and per cycle in <code>gates_rule_sets</code>; this form writes the global default. The <a href="/integrity#index" style="color:var(--ad-accent,#237b22)">integrity page</a> publishes whatever is in force.</p>
+    </div>
+  </div></div>
   {# ── COMMUNITY RETURN ──────────────────────────────────────────────────────
      The share a nominee keeps of what supporters raised in their name. Lives in
      gates_rule_sets rather than gates_settings because it is a scoring rule and
