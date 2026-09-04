@@ -246,11 +246,14 @@
 
       <p class="ja-caveat">A CPI compares cleanly <b>inside</b> a category and only half compares
         across them. The judge half is absolute &mdash; six out of ten is six out of ten anywhere.
-        The community half is a share of that category&rsquo;s own leader, so a winner from a small
-        field starts with an advantage no amount of votes elsewhere can answer.
+        The community half is a share of that category&rsquo;s own leader &mdash; but it is
+        also scaled by how deep that category&rsquo;s support actually was, so leading a
+        field of one on a hundred votes no longer pays what leading a busy one pays.
         {% if overall.thinnest_field is not null and overall.thinnest_field <= 3 %}
           The smallest field here is <b>{{ overall.thinnest_field }}</b>.
         {% endif %}
+        What remains uneven is the SHAPE of a field rather than its size: two nominees a
+        long way apart and two nominees neck and neck can produce the same winning share.
         The field size and denominator for every contender are below.</p>
 
       <div class="ja-scroll">
@@ -315,24 +318,28 @@
          The number in the heading still says what the rules weigh the community at, and
          that is the point: the gap between "45% of it" at the top and zero in every row
          is the finding. #}
+      {#
+        ── THIS CAVEAT DESCRIBED A FAULT THAT NO LONGER EXISTS ─────────────────
+
+        It said "not one nominee here has an ORGANIC vote" and then, flatly, "Votes ARE
+        recorded against these nominees" — written when the index read
+        `organic_vote_count` and a category could hold thousands of votes while scoring
+        zero. The index counts every vote now, so `community_dark` means something else
+        entirely: NOBODY VOTED AT ALL.
+
+        Left as it was, this told an operator looking at a category with no votes in it
+        that their votes existed and their counters had drifted, and offered them a recount
+        that would find nothing. Confidently wrong, on the screen an award is signed off
+        from.
+      #}
       {% if c.community_dark %}
-        <p class="ja-caveat"><b>Not one nominee here has an organic vote</b>, so the
-          community half is zero for the entire field and this category is decided by the
-          panel alone &mdash; at {{ (c.weights.judge * 100)|round }}% of the index doing
-          100% of the work. The order below is the judges&rsquo; order.<br>
-          Votes ARE recorded against these nominees. What is missing is the organic count
-          the community half is measured from, and the usual cause is a counter that has
-          drifted from the vote ledger rather than an absence of votes.</p>
-        {# A POST, and this screen's docblock is why: it audits a release and writes
-           nothing, so a repair reachable by a link could be fired by a prefetch, a
-           bookmark or a reload — on the numbers an award is decided by. #}
-        <form method="post" action="/admin/result-release/recount" class="ja-recount"
-              data-confirm="Recount this category's votes from the ballots? It rewrites the stored totals.">
-          <input type="hidden" name="_token" value="{{ csrf_token }}">
-          <input type="hidden" name="category" value="{{ c.category.id }}">
-          <input type="hidden" name="cycle" value="{{ cycle_id }}">
-          <button type="submit" class="ja-recount__b">Recount this category from the ballots</button>
-        </form>
+        <p class="ja-caveat"><b>Not one nominee here has a single vote</b>, so the community
+          half is zero for the entire field and this category would be decided by the panel
+          alone &mdash; at {{ (c.weights.judge * 100)|round }}% of the index doing 100% of
+          the work. The order below is the judges&rsquo; order.<br>
+          Nothing here is a counter that has drifted: the ballot is empty. The promotion
+          refuses to crown this category for that reason, and it needs a person rather than
+          a winner.</p>
       {% endif %}
 
       {% if c.scale_is_out %}
