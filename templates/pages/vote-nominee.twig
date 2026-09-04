@@ -380,7 +380,22 @@
           ballot and a bare column name on an un-migrated deployment takes the whole page
           down rather than one line of it.
         #}
-        {% if n.organic_vote_count is defined and n.organic_vote_count is not null
+        {#
+          AND ONE MORE CONDITION, WHICH IS THE BALLOT THIS SITE ACTUALLY RUNS.
+
+          `paid_free_disabled` means the free path answers 403: a contribution is the only
+          way to vote here. The sentence below distinguishes the free part of a tally from
+          the bought part, which is the right thing to say where somebody had a choice —
+          and where they did not, it tells a visitor that this nominee's support was bought
+          while every other nominee's was too, and while the reader's own vote is about to
+          be. It reads as an allegation and describes a decision nobody made.
+        #}
+        {% if paid_free_disabled %}
+          <p class="vn-vsplit">Voting here is by contribution — free voting is not open on
+            this programme, so every vote on this ballot, including the one you are about to
+            cast, was paid for. Each counts the same toward this nominee’s Cultural Power
+            Index. <a href="/integrity">How the index works</a>.</p>
+        {% elseif n.organic_vote_count is defined and n.organic_vote_count is not null
               and n.vote_count > n.organic_vote_count %}
           <p class="vn-vsplit">{{ n.organic_vote_count|number_format }} of those are organic —
             free, one per verified person — and the rest were bought or awarded against a

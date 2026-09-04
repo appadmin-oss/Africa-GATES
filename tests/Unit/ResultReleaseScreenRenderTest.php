@@ -135,6 +135,11 @@ final class ResultReleaseScreenRenderTest extends TestCase
                               'edition_label' => null, 'results_date' => $resultsDate,
                               'programme' => 'Incredible Principal Awards']],
             'cycle_id'   => $this->cycleId,
+            // Whether a free vote was on offer at all. Read from the same resolver the
+            // controller uses rather than hardcoded: this screen prints an ORGANIC column
+            // and a per-row "N bought or awarded", and where the free path answers 403
+            // both mark the entire field rather than singling anybody out.
+            'paid_only'  => \AfricaGates\Services\PaidVoteService::freeVotingDisabled(),
             'cycle'      => ['id' => $this->cycleId, 'year' => 2026, 'status' => 'judging',
                              'edition_label' => null, 'results_date' => $resultsDate,
                              'programme' => 'Incredible Principal Awards'],

@@ -238,9 +238,13 @@
         {%- if overall.margin is not null %} &middot; {{ overall.margin }} ahead of {{ overall.runner_up.name }}{% endif %}</p>
 
       {% if overall.dead_heat %}
+        {# The comparator is [cpi, votes, id], so a dead heat is a tie on CPI AND on the
+           TALLY. This printed the organic counts, which are 0 on any paid-only
+           deployment — "level on 0 organic votes" as the explanation of a tie between
+           two nominees with thousands of votes each. #}
         <p class="ja-caveat"><b>Dead heat.</b> {{ overall.winner.name }} and {{ overall.runner_up.name }}
-          are level on CPI <b>{{ overall.winner.cpi }}</b> and on <b>{{ overall.winner.organic|number_format }}</b>
-          organic votes. The methodology cannot separate them; the order above falls back to the
+          are level on CPI <b>{{ overall.winner.cpi }}</b> and on <b>{{ overall.winner.votes|number_format }}</b>
+          votes. The methodology cannot separate them; the order above falls back to the
           lower nominee id, which is deterministic and is not a result. This one needs a person.</p>
       {% endif %}
 
@@ -260,7 +264,9 @@
         <table class="ja-t">
           <thead><tr>
             <th>Winner</th><th>Category</th><th class="ja-num">CPI</th>
-            <th class="ja-num">Field</th><th class="ja-num">Organic</th>
+            <th class="ja-num">Field</th>
+            <th class="ja-num">{{ paid_only ? 'Free' : 'Organic' }}
+              {%- if paid_only %}<span class="ja-den">not offered</span>{% endif %}</th>
             <th class="ja-num">Cohort max</th>
           </tr></thead>
           <tbody>
@@ -271,7 +277,9 @@
                 <td class="ja-num">{{ c.cpi }}</td>
                 <td class="ja-num">{{ c.field }}
                   {%- if c.field <= 3 %} <span class="ja-den">thin</span>{% endif %}</td>
-                <td class="ja-num">{{ c.organic|number_format }}</td>
+                {# An em dash, not a zero. "0" in a column headed Free reads as a fact
+                   about this winner's support; there was no free vote to have. #}
+                <td class="ja-num">{% if paid_only %}&mdash;{% else %}{{ c.organic|number_format }}{% endif %}</td>
                 <td class="ja-num">{{ c.cohort_max|number_format }}</td>
               </tr>
             {% endfor %}
@@ -296,6 +304,11 @@
           {{ (c.weights.judge * 100)|round }}% judges &middot;
           quorum {{ c.quorum }} judge{{ c.quorum == 1 ? '' : 's' }}
           {%- if c.shortlisted is not null %} &middot; shortlisted field of {{ c.shortlisted|length }}{% endif %}
+          {#- Said ONCE, here, rather than as a sub-label on every row. On a paid-only
+              ballot every vote in the category was contributed, so "N bought or awarded"
+              under each nominee marked out the entire field and singled out nobody. #}
+          {%- if c.paid_only %} &middot; <b>every vote here was contributed</b> &mdash; free
+          voting is switched off, so there was no other way to vote{% endif %}
         </span>
       </div>
 
@@ -395,7 +408,9 @@
             <th>#</th><th>Nominee</th><th>Index<span class="ja-den">of 1000</span></th>
             <th>Community<span class="ja-den">{{ (c.weights.community * 100)|round }}% of it</span></th>
             <th>Judges<span class="ja-den">{{ (c.weights.judge * 100)|round }}% of it</span></th>
-            <th>Organic</th><th>All votes</th><th>Standing</th>
+            <th>{{ c.paid_only ? 'Free' : 'Organic' }}
+              {%- if c.paid_only %}<span class="ja-den">not offered</span>{% endif %}</th>
+            <th>All votes</th><th>Standing</th>
           </tr>
         </thead>
         <tbody>
@@ -470,13 +485,19 @@
                 {%- endif %}
                 <span class="ja-den"><a href="/admin/scorecard/{{ r.nominee_id }}">see the marks</a></span>
               </td>
-              <td class="ja-num">{{ r.organic|number_format }}</td>
+              <td class="ja-num">{% if c.paid_only %}&mdash;{% else %}{{ r.organic|number_format }}{% endif %}</td>
               {# BOTH numbers, and the roles have swapped: `vote_count` is what the index
                  counts AND what the public page shows; `organic` is how much of it was not
                  bought, which decides nothing now but is published everywhere the total is
-                 so a reader can see what a tally is made of. #}
+                 so a reader can see what a tally is made of.
+
+                 EXCEPT WHERE THERE IS NO FREE VOTE TO HAVE. This sub-label fired on every
+                 row of every category on a paid-only deployment — "1,955 bought or
+                 awarded", "1,536 bought or awarded", all the way down — so a mark that
+                 exists to single out an unusually purchased tally was applied to the whole
+                 field. Said once under the category heading instead. #}
               <td class="ja-num">{{ r.vote_count|number_format }}
-                {%- if r.vote_count > r.organic %}
+                {%- if not c.paid_only and r.vote_count > r.organic %}
                   <span class="ja-den">{{ (r.vote_count - r.organic)|number_format }} bought or awarded</span>
                 {% endif %}
               </td>

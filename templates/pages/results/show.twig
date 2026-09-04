@@ -235,7 +235,11 @@
                 clicks away. Being documented somewhere is not the same as being stated
                 where the numbers collide.
               #}
-              <p class="rs-why">{{ row.vote_count|number_format }} vote{{ row.vote_count == 1 ? '' : 's' }} cast{% if row.vote_count != row.organic %},
+              {#- `r.paid_only` suppresses the organic clause, not because it is untrue but
+                  because it is true of EVERY row: with free voting switched off there was
+                  no free vote to have, so "0 of them organic" under each nominee marks the
+                  whole field and singles out nobody. Said once, in the method note. -#}
+              <p class="rs-why">{{ row.vote_count|number_format }} vote{{ row.vote_count == 1 ? '' : 's' }} cast{% if not r.paid_only and row.vote_count != row.organic %},
                  {{ row.organic|number_format }} of them organic{% endif %} ·
                  {{ row.community_share }}% of this category’s highest{% if row.judge_score is not null %} ·
                  panel {{ row.judge_score|number_format(1) }}/10 from {{ row.judges }}
@@ -267,11 +271,20 @@
           <dd>{{ r.quorum }} complete scorecard{{ r.quorum == 1 ? '' : 's' }}</dd></div>
         <div class="rs-cell"><dt>Votes cast</dt>
           <dd>{{ r.votes.cast|number_format }}</dd></div>
-        {# Named on its own, not folded into the line above. The whole point is that this
-           number exists and is excluded — a figure the reader has to subtract for
-           themselves has not been disclosed, it has been mentioned. #}
-        <div class="rs-cell"><dt>Of those, organic</dt>
-          <dd>{{ r.votes.organic|number_format }}</dd></div>
+        {# Named on its own, not folded into the line above: a figure the reader has to
+           subtract for themselves has not been disclosed, it has been mentioned.
+
+           And where free voting is off, "Of those, organic — 0" is a true sentence that
+           answers the wrong question. The reader wants to know what a tally is made of;
+           the answer there is not "none of it was free", it is "there was no free vote
+           on this ballot", which is a fact about the award and not about its nominees. #}
+        {% if r.paid_only %}
+          <div class="rs-cell"><dt>Free votes</dt>
+            <dd>Not offered</dd></div>
+        {% else %}
+          <div class="rs-cell"><dt>Of those, organic</dt>
+            <dd>{{ r.votes.organic|number_format }}</dd></div>
+        {% endif %}
         <div class="rs-cell"><dt>Community denominator</dt>
           <dd>{% if r.cohort_max > 0 %}{{ r.cohort_max|number_format }} votes{% else %}—{% endif %}</dd></div>
         <div class="rs-cell"><dt>Scale set by</dt>
@@ -290,17 +303,43 @@
         conclude the number was revised down where the award was decided, which is the
         single worst thing this page could be mistaken for.
       #}
-      <h3 class="rs-h3">Two kinds of vote, and both of them count</h3>
-      <p class="rs-note">
-        <strong>Votes cast</strong> is every vote a nominee received —
-        {{ r.votes.cast|number_format }} across this category — and every one of them counts
-        toward the community {{ cpct }}% the same amount, whether it was free or paid for.
-        <strong>Organic</strong> is the part that came from a verified person voting free,
-        one vote per category: {{ r.votes.organic|number_format }} here.
-        {% if r.votes.bought > 0 %}The remaining {{ r.votes.bought|number_format }} were
-        bought in a pack or awarded as a bonus against a contribution.{% else %}No vote in
-        this category was bought or awarded — the two figures are the same.{% endif %}
-      </p>
+      {% if r.paid_only %}
+        {#
+          ── WHERE THERE WAS ONLY ONE KIND OF VOTE ──────────────────────────
+
+          The section below distinguishes a free vote from a purchased one, which is the
+          right thing to explain on a ballot that offers both. This programme does not:
+          `paid_voting_disable_free` is set, the free path answers 403, and a contributed
+          vote is simply what a vote IS here.
+
+          Printing the two-kinds explanation anyway does something worse than waste a
+          paragraph. It frames every vote in the category as the exceptional kind — a
+          reader is told what "organic" means, shown that the count is zero, and left to
+          conclude that a field of nominees all chose to buy their support. Nobody chose
+          anything. The honest disclosure on this ballot is that there was no alternative,
+          and it belongs where the numbers are rather than two clicks away.
+        #}
+        <h3 class="rs-h3">One kind of vote, and it was contributed</h3>
+        <p class="rs-note">
+          Every vote in this category — {{ r.votes.cast|number_format }} of them — was cast
+          with a contribution. <strong>Free voting was not open on this programme</strong>,
+          so there was no other way to take part, and no nominee here had the option of a
+          tally built any differently. Each vote counts toward the community
+          {{ cpct }}% exactly the same amount.
+        </p>
+      {% else %}
+        <h3 class="rs-h3">Two kinds of vote, and both of them count</h3>
+        <p class="rs-note">
+          <strong>Votes cast</strong> is every vote a nominee received —
+          {{ r.votes.cast|number_format }} across this category — and every one of them counts
+          toward the community {{ cpct }}% the same amount, whether it was free or paid for.
+          <strong>Organic</strong> is the part that came from a verified person voting free,
+          one vote per category: {{ r.votes.organic|number_format }} here.
+          {% if r.votes.bought > 0 %}The remaining {{ r.votes.bought|number_format }} were
+          bought in a pack or awarded as a bonus against a contribution.{% else %}No vote in
+          this category was bought or awarded — the two figures are the same.{% endif %}
+        </p>
+      {% endif %}
       {#
         THE HONEST SENTENCE, AND IT IS NOT A COMFORTABLE ONE.
 

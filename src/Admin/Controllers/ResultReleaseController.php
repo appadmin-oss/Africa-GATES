@@ -74,6 +74,17 @@ final class ResultReleaseController
             'cycle_id'   => $wanted,
             'cycle'      => $cycle,
             'categories' => $categories,
+            // ── WAS THERE A FREE VOTE TO HAVE ON THIS DEPLOYMENT? ────────────
+            //
+            // The screen prints an ORGANIC column and, per row, "N bought or awarded".
+            // Where the free path answers 403 that column is a stack of zeros and the
+            // sub-label fires on every row of every category — so the one signal it
+            // exists to give ("this tally was mostly purchased") is given about
+            // everybody, which is the same as being given about nobody.
+            //
+            // Read once, at the top, and used by the overall block; each category
+            // carries the same flag on its own drawn result, from the same resolver.
+            'paid_only'  => \AfricaGates\Services\PaidVoteService::freeVotingDisabled(),
             // What to look at first: categories that crown nobody, dead heats, margins
             // thin enough to turn on one mark. Counted here rather than in the template
             // because a template deriving it would be a second opinion about what needs

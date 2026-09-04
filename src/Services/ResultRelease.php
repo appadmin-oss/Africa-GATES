@@ -105,6 +105,7 @@ final class ResultRelease
                              ?? RuleEngine::DEFAULTS['community_full_credit_votes']);
 
         $empty = ['category' => $cat, 'quorum' => $quorum, 'weights' => $weights,
+                  'paid_only' => PaidVoteService::freeVotingDisabled(),
                   'paid_cap_pct' => $paidCap, 'community_full_credit' => $fullCredit,
                   'shortlisted' => null, 'rows' => [], 'winner' => null, 'runner_up' => null,
                   'margin' => null, 'dead_heat' => false, 'tie_broken_by_votes' => false,
@@ -294,6 +295,19 @@ final class ResultRelease
             // is in the field and whose panel has not finished. Below quorum is pending
             // rather than out, so they keep the scale, and the screen says whose it is.
             'scale_is_out'   => $scale !== null && !$scale['in_running'] && $running !== [],
+            // ── WAS THERE A FREE VOTE TO HAVE? ───────────────────────────────
+            //
+            // Every surface that prints an organic count frames it as the part of a tally
+            // that was NOT bought — which reads as a choice the voter made. Where
+            // `paid_voting_disable_free` is set there was no choice: the free path answers
+            // 403, so organic is zero for everybody and "0 of them organic" is a sentence
+            // about the ballot wearing the clothes of a sentence about the nominee.
+            //
+            // Resolved HERE, on the drawn result, because the public page and the release
+            // screen an operator signs off both read this object. Two readers of one
+            // setting is how the two screens come to describe the same award differently —
+            // and this one decides whether a column of zeros is an accusation or a fact.
+            'paid_only'      => PaidVoteService::freeVotingDisabled(),
             'winner'      => $winner,
             'runner_up'   => $runnerUp,
             // How much of a result this is. A one-point margin on a 0–1000 index is a
