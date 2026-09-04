@@ -464,42 +464,72 @@ final class ResultRelease
     }
 
     /**
-     * The one award for the whole cycle, drawn from the category winners.
+     * The standing for the whole cycle — every nominee in it, ranked.
      *
      * ══════════════════════════════════════════════════════════════════════════
-     * WHY IT IS DRAWN FROM THE WINNERS AND NOT FROM EVERY NOMINEE
+     * WHAT THIS USED TO DO, AND WHY IT CHANGED
      * ══════════════════════════════════════════════════════════════════════════
      *
-     * Because an overall award that could go to somebody who did not win their own
-     * category is not an overall award, it is a second opinion — and the first question
-     * anybody would ask is why the person who beat them in their own field is not holding
-     * this one. The contenders are exactly the people who won something.
+     * It took each category's WINNER and ranked those, on the argument that "an overall
+     * award which could go to somebody who did not win their own category is not an
+     * overall award, it is a second opinion."
+     *
+     * That argument is sound about an AWARD and wrong about a STANDING, and this produces
+     * a standing. On a real cycle it gave an overall second place of 89 votes and a third
+     * of 19, while this nominee did not appear at all:
+     *
+     *     Dr. Adegboyega Aborode   1,536 votes · 8.0/10 · CPI 533 · second in his category
+     *
+     * The highest panel mark in the cycle and its second-largest tally, absent from "the
+     * best of the cycle" because of who else happened to enter his category. Meanwhile the
+     * list it did produce was the category winners in CPI order — which the per-category
+     * tables already are, so it added nothing and excluded the one thing it could have
+     * said.
+     *
+     * A category may hold more than one place here, and that is the point: being narrowly
+     * beaten in a deep field says more about a nominee than winning a field of one. Each
+     * row carries `won_category`, so a screen can distinguish the two rather than reading
+     * as a second set of category results that disagrees with the first.
+     *
+     * ══════════════════════════════════════════════════════════════════════════
+     * WHAT IT STILL WILL NOT DO
+     * ══════════════════════════════════════════════════════════════════════════
+     *
+     * Rank a nominee who is not `in_running`. Below the judge quorum there is no judge
+     * half — not withheld, ZERO — so the figure is a community-only score sitting in the
+     * same column as a full CPI. Ranking those together is what put a 691-vote nominee
+     * with one of two scorecards above a finished result, and it is the one comparison
+     * this method must never make.
      *
      * ══════════════════════════════════════════════════════════════════════════
      * AND THE THING THIS CANNOT FIX, WHICH IS WHY IT REPORTS IT
      * ══════════════════════════════════════════════════════════════════════════
      *
-     * A CPI is only half comparable across categories, and an overall award is the one
-     * place that matters. The judge half is absolute — six out of ten is six out of ten in
-     * any field. The community half is a SHARE OF THE WINNER'S OWN COHORT, so leading a
-     * three-person category on fifty votes is a full community half, and coming a close
-     * second in a fifty-thousand-vote category is not.
+     * A CPI is only half comparable across categories, and this list is the one place that
+     * matters. The judge half is absolute — six out of ten is six out of ten in any field.
+     * The community half under the default basis is a SHARE OF A NOMINEE'S OWN COHORT, so
+     * leading a three-person category on fifty votes is a full community half and coming a
+     * close second in a fifty-thousand-vote category is not.
      *
-     * There is no neutral denominator available. Normalising across the whole cycle instead
-     * just inverts the bias — it hands the award to whoever stands in the most popular
-     * category, and a niche field could never win it. Ranking on the judge half alone
-     * throws away the community half entirely, on a platform whose entire thesis is that
-     * both count. Every option here is a position, not a calculation.
+     * Ranking the whole field makes that bias MORE visible, not less: it puts a 19-vote
+     * category leader in the same column as a 161-vote nominee who was eight per cent of a
+     * large field, and the first out-scores the second. {@see CpiService::basis()} is the
+     * setting that closes it, defaulted off because results are published and printed.
      *
-     * So this takes the conservative one — the same CPI, the same comparator, no second
-     * score invented and nothing recomputed — and it hands back the figures that make the
-     * bias VISIBLE rather than leaving it to be found during a challenge: how big each
-     * contender's field was, and how many votes their cohort's leader had. An operator who
-     * can see that the top CPI came out of a three-person category can decide what to do
-     * about it. One who cannot see it will publish it and find out afterwards.
+     * There is no neutral denominator available. Normalising across the whole cycle just
+     * inverts the bias — the award goes to whoever stands in the most popular category and
+     * a niche field could never win it. Ranking on the judge half alone throws away the
+     * community half entirely, on a platform whose thesis is that both count. Every option
+     * here is a position, not a calculation.
      *
-     * `field` is the number of nominees who were in the running in that category — the
-     * people the winner actually beat.
+     * So this uses the same CPI and the same comparator — no second score invented,
+     * nothing recomputed — and hands back the figures that make the bias visible rather
+     * than leaving it to be found during a challenge: how big each contender's field was,
+     * and how many votes their cohort's leader had. An operator who can see that the top
+     * CPI came out of a three-person category can decide what to do about it. One who
+     * cannot see it will publish it and find out afterwards.
+     *
+     * `field` is the number of nominees who were in the running in that category.
      *
      * @return array{
      *   winner: ?array<string,mixed>, runner_up: ?array<string,mixed>,
@@ -517,22 +547,47 @@ final class ResultRelease
         // the whole cycle twice.
         $cats = $categories ?? self::forCycle($cycleId);
 
+        // ── EVERY NOMINEE IN THE CYCLE, NOT ONE PER CATEGORY ─────────────────
+        //
+        // This used to take each category's WINNER and rank those. On a real cycle that
+        // produced an overall second place of 89 votes and a third of 19, while a nominee
+        // on 1,536 votes with the highest panel mark in the cycle — second in the deepest
+        // category — did not appear at all. "The best of the cycle" that excludes its
+        // second-strongest nominee for the accident of who else entered their category is
+        // not the best of the cycle; it is a parade of category winners, which the
+        // per-category tables already are.
+        //
+        // A category can therefore hold more than one place here, and that is the point:
+        // being narrowly beaten in a deep field says more about a nominee than winning a
+        // field of one.
+        //
+        // `in_running` ONLY. A nominee below the judge quorum has no judge half at all —
+        // not withheld, zero — so their figure is a community-only score wearing the same
+        // column as a full CPI. Ranking the two together is the one comparison this file
+        // must never make: it put a 691-vote nominee with one of two scorecards into a
+        // list of finished results.
         $contenders = [];
         foreach ($cats as $c) {
-            if (($c['winner'] ?? null) === null) continue;
-
             $field = 0;
             foreach ($c['rows'] as $r) if ($r['in_running']) $field++;
 
-            $contenders[] = $c['winner'] + [
-                'category'   => (string) ($c['category']->title ?? ''),
-                'category_id' => (int) ($c['category']->id ?? 0),
-                // The two figures that say whether this CPI is comparable with the one
-                // below it. Carried rather than derivable: the screen must not be the
-                // second place this is worked out.
-                'field'      => $field,
-                'cohort_max' => (int) ($c['cohort_max'] ?? 0),
-            ];
+            foreach ($c['rows'] as $r) {
+                if (!$r['in_running']) continue;
+
+                $contenders[] = $r + [
+                    'category'   => (string) ($c['category']->title ?? ''),
+                    'category_id' => (int) ($c['category']->id ?? 0),
+                    // The two figures that say whether this CPI is comparable with the one
+                    // below it. Carried rather than derivable: the screen must not be the
+                    // second place this is worked out.
+                    'field'      => $field,
+                    'cohort_max' => (int) ($c['cohort_max'] ?? 0),
+                    // Whether they also took their own category. A list that mixes winners
+                    // and runners-up has to say which is which, or it reads as a second
+                    // set of category results that disagrees with the first.
+                    'won_category' => ($c['winner']['nominee_id'] ?? null) === $r['nominee_id'],
+                ];
+            }
         }
 
         if ($contenders === []) return $none;

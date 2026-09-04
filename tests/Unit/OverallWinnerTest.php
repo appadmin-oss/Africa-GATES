@@ -119,13 +119,31 @@ final class OverallWinnerTest extends TestCase
     }
 
     /**
-     * NOBODY WHO LOST THEIR OWN CATEGORY CAN HOLD THE OVERALL AWARD.
+     * EVERY NOMINEE WHO FINISHED, NOT ONE PER CATEGORY.
      *
-     * An overall award that could go to a runner-up is not an overall award, it is a second
-     * opinion — and the first question anybody would ask is why the person who beat them in
-     * their own field is not holding this one.
+     * ── WHAT THIS TEST USED TO ASSERT ────────────────────────────────────────
+     *
+     * That "Strong Runner" was NOT in contention — "an overall award that could go to a
+     * runner-up is not an overall award, it is a second opinion, and the first question
+     * anybody would ask is why the person who beat them in their own field is not holding
+     * this one."
+     *
+     * ── WHY IT CHANGED ───────────────────────────────────────────────────────
+     *
+     * That argument is sound about an AWARD and wrong about a STANDING, and this produces
+     * a standing. On a real released cycle the old rule gave an overall second place of 89
+     * votes and a third of 19, while the nominee on 1,536 votes with the highest panel
+     * mark in the whole cycle — second in the deepest category — did not appear at all.
+     *
+     * The list it produced was the category winners in CPI order, which the per-category
+     * tables already are. It added nothing and excluded the one thing it could have said.
+     *
+     * Here that is Strong Runner, who out-scores the music winner: 900 votes and a 9 in a
+     * field somebody took with 1,000 and a 10. Being narrowly beaten in a strong field
+     * says more about a nominee than winning a weak one, and the standing now says it.
+     * `won_category` marks the distinction so no screen presents them as a category winner.
      */
-    public function test_only_category_winners_are_in_contention(): void
+    public function test_the_standing_ranks_every_nominee_who_finished(): void
     {
         $music = $this->category('Music', 1);
         $film  = $this->category('Film', 2);
@@ -142,9 +160,19 @@ final class OverallWinnerTest extends TestCase
         $o = ResultRelease::overall($this->cycleId);
 
         $names = array_column($o['contenders'], 'name');
-        $this->assertNotContains('Strong Runner', $names,
-            'somebody who did not win their own category was in contention for the overall');
-        $this->assertSame(['Tunde Cole', 'Adaeze Nwankwo'], $names);
+        $this->assertContains('Strong Runner', $names,
+            'the standing still excludes everybody who did not win their own category, so '
+            . 'the second-strongest nominee in the cycle is simply absent from it');
+        $this->assertSame(['Tunde Cole', 'Strong Runner', 'Adaeze Nwankwo'], $names);
+
+        // The award itself is unmoved — only the places below it fill in.
+        $this->assertSame('Tunde Cole', $o['winner']['name']);
+
+        $won = array_column($o['contenders'], 'won_category', 'name');
+        $this->assertTrue($won['Tunde Cole']);
+        $this->assertTrue($won['Adaeze Nwankwo']);
+        $this->assertFalse($won['Strong Runner'],
+            'a runner-up is being presented as having won their category');
     }
 
     /** A cycle where nothing has been decided has no overall winner, and says so. */
@@ -209,8 +237,14 @@ final class OverallWinnerTest extends TestCase
 
         $o = ResultRelease::overall($this->cycleId);
 
+        // Keyed by category, taking the WINNER of each. The standing lists every nominee
+        // who finished, so a plain category => row map keeps whichever row happens to come
+        // last — which is a runner-up, and this test is about what a winner's field looked
+        // like.
         $by = [];
-        foreach ($o['contenders'] as $c) $by[$c['category']] = $c;
+        foreach ($o['contenders'] as $c) {
+            if ($c['won_category']) $by[$c['category']] = $c;
+        }
 
         $this->assertSame(2, $by['Thin field']['field'],
             'the size of the field a winner actually beat is not reported — and an '

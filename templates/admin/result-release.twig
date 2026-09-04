@@ -230,7 +230,10 @@
     <div class="ja-card ja-card--overall">
       <div class="ja-cat">
         <h3>Overall winner &mdash; the whole cycle</h3>
-        <span class="ja-den">{{ overall.contenders|length }} category winner{{ overall.contenders|length == 1 ? '' : 's' }} in contention</span>
+        {#- Every nominee who finished, not one per category. It said "N category winners
+            in contention" while ranking exactly those — which excluded the cycle's
+            second-strongest nominee for the accident of who else entered his category. -#}
+        <span class="ja-den">{{ overall.contenders|length }} nominee{{ overall.contenders|length == 1 ? '' : 's' }} across every category</span>
       </div>
 
       <p class="ja-overall__name">{{ overall.winner.name }}</p>
@@ -258,12 +261,22 @@
         {% endif %}
         What remains uneven is the SHAPE of a field rather than its size: two nominees a
         long way apart and two nominees neck and neck can produce the same winning share.
-        The field size and denominator for every contender are below.</p>
+        The field size and denominator for every nominee are below.</p>
+
+      {#- The list ranks EVERY nominee who finished, so a deep category may hold several
+          places. Said out loud, because a table with two rows from one category reads
+          like a bug to anybody expecting one winner each. -#}
+      <p class="ja-caveat">This ranks <b>every nominee who finished</b>, not one per
+        category &mdash; so a strong second in a deep field can stand above the winner of a
+        thin one, which is the whole point of looking at the cycle as a whole. Nominees
+        below the judge quorum are excluded: their judge half is not withheld, it is
+        <b>zero</b>, so their figure is a community-only score and does not belong in a
+        column of finished results.</p>
 
       <div class="ja-scroll">
         <table class="ja-t">
           <thead><tr>
-            <th>Winner</th><th>Category</th><th class="ja-num">CPI</th>
+            <th>Nominee</th><th>Category</th><th class="ja-num">CPI</th>
             <th class="ja-num">Field</th>
             <th class="ja-num">{{ paid_only ? 'Free' : 'Organic' }}
               {%- if paid_only %}<span class="ja-den">not offered</span>{% endif %}</th>
@@ -272,7 +285,10 @@
           <tbody>
             {% for c in overall.contenders %}
               <tr{% if loop.first %} class="is-win"{% endif %}>
-                <td>{{ c.name }}</td>
+                {#- A list mixing winners and runners-up has to say which is which, or it
+                    reads as a second set of category results disagreeing with the first. -#}
+                <td>{{ c.name }}
+                  {%- if not c.won_category %} <span class="ja-den">2nd or lower in their category</span>{% endif %}</td>
                 <td>{{ c.category }}</td>
                 <td class="ja-num">{{ c.cpi }}</td>
                 <td class="ja-num">{{ c.field }}
