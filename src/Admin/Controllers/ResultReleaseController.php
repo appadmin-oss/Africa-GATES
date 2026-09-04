@@ -113,8 +113,14 @@ final class ResultReleaseController
      * bookmark or a reload, on the numbers an award is decided by.
      *
      * It repairs a DISCREPANCY and cannot invent support. `gates_votes` is the ledger and
-     * the counters are a cache of it; this makes the cache agree. A nominee with no ballots
-     * comes out of it with no votes.
+     * the counters are a cache of it; this makes the cache agree.
+     *
+     * It also cannot DESTROY support. A nominee carrying a stored total with not one ballot
+     * row behind it has an absent ledger rather than a drifted counter, and that number is
+     * then the only surviving record the support existed; {@see VoteRecount::applyNominee()}
+     * refuses those and hands the refusal back. This screen has to say so by name, because
+     * a refusal and a category that already agreed look identical from the operator's chair
+     * — nothing moved either way — and they call for opposite next steps.
      */
     public function recount(Request $req, Response $res): Response
     {
@@ -139,15 +145,34 @@ final class ResultReleaseController
                 . 'total already agreed, so nothing changed. The missing community half is '
                 . 'not a drifted counter; those votes are genuinely not organic.';
         } else {
-            $said = [];
+            $said = $held = [];
             foreach ($r['changed'] as $c) {
+                if (isset($c['refused'])) {
+                    $held[] = $c['name'] . ' (' . $c['was']['vote_count'] . ' stored)';
+                    continue;
+                }
                 $said[] = $c['name'] . ': ' . $c['was']['organic_vote_count'] . ' → '
                         . $c['now']['organic_vote_count'] . ' organic of '
                         . $c['now']['vote_count'];
             }
-            $_SESSION['flash_ok'] = 'Recounted ' . $r['checked'] . ' nominee'
-                . ($r['checked'] === 1 ? '' : 's') . '; ' . count($r['changed'])
-                . ' corrected — ' . implode(' · ', $said);
+
+            $msg = 'Recounted ' . $r['checked'] . ' nominee'
+                 . ($r['checked'] === 1 ? '' : 's') . '; ' . count($said) . ' corrected'
+                 . ($said === [] ? '' : ' — ' . implode(' · ', $said)) . '.';
+
+            // The refusal is the more urgent half of the report, so it goes last, where the
+            // eye lands. "Nothing moved" is what an operator sees whether the counters were
+            // already right or the ballots are gone, and those need opposite next steps.
+            if ($held !== []) {
+                $msg .= ' Left alone: ' . implode(' · ', $held) . ' — there is not one ballot '
+                      . 'row on record for ' . (count($held) === 1 ? 'this nominee' : 'these '
+                      . 'nominees') . ', so the stored total is the only surviving record '
+                      . 'that the support existed. That is a restore or an import to '
+                      . 'investigate, not a counter to rebuild, and a recount would have '
+                      . 'erased it.';
+            }
+
+            $_SESSION['flash_ok'] = $msg;
         }
 
         try {

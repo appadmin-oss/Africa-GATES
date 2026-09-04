@@ -212,22 +212,65 @@ final class CommunityHalfDarkTest extends TestCase
     }
 
     /**
-     * AND IT CANNOT MANUFACTURE VOTES.
+     * AND IT CANNOT MANUFACTURE VOTES — NOR DESTROY THE EVIDENCE OF THEM.
      *
-     * The honest outcome of recounting a category whose ballots really are all non-organic
-     * is that nothing changes — and the operator needs to be told that, because it means the
-     * missing community half is a fact about the votes rather than a drifted counter.
+     * A nominee carrying a stored total with not one ballot row behind it is not a drifted
+     * counter. It is an ABSENT LEDGER — an import, a restore, a migration from whatever ran
+     * before this platform — and that stored number is then the only surviving record that
+     * the support existed at all.
+     *
+     * Writing the ledger's answer there repairs nothing and erases that record, on a button
+     * labelled "recount", pressed by somebody trying to fix a scoring fault. The first
+     * version of this file asserted exactly that erasure, which is how close it came to
+     * shipping: 1,536 votes to zero, on a live cycle, irreversibly.
+     *
+     * So the counters survive, and the refusal is REPORTED — an operator who presses recount
+     * and sees nothing move has learned something specific and actionable.
      */
-    public function test_a_recount_with_no_ballots_takes_the_counters_to_nothing(): void
+    public function test_a_recount_refuses_a_nominee_whose_ballots_are_missing_entirely(): void
     {
         $n = $this->nominee('Dr. Adegboyega Aborode', 1536, 0);
 
-        VoteRecount::category($this->categoryId);
+        $r   = VoteRecount::category($this->categoryId);
         $row = DB::table('gates_nominees')->find($n);
 
-        $this->assertSame(0, (int) $row->vote_count,
-            'a stored total with no ballots behind it survived a recount');
+        $this->assertSame(1536, (int) $row->vote_count,
+            'a stored total with no ballots behind it was destroyed by a recount');
         $this->assertSame(0, (int) $row->organic_vote_count);
+
+        $this->assertCount(1, $r['changed'],
+            'the recount refused silently — nothing tells the operator why nothing moved');
+        $this->assertSame('no ballots on record', $r['changed'][0]['refused'] ?? null);
+        $this->assertSame($r['changed'][0]['was'], $r['changed'][0]['now'],
+            'a refusal reported a movement');
+    }
+
+    /**
+     * THE REFUSAL IS ABOUT AN ABSENT LEDGER, NOT ABOUT ZERO.
+     *
+     * A nominee whose ballots are all non-organic really should come out with no community
+     * support, and the guard above must not be so broad that it protects that stored total
+     * too — that would leave the very drift this repair exists for permanently unfixable.
+     * The ledger EXISTS here; it just says something the operator will not enjoy.
+     */
+    public function test_a_ledger_that_exists_and_says_zero_organic_is_still_written(): void
+    {
+        $n = $this->nominee('Dr. Adegboyega Aborode', 1536, 1536);
+
+        DB::table('gates_votes')->insert([
+            'nominee_id' => $n, 'category_id' => $this->categoryId,
+            'voter_email_hash' => 'paid', 'vote_type' => 'paid', 'weight' => 40,
+            'voted_at' => Carbon::now()->toDateTimeString(),
+        ]);
+
+        $r   = VoteRecount::category($this->categoryId);
+        $row = DB::table('gates_nominees')->find($n);
+
+        $this->assertSame(40, (int) $row->vote_count);
+        $this->assertSame(0, (int) $row->organic_vote_count,
+            'purchased votes were left standing as community support');
+        $this->assertArrayNotHasKey('refused', $r['changed'][0],
+            'a nominee with a real ledger was refused as if it were missing');
     }
 
     /** A category whose counters already agree reports no change, and writes nothing. */
@@ -237,5 +280,42 @@ final class CommunityHalfDarkTest extends TestCase
 
         $this->assertFalse(VoteRecount::categoryDrifts($this->categoryId));
         $this->assertSame([], VoteRecount::category($this->categoryId)['changed']);
+    }
+
+    /**
+     * AND THE OPERATOR IS TOLD, IN WORDS, ON THE SCREEN.
+     *
+     * From the operator's chair a refusal and a category that already agreed look identical:
+     * they press the button and nothing moves. They call for opposite next steps — one is
+     * "the community half really is zero, publish it", the other is "your ballot table has
+     * been lost, do not publish anything yet" — so the flash has to distinguish them. A
+     * refusal the service reports and the screen swallows is a refusal that never happened.
+     */
+    public function test_the_screen_says_which_nominees_were_left_alone_and_why(): void
+    {
+        $this->nominee('Dr. Adegboyega Aborode', 1536, 0);
+
+        $_SESSION['admin_id'] = 1;
+        unset($_SESSION['flash_ok']);
+
+        $req = (new \Slim\Psr7\Factory\ServerRequestFactory())
+            ->createServerRequest('POST', 'https://x/admin/result-release/recount')
+            ->withParsedBody(['category' => (string) $this->categoryId]);
+
+        $view = \Slim\Views\Twig::create(dirname(__DIR__, 2) . '/templates');
+        (new \AfricaGates\Admin\Controllers\ResultReleaseController($view))
+            ->recount($req, new \Slim\Psr7\Response());
+
+        $said = (string) ($_SESSION['flash_ok'] ?? '');
+        unset($_SESSION['flash_ok'], $_SESSION['admin_id']);
+
+        $this->assertStringContainsString('Dr. Adegboyega Aborode', $said,
+            'the recount left a nominee alone without naming them');
+        $this->assertStringContainsString('1536', $said,
+            'the stored total the refusal protected is not shown');
+        $this->assertStringContainsString('not one ballot row', $said,
+            'the screen does not say WHY nothing moved, so it reads as "already correct"');
+        $this->assertStringNotContainsString('every stored total already agreed', $said,
+            'a refusal was reported as a category whose counters were already right');
     }
 }

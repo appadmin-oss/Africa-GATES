@@ -71,7 +71,12 @@ final class VoteRecount
     /**
      * Write the ledger's answer onto one nominee. Returns what moved, or null if nothing did.
      *
-     * @return array{nominee_id:int, name:string, was:array, now:array}|null
+     * REFUSES on a nominee with a stored total and no ballot rows at all: that is an absent
+     * ledger rather than a drifted counter, and the stored number is then the only record
+     * that the support ever existed. The refusal comes back in the return value carrying
+     * `refused`, so the screen can say which nominees were left alone and why.
+     *
+     * @return array{nominee_id:int, name:string, was:array, now:array, refused?:string}|null
      */
     public static function applyNominee(int $nomineeId): ?array
     {
@@ -88,6 +93,35 @@ final class VoteRecount
         $now = self::fromLedger($nomineeId);
 
         if ($was === $now) return null;
+
+        // ══ AN ABSENT LEDGER IS NOT A DISCREPANCY ═══════════════════════════
+        //
+        // If there is not one ballot row for this nominee, the stored total is the ONLY
+        // record that support ever existed — an import, a restore, a migration from
+        // whatever ran before this platform. Writing the ledger's answer there does not
+        // repair anything; it destroys the evidence, on a screen whose button says
+        // "recount", to somebody trying to fix a scoring fault.
+        //
+        // A nominee with 1,536 votes and no ballots is a data problem to investigate, not
+        // a counter to zero. So this refuses, and the refusal is REPORTED rather than
+        // silent — an operator who presses recount and sees nothing happen has learned
+        // something specific: the votes are not in the ledger at all.
+        //
+        // No stored total needs checking alongside it. Reaching this line means the stored
+        // figures already disagree with the ledger, and with no rows the ledger's answer is
+        // zero on both — so the stored total is non-zero by construction. A second clause
+        // spelling that out would read like a guard and be one no test could ever fail.
+        $rows = 0;
+        try {
+            $rows = (int) DB::table('gates_votes')->where('nominee_id', $nomineeId)->count();
+        } catch (\Throwable) {
+            return null;
+        }
+
+        if ($rows === 0) {
+            return ['nominee_id' => (int) $n->id, 'name' => (string) $n->name,
+                    'was' => $was, 'now' => $was, 'refused' => 'no ballots on record'];
+        }
 
         try {
             DB::table('gates_nominees')->where('id', $nomineeId)->update($now);
