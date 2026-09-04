@@ -133,9 +133,11 @@ class CpiRecomputeTest extends TestCase
         $p1 = (int) DB::table('gates_profiles')->where('id', 1)->value('cpi_score');
         $p2 = (int) DB::table('gates_profiles')->where('id', 2)->value('cpi_score');
 
-        // 0.45 * (5/5) + 0.55 * 0.6 = 0.78  ;  0.45 * (5/50) + 0.55 * 0.6 = 0.375
-        $this->assertSame(780, $p1);
-        $this->assertSame(375, $p2);
+        // Both halves are curved now — see CpiService::nomineeScore() for why.
+        //   community: (5/5)^2 = 1.0 → 450   ;   (5/50)^2 = 0.01 → 4 (was 45)
+        //   judge 6/10: ((6−5)/5)^1.5 = 0.2^1.5 = 0.0894 → 49
+        $this->assertSame(499, $p1);
+        $this->assertSame(54,  $p2);
         $this->assertGreaterThan($p2, $p1);
     }
 
@@ -220,7 +222,7 @@ class CpiRecomputeTest extends TestCase
 
         $row = DB::table('gates_profiles')->where('id', 1)->first();
         $this->assertSame('judged', (string) $row->cpi_basis);
-        $this->assertSame(780, (int) $row->cpi_score);
+        $this->assertSame(499, (int) $row->cpi_score);
     }
 
     /**
@@ -244,7 +246,7 @@ class CpiRecomputeTest extends TestCase
 
         $rows = DB::table('gates_cpi_history')->where('profile_id', 1)->get();
         $this->assertCount(1, $rows, 'the history grew a row per run for a score that never moved');
-        $this->assertSame(780, (int) $rows[0]->cpi_score);
+        $this->assertSame(499, (int) $rows[0]->cpi_score);
 
         // And a real movement IS recorded — otherwise the assertion above is satisfied by
         // a table nothing writes to at all.
@@ -296,7 +298,7 @@ class CpiRecomputeTest extends TestCase
 
         $this->runRecompute();
 
-        $this->assertSame(780, (int) DB::table('gates_profiles')->where('id', 1)->value('cpi_score'),
+        $this->assertSame(499, (int) DB::table('gates_profiles')->where('id', 1)->value('cpi_score'),
             'a nomination still waiting on its panel pulled down an award already decided');
     }
 }

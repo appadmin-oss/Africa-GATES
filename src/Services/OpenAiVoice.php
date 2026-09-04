@@ -125,7 +125,25 @@ final class OpenAiVoice
     {
         $key  = self::key();
         $line = AzureVoice::plain($text);
-        if ($key === '' || $line === '') return null;
+
+        // ── THE SILENT FAILURE THIS METHOD SHIPPED WITH ──────────────────────
+        //
+        // Both of these returned null and recorded NOTHING. A missing key is the single
+        // likeliest reason this provider says nothing at all, and it was the one failure
+        // that left no trace anywhere — the operator's report was "the voice is not
+        // working and there is no logged error", and they were describing this line.
+        //
+        // An empty line is recorded too, at a lower key: it is not the operator's fault
+        // and needs no fixing, but a door that is silent for that reason must not be
+        // indistinguishable from one that is silent because nobody added a key.
+        if ($key === '') {
+            self::remember(0, 'No OpenAI key is set — add it under Settings → AI providers.');
+            return null;
+        }
+        if ($line === '') {
+            self::remember(0, 'The line to speak was empty after cleaning.');
+            return null;
+        }
 
         $ch = curl_init();
         curl_setopt_array($ch, [
@@ -164,7 +182,47 @@ final class OpenAiVoice
 
         // Same guard Azure's path uses: a 200 carrying JSON is an error nobody caught, and
         // writing it to disk as a clip would give a guest a mouthful of silence at the door.
-        return self::looksLikeMp3($raw) ? $raw : null;
+        // RECORDED, not just refused: a 200 that is not audio is the most confusing failure
+        // available here, because every status check upstream reads as healthy.
+        if (!self::looksLikeMp3($raw)) {
+            self::remember(200, 'The reply was not audio: ' . substr($raw, 0, 180));
+            return null;
+        }
+
+        // And a success CLEARS the last error. Without this, one bad key at setup time
+        // leaves a red line on the status screen for the life of the deployment, and an
+        // operator learns to ignore the one place this fault is reported.
+        self::forget();
+
+        return $raw;
+    }
+
+    /**
+     * What the provider last said when it refused, or '' when it has not.
+     *
+     * THE READER THIS RECORD DID NOT HAVE. `remember()` wrote `openai_voice_last_error`
+     * into `gates_settings` from the first commit and nothing anywhere read it back — so
+     * the failure was recorded, correctly, into a row no screen displayed. That is this
+     * codebase's most expensive shape of bug and it had claimed a seventh victim; the
+     * house rule is to grep for a reader before believing a declaration, and this method
+     * plus {@see DoorWelcome::readiness()} are that reader.
+     */
+    public static function lastError(): string
+    {
+        try {
+            return trim((string) (DB::table('gates_settings')
+                ->where('key_name', 'openai_voice_last_error')->value('value') ?? ''));
+        } catch (\Throwable) {
+            return '';
+        }
+    }
+
+    /** Drop the recorded failure. Called on every success. */
+    public static function forget(): void
+    {
+        try {
+            DB::table('gates_settings')->where('key_name', 'openai_voice_last_error')->delete();
+        } catch (\Throwable) {}
     }
 
     private static function looksLikeMp3(string $raw): bool

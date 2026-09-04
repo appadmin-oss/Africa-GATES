@@ -909,6 +909,21 @@ final class DoorWelcome
                         . (DoorVoice::why() !== '' ? ' (' . DoorVoice::why() . ')' : '')],
             !$writable => ['The greeting cache is not writable, so nothing can be saved.',
                            'var/cache/door-welcome cannot be created or written to.'],
+            // ── THE PROVIDER ANSWERED, AND IT REFUSED ────────────────────────
+            //
+            // Everything above this line asks whether the door is SET UP. None of it can
+            // see the case where it is set up perfectly and the provider says no — a
+            // revoked key, a spent quota, a model name the account cannot reach — and that
+            // is the case an operator cannot diagnose from a screen, because every check
+            // above reads green while no clip is ever produced.
+            //
+            // The failure was already being recorded. `OpenAiVoice::remember()` has written
+            // `openai_voice_last_error` since the provider shipped and nothing read it
+            // back, which is why the report was "it is not working and there is no logged
+            // error". This is the reader.
+            DoorVoice::provider() === DoorVoice::OPENAI && OpenAiVoice::lastError() !== ''
+                => ['The voice provider refused the last greeting, so nothing new is being '
+                    . 'made.', OpenAiVoice::lastError()],
             !$inWindow => ['This event is outside the ' . self::LEAD_DAYS . '-day window the '
                            . 'sweep looks at, so its greetings are not being made yet.',
                            'Greetings are rendered from ' . self::LEAD_DAYS . ' days out. '

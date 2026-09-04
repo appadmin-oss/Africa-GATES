@@ -178,12 +178,44 @@ final class JudgeScorecard
                 // What this contributes to the 0–1000 index, so the screen joins up with
                 // the release. Null below quorum: the judge half is scored as absent
                 // there, and printing 0 would read as "the panel gave them nothing".
+                //
+                // ── ASKED, NOT RECOMPUTED ────────────────────────────────────
+                //
+                // This was `round(weight × avg/10 × 1000)` — a third copy of the judge-half
+                // arithmetic, agreeing with the release for exactly as long as the halves
+                // were linear. They are curved now (see CpiService::nomineeScore), and this
+                // line would have gone on printing a figure the release does not, under the
+                // same nominee's name, on the screen a panel decision is appealed from.
+                //
+                // The release's judge half also absorbs the index's rounding, so nothing
+                // short of asking the scorer can be guaranteed to match it to the point.
                 'points'   => $eligible && $avg !== null
-                    ? (int) round($weights['judge'] * ($avg / 10) * 1000) : null,
+                    ? self::judgePoints($nomineeId, (int) ($category->id ?? 0)) : null,
                 'weight'   => (float) $weights['judge'],
             ],
             'changes'  => self::changes($nomineeId, $names),
         ];
+    }
+
+    /**
+     * The judge half of this nominee's index, from the scorer that produces it.
+     *
+     * One extra scoring pass on a per-nominee screen, which is not a hot path, against the
+     * certainty that this figure and the release's are the same figure. A panel decision is
+     * appealed from this page; two numbers for one thing here is the worst place on the
+     * platform to have them.
+     */
+    private static function judgePoints(int $nomineeId, int $categoryId): ?int
+    {
+        if ($categoryId < 1) return null;
+
+        try {
+            $row = (new NomineeScoringService())->scoreCategory($categoryId)[$nomineeId] ?? null;
+        } catch (\Throwable) {
+            return null;
+        }
+
+        return $row === null ? null : (int) ($row['judge_points'] ?? 0);
     }
 
     /**

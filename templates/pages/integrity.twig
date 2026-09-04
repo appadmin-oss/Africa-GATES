@@ -175,13 +175,17 @@
                     <strong>Every vote counts</strong>: free votes cast by a verified person, votes
                     bought in a pack, and votes awarded as a bonus against a contribution, added
                     together. How much of a nominee’s tally was bought is published beside it on
-                    every result.</td>
+                    every result. The share is <strong>curved</strong> — half the leader’s support
+                    is worth a quarter of this weight, not half of it — so trailing a field costs
+                    more than a straight proportion would suggest.</td>
               </tr>
               <tr>
                 <th scope="row">Judge panel</th>
                 <td class="ar-num">{{ judge_pct|default(55) }}%</td>
                 <td>An independent panel scores each shortlisted nominee on four equally-weighted
-                    criteria. Only complete scorecards are counted, and judges do not see the vote
+                    criteria, on a scale that starts from the mark below which a panel awards
+                    nothing — so a middling mark is worth considerably less than half of this
+                    weight. Only complete scorecards are counted, and judges do not see the vote
                     tally while scoring.</td>
               </tr>
             </tbody>

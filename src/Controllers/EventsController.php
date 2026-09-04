@@ -605,6 +605,36 @@ class EventsController
              'event' => (string) $event->slug, 'quantity' => $qty]
         );
 
+        // ── A RESUMED BOOKING CARRIES A REFERENCE THE GATEWAY HAS SEEN ───────
+        //
+        // `EventTicketService::hold()` deliberately hands back the reference of a booking
+        // the buyer already started, so pressing the button twice cannot hold two lots of
+        // seats out of a limited tier. Correct for the seats and wrong for the gateway:
+        // Paystack refuses to open a second transaction against a reference it already
+        // knows, this branch cancelled the hold, and the buyer was told "we could not start
+        // the payment" for something they did nothing to cause. Three of those in one
+        // production error log, each of them a sale that may have walked away.
+        //
+        // So: one retry with a fresh reference on the same booking. Safe precisely here and
+        // nowhere else — a reference is refused as a duplicate because a transaction was
+        // opened against it, and a transaction that had been PAID would have marked this
+        // row paid, so a row still pending cannot have money attached to the reference
+        // being replaced.
+        if (!($init['ok'] ?? false)
+            && PaymentService::isDuplicateReference((string) ($init['message'] ?? ''))) {
+            $fresh = EventTicketService::rotateReference((int) $r['id']);
+            if ($fresh !== '') {
+                $reference = $fresh;
+                $callback  = $this->base($req) . '/events/callback?provider=' . urlencode($provider)
+                           . '&ref=' . urlencode($reference);
+                $init = $this->payments()->initialize(
+                    $provider, (int) $r['amount'], $who['email'], $reference, $callback,
+                    ['reference' => $reference, 'purpose' => 'event',
+                     'event' => (string) $event->slug, 'quantity' => $qty]
+                );
+            }
+        }
+
         if (!($init['ok'] ?? false) || empty($init['checkout_url'])) {
             EventTicketService::cancel((int) $r['id'], 'the gateway would not start a transaction');
             return $json(['success' => false,

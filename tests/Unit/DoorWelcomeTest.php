@@ -73,6 +73,11 @@ final class DoorWelcomeTest extends TestCase
         DB::table('gates_settings')->insert([
             ['key_name' => 'door_welcome_enabled', 'value' => '1'],
             ['key_name' => 'azure_speech_key', 'value' => 'test-key-not-real'],
+            // AZURE, NAMED. These fixtures configure an Azure key and then ask whether
+            // the door can speak — which inherited its provider from the default and read
+            // as a fact about the platform when it was a fact about a setting. The default
+            // is OpenAI now, so an Azure key alone no longer makes this door speak.
+            ['key_name' => 'door_voice_provider', 'value' => 'azure'],
         ]);
     }
 
@@ -375,6 +380,9 @@ final class DoorWelcomeTest extends TestCase
      */
     public function test_changing_the_pacing_retires_the_clips_it_changes(): void
     {
+        // Azure, named: rate and pitch are Azure's, and the key only carries them while
+        // Azure is the chosen provider.
+        DB::table('gates_settings')->insert(['key_name' => 'door_voice_provider', 'value' => 'azure']);
         $before = DoorWelcome::keyFor('Ada, you are welcome.');
 
         DB::table('gates_settings')->insert(
@@ -936,6 +944,9 @@ final class DoorWelcomeTest extends TestCase
     /** Changing the voice must not serve half an evening in the old one. */
     public function test_the_key_is_scoped_to_the_voice(): void
     {
+        // Azure, named: the clip key carries the AZURE voice only while Azure is the
+        // chosen provider, and it is no longer the default.
+        DB::table('gates_settings')->insert(['key_name' => 'door_voice_provider', 'value' => 'azure']);
         $before = DoorWelcome::keyFor('Ada, you are welcome.');
         DB::table('gates_settings')->insert(['key_name' => 'azure_speech_voice', 'value' => 'en-NG-AbeoNeural']);
 

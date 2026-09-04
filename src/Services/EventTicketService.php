@@ -1511,6 +1511,35 @@ final class EventTicketService
      * Existing references keep working: every lookup is an exact match on the stored value,
      * and nothing anywhere parses the length.
      */
+    /**
+     * Give a pending registration a reference the gateway has not seen.
+     *
+     * Called only after a gateway has refused the current one as a duplicate — which is
+     * the one moment rotating it is safe. A reference is refused as a duplicate because a
+     * transaction was already opened against it; a transaction that was PAID would have
+     * marked this row paid, so a row still pending cannot have money attached to the
+     * reference being replaced.
+     *
+     * The seats, the price and the discount code all stay exactly as they were. Only the
+     * name the gateway knows this attempt by changes.
+     *
+     * @return string the new reference, or '' if it could not be written
+     */
+    public static function rotateReference(int $registrationId): string
+    {
+        $ref = self::freshReference();
+
+        try {
+            $n = DB::table('gates_event_registrations')
+                ->where('id', $registrationId)->where('status', 'pending')
+                ->update(['reference' => $ref]);
+        } catch (\Throwable) {
+            return '';
+        }
+
+        return $n > 0 ? $ref : '';
+    }
+
     public static function freshReference(): string
     {
         return self::REF_PREFIX . strtoupper(bin2hex(random_bytes(8)));

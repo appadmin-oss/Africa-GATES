@@ -110,6 +110,10 @@ final class DoorVoiceTierTest extends TestCase
      */
     public function test_a_run_is_bounded_by_the_tier_and_not_by_the_ceiling(): void
     {
+        // Azure, named. The tier is Azure's free-minute quota and `DoorVoice::perMinute()`
+        // only consults it when Azure is the chosen provider — which is no longer the
+        // default, so a test about the tier has to select it.
+        $this->set('door_voice_provider', 'azure');
         $this->set('azure_speech_tier', 'f0');
         $this->assertLessThan(DoorWelcome::CAP, AzureVoice::perMinute(),
             'the fixture no longer exercises the case this test is about');
@@ -183,6 +187,9 @@ final class DoorVoiceTierTest extends TestCase
      */
     public function test_the_last_failure_is_readable_where_the_key_was_set(): void
     {
+        // Azure, named: the default provider is OpenAI, so an Azure key on its own no
+        // longer decides whether this door can speak.
+        $this->set('door_voice_provider', 'azure');
         $this->set('azure_speech_key', 'a-key-that-exists');
         $this->assertSame('', AzureVoice::why(), 'a configured voice is complaining about nothing');
 

@@ -376,7 +376,7 @@ final class JudgingIntegrityAuditTest extends TestCase
         $unjudged   = $cpi->nomineeScore(100, 100, null);  // cohort max, nobody has judged
         $renormed   = 1000;                                // what community-only would give
 
-        $this->assertSame(780, $judged);
+        $this->assertSame(499, $judged);
         $this->assertSame(450, $unjudged);
 
         $this->assertLessThan($judged, $unjudged,

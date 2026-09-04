@@ -44,12 +44,25 @@ final class DoorVoice
     public const SETTING = 'door_voice_provider';
 
     /**
-     * Azure by default, and the reason is the door's own purpose: this platform exists to
-     * say African names correctly, and `en-NG` is the only option here that does it without
-     * a respelling standing in for it. OpenAI is the better-sounding voice and the operator
-     * can choose it knowingly.
+     * OPENAI BY DEFAULT.
+     *
+     * It was Azure, on the reasoning that `en-NG` is the only voice here that says African
+     * names correctly without a respelling standing in for it. That reasoning is still
+     * true and it is no longer the right default, for two reasons the operator settled by
+     * listening to both:
+     *
+     *  · The respelling works. {@see DoorWelcome::saidAs()} spells a first name out
+     *    syllable by syllable and {@see OpenAiVoice::INSTRUCTIONS} tells the model to read
+     *    that spelling verbatim, so the name is said properly and the sentence around it
+     *    sounds like a person rather than a station announcement.
+     *  · Azure needs a key AND a region, and the door was reaching neither on a
+     *    deployment that had only ever configured OpenAI — for the whole platform, since
+     *    `ai_openai_key` is the one this site already uses everywhere else.
+     *
+     * A deployment that has an Azure key and wants the `en-NG` voice can still choose it;
+     * this only changes which one is assumed.
      */
-    public const DEFAULT = self::AZURE;
+    public const DEFAULT = self::OPENAI;
 
     /** @var array<string,string> */
     public const PROVIDERS = [

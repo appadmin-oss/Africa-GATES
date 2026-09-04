@@ -321,6 +321,11 @@ final class DoorGreetingPlaysTest extends TestCase
         DB::table('gates_settings')->insert([
             ['key_name' => 'door_welcome_enabled', 'value' => '1'],
             ['key_name' => 'azure_speech_key', 'value' => 'test-key-not-real'],
+            // AZURE, NAMED. These fixtures configure an Azure key and then ask whether
+            // the door can speak — which inherited its provider from the default and read
+            // as a fact about the platform when it was a fact about a setting. The default
+            // is OpenAI now, so an Azure key alone no longer makes this door speak.
+            ['key_name' => 'door_voice_provider', 'value' => 'azure'],
         ]);
     }
 

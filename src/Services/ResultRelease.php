@@ -146,15 +146,25 @@ final class ResultRelease
             // THE FULL TALLY, matching the scorer. `$organic` is still carried below —
             // every public surface shows how much of a total was bought — but it decides
             // nothing now.
-            $share = $cohortMax > 0 ? min(1.0, $votes / $cohortMax) : 0.0;
-            $cPart = $weights['community'] * $share * 1000;
+            // ── ASKED, NOT RECOMPUTED ────────────────────────────────────────
+            //
+            // These two lines were this screen's own copy of `weight × share × 1000`, with
+            // the judge half taken as the remainder. It agreed with the scorer for exactly
+            // as long as both were linear — and the moment a curve went on the community
+            // share, this published a LINEAR half beside a curved index, so the two figures
+            // under a nominee's name stopped describing the number they were printed
+            // beside and the judge half absorbed the difference. Two nominees on an
+            // identical 7.6 panel mark were shown 66 and 112.
+            //
+            // A screen whose whole job is showing how a number was reached must not compute
+            // any part of it twice. {@see CpiService::split()} is the one place.
+            $cPts = (int) ($s['community_points'] ?? 0);
+            $jPts = (int) ($s['judge_points'] ?? ($cpi - $cPts));
 
-            // The judge half takes the rounding, deliberately. `cpi_score` rounds the SUM
-            // once, so two independently rounded halves can differ from it by a point —
-            // and a sum that does not equal the figure printed beside it defeats the only
-            // reason to print the working at all.
-            $cPts = (int) round($cPart);
-            $jPts = $cpi - $cPts;
+            // Still reported as a percentage of the leader's support, because that is the
+            // question a reader asks — but it is the RAW share, not the curved one. The
+            // curve is how the share is paid; the share itself is what somebody counts.
+            $share = $cohortMax > 0 ? min(1.0, $votes / $cohortMax) : 0.0;
 
             $rows[] = [
                 'nominee_id'  => (int) $nid,

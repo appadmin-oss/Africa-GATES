@@ -26,6 +26,28 @@ class RuleEngine
         'max_paid_weight_pct' => 50,   // bonus-vote ceiling, as % of a nominee's ORGANIC votes
         'min_judges_per_nominee' => 2, // COMPLETE judge scorecards required to be winner-eligible
 
+        // ── How steep the index is ───────────────────────────────────────────
+        //
+        // Both halves were linear and the index did not discriminate: on a real
+        // four-nominee category, last place — six per cent of the leader's votes, a
+        // 7.6 panel mark — scored 414 of 1000, which is `gold` on the published ladder.
+        //
+        // `community_curve` is the exponent on a nominee's share of the category leader.
+        // 1.0 is the old linear behaviour; 2.0 means half the leader's support is worth a
+        // quarter of the weight.
+        //
+        // `judge_floor` is the mark below which the judge half is worth nothing — a
+        // statement about the scale rather than a pass mark. Panels do not award below
+        // about five, so treating 0–5 as live range handed every judged nominee a third of
+        // the judge weight for free. `judge_curve` is the exponent above it.
+        //
+        // Settings rather than constants because the right steepness is a judgement about
+        // this award, and the operator who has to defend a number to a nominee should own
+        // it. See CpiService::nomineeScore() for the arithmetic and the worked example.
+        'community_curve' => 2.0,
+        'judge_floor'     => 5.0,
+        'judge_curve'     => 1.5,
+
         // ── Community return ─────────────────────────────────────────────────
         //
         // A nominee's share of what supporters contributed in their name, in basis

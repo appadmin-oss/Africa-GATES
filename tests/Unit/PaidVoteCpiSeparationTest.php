@@ -80,10 +80,11 @@ class PaidVoteCpiSeparationTest extends TestCase
 
         $scores = (new NomineeScoringService())->scoreCategory(10);
 
-        // No judges → community-only. cohortMax = 102 (the largest TALLY), weight 0.45.
-        //   A: 0.45 × (10/102) × 1000 =  44
-        //   B: 0.45 × (102/102) × 1000 = 450
-        $this->assertSame(44,  $scores[1]['cpi_score']);
+        // No judges → community-only. cohortMax = 102 (the largest TALLY), weight 0.45,
+        // and the share is CURVED (`CpiService::COMMUNITY_CURVE`, 2.0):
+        //   A: 0.45 × (10/102)^2 × 1000 =   4
+        //   B: 0.45 × (102/102)^2 × 1000 = 450
+        $this->assertSame(4,   $scores[1]['cpi_score']);
         $this->assertSame(450, $scores[2]['cpi_score']);
 
         // The denominator moved with the numerator. Scaling a total against an organic

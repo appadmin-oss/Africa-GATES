@@ -39,6 +39,12 @@ class NomineeScoringService
             ->where('c.id', $categoryId)
             ->select('cy.id as cycle_id', 'cy.programme_id')->first();
         $w = $this->rules->weights($ctx->programme_id ?? null, $ctx->cycle_id ?? null);
+        // How steep the index is. Defaults live in RuleEngine::DEFAULTS with the reasoning;
+        // an operator tunes them per programme or per cycle.
+        $eff    = $this->rules->effective($ctx->programme_id ?? null, $ctx->cycle_id ?? null);
+        $cCurve = (float) ($eff['community_curve'] ?? RuleEngine::DEFAULTS['community_curve']);
+        $jFloor = (float) ($eff['judge_floor']     ?? RuleEngine::DEFAULTS['judge_floor']);
+        $jCurve = (float) ($eff['judge_curve']     ?? RuleEngine::DEFAULTS['judge_curve']);
 
         // ══ EVERY VOTE COUNTS, WHATEVER IT COST ══════════════════════════════
         //
@@ -127,6 +133,11 @@ class NomineeScoringService
             $ja       = $st['avg'] ?? null;
             $judges   = $st['judges'] ?? 0;
             $eligible = $judges >= $quorum;                        // winner-eligible only at quorum
+
+            $split = CpiService::split(
+                CpiService::communityPart((int) $n->vote_count, $cohortMax, $cCurve),
+                CpiService::judgePart($eligible ? $ja : null, $jFloor, $jCurve),
+                $w['community'], $w['judge']);
             $out[(int) $n->id] = [
                 'vote_count'  => (int) $n->vote_count,            // total display support
                 // ── THE DENOMINATOR THE COMMUNITY HALF IS MEASURED AGAINST ───
@@ -173,7 +184,23 @@ class NomineeScoringService
                 // — it understates rather than overstates — and `provisional` above is
                 // what stops the understatement being mistaken for a verdict.
                 // The FULL tally, and the same figure `cohort_max` is drawn from.
-                'cpi_score'   => $this->cpi->nomineeScore((int) $n->vote_count, $cohortMax, $eligible ? $ja : null, $w['community'], $w['judge']),
+                // The curve settings travel with the weights. Read once above from the same
+                // effective ruleset, so a cycle-level override cannot move one and not the
+                // other while both are reported as this category's rules.
+                //
+                // ── AND THE TWO HALVES COME FROM HERE, NOT FROM THE SCREEN ───
+                //
+                // `ResultRelease` used to work the community half out again from its own
+                // copy of `weight × share × 1000` and take the judge half as what was left.
+                // That agreed with this line for exactly as long as both were linear; the
+                // moment a curve went on the share, the release screen published a linear
+                // community half beside a curved index and the judge half silently
+                // absorbed the difference — two nominees on an identical 7.6 panel mark
+                // were shown 66 and 112. Nothing outside CpiService computes a part of a
+                // CPI now.
+                'cpi_score'        => $split['cpi'],
+                'community_points' => $split['community'],
+                'judge_points'     => $split['judge'],
             ];
         }
         return $out;

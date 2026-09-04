@@ -129,6 +129,31 @@ class PaymentService
      *
      * @return array{ok:bool,checkout_url:?string,message:string}
      */
+    /**
+     * Is this refusal "you have used that reference already"?
+     *
+     * ── THE FAULT IT CLASSIFIES ──────────────────────────────────────────────
+     *
+     * {@see EventTicketService::hold()} resumes an abandoned booking and hands back the
+     * reference that booking already has — correct for the seats (a buyer who presses the
+     * button twice must not hold two lots out of a limited tier) and wrong for the
+     * gateway, which has already seen it. Paystack refuses, the controller cancels the
+     * hold, and the buyer is told "we could not start the payment" for something they did
+     * nothing to cause. Three of those in one production error log, and every one of them
+     * is a sale that may simply have walked away.
+     *
+     * A STRING MATCH, and it is worth saying why that is acceptable here. The gateway does
+     * not give this refusal a machine code, so the message is all there is; and the cost of
+     * being wrong is one wasted retry with a fresh reference, not a wrong charge. Matched
+     * loosely for the same reason — the wording is theirs to change.
+     */
+    public static function isDuplicateReference(string $message): bool
+    {
+        $m = mb_strtolower($message);
+
+        return str_contains($m, 'duplicate') && str_contains($m, 'reference');
+    }
+
     public function initialize(
         string $provider,
         int $amountNaira,

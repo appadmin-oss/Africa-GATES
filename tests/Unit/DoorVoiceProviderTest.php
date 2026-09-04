@@ -43,11 +43,23 @@ final class DoorVoiceProviderTest extends TestCase
 
     private function useOpenAi(): void { $this->set(DoorVoice::SETTING, DoorVoice::OPENAI); }
 
+    /**
+     * Azure is no longer the default, so a test about Azure has to SAY so.
+     *
+     * Every Azure case here used to inherit the provider from `DoorVoice::DEFAULT` and read
+     * as a statement about the platform when it was a statement about a setting. Naming it
+     * is the smaller change and the better test: the default moved once and it can move
+     * again, and none of these assertions is about which one is assumed.
+     */
+    private function useAzure(): void { $this->set(DoorVoice::SETTING, DoorVoice::AZURE); }
+
     // ══ who needs the names spelled out ══════════════════════════════════════
 
     /** The default is Azure's Nigerian voice, and it is handed the name as written. */
     public function test_a_nigerian_voice_is_given_the_name_as_written(): void
     {
+        $this->useAzure();
+
         $this->assertFalse(DoorVoice::needsRespelling(),
             'the default voice is being handed a respelling it does not need');
 
@@ -87,6 +99,8 @@ final class DoorVoiceProviderTest extends TestCase
      */
     public function test_every_azure_voice_offered_is_one_that_knows_these_names(): void
     {
+        $this->useAzure();
+
         foreach (array_keys(AzureVoice::VOICES) as $voice) {
             $this->set('azure_speech_voice', $voice);
 
@@ -108,6 +122,8 @@ final class DoorVoiceProviderTest extends TestCase
      */
     public function test_a_hand_written_pronunciation_survives_a_voice_that_knows_the_names(): void
     {
+        $this->useAzure();
+
         $this->assertFalse(DoorVoice::needsRespelling(), 'the fixture is not the case under test');
         $this->set('door_welcome_says', "Ada = A-DAH-the-operator-heard-this");
 
@@ -128,6 +144,7 @@ final class DoorVoiceProviderTest extends TestCase
      */
     public function test_changing_provider_changes_every_key(): void
     {
+        $this->useAzure();
         $line   = DoorWelcome::line('Ada Obi');
         $before = DoorWelcome::keyFor($line);
 
@@ -194,9 +211,24 @@ final class DoorVoiceProviderTest extends TestCase
     }
 
     /** Both providers are offered, and the default is the one that says the names right. */
-    public function test_the_default_is_the_voice_that_knows_the_names(): void
+    /**
+     * THE DEFAULT IS OPENAI.
+     *
+     * It was Azure, on the reasoning that `en-NG` says these names without a respelling
+     * standing in for it. That reasoning is still true and it stopped being the right
+     * default: Azure needs a key AND a region, and a deployment that had only ever
+     * configured `ai_openai_key` — the key this platform uses everywhere else — had a door
+     * that could not speak and no screen that said why. The respelling path works, and a
+     * voice that says the name properly inside a sentence that sounds like a person beats
+     * one that says it properly and nothing else.
+     */
+    public function test_the_default_is_openai(): void
     {
-        $this->assertSame(DoorVoice::AZURE, DoorVoice::DEFAULT);
+        $this->assertSame(DoorVoice::OPENAI, DoorVoice::DEFAULT);
+        // With nothing configured at all, that is what the door reaches for.
+        $this->assertSame(DoorVoice::OPENAI, DoorVoice::provider());
+        // And it needs the names spelled out, which is the cost of the choice.
+        $this->assertTrue(DoorVoice::needsRespelling());
         $this->assertArrayHasKey(DoorVoice::OPENAI, DoorVoice::PROVIDERS);
         $this->assertArrayHasKey(OpenAiVoice::DEFAULT_VOICE, OpenAiVoice::VOICES);
         $this->assertArrayHasKey(AzureVoice::DEFAULT_VOICE, AzureVoice::VOICES);
