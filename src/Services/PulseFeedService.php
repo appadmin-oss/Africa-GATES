@@ -154,6 +154,14 @@ final class PulseFeedService
                 // Null for a text post, and for every post on a database that has
                 // not been migrated yet. The renderer treats null as "no media".
                 'media'        => $this->media($r),
+                // ── WHERE THIS CARD GOES ─────────────────────────────────────
+                //
+                // Null for an ordinary post: the card falls back to the thread page, which
+                // is its home. A RESULT announcement's home is the award's own page — the
+                // whole standing, both halves of every index, the denominator — and the
+                // thread page would show the reader the same summary they just read in the
+                // feed with the working two clicks further away.
+                'link'         => $this->linkOut((string) $r['slug']),
             ];
         }
 
@@ -161,6 +169,26 @@ final class PulseFeedService
             'items'       => $items,
             'next_cursor' => $hasMore ? (int) end($ids) : null,
         ];
+    }
+
+    /**
+     * The page a post belongs on, where that is not its own thread.
+     *
+     * ── WHY THE ID ALONE ─────────────────────────────────────────────────────
+     *
+     * `/results/{id}` resolves: the route takes `{slug:[0-9]+[^/]*}` and the controller
+     * reads the leading digits, then 301s to the canonical `{id}-{name}` address. So this
+     * needs no join for the category title — one redirect on click, against one extra query
+     * per feed page forever, on a service whose entire design is that every decoration is
+     * batched.
+     */
+    private function linkOut(string $slug): ?string
+    {
+        if (!str_starts_with($slug, ResultThread::SLUG)) return null;
+
+        $id = (int) substr($slug, strlen(ResultThread::SLUG));
+
+        return $id > 0 ? '/results/' . $id : null;
     }
 
     /**

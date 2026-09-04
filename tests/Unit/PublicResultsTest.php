@@ -345,10 +345,127 @@ final class PublicResultsTest extends TestCase
         $t = DB::table('gates_threads')->where('id', $id)->first();
         $this->assertSame('approved', (string) $t->status);
         $this->assertStringContainsString('Dr. Adegboyega Aborode', (string) $t->body);
-        // The SPLIT travels with the announcement. A feed card reading "won with 812" is a
+        // The SPLIT travels with the announcement. A feed card reading "won with 849" is a
         // number to take on trust; one that decomposes is a claim somebody can check.
-        $this->assertStringContainsString('from the community', (string) $t->body);
-        $this->assertStringContainsString('/results/' . $this->categoryId . '-', (string) $t->body);
+        $r = PublicResults::category($this->categoryId);
+        $this->assertStringContainsString(
+            (string) $r['winner']['community_points'] . ' community', (string) $t->body);
+        $this->assertStringContainsString(
+            (string) $r['winner']['judge_points'] . ' judges', (string) $t->body);
+    }
+
+    /**
+     * THE ANNOUNCEMENT FITS THE CARD IT IS READ ON.
+     *
+     * `.pf__canvas p` clamps at SEVEN lines of a display face around 1.85rem in a column
+     * near 415px. The first version of this post ran to four paragraphs and the feed cut it
+     * mid-sentence at "Runner-up: Ajayi Temitope…", with the line carrying the address of
+     * the page this post exists to reach clamped away entirely. Nothing errored — the post
+     * simply stopped saying the thing it was written to say.
+     *
+     * Two blank lines cost two of the seven, which is how a body of 250 characters
+     * overflowed. So: one paragraph, and a budget.
+     */
+    public function test_the_announcement_fits_inside_the_feed_cards_clamp(): void
+    {
+        $this->decided();
+        ResultThread::ensure($this->categoryId);
+
+        $body = (string) DB::table('gates_threads')->first()->body;
+
+        $this->assertLessThanOrEqual(ResultThread::PULSE_CHARS, mb_strlen($body),
+            'the announcement is longer than the feed card can show, so its last sentence '
+            . 'is clamped away');
+        $this->assertStringNotContainsString("\n", $body,
+            'a blank line costs one of the seven the card has');
+        // And it is not truncated to fit: a clause cut mid-word reads as a fault.
+        $this->assertStringEndsWith('.', $body);
+    }
+
+    /**
+     * AND THE BUDGET ACTUALLY BITES ON A LONG ONE.
+     *
+     * The test above passes on any short award whether the budget is enforced or not, so on
+     * its own it pins nothing — mutation confirmed exactly that. This is the fixture the
+     * limit exists for: two long Nigerian names and a full category title, which together
+     * run past seven lines. The runner-up sentence is the one that has to go, because it is
+     * last in priority and the page carries it either way.
+     *
+     * Dropped WHOLE, never truncated. A clause cut mid-word reads as a fault in the
+     * platform rather than as an editorial choice, on the one post everybody sees.
+     */
+    public function test_a_long_award_drops_its_last_sentence_rather_than_overflowing(): void
+    {
+        DB::table('gates_award_categories')->where('id', $this->categoryId)
+            ->update(['title' => 'Primary School Principal of the Year, Southwest Nigeria']);
+
+        $a = $this->nominee('Dr. Oluwafunmilayo Adebanjo-Ogundipe', 1536);
+        $b = $this->nominee('Ambassador Chukwuemeka Nnamdi Okonkwo-Eze', 620);
+        $this->panel($a, 9.0);
+        $this->panel($b, 7.0);
+
+        ResultThread::ensure($this->categoryId);
+        $body = (string) DB::table('gates_threads')->first()->body;
+
+        $this->assertLessThanOrEqual(ResultThread::PULSE_CHARS, mb_strlen($body),
+            'the announcement overflows the card the whole platform reads it on');
+        $this->assertStringNotContainsString('Ambassador Chukwuemeka', $body,
+            'the fixture no longer exceeds the budget, so this test pins nothing');
+        // Whole sentences only: the winner and the split both survive intact.
+        $this->assertStringContainsString('Dr. Oluwafunmilayo Adebanjo-Ogundipe takes', $body);
+        $this->assertStringContainsString('judges.', $body);
+        $this->assertStringEndsWith('.', $body);
+    }
+
+    /**
+     * NO URL IN THE BODY — THE CARD CARRIES THE LINK.
+     *
+     * The address is ninety characters of display type: three of the seven lines, for a
+     * link {@see \AfricaGates\Services\PulseFeedService} already puts on the card as its
+     * own action. Printing it would push the split out of the card to save nothing.
+     */
+    public function test_the_feed_card_links_to_the_award_rather_than_to_its_own_thread(): void
+    {
+        $this->decided();
+        ResultThread::ensure($this->categoryId);
+
+        $page = (new \AfricaGates\Services\PulseFeedService())->page();
+        $mine = null;
+        foreach ($page['items'] as $i) {
+            if ($i['slug'] === ResultThread::SLUG . $this->categoryId) { $mine = $i; break; }
+        }
+
+        $this->assertNotNull($mine, 'the result announcement is not in the Pulse feed');
+        // The id alone, which resolves and 301s to the canonical address — one redirect on
+        // click against one extra query per feed page forever.
+        $this->assertSame('/results/' . $this->categoryId, $mine['link']);
+        $this->assertStringNotContainsString('http', (string) $mine['body'],
+            'the address is in the body as well, costing three of the card\'s seven lines');
+    }
+
+    /**
+     * An ordinary post keeps its own thread page — the fallback must stay null.
+     *
+     * The slug is `my-top-5-picks` and it is chosen, not arbitrary. Strip seven characters
+     * off the front of it — the length of the `result-` prefix — and what is left begins
+     * `5`, so a link-out that skipped the prefix check and simply cast the remainder would
+     * send this member's post to `/results/5`: somebody else's award, silently, from a
+     * perfectly ordinary title. A fixture like `hello-there` casts to 0 and hides that
+     * whole class of fault, which is exactly what the first version of this test did until
+     * mutation caught it.
+     */
+    public function test_an_ordinary_post_carries_no_link_out(): void
+    {
+        DB::table('gates_threads')->insert([
+            'slug' => 'my-top-5-picks', 'title' => 'My top 5 picks', 'body' => 'A member post.',
+            'author_name' => 'A Member', 'author_email_hash' => str_repeat('a', 64),
+            'status' => 'approved',
+        ]);
+
+        $page = (new \AfricaGates\Services\PulseFeedService())->page();
+
+        $this->assertNull($page['items'][0]['link'],
+            'a member post was sent to somebody else\'s award page');
     }
 
     /** A held result must not announce itself while its own page says it is unverified. */

@@ -870,7 +870,14 @@
                 <p class="pf__guest" x-show="!signedIn"><a :href="signInUrl">Sign in</a> to cheer and comment.</p>
               </div>
 
-              <a class="pf__open" :href="'/community/' + it.slug">Open thread →</a>
+              {# A result announcement's home is the award's own page — the whole
+                 standing, both halves of every index, the denominator each share was
+                 measured against. Its thread page would show the reader the same
+                 summary they just read here, with the working further away. Resolved
+                 in PulseFeedService so the feed and the API agree; null for every
+                 ordinary post, which falls back to its thread. #}
+              <a class="pf__open" :href="it.link || ('/community/' + it.slug)"
+                 x-text="it.link ? 'See the full standing →' : 'Open thread →'">Open thread →</a>
             </article>
           </template>
 

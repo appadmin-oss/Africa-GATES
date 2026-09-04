@@ -146,51 +146,75 @@ final class ResultThread
     }
 
     /**
+     * How much of the body a Pulse card can actually show.
+     *
+     * ── MEASURED AGAINST THE CARD, NOT CHOSEN ────────────────────────────────
+     *
+     * `.pf__canvas p` is `-webkit-line-clamp: 7` at a display face around 1.85rem in a
+     * column near 415px — roughly thirty characters a line. The first version of this post
+     * ran to four paragraphs and the feed cut it mid-sentence, at "Runner-up: Ajayi
+     * Temitope…", with the line carrying the address of the page this post exists to reach
+     * clamped away entirely. Nothing errored; the post simply stopped saying the thing it
+     * was written to say.
+     *
+     * Two blank lines cost two of the seven, which is what made a body of only 250
+     * characters overflow. So the body is one paragraph, and it is built to a budget.
+     */
+    public const PULSE_CHARS = 200;
+
+    /**
      * The body: who won, and the arithmetic that decided it.
      *
-     * The SPLIT is in the post, not just the index. A feed card reading "won with 812" is a
-     * number to take on trust; one reading "812 — 371 community, 441 judges" is a claim
+     * The SPLIT is in the post, not just the index. A feed card reading "won with 849" is a
+     * number to take on trust; one reading "849 — 354 community, 495 judges" is a claim
      * somebody can check, and the page it links to shows every step. That difference is the
      * platform's entire argument about itself, and it belongs in the first thing anybody
      * reads rather than two clicks away.
+     *
+     * ── AND NO URL IN THE TEXT ───────────────────────────────────────────────
+     *
+     * The address is ninety characters of display type — three of the seven lines, for a
+     * link the card already carries as its own action ({@see PulseFeedService}, which turns
+     * a `result-` slug into the result page). Printing it here would push the split out of
+     * the card to save nothing.
+     *
+     * Sentences are appended in priority order and stop when the budget is spent, rather
+     * than being truncated: a clause cut mid-word reads as a fault, and the one most likely
+     * to be dropped is the least important. A long enough winner's name legitimately leaves
+     * no room for the runner-up, and the page has them.
      */
     private static function body(array $r, array $w): string
     {
-        $lines = [];
-        $lines[] = (string) $w['name'] . ' takes ' . (string) ($r['category']->title ?? 'the award') . '.';
-        $lines[] = '';
-        $lines[] = 'Cultural Power Index ' . (int) $w['cpi'] . ' of 1000 — '
-                 . (int) $w['community_points'] . ' from the community, '
-                 . (int) $w['judge_points'] . ' from the panel.';
+        $cat  = (string) ($r['category']->title ?? 'the award');
+        $lead = (string) $w['name'] . ' takes ' . $cat . '.';
 
-        if (!empty($r['runner_up'])) {
-            $lines[] = 'Runner-up: ' . (string) $r['runner_up']['name']
-                     . ' on ' . (int) $r['runner_up']['cpi'] . '.';
-        }
+        $rest = ['Index ' . (int) $w['cpi'] . ' of 1000 — ' . (int) $w['community_points']
+                 . ' community, ' . (int) $w['judge_points'] . ' judges.'];
 
         // Named in the post rather than left for the page. A margin of one point and a
         // margin of two hundred are different results, and the one people should look at
-        // hardest is the one the feed is least likely to make them click through for.
+        // hardest is the one the feed is least likely to make them click through for. Ahead
+        // of the runner-up in priority for that reason.
         if (!empty($r['dead_heat'])) {
-            $lines[] = 'This one was a dead heat on the index and on community support — '
-                     . 'the full standing explains how it was separated.';
+            $rest[] = 'A dead heat, separated by nominee id.';
         } elseif (!empty($r['tie_broken_by_votes'])) {
-            $lines[] = 'The index tied. Community support broke it, which is the point of '
-                     . 'keeping purchased votes out of the ranking.';
+            $rest[] = 'The index tied; community support broke it.';
         } elseif (($r['margin'] ?? null) !== null && (int) $r['margin'] <= 10) {
-            $lines[] = 'Decided by ' . (int) $r['margin'] . ' point'
-                     . ((int) $r['margin'] === 1 ? '' : 's') . ' on a thousand-point index.';
+            $rest[] = 'Decided by ' . (int) $r['margin'] . ' point'
+                    . ((int) $r['margin'] === 1 ? '' : 's') . '.';
         }
 
-        $lines[] = '';
-        // ABSOLUTE. The feed card renders a body as text and links what looks like a URL;
-        // a bare `/results/12-…` is not one, so the single line whose job is to carry the
-        // reader to the working would have rendered as unclickable text on the one surface
-        // this post exists for. {@see SiteUrl::base()} needs no request — it is APP_URL
-        // first, and this runs from cron where there is none.
-        $lines[] = 'Every score, every weight and every denominator: '
-                 . \AfricaGates\Support\SiteUrl::base() . (string) $r['url'];
+        if (!empty($r['runner_up'])) {
+            $rest[] = 'Runner-up: ' . (string) $r['runner_up']['name']
+                    . ' on ' . (int) $r['runner_up']['cpi'] . '.';
+        }
 
-        return implode("\n", $lines);
+        $body = $lead;
+        foreach ($rest as $part) {
+            if (mb_strlen($body) + 1 + mb_strlen($part) > self::PULSE_CHARS) break;
+            $body .= ' ' . $part;
+        }
+
+        return $body;
     }
 }

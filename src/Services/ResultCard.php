@@ -122,18 +122,31 @@ final class ResultCard
         $wCpi = $this->width($cpi, 96, $disp);
         $this->text($im, ' / 1000', 30, $semi, $muted, $x + $wCpi + 8, $base);
 
-        // Community FIRST. The order is the argument: the half a nominee cannot buy leads,
-        // and it is the half that was silently reading zero on the cycle that prompted all
-        // of this.
-        $split = (int) $w['community_points'] . ' community   ·   '
-               . (int) $w['judge_points'] . ' judges';
-        $this->text($im, mb_strtoupper($split), 20, $mono, $mist, $x, $base + 42, 3.2);
+        // Community FIRST, and in the leaf green, because the split is the argument: the
+        // half a nominee cannot buy leads, and it is the half that was silently reading
+        // zero on the cycle that prompted all of this. Drawn as two runs rather than one
+        // string so the colour lands where the meaning is — the same reason the page
+        // beneath it colours the community figure and not the judges'.
+        //
+        // The words carry it too. Colour alone would say nothing to a reader who cannot
+        // separate these two hues, and this graphic has no alt text once it is a
+        // screenshot in somebody's thread.
+        $cTxt = mb_strtoupper((int) $w['community_points'] . ' community');
+        $jTxt = mb_strtoupper('   ·   ' . (int) $w['judge_points'] . ' judges');
+        $this->text($im, $cTxt, 20, $mono, $c(FlierLayout::C_LEAF), $x, $base + 42, 3.2);
+        $this->text($im, $jTxt, 20, $mono, $mist,
+            $x + $this->width($cTxt, 20, $mono, 3.2), $base + 42, 3.2);
 
-        // The hairline the house style runs under a figure. Full width minus the margins,
-        // one pixel, mist at low weight — it separates the index from the name without a
-        // panel, which at preview size would read as a second card.
+        // The hairline the house style runs under a figure — it separates the index from
+        // the name without a panel, which at preview size would read as a second card.
+        //
+        // ALPHA, not a flat tone. It was `C_PANEL` on a gradient that is within a few
+        // values of it at this scanline, so the rule was drawn, correct, and completely
+        // invisible: a line nobody can see is not a subtle line, it is dead ink in a
+        // graphic that is read at a third of its size.
         imagesetthickness($im, 1);
-        imageline($im, $x, $base - 118, $W - 74, $base - 118, $c(FlierLayout::C_PANEL));
+        $rule = (int) imagecolorallocatealpha($im, 255, 255, 255, 100);
+        imageline($im, $x, $base - 118, $W - 74, $base - 118, $rule);
 
         ob_start();
         imagepng($im, null, 6);
