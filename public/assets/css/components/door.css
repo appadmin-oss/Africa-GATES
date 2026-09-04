@@ -262,6 +262,12 @@ html.dr-html, body.dr-body {
    torch uses when it is lit, and the same one the verdict's rule is painted in. */
 .dr__circ--sound { border-color:rgba(243,180,22,.7); color:var(--dr-accent) }
 
+/* Why the door is silent — a fact, not an alarm. Nothing it says stops a queue and
+   nothing it says is the steward's to fix; it exists so the sentence they report is the
+   true one instead of "the voice is not working", which is the report nobody can act on. */
+.dr__quiet{ margin:0; padding:0 24px 18px; font:400 11.5px/1.5 var(--dr-sans, inherit);
+            color:rgba(226,238,235,.52); text-align:center; }
+
 .dr__arr { flex:1; min-width:0; height:44px; padding:0; border:0; background:transparent;
            cursor:pointer; display:flex; align-items:center; gap:10px; text-align:left }
 .dr__arr__last { flex:1; min-width:0; font:400 12px/1.3 var(--dr-sans); color:rgba(226,238,235,.5);

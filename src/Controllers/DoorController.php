@@ -191,6 +191,19 @@ final class DoorController
             // clip is the only greeting guaranteed to exist whenever the voice is on at
             // all, and '' when it does not — in which case there is nothing to unlock for.
             'welcome_prime' => DoorWelcome::keyToPlay(''),
+            // ── WHY THE DOOR IS SILENT, ON THE DOOR ──────────────────────────
+            //
+            // `readiness()` has answered this since it was written and only the admin
+            // screen ever asked. So a steward at a gate where nobody is being greeted had
+            // no way to tell "switched off" from "no clips made yet" from "this browser
+            // refused", and neither did anybody they reported it to — every one of those
+            // reaches a person as the same sentence, which is no sentence at all.
+            //
+            // The BLOCKER only. `readiness()['fix']` names settings screens a steward
+            // cannot open, and an instruction somebody cannot follow is worse than none.
+            'welcome_why' => DoorWelcome::enabled()
+                ? (string) (DoorWelcome::readiness((int) $r['event']->id)['blocker'] ?? '')
+                : '',
             // ── THE COLOUR THE EFFECTS ARE PAINTED IN ─────────────────────
             //
             // The organiser's own accent, through the same resolver the ticket and the

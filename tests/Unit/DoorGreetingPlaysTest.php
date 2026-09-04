@@ -205,6 +205,83 @@ final class DoorGreetingPlaysTest extends TestCase
             $this->doorSource(), 'the sound control is on screen when nothing is wrong');
     }
 
+    // ══ why it is silent, said on the door ═══════════════════════════════════
+
+    /**
+     * A SILENT DOOR MUST SAY WHY, WHERE SOMEBODY CAN READ IT.
+     *
+     * Switched off, no clips made yet, and a browser refusing playback all produce exactly
+     * the same thing at a gate: nobody is greeted. So all three reach a person as "the
+     * voice is not working" — the one report that cannot be acted on, and the report this
+     * platform has now received three times in a row.
+     *
+     * `DoorWelcome::readiness()` has been able to answer this since it was written, and
+     * only the admin screen ever asked.
+     */
+    public function test_the_door_says_why_it_cannot_speak(): void
+    {
+        $this->stage();
+        // Switched ON, but nothing configured to speak with — the commonest real state,
+        // and the one that looks identical to a bug from the outside.
+        DB::table('gates_settings')->insert([
+            ['key_name' => 'door_welcome_enabled', 'value' => '1'],
+        ]);
+
+        $html = (string) preg_replace('~\s+~', ' ', $this->page());
+
+        $this->assertStringContainsString('No speech voice is configured', $html,
+            'the door is silent and says nothing about why');
+    }
+
+    /** With everything ready the line is present but hidden — no noise at a working gate. */
+    public function test_a_working_door_carries_the_notice_hidden(): void
+    {
+        $this->stage();
+        $this->voiceOn();
+        $this->plant(DoorWelcome::genericLine());
+
+        $html = (string) preg_replace('~\s+~', ' ', $this->page());
+
+        $this->assertMatchesRegularExpression('~<p class="dr__quiet" id="drQuiet" hidden>~', $html,
+            'a working door is showing an operational notice to a steward mid-queue');
+    }
+
+    /**
+     * A door that is not meant to speak says NOTHING — the element is not drawn at all.
+     *
+     * A silent door is a working door, and an explanation of a feature nobody switched on
+     * is clutter on the one screen a steward glances at with a queue in front of them.
+     */
+    public function test_with_the_voice_off_there_is_no_notice_at_all(): void
+    {
+        $this->stage();
+
+        // The ELEMENT, not the id: `$('drQuiet')` is in the script's element map on every
+        // render, so scanning for the bare id passes on markup that is not there and fails
+        // on markup that is.
+        $this->assertStringNotContainsString('<p class="dr__quiet"', $this->page(),
+            'a door with the voice switched off is explaining itself anyway');
+    }
+
+    /**
+     * AND THE ONE THE SERVER CANNOT SEE.
+     *
+     * `Permissions-Policy` is decided before a line of the page runs, and has twice switched
+     * a shipped feature off here with nothing on the page to say so — the camera once, and
+     * this voice. The server cannot see the header the browser actually received. The
+     * browser can, and answers in one call, so the page asks it.
+     */
+    public function test_the_page_asks_the_browser_whether_sound_is_allowed(): void
+    {
+        $door = $this->doorJs();
+
+        $this->assertStringContainsString("allowsFeature('autoplay')", $door,
+            'the page never asks the browser whether it may make a sound, so a header '
+            . 'switching the voice off is indistinguishable from no clips being made');
+        $this->assertStringContainsString('blocking sound on this site', $door,
+            'the browser refusing is not reported in words anybody could act on');
+    }
+
     // ══ fixtures ═════════════════════════════════════════════════════════════
 
     private function stage(): void

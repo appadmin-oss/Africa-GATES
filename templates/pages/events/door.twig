@@ -168,6 +168,20 @@
     <button type="button" class="dr__circ dr__circ--pad" id="drOpenPad" aria-label="Type a code instead">123</button>
   </div>
 
+  {# ── WHY THE DOOR IS SILENT ──────────────────────────────────────────────
+     Only ever drawn when the voice is switched ON and cannot speak. A gate where nobody
+     is greeted looked identical whether the voice was off, no clips had been made, or
+     the browser refused playback — and all three reach a person as "the voice is not
+     working", which is the report that cannot be acted on.
+
+     The server knows two of the three. The third it cannot possibly know: whether THIS
+     browser is allowing sound on this site at all. `Permissions-Policy` is decided
+     before a line of this page runs and has twice switched a shipped feature off here
+     with nothing on the page to say so — so the page asks the browser directly. #}
+  {% if welcome_on %}
+    <p class="dr__quiet" id="drQuiet"{% if not welcome_why %} hidden{% endif %}>{{ welcome_why }}</p>
+  {% endif %}
+
   {# ── THE KEYPAD — kept because iOS Safari has no BarcodeDetector and lenses get wet.
      A fallback, never the default. #}
   <div class="dr__pad" id="drPad" hidden>
@@ -227,7 +241,7 @@
     word: $('drWord'), name: $('drName'), meta: $('drMeta'),
     party: $('drParty'), undo: $('drUndo'), dismiss: $('drDismiss'),
     torch: $('drTorch'), openLog: $('drOpenLog'), last: $('drLast'), openPad: $('drOpenPad'),
-    sound: $('drSound'),
+    sound: $('drSound'), quiet: $('drQuiet'),
     pad: $('drPad'), form: $('drForm'), input: $('drInput'), go: $('drGo'), closePad: $('drClosePad'),
     log: $('drLog'), logN: $('drLogN'), logE: $('drLogE'), rows: $('drRows'), closeLog: $('drCloseLog')
   };
@@ -285,6 +299,25 @@
       if (p && p.then) p.then(done, done); else done();
     } catch (e) { try { audio.muted = false; } catch (e2) {} }
   }
+
+  // ── ASK THE BROWSER WHETHER IT WILL LET THIS SITE MAKE A SOUND ───────────
+  //
+  // `Permissions-Policy` is decided before any of this runs, and has twice switched a
+  // shipped feature off here with nothing on the page to say so — the camera once, and
+  // this voice. The server cannot see the header the browser actually received; the
+  // browser can, and answers in one call. A door that is silent because of a header now
+  // says so, instead of looking like a door with no clips made.
+  (function () {
+    if (!welcomeOn || !el.quiet) return;
+    try {
+      var fp = document.featurePolicy || document.permissionsPolicy;
+      if (fp && fp.allowsFeature && !fp.allowsFeature('autoplay')) {
+        el.quiet.textContent = 'This browser is blocking sound on this site, so nobody '
+                             + 'will be greeted aloud. Nothing else here is affected.';
+        el.quiet.hidden = false;
+      }
+    } catch (e) { /* an older browser cannot be asked; the door is silent either way */ }
+  })();
 
   // `once`, and on the capture phase, so it fires before any handler that stops the
   // event — the keypad and the log both do.
