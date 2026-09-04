@@ -48,6 +48,28 @@ trait FlierRaster
 
     // ── GD helpers. Small, named, and shared by png() only. ──────────────────
 
+    /**
+     * A rounded-end capsule: the shape every chip, badge and rank marker on this platform
+     * is drawn with.
+     *
+     * Here rather than in one renderer because the geometry has a trap in it. GD's
+     * `imagefilledrectangle()` is INCLUSIVE of both corners, and `imagefilledellipse()`
+     * takes a CENTRE and full width/height rather than a bounding box — so a pill written
+     * from the measurements you laid out is a pixel taller than the box beside it, and the
+     * two only look wrong next to each other. Getting that right once is the point.
+     *
+     * `$r` is capped at half the WIDTH as well as half the height, or a chip narrower than
+     * it is tall draws its two end caps overlapping past each other and comes out as a
+     * lozenge pointing the wrong way.
+     */
+    protected function pill($im, float $x, float $y, float $w, float $h, int $colour): void
+    {
+        $r = min($h / 2, $w / 2);
+        imagefilledrectangle($im, (int) ($x + $r), (int) $y, (int) ($x + $w - $r), (int) ($y + $h), $colour);
+        imagefilledellipse($im, (int) ($x + $r), (int) ($y + $h / 2), (int) ($r * 2), (int) $h, $colour);
+        imagefilledellipse($im, (int) ($x + $w - $r), (int) ($y + $h / 2), (int) ($r * 2), (int) $h, $colour);
+    }
+
     /** Draw text with an optional letter-spacing, which imagettftext has no concept of. */
     protected function text($im, string $s, int $size, string $font, int $colour, float $x, float $y, float $tracking = 0): void
     {

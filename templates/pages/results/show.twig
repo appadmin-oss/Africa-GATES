@@ -1,0 +1,399 @@
+{% extends "layout/gates.twig" %}
+
+{#
+  ONE AWARD, WITH THE WORKING SHOWN.
+
+  ── THE DESIGN POSITION ──────────────────────────────────────────────────────
+  A court record, not a trophy case. Paper ground, hairline rules, mono micro-labels; one
+  gold accent, reserved for the index itself; emerald reserved for the community half so
+  the half that cannot be bought is the one the eye finds first.
+
+  The standing is a LEDGER: every nominee who scored, in the order the award was decided,
+  each index decomposing in place into the two halves and the denominator behind them. A
+  page that prints one name is an announcement. This platform's whole claim is that a
+  ranking cannot be bought, and the only public form that claim can take is the arithmetic.
+
+  ── TWIG BLOCK SCOPE ─────────────────────────────────────────────────────────
+  Everything used by more than one block is set at TEMPLATE scope, above `content`. A
+  `{% set %}` inside a block is invisible to every other block and renders as null in
+  silence — it has taken out a whole navigation and a share link on this codebase already.
+#}
+
+{% set w = r.winner %}
+{% set held = r.held %}
+{% set weights = r.weights %}
+{% set cpct = (weights.community * 100)|round %}
+{% set jpct = (weights.judge * 100)|round %}
+
+{% block head_styles %}
+<style nonce="{{ csp_nonce }}">
+  body[data-page="results"]{ background:#f0f2f2; color:var(--ag-ink); }
+
+  .rs{ max-width:1000px; margin:0 auto; padding:clamp(1.6rem,4vw,2.4rem) var(--ag-gutter,32px) clamp(3rem,6vw,4.5rem); }
+
+  .rs-crumb{ margin:0 0 18px; font:600 11px/1 var(--ag-font-mono); letter-spacing:.1em; text-transform:uppercase; }
+  .rs-crumb a{ color:var(--ag-ink-soft); text-decoration:none; }
+  .rs-crumb a:hover{ color:var(--ag-green); }
+
+  /* ── the award ── */
+  .rs-head{ border-top:2px solid var(--ag-ink); padding-top:18px; }
+  .rs-meta{ margin:0 0 12px; font:600 11px/1.5 var(--ag-font-mono); letter-spacing:.1em;
+            text-transform:uppercase; color:var(--ag-ink-soft); }
+  .rs-cat{ margin:0; font-family:var(--ag-font-display); font-weight:700;
+           font-size:clamp(1.7rem,4.4vw,2.5rem); letter-spacing:-.02em; line-height:1.14; }
+
+  .rs-win{ display:grid; grid-template-columns:minmax(0,1fr) auto; gap:18px 32px;
+           align-items:end; margin-top:22px; padding-bottom:22px; border-bottom:1px solid var(--ag-line-strong); }
+  .rs-badge{ display:inline-block; margin:0 0 8px; padding:5px 12px; border-radius:var(--ag-r-pill);
+             background:var(--ag-gold); color:#1a1204; font:700 10.5px/1 var(--ag-font-mono);
+             letter-spacing:.14em; text-transform:uppercase; }
+  .rs-name{ margin:0; font-family:var(--ag-font-display); font-weight:700;
+            font-size:clamp(1.5rem,3.6vw,2.05rem); letter-spacing:-.01em; line-height:1.18; }
+  .rs-name a{ color:inherit; text-decoration:none; border-bottom:1px solid var(--ag-line-strong); }
+  .rs-name a:hover{ border-color:var(--ag-green); }
+
+  .rs-idx{ text-align:right; }
+  .rs-idx__n{ font:700 clamp(2.4rem,7vw,3.4rem)/1 var(--ag-font-mono); font-variant-numeric:tabular-nums; }
+  .rs-idx__n span{ font-size:.34em; color:var(--ag-ink-soft); }
+  .rs-idx__s{ margin:8px 0 0; font:600 11px/1.5 var(--ag-font-mono); letter-spacing:.07em;
+              text-transform:uppercase; color:var(--ag-ink-soft); font-variant-numeric:tabular-nums; }
+  .rs-idx__s i{ font-style:normal; color:var(--ag-green); }
+
+  /* ── the ledger ── */
+  .rs-sec{ margin-top:clamp(2rem,5vw,2.8rem); }
+  .rs-sec > h2{ margin:0 0 4px; font:600 11px/1 var(--ag-font-mono); letter-spacing:var(--ag-tracking-label);
+                text-transform:uppercase; color:var(--ag-green); }
+  .rs-sec > p.rs-lead{ margin:0 0 18px; font-size:14.5px; line-height:1.62; color:#4a5256; max-width:66ch; }
+
+  .rs-row{ display:grid; grid-template-columns:2.2rem minmax(0,1fr) auto; gap:6px 16px;
+           align-items:center; padding:16px 4px; border-bottom:1px solid var(--ag-line); }
+  .rs-row:first-of-type{ border-top:1px solid var(--ag-line-strong); }
+  .rs-row--out{ opacity:.62; }
+  .rs-rank{ font:700 13px/1 var(--ag-font-mono); color:var(--ag-ink-soft); font-variant-numeric:tabular-nums; }
+  .rs-row--1 .rs-rank{ color:var(--ag-gold); }
+  .rs-who{ min-width:0; }
+  .rs-who__n{ margin:0; font-weight:600; font-size:15.5px; overflow-wrap:anywhere; }
+  .rs-why{ margin:4px 0 0; font-size:12.5px; line-height:1.5; color:var(--ag-ink-soft); }
+  .rs-n{ text-align:right; font:700 1.05rem/1 var(--ag-font-mono); font-variant-numeric:tabular-nums; }
+  .rs-n small{ display:block; margin-top:5px; font:600 10px/1.4 var(--ag-font-mono);
+               letter-spacing:.06em; text-transform:uppercase; color:var(--ag-ink-soft); }
+  .rs-n small i{ font-style:normal; color:var(--ag-green); }
+
+  /* the bar: community filled, judges hatched. Never the only carrier of a number —
+     every figure beside it is written out, because a bar is not readable by a screen
+     reader and is not comparable across rows at a glance. */
+  .rs-bar{ grid-column:1 / -1; height:5px; border-radius:3px; background:rgba(16,41,44,.08); overflow:hidden; display:flex; }
+  .rs-bar i{ display:block; height:100%; }
+  .rs-bar .c{ background:var(--ag-green); }
+  .rs-bar .j{ background:var(--ag-ink); opacity:.42; }
+
+  /* ── the method ── */
+  .rs-grid{ display:grid; gap:1px; background:var(--ag-line-strong);
+            border:1px solid var(--ag-line-strong); border-radius:var(--ag-r-md); overflow:hidden;
+            grid-template-columns:repeat(auto-fit,minmax(11rem,1fr)); }
+  .rs-cell{ background:var(--ag-surface); padding:16px 18px; }
+  .rs-cell dt{ margin:0 0 6px; font:600 10.5px/1 var(--ag-font-mono); letter-spacing:.1em;
+               text-transform:uppercase; color:var(--ag-ink-soft); }
+  .rs-cell dd{ margin:0; font-size:14.5px; line-height:1.5; font-weight:600; overflow-wrap:anywhere; }
+
+  .rs-note{ margin:18px 0 0; padding:14px 16px; border-left:3px solid var(--ag-gold);
+            background:rgba(201,162,75,.07); font-size:13.5px; line-height:1.62; color:#4a5256; }
+  .rs-note--held{ border-color:var(--ag-pulse); background:rgba(224,36,94,.05); }
+
+  /* ── share ── */
+  .rs-share{ display:flex; flex-wrap:wrap; gap:10px; margin-top:20px; }
+  .rs-sbtn{ display:inline-flex; align-items:center; gap:8px; min-height:44px; padding:0 20px;
+            border-radius:var(--ag-r-pill); border:1px solid var(--ag-line-strong);
+            background:var(--ag-surface); color:var(--ag-ink); font:600 14px/1 var(--ag-font-body);
+            text-decoration:none; cursor:pointer; }
+  .rs-sbtn:hover{ border-color:var(--ag-ink); }
+  .rs-sbtn--p{ background:var(--ag-ink); color:#fff; border-color:var(--ag-ink); }
+  .rs-cardimg{ margin-top:16px; border:1px solid var(--ag-line-strong); border-radius:var(--ag-r-md);
+               overflow:hidden; background:#0f3329; }
+  .rs-cardimg img{ display:block; width:100%; height:auto; }
+
+  /* ── replies ── */
+  .rs-reply{ margin-top:14px; }
+  .rs-reply textarea{ width:100%; box-sizing:border-box; min-height:96px; resize:vertical;
+                      padding:13px 14px; border:1px solid var(--ag-line-strong); border-radius:var(--ag-r-md);
+                      font:400 15px/1.55 var(--ag-font-body); color:var(--ag-ink); background:var(--ag-surface); }
+  .rs-reply textarea:focus{ outline:2px solid var(--ag-green); outline-offset:1px; border-color:transparent; }
+  .rs-rbar{ display:flex; align-items:center; justify-content:space-between; gap:12px; margin-top:10px; }
+  .rs-rcount{ font:600 11px/1 var(--ag-font-mono); letter-spacing:.06em; text-transform:uppercase; color:var(--ag-ink-soft); }
+  .rs-say{ min-height:44px; padding:0 22px; border-radius:var(--ag-r-pill); border:0;
+           background:var(--ag-green); color:#fff; font:600 14px/1 var(--ag-font-body); cursor:pointer; }
+  .rs-say[disabled]{ opacity:.55; cursor:default; }
+  .rs-msg{ margin:10px 0 0; font-size:13.5px; line-height:1.55; color:#4a5256; }
+  .rs-msg a{ color:var(--ag-green); font-weight:600; }
+
+  .rs-thread{ list-style:none; margin:22px 0 0; padding:0; }
+  .rs-c{ display:grid; grid-template-columns:2.25rem minmax(0,1fr); gap:12px; padding:14px 0;
+         border-top:1px solid var(--ag-line); }
+  .rs-av{ width:36px; height:36px; border-radius:50%; background:#e9efef; color:var(--ag-ink);
+          display:flex; align-items:center; justify-content:center;
+          font:700 14px/1 var(--ag-font-display); }
+  .rs-c__h{ margin:0 0 3px; font-size:13px; color:var(--ag-ink-soft); }
+  .rs-c__h b{ color:var(--ag-ink); font-weight:600; font-size:14px; }
+  .rs-c__b{ margin:0; font-size:15px; line-height:1.58; overflow-wrap:anywhere; white-space:pre-wrap; }
+
+  @media (max-width:600px){
+    .rs-win{ grid-template-columns:minmax(0,1fr); align-items:start; }
+    .rs-idx{ text-align:left; }
+    .rs-row{ grid-template-columns:1.9rem minmax(0,1fr); }
+    .rs-n{ grid-column:2; text-align:left; }
+    .rs-n small{ display:inline; margin-left:10px; }
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="rs">
+  <p class="rs-crumb"><a href="/results">← All results</a></p>
+
+  <header class="rs-head">
+    <p class="rs-meta">{{ r.programme }}{% if r.edition %} · {{ r.edition }}{% endif %}</p>
+    <h1 class="rs-cat">{{ r.category.title }}</h1>
+  </header>
+
+  {% if held %}
+    {#
+      A HELD RESULT NAMES NOBODY. Not the winner, not the runner-up, not a ranking — the
+      award has been decided internally and the index behind it cannot yet be shown in
+      full, and half a result on a public page is the version people screenshot.
+    #}
+    <p class="rs-note rs-note--held"><strong>This result is being verified.</strong>
+      {{ held }}. Nothing is published here until every part of the index can be shown —
+      the community half, the judges’ half, and the denominator each was measured against.</p>
+  {% else %}
+    <div class="rs-win">
+      <div>
+        <span class="rs-badge">{{ r.dead_heat ? 'Dead heat' : 'Winner' }}</span>
+        <h2 class="rs-name">{{ w.name }}</h2>
+      </div>
+      <div class="rs-idx">
+        <div class="rs-idx__n">{{ w.cpi }}<span> / 1000</span></div>
+        <p class="rs-idx__s"><i>{{ w.community_points }} community</i> · {{ w.judge_points }} judges</p>
+      </div>
+    </div>
+
+    {% if r.dead_heat %}
+      <p class="rs-note">The index could not separate the top two: identical scores and
+        identical community support. The award went to the lower nominee id so the decision
+        stays the same every time it is recomputed — that is an arbitrary rule, and it is
+        named here rather than hidden inside a sort.</p>
+    {% elseif r.tie_broken_by_votes %}
+      <p class="rs-note">The index tied exactly. Community support broke it — which is the
+        point of keeping purchased votes out of the ranking: the tiebreak reads organic
+        support only, so it cannot be bought.</p>
+    {% elseif r.margin is not null and r.margin <= 10 %}
+      <p class="rs-note">Decided by {{ r.margin }} point{{ r.margin == 1 ? '' : 's' }} on a
+        thousand-point index. Every figure behind that margin is below.</p>
+    {% endif %}
+
+    {# ── the standing ─────────────────────────────────────────────────── #}
+    <section class="rs-sec">
+      <h2>The standing</h2>
+      <p class="rs-lead">Every nominee who scored, in the order the award was decided.
+        Each index is the two halves added: community support scaled against this
+        category’s most-supported nominee, and the panel’s average mark out of ten.</p>
+
+      {% for row in r.rows %}
+        <div class="rs-row{{ row.rank == 1 ? ' rs-row--1' }}{{ row.in_running ? '' : ' rs-row--out' }}">
+          <div class="rs-rank">{{ row.rank ? '#' ~ row.rank : '—' }}</div>
+          <div class="rs-who">
+            <p class="rs-who__n">{{ row.name }}</p>
+            {% if row.out_reason %}
+              <p class="rs-why">Out of the running — {{ row.out_reason }}.</p>
+            {% else %}
+              <p class="rs-why">{{ row.organic }} community vote{{ row.organic == 1 ? '' : 's' }}
+                 ({{ row.community_share }}% of this category’s highest){% if row.judge_score is not null %} ·
+                 panel {{ row.judge_score|number_format(1) }}/10 from {{ row.judges }}
+                 judge{{ row.judges == 1 ? '' : 's' }}{% endif %}{% if row.provisional %} · provisional{% endif %}</p>
+            {% endif %}
+          </div>
+          <div class="rs-n">{{ row.cpi }}<small><i>{{ row.community_points }}</i> + {{ row.judge_points }}</small></div>
+          {% if row.cpi > 0 %}
+            <div class="rs-bar" role="presentation">
+              <i class="c" style="width:{{ (row.community_points / 10)|round(2) }}%"></i>
+              <i class="j" style="width:{{ (row.judge_points / 10)|round(2) }}%"></i>
+            </div>
+          {% endif %}
+        </div>
+      {% else %}
+        <p class="rs-lead">No nominee in this category has been scored yet.</p>
+      {% endfor %}
+    </section>
+
+    {# ── how it was worked out ────────────────────────────────────────── #}
+    <section class="rs-sec">
+      <h2>How the index was worked out</h2>
+      <p class="rs-lead">Nothing here is a summary of the calculation. These are the actual
+        inputs it ran on.</p>
+
+      <dl class="rs-grid">
+        <div class="rs-cell"><dt>Weighting</dt><dd>{{ cpct }}% community · {{ jpct }}% judges</dd></div>
+        <div class="rs-cell"><dt>Judging quorum</dt>
+          <dd>{{ r.quorum }} complete scorecard{{ r.quorum == 1 ? '' : 's' }}</dd></div>
+        <div class="rs-cell"><dt>Community denominator</dt>
+          <dd>{% if r.cohort_max > 0 %}{{ r.cohort_max }} votes{% else %}—{% endif %}</dd></div>
+        <div class="rs-cell"><dt>Scale set by</dt>
+          <dd>{{ r.scale_set_by ?: '—' }}</dd></div>
+      </dl>
+
+      {#
+        The denominator IS the explanation, and it is the step nobody could take from the
+        outside: 2,650 organic votes is worth 247 points behind a leader on 4,820 and 450
+        points on its own. Stating the figure without saying what it does leaves a reader
+        exactly where they started.
+      #}
+      <p class="rs-note">A nominee’s community half is their organic votes as a share of the
+        most-supported nominee in this category — so the leader’s share is the full
+        {{ cpct }}%, and everybody else is measured against them rather than against the
+        total votes cast. Purchased and bonus votes are counted in nothing here: they move
+        the public tally and never the ranking.
+        {% if r.shortlisted is not null %} The field is this category’s published shortlist.{% endif %}</p>
+    </section>
+
+    {# ── share ────────────────────────────────────────────────────────── #}
+    <section class="rs-sec">
+      <h2>Share this result</h2>
+      <p class="rs-lead">The card carries the index and the split, so the claim travels with
+        the name rather than behind it.</p>
+      <div class="rs-share">
+        <button type="button" class="rs-sbtn rs-sbtn--p" data-rs-share>Share</button>
+        <a class="rs-sbtn" href="{{ r.url }}/card.png" download="result-{{ r.slug }}.png">Download the card</a>
+      </div>
+      <div class="rs-cardimg">
+        <img src="{{ r.url }}/card.png" width="1200" height="630" loading="lazy" decoding="async"
+             alt="Share card: {{ w.name }} takes {{ r.category.title }} with an index of {{ w.cpi }} of 1000 — {{ w.community_points }} from the community, {{ w.judge_points }} from the panel.">
+      </div>
+    </section>
+
+    {# ── the conversation ─────────────────────────────────────────────── #}
+    <section class="rs-sec" id="replies">
+      <h2>Replies</h2>
+      {% if thread %}
+        <p class="rs-lead">This result is a post in the Pulse. Replies here are replies
+          there — one conversation, one moderation queue.</p>
+
+        {% if is_member|default(false) %}
+          <div class="rs-reply" data-rs-reply data-thread="{{ thread.id }}">
+            <label class="sr-only" for="rsBody">Your reply</label>
+            <textarea id="rsBody" data-rs-body maxlength="2000"
+                      placeholder="Congratulate them, or say what you make of the numbers."></textarea>
+            <div class="rs-rbar">
+              <span class="rs-rcount" data-rs-count>{{ replies|length }} shown</span>
+              <button type="button" class="rs-say" data-rs-send>Reply</button>
+            </div>
+            <p class="rs-msg" data-rs-msg role="status" hidden></p>
+          </div>
+        {% else %}
+          <p class="rs-msg"><a href="/account/login?next={{ r.url|url_encode }}">Sign in</a>
+            to reply. Replies are tied to a member account so a result’s public record
+            cannot be brigaded by people who are not here.</p>
+        {% endif %}
+
+        <ul class="rs-thread" data-rs-list>
+          {% for c in replies %}
+            <li class="rs-c">
+              <div class="rs-av" aria-hidden="true">{{ c.author_name|slice(0,1)|upper }}</div>
+              <div>
+                <p class="rs-c__h"><b>{{ c.author_name }}</b></p>
+                <p class="rs-c__b">{{ c.body }}</p>
+              </div>
+            </li>
+          {% else %}
+            <li class="rs-c"><div class="rs-av" aria-hidden="true">·</div>
+              <div><p class="rs-c__b">Nobody has said anything yet.</p></div></li>
+          {% endfor %}
+        </ul>
+      {% else %}
+        <p class="rs-lead">This result has no discussion post yet.</p>
+      {% endif %}
+    </section>
+  {% endif %}
+</div>
+{% endblock %}
+
+{% block foot_scripts %}
+<script nonce="{{ csp_nonce }}">
+(function () {
+  'use strict';
+
+  // Share: the OS sheet where there is one, clipboard where there is not. agSocial owns
+  // both — a second implementation here is how one surface stops handling the abort case
+  // and starts telling people a share failed when they simply closed the sheet.
+  var share = document.querySelector('[data-rs-share]');
+  if (share && window.agSocial) {
+    share.addEventListener('click', function () {
+      window.agSocial.share(window.location.pathname, document.title, {
+        onCopied: function () { share.textContent = 'Link copied'; }
+      });
+    });
+  }
+
+  var box = document.querySelector('[data-rs-reply]');
+  if (!box || !window.agSocial) return;
+
+  var body = box.querySelector('[data-rs-body]');
+  var send = box.querySelector('[data-rs-send]');
+  var msg  = box.querySelector('[data-rs-msg]');
+  var list = document.querySelector('[data-rs-list]');
+  var id   = parseInt(box.getAttribute('data-thread'), 10) || 0;
+
+  function say(text, html) {
+    msg.hidden = false;
+    if (html) { msg.innerHTML = text; } else { msg.textContent = text; }
+  }
+
+  send.addEventListener('click', function () {
+    var text = (body.value || '').trim();
+    if (!text) { say('Write something first.'); return; }
+
+    send.disabled = true;
+    msg.hidden = true;
+
+    window.agSocial.comment({ targetType: 'thread', targetId: id, body: text })
+      .then(function (r) {
+        send.disabled = false;
+        if (!r.ok) {
+          if (r.signIn) {
+            say('Please <a href="' + window.agSocial.signInUrl() + '">sign in</a> to reply.', true);
+          } else {
+            say(r.message || 'Could not post that.');
+          }
+          return;
+        }
+
+        body.value = '';
+
+        // A QUARANTINED REPLY IS NOT SHOWN. Rendering it in the thread tells its author
+        // their words are public when a moderator has not seen them yet — the one lie
+        // that matters most on a platform with children in the audience.
+        if (r.status !== 'approved') {
+          say('Thank you — a moderator will look at this before it appears.');
+          return;
+        }
+
+        var li = document.createElement('li');
+        li.className = 'rs-c';
+        var av = document.createElement('div');
+        av.className = 'rs-av'; av.setAttribute('aria-hidden', 'true');
+        av.textContent = '·';
+        var wrap = document.createElement('div');
+        var h = document.createElement('p'); h.className = 'rs-c__h';
+        var b = document.createElement('b'); b.textContent = 'You'; h.appendChild(b);
+        var p = document.createElement('p'); p.className = 'rs-c__b';
+        // textContent, never innerHTML: this is somebody's typed text going straight back
+        // onto the page that it was typed on.
+        p.textContent = text;
+        wrap.appendChild(h); wrap.appendChild(p);
+        li.appendChild(av); li.appendChild(wrap);
+        if (list) list.insertBefore(li, list.firstChild);
+        say('Posted.');
+      })
+      .catch(function () { send.disabled = false; say('Network error — please try again.'); });
+  });
+})();
+</script>
+{% endblock %}

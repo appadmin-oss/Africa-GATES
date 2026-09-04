@@ -4,7 +4,7 @@ use AfricaGates\Support\Env;
 use Psr\Container\ContainerInterface;
 use Slim\Views\Twig;
 use AfricaGates\Services\{CacheService,ProfileService,AwardService,LegacyService,OpportunityService,OtpService,VoteService,BonusVoteService,RateLimitService,SpamService,AiService,CommunityService,GoogleSheetsService,TurnstileService,StatsService,FraudService,EventService,MilestoneService,PaymentService,GuideService,CurrencyService,UserAccountService};
-use AfricaGates\Controllers\{HomeController,ApiController,RegistryController,AwardsController,LeaderboardController,LegacyController,OpportunityController,NominationController,PartnerController,VoteController,CommunityController,EventsController,BlogController,PaymentController,ShopController,ShopCheckoutController,GuideController,DonationController,PaidVoteController,PulseController,JudgesController,AccountController,GatedFormController,FormController,ActivityController,FlierController};
+use AfricaGates\Controllers\{HomeController,ApiController,RegistryController,AwardsController,LeaderboardController,ResultsController,LegacyController,OpportunityController,NominationController,PartnerController,VoteController,CommunityController,EventsController,BlogController,PaymentController,ShopController,ShopCheckoutController,GuideController,DonationController,PaidVoteController,PulseController,JudgesController,AccountController,GatedFormController,FormController,ActivityController,FlierController};
 use AfricaGates\Judge\Services\JudgeService;
 use AfricaGates\Judge\Controllers\{
     AuthController as JudgeAuthController,
@@ -470,6 +470,7 @@ return [
     UserAccountService::class     => fn()=>new UserAccountService(),
     AccountController::class      => fn(ContainerInterface $c)=>new AccountController($c->get(Twig::class), $c->get(UserAccountService::class), $c->get(OtpService::class), $c->get(RateLimitService::class), $c->get(CommunityService::class)),
     LeaderboardController::class => fn(ContainerInterface $c)=>new LeaderboardController($c->get(Twig::class), $c->get(CacheService::class), $c->get(ProfileService::class)),
+    ResultsController::class     => fn(ContainerInterface $c)=>new ResultsController($c->get(Twig::class), $c->get(CommunityService::class)),
     LegacyController::class      => fn(ContainerInterface $c)=>new LegacyController($c->get(Twig::class), $c->get(CacheService::class), $c->get(LegacyService::class), $c->get(CommunityService::class)),
     OpportunityController::class => fn(ContainerInterface $c)=>new OpportunityController($c->get(Twig::class), $c->get(CacheService::class), $c->get(OpportunityService::class)),
     EventsController::class      => fn(ContainerInterface $c)=>new EventsController($c->get(Twig::class), $c->get(CacheService::class), $c->get(OtpService::class), $c->get(PaymentService::class), $c->get(RateLimitService::class)),

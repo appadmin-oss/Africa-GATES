@@ -83,6 +83,26 @@ final class CycleAnnouncer
         if (!$announce) return;
         self::email($n, $kind);
 
+        // ── AND THE PLATFORM SAYS IT OUT LOUD, ONCE ──────────────────────────
+        //
+        // The winner's mail used to be the whole announcement, and it pointed at
+        // `/leaderboard` — a ranking of registry profiles that does not name the category,
+        // the award or the person who won it. The result itself had no page and no post.
+        //
+        // {@see ResultThread::ensure()} is idempotent on a slug derived from the category,
+        // which is what makes it safe to call from here: this method runs once per NOMINEE
+        // (winner, then runner-up) and reruns whenever a backlog is repaired, so the
+        // announcement has to survive being made four times. It also refuses a result the
+        // public page will not show, so a held award cannot announce itself to the feed
+        // while its own page says it is still being verified.
+        //
+        // Behind the SAME $announce gate as the mail, deliberately, rather than a new one:
+        // the sandbox and the stale-backlog cases are already decided above, correctly, and
+        // a second gate is how the rehearsal comes to reach one broadcast and not another.
+        try {
+            ResultThread::ensure((int) $n->category_id);
+        } catch (\Throwable) { /* best-effort */ }
+
         // ── AND THE PEOPLE WHO PUT THEM THERE ────────────────────────────────
         //
         // The nominee has just been congratulated. Until now the supporters who
@@ -156,14 +176,28 @@ final class CycleAnnouncer
                 : (string) ((int) ($n->cycle_year ?? 0) ?: date('Y'));
             $year     = htmlspecialchars($edition, ENT_QUOTES, 'UTF-8');
 
+            // ── THE AWARD'S OWN PAGE, NOT THE PROFILE RANKING ────────────
+            //
+            // This button said "See the results" and went to `/leaderboard`, which ranks
+            // registry profiles by a rolled-up index and does not name the category, the
+            // award, or the person reading the email. The single most important message
+            // this platform sends pointed at a page about something else.
+            //
+            // Falls back to the leaderboard where the category is somehow unresolvable —
+            // a link to the wrong real page beats a link to `/results/0`.
+            $catId  = (int) ($n->category_id ?? 0);
+            $result = $catId > 0
+                ? $base . '/results/' . \AfricaGates\Support\Slug::idSegment($catId, (string) $n->category)
+                : $base . '/leaderboard';
+
             $html = "<p>Hi <strong>{$nm}</strong>,</p>"
                 . "<p style=\"font-size:17px;font-weight:700;color:#10292C\">{$headline}</p>"
                 . "<table role=\"presentation\" cellpadding=\"0\" cellspacing=\"0\" border=\"0\" style=\"margin:14px 0;background:#f0fdf4;border-left:4px solid #22c55e;border-radius:0 8px 8px 0;padding:12px 16px\">"
                 . "<tr><td style=\"font-size:14px;color:#166534;line-height:1.7\">Category: <strong>{$catN}</strong><br>Cycle: <strong>{$year}</strong></td></tr></table>"
-                . "<p>The full results are now live — and your profile carries a permanent record on the leaderboard.</p>"
-                . "<p style=\"text-align:center;margin:22px 0\"><a href=\"{$base}/leaderboard\" style=\"display:inline-block;padding:12px 28px;background:#10292C;color:#fff;border-radius:999px;font-weight:600;text-decoration:none;font-size:15px\">See the results &rarr;</a></p>";
+                . "<p>The full standing is now public — every nominee who scored, both halves of every index, and the denominator each community share was measured against.</p>"
+                . "<p style=\"text-align:center;margin:22px 0\"><a href=\"{$result}\" style=\"display:inline-block;padding:12px 28px;background:#10292C;color:#fff;border-radius:999px;font-weight:600;text-decoration:none;font-size:15px\">See the result &rarr;</a></p>";
             $plain = "Hi {$n->profile_name},\n\n{$headline}\n\nCategory: {$n->category}\nCycle: {$edition}\n\n"
-                . "The full results are now on {$base}/leaderboard — and your profile carries a permanent record.\n\n— Africa GATES";
+                . "The full standing is now public — every nominee who scored, and both halves of every index: {$result}\n\n— Africa GATES";
 
             $mailer->sendBranded((string) $n->profile_email, $headline . ' — Africa GATES', $html, $plain,
                 'Results', $base . '/assets/img/illustrations/illo-trophy.jpg');

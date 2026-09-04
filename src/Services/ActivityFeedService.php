@@ -407,14 +407,28 @@ final class ActivityFeedService
             ['n.name', 'c.title'],
         )
             ->orderByDesc('n.nominated_at')->limit($limit)
-            ->get(['n.id', 'n.name', 'n.status', 'n.nominated_at', 'c.title as category'])->all();
+            ->get(['n.id', 'n.name', 'n.status', 'n.nominated_at',
+                   'n.category_id', 'c.title as category'])->all();
 
+        // ── THE AWARD, NOT THE PROFILE RANKING ───────────────────────────────
+        //
+        // Every result in this timeline used to link to `/leaderboard`, which ranks
+        // registry PROFILES by a rolled-up index and names neither the category nor the
+        // award nor the person who won it. Somebody searching a winner's name got their
+        // name, the word "Winner", the category — and then a page about something else.
+        // {@see PublicResults} is the award's own page, with the whole standing on it.
+        //
+        // Falls back to the leaderboard where the category is gone (a LEFT JOIN can hand
+        // back a result whose category was deleted). A link to a real page that is not the
+        // one you wanted beats a link to `/results/0`.
         return array_map(fn (object $r): array => $this->item(
             kind:   'result',
             label:  $r->status === 'winner' ? 'Winner' : 'Runner-up',
             title:  (string) $r->name,
             detail: (string) ($r->category ?? ''),
-            url:    '/leaderboard',
+            url:    ((int) ($r->category_id ?? 0)) > 0
+                ? '/results/' . PublicResults::slug((int) $r->category_id, (string) ($r->category ?? ''))
+                : '/leaderboard',
             at:     (string) ($r->nominated_at ?? ''),
         ), $rows);
     }

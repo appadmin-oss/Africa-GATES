@@ -4,7 +4,7 @@ use AfricaGates\Support\Env;
 use AfricaGates\Services\SystemStatus;
 use Slim\App;
 use Slim\Routing\RouteCollectorProxy;
-use AfricaGates\Controllers\{HomeController,ApiController,RegistryController,AwardsController,LeaderboardController,LegacyController,OpportunityController,NominationController,PartnerController,VoteController,CommunityController,EventsController,BlogController,PaymentController,ShopController,ShopCheckoutController,GuideController,DonationController,PaidVoteController,PulseController,JudgesController,AccountController,GatedFormController,FormController,ActivityController,FlierController,SupportController,HelpController,ClaimController,VoteMessageController,CountdownController,EmailPrefsController,HonourController};
+use AfricaGates\Controllers\{HomeController,ApiController,RegistryController,AwardsController,LeaderboardController,LegacyController,OpportunityController,NominationController,PartnerController,VoteController,CommunityController,EventsController,BlogController,PaymentController,ShopController,ShopCheckoutController,GuideController,DonationController,PaidVoteController,PulseController,JudgesController,AccountController,GatedFormController,FormController,ActivityController,FlierController,SupportController,HelpController,ClaimController,VoteMessageController,CountdownController,EmailPrefsController,HonourController,ResultsController};
 use AfricaGates\Judge\Controllers\{
     AuthController as JudgeAuthController,
     BallotController as JudgeBallotController
@@ -1793,6 +1793,19 @@ return function(App $app) {
         $g->get('/awards',        AwardsController::class.':index');
         $g->get('/awards/{p}',    AwardsController::class.':programme');
         $g->get('/leaderboard',   LeaderboardController::class.':index');
+        // ── THE PUBLIC RECORD OF AN AWARD ────────────────────────────────────
+        //
+        // /results was an ALIAS to /leaderboard until now, and that was the honest answer
+        // while no page existed: the leaderboard is a ranking of registry profiles and
+        // names neither an award nor the person who won it. The result itself had no page
+        // at all — the congratulations email pointed at the leaderboard too.
+        //
+        // The card route is declared FIRST. FastRoute matches in declaration order and
+        // `{slug}` would otherwise swallow `{slug}/card.png`; the same ordering rule the
+        // flier routes below are written against, for the same reason.
+        $g->get('/results',                    ResultsController::class.':index');
+        $g->get('/results/{slug:[0-9]+[^/]*}/card.png', ResultsController::class.':card');
+        $g->get('/results/{slug:[0-9]+[^/]*}', ResultsController::class.':show');
         $g->get('/judges',        JudgesController::class.':index');
         $g->get('/judges/{slug}', JudgesController::class.':show');
         $g->get('/registry',      RegistryController::class.':index');
@@ -1846,8 +1859,9 @@ return function(App $app) {
             '/ticket'          => '/events',
             '/tickets'         => '/events',
             '/ceremony'        => '/events',
-            '/results'         => '/leaderboard',
-            '/winners'         => '/leaderboard',
+            // /winners now has somewhere better to go than the profile ranking.
+            '/winners'         => '/results',
+            '/result'          => '/results',
             '/rank'            => '/leaderboard',
             '/ranks'           => '/leaderboard',
             '/ranking'         => '/leaderboard',

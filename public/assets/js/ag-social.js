@@ -266,15 +266,47 @@
   }
 
   /**
-   * @mentions and #hashtags, as links.
+   * Links, @mentions and #hashtags, as links.
    *
    * ESCAPES FIRST, THEN LINKIFIES. The input is a member-written post going into
    * innerHTML; doing it the other way round — linkify a raw string, then trust it
    * — is how a feed becomes a stored-XSS delivery mechanism. Because escaping runs
    * first, the patterns below only ever match text that is already inert.
+   *
+   * ── WHY URLS ARE MATCHED, AND MATCHED FIRST ─────────────────────────────
+   *
+   * They were not matched at all, so every link anyone shared in the Pulse rendered
+   * as text nobody could follow. The result announcement made that impossible to
+   * leave: its last line is the address of the page holding the whole standing, and
+   * that post exists to carry people there.
+   *
+   * FIRST, before the two sigil passes, because those insert `<a href="/registry?q=…">`
+   * and a URL pattern run afterwards would match inside the attribute it just wrote and
+   * shred the markup. In the other order nothing can go wrong: both sigil patterns
+   * require whitespace or `(` before the sigil, and a URL contains neither, so they
+   * cannot reach inside an anchor this pass produced.
+   *
+   * http(s) ONLY — never a bare `/path`. A relative pattern would turn "and/or" and
+   * every date written "12/06" into a link to a page that does not exist, which is a
+   * worse outcome on far more posts than the one it fixes.
+   *
+   * Trailing `.,;:!?)` is left OUT of the link: a URL at the end of a sentence is the
+   * normal case, and swallowing the full stop breaks the address itself.
    */
+  var URL_RE = /\bhttps?:\/\/[^\s<>"']+/g;
+
   function linkify(text) {
     var safe = escapeHtml(text);
+    safe = safe.replace(URL_RE, function (url) {
+      var tail = '';
+      var m = url.match(/[.,;:!?)]+$/);
+      if (m) { tail = m[0]; url = url.slice(0, -tail.length); }
+      if (!url) return tail;
+      // `&` arrived here as `&amp;` from escapeHtml, and that is correct in an href —
+      // the browser decodes the entity back to `&` when it resolves the link. The label
+      // keeps the entity too, so it renders as the single character it is.
+      return '<a class="ag-link" href="' + url + '" rel="nofollow ugc noopener">' + url + '</a>' + tail;
+    });
     safe = safe.replace(/(^|[\s(])@([A-Za-z0-9_.]{2,30})\b/g, function (_, pre, name) {
       return pre + '<a class="ag-tag" href="/registry?q=' + encodeURIComponent(name) + '">@' + name + '</a>';
     });

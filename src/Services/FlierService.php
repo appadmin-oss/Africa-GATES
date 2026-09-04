@@ -1150,13 +1150,7 @@ final class FlierService
     }
 
 
-    private function pill($im, float $x, float $y, float $w, float $h, int $colour): void
-    {
-        $r = min($h / 2, $w / 2);
-        imagefilledrectangle($im, (int) ($x + $r), (int) $y, (int) ($x + $w - $r), (int) ($y + $h), $colour);
-        imagefilledellipse($im, (int) ($x + $r), (int) ($y + $h / 2), (int) ($r * 2), (int) $h, $colour);
-        imagefilledellipse($im, (int) ($x + $w - $r), (int) ($y + $h / 2), (int) ($r * 2), (int) $h, $colour);
-    }
+    // pill() moved to FlierRaster — see the note there.
 
     /**
      * The gradient's colour at a given scanline.

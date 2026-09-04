@@ -223,7 +223,15 @@ final class ResultRelease
         // denormalised, `gates_votes` is the ledger, and votes that arrived by any path that
         // does not maintain the counter — an import, a restore, a code path that predates the
         // column — leave the two disagreeing with nothing to notice it. Hence `recount()`.
-        $dark = $rows !== [];
+        //
+        // AND IT IS A FAULT ONLY WHERE THE COMMUNITY WAS SUPPOSED TO COUNT. A programme is
+        // allowed to weight the community at zero — a juried prize with a public vote that
+        // decides nothing is a legitimate configuration, and {@see RuleEngine::weights()}
+        // will hand back `community: 0.0` for it. There, "nobody has an organic vote" is not
+        // a dropped half, it is the rules working; warning about it would put a red caveat
+        // on every category of a jury award forever, which is how an operator learns to
+        // scroll past the box that matters.
+        $dark = $rows !== [] && $weights['community'] > 0.0;
         foreach ($rows as $r) { if ((int) $r['organic'] > 0) { $dark = false; break; } }
 
         return [

@@ -338,6 +338,42 @@ final class CycleMaterialiser
                 continue;
             }
 
+            // ── AND THE COMMUNITY HALF HAS TO HAVE HAPPENED ──────────────────
+            //
+            // Not one nominee in this category holds a single organic vote, and the rules
+            // say the community is worth something. Every community half is therefore 0,
+            // the CPI is the judge mark alone scaled to whatever weight is left, and the
+            // award would be decided by the panel at a weight nobody agreed to.
+            //
+            // That is not a theoretical objection. A live cycle ran with four nominees on
+            // 1,536, 1,955, 126 and 398 votes, organic zero on all four, and crowned the
+            // best-judged one over the second-most-voted one. The operator read the
+            // numbers off the screen and called it cheating, and they were right: the
+            // published methodology promises 45% community and this delivered 0%.
+            //
+            // The commonest cause is not fraud, it is a stale counter — see
+            // {@see VoteRecount}, which is the repair and lives on the release screen. So
+            // this SKIPS rather than crowns, exactly as the quorum does above and for the
+            // same reason: a category the platform cannot score honestly needs a person,
+            // not a winner. Nothing is lost by waiting; a wrong award, once announced and
+            // emailed and posted, cannot be taken back.
+            //
+            // Weight-aware, because a jury prize whose public vote decides nothing is a
+            // legitimate configuration: with `community_weight` at zero there is no
+            // missing half to wait for. {@see ResultRelease} computes the same flag for
+            // the screen, and computes it once — this asks it rather than repeating the
+            // condition, because two spellings of "the community half is dark" is exactly
+            // how a screen comes to promise something the cron does not do.
+            if (ResultRelease::category((int) $catId, $scoring)['community_dark']) {
+                $this->log(sprintf(
+                    '    ! category %d: NOT ONE nominee has an organic vote and the rules '
+                    . 'weight the community above zero — the index would be the panel alone. '
+                    . 'Skipping promotion. Recount the category from the ballots on the '
+                    . 'release screen; if the votes are genuinely not organic, the award '
+                    . 'needs a human.', (int) $catId));
+                continue;
+            }
+
             $ranked = DB::table('gates_nominees')->whereIn('id', $eligibleIds)->get()
                 ->map(function ($n) use ($scores) {
                     $n->cpi     = (int) ($scores[$n->id]['cpi_score'] ?? 0);

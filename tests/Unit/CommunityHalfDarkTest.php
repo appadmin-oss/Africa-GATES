@@ -169,6 +169,92 @@ final class CommunityHalfDarkTest extends TestCase
             'the community half is on and still changed nothing');
     }
 
+    // ══ and the award is not handed out ══════════════════════════════════════
+
+    /**
+     * THE PROMOTION REFUSES TO CROWN ANYBODY.
+     *
+     * This is the fault the operator called cheating, at the one moment it becomes
+     * irreversible. Everything above makes the missing half VISIBLE; a caveat on a screen
+     * nobody is looking at when the 06:00 cron runs does not stop the award. The winner is
+     * promoted, the congratulations email goes out, the supporters are celebrated, and the
+     * activity feed broadcasts it — on an index the panel decided alone at whatever weight
+     * was left, while the published methodology promised 45% community.
+     *
+     * So the category is skipped, the same shape as the quorum skip beside it. Nothing is
+     * lost by waiting: a recount may put the half back, and the release screen offers it.
+     * A wrong award, once emailed, cannot be taken back.
+     */
+    public function test_a_category_with_no_organic_votes_anywhere_crowns_nobody(): void
+    {
+        $a = $this->nominee('Dr. Adegboyega Aborode', 1536, 0);
+        $b = $this->nominee('Ajayi Temitope Oluwarotimi', 1955, 0);
+        $this->panel($a, 8.0);
+        $this->panel($b, 7.9);
+
+        (new \ReflectionMethod(\AfricaGates\Services\CycleMaterialiser::class, 'promoteWinners'))
+            ->invoke(new \AfricaGates\Services\CycleMaterialiser(), $this->cycleId, false);
+
+        $statuses = DB::table('gates_nominees')->where('category_id', $this->categoryId)
+            ->pluck('status')->all();
+
+        $this->assertSame(['approved', 'approved'], $statuses,
+            'an award was handed out on an index the panel decided alone');
+    }
+
+    /**
+     * AND IT STILL CROWNS ONE WHERE THE COMMUNITY ACTUALLY VOTED.
+     *
+     * A guard that stops every promotion is not a guard, it is an outage — and it would be
+     * an invisible one, because a cycle that crowns nobody looks exactly like a cycle
+     * nobody has judged yet.
+     */
+    public function test_a_category_whose_community_did_vote_still_crowns_its_winner(): void
+    {
+        $a = $this->nominee('Dr. Adegboyega Aborode', 1536, 1536);
+        $b = $this->nominee('Ajayi Temitope Oluwarotimi', 1955, 1955);
+        $this->panel($a, 8.0);
+        $this->panel($b, 7.9);
+
+        (new \ReflectionMethod(\AfricaGates\Services\CycleMaterialiser::class, 'promoteWinners'))
+            ->invoke(new \AfricaGates\Services\CycleMaterialiser(), $this->cycleId, false);
+
+        $this->assertSame('winner',
+            (string) DB::table('gates_nominees')->where('id', $b)->value('status'),
+            'the community voted and the award was withheld anyway');
+    }
+
+    /**
+     * A JURY PRIZE IS NOT A BROKEN ONE.
+     *
+     * A programme may weight the community at zero — a juried award whose public vote is
+     * decoration is a legitimate configuration, and {@see RuleEngine} supports it. There,
+     * "nobody holds an organic vote" is the rules working rather than a half going missing,
+     * and both the caveat and the refusal above would be wrong: a red warning on every
+     * category forever, and an award that can never be given at all.
+     *
+     * This is the assertion that stops the guard being written as "no organic votes".
+     */
+    public function test_a_programme_that_weights_the_community_at_zero_is_neither_dark_nor_blocked(): void
+    {
+        (new \AfricaGates\Services\RuleEngine())->set('programme', $this->programmeId,
+            ['community_weight' => 0, 'judge_weight' => 100]);
+
+        $a = $this->nominee('Dr. Adegboyega Aborode', 0, 0);
+        $this->nominee('Ajayi Temitope Oluwarotimi', 0, 0);
+        $this->panel($a, 8.0);
+
+        $this->assertFalse(ResultRelease::category($this->categoryId)['community_dark'],
+            'a jury award was told its community half had gone missing');
+
+        (new \ReflectionMethod(\AfricaGates\Services\CycleMaterialiser::class, 'promoteWinners'))
+            ->invoke(new \AfricaGates\Services\CycleMaterialiser(), $this->cycleId, false);
+
+        $this->assertSame('winner',
+            (string) DB::table('gates_nominees')->where('id', $a)->value('status'),
+            'a jury award could never crown anybody');
+    }
+
     // ══ the repair ═══════════════════════════════════════════════════════════
 
     /**
