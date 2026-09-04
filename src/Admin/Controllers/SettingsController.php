@@ -97,6 +97,18 @@ class SettingsController
             // indistinguishable from working, and it is exactly what "my key is intact
             // but it still does not function" looks like from the inside.
             'door_voice_error'  => \AfricaGates\Services\DoorVoice::lastError(),
+            // ── THE WHOLE CHAIN, ON THE SCREEN WHERE THE KEY IS SET ─────────
+            //
+            // Four independent things must ALL be true for a guest to hear their name:
+            // the greeting is switched on, a provider is configured, the cache directory
+            // is writable, and a clip has actually been rendered. Any one of them false
+            // is silence, and at the door all four look identical.
+            //
+            // DoorWelcome::readiness() has walked that chain correctly since it was
+            // written — and only the EVENT ticket panel ever displayed it. An operator
+            // who has just set a key is on THIS screen, where three of the four links
+            // were invisible. Same resolver, second reader; nothing new decides anything.
+            'door_readiness'    => \AfricaGates\Services\DoorWelcome::readiness(),
             // Who speaks at the door, and the OpenAI voice for when it is OpenAI. The
             // trade-off between them is real — name accuracy against naturalness — so both
             // sides are named on the screen rather than left to be discovered on the night.

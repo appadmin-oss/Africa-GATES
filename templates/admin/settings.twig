@@ -541,6 +541,24 @@
           was selected, so a correctly configured OpenAI door carried "No Azure Speech
           key — add it under Settings" in red, permanently, on the screen the operator
           goes to when the voice seems broken. -#}
+      {#- THE CHAIN, NOT JUST THE KEY.
+          A guest hears their name only if the greeting is on AND a provider is configured
+          AND the cache is writable AND a clip was rendered. Any one false is silence, and
+          all four look the same at the door. This walked correctly in readiness() from the
+          start and was shown only on an event's ticket panel — never on the screen where
+          somebody has just set a key and is asking why nothing happens. -#}
+      {% if door_readiness.blocker %}
+        <p class="hint" style="margin:10px 0 0;padding:10px 12px;border-radius:8px;background:rgba(138,32,32,.08);border:1px solid rgba(138,32,32,.25);color:#8a2020">
+          <strong>{{ door_readiness.blocker }}</strong><br>
+          <span style="color:var(--ad-text-mute,#5a6d6f)">{{ door_readiness.fix }}</span>
+        </p>
+      {% elseif door_readiness.on and door_readiness.voice and door_readiness.writable %}
+        <p class="hint" style="margin:10px 0 0;padding:10px 12px;border-radius:8px;background:rgba(35,123,34,.08);border:1px solid rgba(35,123,34,.25);color:#1a6118">
+          <strong>Ready.</strong> Switched on, {{ door_voice_label|split(' —')|first }} configured, cache writable.
+          Greetings are rendered by the daily run — press <strong>Hear it</strong> below to prove the voice now.
+        </p>
+      {% endif %}
+
       {% if door_voice_why %}<p class="hint" style="margin:10px 0 0;color:#8a2020">{{ door_voice_why }}</p>{% endif %}
 
       {#- CONFIGURED AND REFUSING — the state that showed nothing at all.
