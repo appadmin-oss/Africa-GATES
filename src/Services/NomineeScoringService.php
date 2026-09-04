@@ -40,9 +40,30 @@ class NomineeScoringService
             ->select('cy.id as cycle_id', 'cy.programme_id')->first();
         $w = $this->rules->weights($ctx->programme_id ?? null, $ctx->cycle_id ?? null);
 
-        // Community CPI is normalised over ORGANIC votes only — purchased "bonus"
-        // votes (folded into vote_count for display) must never move the cohort
-        // max or any nominee's community share, or money could buy rank.
+        // ══ EVERY VOTE COUNTS, WHATEVER IT COST ══════════════════════════════
+        //
+        // The community half reads `vote_count` — the full tally: free votes cast by a
+        // verified person, votes bought in a pack, and votes awarded as a bonus against a
+        // contribution, added together. It is a deliberate, operator-made change of
+        // methodology, not a drift.
+        //
+        // It used to read `organic_vote_count` alone, and the comment here said purchased
+        // votes "must never move the cohort max or any nominee's community share, or money
+        // could buy rank." That is now exactly what they do, and every published surface
+        // that promised otherwise has been rewritten in the same change rather than left
+        // to contradict this line. A platform whose integrity page describes a rule its
+        // scorer does not follow is in a worse position than one that never made the
+        // promise.
+        //
+        // WHAT THAT MEANS, STATED PLAINLY SO NOBODY HAS TO INFER IT: purchases are not
+        // capped against a nominee's genuine support — `PaidVoteService` limits the size
+        // of ONE order, not how many orders a campaign places — so a sufficiently funded
+        // nominee can take a category on spending alone. That consequence was put to the
+        // operator with the alternatives and this is the option they chose.
+        //
+        // `organic_vote_count` is still maintained, still returned, and still shown beside
+        // the total on every public surface, so a reader can always see how much of a
+        // tally was bought. It simply no longer decides anything.
         //
         // ══ THE DENOMINATOR IS THE FIELD, NOT THE ENTRY LIST ══════════════════
         //
@@ -52,7 +73,7 @@ class NomineeScoringService
         // votes counted.
         //
         // The damage is not marginal, it is the community half of a whole final. Ten
-        // entrants, the popular one on 5,000 organic votes is not shortlisted, the three
+        // entrants, the popular one on 5,000 votes is not shortlisted, the three
         // finalists hold 500, 400 and 300. Their community shares came out at 0.10, 0.08
         // and 0.06 — a span of four points on a thousand-point index — so the judges
         // decided the final on their own, silently, and only because of who had been left
@@ -91,7 +112,11 @@ class NomineeScoringService
         // the release screen rather than one that flatters everybody.
         if ($field->isEmpty()) $field = $nominees;
 
-        $cohortMax = max(1, (int) $field->max('organic_vote_count'));
+        // The denominator moves with the numerator. Scaling a total against an organic
+        // maximum would let a nominee exceed 100% of the cohort and hand them more than
+        // the whole community weight — the two have to be the same measure or the share
+        // is not a share.
+        $cohortMax = max(1, (int) $field->max('vote_count'));
         $quorum = (int) ($this->rules->effective($ctx->programme_id ?? null, $ctx->cycle_id ?? null)['min_judges_per_nominee']
             ?? RuleEngine::DEFAULTS['min_judges_per_nominee']);
         $stats = $this->judgeStatsFor($nominees->pluck('id')->all());
@@ -107,7 +132,7 @@ class NomineeScoringService
                 // ── THE DENOMINATOR THE COMMUNITY HALF IS MEASURED AGAINST ───
                 //
                 // Returned rather than kept local, because without it NOBODY can check a
-                // CPI. The community component is `organic / cohortMax`, so 2,650 votes
+                // CPI. The community component is `votes / cohortMax`, so 2,650 votes
                 // is worth 55% of the community weight or 26% of it depending entirely on
                 // a number that appeared on no screen — and `ResultRelease` recomputing it
                 // would be a second reader of the one fact that decides the award.
@@ -135,7 +160,7 @@ class NomineeScoringService
                 // say the component was "withheld (community-only)", which is what
                 // renormalising would mean and is NOT what this does.
                 //
-                // Measured, with a cohort max of 100 organic votes:
+                // Measured, with a cohort max of 100 votes:
                 //
                 //     100 votes, judged 6.0/10 .................  780
                 //     100 votes, not yet judged (as built) .....  450
@@ -147,7 +172,8 @@ class NomineeScoringService
                 // prevent. Scoring the absent half as zero is the conservative direction
                 // — it understates rather than overstates — and `provisional` above is
                 // what stops the understatement being mistaken for a verdict.
-                'cpi_score'   => $this->cpi->nomineeScore((int) $n->organic_vote_count, $cohortMax, $eligible ? $ja : null, $w['community'], $w['judge']),
+                // The FULL tally, and the same figure `cohort_max` is drawn from.
+                'cpi_score'   => $this->cpi->nomineeScore((int) $n->vote_count, $cohortMax, $eligible ? $ja : null, $w['community'], $w['judge']),
             ];
         }
         return $out;

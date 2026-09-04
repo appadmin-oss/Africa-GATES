@@ -187,7 +187,7 @@ Scores run 0–1000. A **nominee's score** (per award category) blends two signa
 
 | Component | Weight | Source |
 |-----------|--------|--------|
-| Community votes | 45% | this nominee's **organic** votes ÷ the category's top organic vote count (purchased bonus votes are excluded, so money can't move rank) |
+| Community votes | 45% | this nominee's **total** votes ÷ the category's highest vote count. Every vote counts the same — free, bought in a pack, or awarded against a contribution — and there is no ceiling. `organic_vote_count` is still maintained and published beside the total on every result and ballot page, so a reader can see how much of a tally was bought; it decides nothing. See `NomineeScoringService` for why this changed. |
 | Expert judges | 55% | weighted average of judges' **complete** scorecards (0–10), counted only once the per-cycle judge quorum is met |
 
 Weights and quorum are overridable per programme/cycle via `gates_rule_sets`.

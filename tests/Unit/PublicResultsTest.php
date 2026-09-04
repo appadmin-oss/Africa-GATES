@@ -215,10 +215,12 @@ final class PublicResultsTest extends TestCase
      */
     public function test_a_result_with_no_community_half_is_held_rather_than_published(): void
     {
+        // NOBODY VOTED AT ALL. This fixture used to hold real tallies with the organic
+        // counter at zero — which was the dark case while the index read that column, and
+        // is an ordinary decided award now that it reads the tally. What remains dark is
+        // an empty ballot.
         $a = $this->nominee('Dr. Adegboyega Aborode', 0);
-        DB::table('gates_nominees')->where('id', $a)->update(['vote_count' => 1536]);
         $b = $this->nominee('Ajayi Temitope Oluwarotimi', 0);
-        DB::table('gates_nominees')->where('id', $b)->update(['vote_count' => 1955]);
         $this->panel($a, 9.0);
         $this->panel($b, 7.0);
 
@@ -496,10 +498,11 @@ final class PublicResultsTest extends TestCase
         $this->decided();
         ResultThread::ensure($this->categoryId);
 
-        // The community half goes dark — the exact fault this whole surface was built
-        // after — so the award is held.
+        // Every vote is withdrawn, so the community half genuinely has nothing to read
+        // and the award is held. (Zeroing only `organic_vote_count` would change nothing
+        // now — the index counts the tally, which is the point of the change.)
         DB::table('gates_nominees')->where('category_id', $this->categoryId)
-            ->update(['organic_vote_count' => 0]);
+            ->update(['organic_vote_count' => 0, 'vote_count' => 0]);
 
         $it = $this->feedItem(ResultThread::SLUG . $this->categoryId);
 
@@ -704,7 +707,8 @@ final class PublicResultsTest extends TestCase
 
         $this->assertStringContainsString('n.organic_vote_count|number_format', $tpl,
             'the ballot page prints a tally and never says how much of it counts');
-        $this->assertStringContainsString('only one the', $tpl);
+        $this->assertStringContainsString('Every one of them counts the same', $tpl,
+            'the ballot page shows a split without saying that both parts count');
 
         // Only where the two differ. On a nominee nobody bought a vote for, a line saying
         // none were bought is noise on the page trying to get somebody to vote.

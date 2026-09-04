@@ -124,8 +124,16 @@ final class IntegrityPageTest extends TestCase
 
         $this->assertStringContainsString('30% community', $html);
         $this->assertStringContainsString('70% judges', $html);
+        // Still published from the engine, and now with the framing corrected: this
+        // ceiling governs BONUS votes minted against a contribution — `BonusVoteService`
+        // is the only thing that reads it — and not vote packs bought on the ballot,
+        // which have none. It stopped being a ranking guarantee when the index started
+        // counting every vote; a page that went on describing it as one would be quoting
+        // a live number to support a claim it does not support.
         $this->assertStringContainsString('25% of the organic support', $html,
-            'the purchased-vote ceiling is published from the engine');
+            'the contribution ceiling is published from the engine');
+        $this->assertStringContainsString('have no such limit', $html,
+            'the page publishes a ceiling without saying which votes it does not cover');
         $this->assertStringContainsString('4 judges to have scored them', $html,
             'the winner-eligibility quorum is published from the engine');
 

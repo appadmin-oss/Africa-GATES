@@ -228,8 +228,18 @@ Full account in `docs/CODEBASE-INDEX.md` §16.
 - **A criterion, code, or record that has been used is retired, never deleted.** Ballots,
   receipts and published results point at rows by id; deleting one changes history that has
   already been published. See `src/Services/JudgeRubric.php` for the worked example.
+- **Every vote counts toward the index, whatever it cost.** The community half reads
+  `vote_count` — free, bought and awarded votes added together — and so does the tiebreak and
+  the promotion's eligibility filter. It read `organic_vote_count` until an operator decision
+  in 2026, and the reason for the change is the one worth carrying: a deployment may switch
+  free voting off entirely (`paid_voting_disable_free`), and `VoteService::castVote()` is the
+  ONLY path that increments the organic counter — so on such a deployment the community half
+  was structurally zero for everybody, forever, while every page said 45/55. The old rule did
+  not protect a community vote there, it deleted one. `organic_vote_count` is still maintained
+  and published beside the total on every public surface; it decides nothing. There is no
+  ceiling on purchases, and every page says so.
 - **The CPI's denominator is the FIELD, and exactly one thing computes it.** The community
-  half is `organic / cohortMax`, and `cohortMax` used to be the most-voted nominee in the
+  half is `votes / cohortMax`, and `cohortMax` used to be the most-voted nominee in the
   whole *entry list* — with the shortlist applied afterwards. So a popular nominee who had
   been left off the list still decided what the finalists' votes were worth: three
   finalists on 500, 400 and 300 behind a 5,000-vote non-finalist came out at 0.10, 0.08 and

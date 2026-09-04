@@ -2585,12 +2585,12 @@ return function(App $app) {
                 // promising them — a description that answers gets the click that a
                 // description that teases does not.
                 'meta_description' => sprintf(
-                    'How Africa GATES decides a winner: %d%% verified community votes, %d%% independent judges, '
-                    . 'and why contributions move a public tally but never the score.',
+                    'How Africa GATES decides a winner: %d%% community votes — every vote counts, '
+                    . 'free or paid — and %d%% independent judges, who never see a vote count.',
                     $cPct, $jPct
                 ),
                 'og_type'          => 'article',
-                'og_title'         => 'How a winner is decided — and what money cannot do about it',
+                'og_title'         => 'How a winner is decided, and what money reaches',
                 'breadcrumbs'      => [
                     ['label' => 'Home', 'url' => '/'],
                     ['label' => 'Integrity Centre'],

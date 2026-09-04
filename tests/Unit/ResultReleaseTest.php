@@ -352,21 +352,27 @@ final class ResultReleaseTest extends TestCase
      * index were separated by who had BOUGHT votes, and every guard upstream became
      * decoration.
      */
-    public function test_purchased_votes_cannot_separate_two_equal_nominees(): void
+    /**
+     * PURCHASED VOTES SEPARATE TWO NOMINEES THE PANEL COULD NOT.
+     *
+     * The reverse of what this test used to assert, and the fixture is kept exactly as it
+     * was so the change is legible rather than buried: same free support, same marks, and
+     * one of them holding 900 bought votes.
+     *
+     * It was right while the index read `organic_vote_count` — a tiebreak on the tally
+     * would then have contradicted the ranking. It is wrong now for the same reason: the
+     * community half counts every vote, so a tiebreak on a subset would leave the nominee
+     * who lost with no answer about why the two questions had different answers.
+     *
+     * `Plain` still holds the lower id, so if the comparator ever silently stopped reading
+     * votes at all and fell through to the id fallback, `Plain` would win and this would
+     * fail. That is what makes the assertion discriminate rather than merely pass.
+     */
+    public function test_purchased_votes_separate_two_nominees_the_panel_could_not(): void
     {
         $j1 = $this->judge('Ada Obi');
         $j2 = $this->judge('Tunde Cole');
 
-        // ── THE FIXTURE HAS TO DISCRIMINATE ──────────────────────────────────
-        //
-        // `Plain` is created FIRST so it holds the lower id. Same organic support, same
-        // marks, same index — so the only legitimate separator left is the deterministic
-        // id fallback, and `Plain` must win.
-        //
-        // A tiebreak on `vote_count` would put `Bought` first instead. The first version
-        // of this test asserted only `dead_heat`, which is computed from cpi and organic
-        // and is true either way: it claimed to prove money cannot decide an award and
-        // proved nothing. Restoring the old comparator left it green.
         $plain  = $this->nominee('Plain', 60, 0);
         $bought = $this->nominee('Bought', 60, 900);
         $this->scoreAll($j1, $plain, 8);  $this->scoreAll($j2, $plain, 8);
@@ -374,18 +380,67 @@ final class ResultReleaseTest extends TestCase
 
         $c = ResultRelease::category($this->categoryId);
 
-        $this->assertSame('Plain', $c['winner']['name'],
-            'purchased votes lifted a nominee above one the methodology cannot separate '
-            . 'them from — every guard upstream is decoration if this one gives way');
-        $this->assertTrue($c['dead_heat'],
-            'purchased votes separated two nominees the methodology cannot separate');
+        $this->assertSame('Bought', $c['winner']['name'],
+            'the larger tally did not take it — either the index or the tiebreak is still '
+            . 'reading the organic column, and the two now disagree');
+        // AND IT IS NOT A TIE AT ALL ANY MORE, which is the sharper half of the change.
+        // The bought votes are inside the index now, so the two never arrive at the same
+        // number and the comparator's tiebreak is never consulted: 960 of 960 is the full
+        // community weight and 60 of 960 is a sixteenth of it.
+        $this->assertFalse($c['dead_heat'],
+            'an award decided on the index was reported as an arbitrary id fallback');
+        $this->assertFalse($c['tie_broken_by_votes'],
+            'the screen says a tiebreak decided this, and no tie occurred');
+        $this->assertGreaterThan(0, $c['margin']);
 
-        // Both figures are on the screen, because they are different claims: one decided
-        // this and the other is what the public page shows.
+        // Both figures still travel with the row. The public pages print the tally and how
+        // much of it was organic side by side, and neither can be drawn without them.
         $by = [];
         foreach ($c['rows'] as $r) $by[$r['name']] = $r;
         $this->assertSame(60,  $by['Bought']['organic']);
         $this->assertSame(960, $by['Bought']['vote_count']);
+        $this->assertSame(960, $by['Bought']['votes'],
+            'the ranking figure is not the tally, so the comparator and the index can drift');
+    }
+
+    /**
+     * AND WHEN THE INDEX GENUINELY TIES, THE TALLY IS WHAT SEPARATES THEM.
+     *
+     * The CPI is an integer 0..1000, so two nominees a single vote apart round to the same
+     * number — ordinary rather than exotic in a category with a large leader. That is the
+     * only case where the comparator's second key is ever consulted, and it has to be the
+     * same measure the index counts.
+     *
+     * Constructed rather than approximated: with a cohort maximum of 1,000 and both marked
+     * 8/10, 1,000 votes gives (0.45 × 1.000 + 0.44) × 1000 = 890 and 999 gives
+     * (0.45 × 0.999 + 0.44) × 1000 = 889.55, which rounds to 890 as well.
+     */
+    public function test_a_real_index_tie_is_separated_by_the_tally(): void
+    {
+        $j1 = $this->judge('Ada Obi');
+        $j2 = $this->judge('Tunde Cole');
+
+        // TWO SEPARATORS ARE DISARMED HERE ON PURPOSE.
+        //
+        // `Fewer` is created first, so it holds the lower id — the comparator's last
+        // resort. And `Fewer`'s votes are all free while `More`'s are all bought, so a
+        // comparator that had quietly gone back to reading organic support would put
+        // `Fewer` first too. Without both, this fixture passes under a tiebreak that is
+        // not reading the tally at all; mutation confirmed exactly that.
+        $fewer = $this->nominee('Fewer', 999, 0);
+        $more  = $this->nominee('More', 0, 1000);
+        foreach ([$fewer, $more] as $n) { $this->scoreAll($j1, $n, 8); $this->scoreAll($j2, $n, 8); }
+
+        $c = ResultRelease::category($this->categoryId);
+
+        $this->assertSame($c['rows'][0]['cpi'], $c['rows'][1]['cpi'],
+            'the fixture no longer produces an index tie, so it pins nothing');
+        $this->assertSame('More', $c['winner']['name'],
+            'an index tie was separated by something other than the tally — the id '
+            . 'fallback, or the organic column the index no longer reads');
+        $this->assertTrue($c['tie_broken_by_votes']);
+        $this->assertFalse($c['dead_heat'],
+            'two nominees the tally CAN separate were reported as a dead heat');
     }
 
     // ══ it must not decide anything ══════════════════════════════════════════

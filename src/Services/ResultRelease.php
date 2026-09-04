@@ -120,6 +120,7 @@ final class ResultRelease
         foreach ($scores as $nid => $s) {
             $n         = $nominees[$nid] ?? null;
             $organic   = (int) ($n->organic_vote_count ?? 0);
+            $votes     = (int) ($s['vote_count'] ?? ($n->vote_count ?? 0));
             $cpi       = (int) ($s['cpi_score'] ?? 0);
             $cohortMax = max(1, (int) ($s['cohort_max'] ?? 1));
 
@@ -142,7 +143,10 @@ final class ResultRelease
             // against the COHORT MAXIMUM rather than against the votes cast: 2,650
             // organic is worth 247 points behind a leader on 4,820 and 450 points on its
             // own. The denominator is the whole explanation and it appeared nowhere.
-            $share = $cohortMax > 0 ? min(1.0, $organic / $cohortMax) : 0.0;
+            // THE FULL TALLY, matching the scorer. `$organic` is still carried below —
+            // every public surface shows how much of a total was bought — but it decides
+            // nothing now.
+            $share = $cohortMax > 0 ? min(1.0, $votes / $cohortMax) : 0.0;
             $cPart = $weights['community'] * $share * 1000;
 
             // The judge half takes the rounding, deliberately. `cpi_score` rounds the SUM
@@ -166,6 +170,11 @@ final class ResultRelease
                 // ranking and the tiebreak use; `vote_count` is what the public page
                 // shows, and it includes purchased support that must never move a rank.
                 'organic'     => $organic,
+                // WHAT THE RANKING READS. Named separately from `vote_count` so the
+                // comparator and the scorer cannot come to mean different things by
+                // "support" — they are the same figure and this is the name it carries
+                // through every ranking decision.
+                'votes'       => $votes,
                 'vote_count'  => (int) ($s['vote_count'] ?? 0),
                 'judge_score' => $s['judge_score'] ?? null,
                 'judges'      => (int) ($s['judges'] ?? 0),
@@ -191,7 +200,7 @@ final class ResultRelease
             // strong nominee the quorum excluded is visible rather than buried.
             if ($a['in_running'] !== $b['in_running']) return $a['in_running'] ? -1 : 1;
             if ($a['in_running']) return $a['rank'] <=> $b['rank'];
-            return [$b['cpi'], $b['organic']] <=> [$a['cpi'], $a['organic']];
+            return [$b['cpi'], $b['votes']] <=> [$a['cpi'], $a['votes']];
         });
 
         $winner   = $running[0] ?? null;
@@ -215,7 +224,7 @@ final class ResultRelease
 
         $scale = null;
         foreach ($rows as $r) {
-            if ($r['organic'] === $cohortMax) { $scale = $r; break; }
+            if ($r['votes'] === $cohortMax) { $scale = $r; break; }
         }
 
         // ── THE COMMUNITY HALF IS SWITCHED OFF FOR THIS WHOLE CATEGORY ───────
@@ -242,7 +251,7 @@ final class ResultRelease
         // on every category of a jury award forever, which is how an operator learns to
         // scroll past the box that matters.
         $dark = $rows !== [] && $weights['community'] > 0.0;
-        foreach ($rows as $r) { if ((int) $r['organic'] > 0) { $dark = false; break; } }
+        foreach ($rows as $r) { if ((int) $r['votes'] > 0) { $dark = false; break; } }
 
         return [
             'category'    => $cat,
@@ -280,7 +289,7 @@ final class ResultRelease
             // human has a log to read on a host with no shell.
             'dead_heat'   => (bool) ($winner && $runnerUp
                                      && $winner['cpi'] === $runnerUp['cpi']
-                                     && $winner['organic'] === $runnerUp['organic']),
+                                     && $winner['votes'] === $runnerUp['votes']),
             // ── THE INDEX TIED AND SOMETHING ELSE DECIDED IT ─────────────────
             //
             // Equal CPI with DIFFERENT organic support is not a dead heat — the comparator
@@ -288,13 +297,12 @@ final class ResultRelease
             // "first and second are 0 apart" beside a WINS badge and left the reader to
             // work out what broke a tie the page had just called exact.
             //
-            // The tiebreak is the platform's own argument: paid votes move `vote_count`
-            // and never `organic_vote_count`, so a tie falls to genuine support rather
-            // than to whoever bought more. That is worth SAYING at the one moment it
-            // decides an award, which is the only moment anybody will question it.
+            // The tiebreak is the same measure the index uses — the full tally. Worth
+            // SAYING at the one moment it decides an award, because that is the only
+            // moment anybody will question it.
             'tie_broken_by_votes' => (bool) ($winner && $runnerUp
                                      && $winner['cpi'] === $runnerUp['cpi']
-                                     && $winner['organic'] !== $runnerUp['organic']),
+                                     && $winner['votes'] !== $runnerUp['votes']),
             'blocked'     => $running === []
                 ? 'No nominee here meets the judge quorum, so this category crowns nobody '
                   . 'until somebody looks at it.'
@@ -306,25 +314,28 @@ final class ResultRelease
      * THE ORDER AN AWARD IS DECIDED IN. One comparator, used by the screen and the
      * promotion both.
      *
-     * ── WHY THE TIEBREAK IS ORGANIC ──────────────────────────────────────────
+     * ── WHY THE TIEBREAK IS THE FULL TALLY ───────────────────────────────────
      *
-     * The platform's whole promise is that money can make a nominee look popular and can
-     * never buy their Cultural Power Index. Paid and bonus votes move `vote_count` and are
-     * deliberately kept out of `organic_vote_count`. This tie broke on `vote_count` once,
-     * and at that single moment every guard upstream became decoration: two nominees on
-     * equal CPI, and whoever had bought votes took the award.
+     * Because that is what the index counts. This used to break on `organic_vote_count`
+     * while the CPI's community half read the same column, and the pair was consistent;
+     * the note here argued at length that breaking on `vote_count` would let money take an
+     * award the index had tied. Both halves of that argument moved together: the community
+     * half now reads the full tally, so a tiebreak on organic support would be the
+     * inconsistent one — a ranking decided on every vote, separated on a subset of them,
+     * with no way to explain to the nominee who lost why the two questions had different
+     * answers.
      *
-     * A real dead heat — same CPI, same organic support — falls to the lowest id so the
-     * promotion stays deterministic and idempotent. That is an arbitrary decision and it
-     * is reported as one rather than hidden inside a sort.
+     * A real dead heat — same CPI, same tally — falls to the lowest id so the promotion
+     * stays deterministic and idempotent. That is an arbitrary decision and it is reported
+     * as one rather than hidden inside a sort.
      *
      * @param array<string,mixed> $a
      * @param array<string,mixed> $b
      */
     public static function order(array $a, array $b): int
     {
-        return [$b['cpi'], $b['organic'], $a['nominee_id']]
-           <=> [$a['cpi'], $a['organic'], $b['nominee_id']];
+        return [$b['cpi'], $b['votes'], $a['nominee_id']]
+           <=> [$a['cpi'], $a['votes'], $b['nominee_id']];
     }
 
     /**
@@ -519,7 +530,7 @@ final class ResultRelease
             // this one needs a human, and a silent tiebreak is how it stops needing one.
             'dead_heat'  => $runnerUp !== null
                             && $winner['cpi'] === $runnerUp['cpi']
-                            && $winner['organic'] === $runnerUp['organic'],
+                            && $winner['votes'] === $runnerUp['votes'],
             'thinnest_field' => $thinnest,
         ];
     }

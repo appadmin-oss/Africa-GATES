@@ -257,26 +257,28 @@ final class CycleMaterialiser
      *
      * ── THE TIEBREAK IS PART OF THE METHODOLOGY, NOT AN IMPLEMENTATION DETAIL ──
      *
-     * The whole platform is built around one promise, printed in the README: money
-     * can make a nominee look popular, it can never buy their Cultural Power Index.
-     * Paid and bonus votes bump `vote_count` and are deliberately kept out of
-     * `organic_vote_count`, which is the only thing the community 45% is normalised
-     * over — PaidVoteService, BonusVoteService and PointsService each take care to
-     * write one and not the other.
+     * It is the full tally, because that is what the index counts. This note used to
+     * argue the opposite at length: the community half read `organic_vote_count` alone,
+     * so breaking a tie on `vote_count` let money take an award the index had tied, and
+     * every guard upstream became decoration at that one moment.
      *
-     * And then this method, at the single moment where all of that becomes an award,
-     * broke the tie on `vote_count`. CPI is an integer 0..1000, so ties are ordinary
-     * rather than exotic in a small category: two nominees on equal organic support
-     * with equal judge averages land on the same number. Whoever had bought votes
-     * then won the award, and every guard upstream was decoration.
+     * Both halves moved together. The community half now reads the full tally — every
+     * vote, free, bought or awarded — so a tiebreak on organic support would be the
+     * inconsistent one: a ranking decided on every vote and separated on a subset, with
+     * no answer for the nominee who lost about why the two questions differed.
      *
-     * So the tiebreak is organic too, and the eligibility filter with it: purchased
-     * votes must not make a nominee promotable either.
+     * WHY THAT CHANGED, since a future reader will otherwise assume it was a slip: a
+     * deployment may switch free voting off entirely (`paid_voting_disable_free`), and
+     * `VoteService::castVote()` is the ONLY code path that increments
+     * `organic_vote_count`. On such a deployment the column is permanently zero for
+     * everybody — so a community half normalised over it was permanently zero too, and
+     * the panel silently decided 100% of every award while every page said 45/55. The old
+     * rule did not protect a community vote there; it deleted one.
      *
-     * A REAL dead heat — same CPI, same organic votes — is resolved by lowest id so
-     * the promotion stays deterministic and idempotent, and is logged as the
-     * arbitrary decision it is. An award decided by an id is a thing an operator
-     * should be told about, not something to discover from the cron log's silence.
+     * A REAL dead heat — same CPI, same tally — is resolved by lowest id so the
+     * promotion stays deterministic and idempotent, and is logged as the arbitrary
+     * decision it is. An award decided by an id is a thing an operator should be told
+     * about, not something to discover from the cron log's silence.
      *
      * $announce=false promotes silently (stale backlog — see ANNOUNCE_GRACE_DAYS).
      */
@@ -338,25 +340,26 @@ final class CycleMaterialiser
                 continue;
             }
 
-            // ── AND THE COMMUNITY HALF HAS TO HAVE HAPPENED ──────────────────
+            // ── AND SOMEBODY HAS TO HAVE VOTED ──────────────────────────────
             //
-            // Not one nominee in this category holds a single organic vote, and the rules
-            // say the community is worth something. Every community half is therefore 0,
-            // the CPI is the judge mark alone scaled to whatever weight is left, and the
-            // award would be decided by the panel at a weight nobody agreed to.
+            // Not one nominee in this category holds a single vote of any kind, and the
+            // rules say the community is worth something. Every community half is
+            // therefore 0, the CPI is the judge mark alone scaled to whatever weight is
+            // left, and the award would be decided by the panel at a weight nobody agreed
+            // to.
             //
-            // That is not a theoretical objection. A live cycle ran with four nominees on
-            // 1,536, 1,955, 126 and 398 votes, organic zero on all four, and crowned the
-            // best-judged one over the second-most-voted one. The operator read the
-            // numbers off the screen and called it cheating, and they were right: the
-            // published methodology promises 45% community and this delivered 0%.
+            // NARROWER THAN IT WAS, AND THAT MATTERS. This guard originally fired when
+            // nobody held an ORGANIC vote — which was the right test while the index read
+            // that column, and became a platform-wide outage the moment it did not: a
+            // deployment with free voting switched off can never write
+            // `organic_vote_count`, so the old condition was permanently true and this
+            // would have refused to crown any category, ever, with a cron log nobody has a
+            // shell to read.
             //
-            // The commonest cause is not fraud, it is a stale counter — see
-            // {@see VoteRecount}, which is the repair and lives on the release screen. So
-            // this SKIPS rather than crowns, exactly as the quorum does above and for the
-            // same reason: a category the platform cannot score honestly needs a person,
-            // not a winner. Nothing is lost by waiting; a wrong award, once announced and
-            // emailed and posted, cannot be taken back.
+            // What is left is the honest case: an empty ballot. A category where nobody
+            // voted at all cannot be scored against a community weight, and it needs a
+            // person rather than a winner. Nothing is lost by waiting; a wrong award, once
+            // announced and emailed and posted, cannot be taken back.
             //
             // Weight-aware, because a jury prize whose public vote decides nothing is a
             // legitimate configuration: with `community_weight` at zero there is no
@@ -366,23 +369,28 @@ final class CycleMaterialiser
             // how a screen comes to promise something the cron does not do.
             if (ResultRelease::category((int) $catId, $scoring)['community_dark']) {
                 $this->log(sprintf(
-                    '    ! category %d: NOT ONE nominee has an organic vote and the rules '
+                    '    ! category %d: NOT ONE nominee has a single vote and the rules '
                     . 'weight the community above zero — the index would be the panel alone. '
-                    . 'Skipping promotion. Recount the category from the ballots on the '
-                    . 'release screen; if the votes are genuinely not organic, the award '
+                    . 'Skipping promotion. If nobody voted in this category, the award '
                     . 'needs a human.', (int) $catId));
                 continue;
             }
 
             $ranked = DB::table('gates_nominees')->whereIn('id', $eligibleIds)->get()
                 ->map(function ($n) use ($scores) {
-                    $n->cpi     = (int) ($scores[$n->id]['cpi_score'] ?? 0);
-                    $n->organic = (int) ($n->organic_vote_count ?? 0);
+                    $n->cpi   = (int) ($scores[$n->id]['cpi_score'] ?? 0);
+                    $n->votes = (int) ($n->vote_count ?? 0);
                     return $n;
                 })
-                // ORGANIC, not vote_count — see the note above. A nominee with nothing
-                // but purchased votes is not promotable.
-                ->filter(fn ($n) => $n->cpi > 0 || $n->organic > 0)
+                // THE FULL TALLY. This read `organic_vote_count` and the note here said a
+                // nominee with nothing but purchased votes is not promotable — which was
+                // consistent while the index excluded them and is not now. Left as it was,
+                // it would have excluded from promotion the very nominees the scorer had
+                // just ranked, and on a deployment where free voting is switched off
+                // (`paid_voting_disable_free`) that is EVERY nominee: nothing writes
+                // `organic_vote_count` there, so the filter would crown nobody, in any
+                // category, ever.
+                ->filter(fn ($n) => $n->cpi > 0 || $n->votes > 0)
                 // ── ONE COMPARATOR, SHARED WITH THE SCREEN THAT SHOWS IT ─────
                 //
                 // {@see ResultRelease::order()}. The release screen draws every scored
@@ -391,25 +399,26 @@ final class CycleMaterialiser
                 // between what an operator was shown before the release and what the
                 // release then did. That is worse than showing them nothing.
                 //
-                // The tiebreak is ORGANIC and the reasoning is in that method: this broke
-                // on `vote_count` once, and at that single moment whoever had bought votes
-                // took the award while every guard upstream became decoration.
+                // The tiebreak is the same tally the index counts, and the reasoning is in
+                // that method. It has to be the same measure as the ranking or a nominee
+                // who lost a tie cannot be told why the two questions had different
+                // answers.
                 ->sort(fn ($a, $b) => ResultRelease::order(
-                    ['cpi' => $a->cpi, 'organic' => $a->organic, 'nominee_id' => (int) $a->id],
-                    ['cpi' => $b->cpi, 'organic' => $b->organic, 'nominee_id' => (int) $b->id]))
+                    ['cpi' => $a->cpi, 'votes' => $a->votes, 'nominee_id' => (int) $a->id],
+                    ['cpi' => $b->cpi, 'votes' => $b->votes, 'nominee_id' => (int) $b->id]))
                 ->values();
             if ($ranked->isEmpty()) continue;
 
             $winner   = $ranked->shift();
             $runnerUp = $ranked->shift();
 
-            if ($runnerUp && $winner->cpi === $runnerUp->cpi && $winner->organic === $runnerUp->organic) {
+            if ($runnerUp && $winner->cpi === $runnerUp->cpi && $winner->votes === $runnerUp->votes) {
                 $this->log(sprintf(
-                    '    ! category %d: DEAD HEAT for first place — %s and %s both on CPI %d with %d organic '
+                    '    ! category %d: DEAD HEAT for first place — %s and %s both on CPI %d with %d '
                     . 'vote(s). The methodology cannot separate them, so the award went to the lower nominee '
                     . 'id (#%d) to keep the promotion deterministic. This one needs a human.',
                     (int) $catId, (string) $winner->name, (string) $runnerUp->name,
-                    (int) $winner->cpi, (int) $winner->organic, (int) $winner->id));
+                    (int) $winner->cpi, (int) $winner->votes, (int) $winner->id));
             }
 
             // Demote any prior winners/runners in this category that aren't the new picks.
@@ -422,11 +431,13 @@ final class CycleMaterialiser
                 if (!$nom || $nom->status === $kind) continue;
                 DB::table('gates_nominees')->where('id', $nom->id)->update(['status' => $kind]);
                 CycleAnnouncer::record((int) $nom->id, $kind, $announce);
-                // Both numbers, because they are different claims: `organic` is what
-                // decided this, `vote_count` is what the public page shows.
-                $this->log(sprintf('    %s %s: %s (cat %d, CPI %d, %d organic of %d shown)%s',
+                // Both numbers, because they are still different claims: `vote_count` is
+                // what decided this AND what the public page shows, and `organic` is how
+                // much of it was not bought — which nothing ranks on any more but which an
+                // operator reading a promotion log still needs to see.
+                $this->log(sprintf('    %s %s: %s (cat %d, CPI %d, %d votes of which %d organic)%s',
                     $glyph, $kind, (string) $nom->name, (int) $catId,
-                    (int) $nom->cpi, (int) $nom->organic, (int) $nom->vote_count,
+                    (int) $nom->cpi, (int) $nom->vote_count, (int) ($nom->organic_vote_count ?? 0),
                     $announce ? '' : ' [silent]'));
                 $promoted++;
             }

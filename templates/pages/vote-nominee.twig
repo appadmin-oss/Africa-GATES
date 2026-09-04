@@ -383,9 +383,10 @@
         {% if n.organic_vote_count is defined and n.organic_vote_count is not null
               and n.vote_count > n.organic_vote_count %}
           <p class="vn-vsplit">{{ n.organic_vote_count|number_format }} of those are organic —
-            free, one per verified person — and the organic count is the only one the
-            Cultural Power Index reads. The rest were bought or awarded; they show here and
-            never move a rank. <a href="/integrity">Why</a>.</p>
+            free, one per verified person — and the rest were bought or awarded against a
+            contribution. Every one of them counts the same toward this nominee’s Cultural
+            Power Index; the split is published so you can see what their support is made
+            of. <a href="/integrity">How the index works</a>.</p>
         {% endif %}
 
         {# ── WHAT WE PUT ON THIS TALLY OURSELVES ─────────────────────────────

@@ -205,7 +205,7 @@
     <section class="rs-sec">
       <h2>The standing</h2>
       <p class="rs-lead">Every nominee who scored, in the order the award was decided.
-        Each index is the two halves added: community support scaled against this
+        Each index is the two halves added: every vote a nominee holds, scaled against this
         category’s most-supported nominee, and the panel’s average mark out of ten.</p>
 
       {% for row in r.rows %}
@@ -265,10 +265,10 @@
         {# Named on its own, not folded into the line above. The whole point is that this
            number exists and is excluded — a figure the reader has to subtract for
            themselves has not been disclosed, it has been mentioned. #}
-        <div class="rs-cell"><dt>Of those, counted</dt>
-          <dd>{{ r.votes.organic|number_format }} organic</dd></div>
+        <div class="rs-cell"><dt>Of those, organic</dt>
+          <dd>{{ r.votes.organic|number_format }}</dd></div>
         <div class="rs-cell"><dt>Community denominator</dt>
-          <dd>{% if r.cohort_max > 0 %}{{ r.cohort_max|number_format }} organic{% else %}—{% endif %}</dd></div>
+          <dd>{% if r.cohort_max > 0 %}{{ r.cohort_max|number_format }} votes{% else %}—{% endif %}</dd></div>
         <div class="rs-cell"><dt>Scale set by</dt>
           <dd>{{ r.scale_set_by ?: '—' }}</dd></div>
       </dl>
@@ -285,24 +285,38 @@
         conclude the number was revised down where the award was decided, which is the
         single worst thing this page could be mistaken for.
       #}
-      <h3 class="rs-h3">Two kinds of vote, and only one of them counts</h3>
+      <h3 class="rs-h3">Two kinds of vote, and both of them count</h3>
       <p class="rs-note">
-        <strong>Votes cast</strong> is every vote a nominee received, and it is the number
-        their vote page shows — {{ r.votes.cast|number_format }} across this category.
+        <strong>Votes cast</strong> is every vote a nominee received —
+        {{ r.votes.cast|number_format }} across this category — and every one of them counts
+        toward the community {{ cpct }}% the same amount, whether it was free or paid for.
         <strong>Organic</strong> is the part that came from a verified person voting free,
-        one vote per category, and it is the only part the index reads:
-        {{ r.votes.organic|number_format }} here.
+        one vote per category: {{ r.votes.organic|number_format }} here.
         {% if r.votes.bought > 0 %}The remaining {{ r.votes.bought|number_format }} were
-        bought in a pack or awarded as a bonus against a contribution. They are added to the
-        public tally and held in a separate column the scorer never reads.{% else %}No vote
-        in this category was bought or awarded — the two figures are the same.{% endif %}
+        bought in a pack or awarded as a bonus against a contribution.{% else %}No vote in
+        this category was bought or awarded — the two figures are the same.{% endif %}
       </p>
-      <p class="rs-note">Money can make a nominee look more popular here. It cannot make
-        them win, and that is enforced in three places rather than promised in one:
-        purchased votes are excluded from the index, they are excluded from the tiebreak
-        (so the closest possible race is decided by people rather than by spending), and
-        they are capped at {{ r.paid_cap_pct }}% of the organic support a nominee has already
-        earned. <a href="/integrity">How that is enforced and audited</a>.</p>
+      {#
+        THE HONEST SENTENCE, AND IT IS NOT A COMFORTABLE ONE.
+
+        This page previously said money "cannot make them win". That was true while the
+        index read organic votes alone — and on a deployment with free voting switched off
+        it was true in the worst possible way: nothing could ever write the organic
+        counter, so the community half was structurally zero for everybody and the panel
+        decided 100% of every award while this page said 45/55.
+
+        The index counts every vote now. Saying so plainly, in the place a reader is
+        already looking at the numbers, is the only version of this that survives somebody
+        checking. A platform that quietly counts purchased votes while its own pages deny
+        it is in a worse position than one that never made the promise.
+      #}
+      <p class="rs-note"><strong>Buying votes does help.</strong> There is no ceiling on how
+        many a campaign may buy, and no discount on what they are worth, so a well-funded
+        nominee can hold the largest community share in their category. What money does not
+        reach is the judging {{ jpct }}%: the panel scores against a published rubric and
+        never sees a vote count, a contribution, or who paid for what. And it does not hide
+        — this page prints every nominee’s tally beside how much of it was bought.
+        <a href="/integrity">How the whole index is put together</a>.</p>
 
       {#
         The denominator IS the explanation, and it is the step nobody could take from the
@@ -310,10 +324,10 @@
         points on its own. Stating the figure without saying what it does leaves a reader
         exactly where they started.
       #}
-      <p class="rs-note">A nominee’s community half is their organic votes as a share of the
+      <p class="rs-note">A nominee’s community half is their votes as a share of the
         most-supported nominee in this category — so the leader’s share is the full
         {{ cpct }}%, and everybody else is measured against them rather than against the
-        total votes cast.
+        total cast.
         {% if r.shortlisted is not null %}The field is this category’s published shortlist.{% endif %}</p>
     </section>
 

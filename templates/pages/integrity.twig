@@ -72,7 +72,7 @@
   },
   {
     q: 'Can you buy votes to win an Africa GATES award?',
-    a: 'No. Contributions add to a nominee’s public tally but are held in a separate column the scorer never reads, they cannot break a tie, and they are capped at ' ~ paid_cap_pct|default(50) ~ '% of the organic support a nominee has earned. Money can make a nominee look more popular; it cannot make them win.'
+    a: 'Yes. Every vote counts toward the Cultural Power Index the same amount, whether it was free or bought — and there is no ceiling, so a nominee whose supporters buy more votes than anybody else will hold the largest community share in their category. The index also carries a judging half (' ~ judge_pct|default(55) ~ '%) that no purchase reaches: judges never see a nominee’s vote count. Both figures are published on every result — the full tally, and how much of it was bought — so anybody can see what a nominee’s support was made of.'
   },
   {
     q: 'Why might the nominee with the most votes not win?',
@@ -105,7 +105,7 @@
   { id: 'score',    title: 'The score' },
   { id: 'eligible', title: 'Who can actually win' },
   { id: 'criteria', title: 'What judges score' },
-  { id: 'money',    title: 'What money can and cannot do' },
+  { id: 'money',    title: 'What money does, and what it cannot reach' },
   { id: 'return',   title: 'The community return' },
   { id: 'honest',   title: 'Keeping the count honest' },
   { id: 'failures', title: 'When a payment goes wrong' },
@@ -171,9 +171,11 @@
                 <th scope="row">Community votes</th>
                 <td class="ar-num">{{ community_pct|default(45) }}%</td>
                 <td>Normalised <strong>within each category</strong>, against that category’s strongest
-                    vote count — so a nominee in a small field is not punished for being in one. Only
-                    organic, code-verified votes count here; contribution bonus votes never enter
-                    this number.</td>
+                    vote count — so a nominee in a small field is not punished for being in one.
+                    <strong>Every vote counts</strong>: free votes cast by a verified person, votes
+                    bought in a pack, and votes awarded as a bonus against a contribution, added
+                    together. How much of a nominee’s tally was bought is published beside it on
+                    every result.</td>
               </tr>
               <tr>
                 <th scope="row">Judge panel</th>
@@ -232,7 +234,7 @@
           <span>Further reading</span>
           <ul>
             <li><a href="/help/why-the-leader-may-not-be-eligible-to-win">Why the vote leader may not be eligible</a> — quorum, complete cards and recusal, in detail.</li>
-            <li><a href="/help/what-happens-if-two-nominees-tie">What happens if two nominees tie</a> — the tiebreak is organic votes, never money.</li>
+            <li><a href="/help/what-happens-if-two-nominees-tie">What happens if two nominees tie</a> — the tiebreak is the vote tally, the same votes the index counts.</li>
           </ul>
         </div>
       </section>
@@ -281,47 +283,60 @@
          the site. A promise nobody can see is not a promise anybody can hold us
          to. #}
       <section class="ar-sec" id="money" data-ag-reveal>
-        <h3><span class="ar-sn">05</span>What a contribution can — and cannot — do</h3>
+        <h3><span class="ar-sn">05</span>What a contribution does, and what it cannot reach</h3>
         <p>Supporters can contribute to the programme in a nominee’s name, and each contribution
-           adds to that nominee’s public tally. The money keeps the awards running — the panel, the
+           adds votes to that nominee’s tally. The money keeps the awards running — the panel, the
            verification work, the platform itself. It is fair to ask what it actually buys, and the
-           honest answer is: visibility, never rank.</p>
+           honest answer is: <strong>it buys community support, and community support is
+           {{ community_pct|default(45) }}% of the index.</strong> It buys nothing on the other
+           {{ judge_pct|default(55) }}%, and it buys no privacy — every purchased vote is published
+           as a purchased vote.</p>
 
         <div class="ar-cols">
           <div class="ar-cols--can">
             <h4>What a contribution does</h4>
             <ul class="ar-list">
-              <li>Adds to the nominee’s <strong>public tally</strong> — the number shown on their page and on the leaderboard.</li>
+              <li>Adds to the nominee’s <strong>tally</strong> — the number on their page, on the leaderboard, and in the community half of their index.</li>
+              <li><strong>Counts toward the ranking.</strong> Every vote is worth the same, whether it was free or bought, and there is no ceiling on how many a campaign may buy.</li>
               <li>Puts the supporter’s name on the nominee’s supporters list, if they chose to be named.</li>
               <li>Sets aside a share for the nominee themselves, once they qualify — see <a href="#return">the community return</a>.</li>
               <li>Funds the judging panel, the verification work and running the programme.</li>
             </ul>
           </div>
           <div class="ar-cols--cannot">
-            <h4>What it does not do</h4>
+            <h4>What it cannot reach</h4>
             <ul class="ar-list">
-              <li>It <strong>does not move the Cultural Power Index</strong>. The {{ community_pct|default(45) }}%
-                  community share is normalised over organic, code-verified votes only. Purchased votes
-                  live in a separate column the scorer never reads.</li>
-              <li>It <strong>does not break a tie</strong>. When two nominees finish level, the tiebreak
-                  is organic votes — one verified supporter outranks any number of purchased ones.</li>
-              <li>It is <strong>capped</strong>: purchased votes on a nominee cannot exceed
-                  {{ paid_cap_pct|default(50) }}% of the organic support they have earned, so money can
-                  amplify a real following and cannot manufacture one.</li>
+              <li>It <strong>reaches none of the judging half</strong> — {{ judge_pct|default(55) }}% of
+                  the index. A panel scores each nominee against a published rubric and cannot see a
+                  vote count, a contribution, or who paid for what.</li>
               <li>It <strong>buys no consideration from a judge</strong>, who cannot see it.</li>
+              <li>It <strong>is not hidden</strong>. Every result publishes the full tally and how much
+                  of it was bought, per nominee, beside the index it produced.</li>
+              <li>A <strong>contribution</strong> mints bonus votes against a ceiling — no more than
+                  {{ paid_cap_pct|default(50) }}% of the organic support a nominee has already earned.
+                  That ceiling applies to contributions only; <strong>vote packs bought on the ballot
+                  have no such limit</strong>, and we would rather name that difference than let it be
+                  discovered.</li>
+              <li>It <strong>does not survive a refund</strong>. A reversed contribution takes its
+                  votes back out of the tally, and the index is recomputed.</li>
             </ul>
           </div>
         </div>
 
-        <p>Put plainly: money can make a nominee <em>look</em> more popular. It cannot make them win.
-           If that ever stops being true, this page is wrong and we want to hear about it — the
-           numbers above are read from the live scoring configuration, not typed in by hand.</p>
+        <p>Put plainly: <strong>buying votes does help a nominee win, and we say so here rather
+           than let anybody find out from the numbers.</strong> The community
+           {{ community_pct|default(45) }}% counts every vote equally and has no ceiling, so a
+           well-funded campaign can lead its category on spending. What money cannot do is reach the
+           judging {{ judge_pct|default(55) }}%, and what it cannot do is hide: every result page
+           publishes each nominee’s full tally and how much of it was bought, side by side.
+           If any of that ever stops being true, this page is wrong and we want to hear about it —
+           the numbers above are read from the live scoring configuration, not typed in by hand.</p>
 
         <div class="ar-refs">
           <span>Further reading</span>
           <ul>
-            <li><a href="/help/what-paid-votes-do">What paid votes actually do</a> — price, ceiling, and what they are excluded from.</li>
-            <li><a href="/help/how-free-voting-works">How free voting works</a> — the vote that does move the score.</li>
+            <li><a href="/help/what-paid-votes-do">What paid votes actually do</a> — price, how they count, and the half of the index they cannot reach.</li>
+            <li><a href="/help/how-free-voting-works">How free voting works</a> — the free vote, the code, and one per person per category.</li>
           </ul>
         </div>
       </section>

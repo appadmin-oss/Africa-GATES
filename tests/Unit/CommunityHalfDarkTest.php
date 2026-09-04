@@ -113,23 +113,37 @@ final class CommunityHalfDarkTest extends TestCase
      * the consequence. The consequence is that the weighting printed at the top of the
      * category is not the weighting being applied to it.
      */
-    public function test_a_category_with_no_organic_votes_is_reported_as_such(): void
+    /**
+     * THE LIVE CYCLE SCORES CORRECTLY NOW, AND THAT IS THE WHOLE FIX.
+     *
+     * Same fixture, opposite assertion. These four nominees held 1,536 / 1,955 / 126 / 398
+     * votes with an organic count of zero on every one of them — because the deployment
+     * had free voting switched off, and `VoteService::castVote()` is the only code path
+     * that increments `organic_vote_count`. A community half normalised over that column
+     * was therefore structurally zero for everybody, forever, while every page said 45/55.
+     *
+     * The index counts the tally now, so the votes that were always there are worth
+     * something, and the caveat this file was written to raise no longer applies.
+     */
+    public function test_the_live_cycle_now_scores_the_votes_that_were_always_there(): void
     {
         $this->theLiveCycle();
 
         $c = ResultRelease::category($this->categoryId);
 
-        $this->assertTrue($c['community_dark'],
-            'the community half is zero for the whole field and the release says nothing');
+        $this->assertFalse($c['community_dark'],
+            'the field holds thousands of votes and the community half still reads as dark');
 
-        // And the consequence is real: every community half is nought while the rules still
-        // say the community is worth 45% of the index.
-        foreach ($c['rows'] as $r) {
-            $this->assertSame(0, $r['community_points'],
-                $r['name'] . ' has community points from nowhere');
-        }
-        $this->assertGreaterThan(0, $c['weights']['community'],
-            'the fixture no longer shows a weighting being stated and not applied');
+        // The leader takes the full community weight and everybody else a real share of it.
+        $by = [];
+        foreach ($c['rows'] as $r) $by[$r['name']] = $r;
+
+        $this->assertSame(450, $by['Ajayi Temitope Oluwarotimi']['community_points'],
+            'the most-voted nominee does not hold the whole community weight');
+        $this->assertGreaterThan(0, $by['Mrs Makinde Adejumoke']['community_points'],
+            'the least-voted nominee scores nothing from 126 votes');
+        $this->assertSame(1955, $c['cohort_max']);
+        $this->assertSame('Ajayi Temitope Oluwarotimi', $c['scale_set_by']);
     }
 
     /**
@@ -140,17 +154,31 @@ final class CommunityHalfDarkTest extends TestCase
      * quietly reintroducing vote_count into the ranking — purchased support must never move
      * a rank, and that rule is not what went wrong here.
      */
-    public function test_the_most_voted_nominee_loses_and_it_is_the_panel_that_did_it(): void
+    /**
+     * AND THE MOST-VOTED NOMINEE TAKES IT.
+     *
+     * This is the assertion the operator was owed. On the same numbers, the platform used
+     * to crown the best-JUDGED nominee — 8.0 against 7.9 — over the one with 419 more
+     * votes, because every community half was zero and the panel was deciding the whole
+     * index alone at a weight nobody had agreed to. It reversed on a tenth of a mark.
+     */
+    public function test_the_most_voted_nominee_now_takes_the_award(): void
     {
         $this->theLiveCycle();
 
         $c = ResultRelease::category($this->categoryId);
 
-        $this->assertSame('Dr. Adegboyega Aborode', $c['winner']['name']);
-        $this->assertSame('Ajayi Temitope Oluwarotimi', $c['runner_up']['name']);
-        $this->assertGreaterThan($c['winner']['organic'], $c['runner_up']['organic'] + 1955,
-            'the fixture no longer has the more-supported nominee placing second');
-        $this->assertTrue($c['community_dark']);
+        $this->assertSame('Ajayi Temitope Oluwarotimi', $c['winner']['name'],
+            'the nominee with the most votes lost to a tenth of a judge mark again');
+        $this->assertSame('Dr. Adegboyega Aborode', $c['runner_up']['name']);
+        $this->assertFalse($c['community_dark']);
+
+        // And the panel is still in the index — the winner has judge points, and the
+        // runner-up's higher mark is still worth something. Counting every vote must not
+        // quietly become counting only votes.
+        $this->assertGreaterThan(0, $c['winner']['judge_points']);
+        $this->assertGreaterThan($c['winner']['judge_points'], $c['runner_up']['judge_points'],
+            'the better-judged nominee no longer scores better on the judge half');
     }
 
     /** With organic votes present it is an ordinary category and says nothing. */
@@ -172,23 +200,22 @@ final class CommunityHalfDarkTest extends TestCase
     // ══ and the award is not handed out ══════════════════════════════════════
 
     /**
-     * THE PROMOTION REFUSES TO CROWN ANYBODY.
+     * AN EMPTY BALLOT STILL CROWNS NOBODY.
      *
-     * This is the fault the operator called cheating, at the one moment it becomes
-     * irreversible. Everything above makes the missing half VISIBLE; a caveat on a screen
-     * nobody is looking at when the 06:00 cron runs does not stop the award. The winner is
-     * promoted, the congratulations email goes out, the supporters are celebrated, and the
-     * activity feed broadcasts it — on an index the panel decided alone at whatever weight
-     * was left, while the published methodology promised 45% community.
+     * This guard originally fired when nobody held an ORGANIC vote — right while the index
+     * read that column, and a platform-wide outage the moment it did not: on a deployment
+     * with free voting switched off, nothing can ever write `organic_vote_count`, so the
+     * condition was permanently true and the promotion would have refused every category,
+     * forever, with a cron log nobody has a shell to read.
      *
-     * So the category is skipped, the same shape as the quorum skip beside it. Nothing is
-     * lost by waiting: a recount may put the half back, and the release screen offers it.
-     * A wrong award, once emailed, cannot be taken back.
+     * What is left is the honest case. Nobody voted at all, the rules weight the community
+     * above zero, and the index would be the panel alone at a weight nobody agreed to.
+     * That still needs a person rather than a winner.
      */
-    public function test_a_category_with_no_organic_votes_anywhere_crowns_nobody(): void
+    public function test_a_category_where_nobody_voted_at_all_crowns_nobody(): void
     {
-        $a = $this->nominee('Dr. Adegboyega Aborode', 1536, 0);
-        $b = $this->nominee('Ajayi Temitope Oluwarotimi', 1955, 0);
+        $a = $this->nominee('Dr. Adegboyega Aborode', 0, 0);
+        $b = $this->nominee('Ajayi Temitope Oluwarotimi', 0, 0);
         $this->panel($a, 8.0);
         $this->panel($b, 7.9);
 
@@ -200,6 +227,28 @@ final class CommunityHalfDarkTest extends TestCase
 
         $this->assertSame(['approved', 'approved'], $statuses,
             'an award was handed out on an index the panel decided alone');
+    }
+
+    /**
+     * AND A CATEGORY WHERE EVERY VOTE WAS BOUGHT IS CROWNED.
+     *
+     * The distinguishing case, and the one that would have frozen the platform. These are
+     * the live cycle's own numbers: real votes, zero of them organic, because free voting
+     * is switched off. Under the old rule this category was indistinguishable from an
+     * empty ballot and was refused. It is a decided award.
+     */
+    public function test_a_category_whose_votes_were_all_bought_is_still_crowned(): void
+    {
+        $this->theLiveCycle();
+
+        (new \ReflectionMethod(\AfricaGates\Services\CycleMaterialiser::class, 'promoteWinners'))
+            ->invoke(new \AfricaGates\Services\CycleMaterialiser(), $this->cycleId, false);
+
+        $this->assertSame('winner', (string) DB::table('gates_nominees')
+            ->where('name', 'Ajayi Temitope Oluwarotimi')->value('status'),
+            'a category with thousands of votes crowned nobody — the dark-half guard is '
+            . 'reading the organic column again, and on a paid-voting-only deployment that '
+            . 'refuses every award forever');
     }
 
     /**

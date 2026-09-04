@@ -266,22 +266,28 @@ final class HelpCentre
             'slug' => 'what-paid-votes-do',
             'cat'  => 'payments',
             'title' => 'What do paid votes actually do?',
-            'summary' => 'They show public support. They cannot move a ranking or pick a winner.',
+            'summary' => 'They count toward the ranking, exactly like a free vote — and every '
+                       . 'result publishes how much of a tally was bought.',
             'keywords' => ['buy votes', 'paid votes', 'price', 'cost', 'how much', 'bulk votes',
                            'do paid votes count', 'is it fair'],
             'body' => [
-                ['p' => 'A paid vote adds to a nominee\'s <strong>visible support total</strong>. It is a '
-                      . 'way to back someone publicly, and it funds the programme.'],
-                ['p' => 'It is deliberately excluded from the Cultural Power Index — the score that '
-                      . 'decides rank and winners. That number is built from free, verified community '
-                      . 'votes and independent jury scoring only. Money is visible and money is welcome; '
-                      . 'money does not buy a result.'],
-                ['p' => 'There is also a ceiling on how much paid support one nominee can show relative to '
-                      . 'their organic backing — currently {paid_cap_pct}% — so a large purchase cannot '
-                      . 'drown out a genuine following.'],
-                ['p' => 'And where a race is closest, money is consulted least: a tie is broken on free '
-                      . 'votes. See <a href="/help/what-happens-if-two-nominees-tie">what happens if two '
-                      . 'nominees finish level</a>.'],
+                ['p' => 'A paid vote adds to a nominee\'s <strong>vote tally</strong>, and that tally is '
+                      . 'what the community share of the Cultural Power Index is built from. So yes: a '
+                      . 'paid vote counts toward the ranking, exactly as much as a free one.'],
+                ['p' => 'There is no ceiling on how many a campaign may buy, so a well-funded nominee can '
+                      . 'hold the largest community share in their category. We would rather say that '
+                      . 'here than have you work it out from the numbers.'],
+                ['p' => 'What money does not reach is the other half of the index. An independent panel '
+                      . 'scores each nominee against a published rubric and never sees a vote count, a '
+                      . 'contribution, or who paid for what — see '
+                      . '<a href="/help/how-cpi-works">how the index is put together</a>.'],
+                ['p' => 'And it does not hide. Every result page publishes each nominee\'s full tally '
+                      . 'beside how much of it was organic — free, one per verified person — so anybody '
+                      . 'can see what a nominee\'s support was made of before they decide what it means.'],
+                ['p' => 'One difference worth naming: <strong>contributions</strong> made in a nominee\'s '
+                      . 'name mint bonus votes against a ceiling — no more than {paid_cap_pct}% of the '
+                      . 'organic support that nominee has already earned. Vote packs bought on the ballot '
+                      . 'have no such ceiling.'],
                 ['note' => 'One vote costs ₦{price}, with discounts on larger bundles, and a single order '
                          . 'can carry up to {max_qty} votes. Current prices are always on the ballot.'],
             ],
@@ -676,21 +682,19 @@ final class HelpCentre
             'slug' => 'what-happens-if-two-nominees-tie',
             'cat'  => 'results',
             'title' => 'What happens if two nominees finish level',
-            'summary' => 'The tiebreak is organic votes — never money.',
+            'summary' => 'The tiebreak is the vote tally — the same votes the index counts.',
             'keywords' => ['tie', 'tied', 'same score', 'draw', 'dead heat', 'tiebreak', 'tie breaker',
                            'level', 'both had the same', 'joint winner'],
             'body' => [
                 ['p' => 'When two nominees finish a category on the same index score, the tie is broken by '
-                      . '<strong>organic votes</strong> — the free, code-verified ones. Contributions are '
-                      . 'not consulted, so the closest possible race is decided by people rather than by '
-                      . 'whoever was willing to spend more at the end of it.'],
-                ['p' => 'This is worth stating plainly because the tempting alternative is the wrong one. '
-                      . 'A tiebreak on the public tally would have quietly reintroduced pay-to-win at the '
-                      . 'exact moment it mattered most: when everything else was equal, money would have '
-                      . 'been the deciding factor.'],
-                ['note' => 'If two nominees are level on the index <em>and</em> level on organic votes, '
-                         . 'the result is recorded as a dead heat and escalated to the integrity team '
-                         . 'rather than settled by an arbitrary rule such as who registered first.'],
+                      . 'the <strong>vote tally</strong> — every vote either of them holds, free or paid, '
+                      . 'which is exactly what the index itself counts.'],
+                ['p' => 'It has to be the same measure. A ranking decided on every vote but separated on '
+                      . 'a subset of them would leave the nominee who lost with no answer about why the '
+                      . 'two questions had different answers.'],
+                ['note' => 'If two nominees are level on the index <em>and</em> level on the tally, the '
+                         . 'result is recorded as a dead heat and escalated to the integrity team rather '
+                         . 'than settled by an arbitrary rule such as who registered first.'],
             ],
             'related' => ['what-paid-votes-do', 'how-cpi-works', 'why-the-leader-may-not-be-eligible-to-win'],
         ],
