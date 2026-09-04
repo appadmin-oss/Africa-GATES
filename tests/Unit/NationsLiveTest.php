@@ -150,6 +150,20 @@ final class NationsLiveTest extends TestCase
         $this->assertSame(['NG'], NationsLive::codes());
     }
 
+    /**
+     * PHP source with its comments blanked.
+     *
+     * Not tidiness. The note explaining a removed sentence quotes that sentence, so a scan
+     * that reads comments reports the fix as the fault — which is what the first run of the
+     * sweep below did, in two separate files.
+     */
+    private static function code(string $path): string
+    {
+        return (string) preg_replace(
+            ['~/\*.*?\*/~s', '~(?<!:)//[^\n]*~'], ' ',
+            (string) file_get_contents($path));
+    }
+
     // ══ and something reads it ═══════════════════════════════════════════════
 
     /**
@@ -169,17 +183,26 @@ final class NationsLiveTest extends TestCase
                 $f . ' still has the nation typed into it');
         }
 
-        // COMMENTS STRIPPED, and the first run of this scan is why: the note explaining
-        // the fix quotes the sentence it removed, so the test reported the fix as the
-        // fault. That is the fourth time a scanner in this repository has been fooled by
-        // the comment describing the bug it was written to find.
-        $guide = (string) preg_replace(
-            ['~/\*.*?\*/~s', '~(?<!:)//[^\n]*~'], ' ',
-            (string) file_get_contents($root . '/src/Services/GuideService.php'));
+        // COMMENTS STRIPPED, and the first two runs of this scan are why: the note
+        // explaining each fix quotes the sentence it removed, so the test reported the fix
+        // as the fault — twice, in two different files. That is the fifth time a scanner in
+        // this repository has been fooled by the comment describing the bug it was written
+        // to find, which is why the stripping now lives in one helper rather than being
+        // remembered at each call.
+        //
+        // The banner's DEFAULT was the fourth copy of this sentence and the last one found.
+        // It sat behind the operator's own setting, which is exactly why the first sweep
+        // missed it: nothing renders it on a deployment that has written its own banner, and
+        // every deployment that has not was stating a fact nobody was going to update.
+        foreach (['config/container.php'          => 'the announcement banner default',
+                  'src/Services/GuideService.php' => 'the guide that explains the platform',
+                 ] as $file => $what) {
+            $src = self::code($root . '/' . $file);
 
-        $this->assertStringNotContainsString('live in Nigeria, building toward 54', $guide,
-            'the one place that explains the platform to people still has it typed in');
-        $this->assertStringContainsString('NationsLive::phrase()', $guide,
-            'the guide states which nations GATES is live in without asking');
+            $this->assertStringNotContainsString('live in Nigeria, building toward', $src,
+                $what . ' still has the nation typed into it');
+            $this->assertStringContainsString('NationsLive::phrase()', $src,
+                $what . ' states which nations GATES is live in without asking');
+        }
     }
 }

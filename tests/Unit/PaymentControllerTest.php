@@ -43,7 +43,13 @@ class PaymentControllerTest extends TestCase
             public function isKnownProvider(string $provider): bool {
                 return in_array($provider, ['paystack','flutterwave'], true);
             }
-            public function initialize(string $provider, int $amountNaira, string $email, string $reference, string $callbackUrl, array $meta = []): array {
+            // `$planCode` mirrors the parent's signature, which grew it when monthly giving
+            // arrived. A stub that drops a parameter the parent has is a fatal
+            // incompatibility, not a looser contract — and it is recorded here so the plan
+            // reaches assertions rather than being silently dropped by the double.
+            public string $sawPlan = '';
+            public function initialize(string $provider, int $amountNaira, string $email, string $reference, string $callbackUrl, array $meta = [], string $planCode = ''): array {
+                $this->sawPlan = $planCode;
                 return $this->opts['init'] ?? ['ok' => true, 'checkout_url' => 'https://checkout.paystack.com/' . $reference, 'message' => 'ok'];
             }
             public function verify(string $provider, string $reference): array {
@@ -285,6 +291,141 @@ class PaymentControllerTest extends TestCase
 
         $this->assertSame(200, $res->getStatusCode());
         $this->assertSame('confirmed', DB::table('gates_donations')->where('payment_ref', 'AFG-wh')->value('status'));
+    }
+
+    // ── monthly giving: the deliveries that carry no reference of ours ──────
+
+    private function signed(array $payload): \Psr\Http\Message\ServerRequestInterface
+    {
+        $raw = (string) json_encode($payload);
+
+        return $this->webhookReq($raw, [
+            'x-paystack-signature' => hash_hmac('sha512', $raw, $_ENV['PAYSTACK_SECRET_KEY']),
+        ]);
+    }
+
+    /**
+     * `subscription.create` carries a subscription code and an email token and NO reference.
+     *
+     * Run through the ordinary confirmation path it matches nothing, logs `unmatched`, and
+     * the platform never learns the two values Paystack requires together to stop the
+     * subscription — leaving a donor who wants out with nowhere to go but their bank.
+     */
+    public function test_webhook_records_a_new_subscription(): void
+    {
+        \AfricaGates\Services\RecurringGiving::start('amara@example.test', 'Amara Okonkwo',
+                                                      5000, 'PLN_x', 'AFG-sub1');
+
+        $res = $this->controller($this->stubPayments())->webhook($this->signed([
+            'event' => 'subscription.create',
+            'data'  => [
+                'subscription_code' => 'SUB_live',
+                'email_token'       => 'tok_live',
+                'next_payment_date' => '2026-10-04T09:00:00.000Z',
+                // KOBO, as Paystack quotes a plan everywhere.
+                'plan'     => ['plan_code' => 'PLN_x', 'amount' => 500000],
+                'customer' => ['email' => 'amara@example.test', 'customer_code' => 'CUS_1'],
+                'metadata' => ['reference' => 'AFG-sub1'],
+            ],
+        ]), new Response());
+
+        $this->assertSame(200, $res->getStatusCode());
+
+        $row = DB::table('gates_donation_subscriptions')->where('first_ref', 'AFG-sub1')->first();
+        $this->assertSame('active', (string) $row->status);
+        $this->assertSame('SUB_live', (string) $row->subscription_code);
+        $this->assertSame('tok_live', (string) $row->email_token,
+            'without the email token the donor cannot be given a working stop button');
+    }
+
+    /**
+     * THE SECOND MONTH. A recurring charge arrives with a reference PAYSTACK generated.
+     *
+     * This is exactly where it used to stop: no matching row, logged `unmatched`,
+     * acknowledged with a 200. The money kept arriving in the bank and the platform's own
+     * total stopped moving after month one.
+     *
+     * Note what identifies it: the PLAN and the payer. Paystack's `charge.success` for an
+     * instalment carries the plan object and the customer, and leaves the subscription code
+     * to the invoice events — so a handler keyed on the subscription code would miss every
+     * real recurring charge while looking like it worked.
+     */
+    public function test_webhook_mints_a_donation_for_a_recurring_charge(): void
+    {
+        \AfricaGates\Services\RecurringGiving::start('amara@example.test', 'Amara Okonkwo',
+                                                      5000, 'PLN_x', 'AFG-sub2');
+        \AfricaGates\Services\RecurringGiving::activate('amara@example.test', 5000,
+                                                         'SUB_live', 'tok_live', 'CUS_1', '', 'AFG-sub2');
+
+        $charge = [
+            'event' => 'charge.success',
+            'data'  => [
+                // Paystack's own, not ours. It matches nothing in gates_donations.
+                'reference' => 'psk_0f3a91',
+                'status'    => 'success',
+                'amount'    => 500000,
+                'paid_at'   => '2026-10-04 09:00:05',
+                'plan'      => ['plan_code' => 'PLN_x', 'amount' => 500000],
+                'customer'  => ['email' => 'amara@example.test'],
+            ],
+        ];
+
+        $before = DB::table('gates_donations')->count();
+        $res = $this->controller($this->stubPayments())->webhook($this->signed($charge), new Response());
+
+        $this->assertSame(200, $res->getStatusCode());
+        $this->assertSame($before + 1, DB::table('gates_donations')->count(),
+            'the second month never reached the database');
+
+        $d = DB::table('gates_donations')->where('payment_ref', 'psk_0f3a91')->first();
+        $this->assertSame('confirmed', (string) $d->status);
+        $this->assertSame(5000, (int) $d->amount_naira);
+
+        // And the retry Paystack sends three minutes later mints nothing.
+        $this->controller($this->stubPayments())->webhook($this->signed($charge), new Response());
+        $this->assertSame($before + 1, DB::table('gates_donations')->count(),
+            'a retried delivery minted a second gift');
+    }
+
+    /** The gateway saying it is stopped is what stops it here. */
+    public function test_webhook_records_a_cancellation(): void
+    {
+        \AfricaGates\Services\RecurringGiving::start('amara@example.test', 'A', 5000, 'PLN_x', 'AFG-sub3');
+        \AfricaGates\Services\RecurringGiving::activate('amara@example.test', 5000,
+                                                         'SUB_live', 'tok_live', 'CUS_1', '', 'AFG-sub3');
+
+        $this->controller($this->stubPayments())->webhook($this->signed([
+            'event' => 'subscription.disable',
+            'data'  => ['subscription_code' => 'SUB_live'],
+        ]), new Response());
+
+        $this->assertSame('cancelled', (string) DB::table('gates_donation_subscriptions')
+            ->where('subscription_code', 'SUB_live')->value('status'));
+    }
+
+    /**
+     * A charge on a plan this platform never arranged is still not ours.
+     *
+     * The Paystack account is shared by every product here and one webhook URL serves all of
+     * them; a handler that minted a donation for any plan-bearing charge would invent
+     * donations out of somebody else's subscription.
+     */
+    public function test_webhook_ignores_a_recurring_charge_on_an_unknown_plan(): void
+    {
+        $before = DB::table('gates_donations')->count();
+
+        $res = $this->controller($this->stubPayments())->webhook($this->signed([
+            'event' => 'charge.success',
+            'data'  => [
+                'reference' => 'psk_stranger', 'status' => 'success', 'amount' => 500000,
+                'plan'      => ['plan_code' => 'PLN_not_ours'],
+                'customer'  => ['email' => 'someone@example.test'],
+            ],
+        ]), new Response());
+
+        $this->assertSame(200, $res->getStatusCode());
+        $this->assertSame($before, DB::table('gates_donations')->count(),
+            'a donation was invented from somebody else\'s subscription');
     }
 
     public function test_webhook_rejects_bad_paystack_signature(): void

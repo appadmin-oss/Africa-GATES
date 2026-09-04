@@ -2211,6 +2211,14 @@ return function(App $app) {
         $g->get('/donate/redirect', DonationController::class.':handoff');  // see GatewayHandoff
         $g->get('/donate/callback', DonationController::class.':callback');
         $g->get('/donate/success',  DonationController::class.':success');
+        // ── A DONOR MUST BE ABLE TO STOP GIVING ──────────────────────────────
+        //
+        // Reached from the receipt, not from an account: most donors here have none, and a
+        // cancellation behind a sign-up is the pattern people take to their bank instead.
+        // The token identifies ONE gift, so a forwarded receipt cannot list somebody's
+        // others. Public by design — holding the link is the authorisation.
+        $g->get('/donate/giving/{token:[a-f0-9]{32}}',      DonationController::class.':giving');
+        $g->post('/donate/giving/{token:[a-f0-9]{32}}/stop', DonationController::class.':givingStop');
         // ── PARTNER ORGANISATION DASHBOARD ───────────────────────────────
         //
         // No organisation id appears in any of these paths. The organisation is whichever

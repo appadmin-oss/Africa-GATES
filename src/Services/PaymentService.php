@@ -135,7 +135,15 @@ class PaymentService
         string $email,
         string $reference,
         string $callbackUrl,
-        array $meta = []
+        array $meta = [],
+        // ── A RECURRING PLAN, OR '' FOR A ONE-OFF ────────────────────────────
+        //
+        // Last and optional so every existing call site is untouched — this is the payment
+        // path for tickets, the shop and vote packs as well as donations, and a required
+        // parameter here would have been a change to all of them for a feature none of them
+        // has. Unknown to Flutterwave, which has payment plans of its own shape; a monthly
+        // gift is only offered where it can actually be honoured (see RecurringGiving).
+        string $planCode = ''
     ): array {
         if (!$this->isEnabled($provider)) {
             return ['ok' => false, 'checkout_url' => null, 'message' => 'Payment provider is not available.'];
@@ -146,7 +154,7 @@ class PaymentService
 
         try {
             $r = match ($provider) {
-                'paystack'    => $this->initializePaystack($amountNaira, $email, $reference, $callbackUrl, $meta),
+                'paystack'    => $this->initializePaystack($amountNaira, $email, $reference, $callbackUrl, $meta, $planCode),
                 'flutterwave' => $this->initializeFlutterwave($amountNaira, $email, $reference, $callbackUrl, $meta),
                 default       => ['ok' => false, 'checkout_url' => null, 'message' => 'Unknown provider.'],
             };
@@ -521,7 +529,7 @@ class PaymentService
 
     // ─────────────────────────────── Paystack ───────────────────────────────
 
-    private function initializePaystack(int $amountNaira, string $email, string $reference, string $callbackUrl, array $meta): array
+    private function initializePaystack(int $amountNaira, string $email, string $reference, string $callbackUrl, array $meta, string $planCode = ''): array
     {
         // Paystack transacts in KOBO.
         $payload = [
@@ -532,6 +540,15 @@ class PaymentService
             'currency'     => 'NGN',
             'metadata'     => $meta,
         ];
+
+        // ── WITH A PLAN, THIS CHECKOUT BECOMES A STANDING ARRANGEMENT ────────
+        //
+        // Paystack charges the first instalment now and creates the subscription itself, so
+        // there is no second call and no window in which the donor has paid and the
+        // arrangement does not exist. `amount` stays on the payload deliberately: Paystack
+        // takes the PLAN's amount when both are present, and sending them apart would let a
+        // future edit change what the donor was shown without changing what they are billed.
+        if ($planCode !== '') $payload['plan'] = $planCode;
 
         // ── WHICH SUBACCOUNT THIS MONEY SETTLES INTO ─────────────────────────
         //
@@ -1609,6 +1626,108 @@ class PaymentService
     }
 
     /** @return list<string> */
+    /**
+     * A recurring PLAN at the gateway, for one amount and one interval.
+     *
+     * ══════════════════════════════════════════════════════════════════════════
+     * WHY A PLAN AND NOT A CARD WE CHARGE OURSELVES
+     * ══════════════════════════════════════════════════════════════════════════
+     *
+     * Paystack returns an `authorization_code` on every successful charge, and re-charging
+     * it on a schedule of our own is the other way to build this. It would mean this
+     * platform holding a reusable payment credential, running its own billing clock, and
+     * owning every retry, every expired card and every dispute that follows a charge the
+     * donor did not expect — on a host with no shell, where the schedule is a webcron that
+     * can miss a day.
+     *
+     * A plan puts all of that at the gateway. Paystack bills, retries, emails the donor
+     * before each charge and lets them stop from their own receipt. What this platform
+     * keeps is the record of the arrangement, which is exactly the part it should own.
+     *
+     * @return array{ok:bool, code:string, message:string}
+     */
+    public function createPlan(int $amountNaira, string $interval = 'monthly', string $name = ''): array
+    {
+        if (!$this->isEnabled('paystack')) {
+            return ['ok' => false, 'code' => '', 'message' => 'Paystack is not configured in this environment.'];
+        }
+        if ($amountNaira < 1) {
+            return ['ok' => false, 'code' => '', 'message' => 'Invalid amount.'];
+        }
+        // Paystack's own vocabulary. Anything else is rejected by the API with a message no
+        // donor should ever see, so it is refused here where it can be reported as ours.
+        if (!in_array($interval, ['daily', 'weekly', 'monthly', 'quarterly', 'biannually', 'annually'], true)) {
+            return ['ok' => false, 'code' => '', 'message' => 'Unsupported billing interval.'];
+        }
+
+        try {
+            $res = $this->request('POST', 'https://api.paystack.co/plan', [
+                // KOBO, like every other amount that crosses this boundary.
+                'amount'   => $amountNaira * 100,
+                'interval' => $interval,
+                'currency' => 'NGN',
+                'name'     => $name !== '' ? $name : ('Africa GATES — ' . $interval . ' ₦' . number_format($amountNaira)),
+            ], $this->paystackAuth());
+        } catch (\Throwable $e) {
+            return ['ok' => false, 'code' => '', 'message' => 'Could not reach Paystack: ' . $e->getMessage()];
+        }
+
+        $code = trim((string) ($res['json']['data']['plan_code'] ?? ''));
+        if (!$res['ok'] || $code === '') {
+            $msg = trim((string) ($res['json']['message'] ?? '')) ?: 'Paystack did not create the plan.';
+            $this->log?->error('[payment] plan create failed', ['amount' => $amountNaira, 'msg' => $msg]);
+            return ['ok' => false, 'code' => '', 'message' => $msg];
+        }
+
+        return ['ok' => true, 'code' => $code, 'message' => ''];
+    }
+
+    /**
+     * Stop a subscription at the gateway.
+     *
+     * Paystack requires the subscription code AND the email token together — the token is
+     * what proves the request came from somebody who holds the donor's receipt rather than
+     * from anybody who has seen a subscription code. Both are stored when the subscription
+     * is created, for this call and only this call.
+     *
+     * ── AND WHY "ALREADY DISABLED" IS SUCCESS ────────────────────────────────
+     *
+     * A donor who cancels twice, or cancels here after cancelling from Paystack's own email,
+     * must be told it is stopped — because it is. Reporting a failure would send somebody who
+     * has already succeeded to their bank instead, which is the one outcome worse than a
+     * cancellation that does not work.
+     *
+     * @return array{ok:bool, message:string}
+     */
+    public function cancelSubscription(string $subscriptionCode, string $emailToken): array
+    {
+        if (!$this->isEnabled('paystack')) {
+            return ['ok' => false, 'message' => 'Paystack is not configured in this environment.'];
+        }
+        if (trim($subscriptionCode) === '' || trim($emailToken) === '') {
+            return ['ok' => false, 'message' => 'This subscription cannot be stopped automatically.'];
+        }
+
+        try {
+            $res = $this->request('POST', 'https://api.paystack.co/subscription/disable', [
+                'code'  => trim($subscriptionCode),
+                'token' => trim($emailToken),
+            ], $this->paystackAuth());
+        } catch (\Throwable $e) {
+            return ['ok' => false, 'message' => 'Could not reach Paystack: ' . $e->getMessage()];
+        }
+
+        if ($res['ok']) return ['ok' => true, 'message' => ''];
+
+        $msg = strtolower(trim((string) ($res['json']['message'] ?? '')));
+        if (str_contains($msg, 'not active') || str_contains($msg, 'already') || str_contains($msg, 'disabled')) {
+            return ['ok' => true, 'message' => ''];
+        }
+
+        return ['ok' => false, 'message' => trim((string) ($res['json']['message'] ?? ''))
+                                            ?: 'Paystack refused the cancellation.'];
+    }
+
     private function paystackAuth(): array
     {
         return ['Authorization: Bearer ' . $this->secret('paystack')];

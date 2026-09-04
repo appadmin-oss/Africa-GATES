@@ -80,7 +80,20 @@ return [
             'csrf_token'        => $_SESSION['csrf_token'] ?? '',
             'current_section'   => 'projects',
             'has_hero'          => false,
-            'announcement_text' => $settings['announce_text'] ?? Env::get('ANNOUNCE_TEXT', 'Nominations open — live in Nigeria, building toward 54'),
+            // ── THE FOURTH COPY OF THE SAME CLAIM ────────────────────────────
+            //
+            // "live in Nigeria, building toward 54" was typed here too, as the banner's
+            // default — behind the operator's own setting, which is why it survived the
+            // sweep that fixed the description, the JSON-LD, the footer and the guide.
+            //
+            // Chained with `??` so the count is only queried when there is nothing else to
+            // show: an operator who has written their own banner, or set ANNOUNCE_TEXT,
+            // costs this nothing. `Env::get()` returns null with no default, which is what
+            // makes the chain lazy rather than eager.
+            'announcement_text' => $settings['announce_text']
+                ?? Env::get('ANNOUNCE_TEXT')
+                ?? ('Nominations open — live in ' . \AfricaGates\Support\NationsLive::phrase()
+                    . ', building toward ' . (int) ($settings['nations_count'] ?? 54)),
             // Was `/africa-gates/nominate`, which no route serves. It survives in
             // production only because public/.htaccess still carries the pre-subdomain
             // legacy rule `^africa-gates/(.+)$ → /$1`, so Apache 301s it. That makes

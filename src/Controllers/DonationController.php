@@ -112,8 +112,8 @@ final class DonationController
                         'providers'  => [], 'stats' => $this->stats(), 'givers' => [],
                     'org_totals' => \AfricaGates\Services\PartnerOrg::platformTotals(),
                         'org' => null, 'campaign' => null, 'org_closed' => true,
-                    'fund_goal' => null,
-                        'fund_goal' => null,
+                    'fund_goal' => null, 'recurring' => false,
+                        'fund_goal' => null, 'recurring' => false,
                         'min_naira' => self::MIN_NAIRA, 'max_naira' => self::MAX_NAIRA,
                         'processing_fee_pct' => $this->processingFeePct(),
                     ])->withHeader('X-Robots-Tag', 'noindex, nofollow');
@@ -164,6 +164,13 @@ final class DonationController
             // goal of its own, and a second target beside it would be this platform's
             // ambition printed over somebody else's ask.
             'fund_goal'        => $org ? null : $this->fundGoal($stats),
+            // Whether a monthly gift can actually be honoured here. False hides the control
+            // entirely — an option that quietly falls back to a single gift is worse than no
+            // option, because the donor leaves believing they set something up. Never on a
+            // partner appeal: that money settles into somebody else's subaccount, and a
+            // standing order against another organisation's account is not this platform's
+            // to create on their behalf.
+            'recurring'        => !$org && \AfricaGates\Services\RecurringGiving::available($this->payments),
             'org'              => $org,
             'campaign'         => $campaign,
             // Summed from confirmed rows on every read, never cached. A fundraising figure
@@ -502,10 +509,48 @@ final class DonationController
             return $bail('error');
         }
 
+        // ── A MONTHLY GIFT IS A PLAN AT THE GATEWAY ──────────────────────────
+        //
+        // Asked for on the form, honoured only where it can actually be honoured. The plan
+        // is resolved (created once per amount, then remembered) BEFORE the checkout starts,
+        // so a gateway that refuses to make one leaves the donor giving once rather than
+        // believing they have set up something that does not exist.
+        //
+        // Not offered on a partner appeal. Those settle into somebody else's subaccount and
+        // a standing order against another organisation's account is an arrangement this
+        // platform has no business creating on their behalf without them asking for it.
+        $monthly = !$org
+                   && in_array(strtolower(trim((string) ($b['monthly'] ?? ''))), ['1', 'on', 'true', 'yes'], true)
+                   && \AfricaGates\Services\RecurringGiving::available($this->payments);
+
+        $planCode = '';
+        if ($monthly) {
+            $plan = \AfricaGates\Services\RecurringGiving::planFor($amount, $this->payments);
+            if ($plan['ok']) {
+                $planCode = $plan['code'];
+                // Recorded BEFORE the donor leaves, for the same reason the donation row is:
+                // somebody who pays inside a wallet app and never comes back must not leave a
+                // subscription that exists at Paystack and nowhere here.
+                \AfricaGates\Services\RecurringGiving::start(
+                    $email, (string) ($row['donor_name'] ?? ''), $amount, $planCode, $reference);
+            } else {
+                // Falls back to a one-off rather than refusing the gift. The donor came to
+                // give; losing the payment because a plan could not be created would be the
+                // more expensive answer, and the receipt tells them what they actually did.
+                $this->log?->error('[donate] could not create a recurring plan — giving once instead', [
+                    'ref' => $reference, 'amount' => $amount, 'reason' => (string) ($plan['message'] ?? ''),
+                ]);
+                $monthly = false;
+            }
+        }
+
         $callbackUrl = $this->base($req) . '/donate/callback?provider=' . urlencode($provider) . '&ref=' . urlencode($reference);
         $init = $this->payments->initialize($provider, $amount, $email, $reference, $callbackUrl, [
             'reference' => $reference, 'purpose' => 'donation',
-        ]);
+            // Onto the gateway's own record, so `subscription.create` — which does not carry
+            // our reference anywhere else — can be tied back to the intention we wrote above.
+            'recurring' => $monthly ? 'monthly' : 'once',
+        ], $planCode);
         if (!$init['ok'] || empty($init['checkout_url'])) {
             // The provider's OWN message. It was discarded, leaving an operator with a
             // generic chip and no way to know the gateway said "Invalid key".
@@ -524,6 +569,82 @@ final class DonationController
     }
 
     /** GET /donate/callback — browser return; re-verified server-to-server. */
+    /**
+     * GET /donate/giving/{token} — one standing gift, and the button that stops it.
+     *
+     * ══════════════════════════════════════════════════════════════════════════
+     * WHY A LINK IN THE RECEIPT AND NOT A LOGIN
+     * ══════════════════════════════════════════════════════════════════════════
+     *
+     * Most donors here have no account and never will. Putting a cancellation behind a sign
+     * up means the only way to stop giving is to first join something — which is the pattern
+     * people take to their bank instead, and a chargeback costs the platform more than the
+     * gift was worth. A donor who cannot easily stop is not a supporter, they are a dispute
+     * waiting for a quiet month.
+     *
+     * The link is per GIFT, not per donor: a receipt is for one arrangement, and a link that
+     * also listed somebody's other gifts would turn a forwarded email into a disclosure.
+     */
+    public function giving(Request $req, Response $res, array $args = []): Response
+    {
+        $sub = \AfricaGates\Services\RecurringGiving::byToken((string) ($args['token'] ?? ''));
+
+        $flash = $_SESSION['flash_ok'] ?? null;
+        $err   = $_SESSION['flash_error'] ?? null;
+        unset($_SESSION['flash_ok'], $_SESSION['flash_error']);
+
+        return $this->view->render($res->withStatus($sub ? 200 : 404), 'pages/donate-giving.twig', [
+            'page_title' => $sub ? 'Your monthly gift — Africa GATES' : 'Link not valid — Africa GATES',
+            'gates_page' => 'donate', 'has_hero' => false,
+            'sub'        => $sub,
+            'token'      => (string) ($args['token'] ?? ''),
+            'flash_ok'   => $flash,
+            'flash_err'  => $err,
+        ])->withHeader('X-Robots-Tag', 'noindex, nofollow');
+    }
+
+    /**
+     * POST /donate/giving/{token}/stop — stop it at the gateway.
+     *
+     * Our row moves to `cancelling`, never straight to `cancelled`. A subscription this
+     * platform believes is stopped while Paystack is still billing reaches a person as "you
+     * charged me after I cancelled" — so the webhook is what makes it `cancelled`, which is
+     * the gateway's word rather than our hope.
+     */
+    public function givingStop(Request $req, Response $res, array $args = []): Response
+    {
+        $token = (string) ($args['token'] ?? '');
+        $back  = '/donate/giving/' . rawurlencode($token);
+        $sub   = \AfricaGates\Services\RecurringGiving::byToken($token);
+
+        if (!$sub) return $this->redirect($res, '/donate');
+
+        if (in_array((string) $sub['status'], [\AfricaGates\Services\RecurringGiving::ST_CANCELLED,
+                                               \AfricaGates\Services\RecurringGiving::ST_CANCELLING], true)) {
+            // Already done. Saying so is the answer; asking the gateway again would risk an
+            // error message on a page whose whole job is to reassure.
+            $_SESSION['flash_ok'] = 'This gift is already stopped. You will not be charged again.';
+            return $this->redirect($res, $back);
+        }
+
+        $r = $this->payments->cancelSubscription(
+            (string) ($sub['subscription_code'] ?? ''), (string) ($sub['email_token'] ?? ''));
+
+        if ($r['ok']) {
+            \AfricaGates\Services\RecurringGiving::markCancelling((int) $sub['id']);
+            $_SESSION['flash_ok'] = 'Your monthly gift has been stopped. You will not be charged again — '
+                                  . 'everything you have already given stays with the programmes.';
+        } else {
+            // The gateway's OWN words. "Something went wrong" on a page about money leaving
+            // somebody's account is not an answer, and the next thing they do is call a bank.
+            $_SESSION['flash_error'] = trim((string) $r['message']) !== ''
+                ? ('We could not stop it: ' . $r['message'] . ' Email us and we will do it by hand.')
+                : 'We could not stop it just now. Email us and we will do it by hand.';
+        }
+
+        return $this->redirect($res, $back);
+    }
+
     public function callback(Request $req, Response $res): Response
     {
         $q         = $req->getQueryParams();

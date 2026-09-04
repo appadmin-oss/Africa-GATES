@@ -155,6 +155,17 @@
   /* The fund's own target. Same instrument as `.dn-prog` below, which is the campaign
      bar — taller only because this one sits in a masthead rather than inside a form
      card, and a 8px rule under a 40px figure reads as a hairline rather than a gauge. */
+  /* Once / every month. Two buttons in the amount group's own vocabulary — a monthly
+     gift agreed to by accident is a dispute, and a checkbox under a row of amounts is
+     the control people miss. */
+  .dn-freq{ display:flex; gap:8px; margin-top:8px; }
+  .dn-freq__b{ flex:1; cursor:pointer; font-family:inherit; font-size:14px; font-weight:600;
+               padding:12px 10px; min-height:44px; border-radius:12px;
+               border:1px solid var(--dn-line); background:var(--dn-card,#fff); color:var(--dn-ink-2); }
+  .dn-freq__b.is-on{ border-color:var(--dn-gold-ink,#8a6005); color:var(--dn-ink);
+                     box-shadow:inset 0 0 0 1px var(--dn-gold-ink,#8a6005); }
+  .dn-freq__n{ margin:9px 0 0; font-size:12.5px; line-height:1.55; color:var(--dn-mute); }
+
   .dn-goal{ margin:30px 0 0; max-width:44rem; }
   .dn-goal__bar{ height:11px; border-radius:99px; background:rgba(16,41,44,.10);
                  overflow:hidden; }
@@ -623,6 +634,29 @@
                 across the continent.</span>
             </div>
 
+            {# ── ONCE, OR EVERY MONTH ────────────────────────────────────────
+               Drawn only where it can be honoured. `recurring` is false unless Paystack is
+               configured, because this is a real plan at the gateway — Paystack bills,
+               retries, and lets the donor stop from their own receipt. An option that
+               quietly fell back to a single gift would be worse than none: the donor would
+               believe they had set something up.
+
+               Two buttons rather than a checkbox. "Give monthly" as a tick under an amount
+               is the pattern that gets missed and then disputed; two visible choices with
+               one of them selected cannot be agreed to by accident. #}
+            {% if recurring %}
+            <span class="dn-lab" id="dnFreqLab">How often</span>
+            <div class="dn-freq" role="group" aria-labelledby="dnFreqLab">
+              <button type="button" class="dn-freq__b" :class="{ 'is-on': !monthly }"
+                      :aria-pressed="(!monthly).toString()" @click="monthly=false">Once</button>
+              <button type="button" class="dn-freq__b" :class="{ 'is-on': monthly }"
+                      :aria-pressed="monthly.toString()" @click="monthly=true">Every month</button>
+            </div>
+            <p class="dn-freq__n" x-show="monthly" x-cloak>
+              Charged today and on this date each month. Stop any time from the link in your
+              receipt &mdash; no account, no phone call.</p>
+            {% endif %}
+
             {# The disabled state says the minimum rather than merely refusing. A greyed
                button with no sentence is a dead end somebody leaves rather than solves. #}
             <button type="button" class="dn-cta" :disabled="value < {{ min_naira }}"
@@ -633,6 +667,11 @@
               Secure · encrypted · receipted
             </div>
           </div>
+
+          {# Carried on the form rather than re-asked in step two: the donor chose it beside
+             the amount, and a second question about frequency at the payment step reads as
+             the page not having listened. #}
+          {% if recurring %}<input type="hidden" name="monthly" :value="monthly ? '1' : '0'">{% endif %}
 
           {# ── STEP TWO · WHO AND HOW ────────────────────────────────────── #}
           <div x-show="step==='details'" x-cloak>
@@ -840,6 +879,9 @@
     return {
       presets:[5000,15000,50000,100000,250000,500000],
       amt:15000, custom:'', email:'', step:'choose', submitting:false,
+      /* Defaults to a single gift. A page that arrives with "every month" already chosen is
+         asking somebody to notice and undo it, which is the same fault as a pre-ticked box. */
+      monthly:false,
       get value(){ return this.custom ? (parseInt(String(this.custom).replace(/[^0-9]/g,''))||0) : this.amt; },
       ngn(n){ return '₦'+Number(n||0).toLocaleString('en-NG'); },
       onCustom(){ this.custom = String(this.custom).replace(/[^0-9]/g,''); }

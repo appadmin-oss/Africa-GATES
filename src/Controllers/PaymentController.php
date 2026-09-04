@@ -463,6 +463,46 @@ final class PaymentController
             return $ack();
         }
 
+        // ── a STANDING ARRANGEMENT changing state ────────────────────────────
+        //
+        // Claimed before anything tries to read a reference, because these events carry
+        // Paystack's own identifiers and not ours. `subscription.create` in particular
+        // arrives with a subscription code and an email token and no reference at all — run
+        // through the confirmation path below it would match nothing, log `unmatched`, and
+        // the platform would never learn the two values it needs to let the donor stop.
+        if (str_starts_with($event, 'subscription.')) {
+            $d    = is_array($payload['data'] ?? null) ? $payload['data'] : [];
+            $code = trim((string) ($d['subscription_code'] ?? ''));
+            $did  = 'ignored';
+
+            if (str_starts_with($event, 'subscription.create')) {
+                $ok = \AfricaGates\Services\RecurringGiving::activate(
+                    (string) ($d['customer']['email'] ?? ''),
+                    // Paystack quotes the plan in KOBO here, like everywhere else.
+                    (int) round(((int) ($d['plan']['amount'] ?? 0)) / 100),
+                    $code,
+                    (string) ($d['email_token'] ?? ''),
+                    (string) ($d['customer']['customer_code'] ?? ''),
+                    (string) ($d['next_payment_date'] ?? ''),
+                    (string) ($d['metadata']['reference'] ?? '')
+                );
+                $did = $ok ? 'activated' : 'unmatched';
+            } elseif (str_starts_with($event, 'subscription.disable')
+                   || str_starts_with($event, 'subscription.not_renew')) {
+                $did = \AfricaGates\Services\RecurringGiving::cancelled($code) ? 'cancelled' : 'ignored';
+            }
+
+            Log::record($provider, $event, $code, 'donation', $did, '', $domain);
+            return $ack();
+        }
+
+        if (str_starts_with($event, 'invoice.payment_failed')) {
+            $code = trim((string) ($payload['data']['subscription']['subscription_code'] ?? ''));
+            $did  = \AfricaGates\Services\RecurringGiving::collectionFailed($code) ? 'failed' : 'ignored';
+            Log::record($provider, $event, $code, 'donation', $did, '', $domain);
+            return $ack();
+        }
+
         // ── money going BACK ─────────────────────────────────────────────────
         $reversal = $this->webhookReversalKind($payload);
         if ($reversal !== null) {
@@ -562,6 +602,37 @@ final class PaymentController
 
         $donation = DB::table('gates_donations')->where('payment_ref', $reference)->first();
         if (!$donation) {
+            // ── THE SECOND MONTH ─────────────────────────────────────────────
+            //
+            // A recurring charge arrives with a reference PAYSTACK generated, so it matches
+            // nothing here and this is exactly where it used to stop: logged `unmatched`,
+            // acknowledged, and gone. The money kept arriving in the bank, the donor kept
+            // being charged, and the platform's own total stopped moving after month one.
+            //
+            // The subscription code on the payload is what says this is ours. Minting is
+            // idempotent on the gateway reference — Paystack retries a delivery every three
+            // minutes and then hourly for 72 hours, and a row per delivery would turn one
+            // ₦5,000 gift into a day of them.
+            // The PLAN is what says this is ours. Paystack puts the plan object on a
+            // subscription instalment and leaves the subscription code to the invoice
+            // events, so keying on the code here would miss every real recurring charge.
+            $d       = is_array($payload['data'] ?? null) ? $payload['data'] : [];
+            $planCode = trim((string) ($d['plan']['plan_code'] ?? ''));
+
+            if ($planCode !== '') {
+                $minted = \AfricaGates\Services\RecurringGiving::chargeArrived(
+                    $planCode,
+                    (string) ($d['customer']['email'] ?? ''),
+                    $reference,
+                    (int) round(((int) ($d['amount'] ?? 0)) / 100),
+                    (string) ($d['paid_at'] ?? ''),
+                    (string) ($d['subscription_code'] ?? '')
+                );
+                Log::record($provider, $event, $reference, 'donation',
+                            $minted > 0 ? 'recurring' : 'already', '', $domain);
+                return $ack();
+            }
+
             Log::record($provider, $event, $reference, $stream, 'unmatched', '', $domain);
             return $ack();
         }
