@@ -56,6 +56,13 @@
   .pf-track{ height:8px; border-radius:5px; background:#eef2ee; overflow:hidden; }
   .pf-track > span{ display:block; height:100%; border-radius:5px; background:linear-gradient(90deg,#237b22,#7FC87C); }
   .pf-note{ margin:18px 0 0; font-size:12.5px; line-height:1.5; color:#626a6e; }
+  /* The one line on this card that has to be read before the number above it is
+     believed. A hairline rule and the micro-label weight rather than a coloured
+     banner: it is a correction of scope, not a warning about the person. */
+  .pf-basis{ margin:16px 0 0; padding:0 0 12px; border-bottom:1px solid #e3e7e8;
+             font:500 12px/1.4 var(--ag-mono,ui-monospace,monospace);
+             letter-spacing:.04em; text-transform:uppercase; color:#4c5457; }
+  .pf-basis b{ color:#1d2426; }
   .pf-note a{ color:var(--ag-green-dark); font-weight:600; text-decoration:none; }
 
   /* achievements */
@@ -222,21 +229,62 @@
       </section>
       {% endif %}
 
-      {# CPI weighting (real 45/55 model — the formula, not fabricated per-profile sub-scores) #}
+      {# ── THE CARD DESCRIBES THE CALCULATION THAT ACTUALLY RAN ──────────────
+         It used to describe one calculation for everybody: two bars reading 45% community
+         and 55% jury, over a sentence crediting "the independent judge panel". For most of
+         this registry none of that produced the number. A profile with no judged
+         nomination falls to CpiService::baselineScore() — verification, completeness,
+         reach — and takes a tier off the same ladder, so filling in a profile and
+         collecting views was published as GOLD, with a gold star, under a paragraph
+         crediting a panel that had never seen them.
+
+         The figure was never wrong for what it is. The page was wrong about what it is,
+         and could not have known: `cpi_basis` is decided inside the recompute, which is
+         the only place that knows which nominations cleared quorum.
+
+         And the weights are READ, not typed. They are configurable per programme and per
+         cycle in the rule engine, so a page with 45/55 written into it states a split an
+         organiser may have already changed. #}
       <section class="pf-card">
         <div class="pf-cpi__top">
           <h2>Cultural Power Index</h2>
           <span class="pf-cpi__score">{{ p.cpi_score|default(0) }} / 1000</span>
         </div>
-        <div class="pf-wbar">
-          <div class="pf-wbar__h"><span>Community vote</span><span class="mono">45%</span></div>
-          <div class="pf-track"><span style="width:45%"></span></div>
-        </div>
-        <div class="pf-wbar">
-          <div class="pf-wbar__h"><span>Independent jury panel</span><span class="mono">55%</span></div>
-          <div class="pf-track"><span style="width:55%"></span></div>
-        </div>
-        <p class="pf-note">The score recomputes every 6 hours from organic verified votes (45%) and the independent judge panel (55%){% if p.cpi_last_computed %} · last updated {{ p.cpi_last_computed|date('d M Y') }}{% endif %}. <a href="/integrity">How scoring works →</a></p>
+
+        {% set basis = p.cpi_basis|default('baseline') %}
+        {% if basis == 'judged' %}
+          {% set cw = (cpi_weights.community|default(0.45) * 100)|round %}
+          {% set jw = 100 - cw %}
+          <div class="pf-wbar">
+            <div class="pf-wbar__h"><span>Community vote</span><span class="mono">{{ cw }}%</span></div>
+            <div class="pf-track"><span style="width:{{ cw }}%"></span></div>
+          </div>
+          <div class="pf-wbar">
+            <div class="pf-wbar__h"><span>Independent jury panel</span><span class="mono">{{ jw }}%</span></div>
+            <div class="pf-track"><span style="width:{{ jw }}%"></span></div>
+          </div>
+          <p class="pf-note">Recomputed every 6 hours from organic verified votes ({{ cw }}%) and the independent judge panel ({{ jw }}%){% if p.cpi_last_computed %} · last updated {{ p.cpi_last_computed|date('d M Y') }}{% endif %}. <a href="/integrity">How scoring works →</a></p>
+        {% else %}
+          {# Named as what it is. "Profile strength" and not "Cultural Power Index pending",
+             because a person reading their own page should not have to work out that the
+             number above is measuring something else entirely. #}
+          <p class="pf-basis">Profile strength — <b>not an award score</b></p>
+          <p class="pf-note">
+            {% if basis == 'pending' %}
+              {{ firstName }} has been nominated and the judging is not finished. Until a
+              panel has scored a nomination, this figure is the strength of the profile
+              itself — verification, how complete it is, and how widely it is read. It is
+              not a judgement of the work, and it is not what decides an award.
+            {% else %}
+              This figure is the strength of the profile itself — verification, how complete
+              it is, and how widely it is read. Nominees judged in an award cycle are scored
+              on community votes and an independent panel instead; that score replaces this
+              one here once a panel has finished.
+            {% endif %}
+            {% if p.cpi_last_computed %} Last updated {{ p.cpi_last_computed|date('d M Y') }}.{% endif %}
+            <a href="/integrity">How scoring works →</a>
+          </p>
+        {% endif %}
       </section>
 
       {# Achievements #}

@@ -40,6 +40,14 @@ class RegistryController {
             )),0,3);
         }
         return $this->view->render($res,'pages/registry/profile.twig',['page_title'=>$p['display_name'].' — Africa GATES','meta_description'=>$meta,'og_title'=>$p['display_name'].' — Africa GATES','gates_page'=>'registry','has_hero'=>false,'current_section'=>'projects','profile'=>$p,'comments'=>$comments,'cheer_count'=>$cheerCount,'similar'=>$similar,
+            // ── THE SPLIT, READ RATHER THAN TYPED ─────────────────────────
+            //
+            // The card used to have 45/55 written into it in three places. The
+            // weights are configurable per programme and per cycle, so a page that
+            // states them from memory tells a nominee a split their own award may
+            // not be using. Asked at platform scope because a profile is not scoped
+            // to one cycle — it is the general claim the page is making.
+            'cpi_weights'=>(new \AfricaGates\Services\RuleEngine())->weights(),
             // The trail this page already shows. The category link goes to /registry
             // because there is no per-category page yet — same URL as the visible
             // crumb, so the markup and the page agree.

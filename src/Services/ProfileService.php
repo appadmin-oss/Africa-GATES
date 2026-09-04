@@ -21,13 +21,13 @@ class ProfileService {
         [$oc,$od]=$ordArr[$sort]??['cpi_score','desc'];
         $q->orderBy($oc,$od);
         $total=$q->count();
-        $rows=$q->select(['id','slug','display_name','category','profile_type','cpi_score','cpi_tier','verification_tier','avatar_path','country_code','region','completeness_pct'])->offset(($page-1)*$perPage)->limit($perPage)->get();
+        $rows=$q->select(['id','slug','display_name','category','profile_type','cpi_score','cpi_tier','cpi_basis','verification_tier','avatar_path','country_code','region','completeness_pct'])->offset(($page-1)*$perPage)->limit($perPage)->get();
         return ['profiles'=>$rows->map(fn($r)=>$this->fmt($r))->values()->all(),'total'=>$total];
     }
 
     private function fmt(object $r): array {
         $g=$this->g((int)$r->id);
-        return['id'=>$r->id,'slug'=>$r->slug,'display_name'=>$r->display_name,'category'=>$r->category,'profile_type'=>$r->profile_type,'cpi_score'=>(int)$r->cpi_score,'cpi_tier'=>$r->cpi_tier,'verification_tier'=>$r->verification_tier,'avatar_path'=>$r->avatar_path??null,'country_code'=>$r->country_code,'region'=>$r->region,'completeness_pct'=>(int)$r->completeness_pct,'cover_from'=>$g[0],'cover_to'=>$g[1]];
+        return['id'=>$r->id,'slug'=>$r->slug,'display_name'=>$r->display_name,'category'=>$r->category,'profile_type'=>$r->profile_type,'cpi_score'=>(int)$r->cpi_score,'cpi_tier'=>$r->cpi_tier,'cpi_basis'=>(string)($r->cpi_basis??'baseline'),'verification_tier'=>$r->verification_tier,'avatar_path'=>$r->avatar_path??null,'country_code'=>$r->country_code,'region'=>$r->region,'completeness_pct'=>(int)$r->completeness_pct,'cover_from'=>$g[0],'cover_to'=>$g[1]];
     }
 
     public function getLeaderboard(int $limit=20, string $category='', string $country=''): array {
@@ -35,7 +35,7 @@ class ProfileService {
         ProfileMergeService::notMerged($q);
         if($category) $q->where('category',$category);
         if($country)  $q->where('country_code',$country);
-        return $q->limit($limit)->get(['id','slug','display_name','category','profile_type','cpi_score','cpi_tier','verification_tier','avatar_path','country_code','region','completeness_pct'])->map(fn($r)=>array_merge($this->fmt($r),['rank'=>0]))->values()->all();
+        return $q->limit($limit)->get(['id','slug','display_name','category','profile_type','cpi_score','cpi_tier','cpi_basis','verification_tier','avatar_path','country_code','region','completeness_pct'])->map(fn($r)=>array_merge($this->fmt($r),['rank'=>0]))->values()->all();
     }
 
     public function getTopCpiProfiles(int $limit=8): array {
@@ -43,7 +43,7 @@ class ProfileService {
     }
 
     public function getFeaturedProfiles(int $limit=5): array {
-        return ProfileMergeService::notMerged(DB::table('gates_profiles')->where('status','approved'))->whereIn('cpi_tier',['diamond','platinum','gold'])->orderByDesc('cpi_score')->limit($limit)->get(['id','slug','display_name','category','profile_type','cpi_score','cpi_tier','verification_tier','avatar_path','country_code','region','completeness_pct'])->map(fn($r)=>$this->fmt($r))->values()->all();
+        return ProfileMergeService::notMerged(DB::table('gates_profiles')->where('status','approved'))->whereIn('cpi_tier',['diamond','platinum','gold'])->orderByDesc('cpi_score')->limit($limit)->get(['id','slug','display_name','category','profile_type','cpi_score','cpi_tier','cpi_basis','verification_tier','avatar_path','country_code','region','completeness_pct'])->map(fn($r)=>$this->fmt($r))->values()->all();
     }
 
     public function getBySlug(string $slug): ?array {

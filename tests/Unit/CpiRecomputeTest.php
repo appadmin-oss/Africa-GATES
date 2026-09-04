@@ -163,6 +163,67 @@ class CpiRecomputeTest extends TestCase
     }
 
     /**
+     * WHAT THE NUMBER IS, RECORDED BESIDE IT.
+     *
+     * `cpi_score` is printed publicly under the heading "Cultural Power Index", and the
+     * card beneath it described one calculation for everybody: community votes and an
+     * independent jury panel. For a profile with no judged nomination that calculation had
+     * not run — the figure came from `baselineScore()`: verification, completeness, reach.
+     *
+     * Three values because "not judged" is two different situations, and the difference
+     * matters to the person reading their own page: nobody has finished judging you is not
+     * the same as you were never put forward.
+     */
+    public function test_the_basis_says_which_calculation_produced_the_score(): void
+    {
+        // Judged at quorum.
+        $this->seedProfile(1);
+        $this->seedNominee(1, 1, 5, 1);
+        $this->panel(1, 1, 6.0);
+
+        // Nominated, nobody has marked it.
+        $this->seedProfile(2);
+        $this->seedNominee(2, 2, 5, 2);
+
+        // Never nominated at all.
+        $this->seedProfile(3);
+
+        $this->runRecompute();
+
+        $basis = static fn (int $id): string =>
+            (string) DB::table('gates_profiles')->where('id', $id)->value('cpi_basis');
+
+        $this->assertSame('judged', $basis(1));
+        $this->assertSame('pending', $basis(2),
+            'a nominee still waiting on a panel was described as never nominated');
+        $this->assertSame('baseline', $basis(3),
+            'a profile nobody nominated was credited to a jury panel');
+    }
+
+    /**
+     * And a panel that finishes MOVES the basis, rather than leaving the first answer.
+     *
+     * The recompute is the only writer, so a basis that is set once and never revised
+     * would describe the day a profile was created for the rest of its life.
+     */
+    public function test_the_basis_follows_the_panel(): void
+    {
+        $this->seedProfile(1);
+        $this->seedNominee(1, 1, 5, 1);
+
+        $this->runRecompute();
+        $this->assertSame('pending',
+            (string) DB::table('gates_profiles')->where('id', 1)->value('cpi_basis'));
+
+        $this->panel(1, 1, 6.0);
+        $this->runRecompute();
+
+        $row = DB::table('gates_profiles')->where('id', 1)->first();
+        $this->assertSame('judged', (string) $row->cpi_basis);
+        $this->assertSame(780, (int) $row->cpi_score);
+    }
+
+    /**
      * The history table records MOVEMENTS, and there is no movement in running it again.
      *
      * It used to write a row per approved profile per run — every six hours, forever, two

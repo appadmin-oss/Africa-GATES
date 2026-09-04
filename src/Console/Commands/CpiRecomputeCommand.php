@@ -37,7 +37,11 @@ class CpiRecomputeCommand extends Command
         // One source of truth (config-weighted, cohort-normalised over APPROVED
         // nominees per category) shared with winner selection + snapshots.
         $scoring = new \AfricaGates\Services\NomineeScoringService();
-        $byProf = [];   // profile_id → array of linked nominee final scores
+        $byProf = [];   // profile_id → array of linked nominee final scores that COUNT
+        // Nominated at all, judged or not. Kept apart from $byProf so a profile whose
+        // panels have simply not finished can be told from one that was never put forward
+        // — the page says a different, and much less discouraging, thing to each.
+        $anyNom = [];   // profile_id → true
         $scored = 0;
         $catIds = DB::table('gates_nominees')->select('category_id')->distinct()->pluck('category_id');
         foreach ($catIds as $catId) {
@@ -49,6 +53,7 @@ class CpiRecomputeCommand extends Command
                 $scored++;
                 $pid = $profByNom[$nomId] ?? null;
                 if (empty($pid)) continue;
+                $anyNom[$pid] = true;
 
                 // ── A PROVISIONAL SCORE IS NOT A PUBLIC STANDING ─────────────
                 //
@@ -89,9 +94,23 @@ class CpiRecomputeCommand extends Command
             $tier   = $cpi->tierFor($final);
             $was    = $p->cpi_score === null ? null : (int) $p->cpi_score;
 
+            // ── WHAT THIS NUMBER ACTUALLY IS ─────────────────────────────────
+            //
+            // Decided here because here is the only place that knows which nominee scores
+            // cleared quorum and which were dropped. The public profile prints the score
+            // under "Cultural Power Index" beside a community/jury split, and for a
+            // profile with no judged nomination that paragraph described a calculation
+            // that had not run: the figure came from verification, completeness and page
+            // views. The number was never wrong for what it is — the page was wrong about
+            // what it is, and could not have known.
+            $basis = $linked !== []
+                ? 'judged'
+                : (isset($anyNom[$p->id]) ? 'pending' : 'baseline');
+
             DB::table('gates_profiles')->where('id', $p->id)->update([
                 'cpi_score'         => $final,
                 'cpi_tier'          => $tier,
+                'cpi_basis'         => $basis,
                 'cpi_last_computed' => Carbon::now()->toDateTimeString(),
             ]);
 
