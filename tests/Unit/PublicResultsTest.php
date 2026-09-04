@@ -444,6 +444,80 @@ final class PublicResultsTest extends TestCase
     }
 
     /**
+     * THE FEED IS TOLD WHAT IT IS LOOKING AT.
+     *
+     * A released result used to be a text post that happened to be written by "Africa
+     * GATES", so the only way for the feed to know what it had was to read the prose. It
+     * drew the most significant thing this platform does in the same face as somebody's
+     * hello, with the index — the one number the whole platform exists to produce — as a
+     * clause in a sentence.
+     *
+     * Typed instead: `kind` says what to draw, `result` carries the figures already
+     * separated, and the card renders a structure rather than parsing one out of a
+     * paragraph.
+     */
+    public function test_a_result_reaches_the_feed_as_a_typed_card_not_a_paragraph(): void
+    {
+        $this->decided();
+        ResultThread::ensure($this->categoryId);
+
+        $it = $this->feedItem(ResultThread::SLUG . $this->categoryId);
+
+        $this->assertSame('result', $it['kind']);
+        $r = PublicResults::category($this->categoryId);
+
+        // Every figure the card draws, and each one identical to the award's own page. A
+        // member screenshotting a feed card beside the standing and finding two different
+        // indexes is the argument this platform cannot win, so the payload is asserted
+        // against the page rather than against numbers typed here.
+        $this->assertSame($r['winner']['name'], $it['result']['winner']);
+        $this->assertSame($r['winner']['cpi'], $it['result']['cpi']);
+        $this->assertSame($r['winner']['community_points'], $it['result']['community']);
+        $this->assertSame($r['winner']['judge_points'], $it['result']['judges']);
+        $this->assertSame($r['runner_up']['name'], $it['result']['runner_up']);
+        $this->assertSame((string) $r['category']->title, $it['result']['award']);
+        $this->assertSame('2026 edition', $it['result']['edition']);
+
+        // And the two halves still add to the index printed beside them.
+        $this->assertSame($it['result']['cpi'],
+            $it['result']['community'] + $it['result']['judges']);
+    }
+
+    /**
+     * A RESULT SINCE WITHHELD FALLS BACK TO AN ORDINARY POST.
+     *
+     * The announcement row stays in the feed — it was published, and deleting history is
+     * not a correction — but a recount that empties a category's community half, or a
+     * withdrawal, means the award's own page will no longer show a winner. Drawing that
+     * winner's name on a card in front of that page is the worst available combination.
+     */
+    public function test_a_result_the_page_will_no_longer_show_stops_being_a_result_card(): void
+    {
+        $this->decided();
+        ResultThread::ensure($this->categoryId);
+
+        // The community half goes dark — the exact fault this whole surface was built
+        // after — so the award is held.
+        DB::table('gates_nominees')->where('category_id', $this->categoryId)
+            ->update(['organic_vote_count' => 0]);
+
+        $it = $this->feedItem(ResultThread::SLUG . $this->categoryId);
+
+        $this->assertSame('post', $it['kind'],
+            'a withheld award was still drawn as a decided one in the feed');
+        $this->assertNull($it['result']);
+    }
+
+    /** One item off the first page of the feed, by slug. */
+    private function feedItem(string $slug): array
+    {
+        foreach ((new \AfricaGates\Services\PulseFeedService())->page()['items'] as $i) {
+            if ($i['slug'] === $slug) return $i;
+        }
+        $this->fail('no feed item with slug ' . $slug);
+    }
+
+    /**
      * An ordinary post keeps its own thread page — the fallback must stay null.
      *
      * The slug is `my-top-5-picks` and it is chosen, not arbitrary. Strip seven characters

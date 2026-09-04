@@ -113,6 +113,10 @@ final class PulseFeedService
         $channels  = $this->channelNames();
         $authors   = $this->authorProfiles($rows);
 
+        // Batched like every other decoration on this page: one pass over the rows to find
+        // the result announcements, then their payloads, rather than a lookup per card.
+        $results = $this->resultPayloads($rows);
+
         $items = [];
         foreach ($rows as $r) {
             $id  = (int) $r['id'];
@@ -162,6 +166,20 @@ final class PulseFeedService
                 // thread page would show the reader the same summary they just read in the
                 // feed with the working two clicks further away.
                 'link'         => $this->linkOut((string) $r['slug']),
+                // ── WHAT KIND OF THING THIS CARD IS ──────────────────────────
+                //
+                // A released result was a text post that happened to be written by "Africa
+                // GATES", which meant the only way for the feed to know what it was
+                // looking at was to read the prose. So it drew the most significant thing
+                // this platform does in the same giant quote-face as somebody's hello, and
+                // the index — the one number the whole platform exists to produce — was a
+                // clause in a sentence.
+                //
+                // Typed instead. `kind` says what to draw and `result` carries the figures
+                // already separated, so the card renders a structure rather than parsing
+                // one out of a paragraph.
+                'kind'         => isset($results[$id]) ? 'result' : 'post',
+                'result'       => $results[$id] ?? null,
             ];
         }
 
@@ -169,6 +187,87 @@ final class PulseFeedService
             'items'       => $items,
             'next_cursor' => $hasMore ? (int) end($ids) : null,
         ];
+    }
+
+    /**
+     * The figures behind each result announcement on this page, keyed by thread id.
+     *
+     * ── WHY IT IS FETCHED RATHER THAN STORED ─────────────────────────────────
+     *
+     * A copy on the thread row would be a second place the index lives, and the two would
+     * agree only until somebody recounts a category or a late scorecard lands. This asks
+     * {@see PublicResults} — the same call the award's own page makes, on the same scorer —
+     * so a card and the page it links to cannot show different numbers. That is the whole
+     * property worth protecting here: a member screenshotting a feed card next to the
+     * standing and finding two different indexes is the argument this platform cannot win.
+     *
+     * The cost is bounded by how rare a result is. A feed page is eight cards and a cycle
+     * releases a handful of awards a year, so this is normally zero extra queries and never
+     * more than a few — against a lookup per card, which is what the rest of this class
+     * exists to avoid.
+     *
+     * @param list<array<string,mixed>> $rows
+     * @return array<int, array<string,mixed>>
+     */
+    private function resultPayloads(array $rows): array
+    {
+        $out = [];
+
+        foreach ($rows as $r) {
+            $slug = (string) ($r['slug'] ?? '');
+            if (!str_starts_with($slug, ResultThread::SLUG)) continue;
+
+            $catId = (int) substr($slug, strlen(ResultThread::SLUG));
+            if ($catId < 1) continue;
+
+            try {
+                $res = PublicResults::category($catId);
+            } catch (\Throwable) {
+                continue;
+            }
+            // A result that has since been withheld — a recount emptied a category's
+            // community half, a nominee was withdrawn — falls back to an ordinary post
+            // rather than drawing a winner the award's own page will no longer show.
+            if ($res === null || $res['held'] !== null || empty($res['winner'])) continue;
+
+            $w = $res['winner'];
+            $out[(int) $r['id']] = [
+                'award'      => (string) ($res['category']->title ?? ''),
+                'programme'  => (string) $res['programme'],
+                'edition'    => (string) $res['edition'],
+                'winner'     => (string) $w['name'],
+                'cpi'        => (int) $w['cpi'],
+                'community'  => (int) $w['community_points'],
+                'judges'     => (int) $w['judge_points'],
+                'runner_up'  => $res['runner_up']['name'] ?? null,
+                'runner_cpi' => isset($res['runner_up']) ? (int) $res['runner_up']['cpi'] : null,
+                // Said on the card, not left for the page. A margin of one point and a
+                // margin of two hundred are different results, and the one people should
+                // look at hardest is the one they are least likely to click through for.
+                'note'       => self::note($res),
+                'url'        => (string) $res['url'],
+            ];
+        }
+
+        return $out;
+    }
+
+    /** The one sentence a result card adds when the margin is the story. */
+    private static function note(array $res): ?string
+    {
+        if (!empty($res['dead_heat'])) {
+            return 'A dead heat on the index and on community support — separated by nominee id.';
+        }
+        if (!empty($res['tie_broken_by_votes'])) {
+            return 'The index tied. Community support broke it, which is why purchased votes '
+                 . 'are kept out of the ranking.';
+        }
+        if (($res['margin'] ?? null) !== null && (int) $res['margin'] <= 10) {
+            return 'Decided by ' . (int) $res['margin'] . ' point'
+                 . ((int) $res['margin'] === 1 ? '' : 's') . ' on a thousand-point index.';
+        }
+
+        return null;
     }
 
     /**

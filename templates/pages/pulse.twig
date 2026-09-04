@@ -13,7 +13,13 @@
 
   /* header */
   .pl-eyebrow{ margin:0 0 8px; font:700 12px/1 var(--ag-font-mono); letter-spacing:.14em; text-transform:uppercase; color:#e0245e; }
-  .pl-h1{ margin:0; font-family:var(--ag-font-display); font-weight:700; font-size:clamp(2rem,4.6vw,2.75rem); line-height:1.02; letter-spacing:-.02em; color:var(--ag-ink); }
+  /* Smaller than it was (2.75rem). A timeline's masthead is a label on a column of
+     other people's words, not the page's headline — at the old size it took the whole
+     first screen of a laptop before a single post, which is the fold this feed spends
+     most of its attention on. The phone block below already suppressed it entirely for
+     exactly that reason; this brings the desktop into line rather than leaving two
+     different opinions about how much room a title deserves. */
+  .pl-h1{ margin:0; font-family:var(--ag-font-display); font-weight:700; font-size:clamp(1.6rem,2.6vw,1.95rem); line-height:1.08; letter-spacing:-.02em; color:var(--ag-ink); }
   .pl-h1 em{ color:var(--ag-green); font-style:italic; }
 
   /* tabs */
@@ -65,7 +71,11 @@
   /* ── composer ──────────────────────────────────────────────────────────
      The one thing that turns Pulse from a wall into a feed. Styled as the first
      card in the column so it reads as "your turn", not as a form bolted on top. */
-  .pl-compose{ background:#fff; border:1px solid rgba(16,41,44,.08); border-radius:22px; padding:14px 16px; }
+  /* Flush with the timeline, not a card sitting above it. Everything below is one
+     surface divided by hairlines; a rounded bordered box on top of that is a widget the
+     column happens to start with, and the eye reads it as an interruption rather than
+     as the first row of the thing it is about to scroll. */
+  .pl-compose{ background:#fff; border-bottom:1px solid rgba(16,41,44,.09); padding:14px 16px; }
   .pl-compose__row{ display:flex; gap:12px; align-items:flex-start; }
   .pl-compose__av{ flex:none; width:40px; height:40px; border-radius:50%; background:#10292C; color:#7FC87C;
                    display:flex; align-items:center; justify-content:center; font-weight:800; font-size:16px; }
@@ -138,14 +148,27 @@
      draws its own canvas. One anatomy for the whole feed is the point: a feed
      where half the cards are one shape and half are another does not read as a
      feed, it reads as two features sharing a page. */
-  .pf{ background:#fff; border:1px solid rgba(16,41,44,.08); border-radius:22px; overflow:hidden; }
-  /* The rhythm between posts. `.pl-feed` has a gap, but every card lives inside
-     ONE of its flex children (the Alpine component), so that gap has never
-     reached them — measured at 0px, cards butted edge to edge, which is what
-     made the feed feel cramped no matter how much padding went inside a card.
-     Whitespace BETWEEN things is what reads as calm; whitespace inside them
-     just reads as a big box. */
-  .pf + .pf{ margin-top:22px; }
+  /* ── ONE COLUMN, HAIRLINE DIVIDED ──────────────────────────────────────
+     Each post was a rounded, bordered, drop-shadowed card floating 22px from the next
+     one. Four posts filled a laptop screen and the eye spent most of its work on box
+     edges rather than on what anybody said.
+     
+     A timeline is one continuous surface with a rule between entries. It reads as a
+     record rather than as a gallery, which is the right posture for a platform whose
+     subject is a public record — and it roughly doubles how much of the feed a person
+     sees before scrolling.
+
+     POSITIONED, because the rail is one piece of markup that sits in two places: over
+     the picture on a media card and in flow beneath a light one. Two rails would be two
+     optimistic rollbacks to keep in step, which is the fault ag-social.js exists to
+     prevent.
+
+     NO `overflow:hidden` here. The reaction picker is absolutely positioned and opens
+     upward out of the flat rail; clipping it to the card is how a control renders
+     correctly and is invisible. The media stage clips itself instead. */
+  .pf{ position:relative; background:#fff; padding-bottom:4px;
+       border-bottom:1px solid rgba(16,41,44,.09); }
+  .pf:first-child{ border-top:1px solid rgba(16,41,44,.09); }
   .pf__stage{ position:relative; width:100%; background:#07100F; overflow:hidden; cursor:pointer;
               /* Kills the 300ms double-tap-to-zoom delay. Without it the second
                  tap of a like lands late enough that the burst feels detached. */
@@ -155,30 +178,96 @@
      photographer's framing, and there is no framing to protect here. So a text
      card is sized by its words and the feed gets a rhythm instead of a march of
      identical rectangles. */
-  .pf__stage--media{ aspect-ratio:4/5; max-height:min(70vh,620px); }
+  /* Inset and rounded, now that the card around it has no edge of its own. A
+     photograph running the full bleed of a borderless column reads as a banner
+     interrupting the timeline rather than as something somebody posted. */
+  .pf__stage--media{ aspect-ratio:4/5; max-height:min(70vh,620px);
+                     margin:4px 16px 0; border-radius:16px; }
   .pf__stage img, .pf__stage video{ display:block; width:100%; height:100%; object-fit:cover; }
   /* Contain, not cover, for video: cropping somebody's framing is one thing on a
      still and another on footage they shot deliberately. */
   .pf__stage video{ object-fit:contain; background:#000; }
 
-  /* A text post's canvas. In flow, so the words set the height. Padded clear of
-     the rail on the right and the byline below, and clamped — a stage that
-     scrolls is not a stage. */
-  /* min-height is not taste, it is the RAIL'S HEIGHT. Five stacked buttons come
-     to ~265px and the stage clips its overflow, so a two-line post drew a card
-     shorter than its own controls and the top of the rail — the reaction button —
-     was cut off the card entirely. Whatever the rail costs, the shortest stage
-     has to clear it. */
-  .pf__canvas{ position:relative; display:flex; align-items:center; min-height:316px;
-               padding:30px 78px 84px 24px;
-               background:radial-gradient(125% 95% at 12% 0%,#1E4244 0%,#10292C 46%,#07100F 100%); }
-  .pf__canvas p{ margin:0; font-family:var(--ag-font-display); font-weight:700;
-                 font-size:clamp(1.3rem,3.2vw,1.85rem); line-height:1.22; letter-spacing:-.015em;
-                 color:#fff; overflow-wrap:anywhere;
-                 display:-webkit-box; -webkit-line-clamp:7; -webkit-box-orient:vertical; overflow:hidden; }
-  .pf__canvas .ag-tag{ color:#7FC87C; text-decoration:none; }
-  .pf__canvas .ag-link{ color:#7FC87C; text-decoration:underline; text-underline-offset:2px;
-                        overflow-wrap:anywhere; }
+  /* ── THE BYLINE ON A LIGHT CARD ────────────────────────────────────────
+     Who, then what they said. The shape every timeline has settled on, and the one
+     this feed did not have: the author used to be laid over a dark canvas BELOW the
+     words, which is a poster's credit line rather than a post's byline. */
+  .pf__head{ display:flex; align-items:flex-start; gap:11px; padding:15px 16px 0; }
+  .pf__av{ flex:none; width:40px; height:40px; border-radius:50%; background:#eef2f1;
+           color:var(--ag-ink,#10292c); display:flex; align-items:center; justify-content:center;
+           font:700 16px/1 var(--ag-font-display); }
+  .pf__hwho{ min-width:0; flex:1; }
+  .pf__hline{ display:flex; align-items:center; gap:6px; min-width:0; }
+  .pf__hname{ font-weight:700; font-size:15px; color:var(--ag-ink,#10292c); text-decoration:none;
+              overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .pf__hname:hover{ text-decoration:underline; }
+  .pf__hdot{ color:var(--ag-ink-soft,#626a6e); }
+  .pf__hwhen{ flex:none; font:600 12px/1 var(--ag-font-mono,monospace); color:var(--ag-ink-soft,#626a6e); }
+  .pf__hrole{ display:flex; align-items:center; gap:8px; margin-top:1px;
+              font-size:12.5px; color:var(--ag-ink-soft,#626a6e); min-width:0; }
+  .pf__hrole > span{ overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .pf__hchan{ flex:none; font:700 9.5px/1 var(--ag-font-mono,monospace); letter-spacing:.12em;
+              text-transform:uppercase; color:var(--ag-green,#237b22); text-decoration:none;
+              border:1px solid rgba(35,123,34,.28); border-radius:999px; padding:4px 8px; }
+  .pf__hflag{ flex:none; border:0; background:none; cursor:pointer; line-height:0; padding:6px;
+              margin:-6px -6px 0 0; color:var(--ag-ink-soft,#626a6e); border-radius:50%; }
+  .pf__hflag:hover{ background:rgba(16,41,44,.06); }
+  /* The tick is white-on-dark over a photograph and has to hold on paper too. */
+  .pf--media .pf__tick svg{ filter:drop-shadow(0 1px 4px rgba(0,0,0,.6)); }
+
+  /* ── A POST THAT IS WORDS ──────────────────────────────────────────────
+     Reading size, not looking size. This was 1.85rem display type in a 316px black
+     box — a sentence somebody typed rendered as a poster, clamped at seven lines
+     with no way to open it unless the post also happened to exceed 320 characters. */
+  .pf__text{ padding:8px 16px 4px; }
+  .pf__text p{ margin:0; font-size:15.5px; line-height:1.55; color:var(--ag-ink,#10292c);
+               overflow-wrap:anywhere; white-space:pre-wrap; }
+  .pf__text p.is-clamped{ display:-webkit-box; -webkit-line-clamp:10;
+                          -webkit-box-orient:vertical; overflow:hidden; }
+  .pf__text .ag-tag{ color:var(--ag-green,#237b22); font-weight:600; text-decoration:none; }
+  .pf__text .ag-link{ color:var(--ag-green,#237b22); text-decoration:underline;
+                      text-underline-offset:2px; overflow-wrap:anywhere; }
+
+  /* ── A POST THAT IS A RESULT ───────────────────────────────────────────
+     The whole card is the link: an award is one thing to act on, and a panel with a
+     link buried in it invites the tap that misses. */
+  .pf__res{ display:block; margin:10px 16px 4px; padding:16px 18px 14px; text-decoration:none;
+            color:var(--ag-ink,#10292c); border:1px solid rgba(16,41,44,.12);
+            border-radius:16px; background:linear-gradient(180deg,#fbfcfb,#f4f6f5); }
+  .pf__res:hover{ border-color:rgba(16,41,44,.26); }
+  .pf__res:focus-visible{ outline:2px solid var(--ag-green,#237b22); outline-offset:2px; }
+  .pf__reskick{ display:block; font:700 10px/1.5 var(--ag-font-mono,monospace); letter-spacing:.13em;
+                text-transform:uppercase; color:var(--ag-green,#237b22); }
+  .pf__resdot{ margin:0 6px; opacity:.55; }
+  .pf__resaward{ display:block; margin-top:5px; font-family:var(--ag-font-display);
+                 font-weight:700; font-size:1.15rem; line-height:1.25; letter-spacing:-.01em; }
+  .pf__reswin{ display:flex; align-items:center; gap:9px; margin-top:11px; flex-wrap:wrap; }
+  .pf__resbadge{ flex:none; font:700 9.5px/1 var(--ag-font-mono,monospace); letter-spacing:.14em;
+                 text-transform:uppercase; color:#4a3200; background:var(--ag-gold,#c9a24b);
+                 border-radius:999px; padding:5px 9px; }
+  .pf__resname{ font-weight:700; font-size:15.5px; overflow-wrap:anywhere; }
+
+  /* THE BAR IS THE ARGUMENT — 849 is a number to take on trust; 849 drawn as 354 of
+     community support beside 495 of panel marks is a claim somebody can check from a
+     phone in a queue. Community leads, in the emerald reserved for it, because it is
+     the half nobody can buy. The figures are written out beside it and never carried
+     by it: a bar says nothing to a screen reader and nothing to a reader who cannot
+     separate two greens. */
+  .pf__resbar{ display:flex; height:7px; margin-top:12px; border-radius:4px;
+               background:rgba(16,41,44,.09); overflow:hidden; }
+  .pf__resbar .c{ background:var(--ag-green,#237b22); }
+  .pf__resbar .j{ background:var(--ag-ink,#10292c); opacity:.42; }
+  .pf__resnums{ display:flex; align-items:baseline; gap:12px; margin-top:8px; flex-wrap:wrap;
+                font:600 11px/1.4 var(--ag-font-mono,monospace); letter-spacing:.06em;
+                text-transform:uppercase; color:var(--ag-ink-soft,#626a6e);
+                font-variant-numeric:tabular-nums; }
+  .pf__resnums b{ font-size:15px; letter-spacing:0; color:var(--ag-ink,#10292c); }
+  .pf__resnums .c{ color:var(--ag-green,#237b22); }
+  .pf__resrun, .pf__resnote{ display:block; margin-top:9px; font-size:13.5px; line-height:1.55;
+                             color:var(--ag-ink-soft,#626a6e); }
+  .pf__resnote{ color:var(--ag-ink,#10292c); }
+  .pf__resgo{ display:block; margin-top:12px; font-size:13px; font-weight:600;
+              color:var(--ag-green,#237b22); }
 
   /* Top and bottom scrims. Without them white text lands on whatever the photo
      happens to be, and a bright sky makes the author's name unreadable. */
@@ -207,14 +296,36 @@
   /* ── THE RIGHT-HAND ACTION RAIL ────────────────────────────────────────
      Thumb-reachable on a phone held in one hand, which is the whole reason it
      is a column on the right rather than a row underneath. */
-  .pf__rail{ position:absolute; right:6px; bottom:14px; z-index:4;
-             display:flex; flex-direction:column; align-items:center; gap:13px; }
-  .pf__r{ border:0; background:none; padding:4px; cursor:pointer; font-family:inherit; line-height:1;
-          display:flex; flex-direction:column; align-items:center; gap:5px; color:#fff; }
-  .pf__r svg{ width:29px; height:29px; fill:none; stroke:#fff; stroke-width:1.6;
-              stroke-linecap:round; stroke-linejoin:round;
-              filter:drop-shadow(0 2px 7px rgba(0,0,0,.6)); }
-  .pf__r span{ font:700 11px/1 var(--ag-font-mono,monospace); color:#fff; text-shadow:0 1px 4px rgba(0,0,0,.65); }
+  /* MEDIA: a column on the right, over the picture. */
+  .pf--media .pf__rail{ position:absolute; right:22px; bottom:28px; z-index:4;
+             display:flex; flex-direction:column; align-items:center; gap:13px;
+             padding:0; }
+
+  /* ── AND A ROW UNDER A LIGHT CARD ──────────────────────────────────────
+     Same markup, same handlers, different place. A column floating over paper is a
+     Reels control on a document; every timeline puts these in a row beneath the post
+     because that is where the eye lands after reading rather than after looking.
+
+     44px minimum on both axes: these are the smallest things anybody taps here. */
+  .pf__rail{ display:flex; align-items:center; gap:4px; padding:6px 10px 4px; }
+  .pf--media .pf__r, .pf--media .pf__r span{ color:#fff; }
+  .pf--media .pf__r svg{ stroke:#fff; filter:drop-shadow(0 2px 7px rgba(0,0,0,.6)); }
+  .pf__r{ border:0; background:none; cursor:pointer; font-family:inherit; line-height:1;
+          display:flex; align-items:center; justify-content:center; gap:7px;
+          min-height:44px; min-width:44px; padding:4px 10px; border-radius:999px;
+          color:var(--ag-ink-soft,#626a6e); }
+  .pf__r:hover{ background:rgba(16,41,44,.05); }
+  .pf__r svg{ width:20px; height:20px; fill:none; stroke:currentColor; stroke-width:1.7;
+              stroke-linecap:round; stroke-linejoin:round; }
+  .pf__r span{ font:700 12.5px/1 var(--ag-font-mono,monospace); color:inherit;
+               font-variant-numeric:tabular-nums; }
+  /* On a photograph the rail is a column of large white glyphs with the count beneath —
+     the shape it has always had, and the one that survives being over an image. */
+  .pf--media .pf__r{ flex-direction:column; gap:5px; min-height:0; min-width:0;
+                     padding:4px; border-radius:14px; }
+  .pf--media .pf__r:hover{ background:none; }
+  .pf--media .pf__r svg{ width:29px; height:29px; }
+  .pf--media .pf__r span{ font-size:11px; text-shadow:0 1px 4px rgba(0,0,0,.65); }
   .pf__r:focus-visible{ outline:2px solid #7FC87C; outline-offset:3px; border-radius:14px; }
   /* The held reaction fills in its own colour — the four are told apart by hue
      as much as by shape, which is what makes the rail readable at a glance. */
@@ -233,9 +344,14 @@
   /* The picker. Anchored to the reaction button, opening leftwards into the
      picture rather than off the edge of a 320px screen. */
   .pf__react{ position:relative; }
-  .pf__pick{ position:absolute; right:calc(100% + 6px); bottom:0; display:flex; gap:2px; padding:6px;
+  /* Over a picture the rail is a column at the right edge, so the picker opens LEFTWARDS
+     into the image rather than off the side of a 320px screen. Under a light card the
+     rail is a row at the LEFT edge, where leftwards is off-screen — so it opens upwards
+     there, which is also where there is room. */
+  .pf__pick{ position:absolute; left:0; bottom:calc(100% + 6px); display:flex; gap:2px; padding:6px;
              border-radius:999px; background:rgba(7,16,15,.94); border:1px solid rgba(255,255,255,.16);
              box-shadow:0 16px 38px rgba(0,0,0,.5); backdrop-filter:blur(6px); }
+  .pf--media .pf__pick{ left:auto; right:calc(100% + 6px); bottom:0; }
   .pf__pk{ border:0; background:none; cursor:pointer; padding:6px 7px; border-radius:999px;
            display:flex; flex-direction:column; align-items:center; gap:4px; font-family:inherit; }
   .pf__pk:hover, .pf__pk:focus-visible{ background:rgba(255,255,255,.12); outline:none; }
@@ -363,14 +479,27 @@
      centred, hung off BOTH gutters: the chip row started at −14px with "All"
      half off-screen. Zero is the only floor that lets a grid item actually be
      as narrow as its column. */
-  .pl-feed{ display:flex; flex-direction:column; gap:22px; min-width:0; }
-  .pl-post{ background:#fff; border:1px solid rgba(16,41,44,.08); border-radius:22px; overflow:hidden; }
-  .pl-post__hd{ display:flex; align-items:center; gap:12px; padding:16px 18px; }
-  .pl-post__av{ width:44px; height:44px; border-radius:13px; background:var(--ag-green-wash); color:var(--ag-green-dark); display:flex; align-items:center; justify-content:center; font-family:var(--ag-font-display); font-weight:700; font-size:19px; flex:none; }
-  .pl-post__au{ font-weight:600; font-size:15px; color:var(--ag-ink); }
-  .pl-post__mt{ font-size:12.5px; color:#5a6d6f; margin-top:2px; }
-  .pl-post__cover{ display:block; width:100%; aspect-ratio:16/9; background-size:cover; background-position:center; background-color:#10292C; }
-  .pl-post__bd{ padding:16px 18px 18px; }
+  /* gap:0 — the hairline on each post is the rhythm now. A gap as well would put a
+     stripe of page between every rule and its neighbour, which is a gallery again with
+     lines drawn on it. */
+  .pl-feed{ display:flex; flex-direction:column; gap:0; min-width:0; }
+  /* ── A JOURNAL ENTRY IS A TIMELINE ENTRY ───────────────────────────────
+     These sit in the same column as the posts and were a different language entirely:
+     rounded bordered boxes, a square 44px avatar, a full-bleed cover. Below a run of
+     hairline-divided posts they read as a second feature that had wandered onto the
+     page — and worse, as advertising, because "a bordered card among plain entries" is
+     what an ad unit looks like everywhere else on the web.
+
+     Same byline, same divider, same inset media. It is still recognisably an article —
+     the display-face headline and the kicker do that — it is simply in the timeline
+     rather than beside it. */
+  .pl-post{ background:#fff; padding-bottom:6px; border-bottom:1px solid rgba(16,41,44,.09); }
+  .pl-post__hd{ display:flex; align-items:center; gap:11px; padding:15px 16px 10px; }
+  .pl-post__av{ width:40px; height:40px; border-radius:50%; background:#eef2f1; color:var(--ag-ink); display:flex; align-items:center; justify-content:center; font-family:var(--ag-font-display); font-weight:700; font-size:16px; flex:none; }
+  .pl-post__au{ font-weight:700; font-size:15px; color:var(--ag-ink); }
+  .pl-post__mt{ font:600 12px/1 var(--ag-font-mono,monospace); color:var(--ag-ink-soft,#626a6e); margin-top:3px; }
+  .pl-post__cover{ display:block; width:100%; aspect-ratio:16/9; background-size:cover; background-position:center; background-color:#10292C; margin:0 0 2px; border-radius:16px; }
+  .pl-post__bd{ padding:12px 16px 6px; }
   .pl-post__cat{ font:700 11px/1 var(--ag-font-mono); letter-spacing:.1em; text-transform:uppercase; color:var(--ag-green); }
   .pl-post__t{ margin:8px 0 0; font-family:var(--ag-font-display); font-weight:700; font-size:19px; line-height:1.25; color:var(--ag-ink); text-decoration:none; display:block; }
   .pl-post__x{ margin:8px 0 0; font-size:14px; line-height:1.55; color:#4a5256; }
@@ -475,7 +604,7 @@
     .pf-chips{ padding-bottom:14px; }
     /* The whitespace the clutter paid for. */
     .pf + .pf{ margin-top:28px; }
-    .pl-feed{ gap:22px; }
+    .pl-feed{ gap:0; }
     .pl-grid{ gap:26px; }
   }
 
@@ -688,37 +817,145 @@
           </div>
 
           <template x-for="it in items" :key="it.id">
-            <article class="pf">
+            {#
+              ══ ONE POST, THREE SHAPES ══════════════════════════════════════
 
-              {# ── THE STAGE ────────────────────────────────────────────────
-                 Media, or a canvas drawn for a post that has none. Double-tap to
-                 cheer — the gesture the whole audience already knows — kept off
-                 the links inside so tapping a #hashtag still navigates. #}
-              <div class="pf__stage" :class="it.media && 'pf__stage--media'" @click="tap(it, $event)"
+              This feed was Instagram: every post, text or not, was a 316px dark canvas
+              with the words set at 1.85rem display and the byline laid over the picture.
+              That is right for a photograph and wrong for everything else — a sentence
+              somebody typed came out as a poster, and the most significant thing this
+              platform does, a released award, came out as the same poster with numbers
+              buried in a clause.
+
+              So the card is shaped by what it IS:
+
+                · MEDIA   the stage stays exactly as it was — a photograph or a video
+                          wants the room, and the double-tap, the burst and the scrims
+                          are the behaviour that room earned.
+                · RESULT  a structured panel: the award, the winner, the index drawn as
+                          the two halves it is actually made of, and the way through to
+                          the standing.
+                · TEXT    a post, in the shape every timeline has settled on — who, then
+                          what they said, at a size a person reads rather than looks at.
+
+              ONE RAIL for all three. It is the same markup and the same handlers; only
+              where it sits changes, which is why `.pf` is the positioned ancestor now
+              rather than `.pf__stage`. Two rails would be two places to fix a rollback.
+            #}
+            <article class="pf"
+                     :class="it.media ? 'pf--media' : (it.kind === 'result' ? 'pf--result' : 'pf--text')">
+
+              {# ── WHO, ABOVE THE POST ──────────────────────────────────────
+                 Only on the light cards. On a photograph the byline belongs over the
+                 picture, where the scrims are already drawn for it. #}
+              <div class="pf__head" x-show="!it.media" x-cloak>
+                <span class="pf__av" aria-hidden="true" x-text="(it.author_name || '?').slice(0,1).toUpperCase()"></span>
+                <div class="pf__hwho">
+                  <span class="pf__hline">
+                    <a class="pf__hname" :href="it.author_slug ? ('/registry/' + it.author_slug) : null"
+                       x-text="it.author_name"></a>
+                    <span class="pf__tick" x-show="it.author_tier && it.author_tier !== 'none'" x-cloak
+                          x-html="badge(it.author_tier)" role="img"
+                          :aria-label="it.author_name + ' — ' + TIERS[it.author_tier]"></span>
+                    <span class="pf__hdot" aria-hidden="true">·</span>
+                    <span class="pf__hwhen" x-text="ago(it.created_at)"></span>
+                  </span>
+                  <span class="pf__hrole" x-show="!!it.author_role || !!it.channel" x-cloak>
+                    <span x-text="it.author_role"></span>
+                    {# Not on a result card: the panel's own kicker names the programme and
+                       the edition, and a chip saying the first half of that immediately
+                       above it reads as two different labels for one thing. #}
+                    <a class="pf__hchan" x-show="!!it.channel && it.kind !== 'result'"
+                       :href="'/pulse?channel=' + it.programme_id" x-text="it.channel"></a>
+                  </span>
+                </div>
+                <button type="button" class="pf__hflag" @click.stop="report(it)"
+                        :aria-label="'Report the post by ' + it.author_name">
+                  <svg width="17" height="17" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" focusable="false"><circle cx="5" cy="12" r="1.7"/><circle cx="12" cy="12" r="1.7"/><circle cx="19" cy="12" r="1.7"/></svg>
+                </button>
+              </div>
+
+              {# ── A POST THAT IS WORDS ─────────────────────────────────────
+                 15.5px at 1.55, which is reading size. Clamped at ten lines with a
+                 control to open it, rather than at seven with nothing — the old canvas
+                 cut a post off mid-sentence and offered no way to see the rest unless it
+                 also happened to be over 320 characters. #}
+              <div class="pf__text" x-show="!it.media && it.kind !== 'result'" x-cloak>
+                <p :class="it.expanded ? '' : 'is-clamped'" x-html="rich(it.body || it.title)"></p>
+                <button type="button" class="pf__more2"
+                        x-show="(it.body || it.title || '').length > 260"
+                        @click.stop="it.expanded ? (it.expanded = false) : open(it)"
+                        x-text="it.expanded ? 'Show less' : 'Read more'"></button>
+              </div>
+
+              {# ── A POST THAT IS A RESULT ──────────────────────────────────
+                 Typed by PulseFeedService, never parsed out of the body: the feed knows
+                 what this is and draws the structure rather than a paragraph about it.
+
+                 The BAR is the argument. An index of 849 is a number to take on trust;
+                 849 drawn as 354 of community support beside 495 of panel marks is a
+                 claim somebody can check, and it is checkable in one glance from a phone
+                 in a queue. The community half leads, in the emerald this platform
+                 reserves for it, because it is the half nobody can buy — and it is the
+                 half that was silently reading zero on the cycle this was built after.
+
+                 The figures are written out beside the bar and not carried by it: a bar
+                 says nothing to a screen reader and nothing to a reader who cannot
+                 separate two greens. #}
+              <a class="pf__res" x-show="it.kind === 'result'" x-cloak :href="it.link">
+                <span class="pf__reskick">
+                  <span x-text="it.result && it.result.programme"></span>
+                  <template x-if="it.result && it.result.edition">
+                    <span><span class="pf__resdot" aria-hidden="true">·</span><span x-text="it.result.edition"></span></span>
+                  </template>
+                </span>
+                <span class="pf__resaward" x-text="it.result && it.result.award"></span>
+
+                <span class="pf__reswin">
+                  <span class="pf__resbadge">Winner</span>
+                  <span class="pf__resname" x-text="it.result && it.result.winner"></span>
+                </span>
+
+                <span class="pf__resbar" aria-hidden="true">
+                  <span class="c" :style="'width:' + ((it.result ? it.result.community : 0) / 10) + '%'"></span>
+                  <span class="j" :style="'width:' + ((it.result ? it.result.judges : 0) / 10) + '%'"></span>
+                </span>
+                <span class="pf__resnums">
+                  <b x-text="(it.result && it.result.cpi) + ' / 1000'"></b>
+                  <span class="c" x-text="(it.result && it.result.community) + ' community'"></span>
+                  <span class="j" x-text="(it.result && it.result.judges) + ' judges'"></span>
+                </span>
+
+                <span class="pf__resrun" x-show="it.result && it.result.runner_up" x-cloak
+                      x-text="'Runner-up: ' + (it.result && it.result.runner_up) + ' on ' + (it.result && it.result.runner_cpi) + '.'"></span>
+                <span class="pf__resnote" x-show="it.result && it.result.note" x-cloak
+                      x-text="it.result && it.result.note"></span>
+
+                {# The arrow is bound to the last word. On a 390px screen this label wraps,
+                   and a lone glyph on its own line reads as a rendering fault rather than
+                   as the end of a sentence. #}
+                <span class="pf__resgo">See every score, weight and&nbsp;denominator&nbsp;→</span>
+              </a>
+
+              {# ── THE STAGE, FOR MEDIA ─────────────────────────────────────
+                 Unchanged. Double-tap to cheer — the gesture the whole audience already
+                 knows — kept off the links inside so tapping a #hashtag still navigates.
+
+                 x-show, not x-if. An x-if nested in this x-for is what threw "u is not a
+                 function" out of Alpine the moment the outer list was mutated. #}
+              <div class="pf__stage pf__stage--media" x-show="!!it.media" x-cloak
+                   @click="tap(it, $event)"
                    :aria-label="'Post by ' + it.author_name + '. Double tap to cheer.'">
-
-                {# x-show, not x-if. An x-if nested in this x-for is what threw
-                   "u is not a function" out of Alpine the moment the list was
-                   mutated. `:src` binds to null rather than '' for the hidden
-                   branch — Alpine drops a null attribute entirely, whereas src=""
-                   resolves to the current page and fetches the whole HTML
-                   document again on every single card. #}
-                <img x-show="!!it.media && it.media.type === 'image'" x-cloak
+                <img x-show="it.media && it.media.type === 'image'" x-cloak
                      :src="it.media && it.media.type === 'image' ? it.media.path : null"
                      loading="lazy" decoding="async"
                      :alt="'Photo shared by ' + it.author_name">
-                {# Never autoplayed: sound and motion starting by themselves is
-                   hostile on a metered connection, which is most of this
-                   audience. preload="metadata" fetches the header for the poster
-                   frame and the duration, not the file. #}
+                {# Never autoplayed: sound and motion starting by themselves is hostile on
+                   a metered connection, which is most of this audience. #}
                 <video x-show="!!it.media && it.media.type === 'video'" x-cloak
                        :src="it.media && it.media.type === 'video' ? it.media.path : null"
                        controls playsinline preload="metadata"
                        :aria-label="'Video shared by ' + it.author_name"></video>
-
-                <div class="pf__canvas" x-show="!it.media">
-                  <p x-html="rich(it.body || it.title)"></p>
-                </div>
 
                 <span class="pf__scrim" aria-hidden="true"></span>
                 <span class="pf__burst" :class="it.burst ? 'is-on' : ''" aria-hidden="true">
@@ -730,98 +967,89 @@
                   <svg width="17" height="17" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" focusable="false"><circle cx="5" cy="12" r="1.7"/><circle cx="12" cy="12" r="1.7"/><circle cx="19" cy="12" r="1.7"/></svg>
                 </button>
 
-                {# ── who, where, what ── #}
                 <div class="pf__meta">
                   <a class="pf__chan" x-show="!!it.channel" x-cloak @click.stop
                      :href="'/pulse?channel=' + it.programme_id" x-text="it.channel"></a>
                   <div class="pf__whoami">
                     <span class="pf__name" x-text="it.author_name"></span>
-                    {# FOUR states, not two. A tick that means "has an account"
-                       means nothing, and people correctly read it as meaning
-                       something — so `none` draws nothing at all. An unearned
-                       badge devalues every earned one. #}
+                    {# FOUR states, not two. A tick that means "has an account" means
+                       nothing, and people correctly read it as meaning something — so
+                       `none` draws nothing at all. An unearned badge devalues every
+                       earned one. #}
                     <span class="pf__tick" x-show="it.author_tier && it.author_tier !== 'none'" x-cloak
                           x-html="badge(it.author_tier)" role="img"
                           :aria-label="it.author_name + ' — ' + TIERS[it.author_tier]"></span>
                     <span class="pf__when" x-text="ago(it.created_at)"></span>
                   </div>
-                  {# What this person actually does. The mockup's "professional
-                     headline", and the thing that makes a feed of strangers
-                     legible — driven by gates_profiles.category, never invented. #}
                   <a class="pf__role" x-show="!!it.author_role" x-cloak @click.stop
                      :href="it.author_slug ? ('/registry/' + it.author_slug) : null"
                      x-text="it.author_role"></a>
-                  {# Only for media posts: a text post already IS its canvas, and
-                     printing the words twice is the fault we just fixed on the
-                     nominee page. #}
-                  <p class="pf__cap" x-show="!!it.media && !!it.body" x-cloak
+                  <p class="pf__cap" x-show="!!it.body" x-cloak
                      :class="it.expanded ? '' : 'is-clamped'" x-html="rich(it.body)"></p>
-                  <button type="button" class="pf__more2" x-cloak
-                          x-show="(!!it.media && (it.body || '').length > 150) || (!it.media && (it.body || '').length > 320)"
+                  <button type="button" class="pf__more2 pf__more2--dark" x-cloak
+                          x-show="(it.body || '').length > 150"
                           @click.stop="it.expanded ? (it.expanded = false) : open(it)"
                           x-text="it.expanded ? 'Show less' : 'Read more'"></button>
                 </div>
-
-                {# ── THE RAIL ── #}
-                <div class="pf__rail">
-                  <div class="pf__react" @mouseenter="hoverPick(it, true)" @mouseleave="hoverPick(it, false)">
-                    <div class="pf__pick" x-show="it.pick" x-cloak @click.stop
-                         role="group" aria-label="Choose a reaction">
-                      <template x-for="k in KINDS" :key="k">
-                        <button type="button" class="pf__pk" :data-kind="k"
-                                :aria-pressed="it.my_reaction === k ? 'true' : 'false'"
-                                @click.stop="react(it, k)" @keydown.escape="it.pick = false"
-                                :aria-label="LABELS[k] + ' — react'">
-                          <span x-html="glyph(k)"></span>
-                          <small x-text="LABELS[k]"></small>
-                        </button>
-                      </template>
-                    </div>
-                    {# One press gives the reaction you already hold, or a cheer.
-                       Holding, hovering or Arrow-Up opens the four — the same
-                       three doors every feed with reactions has settled on. #}
-                    <button type="button" class="pf__r pf__r--react" :data-held="it.my_reaction"
-                            aria-haspopup="true" :aria-expanded="it.pick ? 'true' : 'false'"
-                            @click.stop="react(it, it.my_reaction || 'cheer')"
-                            @pointerdown="holdStart(it)" @pointerup="holdEnd(it)"
-                            @pointerleave="holdEnd(it)" @contextmenu.prevent="it.pick = true"
-                            @keydown.up.prevent="it.pick = true" @keydown.escape="it.pick = false"
-                            :aria-label="it.my_reaction ? ('Remove your ' + LABELS[it.my_reaction] + ' from this post') : 'Cheer this post. Press and hold for more reactions.'">
-                      <span x-html="glyph(it.my_reaction || 'cheer')"></span>
-                      <span x-text="fmt(it.cheer_count)"></span>
-                    </button>
-                  </div>
-
-                  <button type="button" class="pf__r" @click.stop="openComments(it)"
-                          aria-label="Comment on this post">
-                    <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M21 11.5a8.4 8.4 0 0 1-9 8.4 9 9 0 0 1-3.6-.7L3 21l1.9-5A8.2 8.2 0 0 1 4 11.5 8.4 8.4 0 0 1 12.5 3 8.4 8.4 0 0 1 21 11.5Z"/></svg>
-                    <span x-text="fmt(it.reply_count)"></span>
-                  </button>
-
-                  <button type="button" class="pf__r pf__r--repost" :aria-pressed="it.reposted ? 'true' : 'false'"
-                          @click.stop="repost(it)"
-                          :aria-label="it.reposted ? 'Undo your repost' : 'Repost this, with a line of your own'">
-                    <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M17 2.5 20.5 6 17 9.5M20.5 6H7a3.5 3.5 0 0 0-3.5 3.5V11M7 21.5 3.5 18 7 14.5M3.5 18H17a3.5 3.5 0 0 0 3.5-3.5V13"/></svg>
-                    <span x-text="fmt(it.repost_count)"></span>
-                  </button>
-
-                  {# No word under these two. The three above carry a number, and
-                     a rail that reads 8 · 3 · 2 · Share · Save mixes two kinds of
-                     label in one column — the eye reads "Share" as a count that
-                     failed to load. Both are named to a screen reader. #}
-                  <button type="button" class="pf__r" @click.stop="shareIt(it)" aria-label="Share this post">
-                    <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M22 2 11 13"/><path d="M22 2l-7 20-4-9-9-4z"/></svg>
-                  </button>
-
-                  <button type="button" class="pf__r pf__r--save" :aria-pressed="it.saved ? 'true' : 'false'"
-                          @click.stop="save(it)"
-                          :aria-label="(it.saved ? 'Remove this post from' : 'Save this post to') + ' your saved posts'">
-                    <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M6 3h12a1 1 0 0 1 1 1v17l-7-4.4L5 21V4a1 1 0 0 1 1-1Z"/></svg>
-                  </button>
-                </div>
               </div>
 
-              {# ── who reacted, and how ── #}
+              {# ── THE RAIL ── #}
+              <div class="pf__rail">
+                <div class="pf__react" @mouseenter="hoverPick(it, true)" @mouseleave="hoverPick(it, false)">
+                  <div class="pf__pick" x-show="it.pick" x-cloak @click.stop
+                       role="group" aria-label="Choose a reaction">
+                    <template x-for="k in KINDS" :key="k">
+                      <button type="button" class="pf__pk" :data-kind="k"
+                              :aria-pressed="it.my_reaction === k ? 'true' : 'false'"
+                              @click.stop="react(it, k)" @keydown.escape="it.pick = false"
+                              :aria-label="LABELS[k] + ' — react'">
+                        <span x-html="glyph(k)"></span>
+                        <small x-text="LABELS[k]"></small>
+                      </button>
+                    </template>
+                  </div>
+                  {# One press gives the reaction you already hold, or a cheer.
+                     Holding, hovering or Arrow-Up opens the four — the same
+                     three doors every feed with reactions has settled on. #}
+                  <button type="button" class="pf__r pf__r--react" :data-held="it.my_reaction"
+                          aria-haspopup="true" :aria-expanded="it.pick ? 'true' : 'false'"
+                          @click.stop="react(it, it.my_reaction || 'cheer')"
+                          @pointerdown="holdStart(it)" @pointerup="holdEnd(it)"
+                          @pointerleave="holdEnd(it)" @contextmenu.prevent="it.pick = true"
+                          @keydown.up.prevent="it.pick = true" @keydown.escape="it.pick = false"
+                          :aria-label="it.my_reaction ? ('Remove your ' + LABELS[it.my_reaction] + ' from this post') : 'Cheer this post. Press and hold for more reactions.'">
+                    <span x-html="glyph(it.my_reaction || 'cheer')"></span>
+                    <span x-text="fmt(it.cheer_count)"></span>
+                  </button>
+                </div>
+
+                <button type="button" class="pf__r" @click.stop="openComments(it)"
+                        aria-label="Comment on this post">
+                  <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M21 11.5a8.4 8.4 0 0 1-9 8.4 9 9 0 0 1-3.6-.7L3 21l1.9-5A8.2 8.2 0 0 1 4 11.5 8.4 8.4 0 0 1 12.5 3 8.4 8.4 0 0 1 21 11.5Z"/></svg>
+                  <span x-text="fmt(it.reply_count)"></span>
+                </button>
+
+                <button type="button" class="pf__r pf__r--repost" :aria-pressed="it.reposted ? 'true' : 'false'"
+                        @click.stop="repost(it)"
+                        :aria-label="it.reposted ? 'Undo your repost' : 'Repost this, with a line of your own'">
+                  <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M17 2.5 20.5 6 17 9.5M20.5 6H7a3.5 3.5 0 0 0-3.5 3.5V11M7 21.5 3.5 18 7 14.5M3.5 18H17a3.5 3.5 0 0 0 3.5-3.5V13"/></svg>
+                  <span x-text="fmt(it.repost_count)"></span>
+                </button>
+
+                {# No word under these two. The three above carry a number, and
+                   a rail that reads 8 · 3 · 2 · Share · Save mixes two kinds of
+                   label in one column — the eye reads "Share" as a count that
+                   failed to load. Both are named to a screen reader. #}
+                <button type="button" class="pf__r" @click.stop="shareIt(it)" aria-label="Share this post">
+                  <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M22 2 11 13"/><path d="M22 2l-7 20-4-9-9-4z"/></svg>
+                </button>
+
+                <button type="button" class="pf__r pf__r--save" :aria-pressed="it.saved ? 'true' : 'false'"
+                        @click.stop="save(it)"
+                        :aria-label="(it.saved ? 'Remove this post from' : 'Save this post to') + ' your saved posts'">
+                  <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M6 3h12a1 1 0 0 1 1 1v17l-7-4.4L5 21V4a1 1 0 0 1 1-1Z"/></svg>
+                </button>
+              </div>
               <div class="pf__sum" x-show="it.cheer_count > 0 || it.repost_count > 0" x-cloak>
                 <span class="pf__pips" aria-hidden="true">
                   <template x-for="k in topKinds(it)" :key="k">
@@ -843,7 +1071,7 @@
 
                 <a class="pf__cmall" :href="'/community/' + it.slug"
                    x-show="it.reply_count > it.comments.length"
-                   x-text="'View all ' + it.reply_count + ' comments'"></a>
+                   x-text="'View all ' + it.reply_count + (it.reply_count === 1 ? ' comment' : ' comments')"></a>
 
                 {# x-show, NOT x-if.
                    An x-if nested inside this outer x-for threw "u is not a function"
@@ -876,8 +1104,11 @@
                  summary they just read here, with the working further away. Resolved
                  in PulseFeedService so the feed and the API agree; null for every
                  ordinary post, which falls back to its thread. #}
-              <a class="pf__open" :href="it.link || ('/community/' + it.slug)"
-                 x-text="it.link ? 'See the full standing →' : 'Open thread →'">Open thread →</a>
+              {# A result's panel is already the link, and its last line says where it goes.
+                 A second link to the same place under the same card is not a second
+                 route, it is a reader wondering which one is the real one. #}
+              <a class="pf__open" x-show="it.kind !== 'result'" x-cloak
+                 :href="'/community/' + it.slug">Open thread →</a>
             </article>
           </template>
 
@@ -958,7 +1189,9 @@
               <span class="pl-post__av">{{ post.author_name|default('Africa GATES')|first|upper }}</span>
               <div><div class="pl-post__au">{{ post.author_name|default('Africa GATES') }}</div><div class="pl-post__mt">{% if post.published_at %}{{ post.published_at|date('M j, Y') }}{% endif %}</div></div>
             </div>
-            {% if cover %}<a href="/blog/{{ post.slug }}" class="pl-post__cover" style="background-image:url('{{ cover }}')" aria-label="{{ post.title }}"></a>{% endif %}
+            {# Inset and rounded, matching a member post's media. A full-bleed cover in a
+               borderless column reads as a banner interrupting the timeline. #}
+            {% if cover %}<div style="padding:0 16px"><a href="/blog/{{ post.slug }}" class="pl-post__cover" style="background-image:url('{{ cover }}')" aria-label="{{ post.title }}"></a></div>{% endif %}
             <div class="pl-post__bd">
               {% if post.category is defined and post.category %}<div class="pl-post__cat">{{ post.category }}</div>{% endif %}
               <a class="pl-post__t" href="/blog/{{ post.slug }}">{{ post.title }}</a>
