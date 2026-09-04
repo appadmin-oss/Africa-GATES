@@ -1564,7 +1564,10 @@
     <input type="hidden" name="messaging_settings" value="1">
     <p style="margin:0 0 10px;font-size:13px;color:var(--ad-text-mute,#5a6d6f)">
       Secrets are stored server-side and never shown again.
-      SMS: {% if sms_status.sms %}<strong style="color:#16794d">● active (Twilio)</strong>{% else %}<span style="color:var(--ad-text-mute,#61728e)">inactive</span>{% endif %} ·
+      {# The provider, not a guess. This said "(Twilio)" unconditionally, so a deployment
+         sending through Africa's Talking read "active (Twilio)" — which is exactly the
+         wrong thing to tell somebody trying to work out why their texts are not arriving. #}
+      SMS: {% if sms_status.sms %}<strong style="color:#16794d">● active ({{ sms_status.sms_provider }})</strong>{% else %}<span style="color:var(--ad-text-mute,#61728e)">inactive</span>{% endif %} ·
       WhatsApp: {% if sms_status.whatsapp %}<strong style="color:#16794d">● active ({{ sms_status.wa_provider == 'meta' ? 'WhatsApp Business Cloud API' : 'Twilio WhatsApp' }})</strong>{% else %}<span style="color:var(--ad-text-mute,#61728e)">inactive</span>{% endif %}.
       When both channels are configured, recipients with a phone get the SMS first, then the WhatsApp message.
     </p>
@@ -1583,6 +1586,35 @@
         cheapest per African number first.
         {% if sms_status.sms_provider %}Currently sending through <strong style="color:#16794d">{{ sms_status.sms_provider }}</strong>.{% endif %}
       </p>
+      {#
+        WHY NOTHING ARRIVED.
+
+        Every failed send has been written to `gates_messages.error` since this service
+        shipped, and the only thing that read it back was the generic table dump under
+        Data. So an operator whose SMS was not sending had this screen saying "active", a
+        provider name, and no way to learn that the gateway had been answering
+        "Invalid sender id" for a week. It is the same fault the door voice had, in the
+        same shape: recorded correctly, into a row nothing displayed.
+
+        Shown beside the configuration it is about, because this is the screen somebody is
+        already on when they are asking the question. The number is masked at the point it
+        was stored — a diagnostic must not put a supporter's phone number on an admin page
+        to answer a question about a gateway.
+      #}
+      {% if sms_status.last_failure %}
+        <p style="margin:0 0 10px;padding:10px 12px;border-left:3px solid #b45309;background:#fff8ed;font-size:12.5px;line-height:1.6;color:#7a4a00">
+          <strong>The last message did not go out.</strong>
+          {{ sms_status.last_failure.provider }} refused a {{ sms_status.last_failure.channel }}
+          to {{ sms_status.last_failure.to }} on {{ sms_status.last_failure.at }} &mdash;
+          <em>{{ sms_status.last_failure.error }}</em>
+          {% if sms_status.last_failure.provider == 'africastalking' %}
+            <br>If that reads as an authentication problem, check whether the username is
+            <code>sandbox</code>: sandbox credentials only work against Africa&rsquo;s Talking&rsquo;s
+            sandbox host, and a live key only against the live one. The platform picks the
+            host from the username automatically, so the two must match.
+          {% endif %}
+        </p>
+      {% endif %}
       <div class="row">
         <div>
           <label for="f-sms_at_username">Africa&rsquo;s Talking username</label>
