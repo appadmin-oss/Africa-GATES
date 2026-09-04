@@ -74,9 +74,28 @@ class SecurityHeadersMiddleware {
          * `self`, never `*`, for the reason picture-in-picture is scoped that way:
          * our own door may open a camera, an embedded third party may not.
          */
-        'Permissions-Policy'     => 'accelerometer=(), autoplay=(), camera=(self), '
+        'Permissions-Policy'     =>
+            /* autoplay=(self): the SECOND time this header switched a shipped feature off
+               with nothing on the page to say so — see camera=(self) below for the first.
+               The door greets each guest by name from a clip the sweep rendered hours
+               earlier, and `autoplay=()` denies the feature to our own documents, so the
+               browser refused every play() before a line of the page's own code ran. The
+               refusal arrives as a rejected promise the page swallows, which is correct
+               (a door with no sound is a working door) and is exactly why nobody saw it:
+               no error, no log, no console line, just a room of people never hearing their
+               names. `self` and not `*` — our own door may speak, an embedded third party
+               may not start making noise in a venue. */
+            'accelerometer=(), autoplay=(self), camera=(self), '
             . 'display-capture=(), encrypted-media=(), fullscreen=(self), geolocation=(), '
-            . 'gyroscope=(), magnetometer=(), microphone=(), midi=(), payment=(), '
+            /* microphone=(self): the THIRD feature this one header had switched off. A
+               nominee may answer a question out loud — the form's whole reason for it is
+               somebody writing on a phone, slowly, in a third language — and it is
+               getUserMedia({audio:true}), which `microphone=()` refuses site-wide. Its
+               catch then says "Your phone may be asking for permission — allow it", which
+               sends that person to a prompt that is never going to appear. The browser's
+               own permission prompt still stands in front of this; `self` only means the
+               question may be asked at all, and only by our own pages. */
+            . 'gyroscope=(), magnetometer=(), microphone=(self), midi=(), payment=(), '
             /* picture-in-picture=(self): Plyr requests it for every video it mounts —
                Pulse posts, the nominee films — and with it denied the console logged
                a permissions-policy violation per player while the PiP button sat

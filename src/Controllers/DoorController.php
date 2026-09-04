@@ -177,6 +177,20 @@ final class DoorController
             // Whether to wire the player up at all. Off is a valid answer and a silent
             // door is a working door.
             'welcome_on' => DoorWelcome::enabled(),
+            // ── THE CLIP THE PAGE UNLOCKS ITS PLAYER WITH ─────────────────
+            //
+            // A greeting is played from the scanner's decode loop, which is not a user
+            // gesture, and both mobile browsers refuse audible playback on an element that
+            // has never been played inside one. The page therefore plays THIS clip, muted,
+            // on the steward's first touch of anything — after which the element is
+            // unlocked and every guest is greeted.
+            //
+            // It has to be a real file on our own origin: `media-src` is `'self'` plus two
+            // video hosts, with no `data:` and no `blob:`, so the usual silent data-URI
+            // primer is blocked by the CSP with nothing on the page to say so. The generic
+            // clip is the only greeting guaranteed to exist whenever the voice is on at
+            // all, and '' when it does not — in which case there is nothing to unlock for.
+            'welcome_prime' => DoorWelcome::keyToPlay(''),
             // ── THE COLOUR THE EFFECTS ARE PAINTED IN ─────────────────────
             //
             // The organiser's own accent, through the same resolver the ticket and the

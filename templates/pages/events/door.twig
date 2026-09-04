@@ -156,6 +156,11 @@
 
   <div class="dr__dock">
     <button type="button" class="dr__circ" id="drTorch" aria-label="Torch" aria-pressed="false">☀</button>
+    {# Hidden unless the browser has actually refused a greeting. A control that is always
+       there would be one more thing on a screen a steward glances at with a queue in front
+       of them, and for most of them there is nothing to fix. #}
+    <button type="button" class="dr__circ dr__circ--sound" id="drSound"
+            aria-label="Let the door greet guests aloud" hidden>♪</button>
     <button type="button" class="dr__arr" id="drOpenLog">
       <span class="dr__arr__last" id="drLast">Nothing scanned yet tonight</span>
       <span class="dr__arr__w">Arrivals</span>
@@ -222,29 +227,84 @@
     word: $('drWord'), name: $('drName'), meta: $('drMeta'),
     party: $('drParty'), undo: $('drUndo'), dismiss: $('drDismiss'),
     torch: $('drTorch'), openLog: $('drOpenLog'), last: $('drLast'), openPad: $('drOpenPad'),
+    sound: $('drSound'),
     pad: $('drPad'), form: $('drForm'), input: $('drInput'), go: $('drGo'), closePad: $('drClosePad'),
     log: $('drLog'), logN: $('drLogN'), logE: $('drLogE'), rows: $('drRows'), closeLog: $('drCloseLog')
   };
 
   // ══ THE VOICE ═══════════════════════════════════════════════════════════
   //
-  // One <audio> element, reused. Created once rather than per scan because a phone that
-  // has been granted playback keeps it on the same element, and a fresh element per
-  // attendee is blocked by autoplay policy after the first.
+  // One <audio> element, reused. Created ONCE AND EAGERLY, and this is the whole of why
+  // the greeting never played: the element used to be built lazily inside greet(), which
+  // runs from the decode loop. So the only element that ever existed was created outside
+  // a user gesture, was never once played inside one, and every browser that gates
+  // audible playback refused it — as a rejected promise the catch below swallows, which
+  // is the right thing to do with it and is exactly why nobody saw this. No error, no
+  // console line, no log: a room of people never hearing their names.
+  //
+  // (The other half was a HEADER. `Permissions-Policy: autoplay=()` denied the feature to
+  // our own pages site-wide, so the refusal came before any of this ran — the same shape
+  // as the `camera=()` that had the ticket scanner dead. Fixed in
+  // SecurityHeadersMiddleware::SHARED and public/.htaccess together.)
   //
   // The src is a key the server rendered HOURS ago by a maintenance sweep. Nothing is
   // synthesised here and nothing is awaited: play() is fired and forgotten, so a slow
   // clip, a muted phone or a refused autoplay cannot hold up the verdict or the queue.
   var welcomeOn = {{ welcome_on|default(false) ? 'true' : 'false' }};
-  var audio = null;
+  var primeKey  = {{ (welcome_prime|default(''))|json_encode|raw }};
+  var audio     = welcomeOn ? new Audio() : null;
+  var unlocked  = false;
+  var pending   = '';                       // a greeting refused, waiting on one tap
+
+  if (audio) audio.preload = 'none';
+
+  function clipUrl(key) { return '/door/' + TOKEN + '/welcome/' + key; }
+
+  /**
+   * Bank the steward's first touch, whatever they touched.
+   *
+   * MUTED, so the torch button does not answer with "You are welcome." — the point is
+   * only that this element has been played inside a gesture once. After that the decode
+   * loop may play it audibly for the rest of the evening.
+   */
+  function unlock() {
+    if (!audio || unlocked || !primeKey) return;
+    unlocked = true;
+    try {
+      audio.muted = true;
+      audio.src = clipUrl(primeKey);
+      var mine = audio.src;
+      var p = audio.play();
+      // The pause only fires if nothing has taken the player over in the meantime. A
+      // steward who taps and scans in the same second would otherwise have this cleanup
+      // stop the first guest's greeting a beat after it started — and that guest is the
+      // one person in the queue whose greeting anybody would be listening for.
+      var done = function () {
+        try { if (audio.src === mine) audio.pause(); audio.muted = false; } catch (e) {}
+      };
+      if (p && p.then) p.then(done, done); else done();
+    } catch (e) { try { audio.muted = false; } catch (e2) {} }
+  }
+
+  // `once`, and on the capture phase, so it fires before any handler that stops the
+  // event — the keypad and the log both do.
+  document.addEventListener('pointerdown', unlock, { capture: true, once: true });
+  document.addEventListener('keydown', unlock, { capture: true, once: true });
 
   function greet(key) {
-    if (!welcomeOn || !key) return;
+    if (!audio || !key) return;
     try {
-      if (!audio) { audio = new Audio(); audio.preload = 'none'; }
-      audio.src = '/door/' + TOKEN + '/welcome/' + key;
+      audio.muted = false;
+      audio.src = clipUrl(key);
       var p = audio.play();
-      if (p && p.catch) p.catch(function () {});
+      if (p && p.catch) p.catch(function () {
+        // REFUSED — and this is the one place it is worth saying so. Silently swallowed
+        // it is indistinguishable from a muted phone, a missing clip or the voice being
+        // switched off, and the steward has no way to tell and nothing to try. One tap
+        // fixes it for the whole evening, so offer the tap.
+        pending = key;
+        el.sound.hidden = false;
+      });
     } catch (e) { /* a door with no sound is a working door */ }
   }
 
@@ -626,6 +686,15 @@
   }
   function openLog()  { closePad(); el.log.hidden = false; el.closeLog.focus(); }
   function closeLog() { el.log.hidden = true; }
+
+  // The tap that fixes the evening. Playing the greeting HERE — inside the gesture — both
+  // greets the guest standing there and leaves the element unlocked for every guest after.
+  el.sound.addEventListener('click', function () {
+    unlocked = true;
+    el.sound.hidden = true;
+    var key = pending; pending = '';
+    if (key) greet(key);
+  });
 
   el.openPad.addEventListener('click', openPad);
   el.closePad.addEventListener('click', closePad);

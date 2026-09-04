@@ -194,7 +194,15 @@ final class Csp
             . "img-src 'self' data: blob: https:; "
             . "font-src 'self' data: " . self::FONT_HOSTS . '; '
             . "connect-src 'self' " . self::CONNECT_HOSTS . '; '
-            . "media-src 'self' " . self::MEDIA_HOSTS . '; '
+            // `blob:` is not decoration either, and it cost the same kind of silence.
+            // The nominee's read-aloud fetches its audio from /my-work/{token}/speak and
+            // plays it through URL.createObjectURL — a blob: URL, which `'self'` does not
+            // cover. The browser refused it, the page's catch wrote "The question could
+            // not be read out — but it is written above", and that sentence is
+            // indistinguishable from the endpoint having failed. A blob can only be
+            // minted by a script this same policy already governs, so allowing the scheme
+            // grants nothing a page could not already fetch.
+            . "media-src 'self' blob: " . self::MEDIA_HOSTS . '; '
             // ── 'self' IS NOT DECORATION HERE ────────────────────────────────
             //
             // The admin console previews an uploaded document by pointing an iframe at
@@ -266,7 +274,15 @@ final class Csp
             . "img-src 'self' data: blob: https:; "
             . "font-src 'self' data: " . self::FONT_HOSTS . '; '
             . "connect-src 'self' " . self::CONNECT_HOSTS . '; '
-            . "media-src 'self' " . self::MEDIA_HOSTS . '; '
+            // `blob:` is not decoration either, and it cost the same kind of silence.
+            // The nominee's read-aloud fetches its audio from /my-work/{token}/speak and
+            // plays it through URL.createObjectURL — a blob: URL, which `'self'` does not
+            // cover. The browser refused it, the page's catch wrote "The question could
+            // not be read out — but it is written above", and that sentence is
+            // indistinguishable from the endpoint having failed. A blob can only be
+            // minted by a script this same policy already governs, so allowing the scheme
+            // grants nothing a page could not already fetch.
+            . "media-src 'self' blob: " . self::MEDIA_HOSTS . '; '
             // ── 'self' IS NOT DECORATION HERE ────────────────────────────────
             //
             // The admin console previews an uploaded document by pointing an iframe at

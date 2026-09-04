@@ -416,7 +416,13 @@ class SecurityHeadersTest extends TestCase
         // was not there while the features worth denying went unlisted.
         $pp = SecurityHeadersMiddleware::SHARED['Permissions-Policy'];
         $this->assertStringNotContainsString('interest-cohort', $pp);
-        foreach (['microphone=()', 'geolocation=()', 'payment=()', 'usb=()'] as $denied) {
+        // `microphone=()` was in this list and had to come out of it: a nominee may answer
+        // a question out loud, and denying the feature here forbade that on every page
+        // while this line read as protection. It is the third capability a hand-written
+        // denial list has taken away from a shipped feature — camera, autoplay, then this.
+        // What remains is denied because NOTHING in this codebase asks for it, which is the
+        // only reason a denial is ever right; the sweep below is what keeps that true.
+        foreach (['geolocation=()', 'payment=()', 'usb=()', 'midi=()'] as $denied) {
             $this->assertStringContainsString($denied, $pp);
         }
     }
@@ -446,6 +452,171 @@ class SecurityHeadersTest extends TestCase
         $this->assertStringNotContainsString('camera=()', $pp);
         $this->assertStringNotContainsString('camera=*', $pp,
             'an embedded third party may not open the venue phone\'s camera');
+    }
+
+    /**
+     * THE DOOR SPEAKS, AND THIS HEADER HAD IT MUTE — the same fault as the camera, again.
+     *
+     * `autoplay=()` denies the feature to our own documents, so the browser refused every
+     * `play()` on every page of the site. The door greets each guest by name from a clip a
+     * maintenance sweep rendered hours earlier; the refusal arrives as a rejected promise
+     * the page swallows on purpose (a door with no sound is a working door), so there was
+     * no error, no console line and nothing anywhere pointing at a header. Every guest at
+     * every event since the voice shipped was met in silence.
+     *
+     * `self` and not `*`: our own door may speak, an embedded third party may not start
+     * making noise in a venue. Asserted as exact tokens, in both directions, because the
+     * way this shipped the first time was a test naming the denial as though it were the
+     * protection.
+     */
+    public function test_the_door_may_speak_and_nobody_else_may(): void
+    {
+        $pp = SecurityHeadersMiddleware::SHARED['Permissions-Policy'];
+
+        $this->assertStringContainsString('autoplay=(self)', $pp,
+            'the door cannot greet a guest — the browser refuses play() before the page runs');
+        $this->assertStringNotContainsString('autoplay=()', $pp);
+        $this->assertStringNotContainsString('autoplay=*', $pp,
+            'an embedded third party may not autoplay audio at a venue');
+    }
+
+    /**
+     * THE QUESTION THAT WOULD HAVE CAUGHT BOTH, ASKED OF EVERY FEATURE AT ONCE.
+     *
+     * Two capabilities have now been denied to this site's own pages by this one header,
+     * each for months, each invisible from the page — `camera=()` killed the ticket
+     * scanner and `autoplay=()` killed the door's voice. Both were found by a person
+     * noticing a feature did not work, not by anything here, and both were then pinned by
+     * name in a test that could only ever hold the case already known.
+     *
+     * So this asks the general form: FOR EVERY CAPABILITY THIS SITE'S OWN JAVASCRIPT
+     * ACTUALLY CALLS, is the header letting it? A denial is only correct for a capability
+     * nothing here uses. The list is derived from the shipped code on every run, so a
+     * screen added next year that reaches for the wake lock or full screen fails here on
+     * the day it is written rather than on the night it is needed.
+     */
+    public function test_no_capability_the_site_actually_uses_is_denied_by_the_header(): void
+    {
+        // The call a browser gates, and the Permissions-Policy feature that gates it.
+        $gated = [
+            'new Audio('               => 'autoplay',
+            '.requestFullscreen('      => 'fullscreen',
+            'requestPictureInPicture'  => 'picture-in-picture',
+            'navigator.geolocation'    => 'geolocation',
+            'wakeLock.request'         => 'screen-wake-lock',
+        ];
+
+        $pp    = SecurityHeadersMiddleware::SHARED['Permissions-Policy'];
+        $found = [];
+
+        foreach ($this->shippedPageCode() as $path => $src) {
+            foreach ($gated as $call => $feature) {
+                if (str_contains($src, $call)) $found[$feature][] = basename($path);
+            }
+            // getUserMedia is two features wearing one name, and only the CONSTRAINT says
+            // which. Mapping it to `camera` alone is how the nominee's dictation stayed
+            // invisible here while `microphone=()` refused it — the door asks for
+            // `audio: false` and would have vouched for a header that muted somebody else.
+            foreach ($this->mediaConstraints($src) as $feature) {
+                $found[$feature][] = basename($path);
+            }
+        }
+
+        // A POSITIVE CONTROL, because the comment stripping below could silently reduce
+        // every file to nothing and this whole sweep would pass by finding no capability
+        // at all — which is the failure mode of every scanner in this repository that has
+        // needed fixing twice.
+        $this->assertArrayHasKey('camera', $found,
+            'the sweep found no getUserMedia anywhere: it is reading nothing, not passing');
+        $this->assertArrayHasKey('autoplay', $found,
+            'the sweep found no audio player anywhere: it is reading nothing, not passing');
+        $this->assertArrayHasKey('microphone', $found,
+            'the sweep found nothing recording: the constraint reader is reading nothing');
+
+        foreach ($found as $feature => $files) {
+            $this->assertStringNotContainsString($feature . '=()', $pp,
+                $feature . ' is denied to our own pages by Permissions-Policy, and '
+                . implode(', ', array_unique($files)) . ' calls it. The browser refuses it '
+                . 'before a line of the page runs, and the page cannot tell that apart from '
+                . 'the user saying no.');
+        }
+    }
+
+    /**
+     * Which of camera / microphone the getUserMedia calls in this source actually ask for.
+     *
+     * Read from the constraint object rather than from the call, because `audio: false` and
+     * `audio: true` are the same call and opposite requirements.
+     *
+     * @return list<string>
+     */
+    private function mediaConstraints(string $src): array
+    {
+        if (!preg_match_all('~getUserMedia\s*\(~', $src, $m, PREG_OFFSET_CAPTURE)) return [];
+
+        $out = [];
+        foreach ($m[0] as [, $at]) {
+            // The constraint object, generously bounded — these are always written inline
+            // and none in this codebase runs past a couple of lines.
+            $arg = substr($src, $at, 320);
+
+            // The value is CAPTURED and compared, not excluded by a lookahead. `\s*` before
+            // a `(?!false)` backtracks to zero width and the lookahead then reads the space
+            // — so `audio: false` matched, and the door, which asks for no microphone at
+            // all, vouched for the microphone. It passed the sweep's own positive control
+            // while doing that, which is what makes the shape worth naming here.
+            if (preg_match('~\bvideo\s*:\s*([A-Za-z0-9_$]+|\{)~', $arg, $v) && $v[1] !== 'false') {
+                $out[] = 'camera';
+            }
+            if (preg_match('~\baudio\s*:\s*([A-Za-z0-9_$]+|\{)~', $arg, $a) && $a[1] !== 'false') {
+                $out[] = 'microphone';
+            }
+        }
+
+        return array_values(array_unique($out));
+    }
+
+    /**
+     * The page code this site actually ships, with comments blanked.
+     *
+     * Comments are stripped because this repository has four times shipped a scanner
+     * fooled by the comment explaining the bug it was written to find — and the door's
+     * player now carries a comment that names `autoplay=()` in so many words.
+     *
+     * @return array<string,string> path => source
+     */
+    private function shippedPageCode(): array
+    {
+        $root = dirname(__DIR__, 2);
+        $out  = [];
+
+        $dirs = [$root . '/templates', $root . '/public/assets/js'];
+        foreach ($dirs as $dir) {
+            if (!is_dir($dir)) continue;
+            $it = new \RecursiveIteratorIterator(new \RecursiveDirectoryIterator($dir,
+                \FilesystemIterator::SKIP_DOTS));
+            foreach ($it as $f) {
+                if (!$f->isFile()) continue;
+                if (!in_array($f->getExtension(), ['twig', 'js'], true)) continue;
+                // Vendored libraries are somebody else's feature detection, not ours: jsQR
+                // and Plyr both name capabilities this site never asks for.
+                if (str_contains($f->getPathname(), '/vendor/')) continue;
+                $out[$f->getPathname()] = self::blankComments((string) file_get_contents($f->getPathname()));
+            }
+        }
+
+        return $out;
+    }
+
+    /** Twig and JavaScript comments blanked. Offsets are not preserved; nothing needs them. */
+    private static function blankComments(string $src): string
+    {
+        $src = (string) preg_replace('~\{#.*?#\}~s', ' ', $src);
+        $src = (string) preg_replace('~/\*.*?\*/~s', ' ', $src);
+        // `(?<!:)` keeps https:// intact, which is the only // this codebase has in a
+        // string that a blunter rule would eat along with the rest of the line.
+        return (string) preg_replace('~(?<!:)//[^
+]*~', ' ', $src);
     }
 
     /**

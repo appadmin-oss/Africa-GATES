@@ -88,8 +88,44 @@ enforced. And the header is set in **two** places: `SecurityHeadersMiddleware::S
 `public/.htaccess`, where Apache's `Header always set` REPLACES rather than conflicts, so a
 divergence never shows up as an error. `SecurityHeadersTest` compares them.
 
-`media-src` is the same shape of trap: it is `'self'` plus two video hosts, with no `data:`
-and no `blob:`, so audio returned as a data URI is blocked with nothing an operator can see.
+**Then it happened twice more, off the same denied list, and one of those was pinned by name
+too.** `autoplay=()` meant the door had never once greeted a guest aloud on any device — the
+clips were rendered, the check returned the right key, `EventLifecycleTest` walked a guest
+through and passed, and the browser refused `play()` before any of that reached a speaker.
+`microphone=()` did the same to the two places a nominee may answer a question out loud
+(`my-work.twig`, `my-work/interview.twig`), whose catch says "Your phone may be asking for
+permission — allow it", sending that person to a prompt that was never going to appear.
+
+Every one of these fails as a **rejected promise the page swallows on purpose**, and it is
+right to swallow it: a door with no sound is a working door, and nothing about a greeting
+may hold a queue. That is exactly why they last for months. No error, no console line, no
+log, nothing to grep — the feature is simply not there, and the page's own fallback copy
+describes some other cause.
+
+So the question to ask of this header is never "is each denial correct?" but **"is any
+capability this site's own code actually calls being denied?"** — and it is now asked on
+every run, over the shipped templates and JS, by
+`SecurityHeadersTest::test_no_capability_the_site_actually_uses_is_denied_by_the_header`.
+A denial is only ever right for a capability nothing here reaches for. Note what that sweep
+has to do that a naive one does not: `getUserMedia` is two features wearing one name, and
+only the **constraint** says which — the door asks for `audio: false`, and a sweep reading
+the call rather than the constraint has the door vouching for a header that mutes somebody
+else. (`\s*` before a `(?!false)` backtracks to zero width and the lookahead then reads the
+space, so the value is captured and compared, never excluded by a lookahead.)
+
+`media-src` is the same shape of trap and had already caught the other half of the same
+feature: it was `'self'` plus two video hosts with no `data:` and no `blob:`, so the
+nominee's read-aloud — which plays its audio through `URL.createObjectURL` — was blocked a
+second time, independently, by a policy line. `blob:` is allowed now; `data:` still is not.
+
+**And a header is only ever half of an autoplay fault.** Both mobile browsers gate audible
+playback on an element having been played inside a user gesture, and the door's greeting
+fires from the scanner's decode loop, which is a timer. The player used to be built lazily
+*inside* that callback, so the only element that ever existed had never seen a gesture and
+never could. It is now built up front, unlocked muted on the steward's first touch of
+anything, and a refusal that survives both reveals a one-tap control on the dock rather than
+being dropped — because at a gate the person who can fix it is standing right there.
+`DoorGreetingPlaysTest` holds all of it.
 
 ## A `<form>` inside a `<form>` is silently deleted
 

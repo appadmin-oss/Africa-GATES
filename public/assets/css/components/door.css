@@ -257,6 +257,10 @@ html.dr-html, body.dr-body {
             display:flex; align-items:center; justify-content:center }
 .dr__circ--pad { font:400 11.5px/1 var(--dr-mono) }
 .dr__circ.is-on { border-color:rgba(243,180,22,.7); color:var(--dr-accent) }
+/* Only ever on screen because the browser REFUSED to play a greeting, so it is drawn
+   as something to do rather than as another instrument on the dock — the accent the
+   torch uses when it is lit, and the same one the verdict's rule is painted in. */
+.dr__circ--sound { border-color:rgba(243,180,22,.7); color:var(--dr-accent) }
 
 .dr__arr { flex:1; min-width:0; height:44px; padding:0; border:0; background:transparent;
            cursor:pointer; display:flex; align-items:center; gap:10px; text-align:left }
