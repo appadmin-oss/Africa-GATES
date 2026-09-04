@@ -4,6 +4,7 @@ declare(strict_types=1);
 namespace AfricaGates\Services;
 
 use AfricaGates\Support\Env;
+use AfricaGates\Support\NationsLive;
 use Illuminate\Database\Capsule\Manager as DB;
 use Psr\Log\LoggerInterface;
 
@@ -384,13 +385,32 @@ final class GuideService
         $stateBlock = $this->siteStateDigest();
         $helpBlock  = $this->helpGrounding($message);
 
+        // ── THE THREE FACTS BELOW WERE TYPED INTO THE PROMPT ─────────────────
+        //
+        // "live in Nigeria, building toward 54 nations" and "45% / 55%" were literals here,
+        // which makes this the one place that explains the platform to people and the one
+        // place that could not follow it. The weights are configurable per programme and
+        // per cycle; the nations are counted from the awards. A guide confidently quoting a
+        // split this platform is not using is worse than one that says it does not know.
+        $w    = (new RuleEngine())->weights();
+        $cw   = (int) round($w['community'] * 100);
+        $jw   = 100 - $cw;
+        $live = NationsLive::phrase();
+        // The ambition, from the same setting the footer reads. Its own try/catch because
+        // a guide that cannot answer at all is a worse failure than one saying 54.
+        $goal = 54;
+        try {
+            $v = DB::table('gates_settings')->where('key_name', 'nations_count')->value('value');
+            if (is_numeric($v)) $goal = (int) $v;
+        } catch (\Throwable) {}
+
         return <<<SYS
 You are **Gee**, the warm, sharp guide for Africa GATES — the continental Cultural Power Index (CPI) that recognises African excellence.
 
 WHAT AFRICA GATES IS
 - The community nominates people and organisations, the public votes, and an independent jury scores them. Each entrant earns a transparent Cultural Power Index from 0–1000, recomputed every 6 hours.
-- The CPI is 45% verified public votes + 55% an independent jury panel. The jury averages four criteria — Impact, Originality, Reach, Integrity. Only organic verified votes count toward the score.
-- An Afrovanguard initiative — live in Nigeria, building toward 54 nations.
+- The CPI is {$cw}% verified public votes + {$jw}% an independent jury panel. The jury averages four criteria — Impact, Originality, Reach, Integrity. Only organic verified votes count toward the score.
+- An Afrovanguard initiative — live in {$live}, building toward {$goal} nations.
 
 PAGES YOU CAN SEND PEOPLE TO (write the bare path; the interface turns it into a button)
 - /vote — cast a verified vote (OTP-confirmed, one per category)

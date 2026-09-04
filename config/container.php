@@ -95,6 +95,8 @@ return [
             'donation_votes_per_1000' => (int)($settings['donation_votes_per_1000'] ?? 5),
             // Admin-configurable display constants — so copy across the site never hardcodes
             // these numbers. Settings override the defaults; templates read the globals.
+            // The AMBITION — 54, an admin setting, and a different claim from
+            // `nations_live()` below, which counts the ones that are actually running.
             'nations_count'       => (int)($settings['nations_count'] ?? 54),
             'cpi_recompute_hours' => (int)($settings['cpi_recompute_hours'] ?? 6),
             'review_sla_hours'    => (int)($settings['review_sla_hours'] ?? 48),
@@ -307,6 +309,27 @@ return [
             'asset',
             [\AfricaGates\Support\Assets::class, 'url']
         ));
+        // ── WHICH NATIONS GATES IS ACTUALLY LIVE IN ──────────────────────────
+        //
+        // `{{ nations_live() }}` → 'Nigeria' · 'Nigeria and Ghana' · '12 nations'.
+        //
+        // Counted from the awards rather than typed. "Live in Nigeria" was written into the
+        // page description, the JSON-LD, the footer and the terms, and the day a second
+        // nation had somebody standing in a live award every one of them was wrong —
+        // nobody edits a meta description because a nomination came in.
+        //
+        // A FUNCTION and not a global, for the same reason `cron_health` below is one: it
+        // is a four-table join, this container builds its globals for every request, and
+        // most of them never render a footer. Nothing is queried until a template asks.
+        foreach ([
+            'nations_live'       => 'phrase',
+            'nations_live_count' => 'count',
+        ] as $name => $method) {
+            $twig->getEnvironment()->addFunction(new \Twig\TwigFunction(
+                $name,
+                [\AfricaGates\Support\NationsLive::class, $method]
+            ));
+        }
 
         // ── EVERY DATE TWIG PRINTS IS IN THE DISPLAY ZONE ────────────────────
         //

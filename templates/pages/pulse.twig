@@ -427,7 +427,15 @@
   .pl-openc svg{ flex:none; color:#3d4c4e; }
   .pl-openc:focus-visible{ outline:2px solid var(--ag-green,#237b22); outline-offset:3px; border-radius:12px; }
 
-  @media (max-width:900px){ .pl-grid{ grid-template-columns:1fr; } .pl-rail{ position:static; } }
+  /* `minmax(0,1fr)` and not `1fr` — `1fr` is `minmax(auto, 1fr)`, and `auto` is
+     min-content, so the widest thing in the rail set the width of the column, the column
+     set the width of the page, and Pulse scrolled sideways by 56px on a 360 phone. The
+     DESKTOP rule above already knows this: it says `minmax(0,600px)`. This override threw
+     that away at exactly the width where it matters most. `.pl-feed` was protected by its
+     own `min-width:0`, which is why the feed looked innocent and the rail took the blame.
+     Once the track can be narrower than its content, the tab strip does what it was
+     written to do and scrolls inside its own box. */
+  @media (max-width:900px){ .pl-grid{ grid-template-columns:minmax(0,1fr); } .pl-rail{ position:static; } }
 
   /* ── PHONE ───────────────────────────────────────────────────────────────
      Measured, not guessed: before this block there were 614px of chrome above

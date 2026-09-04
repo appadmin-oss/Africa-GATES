@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width,initial-scale=1.0,viewport-fit=cover">
   <title>{{ page_title|default('Africa GATES | Continental Cultural Recognition | Afrovanguard') }}</title>
-  <meta name="description" content="{{ meta_description|default('Africa GATES — the Cultural Power Index recognising African excellence. Live in Nigeria, building toward ' ~ nations_count ~ ' nations. An Afrovanguard initiative.') }}">
+  <meta name="description" content="{{ meta_description|default('Africa GATES — the Cultural Power Index recognising African excellence. Live in ' ~ nations_live() ~ ', building toward ' ~ nations_count ~ ' nations. An Afrovanguard initiative.') }}">
   <meta name="theme-color" content="#10292C">
 
   <meta name="csrf-token" content="{{ csrf_token }}">
@@ -83,7 +83,7 @@
           "@type": "ImageObject",
           "url": "{{ _site_url }}/assets/img/logo-africa-gates.png"
         },
-        "description": "Africa GATES — the Cultural Power Index recognising African excellence. Live in Nigeria, building toward {{ nations_count }} nations. An Afrovanguard initiative.",
+        "description": "Africa GATES — the Cultural Power Index recognising African excellence. Live in {{ nations_live() }}, building toward {{ nations_count }} nations. An Afrovanguard initiative.",
         "parentOrganization": {
           "@type": "Organization",
           "name": "Afrovanguard",
