@@ -608,14 +608,35 @@ final class DoorWelcome
      * intended cost and it is paid once: the sweep re-renders inside its budget, and
      * {@see prune()} removes what nothing asks for any more.
      */
-    public static function keyFor(string $line): string
+    public static function keyFor(string $line, ?string $provider = null): string
     {
         // THE PROVIDER IS PART OF THE KEY. Clips are rendered hours ahead and looked up by
         // this hash; without the provider in it, switching from Azure to OpenAI leaves every
         // file on disk matching a key that no longer describes the voice that made it, and
         // the door goes on serving the old provider's audio for as long as those files live
         // — silently, because the only question the door asks is whether the file exists.
-        return sha1(DoorVoice::signature() . '|' . AzureVoice::tidy($line));
+        return sha1(DoorVoice::signature($provider) . '|' . AzureVoice::tidy($line));
+    }
+
+    /**
+     * Every key this line could be on disk under — one per provider in the chain.
+     *
+     * DoorVoice falls through to the next provider when one refuses, so the clip on disk
+     * may have been made by a provider that is not the chosen one. Looking it up under the
+     * chosen provider's key alone would miss it, re-render it on every sweep, and burn a
+     * quota making a file that already exists.
+     *
+     * Ordered, so a clip from the preferred provider wins where both exist — which is what
+     * happens the evening after a key is fixed.
+     *
+     * @return list<string>
+     */
+    public static function keysFor(string $line): array
+    {
+        $out = [];
+        foreach (DoorVoice::order() as $p) $out[] = self::keyFor($line, $p);
+
+        return array_values(array_unique($out));
     }
 
     public static function dir(): ?string
@@ -636,13 +657,23 @@ final class DoorWelcome
         return $dir . '/' . $key . '.mp3';
     }
 
-    /** Is this line already on disk? The only question the door ever asks. */
+    /** Is this line already on disk, made by ANY provider in the chain? */
     public static function have(string $line): bool
     {
-        if ($line === '') return false;
-        $p = self::pathFor(self::keyFor($line));
+        return self::keyOnDisk($line) !== '';
+    }
 
-        return $p !== null && is_file($p) && filesize($p) > 0;
+    /** The key of the clip that exists for this line, or '' when none does. */
+    public static function keyOnDisk(string $line): string
+    {
+        if ($line === '') return '';
+
+        foreach (self::keysFor($line) as $key) {
+            $p = self::pathFor($key);
+            if ($p !== null && is_file($p) && filesize($p) > 0) return $key;
+        }
+
+        return '';
     }
 
     /**
@@ -654,11 +685,14 @@ final class DoorWelcome
     public static function keyToPlay(string $line): string
     {
         if (!self::enabled()) return '';
-        if ($line !== '' && self::have($line)) return self::keyFor($line);
 
-        $generic = self::genericLine();
+        // The key that IS on disk, not the one the chosen provider would use. A fallback
+        // clip is a real clip and the door must play it rather than fall through to the
+        // generic welcome because the preferred provider's key does not match.
+        $mine = self::keyOnDisk($line);
+        if ($mine !== '') return $mine;
 
-        return self::have($generic) ? self::keyFor($generic) : '';
+        return self::keyOnDisk(self::genericLine());
     }
 
     public static function genericLine(): string
@@ -678,11 +712,17 @@ final class DoorWelcome
         if ($line === '' || !DoorVoice::configured()) return false;
         if (self::have($line)) return true;
 
-        $path = self::pathFor(self::keyFor($line));
-        if ($path === null) return false;
+        // WHICH provider spoke decides where this is filed. The chain falls through on a
+        // refusal, so writing a fallback clip under the chosen provider's signature would
+        // label Azure audio as OpenAI's — and the door would go on serving it after the
+        // OpenAI key was fixed, silently, because the only question it asks is whether a
+        // file exists.
+        $said = DoorVoice::sayWith($line);
+        $mp3  = $said['mp3'];
+        if ($mp3 === null || $said['provider'] === null) return false;
 
-        $mp3 = DoorVoice::say($line);
-        if ($mp3 === null) return false;
+        $path = self::pathFor(self::keyFor($line, $said['provider']));
+        if ($path === null) return false;
 
         // Written to a temporary name and moved into place: a sweep that dies mid-write
         // would otherwise leave a truncated file that `have()` reports as ready, and a door

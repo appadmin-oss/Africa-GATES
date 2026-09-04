@@ -122,7 +122,7 @@ final class DoorGreetingPlaysTest extends TestCase
     {
         $door = $this->doorJs();
 
-        $from = strpos($door, 'function greet(key)');
+        $from = strpos($door, 'function greet(');
         $this->assertIsInt($from, 'greet() moved; this test must follow it');
 
         // To the end of that function — the next declaration at the same indentation.
@@ -185,7 +185,7 @@ final class DoorGreetingPlaysTest extends TestCase
     {
         $door = $this->doorJs();
 
-        $from = strpos($door, 'function greet(key)');
+        $from = strpos($door, 'function greet(');
         $this->assertIsInt($from);
         $body = substr($door, $from, strpos($door, "\n  }", $from) - $from);
 

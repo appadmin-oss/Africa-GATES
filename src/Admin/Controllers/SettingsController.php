@@ -210,7 +210,11 @@ class SettingsController
             // Raw provider state — deliberately direct, not through the gateway:
             // this is the diagnostics surface and must see the true key state
             // even when a kill switch is off.
-            'ai_status'      => \AfricaGates\Services\AiService::boot()->status(),
+            // ElevenLabs is not one of AiService's chat providers — it only speaks — so
+            // its "configured" dot has to be added, or the card renders "not set" beside a
+            // key that is working and offers no way to remove it.
+            'ai_status'      => \AfricaGates\Services\AiService::boot()->status()
+                                + ['elevenlabs' => \AfricaGates\Services\ElevenLabsVoice::configured()],
             // Governance view. Both figures were previously impossible to
             // produce: nothing recorded token usage, and nothing recorded whether
             // a reviewer agreed with a suggestion.
@@ -381,7 +385,7 @@ class SettingsController
                   // Both validated against their own lists in DoorVoice and OpenAiVoice —
                   // an unknown value falls back to the shipped default rather than
                   // silencing the door on the night somebody mistypes it.
-                  'door_voice_provider','door_voice_openai',
+                  'door_voice_provider','door_voice_openai','door_voice_elevenlabs',
                   'azure_speech_region','azure_speech_voice','azure_speech_tier',
                   // Pacing. Both validated against their own lists in AzureVoice, because
                   // an out-of-range prosody value is a 400 during an unattended 06:00 run.
@@ -678,7 +682,10 @@ class SettingsController
             // Two Groq keys: 'groq' = general/public, 'groq_mod' = dedicated
             // moderation key (runs the best model; free-falls back to the
             // general key when unset).
-            $providerKeys = ['groq' => 'ai_groq_key', 'groq_mod' => 'ai_groq_key_mod', 'gemini' => 'ai_gemini_key', 'anthropic' => 'ai_anthropic_key', 'openai' => 'ai_openai_key'];
+            // `elevenlabs` rides here rather than beside the Azure key, because it is a
+            // key and nothing else — no region, no tier — and this is the write-only path
+            // that never echoes a credential back into the page source.
+            $providerKeys = ['groq' => 'ai_groq_key', 'groq_mod' => 'ai_groq_key_mod', 'gemini' => 'ai_gemini_key', 'anthropic' => 'ai_anthropic_key', 'openai' => 'ai_openai_key', 'elevenlabs' => 'ai_elevenlabs_key'];
             $clear = (array) ($b['ai_clear'] ?? []);
             foreach ($providerKeys as $name => $settingKey) {
                 if (!empty($clear[$name])) { $this->settings->set($settingKey, '', $adminId); continue; }

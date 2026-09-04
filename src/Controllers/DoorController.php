@@ -3,7 +3,7 @@ declare(strict_types=1);
 
 namespace AfricaGates\Controllers;
 
-use AfricaGates\Services\{DoorWelcome, EventArrivals, EventScanPass, EventTicketService,
+use AfricaGates\Services\{DoorVoice, DoorWelcome, EventArrivals, EventScanPass, EventTicketService,
                           InviteAudience, InvitePass, RateLimitService};
 use AfricaGates\Support\EventTime;
 use Illuminate\Database\Capsule\Manager as DB;
@@ -393,13 +393,27 @@ final class DoorController
         // room full of people not hearing their names on the one night it matters.
         //
         // Read only on an admit, so a refusal and a duplicate cost the queue no query.
-        $welcome = $v['verdict'] === 'admit'
-            ? DoorWelcome::keyToPlay(DoorWelcome::line((string) $v['name'], self::eventOfPass($pass)))
+        // ── THE LINE TRAVELS WITH THE KEY ───────────────────────────────────
+        //
+        // A key alone means the door can only speak when a clip was rendered ahead of it.
+        // A walk-up, a late booking, a sweep that never ran because the cron was not set
+        // up — all of those arrive with no clip and the door said nothing at all. The
+        // browser has a voice of its own that needs no key and no network, and it cannot
+        // use it without the words.
+        //
+        // Same door token, same page, and the clip says this name aloud anyway, so the
+        // text is no wider an exposure than the audio it replaces.
+        $welcomeLine = $v['verdict'] === 'admit'
+            ? DoorWelcome::line((string) $v['name'], self::eventOfPass($pass))
             : '';
+        $welcome = $welcomeLine !== '' ? DoorWelcome::keyToPlay($welcomeLine) : '';
 
         return $this->json($res, [
             'ok'       => $v['verdict'] === 'admit',
             'verdict'  => $v['verdict'],
+            // What to say if there is no clip. Plain text: the browser's synthesiser
+            // reads words, not SSML, and the pause marker would be read out loud.
+            'say'      => DoorVoice::plain($welcomeLine),
             'title'    => $v['title'],
             'detail'   => $v['detail'],
             'name'     => $v['name'],
@@ -683,6 +697,11 @@ final class DoorController
         // in the room is one list rather than two tables an organiser has to join by hand.
         EventArrivals::honoured($invite, $via);
 
+        // Built once: the key is looked up from it AND the words travel beside the key,
+        // so a guest of honour with no clip rendered is still greeted — by the browser.
+        $honourLine = DoorWelcome::honourLine((string) $invite->name,
+                                              strtolower((string) ($spec['one'] ?? '')), $event);
+
         // Already through is NOT a refusal. A nominee who steps out to take a call and
         // comes back is the ordinary case, and turning them away from their own ceremony
         // over a re-scan is a worse failure than a second admission. It is reported so a
@@ -708,9 +727,8 @@ final class DoorController
             // Greeted as what they are. "Our nominee this evening" is a different sentence
             // from a ticket holder's, because arriving at an evening held for you is a
             // different arrival from arriving at one you bought a seat at.
-            'welcome' => DoorWelcome::keyToPlay(
-                DoorWelcome::honourLine((string) $invite->name,
-                                        strtolower((string) ($spec['one'] ?? '')), $event)),
+            'welcome' => DoorWelcome::keyToPlay($honourLine),
+            'say'     => DoorVoice::plain($honourLine),
         ];
     }
 

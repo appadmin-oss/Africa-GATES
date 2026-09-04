@@ -91,15 +91,34 @@ final class DoorVoiceProviderAgnosticTest extends TestCase
             'the Azure box can no longer say it is empty, so the key field lost its hint');
     }
 
-    /** Selecting Azure moves every answer with it — the flag tracks the choice. */
+    /**
+     * Selecting Azure moves every PER-PROVIDER answer with it.
+     *
+     * This used to assert that choosing Azure with no Azure key made the whole door
+     * silent, even with OpenAI keyed. That was true of a single-provider door and is
+     * wrong now: DoorVoice falls through, so the door speaks and reports so. The property
+     * that survives — and the one this test was really for — is that the answer ABOUT A
+     * PROVIDER follows the choice rather than being hardcoded, which `configuredFor()`
+     * answers.
+     */
     public function test_the_report_follows_whichever_provider_is_chosen(): void
     {
         $this->settings([
             DoorVoice::SETTING => 'azure', 'ai_openai_key' => 'sk-test-intact', 'azure_speech_key' => '',
         ]);
 
-        $this->assertFalse(DoorVoice::configured(),
-            'Azure is selected with no Azure key and the door claims it can speak');
+        $this->assertSame(DoorVoice::AZURE, DoorVoice::provider());
+        $this->assertFalse(DoorVoice::configuredFor(DoorVoice::AZURE),
+            'an empty Azure key is being read as configured');
+        $this->assertTrue(DoorVoice::configuredFor(DoorVoice::OPENAI));
+
+        // And the door as a whole still speaks, through the fallback.
+        $this->assertTrue(DoorVoice::configured(),
+            'the chain went silent because its FIRST choice was unconfigured');
+
+        // With nothing keyed at all, the reason names the chosen provider.
+        $this->settings(['ai_openai_key' => '', 'ai_elevenlabs_key' => '']);
+        $this->assertFalse(DoorVoice::configured());
         $this->assertStringContainsStringIgnoringCase('azure', DoorVoice::why());
     }
 

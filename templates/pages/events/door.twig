@@ -324,8 +324,37 @@
   document.addEventListener('pointerdown', unlock, { capture: true, once: true });
   document.addEventListener('keydown', unlock, { capture: true, once: true });
 
-  function greet(key) {
-    if (!audio || !key) return;
+  // ── THE LAST VOICE IN THE CHAIN, AND THE ONLY ONE THAT NEEDS NOTHING ─────
+  //
+  // Every provider before this one needs a key, a network and a clip rendered hours
+  // earlier by a sweep. All three fail routinely: a walk-up or a late booking has no clip
+  // by definition, and on a host with no shell the sweep only runs if somebody wired up
+  // the cron.
+  //
+  // The browser has a voice built in. No key, no request, nothing to configure and
+  // nothing to go wrong at 7pm — and it is the difference between a guest hearing a
+  // slightly robotic welcome and hearing nothing at all. Used ONLY when there is no clip:
+  // a rendered greeting is better in every way, and this must never pre-empt one.
+  function speakHere(text) {
+    if (!text) return false;
+    try {
+      var synth = window.speechSynthesis;
+      if (!synth || typeof SpeechSynthesisUtterance !== 'function') return false;
+      // A queued utterance from the previous guest would otherwise play over this one,
+      // and at a door the queue moves faster than the sentence.
+      synth.cancel();
+      var u = new SpeechSynthesisUtterance(text);
+      u.rate = 0.98;              // a shade under default; names survive it better
+      u.lang = document.documentElement.lang || 'en-NG';
+      synth.speak(u);
+      return true;
+    } catch (e) { return false; }
+  }
+
+  function greet(key, say) {
+    // No clip: the browser says it instead of the door saying nothing.
+    if (!key) { speakHere(say); return; }
+    if (!audio) return;
     try {
       audio.muted = false;
       audio.src = clipUrl(key);
@@ -335,6 +364,10 @@
         // it is indistinguishable from a muted phone, a missing clip or the voice being
         // switched off, and the steward has no way to tell and nothing to try. One tap
         // fixes it for the whole evening, so offer the tap.
+        //
+        // The browser voice is NOT tried here. This refusal is the autoplay gate, and
+        // speechSynthesis is behind the same gate — so it would fail identically and the
+        // one thing that does fix it, the tap, would be buried under a second silence.
         pending = key;
         el.sound.hidden = false;
       });
@@ -456,7 +489,7 @@
     restart(el.rule, 'dr-rule .55s cubic-bezier(.22,.61,.36,1)');
     flare();
 
-    if (kind === 'admit' || kind === 'honour') { onCode = v.code || ''; greet(v.welcome); }
+    if (kind === 'admit' || kind === 'honour') { onCode = v.code || ''; greet(v.welcome, v.say); }
     if (typeof v.admitted === 'number') tally(v.admitted);
 
     // A queue should not need a tap per guest, so a verdict clears itself — except the

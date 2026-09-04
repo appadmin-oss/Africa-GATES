@@ -190,13 +190,32 @@ final class DoorVoiceProviderTest extends TestCase
     {
         $this->useOpenAi();
         $this->set('door_welcome_enabled', '1');
-        // An Azure key present and an OpenAI key absent: the state where a wrong
-        // instruction is most convincing.
+
+        // ── AN AZURE KEY NOW MAKES THE DOOR SPEAK, AND THAT IS THE POINT ─────
+        //
+        // This used to set an Azure key with OpenAI chosen and assert the door reported
+        // itself voiceless. Under the chain that is no longer true and must not be: the
+        // door falls through to Azure and a guest hears their name. A door whose second
+        // choice works is not broken.
         $this->set('azure_speech_key', 'an-azure-key');
+        $this->set('azure_speech_region', 'southafricanorth');
+
+        $viaFallback = DoorWelcome::readiness();
+        $this->assertTrue($viaFallback['voice'],
+            'the door reports itself silent while Azure is keyed and would answer for it');
+        $this->assertSame('', (string) $viaFallback['blocker'],
+            'a door that will speak through its fallback is being reported as blocked');
+
+        // ── AND WITH NOTHING KEYED, THE INSTRUCTION STILL NAMES *THEIR* CHOICE ──
+        //
+        // The original property, and the reason this test exists: "Add the Azure Speech
+        // key" is the wrong instruction, confidently given, to an operator who chose
+        // OpenAI. It is asserted in the state where an instruction is actually needed.
+        $this->set('azure_speech_key', '');
 
         $r = DoorWelcome::readiness();
 
-        $this->assertFalse($r['voice'], 'an Azure key was read as configuring OpenAI');
+        $this->assertFalse($r['voice'], 'nothing is keyed and the door claims a voice');
         $this->assertStringContainsString('OpenAI', (string) $r['fix'],
             'an operator using OpenAI is being told to add an Azure key');
         $this->assertStringNotContainsString('Azure Speech key', (string) $r['fix']);
