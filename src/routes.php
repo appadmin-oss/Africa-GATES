@@ -3817,6 +3817,14 @@ return function(App $app) {
         $a->group('/settings', function (RouteCollectorProxy $s) {
             $s->get('',  AdminSettingsController::class.':form');
             $s->post('', AdminSettingsController::class.':save');
+            // ── ASK EVERY PROVIDER, RIGHT NOW ────────────────────────────────
+            //
+            // The page an operator opens when something "is not working" and no screen
+            // will say which link is broken. Every probe is a READ — a balance, an account,
+            // a model list — so pressing it never sends an SMS, opens a transaction or
+            // synthesises audio. See ProviderProbe.
+            $s->get('/providers',      AdminSettingsController::class.':providers');
+            $s->post('/providers/run', AdminSettingsController::class.':providersRun');
             $s->post('/smtp-test', AdminSettingsController::class.':smtpTest');
             $s->post('/test-ai',   AdminSettingsController::class.':testAi');
             $s->post('/probe-ai',  AdminSettingsController::class.':probeAi');

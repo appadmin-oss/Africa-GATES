@@ -483,7 +483,18 @@ class CspHostCoverageTest extends TestCase
             // Twig comments stripped: several templates EXPLAIN this constraint by naming
             // the attribute, and the explanation must not read as a violation. Same trap
             // the .htaccess guards in SecurityHeadersTest hit twice.
-            $body = (string) preg_replace('~\{#.*?#\}~s', '', (string) file_get_contents($file->getPathname()));
+            // Twig comments AND JavaScript line comments. The Twig half was already here;
+            // the JS half is the same lesson learned again, in the same week: a nonce'd
+            // <script> block explaining "the admin CSP has no unsafe-inline, so an
+            // onclick= here does nothing" is a note about the rule, and this sweep read it
+            // as a breach of it. Seventh time in this repository that a scanner has
+            // reported a comment as the fault it warns about.
+            //
+            // Stripping a comment cannot hide a real handler — an inline handler has to be
+            // in live markup to run — so this makes the sweep more accurate, not looser.
+            $body = (string) preg_replace(
+                ['~\{#.*?#\}~s', '~<!--.*?-->~s', '~(?<!:)//[^\n]*~'],
+                '', (string) file_get_contents($file->getPathname()));
 
             // `on` + a real event name, as an HTML attribute. Anchored on whitespace so
             // Alpine's `x-on:click` and Twig's own `{{ ... }}` cannot match.

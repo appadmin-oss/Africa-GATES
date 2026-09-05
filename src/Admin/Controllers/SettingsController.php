@@ -317,6 +317,50 @@ class SettingsController
         ]);
     }
 
+    /**
+     * GET /admin/settings/providers — the page that asks every provider a real question.
+     *
+     * Renders the catalogue only; nothing is called until the operator presses Run. A page
+     * that probed sixteen vendors on load would take ten seconds to open and would do it
+     * again on every accidental refresh, on a live system, possibly during an event.
+     */
+    public function providers(Request $req, Response $res): Response
+    {
+        return $this->view->render($res, 'admin/providers.twig', [
+            'page_title'  => 'Integrations',
+            'admin_page'  => 'settings',
+            'catalogue'   => \AfricaGates\Services\ProviderProbe::catalogue(),
+            'groups'      => \AfricaGates\Services\ProviderProbe::GROUPS,
+        ]);
+    }
+
+    /**
+     * POST /admin/settings/providers/run — run one probe, or all of them.
+     *
+     * ONE AT A TIME by default, driven from the page. Sixteen probes at eight seconds each
+     * is two minutes of a held-open request that a proxy will cut in the middle, leaving
+     * an operator with a blank screen and no idea which provider hung. Asking for them one
+     * by one means each row answers as it lands, and a provider that times out costs its
+     * own row rather than the whole page.
+     */
+    public function providersRun(Request $req, Response $res): Response
+    {
+        $id = trim((string) (((array) $req->getParsedBody())['id'] ?? ''));
+
+        $out = $id !== ''
+            ? [\AfricaGates\Services\ProviderProbe::one($id)]
+            : \AfricaGates\Services\ProviderProbe::all();
+
+        try {
+            $this->audit->record((int) ($_SESSION['admin_id'] ?? 0),
+                'settings.provider_probe', null, null, ['id' => $id !== '' ? $id : 'all']);
+        } catch (\Throwable) {}
+
+        $res->getBody()->write((string) json_encode(['ok' => true, 'results' => $out],
+                                                    JSON_UNESCAPED_SLASHES));
+        return $res->withHeader('Content-Type', 'application/json');
+    }
+
     /** @return array{sent_24h:int, failed_24h:int, dev_24h:int, recent:array, last_error:?string} */
     private function mailHealth(): array
     {

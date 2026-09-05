@@ -1,0 +1,183 @@
+{% extends "admin/layout.twig" %}
+{% block topbar_title %}Integrations{% endblock %}
+
+{#
+  ── THE PAGE THAT ANSWERS "IS IT ACTUALLY WORKING" ──────────────────────────
+
+  Every integration here could tell an operator whether a KEY WAS PRESENT and none
+  could tell them whether it WORKED. That gap is the most expensive thing in this
+  codebase: the door voice was reported broken for days with a correct key, a
+  correct provider and a correct request, because the one screen built to test it
+  asked a different provider and nothing would say so.
+
+  So this page asks each vendor a real question and prints their own answer.
+
+  ── THREE STATES, NOT TWO ───────────────────────────────────────────────────
+
+  "Not set" is not a fault — most deployments use a handful of these. What matters
+  is the difference between OK and FAILING, which is the state every expensive bug
+  here was sitting in: configured, and refusing.
+#}
+
+{% block head_styles %}
+<style nonce="{{ csp_nonce }}">
+  .pv-lead{ margin:0 0 18px; max-width:62ch; font-size:13.5px; line-height:1.65;
+            color:var(--ad-text-mute,#5a6d6f); }
+  .pv-grp{ margin:0 0 22px; }
+  .pv-grp h3{ margin:0 0 8px; font:600 11px/1 var(--ad-font-mono,ui-monospace,monospace);
+              letter-spacing:.14em; text-transform:uppercase; color:var(--ad-text-mute,#5a6d6f); }
+  .pv-t{ width:100%; border-collapse:collapse; }
+  .pv-t td{ padding:11px 10px; border-top:1px solid rgba(16,41,44,.09); vertical-align:top;
+            font-size:13.5px; }
+  .pv-t tr:first-child td{ border-top:0; }
+  .pv-n{ font-weight:600; white-space:nowrap; }
+  .pv-d{ color:var(--ad-text-mute,#5a6d6f); line-height:1.55; }
+  .pv-ms{ text-align:right; white-space:nowrap; font:11.5px/1 var(--ad-font-mono,ui-monospace,monospace);
+          color:var(--ad-text-mute,#5a6d6f); }
+  .pv-s{ display:inline-block; min-width:74px; padding:3px 9px; border-radius:999px;
+         font:600 11px/1.6 var(--ad-font-mono,ui-monospace,monospace); letter-spacing:.06em;
+         text-align:center; }
+  .pv-s--ok{ background:rgba(35,123,34,.12); color:#1a6118; border:1px solid rgba(35,123,34,.3); }
+  .pv-s--no{ background:rgba(138,32,32,.10); color:#8a2020; border:1px solid rgba(138,32,32,.3); }
+  .pv-s--off{ background:rgba(16,41,44,.05); color:var(--ad-text-mute,#5a6d6f);
+              border:1px solid rgba(16,41,44,.12); }
+  .pv-s--run{ background:rgba(243,180,22,.14); color:#8a6a00; border:1px solid rgba(243,180,22,.35); }
+  .pv-bar{ display:flex; gap:10px; align-items:center; margin:0 0 16px; flex-wrap:wrap; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="ad-card"><div class="ad-card__body">
+
+  <p class="pv-lead">Each check asks the provider a real question and prints their answer.
+    Nothing here sends a message, opens a transaction or synthesises audio &mdash; they are
+    all reads, so this is safe to press during an event.</p>
+
+  <div class="pv-bar">
+    <button type="button" class="ad-btn ad-btn--primary" data-ag-do="pv-all">Run all checks</button>
+    <span class="pv-d" data-pv-summary></span>
+  </div>
+
+  {% for gid, gname in groups %}
+    <div class="pv-grp">
+      <h3>{{ gname }}</h3>
+      <table class="pv-t">
+        <tbody>
+        {% for c in catalogue|filter(c => c.group == gid) %}
+          <tr data-pv-row="{{ c.id }}">
+            <td class="pv-n">{{ c.label }}</td>
+            <td style="width:96px"><span class="pv-s pv-s--off" data-pv-state>not run</span></td>
+            <td class="pv-d" data-pv-detail>&mdash;</td>
+            <td class="pv-ms" data-pv-ms></td>
+            <td style="width:60px;text-align:right">
+              <button type="button" class="ad-btn ad-btn--sm" data-ag-do="pv-one"
+                      data-pv-id="{{ c.id }}">Run</button>
+            </td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  {% endfor %}
+
+</div></div>
+{% endblock %}
+
+{% block foot_scripts %}
+<script nonce="{{ csp_nonce }}">
+(function () {
+  'use strict';
+  // Delegated on `data-ag-do`, never an inline handler: the admin CSP has no
+  // 'unsafe-inline', so an onclick= here is a button that does nothing at all.
+  var TOKEN = (document.querySelector('meta[name="csrf-token"]') || {}).content || '';
+
+  function row(id) { return document.querySelector('[data-pv-row="' + id + '"]'); }
+
+  function paint(r) {
+    var tr = row(r.id); if (!tr) return;
+    var s = tr.querySelector('[data-pv-state]');
+    var d = tr.querySelector('[data-pv-detail]');
+    var m = tr.querySelector('[data-pv-ms]');
+
+    // Three states, deliberately. "not set" is not a failure and must not read as one —
+    // most deployments use a handful of these, and colouring them red teaches an operator
+    // to ignore the colour on the row that matters.
+    var cls = r.ok ? 'ok' : (r.configured ? 'no' : 'off');
+    var txt = r.ok ? 'OK'  : (r.configured ? 'FAILING' : 'not set');
+    s.className = 'pv-s pv-s--' + cls;
+    s.textContent = txt;
+    d.textContent = r.detail || '';
+    m.textContent = r.ms ? r.ms + 'ms' : '';
+  }
+
+  function busy(id) {
+    var tr = row(id); if (!tr) return;
+    var s = tr.querySelector('[data-pv-state]');
+    s.className = 'pv-s pv-s--run';
+    s.textContent = 'asking…';
+  }
+
+  function run(id) {
+    if (id) busy(id);
+    return fetch('/admin/settings/providers/run', {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'X-CSRF-Token': TOKEN },
+      body: id ? 'id=' + encodeURIComponent(id) : '',
+    })
+      .then(function (r) { return r.json(); })
+      .then(function (d) { (d.results || []).forEach(paint); return d.results || []; })
+      .catch(function () {
+        // The check itself could not be reached — which is a different fault from a
+        // provider refusing, and must not be reported as one.
+        if (!id) return [];
+        var tr = row(id), s = tr && tr.querySelector('[data-pv-state]');
+        if (s) { s.className = 'pv-s pv-s--no'; s.textContent = 'FAILING'; }
+        var dd = tr && tr.querySelector('[data-pv-detail]');
+        if (dd) dd.textContent = 'The check could not be run from this browser.';
+        return [];
+      });
+  }
+
+  document.addEventListener('click', function (e) {
+    var one = e.target.closest('[data-ag-do="pv-one"]');
+    if (one) { run(one.getAttribute('data-pv-id')); return; }
+
+    var all = e.target.closest('[data-ag-do="pv-all"]');
+    if (!all) return;
+
+    // ── ONE AT A TIME, IN SERIES ─────────────────────────────────────────────
+    //
+    // Sixteen probes at eight seconds each is two minutes of one held-open request, and a
+    // proxy will cut it in the middle leaving a blank screen and no idea which provider
+    // hung. Asked one by one, each row answers as it lands and a provider that times out
+    // costs its own row rather than the page.
+    var ids = Array.prototype.map.call(
+      document.querySelectorAll('[data-pv-row]'),
+      function (n) { return n.getAttribute('data-pv-row'); });
+
+    var sum = document.querySelector('[data-pv-summary]');
+    all.disabled = true;
+    var done = 0, bad = 0, off = 0;
+
+    ids.forEach(busy);
+
+    ids.reduce(function (p, id) {
+      return p.then(function () {
+        return run(id).then(function (rs) {
+          done++;
+          rs.forEach(function (r) { if (!r.configured) off++; else if (!r.ok) bad++; });
+          if (sum) sum.textContent = done + ' of ' + ids.length + ' checked'
+                 + (bad ? ' · ' + bad + ' failing' : '')
+                 + (off ? ' · ' + off + ' not set' : '');
+        });
+      });
+    }, Promise.resolve()).then(function () {
+      all.disabled = false;
+      if (sum && !bad) sum.textContent = done + ' checked · everything configured is answering'
+                                       + (off ? ' · ' + off + ' not set' : '');
+    });
+  });
+})();
+</script>
+{% endblock %}
