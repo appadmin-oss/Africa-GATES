@@ -824,6 +824,57 @@ final class DoorWelcome
         return $made;
     }
 
+    /**
+     * Render ONE event's greetings, whatever the lead window says.
+     *
+     * ── WHY THE WINDOW IS NOT APPLIED HERE ───────────────────────────────────
+     *
+     * {@see sweep()} works from {@see soonEvents()} — events inside LEAD_DAYS — which is
+     * right for an unattended run deciding what is worth spending a quota on tonight. It
+     * is wrong for somebody who has opened this event's door and is about to admit people
+     * through it: whatever the calendar says, that door is happening now. A steward who
+     * opens a door four days early and gets nothing rendered, with no explanation, has
+     * been told the feature is broken.
+     *
+     * Everything else is shared with the sweep and stays shared: the same batched name
+     * learning, the same generic-clip-first ordering, the same attempt budget against the
+     * provider's per-minute ceiling, and the same stop on a throttle. Two spellings of
+     * "render an evening" is how one of them comes to bake the pronunciation in and the
+     * other not, orphaning every clip it made.
+     *
+     * @return int clips made this call
+     */
+    public static function sweepEvent(int $eventId, ?int $cap = null): int
+    {
+        if (!self::ready()) return 0;
+
+        $cap   = $cap ?? min(self::CAP, DoorVoice::perMinute());
+        $made  = 0;
+        $tried = 0;
+
+        // Before the queue is built: linesFor() bakes the pronunciation INTO the line, and
+        // the line is the cache key. Learning afterwards renders every clip with the old
+        // reading and then orphans all of them.
+        try { NameSays::learn(self::guestNames($eventId)); }
+        catch (\Throwable $e) { error_log('[door-welcome] could not work out names: ' . $e->getMessage()); }
+
+        // The generic clip first, always: it covers every walk-up, every late booking and
+        // every name the renderer could not use, so a door with only this still greets.
+        $queue = array_merge([self::genericLine()], self::linesFor($eventId));
+
+        foreach ($queue as $line) {
+            if ($tried >= $cap) break;
+            if ($line === '' || self::have($line)) continue;
+
+            $tried++;
+            if (self::render($line)) { $made++; continue; }
+
+            if (DoorVoice::throttled()) break;
+        }
+
+        return $made;
+    }
+
     /** The event row, for its start time and its zone. */
     public static function eventOf(int $eventId): ?object
     {

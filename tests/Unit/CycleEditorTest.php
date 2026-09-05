@@ -24,6 +24,7 @@ class CycleEditorTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
+
         $_SESSION['admin_id']   = 1;
         $_SESSION['admin_role'] = 'superadmin';
         $_SESSION['csrf_token'] = 'tok';
@@ -203,8 +204,21 @@ class CycleEditorTest extends TestCase
             'nominations_open' => '', 'nominations_close' => '',
         ]);
 
+        // ── COMPARED AGAINST WHAT IS STORED, NOT WHAT WAS POSTED ────────────
+        //
+        // The form's datetime fields are the OPERATOR'S wall clock and the column is UTC,
+        // so `save()` converts on the way in. The display zone is Africa/Lagos, which means
+        // a posted 00:11 is stored as the previous day's 23:11.
+        //
+        // Comparing the stored boundary against the raw POSTED string therefore passes at
+        // almost every hour and fails between 00:00 and 01:00 UTC — this went red at 00:08
+        // having been green at 23:53 on the same commit. Converting the expectation the
+        // same way the save did is what makes the assertion about the boundary rather than
+        // about what time the suite happened to run.
+        $stored = (string) \AfricaGates\Support\DisplayTime::toStored($close);
+
         $at = (string) DB::table('gates_award_cycles')->where('id', $id)->value('next_boundary_at');
-        $this->assertStringStartsWith(substr($close, 0, 10), $at,
+        $this->assertStringStartsWith(substr($stored, 0, 10), $at,
             'the divergence sweep must agree with the dates just saved');
     }
 

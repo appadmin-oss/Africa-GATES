@@ -2051,6 +2051,11 @@ return function(App $app) {
         // an offline steward has no session to carry a token in, and the endpoint can do
         // nothing a live scan cannot already do.
         $g->post('/door/{token:[a-f0-9]{64}}/sync',  \AfricaGates\Controllers\DoorController::class.':sync');
+        // Make this event's greetings from the door itself, when it opens. The sweep that
+        // was supposed to have done it runs from cron, and on a host with no shell cron is
+        // a Worker somebody has to have set up — where that never happened, no clip has
+        // ever existed and every scan fell through to silence.
+        $g->post('/door/{token:[a-f0-9]{64}}/prime', \AfricaGates\Controllers\DoorController::class.':prime');
         // The greeting, as audio. A GET behind the same pass, because the clip says a guest's
         // name out loud and a public path for it would be the attendee list read aloud.
         $g->get('/door/{token:[a-f0-9]{64}}/welcome/{key:[a-f0-9]{40}}',

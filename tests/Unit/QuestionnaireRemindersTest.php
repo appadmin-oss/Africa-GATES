@@ -49,6 +49,24 @@ final class QuestionnaireRemindersTest extends TestCase
         $this->sent = [];
         R::forget();
 
+        // ── THE CLOCK IS PINNED, AND NOT FOR TIDINESS ────────────────────────
+        //
+        // These fixtures build a deadline as `Carbon::now()->addDays(n)` — UTC — and hand
+        // it to QuestionnairePolicy::save(), which correctly reads its input as the
+        // OPERATOR'S wall clock and stores UTC. The display zone is Africa/Lagos, so the
+        // stored deadline lands an hour earlier than the fixture meant.
+        //
+        // Harmless at almost every hour, and not at one: run between 00:00 and 01:00 UTC
+        // and that hour moves the deadline to the previous DAY, `daysUntil()` returns -1
+        // instead of 0, sweep() treats the window as closed, and the last warning before
+        // disqualification silently never goes. The suite went red at 00:05 UTC having
+        // been green at 23:53, on the same commit.
+        //
+        // Midday, so an hour in either direction cannot change the date. The production
+        // path is unaffected — a real deadline arrives from the form already in display
+        // time — which is why this is pinned here rather than changed in the service.
+        Carbon::setTestNow(Carbon::parse('2026-06-15 12:00:00'));
+
         DB::table('gates_award_programmes')->insert([
             'id' => 1, 'slug' => 'gates', 'title' => 'Africa GATES', 'is_active' => 1, 'sort_order' => 1,
         ]);

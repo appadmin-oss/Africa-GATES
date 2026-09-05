@@ -733,6 +733,82 @@ final class DoorController
     }
 
     /** The event a pass belongs to, for its zone. Null is a working answer — see EventTime. */
+    /**
+     * POST /door/{token}/prime — make this event's greetings, now, from the door itself.
+     *
+     * ══════════════════════════════════════════════════════════════════════════
+     * THE FAULT THIS CLOSES, AND IT IS THE ONE THAT SURVIVED EVERY OTHER FIX
+     * ══════════════════════════════════════════════════════════════════════════
+     *
+     * The door plays clips that are ALREADY ON DISK and never renders — deliberately, and
+     * the reasoning is right: a queue cannot wait on a round trip to a datacentre, least
+     * of all on venue wifi. Clips are made ahead by {@see DoorWelcome::sweep()}.
+     *
+     * Except the sweep runs from maintenance, maintenance runs from cron, and there is no
+     * shell on this host — so cron is a Cloudflare Worker somebody has to have set up. Where
+     * that was never done the sweep has never run, no clip has ever existed, and every
+     * scan falls through to silence.
+     *
+     * And it is invisible from every screen that could report it. The settings preview
+     * SYNTHESISES on demand, so it speaks perfectly. The operator's report was exactly
+     * that shape: "OpenAI only speaks when you test it, but never in check-in." Both halves
+     * were true, and nothing connected them — the voice was never the fault.
+     *
+     * ══════════════════════════════════════════════════════════════════════════
+     * WHY IT IS SAFE TO SYNTHESISE HERE
+     * ══════════════════════════════════════════════════════════════════════════
+     *
+     * The door page is opened minutes before the gate does, by a steward with nobody in
+     * front of them. That is the one moment in the evening when a round trip costs
+     * nothing, and it is the only moment this platform was not using.
+     *
+     * It is NOT the scan path and must never become it: nothing here is reachable from
+     * `check()`, which still only ever asks whether a file exists.
+     *
+     * Bounded by the provider's own per-minute ceiling, exactly as the sweep is, so a
+     * gala's several hundred names take a few presses rather than several hundred
+     * refusals behind one held-open request. Nothing already on disk is remade.
+     */
+    public function prime(Request $req, Response $res, array $args): Response
+    {
+        $r = EventScanPass::resolve((string) ($args['token'] ?? ''));
+        if (!$r['ok']) {
+            return $this->json($res, ['ok' => false, 'reason' => $r['reason'],
+                                      'detail' => $r['message']], 403);
+        }
+
+        $pass = $r['pass'];
+        // Its own bucket. Rendering is the most expensive thing a door token can ask for,
+        // and a page that re-primes in a loop would spend a quota rather than a queue.
+        if ($this->tooFast($pass, 'door_prime')) {
+            return $this->json($res, ['ok' => false, 'reason' => 'slow',
+                                      'detail' => 'Already priming. Give it a moment.'], 429);
+        }
+
+        $eventId = (int) $pass->event_id;
+        $before  = DoorWelcome::readiness($eventId);
+
+        // Say the actual blocker rather than making a batch of zero and reporting success.
+        if ($before['blocker'] !== '' && !$before['voice']) {
+            return $this->json($res, ['ok' => false, 'made' => 0,
+                                      'detail' => $before['blocker'] . ' ' . $before['fix']]);
+        }
+
+        $made  = (int) DoorWelcome::sweepEvent($eventId);
+        $after = DoorWelcome::readiness($eventId);
+
+        return $this->json($res, [
+            'ok'    => true,
+            'made'  => $made,
+            'ready' => (int) $after['ready'],
+            'lines' => (int) $after['lines'],
+            'left'  => max(0, (int) $after['lines'] - (int) $after['ready']),
+            // The reason, when there is one, so a door that primed nothing says why rather
+            // than looking like a door that had nothing to do.
+            'detail' => $made === 0 ? trim($after['blocker'] . ' ' . $after['fix']) : '',
+        ]);
+    }
+
     private static function eventOfPass(object $pass): ?object
     {
         try {

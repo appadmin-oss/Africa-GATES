@@ -319,6 +319,43 @@
     } catch (e) { /* an older browser cannot be asked; the door is silent either way */ }
   })();
 
+  // ── MAKE THIS EVENING'S GREETINGS, NOW, BEFORE ANYBODY IS STANDING HERE ──
+  //
+  // The door plays clips that are already on disk and never renders one — right, because
+  // a queue cannot wait on a datacentre. They are made ahead by a sweep that runs from
+  // cron, and on a host with no shell cron is a Worker somebody has to have set up.
+  // Where that never happened, no clip has ever existed and every scan fell through to
+  // silence — while the settings preview, which synthesises on demand, spoke perfectly.
+  // "It only speaks when you test it" was both of those facts at once.
+  //
+  // This is the one moment in the evening when a round trip costs nothing: the page is
+  // open, the gate is not. Fired once, not awaited, and its failure is ignored — a door
+  // that cannot prime is exactly as usable as it was a minute ago, and a steward has
+  // nothing to do about it mid-queue.
+  (function () {
+    if (!welcomeOn) return;
+    try {
+      fetch('/door/' + TOKEN + '/prime', { method: 'POST', credentials: 'same-origin' })
+        .then(function (r) { return r.json(); })
+        .then(function (d) {
+          if (!d || !el.quiet) return;
+          // Only ever said when something is actually missing. "Made 40 greetings" on a
+          // door that was already ready is a notification about nothing, forty seconds
+          // before the first guest.
+          if (d.ok && d.left > 0) {
+            el.quiet.textContent = d.left + ' guest' + (d.left === 1 ? '' : 's')
+              + ' still to be recorded — they will be greeted in the standard welcome. '
+              + 'Reload to make the next batch.';
+            el.quiet.hidden = false;
+          } else if (!d.ok && d.detail) {
+            el.quiet.textContent = d.detail;
+            el.quiet.hidden = false;
+          }
+        })
+        .catch(function () { /* the door works exactly as it did */ });
+    } catch (e) { /* likewise */ }
+  })();
+
   // `once`, and on the capture phase, so it fires before any handler that stops the
   // event — the keypad and the log both do.
   document.addEventListener('pointerdown', unlock, { capture: true, once: true });
