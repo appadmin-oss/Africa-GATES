@@ -265,7 +265,6 @@
   // synthesised here and nothing is awaited: play() is fired and forgotten, so a slow
   // clip, a muted phone or a refused autoplay cannot hold up the verdict or the queue.
   var welcomeOn = {{ welcome_on|default(false) ? 'true' : 'false' }};
-  var primeKey  = {{ (welcome_prime|default(''))|json_encode|raw }};
   var audio     = welcomeOn ? new Audio() : null;
   var unlocked  = false;
   var pending   = '';                       // a greeting refused, waiting on one tap
@@ -275,18 +274,51 @@
   function clipUrl(key) { return '/door/' + TOKEN + '/welcome/' + key; }
 
   /**
+   * A silent sound, built here, needing nothing.
+   *
+   * ── WHY THIS IS NOT A CLIP FROM THE SERVER ───────────────────────────────
+   *
+   * It was one, and that is the bug this replaced. The primer used to be the generic
+   * greeting, on the reasoning that it is "the only clip guaranteed to exist whenever
+   * the voice is on" — which is false, and false in exactly the case that matters. Every
+   * clip is made by a maintenance sweep; this host has no shell, so the sweep only runs
+   * if somebody wired up the cron Worker. Where nobody had, NOTHING was on disk, the
+   * primer was the empty string, unlock() returned on its first line for every touch of
+   * the evening, and the first guest's greeting hit the autoplay gate with the player
+   * never once having been played inside a gesture. A door that had greetings by then —
+   * primed on page open — still could not say them.
+   *
+   * Forty-five bytes of PCM: one 8-bit sample at 0x80, which is silence. A Blob and not
+   * a `data:` URI because `media-src` allows `blob:` and does not allow `data:`, and a
+   * blocked primer fails the same silent way as no primer at all. Local, so it needs no
+   * network inside the gesture — a venue's wifi must not be able to cost us the unlock.
+   */
+  function silentSrc() {
+    var b = new Uint8Array([
+      82,73,70,70, 37,0,0,0, 87,65,86,69,          // "RIFF" 37 "WAVE"
+      102,109,116,32, 16,0,0,0, 1,0, 1,0,          // "fmt " 16, PCM, mono
+      68,172,0,0, 68,172,0,0, 1,0, 8,0,            // 44100Hz, 44100B/s, align 1, 8-bit
+      100,97,116,97, 1,0,0,0, 128                  // "data" 1, one silent sample
+    ]);
+    return URL.createObjectURL(new Blob([b], { type: 'audio/wav' }));
+  }
+
+  /**
    * Bank the steward's first touch, whatever they touched.
    *
-   * MUTED, so the torch button does not answer with "You are welcome." — the point is
+   * SILENT, so the torch button does not answer with "You are welcome." — the point is
    * only that this element has been played inside a gesture once. After that the decode
    * loop may play it audibly for the rest of the evening.
+   *
+   * Nothing here may depend on a clip, a key, a request or the cron having been set up:
+   * this runs on the one gesture the evening is going to give us, and there is no second
+   * chance to ask for it.
    */
   function unlock() {
-    if (!audio || unlocked || !primeKey) return;
+    if (!audio || unlocked) return;
     unlocked = true;
     try {
-      audio.muted = true;
-      audio.src = clipUrl(primeKey);
+      audio.src = silentSrc();
       var mine = audio.src;
       var p = audio.play();
       // The pause only fires if nothing has taken the player over in the meantime. A
@@ -294,10 +326,26 @@
       // stop the first guest's greeting a beat after it started — and that guest is the
       // one person in the queue whose greeting anybody would be listening for.
       var done = function () {
-        try { if (audio.src === mine) audio.pause(); audio.muted = false; } catch (e) {}
+        try { if (audio.src === mine) audio.pause(); } catch (e) {}
       };
       if (p && p.then) p.then(done, done); else done();
-    } catch (e) { try { audio.muted = false; } catch (e2) {} }
+    } catch (e) { /* the greeting will ask for its own tap if this was needed */ }
+
+    // ── AND THE LAST VOICE IN THE CHAIN, WHICH IS GATED THE SAME WAY ───────
+    //
+    // speechSynthesis is what speaks when no clip exists — a walk-up, a late booking, or
+    // a deployment whose sweep has never run, which is every one of them until somebody
+    // wires the cron. On iOS it is refused from a timer unless it has spoken once inside
+    // a gesture, and greet() is only ever called from the decode loop. So spend this
+    // gesture on both voices: an empty utterance is inaudible and unlocks the queue.
+    try {
+      var synth = window.speechSynthesis;
+      if (synth && typeof SpeechSynthesisUtterance === 'function') {
+        var warm = new SpeechSynthesisUtterance(' ');
+        warm.volume = 0;
+        synth.speak(warm);
+      }
+    } catch (e) { /* an older browser has no second voice to lose */ }
   }
 
   // ── ASK THE BROWSER WHETHER IT WILL LET THIS SITE MAKE A SOUND ───────────

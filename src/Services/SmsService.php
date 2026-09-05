@@ -344,6 +344,20 @@ class SmsService
         return strtolower(trim($username)) === 'sandbox' ? self::AT_SANDBOX : self::AT_LIVE;
     }
 
+    /**
+     * Would an SMS go to the Africa's Talking simulator rather than a phone?
+     *
+     * The single most convincing failure this gateway has: sandbox credentials
+     * authenticate, the balance reads correctly, the send returns `Success` with a message
+     * id — and the message goes to a web simulator. Every screen says the SMS is working.
+     * Nothing rings. Read by {@see MessageSendTest} so a successful test send says so.
+     */
+    public function atSandbox(): bool
+    {
+        return $this->smsProvider() === 'africastalking'
+            && self::atEndpoint((string) $this->atUsername) === self::AT_SANDBOX;
+    }
+
     private function attemptAfricasTalking(string $to, string $body): array
     {
         $form = [

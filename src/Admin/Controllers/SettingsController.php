@@ -331,6 +331,15 @@ class SettingsController
             'admin_page'  => 'settings',
             'catalogue'   => \AfricaGates\Services\ProviderProbe::catalogue(),
             'groups'      => \AfricaGates\Services\ProviderProbe::GROUPS,
+            // ── THE SEND TEST ────────────────────────────────────────────────
+            //
+            // Which channels can be tested at all, so the form offers WhatsApp only where
+            // there is a transport for it — an operator picking a channel that cannot send
+            // gets a refusal that reads like a broken button.
+            'msg'         => \AfricaGates\Services\SmsService::boot()->status(),
+            'msg_left'    => \AfricaGates\Services\MessageSendTest::remaining(
+                (int) ($_SESSION['admin_id'] ?? 0)),
+            'msg_cap'     => \AfricaGates\Services\MessageSendTest::PER_HOUR,
         ]);
     }
 
@@ -358,6 +367,46 @@ class SettingsController
 
         $res->getBody()->write((string) json_encode(['ok' => true, 'results' => $out],
                                                     JSON_UNESCAPED_SLASHES));
+        return $res->withHeader('Content-Type', 'application/json');
+    }
+
+    /**
+     * POST /admin/settings/providers/send-test — the one thing on that page that SENDS.
+     *
+     * ── WHY A PAGE OF READ-ONLY PROBES NEEDS ONE WRITE ───────────────────────
+     *
+     * Every probe beside it is a read, on purpose: a diagnostic that fires on a page load
+     * must never spend money or ring a stranger's phone. But a gateway can pass every read
+     * this platform can perform and still deliver nothing — the Africa's Talking sandbox,
+     * an unapproved Termii sender ID and a Twilio trial account all authenticate perfectly
+     * and drop the message. The only question that separates them is whether a phone
+     * buzzed, and it cannot be asked without sending.
+     *
+     * So this exists, and it is bound: a number typed by hand, an explicit press, the
+     * opt-out list honoured, capped per admin per hour, and filed under its own template so
+     * a test can never be mistaken for a notification somebody was owed.
+     */
+    public function providersSendTest(Request $req, Response $res): Response
+    {
+        $b       = (array) $req->getParsedBody();
+        $channel = trim((string) ($b['channel'] ?? 'sms'));
+        $number  = trim((string) ($b['number'] ?? ''));
+        $adminId = (int) ($_SESSION['admin_id'] ?? 0);
+
+        $out = \AfricaGates\Services\MessageSendTest::send($channel, $number, $adminId);
+
+        try {
+            // The NUMBER never reaches the audit row in full — `to` is already masked by the
+            // service, and this log is read by more people than the one who pressed it.
+            $this->audit->record($adminId, 'settings.message_test', null, null, [
+                'channel' => $out['channel'], 'provider' => $out['provider'],
+                'to' => $out['to'], 'ok' => $out['ok'], 'ref' => $out['ref'],
+            ]);
+        } catch (\Throwable) {}
+
+        $out['left'] = \AfricaGates\Services\MessageSendTest::remaining($adminId);
+
+        $res->getBody()->write((string) json_encode($out, JSON_UNESCAPED_SLASHES));
         return $res->withHeader('Content-Type', 'application/json');
     }
 

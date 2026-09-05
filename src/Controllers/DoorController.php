@@ -177,20 +177,12 @@ final class DoorController
             // Whether to wire the player up at all. Off is a valid answer and a silent
             // door is a working door.
             'welcome_on' => DoorWelcome::enabled(),
-            // ── THE CLIP THE PAGE UNLOCKS ITS PLAYER WITH ─────────────────
-            //
-            // A greeting is played from the scanner's decode loop, which is not a user
-            // gesture, and both mobile browsers refuse audible playback on an element that
-            // has never been played inside one. The page therefore plays THIS clip, muted,
-            // on the steward's first touch of anything — after which the element is
-            // unlocked and every guest is greeted.
-            //
-            // It has to be a real file on our own origin: `media-src` is `'self'` plus two
-            // video hosts, with no `data:` and no `blob:`, so the usual silent data-URI
-            // primer is blocked by the CSP with nothing on the page to say so. The generic
-            // clip is the only greeting guaranteed to exist whenever the voice is on at
-            // all, and '' when it does not — in which case there is nothing to unlock for.
-            'welcome_prime' => DoorWelcome::keyToPlay(''),
+            // The page unlocks its player with a silent sound it builds itself, so nothing
+            // is passed for that any more. It used to be this clip, and the reasoning
+            // ("the generic greeting is the only one guaranteed to exist whenever the
+            // voice is on") is false wherever the sweep has never run — which is every
+            // deployment until somebody wires the cron Worker up, and was this one. See
+            // silentSrc() in door.twig.
             // ── WHY THE DOOR IS SILENT, ON THE DOOR ──────────────────────────
             //
             // `readiness()` has answered this since it was written and only the admin

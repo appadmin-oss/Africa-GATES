@@ -43,6 +43,30 @@
               border:1px solid rgba(16,41,44,.12); }
   .pv-s--run{ background:rgba(243,180,22,.14); color:#8a6a00; border:1px solid rgba(243,180,22,.35); }
   .pv-bar{ display:flex; gap:10px; align-items:center; margin:0 0 16px; flex-wrap:wrap; }
+
+  /* The send test. Set apart on purpose: everything above it is free and reversible and
+     this is neither, so it must not read as one more row in the table. */
+  .pv-send{ margin:26px 0 0; padding:18px 18px 16px; border:1px solid rgba(243,180,22,.45);
+            border-radius:10px; background:rgba(243,180,22,.05); }
+  .pv-send h3{ margin:0 0 6px; font:600 11px/1 var(--ad-font-mono,ui-monospace,monospace);
+               letter-spacing:.14em; text-transform:uppercase; color:#8a6a00; }
+  .pv-send p{ margin:0 0 14px; max-width:60ch; font-size:13px; line-height:1.6;
+              color:var(--ad-text-mute,#5a6d6f); }
+  .pv-send__row{ display:flex; gap:10px; align-items:flex-end; flex-wrap:wrap; }
+  .pv-f{ display:flex; flex-direction:column; gap:5px; }
+  .pv-f label{ font:600 10.5px/1 var(--ad-font-mono,ui-monospace,monospace); letter-spacing:.1em;
+               text-transform:uppercase; color:var(--ad-text-mute,#5a6d6f); }
+  .pv-f input, .pv-f select{ min-height:40px; padding:8px 11px; font-size:14px;
+               border:1px solid rgba(16,41,44,.22); border-radius:7px; background:#fff; }
+  .pv-f input{ min-width:210px; font-family:var(--ad-font-mono,ui-monospace,monospace); }
+  .pv-out{ margin:14px 0 0; padding:12px 13px; border-radius:8px; font-size:13px;
+           line-height:1.6; border:1px solid transparent; }
+  .pv-out--ok{ background:rgba(35,123,34,.09); border-color:rgba(35,123,34,.3); color:#1a5518; }
+  .pv-out--no{ background:rgba(138,32,32,.08); border-color:rgba(138,32,32,.3); color:#7a1c1c; }
+  .pv-out b{ display:block; margin:0 0 3px; font-size:12px; letter-spacing:.04em;
+             text-transform:uppercase; font-family:var(--ad-font-mono,ui-monospace,monospace); }
+  .pv-note{ margin:8px 0 0; padding-top:8px; border-top:1px solid rgba(16,41,44,.12);
+            color:#8a6a00; }
 </style>
 {% endblock %}
 
@@ -50,8 +74,10 @@
 <div class="ad-card"><div class="ad-card__body">
 
   <p class="pv-lead">Each check asks the provider a real question and prints their answer.
-    Nothing here sends a message, opens a transaction or synthesises audio &mdash; they are
-    all reads, so this is safe to press during an event.</p>
+    The checks are all <strong>reads</strong> &mdash; a balance, an account, a model list
+    &mdash; so running them sends nothing and is safe during an event. The one exception is
+    the send test below, which is the only thing on this page that costs a message, and it
+    only ever runs when you press it.</p>
 
   <div class="pv-bar">
     <button type="button" class="ad-btn ad-btn--primary" data-ag-do="pv-all">Run all checks</button>
@@ -79,6 +105,44 @@
       </table>
     </div>
   {% endfor %}
+
+  {#
+    ── THE ONE QUESTION A READ CANNOT ANSWER ────────────────────────────────
+    Three real gateways authenticate, report a balance and accept a message while
+    delivering nothing: the Africa's Talking sandbox (its own hostname, a simulator on
+    the other end), a Termii sender ID that has not been approved (refused inside a 200),
+    and a Twilio trial account (only console-verified recipients). Every probe above
+    reads OK on all three.
+  #}
+  <div class="pv-send">
+    <h3>Send a real test message</h3>
+    <p>This sends one actual message, to a phone you can pick up, through whichever gateway
+      is configured. It is the only way to tell a working gateway from one that accepts
+      everything and delivers nothing. Capped at {{ msg_cap }} an hour
+      ({{ msg_left }} left); numbers that have opted out are refused.</p>
+
+    <div class="pv-send__row">
+      <div class="pv-f">
+        <label for="pv-ch">Channel</label>
+        <select id="pv-ch" data-pv-channel>
+          <option value="sms"{% if not msg.sms %} disabled{% endif %}>
+            SMS{% if msg.sms_provider %} — {{ msg.sms_provider }}{% else %} — not configured{% endif %}
+          </option>
+          <option value="whatsapp"{% if not msg.whatsapp %} disabled{% endif %}>
+            WhatsApp{% if msg.wa_provider %} — {{ msg.wa_provider }}{% else %} — not configured{% endif %}
+          </option>
+        </select>
+      </div>
+      <div class="pv-f">
+        <label for="pv-num">Number, in full international form</label>
+        <input id="pv-num" type="tel" inputmode="tel" placeholder="+234 801 234 5678"
+               autocomplete="off" data-pv-number>
+      </div>
+      <button type="button" class="ad-btn ad-btn--primary" data-ag-do="pv-send">Send it</button>
+    </div>
+
+    <div class="pv-out" data-pv-out hidden></div>
+  </div>
 
 </div></div>
 {% endblock %}
@@ -139,7 +203,75 @@
       });
   }
 
+  // ── THE SEND TEST ─────────────────────────────────────────────────────────
+  //
+  // Its own path, deliberately not folded into run(): everything run() drives is free and
+  // repeatable, and this costs a message every time it is pressed. The button disables
+  // itself for the duration so a double tap cannot spend two.
+  function sendTest(btn) {
+    var ch  = document.querySelector('[data-pv-channel]');
+    var num = document.querySelector('[data-pv-number]');
+    var out = document.querySelector('[data-pv-out]');
+    if (!ch || !num || !out) return;
+
+    var n = (num.value || '').trim();
+    if (!n) {
+      out.hidden = false;
+      out.className = 'pv-out pv-out--no';
+      out.innerHTML = '<b>Nothing sent</b>Type the number to send it to first.';
+      num.focus();
+      return;
+    }
+
+    btn.disabled = true;
+    out.hidden = false;
+    out.className = 'pv-out';
+    out.textContent = 'Sending…';
+
+    fetch('/admin/settings/providers/send-test', {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'X-CSRF-Token': TOKEN },
+      body: 'channel=' + encodeURIComponent(ch.value) + '&number=' + encodeURIComponent(n),
+    })
+      .then(function (r) { return r.json(); })
+      .then(function (d) {
+        btn.disabled = false;
+        out.className = 'pv-out pv-out--' + (d.ok ? 'ok' : 'no');
+
+        // Built as nodes, not innerHTML: `detail` is the PROVIDER'S own words and goes
+        // straight onto an admin page. Their error text is not ours to trust with markup.
+        out.textContent = '';
+        var h = document.createElement('b');
+        h.textContent = d.ok
+          ? 'Accepted by ' + (d.provider || 'the gateway')
+              + (d.ms ? ' in ' + d.ms + 'ms' : '')
+          : (d.sent ? 'Refused by ' + (d.provider || 'the gateway') : 'Nothing sent');
+        out.appendChild(h);
+        out.appendChild(document.createTextNode(d.detail || ''));
+
+        if (d.note) {
+          var p = document.createElement('div');
+          p.className = 'pv-note';
+          p.textContent = d.note;
+          out.appendChild(p);
+        }
+      })
+      .catch(function () {
+        btn.disabled = false;
+        out.className = 'pv-out pv-out--no';
+        // Never "the message failed": we do not know that. The request did not complete,
+        // which on a send is the one outcome where a message may still be on its way.
+        out.textContent = 'The send could not be run from this browser, so whether a '
+                        + 'message went out is unknown. Check the message log before '
+                        + 'pressing it again.';
+      });
+  }
+
   document.addEventListener('click', function (e) {
+    var snd = e.target.closest('[data-ag-do="pv-send"]');
+    if (snd) { sendTest(snd); return; }
+
     var one = e.target.closest('[data-ag-do="pv-one"]');
     if (one) { run(one.getAttribute('data-pv-id')); return; }
 

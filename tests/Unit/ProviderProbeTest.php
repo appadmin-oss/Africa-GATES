@@ -217,6 +217,10 @@ final class ProviderProbeTest extends TestCase
         $out = $twig->render('admin/providers.twig', [
             'catalogue' => ProviderProbe::catalogue(),
             'groups'    => ProviderProbe::GROUPS,
+            'msg'       => ['sms' => true, 'sms_provider' => 'africastalking',
+                            'whatsapp' => false, 'wa_provider' => null],
+            'msg_left'  => 6,
+            'msg_cap'   => \AfricaGates\Services\MessageSendTest::PER_HOUR,
         ]);
 
         // Every catalogue entry reaches the page. A group whose rows silently vanish is

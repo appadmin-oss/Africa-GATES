@@ -65,36 +65,71 @@ final class DoorGreetingPlaysTest extends TestCase
     // ══ the page the steward is actually handed ══════════════════════════════
 
     /**
-     * The page is given a real clip to unlock its player with, and it is one of ours.
+     * ══════════════════════════════════════════════════════════════════════════
+     * THE DEFECT: THE UNLOCK USED TO NEED A CLIP, AND A NEW DOOR HAS NONE
+     * ══════════════════════════════════════════════════════════════════════════
      *
-     * The usual way to unlock a media element is a silent `data:` URI, and it would be
-     * blocked here with nothing to say so: `media-src` is `'self'` plus two video hosts,
-     * with no `data:`. So the primer has to be a file on our own origin, and the generic
-     * greeting is the only clip guaranteed to exist whenever the voice is on at all.
+     * The primer was the generic greeting, on the reasoning — written into this file —
+     * that it is "the only clip guaranteed to exist whenever the voice is on at all".
+     * That is false, and false in precisely the deployment that reported the fault. Clips
+     * are made by a maintenance sweep; this host has no shell, so the sweep runs only if
+     * somebody wired up the cron Worker. Where nobody had, disk was empty, `primeKey` was
+     * `''`, and `unlock()` returned on its FIRST LINE for every touch of the evening.
+     *
+     * The player was then never played inside a gesture, so the first guest's greeting hit
+     * the mobile autoplay gate and was refused — on a door that by then HAD greetings,
+     * primed on page open. Every layer was correct and the room was silent, which is the
+     * shape every fault in this feature has had.
+     *
+     * So the invariant is not "the page names a good clip". It is that NOTHING the unlock
+     * depends on can be missing: no key, no file, no request, no cron. A silent WAV built
+     * in the page satisfies that. It is a Blob because `media-src` allows `blob:` and does
+     * not allow `data:` — and a primer the CSP blocks fails exactly as silently as none.
      */
-    public function test_the_page_carries_a_same_origin_clip_to_unlock_the_player_with(): void
+    public function test_the_unlock_needs_no_clip_to_have_been_rendered(): void
     {
-        $this->stage();
-        $this->voiceOn();
-        $this->plant(DoorWelcome::genericLine());
+        $door = $this->doorJs();
 
-        $html = $this->page();
+        $from = strpos($door, 'function unlock()');
+        $this->assertIsInt($from, 'unlock() moved; this test must follow it');
+        $body = substr($door, $from, 600);
 
-        $key = DoorWelcome::keyFor(DoorWelcome::genericLine());
-        $this->assertStringContainsString('var primeKey  = "' . $key . '"', $html,
-            'the door has nothing to unlock its player with, so the first guest is met in silence');
-        $this->assertStringNotContainsString('data:audio', $html,
+        $this->assertStringNotContainsString('primeKey', $body,
+            'the unlock is gated on a clip again — on a deployment whose sweep has never '
+            . 'run there is none, so the gesture is dropped and no guest is ever greeted');
+        $this->assertStringContainsString('silentSrc()', $body,
+            'the unlock plays something other than the silent primer');
+
+        // The primer itself: local, and of a scheme the CSP actually permits.
+        $this->assertStringContainsString('URL.createObjectURL', $door,
+            'the primer is not a blob, so media-src blocks it with nothing to say so');
+        $this->assertStringNotContainsString('data:audio', $door,
             'a data: URI primer is refused by media-src and the page cannot tell');
     }
 
-    /** With no clip on disk there is nothing to unlock with, and the page says so honestly. */
-    public function test_with_no_clip_rendered_the_page_claims_no_primer(): void
+    /**
+     * And the browser's own voice is unlocked on the same gesture.
+     *
+     * speechSynthesis is the last link in the chain and the only one that needs no key,
+     * no network and no sweep — so it is what speaks on a door that has nothing rendered,
+     * which is every door until the cron is wired. iOS refuses it from a timer unless it
+     * has spoken once inside a gesture, and greet() is only ever called from the decode
+     * loop. Unlocking one voice and not the other leaves the fallback as dead as the thing
+     * it was added to cover for.
+     */
+    public function test_the_same_gesture_unlocks_the_browsers_own_voice(): void
     {
-        $this->stage();
-        $this->voiceOn();
+        $door = $this->doorJs();
 
-        $this->assertStringContainsString('var primeKey  = ""', $this->page(),
-            'the page named a clip that is not on disk — every unlock would 404');
+        $from = strpos($door, 'function unlock()');
+        $this->assertIsInt($from);
+        $body = substr($door, $from, 1600);
+
+        $this->assertStringContainsString('speechSynthesis', $body,
+            'the browser voice is never unlocked, so the fallback is refused on iOS exactly '
+            . 'when it is the only voice left');
+        $this->assertStringContainsString('volume = 0', $body,
+            'the warm-up utterance is audible, so the torch button makes a noise');
     }
 
     /** Voice off is a valid answer, and then the player is never built at all. */
@@ -102,9 +137,7 @@ final class DoorGreetingPlaysTest extends TestCase
     {
         $this->stage();
 
-        $html = $this->page();
-        $this->assertStringContainsString('var welcomeOn = false', $html);
-        $this->assertStringContainsString('var primeKey  = ""', $html);
+        $this->assertStringContainsString('var welcomeOn = false', $this->page());
     }
 
     // ══ the two faults, pinned in the source ═════════════════════════════════
@@ -160,8 +193,11 @@ final class DoorGreetingPlaysTest extends TestCase
         $this->assertIsInt($from, 'unlock() moved; this test must follow it');
         $body = substr($door, $from, 600);
 
-        $this->assertStringContainsString('audio.muted = true', $body,
-            'the unlock is audible, so tapping the torch answers "You are welcome"');
+        // Silent by construction now rather than by muting a real greeting: the primer is
+        // one sample at 0x80. Muting was the old way and it had to be undone afterwards,
+        // which is a state the first guest of the evening could land in the middle of.
+        $this->assertStringNotContainsString('audio.muted', $body,
+            'the unlock is back to muting a real clip, so it needs one to exist');
         $this->assertStringContainsString('.play()', $body,
             'the unlock never plays, which is the only thing that banks the gesture');
 

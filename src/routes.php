@@ -3825,6 +3825,14 @@ return function(App $app) {
             // synthesises audio. See ProviderProbe.
             $s->get('/providers',      AdminSettingsController::class.':providers');
             $s->post('/providers/run', AdminSettingsController::class.':providersRun');
+            // ── AND THE ONE THING ON THAT PAGE THAT ACTUALLY SENDS ───────────
+            //
+            // A gateway can pass every read this platform can perform and still deliver
+            // nothing: the Africa's Talking sandbox rings a simulator, an unapproved Termii
+            // sender ID is refused behind a 200, and a Twilio trial account accepts only
+            // numbers verified in its console. All three read as working everywhere else.
+            // A number typed by hand, capped per admin per hour, opt-out honoured.
+            $s->post('/providers/send-test', AdminSettingsController::class.':providersSendTest');
             $s->post('/smtp-test', AdminSettingsController::class.':smtpTest');
             $s->post('/test-ai',   AdminSettingsController::class.':testAi');
             $s->post('/probe-ai',  AdminSettingsController::class.':probeAi');

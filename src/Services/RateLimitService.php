@@ -61,6 +61,20 @@ class RateLimitService {
             return $bumped > 0;
         }
     }
+    /**
+     * Hits recorded in the CURRENT window, or 0 when there is none open.
+     *
+     * Here rather than in a caller because the column is `hit_count` and every screen that
+     * wants to say "two of six left" would otherwise have to know that. One that guessed
+     * `hits` would read null, report a full allowance forever, and look right.
+     */
+    public function hits(string $fp, string $action, int $windowSecs): int {
+        $fp = self::fit($fp);
+        $row = DB::table('gates_rate_limits')->where('fingerprint',$fp)->where('action',$action)
+            ->where('window_start','>=',Carbon::now()->subSeconds($windowSecs)->toDateTimeString())
+            ->first();
+        return $row === null ? 0 : (int) $row->hit_count;
+    }
     public function retryAfter(string $fp, string $action, int $windowSecs): int {
         // Folded the same way, or this reads a row check() never wrote.
         $fp = self::fit($fp);
