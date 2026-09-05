@@ -1,0 +1,423 @@
+{% extends "layout/gates.twig" %}
+
+{#
+  ONE ANSWER, ON ITS OWN PAGE.
+
+  ── WHAT THE SECOND PASS ADDED, AND WHY EACH ONE EARNS ITS SPACE ────────────
+
+  READING PROGRESS   A hairline at the very top. On a phone the article is four
+                     or five screens and there is no other signal of how much is
+                     left — and "how much more of this is there" is exactly the
+                     question somebody asks before giving up and opening a ticket.
+
+  READ TIME          "1 min read" beside the category. Same job, before the scroll
+                     rather than during it.
+
+  COPY LINK          Because pasting an answer into a reply is a STATED workflow
+                     for this team — it is half the reason articles got URLs at
+                     all — and asking support staff to select a browser address
+                     bar on a phone is not a workflow, it is an obstacle.
+
+  PREV / NEXT        The rail used to offer "All answers" and "Contact a person":
+                     a dead end dressed as navigation. Somebody who has just read
+                     about a missing payment very often wants the next payment
+                     answer, and had to go back to the index and start again.
+
+  SIBLING LIST       The real contents of this category, with the current one
+                     marked, so the reader can see where they are rather than
+                     just what else exists.
+
+  HIGHLIGHT TO ASK   Select any sentence and a button appears at the selection,
+                     carrying that exact text into the assistant. A general
+                     article answers the general case; the moment somebody doubts
+                     it is always a SPECIFIC sentence. Their only route was to
+                     scroll to the bottom, open the assistant, and retype the bit
+                     they were unsure about from memory. Most people just left.
+
+                     grab() guards four ways, each one earning its place, and
+                     three of them are here because Chromium found the bug:
+
+                     1. NON-TRIVIAL. A stray tap selects one word, and a single
+                        word is not a question. Twelve characters minimum.
+
+                     2. BOTH ENDS INSIDE THE ANSWER. It used to test only the
+                        anchor — the end the drag STARTED at. So a fast drag that
+                        began in a paragraph and overshot past the end of the
+                        article was accepted, and the button then offered to ask
+                        about a passage whose tail was site furniture. Reproduced
+                        with a real mouse drag: the quoted text came back as
+                        "Nominations open — 2026 Cycle · live in …", which is the
+                        announcement bar. Anchor AND focus are checked now.
+
+                     3. ON SCREEN. The pill sat at r.top - 10 with no clamp, so a
+                        selection whose rect began above the fold put it at
+                        top:-95 — rendered, unclickable, and pointing at nothing.
+                        place() clamps into the viewport and flips the pill BELOW
+                        the selection when there is no room above it.
+
+                     4. STILL VISIBLE. It is fixed-positioned while the article
+                        scrolls underneath, and the position was computed once, so
+                        scrolling left the pill behind pointing at whatever text
+                        had moved into its place. place() re-runs on scroll and
+                        resize, and drops the pill once the selection leaves the
+                        viewport.
+
+                     Capped at 240 characters — the assistant gets a question, not
+                     a pasted essay. It follows the SELECTION rather than the
+                     pointer, so it works from a keyboard and from a touch
+                     long-press.
+
+                     NOTE FOR ANYONE EDITING THE x-data BELOW: it is an HTML
+                     attribute delimited by double quotes. A double quote anywhere
+                     inside it — including inside a comment — terminates the
+                     attribute and silently breaks the ENTIRE component, taking
+                     copy-link and the progress bar down with it. That is exactly
+                     how this shipped broken the first time. Keep prose up here.
+
+  NOT A STICKY ASK BAR. Tried, measured, removed. The site already pins a bottom
+  nav AND a floating assistant button on mobile; a third fixed element rendered
+  behind the nav entirely, and stacking three of them over a 390px screen costs
+  more reading area than the shortcut was worth. The FAB already carries that job.
+
+  The measure stays ~62 characters and the rail still collapses BELOW the answer,
+  never above it: on a phone the rail is not context, it is an obstacle between a
+  worried person and the first sentence.
+#}
+
+{% block head_styles %}
+<style nonce="{{ csp_nonce }}">
+  /* The same paper as the Help Centre index and the topic pages. This page was on
+     #eef0ec while those two moved to #f0f2f2, and a section whose ground shifts as you
+     click through it reads as three sites rather than one. */
+  body[data-page="help"]{ background:#f0f2f2; color:var(--ag-ink); }
+  .ha{ max-width:1020px; margin:0 auto; padding:clamp(1.2rem,4vw,2.1rem) var(--ag-gutter,32px) clamp(3rem,6vw,4rem); }
+
+  /* Reading progress. Fixed, hairline, above everything but the site header. */
+  .ha-prog{ position:fixed; inset:0 auto auto 0; width:100%; height:3px; z-index:60; background:transparent; pointer-events:none; }
+  .ha-prog__b{ height:100%; width:0; background:linear-gradient(90deg,#7FC87C,#177015); transition:width .08s linear; }
+
+  .ha-crumb{ display:flex; align-items:center; gap:7px; font-size:12.5px; color:var(--ag-ink-soft); margin-bottom:16px; flex-wrap:wrap; }
+  /* Standalone navigation rather than a link in a sentence, so it does not get SC
+     2.5.8's inline exception — it measured 19.4px tall. */
+  .ha-crumb a{ display:inline-flex; align-items:center; min-height:24px;
+    color:var(--ag-ink-soft); text-decoration:none; }
+  .ha-crumb a:hover{ color:var(--ag-green); }
+  .ha-crumb svg{ flex:none; opacity:.5 }
+
+  .ha-grid{ display:grid; grid-template-columns:minmax(0,1fr) 272px; gap:30px; align-items:start; }
+  /* The article and its prev/next are ONE column. Left as a sibling of the grid,
+     the strip spanned the full page and its "Next" card sat under the rail —
+     visually attached to the sidebar rather than to the answer it follows. */
+  .ha-col{ min-width:0; }
+  .ha-main{ background:var(--ag-surface); border:1px solid rgba(16,41,44,.10); border-radius:14px; padding:clamp(1.4rem,3.5vw,2.4rem); }
+
+  /* head */
+  .ha-meta{ display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
+  /* A mono kicker, not a tinted pill. The pill took the topic's own colour, which put
+     a pink chip at the top of a payments answer for no reason a reader could act on —
+     the topic is a label here, not a status. Same micro-label as every other surface. */
+  .ha-tag{ display:inline-block; font-family:var(--ag-font-mono,monospace); font-size:10.5px;
+    font-weight:700; letter-spacing:.22em; text-transform:uppercase; color:#745001; }
+  .ha-read{ font-size:12px; color:#5a6d6f; }
+  .ha-copy{ margin-left:auto; cursor:pointer; font-family:inherit; font-size:12px; font-weight:600; display:inline-flex;
+    align-items:center; gap:6px; padding:7px 12px; border-radius:999px; border:1px solid rgba(16,41,44,.14);
+    background:var(--ag-surface); color:#4a5256; }
+  .ha-copy:hover{ border-color:var(--ag-green); color:var(--ag-green-dark,#177015); }
+  .ha-copy.is-done{ border-color:#bfe0bd; background:#eef7ee; color:#1a6118; }
+
+  .ha-main h1{ margin:14px 0 0; font-family:var(--ag-font-display); font-weight:700; font-size:clamp(1.45rem,3.4vw,2rem); line-height:1.2; letter-spacing:-.015em; }
+  .ha-sum{ margin:12px 0 0; font-size:16.5px; line-height:1.6; color:#39464a; font-weight:500; max-width:62ch; }
+  .ha-rule{ border:none; border-top:1px solid rgba(16,41,44,.09); margin:22px 0; }
+
+  /* prose */
+  .ha-body{ max-width:62ch; }
+  .ha-body p{ margin:0 0 16px; font-size:15.5px; line-height:1.72; color:#39464a; }
+  .ha-body p:last-child{ margin-bottom:0; }
+  .ha-body a{ color:var(--ag-green-dark,#177015); text-decoration:underline; text-underline-offset:2px; }
+  .ha-body strong{ color:var(--ag-ink); font-weight:650; }
+  .ha-body code{ font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-size:.88em; background:#eef2ef;
+    border:1px solid rgba(16,41,44,.09); border-radius:5px; padding:1px 5px; white-space:nowrap; }
+
+  /* Own counter so the number survives a line wrap without the text sliding
+     underneath it — which is what the default list marker does. */
+  .ha-steps{ counter-reset:s; list-style:none; margin:0 0 18px; padding:0; }
+  .ha-steps li{ counter-increment:s; position:relative; padding:0 0 0 40px; margin-bottom:14px; font-size:15.5px; line-height:1.65; color:#39464a; }
+  .ha-steps li:last-child{ margin-bottom:0; }
+  .ha-steps li::before{ content:counter(s); position:absolute; left:0; top:1px; width:26px; height:26px; border-radius:50%;
+    background:#eef7ee; color:#1a6118; font-size:13px; font-weight:700; display:flex; align-items:center; justify-content:center; }
+
+  .ha-note{ display:flex; gap:11px; background:#f4f7f4; border:1px solid #d6e8d3; border-radius:14px;
+    padding:15px 17px; margin:0 0 16px; font-size:14.5px; line-height:1.62; color:#2d4a2c; }
+  .ha-note svg{ flex:none; margin-top:2px }
+  .ha-note a{ color:#177015 }
+
+  /* ── HIGHLIGHT TO ASK ──────────────────────────────────────────────────
+     Select any sentence in the answer and a small button appears at the
+     selection, carrying that exact text into the assistant.
+
+     Why: a general article answers the general case, and the moment somebody
+     doubts it is a specific sentence — "up to 6 hours late", "one per category".
+     Their only route was to scroll to the bottom, open the assistant, and retype
+     the bit they were unsure about from memory. Most people just leave.
+
+     The button follows the SELECTION, not the pointer, so it works from a
+     keyboard and from a touch long-press. It is fixed-positioned because the
+     article scrolls under it and an absolutely-positioned one drifts. */
+  .ha-sel{ position:fixed; z-index:70; transform:translate(-50%,-100%); }
+  /* Set by place() when the selection is too close to the top of the viewport to
+     hang the pill above it — otherwise it renders off-screen and unclickable. */
+  .ha-sel.is-below{ transform:translate(-50%,0); }
+  .ha-sel button{ cursor:pointer; border:none; font-family:inherit; font-weight:650; font-size:12.5px;
+    padding:9px 15px; border-radius:999px; background:#10292C; color:#fff; white-space:nowrap;
+    box-shadow:0 8px 22px -8px rgba(16,41,44,.6); display:inline-flex; align-items:center; gap:7px; }
+  .ha-sel button:hover{ background:#177015 }
+  /* A visible tint on the selection itself, so it is obvious WHAT the button
+     will carry — the browser default is easy to lose against a light card. */
+  .ha-body ::selection, .ha-sum::selection{ background:#cfeccd; color:#10292C; }
+
+  /* did this help */
+  .ha-fb{ margin-top:26px; padding-top:22px; border-top:1px solid rgba(16,41,44,.09); }
+  .ha-fb__q{ font-size:14px; font-weight:600; color:var(--ag-ink); }
+  .ha-fb__r{ display:flex; gap:9px; margin-top:12px; flex-wrap:wrap; }
+  .ha-fb__b{ cursor:pointer; font-family:inherit; font-size:13.5px; font-weight:600; padding:10px 18px; border-radius:999px;
+    border:1px solid rgba(16,41,44,.16); background:var(--ag-surface); color:#39464a; text-decoration:none; display:inline-block; }
+  .ha-fb__b:hover{ border-color:var(--ag-green); color:var(--ag-green-dark,#177015); }
+  .ha-fb__ok{ font-size:14px; color:#1a6118; font-weight:600; }
+
+  /* prev / next */
+  .ha-pn{ display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-top:18px; }
+  .ha-pn a{ display:block; background:var(--ag-surface); border:1px solid rgba(16,41,44,.08); border-radius:16px;
+    padding:14px 16px; text-decoration:none; transition:border-color .15s; }
+  .ha-pn a:hover{ border-color:var(--ag-green); }
+  .ha-pn__l{ display:block; font:600 10.5px/1 var(--ag-font-body); letter-spacing:.09em; text-transform:uppercase; color:#5a6d6f; }
+  .ha-pn__t{ display:block; margin-top:6px; font-size:14px; font-weight:600; line-height:1.4; color:var(--ag-ink); }
+  .ha-pn__next{ text-align:right; }
+  /* When there is no previous, the next must not slide left into its place. */
+  .ha-pn__gap{ display:block }
+
+  /* rail */
+  .ha-side{ display:flex; flex-direction:column; gap:14px; position:sticky; top:88px; }
+  .ha-box{ background:var(--ag-surface); border:1px solid rgba(16,41,44,.10); border-radius:14px; padding:18px 20px; }
+  .ha-box h2{ margin:0 0 12px; font-family:var(--ag-font-mono,monospace); font-size:10.5px;
+    font-weight:700; line-height:1.4; letter-spacing:.22em; text-transform:uppercase;
+    color:#626a6e; }
+  .ha-box ul{ list-style:none; margin:0; padding:0; }
+  .ha-box li + li{ border-top:1px solid rgba(16,41,44,.06); }
+  .ha-box a{ display:block; padding:9px 0; font-size:13.5px; line-height:1.5; color:#39464a; text-decoration:none; }
+  .ha-box a:hover{ color:var(--ag-green); }
+  .ha-box a[aria-current]{ color:var(--ag-green-dark,#177015); font-weight:650; }
+
+  /* Flat. The radial-gradient orb that used to sit in this corner was decoration
+     doing no work, and the same move appeared on the index and on the donations page —
+     three glows is a house style nobody chose. */
+  .ha-help{ background:var(--ag-ink); border-radius:14px; padding:20px; }
+  .ha-help h2{ margin:0; font-family:var(--ag-font-display); font-weight:700; font-size:16px;
+    color:#fff; letter-spacing:0; text-transform:none; }
+  .ha-help p{ margin:8px 0 0; font-size:13px; line-height:1.6; color:rgba(251,246,230,.88); }
+  .ha-help__a{ display:flex; align-items:center; justify-content:center; min-height:44px;
+    margin-top:14px; background:#f3b416; color:#241c00; font-weight:700; font-size:13.5px;
+    padding:0 14px; border-radius:999px; text-decoration:none; }
+  .ha-help__a:hover{ background:#ffc63d; }
+  .ha-help__a:focus-visible{ outline:3px solid #fff; outline-offset:3px; }
+
+  @media (max-width:880px){
+    .ha-grid{ grid-template-columns:1fr; }
+    .ha-side{ position:static; top:auto; }
+    /* Clear the site's own fixed bottom nav, or the last paragraph and the
+       feedback buttons sit permanently underneath it. */
+    .ha{ padding-bottom:104px; }
+  }
+  @media (max-width:520px){ .ha-pn{ grid-template-columns:1fr; } .ha-pn__next{ text-align:left; } }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="ha"
+     x-data="{
+       copied:false, said:'', pct:0,
+       sel:'', selX:0, selY:0, below:false,
+       /* Half the pill, plus a margin. Keeps it off both edges on a 360px phone. */
+       PILL:86,
+       inProse(node){
+         var el = node && node.nodeType === 3 ? node.parentElement : node;
+         return !!(el && el.closest && el.closest('.ha-body, .ha-sum'));
+       },
+       grab(){
+         var s = window.getSelection();
+         if (!s || s.isCollapsed) { this.sel = ''; return; }
+         var text = s.toString().trim().replace(/\s+/g, ' ');
+         if (text.length < 12) { this.sel = ''; return; }
+         /* BOTH ends. Anchor alone accepted a drag that started in the answer and
+            overshot into the page furniture — see guard 2 in the note above. */
+         if (!this.inProse(s.anchorNode) || !this.inProse(s.focusNode)) { this.sel = ''; return; }
+         this.sel = text.slice(0, 240);
+         this.place();
+       },
+       place(){
+         if (this.sel === '') return;
+         var s = window.getSelection();
+         if (!s || s.isCollapsed || s.rangeCount === 0) { this.sel = ''; return; }
+         var r = s.getRangeAt(0).getBoundingClientRect();
+         if (!r || (!r.width && !r.height)) { this.sel = ''; return; }
+         var vw = window.innerWidth, vh = window.innerHeight;
+         /* Scrolled out of sight: a pill pointing at text nobody can see is worse
+            than no pill, because it looks like it belongs to whatever is there now. */
+         if (r.bottom < 0 || r.top > vh) { this.sel = ''; return; }
+         /* 10px of clearance so the button never covers the words it refers to,
+            and a flip when the selection is too near the top to sit above it. */
+         this.below = (r.top - 44) < 8;
+         this.selY  = this.below ? Math.min(vh - 8, r.bottom + 10) : r.top - 10;
+         this.selX  = Math.min(vw - this.PILL, Math.max(this.PILL, r.left + r.width / 2));
+       },
+       track(){
+         var d = document.documentElement;
+         var max = d.scrollHeight - d.clientHeight;
+         this.pct = max > 0 ? Math.min(100, Math.max(0, (d.scrollTop / max) * 100)) : 0;
+       },
+       copy(){
+         var url = window.location.href;
+         var done = () => { this.copied = true; setTimeout(() => this.copied = false, 2000); };
+         // navigator.clipboard needs a secure context and is absent on some
+         // in-app browsers, which is a large share of this audience. The
+         // textarea fallback is not legacy cruft — it is the path that works.
+         if (navigator.clipboard && window.isSecureContext) { navigator.clipboard.writeText(url).then(done, () => {}); return; }
+         var t = document.createElement('textarea');
+         t.value = url; t.setAttribute('readonly',''); t.style.position='fixed'; t.style.opacity='0';
+         document.body.appendChild(t); t.select();
+         try { document.execCommand('copy'); done(); } catch(e) {}
+         document.body.removeChild(t);
+       }
+     }"
+     x-init="track()" @scroll.window.passive="track(); place()" @resize.window="track(); place()"
+     @mouseup.window="grab()" @keyup.window="grab()" @selectionchange.document="grab()">
+
+  <div class="ha-prog" aria-hidden="true"><div class="ha-prog__b" :style="'width:' + pct + '%'"></div></div>
+
+  {# Follows the selection. `x-cloak` so it never flashes on load, and the label
+     names the action rather than the tool: "Ask about this" reads as a shortcut,
+     "Open the assistant" reads as leaving the page. #}
+  <div class="ha-sel" x-show="sel !== ''" x-cloak :class="below && 'is-below'"
+       :style="'left:' + selX + 'px; top:' + selY + 'px'">
+    <button type="button" @click="window.location.assign('/support/assistant?q=' + encodeURIComponent(sel))">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 11.5a8.4 8.4 0 0 1-9 8.4 9 9 0 0 1-3.6-.7L3 21l1.9-5A8.2 8.2 0 0 1 4 11.5 8.4 8.4 0 0 1 12.5 3 8.4 8.4 0 0 1 21 11.5Z"/></svg>
+      Ask about this
+    </button>
+  </div>
+
+  <nav class="ha-crumb" aria-label="Breadcrumb">
+    <a href="/help">Help Centre</a>
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg>
+    {# /help/c/{cat}, not /help?q={title}: the category page exists, and the search URL
+       it used to point at is now noindex — a breadcrumb should not walk a crawler into
+       a page marked "do not index". #}
+    <a href="/help/c/{{ category_key|url_encode }}">{{ category.title }}</a>
+  </nav>
+
+  <div class="ha-grid">
+    <div class="ha-col">
+    <article class="ha-main">
+      <div class="ha-meta">
+        <span class="ha-tag">{{ category.title }}</span>
+        <span class="ha-read">{{ read_minutes }} min read</span>
+        <button type="button" class="ha-copy" :class="copied && 'is-done'" @click="copy()"
+                :aria-label="copied ? 'Link copied' : 'Copy a link to this answer'">
+          <template x-if="!copied">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+          </template>
+          <template x-if="copied">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg>
+          </template>
+          <span x-text="copied ? 'Copied' : 'Copy link'"></span>
+        </button>
+      </div>
+
+      <h1>{{ article.title }}</h1>
+      <p class="ha-sum">{{ article.summary|raw }}</p>
+      <hr class="ha-rule">
+
+      <div class="ha-body">
+        {% for block in article.body %}
+          {% if block.p is defined %}
+            <p>{{ block.p|raw }}</p>
+          {% elseif block.steps is defined %}
+            <ol class="ha-steps">
+              {% for s in block.steps %}<li>{{ s|raw }}</li>{% endfor %}
+            </ol>
+          {% elseif block.note is defined %}
+            <div class="ha-note">
+              <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#1a6118" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 16v-4M12 8h.01"/></svg>
+              <div>{{ block.note|raw }}</div>
+            </div>
+          {% endif %}
+        {% endfor %}
+      </div>
+
+      {# Routing, not rating. "No" opens the assistant with this article's own
+         title as the question, so nobody retypes it. #}
+      <div class="ha-fb">
+        <template x-if="said===''">
+          <div>
+            <div class="ha-fb__q">Did this answer it?</div>
+            <div class="ha-fb__r">
+              <button type="button" class="ha-fb__b" @click="said='yes'">Yes, thanks</button>
+              <a class="ha-fb__b" href="/support/assistant?q={{ article.title|url_encode }}">No — ask the assistant</a>
+            </div>
+          </div>
+        </template>
+        <template x-if="said==='yes'">
+          <div class="ha-fb__ok">Good. Nothing else to do.</div>
+        </template>
+      </div>
+    </article>
+
+    {# Continuity. Inside the article column so it reads as "where next" for the
+       answer, not as part of the rail. #}
+    {% if prev or next %}
+      <nav class="ha-pn" aria-label="More in this category">
+        {% if prev %}
+          <a href="/help/{{ prev.slug }}">
+            <span class="ha-pn__l">&larr; Previous</span>
+            <span class="ha-pn__t">{{ prev.title }}</span>
+          </a>
+        {% else %}<span class="ha-pn__gap"></span>{% endif %}
+        {% if next %}
+          <a class="ha-pn__next" href="/help/{{ next.slug }}">
+            <span class="ha-pn__l">Next &rarr;</span>
+            <span class="ha-pn__t">{{ next.title }}</span>
+          </a>
+        {% endif %}
+      </nav>
+    {% endif %}
+    </div>
+
+    <aside class="ha-side">
+      {% if related %}
+        <div class="ha-box">
+          <h2>Related</h2>
+          <ul>
+            {% for r in related %}<li><a href="/help/{{ r.slug }}">{{ r.title }}</a></li>{% endfor %}
+          </ul>
+        </div>
+      {% endif %}
+
+      <div class="ha-help">
+        <h2>This is a general answer</h2>
+        <p>The assistant can check <em>your</em> payment, re-ask the bank and add missing votes on the spot.</p>
+        <a class="ha-help__a" href="/support/assistant">Ask about my case →</a>
+      </div>
+
+      {# The real contents of this category, with the current one marked. #}
+      <div class="ha-box">
+        <h2>All of {{ category.title }}</h2>
+        <ul>
+          {% for s in siblings %}
+            <li><a href="/help/{{ s.slug }}"{% if s.slug == article.slug %} aria-current="page"{% endif %}>{{ s.title }}</a></li>
+          {% endfor %}
+        </ul>
+      </div>
+    </aside>
+  </div>
+
+</div>
+
+{% endblock %}

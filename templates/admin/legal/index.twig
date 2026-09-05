@@ -1,0 +1,31 @@
+{% extends "admin/layout.twig" %}
+{% block topbar_eyebrow %}<small>Content</small>{% endblock %}
+{% block topbar_title %}Legal &amp; policies{% endblock %}
+{% block topbar_actions %}<a class="ad-btn ad-btn--primary" href="/admin/legal/new">+ New document</a>{% endblock %}
+{% block content %}
+<p style="margin:0 0 14px;font-size:13.5px;color:var(--ad-text-mute,#5a6d6f)">Policies shown to the public — fully editable here, no deploy needed. Core policies publish at their fixed URLs (<code>/privacy</code>, <code>/terms</code>, <code>/cookies</code>); custom documents publish at <code>/legal/&lt;slug&gt;</code>.</p>
+<div class="ad-card"><div class="ad-table-wrap">
+  <table class="ad-table">
+    <thead><tr><th scope="col">Document</th><th scope="col">Public URL</th><th scope="col">Updated</th><th scope="col">Status</th><th scope="col" class="col-actions">Actions</th></tr></thead>
+    <tbody>
+      {% for d in docs %}
+      {% set core = d.slug in core %}
+      <tr>
+        <td><strong>{{ d.title }}</strong>{% if core %} <span class="ad-chip ad-chip--grey" style="margin-left:4px">core</span>{% endif %}</td>
+        <td><a href="/{{ core ? d.slug : 'legal/' ~ d.slug }}" target="_blank" rel="noopener" style="color:var(--ad-accent,#237b22)">/{{ core ? d.slug : 'legal/' ~ d.slug }} ↗</a></td>
+        <td style="font-size:12.5px;color:var(--ad-text-soft)">{{ d.updated_label|default('—') }}</td>
+        <td>{% if d.is_published %}<span class="ad-chip ad-chip--green">Published</span>{% else %}<span class="ad-chip ad-chip--gold">Draft</span>{% endif %}</td>
+        <td class="col-actions">
+          <a class="ad-btn ad-btn--sm" href="/admin/legal/{{ d.slug }}">Edit</a>
+          {% if not core %}
+          <form method="post" action="/admin/legal/{{ d.slug }}/delete" style="display:inline"><input type="hidden" name="_token" value="{{ csrf_token }}"><button class="ad-btn ad-btn--sm ad-btn--danger" type="submit" data-confirm="Delete “{{ d.title }}” for good? Its public page stops existing, and any link to it from a checkout, an email or another policy will 404. There is no undo.">Delete</button></form>
+          {% endif %}
+        </td>
+      </tr>
+      {% else %}
+      <tr><td colspan="5" style="text-align:center;color:var(--ad-text-mute);padding:30px">No documents yet.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div></div>
+{% endblock %}

@@ -1,0 +1,252 @@
+{% extends "admin/layout.twig" %}
+{% block topbar_title %}Refunds{% endblock %}
+
+{#
+  REFUNDS — VERDICT FIRST, BUTTON SECOND.
+
+  The page deliberately does not put a refund button next to a claim. The commonest
+  request here is neither fraud nor a genuine claim: somebody starts a checkout,
+  does not finish, and their bank places a pending authorisation that looks exactly
+  like a charge — so they ask for a refund in good faith for money we never
+  received. Paying that out is money leaving for nothing.
+
+  So: look the reference up, read what the GATEWAY says, and the button only exists
+  when the answer is OWED. The refusal script is on the page, ready to paste,
+  because "no completed payment reached us" is the hardest sentence support writes
+  and it must not be improvised differently every time.
+#}
+
+{% block head_styles %}
+<style nonce="{{ csp_nonce }}">
+  .rf-card{ background:#fff; border:1px solid rgba(16,41,44,.09); border-radius:14px; padding:20px 22px; }
+  .rf-card + .rf-card{ margin-top:16px }
+  .rf-card h3{ margin:0 0 6px; font-family:var(--ag-font-display,inherit); font-weight:700; font-size:16px; color:#10292C }
+  .rf-card p.rf-sub{ margin:0 0 16px; font-size:13px; line-height:1.6; color:#5a6d6f }
+
+  .rf-row{ display:flex; gap:10px; flex-wrap:wrap; align-items:center }
+  .rf-input{ border:1px solid rgba(16,41,44,.16); border-radius:10px; padding:10px 13px;
+    font-family:inherit; font-size:13.5px; outline:none }
+  .rf-input:focus{ border-color:#3f9c3c }
+  .rf-btn{ cursor:pointer; border:none; font-family:inherit; font-weight:650; font-size:13.5px;
+    padding:11px 20px; border-radius:999px }
+  .rf-btn--look{ background:#10292C; color:#fff }
+  .rf-btn--pay{ background:#177015; color:#fff }
+  .rf-btn--over{ background:#a32020; color:#fff }
+
+  /* verdict */
+  .rf-v{ border-radius:14px; padding:18px 20px; margin-top:16px }
+  .rf-v h4{ margin:0 0 8px; font-family:var(--ag-font-display,inherit); font-weight:700; font-size:17px }
+  .rf-v p{ margin:0; font-size:13.5px; line-height:1.7; white-space:pre-line }
+  .rf-v--owed{ background:#fdf3f3; border:1px solid #f0c9c9 } .rf-v--owed h4{ color:#8a2020 }
+  .rf-v--no{   background:#f7f9f7; border:1px solid rgba(16,41,44,.12) } .rf-v--no h4{ color:#10292C }
+  .rf-v--ok{   background:#eef7ee; border:1px solid #bfe0bd } .rf-v--ok h4{ color:#1a4d18 }
+  .rf-v--wait{ background:#fff8df; border:1px solid #ecd9a0 } .rf-v--wait h4{ color:#6b4a00 }
+
+  .rf-ev{ margin-top:14px; background:#fbfcfb; border:1px solid rgba(16,41,44,.09); border-radius:11px; padding:13px 15px }
+  .rf-ev h5{ margin:0 0 9px; font:650 10.5px/1 inherit; letter-spacing:.08em; text-transform:uppercase; color:#5a6d6f }
+  .rf-kv{ display:flex; justify-content:space-between; gap:14px; padding:6px 0; font-size:12.5px }
+  .rf-kv + .rf-kv{ border-top:1px solid rgba(16,41,44,.06) }
+  .rf-kv__k{ color:#5a6d6f } .rf-kv__v{ font-weight:650; color:#10292C; text-align:right; word-break:break-all }
+  .rf-stale{ display:inline-block; font:700 9.5px/1 inherit; letter-spacing:.05em; text-transform:uppercase;
+    background:#fff8df; color:#7a5600; padding:4px 8px; border-radius:999px }
+
+  .rf-danger{ background:#fdf3f3; border:1px solid #f0c9c9; border-radius:12px; padding:14px 16px; margin-top:14px }
+  .rf-danger p{ margin:0 0 11px; font-size:12.5px; line-height:1.65; color:#8a2020 }
+
+  .rf-scroll{ overflow-x:auto }
+  table.rf{ width:100%; border-collapse:collapse; min-width:760px; font-size:13px }
+  .rf th{ text-align:left; font:650 10.5px/1 inherit; letter-spacing:.07em; text-transform:uppercase; color:#5a6d6f;
+    padding:10px 12px; background:#f7f9f7; border-bottom:1px solid rgba(16,41,44,.09); white-space:nowrap }
+  .rf td{ padding:11px 12px; border-bottom:1px solid rgba(16,41,44,.06); color:#39464a; vertical-align:top }
+  .rf tr:last-child td{ border-bottom:none }
+  .rf code{ font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-size:11.5px }
+  .rf a{ color:#177015; text-decoration:none; font-weight:600 }
+  .rf-tag{ display:inline-block; font:700 9.5px/1 inherit; letter-spacing:.05em; text-transform:uppercase;
+    padding:4px 8px; border-radius:999px; white-space:nowrap }
+  .rf-tag--wait{ background:#fff8df; color:#7a5600 } .rf-tag--bad{ background:#fdf3f3; color:#8a2020 }
+  .rf-tag--ok{ background:#eef7ee; color:#1a6118 }
+
+  .rf-note{ background:#f4f7f4; border:1px solid #d6e8d3; border-radius:12px; padding:14px 16px;
+    font-size:13px; line-height:1.68; color:#2d4a2c; margin-top:16px }
+  .rf-empty{ padding:32px 20px; text-align:center; color:#5a6d6f; font-size:14px }
+  .rf-dials{ display:flex; gap:18px; flex-wrap:wrap; font-size:12.5px; color:#5a6d6f; margin-top:10px }
+  .rf-dials strong{ color:#10292C }
+</style>
+{% endblock %}
+
+{% block content %}
+
+{% if not schema_ok %}
+  <div class="rf-card" style="border-color:#f0c9c9;background:#fdf3f3">
+    <h3 style="color:#8a2020">Refunds are switched off — the schema is not migrated</h3>
+    <p class="rf-sub" style="color:#8a2020;margin:0">Nothing can be refunded until the bookkeeping columns exist,
+      and that refusal is deliberate: paying money out without being able to write down that we did it is how
+      somebody gets refunded twice. Run <code>/__setup/migrate</code>.</p>
+  </div>
+{% endif %}
+
+{# ── look one up ───────────────────────────────────────────────────────────── #}
+<div class="rf-card">
+  <h3>Should this be refunded?</h3>
+  <p class="rf-sub">Asks the payment provider directly, right now — not our own record, which is the thing that
+     was wrong last time. Nothing is refunded by looking.</p>
+
+  <form method="get" action="/admin/refunds" class="rf-row">
+    <label class="sr-only" for="rfRef">Payment reference</label>
+    <input class="rf-input" id="rfRef" type="text" name="ref" value="{{ ref }}" placeholder="AFG-PVOTE-…" style="min-width:260px">
+    <button class="rf-btn rf-btn--look" type="submit">Check with the gateway</button>
+  </form>
+
+  {% if verdict %}
+    {% set o = verdict.outcome %}
+    {% set tone = o == 'OWED' ? 'owed' : (o == 'DELIVERED' ? 'ok' : (o in ['UNVERIFIABLE','DELIVERABLE','IN_FLIGHT'] ? 'wait' : 'no')) %}
+    <div class="rf-v rf-v--{{ tone }}">
+      <h4>
+        {% if o == 'OWED' %}A refund IS owed
+        {% elseif o == 'NEVER_PAID' %}No completed payment ever reached us
+        {% elseif o == 'UNVERIFIABLE' %}Cannot say yet — the provider did not answer
+        {% elseif o == 'DELIVERED' %}Paid, and the votes are on the tally
+        {% elseif o == 'DELIVERABLE' %}Paid — deliver the votes instead of refunding
+        {% elseif o == 'ALREADY_REFUNDED' %}Already refunded
+        {% elseif o == 'IN_FLIGHT' %}A refund is already under way
+        {% else %}Not on record{% endif %}
+      </h4>
+      <p>{{ verdict.say }}</p>
+    </div>
+
+    {% if verdict.evidence is defined %}
+      <div class="rf-ev">
+        <h5>The evidence this rests on</h5>
+        <div class="rf-kv"><span class="rf-kv__k">Provider verdict</span><span class="rf-kv__v">
+          {{ verdict.evidence.verdict }}{% if verdict.evidence.gateway_status %} ({{ verdict.evidence.gateway_status }}){% endif %}
+        </span></div>
+        <div class="rf-kv"><span class="rf-kv__k">Asked at</span><span class="rf-kv__v">
+          {{ verdict.evidence.checked_at }}
+          {% if verdict.evidence.stale is defined and verdict.evidence.stale %}<span class="rf-stale">from the record, not live</span>{% endif %}
+        </span></div>
+        {% if verdict.evidence.provider %}<div class="rf-kv"><span class="rf-kv__k">Gateway</span><span class="rf-kv__v">{{ verdict.evidence.provider }}</span></div>{% endif %}
+        {% if verdict.evidence.amount %}<div class="rf-kv"><span class="rf-kv__k">Amount it reports</span><span class="rf-kv__v">{{ verdict.evidence.currency }} {{ verdict.evidence.amount|number_format }}</span></div>{% endif %}
+        {% if verdict.amount is defined %}<div class="rf-kv"><span class="rf-kv__k">Order amount</span><span class="rf-kv__v">₦{{ verdict.amount|number_format }}</span></div>{% endif %}
+        {% if verdict.votes is defined %}<div class="rf-kv"><span class="rf-kv__k">Votes ordered</span><span class="rf-kv__v">{{ verdict.votes }}</span></div>{% endif %}
+        {% if ref %}<div class="rf-kv"><span class="rf-kv__k">What they see</span><span class="rf-kv__v"><a href="/vote/verify?ref={{ ref|url_encode }}" target="_blank" rel="noopener">/vote/verify →</a></span></div>{% endif %}
+      </div>
+    {% endif %}
+
+    {# The button exists only when the verdict says it should. #}
+    {% if is_super and schema_ok %}
+      {% if o == 'OWED' %}
+        <form method="post" action="/admin/refunds/issue" class="rf-row" style="margin-top:16px">
+          <input type="hidden" name="_token" value="{{ csrf_token }}">
+          <input type="hidden" name="reference" value="{{ ref }}">
+          <button class="rf-btn rf-btn--pay" type="submit">Refund ₦{{ verdict.amount|default(0)|number_format }} now</button>
+          <span style="font-size:12.5px;color:#5a6d6f">The buyer is emailed automatically.</span>
+        </form>
+      {% elseif o in ['NEVER_PAID','DELIVERED','DELIVERABLE','UNVERIFIABLE'] %}
+        <div class="rf-danger">
+          <p><strong>There is no refund button, because the gateway does not support one.</strong>
+            {% if o == 'NEVER_PAID' %}Nothing settled to us on this reference. Refunding would be sending money
+              we were never paid — and this is the commonest request on the platform, because an abandoned
+              checkout leaves a bank hold that looks exactly like a charge.
+            {% elseif o == 'DELIVERABLE' %}The votes can still be minted. Do that instead — it is what they paid
+              for, and it costs the platform nothing. Use <a href="/admin/vote-delivery">Vote Delivery</a>.
+            {% elseif o == 'DELIVERED' %}They already have their votes.
+            {% else %}The provider did not answer. Try again in a minute — an unanswered check is not a finding
+              in either direction.
+            {% endif %}
+          </p>
+          <p>If you are certain this is one of the cases no rule anticipates — a duplicate charge across two
+            references, a gateway that has gone permanently silent on an old transaction — you can override.
+            It needs a written reason, it is stamped on the order next to the verdict it contradicted, and it
+            is recorded as <code>overridden</code> so it can never be mistaken for a routine refund.</p>
+          <form method="post" action="/admin/refunds/issue">
+            <input type="hidden" name="_token" value="{{ csrf_token }}">
+            <input type="hidden" name="reference" value="{{ ref }}">
+            <input type="hidden" name="override" value="1">
+            <div class="rf-row">
+              <label class="sr-only" for="rfWhy">Why you are refunding against the verdict</label>
+              <input class="rf-input" id="rfWhy" type="text" name="why" placeholder="Why, in one line — this is permanent" style="min-width:280px">
+              <label class="sr-only" for="rfConfirm">Type OVERRIDE to confirm</label>
+              <input class="rf-input" id="rfConfirm" type="text" name="confirm" placeholder="Type OVERRIDE" style="width:150px" autocomplete="off">
+              <button class="rf-btn rf-btn--over" type="submit">Refund against the verdict</button>
+            </div>
+          </form>
+        </div>
+      {% endif %}
+    {% endif %}
+
+    {# The hardest message support has to write, written once. #}
+    {% if o == 'NEVER_PAID' %}
+      <div class="rf-note">
+        <strong>What to send them — and why it must include the second half.</strong><br><br>
+        “I have checked this reference directly with the payment provider and there is no completed payment on
+        it, so no money reached us and there is nothing for us to refund.<br><br>
+        I believe you that your bank showed a deduction, and those two things are not a contradiction. When a
+        card payment does not complete, most Nigerian banks still place a <em>pending authorisation</em> — the
+        money leaves your available balance and looks exactly like a charge, then reverses itself, usually
+        within 3–5 working days and sometimes up to 10. Please check your <em>available</em> balance rather than
+        your statement. If it is still showing after 5 working days, send me a screenshot with the date and
+        amount and I will take it up with the provider directly on your behalf.”<br><br>
+        Never imply they are lying. They are describing something real; it just does not mean what they think.
+      </div>
+    {% endif %}
+  {% endif %}
+</div>
+
+{# ── the queue ─────────────────────────────────────────────────────────────── #}
+<div class="rf-card">
+  <h3>Needs a person</h3>
+  <p class="rf-sub">Orders the automatic path will not handle by itself, and the ones it is about to. Read from
+     the record, so opening this page makes no calls to any gateway — the verdict is re-checked live when you
+     act on a row.</p>
+  <div class="rf-dials">
+    <span>Automatic refunds: <strong>{{ auto_on ? 'on' : 'OFF' }}</strong></span>
+    <span>Per-order ceiling: <strong>₦{{ max_order|number_format }}</strong></span>
+    <span>Daily ceiling: <strong>₦{{ max_daily|number_format }}</strong></span>
+  </div>
+
+  {% if queue %}
+    <div class="rf-scroll" style="margin-top:14px">
+      <table class="rf">
+        <thead>
+          <tr><th>Reference</th><th>Amount</th><th>Votes</th><th>Why it is here</th><th>Last gateway answer</th><th>Ordered</th><th></th></tr>
+        </thead>
+        <tbody>
+          {% for r in queue %}
+            <tr>
+              <td><code>{{ r.reference }}</code></td>
+              <td>₦{{ r.amount|number_format }}</td>
+              <td>{{ r.votes }}</td>
+              <td>
+                <span class="rf-tag {{ r.state in ['manual','exhausted'] ? 'rf-tag--bad' : 'rf-tag--wait' }}">{{ r.state ?: 'unclaimed' }}</span>
+                <div style="margin-top:4px;font-size:12px;color:#5a6d6f">{{ r.why_manual }}</div>
+                {% if r.attempts %}<div style="font-size:11.5px;color:#7a8a86">{{ r.attempts }} attempt(s)</div>{% endif %}
+              </td>
+              <td>
+                {% if r.gateway %}{{ r.gateway }}{% else %}<span style="color:#7a8a86">never asked</span>{% endif %}
+                {% if r.checked_at %}<div style="font-size:11.5px;color:#7a8a86">{{ r.checked_at }}</div>{% endif %}
+              </td>
+              <td style="white-space:nowrap">{{ r.created_at }}</td>
+              <td><a href="/admin/refunds?ref={{ r.reference|url_encode }}">Check &amp; decide →</a></td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  {% else %}
+    <div class="rf-empty">Nothing is waiting on a person. The automatic path has everything it needs.</div>
+  {% endif %}
+</div>
+
+<div class="rf-note">
+  <strong>Why there is never a refund button beside a claim.</strong>
+  The commonest request here is neither fraud nor a valid claim: a checkout is started, not finished, and the
+  bank places a hold that looks identical to a settled charge. The person asking is acting in good faith about
+  money we never received. Grounding every decision in a gateway verdict — and recording that verdict on the
+  order — is what lets us refuse without accusing anybody, and refund without being talked into it.
+  <br><br>
+  <strong>“Could not reach the provider” is never treated as “never paid.”</strong> A confident refusal
+  manufactured out of a network timeout would be the worst thing this page could produce, so the two are
+  separate outcomes with separate scripts all the way down.
+</div>
+
+{% endblock %}

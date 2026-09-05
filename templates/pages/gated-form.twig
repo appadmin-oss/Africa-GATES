@@ -1,0 +1,64 @@
+{% extends "layout/gates.twig" %}
+{% block content %}
+<div style="max-width:620px;margin:0 auto;padding:clamp(32px,6vw,56px) var(--ag-gutter,28px) 64px">
+  {% if status == 'ok' %}
+    <span style="display:inline-block;font-size:12px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--ag-green,#237b22);background:#effaf0;padding:6px 13px;border-radius:999px">{{ purpose == 'judge' ? 'Judge onboarding' : 'Nominee acceptance' }}</span>
+    <h1 style="font-family:var(--ag-font-display);font-weight:800;font-size:clamp(1.8rem,4.5vw,2.5rem);line-height:1.06;margin:16px 0 0;color:var(--ag-ink,#10292C)">
+      {% if subject_name %}Congratulations, {{ subject_name }}!{% else %}Complete your details{% endif %}
+    </h1>
+    <p style="margin:14px 0 0;font-size:15.5px;line-height:1.65;color:#4a5256">
+      {% if purpose == 'judge' %}You've been invited to join the Africa GATES judging panel. Please complete your profile below so we can finalise your onboarding.{% else %}Your nomination has been verified and approved. Please confirm your details below — this helps us present you accurately across the platform.{% endif %}
+    </p>
+
+    {% if error %}<div style="margin-top:18px;font-size:14px;color:#b42318;background:#fdecec;border:1px solid rgba(180,35,24,.18);border-radius:11px;padding:11px 14px" role="alert">{{ error }}</div>{% endif %}
+
+    <form method="post" action="/form/{{ token }}" style="margin-top:22px;display:flex;flex-direction:column;gap:16px">
+      <input type="hidden" name="_token" value="{{ csrf_token }}">
+      <div>
+        <label style="display:block;font-size:13px;font-weight:600;color:#374149;margin-bottom:6px" for="gfBio">Short bio *</label>
+        <textarea id="gfBio" name="bio" rows="5" required maxlength="2000" placeholder="Tell us about your work and impact…" style="width:100%;border:1px solid rgba(16,41,44,.18);border-radius:12px;padding:12px 14px;font-family:inherit;font-size:16px;resize:vertical"></textarea>
+      </div>
+      {% if purpose == 'judge' %}
+      <div>
+        <label style="display:block;font-size:13px;font-weight:600;color:#374149;margin-bottom:6px" for="gfExpertise">Area of expertise</label>
+        <input id="gfExpertise" name="expertise" maxlength="200" placeholder="e.g. Choral music, Education policy" style="width:100%;border:1px solid rgba(16,41,44,.18);border-radius:12px;padding:12px 14px;font-family:inherit;font-size:15px">
+      </div>
+      {% endif %}
+      <div style="display:flex;gap:14px;flex-wrap:wrap">
+        <div style="flex:1;min-width:180px">
+          <label style="display:block;font-size:13px;font-weight:600;color:#374149;margin-bottom:6px" for="gfPhone">Phone</label>
+          <input id="gfPhone" name="phone" type="tel" maxlength="40" placeholder="+234…" style="width:100%;border:1px solid rgba(16,41,44,.18);border-radius:12px;padding:12px 14px;font-family:inherit;font-size:15px">
+        </div>
+        <div style="flex:1;min-width:180px">
+          <label style="display:block;font-size:13px;font-weight:600;color:#374149;margin-bottom:6px" for="gfLinks">Website / social link</label>
+          <input id="gfLinks" name="links" maxlength="300" placeholder="https://…" style="width:100%;border:1px solid rgba(16,41,44,.18);border-radius:12px;padding:12px 14px;font-family:inherit;font-size:15px">
+        </div>
+      </div>
+      <label style="display:flex;align-items:flex-start;gap:9px;font-size:14px;color:#374149;cursor:pointer">
+        <input type="checkbox" name="accept_terms" value="1" required style="margin-top:3px">
+        <span>I confirm these details are accurate and I accept the <a href="{{ terms_url|default('/terms') }}" target="_blank" rel="noopener" style="color:var(--ag-green,#237b22);font-weight:600;text-decoration:underline">programme terms</a>.</span>
+      </label>
+      <button type="submit" style="align-self:flex-start;border:none;background:var(--ag-green,#237b22);color:#fff;font-family:inherit;font-weight:600;font-size:15px;padding:13px 30px;border-radius:999px;cursor:pointer">Submit my details</button>
+    </form>
+    <p style="margin:18px 0 0;font-size:12.5px;color:#5f7273">🔒 This is a private, single-use link — it can only be submitted once.</p>
+
+  {% elseif status == 'done' %}
+    <div style="text-align:center;padding:40px 0">
+      <div style="width:64px;height:64px;margin:0 auto 16px;border-radius:50%;background:#effaf0;display:flex;align-items:center;justify-content:center"><svg aria-hidden="true" focusable="false" width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="#237b22" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></div>
+      <h1 style="font-family:var(--ag-font-display);font-weight:800;font-size:1.8rem;color:var(--ag-ink,#10292C);margin:0">Thank you!</h1>
+      <p style="margin:12px 0 0;font-size:15.5px;color:#4a5256">Your details have been submitted to the Africa GATES team.</p>
+      <a href="/" style="display:inline-block;margin-top:22px;font-size:14px;font-weight:600;color:var(--ag-green,#237b22);text-decoration:none">← Back to Africa GATES</a>
+    </div>
+
+  {% else %}
+    <div style="text-align:center;padding:40px 0">
+      <div style="width:64px;height:64px;margin:0 auto 16px;border-radius:50%;background:#f4f6f5;display:flex;align-items:center;justify-content:center;font-size:28px">🔗</div>
+      <h1 style="font-family:var(--ag-font-display);font-weight:800;font-size:1.6rem;color:var(--ag-ink,#10292C);margin:0">
+        {% if status == 'used' %}This form is already complete{% elseif status == 'expired' %}This link has expired{% else %}This link isn't valid{% endif %}
+      </h1>
+      <p style="margin:12px 0 0;font-size:15px;color:#4a5256">{% if status == 'used' %}It looks like this single-use form has already been submitted.{% else %}The link may be old or mistyped.{% endif %} If you need a new one, please contact the Africa GATES team and an admin can regenerate it.</p>
+      <a href="/" style="display:inline-block;margin-top:22px;font-size:14px;font-weight:600;color:var(--ag-green,#237b22);text-decoration:none">← Back to Africa GATES</a>
+    </div>
+  {% endif %}
+</div>
+{% endblock %}

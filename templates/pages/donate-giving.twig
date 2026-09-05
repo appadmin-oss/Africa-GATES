@@ -1,0 +1,125 @@
+{% extends "layout/gates.twig" %}
+
+{% block head_styles %}
+<style nonce="{{ csp_nonce }}">
+  /* The donate page's own vocabulary — paper ground, hairline rules, mono figures, one
+     gold accent — because this page is the other end of that one and a supporter arriving
+     from a receipt should not feel handed to a different system. */
+  .gv{ --gv-ink:#10292C; --gv-ink-2:#3d4d50; --gv-mute:#5f7273; --gv-line:rgba(16,41,44,.10);
+       max-width:44rem; margin:0 auto; padding:clamp(2rem,6vw,4rem) var(--ag-gutter,24px) 5rem; }
+  .gv-kick{ display:block; font-family:var(--ag-font-mono,monospace); font-size:11px;
+            font-weight:600; letter-spacing:.14em; text-transform:uppercase; color:#8a6005; }
+  .gv h1{ margin:14px 0 0; font-family:var(--ag-font-display,serif); font-weight:800;
+          font-size:clamp(1.7rem,4.4vw,2.3rem); line-height:1.1; letter-spacing:-.02em;
+          color:var(--gv-ink); }
+  .gv-lede{ margin:12px 0 0; font-size:15px; line-height:1.7; color:var(--gv-ink-2); }
+  .gv-card{ margin-top:28px; background:var(--ag-surface,#fff); border:1px solid var(--gv-line);
+            border-radius:18px; padding:clamp(1.3rem,4vw,1.8rem); }
+  .gv-row{ display:flex; align-items:baseline; justify-content:space-between; gap:16px;
+           padding:13px 0; border-bottom:1px solid var(--gv-line); }
+  .gv-row:last-of-type{ border-bottom:0; }
+  .gv-k{ font-size:13px; color:var(--gv-mute); }
+  .gv-v{ font-family:var(--ag-font-mono,monospace); font-weight:700; font-size:15px;
+         font-variant-numeric:tabular-nums; color:var(--gv-ink); text-align:right; }
+  .gv-state{ display:inline-flex; align-items:center; gap:7px; font-size:12.5px; font-weight:600; }
+  .gv-state::before{ content:''; width:8px; height:8px; border-radius:50%; background:currentColor; }
+  .gv-state--on{ color:var(--ag-green-dark,#1a6118); }
+  .gv-state--off{ color:var(--gv-mute); }
+  .gv-stop{ margin-top:22px; }
+  /* Destructive, and visually distinct from anything else here — but not alarming. Stopping
+     a gift is a thing a person is allowed to do, not a thing to be talked out of. */
+  .gv-stop__b{ width:100%; min-height:48px; cursor:pointer; font-family:inherit; font-size:15px;
+               font-weight:600; padding:13px 18px; border-radius:999px;
+               border:1px solid rgba(178,74,58,.5); background:transparent; color:#a8442f; }
+  .gv-stop__b:hover{ background:rgba(178,74,58,.06); }
+  .gv-note{ margin:14px 0 0; font-size:12.5px; line-height:1.6; color:var(--gv-mute); }
+  .gv-note a{ color:var(--ag-green-dark,#1a6118); font-weight:600; }
+  .gv-flash{ margin-top:22px; padding:14px 16px; border-radius:13px; font-size:14px;
+             line-height:1.6; border:1px solid; }
+  .gv-flash--ok{ border-color:rgba(35,123,34,.3); background:rgba(35,123,34,.06); color:#1a5518; }
+  .gv-flash--err{ border-color:rgba(178,74,58,.35); background:rgba(178,74,58,.06); color:#8f3a28; }
+  .gv-dead{ margin-top:26px; font-size:15px; line-height:1.7; color:var(--gv-ink-2); }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="gv">
+
+  {% if not sub %}
+    {# The unhappy path, said plainly. A 404 that reads as a fault sends somebody who is
+       trying to stop paying us to their bank instead. #}
+    <span class="gv-kick">Monthly giving</span>
+    <h1>This link is not valid</h1>
+    <p class="gv-dead">It may have been mistyped, or the gift it belonged to may already have
+      been stopped. If you are still being charged and cannot find the right link, write to
+      <a href="/support">our team</a> with the email you gave and we will stop it by hand —
+      the same day.</p>
+  {% else %}
+    {% set stopped = sub.status in ['cancelled', 'cancelling'] %}
+
+    <span class="gv-kick">Monthly giving</span>
+    <h1>{% if stopped %}This gift is stopped{% else %}Your monthly gift{% endif %}</h1>
+    <p class="gv-lede">
+      {%- if stopped -%}
+        You will not be charged again. Everything you have already given stays with the
+        programmes, and you can start again whenever you like.
+      {%- else -%}
+        Thank you. This page is the whole of it — no account, no phone call, and stopping
+        takes one press.
+      {%- endif -%}
+    </p>
+
+    {% if flash_ok %}<div class="gv-flash gv-flash--ok" role="status">{{ flash_ok }}</div>{% endif %}
+    {% if flash_err %}<div class="gv-flash gv-flash--err" role="alert">{{ flash_err }}</div>{% endif %}
+
+    <div class="gv-card">
+      <div class="gv-row">
+        <span class="gv-k">Amount</span>
+        <span class="gv-v">₦{{ sub.amount_naira|number_format }} / month</span>
+      </div>
+      <div class="gv-row">
+        <span class="gv-k">Status</span>
+        <span class="gv-v">
+          {% if stopped %}
+            <span class="gv-state gv-state--off">{{ sub.status == 'cancelling' ? 'Stopping' : 'Stopped' }}</span>
+          {% elseif sub.status == 'failed' %}
+            <span class="gv-state gv-state--off">Payment failed</span>
+          {% elseif sub.status == 'pending' %}
+            <span class="gv-state gv-state--off">Starting</span>
+          {% else %}
+            <span class="gv-state gv-state--on">Active</span>
+          {% endif %}
+        </span>
+      </div>
+      {# Only once there is one. "0 gifts so far" on a page somebody reached from a receipt
+         is the platform contradicting the email that brought them here. #}
+      {% if sub.charges > 0 %}
+        <div class="gv-row">
+          <span class="gv-k">Given so far</span>
+          <span class="gv-v">{{ sub.charges }} gift{{ sub.charges == 1 ? '' : 's' }} ·
+            ₦{{ (sub.charges * sub.amount_naira)|number_format }}</span>
+        </div>
+      {% endif %}
+      {% if sub.next_charge_at and not stopped %}
+        <div class="gv-row">
+          <span class="gv-k">Next</span>
+          <span class="gv-v">{{ sub.next_charge_at|when }}</span>
+        </div>
+      {% endif %}
+
+      {% if not stopped %}
+        <form class="gv-stop" method="post"
+              action="/donate/giving/{{ token }}/stop"
+              data-confirm="Stop this monthly gift? You will not be charged again.">
+          <input type="hidden" name="_token" value="{{ csrf_token }}">
+          <button type="submit" class="gv-stop__b">Stop this monthly gift</button>
+        </form>
+        <p class="gv-note">Stopping takes effect immediately at our payment provider. Nothing
+          you have already given is affected, and no reason is needed.
+          Questions go to <a href="/support">our team</a>.</p>
+      {% endif %}
+    </div>
+  {% endif %}
+
+</div>
+{% endblock %}

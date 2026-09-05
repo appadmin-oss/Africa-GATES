@@ -1,0 +1,621 @@
+{% extends "layout/gates.twig" %}
+
+{% block head_styles %}
+<style nonce="{{ csp_nonce }}">
+  body[data-page="shop"]{ background:#eef0ec; color:var(--ag-ink); }
+  body[data-page="shop"] [x-cloak]{ display:none !important; }
+  .si{ max-width:1100px; margin:0 auto; padding:0 var(--ag-gutter,32px) 60px; }
+  .si-crumb{ padding:18px 0 0; font-size:12.5px; color:#5a6d6f; }
+  .si-crumb a{ color:#5a6d6f; text-decoration:none; } .si-crumb a:hover{ color:var(--ag-ink); }
+  .si-crumb b{ color:var(--ag-ink); font-weight:500; }
+
+  .si-grid{ margin-top:14px; display:grid; grid-template-columns:1fr 1fr; gap:36px; align-items:start; }
+  @media(max-width:780px){ .si-grid{ grid-template-columns:1fr; gap:22px; } }
+  .si-gallery{ position:relative; aspect-ratio:1/1; border-radius:22px; overflow:hidden; background-size:cover; background-position:center; }
+  .si-gallery__orb{ position:absolute; right:-40px; bottom:-50px; width:240px; height:240px; border-radius:50%; background:radial-gradient(circle,rgba(212,154,14,.26),transparent 68%); }
+  .si-gallery__tag{ position:absolute; top:14px; left:14px; font-size:10px; font-weight:600; letter-spacing:.04em; text-transform:uppercase; padding:5px 11px; border-radius:999px; }
+  .si-tag--Bestseller{ background:#fff8df; color:#7a5600; } .si-tag--New{ background:#eef7ee; color:#1a6118; } .si-tag--Limited{ background:#fdeaf0; color:#9c2b48; }
+
+  .si-cat{ margin:0; font-size:12px; font-weight:600; letter-spacing:.08em; text-transform:uppercase; color:var(--ag-green); }
+  .si-name{ margin:8px 0 0; font-family:var(--ag-font-display); font-weight:700; font-size:clamp(1.7rem,4vw,2.1rem); letter-spacing:-.01em; color:var(--ag-ink); }
+  .si-price{ margin-top:10px; font:700 24px/1 var(--ag-font-mono); color:var(--ag-ink); }
+  .si-desc{ margin:16px 0 0; font-size:14.5px; line-height:1.65; color:#3a4448; }
+  .si-sub{ margin-top:6px; color:#5a6d6f; }
+  .si-cur{ font-size:12px; color:#5a6d6f; margin-top:2px; }
+
+  /* ── THE PHONE ORDER ──────────────────────────────────────────────────────
+     Measured on a 390×844 screen: the square hero image is 710px of the 844, so a buyer
+     arrived at a photograph and nothing else. Price was below the fold, the colour swatches
+     were at the very bottom edge, and "Buy now" was two more screens down past the
+     description — on a page whose entire job is to sell one object.
+
+     Two changes, both phone-only.
+
+     THE IMAGE IS CAPPED at half the viewport. `aspect-ratio` still governs the shape; the cap
+     only stops it eating the screen, and `object-fit:cover` crops rather than squashing.
+
+     AND THE DESCRIPTION MOVES BELOW THE CONTROLS, so the sequence is what somebody actually
+     does: see it, see the price, pick a colour and a size, buy — and then read about it if
+     they are still deciding. Desktop keeps the source order, where there is room for both.
+
+     This is the one place in this codebase where visual order and DOM order differ. It is safe
+     precisely because the thing that moves is a PARAGRAPH: nothing to focus, nothing to tab
+     into, no control whose keyboard order would stop matching what is on screen. The rule this
+     is not breaking is "never reorder interactive elements with CSS". */
+  @media(max-width:780px){
+    .si-gallery{ max-height:50vh; }
+    .si-info{ display:flex; flex-direction:column; }
+    .si-info > *{ order:7; }
+    .si-cat, .si-name, .si-sub, .si-price, .si-cur{ order:1; }
+    .si-opt{ order:2; }
+    .si-stock{ order:3; }
+    .si-actions{ order:4; }
+    .si-add, .si-back{ order:5; }
+    .si-desc--long{ order:6; }
+  }
+
+  .si-actions{ display:flex; gap:12px; margin-top:22px; align-items:center; }
+  .si-stepper{ display:flex; align-items:center; gap:14px; border:1px solid rgba(16,41,44,.14); border-radius:12px; padding:10px 14px; }
+  .si-stepper button{ cursor:pointer; border:none; background:none; font-size:20px; color:var(--ag-ink); line-height:1; }
+  .si-stepper span{ font:700 16px var(--ag-font-mono); min-width:16px; text-align:center; }
+  .si-buy{ flex:1; cursor:pointer; border:none; background:var(--ag-green); color:#fff; font-family:inherit; font-weight:600; font-size:15px; padding:15px; border-radius:999px; }
+  .si-buy:hover{ background:var(--ag-green-dark); }
+  .si-add{ width:100%; margin-top:10px; cursor:pointer; border:1px solid rgba(16,41,44,.16); background:var(--ag-surface,#fff); color:var(--ag-ink); font-family:inherit; font-weight:600; font-size:15px; padding:14px; border-radius:999px; }
+
+  .si-assure{ display:flex; flex-direction:column; gap:11px; margin-top:24px; padding-top:22px; border-top:1px solid rgba(16,41,44,.08); }
+  .si-assure__row{ display:flex; align-items:center; gap:11px; font-size:13.5px; color:#3a4448; }
+  .si-assure__i{ flex:none; width:34px; height:34px; border-radius:10px; display:flex; align-items:center; justify-content:center; }
+
+  .si-related{ margin-top:44px; }
+  .si-related h2{ margin:0 0 16px; font-family:var(--ag-font-display); font-weight:700; font-size:22px; color:var(--ag-ink); }
+  .si-rgrid{ display:grid; grid-template-columns:repeat(4,1fr); gap:18px; }
+  @media(max-width:780px){ .si-rgrid{ grid-template-columns:repeat(2,1fr); } }
+  .si-rcard{ background:var(--ag-surface,#fff); border:1px solid rgba(16,41,44,.08); border-radius:16px; overflow:hidden; text-decoration:none; display:block; transition:border-color .15s; }
+  .si-rcard:hover{ border-color:rgba(16,41,44,.18); }
+  .si-rcard__cover{ aspect-ratio:1/1; background-size:cover; background-position:center; }
+  .si-rcard__b{ padding:13px; }
+  .si-rcard__n{ font-weight:600; font-size:14px; color:var(--ag-ink); }
+  .si-rcard__p{ font:700 14px/1 var(--ag-font-mono); color:var(--ag-green); margin-top:5px; }
+
+  .si-gallery__img{ position:absolute; inset:0; width:100%; height:100%; object-fit:cover; }
+
+  /* ── gallery thumbnails ── */
+  .si-thumbs{ display:flex; gap:9px; margin-top:11px; flex-wrap:wrap; }
+  .si-thumb{ cursor:pointer; flex:none; width:64px; height:64px; border-radius:12px; border:2px solid transparent; background-size:cover; background-position:center; padding:0; }
+  .si-thumb.is-on{ border-color:var(--ag-green); }
+
+  /* ── the variant picker ── */
+  .si-opt{ margin-top:20px; }
+  .si-opt__h{ display:flex; align-items:baseline; justify-content:space-between; gap:10px; }
+  .si-opt__l{ font-size:12px; font-weight:700; letter-spacing:.06em; text-transform:uppercase; color:#4a5256; }
+  .si-opt__pick{ font-size:13px; color:#5a6d6f; }
+  .si-opt__row{ display:flex; flex-wrap:wrap; gap:9px; margin-top:9px; }
+  .si-chip{ cursor:pointer; font-family:inherit; font-size:14px; font-weight:600; min-width:54px; padding:11px 16px; border-radius:12px; border:1.5px solid rgba(16,41,44,.16); background:var(--ag-surface,#fff); color:var(--ag-ink); }
+  .si-chip.is-on{ border-color:var(--ag-green); background:#f6fcf5; color:#10292C; }
+  .si-chip:disabled{ opacity:.45; cursor:not-allowed; text-decoration:line-through; }
+  /* Sold out but still pressable — the thing to do about it is ask to be told. */
+  .si-chip.is-gone{ text-decoration:line-through; color:#8a5a00; border-style:dashed; }
+  .si-chip.is-gone.is-on{ border-color:#966905; border-style:solid; background:#fff8ec; }
+  /* Which answer is currently chosen, echoed beside the heading. On a swatch row this is the
+     only place the colour's NAME appears once one is picked, and a buyer who cannot tell two
+     of them apart has to be able to read which they have. */
+  .si-opt__chosen{ font-size:13px; font-weight:700; color:#10292C; }
+
+  /* ── swatches ──────────────────────────────────────────────────────────────
+     A colour, drawn as a colour. Bigger than a chip's text because the target IS the
+     information: a 20px square is a decision made by squinting.
+
+     The name is still in the DOM (`.si-sw__t`), visually hidden rather than removed — a
+     screen reader has nothing to announce for a coloured square, and `title` is not read by
+     most of them. */
+  .si-opt__row--sw{ gap:11px; }
+  .si-sw{ position:relative; cursor:pointer; width:44px; height:44px; padding:3px;
+    border-radius:50%; border:2px solid rgba(16,41,44,.14); background:var(--ag-surface,#fff);
+    font-family:inherit; line-height:0; }
+  .si-sw__fill{ display:block; width:100%; height:100%; border-radius:50%;
+    /* An inner hairline, so a white or cream swatch is still a disc on a white card rather
+       than an empty ring. */
+    box-shadow:inset 0 0 0 1px rgba(16,41,44,.18); }
+  .si-sw__t{ position:absolute; width:1px; height:1px; overflow:hidden; clip-path:inset(50%);
+    white-space:nowrap; }
+  .si-sw.is-on{ border-color:var(--ag-green); }
+  /* The tick goes INSIDE the swatch. A ring around a 44px target is indistinguishable from a
+     hover state, and on a row of similar tones "which one did I pick" is the only question
+     that matters. Its colour is computed from the swatch's own luminance in PHP
+     (AfricaGates\Support\Swatch::isLight) — a white tick on cream is invisible. */
+  .si-sw.is-on::after{ content:""; position:absolute; left:50%; top:47%; width:11px; height:6px;
+    border-left:2.5px solid #fff; border-bottom:2.5px solid #fff; border-radius:1px;
+    transform:translate(-50%,-50%) rotate(-45deg);
+    /* A halo in the opposite direction, because `is-light` is computed from the FIRST colour
+       and the tick sits at the CENTRE — which on a two-tone swatch is exactly where the two
+       colours meet. A white tick over the cream half of a navy-and-cream disc disappeared
+       (seen in a screenshot, not predicted). The halo means the tick reads on either half
+       without needing to know which half it landed on. */
+    filter:drop-shadow(0 0 1.5px rgba(16,41,44,.85)); }
+  .si-sw.is-on.is-light::after{ border-color:#10292C;
+    filter:drop-shadow(0 0 1.5px rgba(255,255,255,.9)); }
+  /* Sold out, but still pressable. A diagonal bar rather than a strike-through, because there
+     is no text to strike — and dashed, matching the chips, so the two read as one system. */
+  .si-sw.is-gone{ border-style:dashed; border-color:#c89a3a; }
+  .si-sw.is-gone .si-sw__fill{ opacity:.55; }
+  .si-sw.is-gone::before{ content:""; position:absolute; inset:6px; border-radius:50%;
+    background:linear-gradient(135deg, transparent 45%, #8a5a00 45%, #8a5a00 55%, transparent 55%); }
+  .si-sw:focus-visible{ outline:3px solid rgba(35,123,34,.35); outline-offset:2px; }
+
+  .si-stock{ font-size:12.5px; font-weight:700; margin-top:9px; }
+  .si-stock.is-low{ color:#8a2020; } .si-stock.is-gone{ color:#8a5a00; } .si-stock.is-ok{ color:#1a6118; }
+  .si-buy:disabled, .si-add:disabled{ background:#dfe4e3; color:#5b6669; border-color:transparent; cursor:not-allowed; }
+
+  /* ── tell me when it's back ── */
+  .si-back{ background:#fff8ec; border:1px solid rgba(212,154,14,.28); border-radius:14px; padding:15px 17px; margin-top:16px; }
+  .si-back__h{ font-weight:700; font-size:14px; color:#7a4d00; }
+  .si-back__p{ font-size:12.5px; line-height:1.6; color:#7a5a1a; margin:5px 0 0; }
+  .si-back__row{ display:flex; gap:8px; margin-top:11px; flex-wrap:wrap; }
+  .si-back__row input{ flex:1 1 170px; min-width:0; border:1px solid rgba(16,41,44,.18); border-radius:11px; padding:11px 13px; font-family:inherit; font-size:14px; color:var(--ag-ink); background:#fff; outline:none; }
+  .si-back__row input:focus{ border-color:#966905; }
+  .si-back__go{ flex:none; cursor:pointer; border:none; background:#a47306; color:#fff; font-family:inherit; font-weight:600; font-size:13.5px; padding:0 20px; border-radius:11px; }
+  .si-back__go:disabled{ opacity:.55; cursor:not-allowed; }
+  .si-back__said{ font-size:13px; font-weight:600; margin-top:9px; }
+  .si-back__said.is-ok{ color:#1a6118; }
+  .si-back__said.is-no{ color:#8a2020; }
+
+  /* ── what the thing is made of, and how it gets to you ── */
+  .si-tabs{ margin-top:26px; border-top:1px solid rgba(16,41,44,.08); }
+  .si-tab{ border-bottom:1px solid rgba(16,41,44,.08); }
+  .si-tab__q{ width:100%; display:flex; align-items:center; justify-content:space-between; gap:10px; cursor:pointer; border:none; background:none; font-family:inherit; font-size:14px; font-weight:600; color:var(--ag-ink); padding:15px 2px; text-align:left; }
+  .si-tab__q span:last-child{ color:var(--ag-ink-soft,#626a6e); font-weight:400; }
+  .si-tab__a{ font-size:13.5px; line-height:1.7; color:#3a4448; padding:0 2px 15px; white-space:pre-line; }
+</style>
+{% endblock %}
+
+{% block content %}
+{% set p = product %}
+{% set COV = ['linear-gradient(135deg,#10292C,#1a6118)','linear-gradient(135deg,#a47306,#d49a0e)','linear-gradient(135deg,#1a2629,#5d7374)','linear-gradient(135deg,#237b22,#7FC87C)','linear-gradient(135deg,#2b373d,#4a5b60)','linear-gradient(135deg,#b97a12,#fbc329)'] %}
+{% set heroBg = p.cover_path ? "url('" ~ p.cover_path ~ "')" : 'radial-gradient(130% 130% at 70% 10%,#1d5b2a,#10292C 70%)' %}
+
+{# ── THE PICKER'S STATE ────────────────────────────────────────────────────────
+   `variants` comes from the server already priced off the REGION-ADJUSTED base, so nothing
+   here adds a delta to the wrong number. `sel` is the chosen variant object, or null while
+   nothing is chosen — and every action is disabled until it is not, because picking a size on
+   somebody's behalf is how they receive the wrong one. #}
+{# The filter chain is INLINE, not stashed in a {% set %} first. Twig tracks escaping per
+   expression at compile time, so assigning `|e('html_attr')` output to a variable loses its
+   safe marker and autoescape escapes it a second time — the browser then hands Alpine a
+   string full of `&#x5B;` and every expression on the page fails. #}
+<div class="si" x-data="siItem({{ variants|default([])|json_encode|e('html_attr') }}, {{ gallery|default([])|json_encode|e('html_attr') }}, {{ p.display_price|default(p.price_naira) }}, {{ p.slug|json_encode }}, {{ csrf_token|json_encode }}, {{ waiting|default({})|json_encode|e('html_attr') }}, {{ p.sold_out|default(false) ? 'true' : 'false' }})">
+  <nav class="si-crumb" aria-label="Breadcrumb">
+    <a href="/shop">Shop</a> · <a href="/shop?c={{ p.category|url_encode }}">{{ p.category }}</a> · <b>{{ p.name }}</b>
+  </nav>
+
+  <div class="si-grid">
+    <div>
+      {# The chosen shot is an <img>, layered over the gradient fallback — NOT an Alpine
+         :style on this div. Two reasons: a :style REPLACES the style attribute when it runs,
+         so the gradient would vanish (AlpineStyleClobberTest fails the build on that), and a
+         CSS url() built inside a double-quoted attribute needs quotes of its own, which
+         terminate the attribute. An <img> also carries alt text, which a background cannot. #}
+      <div class="si-gallery" style="background-image:{{ heroBg }}">
+        {# Rendered when there is a gallery OR when any option carries its own photograph.
+           The second half matters: a product with no cover and no gallery can still have a
+           picture per colour now, and gating the <img> on the gallery alone meant `shot` was
+           set to that photograph with no element to show it in — the swatch switched an image
+           that was not on the page. Found by reading `shot` in the browser after a click. #}
+        {% set option_shots = variants|default([])|filter(v => v.image)|length > 0 %}
+        {% if gallery|default([])|length or option_shots %}
+        <img class="si-gallery__img" :src="shot" :alt="shotAlt" x-show="shot" alt="{{ p.name }}"
+             {% if gallery|default([])|length %}src="{{ gallery.0.path }}"{% endif %}>
+        {% endif %}
+        {% if not p.cover_path %}<div class="si-gallery__orb" aria-hidden="true"></div>{% endif %}
+        {% if p.tag %}<span class="si-gallery__tag si-tag--{{ p.tag }}">{{ p.tag }}</span>{% endif %}
+      </div>
+      {# Thumbnails only when there is more than one image. A single-image gallery with one
+         thumbnail under it looks like something failed to load. #}
+      {% if gallery|default([])|length > 1 %}
+      <div class="si-thumbs">
+        {% for g in gallery %}
+        {# Plain |json_encode, NOT json_encode(15)|raw. Flag 15 hex-escapes quotes INSIDE a
+           string but leaves the delimiters as real `"` — which closes a double-quoted attribute
+           and takes the rest of the expression with it. Autoescaping to &quot; is what works
+           here; json_encode(15)|raw is for single-quoted attributes and script blocks. #}
+        <button type="button" class="si-thumb" :class="shot === {{ g.path|json_encode }} ? 'is-on' : ''"
+                @click="shot = {{ g.path|json_encode }}"
+                style="background-image:url('{{ g.path }}')"
+                aria-label="View image {{ loop.index }}{% if g.alt %} — {{ g.alt }}{% endif %}"></button>
+        {% endfor %}
+      </div>
+      {% endif %}
+    </div>
+
+    <div class="si-info">
+      <p class="si-cat">{{ p.category }}</p>
+      <h1 class="si-name">{{ p.name }}</h1>
+      {% if p.subtitle|default('') %}<p class="si-desc si-sub">{{ p.subtitle }}</p>{% endif %}
+      <div class="si-price" x-text="$store.cart.ngn(price)">{{ p.price_label|default('₦' ~ (p.display_price|default(p.price_naira)|number_format)) }}</div>
+      {% if currency != 'NGN' %}<div class="si-cur">charged in Naira · <span x-text="$store.cart.ngnRaw(price)"></span></div>{% endif %}
+      {% if p.description %}<p class="si-desc si-desc--long">{{ p.description }}</p>{% endif %}
+
+      {% if axes|default([])|length %}
+      {# ── PICK ONE, OR TWO ──────────────────────────────────────────────────
+         One group per question, because that is what a buyer answers. A shirt is a colour AND
+         a size; presenting the twelve combinations as one list makes them hunt for their pair.
+
+         A sold-out option is shown and struck through rather than hidden: somebody looking for
+         their size needs to know it exists and has gone, not wonder whether it is made. And it
+         stays SELECTABLE — the useful thing left to do about it is ask to be told when it
+         returns, and a dead button is a dead end for the person most likely to buy one.
+
+         `goneFor()` is recomputed in the browser against the OTHER question's current answer,
+         because "Navy is sold out in M" is a statement about a PAIR and the server cannot know
+         the pair before it is chosen. #}
+      {% for g in axes %}
+      <div class="si-opt">
+        <div class="si-opt__h">
+          <span class="si-opt__l">{{ g.name }}</span>
+          <span class="si-opt__chosen" x-show="pickOf('{{ g.key }}')" x-cloak
+                x-text="pickOf('{{ g.key }}')"></span>
+          <span class="si-opt__pick" x-show="!pickOf('{{ g.key }}')" x-cloak>Choose one</span>
+        </div>
+        <div class="si-opt__row{{ g.kind == 'swatch' ? ' si-opt__row--sw' : '' }}"
+             role="group" aria-label="{{ g.name }}">
+          {% for c in g.choices %}
+            {% if g.kind == 'swatch' %}
+            {# A SWATCH, with the name still present — as the accessible label, as the tooltip,
+               and echoed beside the heading once chosen. Roughly one man in twelve cannot tell
+               two of these apart, a screen reader has nothing to announce for a coloured
+               square, and a receipt reading "you bought the ■" is not a receipt. The colour is
+               validated in PHP (AfricaGates\Support\Swatch) because it lands in a `style`
+               attribute. #}
+            <button type="button" class="si-sw"
+                    :class="swClass('{{ g.key }}', {{ c.value|json_encode }}, {{ c.swatch_light ? 'true' : 'false' }})"
+                    @click="choose('{{ g.key }}', {{ c.value|json_encode }}, {{ c.image|json_encode }})"
+                    :aria-pressed="pickOf('{{ g.key }}') === {{ c.value|json_encode }} ? 'true' : 'false'"
+                    title="{{ c.value }}">
+              <span class="si-sw__fill" style="background:{{ c.swatch_css }}"></span>
+              <span class="si-sw__t">{{ c.value }}</span>
+            </button>
+            {% else %}
+            <button type="button" class="si-chip"
+                    :class="chipClass('{{ g.key }}', {{ c.value|json_encode }})"
+                    @click="choose('{{ g.key }}', {{ c.value|json_encode }}, {{ c.image|json_encode }})"
+                    :aria-pressed="pickOf('{{ g.key }}') === {{ c.value|json_encode }} ? 'true' : 'false'">{{ c.value }}</button>
+            {% endif %}
+          {% endfor %}
+        </div>
+      </div>
+      {% endfor %}
+      <p class="si-stock" x-show="stockNote" x-cloak :class="stockClass" x-text="stockNote"></p>
+      {% elseif p.stock_note|default('') %}
+      <p class="si-stock {{ p.sold_out|default(false) ? 'is-gone' : 'is-low' }}" style="margin-top:16px">{{ p.stock_note }}</p>
+      {% endif %}
+
+      <div class="si-actions" x-show="!gone" x-cloak>
+        <div class="si-stepper">
+          <button type="button" @click="qty=Math.max(1,qty-1)" aria-label="Decrease">−</button>
+          <span x-text="qty"></span>
+          <button type="button" @click="bump()" aria-label="Increase">+</button>
+        </div>
+        <button type="button" class="si-buy" :disabled="!ready"
+          @click="into(); $store.cart.open=false; $store.cart.checkoutOpen=true; $store.cart.quote();">
+          <span x-show="ready">Buy now · <span x-text="$store.cart.ngn(price*qty)"></span></span>
+          <span x-show="!ready" x-cloak x-text="blocked"></span>
+        </button>
+      </div>
+      <button type="button" class="si-add" :disabled="!ready" @click="into()" x-show="!gone" x-cloak>Add to cart</button>
+
+      {# ── TELL ME WHEN IT'S BACK ────────────────────────────────────────────
+         Shown when the thing they are looking at has actually gone — a chosen size that is
+         sold out, or a whole product that is. Before this, a sold-out page's entire answer was
+         a greyed-out button, and stock comes back far more often than an event seat does. #}
+      <div class="si-back" x-show="gone" x-cloak>
+        <div class="si-back__h" x-text="goneLabel">This has sold out</div>
+        <p class="si-back__p">
+          Leave your email and we will write to you the moment it is back — one message, and you
+          are not joining a mailing list.
+          <span x-show="waitingHere > 0" x-cloak x-text="waitingHere === 1
+            ? ' One other person is waiting for this.'
+            : ' ' + waitingHere + ' other people are waiting for this.'"></span>
+        </p>
+        <div class="si-back__row">
+          <input x-model="alertEmail" type="email" placeholder="you@email.com"
+                 autocomplete="email" aria-label="Your email, to be told when this is back"
+                 @keydown.enter.prevent="tellMe()">
+          <button type="button" class="si-back__go" :disabled="alerting || !alertEmail.trim()"
+                  @click="tellMe()" x-text="alerting ? 'Adding…' : 'Tell me'"></button>
+        </div>
+        <p class="si-back__said" :class="alertOk ? 'is-ok' : 'is-no'" x-show="alertSaid" x-cloak
+           x-text="alertSaid"></p>
+      </div>
+
+      {% if ship_active|default(false) and ship_free_over|default(0) %}
+      <p style="margin:12px 0 0;font-size:12.5px;color:#5a6d6f">
+        Free delivery on orders over ₦{{ ship_free_over|number_format }}{% if p.ships_free|default(0) %} — and delivery on this item is always included{% endif %}.
+      </p>
+      {% elseif p.ships_free|default(0) %}
+      <p style="margin:12px 0 0;font-size:12.5px;color:#1a6118;font-weight:600">Delivery included in the price.</p>
+      {% endif %}
+
+      {% if p.details|default('') %}
+      {# Materials, sizing, washing — the three questions a support inbox answers about
+         apparel forever. Closed by default so the page stays about the product. #}
+      <div class="si-tabs" x-data="{ open:false }">
+        <div class="si-tab">
+          <button type="button" class="si-tab__q" @click="open = !open" :aria-expanded="open">
+            <span>Materials, sizing &amp; care</span><span x-text="open ? '−' : '+'">+</span>
+          </button>
+          <div class="si-tab__a" x-show="open" x-cloak>{{ p.details }}</div>
+        </div>
+      </div>
+      {% endif %}
+
+      <div class="si-assure">
+        <div class="si-assure__row"><span class="si-assure__i" style="background:#effaf0;color:#1a6118"><svg aria-hidden="true" focusable="false" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.6l-1-1a5.5 5.5 0 0 0-7.8 7.8l1 1L12 21l7.8-7.6 1-1a5.5 5.5 0 0 0 0-7.8Z"/></svg></span>Every order funds child leadership programmes</div>
+        <div class="si-assure__row"><span class="si-assure__i" style="background:#fff8df;color:#7a5600"><svg aria-hidden="true" focusable="false" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="3" width="15" height="13" rx="2"/><path d="M16 8h4l3 3v5h-7"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg></span>Secure gateway checkout · {% if delivery_regions is empty %}delivers nationwide{% else %}delivers to {{ delivery_regions|join(', ') }}{% endif %}</div>
+      </div>
+    </div>
+  </div>
+
+  {% if related is not empty %}
+  <section class="si-related">
+    <h2>You may also like</h2>
+    <div class="si-rgrid">
+      {% for r in related %}
+      <a class="si-rcard" href="/shop/{{ r.slug }}">
+        <div class="si-rcard__cover" style="{% if r.cover_path %}background-image:url('{{ r.cover_path }}'){% else %}background:{{ COV[loop.index0 % COV|length] }}{% endif %}"></div>
+        <div class="si-rcard__b">
+          <div class="si-rcard__n">{{ r.name }}</div>
+          <div class="si-rcard__p">{{ r.price_label|default('₦' ~ (r.display_price|default(r.price_naira)|number_format)) }}</div>
+          {% if r.sold_out|default(false) %}<div style="font-size:11.5px;font-weight:700;color:#8a5a00;margin-top:4px">Sold out</div>{% endif %}
+        </div>
+      </a>
+      {% endfor %}
+    </div>
+  </section>
+  {% endif %}
+
+  {% include 'partials/shop-cart.twig' %}
+</div>
+
+<script nonce="{{ csp_nonce }}">
+function siItem(variants, gallery, basePrice, slug, csrf, waiting, productGone){
+  return {
+    variants: variants || [],
+    gallery: gallery || [],
+    qty: 1,
+    shot: (gallery && gallery.length) ? gallery[0].path : '',
+    /* "Tell me when it's back" state. Kept here rather than in its own component so the panel
+       knows WHICH size is being asked about — that is the whole point of the feature. */
+    alertEmail: '', alerting: false, alertOk: false, alertSaid: '',
+
+    /* The alt text of the image currently shown. A gallery where every image is described as
+       the product name tells a screen-reader user nothing about which one they are on. */
+    get shotAlt(){
+      var g = this.gallery.find((x) => x.path === this.shot);
+      return (g && g.alt) ? g.alt : '';
+    },
+
+    /* ── THE TWO ANSWERS ─────────────────────────────────────────────────────
+       `a` and `b` are what the buyer picked on each question; `sel` is DERIVED from them
+       rather than stored. That is the whole reason two axes work: a variant row is one
+       sellable combination (stock, price and SKU all belong to the pair), so the pair is the
+       input and the row is the result. Storing `sel` directly would give two sources of truth
+       and they would drift the first time somebody changed one answer. */
+    a: '', b: '',
+
+    /* Every distinct answer this product offers on each axis, in row order. */
+    get valuesA(){ return this.distinct('label'); },
+    get valuesB(){ return this.distinct('label2'); },
+    distinct(k){
+      var out = [];
+      this.variants.forEach(function(v){
+        var x = v[k] || '';
+        if (x !== '' && out.indexOf(x) === -1) out.push(x);
+      });
+      return out;
+    },
+    get twoAxis(){ return this.valuesB.length > 0; },
+
+    /* The row for the current pair, or null while a question is unanswered. */
+    get sel(){
+      if (this.a === '') return null;
+      if (this.twoAxis && this.b === '') return null;
+      var a = this.a, b = this.b, two = this.twoAxis;
+      return this.variants.find(function(v){
+        return (v.label || '') === a && (!two || (v.label2 || '') === b);
+      }) || null;
+    },
+
+    pickOf(key){ return key === 'a' ? this.a : this.b; },
+
+    init(){
+      /* Answer a question that has only ONE possible answer. That is not choosing for
+         somebody — it is the only choice — and making them tap it adds a step with a single
+         legal answer. A question with two or more is left blank: picking a size on a buyer's
+         behalf is how they receive the wrong one. */
+      if (this.valuesA.length === 1) this.a = this.valuesA[0];
+      if (this.twoAxis && this.valuesB.length === 1) this.b = this.valuesB[0];
+
+      /* Everything gone: answer both anyway, so the page offers "tell me when it's back"
+         instead of asking somebody to choose between things none of which exist. */
+      var live = this.variants.filter(function(v){ return !v.sold_out; });
+      if (live.length === 0 && this.variants.length > 0) {
+        this.a = this.variants[0].label || '';
+        this.b = this.variants[0].label2 || '';
+      }
+      this.followImage();
+    },
+
+    choose(key, value, image){
+      if (key === 'a') this.a = value; else this.b = value;
+      this.alertSaid = '';
+
+      /* If the other answer is now impossible, clear it rather than leave the page showing a
+         pair that does not exist. NOT auto-corrected to a different one: silently moving
+         somebody from M to L because they changed colour is how they receive the wrong size. */
+      if (this.twoAxis) {
+        var other = key === 'a' ? 'b' : 'a';
+        if (this.pickOf(other) !== '' && !this.pairExists()) this[other] = '';
+      }
+
+      /* A photograph of THIS colour, when there is one. A hex square cannot tell somebody what
+         a wax print looks like, so the gallery follows the choice. */
+      if (image) this.shot = image;
+      else this.followImage();
+
+      /* Clamp rather than reset. Somebody who asked for five and switches to a size with two
+         in it meant "as many as I can", not "start again". */
+      var v = this.sel;
+      if (v && v.stock !== null && v.stock > 0 && this.qty > v.stock) this.qty = Math.max(1, v.stock);
+    },
+
+    pairExists(){
+      var a = this.a, b = this.b;
+      return !!this.variants.find(function(v){
+        return (v.label || '') === a && (v.label2 || '') === b;
+      });
+    },
+
+    /* Switch the gallery to the chosen combination's own photograph, if it has one. */
+    followImage(){
+      var v = this.sel;
+      if (v && v.image) this.shot = v.image;
+    },
+
+    /* ── WHICH ANSWERS ARE STILL POSSIBLE ────────────────────────────────────
+       An answer is `gone` when every combination containing it — GIVEN the other question's
+       current answer — is sold out. Computed against the current pick, not once on the
+       server, because "Navy is sold out in M" is a statement about a pair: a colour that is
+       in stock in one size only must not read as unavailable before a size is chosen. */
+    goneFor(key, value){
+      var other = key === 'a' ? this.b : this.a;
+      var lk = key === 'a' ? 'label' : 'label2';
+      var ok = key === 'a' ? 'label2' : 'label';
+      var two = this.twoAxis;
+      var rows = this.variants.filter(function(v){
+        if ((v[lk] || '') !== value) return false;
+        /* Only narrow by the other answer once it exists. Before that the question is "is this
+           available at all", which is the honest thing to show. */
+        if (two && other !== '' && (v[ok] || '') !== other) return false;
+        return true;
+      });
+      if (rows.length === 0) return true;   // that pair is not made at all
+      return rows.every(function(v){ return v.sold_out === true; });
+    },
+
+    chipClass(key, value){
+      return (this.pickOf(key) === value ? 'is-on ' : '') + (this.goneFor(key, value) ? 'is-gone' : '');
+    },
+    swClass(key, value, light){
+      return (this.pickOf(key) === value ? 'is-on ' : '')
+           + (this.goneFor(key, value) ? 'is-gone ' : '')
+           + (light ? 'is-light' : '');
+    },
+
+    /* The price shown, which follows the chosen option. A size that costs ₦1,500 more must
+       change the number above the button before it changes the total in the cart. */
+    get price(){ return this.sel ? this.sel.price_naira : basePrice; },
+    get ceiling(){
+      if (this.sel && this.sel.stock !== null) return Math.min(20, Math.max(1, this.sel.stock));
+      return 20;
+    },
+    bump(){ this.qty = Math.min(this.ceiling, this.qty + 1); },
+
+    /* Three states, not two. `gone` is "the thing in front of you cannot be bought", which is
+       different from `!ready` ("you have not chosen yet") — and they need different panels:
+       one asks for a choice, the other asks for an email address. */
+    get gone(){
+      if (this.variants.length === 0) return productGone;
+      /* Fully answered and the pair is sold out — or fully answered and the pair is not made
+         at all, which for a buyer is the same dead end and deserves the same panel. */
+      if (this.a === '' || (this.twoAxis && this.b === '')) return false;
+      var v = this.sel;
+      return v === null || v.sold_out === true;
+    },
+    get ready(){
+      if (this.gone) return false;
+      return this.variants.length === 0 || this.sel !== null;
+    },
+    /* Name the question that is actually still open, not the first one. "Choose a size" while
+       a colour is missing is the sentence somebody reads, picks the size, presses the button
+       and gets again. */
+    get blocked(){
+      var v0 = this.variants[0] || {};
+      var need = [];
+      if (this.a === '') need.push((v0.axis || 'option').toLowerCase());
+      if (this.twoAxis && this.b === '') need.push((v0.axis2 || 'option').toLowerCase());
+      if (need.length === 0) return 'Choose an option';
+      return 'Choose a ' + need.join(' and a ');
+    },
+    /* Both answers in the sentence — "Navy · M has sold out" — because on a two-axis product
+       "Navy has sold out" is wrong: it is sold out in that size. */
+    get chosenLabel(){
+      return [this.a, this.b].filter(Boolean).join(' · ');
+    },
+    get goneLabel(){
+      var l = this.chosenLabel;
+      return l !== '' ? (l + ' has sold out') : 'This has sold out';
+    },
+    get waitingHere(){
+      var k = this.sel ? String(this.sel.id) : '0';
+      return waiting[k] || 0;
+    },
+
+    /* Ask to be told. The server answers identically whether or not this address was already
+       on the list — saying "you are already signed up" would be a way to test which addresses
+       are, and this list is a record of what somebody wanted to buy. */
+    async tellMe(){
+      var mail = this.alertEmail.trim();
+      if (mail === '') return;
+      this.alerting = true; this.alertSaid = '';
+      try {
+        var r = await fetch('/shop/' + slug + '/notify-me', {
+          method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          body: new URLSearchParams({ _token: csrf, email: mail,
+                                      variant_id: this.sel ? this.sel.id : 0 })
+        });
+        var d = await r.json().catch(function(){ return {}; });
+        this.alertOk = !!d.success;
+        this.alertSaid = d.message || 'We could not save that just now.';
+        if (d.success) this.alertEmail = '';
+      } catch (e) {
+        this.alertOk = false;
+        this.alertSaid = 'Network error — please try again.';
+      } finally { this.alerting = false; }
+    },
+    get stockNote(){
+      var v = this.sel;
+      if (!v) return '';
+      if (v.stock === null) return 'In stock';
+      if (v.stock < 1) return this.chosenLabel + ' is sold out';
+      if (v.stock <= 3) return 'Only ' + v.stock + ' left in ' + this.chosenLabel;
+      return 'In stock';
+    },
+    get stockClass(){
+      var v = this.sel;
+      if (!v) return '';
+      if (v.stock === null) return 'is-ok';
+      if (v.stock < 1) return 'is-gone';
+      return v.stock <= 3 ? 'is-low' : 'is-ok';
+    },
+
+    into(){
+      if (!this.ready) return;
+      /* this.$store, not a bare $store: the magic is only injected into Alpine expressions in
+         the markup, and a plain method on the data object reaches it through `this`. */
+      this.$store.cart.add({
+        slug: {{ p.slug|json_encode(15)|raw }},
+        name: {{ p.name|json_encode(15)|raw }},
+        cover: {{ p.cover_path|default("")|json_encode(15)|raw }},
+        variant_id: this.sel ? this.sel.id : 0,
+        /* BOTH answers on the line. The server re-derives this from the variant id anyway
+           (ShopCatalogue::describe), but the cart shows it before the server sees it, and a
+           basket row reading "Navy" for a shirt that comes in four sizes is a row somebody
+           checks out without noticing the size is missing. */
+        variant: this.chosenLabel,
+        price: this.price,
+        qty: this.qty
+      });
+    }
+  };
+}
+</script>
+{% endblock %}

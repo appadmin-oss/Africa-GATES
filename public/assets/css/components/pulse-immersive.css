@@ -1,0 +1,135 @@
+/* ════════════════════════════════════════════════════════════════════════════
+   Pulse on a phone
+   ════════════════════════════════════════════════════════════════════════════
+
+   ── WHAT THIS FILE USED TO BE, AND WHY IT IS NOT THAT ANY MORE ───────────────
+
+   It was "the immersive mobile feed": the timeline taken out of flow with
+   `position:fixed`, every post exactly `100dvh` tall, `scroll-snap-stop:always`,
+   the whole page forced to `#07100F`, and the summary strip, the comment thread,
+   the composer and the sign-in prompt all `display:none`. One post, one screen,
+   snapping — built to a supplied Instagram redesign mockup, and faithful to it.
+
+   That mockup is no longer what this platform is. Africa GATES is a public record
+   of recognition: the thing being read is not a photograph, it is a claim with a
+   number behind it that anybody may check. A snap feed is the right shape for
+   media and the wrong shape for a claim — you cannot put a result's standing, its
+   two halves and its denominator on a screen that holds one post and scrolls past
+   it. It is also the wrong shape for a conversation: replies were hidden here
+   because they do not fit in a screen-tall post, so the comment button opened
+   nothing a reader could see.
+
+   So a phone now gets THE SAME TIMELINE as everything else — one column, hairline
+   divided, text at reading size, replies inline, a composer at the top. What this
+   file does is fit that column to a small screen: it stands down the chrome that
+   was pushing the first post off it, and it lets media use the full width.
+
+   Kept from the old design, because it was right: the hero, the announcement strip
+   and the desktop sidebar have no business on a 390px screen, and the tab strip
+   floats rather than costing the feed vertical space. The mockup's own diagnosis of
+   the problem — "614px of chrome above the first post" — was correct and still is.
+
+   ── SCOPE ────────────────────────────────────────────────────────────────────
+
+   Phones only (≤768px), and everything is scoped under `body[data-page="pulse"]`
+   so no other page can be caught by it.
+   ════════════════════════════════════════════════════════════════════════════ */
+
+@media (max-width:768px){
+
+  /* ── CHROME THAT COMPETES WITH THE FEED ───────────────────────────────────
+     The announcement strip, the page hero and the desktop sidebar all stand down.
+     Between them they were the 614px that put the first post below the fold.
+
+     THE SITE NAV AND FOOTER STAY. The old design removed them because the feed
+     was `position:fixed` over the whole viewport and they had nowhere to be; in a
+     normal scrolling page they are simply the top and bottom of the page, and
+     taking them away leaves a reader on /pulse with only a bottom tab bar.
+
+     THE TAB STRIP STAYS TOO, and this was learned the hard way once already:
+     hiding it took Community, Events and Alerts off the phone entirely, since
+     there is no other route to them from here. */
+  body[data-page="pulse"] .ag-announce,
+  body[data-page="pulse"] .announcement,
+  body[data-page="pulse"] .pl-hero,
+  body[data-page="pulse"] .pl-rail,
+  body[data-page="pulse"] .pf-chips{ display:none !important; }
+
+  /* ── THE COLUMN IS THE SCREEN ─────────────────────────────────────────────
+     Full-bleed: the page container's gutter is unwound so a post runs edge to
+     edge, which is what every timeline does on a phone and what makes a 360px
+     screen readable. Negative margins rather than a fixed position — the feed
+     stays in flow, so the nav scrolls away, the footer arrives at the end, and
+     nothing depends on `dvh` tracking a disappearing URL bar. */
+  body[data-page="pulse"] .pl-grid{ gap:0; }
+  body[data-page="pulse"] .pl-feed{
+    margin-left:calc(var(--ag-gutter,16px) * -1);
+    margin-right:calc(var(--ag-gutter,16px) * -1);
+  }
+
+  /* Tabs: sticky, light, and the width of the screen. The old rule floated them
+     over a photograph in white with a gradient behind them, which was correct when
+     the backdrop was arbitrary media and is wrong over paper. */
+  body[data-page="pulse"] .pl-tabs{
+    position:sticky; top:0; z-index:12;
+    margin:0 calc(var(--ag-gutter,16px) * -1) 0;
+    padding:6px var(--ag-gutter,16px) 0;
+    background:var(--ag-bg,#fbfbfa);
+    border-bottom:1px solid rgba(16,41,44,.09);
+    overflow-x:auto; -webkit-overflow-scrolling:touch; scrollbar-width:none;
+  }
+  body[data-page="pulse"] .pl-tabs::-webkit-scrollbar{ display:none; }
+
+  /* ── A POST ───────────────────────────────────────────────────────────────
+     Nothing to override: the card is the same one the desktop draws. Only the
+     media inset shrinks, because 16px either side of a 360px screen is a picture
+     wearing a frame. */
+  body[data-page="pulse"] .pf__stage--media{
+    margin-left:12px; margin-right:12px; border-radius:14px;
+  }
+  body[data-page="pulse"] .pf--media .pf__rail{ right:18px; bottom:22px; gap:16px; }
+  body[data-page="pulse"] .pf--media .pf__meta{ left:24px; right:74px; bottom:22px; }
+
+  /* The action row is the only thing on this card anybody taps by accident. 44px
+     on both axes is the floor, and at this width the five have to be able to
+     breathe apart rather than sit shoulder to shoulder. */
+  body[data-page="pulse"] .pf__rail{ gap:2px; padding:4px 6px; }
+  body[data-page="pulse"] .pf__r{ padding:4px 8px; }
+
+  /* ── AND THE CONVERSATION IS BACK ─────────────────────────────────────────
+     `.pf__sum`, `.pf__cm`, `.pf__reposted`, `.pl-compose` and `.pf__guest` were
+     all `display:none !important` here. That is defensible in a feed of
+     screen-tall posts — there is nowhere to stack them — but it meant the comment
+     button on a phone opened a block the stylesheet had hidden, so tapping it did
+     nothing at all, and the composer this page is built around did not exist on
+     the device most of this audience reads it on. In a scrolling column they all
+     simply fit. */
+
+  /* The tail of the feed, and the floating pills, on paper rather than on black. */
+  body[data-page="pulse"] .pf-end,
+  body[data-page="pulse"] .pf-more{
+    padding:22px 16px; text-align:center;
+    color:var(--ag-ink-soft,#626a6e); background:transparent;
+  }
+
+  /* The toast sits clear of the bottom nav. `transform:none` is load-bearing: the
+     base rule centres it with `left:50%; transform:translateX(-50%)`, so setting
+     left/right on top of that shifted it another half-width and the message read
+     "ign in →" with the start of it off the screen. Either drop the transform or
+     keep the centring — never both. */
+  body[data-page="pulse"] .pf-toast{
+    left:12px; right:12px; transform:none;
+    bottom:calc(var(--ag-mobile-nav-h,64px) + 16px); z-index:9;
+    max-width:none; justify-content:space-between;
+  }
+
+  /* New posts landed while you were reading: floated, so it costs the column
+     nothing and is reachable without scrolling back to the top. */
+  body[data-page="pulse"] .pf-new{
+    position:fixed; left:50%; transform:translateX(-50%);
+    top:calc(64px + env(safe-area-inset-top,0px)); z-index:7; margin:0;
+  }
+
+  /* Clear of the bottom tab bar, or the last post's actions sit under it. */
+  body[data-page="pulse"] .pl-grid{ padding-bottom:calc(var(--ag-mobile-nav-h,64px) + 12px); }
+}

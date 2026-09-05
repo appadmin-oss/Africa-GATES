@@ -1,9 +1,62 @@
 Options -Indexes
 Options -MultiViews
 
+# ── THIS DIRECTORY MUST ALWAYS BE REACHABLE ───────────────────────────────────
+#
+# Apache merges .htaccess down the tree, so an authorisation rule above this
+# directory is INHERITED here. The project-root .htaccess used to be
+# `Require all denied` as defence-in-depth against a misconfigured DocumentRoot —
+# and on a host whose DocumentRoot IS the project root, that inherited deny meant
+# the entire site returned 403, including this directory, which is the one place
+# that has to serve.
+#
+# The root file is now a forwarder rather than a deny-all, so nothing is inherited
+# today. This block stays anyway: it costs nothing, and it is the difference
+# between "someone restored the deny-all root file" being a non-event and being a
+# total outage. Re-granting HERE is safe in a way granting anywhere higher is not —
+# this is the only directory whose entire contents are meant to be public.
+<IfModule mod_authz_core.c>
+  Require all granted
+</IfModule>
+<IfModule !mod_authz_core.c>
+  Order allow,deny
+  Allow from all
+</IfModule>
+
 <IfModule mod_rewrite.c>
   RewriteEngine On
-  RewriteBase /
+
+  # ── NO RewriteBase, DELIBERATELY ────────────────────────────────────────────
+  #
+  # This file said `RewriteBase /`, which is only true when the DocumentRoot IS
+  # this directory. On the deployment where the DocumentRoot is the project root
+  # instead, this directory is served at /public/, so `RewriteBase /` sent every
+  # pretty URL to `/index.php` — a path that does not exist there. It happened to
+  # work anyway, because the project-root forwarder caught the stray /index.php and
+  # prefixed it, i.e. correctness rested on a three-hop accident.
+  #
+  # With no RewriteBase, mod_rewrite derives the prefix from this directory's own
+  # URL path, which is right in BOTH configurations and takes one hop instead of
+  # three. Substitutions below that must stay absolute keep their leading slash.
+
+  # ── A /public/… URL IS NOT A SECOND HOMEPAGE ─────────────────────────────────
+  #
+  # When the DocumentRoot is the project root, /public/vote and /vote both resolve
+  # here, so every page would answer on two URLs — splitting share links and search
+  # indexing, which on a platform whose whole mechanic is sharing a ballot is a real
+  # cost rather than a tidiness point.
+  #
+  # It has to live in THIS file: mod_rewrite rules are not inherited, so a rule in
+  # the project-root .htaccess is never reached for a request that already names
+  # public/ (verified by rewrite trace, after the first attempt there did nothing).
+  #
+  # Matched against THE_REQUEST — the verbatim request line — because that is NOT
+  # rewritten by the internal redirects below; %{REQUEST_URI} would match our own
+  # output and loop. Anchored at the method so a query string that happens to
+  # contain "/public/" cannot trigger it. $1 is the path relative to this
+  # directory, so the leading slash makes the target the clean top-level URL.
+  RewriteCond %{THE_REQUEST} "^[A-Z]+ /+public(/|\s)" [NC]
+  RewriteRule ^(.*)$ /$1 [R=301,L]
 
   # Defence-in-depth: never execute uploaded files as scripts. Uploads are
   # admin-only, re-encoded images (see Admin/Services/UploadService), but a hard
@@ -25,20 +78,136 @@ Options -MultiViews
 </IfModule>
 
 # Security headers
+#
+# These MUST match SecurityHeadersMiddleware::SHARED exactly, and both are needed.
+# Apache serves every real file under public/ WITHOUT touching PHP (the
+# RewriteCond !-f above), so a stylesheet, an SVG or an upload never reaches the
+# middleware — only this block protects those. PHP responses need the middleware
+# because this file is not read at all on nginx or the built-in server.
+#
+# `Header always set` REPLACES, so where both apply Apache's value is what a
+# visitor gets and the middleware's is silently discarded. They were two
+# independent copies with nothing checking they agreed. SecurityHeadersTest now
+# parses this file and asserts it against the PHP constant, so a change to one
+# without the other fails the suite instead of drifting in production.
 <IfModule mod_headers.c>
   Header always set X-Frame-Options "SAMEORIGIN"
   Header always set X-Content-Type-Options "nosniff"
-  # Legacy header can be unsafe in some browsers; CSP supersedes it.
-  # Kept at "0" to match SecurityHeadersMiddleware (E3).
+  # Deliberately 0, not "1; mode=block": the legacy XSS auditor introduced its own
+  # vulnerabilities and CSP supersedes it. 0 disables it explicitly.
   Header always set X-XSS-Protection "0"
   Header always set Referrer-Policy "strict-origin-when-cross-origin"
+  Header always set X-Permitted-Cross-Domain-Policies "none"
+  # interest-cohort is gone — FLoC was withdrawn in 2022, so it denied nothing.
+  Header always set Permissions-Policy "accelerometer=(), autoplay=(self), camera=(self), display-capture=(), encrypted-media=(), fullscreen=(self), geolocation=(), gyroscope=(), magnetometer=(), microphone=(self), midi=(), payment=(), picture-in-picture=(self), publickey-credentials-get=(), screen-wake-lock=(), usb=(), xr-spatial-tracking=()"
+  # allow-popups, not plain same-origin: the payment flows redirect in the same tab
+  # today, but a future popup checkout would lose window.opener and be unable to
+  # report back. Reverse tabnabbing is severed either way.
+  Header always set Cross-Origin-Opener-Policy "same-origin-allow-popups"
   Header unset Server
   Header unset X-Powered-By
+
+  # ── THE HOST INJECTS ITS OWN CSP. THESE TWO LINES TAKE IT BACK. ───────────
+  #
+  # Production serves `script-src 'self' 'unsafe-inline' 'unsafe-eval'` with no host
+  # list and `form-action 'self'` with no gateways — which blocks every CDN script and
+  # stylesheet, and refused every paid vote against a same-origin URL. This was recorded
+  # as a stale deployment (DocumentRoot / opcache / a proxy). It is none of those.
+  #
+  # The identical policy, to the directive, is served on afrovanguard.org.ng — the same
+  # cPanel account — on a STATIC homepage that runs no PHP, with no such header anywhere
+  # in that project's files. A security suite on the host adds it to every response for
+  # the account. That is why planting a syntax error in Csp::policy() on the server
+  # changed nothing, and why the fix has never appeared to deploy: PHP's header was being
+  # replaced or duplicated whatever PHP did. (Two CSP headers are enforced as their
+  # INTERSECTION, so the injected one wins on every directive it narrows.)
+  #
+  # `unset` alone is not enough: mod_headers runs after the content handler, so it drops
+  # PHP's policy along with the injected one and the page ends up with none. The value
+  # therefore has to be restated here — and a file on disk cannot carry a per-request
+  # nonce, so this is Csp::staticPolicy(): the same host allowlists, with
+  # 'unsafe-inline' where the nonce would be.
+  #
+  # That is not the loss it appears to be. The nonce policy in Csp::policy() has never
+  # reached a browser on this host; what is live is already 'unsafe-inline'. This
+  # restores the allowlists and the gateway form-action on top of it.
+  #
+  # REVERT once the host stops injecting: delete these two lines and Csp::policy() —
+  # nonce and all — applies again untouched. `php bin/console app:doctor` reports which
+  # policy a visitor is actually receiving.
+  #
+  # Kept identical to Csp::staticPolicy() by CspStaticFallbackTest, which fails if either
+  # side is edited alone.
+  Header always unset Content-Security-Policy
+  Header always set Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://unpkg.com https://code.jquery.com https://challenges.cloudflare.com https://pagead2.googlesyndication.com https://googleads.g.doubleclick.net https://tpc.googlesyndication.com; style-src 'self' 'unsafe-inline' https://unpkg.com https://fonts.googleapis.com; img-src 'self' data: blob: https:; font-src 'self' data: https://fonts.gstatic.com https://fonts.googleapis.com; connect-src 'self' https://challenges.cloudflare.com https://*.paystack.com https://*.paystack.co https://*.flutterwave.com https://flutterwave.com https://unpkg.com; media-src 'self' blob: https://r2.vidzflow.com https://cdn.plyr.io; frame-src 'self' https://challenges.cloudflare.com https://www.youtube.com https://www.youtube-nocookie.com https://my.spline.design https://prod.spline.design https://googleads.g.doubleclick.net https://tpc.googlesyndication.com https://www.google.com https://*.paystack.com https://*.paystack.co https://*.flutterwave.com https://flutterwave.com https://res.cloudinary.com https://*.res.cloudinary.com; object-src 'none'; base-uri 'self'; form-action 'self' https://*.paystack.com https://*.paystack.co https://*.flutterwave.com https://flutterwave.com; frame-ancestors 'self'"
+
+  # ── WHY A CSP IS SET HERE AFTER ALL — read together with the block above ──
+  #
+  # What follows was the reasoning for keeping the CSP OUT of this file. It remains
+  # correct on a host that does not interfere, and it is why the policy is nonce-based
+  # in PHP rather than static. It was written before the injected header described
+  # above was identified, so read it as the reason those two lines are a REMEDY and not
+  # the design: delete them the moment the host stops adding its own, and every word
+  # below applies again unchanged.
+  #
+  # In particular, point 1 below — that `Header always set` here replaces the
+  # nonce-bearing policy — is exactly what the remedy now does ON PURPOSE, because the
+  # alternative is the host's policy replacing it instead, and that one has no host
+  # allowlist and no gateway form-action. Point 2 (`setifempty` is unsupported by
+  # LiteSpeed and takes the site down) still stands and is why that is not used.
+  #
+  # ── THE STATIC-FILE CSP IS PER-DIRECTORY ──────────────────────────────────
+  #
+  # The site's real Content-Security-Policy is built per request by
+  # AfricaGates\Support\Csp and sent by SecurityHeadersMiddleware, because it carries
+  # a per-request NONCE. A nonce cannot exist in a static file, so it can never be
+  # duplicated here the way the six headers above are — and Apache serves every real
+  # file under public/ WITHOUT touching PHP (the `RewriteCond !-f`), so /assets/** and
+  # /uploads/** were going out with no CSP at all.
+  #
+  # A CSP directive in THIS file is the wrong place for two independent reasons, and
+  # the first version of this change hit both:
+  #
+  #  1. `Header always set Content-Security-Policy` here would REPLACE the
+  #     nonce-bearing policy on every HTML page with a nonce-free one, and every
+  #     inline script on the site — Alpine, the nav, the cart, the ballot — would stop
+  #     running with nothing in any log.
+  #  2. `Header always setifempty` avoids (1) by construction, but `setifempty` is
+  #     Apache 2.4.7+ and is NOT supported by LiteSpeed's mod_headers emulation, which
+  #     is what a large share of cPanel hosts actually run. An unsupported directive in
+  #     .htaccess is a 500 for the whole site — which is exactly what happened. Gating
+  #     it behind `<IfVersion>` does not help: `<IfVersion>` is itself a directive the
+  #     server has to understand.
+  #
+  # So the CSP for static content lives in the two directories that hold it —
+  # public/assets/.htaccess and public/uploads/.htaccess — where PHP serves NOTHING,
+  # so a plain `Header set` is safe by scope rather than by directive. Only universally
+  # supported directives are used there.
+  #
+  # The uncovered case is a static file sitting directly in public/ (three, now:
+  # favicon.ico, site.webmanifest and router.php's dev-only siblings) and a PHP fatal
+  # that dies before the middleware. Both are noted rather than papered over with a
+  # directive that can take the site down. None of the three can execute or carry
+  # script: an ICO, a JSON manifest, and a file only the built-in dev server reads.
+</IfModule>
+
+# MIME types the server may not know
+#
+# `.webmanifest` is the one that matters: served as application/octet-stream, Chrome
+# ignores the manifest and the installed-icon set silently reverts to a screenshot of
+# the page. AddType is mod_mime, which is compiled in almost everywhere, and is gated
+# anyway — an unrecognised directive here is a 500 for every URL in this directory
+# (see the CSP note above for what that cost last time).
+<IfModule mod_mime.c>
+  AddType application/manifest+json .webmanifest
+  AddType image/vnd.microsoft.icon  .ico
 </IfModule>
 
 # Compression
 <IfModule mod_deflate.c>
-  AddOutputFilterByType DEFLATE text/html text/plain text/css application/javascript application/json image/svg+xml
+  # The sitemaps are XML built by PHP; without a type here they go out uncompressed,
+  # and the nominee section is the largest text response the site serves.
+  AddOutputFilterByType DEFLATE text/html text/plain text/css application/javascript application/json image/svg+xml application/xml text/xml application/manifest+json
 </IfModule>
 
 # Cache
@@ -49,11 +218,24 @@ Options -MultiViews
   ExpiresByType image/webp "access plus 6 months"
   ExpiresByType image/jpeg "access plus 6 months"
   ExpiresByType image/png "access plus 6 months"
+  # A favicon is fetched on nearly every navigation and changes about once a rebrand.
+  ExpiresByType image/vnd.microsoft.icon "access plus 6 months"
   ExpiresByType text/html "access plus 0 seconds"
 </IfModule>
 
 # Block sensitive files
-<FilesMatch "^\.env">
-  Order allow,deny
-  Deny from all
+#
+# `Order`/`Deny` are mod_access_compat — a COMPATIBILITY shim that Apache 2.4 does
+# not load by default. Unguarded, an "Invalid command 'Order'" in .htaccess is a
+# 500 for every URL under this directory, which is the same class of outage as the
+# `setifempty` incident documented above. So: 2.4 syntax first, 2.2 only as the
+# fallback, both module-gated.
+<FilesMatch "(?i)^\.(env|git|htpasswd|user\.ini)">
+  <IfModule mod_authz_core.c>
+    Require all denied
+  </IfModule>
+  <IfModule !mod_authz_core.c>
+    Order allow,deny
+    Deny from all
+  </IfModule>
 </FilesMatch>

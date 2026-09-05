@@ -1,0 +1,47 @@
+/* ════════════════════════════════════════════════════════════════
+   Africa GATES — Flash messages on the PUBLIC layout
+   ----------------------------------------------------------------
+   The admin and judge layouts have always rendered flash messages.
+   layout/gates.twig did not, so every public redirect that set one
+   ("applications for this event are closed", "sign in first") sent
+   the visitor to a page that showed them nothing at all — which
+   reads exactly like a dead link.
+
+   Colour is never the only signal: each kind carries its own icon
+   and its own word, and the container is announced with role.
+   ════════════════════════════════════════════════════════════════ */
+
+.ag-flash-rail{
+  max-width:var(--ag-maxw,1240px);
+  margin:0 auto;
+  padding:14px var(--ag-gutter,24px) 0;
+  display:grid;
+  gap:10px;
+}
+
+.ag-flash{
+  display:flex;
+  align-items:flex-start;
+  gap:11px;
+  padding:13px 16px;
+  border:1px solid;
+  border-left-width:3px;
+  border-radius:var(--ag-r-sm,10px);
+  background:var(--ag-surface,#fff);
+  font-size:.9375rem;
+  line-height:1.55;
+}
+.ag-flash svg{ flex:none; margin-top:2px; }
+.ag-flash p{ margin:0; }
+
+.ag-flash--error{ border-color:rgba(163,43,28,.30); border-left-color:#a32b1c; color:#7d2114; }
+.ag-flash--ok   { border-color:rgba(35,123,34,.28);  border-left-color:#237b22; color:#1a6118; }
+.ag-flash--note { border-color:rgba(16,41,44,.16);   border-left-color:#c9a24b; color:#3c4649; }
+
+/* A message that appears above the fold and is never dismissed still has to be
+   reachable by the keyboard reader who tabs past it, so nothing here traps or
+   overlays. It is in the document flow on purpose. */
+@media (max-width:560px){
+  .ag-flash-rail{ padding-top:10px; }
+  .ag-flash{ font-size:.9rem; }
+}

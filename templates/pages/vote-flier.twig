@@ -1,0 +1,187 @@
+{% extends "layout/gates.twig" %}
+
+{# ═══════════════════════════════════════════════════════════════════════════
+   The nominee's shareable flier.
+
+   THE SVG IS THE FEATURE, not the fallback. It is embedded below as a real
+   <img> pointing at …/flier.svg, so with JavaScript switched off a nominee can
+   still see it, right-click-save it, share it and print it. The download
+   buttons only add convenience.
+
+   THE PNG IS DRAWN HERE, IN THE BROWSER, and that is deliberate. See
+   FlierService for the full reasoning; the short version is that GD on a shared
+   host frequently has no TrueType font at all, so a server-rendered PNG would
+   silently degrade to a bitmap face on exactly the deployment nobody can
+   inspect. The browser has something the server does not: DM Sans and
+   Playfair Display, already loaded and ready. `document.fonts.ready` makes that
+   deterministic.
+
+   Converting the SVG through a canvas was considered and rejected — an
+   <img>-loaded SVG cannot see the document's fonts, so it renders in a fallback
+   face and comes out worse than the SVG it started from. The canvas is drawn
+   from the DATA instead.
+   ═══════════════════════════════════════════════════════════════════════════ #}
+
+{% block content %}
+<section class="ag-scope fl" aria-labelledby="flHeading">
+  <div class="fl__wrap">
+
+    <header class="fl__head">
+      <p class="fl__kicker">Rally your community</p>
+      <h1 id="flHeading" class="fl__title">A flier for {{ f.name }}</h1>
+      <p class="fl__sub">Ready to post to WhatsApp, Instagram or a group chat. It carries
+        {{ f.name }}'s real standing, so it gives people a reason to vote today rather than
+        eventually.</p>
+    </header>
+
+    <div class="fl__grid">
+
+      <figure class="fl__preview">
+        {# Width and height are declared so the space is reserved before the image
+           arrives — no layout shift on a slow connection, which is most of them. #}
+        {# The PNG, not the SVG — so the preview is byte-identical to the file that gets
+           shared and to the link preview, rather than a second rendering of it. #}
+        <img class="fl__img" src="{{ png_url }}" width="{{ 1080 }}" height="{{ 1350 }}"
+             alt="Flier for {{ f.name }} in {{ f.category }}. {{ f.headline }}. {{ f.rally }} Vote at {{ f.short_url }}.">
+        <figcaption class="fl__cap">1080 × 1350 — the largest crop Instagram and WhatsApp both keep.</figcaption>
+      </figure>
+
+      <div class="fl__side">
+
+        <div class="fl__stat">
+          <p class="fl__stat-line">{{ f.headline }}</p>
+          {% if f.standing.field >= 2 %}
+            <div class="fl__bar" role="img"
+                 aria-label="{{ f.standing.votes }} votes, {{ f.standing.progress_pct }} percent of the leader's total">
+              <span class="fl__bar-fill" style="width:{{ f.standing.progress_pct }}%"></span>
+            </div>
+          {% endif %}
+          <p class="fl__cta">{{ f.cta }}</p>
+        </div>
+
+        <div class="fl__copy">
+          <p class="fl__copy-label" id="flCopyLabel">The line on the flier</p>
+          <p class="fl__copy-text">{{ f.rally }}</p>
+          {% if f.ai %}
+            {# Labelled, because a nominee is about to post this under their own name
+               and is entitled to know a model drafted it. #}
+            <p class="fl__note">Drafted with AI from your category and current standing. Read it before you share it.</p>
+          {% endif %}
+        </div>
+
+        {# Real links first. Both work with no JavaScript. #}
+        <div class="fl__acts">
+          {# PNG first: it is what WhatsApp, Instagram and Facebook accept, and what the
+             link preview uses. The SVG is the vector/print option. Both are plain links
+             that work with JavaScript off. #}
+          <a class="fl__btn fl__btn--primary" href="{{ png_url }}" download>Download image (PNG)</a>
+          <a class="fl__btn" href="{{ svg_url }}" download>Vector / print (SVG)</a>
+          <button class="fl__btn" type="button" id="flShare" hidden>Share…</button>
+          <a class="fl__btn fl__btn--ghost" href="{{ f.url }}">Back to the ballot</a>
+        </div>
+        <p class="fl__status" role="status" aria-live="polite" id="flStatus"></p>
+
+        <p class="fl__fine">Public votes are one part of the score. An independent jury decides
+          the award, so a flier is a call for support — not a claim to have won.</p>
+      </div>
+
+    </div>
+  </div>
+</section>
+
+<style nonce="{{ csp_nonce }}">
+  .fl { padding: 26px 0 70px; }
+  .fl__wrap { max-width: 1120px; margin: 0 auto; padding: 0 18px; }
+  .fl__kicker { font-size: .78rem; font-weight: 700; letter-spacing: .12em; text-transform: uppercase;
+    color: var(--ag-accent, #1a6118); margin: 0 0 6px; }
+  .fl__title { font-size: clamp(1.5rem, 4vw, 2.1rem); margin: 0 0 8px; }
+  .fl__sub { color: var(--ag-text-soft, #566); margin: 0 0 24px; max-width: 62ch; }
+
+  .fl__grid { display: grid; gap: 28px; grid-template-columns: minmax(0, 1fr); align-items: start; }
+  @media (min-width: 900px) { .fl__grid { grid-template-columns: minmax(0, 420px) minmax(0, 1fr); } }
+
+  .fl__preview { margin: 0; }
+  .fl__img { display: block; width: 100%; height: auto; border-radius: 14px;
+    box-shadow: 0 10px 34px rgba(8, 32, 28, .22); background: #0d2a24; }
+  .fl__cap { font-size: .78rem; color: var(--ag-text-mute, #7b8a88); margin: 8px 0 0; }
+
+  .fl__stat { border: 1px solid var(--ag-line, #dfe7e4); border-radius: 12px; padding: 14px 16px; margin: 0 0 16px; }
+  .fl__stat-line { font-weight: 700; margin: 0 0 10px; }
+  .fl__bar { height: 12px; border-radius: 6px; background: var(--ag-bg-soft, #eef2f1); overflow: hidden; }
+  .fl__bar-fill { display: block; height: 100%; background: var(--ag-accent, #1a6118); border-radius: 6px; }
+  .fl__cta { font-size: .9rem; color: var(--ag-text-soft, #566); margin: 10px 0 0; }
+
+  .fl__copy { border-left: 3px solid var(--ag-gold, #c9a227); padding: 2px 0 2px 14px; margin: 0 0 18px; }
+  .fl__copy-label { font-size: .74rem; font-weight: 700; letter-spacing: .09em; text-transform: uppercase;
+    color: var(--ag-text-mute, #7b8a88); margin: 0 0 4px; }
+  .fl__copy-text { font-size: 1.06rem; line-height: 1.5; margin: 0; }
+  .fl__note { font-size: .78rem; color: var(--ag-text-mute, #7b8a88); margin: 8px 0 0; }
+
+  .fl__acts { display: flex; flex-wrap: wrap; gap: 10px; }
+  .fl__btn {
+    /* 46px, above the WCAG 2.5.8 minimum — these are the two buttons the whole page
+       exists for and they are pressed on a phone. */
+    display: inline-flex; align-items: center; justify-content: center;
+    min-height: 46px; padding: 0 18px; border-radius: 10px; font-weight: 600; font-size: .95rem;
+    cursor: pointer; text-decoration: none; border: 1.5px solid var(--ag-line, #d7e0de);
+    background: #fff; color: inherit;
+  }
+  .fl__btn--primary { background: var(--ag-accent, #1a6118); border-color: var(--ag-accent, #1a6118); color: #fff; }
+  .fl__btn--ghost { border-style: dashed; }
+  .fl__btn:focus-visible, .fl__img:focus-visible {
+    outline: 3px solid var(--ag-accent, #1a6118); outline-offset: 2px;
+  }
+  .fl__btn[aria-busy="true"] { opacity: .65; cursor: progress; }
+  .fl__status:empty { display: none; }
+  .fl__status { font-size: .86rem; font-weight: 600; margin: 12px 0 0; }
+  .fl__fine { font-size: .78rem; color: var(--ag-text-mute, #7b8a88); margin: 18px 0 0; max-width: 52ch; }
+</style>
+
+<script nonce="{{ csp_nonce }}">
+/* Native share, and nothing else.
+   The PNG used to be drawn here on a canvas, to avoid GD needing a font file. That
+   stopped being defensible when the flier had to be an og:image — a crawler cannot run
+   JavaScript — so it is rendered by PHP now and both downloads above are plain links
+   that work with JavaScript off. Deleting the canvas removed ~150 lines and, with it, a
+   whole class of bug: two renderers of one design, where a monogram rule fixed on the
+   server kept rendering the old way in the browser.
+   What is left is the one thing only the browser can do: hand a real file to the OS
+   share sheet, which on WhatsApp is the difference between attaching the image and
+   pasting a URL. */
+(function () {
+  var btn    = document.getElementById('flShare');
+  var status = document.getElementById('flStatus');
+  if (!btn || !status) return;
+
+  /* Both checks are needed. iOS Safari has navigator.share without canShare, and
+     Android Chrome has canShare but refuses some types. A button that fails is worse
+     than one never offered — the downloads above always work. */
+  if (!(navigator.share && navigator.canShare && window.File)) return;
+  btn.hidden = false;
+
+  var PNG  = {{ png_url|json_encode(JSON_SAFE)|raw }};
+  var NAME = {{ f.name|json_encode(JSON_SAFE)|raw }};
+  var TEXT = {{ (f.rally ~ ' ' ~ f.url)|json_encode(JSON_SAFE)|raw }};
+  var FILE = {{ file_name|json_encode(JSON_SAFE)|raw }};
+
+  btn.addEventListener('click', function () {
+    btn.setAttribute('aria-busy', 'true'); btn.disabled = true;
+    status.textContent = 'Preparing…';
+    fetch(PNG, { credentials: 'same-origin' })
+      .then(function (r) { if (!r.ok) throw new Error('fetch'); return r.blob(); })
+      .then(function (blob) {
+        var file = new File([blob], FILE, { type: 'image/png' });
+        if (!navigator.canShare({ files: [file] })) throw new Error('files unsupported');
+        return navigator.share({ files: [file], title: 'Vote for ' + NAME, text: TEXT });
+      })
+      .then(function () { status.textContent = 'Shared.'; })
+      .catch(function (e) {
+        /* Dismissing the share sheet is an AbortError, not a failure — telling someone
+           it "could not share" when they simply changed their mind is a lie. */
+        status.textContent = (e && e.name === 'AbortError') ? '' : 'Sharing is unavailable — use a download instead.';
+      })
+      .then(function () { btn.setAttribute('aria-busy', 'false'); btn.disabled = false; });
+  });
+})();
+</script>
+{% endblock %}

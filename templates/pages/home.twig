@@ -1,352 +1,884 @@
 {% extends "layout/gates.twig" %}
 
+{% block head_styles %}
+<style nonce="{{ csp_nonce }}">
+  /* ── Home (v3, matching the desktop design: light centered hero, alternating
+        feature sections, leaderboard + how rail, dark legacy + final CTA) ── */
+  body[data-page="home"]{ background:#fbfbfa; color:var(--ag-ink); }
+  .hw{ max-width:1240px; margin:0 auto; padding:0 var(--ag-gutter,40px); }
+  .hm-em{ color:var(--ag-green); font-style:italic; }
+  .hm-rot{ display:inline-block; overflow:hidden; vertical-align:bottom; height:1.1em; }
+  .hm-rot__w{ display:block; color:var(--ag-green); font-style:italic; transition:transform .42s cubic-bezier(.22,1,.36,1), opacity .42s; will-change:transform; }
+  .hm-eyebrow{ display:inline-flex; align-items:center; gap:7px; font:700 11px/1 var(--ag-font-mono); letter-spacing:.12em; text-transform:uppercase; padding:6px 12px; border-radius:999px; }
+
+  /* hero */
+  .hm-hero{ position:relative; overflow:hidden; text-align:center; padding:clamp(3.2rem,7vw,5.75rem) 0 1.8rem; }
+  .hm-hero__glow{ position:absolute; top:-180px; left:50%; transform:translateX(-50%); width:900px; max-width:120vw; height:620px; background:radial-gradient(ellipse at center,rgba(127,200,124,.16),transparent 62%); pointer-events:none; animation:hmGlowGreen 18s ease-in-out infinite; }
+  /* Brand-only colour cycle: cross-fade fixed green → gold → deep-green layers
+     (gradients don't interpolate, and hue-rotate would drift off-palette). */
+  .hm-hero__glow::before, .hm-hero__glow::after{ content:''; position:absolute; inset:0; pointer-events:none; }
+  .hm-hero__glow::before{ background:radial-gradient(ellipse at center,rgba(212,154,14,.15),transparent 62%); animation:hmGlowGold 18s ease-in-out infinite; }
+  .hm-hero__glow::after{ background:radial-gradient(ellipse at center,rgba(42,143,58,.17),transparent 62%); animation:hmGlowDeep 18s ease-in-out infinite; }
+  @keyframes hmGlowGreen{ 0%,100%{opacity:1} 33%{opacity:0} 66%{opacity:0} }
+  @keyframes hmGlowGold{ 0%,100%{opacity:0} 33%{opacity:1} 66%{opacity:0} }
+  @keyframes hmGlowDeep{ 0%,100%{opacity:0} 33%{opacity:0} 66%{opacity:1} }
+  @media (prefers-reduced-motion: reduce){ .hm-hero__glow, .hm-hero__glow::before, .hm-hero__glow::after{ animation:none; } }
+  .hm-live{ display:inline-flex; align-items:center; gap:8px; font-size:12px; font-weight:600; letter-spacing:.03em; color:#1a6118; background:#effaf0; padding:7px 15px; border-radius:999px; }
+  .hm-live__dot{ width:7px; height:7px; border-radius:50%; background:var(--ag-green); animation:agdPulse 2s infinite; }
+  @keyframes agdPulse{0%{box-shadow:0 0 0 0 rgba(35,123,34,.45)}70%{box-shadow:0 0 0 6px rgba(35,123,34,0)}100%{box-shadow:0 0 0 0 rgba(35,123,34,0)}}
+  .hm-hero h1{ margin:24px auto 0; font-family:var(--ag-font-display); font-weight:700; font-size:clamp(2.6rem,7.2vw,5rem); line-height:.98; letter-spacing:-.025em; color:var(--ag-ink); }
+  .hm-hero__sub{ max-width:620px; margin:24px auto 0; font-size:clamp(16px,2.2vw,18.5px); line-height:1.55; color:#4a5256; }
+  .hm-hero__cta{ display:flex; gap:13px; justify-content:center; flex-wrap:wrap; margin-top:32px; }
+  .hm-btn{ cursor:pointer; text-decoration:none; font-family:inherit; font-weight:600; font-size:15.5px; padding:15px 28px; border-radius:999px; display:inline-flex; align-items:center; gap:8px; border:1px solid transparent; }
+  .hm-btn svg{ width:15px; height:15px; }
+  .hm-btn--p{ background:var(--ag-green); color:#fff; box-shadow:0 14px 28px -12px rgba(35,123,34,.6); }
+  .hm-btn--p:hover{ background:var(--ag-green-dark); }
+  .hm-btn--o{ background:#fff; color:var(--ag-ink); border-color:rgba(16,41,44,.16); }
+  .hm-btn--o:hover{ border-color:var(--ag-green); color:var(--ag-green); }
+  .hm-hero__trust{ margin:30px 0 0; font-size:12.5px; font-weight:500; color:#5a6d6f; }
+
+  /* marquee */
+  .hm-marq{ position:relative; margin-top:18px; overflow:hidden;
+    -webkit-mask-image:linear-gradient(90deg,transparent,#000 12%,#000 88%,transparent);
+    mask-image:linear-gradient(90deg,transparent,#000 12%,#000 88%,transparent); }
+  .hm-marq__row{ display:flex; gap:14px; width:max-content; animation:agdMarquee 42s linear infinite; }
+  @keyframes agdMarquee{ from{transform:translateX(0)} to{transform:translateX(-50%)} }
+  .hm-chip{ flex:none; display:inline-flex; align-items:center; gap:8px; font-size:13px; font-weight:500; color:#4a5256; background:#fff; border:1px solid rgba(16,41,44,.08); padding:8px 15px; border-radius:999px; }
+
+  /* stat strip */
+  .hm-stats{ display:grid; grid-template-columns:repeat(4,1fr); border:1px solid rgba(16,41,44,.08); border-radius:20px; overflow:hidden; background:#fff; margin-top:clamp(2rem,4vw,2.4rem); }
+  .hm-stat{ padding:clamp(22px,3vw,30px) 24px; border-right:1px solid rgba(16,41,44,.07); }
+  .hm-stat:last-child{ border-right:0; }
+  .hm-stat__n{ font-family:var(--ag-font-mono); font-weight:700; font-size:clamp(24px,3.4vw,34px); color:var(--ag-ink); letter-spacing:-.01em; }
+  .hm-stat__l{ font-size:13px; font-weight:500; color:#5a6d6f; margin-top:6px; }
+
+  /* feature sections */
+  .hm-feat{ display:grid; grid-template-columns:1fr 1fr; gap:clamp(2.5rem,5vw,4.5rem); align-items:center; padding:clamp(3.5rem,7vw,6.5rem) 0 0; }
+  .hm-feat__h{ margin:18px 0 0; font-family:var(--ag-font-display); font-weight:700; font-size:clamp(1.9rem,4.5vw,3.1rem); line-height:1.03; letter-spacing:-.015em; color:var(--ag-ink); }
+  .hm-feat__p{ margin:22px 0 0; font-size:17px; line-height:1.6; color:#4a5256; max-width:460px; }
+  .hm-feat__btn{ margin-top:28px; }
+
+  /* nominate visual */
+  .hm-vis{ position:relative; min-height:380px; display:flex; align-items:center; justify-content:center; }
+  .hm-vis__orb{ position:absolute; width:min(380px,80%); aspect-ratio:1; border-radius:50%; background:radial-gradient(circle at 42% 36%,#2a8f3a,#10292C 74%); }
+  .hm-vis__ring{ position:absolute; width:min(316px,68%); aspect-ratio:1; border-radius:50%; border:1px solid rgba(16,41,44,.1); }
+  .hm-vis__mono{ position:relative; z-index:2; font-family:var(--ag-font-display); font-weight:700; font-size:96px; color:rgba(255,255,255,.92); }
+  .hm-vis__tag{ position:absolute; z-index:3; background:#fff; border-radius:16px; padding:13px 17px; box-shadow:0 18px 40px -20px rgba(16,41,44,.45); display:flex; align-items:center; gap:11px; }
+  .hm-vis__tag--bl{ left:2%; bottom:18%; }
+  .hm-vis__tag--tr{ right:2%; top:16%; background:#10292C; }
+  .hm-vis__tagi{ width:38px; height:38px; border-radius:11px; background:#effaf0; color:#1a6118; display:flex; align-items:center; justify-content:center; flex:none; }
+  .hm-vis__tn{ font-weight:600; font-size:13.5px; color:var(--ag-ink); }
+  .hm-vis__td{ font-size:11px; color:#5a6d6f; }
+  .hm-vis__cpi{ font-family:var(--ag-font-mono); font-weight:700; font-size:22px; color:var(--ag-green-light); line-height:1; }
+  .hm-vis__cpil{ font-size:10px; font-weight:600; letter-spacing:.05em; text-transform:uppercase; color:rgba(255,255,255,.6); margin-top:3px; }
+
+  /* vote mini card */
+  .hm-mini{ background:#fff; border:1px solid rgba(16,41,44,.08); border-radius:24px; padding:22px; box-shadow:0 30px 60px -40px rgba(16,41,44,.5); }
+  .hm-mini__hd{ display:flex; align-items:center; justify-content:space-between; margin-bottom:14px; font-size:12px; font-weight:600; color:#5a6d6f; }
+  .hm-mini__open{ display:inline-flex; align-items:center; gap:6px; font-size:11px; font-weight:600; color:#1a6118; background:#effaf0; padding:5px 10px; border-radius:999px; }
+  .hm-mini__row{ display:flex; align-items:center; gap:12px; background:#f6f7f6; border:1px solid rgba(16,41,44,.06); border-radius:14px; padding:11px 13px; }
+  .hm-mini__row + .hm-mini__row{ margin-top:9px; }
+  .hm-av{ width:38px; height:38px; border-radius:11px; background:var(--ag-green-wash); color:var(--ag-green-dark); display:flex; align-items:center; justify-content:center; font-family:var(--ag-font-display); font-weight:700; font-size:16px; flex:none; background-size:cover; background-position:center; }
+  .hm-mini__nm{ font-weight:600; font-size:13.5px; color:var(--ag-ink); }
+  .hm-mini__mt{ font-size:11px; color:#5a6d6f; }
+  .hm-mini__foot{ margin-top:14px; display:flex; align-items:center; gap:8px; font-size:11.5px; color:#5a6d6f; }
+
+  /* events cards */
+  .hm-evs{ display:flex; flex-direction:column; gap:12px; }
+  .hm-ev{ display:flex; align-items:center; gap:16px; background:#fff; border:1px solid rgba(16,41,44,.08); border-radius:18px; padding:16px 18px; text-decoration:none; transition:border-color .15s, transform .15s; }
+  .hm-ev:hover{ border-color:rgba(16,41,44,.2); transform:translateX(2px); }
+  .hm-ev__d{ flex:none; width:58px; height:62px; border-radius:14px; background:var(--ag-green-wash); color:var(--ag-green-dark); display:flex; flex-direction:column; align-items:center; justify-content:center; }
+  .hm-ev__mon{ font-size:10px; font-weight:700; letter-spacing:.08em; text-transform:uppercase; }
+  .hm-ev__day{ font-family:var(--ag-font-mono); font-weight:700; font-size:22px; line-height:1; }
+  .hm-ev__t{ font-weight:600; font-size:15.5px; color:var(--ag-ink); }
+  .hm-ev__m{ font-size:12.5px; color:#5a6d6f; margin-top:3px; }
+
+  /* pulse visual (asset-free, no fabricated metrics) */
+  /* Rotating deck: every card has the SAME box (168×300); a position class
+     (.is-center/.is-left/.is-right) sets transform + depth, and transitions
+     animate cards gliding between slots. Card identity (gradient, content)
+     stays with the card as it rotates. */
+  /* ── AN INVISIBLE CARD CAN STILL DRAG THE PAGE SIDEWAYS ──────────────────
+     Below 430px the two side reels are hidden with `opacity:0` rather than
+     `display:none`, deliberately — see the note in that media query: they stay in the
+     deck so the rotation keeps bringing each card to the front. But opacity removes
+     nothing from layout, and an absolutely-positioned child still contributes to its
+     ancestor's scrollable overflow. `.is-right` translates to `-50% + 92px`, which on a
+     320px phone puts its edge at 322 — so the homepage scrolled two pixels sideways, on
+     every vertical swipe, because of a card nobody could see.
+     `overflow-x: clip` rather than `hidden`: clip does not make this a scroll container,
+     so nothing here starts trapping scroll or breaking a sticky ancestor, and it clips
+     one axis only so the cards' own shadows still fall below them. A browser that does
+     not know the value drops the declaration and gets today's two pixels back, which is
+     the failure this is worth having. */
+  .hm-reels{ position:relative; height:380px; overflow-x:clip; }
+  .hm-reel{ position:absolute; left:50%; top:50%; width:168px; height:300px;
+    border-radius:22px; overflow:hidden; box-shadow:0 28px 56px -26px rgba(16,41,44,.6);
+    display:flex; align-items:flex-end;
+    transition:transform .85s cubic-bezier(.22,1,.36,1), opacity .85s, box-shadow .85s; }
+  @media (prefers-reduced-motion: reduce){ .hm-reel{ transition:none; } }
+  .hm-reel.is-center{ transform:translate(-50%,-50%) scale(1); z-index:3; }
+  .hm-reel.is-left  { transform:translate(calc(-50% - 118px),-50%) scale(.86) rotate(-7deg); z-index:1; }
+  .hm-reel.is-right { transform:translate(calc(-50% + 118px),-50%) scale(.86) rotate(7deg);  z-index:1; }
+  .hm-reel--a{ background:linear-gradient(135deg,#1a2629,#5d7374); }
+  .hm-reel--b{ background:linear-gradient(135deg,#10292C,#1a6118); }
+  .hm-reel--v{ background:linear-gradient(135deg,#a47306,#d49a0e); }
+  /* Lottie mount — the professional animated illustration inside a card */
+  .hm-reel__lot{ position:absolute; inset:0; display:flex; align-items:center; justify-content:center; z-index:1; padding:14px; }
+  .hm-reel__lot svg{ filter:drop-shadow(0 8px 18px rgba(0,0,0,.28)); }
+
+  /* ── Original in-house vignette: the CPI dial ─────────────────────────
+     A score arc draws from 0 toward the top of the 0–1,000 scale, breathes
+     at its peak, then resets — while vote bars rise beneath it. Built by
+     hand for this platform; replaced by real footage when videos land. */
+  .hm-cpiviz{ position:absolute; inset:0; z-index:1; display:flex; align-items:center; justify-content:center; }
+  .hm-cpiviz svg{ width:82%; height:auto; }
+  .hm-cpiviz__arc{ animation:cpivizDraw 6s cubic-bezier(.3,.8,.3,1) infinite; }
+  @keyframes cpivizDraw{
+    0%   { stroke-dasharray:0 276; opacity:1; }
+    46%  { stroke-dasharray:181 276; }
+    58%  { stroke-dasharray:174 276; }   /* breathe back */
+    70%  { stroke-dasharray:181 276; opacity:1; }
+    88%  { stroke-dasharray:181 276; opacity:1; }
+    100% { stroke-dasharray:181 276; opacity:0; }
+  }
+  .hm-cpiviz__bars rect{ transform-origin:center 126px; transform:scaleY(.15); animation:cpivizBar 6s ease-in-out infinite; }
+  .hm-cpiviz__bars rect:nth-child(2){ animation-delay:.35s; }
+  .hm-cpiviz__bars rect:nth-child(3){ animation-delay:.7s; }
+  .hm-cpiviz__bars rect:nth-child(4){ animation-delay:1.05s; }
+  .hm-cpiviz__bars rect:nth-child(5){ animation-delay:1.4s; }
+  @keyframes cpivizBar{ 0%{ transform:scaleY(.15);} 40%,86%{ transform:scaleY(1);} 100%{ transform:scaleY(.15);} }
+  .hm-cpiviz__glow{ animation:cpivizGlow 6s ease-in-out infinite; transform-origin:60px 56px; }
+  @keyframes cpivizGlow{ 0%,100%{ opacity:.5; transform:scale(.92);} 46%,86%{ opacity:1; transform:scale(1.06);} }
+  @media (prefers-reduced-motion: reduce){ .hm-cpiviz__glow{ animation:none; } }
+  .hm-cpiviz__num{ position:absolute; top:39.5%; left:50%; transform:translate(-50%,-50%); text-align:center; color:#fff; }
+  .hm-cpiviz__num span{ display:block; font-family:var(--ag-font-mono); font-weight:700; font-size:27px; letter-spacing:-.01em; font-variant-numeric:tabular-nums; text-shadow:0 3px 12px rgba(0,0,0,.4); }
+  .hm-cpiviz__num small{ display:block; margin-top:2px; font-size:8.5px; font-weight:700; letter-spacing:.12em; text-transform:uppercase; color:rgba(255,255,255,.62); }
+  @media (prefers-reduced-motion: reduce){
+    .hm-cpiviz__arc{ animation:none; stroke-dasharray:181 276; }
+    .hm-cpiviz__bars rect{ animation:none; transform:scaleY(1); }
+  }
+  /* play chip: small corner marker for the future video slot */
+  .hm-reel__play--chip{ top:auto; left:12px; bottom:24px; transform:none; width:30px; height:30px; z-index:2; }
+
+  /* ── Original in-house figure: the celebrant ──────────────────────────
+     Hand-drawn brand geometry (agbada + gele, arms raised). She lifts on
+     the beat while her arms sway — celebrating in front of the confetti. */
+  .hm-celebrant{ position:absolute; left:50%; bottom:6px; width:78%; height:auto; transform:translateX(-50%); z-index:2;
+    filter:drop-shadow(0 10px 16px rgba(0,0,0,.35)); }
+  .hm-celebrant__body{ transform-origin:60px 140px; animation:celebrantLift 2.6s ease-in-out infinite; }
+  .hm-celebrant__arm{ animation:celebrantSway 2.6s ease-in-out infinite; }
+  .hm-celebrant__arm--l{ transform-origin:47px 78px; }
+  .hm-celebrant__arm--r{ transform-origin:73px 78px; animation-delay:-1.3s; }
+  @keyframes celebrantLift{ 0%,100%{ transform:translateY(0);} 50%{ transform:translateY(-5px);} }
+  @keyframes celebrantSway{ 0%,100%{ transform:rotate(-6deg);} 50%{ transform:rotate(7deg);} }
+  @media (prefers-reduced-motion: reduce){ .hm-celebrant__body,.hm-celebrant__arm{ animation:none; } }
+  .hm-reel__play{ position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); width:46px; height:46px; border-radius:50%; background:rgba(255,255,255,.92); display:flex; align-items:center; justify-content:center; }
+
+  /* leaderboard + how rail */
+  .hm-lbsec{ display:grid; grid-template-columns:1.15fr .85fr; gap:clamp(2rem,4vw,3.5rem); align-items:start; padding:clamp(3.5rem,7vw,6rem) 0 0; }
+  .hm-lbsec__hd{ display:flex; align-items:baseline; justify-content:space-between; gap:12px; margin-bottom:20px; }
+  .hm-lbsec__hd h2{ margin:7px 0 0; font-family:var(--ag-font-display); font-weight:700; font-size:clamp(1.6rem,3.4vw,2.1rem); color:var(--ag-ink); }
+  /* A standalone section link, not a link in a sentence, so it needs a real hit area —
+     it measured 22px tall beside a heading on a phone. */
+  .hm-allk{ display:inline-flex; align-items:center; min-height:40px; font-size:14px; font-weight:600;
+    color:var(--ag-green); text-decoration:none; white-space:nowrap; }
+  .hm-allk:hover{ text-decoration:underline; }
+  .hm-lb{ display:flex; flex-direction:column; gap:9px; }
+  .hm-lb__row{ display:flex; align-items:center; gap:16px; background:#fff; border:1px solid rgba(16,41,44,.08); border-radius:16px; padding:14px 18px; }
+  .hm-lb__rank{ font-family:var(--ag-font-mono); font-weight:700; font-size:16px; color:#5a6d6f; width:24px; text-align:center; flex:none; }
+  .hm-lb__av{ width:46px; height:46px; border-radius:13px; font-size:20px; }
+  .hm-lb__b{ flex:1; min-width:0; }
+  .hm-lb__n{ font-weight:600; font-size:16px; color:var(--ag-ink); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .hm-lb__c{ font-size:13px; color:#5a6d6f; margin-top:2px; }
+  .hm-lb__cpi{ flex:none; text-align:right; font-family:var(--ag-font-mono); font-weight:700; font-size:19px; color:var(--ag-green); }
+  .hm-lb__empty{ background:#fff; border:1px dashed rgba(16,41,44,.16); border-radius:16px; padding:34px 22px; text-align:center; color:#5a6d6f; font-size:14px; }
+  /* `position` was declared TWICE here — sticky, then relative — so the later one won
+     and this card never actually stuck. Sticky is the intent, and it establishes a
+     containing block exactly as relative does, so the decorative orb below stays
+     clipped by the overflow:hidden either way. */
+  .hm-how{ position:sticky; top:96px; background:#10292C; border-radius:24px; padding:clamp(1.8rem,3vw,2.1rem); overflow:hidden; }
+  .hm-how__orb{ position:absolute; right:-50px; top:-50px; width:190px; height:190px; border-radius:50%; background:radial-gradient(circle,rgba(127,200,124,.2),transparent 70%); }
+  .hm-how__k{ position:relative; margin:0 0 14px; font:700 12px/1 var(--ag-font-mono); letter-spacing:.14em; text-transform:uppercase; color:#fbc329; }
+  .hm-how__step{ position:relative; display:flex; gap:15px; padding:16px 0; border-bottom:1px solid rgba(255,255,255,.1); }
+  .hm-how__n{ flex:none; width:30px; height:30px; border-radius:50%; background:rgba(127,200,124,.16); color:var(--ag-green-light); display:flex; align-items:center; justify-content:center; font-family:var(--ag-font-mono); font-weight:700; font-size:13px; }
+  .hm-how__t{ font-weight:600; font-size:15.5px; color:#fff; }
+  .hm-how__d{ font-size:13px; line-height:1.5; color:rgba(255,255,255,.62); margin-top:3px; }
+  .hm-how__btn{ position:relative; width:100%; margin-top:20px; cursor:pointer; text-decoration:none; border:0; background:#fff; color:#10292C; font-family:inherit; font-weight:600; font-size:15px; padding:14px; border-radius:999px; display:flex; align-items:center; justify-content:center; gap:7px; }
+
+  /* legacy (dark) */
+  .hm-leg{ margin-top:clamp(4rem,8vw,7rem); }
+  .hm-leg__in{ background:#10292C; border-radius:32px; overflow:hidden; display:grid; grid-template-columns:1fr 1fr; align-items:center; }
+  .hm-leg__vis{ position:relative; min-height:420px; display:flex; align-items:center; justify-content:center; }
+  .hm-leg__glow{ position:absolute; width:360px; max-width:80%; aspect-ratio:1; border-radius:50%; background:radial-gradient(circle at 50% 40%,rgba(212,154,14,.5),transparent 70%); }
+  .hm-leg__mono{ position:relative; font-family:var(--ag-font-display); font-weight:700; font-size:120px; color:rgba(255,255,255,.92); }
+  .hm-leg__txt{ padding:clamp(2.4rem,5vw,4rem); }
+  .hm-leg__k{ margin:0 0 14px; font:700 12px/1 var(--ag-font-mono); letter-spacing:.14em; text-transform:uppercase; color:#fbc329; }
+  .hm-leg__h{ margin:0; font-family:var(--ag-font-display); font-weight:700; font-size:clamp(1.9rem,4vw,2.9rem); line-height:1.04; letter-spacing:-.015em; color:#fff; }
+  .hm-leg__h em{ color:var(--ag-green-light); font-style:italic; }
+  .hm-leg__p{ margin:22px 0 0; font-size:16.5px; line-height:1.6; color:rgba(255,255,255,.72); max-width:420px; }
+  .hm-leg__btn{ margin-top:28px; display:inline-flex; align-items:center; gap:8px; border:1px solid rgba(255,255,255,.28); background:none; color:#fff; font-family:inherit; font-size:15px; font-weight:600; padding:13px 24px; border-radius:999px; text-decoration:none; }
+  .hm-leg__btn:hover{ background:rgba(255,255,255,.08); }
+
+  /* final CTA */
+  .hm-final{ padding:clamp(4rem,8vw,6rem) 0; }
+  .hm-final__in{ position:relative; overflow:hidden; background:#10292C; border-radius:30px; padding:clamp(3rem,6vw,4.6rem) 40px; text-align:center; }
+  .hm-final__glow{ position:absolute; left:50%; top:-120px; transform:translateX(-50%); width:700px; max-width:120vw; height:400px; background:radial-gradient(ellipse,rgba(127,200,124,.18),transparent 65%); }
+  .hm-final__k{ position:relative; margin:0 0 14px; font:700 12px/1 var(--ag-font-mono); letter-spacing:.14em; text-transform:uppercase; color:#fbc329; }
+  .hm-final__h{ position:relative; margin:0; font-family:var(--ag-font-display); font-weight:700; font-size:clamp(2rem,5vw,3rem); line-height:1.05; color:#fff; }
+  .hm-final__h em{ color:var(--ag-green-light); font-style:italic; }
+  .hm-final__p{ position:relative; max-width:540px; margin:18px auto 0; font-size:16.5px; line-height:1.55; color:rgba(255,255,255,.72); }
+  .hm-final__cta{ position:relative; display:flex; gap:13px; justify-content:center; flex-wrap:wrap; margin-top:30px; }
+  .hm-final .hm-btn--p{ background:#fff; color:#10292C; box-shadow:none; }
+  .hm-final .hm-btn--o{ background:none; border-color:rgba(255,255,255,.28); color:#fff; }
+  .hm-final .hm-btn--o:hover{ background:rgba(255,255,255,.08); color:#fff; }
+
+  @media (prefers-reduced-motion:reduce){ .hm-marq__row{ animation:none; } .hm-live__dot{ animation:none; } }
+  @media (max-width:900px){
+    .hm-stats{ grid-template-columns:1fr 1fr; }
+    .hm-stat:nth-child(2){ border-right:0; }
+    .hm-feat{ grid-template-columns:1fr; gap:2rem; }
+    .hm-feat__vis{ order:2; }
+    .hm-lbsec{ grid-template-columns:1fr; }
+    /* RELATIVE, not static. Cancelling the sticky behaviour is all this was meant to
+       do. `static` also removed .hm-how as a containing block, so its absolutely
+       positioned orb (right:-50px, 190px wide) re-anchored to an ancestor — and an
+       overflow:hidden only clips descendants whose containing block sits inside it, so
+       the orb escaped the card and pushed the document 50px past the viewport. That was
+       the entire horizontal scroll on the mobile homepage. */
+    .hm-how{ position:relative; }
+    .hm-leg__in{ grid-template-columns:1fr; }
+    .hm-leg__vis{ min-height:300px; }
+  }
+  /* ── phones: scale the fixed-width decorative visuals so nothing is cramped ── */
+  @media (max-width:560px){
+    .hm-hero h1{ line-height:1.02; }
+    .hm-hero__cta{ gap:10px; }
+    .hm-stat{ padding:20px 16px; }
+    /* nominate orb — was a big near-empty circle on phones */
+    .hm-vis{ min-height:288px; }
+    .hm-vis__orb{ width:228px; } .hm-vis__ring{ width:194px; }
+    .hm-vis__mono{ font-size:72px; }
+    .hm-vis__tag--bl{ left:0; bottom:6%; } .hm-vis__tag--tr{ right:0; top:6%; }
+    /* reels trio — shrink to fit a phone column */
+    .hm-reels{ height:312px; }
+    .hm-reel{ width:138px; height:246px; }
+    .hm-reel.is-left { transform:translate(calc(-50% - 92px),-50%) scale(.84) rotate(-7deg); }
+    .hm-reel.is-right{ transform:translate(calc(-50% + 92px),-50%) scale(.84) rotate(7deg); }
+    /* leaderboard rows tighten */
+    .hm-lb__row{ gap:11px; padding:12px 14px; }
+    .hm-lb__av{ width:40px; height:40px; font-size:17px; }
+    .hm-lb__rank{ width:18px; }
+    .hm-lb__n{ font-size:15px; } .hm-lb__cpi{ font-size:17px; }
+    .hm-lbsec__hd{ flex-wrap:wrap; }
+    /* legacy mono + padding */
+    .hm-leg__mono{ font-size:84px; }
+    .hm-leg__txt{ padding:1.8rem; }
+  }
+  /* ── small phones: drop the side reels, single-column stats ── */
+  @media (max-width:430px){
+    .hm-stats{ grid-template-columns:1fr; }
+    .hm-stat{ border-right:0; border-bottom:1px solid rgba(16,41,44,.07); }
+    .hm-stat:last-child{ border-bottom:0; }
+    /* tiny screens: side cards fade back but stay in the deck so the
+       rotation keeps bringing each card to the front */
+    .hm-reel.is-left,.hm-reel.is-right{ opacity:0; pointer-events:none; }
+    .hm-hero__cta .hm-btn{ width:100%; justify-content:center; }
+  }
+  /* ═══ Liveliness pass: reveals, count-ups, mock vignettes, empty states ═══ */
+
+  /* Scroll reveal — sections drift up as they enter. JS adds .is-in. */
+  .hm-rev{ opacity:0; transform:translateY(26px); transition:opacity .65s ease, transform .65s cubic-bezier(.22,1,.36,1); }
+  .hm-rev.is-in{ opacity:1; transform:none; }
+  @media (prefers-reduced-motion: reduce){ .hm-rev{ opacity:1; transform:none; transition:none; } }
+
+  /* Skeleton shimmer (preview rows / podium) */
+  @keyframes hmShimmer{ 0%{ background-position:-360px 0; } 100%{ background-position:360px 0; } }
+  .hm-skel{ background:linear-gradient(90deg, rgba(16,41,44,.06) 25%, rgba(16,41,44,.12) 40%, rgba(16,41,44,.06) 55%); background-size:720px 100%; animation:hmShimmer 1.7s linear infinite; border-radius:8px; }
+  @media (prefers-reduced-motion: reduce){ .hm-skel{ animation:none; } }
+  .hm-mini__ghost{ display:flex; align-items:center; gap:11px; padding:10px 6px; }
+  .hm-mini__ghost .hm-skel--av{ width:36px; height:36px; border-radius:50%; flex:none; }
+  .hm-mini__previewk{ display:block; text-align:center; font-size:11px; font-weight:700; letter-spacing:.1em; text-transform:uppercase; color:#5f6d6f; padding:8px 0 2px; }
+  .hm-mini__cta{ display:block; text-align:center; font-size:13px; color:#40554f; padding:4px 8px 10px; }
+  .hm-mini__cta a{ color:var(--ag-green); font-weight:700; text-decoration:none; }
+
+  /* Events empty state — a mini calendar that reads "in preparation" */
+  .hm-cal{ background:#fff; border:1px solid rgba(16,41,44,.09); border-radius:18px; padding:18px; box-shadow:0 24px 50px -32px rgba(16,41,44,.25); }
+  .hm-cal__hd{ display:flex; align-items:center; justify-content:space-between; margin-bottom:12px; }
+  .hm-cal__mon{ font-family:var(--ag-font-mono); font-weight:700; font-size:13px; color:var(--ag-ink); }
+  .hm-cal__grid{ display:grid; grid-template-columns:repeat(7,1fr); gap:5px; }
+  .hm-cal__c{ aspect-ratio:1; border-radius:7px; background:rgba(16,41,44,.045); position:relative; }
+  .hm-cal__c--mark{ background:#effaf0; }
+  .hm-cal__c--mark::after{ content:''; position:absolute; left:50%; top:50%; width:6px; height:6px; border-radius:50%; background:var(--ag-green); transform:translate(-50%,-50%); animation:hmCalPulse 2.6s ease-in-out infinite; }
+  .hm-cal__c--gold{ background:#fff8df; } .hm-cal__c--gold::after{ background:#d49a0e; animation-delay:1.3s; }
+  @keyframes hmCalPulse{ 0%,100%{ box-shadow:0 0 0 0 rgba(35,123,34,.35);} 50%{ box-shadow:0 0 0 6px rgba(35,123,34,0);} }
+  @media (prefers-reduced-motion: reduce){ .hm-cal__c--mark::after{ animation:none; } }
+  .hm-cal__note{ margin:12px 0 0; font-size:12.5px; line-height:1.55; color:#5f7273; text-align:center; }
+
+  /* Pulse reels — phone frames with living "footage" (pure CSS, no assets).
+     NOTE: no `position` here — the deck rules above position cards absolutely
+     into slots; re-declaring position:relative was knocking every card back
+     into document flow (they stacked vertically). */
+  .hm-reel{ overflow:hidden; }
+  .hm-reel::before{ content:''; position:absolute; inset:0;
+    background:
+      radial-gradient(120% 90% at 20% 15%, rgba(251,195,41,.5), transparent 52%),
+      radial-gradient(130% 100% at 85% 80%, rgba(42,143,58,.55), transparent 55%),
+      radial-gradient(100% 120% at 70% 20%, rgba(176,58,91,.4), transparent 50%),
+      linear-gradient(160deg, #123a2b, #10292C);
+    background-size:220% 220%; animation:hmFootage 13s ease-in-out infinite alternate; }
+  .hm-reel--c::before{ animation-duration:10s; }
+  .hm-reel--r::before{ animation-delay:-6s; }
+  @keyframes hmFootage{ 0%{ background-position:0% 0%; } 100%{ background-position:100% 100%; } }
+  .hm-reel::after{ content:''; position:absolute; left:12%; right:12%; bottom:12px; height:4px; border-radius:99px; background:rgba(255,255,255,.22); }
+  .hm-reel__bar{ position:absolute; left:12%; bottom:12px; height:4px; width:30%; border-radius:99px; background:#fff; animation:hmReelBar 8s linear infinite; z-index:1; }
+  @keyframes hmReelBar{ from{ width:8%; } to{ width:76%; } }
+  .hm-reel__heart{ position:absolute; right:14px; bottom:26px; font-size:15px; opacity:0; animation:hmHeart 5.2s ease-in infinite; z-index:1; }
+  .hm-reel__heart--2{ right:26px; animation-delay:2.6s; }
+  @keyframes hmHeart{ 0%{ opacity:0; transform:translateY(0) scale(.7);} 12%{ opacity:.95;} 60%{ opacity:.6;} 100%{ opacity:0; transform:translateY(-110px) scale(1.15);} }
+  .hm-reel__play{ position:relative; z-index:2; animation:hmPlayPulse 2.4s ease-in-out infinite; }
+  @keyframes hmPlayPulse{ 0%,100%{ box-shadow:0 0 0 0 rgba(255,255,255,.45);} 50%{ box-shadow:0 0 0 12px rgba(255,255,255,0);} }
+  .hm-reel__tag{ position:absolute; left:12px; top:12px; z-index:1; font-size:10px; font-weight:700; letter-spacing:.08em; text-transform:uppercase; color:#fff; background:rgba(16,41,44,.45); backdrop-filter:blur(3px); border-radius:99px; padding:4px 9px; }
+  @media (prefers-reduced-motion: reduce){ .hm-reel::before,.hm-reel__bar,.hm-reel__heart,.hm-reel__play{ animation:none; } .hm-reel__heart{ opacity:.5; } }
+
+  /* Leaderboard empty state — the podium awaits */
+  .hm-podium{ display:flex; align-items:flex-end; justify-content:center; gap:12px; padding:26px 14px 10px; }
+  .hm-podium__slot{ display:flex; flex-direction:column; align-items:center; gap:9px; flex:1; max-width:120px; }
+  .hm-podium__av{ width:44px; height:44px; border-radius:50%; }
+  .hm-podium__blk{ width:100%; border-radius:12px 12px 0 0; display:flex; align-items:flex-start; justify-content:center; padding-top:8px;
+    font-family:var(--ag-font-mono); font-weight:700; font-size:14px; color:#40554f; background:linear-gradient(180deg, rgba(16,41,44,.07), rgba(16,41,44,.03)); }
+  .hm-podium__blk--1{ height:86px; background:linear-gradient(180deg, #fff3cf, #fdf6e3); color:#7a5600; }
+  .hm-podium__blk--2{ height:62px; } .hm-podium__blk--3{ height:46px; }
+  .hm-lb__empty--rich{ text-align:center; padding-bottom:18px; }
+  .hm-lb__empty--rich p{ margin:4px 0 12px; font-size:13.5px; color:#5f7273; }
+
+  /* Stat count-up gets a mono feel while ticking */
+  .hm-stat__n.is-ticking{ font-variant-numeric:tabular-nums; }
+</style>
+{% endblock %}
+
 {% block content %}
+{% set feat   = (spotlight_profiles|default([]))|first %}
+{% set vmini  = (leaderboard|default([]))|slice(0,3) %}
+{% set leaders = (leaderboard|default([]))|slice(0,6) %}
+{% set evs    = (site_events|default([]))|slice(0,3) %}
+{% set _vp = site_stats.total_profiles|default(0) %}
+{# Cycle awareness — the page leads with whatever is actually open right now. #}
+{% set _noms_open = false %}{% set _voting_open = false %}
+{% for a in awards_data|default([]) %}
+  {% if a.cycle_status|default('') == 'nominations' %}{% set _noms_open = true %}{% endif %}
+  {% if a.cycle_status|default('') == 'voting' %}{% set _voting_open = true %}{% endif %}
+{% endfor %}
 
-{# ════ 1. HERO — Redesign 2026 (masked rotator · warm editorial) ══ #}
-<section class="r26-hero" aria-labelledby="hero-title">
-  <div class="aurora aurora--soft" aria-hidden="true"></div>
-  <img class="r26-hero__wm" src="/assets/img/africa-watermark.svg?v={{ asset_version }}" alt="" aria-hidden="true">
-  <div class="wrap">
-    <div class="r26-hero__inner">
-      <p class="r26-eyebrow r26-reveal r26-d1">Continental Cultural Power Index</p>
-      <h1 id="hero-title" class="r26-hl">
-        <span class="r26-hl__line r26-reveal r26-d2">African excellence,</span>
-        <span class="r26-rot r26-reveal r26-d3" aria-hidden="true"><span class="r26-rot__list" id="rotList"><span class="r26-rot__item">recognised.</span><span class="r26-rot__item">remembered.</span><span class="r26-rot__item">celebrated.</span><span class="r26-rot__item">immortalised.</span><span class="r26-rot__item">recognised.</span></span></span>
-        <span class="sr-only">recognised, remembered, celebrated, and immortalised.</span>
-      </h1>
-      <p class="r26-sub r26-reveal r26-d4">Africa GATES is the continental Cultural Power Index — the community nominates, expert panels score, and every cycle becomes part of the permanent record.</p>
-      <div class="r26-cta r26-reveal r26-d5">
-        <a class="btn btn--emerald" href="/nominate">Submit a nomination
-          <svg class="btn__arrow" viewBox="0 0 20 20" fill="none"><path d="M7.5 4.5 13 10 7.5 15.5" stroke="currentColor" stroke-width="1.75" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></a>
-        <a class="btn btn--white" href="/leaderboard">Explore the index
-          <svg class="btn__arrow" viewBox="0 0 20 20" fill="none"><path d="M7.5 4.5 13 10 7.5 15.5" stroke="currentColor" stroke-width="1.75" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></a>
-      </div>
-      <div class="r26-chip r26-reveal r26-d6"><span class="r26-chip__dot"></span>Live · CPI recomputed every 6 hours</div>
-      {% set _vp = site_stats.total_profiles|default(0) %}
-      <p class="r26-trust r26-reveal r26-d6">{% if _vp > 0 %}{{ _vp|number_format }} verified profile{{ _vp == 1 ? '' : 's' }} · {% endif %}An Afrovanguard initiative · live in Nigeria · building toward 54 nations</p>
+{# ── HERO ── #}
+<section class="hm-hero">
+  <div class="hm-hero__glow" aria-hidden="true"></div>
+  <div class="hw">
+    <span class="hm-live"><span class="hm-live__dot"></span>{% if _voting_open %}Live · Voting is open — one verified vote per category{% elseif _noms_open %}Live · Nominations are open across the cycle{% else %}Live · CPI recomputed every {{ cpi_recompute_hours }} hours{% endif %}</span>
+    <h1>African excellence,<br><span class="hm-rot" id="hmRot" aria-hidden="true"><span class="hm-rot__w">recognised.</span></span><span class="sr-only">recognised, remembered, celebrated, immortalised.</span></h1>
+    <p class="hm-hero__sub">The continental Cultural Power Index — where the community nominates, expert panels score, the continent votes, and every cycle becomes part of the permanent record.</p>
+    <div class="hm-hero__cta">
+      {% if _voting_open %}
+      <a class="hm-btn hm-btn--p" href="/vote">Cast your vote
+        <svg aria-hidden="true" focusable="false" viewBox="0 0 20 20" fill="none"><path d="M7.5 4.5 13 10 7.5 15.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></a>
+      <a class="hm-btn hm-btn--o" href="{{ _noms_open ? '/nominate' : '/leaderboard' }}">{{ _noms_open ? 'Submit a nomination' : 'Explore the index' }}</a>
+      {% elseif _noms_open %}
+      <a class="hm-btn hm-btn--p" href="/nominate">Submit a nomination
+        <svg aria-hidden="true" focusable="false" viewBox="0 0 20 20" fill="none"><path d="M7.5 4.5 13 10 7.5 15.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></a>
+      <a class="hm-btn hm-btn--o" href="/leaderboard">Explore the index</a>
+      {% else %}
+      <a class="hm-btn hm-btn--p" href="/leaderboard">Explore the index
+        <svg aria-hidden="true" focusable="false" viewBox="0 0 20 20" fill="none"><path d="M7.5 4.5 13 10 7.5 15.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></a>
+      <a class="hm-btn hm-btn--o" href="/account/register">Register a profile</a>
+      {% endif %}
+    </div>
+    <p class="hm-hero__trust">{% if _vp > 0 %}{{ _vp|number_format }} verified profile{{ _vp == 1 ? '' : 's' }} · {% endif %}Nominees, judges &amp; partners across the continent</p>
+  </div>
+  <div class="hm-marq" aria-hidden="true">
+    <div class="hm-marq__row">
+      {% set CITIES = ['🇳🇬 Lagos','🇬🇭 Accra','🇰🇪 Nairobi','🇿🇦 Johannesburg','🇪🇹 Addis Ababa','🇪🇬 Cairo','🇸🇳 Dakar','🇷🇼 Kigali','🇺🇬 Kampala','🇨🇮 Abidjan','🇲🇦 Casablanca','🇹🇿 Dar es Salaam','🇿🇲 Lusaka','🇳🇦 Windhoek'] %}
+      {% for c in CITIES %}<span class="hm-chip">{{ c }}</span>{% endfor %}
+      {% for c in CITIES %}<span class="hm-chip">{{ c }}</span>{% endfor %}
     </div>
   </div>
 </section>
 
-{# ════ 2. CONTINENTAL FOOTPRINT — location chips ═══════════════════ #}
-<section class="section section--sm" style="padding-top:0">
-  <div class="wrap">
-    <p class="r26-eyebrow r26-reveal" style="justify-content:center;display:flex">Nominees, judges &amp; partners across the continent</p>
-    <div class="r26-strip r26-reveal">
-      {% for it in ['Lagos · NG','Accra · GH','Nairobi · KE','Johannesburg · ZA','Addis Ababa · ET','Cairo · EG','Dakar · SN','Kigali · RW','Kampala · UG','Abidjan · CI','Casablanca · MA','Lusaka · ZM','Maputo · MZ','Windhoek · NA'] %}
-      <span class="r26-chip2"><span class="r26-chip2__dot"></span>{{ it }}</span>
-      {% endfor %}
-    </div>
-  </div>
-</section>
-
-{# ════ 3. ONE PLATFORM — clean curved cards (Redesign 2026) ════════ #}
-<section class="section">
-  <div class="wrap">
-    <div class="r26-surface r26-reveal">
-      <div class="r26-head r26-head--center">
-        <p class="r26-eyebrow">One platform</p>
-        <h2 class="r26-h2">Nominate, vote, <em>and recognise.</em></h2>
-        <p class="r26-lead">Continental scope. Community input. Transparent scoring — every cycle part of the permanent record.</p>
-      </div>
-      <div class="r26-cards">
-        <article class="r26-card r26-reveal r26-d1">
-          <div class="r26-card__ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M19 8v6M22 11h-6"/></svg></div>
-          <span class="r26-card__step">01 · Nominate</span>
-          <h3 class="r26-card__title">Surface excellence wherever you find it</h3>
-          <ul class="r26-card__feat">
-            <li><svg viewBox="0 0 24 24" fill="none"><path d="M10.2 14.85l8.27-8.27 1.27 1.27L10.2 17.4 4.47 11.67l1.27-1.27L10.2 14.85z" fill="currentColor"/></svg>OTP-verified — no spam, no duplicates</li>
-            <li><svg viewBox="0 0 24 24" fill="none"><path d="M10.2 14.85l8.27-8.27 1.27 1.27L10.2 17.4 4.47 11.67l1.27-1.27L10.2 14.85z" fill="currentColor"/></svg>Education, integrity, choral &amp; business excellence</li>
-            <li><svg viewBox="0 0 24 24" fill="none"><path d="M10.2 14.85l8.27-8.27 1.27 1.27L10.2 17.4 4.47 11.67l1.27-1.27L10.2 14.85z" fill="currentColor"/></svg>Free and open to every African profile</li>
-          </ul>
-          <a href="/nominate" class="r26-card__link">Submit a nomination
-            <svg viewBox="0 0 20 20" fill="none"><path d="M7.5 4.5 13 10 7.5 15.5" stroke="currentColor" stroke-width="1.75" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></a>
-        </article>
-        <article class="r26-card r26-reveal r26-d2">
-          <div class="r26-card__ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 12l2 2 4-4"/><path d="M12 3a9 9 0 1 0 9 9"/></svg></div>
-          <span class="r26-card__step">02 · Vote</span>
-          <h3 class="r26-card__title">A vote that actually counts</h3>
-          <ul class="r26-card__feat">
-            <li><svg viewBox="0 0 24 24" fill="none"><path d="M10.2 14.85l8.27-8.27 1.27 1.27L10.2 17.4 4.47 11.67l1.27-1.27L10.2 14.85z" fill="currentColor"/></svg>One verified voter, one vote per category</li>
-            <li><svg viewBox="0 0 24 24" fill="none"><path d="M10.2 14.85l8.27-8.27 1.27 1.27L10.2 17.4 4.47 11.67l1.27-1.27L10.2 14.85z" fill="currentColor"/></svg>Cross-checked against fingerprint + email hash</li>
-            <li><svg viewBox="0 0 24 24" fill="none"><path d="M10.2 14.85l8.27-8.27 1.27 1.27L10.2 17.4 4.47 11.67l1.27-1.27L10.2 14.85z" fill="currentColor"/></svg>Tallies recompute every 6 hours, publicly</li>
-          </ul>
-          <a href="/vote" class="r26-card__link">Cast a vote
-            <svg viewBox="0 0 20 20" fill="none"><path d="M7.5 4.5 13 10 7.5 15.5" stroke="currentColor" stroke-width="1.75" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></a>
-        </article>
-        <article class="r26-card r26-reveal r26-d3">
-          <div class="r26-card__ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg></div>
-          <span class="r26-card__step">03 · Recognise</span>
-          <h3 class="r26-card__title">Watch the continent rank itself</h3>
-          <ul class="r26-card__feat">
-            <li><svg viewBox="0 0 24 24" fill="none"><path d="M10.2 14.85l8.27-8.27 1.27 1.27L10.2 17.4 4.47 11.67l1.27-1.27L10.2 14.85z" fill="currentColor"/></svg>Six-component transparent 0–1000 score</li>
-            <li><svg viewBox="0 0 24 24" fill="none"><path d="M10.2 14.85l8.27-8.27 1.27 1.27L10.2 17.4 4.47 11.67l1.27-1.27L10.2 14.85z" fill="currentColor"/></svg>Filterable by region, tier, and category</li>
-            <li><svg viewBox="0 0 24 24" fill="none"><path d="M10.2 14.85l8.27-8.27 1.27 1.27L10.2 17.4 4.47 11.67l1.27-1.27L10.2 14.85z" fill="currentColor"/></svg>Permanent legacy attribution for winners</li>
-          </ul>
-          <a href="/leaderboard" class="r26-card__link">Open the leaderboard
-            <svg viewBox="0 0 20 20" fill="none"><path d="M7.5 4.5 13 10 7.5 15.5" stroke="currentColor" stroke-width="1.75" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></a>
-        </article>
-      </div>
-    </div>
-  </div>
-</section>
-
-{# ════ 4. STATS — honest metrics + empty state (Redesign 2026) ═════ #}
-<section class="section r26-stats" id="numbers">
-  <div class="aurora aurora--soft" aria-hidden="true"></div>
-  <div class="wrap">
-    {% set _p = dash_stats.total_profiles|default(0) %}
-    {% set _v = dash_stats.total_votes|default(0) %}
-    {% set _e = dash_stats.events_count|default(0) %}
-    <div class="r26-stats__head" data-anim>
-      <p class="r26-eyebrow">The index, in the open</p>
-      <h2>Transparent recognition, <em>counted publicly.</em></h2>
-      <p>Every score traces back to community votes and expert panels — recomputed every six hours, archived every cycle.</p>
-    </div>
-    {% if _p > 0 or _v > 0 or _e > 0 %}
-      <div class="r26-metrics" data-anim>
-        <div class="r26-metric">
-          <div class="r26-metric__num"><span data-count="{{ _p }}">{{ _p|number_format }}</span></div>
-          <div class="r26-metric__lbl">Verified profiles</div>
-        </div>
-        <div class="r26-metric">
-          <div class="r26-metric__num"><span data-count="{{ _v }}">{{ _v|number_format }}</span></div>
-          <div class="r26-metric__lbl">Community votes cast</div>
-        </div>
-        <div class="r26-metric">
-          <div class="r26-metric__num"><span data-count="{{ _e }}">{{ _e|number_format }}</span></div>
-          <div class="r26-metric__lbl">Legacy editions archived</div>
-        </div>
-      </div>
-      <p class="r26-stats__context" data-anim>Live in Nigeria — <strong>building toward all 54 nations.</strong></p>
+{# ── STAT STRIP — live numbers once activity exists; before that, the
+     platform's REAL constants (never a strip of dead zeros, never fake data) ── #}
+{% set _activity = site_stats.total_profiles|default(0) + site_stats.total_votes|default(0) %}
+<div class="hw">
+  <div class="hm-stats">
+    {% if _activity > 0 %}
+    <div class="hm-stat"><div class="hm-stat__n" data-countup="{{ site_stats.total_profiles|default(0) }}">{{ site_stats.total_profiles|default(0)|number_format }}</div><div class="hm-stat__l">Verified profiles</div></div>
+    <div class="hm-stat"><div class="hm-stat__n" data-countup="{{ site_stats.total_votes|default(0) }}">{{ site_stats.total_votes|default(0)|number_format }}</div><div class="hm-stat__l">Votes cast</div></div>
+    <div class="hm-stat"><div class="hm-stat__n" data-countup="{{ site_stats.nations_live|default(0) }}">{{ site_stats.nations_live|default(0)|number_format }}</div><div class="hm-stat__l">Nation{{ site_stats.nations_live|default(0) == 1 ? '' : 's' }} live</div></div>
+    <div class="hm-stat"><div class="hm-stat__n" data-countup="{{ site_stats.categories|default(0) }}">{{ site_stats.categories|default(0)|number_format }}</div><div class="hm-stat__l">Award categories</div></div>
     {% else %}
-      <div class="r26-empty" data-anim>
-        <img class="r26-empty__icon" src="/assets/img/africa-mark.svg?v={{ asset_version }}" alt="" aria-hidden="true">
-        <h3>The inaugural index is being assembled</h3>
-        <p>No cycle has been scored yet. Be among the first verified profiles on the continental Cultural Power Index — and help shape the inaugural board.</p>
-        <div style="display:flex;gap:.75rem;flex-wrap:wrap;justify-content:center">
-          <a class="btn btn--emerald" href="/register">Register your profile
-            <svg class="btn__arrow" viewBox="0 0 20 20" fill="none"><path d="M7.5 4.5 13 10 7.5 15.5" stroke="currentColor" stroke-width="1.75" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></a>
-          <a class="btn btn--white" href="/awards">How the CPI works</a>
-        </div>
-      </div>
+    <div class="hm-stat"><div class="hm-stat__n" data-countup="{{ nations_count }}">{{ nations_count }}</div><div class="hm-stat__l">Nations in scope</div></div>
+    <div class="hm-stat"><div class="hm-stat__n" data-countup="1000">0–1,000</div><div class="hm-stat__l">CPI score scale</div></div>
+    <div class="hm-stat"><div class="hm-stat__n">45<span style="font-size:.6em">%</span> + 55<span style="font-size:.6em">%</span></div><div class="hm-stat__l">Public votes + jury</div></div>
+    <div class="hm-stat"><div class="hm-stat__n" data-countup="4">4</div><div class="hm-stat__l">Jury criteria</div></div>
     {% endif %}
   </div>
-</section>
 
-{# ════ 5. LIVING MAP — honest registry, cut-out ready (Redesign 2026) ══ #}
-<section class="section r26-map" id="faces">
-  <div class="wrap">
-    {% set _profiles = ticker_profiles|default([]) %}
-    {% set _pc = dash_stats.total_profiles|default(0) %}
-    <div class="r26-map__grid">
-      <div class="r26-map__copy" data-anim>
-        <p class="r26-eyebrow">The living registry</p>
-        <h2>A continent of <em>people</em>, not pixels.</h2>
-        <p>Africa GATES is a registry of real, verified African excellence — names and records, never stock photos. The map fills as the community grows.</p>
-        <div class="r26-faces-grid">
-          {% if _profiles is not empty %}
-            {% for e in _profiles|slice(0, 9) %}
-            <a class="r26-face" href="/registry/{{ e.slug }}" title="{{ e.display_name }}">{{ e.display_name|default('·')|first|upper }}</a>
-            {% endfor %}
-            {% if _pc > 9 %}<a class="r26-face r26-face--more" href="/registry" title="Browse all profiles">+{{ (_pc - 9)|number_format }}</a>{% endif %}
-          {% else %}
-            {# Seed slots until the first profiles arrive — the wall reads as "this fills up", never bare. #}
-            {% for i in 1..7 %}<span class="r26-face r26-face--ghost" aria-hidden="true"></span>{% endfor %}
-          {% endif %}
-        </div>
-        <p class="r26-map__count">
-          {% if _pc > 0 %}<strong>{{ _pc|number_format }}</strong> verified profile{{ _pc == 1 ? '' : 's' }} · live in Nigeria{% else %}<strong>The first faces appear here</strong> — be part of the founding registry{% endif %}
-        </p>
-        <div style="margin-top:1.5rem;display:flex;gap:.75rem;flex-wrap:wrap">
-          <a class="btn btn--emerald" href="/register">Register your profile
-            <svg class="btn__arrow" viewBox="0 0 20 20" fill="none"><path d="M7.5 4.5 13 10 7.5 15.5" stroke="currentColor" stroke-width="1.75" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></a>
-          <a class="btn btn--white" href="/registry">Browse the registry
-            <svg class="btn__arrow" viewBox="0 0 20 20" fill="none"><path d="M7.5 4.5 13 10 7.5 15.5" stroke="currentColor" stroke-width="1.75" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></a>
-        </div>
-      </div>
-      {# Cut-out stage: drop transparent PNGs at /assets/img/cutouts/map-{1,2,3}.png and
-         they fade in over the map. Until then the outline map shows on its own. #}
-      <div class="r26-map__art r26-stage" data-anim="scale">
-        <img src="/assets/img/africa-watermark.svg?v={{ asset_version }}" alt="Outline map of Africa" loading="lazy" decoding="async">
-        <img class="r26-cutout r26-cutout--lead"  data-cutout src="/assets/img/cutouts/map-1.png" alt="">
-        <img class="r26-cutout r26-cutout--mid"   data-cutout src="/assets/img/cutouts/map-2.png" alt="">
-        <img class="r26-cutout r26-cutout--trail" data-cutout src="/assets/img/cutouts/map-3.png" alt="">
-      </div>
+  {# ── FEATURE · NOMINATE ── #}
+  <section class="hm-feat">
+    <div>
+      <span class="hm-eyebrow" style="background:#effaf0;color:#1a6118">01 · Nominate{% if _noms_open %} <span class="hm-live__dot" style="margin-left:2px"></span> open now{% endif %}</span>
+      <h2 class="hm-feat__h">Surface excellence, <span class="hm-em">wherever you find it.</span></h2>
+      <p class="hm-feat__p">Real, verified African profiles — names and records. Nominate someone in a few minutes: free, OTP-verified, and reviewed by an independent panel of African judges.</p>
+      <div class="hm-feat__btn"><a class="hm-btn hm-btn--p" href="/nominate">Start a nomination
+        <svg aria-hidden="true" focusable="false" viewBox="0 0 20 20" fill="none"><path d="M7.5 4.5 13 10 7.5 15.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></a></div>
     </div>
-  </div>
-</section>
+    <div class="hm-feat__vis hm-vis">
+      <div class="hm-vis__orb" aria-hidden="true"></div>
+      <div class="hm-vis__ring" aria-hidden="true"></div>
+      <span class="hm-vis__mono">{% if feat %}{{ feat.display_name|first|upper }}{% else %}G{% endif %}</span>
+      <div class="hm-vis__tag hm-vis__tag--bl">
+        <span class="hm-vis__tagi"><svg aria-hidden="true" focusable="false" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></span>
+        <div><div class="hm-vis__tn">Nomination verified</div><div class="hm-vis__td">OTP confirmed</div></div>
+      </div>
+      {% if feat %}
+      <div class="hm-vis__tag hm-vis__tag--tr">
+        <div class="hm-vis__cpi">{{ feat.cpi_score|default(0)|number_format }}</div>
+        <div class="hm-vis__cpil">CPI score</div>
+      </div>
+      {% endif %}
+    </div>
+  </section>
 
-{# ════ 5b. EVENTS PREVIEW — next on the calendar ═══════════════════ #}
-{% set _events = site_events|default([]) %}
-{% if _events is not empty %}
-<section class="section" style="padding-top:0">
-  <div class="wrap">
-    <div class="r26-head r26-head--center">
-      <p class="r26-eyebrow">Events</p>
-      <h2 class="r26-h2">Next on the <em>calendar.</em></h2>
-      <p class="r26-lead">Ceremonies, webinars and community sessions across the cycle.</p>
-    </div>
-    <div class="r26-mediagrid">
-      {% for e in _events %}
-      <article class="r26-mcard">
-        <div class="r26-mcard__media {% if not e.cover_image %}r26-mcard__media--empty{% endif %}">
-          {% if e.cover_image %}<img src="{{ e.cover_image }}" alt="{{ e.title }}" loading="lazy" decoding="async">{% endif %}
-          <span class="r26-mcard__badge">{{ e.location|default('Africa GATES') }}</span>
-        </div>
-        <div class="r26-mcard__body">
-          <div class="r26-when">
-            <span class="r26-when__cal" aria-hidden="true">
-              <span class="r26-when__mon">{{ e.event_date|date('M') }}</span>
-              <span class="r26-when__day">{{ e.event_date|date('j') }}</span>
-            </span>
-            <span class="r26-mcard__meta" style="margin:0">{{ e.event_date|date('D, j M Y · H:i') }}</span>
+  {# ── FEATURE · VOTE ── #}
+  <section class="hm-feat">
+    <div class="hm-feat__vis">
+      <div class="hm-mini">
+        <div class="hm-mini__hd"><span>Top of the index</span><span class="hm-mini__open"><span class="hm-live__dot"></span>Live</span></div>
+        {% if vmini|length %}
+          {% for n in vmini %}
+          <div class="hm-mini__row">
+            <span class="hm-av" {% if n.avatar_path %}style="background-image:url('{{ n.avatar_path }}')"{% endif %}>{% if not n.avatar_path %}{{ n.display_name|first|upper }}{% endif %}</span>
+            <div style="flex:1;min-width:0"><div class="hm-mini__nm">{{ n.display_name }}</div><div class="hm-mini__mt">{{ n.category|default('Profile') }}{% if n.country_code %} · {{ n.country_code }}{% endif %}</div></div>
+            <span style="font-family:var(--ag-font-mono);font-weight:700;font-size:15px;color:var(--ag-green);flex:none">{{ n.cpi_score|default(0)|number_format }}</span>
           </div>
-          <h3 class="r26-mcard__title">{{ e.title }}</h3>
-          <p class="r26-mcard__desc">{{ e.tagline }}</p>
-          <div class="r26-mcard__foot">
-            <span>{{ e.location }}</span>
-            <a class="r26-mcard__link" href="/events">Details
-              <svg viewBox="0 0 20 20" fill="none"><path d="M7.5 4.5 13 10 7.5 15.5" stroke="currentColor" stroke-width="1.75" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></a>
-          </div>
-        </div>
-      </article>
-      {% endfor %}
-    </div>
-    <div class="text-center" style="margin-top:2rem">
-      <a class="btn btn--white" href="/events">All events
-        <svg class="btn__arrow" viewBox="0 0 20 20" fill="none"><path d="M7.5 4.5 13 10 7.5 15.5" stroke="currentColor" stroke-width="1.75" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></a>
-    </div>
-  </div>
-</section>
-{% endif %}
-
-{# ════ 5c. BLOG PREVIEW — latest from the index ═════════════════════ #}
-{% set _posts = latest_posts|default([]) %}
-{% if _posts is not empty %}
-<section class="section" style="padding-top:0">
-  <div class="wrap">
-    <div class="r26-surface">
-      <div class="r26-head r26-head--center">
-        <p class="r26-eyebrow">Blog</p>
-        <h2 class="r26-h2">Notes from the <em>index.</em></h2>
-      </div>
-      <div class="r26-mediagrid">
-        {% for p in _posts %}
-        <a class="r26-mcard" href="/blog/{{ p.slug }}">
-          <div class="r26-mcard__media {% if not p.cover_image %}r26-mcard__media--empty{% endif %}">
-            {% if p.cover_image %}<img src="{{ p.cover_image }}" alt="" loading="lazy" decoding="async">{% endif %}
-            {% if p.tag %}<span class="r26-mcard__badge">{{ p.tag }}</span>{% endif %}
-          </div>
-          <div class="r26-mcard__body">
-            <p class="r26-mcard__meta">{{ p.published_at|date('j F Y') }}</p>
-            <h3 class="r26-mcard__title">{{ p.title }}</h3>
-            <p class="r26-mcard__desc">{{ p.excerpt|slice(0,120) }}{% if p.excerpt|length > 120 %}…{% endif %}</p>
-            <div class="r26-mcard__foot">
-              <span>{{ p.author }}</span>
-              <span class="r26-mcard__link">Read
-                <svg viewBox="0 0 20 20" fill="none"><path d="M7.5 4.5 13 10 7.5 15.5" stroke="currentColor" stroke-width="1.75" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+          {% endfor %}
+        {% else %}
+          {# Preview mockup — clearly labeled, no invented names. The shimmer
+             rows show what the card becomes the moment scoring starts. #}
+          <span class="hm-mini__previewk">Preview — rankings open with the first scored cycle</span>
+          {% for w in [72, 58, 44] %}
+          <div class="hm-mini__ghost" aria-hidden="true">
+            <span class="hm-skel hm-skel--av"></span>
+            <div style="flex:1;min-width:0">
+              <div class="hm-skel" style="height:11px;width:{{ w }}%"></div>
+              <div class="hm-skel" style="height:8px;width:{{ w - 18 }}%;margin-top:6px;opacity:.6"></div>
             </div>
+            <span class="hm-skel" style="height:14px;width:38px;flex:none"></span>
           </div>
+          {% endfor %}
+          <span class="hm-mini__cta">Someone belongs on this list. <a href="/nominate">Nominate them →</a></span>
+        {% endif %}
+        <div class="hm-mini__foot"><svg aria-hidden="true" focusable="false" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2 4 5v6c0 5 3.4 9.7 8 11 4.6-1.3 8-6 8-11V5l-8-3Z"/></svg>One verified vote per category · fraud-scored · audited</div>
+      </div>
+    </div>
+    <div>
+      <span class="hm-eyebrow" style="background:#effaf0;color:#1a6118">02 · Vote{% if _voting_open %} <span class="hm-live__dot" style="margin-left:2px"></span> open now{% endif %}</span>
+      <h2 class="hm-feat__h">A vote that <span class="hm-em">actually counts.</span></h2>
+      <p class="hm-feat__p">One verified voter, one vote per category — cross-checked against fingerprint and email hash. Tallies recompute every {{ cpi_recompute_hours }} hours, in public.</p>
+      <div class="hm-feat__btn"><a class="hm-btn hm-btn--o" href="/vote">Cast a vote
+        <svg aria-hidden="true" focusable="false" viewBox="0 0 20 20" fill="none"><path d="M7.5 4.5 13 10 7.5 15.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></a></div>
+    </div>
+  </section>
+
+  {# ── FEATURE · EVENTS — always present; a season-calendar mockup stands in
+       until real events are published (the section never just vanishes) ── #}
+  <section class="hm-feat">
+    <div>
+      <span class="hm-eyebrow" style="background:#fff8df;color:#7a5600">03 · Events</span>
+      <h2 class="hm-feat__h">Ceremonies, webinars <span class="hm-em">&amp; the live stage.</span></h2>
+      <p class="hm-feat__p">Recognition is also a gathering. RSVP to award ceremonies, methodology webinars and community sessions across the cycle.</p>
+      <div class="hm-feat__btn"><a class="hm-btn hm-btn--o" href="/events">{{ evs|length ? 'See the calendar' : 'Watch for announcements' }}
+        <svg aria-hidden="true" focusable="false" viewBox="0 0 20 20" fill="none"><path d="M7.5 4.5 13 10 7.5 15.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></a></div>
+    </div>
+    <div class="hm-feat__vis">
+      {% if evs|length %}
+      <div class="hm-evs">
+        {% for e in evs %}
+        <a class="hm-ev" href="/events">
+          <span class="hm-ev__d"><span class="hm-ev__mon">{{ e.event_date|date('M') }}</span><span class="hm-ev__day">{{ e.event_date|date('d') }}</span></span>
+          <div style="flex:1;min-width:0"><div class="hm-ev__t">{{ e.title }}{% if loop.first %} <span class="hm-mini__open" data-countdown="{{ e.event_date|date('c') }}" style="margin-left:6px"><span class="hm-live__dot"></span><span data-countdown-label>soon</span></span>{% endif %}</div><div class="hm-ev__m">{{ e.event_date|date('D, g:i a') }}{% if e.location %} · {{ e.location }}{% endif %}</div></div>
+          <svg aria-hidden="true" focusable="false" width="16" height="16" viewBox="0 0 20 20" fill="none" style="flex:none;color:var(--ag-ink-soft,#626a6e)"><path d="M7.5 4.5 13 10 7.5 15.5" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/></svg>
         </a>
         {% endfor %}
       </div>
-      <div class="text-center" style="margin-top:2rem">
-        <a class="btn btn--white" href="/blog">Browse the blog
-          <svg class="btn__arrow" viewBox="0 0 20 20" fill="none"><path d="M7.5 4.5 13 10 7.5 15.5" stroke="currentColor" stroke-width="1.75" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></a>
-      </div>
-    </div>
-  </div>
-</section>
-{% endif %}
-
-{# ════ 6. LEGACY VAULT — clean editions + honest empty (Redesign 2026) ══ #}
-<section class="section">
-  <div class="wrap">
-    <div class="r26-surface r26-surface--tint r26-reveal">
-      <div class="r26-head r26-head--center">
-        <p class="r26-eyebrow">Legacy Vault</p>
-        <h2 class="r26-h2">Recognition is a record, <em>not a moment.</em></h2>
-        <p class="r26-lead">Every cycle becomes part of the permanent vault — searchable, attributed, and forever credited.</p>
-      </div>
-      {% set legacy = legacy_events|default([]) %}
-      {% if legacy is not empty %}
-        <div class="r26-legacy__grid">
-          {% for L in legacy %}
-          <a class="r26-edition" href="/legacy">
-            <div class="r26-edition__cover" style="background-image:url('{{ L.cover_path }}')">
-              <span class="r26-edition__yr">{{ L.event_date|date('Y') }}</span>
-            </div>
-            <div class="r26-edition__body">
-              <h3 class="r26-edition__title">{{ L.title }}</h3>
-              <p class="r26-edition__meta">{{ L.award_count }} awards conferred · {{ L.location }}</p>
-            </div>
-          </a>
-          {% endfor %}
-        </div>
-        <div class="text-center" style="margin-top:2rem">
-          <a href="/legacy" class="btn btn--emerald">Browse the full vault
-            <svg class="btn__arrow" viewBox="0 0 20 20" fill="none"><path d="M7.5 4.5 13 10 7.5 15.5" stroke="currentColor" stroke-width="1.75" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></a>
-        </div>
       {% else %}
-        <div class="r26-empty" style="border:none;background:transparent;box-shadow:none">
-          <img class="r26-empty__icon" src="/assets/img/africa-mark.svg?v={{ asset_version }}" alt="" aria-hidden="true">
-          <h3>The first edition hasn’t been archived yet</h3>
-          <p>When the inaugural cycle concludes, every winner and edition is preserved here — permanently credited and searchable.</p>
-          <a class="btn btn--white" href="/nominate">Help shape the first cycle</a>
+      <div class="hm-cal" role="img" aria-label="Season calendar in preparation — dates are announced on the events page">
+        <div class="hm-cal__hd">
+          <span class="hm-cal__mon">{{ 'now'|date('F Y') }}</span>
+          <span class="hm-mini__open"><span class="hm-live__dot"></span>Season in prep</span>
         </div>
+        <div class="hm-cal__grid" aria-hidden="true">
+          {% for d in 1..28 %}<span class="hm-cal__c{{ d in [5, 19] ? ' hm-cal__c--mark' : (d == 12 ? ' hm-cal__c--gold' : '') }}"></span>{% endfor %}
+        </div>
+        <p class="hm-cal__note">Ceremony, webinar and community dates land here as each cycle unfolds — announced first on <a href="/events" style="color:var(--ag-green);font-weight:600">the events page</a>.</p>
+      </div>
       {% endif %}
     </div>
-  </div>
-</section>
+  </section>
 
-{# ════ 7. FINAL CTA — dark statement band, cut-out ready (Redesign 2026) ══ #}
-<section class="section">
-  <div class="wrap">
-    <div class="r26-band">
-      <div class="r26-band__inner r26-stage">
-        <div class="r26-band__glow" aria-hidden="true"></div>
-        <img class="r26-band__wm" src="/assets/img/africa-watermark-light.svg?v={{ asset_version }}" alt="" aria-hidden="true">
-        {# Cut-out slot: drop a transparent PNG at /assets/img/cutouts/band-1.png to populate. #}
-        <img class="r26-cutout r26-band__cutout" data-cutout src="/assets/img/cutouts/band-1.png" alt="">
-        <div class="r26-band__content">
-          <p class="r26-eyebrow">Join the index</p>
-          <h2 class="r26-band__title">Someone you know deserves <em>this stage.</em></h2>
-          <p class="r26-band__sub">Nominate them in 90 seconds — free, OTP-verified, and reviewed by a panel of African judges. Every nomination becomes part of the permanent record.</p>
-          <div class="r26-band__cta">
-            <a class="btn btn--white" href="/nominate">Submit a nomination
-              <svg class="btn__arrow" viewBox="0 0 20 20" fill="none"><path d="M7.5 4.5 13 10 7.5 15.5" stroke="currentColor" stroke-width="1.75" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></a>
-            <a class="btn btn--ghostlight" href="/register">Register a profile</a>
-          </div>
+  {# ── FEATURE · PULSE & COMMUNITY ── #}
+  <section class="hm-feat">
+    <div class="hm-feat__vis">
+      {# Rotating pulse deck — cards glide between slots every few seconds.
+         Cards A + C carry Lottie illustrations (lottie-web, self-hosted JSON,
+         see /assets/anim/NOTICE.md). Card V is the VIDEO slot: drop a muted
+         looping <video> inside .hm-reel--v when footage is ready — the CSS
+         "footage" beneath is its stand-in until then. #}
+      <div class="hm-reels" id="hmReels" aria-hidden="true">
+        <div class="hm-reel hm-reel--a is-left">
+          <span class="hm-reel__tag">Awards live</span>
+          <div class="hm-reel__lot" data-lottie="/assets/anim/trophy.json"></div>
+          <span class="hm-reel__bar"></span>
         </div>
+        <div class="hm-reel hm-reel--v is-center">
+          <span class="hm-reel__tag">Pulse · live</span>
+          {# Original in-house vignette: the Cultural Power Index dial — the
+             platform's own signature object, drawn and animated by hand.
+             When real footage arrives, a muted looping <video> replaces this
+             .hm-cpiviz block; the small play chip already marks the slot. #}
+          <div class="hm-cpiviz">
+            <svg viewBox="0 0 120 132" role="presentation" focusable="false">
+              <defs>
+                <linearGradient id="cpivizArc" x1="0" y1="1" x2="1" y2="0">
+                  <stop offset="0" stop-color="#2A8F3A"/>
+                  <stop offset=".65" stop-color="#7FC87C"/>
+                  <stop offset="1" stop-color="#fbc329"/>
+                </linearGradient>
+              </defs>
+              {# soft glow bed behind the dial #}
+              <circle class="hm-cpiviz__glow" cx="60" cy="56" r="34" fill="rgba(127,200,124,.14)"/>
+              {# dial track + gauge ticks #}
+              <circle cx="60" cy="56" r="44" fill="none" stroke="rgba(255,255,255,.14)" stroke-width="7" stroke-linecap="round"
+                      stroke-dasharray="207 69" transform="rotate(135 60 56)"/>
+              <circle cx="60" cy="56" r="37" fill="none" stroke="rgba(255,255,255,.22)" stroke-width="2.5"
+                      stroke-dasharray="1.5 12.98" transform="rotate(135 60 56)" stroke-dashoffset="-0.75"/>
+              {# the score arc — draws, holds, breathes, redraws #}
+              <circle class="hm-cpiviz__arc" cx="60" cy="56" r="44" fill="none" stroke="url(#cpivizArc)" stroke-width="7"
+                      stroke-linecap="round" stroke-dasharray="207 276" transform="rotate(135 60 56)"/>
+              {# vote bars rising under the dial #}
+              <g class="hm-cpiviz__bars">
+                <rect x="34" y="112" width="7" rx="2" height="14" fill="#2A8F3A"/>
+                <rect x="45" y="112" width="7" rx="2" height="20" fill="#7FC87C"/>
+                <rect x="56" y="112" width="7" rx="2" height="10" fill="#fbc329"/>
+                <rect x="67" y="112" width="7" rx="2" height="17" fill="#2A8F3A"/>
+                <rect x="78" y="112" width="7" rx="2" height="13" fill="#7FC87C"/>
+              </g>
+            </svg>
+            <div class="hm-cpiviz__num"><span data-cpiviz-num>0</span><small>CPI · of 1,000</small></div>
+          </div>
+          <span class="hm-reel__play hm-reel__play--chip"><svg aria-hidden="true" focusable="false" width="13" height="13" viewBox="0 0 24 24" fill="#10292C"><path d="M8 5v14l11-7z"/></svg></span>
+          <span class="hm-reel__heart">💚</span>
+          <span class="hm-reel__heart hm-reel__heart--2">✨</span>
+          <span class="hm-reel__bar" style="animation-duration:6s"></span>
+        </div>
+        <div class="hm-reel hm-reel--b is-right">
+          <span class="hm-reel__tag">Celebrations</span>
+          <div class="hm-reel__lot" data-lottie="/assets/anim/confetti.json"></div>
+          {# Original in-house figure: a celebrant in an agbada, arms raised —
+             drawn by hand in brand geometry (no library asset). She sways and
+             lifts with the confetti behind her. #}
+          <svg class="hm-celebrant" viewBox="0 0 120 150" role="presentation" focusable="false" aria-hidden="true">
+            <g class="hm-celebrant__body">
+              {# raised arms — pivot gently at the shoulders #}
+              <g class="hm-celebrant__arm hm-celebrant__arm--l">
+                <path d="M47 78 Q36 62 33 46" fill="none" stroke="#8a5a2b" stroke-width="7" stroke-linecap="round"/>
+                <circle cx="33" cy="43" r="5.5" fill="#8a5a2b"/>
+              </g>
+              <g class="hm-celebrant__arm hm-celebrant__arm--r">
+                <path d="M73 78 Q84 62 87 46" fill="none" stroke="#8a5a2b" stroke-width="7" stroke-linecap="round"/>
+                <circle cx="87" cy="43" r="5.5" fill="#8a5a2b"/>
+              </g>
+              {# agbada gown — gold with a green pattern band #}
+              <path d="M60 70 L34 138 Q60 146 86 138 Z" fill="#d49a0e"/>
+              <path d="M60 70 L44 112 Q60 118 76 112 Z" fill="#fbc329" opacity=".55"/>
+              <path d="M42 118 Q60 126 78 118 L76 124 Q60 131 44 124 Z" fill="#1a6118"/>
+              {# head + gele headwrap #}
+              <circle cx="60" cy="56" r="12" fill="#8a5a2b"/>
+              <path d="M47 52 Q49 38 60 38 Q71 38 73 52 Q66 46 60 47 Q54 46 47 52Z" fill="#1a6118"/>
+              <path d="M67 40 Q74 36 76 42 Q72 44 69 43 Z" fill="#2A8F3A"/>
+            </g>
+          </svg>
+          <span class="hm-reel__bar" style="animation-duration:10s"></span>
+        </div>
+      </div>
+    </div>
+    <div>
+      <span class="hm-eyebrow" style="background:#fdeaf0;color:#b03a5b">04 · Pulse &amp; Community</span>
+      <h2 class="hm-feat__h">Recognition you <span class="hm-em">live with daily.</span></h2>
+      <p class="hm-feat__p">Pulse is the living feed — reels, posts and stories from nominees, plus programme channels where the community gathers between cycles. Not a vote-once site; a place you return to.</p>
+      <div class="hm-feat__btn"><a class="hm-btn hm-btn--p" style="background:var(--ag-ink);box-shadow:none" href="/community">Open the community
+        <svg aria-hidden="true" focusable="false" viewBox="0 0 20 20" fill="none"><path d="M7.5 4.5 13 10 7.5 15.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></a></div>
+    </div>
+  </section>
+
+  {# ── LEADERBOARD + HOW RAIL ── #}
+  <section class="hm-lbsec">
+    <div>
+      <div class="hm-lbsec__hd">
+        <div>
+          <p class="hm-eyebrow" style="background:none;padding:0;color:var(--ag-green)">Live · Cultural Power Index</p>
+          <h2>Leading this cycle</h2>
+        </div>
+        <a class="hm-allk" href="/leaderboard">Full ranking →</a>
+      </div>
+      <div class="hm-lb">
+        {% if leaders|length %}
+          {% for p in leaders %}
+          <div class="hm-lb__row">
+            <span class="hm-lb__rank">{{ loop.index }}</span>
+            <span class="hm-av hm-lb__av" {% if p.avatar_path %}style="background-image:url('{{ p.avatar_path }}')"{% endif %}>{% if not p.avatar_path %}{{ p.display_name|first|upper }}{% endif %}</span>
+            <span class="hm-lb__b"><span class="hm-lb__n">{{ p.display_name }}</span><span class="hm-lb__c">{{ p.category|default('Profile') }}{% if p.country_code %} · {{ p.country_code }}{% endif %}</span></span>
+            <span class="hm-lb__cpi">{{ p.cpi_score|default(0)|number_format }}</span>
+          </div>
+          {% endfor %}
+        {% else %}
+          <div class="hm-lb__empty hm-lb__empty--rich">
+            <div class="hm-podium" aria-hidden="true">
+              <div class="hm-podium__slot"><span class="hm-skel hm-podium__av"></span><div class="hm-podium__blk hm-podium__blk--2">2</div></div>
+              <div class="hm-podium__slot"><span class="hm-skel hm-podium__av"></span><div class="hm-podium__blk hm-podium__blk--1">1</div></div>
+              <div class="hm-podium__slot"><span class="hm-skel hm-podium__av"></span><div class="hm-podium__blk hm-podium__blk--3">3</div></div>
+            </div>
+            <p>The podium fills as the first cycle is scored — every name on it will have earned its place in public.</p>
+            <a class="hm-btn hm-btn--o" href="/account/register">Register a profile</a>
+            <a class="hm-btn hm-btn--p" href="/nominate" style="margin-left:8px">Nominate someone</a>
+          </div>
+        {% endif %}
+      </div>
+    </div>
+    <div class="hm-how">
+      <div class="hm-how__orb" aria-hidden="true"></div>
+      <p class="hm-how__k">How it works</p>
+      <div class="hm-how__step"><span class="hm-how__n">1</span><div><div class="hm-how__t">The community nominates</div><div class="hm-how__d">Anyone can put a profile forward — free and OTP-verified.</div></div></div>
+      <div class="hm-how__step"><span class="hm-how__n">2</span><div><div class="hm-how__t">The continent votes &amp; a jury scores</div><div class="hm-how__d">45% verified public votes, 55% an independent jury on Impact, Originality, Reach and Integrity.</div></div></div>
+      <div class="hm-how__step"><span class="hm-how__n">3</span><div><div class="hm-how__t">The index recomputes</div><div class="hm-how__d">A transparent 0–1000 Cultural Power Index, refreshed every {{ cpi_recompute_hours }} hours.</div></div></div>
+      <a class="hm-how__btn" href="/nominate">Start a nomination
+        <svg aria-hidden="true" focusable="false" width="15" height="15" viewBox="0 0 20 20" fill="none"><path d="M7.5 4.5 13 10 7.5 15.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></a>
+    </div>
+  </section>
+</div>
+
+{# ── LEGACY (dark) ── #}
+<section class="hm-leg">
+  <div class="hw">
+    <div class="hm-leg__in">
+      <div class="hm-leg__vis">
+        <div class="hm-leg__glow" aria-hidden="true"></div>
+        <span class="hm-leg__mono">G</span>
+      </div>
+      <div class="hm-leg__txt">
+        <p class="hm-leg__k">Legacy Vault</p>
+        <h2 class="hm-leg__h">Recognition is a record, <em>not a moment.</em></h2>
+        <p class="hm-leg__p">Every cycle becomes part of the permanent vault — searchable, attributed, and forever credited to the people who earned it.</p>
+        <a class="hm-leg__btn" href="/legacy">Browse the vault
+          <svg aria-hidden="true" focusable="false" width="15" height="15" viewBox="0 0 20 20" fill="none"><path d="M7.5 4.5 13 10 7.5 15.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></a>
       </div>
     </div>
   </div>
 </section>
 
+{# ── FINAL CTA (dark) ── #}
+<section class="hm-final">
+  <div class="hw">
+    <div class="hm-final__in">
+      <div class="hm-final__glow" aria-hidden="true"></div>
+      <p class="hm-final__k">Join the index</p>
+      <h2 class="hm-final__h">Someone you know<br>deserves <em>this stage.</em></h2>
+      <p class="hm-final__p">Nominate them in a few minutes — free, OTP-verified, reviewed by a panel of African judges.</p>
+      <div class="hm-final__cta">
+        <a class="hm-btn hm-btn--p" href="/nominate">Submit a nomination</a>
+        <a class="hm-btn hm-btn--o" href="/account/register">Register a profile</a>
+      </div>
+    </div>
+  </div>
+</section>
 {% endblock %}
 
 {% block foot_scripts %}
-<script>
-(function(){
-  /* Hero rotator — masked seamless slot (one word visible, single-direction glide) */
-  var list=document.getElementById('rotList');
-  if(list && !matchMedia('(prefers-reduced-motion: reduce)').matches){
-    var n=list.children.length-1, step=1.32, i=0;
-    list.classList.add('is-anim');
+<script nonce="{{ csp_nonce }}">
+  /* Hero word rotator — recognised → remembered → celebrated → immortalised.
+     Respects prefers-reduced-motion (stays on the first word). */
+  (function(){
+    var box = document.getElementById('hmRot'); if(!box) return;
+    var w = box.querySelector('.hm-rot__w'); if(!w) return;
+    var words = ['recognised.','remembered.','celebrated.','immortalised.'];
+    if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    var i = 0, EASE = 'transform .42s cubic-bezier(.22,1,.36,1), opacity .42s';
     setInterval(function(){
-      i++; list.style.transform='translateY(-'+(i*step)+'em)';
-      if(i===n){ setTimeout(function(){
-        list.classList.remove('is-anim'); i=0; list.style.transform='translateY(0em)';
-        void list.offsetWidth; list.classList.add('is-anim');
-      },640); }
-    },2800);
-  }
-  /* Cut-out images — reveal only the ones that actually load (drop a PNG in to populate) */
-  document.querySelectorAll('img.r26-cutout[data-cutout]').forEach(function(img){
-    var show=function(){ if(img.naturalWidth>1) img.classList.add('is-loaded'); };
-    if(img.complete) show(); else img.addEventListener('load', show);
-  });
-})();
+      i = (i + 1) % words.length;
+      w.style.transition = EASE;
+      w.style.transform = 'translateY(-110%)'; w.style.opacity = '0';   // current word slides up & out
+      setTimeout(function(){
+        w.style.transition = 'none';
+        w.textContent = words[i];
+        w.style.transform = 'translateY(110%)'; w.style.opacity = '0';  // next word waits below
+        void w.offsetHeight;                                            // reflow so the jump isn't animated
+        w.style.transition = EASE;
+        w.style.transform = 'translateY(0)'; w.style.opacity = '1';     // …then slides up into place
+      }, 430);
+    }, 2800);
+  })();
+
+  /* Liveliness: scroll-reveal for sections + count-up for the stat strip.
+     Progressive enhancement (nothing is hidden without JS) and fully skipped
+     under prefers-reduced-motion. */
+  (function(){
+    if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    if (!('IntersectionObserver' in window)) return;
+
+    // Reveal: sections drift up as they enter the viewport.
+    // FAIL-OPEN by design: anything already in view reveals immediately (no
+    // dependence on observer timing), and a safety timer reveals the whole
+    // page after 3s no matter what — content can never be stranded invisible
+    // in a throttled tab, prerender, or any browser where IO misbehaves.
+    var toReveal = document.querySelectorAll('.hm-feat, .hm-lbsec, .hm-stats, .hm-leg__in, .hm-final__in');
+    var ro = new IntersectionObserver(function(entries){
+      entries.forEach(function(en){
+        if (en.isIntersecting){ en.target.classList.add('is-in'); ro.unobserve(en.target); }
+      });
+    }, { rootMargin: '0px 0px -8% 0px', threshold: 0.08 });
+    toReveal.forEach(function(el){
+      el.classList.add('hm-rev');
+      var r = el.getBoundingClientRect();
+      if (r.top < window.innerHeight * 0.92 && r.bottom > 0) el.classList.add('is-in');
+      else ro.observe(el);
+    });
+    setTimeout(function(){
+      document.querySelectorAll('.hm-rev:not(.is-in)').forEach(function(el){ el.classList.add('is-in'); });
+      ro.disconnect();
+    }, 3000);
+
+    // Count-up: tick from 0 to the value, then restore the EXACT server text
+    // (so formatted strings like "0–1,000" end pixel-identical).
+    var co = new IntersectionObserver(function(entries){
+      entries.forEach(function(en){
+        if (!en.isIntersecting) return;
+        co.unobserve(en.target);
+        var el = en.target, target = parseInt(el.getAttribute('data-countup'), 10);
+        var finalText = el.textContent;
+        if (!target || target < 2){ return; }
+        var t0 = null, DUR = Math.min(1600, 500 + target);
+        el.classList.add('is-ticking');
+        function frame(ts){
+          if (t0 === null) t0 = ts;
+          var p = Math.min(1, (ts - t0) / DUR);
+          var eased = 1 - Math.pow(1 - p, 3);
+          el.textContent = Math.round(target * eased).toLocaleString();
+          if (p < 1) requestAnimationFrame(frame);
+          else { el.textContent = finalText; el.classList.remove('is-ticking'); }
+        }
+        requestAnimationFrame(frame);
+      });
+    }, { threshold: 0.4 });
+    document.querySelectorAll('[data-countup]').forEach(function(el){ co.observe(el); });
+  })();
+
+  /* Pulse deck: Lottie illustrations (lottie-web, MIT — self-hosted JSON, see
+     /assets/anim/NOTICE.md) + slot rotation. Animations only play while the
+     deck is on screen; rotation pauses on hover and in hidden tabs; reduced
+     motion gets static first frames and no rotation. */
+  (function(){
+    var deck = document.getElementById('hmReels');
+    if (!deck) return;
+    var reduced = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+    // ── Lottie illustrations ──
+    var mounts = deck.querySelectorAll('[data-lottie]');
+    if (mounts.length){
+      var s = document.createElement('script');
+      s.src = '/assets/js/vendor/lottie-web-5.12.2.light.min.js';
+      s.defer = true;
+      s.onload = function(){
+        var anims = [];
+        mounts.forEach(function(m){
+          try{
+            anims.push(lottie.loadAnimation({
+              container: m, renderer: 'svg', loop: true, autoplay: false,
+              path: m.getAttribute('data-lottie'),
+              rendererSettings: { preserveAspectRatio: 'xMidYMid meet', progressiveLoad: true }
+            }));
+          }catch(e){}
+        });
+        if (reduced){
+          anims.forEach(function(a){ a.addEventListener('DOMLoaded', function(){ a.goToAndStop(a.totalFrames * 0.5, true); }); });
+          return;
+        }
+        // Play only while visible (battery + CPU courtesy).
+        if ('IntersectionObserver' in window){
+          var vio = new IntersectionObserver(function(en){
+            anims.forEach(function(a){ en[0].isIntersecting ? a.play() : a.pause(); });
+          }, { threshold: 0.15 });
+          vio.observe(deck);
+        } else {
+          anims.forEach(function(a){ a.play(); });
+        }
+      };
+      s.onerror = function(){ /* CSS footage beneath remains the fallback */ };
+      document.head.appendChild(s);
+    }
+
+    // ── CPI dial odometer: climbs with the arc (6s loop), holds, resets ──
+    var num = deck.querySelector('[data-cpiviz-num]');
+    if (num){
+      var TARGET = 872, LOOP = 6000, CLIMB = 2760; // matches the arc keyframes
+      if (reduced){ num.textContent = TARGET; }
+      else {
+        var t0 = performance.now();
+        (function dial(ts){
+          var t = (ts - t0) % LOOP;
+          if (t < CLIMB){
+            var p = t / CLIMB, eased = 1 - Math.pow(1 - p, 3);
+            num.textContent = Math.round(TARGET * eased);
+          } else if (t < LOOP * 0.88){
+            num.textContent = TARGET;
+          } else {
+            num.textContent = 0;
+          }
+          requestAnimationFrame(dial);
+        })(t0);
+      }
+    }
+
+    // ── Slot rotation: left → center → right → left, every 4.5s ──
+    if (reduced) return;
+    var SLOTS = ['is-left', 'is-center', 'is-right'];
+    var paused = false;
+    deck.addEventListener('mouseenter', function(){ paused = true; });
+    deck.addEventListener('mouseleave', function(){ paused = false; });
+    setInterval(function(){
+      if (paused || document.hidden) return;
+      var cards = deck.querySelectorAll('.hm-reel');
+      cards.forEach(function(card){
+        var i = SLOTS.findIndex(function(c){ return card.classList.contains(c); });
+        if (i === -1) return;
+        card.classList.remove(SLOTS[i]);
+        card.classList.add(SLOTS[(i + 1) % SLOTS.length]);
+      });
+    }, 4500);
+  })();
+
+  /* Event countdown — a real ticking "in 2d 4h 12m" chip on the next event. */
+  (function(){
+    var el = document.querySelector('[data-countdown]');
+    if (!el) return;
+    var label = el.querySelector('[data-countdown-label]') || el;
+    var when = new Date(el.getAttribute('data-countdown')).getTime();
+    if (!when || isNaN(when)) return;
+    function tick(){
+      var d = when - Date.now();
+      if (d <= 0){ label.textContent = 'happening now'; return; }
+      var days = Math.floor(d / 864e5), hrs = Math.floor(d % 864e5 / 36e5), min = Math.floor(d % 36e5 / 6e4);
+      label.textContent = 'in ' + (days > 0 ? days + 'd ' : '') + hrs + 'h ' + min + 'm';
+      setTimeout(tick, 30000);
+    }
+    tick();
+  })();
 </script>
 {% endblock %}

@@ -8,21 +8,25 @@
   <div class="ad-card"><div class="ad-card__body">
     <div class="ad-form">
       <div class="row">
-        <div><label>Title</label><input type="text" name="title" value="{{ row.title|default('') }}" required></div>
-        <div><label>Slug</label><input type="text" name="slug" value="{{ row.slug|default('') }}" required></div>
+        <div><label for="f-title">Title</label><input type="text" name="title" id="f-title" value="{{ row.title|default('') }}" required></div>
+        <div><label for="f-slug">Slug</label><input type="text" name="slug" id="f-slug" value="{{ row.slug|default('') }}" required></div>
       </div>
-      <div><label>Subtitle</label><input type="text" name="subtitle" value="{{ row.subtitle|default('') }}"></div>
-      <div><label>Description</label><textarea name="description" rows="4">{{ row.description|default('') }}</textarea></div>
+      <div><label for="f-subtitle">Subtitle</label><input type="text" name="subtitle" id="f-subtitle" value="{{ row.subtitle|default('') }}"></div>
+      <div><label for="f-description">Description</label><textarea name="description" id="f-description" rows="4">{{ row.description|default('') }}</textarea></div>
       <div class="row">
-        <div><label>Icon emoji</label><input type="text" name="icon_emoji" value="{{ row.icon_emoji|default('🏆') }}"></div>
-        <div><label>Scope</label>
-          <select name="scope">{% for s in ['continental','regional','national'] %}<option value="{{ s }}" {% if row.scope == s %}selected{% endif %}>{{ s|capitalize }}</option>{% endfor %}</select>
+        <div><label for="f-icon_emoji">Icon emoji</label><input type="text" name="icon_emoji" id="f-icon_emoji" value="{{ row.icon_emoji|default('🏆') }}"></div>
+        <div><label for="f-scope">Scope</label>
+          <select name="scope" id="f-scope">{% for s in ['continental','regional','national'] %}<option value="{{ s }}" {% if row.scope == s %}selected{% endif %}>{{ s|capitalize }}</option>{% endfor %}</select>
         </div>
       </div>
       <div class="row">
-        <div><label>Sort order</label><input type="number" name="sort_order" value="{{ row.sort_order|default(0) }}"></div>
+        <div><label for="f-sort_order">Sort order</label><input type="number" name="sort_order" id="f-sort_order" value="{{ row.sort_order|default(0) }}"></div>
         <div style="display:flex;align-items:flex-end"><label class="checkbox"><input type="checkbox" name="is_active" {% if row.is_active is not defined or row.is_active %}checked{% endif %}> Active</label></div>
       </div>
+      <div><label for="f-terms">Terms &amp; conditions <small>(surfaced on this programme's nominate/vote forms; editable anytime)</small></label>
+        {% include 'admin/partials/ai-assist.twig' with { target: 'f-terms', kind: 'programme terms & conditions' } only %}
+        <textarea name="terms" id="f-terms" rows="8" data-richtext placeholder="By participating you agree…">{{ row.terms|default('') }}</textarea></div>
+      {% if not is_new and row.slug %}<p style="margin:-4px 0 0;font-size:12px;color:var(--ad-text-mute,#5a6d6f)"><a href="/terms/{{ row.slug }}" target="_blank" rel="noopener" style="color:var(--ad-accent,#237b22);font-weight:600">Preview public terms page →</a></p>{% endif %}
     </div>
   </div></div>
   <div style="display:flex;justify-content:flex-end;gap:10px">

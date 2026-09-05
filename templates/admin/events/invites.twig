@@ -1,0 +1,535 @@
+{% extends 'admin/layout.twig' %}
+
+{#
+  THE INVITATION RUN.
+
+  Read before sent. Every row on this page is a personal letter to somebody who was
+  shortlisted, carrying their own name and their own reference, and none of it can be
+  recalled — so this screen's whole job is to make an operator LOOK before pressing
+  anything: who cannot be reached and why, named individually; how many of each audience
+  against the quota each is being promised; and a preview rendered from a real row.
+
+  Build, read, send — three steps, never one button.
+
+  `formaction` on the send button rather than a second <form>: an HTML parser DISCARDS a
+  <form> start tag inside an open one and the button then posts to the OUTER action. That
+  has shipped three times in this codebase.
+#}
+
+{% block head_styles %}
+<style nonce="{{ csp_nonce }}">
+  .iv-sub{ font-size:13px; color:#5a6d6f; margin:2px 0 18px }
+  .iv-sec{ background:#fff; border:1px solid rgba(16,41,44,.1); border-radius:14px;
+    padding:18px 20px; margin-bottom:14px }
+  .iv-sec h2{ margin:0 0 3px; font-size:14.5px; color:#10292C }
+  .iv-sec p{ margin:8px 0 0; font-size:12.5px; line-height:1.7; color:#5a6d6f }
+  .iv-warn{ background:#fdf6e3; border:1px solid #f3b416; border-radius:14px;
+    padding:16px 18px; margin-bottom:14px; font-size:13px; line-height:1.7; color:#10292C }
+  .iv-warn strong{ display:block; margin-bottom:4px }
+  .iv-num{ text-align:right; font-variant-numeric:tabular-nums; white-space:nowrap }
+  .iv-mute{ color:#8a9a9c }
+  .iv-who{ font-size:11px; color:#8a9a9c }
+  .iv-act{ display:flex; gap:12px; align-items:center; flex-wrap:wrap; margin-top:14px }
+  .iv-act .hint{ font-size:12px; color:#5a6d6f; margin:0 }
+  .iv-bad{ margin:12px 0 0; font-size:12.5px; color:#5a6d6f }
+  .iv-bad summary{ cursor:pointer; color:#10292C }
+  .iv-bad ul{ margin:8px 0 0 18px; line-height:1.8 }
+
+  /* One person the platform has no address for, and the box to give them one. */
+  .iv-addr{ list-style:none; margin:10px 0 0; padding:0 }
+  .iv-addr > li{ padding:12px 0; border-top:1px solid rgba(16,41,44,.08) }
+  .iv-addr > li:first-child{ border-top:none }
+  .iv-addr__row{ display:flex; flex-wrap:wrap; gap:8px; align-items:center; margin-top:8px }
+  .iv-addr__row input{ flex:1 1 260px; min-width:0; min-height:40px; box-sizing:border-box;
+    padding:0 12px; font:inherit; font-size:14px; border:1px solid rgba(16,41,44,.18);
+    border-radius:8px; background:#fff; color:#10292C }
+  .iv-addr__row input:focus{ outline:none; border-color:#237b22;
+    box-shadow:0 0 0 3px rgba(35,123,34,.16) }
+  /* Visually hidden, not absent: every box needs a name a screen reader can read, and
+     the placeholder is not one — it disappears the moment somebody starts typing. */
+  .iv-addr__lab{ position:absolute; width:1px; height:1px; padding:0; margin:-1px;
+    overflow:hidden; clip:rect(0 0 0 0); white-space:nowrap; border:0 }
+  .iv-scroll{ overflow-x:auto }
+</style>
+{% endblock %}
+
+{% block content %}
+<h1>Invitations</h1>
+<p class="iv-sub">{{ event.title }} · {{ event.event_date|when_zoned }}
+  · <a href="/admin/events/{{ event.id }}">back to the event</a></p>
+
+{# ── WHY THERE IS NOBODY, WHEN THERE IS NOBODY ──────────────────────────────
+   This used to be one line gated on `event.programme_id` — the SINGLE-programme column
+   that the multi-programme migration folds into the join table. So on any migrated
+   install it is null, and this page said "no award programme is linked to this event"
+   for every event including the ones that were.
+
+   And behind that line were four more failures that all rendered as a table of zeroes:
+   an unmigrated database, no cycle, an unpublished shortlist, no panel. `readiness()`
+   walks them and each one names its own fix and where to go, because there is no shell
+   on this host to go and look with. #}
+{% set hard = blockers|filter(b => b.hard)|length > 0 %}
+
+{% if blockers|length %}
+  <div class="iv-warn">
+    <strong>{% if hard %}There is nobody to invite yet.{% else %}Some of this evening is not ready.{% endif %}</strong>
+    <ul style="margin:8px 0 0 18px;line-height:1.8;padding:0">
+      {% for b in blockers %}
+        <li>{{ b.what }}
+          <span class="iv-mute">{{ b.fix }}</span>
+          {% if b.href %}<a href="{{ b.href }}">Go there →</a>{% endif %}
+        </li>
+      {% endfor %}
+    </ul>
+
+    {# The one blocker with no route out of it. `/__setup/migrate` skips a step the
+       ledger records as applied, so an operator in that state has been told to do the
+       only thing that cannot work. Superadmin only; the controller checks too. #}
+    {# `|filter`, not `for … if` — Twig 3 removed the inline condition on a for tag and
+       the whole page 500s on it. #}
+    {% for b in blockers|filter(b => b.rerun|default('')) %}
+      <form method="post" action="/admin/events/{{ event.id }}/invites/repair" style="margin-top:10px">
+        <input type="hidden" name="_token" value="{{ csrf_token }}">
+        {# Which step, because there is more than one repair offerable here now. The
+           controller whitelists it — a posted filename is never taken as given. #}
+        <input type="hidden" name="step" value="{{ b.rerun }}">
+        <button class="ad-btn" type="submit">{{ b.rerun_label|default('Apply this setup step now') }}</button>
+        <span class="iv-mute" style="margin-left:8px">Applies <code>{{ b.rerun }}</code> again. Safe to press twice.</span>
+      </form>
+    {% endfor %}
+  </div>
+{% endif %}
+
+{% if not hard %}
+
+  <form method="post" action="/admin/events/{{ event.id }}/invites/build">
+    <input type="hidden" name="_token" value="{{ csrf_token }}">
+
+    {# ── who would be invited ─────────────────────────────────────────────── #}
+    <div class="iv-sec">
+      <h2>Who is invited</h2>
+      {# Plural, and read from the join table. One gala night hands out several awards, and
+         naming them is what tells an operator whether the list in front of them is the
+         whole evening or one programme of it. #}
+      <p>From the published shortlist of
+         {% for p in programmes %}<strong>{{ p.title }}</strong>{% if not loop.last %}{{ loop.revindex0 == 1 ? ' and ' : ', ' }}{% endif %}{% endfor %},
+         and the panel that judged {{ programmes|length > 1 ? 'them' : 'it' }}.
+         Nothing is minted by opening this page.</p>
+
+      <div class="iv-scroll">
+        <table class="ad-table">
+          <thead>
+            <tr><th>Audience</th><th class="iv-num">Reachable</th><th class="iv-num">Unreachable</th>
+                <th class="iv-num">Already invited</th><th class="iv-num">Guests each</th></tr>
+          </thead>
+          <tbody>
+          {% for key, g in plan %}
+            <tr>
+              <td>{{ g.audience.label }}
+                {# ── A ROW OF ZEROES HAS TO SAY WHY ──────────────────────────
+                   The whole reason readiness() exists: five different failures all
+                   render as the same empty row, and an operator watching judges appear
+                   while nominees stay at nought cannot tell "no shortlist published"
+                   from "the nominee half is broken". The banner above carries the
+                   detail; this puts the fact next to the number it explains. #}
+                {% if g.ready|length == 0 and g.unreachable|length == 0 and g.already == 0 %}
+                  <small style="display:block;color:var(--ad-text-soft)">
+                    {% if key == 'nominee' %}No published shortlist to draw from — see above.
+                    {% else %}Nobody on this list yet — see above.{% endif %}
+                  </small>
+                {% endif %}
+              </td>
+              <td class="iv-num">{{ g.ready|length }}</td>
+              <td class="iv-num">
+                {% if g.unreachable|length %}<span class="ad-chip ad-chip--gold">{{ g.unreachable|length }}</span>
+                {% else %}0{% endif %}
+              </td>
+              <td class="iv-num">{{ g.already }}</td>
+              <td class="iv-num">{{ g.audience.quota }} · {{ discount }}% off</td>
+            </tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      </div>
+
+      {% for key, g in plan %}
+        {% if g.unreachable|length %}
+          <details class="iv-bad">
+            <summary><strong>{{ g.unreachable|length }} {{ g.audience.label|lower }} cannot be written to</strong></summary>
+            {# ── AN ADDRESS THE ORGANISER KNOWS AND THE PLATFORM DOES NOT ────
+               A nominee's address comes from their linked profile or the nomination that
+               named them, and plenty of real nominations arrive without one — somebody
+               nominated by a colleague who knew their name and not their inbox. They used
+               to sit here captioned "cannot be written to" with nothing to do about it.
+
+               `formaction`, NOT a nested <form>: this block is inside the build form, and
+               a form inside a form is DELETED by the parser — the children survive and
+               post to the outer action, which here would build the list instead. Three of
+               those have shipped in this codebase.
+
+               Every row's box posts together, so the pressed button's own name and value
+               are what say which row was meant. #}
+            <ul class="iv-addr">
+              {% for u in g.unreachable %}
+                {% set k = u.judge_id|default(0) > 0 ? 'judge:' ~ u.judge_id : 'nominee:' ~ u.nominee_id %}
+                <li>
+                  <div><strong>{{ u.name }}</strong>
+                    {% if u.category|default('') %}<span class="iv-mute"> · {{ u.category }}</span>{% endif %}
+                  </div>
+                  <div class="iv-mute">{{ u.why }}</div>
+                  <div class="iv-addr__row">
+                    <label class="iv-addr__lab" for="addr-{{ k }}">Address for {{ u.name }}</label>
+                    <input id="addr-{{ k }}" type="email" name="addr[{{ k }}]"
+                           placeholder="their email address" autocomplete="off">
+                    <button class="ad-btn" type="submit" name="mint_for" value="{{ k }}"
+                            formaction="/admin/events/{{ event.id }}/invites/address"
+                            formnovalidate>Add and invite</button>
+                  </div>
+                </li>
+              {% endfor %}
+            </ul>
+            <p>Nothing is guessed: an invitation carrying the wrong person's name and
+               personal reference cannot be taken back. The address you type is kept on the
+               invitation, not written back onto the nomination — that is somebody else's
+               submission and the record the panel read.</p>
+          </details>
+        {% endif %}
+      {% endfor %}
+
+      <div class="iv-act">
+        <button class="ad-btn ad-btn--primary" type="submit">Build the invitation list</button>
+        <p class="hint">Adds only who is new. Sends nothing.</p>
+      </div>
+    </div>
+  </form>
+
+  {# ── CHECK IT BEFORE ANYBODY RECEIVES IT ────────────────────────────────
+     Three things that could not be reached before, and every one of them is
+     something you want BEFORE the run rather than after it.
+
+     Each is its own <form>. A form inside a form is DISCARDED by the parser —
+     the children survive and post to the outer action — and that has shipped
+     three times in this codebase, so these are siblings of the build form
+     rather than nested in it. #}
+  <div class="iv-sec">
+    <h2>Check it first</h2>
+    <p>Everything below reads a real invitation — the first on the list, or a sample
+       when there is none yet. Nothing here sends to an invitee and nothing is recorded
+       against the run.</p>
+
+    {% set ref = invites|length ? invites[0].reference|url_encode : 'sample' %}
+
+    <div class="iv-act">
+      <a class="ad-btn" href="/admin/events/{{ event.id }}/invites/{{ ref }}/preview"
+         target="_blank" rel="noopener">Read the email</a>
+      {# The letter was only ever rendered inside the send path, so the one document
+         this run puts in front of a nominee could not be looked at by the person
+         sending it. This is the same call the attachment builder makes. #}
+      <a class="ad-btn" href="/admin/events/{{ event.id }}/invites/{{ ref }}/letter.pdf"
+         target="_blank" rel="noopener">Open the letter (PDF)</a>
+      {# The reminder is composed from a sentence typed on another screen and wrapped
+         in copy nobody here has read, then posted by a cron. Of everything this run
+         sends it is the ONLY message an operator cannot otherwise see before it goes. #}
+      <a class="ad-btn" href="/admin/events/{{ event.id }}/invites/{{ ref }}/reminder"
+         target="_blank" rel="noopener">Read the reminder</a>
+    </div>
+
+    {# ── A REAL SEND, TO YOU ─────────────────────────────────────────────
+       A preview in a browser tab proves the markup. It does not prove SMTP works,
+       that the letter attaches, or what Gmail does to the layout — and the run is
+       irreversible, so the only honest rehearsal is a real message to yourself. #}
+    <form class="ad-form" method="post" action="/admin/events/{{ event.id }}/invites/test" style="margin-top:16px">
+      <input type="hidden" name="_token" value="{{ csrf_token }}">
+      <fieldset style="border:0;padding:0;margin:0;min-width:0">
+        <legend style="display:block;font-weight:600;font-size:12.5px;color:var(--ad-text);margin-bottom:6px;padding:0">
+          Send one to yourself
+          <small style="display:block;font-weight:400;color:var(--ad-text-soft)">the real invitation, with the letter and the picture attached — nothing is marked sent</small>
+        </legend>
+        <div class="iv-act">
+          <input type="email" name="to" value="{{ admin_email|default('') }}"
+                 placeholder="you@example.com" style="max-width:280px" aria-label="Send the test to">
+          <button class="ad-btn" type="submit">Send the test</button>
+        </div>
+      </fieldset>
+    </form>
+  </div>
+
+  {# ── THE PICTURE THAT TRAVELS WITH IT ───────────────────────────────────
+     There was no way to add one. The field behind it lives on the event form as
+     `type="url"`, and the attachment builder refuses anything beginning `http`
+     because an attachment has to be a file on this disk — so the only value the
+     form accepted was the one value the mailer threw away, and no invitation has
+     ever carried a picture. An upload produces a local path by construction. #}
+  <div class="iv-sec">
+    <h2>The invitation image</h2>
+    <p>Attached to every letter in this run, and shown at the top of the email.
+       This is the event's cover picture — it is used on the ticket and the event page
+       too, so changing it here changes it there.</p>
+
+    {% if event.cover_image %}
+      <p style="margin-top:12px">
+        <img src="/{{ event.cover_image|trim('/') }}" alt="The current invitation image"
+             style="display:block;max-width:320px;width:100%;height:auto;border-radius:10px;border:1px solid var(--ad-line,#e5eae8)">
+      </p>
+      <form method="post" action="/admin/events/{{ event.id }}/invites/image"
+            data-confirm="Remove the invitation image? The ticket and the event page use it too.">
+        <input type="hidden" name="_token" value="{{ csrf_token }}">
+        <input type="hidden" name="remove" value="1">
+        <div class="iv-act"><button class="ad-btn" type="submit">Remove it</button></div>
+      </form>
+    {% else %}
+      <p class="iv-mute" style="margin-top:10px">No picture yet — the letters will go out without one.</p>
+    {% endif %}
+
+    <form class="ad-form" method="post" action="/admin/events/{{ event.id }}/invites/image"
+          enctype="multipart/form-data" style="margin-top:14px">
+      <input type="hidden" name="_token" value="{{ csrf_token }}">
+      <div class="iv-act">
+        <input type="file" name="cover" accept="image/jpeg,image/png,image/webp"
+               style="max-width:320px" aria-label="Choose an invitation image">
+        <button class="ad-btn ad-btn--primary" type="submit">Use this picture</button>
+      </div>
+      <p class="hint">JPEG, PNG or WebP, at least 900px wide. Anything over 2.5MB is dropped
+         rather than attached, so a letter never bounces on size.</p>
+    </form>
+  </div>
+
+  <form method="post" action="/admin/events/{{ event.id }}/invites/build">
+    <input type="hidden" name="_token" value="{{ csrf_token }}">
+
+    {# ── the list, and sending it ─────────────────────────────────────────── #}
+    {% if invites|length %}
+      <div class="iv-sec">
+        <h2>The list</h2>
+        <p>{{ sent_count }} sent · {{ pending }} still to go
+          {%- if lowest_tier %} · guests start at ₦{{ lowest_tier.price_naira|number_format }}
+          ({{ lowest_tier.name }}){% endif %}</p>
+
+        <div class="iv-scroll">
+          <table class="ad-table">
+            <thead>
+              <tr><th>Name</th><th>Audience</th><th>Reference &amp; guest code</th>
+                  <th class="iv-num">Guests</th><th>Sent</th><th>Opened</th>
+                  <th>Arrived</th><th></th></tr>
+            </thead>
+            <tbody>
+            {% for i in invites %}
+              <tr>
+                <td>{{ i.name }}<br><span class="iv-who">{{ i.email }}</span></td>
+                <td>{{ i.audience }}</td>
+                <td><code>{{ i.reference }}</code></td>
+                <td class="iv-num">{{ i.guest_quota }}</td>
+                <td>{% if i.sent_at %}<span class="ad-chip ad-chip--green">{{ i.sent_at|when }}</span>
+                    {% else %}<span class="ad-chip ad-chip--grey">not yet</span>{% endif %}</td>
+                <td>{% if i.opened_at %}{{ i.opened_at|when }}{% else %}<span class="iv-mute">—</span>{% endif %}</td>
+                {# ── WHEN, AND THROUGH WHICH GATE ──────────────────────────
+                   This was the bare number `i.scans` and nothing else, while the row
+                   underneath it carried `last_scan_at` and `last_scan_via` — both written
+                   at every admission and rendered nowhere. So an organiser looking at
+                   their nominee list could see "3" and not when any of it happened or
+                   where, on the one screen that answers "did they come?".
+
+                   The gate matters as much as the time: `last_scan_via` exists because,
+                   as its migration put it, without it "the record of an evening says a
+                   volunteer's scan was nobody's" — and a ceremony with a main gate and a
+                   VIP door needs to know which one somebody walked through. #}
+                <td>
+                  {%- if i.scans %}
+                    <span class="ad-chip ad-chip--green">{{ i.last_scan_at ? i.last_scan_at|when : 'yes' }}</span>
+                    {%- if i.last_scan_via %}<br><span class="iv-who">{{ i.last_scan_via }}</span>{% endif %}
+                    {%- if i.scans > 1 %}<br><span class="iv-mute">{{ i.scans }} scans</span>{% endif %}
+                  {%- else %}<span class="iv-mute">—</span>{% endif -%}
+                </td>
+                <td><a href="/admin/events/{{ event.id }}/invites/{{ i.reference|url_encode }}/preview"
+                       target="_blank" rel="noopener">Preview</a></td>
+              </tr>
+            {% endfor %}
+            </tbody>
+          </table>
+        </div>
+
+        {% if pending %}
+          <div class="iv-act">
+            <button class="ad-btn ad-btn--gold" type="submit"
+                    formaction="/admin/events/{{ event.id }}/invites/send"
+                    data-confirm="Send up to {{ batch }} invitations now? Each one is a personal letter and cannot be recalled.">
+              Send the next {{ batch }}
+            </button>
+            <p class="hint">{{ pending }} still to go. Batched because each invitation renders
+              a PDF and does an SMTP round trip — press again until the count reaches zero.</p>
+          </div>
+        {% else %}
+          <p>Everybody on this list has been written to.</p>
+        {% endif %}
+      </div>
+    {% endif %}
+  </form>
+
+  {# ── REMINDERS ──────────────────────────────────────────────────────────
+     OUTSIDE the build form, deliberately. A `<form>` opened while another is
+     already open is not nested by the HTML parser — the start tag is DROPPED and
+     the children are adopted by the outer form — so anything with a button in here
+     would post to /invites/build. Three of those have shipped in this codebase.
+
+     There is nothing to submit here anyway: the schedule lives on the settings
+     screen, because it applies to every ceremony rather than this one. What belongs
+     HERE is the state — which marks have gone, which is next — because this is the
+     only screen that knows which event you are asking about. #}
+  {% if invites|length %}
+    <div class="iv-sec">
+      <h2>Reminders</h2>
+
+      {% if not reminders.enabled %}
+        <p><span class="ad-chip ad-chip--grey">off</span>
+           No reminders will be sent for this ceremony or any other.
+           <a href="/admin/settings#f-invite_reminder_enabled">Turn them on in Settings &rarr;</a></p>
+      {% elseif reminders.days is null %}
+        <p><span class="ad-chip ad-chip--grey">no date</span>
+           This event has no readable date, so there is nothing to count down to.</p>
+      {% elseif reminders.days < 0 %}
+        <p><span class="ad-chip ad-chip--grey">past</span>
+           This evening has happened. Nothing further will be sent.</p>
+      {% else %}
+        <p>
+          {# The distance, in the words the message itself will use. An operator
+             comparing this screen against a letter somebody forwarded them should
+             not have to translate between "3" and "in 3 days". #}
+          {% if reminders.days == 0 %}<strong>Today.</strong>
+          {% elseif reminders.days == 1 %}<strong>Tomorrow.</strong>
+          {% else %}<strong>In {{ reminders.days }} days.</strong>{% endif %}
+          {{ reminders.audience_count }} guest{{ reminders.audience_count == 1 ? '' : 's' }} of honour
+          {{ reminders.audience_count == 1 ? 'has' : 'have' }} had their invitation and can be reminded.
+          {% if reminders.due %}
+            The <strong>{{ reminders.due }}-day</strong> reminder is the one due now{% if reminders.next and reminders.next < reminders.due %},
+            and the next after it goes {{ reminders.next }} day{{ reminders.next == 1 ? '' : 's' }} out{% endif %}.
+            {# "not gone" and "not gone YET" are the same zero in the table below, and at
+               08:40 the difference between them is the entire question. #}
+            {% if not reminders.open %}
+              <br><span class="iv-mute">Today's window has not opened — nothing goes before
+              {{ reminders.time }}{% if reminders.zone %} {{ reminders.zone }}{% endif %}.</span>
+            {% endif %}
+          {% else %}
+            {# reminders.next, not marks|first: they are the same number today and stop
+               being the same the moment an operator edits the schedule to something whose
+               largest mark is already behind us. The panel must name the mark that will
+               actually fire. #}
+            Nothing is due yet — reminders start
+            <strong>{{ reminders.next|default(reminders.marks|first) }} days</strong> out.
+          {% endif %}
+        </p>
+
+        <div class="iv-scroll">
+          <table class="ad-table">
+            <thead><tr><th>Mark</th><th>Letter</th><th>State</th><th class="iv-num">Sent</th></tr></thead>
+            <tbody>
+            {% for m in reminders.sent %}
+              <tr>
+                <td>{{ m.mark }} day{{ m.mark == 1 ? '' : 's' }} out</td>
+                {# The arc, named. A mark outside it sends the short reminder instead, and
+                   saying so is the difference between "day 21 sends nothing" and "day 21
+                   sends the nudge". #}
+                <td>{% if m.letter %}{{ m.letter }}<span class="iv-mute"> · {{ m.letter_judge ? 'nominees and panel' : 'nominees' }}</span>
+                    {% else %}<span class="iv-mute">short reminder</span>{% endif %}</td>
+                <td>
+                  {# THREE states, not two. "Due now" and "not yet" and "behind us"
+                     all render as a count of zero, and they are opposite problems:
+                     one is about to send, one will send later, and one never will. #}
+                  {% if m.due %}<span class="ad-chip ad-chip--gold">due now</span>
+                  {% elseif m.past %}<span class="ad-chip ad-chip--grey">behind us</span>
+                  {% else %}<span class="ad-chip ad-chip--grey">not yet</span>{% endif %}
+                </td>
+                <td class="iv-num">{{ m.count }}</td>
+              </tr>
+            {% endfor %}
+            </tbody>
+          </table>
+        </div>
+
+        <p class="hint" style="margin-top:10px">
+          Sent by the maintenance run from <strong>{{ reminders.time }}{% if reminders.zone %} {{ reminders.zone }}{% endif %}</strong>,
+          up to {{ reminders.marks|length }} time{{ reminders.marks|length == 1 ? '' : 's' }} in all —
+          never before that hour, and never to somebody whose invitation has not gone yet.
+          A large hall keeps sending through the day until everyone has been written to.
+          The schedule, the time and the wording are in
+          <a href="/admin/settings#f-invite_reminder_days">Settings &rarr; Invitations</a>.
+        </p>
+      {% endif %}
+    </div>
+  {% endif %}
+
+  {# ── THE COUNTDOWN LETTERS ───────────────────────────────────────────────
+     Its own form, and OUTSIDE the build form above — a `<form>` opened while
+     another is open has its start tag dropped by the parser and its children
+     adopted by the outer one, so every button in here would post to
+     /invites/build. Three of those have shipped in this codebase. #}
+  <div class="iv-sec" id="letters">
+    <h2>The countdown letters</h2>
+    <p>Five letters over the final week — why they were trusted, what they stand for,
+       their own responsibility, the message they will carry, and what to say when they
+       reach the red carpet. Written twice: a nominee is honoured for work they did, a
+       judge for a decision they made about somebody else's. The wording applies to every
+       ceremony; this one's name, date and venue fill themselves in.</p>
+
+    {% if drafts %}
+      {# Read before saved, always. What is being written is five letters to people
+         receiving an honour in public, in this organisation's name. #}
+      <div class="iv-warn">
+        <strong>Drafts for the {{ draft_audience == 'judge' ? 'panel' : 'nominees' }} — nothing has been changed yet.</strong>
+        Read them, edit anything you want, then save. An empty box is left alone rather
+        than blanked.
+      </div>
+
+      <form method="post" action="/admin/events/{{ event.id }}/invites/letters/save" style="margin-top:12px">
+        <input type="hidden" name="_token" value="{{ csrf_token }}">
+        {# WHICH arc these belong to. Without it the save writes whichever set it
+           assumes, and a panel draft would go out to a shortlist. #}
+        <input type="hidden" name="audience" value="{{ draft_audience }}">
+        {% for d in seq_days %}
+          {% if drafts[d] is defined %}
+            <div style="margin-top:12px">
+              <label for="d-{{ d }}" style="display:block;font-weight:600;font-size:12.5px;margin-bottom:6px">
+                Day {{ d }}
+                <small style="display:block;font-weight:400;color:var(--ad-text-soft)">{% if d == 1 %}the eve — action{% elseif d == 2 %}message{% elseif d == 3 %}responsibility{% elseif d == 4 %}values{% else %}why{% endif %}</small>
+              </label>
+              <textarea id="d-{{ d }}" name="invite_seq_body_{{ draft_audience }}_{{ d }}" rows="10" style="width:100%">{{ drafts[d] }}</textarea>
+            </div>
+          {% endif %}
+        {% endfor %}
+        <div class="iv-act" style="margin-top:12px">
+          <button class="ad-btn ad-btn--gold" type="submit">Save these letters</button>
+          {# formaction on the button, never a second form: form.submit() would drop it,
+             and a nested form would have been deleted by the parser. #}
+          <button class="ad-btn" type="submit"
+                  formaction="/admin/events/{{ event.id }}/invites/letters/discard"
+                  data-confirm="Throw these drafts away? The letters stay as they are.">Discard</button>
+        </div>
+      </form>
+    {% elseif writer_on %}
+      <form method="post" action="/admin/events/{{ event.id }}/invites/letters/draft">
+        <input type="hidden" name="_token" value="{{ csrf_token }}">
+        <div style="margin-top:6px">
+          <label for="steer" style="display:block;font-weight:600;font-size:12.5px;margin-bottom:6px">
+            Anything the letters should carry
+            <small style="display:block;font-weight:400;color:var(--ad-text-soft)">optional — the ceremony's own name, theme, date and venue are already known</small>
+          </label>
+          <input type="text" id="steer" name="steer" maxlength="600" style="width:100%"
+                 placeholder="e.g. these are head teachers, keep it plain and avoid corporate language">
+        </div>
+        <div class="iv-act" style="margin-top:10px">
+          {# Two buttons, one form, distinguished by the VALUE they submit — not two
+             forms. A `<form>` opened inside another has its start tag dropped by the
+             parser and its children adopted by the outer one. #}
+          <button class="ad-btn" type="submit" name="audience" value="nominee">Draft the nominee letters</button>
+          <button class="ad-btn" type="submit" name="audience" value="judge">Draft the panel letters</button>
+          <p class="hint">Written from this event, for you to read and edit. Nothing is saved
+            and nothing is sent until you press save.</p>
+        </div>
+      </form>
+    {% else %}
+      <p class="iv-mute">The writer is unavailable — no AI provider is configured, or the
+        feature is switched off. The letters can still be written by hand in
+        <a href="/admin/settings#f-invite_seq_body_nominee_5">Settings &rarr; Invitations</a>.</p>
+    {% endif %}
+  </div>
+{% endif %}
+{% endblock %}

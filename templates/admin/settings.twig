@@ -1,21 +1,1803 @@
 {% extends "admin/layout.twig" %}
 {% block topbar_title %}Settings{% endblock %}
 {% block content %}
-<form class="ad-form" method="post" action="/admin/settings">
+{# ── THIRTEEN CARDS IN ONE SCROLL WAS THE PROBLEM ────────────────────────────
+
+   Every setting on this platform — the announcement banner, SMTP secrets,
+   moderation thresholds, AI keys, the cron token, vote pricing — lived in one
+   flat 350-line column with a single Save button at the very bottom. Changing
+   the per-vote price meant scrolling past the mail log to find the field and
+   then scrolling past four more cards to save it, and there was no way to answer
+   "where is the setting for X?" except by reading everything.
+
+   ── WHY GROUPS AND SEARCH, AND NOT A SPLIT INTO PAGES ────────────────────────
+
+   Splitting into /admin/settings/mail, /settings/ai and so on is the obvious fix
+   and the wrong one here: this is ONE form and one POST, and the save handler
+   distinguishes "this section was submitted" from "this section was left alone"
+   by whether a marker field is present in the body. Separate pages would mean
+   separate posts and a rewrite of that handler for no gain the admin can see.
+
+   So the cards stay in one form and one request; only their VISIBILITY changes.
+   Hidden cards are still in the DOM and still post their fields, which is what
+   makes this safe — switching groups cannot drop a value, and neither can saving
+   from a group you did not open.
+
+   Search cuts across the groups because "which group is the OTP expiry in?" is
+   the question the groups themselves cannot answer.
+
+   Degrades honestly, and deliberately without `x-cloak`: if Alpine never boots,
+   no x-show runs, every card renders, and the page is exactly the long column it
+   was before. Cloaking would trade a sub-frame flash for a blank settings page on
+   any host where the script fails — the wrong side of that bargain for the screen
+   that holds the SMTP and gateway configuration. #}
+<style nonce="{{ csp_nonce }}">
+  .st-bar{position:sticky;top:0;z-index:20;background:var(--ad-bg,#f6f8f5);padding:12px 0 14px;margin-bottom:4px;border-bottom:1px solid var(--ad-line,#e5eae8)}
+  .st-tabs{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+  .st-tab{border:1px solid var(--ad-line,#e5eae8);background:var(--ad-surface,#fff);color:var(--ad-text,#10292c);border-radius:999px;padding:7px 14px;font-size:12.5px;font-weight:600;cursor:pointer;font:inherit;font-size:12.5px;line-height:1.2}
+  .st-tab[aria-pressed="true"]{background:var(--ad-accent,#237b22);border-color:transparent;color:#fff}
+  .st-search{flex:1;min-width:170px;max-width:280px;padding:7px 12px;border:1px solid var(--ad-line,#e5eae8);border-radius:999px;font-size:12.5px;background:var(--ad-surface,#fff);color:inherit}
+  .st-hint{margin:8px 0 0;font-size:12px;color:var(--ad-text-mute,#61728e)}
+  /* ── one revenue stream's routing ──────────────────────────────────────────
+     Boxed per stream rather than as six loose fields, because the pairing is the whole point:
+     a code belongs to a fee-bearer choice, and reading them as two separate lists is how
+     somebody sets the shop's bearer against the event's account. */
+  .pay-route{border:1px solid var(--ad-line,#e2e8e6);border-radius:12px;padding:12px 14px;margin-bottom:10px;background:var(--ad-surface,#fff)}
+  .pay-route__h{display:flex;align-items:center;gap:9px;margin-bottom:8px}
+  .pay-route__h strong{font-size:13.5px}
+  .pay-route__on,.pay-route__off,.pay-route__bad{font-size:10.5px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;border-radius:999px;padding:3px 9px}
+  .pay-route__on{background:#eef7ee;color:#1a6118}
+  .pay-route__off{background:#f2f4f3;color:#6b7679}
+  .pay-route__bad{background:#fbeceb;color:#9a2a1e}
+  .pay-route__warn{margin:0 0 10px;padding:9px 12px;border-left:3px solid #c2410c;background:#fff7ed;
+    border-radius:0 5px 5px 0;font-size:12.5px;line-height:1.6;color:#7c2d12}
+  .pay-route input,.pay-route select{box-sizing:border-box;max-width:100%}
+  .st-tier{display:grid;grid-template-columns:1fr 1fr auto;gap:8px;align-items:end;margin-bottom:8px}
+  .st-dot{display:inline-block;width:6px;height:6px;border-radius:50%;background:#D8A33C;margin-left:6px;vertical-align:middle}
+  .st-tab[aria-pressed="true"] .st-dot{background:#fff}
+  .st-dirty{font-size:12px;font-weight:600;color:#8a6a1e;background:#fdf3dc;border:1px solid #ecd9a6;border-radius:999px;padding:5px 11px}
+  .st-kbd{font:600 10.5px/1 ui-monospace,monospace;border:1px solid var(--ad-line,#e5eae8);border-bottom-width:2px;border-radius:4px;padding:2px 4px;background:var(--ad-surface,#fff)}
+  .st-none{padding:22px;text-align:center;color:var(--ad-text-mute,#61728e);font-size:13px;border:1px dashed var(--ad-line,#e5eae8);border-radius:12px}
+  @media (max-width:640px){ .st-bar{position:static} }
+</style>
+{# The tab list, once, so the strip and the change-tracker cannot disagree about
+   which groups exist. #}
+{% set st_sections = [
+  {id: 'site',      label: 'Site'},
+  {id: 'mail',      label: 'Email & messaging'},
+  {id: 'media',     label: 'Media'},
+  {id: 'money',     label: 'Payments & voting'},
+  {id: 'integrity', label: 'Integrity'},
+  {id: 'ai',        label: 'AI'},
+  {id: 'ops',       label: 'Automation'},
+] %}
+<div x-data="{
+      sec: 'site',
+      q: '',
+      /* Groups whose fields have been touched since the page loaded. Grouping the
+         cards created a way to lose work that the old single column did not have:
+         edit the vote price, switch to Email to check something, forget, leave. The
+         edited field is off screen and there is nothing to notice. So an edit marks
+         its group, the marks show on the tabs and in the bar, and leaving the page
+         with any of them asks first. */
+      dirty: {},
+      get anyDirty(){ return Object.keys(this.dirty).length > 0 },
+      get dirtyNames(){ return Object.keys(this.dirty).map(k => this.names[k] || k) },
+      names: {{ st_sections|reduce((c, s) => c|merge({(s.id): s.label}), {})|json_encode }},
+
+      /* One predicate for every card, reading the card's own data attributes rather
+         than a duplicated pair of literals in each x-show. With a search term the
+         groups step aside entirely. */
+      show(el){
+        const q = this.q.trim().toLowerCase();
+        if (!q) return this.sec === el.dataset.sec;
+        return (el.dataset.keys || '').toLowerCase().includes(q);
+      },
+      matches(){
+        const q = this.q.trim().toLowerCase();
+        if (!q) return 1;
+        return [...this.$root.querySelectorAll('.ad-card[data-keys]')]
+          .filter(el => (el.dataset.keys || '').toLowerCase().includes(q)).length;
+      },
+      touch(target){
+        const card = target.closest && target.closest('.ad-card[data-sec]');
+        if (card) this.dirty[card.dataset.sec] = true;
+      },
+      go(id){ this.q = ''; this.sec = id; history.replaceState(null, '', '#' + id); },
+
+      init(){
+        /* Restore the group from the URL. The save handler redirects back here with
+           the fragment, so saving no longer dumps the admin on the first tab with no
+           memory of where they were working — which is what grouping cost them. */
+        const h = (location.hash || '').replace('#', '');
+        if (this.names[h]) this.sec = h;
+        else if (h) {
+          /* An anchor INSIDE a group rather than a group id — both probes redirect back
+             as #ai-probe / #sync-probe. Without this the admin lands on the first tab
+             with the results they just asked for hidden, which reads as the probe having
+             done nothing. Resolved from the DOM so a new anchor needs no list kept in
+             step with it. */
+          const card = document.getElementById(h)?.closest('.ad-card[data-sec]');
+          if (card && this.names[card.dataset.sec]) this.sec = card.dataset.sec;
+        }
+        window.addEventListener('beforeunload', (e) => {
+          if (!this.anyDirty || this.saving) return;
+          e.preventDefault(); e.returnValue = '';
+        });
+      },
+      saving: false }"
+     @input="touch($event.target)" @change="touch($event.target)"
+     @submit="saving = true"
+     @keydown.window.slash.prevent="if (!/^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement.tagName)) $refs.q.focus()"
+     @keydown.window.ctrl.s.prevent="$refs.form.requestSubmit()"
+     @keydown.window.meta.s.prevent="$refs.form.requestSubmit()">
+  <div class="st-bar">
+    <div class="st-tabs">
+      {% for s in st_sections %}
+      <button type="button" class="st-tab" :aria-pressed="!q && sec==='{{ s.id }}'" @click="go('{{ s.id }}')">{{ s.label }}<span class="st-dot" x-show="dirty['{{ s.id }}']" x-cloak title="unsaved changes"></span></button>
+      {% endfor %}
+      <label for="st-q" style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)">Search settings</label>
+      <input id="st-q" x-ref="q" class="st-search" type="search" x-model="q" placeholder="Search all settings…  /" autocomplete="off">
+      <span class="st-dirty" x-show="anyDirty" x-cloak x-text="'Unsaved: ' + dirtyNames.join(', ')"></span>
+      {# The save button follows the admin down the page. It was previously reachable
+         only from the very bottom, which on this form is several screens away from
+         most of the fields it saves. #}
+      <button class="ad-btn ad-btn--primary" type="submit" form="st-form" style="margin-left:auto">Save settings <span class="st-kbd" aria-hidden="true">⌘S</span></button>
+    </div>
+    <p class="st-hint" x-show="q.trim()" x-cloak
+       x-text="matches() === 1 ? '1 card matches “' + q.trim() + '” — clear the box to browse by group.' : matches() + ' cards match “' + q.trim() + '” — clear the box to browse by group.'"></p>
+    <p class="st-hint" x-show="!q.trim()">Every group is saved together — switching tabs never discards a change.</p>
+  </div>
+<form id="st-form" x-ref="form" class="ad-form" method="post" action="/admin/settings">
+  {# Comes back as the redirect fragment so a save returns to the group you saved
+     from. A form post drops the URL fragment, so the client cannot preserve this
+     on its own — the server has to put it back. #}
+  <input type="hidden" name="st_section" :value="sec">
   <input type="hidden" name="_token" value="{{ csrf_token }}">
-  <div class="ad-card"><div class="ad-card__head"><div class="ad-card__title">Public site<small>Surfaces on every page</small></div></div><div class="ad-card__body">
+  <div class="ad-card" data-sec="site" data-keys="public site announcement banner text link label site title contact email" x-show="show($el)"><div class="ad-card__head"><div class="ad-card__title">Public site<small>Surfaces on every page</small></div></div><div class="ad-card__body">
     <div class="ad-form">
-      <div><label>Announcement banner text</label><input type="text" name="announce_text" value="{{ values.announce_text|default('') }}"></div>
+      <div><label for="f-announce_text">Announcement banner text</label><input type="text" name="announce_text" id="f-announce_text" value="{{ values.announce_text|default('') }}"></div>
       <div class="row">
-        <div><label>Announcement link URL</label><input type="text" name="announce_url" value="{{ values.announce_url|default('') }}"></div>
-        <div><label>Link label</label><input type="text" name="announce_cta" value="{{ values.announce_cta|default('') }}"></div>
+        <div><label for="f-announce_url">Announcement link URL</label><input type="text" name="announce_url" id="f-announce_url" value="{{ values.announce_url|default('') }}"></div>
+        <div><label for="f-announce_cta">Link label</label><input type="text" name="announce_cta" id="f-announce_cta" value="{{ values.announce_cta|default('') }}"></div>
       </div>
       <div class="row">
-        <div><label>Site title</label><input type="text" name="site_title" value="{{ values.site_title|default('Africa GATES') }}"></div>
-        <div><label>Contact email</label><input type="email" name="contact_email" value="{{ values.contact_email|default('africa-gates@afrovanguard.org.ng') }}"></div>
+        <div><label for="f-site_title">Site title</label><input type="text" name="site_title" id="f-site_title" value="{{ values.site_title|default('Africa GATES') }}"></div>
+        <div><label for="f-contact_email">Contact email</label><input type="email" name="contact_email" id="f-contact_email" value="{{ values.contact_email|default('africa-gates@afrovanguard.org.ng') }}"></div>
+        {# Display timezone. Storage stays UTC; this is what the console SHOWS and how the
+           datetimes typed into it are READ. Labelled with the live abbreviation so an
+           operator setting a deadline can see which clock they are setting it on. #}
+        <div><label for="f-display_timezone">Timezone <span style="font-weight:400;color:var(--ad-text-mute,#5a6d6f)">— shown and entered in this zone (now: {{ tz_abbr }})</span></label>
+          <select name="display_timezone" id="f-display_timezone">
+            {% for tz in tz_choices|default([]) %}<option value="{{ tz }}"{% if tz == tz_current %} selected{% endif %}>{{ tz }}</option>{% endfor %}
+          </select>
+          <div style="font-size:12px;color:var(--ad-text-mute,#5a6d6f);margin-top:4px">Stored times stay in UTC, so changing this re-labels what you see — it does not move any existing deadline.</div>
+        </div>
       </div>
     </div>
   </div></div>
+  <div class="ad-card" data-sec="mail" data-keys="email sender smtp from name address reply-to admin alerts test email delivery health mail log outgoing" x-show="show($el)"><div class="ad-card__head"><div class="ad-card__title">Email &amp; sender<small>{% if smtp_configured %}SMTP is configured — mail sends live.{% else %}SMTP not set — mail is written to var/logs/outgoing-mail.log.{% endif %}</small></div></div><div class="ad-card__body">
+    <div class="ad-form">
+      <div class="row">
+        <div><label for="f-mail_from_name">From name</label><input type="text" name="mail_from_name" id="f-mail_from_name" value="{{ values.mail_from_name|default('Africa GATES') }}"></div>
+        <div><label for="f-mail_from_address">From address <small>must be a sender verified with your mail provider</small></label><input type="email" name="mail_from_address" id="f-mail_from_address" value="{{ values.mail_from_address|default('noreply@afrovanguard.org.ng') }}"></div>
+      </div>
+      <div class="row">
+        <div><label for="f-mail_reply_to">Reply-to <small>where replies should land — optional</small></label><input type="email" name="mail_reply_to" id="f-mail_reply_to" value="{{ values.mail_reply_to|default('') }}" placeholder="africa-gates@afrovanguard.org.ng"></div>
+        <div><label for="f-admin_alert_email">Admin alerts to</label><input type="email" name="admin_alert_email" id="f-admin_alert_email" value="{{ values.admin_alert_email|default('') }}" placeholder="app.admin@afrovanguard.org.ng"></div>
+      </div>
+      <div class="row">
+        <div><label for="f-support_email">Support inbox <small>printed on the site, quoted by the assistant, and where tickets are delivered</small></label><input type="email" name="support_email" id="f-support_email" value="{{ values.support_email|default('') }}" placeholder="gates@afrovanguard.org.ng"></div>
+      </div>
+
+      {# ── THE TRANSPORT ITSELF ──────────────────────────────────────────────
+         These four were readable only from .env. There is no SSH on production, so
+         that meant the card's own heading could report "SMTP not set" directly above
+         a form with no field that could set it — on the platform whose OTP codes gate
+         voting. Resolved by OtpService::boot(): these first, .env as the fallback. #}
+      <div style="margin-top:14px;padding-top:14px;border-top:1px solid var(--ad-line,#e5eae8)">
+        <div class="row">
+          <div><label for="f-mail_smtp_host">SMTP host <small>leave blank for the Brevo relay</small></label><input type="text" name="mail_smtp_host" id="f-mail_smtp_host" value="{{ values.mail_smtp_host|default('') }}" placeholder="smtp-relay.brevo.com"></div>
+          <div><label for="f-mail_smtp_port">Port</label><input type="number" name="mail_smtp_port" id="f-mail_smtp_port" value="{{ values.mail_smtp_port|default('') }}" placeholder="587" min="1" max="65535"></div>
+        </div>
+        <div class="row">
+          <div><label for="f-mail_smtp_user">SMTP username</label><input type="text" name="mail_smtp_user" id="f-mail_smtp_user" value="{{ values.mail_smtp_user|default('') }}" autocomplete="off" placeholder="the login your mail provider issued"></div>
+          <div>
+            <label for="f-mail_smtp_pass">SMTP password <small>stored write-only — never shown again</small></label>
+            <input type="password" name="mail_smtp_pass" id="f-mail_smtp_pass" autocomplete="new-password" placeholder="{% if smtp_pass_set %}•••••••••• (leave blank to keep){% else %}your provider's SMTP key{% endif %}">
+            {% if smtp_pass_set %}<label style="font-size:11px;display:inline-flex;gap:4px;align-items:center"><input type="checkbox" name="secret_clear[smtp_pass]" value="1"> remove</label>{% endif %}
+          </div>
+        </div>
+      </div>
+
+      <div><button class="ad-btn" type="submit" formaction="/admin/settings/smtp-test" formnovalidate>Send a test email to me</button></div>
+
+      {# ── Delivery health: is mail ACTUALLY leaving the building? ── #}
+      <div style="margin-top:14px;padding-top:14px;border-top:1px solid var(--ad-line,#e5eae8)">
+        <div style="display:flex;gap:14px;flex-wrap:wrap;align-items:center;margin-bottom:8px">
+          <strong style="font-size:13px">Delivery — last 24h:</strong>
+          <span class="ad-chip ad-chip--green">{{ mail_health.sent_24h }} sent</span>
+          {% if mail_health.failed_24h > 0 %}<span class="ad-chip ad-chip--red">{{ mail_health.failed_24h }} FAILED</span>{% else %}<span class="ad-chip ad-chip--grey">0 failed</span>{% endif %}
+          {% if mail_health.dev_24h > 0 %}<span class="ad-chip ad-chip--gold" title="SMTP is unconfigured — these went to var/logs/outgoing-mail.log, NOT to inboxes">{{ mail_health.dev_24h }} dev-logged (not delivered)</span>{% endif %}
+        </div>
+        {% if mail_health.last_error %}
+        <div class="ad-flash ad-flash--err" role="alert" style="margin-bottom:10px;font-size:12.5px">Most recent failure: {{ mail_health.last_error }}</div>
+        {% endif %}
+        {% if mail_health.recent is not empty %}
+        <details>
+          <summary style="cursor:pointer;font-size:12.5px;font-weight:600;color:var(--ad-text-soft)">Recent sends ({{ mail_health.recent|length }})</summary>
+          <div class="ad-table-wrap" style="margin-top:8px">
+            <table class="ad-table" style="font-size:12.5px">
+              <thead><tr><th scope="col">When</th><th scope="col">To</th><th scope="col">Subject</th><th scope="col">Status</th></tr></thead>
+              <tbody>
+                {% for m in mail_health.recent %}
+                <tr>
+                  <td style="white-space:nowrap;font-family:'Space Mono',monospace">{{ m.created_at|slice(5,11) }}</td>
+                  <td>{{ m.to_masked }}</td>
+                  <td>{{ m.subject|length > 44 ? m.subject|slice(0,44) ~ '…' : m.subject }}</td>
+                  <td>{% if m.status == 'sent' %}<span class="ad-chip ad-chip--green">sent</span>{% elseif m.status == 'failed' %}<span class="ad-chip ad-chip--red" {% if m.error %}title="{{ m.error }}"{% endif %}>failed</span>{% else %}<span class="ad-chip ad-chip--gold" title="SMTP unconfigured — written to the dev log only">dev log</span>{% endif %}</td>
+                </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </details>
+        {% endif %}
+      </div>
+    </div>
+  </div></div>
+  <div class="ad-card" data-sec="mail" data-keys="invitations invite guests of honour quota nominees judges shortlist ceremony discount percent reason why witness reminders reminder days before countdown celebration legacy schedule time of day when sent sequence letters nominee theme values red carpet" x-show="show($el)"><div class="ad-card__head"><div class="ad-card__title">Invitations<small>What a guest of honour is promised, and the one sentence that says why.</small></div></div><div class="ad-card__body">
+    <div class="ad-form">
+      {# TWO audiences, not three. This began as principals / children / judges, which was
+         a taxonomy invented out of two example programmes — a nominee is a nominee whichever
+         award they were shortlisted for. Which awards a ceremony covers is stated on the
+         EVENT, not here, so there is no programme field on this card. #}
+      <p class="hint" style="margin:0 0 10px">Each guest of honour may bring this many people at a discount. The numbers are written into their letter and into the code their guests spend, so a change here applies to invitations minted from now on.</p>
+      <div class="row">
+        <div><label for="f-invite_quota_nominee">Nominees <small>guests each</small></label><input type="number" name="invite_quota_nominee" id="f-invite_quota_nominee" value="{{ values.invite_quota_nominee|default('') }}" placeholder="25" min="1" max="500"></div>
+        <div><label for="f-invite_quota_judge">Judges <small>guests each</small></label><input type="number" name="invite_quota_judge" id="f-invite_quota_judge" value="{{ values.invite_quota_judge|default('') }}" placeholder="10" min="1" max="500"></div>
+      </div>
+      <div><label for="f-invite_discount_percent">Guest discount <small>per cent off any tier</small></label><input type="number" name="invite_discount_percent" id="f-invite_discount_percent" value="{{ values.invite_discount_percent|default('') }}" placeholder="10" min="1" max="100"></div>
+
+      <div style="margin-top:14px;padding-top:14px;border-top:1px solid var(--ad-line,#e5eae8)">
+        <p class="hint" style="margin:0 0 10px">
+          The sentence that names why the hall is being filled. It reads
+          <em>&ldquo;We want the hall packed&nbsp;&hellip;&rdquo;</em>, so write the continuation.
+          Worth editing per season: an Incredible Principal Award and a Carol Award honour
+          completely different things, and a sentence written to cover both honours neither.
+        </p>
+        <div><label for="f-invite_witness_nominee">Why, for a nominee</label><input type="text" name="invite_witness_nominee" id="f-invite_witness_nominee" value="{{ values.invite_witness_nominee|default('') }}" maxlength="240" placeholder="{{ invite_witness_nominee_default }}"></div>
+        <div style="margin-top:10px"><label for="f-invite_witness_judge">Why, for a judge</label><input type="text" name="invite_witness_judge" id="f-invite_witness_judge" value="{{ values.invite_witness_judge|default('') }}" maxlength="240" placeholder="{{ invite_witness_judge_default }}"></div>
+      </div>
+
+      {# ── REMINDERS ───────────────────────────────────────────────────────
+         The invitation goes once, by hand. These go by themselves, which is why the
+         switch, the schedule and the sentence are all on the same card as the letter
+         they follow — an operator editing what a guest of honour is promised should
+         be able to see, without leaving, what else that guest will receive. #}
+      <div style="margin-top:14px;padding-top:14px;border-top:1px solid var(--ad-line,#e5eae8)">
+        <label style="display:flex;gap:8px;align-items:flex-start;cursor:pointer">
+          <input type="checkbox" name="invite_reminder_enabled" id="f-invite_reminder_enabled" value="1"{% if invite_reminder_on %} checked{% endif %} style="margin-top:3px">
+          <span>Send reminders as the evening approaches
+            <small style="display:block;font-weight:400">Only to guests of honour whose invitation has already been sent. Nobody is reminded of something they were never told.</small>
+          </span>
+        </label>
+
+        <div class="row" style="margin-top:10px">
+          <div><label for="f-invite_reminder_days">Days before the event <small>the largest is when reminders start</small></label>
+            <input type="text" name="invite_reminder_days" id="f-invite_reminder_days" value="{{ values.invite_reminder_days|default('') }}" maxlength="60" placeholder="{{ invite_reminder_days_default }}"></div>
+          {# A schedule with no clock silently means "whenever the cron reaches it", which
+             is not an answer anybody can give when asked what time these go out. The value
+             is RESOLVED rather than echoed, so an operator who has set nothing sees the
+             09:00 that is actually in force. #}
+          <div><label for="f-invite_reminder_time">Time of day <small>{% if invite_reminder_time_zone %}{{ invite_reminder_time_zone }} — {% endif %}when they start going out</small></label>
+            <input type="time" name="invite_reminder_time" id="f-invite_reminder_time" value="{{ invite_reminder_time }}"></div>
+        </div>
+        <p class="hint" style="margin:6px 0 0">
+          {# RESOLVED, not echoed. An operator who has set nothing sees the list that will
+             actually be used rather than an empty box, which is the difference between
+             "reminders are off" and "reminders are on the defaults". #}
+          In use now: <strong>{{ invite_reminder_marks|join(', ') }}</strong> days out,
+          from <strong>{{ invite_reminder_time }}</strong>{% if invite_reminder_time_zone %} {{ invite_reminder_time_zone }}{% endif %}.
+          The time is when they BEGIN — a large hall keeps sending through the day until
+          everyone has been written to, and nothing goes before it. Each mark holds until
+          the next one below it, so a cron that misses a morning still sends, and the
+          message says how many days are actually left rather than the mark it was sent on.
+        </p>
+
+        <p class="hint" style="margin:12px 0 10px">
+          The sentence that carries the celebration. It follows a gold panel reading
+          <em>&ldquo;A Grand Celebration of your name and your legacy &mdash; in 9 days&rdquo;</em>,
+          so write what you would say under that. A whole sentence, not a fragment.
+        </p>
+        <div><label for="f-invite_reminder_line_nominee">Reminder, for a nominee</label><input type="text" name="invite_reminder_line_nominee" id="f-invite_reminder_line_nominee" value="{{ values.invite_reminder_line_nominee|default('') }}" maxlength="400" placeholder="{{ invite_reminder_line_nominee_default }}"></div>
+        <div style="margin-top:10px"><label for="f-invite_reminder_line_judge">Reminder, for a judge</label><input type="text" name="invite_reminder_line_judge" id="f-invite_reminder_line_judge" value="{{ values.invite_reminder_line_judge|default('') }}" maxlength="400" placeholder="{{ invite_reminder_line_judge_default }}"></div>
+      </div>
+
+      {# ── THE COUNTDOWN LETTERS ────────────────────────────────────────────
+         Five letters over the final week, and each only works in its position:
+         WHY → VALUES → RESPONSIBILITY → MESSAGE → ACTION. They go to NOMINEES; a
+         judge is honoured for how they judged, and "your nomination represents
+         trust" is not addressed to them, so judges keep the short reminder above. #}
+      <div style="margin-top:14px;padding-top:14px;border-top:1px solid var(--ad-line,#e5eae8)">
+        <p class="hint" style="margin:0 0 10px">
+          <strong style="color:var(--ad-text)">The countdown letters.</strong>
+          In the final {{ invite_seq_days|length }} days a nominee and a judge each receive one letter a day, building
+          from why they were trusted to what they will say when asked. Same arc, written
+          twice: a nominee is honoured for work they did and a judge for a decision they
+          made about somebody else's. Everything the platform already knows — the name, the date, the
+          venue, the days left — fills itself, so a second ceremony needs none of this
+          retyped.
+        </p>
+
+        <p class="hint" style="margin:0 0 10px">
+          Write <code>{'{'}token{'}'}</code> anywhere in a letter:
+          {% for token, means in invite_seq_tokens %}<code>{{ '{' ~ token ~ '}' }}</code> <span class="iv-mute">{{ means }}</span>{% if not loop.last %} · {% endif %}{% endfor %}
+        </p>
+
+        <div><label for="f-invite_seq_theme">Theme <small>only used when the event has no tagline of its own</small></label>
+          <input type="text" name="invite_seq_theme" id="f-invite_seq_theme" value="{{ values.invite_seq_theme|default('') }}" maxlength="160" placeholder="Accountability and Responsibility"></div>
+
+        <div style="margin-top:10px"><label for="f-invite_seq_outcome">The change being asked for <small>completes &ldquo;what must we do differently to&hellip;&rdquo;</small></label>
+          <input type="text" name="invite_seq_outcome" id="f-invite_seq_outcome" value="{{ values.invite_seq_outcome|default('') }}" maxlength="240" placeholder="{{ invite_seq_outcome_default }}"></div>
+
+        <div style="margin-top:10px"><label for="f-invite_seq_values">The values it celebrates <small>one per line, up to six</small></label>
+          <textarea name="invite_seq_values" id="f-invite_seq_values" rows="5" style="width:100%">{{ values.invite_seq_values|default('') }}</textarea></div>
+        <p class="hint" style="margin:4px 0 0">Set as a block of short lines in the day-two letter, so each one is its own beat. In use now:
+          <span class="iv-mute">{{ invite_seq_values_default|replace({"\n": ' · '}) }}</span></p>
+
+        <div style="margin-top:10px"><label for="f-invite_seq_action">The closing call <small>the line the last letter ends on</small></label>
+          <input type="text" name="invite_seq_action" id="f-invite_seq_action" value="{{ values.invite_seq_action|default('') }}" maxlength="240" placeholder="{{ invite_seq_action_default }}"></div>
+
+        <div style="margin-top:10px"><label for="f-invite_seq_team">Signed by</label>
+          <input type="text" name="invite_seq_team" id="f-invite_seq_team" value="{{ values.invite_seq_team|default('') }}" maxlength="120" placeholder="{{ invite_seq_team_default }}"></div>
+
+        <p class="hint" style="margin:14px 0 8px">
+          The letters themselves. Leave one empty to send the wording that ships with the
+          platform — and read any of them, filled in against a real ceremony, from that
+          event's <strong>Invitations</strong> screen.
+        </p>
+        {% for a in invite_seq_audiences %}
+          <p class="hint" style="margin:16px 0 4px;font-weight:600;color:var(--ad-text)">
+            {% if a == 'judge' %}To the panel{% else %}To the nominees{% endif %}
+            <small style="display:block;font-weight:400">{% if a == 'judge' %}Honoured for the decision they made about somebody else's work — they were never nominated, so these are written separately.{% else %}Honoured for work they did.{% endif %}</small>
+          </p>
+          {% for d in invite_seq_days %}
+            {% set key = 'invite_seq_body_' ~ a ~ '_' ~ d %}
+            {# The legacy value, for a nominee letter written before the key carried an
+               audience. Shown so an operator sees their own wording rather than an empty
+               box; saving migrates it to the new key. #}
+            {% set legacy = a == 'nominee' ? attribute(values, 'invite_seq_body_' ~ d)|default('') : '' %}
+            <div style="margin-top:10px">
+              <label for="f-{{ key }}">Day {{ d }}
+                <small>{% if d == 1 %}the eve — action{% elseif d == 2 %}message{% elseif d == 3 %}responsibility{% elseif d == 4 %}values{% else %}why{% endif %}</small></label>
+              <textarea name="{{ key }}" id="f-{{ key }}" rows="6" style="width:100%"
+                        placeholder="Using the wording that ships with the platform — type here to replace it.">{{ attribute(values, key)|default(legacy) }}</textarea>
+            </div>
+          {% endfor %}
+        {% endfor %}
+      </div>
+
+      <p class="hint" style="margin:10px 0 0">A run is built and sent per ceremony, from <strong>Events &rarr; the event &rarr; Invitations</strong>. Which awards it covers is set on the event itself. Reminders go from there too, and that screen shows which one is next.</p>
+    </div>
+  </div></div>
+
+  {# ── THE VOICE AT THE DOOR ────────────────────────────────────────────────
+     A Nigerian voice saying a Nigerian name, at a Nigerian evening. The two engines
+     already here (OpenAI, ElevenLabs) have no en-NG voice, and an American voice
+     reading "Chidinma Okonkwo" at a Lagos gala is the platform sounding like it was
+     built somewhere else at the exact moment it is welcoming somebody by name.
+
+     Azure's free tier is 0.5M characters a month and a welcome is about twenty-five,
+     so this is roughly twenty thousand people a month — a standing feature rather
+     than a budget line. #}
+  {# ── WHY THIS CARD IS UNDER "AI" AND NOT UNDER "MEDIA" ──────────────────
+     It was under Media, beside Cloudinary, because a voice clip is a media file. That is
+     true and it is not how anybody looks for it: ElevenLabs — the other text-to-speech
+     provider on this platform — sits in AI with the model keys, so an operator setting up
+     a voice went to AI, found ElevenLabs and nothing else, and concluded Azure was not
+     supported. The card was reachable the whole time and nobody could find it.
+
+     Two speech providers filed under two different headings is the same class of mistake
+     as two resolvers for one setting: whichever one you find first becomes the answer. #}
+  <div class="ad-card" data-sec="ai" data-keys="door voice welcome greeting azure speech tts text to speech nigerian ezinne abeo attendee name check in audio resource key region subscription cognitive services api credential pronunciation say names accent robotic pacing" x-show="show($el)"><div class="ad-card__head"><div class="ad-card__title">The voice at the door<small>{% if door_voice_on %}{{ door_voice_label|split(' —')|first }} is configured — greetings are rendered ahead of each event.{% else %}Not configured — the door works exactly as it does now, in silence.{% endif %}</small></div></div><div class="ad-card__body">
+
+      {# The three facts somebody needs BEFORE the boxes below mean anything. This card
+         asked for a "key" and a "region" and said nowhere what to create in order to have
+         them, which is its own kind of unreachable. #}
+      {#- Only when Azure is the one being asked to speak. A four-step Azure portal
+          walkthrough on a deployment that has chosen OpenAI reads as "this is what you
+          still have to do", which is how an operator comes to believe a working voice
+          is unconfigured. -#}
+      {% if not azure_voice_on and door_voice_provider == 'azure' %}
+        <div style="margin:0 0 14px;padding:12px 14px;border:1px solid rgba(16,41,44,.14);border-radius:10px;background:rgba(16,41,44,.03)">
+          <p style="margin:0 0 6px;font-weight:600;font-size:13px">Where these come from</p>
+          <ol style="margin:0;padding-left:18px;font-size:12.5px;line-height:1.65">
+            <li>In the Azure portal, create a <strong>Speech service</strong> resource — free tier <strong>F0</strong> is enough for this and costs nothing.</li>
+            <li>Open it and go to <strong>Keys and Endpoint</strong>. Copy <strong>KEY 1</strong> into the key box, and the <strong>Location/Region</strong> value (like <code>southafricanorth</code>) into the region box.</li>
+            <li>Save, then press <strong>Hear it</strong> below. If anything is wrong, the reason appears here in words rather than in a log.</li>
+          </ol>
+        </div>
+      {% endif %}
+
+      <label style="display:flex;gap:8px;align-items:flex-start;cursor:pointer">
+        <input type="checkbox" name="door_welcome_enabled" id="f-door_welcome_enabled" value="1"{% if door_welcome_on %} checked{% endif %} style="margin-top:3px">
+        <span>Greet people by name as they are admitted
+          <small style="display:block;font-weight:400">Their first name only, in the voice below. A guest of honour is greeted as one. Nothing is spoken for a refusal.</small>
+        </span>
+      </label>
+
+      {# ── WHICH VOICE SPEAKS, AND WHAT IT COSTS EITHER WAY ────────────────
+         A real trade-off, so it is stated rather than buried: Azure's Nigerian voices say
+         these names as their owners do; OpenAI's sound more like a person and will
+         anglicise a Nigerian name unless the platform spells it out for them, which it
+         does automatically for that provider and does NOT do for Azure — handing a
+         respelling to a voice that already knows the name is what made the door sound
+         like a machine spelling at a guest. #}
+      <div class="row" style="margin-top:14px">
+        <div>
+          <label for="f-door_voice_provider">Who speaks</label>
+          <select name="door_voice_provider" id="f-door_voice_provider">
+            {% for id, label in door_voice_providers %}
+              <option value="{{ id }}"{{ door_voice_provider == id ? ' selected' : '' }}>{{ label }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div>
+          <label for="f-door_voice_openai">OpenAI voice <small>only used when OpenAI speaks</small></label>
+          <select name="door_voice_openai" id="f-door_voice_openai">
+            {% for id, label in openai_voices %}
+              <option value="{{ id }}"{{ openai_voice_pick == id ? ' selected' : '' }}>{{ label }}</option>
+            {% endfor %}
+          </select>
+        </div>
+      </div>
+      <p style="margin:8px 0 0;font-size:12px;line-height:1.6;color:var(--ad-text-mute,#5a6d6f)">
+        OpenAI uses the key under <strong>AI providers</strong> below — there is no second key to add.
+        Changing who speaks <strong>retires every greeting already made</strong>: they are cached by
+        voice, so the next scheduled run remakes them in the new one.</p>
+
+      <div class="row" style="margin-top:12px">
+        <div><label for="f-azure_speech_key">Azure Speech key</label>
+          <input type="password" name="azure_speech_key" id="f-azure_speech_key" autocomplete="off"
+                 placeholder="{% if azure_voice_on %}stored — leave blank to keep it{% else %}from the Speech resource's Keys page{% endif %}"></div>
+        <div><label for="f-azure_speech_region">Region <small>the one your Speech resource is in</small></label>
+          <input type="text" name="azure_speech_region" id="f-azure_speech_region" value="{{ azure_region }}" maxlength="40"></div>
+      </div>
+
+      <div class="row" style="margin-top:10px">
+        <div>
+          <label for="f-azure_speech_voice">Voice</label>
+          <select name="azure_speech_voice" id="f-azure_speech_voice">
+            {% for id, label in azure_voices %}
+              <option value="{{ id }}"{{ azure_voice_pick == id ? ' selected' : '' }}>{{ label }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        {# ── THE TIER IS A RATE LIMIT, NOT A PRICE ──────────────────────────
+           F0's real constraint is not its half-million characters a month — a gala
+           spends about thirteen thousand — it is TWENTY REQUESTS A MINUTE. The nightly
+           run used to render sixty greetings back to back, get twenty, and then ask
+           Azure for the rest of the guest list one refusal at a time, every hour, for
+           the three days an event sits inside the lead window. The only symptom was
+           most guests not being greeted, which looks exactly like a feature nobody
+           switched on. So the run now asks what tier this is and sizes itself. #}
+        <div>
+          <label for="f-azure_speech_tier">Tier
+            <small>on the Speech resource's Overview page</small></label>
+          <select name="azure_speech_tier" id="f-azure_speech_tier">
+            {% for id, t in azure_tiers %}
+              <option value="{{ id }}"{{ azure_tier == id ? ' selected' : '' }}>{{ t.label }}</option>
+            {% endfor %}
+          </select>
+        </div>
+      </div>
+      <p class="hint" style="margin:6px 0 0">
+        Up to <strong>{{ azure_per_run }}</strong> greetings are rendered each run, so a
+        few hundred guests are ready well inside the three days before an evening. Getting
+        this wrong does not cost money — it costs the greetings.
+      </p>
+
+      {# ── PACING ────────────────────────────────────────────────────────────
+         These were fixed in code at -10% and -2 semitones, and the pitch shift is what
+         made the voice sound processed: a neural voice already has its own intonation, so
+         asking for a semitone down does not make it speak lower — it resamples what the
+         model produced. The default is now no pitch shift at all. Both are here because
+         "it sounds off" is a judgement nobody can make from a source file, and Hear it is
+         a few lines below. #}
+      <div class="row" style="margin-top:12px">
+        <div>
+          <label for="f-azure_speech_rate">Speaking rate
+            <small>slower carries better in a hall</small></label>
+          <select name="azure_speech_rate" id="f-azure_speech_rate">
+            {% for id, label in azure_rates %}
+              <option value="{{ id }}"{{ azure_rate == id ? ' selected' : '' }}>{{ label }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div>
+          <label for="f-azure_speech_pitch">Pitch
+            <small>anything but none is a resample</small></label>
+          <select name="azure_speech_pitch" id="f-azure_speech_pitch">
+            {% for id, label in azure_pitches %}
+              <option value="{{ id }}"{{ azure_pitch == id ? ' selected' : '' }}>{{ label }}</option>
+            {% endfor %}
+          </select>
+        </div>
+      </div>
+      <p class="hint" style="margin:6px 0 0">
+        Changing either re-renders every greeting on the next run — the old clips stay on
+        disk until they expire, so nothing is lost if you change your mind.
+      </p>
+
+      {% if azure_voice_on %}
+        <label style="display:flex;gap:8px;align-items:center;margin-top:10px;cursor:pointer">
+          <input type="checkbox" name="secret_clear[azure_key]" value="1">
+          <span style="font-size:12.5px">Remove the stored key</span>
+        </label>
+      {% endif %}
+
+      {#- The reason for whoever is SPEAKING. This printed Azure's complaint whatever
+          was selected, so a correctly configured OpenAI door carried "No Azure Speech
+          key — add it under Settings" in red, permanently, on the screen the operator
+          goes to when the voice seems broken. -#}
+      {#- THE CHAIN, NOT JUST THE KEY.
+          A guest hears their name only if the greeting is on AND a provider is configured
+          AND the cache is writable AND a clip was rendered. Any one false is silence, and
+          all four look the same at the door. This walked correctly in readiness() from the
+          start and was shown only on an event's ticket panel — never on the screen where
+          somebody has just set a key and is asking why nothing happens. -#}
+      {% if door_readiness.blocker %}
+        <p class="hint" style="margin:10px 0 0;padding:10px 12px;border-radius:8px;background:rgba(138,32,32,.08);border:1px solid rgba(138,32,32,.25);color:#8a2020">
+          <strong>{{ door_readiness.blocker }}</strong><br>
+          <span style="color:var(--ad-text-mute,#5a6d6f)">{{ door_readiness.fix }}</span>
+        </p>
+      {% elseif door_readiness.on and door_readiness.voice and door_readiness.writable %}
+        <p class="hint" style="margin:10px 0 0;padding:10px 12px;border-radius:8px;background:rgba(35,123,34,.08);border:1px solid rgba(35,123,34,.25);color:#1a6118">
+          <strong>Ready.</strong> Switched on, {{ door_voice_label|split(' —')|first }} configured, cache writable.
+          Greetings are rendered by the daily run — press <strong>Hear it</strong> below to prove the voice now.
+        </p>
+      {% endif %}
+
+      {% if door_voice_why %}<p class="hint" style="margin:10px 0 0;color:#8a2020">{{ door_voice_why }}</p>{% endif %}
+
+      {#- CONFIGURED AND REFUSING — the state that showed nothing at all.
+          `door_voice_why` is empty the moment a key exists, so a key that is present and
+          wrong (expired, revoked, wrong project, no credit) left this card clean and the
+          door silent. The recorded reason has been written to gates_settings since the
+          provider shipped; this is the first thing to read it. -#}
+      {% if not door_voice_why and door_voice_error %}
+        <p class="hint" style="margin:10px 0 0;padding:9px 11px;border-radius:8px;background:rgba(138,32,32,.08);border:1px solid rgba(138,32,32,.25);color:#8a2020">
+          <strong>The key is set, and {{ door_voice_label|split(' —')|first }} refused the last attempt.</strong><br>
+          {{ door_voice_error }}<br>
+          <span style="color:var(--ad-text-mute,#5a6d6f)">Press <strong>Hear it</strong> below to try again — this clears itself on the first success.</span>
+        </p>
+      {% endif %}
+
+      <p class="hint" style="margin:10px 0 0">
+        <strong>Nothing is generated while somebody is standing at the door.</strong> Every
+        greeting is rendered by the daily run, up to three days before an event, and the door
+        plays a file that is already on disk — a queue cannot wait on a round trip to a
+        datacentre, least of all on venue wifi. Anyone who arrives without a clip ready — a
+        walk-up, a late booking — is greeted by the same voice saying &ldquo;you are
+        welcome&rdquo;.
+      </p>
+      <p class="hint" style="margin:8px 0 0">
+        Changing the voice re-renders on the next run; it never plays an evening half in one
+        voice and half in the other. To render a list you have just imported without waiting
+        for 06:00, run <code>welcome</code> from Automation &amp; cron below.
+      </p>
+
+      {# ── HEARING IT BEFORE THE NIGHT ────────────────────────────────────
+         A `type="button"`, never a submit and never a second <form>. The HTML parser
+         DELETES a <form> opened inside another one and adopts its children into the
+         outer form — the button would still render, still look right, and post the
+         whole settings page to the preview route. Three of those have shipped here. #}
+      <div style="margin-top:14px;padding-top:12px;border-top:1px solid rgba(16,41,44,.12)">
+        <label for="f-voice_try">Test the welcome
+          <small>exactly what the door will say &mdash; nothing is saved</small></label>
+
+        {# ── WHY THIS IS THREE CONTROLS AND NOT A NAME BOX ──────────────────
+           It was a name box that built the line with NO EVENT, and the door builds it
+           WITH one: `line($name, eventOfPass($pass))`. The greeting prefix comes from
+           the event's start in the event's own timezone, so a real guest hears "Good
+           evening. Ada, you are welcome." and this previewed "Ada, you are welcome" —
+           a different sentence and a different cache key, on the one control whose whole
+           job is to let somebody hear it before the night.
+
+           And two of the three lines the door can say had no preview at all: the guest
+           of honour's, which is the one a nominee hears at their own ceremony, and the
+           generic line, which covers every name the voice cannot manage. #}
+        <div class="row" style="margin-bottom:8px">
+          <div>
+            <label for="f-voice_kind">Who is arriving</label>
+            <select id="f-voice_kind" data-ag-do="voice-kind">
+              <option value="guest">A ticket holder</option>
+              <option value="honour">A guest of honour</option>
+              <option value="generic">Somebody whose name we cannot say</option>
+            </select>
+          </div>
+          <div>
+            <label for="f-voice_event">At which door
+              <small>sets the greeting &mdash; and the hour is the event&rsquo;s, not now</small></label>
+            <select id="f-voice_event">
+              <option value="0">No event &mdash; no greeting</option>
+              {% for e in door_events %}
+                <option value="{{ e.id }}">{{ e.title }} &mdash; {{ e.event_date|date('j M, H:i') }}</option>
+              {% endfor %}
+            </select>
+          </div>
+        </div>
+
+        <div style="display:flex;gap:8px;align-items:flex-start;flex-wrap:wrap"
+             id="voice-name-row">
+          <input type="text" id="f-voice_try" maxlength="40" placeholder="Chidinma"
+                 aria-label="First name" autocomplete="off" style="flex:1 1 160px;min-width:0">
+          <input type="text" id="f-voice_role" maxlength="40" placeholder="Guest of honour"
+                 aria-label="Their role this evening" autocomplete="off" hidden
+                 style="flex:1 1 160px;min-width:0">
+          {# NOT disabled without a key any more. The wording is text and costs nothing to
+             compute; refusing to show it because a synthesiser is missing made "test the
+             welcome" mean "buy a key first". #}
+          <button type="button" class="btn btn--ghost" data-ag-do="voice-try"
+                  data-target="f-voice_try" data-out="voice-try-out"
+                  data-kind="f-voice_kind" data-event="f-voice_event" data-role="f-voice_role"
+                  style="min-height:40px">{% if door_voice_on %}Hear it{% else %}Show it{% endif %}</button>
+        </div>
+
+        {# The line itself, always. Read it even with no key. #}
+        <p id="voice-try-line" role="status" aria-live="polite"
+           style="margin:10px 0 0;min-height:1.2em;font-size:14px;color:var(--ad-text,#10292C)"></p>
+        <p class="hint" id="voice-try-out" style="margin:4px 0 0;min-height:1.2em">
+          {%- if not door_voice_on %}{{ door_voice_why ?: 'No key set' }} — so this shows the wording without speaking it.{% endif -%}
+        </p>
+      </div>
+
+      <div style="margin-top:14px">
+        <label for="f-door_welcome_says">How to say a name
+          <small>one per line, <code>Written = Spoken</code></small></label>
+        <textarea name="door_welcome_says" id="f-door_welcome_says" rows="4" style="width:100%"
+                  placeholder="Ol&#225;&#7779;ub&#7885;&#768;mi = Ola-shu-BOR-mi&#10;Nne&#7885;ma = Nne-OH-ma">{{ values.door_welcome_says|default('') }}</textarea>
+        <p class="hint" style="margin:6px 0 0">
+          For the names the voice gets wrong. Matched on the <strong>first name</strong>,
+          ignoring case <strong>and tone marks</strong> &mdash; so one line covers
+          <code>Ọláṣubọ̀mí</code>, <code>Olasubomi</code> and <code>OLÁSUBOMI</code>, which
+          is how the same person's name actually arrives from a booking form. Write it
+          either way. The right-hand side goes the way you would tell a stranger to say it
+          &mdash; hyphens and capitals for the stressed part. Clips already made keep the
+          old pronunciation until the next run, so change it and run <code>welcome</code>
+          to hear the fix.
+        </p>
+
+        {# ── THE HALF THAT MADE THE TABLE USABLE ────────────────────────────
+           The table was the only thing that could fix a name, and it was also the reason
+           nobody filled it in: an operator was asked to write an entry for every guest,
+           with no way of knowing which of three hundred names the voice would get wrong.
+           So it stayed empty and every name was mispronounced.
+
+           This is the guest list for the events about to be rendered, with the names that
+           have no entry yet and a respelling to start from. Commonest first, because the
+           name six people share is worth more of an afternoon than the one nobody shares.
+
+           Nothing here is applied. The button writes the lines into the box above, where
+           they are read, edited and saved by a person — a confident wrong pronunciation
+           said at somebody's own door is worse than an English one. #}
+        {% if voice_pending is not empty %}
+        <div style="margin-top:14px;padding-top:12px;border-top:1px solid rgba(16,41,44,.12)">
+          <p style="margin:0 0 4px;font-weight:600;font-size:13px">
+            How the {{ voice_pending|length }} name{{ voice_pending|length == 1 ? '' : 's' }} coming up will be said
+          </p>
+          <p class="hint" style="margin:0 0 10px">
+            From the guest lists for the next {{ voice_lead }} days.
+            <strong>Nothing here needs doing.</strong> Every name already has a pronunciation
+            &mdash; worked out ahead of each event and kept, so it is worked out once and never
+            again. Press Hear on any of them; if one is wrong, fix it and save, and yours wins
+            from then on.
+            {%- if voice_known %} {{ voice_known }} name{{ voice_known == 1 ? '' : 's' }} worked out so far.{% endif %}
+          </p>
+          <div style="max-height:280px;overflow:auto;border:1px solid rgba(16,41,44,.12);border-radius:9px">
+            <table style="width:100%;border-collapse:collapse;font-size:12.5px">
+              <thead><tr>
+                <th style="text-align:left;padding:7px 10px;font-weight:600;border-bottom:1px solid rgba(16,41,44,.12)">Name</th>
+                <th style="text-align:left;padding:7px 10px;font-weight:600;border-bottom:1px solid rgba(16,41,44,.12)">Guests</th>
+                <th style="text-align:left;padding:7px 10px;font-weight:600;border-bottom:1px solid rgba(16,41,44,.12)">How it is said</th>
+                <th style="text-align:left;padding:7px 10px;font-weight:600;border-bottom:1px solid rgba(16,41,44,.12)">From</th>
+                <th style="border-bottom:1px solid rgba(16,41,44,.12)"><span class="sr-only">Hear it</span></th>
+              </tr></thead>
+              <tbody>
+                {% for p in voice_pending %}
+                  <tr>
+                    <td style="padding:5px 10px;border-bottom:1px solid rgba(16,41,44,.07);white-space:nowrap">{{ p.name }}</td>
+                    <td style="padding:5px 10px;border-bottom:1px solid rgba(16,41,44,.07);color:#8a9a9c">{{ p.count }}</td>
+                    <td style="padding:5px 10px;border-bottom:1px solid rgba(16,41,44,.07)">
+                      {# EDITABLE, and it is the point of the row. The suggestion is a rule's
+                         guess over letters with no tone in them; hearing it is how anybody
+                         finds out it is wrong, and fixing it here means the next press
+                         speaks the correction rather than the guess. #}
+                      <label class="sr-only" for="vp-{{ loop.index0 }}">How to say {{ p.name }}</label>
+                      <input type="text" id="vp-{{ loop.index0 }}" class="vp-say"
+                             data-name="{{ p.name }}" value="{{ p.said }}"
+                             placeholder="say it how it sounds" maxlength="60" autocomplete="off"
+                             style="width:100%;min-width:150px;font-family:var(--ag-font-mono,monospace);font-size:12.5px">
+                    </td>
+                    <td style="padding:5px 10px;border-bottom:1px solid rgba(16,41,44,.07);color:#8a9a9c;white-space:nowrap">{{ p.source }}</td>
+                    <td style="padding:5px 10px 5px 0;border-bottom:1px solid rgba(16,41,44,.07)">
+                      <button type="button" class="btn btn--ghost" data-ag-do="voice-try"
+                              data-target="vp-{{ loop.index0 }}" data-out="voice-row-out"
+                              aria-label="Hear {{ p.name }}"
+                              {% if not door_voice_on %}disabled{% endif %}
+                              style="min-height:32px;padding:0 12px;white-space:nowrap">Hear</button>
+                    </td>
+                  </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+          <p class="hint" id="voice-row-out" role="status" aria-live="polite" style="margin:8px 0 0;min-height:1.2em">
+            {%- if not door_voice_on %}Set the key for whoever speaks and save, then each row will speak.{% else %}Press Hear on any name. Edit it only if it sounds wrong.{% endif -%}
+          </p>
+          <button type="button" class="btn btn--ghost" style="margin-top:10px;min-height:38px"
+                  data-ag-do="voice-fill" data-target="f-door_welcome_says" data-rows="vp-say">
+            Copy these into the box above
+          </button>
+          <span class="hint" style="margin-left:8px">Only needed if you want to change one &mdash; edit it here first.</span>
+        </div>
+        {% endif %}
+      </div>
+  </div></div>
+
+  {# ── THE WARNING BEFORE A NOMINATION IS CLOSED ───────────────────────────
+     Separate card from Invitations above, because these are different people being
+     written to about a different thing: a guest of honour counting down to an evening,
+     and a nominee who has not answered and is about to lose their place.
+
+     The rule that closes a nomination runs unattended at 06:00 on a host with no shell.
+     Until this existed the only message a nominee ever had was the invitation — one
+     email, months earlier, to an address the NOMINATOR typed. #}
+  <div class="ad-card" data-sec="mail" data-keys="questionnaire reminders deadline warning nominee disqualify disqualification days before grace missed submission chase" x-show="show($el)"><div class="ad-card__head"><div class="ad-card__title">Questionnaire deadline warnings<small>When a nominee who has not answered is written to before their nomination closes.</small></div></div><div class="ad-card__body">
+      <div><label for="f-questionnaire_reminder_days">Days before the deadline <small>the largest is when warnings start</small></label>
+        <input type="text" name="questionnaire_reminder_days" id="f-questionnaire_reminder_days" value="{{ values.questionnaire_reminder_days|default('') }}" maxlength="60" placeholder="{{ questionnaire_reminder_days_default }}"></div>
+      <p class="hint" style="margin:6px 0 0">
+        {# RESOLVED, not echoed — same reason as the invitation marks above: an empty box
+           beside a schedule that is demonstrably running reads as "off". #}
+        In use now: <strong>{{ questionnaire_reminder_marks|join(', ') }}</strong> days before
+        the deadline (plus its grace period, which is set per cycle on the
+        <a href="/admin/questionnaires/invitations">questionnaire invitations</a> screen).
+      </p>
+      <p class="hint" style="margin:8px 0 0">
+        Nobody is written to who has not already been invited, or who has already answered.
+        <strong>A nominee who has had no warning is never disqualified</strong> — the rule
+        holds them back and takes them on a later run if they still say nothing, so a
+        deadline can never close a nomination belonging to somebody who never heard from us.
+      </p>
+  </div></div>
+
+  <div class="ad-card" data-sec="data" data-keys="tracking visits analytics arrivals referrer utm campaign source privacy retention do not track" x-show="show($el)"><div class="ad-card__head"><div class="ad-card__title">Arrivals<small>Where the people who come here came from.</small></div></div><div class="ad-card__body">
+    <div class="ad-form">
+      {# The report this feeds is Analytics → "Where people came from". Everything else on
+         that page is counted off the domain tables and can say only what happened AFTER
+         somebody arrived; this is the half that says where they came from. #}
+      <p class="hint" style="margin:0 0 10px">
+        One row per visit, not per page view. Records the source (a <code>utm_source</code>,
+        or the site that linked here), the page landed on, and whether the visit led to a
+        vote, a nomination or a ticket.
+      </p>
+      <p class="hint" style="margin:0 0 10px">
+        <strong>What is never stored:</strong> no IP address (a daily-salted hash only, so the
+        same reader is unlinkable across days), no full referrer URL — the host only, because a
+        path carries search terms — no landing query string, since links here carry passes and
+        sign-in tokens, and no browser string. <code>Do Not Track</code> and
+        <code>Sec-GPC</code> are honoured, and bots and link previewers are not counted.
+      </p>
+
+      <label style="display:flex;gap:8px;align-items:flex-start;cursor:pointer">
+        <input type="checkbox" name="visits_enabled" id="f-visits_enabled" value="1"{% if visits_on %} checked{% endif %} style="margin-top:3px">
+        <span>Record where arrivals come from
+          <small style="display:block;font-weight:400">Off means the report shows nothing — which reads as "nobody came", so the screen says so.</small>
+        </span>
+      </label>
+
+      <div style="margin-top:10px"><label for="f-visits_days">Keep arrivals for <small>days — long enough to compare one campaign against the last</small></label>
+        <input type="number" name="visits_days" id="f-visits_days" value="{{ visits_days_value }}" min="7" max="730"></div>
+      <p class="hint" style="margin:6px 0 0">Older rows are dropped by the maintenance run. A recorder with no pruner is a table that grows for the life of the deployment.</p>
+
+      <p class="hint" style="margin:10px 0 0">Tag a link you share with <code>?utm_source=flier&amp;utm_campaign=gala26</code> and it will be counted by name in <a href="/admin/analytics">Analytics</a>.</p>
+    </div>
+  </div></div>
+
+  <div class="ad-card" data-sec="media" data-keys="cloudinary image hosting cdn uploads media cloud name api key secret folder photos avatars" x-show="show($el)"><div class="ad-card__head"><div class="ad-card__title">Image hosting<small>{% if cloudinary_on %}Cloudinary is configured — uploads go to <code>{{ cloudinary_cloud }}</code>.{% else %}Not configured — uploads are stored on this server.{% endif %}</small></div></div><div class="ad-card__body">
+    <div class="ad-form">
+      {# The Media screen used to answer "not configured" with "add CLOUDINARY_URL to
+         .env" — an instruction no operator can carry out on a host with no shell.
+         These are the same values, settable. CloudinaryService::config() reads them
+         first and falls back to the environment. #}
+      <p class="hint" style="margin:0 0 10px">Optional. Without it, uploads are stored on this server and served from it — which works, and costs you the disk and the bandwidth. Paste either the single URL Cloudinary shows on your dashboard, or the three values separately.</p>
+      <div>
+        <label for="f-cloudinary_url">Cloudinary URL <small>stored write-only — it contains the secret</small></label>
+        <input type="password" name="cloudinary_url" id="f-cloudinary_url" autocomplete="new-password" placeholder="{% if cloudinary_on %}•••••••••• (leave blank to keep){% else %}cloudinary://key:secret@cloud-name{% endif %}">
+        {% if cloudinary_on %}<label style="font-size:11px;display:inline-flex;gap:4px;align-items:center"><input type="checkbox" name="secret_clear[cloudinary_url]" value="1"> remove</label>{% endif %}
+      </div>
+      <div class="row">
+        <div><label for="f-cloudinary_cloud_name">Cloud name</label><input type="text" name="cloudinary_cloud_name" id="f-cloudinary_cloud_name" value="{{ values.cloudinary_cloud_name|default('') }}" placeholder="your-cloud"></div>
+        <div><label for="f-cloudinary_api_key">API key</label><input type="text" name="cloudinary_api_key" id="f-cloudinary_api_key" value="{{ values.cloudinary_api_key|default('') }}" autocomplete="off" placeholder="123456789012345"></div>
+      </div>
+      <div class="row">
+        <div>
+          <label for="f-cloudinary_api_secret">API secret <small>stored write-only</small></label>
+          <input type="password" name="cloudinary_api_secret" id="f-cloudinary_api_secret" autocomplete="new-password" placeholder="{% if cloudinary_secret_set %}•••••••••• (leave blank to keep){% else %}from your Cloudinary dashboard{% endif %}">
+          {% if cloudinary_secret_set %}<label style="font-size:11px;display:inline-flex;gap:4px;align-items:center"><input type="checkbox" name="secret_clear[cloudinary_secret]" value="1"> remove</label>{% endif %}
+        </div>
+        <div><label for="f-cloudinary_folder">Folder <small>so one account can host several sites</small></label><input type="text" name="cloudinary_folder" id="f-cloudinary_folder" value="{{ values.cloudinary_folder|default('') }}" placeholder="{{ cloudinary_folder }}"></div>
+      </div>
+      <p class="hint" style="margin:8px 0 0">Sweeping existing images across to Cloudinary is done from <a href="/admin/media">Media</a>, a batch at a time.</p>
+    </div>
+  </div></div>
+
+  <div class="ad-card" data-sec="money" data-keys="shop location based pricing region multiplier currency conversion naira" x-show="show($el)"><div class="ad-card__head"><div class="ad-card__title">Shop · location-based pricing<small>Per-region price multiplier — 1.0 = base price. Leave all at 1.0 to disable.</small></div></div><div class="ad-card__body">
+    <div class="ad-form">
+      <label class="checkbox" style="display:flex;align-items:flex-start;gap:8px;margin-bottom:10px"><input type="checkbox" name="currency_conversion" value="1" {% if values.currency_conversion == '1' %}checked{% endif %}> <span><strong>Currency conversion</strong> — let shoppers view prices in their local currency (USD, GBP, EUR…). Orders are still charged in Naira (₦); rates are fetched live and cached.</span></label>
+      <p style="margin:0 0 4px;font-size:13px;color:var(--ad-text-mute,#5a6d6f)">Each product's base naira price is multiplied by its delivery region's factor at checkout (computed server-side). e.g. <strong>1.25</strong> charges +25% in that region; <strong>0.9</strong> charges −10%.</p>
+      <div class="row">
+        {% for r in shop_regions %}
+        <div><label>{{ r }}</label><input type="number" aria-label="Price multiplier for {{ r }}" name="region_mult[{{ r }}]" min="0.1" max="10" step="0.05" value="{{ shop_mults[r]|default('1') }}"></div>
+        {% endfor %}
+      </div>
+    </div>
+  </div></div>
+  <div class="ad-card" data-sec="money" data-keys="voting points earn redeem rate members shop orders tickets donations" x-show="show($el)"><div class="ad-card__head"><div class="ad-card__title">Voting points<small>Members earn points from purchases and redeem them for votes.</small></div></div><div class="ad-card__body">
+    <div class="ad-form">
+      <label class="checkbox" style="display:flex;align-items:flex-start;gap:8px;margin-bottom:10px"><input type="checkbox" name="points_enabled" value="1" {% if values.points_enabled == '1' %}checked{% endif %}> <span><strong>Enable voting points</strong> — members accrue points from shop orders, paid tickets &amp; donations, redeemable for votes.</span></label>
+      <div class="row">
+        <div><label for="f-points_per_1000_naira">Points earned per ₦1,000 spent</label><input type="number" name="points_per_1000_naira" id="f-points_per_1000_naira" min="0" step="1" value="{{ values.points_per_1000_naira|default('50') }}"></div>
+        <div><label for="f-points_per_vote">Points to redeem one vote</label><input type="number" name="points_per_vote" id="f-points_per_vote" min="1" step="1" value="{{ values.points_per_vote|default('500') }}"></div>
+      </div>
+      <p style="margin:6px 0 0;font-size:12px;color:var(--ad-text-mute,#5a6d6f)">A redeemed vote counts toward the public tally <strong>and, through it, the community half of the index</strong> — the CPI normalises over a nominee's full tally, whatever any single vote cost. It never reaches the judging half: judges are not shown a vote count. This line used to say redeemed votes could not affect rank, which stopped being true when the index started reading every vote.</p>
+    </div>
+  </div></div>
+  {# ── WHERE THE MONEY SETTLES ─────────────────────────────────────────────────
+     Ticket money, shop money and vote money are three different kinds of money to whoever has
+     to account for them. Settling all three into one bank account means the first question
+     anybody asks at month end — "how much of this is ticket income" — can only be answered by
+     exporting our own records and hoping they agree with the bank. A subaccount answers it AT
+     the bank, which is the only place the answer is unarguable.
+
+     Blank = today's behaviour exactly: no `subaccount` field is sent, so an operator who never
+     opens this card sees no change to their settlements. #}
+  <div class="ad-card" data-sec="money" data-keys="paystack subaccount subaccounts payout payouts settlement split bearer fees where money settles events shop votes bank account" x-show="show($el)"><div class="ad-card__head"><div class="ad-card__title">Where the money settles<small>Send ticket, shop and vote income to different Paystack subaccounts. Leave blank to settle everything to the main account, as now.</small></div></div><div class="ad-card__body">
+    <input type="hidden" name="payout_settings" value="1">
+    <div class="ad-form">
+      {% for p in payouts|default([]) %}
+      <div class="pay-route">
+        <div class="pay-route__h">
+          <strong>{{ p.label }}</strong>
+          {% if p.refusal %}<span class="pay-route__bad">Paystack is refusing this</span>
+          {% elseif p.routed %}<span class="pay-route__on">routed</span>
+          {% else %}<span class="pay-route__off">main account</span>{% endif %}
+        </div>
+        {# A refused subaccount is the failure that used to take a whole stream offline with
+           nothing on any screen to say so. Payments now fall back to the main account rather
+           than failing, which is the right trade and also makes the problem invisible — so it
+           is stated here, beside the field, in Paystack's own words. #}
+        {% if p.refusal %}
+        <p class="pay-route__warn">
+          Paystack refused this subaccount on a live payment{% if p.refusal.count > 1 %}
+          ({{ p.refusal.count }} times){% endif %} — it said
+          “{{ p.refusal.why }}”. Those payments went through and settled to the
+          <strong>main account</strong> instead, so nothing was lost, but this stream is not
+          being routed. The usual causes are a code from a different Paystack integration, a
+          deleted subaccount, or one that was never activated.
+        </p>
+        {% endif %}
+        <div class="row">
+          <div>
+            <label for="sub-{{ p.stream }}">Paystack subaccount code</label>
+            <input type="text" id="sub-{{ p.stream }}" name="sub_{{ p.stream }}"
+                   value="{{ p.code }}" placeholder="ACCT_xxxxxxxxxx" spellcheck="false"
+                   autocomplete="off" style="font-family:var(--ag-font-mono,monospace)">
+          </div>
+          <div>
+            <label for="bearer-{{ p.stream }}">Who pays the transaction fee</label>
+            <select id="bearer-{{ p.stream }}" name="bearer_{{ p.stream }}">
+              {% for key, label in payout_bearers|default({}) %}
+              <option value="{{ key }}" {% if p.bearer == key %}selected{% endif %}>{{ label }}</option>
+              {% endfor %}
+            </select>
+          </div>
+        </div>
+      </div>
+      {% endfor %}
+
+      <p class="st-hint">
+        Paste the code from Paystack → Subaccounts. A whole dashboard URL works too — the code
+        is taken out of it. <strong>Clearing a field stops routing that stream</strong> and it
+        settles to the main account again.
+      </p>
+      <p class="st-hint">
+        A code that is not in Paystack's format is <strong>refused rather than saved</strong>,
+        and the previous setting is kept. That is deliberate: Paystack rejects a payment set up
+        with a bad subaccount, so a typo here would stop that stream selling with nothing on
+        screen to explain why.
+      </p>
+      <p class="st-hint">
+        <strong>The fee bearer is worth a thought.</strong> Paystack's default is that the main
+        account pays the transaction charge even when the money settles elsewhere — which is
+        rarely what is intended when revenue is being separated, and it is invisible until a
+        settlement arrives short.
+      </p>
+      {% if payouts_routed|default(false) %}
+      <p class="st-hint">
+        Which subaccount each payment used is recorded against that payment, <strong>once</strong>,
+        when it is taken. Changing a code here affects future payments only — history keeps
+        matching the bank.
+      </p>
+      {% endif %}
+    </div>
+  </div></div>
+
+  <div class="ad-card" data-sec="money" data-keys="paid voting buy votes price per vote discount tier percentage chips bulk maximum per order paystack flutterwave checkout free otp" x-show="show($el)"><div class="ad-card__head"><div class="ad-card__title">Paid voting<small>Make voting a paid action — supporters buy votes for a nominee. Off = classic free OTP voting.</small></div></div><div class="ad-card__body">
+    <input type="hidden" name="paid_vote_settings" value="1">
+    <div class="ad-form">
+      <label class="checkbox" style="display:flex;align-items:flex-start;gap:8px;margin-bottom:6px"><input type="checkbox" name="paid_voting_enabled" value="1" {% if values.paid_voting_enabled == '1' %}checked{% endif %}> <span><strong>Enable paid voting</strong> — the nominee ballot leads with a "Buy votes" checkout (Paystack/Flutterwave, verified server-side).</span></label>
+      <label class="checkbox" style="display:flex;align-items:flex-start;gap:8px;margin-bottom:10px"><input type="checkbox" name="paid_voting_disable_free" value="1" {% if values.paid_voting_disable_free == '1' %}checked{% endif %}> <span><strong>Disable free voting</strong> — the OTP path closes and ALL voting is paid (only takes effect while paid voting is enabled).</span></label>
+      <div class="row">
+        <div><label for="f-vote_price_naira">Amount per vote (₦)</label><input type="number" name="vote_price_naira" id="f-vote_price_naira" min="10" step="10" value="{{ values.vote_price_naira|default('100') }}"></div>
+        <div><label for="f-vote_max_qty">Maximum votes per order</label><input type="number" name="vote_max_qty" id="f-vote_max_qty" min="1" step="1" value="{{ values.vote_max_qty|default('1000') }}"></div>
+      </div>
+
+      {# ── The two timing windows ────────────────────────────────────────────
+         Both were already read from settings and neither had a field, so in
+         practice they were constants nobody without a database client could
+         change. The grace window is the one that matters during an incident:
+         it decides whether a payment confirmed AFTER a cycle closed can still
+         be delivered, which is precisely the question a backlog recovery hits. #}
+      <div class="row">
+        <div>
+          <label for="f-paid_vote_cutoff_minutes">Card checkout closes early by (minutes)</label>
+          <input type="number" name="paid_vote_cutoff_minutes" id="f-paid_vote_cutoff_minutes" min="0" max="240" step="1" value="{{ values.paid_vote_cutoff_minutes|default('10') }}">
+        </div>
+        <div>
+          <label for="f-paid_vote_grace_hours">Deliver late confirmations for (hours after close)</label>
+          <input type="number" name="paid_vote_grace_hours" id="f-paid_vote_grace_hours" min="0" max="168" step="1" value="{{ values.paid_vote_grace_hours|default('6') }}">
+        </div>
+      </div>
+      <p style="margin:8px 0 0;font-size:12px;color:var(--ad-text-mute,#5a6d6f)"><strong>The grace window decides whether a stranded payment can still be recovered.</strong> A supporter who paid while voting was open, but whose confirmation reached us after it closed, is delivered only if we are still inside this window — otherwise minting refuses with <code>CONFIRMED_TOO_LATE</code> and the order becomes a refund instead. Raise it before running a backlog recovery in <a href="/admin/payments" style="color:var(--ad-accent,#237b22)">Payments</a> for a cycle that has already closed; the ceiling is 168 hours (7 days). It never lets a payment <em>started</em> after voting closed through — that is a separate check.</p>
+
+      {# ── ONE LADDER, THREE THINGS THAT USED TO DISAGREE ────────────────────
+
+         "Discounts in percentages", "let me edit the vote chips" and "make the
+         pricing flexible" arrived as three requests and are one table: buy this
+         many, get this much off. Modelled separately they drift — a chip offering
+         6 votes beside a discount defined at 5, and a buyer shown one number and
+         charged another. Each row below is BOTH a chip on the ballot and the
+         discount that applies from that quantity upward.
+
+         The old field here was "Votes per ₦1,000", which stated a discount only by
+         implication: the admin had to work backwards from the per-vote price to
+         learn what they had set, and its meaning changed silently whenever that
+         price moved. Any existing bundle rate was converted to an equivalent row
+         by `2026_07_31_vote_tiers_from_bundle.php`, so nothing was repriced. #}
+      <div style="margin-top:16px;padding-top:14px;border-top:1px solid var(--ad-line,#e5eae8)"
+           x-data="{
+             per: {{ values.vote_price_naira|default(100) }},
+             {# NOT |raw — see the ballot's copy of this line. Double quotes inside a
+                double-quoted attribute end it early; autoescaped &quot; does not. #}
+             rows: {{ vote_tiers|json_encode }},
+             add(){ const last = this.rows.length ? this.rows[this.rows.length-1] : {qty:0,off:0};
+                    this.rows.push({ qty: (last.qty||0) + 10, off: Math.min(90, (last.off||0) + 5) }) },
+             /* Never leaves the table empty: a ladder with no rows saves as blank,
+                which the reader treats as 'unset' and answers with the defaults —
+                so the admin would appear to have deleted everything and got a
+                ladder back. One row is the honest floor. */
+             remove(i){ if (this.rows.length > 1) this.rows.splice(i,1) },
+             price(r){ return Math.max(100, Math.ceil(Math.max(1, r.qty|0) * this.per * (100 - Math.max(0, Math.min(90, r.off|0))) / 100)) } }">
+        <strong style="font-size:13px;display:block;margin-bottom:3px">Quantity &amp; discount ladder</strong>
+        <p style="margin:0 0 10px;font-size:12px;color:var(--ad-text-mute,#5a6d6f)">Each row is a quick-pick button on the ballot <em>and</em> the discount that starts at that quantity. Set 0% for a plain button with no discount. Rows are sorted by quantity when you save; clear a quantity to delete the row.</p>
+        <template x-for="(r, i) in rows" :key="i">
+          <div class="st-tier">
+            <div>
+              <label :for="'f-tier-qty-'+i" x-show="i===0">Votes</label>
+              <input :id="'f-tier-qty-'+i" type="number" name="vote_tier_qty[]" min="1" step="1" x-model.number="r.qty" :aria-label="'Tier ' + (i+1) + ' quantity'">
+            </div>
+            <div>
+              <label :for="'f-tier-off-'+i" x-show="i===0">Discount (%)</label>
+              <input :id="'f-tier-off-'+i" type="number" name="vote_tier_off[]" min="0" max="90" step="1" x-model.number="r.off" :aria-label="'Tier ' + (i+1) + ' discount percent'">
+            </div>
+            <div style="display:flex;align-items:center;gap:10px;padding-bottom:2px">
+              {# The buyer's total, live. A percentage is not a price, and the number
+                 the admin is actually deciding is what the supporter will be asked
+                 to pay — so it is shown here rather than left to be discovered on
+                 the ballot. Same formula as PaidVoteService::price(). #}
+              <span style="font-size:12.5px;color:var(--ad-text-mute,#5a6d6f);white-space:nowrap" x-text="'₦' + price(r).toLocaleString()"></span>
+              <button type="button" class="ad-btn" @click="remove(i)" :disabled="rows.length <= 1" :aria-label="'Remove tier ' + (i+1)" style="padding:6px 10px;font-size:12px">Remove</button>
+            </div>
+          </div>
+        </template>
+        <button type="button" class="ad-btn" @click="add()" style="margin-top:4px;font-size:12.5px">+ Add a tier</button>
+      </div>
+
+      <p style="margin:12px 0 0;font-size:12px;color:var(--ad-text-mute,#5a6d6f)">A bulk buyer purchasing {{ paid_max_qty|default(1000)|number_format }} votes in one order is <strong>one database row</strong>, so a large order costs the site no more work than a small one. The effective maximum is currently <strong>{{ paid_max_qty|default(1000)|number_format }}</strong> — the lower of this field and the quantity whose price stays under ₦{{ (paid_max_order_naira|default(100000000))|number_format }} per transaction. Your payment gateway and the buyer's bank impose their own, usually lower, per-transaction limits.</p>
+      <p style="margin:6px 0 0;font-size:12px;color:var(--ad-text-mute,#5a6d6f)">Every total is computed server-side from this ladder — the browser never decides a price. Discounts are capped at 90% (a 100% discount is a ₦0 order no gateway will accept) and every charge is floored at ₦100. A paid vote counts toward the Cultural Power Index <strong>exactly as a free one does</strong>, with no ceiling: the community half is a nominee's share of the largest tally in their category, and a tally is a tally. What money cannot reach is the judging half — judges never see a vote count. Every result publishes the full tally beside how much of it was bought, so the composition is visible without being penalised.</p>
+      <p style="margin:6px 0 0;font-size:12px;color:var(--ad-text-mute,#5a6d6f)">Buyers appear on the nominee's public <strong>supporters list</strong> when they fill in the optional name field; leaving it blank gives anonymously. Free OTP votes are never listed (that path requires a name, so giving one is not a choice). Orders placed before the field said this are treated as not consented and stay private. See <a href="/privacy#supporters" style="color:var(--ad-accent,#237b22)">the supporter-names policy</a>.</p>
+    </div>
+  </div></div>
+  {# ── THE SCORING CURVES ────────────────────────────────────────────────────
+     Four rules decided every published index and none of them had a form. They were
+     reachable only by editing a JSON column by hand, on a host with no shell — so an
+     operator could read the methodology on /integrity and could not change a line of it.
+
+     The basis is first because it is the only one that changes what a number MEANS
+     rather than how steep it is, and because switching it moves published standings. #}
+  <div class="ad-card" data-sec="site" data-keys="scoring cpi index community curve judge floor basis full credit depth cohort rank methodology" x-show="show($el)"><div class="ad-card__head"><div class="ad-card__title">Scoring &mdash; the Cultural Power Index<small>How votes and marks become a number. Published in full on the integrity page.</small></div></div><div class="ad-card__body">
+    <input type="hidden" name="scoring_settings" value="1">
+    <div class="ad-form">
+      <p style="margin:0 0 12px;padding:9px 11px;border-radius:8px;background:rgba(243,180,22,.12);border:1px solid rgba(243,180,22,.35);font-size:12.5px;line-height:1.55"><strong>These change published standings.</strong> A cycle whose results are announced &mdash; or printed &mdash; keeps the numbers it was announced with only if you leave these alone. Change them for the next cycle, not the one on the wall.</p>
+
+      <div class="row">
+        <div>
+          <label for="f-community_basis">What the community half measures</label>
+          <select name="community_basis" id="f-community_basis">
+            <option value="relative" {% if scoring.community_basis|default('relative') != 'absolute' %}selected{% endif %}>Share of their own category&rsquo;s leader</option>
+            <option value="absolute" {% if scoring.community_basis|default('relative') == 'absolute' %}selected{% endif %}>Their own turnout, on one scale</option>
+          </select>
+        </div>
+        <div>
+          <label for="f-community_full_credit_votes">Votes that earn the full community half</label>
+          <input type="number" name="community_full_credit_votes" id="f-community_full_credit_votes" min="1" step="1" value="{{ scoring.community_full_credit_votes|default(1000) }}">
+        </div>
+      </div>
+
+      <p style="margin:10px 0 0;font-size:12px;line-height:1.6;color:var(--ad-text-mute,#5a6d6f)"><strong>Share of their own leader</strong> is what decides a category &mdash; being top of your field is what wins one &mdash; and it means nothing outside that field. On a real cycle it put a 19-vote nominee who <em>led</em> a 19-vote category above a nominee with 691 votes who was a third of a large one. Both figures were right; neither was comparable to the other, and the overall winner across categories is drawn from exactly that comparison.</p>
+      <p style="margin:6px 0 0;font-size:12px;line-height:1.6;color:var(--ad-text-mute,#5a6d6f)"><strong>Their own turnout</strong> puts every nominee on one scale, so the index can be compared across categories. It never changes the order <em>within</em> a category. It does change the balance between the two halves &mdash; set the full-credit mark above your largest realistic tally, or every nominee past it ties on the community half and the panel decides between them.</p>
+
+      <div class="row">
+        <div>
+          <label for="f-community_curve">Community curve</label>
+          <input type="number" name="community_curve" id="f-community_curve" min="0.1" max="6" step="0.1" value="{{ scoring.community_curve|default(2.0) }}">
+        </div>
+        <div>
+          <label>What that does</label>
+          <p style="margin:9px 0 0;font-size:13px;line-height:1.55;color:var(--ad-text-mute,#5a6d6f)">1.0 is linear. At <strong>2.0</strong>, half the leader&rsquo;s support is worth a quarter of the weight. Ignored when the basis is turnout.</p>
+        </div>
+      </div>
+
+      <div class="row">
+        <div>
+          <label for="f-judge_floor">Judge floor (out of 10)</label>
+          <input type="number" name="judge_floor" id="f-judge_floor" min="0" max="9" step="0.1" value="{{ scoring.judge_floor|default(5.0) }}">
+        </div>
+        <div>
+          <label for="f-judge_curve">Judge curve</label>
+          <input type="number" name="judge_curve" id="f-judge_curve" min="0.1" max="6" step="0.1" value="{{ scoring.judge_curve|default(1.5) }}">
+        </div>
+      </div>
+      <p style="margin:10px 0 0;font-size:12px;line-height:1.6;color:var(--ad-text-mute,#5a6d6f)">The floor is a statement about the scale, not a pass mark. Panels rarely award below five, so treating 0&ndash;5 as live range handed every judged nominee a third of the judge weight for turning up. A mark at or below the floor is worth nothing; ten is worth all of it.</p>
+      <p style="margin:6px 0 0;font-size:12px;line-height:1.6;color:var(--ad-text-mute,#5a6d6f)">Every value here is overridable per programme and per cycle in <code>gates_rule_sets</code>; this form writes the global default. The <a href="/integrity#index" style="color:var(--ad-accent,#237b22)">integrity page</a> publishes whatever is in force.</p>
+    </div>
+  </div></div>
+  {# ── COMMUNITY RETURN ──────────────────────────────────────────────────────
+     The share a nominee keeps of what supporters raised in their name. Lives in
+     gates_rule_sets rather than gates_settings because it is a scoring rule and
+     has to be overridable per cycle — and because the accrual reads it from
+     RuleEngine, so the form and the ledger cannot disagree.
+
+     Everything visible here is also published on /integrity, verbatim. That is
+     deliberate: an admin changing the share should be able to see, in the same
+     sentence, exactly what the public page will start saying. #}
+  <div class="ad-card" data-sec="money" data-keys="community return share nominee earnings payout revenue split qualifying support threshold cap supporters percentage" x-show="show($el)"><div class="ad-card__head"><div class="ad-card__title">Community return<small>The share a nominee keeps of contributions made in their name — win or lose.</small></div></div><div class="ad-card__body">
+    <input type="hidden" name="community_return_settings" value="1">
+    <div class="ad-form">
+      {# The return accrues from bought votes and nothing else, so with paid voting off
+         every field below is inert and the operator has no way to tell — they would be
+         tuning a share of a revenue stream that does not exist, while /integrity and the
+         Help Centre published the rule to nominees in the present tense. #}
+      {% if community_return.off_reason|default('') == 'no_paid_voting' %}
+        <p style="margin:0 0 12px;padding:9px 11px;border-radius:8px;background:rgba(243,180,22,.12);border:1px solid rgba(243,180,22,.35);font-size:12.5px;line-height:1.55;color:var(--ad-text,#10292c)"><strong>Nothing is accruing.</strong> The return is a share of what supporters contribute for votes, and <strong>paid voting is switched off</strong> — so there is no contribution to take a share of. These settings are saved and will apply the moment vote contribution is enabled above. Both <a href="/integrity#return" style="color:var(--ad-accent,#237b22)">the integrity page</a> and the Help Centre say so to the public while it is off.</p>
+      {% endif %}
+      <div class="row">
+        <div>
+          <label for="f-community_return_pct">Share of each contribution (%)</label>
+          <input type="number" name="community_return_pct" id="f-community_return_pct" min="0" max="100" step="0.5" value="{{ community_return.pct|default('50') }}">
+        </div>
+        <div>
+          <label for="f-community_return_vote_threshold">Qualifying support needed (votes)</label>
+          <input type="number" name="community_return_vote_threshold" id="f-community_return_vote_threshold" min="1" step="1" value="{{ community_return.threshold|default(250) }}">
+        </div>
+      </div>
+      <div class="row">
+        <div>
+          <label for="f-community_return_supporter_cap_pct">Most one supporter may supply (%)</label>
+          <input type="number" name="community_return_supporter_cap_pct" id="f-community_return_supporter_cap_pct" min="1" max="100" step="1" value="{{ community_return.cap_pct|default(10) }}">
+        </div>
+        <div>
+          <label>What that works out as</label>
+          <p style="margin:9px 0 0;font-size:13px;line-height:1.55;color:var(--ad-text-mute,#5a6d6f)">
+            One supporter counts for at most <strong>{{ community_return.cap_votes|default(25)|number_format }} votes</strong>,
+            so qualifying takes at least <strong>{{ community_return.min_supporters|default(10) }} different people</strong>.
+          </p>
+        </div>
+      </div>
+
+      <p style="margin:12px 0 0;font-size:12px;color:var(--ad-text-mute,#5a6d6f)"><strong>How qualifying support is counted.</strong> Votes, not heads — somebody who bought twenty-five votes did more than somebody who cast one. But no single supporter's votes count for more than the ceiling above, so a raw threshold cannot be bought by one person in one order. The minimum number of people is <em>derived</em> from that ceiling, never set separately: two knobs describing one rule is how a page publishes one number while the engine enforces another.</p>
+      <p style="margin:6px 0 0;font-size:12px;color:var(--ad-text-mute,#5a6d6f)">Free votes and contributions are added together per person, so splitting an order cannot buy a second allowance. Refunded and undelivered orders count for nothing.</p>
+      <p style="margin:6px 0 0;font-size:12px;color:var(--ad-text-mute,#5a6d6f)"><strong>Qualifying support is a turnout test, not a revenue test.</strong> It counts every vote a nominee has — free, bought, or awarded — because what it is checking is that a real community showed up. What the nominee then earns is a share of money, and only money accrues.</p>
+      <p style="margin:6px 0 0;font-size:12px;color:var(--ad-text-mute,#5a6d6f)">Earning is <strong>prospective</strong>: crossing the line changes what happens next, never what already happened. Contributions made before a nominee qualified stay unshared however many times accrual is re-run over them.</p>
+      <p style="margin:6px 0 0;font-size:12px;color:var(--ad-text-mute,#5a6d6f)">Nothing is payable until a cycle reaches its results, and <strong>no payout path exists yet</strong> — the ledger accrues and displays. Set the share to <strong>0%</strong> to stop accruing entirely for new contributions; entries already written are unaffected, because the ledger is append-only. These figures are published on the <a href="/integrity#return" style="color:var(--ad-accent,#237b22)">integrity page</a> exactly as set here.</p>
+    </div>
+  </div></div>
+  <div class="ad-card" data-sec="site" data-keys="display values nations count cpi recompute interval review sla nomination seconds otp expiry processing fee donation goal target fundraising" x-show="show($el)"><div class="ad-card__head"><div class="ad-card__title">Display values<small>Numbers shown in site copy — edit here instead of hardcoding them in templates.</small></div></div><div class="ad-card__body">
+    <input type="hidden" name="display_settings" value="1">
+    <div class="ad-form">
+      <div class="row">
+        <div><label for="f-nations_count">Nations in scope</label><input type="number" name="nations_count" id="f-nations_count" min="0" step="1" value="{{ values.nations_count|default('54') }}"></div>
+        <div><label for="f-cpi_recompute_hours">CPI recompute interval (hours)</label><input type="number" name="cpi_recompute_hours" id="f-cpi_recompute_hours" min="0" step="1" value="{{ values.cpi_recompute_hours|default('6') }}"></div>
+      </div>
+      <div class="row">
+        <div><label for="f-review_sla_hours">Nomination review SLA (hours)</label><input type="number" name="review_sla_hours" id="f-review_sla_hours" min="0" step="1" value="{{ values.review_sla_hours|default('48') }}"></div>
+        <div><label for="f-nomination_seconds">Nomination time estimate (seconds)</label><input type="number" name="nomination_seconds" id="f-nomination_seconds" min="0" step="1" value="{{ values.nomination_seconds|default('90') }}"></div>
+      </div>
+      <div class="row">
+        <div><label for="f-otp_expiry_minutes">OTP code expiry (minutes)</label><input type="number" name="otp_expiry_minutes" id="f-otp_expiry_minutes" min="0" step="1" value="{{ values.otp_expiry_minutes|default('10') }}"></div>
+        <div><label for="f-processing_fee_pct">Payment processing fee (%)</label><input type="number" name="processing_fee_pct" id="f-processing_fee_pct" min="0" step="0.1" value="{{ values.processing_fee_pct|default('1.5') }}"></div>
+      </div>
+      <div class="row">
+        <div><label for="f-donation_goal_naira">Donation target (₦)</label><input type="number" name="donation_goal_naira" id="f-donation_goal_naira" min="0" step="1000" value="{{ values.donation_goal_naira|default('0') }}"></div>
+        <div></div>
+      </div>
+      <p style="margin:6px 0 0;font-size:12px;color:var(--ad-text-mute,#5a6d6f)">The target the <a href="/donate" style="color:var(--ad-accent,#237b22)">donation page</a> shows progress against. <strong>0 means no target</strong> — the page then prints the raised figure alone, exactly as it did before, because an invented target is worse than none. Progress is summed from confirmed donations on every page load, so it can never drift from the rows underneath it.</p>
+    </div>
+  </div></div>
+  <div class="ad-card" data-sec="integrity" data-keys="moderation thresholds quarantine auto reject comments threads nominations review queue" x-show="show($el)"><div class="ad-card__head"><div class="ad-card__title">Moderation thresholds<small>Where content scores (0–1) flip to review or auto-reject. Applies to comments, threads &amp; nominations.</small></div></div><div class="ad-card__body">
+    <input type="hidden" name="moderation_settings" value="1">
+    <div class="ad-form">
+      <div class="row">
+        <div><label for="f-mod_q">Quarantine at ≥</label><input type="number" name="mod_threshold_quarantine" id="f-mod_q" min="0.05" max="0.90" step="0.05" value="{{ values.mod_threshold_quarantine|default('0.30') }}"></div>
+        <div><label for="f-mod_r">Auto-reject at ≥</label><input type="number" name="mod_threshold_reject" id="f-mod_r" min="0.10" max="0.99" step="0.05" value="{{ values.mod_threshold_reject|default('0.65') }}"></div>
+      </div>
+      <p style="margin:6px 0 0;font-size:12px;color:var(--ad-text-mute,#5a6d6f)">Lower = stricter. Below the quarantine line content publishes instantly; between the lines it waits in <a href="/admin/moderation" style="color:var(--ad-accent,#237b22)">the review queue</a>; above the reject line it is blocked outright. Values are clamped so moderation can never be switched off by accident.</p>
+    </div>
+  </div></div>
+  <div class="ad-card" data-sec="integrity" data-keys="nomination eligibility threshold minimum distinct locations approve nominee" x-show="show($el)"><div class="ad-card__head"><div class="ad-card__title">Nomination eligibility<small>Require nominations from multiple locations before a nominee can be approved.</small></div></div><div class="ad-card__body">
+    <input type="hidden" name="nomination_settings" value="1">
+    <div class="ad-form">
+      <label class="checkbox" style="display:flex;align-items:flex-start;gap:8px;margin-bottom:10px"><input type="checkbox" name="nomination_eligibility_enabled" value="1" {% if values.nomination_eligibility_enabled == '1' %}checked{% endif %}> <span><strong>Enforce eligibility threshold</strong> — block approving a nominee until they have enough nominations from different locations.</span></label>
+      <div><label for="f-nomination_min_locations">Minimum distinct locations</label><input type="number" name="nomination_min_locations" id="f-nomination_min_locations" min="1" step="1" value="{{ values.nomination_min_locations|default('5') }}"></div>
+      <p style="margin:6px 0 0;font-size:12px;color:var(--ad-text-mute,#5a6d6f)">"Different locations" = distinct nominator country + state. The eligibility count shows on every nomination; when enforced, approval is blocked below the threshold.</p>
+    </div>
+  </div></div>
+  {# ── AI governance ─────────────────────────────────────────────────────────
+     Spend and agreement were both unmeasurable before: nothing recorded token
+     usage, and nothing recorded whether a reviewer agreed with a suggestion. #}
+  <div class="ad-card" data-sec="ai" data-keys="ai activity spend tokens calls today reviewer agreement capability model failure governance" x-show="show($el)">
+    <div class="ad-card__head">
+      <div class="ad-card__title">AI activity<small>Today's spend per feature, and how often reviewers agreed (30 days)</small></div>
+      <span class="ad-chip ad-chip--{{ ai_enabled_flag ? 'green' : 'red' }}">{{ ai_enabled_flag ? 'AI on' : 'AI off' }}</span>
+    </div>
+    <div class="ad-table-wrap">
+      <table class="ad-table">
+        <thead><tr>
+          <th scope="col">Feature</th><th scope="col">Model</th><th scope="col">On failure</th>
+          <th scope="col">Calls today</th><th scope="col">Tokens today</th>
+          <th scope="col">Failures</th><th scope="col">Reviewer agreement</th><th scope="col">State</th>
+        </tr></thead>
+        <tbody>
+          {% for c in ai_capabilities %}
+            {% set spend = ai_spend|filter(s => s.capability == c.name)|first %}
+            {% set agree = ai_agreement|filter(a => a.capability == c.name)|first %}
+            <tr>
+              <td><strong>{{ c.name }}</strong><div style="font-size:11.5px;color:var(--ad-text-mute,#61728e)">{{ c.purpose }}</div></td>
+              <td><code style="font-size:11px">{{ c.model }}</code></td>
+              <td>
+                {# Declared per feature, not assumed: silent degradation is right
+                   for optional writing help and wrong for moderation. #}
+                <span class="ad-chip ad-chip--{{ c.on_failure == 'announce' ? 'blue' : 'grey' }}">{{ c.on_failure }}</span>
+              </td>
+              <td>{{ spend ? spend.calls : 0 }} <span style="color:var(--ad-text-mute,#61728e)">/ {{ c.calls|number_format }}</span></td>
+              <td>{{ spend ? spend.tokens|number_format : 0 }} <span style="color:var(--ad-text-mute,#61728e)">/ {{ c.tokens|number_format }}</span></td>
+              <td>{% if spend and spend.failures > 0 %}<span class="ad-chip ad-chip--gold">{{ spend.failures }}</span>{% else %}—{% endif %}</td>
+              <td>
+                {% if agree and agree.rate is not null %}
+                  {{ agree.rate }}% <span style="color:var(--ad-text-mute,#61728e)">({{ agree.decisions }} decisions)</span>
+                {% else %}<span style="color:var(--ad-text-mute,#61728e)">no decisions yet</span>{% endif %}
+              </td>
+              <td>{% if c.enabled %}<span class="ad-chip ad-chip--green">on</span>{% else %}<span class="ad-chip ad-chip--red">off</span>{% endif %}</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {# ── WHY THE FAILURES ABOVE HAPPENED ─────────────────────────────────────
+       The column to the left counts them. That count was the end of the trail on a
+       host with no shell: "3" in a gold chip, with the provider's own refusal sitting
+       unread in `gates_ai_calls.error` since the log was built. A rejected key, a
+       decommissioned model, an egress block and a summary that ran out of time all
+       rendered as the same chip, and each of those is a different fix.
+
+       Refusals are deliberately absent — a spent budget or a switched-off capability
+       is not a fault and has no provider error behind it, and listing them would bury
+       the four rows worth reading under forty that are not. See
+       AiGateway::recentFailures(). #}
+    {% if ai_failures is defined and ai_failures %}
+    <div class="ad-table-wrap">
+      <table class="ad-table">
+        <caption style="text-align:left;padding:12px 0;font-size:12.5px;color:var(--ad-text-mute,#5a6d6f)">
+          The last {{ ai_failures|length }} failure{{ ai_failures|length == 1 ? '' : 's' }} in 24 hours —
+          what the provider actually said, and the one thing to change.
+        </caption>
+        <thead><tr>
+          <th scope="col">When</th><th scope="col">Feature</th><th scope="col">Outcome</th>
+          <th scope="col">Tried</th><th scope="col">What came back</th>
+        </tr></thead>
+        <tbody>
+          {% for f in ai_failures %}
+          <tr>
+            <td style="white-space:nowrap">{{ f.at|when_zoned('j M, H:i') }}
+              {% if f.latency_ms > 0 %}<div style="font-size:11px;color:var(--ad-text-mute,#61728e)">{{ (f.latency_ms / 1000)|number_format(1) }}s</div>{% endif %}</td>
+            <td><strong style="font-size:12.5px">{{ f.capability }}</strong></td>
+            <td><span class="ad-chip ad-chip--gold">{{ f.outcome }}</span></td>
+            <td><code style="font-size:11px">{{ f.provider|default('—') }}{% if f.model %} / {{ f.model }}{% endif %}</code></td>
+            <td>
+              {# The provider's own words FIRST, then the interpretation — never only the
+                 interpretation. A guess that displaces the evidence is how somebody
+                 rotates a working key while the real fault is an egress block. #}
+              <code style="font-size:11px;word-break:break-word">{{ f.error|default('no detail recorded') }}</code>
+              {% if f.cause %}<div style="margin-top:5px;font-size:12px;color:var(--ad-text-mute,#5a6d6f)">{{ f.cause }}</div>{% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% endif %}
+    <div class="ad-card__body">
+      <p style="margin:0;font-size:12.5px;color:var(--ad-text-mute,#5a6d6f)">
+        Every AI call is recorded in <code>gates_ai_calls</code>; the prompt itself is not stored, only a hash.
+        Switch everything off with <code>ai_enabled = 0</code>, or one feature with
+        <code>ai_cap_disabled_&lt;feature&gt;</code> (dots become underscores).
+      </p>
+      <p style="margin:8px 0 0;font-size:12.5px;color:var(--ad-text-mute,#5a6d6f)">
+        <strong>Reading a timeout:</strong> <code>TIMEOUT after Ns</code> means the provider
+        connected and was answering — the job simply needed longer than the feature allows.
+        Nothing is wrong with the key or the network; raise that capability's timeout, or ask
+        it for a shorter answer. <code>HTTP 0</code> is the different fault: the request never
+        left this server.
+      </p>
+      <p style="margin:8px 0 0;font-size:12.5px;color:var(--ad-text-mute,#5a6d6f)">
+        <strong>Reading agreement:</strong> a LOW rate is the clear signal — the suggestion is not earning its
+        cost and the feature should be switched off rather than tuned indefinitely. A rate near 100% is
+        ambiguous: it may mean the suggestion is good, or that reviewers are deferring to it. Treat it as a
+        prompt to look, not as a success metric.
+      </p>
+    </div>
+  </div>
+
+  <div class="ad-card" data-sec="ai" data-keys="ai providers api key groq gemini anthropic openai moderation heuristics test ai elevenlabs 11 labs voice speech audio microphone read aloud transcribe questionnaire" x-show="show($el)"><div class="ad-card__head"><div class="ad-card__title">AI providers<small>Free-tier moderation &amp; AI features. The platform runs on built-in heuristics until you add a key.</small></div></div><div class="ad-card__body">
+    <input type="hidden" name="ai_settings" value="1">
+    {# This paragraph used to read "the first configured provider is used, in order:
+       Groq → Gemini → Anthropic → OpenAI", which was accurate and is no longer how
+       it works. Each feature now PINS a model by what its output is used for, and
+       the pin is honoured; the key order only decides what happens once every
+       declared hop is exhausted. Leaving the old sentence would have an operator
+       adding a Groq key expecting it to take over everything. #}
+    {# And then it named OPENAI as the pinned primary, and then GROQ, and each was wrong
+       within a commit or two of being written. THREE times is not carelessness, it is a
+       sentence that cannot be maintained: it restates a value that lives in the code, so
+       every move of that value silently falsifies it, and nothing fails when it does.
+       Getting it backwards on the screen is how "Groq is hardcoded" becomes the reading —
+       the pin is a PREFERENCE, and AiService::resolveRoute() appends every other
+       configured provider after the declared hops, so a deployment whose only key is
+       Anthropic still gets every feature.
+
+       So the provider is no longer NAMED here. It is interpolated from the same value the
+       picker below is bound to, which is the same value AiCapability::primaryProvider()
+       resolves — one resolver, and a paragraph that cannot disagree with it. #}
+    <p style="margin:0 0 10px;font-size:13px;color:var(--ad-text-mute,#5a6d6f)">Keys are stored server-side and never shown again. Every AI feature leads with <strong>{{ ai_primary_choices[ai_primary]|default('your primary provider') }}</strong> unless it names its own, then falls back through the others you hold a key for. The pin decides preference, not eligibility: a feature only goes dark when none of them work. {% if ai_status.active %}Configured now: <strong>{{ ai_status.active|capitalize }}</strong>{% if ai_status.model %} ({{ ai_status.model }}){% endif %}.{% else %}No provider configured — using built-in heuristics.{% endif %}</p>
+    {# ── WHICH PROVIDER LEADS ────────────────────────────────────────────────
+       This was a constant, and the screen described it wrongly twice — first as OpenAI
+       when the code pinned Groq, then as Groq after it had moved. A setting an operator
+       can see is also a setting the page cannot misdescribe: the hints below are written
+       from this value rather than from a sentence somebody has to remember to update. #}
+    <div style="margin-bottom:14px">
+      <label for="f-ai_primary">Primary provider
+        <small>tried first for every feature that has not named its own</small></label>
+      <select name="ai_primary" id="f-ai_primary" style="max-width:320px">
+        {% for id, label in ai_primary_choices %}
+          <option value="{{ id }}"{{ ai_primary == id ? ' selected' : '' }}>{{ label }}</option>
+        {% endfor %}
+      </select>
+      <p class="hint" style="margin:6px 0 0">
+        The others stay behind it as fallbacks, in the order shown below, and a feature
+        still reaches any provider you have a key for once the declared hops are spent
+        &mdash; a pin decides preference, not eligibility.
+        <strong>The door's name pronunciation is pinned to OpenAI</strong> whatever you
+        choose here: knowing how a Nigerian name is said is a different job from the rest,
+        and its answer is kept and then read aloud to somebody.
+      </p>
+    </div>
+
+    <div class="ad-form">
+      {% set ai_providers = [
+        {'name':'openai','label':'OpenAI API key','hint':'platform.openai.com'},
+        {'name':'gemini','label':'Google Gemini API key','hint':'aistudio.google.com — generous free tier'},
+        {'name':'anthropic','label':'Anthropic API key','hint':'console.anthropic.com (Claude)'},
+        {'name':'groq','label':'Groq API key','hint':'console.groq.com — free &amp; fast (Llama)'},
+        {'name':'elevenlabs','label':'ElevenLabs API key','hint':'elevenlabs.io — the door voice, and the second link in its fallback chain'}
+      ] %}
+      {% for p in ai_providers %}
+      <div>
+        <label>{{ p.label }} {% if ai_status[p.name] %}<span style="color:#16794d;font-weight:600">● configured</span>{% else %}<span style="color:var(--ad-text-mute,#61728e)">not set</span>{% endif %}</label>
+        <input type="password" name="ai_{{ p.name }}_key" aria-label="{{ p.label }} API key" autocomplete="new-password" placeholder="{% if ai_status[p.name] %}•••••••••• (leave blank to keep){% else %}paste key to enable{% endif %}">
+        <div style="display:flex;justify-content:space-between;gap:8px;margin-top:3px">
+          <small style="font-size:11px;color:var(--ad-text-mute,#61728e)">{{ p.hint|raw }}{% if ai_primary == p.name %} &mdash; <strong>primary</strong>{% endif %}</small>
+          {% if ai_status[p.name] %}<label style="font-size:11px;display:inline-flex;gap:4px;align-items:center"><input type="checkbox" name="ai_clear[{{ p.name }}]" value="1"> remove</label>{% endif %}
+        </div>
+      </div>
+      {% endfor %}
+      <div class="row">
+        {# Placeholders read from AiService::DEFAULT_MODELS so the hint an operator
+           sees and the id the request sends cannot drift apart. They were four
+           hardcoded strings, and gemini-2.0-flash was already stale. #}
+        <div><label for="f-ai_openai_model">OpenAI model <small>overrides the pin for every feature</small></label><input type="text" name="ai_openai_model" id="f-ai_openai_model" value="{{ values.ai_openai_model|default('') }}" placeholder="{{ ai_default_models.openai }}"></div>
+        <div><label for="f-ai_gemini_model">Gemini model <small>optional</small></label><input type="text" name="ai_gemini_model" id="f-ai_gemini_model" value="{{ values.ai_gemini_model|default('') }}" placeholder="{{ ai_default_models.gemini }}"></div>
+      </div>
+      <div class="row">
+        <div><label for="f-ai_anthropic_model">Anthropic model <small>optional — point at your best Claude</small></label><input type="text" name="ai_anthropic_model" id="f-ai_anthropic_model" value="{{ values.ai_anthropic_model|default('') }}" placeholder="{{ ai_default_models.anthropic }}"></div>
+        <div><label for="f-ai_groq_model">Groq model <small>general / public — fast &amp; cheap</small></label><input type="text" name="ai_groq_model" id="f-ai_groq_model" value="{{ values.ai_groq_model|default('') }}" placeholder="{{ ai_default_models.groq }}"></div>
+      </div>
+      <p style="margin:8px 0 0;font-size:11.5px;color:var(--ad-text-mute,#61728e)">Every provider's model is yours to set — leave blank for the default shown. Setting one here overrides the per-feature pin for that provider, so moving to a newer model is a settings change rather than a deploy. Point each at the strongest model your plan allows.</p>
+
+      <div style="margin-top:14px;padding-top:14px;border-top:1px solid var(--ad-line,#e5eae8)">
+        <label style="font-weight:600">Dedicated moderation Groq key
+          {% if ai_mod_dedicated %}<span style="color:#16794d;font-weight:600">● configured</span>{% else %}<span style="color:var(--ad-text-mute,#61728e)">using the general key as a free backup</span>{% endif %}
+        </label>
+        <input type="password" name="ai_groq_key_mod" aria-label="Dedicated moderation Groq API key" autocomplete="new-password" placeholder="{% if ai_mod_dedicated %}•••••••••• (leave blank to keep){% else %}optional — a 2nd Groq key just for moderation{% endif %}">
+        <div style="display:flex;justify-content:space-between;gap:8px;margin-top:3px">
+          <small style="font-size:11px;color:var(--ad-text-mute,#61728e)">A separate Groq key for the spam/abuse classifier — isolates safety decisions from public AI traffic and runs the <strong>best model</strong>. Free-falls back to the general Groq key when blank.</small>
+          {% if ai_mod_dedicated %}<label style="font-size:11px;display:inline-flex;gap:4px;align-items:center"><input type="checkbox" name="ai_clear[groq_mod]" value="1"> remove</label>{% endif %}
+        </div>
+        <div style="margin-top:8px"><label for="f-ai_groq_model_mod">Moderation model <small>defaults to the best available</small></label><input type="text" name="ai_groq_model_mod" id="f-ai_groq_model_mod" value="{{ values.ai_groq_model_mod|default('') }}" placeholder="{{ ai_mod_model }}"></div>
+      </div>
+      {# ── ElevenLabs: the voice on the nominee's questionnaire ─────────────
+         Its own block rather than a fifth entry in the provider loop above, because it is not
+         a language model and cannot stand in for one: the four providers are interchangeable
+         and this is a different capability entirely. With no key here the questionnaire is
+         exactly the text conversation it was before — a nominee is never shown a microphone
+         the platform cannot use. #}
+      <div style="margin-top:14px;padding-top:14px;border-top:1px solid var(--ad-line,#e5eae8)">
+        <label style="font-weight:600">ElevenLabs — read the questionnaire aloud, and let a nominee answer by talking
+          {% if voice_status.configured %}<span style="color:#16794d;font-weight:600">● configured</span>{% else %}<span style="color:var(--ad-text-mute,#61728e)">off — the questionnaire stays text-only</span>{% endif %}
+        </label>
+        <input type="password" name="voice_elevenlabs_key" aria-label="ElevenLabs API key" autocomplete="new-password" placeholder="{% if voice_status.configured %}•••••••••• (leave blank to keep){% else %}paste your ElevenLabs API key{% endif %}">
+        <div style="display:flex;justify-content:space-between;gap:8px;margin-top:3px">
+          <small style="font-size:11px;color:var(--ad-text-mute,#61728e)">A nominee who can talk for an hour about the work of their life should not lose the nomination to a phone keyboard. With a key set, each question can be <strong>read out</strong> and an answer can be <strong>spoken</strong> — the transcription goes into the answer box for them to correct and send themselves, never straight into the record.</small>
+          {% if voice_status.configured %}<label style="font-size:11px;display:inline-flex;gap:4px;align-items:center"><input type="checkbox" name="ai_clear[voice]" value="1"> remove</label>{% endif %}
+        </div>
+        <div class="row" style="margin-top:8px">
+          <div><label for="f-voice_id">Voice <small>pick one your nominees will recognise</small></label><input type="text" name="voice_elevenlabs_voice" id="f-voice_id" value="{{ values.voice_elevenlabs_voice|default('') }}" placeholder="{{ voice_defaults.voice }}"></div>
+          <div><label for="f-voice_model">Voice model <small>optional</small></label><input type="text" name="voice_elevenlabs_model" id="f-voice_model" value="{{ values.voice_elevenlabs_model|default('') }}" placeholder="{{ voice_defaults.tts }}"></div>
+        </div>
+        <div style="margin-top:8px"><label for="f-voice_stt">Transcription model <small>for spoken answers</small></label><input type="text" name="voice_elevenlabs_stt_model" id="f-voice_stt" value="{{ values.voice_elevenlabs_stt_model|default('') }}" placeholder="{{ voice_defaults.stt }}"></div>
+        <p style="margin:8px 0 0;font-size:11.5px;color:var(--ad-text-mute,#61728e)">
+          The default voice is a placeholder, not a recommendation — it is an American one. Copy a voice ID from your ElevenLabs library and paste it here; for a continental African panel the accent is not a cosmetic choice.
+          Currently reading with <code>{{ voice_status.tts }}</code> and transcribing with <code>{{ voice_status.stt }}</code>.
+        </p>
+      </div>
+
+      <div class="row" style="margin-top:8px">
+        <div>
+          <label for="f-gee_make_url">Make.com agent URL <small>optional — lets Gee use an external agent &amp; its tools</small></label>
+          <input type="url" name="gee_make_agent_url" id="f-gee_make_url" value="{{ values.gee_make_agent_url|default('') }}" placeholder="https://hook.eu1.make.com/…">
+        </div>
+        <div>
+          <label for="f-gee_make_key">Make.com bridge key {% if values.gee_make_agent_key|default('') != '' %}<span style="color:#16794d;font-weight:600">● configured</span>{% endif %}</label>
+          <input type="password" name="gee_make_agent_key" id="f-gee_make_key" autocomplete="new-password" placeholder="{% if values.gee_make_agent_key|default('') != '' %}•••••••••• (leave blank to keep){% else %}shared secret (16+ chars){% endif %}">
+          <div style="display:flex;justify-content:space-between;gap:8px;margin-top:3px">
+            <small style="font-size:11px;color:var(--ad-text-mute,#61728e)">Same key authenticates Make's inbound calls to <code>/api/v1/agent/gee</code></small>
+            {% if values.gee_make_agent_key|default('') != '' %}<label style="font-size:11px;display:inline-flex;gap:4px;align-items:center"><input type="checkbox" name="ai_clear[make_key]" value="1"> remove</label>{% endif %}
+          </div>
+        </div>
+      </div>
+      <div style="margin-top:12px;display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+        <button class="ad-btn" type="submit" formaction="/admin/settings/test-ai" formnovalidate>Test AI now</button>
+        <small style="font-size:11px;color:var(--ad-text-mute,#61728e)">Makes one live call and reports which provider answered — the quickest way to confirm keys + network. Save any new key first.</small>
+      </div>
+
+      {# ── AND THE SAME TEST, ONE PROVIDER AT A TIME ────────────────────────
+         "Test AI now" stops at the first provider that answers, which is what the platform
+         does and the wrong instrument for "is Gemini working?" — a healthy Groq at the top
+         of the ladder means Gemini is never called and this page reports a green tick.
+
+         So a fallback provider can be unfunded, blocked by this host's egress firewall, or
+         pinned to a decommissioned model for months, and the only symptom is that failover
+         quietly does nothing on the day the primary goes down. This button stands on every
+         rung. It costs one real call per configured key, which is why it is separate. #}
+      <div style="margin-top:14px;padding-top:14px;border-top:1px solid var(--ad-line,#e2e7e8)"
+           id="ai-probe">
+        <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+          <button class="ad-btn" type="submit" name="probe" value="ai" formnovalidate>Test each provider separately</button>
+          <small style="font-size:11px;color:var(--ad-text-mute,#61728e)">One live call per configured key, reported one by one — the only way to see that a <em>fallback</em> is broken while the primary is fine.</small>
+        </div>
+
+        {% if ai_probe|default([]) %}
+          <table class="ad-table" style="margin-top:12px">
+            <thead><tr>
+              <th>Provider</th><th>Model asked for</th><th>Verdict</th><th style="text-align:right">Took</th>
+            </tr></thead>
+            <tbody>
+            {% for p in ai_probe %}
+              <tr>
+                <td style="font-weight:600">{{ p.provider|capitalize }}</td>
+                <td><code style="font-size:11.5px">{{ p.model ?: '—' }}</code></td>
+                <td>
+                  {% if not p.configured %}
+                    <span style="color:var(--ad-text-mute,#61728e)">No key set</span>
+                  {% elseif p.ok %}
+                    <span style="color:#16794d;font-weight:600">● Answered</span>
+                  {% else %}
+                    <span style="color:#a32b1c;font-weight:600">● Did not answer</span>
+                  {% endif %}
+                  {# The provider's own words FIRST, then what to change. Never only the
+                     interpretation: a guess that displaces the evidence is how somebody
+                     rotates a working key while the real fault is an egress block. #}
+                  {% if p.error %}
+                    <div style="margin-top:4px;font-family:var(--ag-font-mono,monospace);font-size:11px;color:#5a6d6f;word-break:break-word">{{ p.error }}</div>
+                  {% endif %}
+                  {% if p.cause %}
+                    <div style="margin-top:4px;font-size:11.5px;line-height:1.5;color:#3c4649">{{ p.cause }}</div>
+                  {% endif %}
+                </td>
+                <td style="text-align:right;font-family:var(--ag-font-mono,monospace);font-size:11.5px;color:var(--ad-text-mute,#61728e)">{{ p.configured ? p.ms ~ 'ms' : '—' }}</td>
+              </tr>
+            {% endfor %}
+            </tbody>
+          </table>
+          <small style="display:block;margin-top:8px;font-size:11px;color:var(--ad-text-mute,#61728e)">Measured just now, and not kept — press the button again rather than trusting this after you change a key.</small>
+        {% endif %}
+      </div>
+    </div>
+  </div></div>
+
+  {# ── IS THE GOOGLE SYNC ACTUALLY WORKING? ─────────────────────────────────
+     The same shape as the AI probe above, and for the same reason. Every part of this
+     integration can be set correctly and still do nothing, and from the .env file all
+     five failures look identical: the deployment was never published, it was published
+     as "only me", SECRET and GAS_SECRET are different strings, the Calendar advanced
+     service was never added, or the script was edited and never re-deployed — Apps
+     Script serves the last DEPLOYED version, not the last saved one.
+
+     So this asks the script itself, and every row carries the fix rather than a verdict. #}
+  <div class="ad-card" id="sync-probe"
+       data-sec="ops"
+       data-keys="google calendar meet apps script gas url secret exec deployment interviews sync sheets"
+       x-show="show($el)"><div class="ad-card__head">
+    <div class="ad-card__title">Google Calendar and Meet
+      <small>the Apps Script this platform books interviews and syncs sheets through</small></div>
+  </div><div class="ad-card__body">
+
+    {# ── WHY THESE TWO FIELDS EXIST AT ALL ────────────────────────────────
+       They were read from .env and nowhere else, and there is no SSH on production. So
+       the only way to configure the calendar was to edit a file the operator cannot
+       reach — and every screen that depends on it said, correctly and uselessly, "set
+       GAS_SECRET in .env". `gates_settings` first, `.env` still honoured as the
+       fallback, so a host that has them in the file keeps working untouched. #}
+    <input type="hidden" name="google_settings" value="1">
+    <div class="ad-form">
+      <div>
+        <label for="f-gas_url">Apps Script web-app address</label>
+        <input type="url" name="gas_url" id="f-gas_url" value="{{ gas_url|default('') }}"
+               placeholder="https://script.google.com/macros/s/…/exec"
+               autocomplete="off" spellcheck="false">
+        {# Echoed on purpose. A stale /exec URL from a previous deployment is the
+           commonest way this integration half-works, and it is invisible if the field
+           is blanked for tidiness. #}
+        <small>Deploy → New deployment → Web app, <strong>Execute as: me</strong>,
+          <strong>Who has access: anyone</strong>. Paste the whole /exec link.
+          The sheet sync uses the same address.</small>
+      </div>
+      <div>
+        <label for="f-gas_secret">Shared secret</label>
+        <input type="password" name="gas_secret" id="f-gas_secret" autocomplete="new-password"
+               placeholder="{% if gas_secret_set %}•••••••••• (leave blank to keep){% else %}not set — calendar actions are refused until it is{% endif %}">
+        <small>The same string as <code>SECRET</code> at the top of the script. Without it
+          the script refuses to create events or read transcripts, so that nobody holding
+          the /exec URL can book meetings in your calendar. Changing the constant in the
+          editor does nothing until you <strong>redeploy</strong>.
+          {% if gas_secret_set %}<label style="display:inline-flex;gap:6px;align-items:center;margin-top:6px;font-weight:600">
+            <input type="checkbox" name="google_clear[secret]" value="1"> Remove the stored secret
+          </label>{% endif %}</small>
+      </div>
+    </div>
+
+    {# `formaction` on the button, NOT a nested <form>. This was a nested form, and an
+       HTML parser DISCARDS a <form> start tag inside an open one — so the button kept
+       its markup, lost its action, and submitted to /admin/settings instead. Pressing
+       "Check the sync" saved the page and returned no rows, which reads exactly like a
+       broken integration. The AI probe above uses `formaction` for the same reason. #}
+    <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:14px;padding-top:14px;border-top:1px solid var(--ad-line,#e2e7e8)">
+      <button class="ad-btn" type="submit" name="probe" value="sync" formnovalidate>Check the sync</button>
+      <small style="font-size:11px;color:var(--ad-text-mute,#61728e)">Read-only. Nothing is written to your calendar and nobody is emailed. The page is saved first, so you can paste the address and the secret and press this straight away.</small>
+    </div>
+
+    {% if sync_probe|default([]) %}
+      <table class="ad-table" style="margin-top:12px">
+        <thead><tr><th scope="col">Check</th><th scope="col">Result</th></tr></thead>
+        <tbody>
+        {% for r in sync_probe %}
+          <tr>
+            <td data-col="Check" style="font-weight:600;white-space:nowrap">{{ r.label }}</td>
+            <td data-col="Result">
+              {# Never colour alone — the word is the signal and the dot is decoration. #}
+              {% if not r.tested %}
+                <span style="color:var(--ad-text-mute,#61728e);font-weight:600">● Not tested</span>
+              {% elseif r.ok %}
+                <span style="color:#16794d;font-weight:600">● Working</span>
+              {% else %}
+                <span style="color:#a32b1c;font-weight:600">● Not working</span>
+              {% endif %}
+              {% if r.detail %}
+                <div style="margin-top:4px;font-size:11.5px;line-height:1.55;color:#3c4649">{{ r.detail }}</div>
+              {% endif %}
+              {# The fix, and only when there is one to give. A row that prints advice on a
+                 passing check teaches the reader to stop reading the column. #}
+              {% if r.fix %}
+                <div style="margin-top:6px;padding:8px 10px;border-left:3px solid var(--ad-gold,#d49a0e);background:#fffaf0;font-size:11.5px;line-height:1.6;color:#5a4a1f">{{ r.fix }}</div>
+              {% endif %}
+            </td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+      <small style="display:block;margin-top:8px;font-size:11px;color:var(--ad-text-mute,#61728e)">Measured just now and not kept. Re-deploy the script, then press it again — the result above describes the deployment that was live a moment ago.</small>
+    {% endif %}
+  </div></div>
+
+  {# ── REFERRAL TERMS ──────────────────────────────────────────────────────
+     What a member earns for bringing a ticket buyer, and how many they need before it
+     is payable. Both were class constants until now, so changing either meant a deploy —
+     and the operator has no SSH. HANDOFF.md §4 asked for exactly this.
+
+     The two numbers are NOT equivalent and the copy below says so: the rate is stamped
+     onto each credit when it is earned, so a change governs future referrals only; the
+     threshold is evaluated live, so changing it moves money that is already owed. #}
+  <div class="ad-card" data-sec="money" data-keys="referral referrals commission rate threshold earn link code payout affiliate" x-show="show($el)"><div class="ad-card__head"><div class="ad-card__title">Referrals<small>What a member earns for bringing a ticket buyer.</small></div></div><div class="ad-card__body">
+    <input type="hidden" name="referral_settings" value="1">
+
+    <label class="checkbox" style="display:flex;gap:8px;align-items:flex-start;margin-bottom:12px">
+      <input type="checkbox" name="referrals_enabled" value="1"
+             {% if values.referrals_enabled is not defined or values.referrals_enabled == '1' %}checked{% endif %}>
+      <span>
+        <strong>Referrals are live</strong><br>
+        <small style="color:var(--ad-text-mute,#5a6d6f)">
+          Members get a link from their account page and earn on tickets bought through it.
+          Turning this off stops new commission and stops new links being issued — it does
+          not delete balances already earned, and links already shared keep working for
+          the buyer. Individual events can opt out on the event form.
+        </small>
+      </span>
+    </label>
+
+    <div class="ad-form" style="display:flex;gap:14px;flex-wrap:wrap">
+      <label style="flex:1 1 180px">
+        Commission
+        <input type="number" name="referral_rate_pct" min="0" max="50" step="0.5"
+               value="{{ ((values.referral_rate_bps|default('1000'))|number_format(0,'.','')) / 100 }}">
+        <small style="color:var(--ad-text-mute,#5a6d6f)">
+          Percent of what a referred buyer pays. Applies to <strong>future</strong> referrals —
+          every credit already earned keeps the rate it was earned at, so this cannot restate
+          what somebody was told they had.
+        </small>
+      </label>
+
+      <label style="flex:1 1 180px">
+        Referrals before earning unlocks
+        <input type="number" name="referral_threshold" min="1" max="1000" step="1"
+               value="{{ values.referral_threshold|default('10') }}">
+        <small style="color:var(--ad-text-mute,#5a6d6f)">
+          <strong>This one moves money that is already owed.</strong> It is checked live against
+          everybody's count, so lowering it makes locked balances payable and raising it locks
+          balances that were payable. Crossing it is retroactive — the whole balance unlocks,
+          including the referrals before it.
+        </small>
+      </label>
+    </div>
+  </div></div>
+
+  <div class="ad-card" data-sec="ops" data-keys="automation cron webcron maintenance run now schedule token reconcile credit paid votes pending payments queue cpi snapshots reminders" x-show="show($el)"><div class="ad-card__head"><div class="ad-card__title">Automation &amp; cron<small>Keep the platform self-running — no SSH or server cron needed.</small></div></div><div class="ad-card__body">
+    <input type="hidden" name="automation_settings" value="1">
+    <p style="margin:0 0 10px;font-size:13px;color:var(--ad-text-mute,#5a6d6f)">
+      The platform needs a periodic “maintenance” run (advance award cycles, drain the queue, recompute the CPI, purge expired tokens, snapshots, reminders).
+      Last run:
+      {% if cron_last %}<strong>{{ cron_last.ran_at }}</strong> ({{ cron_last.status }}, {{ cron_last.runtime_ms }}ms){% else %}<strong style="color:#b4452f">never</strong>{% endif %}.
+    </p>
+
+    <label style="display:flex;gap:8px;align-items:flex-start;font-size:13px;margin-bottom:6px">
+      <input type="checkbox" name="webcron_auto" value="1" {% if values.webcron_auto|default('') in ['1','true','on','yes'] %}checked{% endif %} style="margin-top:3px">
+      <span><strong>Run automatically from site traffic</strong> — recommended when you have no cron. Maintenance runs in the background after a page load, at most once every ~15 minutes, so the site keeps itself up to date whenever anyone visits. Costs visitors nothing (it runs after their page is delivered).</span>
+    </label>
+
+    <div style="margin:12px 0">
+      <button class="ad-btn ad-btn--primary" type="submit" formaction="/admin/settings/run-cron" formnovalidate>Run maintenance now</button>
+      <small style="font-size:11px;color:var(--ad-text-mute,#61728e);margin-left:8px">Runs the full hub immediately, once.</small>
+    </div>
+
+    {# The one task behind "I paid and my votes did not appear". A bank transfer to
+       Paystack's checkout account settles minutes after the buyer has left the site —
+       far too late for the callback — so those orders are ALWAYS credited by this
+       reconciliation rather than confirmed live. It asks the gateway what actually
+       happened, and only the winning pending→paid UPDATE credits an order, so pressing
+       it twice cannot double-credit anyone. #}
+    <div style="margin:12px 0">
+      <button class="ad-btn" type="submit" formaction="/admin/settings/reconcile-payments" formnovalidate>Credit paid votes now</button>
+      <small style="font-size:11px;color:var(--ad-text-mute,#61728e);margin-left:8px">
+        Re-checks every pending payment with the gateway and credits the ones that really paid.
+        Safe to press repeatedly — it can never double-credit. Use it when a supporter says their transfer did not add up.
+      </small>
+    </div>
+
+    <details style="margin-top:8px">
+      <summary style="cursor:pointer;font-size:12.5px;font-weight:600">Prefer an external scheduler? (optional)</summary>
+      <p style="font-size:12px;color:var(--ad-text-mute,#5a6d6f);margin:8px 0">
+        Point a free webcron service (cron-job.org, EasyCron) or a cPanel “fetch a URL” job at this URL every ~15 minutes:
+      </p>
+      {% if values.cron_token|default('') %}
+      <label class="sr-only" for="cronUrl">Cron URL to schedule</label>
+      <input type="text" id="cronUrl" readonly data-ag-do="select-all" value="{{ app_url }}/__cron/run?token={{ values.cron_token }}"
+             style="width:100%;font-family:'Space Mono',monospace;font-size:12px;padding:8px;background:#f6f8f5">
+      {% else %}
+      <p style="font-size:12px;color:#b4452f">No cron token yet — save this section once to generate one.</p>
+      {% endif %}
+      <label style="font-size:11.5px;display:inline-flex;gap:6px;align-items:center;margin-top:8px">
+        <input type="checkbox" name="cron_token_generate" value="1"> Regenerate the token on save (invalidates the old URL)
+      </label>
+    </details>
+  </div></div>
+
+  <div class="ad-card" data-sec="integrity" data-keys="voting integrity disposable emails throwaway blocked domains mx deliverability otp" x-show="show($el)"><div class="ad-card__head"><div class="ad-card__title">Voting integrity — disposable emails<small>Block throwaway inboxes used to stuff votes. A built-in list + your additions.</small></div></div><div class="ad-card__body">
+    <p style="margin:0 0 10px;font-size:13px;color:var(--ad-text-mute,#5a6d6f)">The OTP + registration gates already reject known disposable-mail providers. Add any new ones here (comma- or line-separated domains) to block them immediately — no deploy needed.</p>
+    <label for="f-disposable">Extra blocked domains</label>
+    <textarea name="disposable_domains_extra" id="f-disposable" rows="3" placeholder="e.g. newtrashmail.com, another-temp.io" style="width:100%;font-family:'Space Mono',monospace;font-size:12.5px">{{ values.disposable_domains_extra|default('') }}</textarea>
+    <label style="display:inline-flex;gap:8px;align-items:center;margin-top:10px;font-size:13px">
+      <input type="checkbox" name="disposable_require_mx" value="1" {% if values.disposable_require_mx|default('') in ['1','true','on','yes'] %}checked{% endif %}>
+      Also reject domains with no mail server (MX/A) — an undeliverable address can't receive the OTP anyway.
+    </label>
+    <p style="margin:8px 0 0;font-size:11px;color:var(--ad-text-mute,#61728e)">The MX check fails open: a DNS hiccup never blocks a real voter. Leave off unless your host has reliable outbound DNS.</p>
+  </div></div>
+
+  <div class="ad-card" data-sec="mail" data-keys="messaging sms whatsapp twilio meta cloud api sender phone number id access token notifications texts" x-show="show($el)"><div class="ad-card__head"><div class="ad-card__title">Messaging — SMS &amp; WhatsApp<small>Nomination &amp; notification texts. Off by default; nothing sends until a channel is enabled and configured.</small></div></div><div class="ad-card__body">
+    <input type="hidden" name="messaging_settings" value="1">
+    <p style="margin:0 0 10px;font-size:13px;color:var(--ad-text-mute,#5a6d6f)">
+      Secrets are stored server-side and never shown again.
+      {# The provider, not a guess. This said "(Twilio)" unconditionally, so a deployment
+         sending through Africa's Talking read "active (Twilio)" — which is exactly the
+         wrong thing to tell somebody trying to work out why their texts are not arriving. #}
+      SMS: {% if sms_status.sms %}<strong style="color:#16794d">● active ({{ sms_status.sms_provider }})</strong>{% else %}<span style="color:var(--ad-text-mute,#61728e)">inactive</span>{% endif %} ·
+      WhatsApp: {% if sms_status.whatsapp %}<strong style="color:#16794d">● active ({{ sms_status.wa_provider == 'meta' ? 'WhatsApp Business Cloud API' : 'Twilio WhatsApp' }})</strong>{% else %}<span style="color:var(--ad-text-mute,#61728e)">inactive</span>{% endif %}.
+      When both channels are configured, recipients with a phone get the SMS first, then the WhatsApp message.
+    </p>
+    <div class="ad-form">
+      <label class="checkbox" style="display:flex;align-items:flex-start;gap:8px;margin-bottom:6px"><input type="checkbox" name="sms_enabled" value="1" {% if values.sms_enabled == '1' %}checked{% endif %}> <span><strong>Enable SMS</strong> (Twilio)</span></label>
+      <label class="checkbox" style="display:flex;align-items:flex-start;gap:8px;margin-bottom:10px"><input type="checkbox" name="wa_enabled" value="1" {% if values.wa_enabled == '1' %}checked{% endif %}> <span><strong>Enable WhatsApp</strong> (Meta Cloud API preferred, Twilio WhatsApp as alternative)</span></label>
+
+      {# ── WHICH GATEWAY THE TEXTS GO OUT THROUGH ────────────────────────────
+         Cheapest-for-Africa first. Twilio charges roughly an order of magnitude more
+         per message to a Nigerian handset than either of the two above it, and almost
+         every recipient here is on an African network. Configure one; configure two and
+         the higher one is the fallback. #}
+      <p style="margin:0 0 8px;font-size:12.5px;color:var(--ad-text-mute,#5a6d6f)">
+        Texts go out through the first of these that is set up:
+        <strong>Africa&rsquo;s Talking</strong> &rarr; <strong>Termii</strong> &rarr; <strong>Twilio</strong> &mdash;
+        cheapest per African number first.
+        {% if sms_status.sms_provider %}Currently sending through <strong style="color:#16794d">{{ sms_status.sms_provider }}</strong>.{% endif %}
+      </p>
+      {#
+        WHY NOTHING ARRIVED.
+
+        Every failed send has been written to `gates_messages.error` since this service
+        shipped, and the only thing that read it back was the generic table dump under
+        Data. So an operator whose SMS was not sending had this screen saying "active", a
+        provider name, and no way to learn that the gateway had been answering
+        "Invalid sender id" for a week. It is the same fault the door voice had, in the
+        same shape: recorded correctly, into a row nothing displayed.
+
+        Shown beside the configuration it is about, because this is the screen somebody is
+        already on when they are asking the question. The number is masked at the point it
+        was stored — a diagnostic must not put a supporter's phone number on an admin page
+        to answer a question about a gateway.
+      #}
+      {% if sms_status.last_failure %}
+        <p style="margin:0 0 10px;padding:10px 12px;border-left:3px solid #b45309;background:#fff8ed;font-size:12.5px;line-height:1.6;color:#7a4a00">
+          <strong>The last message did not go out.</strong>
+          {{ sms_status.last_failure.provider }} refused a {{ sms_status.last_failure.channel }}
+          to {{ sms_status.last_failure.to }} on {{ sms_status.last_failure.at }} &mdash;
+          <em>{{ sms_status.last_failure.error }}</em>
+          {% if sms_status.last_failure.provider == 'africastalking' %}
+            <br>If that reads as an authentication problem, check whether the username is
+            <code>sandbox</code>: sandbox credentials only work against Africa&rsquo;s Talking&rsquo;s
+            sandbox host, and a live key only against the live one. The platform picks the
+            host from the username automatically, so the two must match.
+          {% endif %}
+        </p>
+      {% endif %}
+      <div class="row">
+        <div>
+          <label for="f-sms_at_username">Africa&rsquo;s Talking username</label>
+          <input type="text" name="sms_at_username" id="f-sms_at_username" value="{{ values.sms_at_username|default('') }}" placeholder="sandbox or your live username">
+        </div>
+        <div>
+          <label for="f-sms_at_api_key">Africa&rsquo;s Talking API key {% if values.sms_at_api_key|default('') != '' %}<span style="color:#16794d;font-weight:600">&#9679; configured</span>{% endif %}</label>
+          <input type="password" name="sms_at_api_key" id="f-sms_at_api_key" autocomplete="new-password" placeholder="{% if values.sms_at_api_key|default('') != '' %}&bull;&bull;&bull;&bull;&bull;&bull; (leave blank to keep){% else %}atsk_…{% endif %}">
+          {% if values.sms_at_api_key|default('') != '' %}<label style="font-size:11px;display:inline-flex;gap:4px;align-items:center;margin-top:3px"><input type="checkbox" name="messaging_clear[sms_at_api_key]" value="1"> remove</label>{% endif %}
+        </div>
+        <div>
+          <label for="f-sms_at_from">Africa&rsquo;s Talking sender ID <em style="font-weight:400;color:var(--ad-text-mute,#5a6d6f)">optional</em></label>
+          <input type="text" name="sms_at_from" id="f-sms_at_from" value="{{ values.sms_at_from|default('') }}" placeholder="leave blank for the shared shortcode">
+        </div>
+      </div>
+      <div class="row">
+        <div>
+          <label for="f-sms_termii_api_key">Termii API key {% if values.sms_termii_api_key|default('') != '' %}<span style="color:#16794d;font-weight:600">&#9679; configured</span>{% endif %}</label>
+          <input type="password" name="sms_termii_api_key" id="f-sms_termii_api_key" autocomplete="new-password" placeholder="{% if values.sms_termii_api_key|default('') != '' %}&bull;&bull;&bull;&bull;&bull;&bull; (leave blank to keep){% else %}TL…{% endif %}">
+          {% if values.sms_termii_api_key|default('') != '' %}<label style="font-size:11px;display:inline-flex;gap:4px;align-items:center;margin-top:3px"><input type="checkbox" name="messaging_clear[sms_termii_api_key]" value="1"> remove</label>{% endif %}
+        </div>
+        <div>
+          <label for="f-sms_termii_from">Termii sender ID <em style="font-weight:400;color:var(--ad-text-mute,#5a6d6f)">required for Termii</em></label>
+          <input type="text" name="sms_termii_from" id="f-sms_termii_from" value="{{ values.sms_termii_from|default('') }}" placeholder="an ID already approved on your account">
+          <p style="margin:4px 0 0;font-size:11.5px;color:var(--ad-text-mute,#5a6d6f)">Termii is skipped without one: a key with no approved sender ID answers 200 and sends nothing.</p>
+        </div>
+      </div>
+      <div class="row">
+        <div>
+          <label for="f-sms_twilio_sid">Twilio Account SID {% if values.sms_twilio_sid|default('') != '' %}<span style="color:#16794d;font-weight:600">● configured</span>{% endif %}</label>
+          <input type="password" name="sms_twilio_sid" id="f-sms_twilio_sid" autocomplete="new-password" placeholder="{% if values.sms_twilio_sid|default('') != '' %}•••••••••• (leave blank to keep){% else %}AC…{% endif %}">
+          {% if values.sms_twilio_sid|default('') != '' %}<label style="font-size:11px;display:inline-flex;gap:4px;align-items:center;margin-top:3px"><input type="checkbox" name="messaging_clear[sms_twilio_sid]" value="1"> remove</label>{% endif %}
+        </div>
+        <div>
+          <label for="f-sms_twilio_token">Twilio Auth Token {% if values.sms_twilio_token|default('') != '' %}<span style="color:#16794d;font-weight:600">● configured</span>{% endif %}</label>
+          <input type="password" name="sms_twilio_token" id="f-sms_twilio_token" autocomplete="new-password" placeholder="{% if values.sms_twilio_token|default('') != '' %}•••••••••• (leave blank to keep){% else %}auth token{% endif %}">
+          {% if values.sms_twilio_token|default('') != '' %}<label style="font-size:11px;display:inline-flex;gap:4px;align-items:center;margin-top:3px"><input type="checkbox" name="messaging_clear[sms_twilio_token]" value="1"> remove</label>{% endif %}
+        </div>
+      </div>
+      <div class="row">
+        <div><label for="f-sms_twilio_from">Twilio SMS sender <small>E.164</small></label><input type="text" name="sms_twilio_from" id="f-sms_twilio_from" value="{{ values.sms_twilio_from|default('') }}" placeholder="+15551234567"></div>
+        <div><label for="f-sms_twilio_wa_from">Twilio WhatsApp sender <small>optional, E.164</small></label><input type="text" name="sms_twilio_wa_from" id="f-sms_twilio_wa_from" value="{{ values.sms_twilio_wa_from|default('') }}" placeholder="+14155238886"></div>
+      </div>
+      <div class="row">
+        <div><label for="f-wa_phone_number_id">WhatsApp Business phone-number ID <small>Meta Cloud API</small></label><input type="text" name="wa_phone_number_id" id="f-wa_phone_number_id" value="{{ values.wa_phone_number_id|default('') }}" placeholder="e.g. 106540352242922"></div>
+        <div>
+          <label for="f-wa_access_token">WhatsApp access token {% if values.wa_access_token|default('') != '' %}<span style="color:#16794d;font-weight:600">● configured</span>{% endif %}</label>
+          <input type="password" name="wa_access_token" id="f-wa_access_token" autocomplete="new-password" placeholder="{% if values.wa_access_token|default('') != '' %}•••••••••• (leave blank to keep){% else %}EAAG… (permanent token){% endif %}">
+          {% if values.wa_access_token|default('') != '' %}<label style="font-size:11px;display:inline-flex;gap:4px;align-items:center;margin-top:3px"><input type="checkbox" name="messaging_clear[wa_access_token]" value="1"> remove</label>{% endif %}
+        </div>
+      </div>
+      <p style="margin:6px 0 0;font-size:12px;color:var(--ad-text-mute,#5a6d6f)">Delivery is best-effort with automatic retries; every send is audited (numbers stored hashed &amp; masked). Recipients are normalised to E.164, compatible with Twilio and the WhatsApp Business API.</p>
+
+      {# ── THE TEXT SOMEBODY GETS FOR WALKING IN ─────────────────────────────
+         Off by default, like every outbound channel on this page: an upgrade must
+         never start texting an existing event's attendees because a feature shipped.
+         The "Reply STOP" line is appended by the code and is not in the box, so a
+         rewrite here cannot remove the way out of the message. #}
+      <hr style="border:0;border-top:1px solid var(--ad-line,rgba(16,41,44,.1));margin:16px 0">
+      <label class="checkbox" style="display:flex;align-items:flex-start;gap:8px;margin-bottom:8px"><input type="checkbox" name="checkin_sms_enabled" value="1" {% if values.checkin_sms_enabled == '1' %}checked{% endif %}> <span><strong>Text attendees when they check in</strong> — one message per ticket, thanking them and pointing at open opportunities. Needs SMS enabled above.</span></label>
+      <div>
+        <label for="f-checkin_sms_template">Check-in message</label>
+        <textarea name="checkin_sms_template" id="f-checkin_sms_template" rows="3" placeholder="{{ checkin_sms_default }}">{{ values.checkin_sms_template|default('') }}</textarea>
+        <p style="margin:5px 0 0;font-size:12px;color:var(--ad-text-mute,#5a6d6f)">
+          Leave blank for the wording shown. <code>{name}</code> is their first name,
+          <code>{count}</code> the number of opportunities open today, <code>{url}</code> the
+          opportunities page, <code>{event}</code> the event title.
+          &ldquo;Reply STOP to end texts.&rdquo; is added automatically and cannot be removed.
+        </p>
+      </div>
+    </div>
+  </div></div>
+  {# A search that matches nothing must say so. Without this the page just goes
+     blank below the bar, which reads as "the settings are gone". #}
+  <div class="st-none" x-show="q.trim() && matches() === 0" x-cloak>
+    Nothing matches <strong x-text="'“' + q.trim() + '”'"></strong>. Try a field name (<em>otp</em>, <em>twilio</em>, <em>discount</em>) or clear the box.
+  </div>
+
+  {# Kept as well as the sticky one. Saving from where you finished typing is the
+     habit; the sticky button is the escape hatch, not a replacement. #}
   <div style="display:flex;justify-content:flex-end"><button class="ad-btn ad-btn--primary" type="submit">Save settings</button></div>
 </form>
+</div>
 {% endblock %}

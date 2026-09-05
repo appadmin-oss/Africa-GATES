@@ -1,0 +1,135 @@
+{% extends "layout/gates.twig" %}
+
+{# ── "THIS WAS NOT ME" ────────────────────────────────────────────────────────
+
+   Reached only from the link in a claim notification. Three states:
+
+     unknown token  →  the link is dead or already used; say so kindly and name a person
+     confirm        →  one button, because the GET must not be the action (mail scanners
+                       fetch links before a human sees them — see ClaimDispute)
+     done           →  what happened and what happens next
+
+   The tone matters more than usual here. The commonest person on this page is not a
+   victim of an attack: it is a parent who did not know their child had claimed, or a
+   nominee whose nominator claimed on their behalf meaning well. So nothing here accuses
+   anybody, and freezing is described as pausing, which is what it is.
+
+   And it never names the claimant. The only credential is a token that arrived in a
+   message, and a token-holder is not necessarily the nominee — telling them who claimed
+   would turn this into an information-disclosure endpoint. #}
+
+{% block head_styles %}
+<style nonce="{{ csp_nonce }}">
+  .cdp{ max-width:600px; margin:0 auto; padding:44px 20px 76px; }
+  .cdp__kick{ display:inline-flex; align-items:center; gap:7px; font-size:11.5px; font-weight:700;
+    letter-spacing:.09em; text-transform:uppercase; color:#8a4b06; background:#fff4e2;
+    border-radius:999px; padding:6px 13px; }
+  .cdp__card{ margin-top:18px; background:#fff; border:1px solid rgba(16,41,44,.1); border-radius:20px;
+    padding:30px 28px; box-shadow:0 1px 2px rgba(16,41,44,.04), 0 14px 40px -28px rgba(16,41,44,.3); }
+  .cdp h1{ margin:0; font-size:clamp(1.3rem, 1.1rem + 1vw, 1.7rem); letter-spacing:-.015em; color:#10292C; }
+  .cdp p{ margin:14px 0 0; font-size:15px; line-height:1.75; color:#3d5254; }
+  .cdp__ref{ margin-top:18px; background:#f6f9f6; border:1px solid rgba(16,41,44,.09); border-radius:12px;
+    padding:13px 15px; font-size:13px; line-height:1.7; color:#4a5f61; }
+  .cdp__ref b{ color:#10292c; }
+  .cdp__ref code{ font-family:var(--ag-font-mono, ui-monospace, monospace); font-size:12.5px;
+    background:#eef3ee; padding:2px 6px; border-radius:5px; }
+  .cdp__note{ width:100%; box-sizing:border-box; margin-top:8px; font:inherit; font-size:14.5px;
+    line-height:1.6; color:#10292C; border:1px solid rgba(16,41,44,.18); border-radius:12px;
+    padding:11px 13px; min-height:80px; resize:vertical; }
+  .cdp__note:focus{ outline:none; border-color:#237b22; box-shadow:0 0 0 3px rgba(35,123,34,.12); }
+  .cdp__lab{ display:block; margin-top:20px; font-size:13px; font-weight:600; color:#3d5254; }
+  .cdp__go{ margin-top:18px; width:100%; background:#b3261e; color:#fff; border:none; border-radius:999px;
+    padding:15px 24px; font:700 15px/1 inherit; cursor:pointer; min-height:48px; }
+  .cdp__go:hover{ background:#8f1e17; }
+  .cdp__alt{ margin-top:18px; font-size:13px; line-height:1.7; color:#5a6d6f; }
+  .cdp__alt a{ color:#237b22; font-weight:600; }
+  .cdp__ok{ background:#f0fdf4; border:1px solid #b6e3b6; border-left:4px solid #237b22;
+    border-radius:0 14px 14px 0; padding:18px 20px; }
+  .cdp__ok h1{ font-size:1.25rem; }
+  .cdp__steps{ margin:16px 0 0; padding-left:20px; font-size:14px; line-height:1.8; color:#3d5254; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="cdp">
+
+{% if done %}
+  {# ── after the freeze ─────────────────────────────────────────────────── #}
+  <div class="cdp__card cdp__ok">
+    <h1>{{ done.code == 'FROZEN' ? 'Done — the claim is paused' : (done.ok ? 'Already paused' : 'We could not do that') }}</h1>
+    <p>{{ done.message }}</p>
+    {% if done.ok %}
+    <ul class="cdp__steps">
+      <li>The page is under nobody's control while this is paused.</li>
+      <li><strong>No money can be paid out</strong> on a paused claim.</li>
+      <li>A person will look at it and contact the nomination's contacts.</li>
+      <li>Nothing is being charged for any of this, and nobody has been accused of anything.</li>
+    </ul>
+    {% endif %}
+    {% if done.reference|default('') %}
+    <div class="cdp__ref">Keep this in case you need to write to us: <code>{{ done.reference }}</code></div>
+    {% endif %}
+    <p class="cdp__alt">Questions? Write to <a href="mailto:{{ support_email }}">{{ support_email }}</a>{% if done.reference|default('') %} quoting <code>{{ done.reference }}</code>{% endif %}.</p>
+  </div>
+
+{% elseif claim is null %}
+  {# ── dead or already-used link ────────────────────────────────────────── #}
+  <span class="cdp__kick">Claim link</span>
+  <div class="cdp__card">
+    <h1>This link is no longer active</h1>
+    <p>It may already have been used, or the claim it referred to may have been settled. Either way
+       there is a person who can help, and there is nothing to pay.</p>
+    <p class="cdp__alt">Write to <a href="mailto:{{ support_email }}">{{ support_email }}</a> and say which
+       nominee's page you are asking about. If you still have the message we sent you, quoting the
+       reference in it will make it quicker.</p>
+  </div>
+
+{% else %}
+  {# ── the confirm step ─────────────────────────────────────────────────── #}
+  <span class="cdp__kick">
+    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 9v4M12 17h.01"/><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"/></svg>
+    Stop a claim
+  </span>
+
+  <div class="cdp__card">
+    {% if claim.already %}
+      <h1>This claim is already paused</h1>
+      <p>Somebody has already stopped it{% if claim.nominee %} on <strong>{{ claim.nominee }}</strong>'s page{% endif %},
+         and a person is looking at it. You do not need to do anything else.</p>
+      <p class="cdp__alt">If you want to add anything, write to
+        <a href="mailto:{{ support_email }}">{{ support_email }}</a>{% if claim.reference %} quoting
+        <code>{{ claim.reference }}</code>{% endif %}.</p>
+    {% else %}
+      <h1>Pause the claim{% if claim.nominee %} on {{ claim.nominee }}’s page{% endif %}?</h1>
+      <p>You are here because we told you somebody claimed this page and you are saying it was not you,
+         or not anyone you know of. That is exactly the right thing to do if you are unsure — pausing is
+         not an accusation and it can be undone.</p>
+      <p><strong>What happens if you press the button:</strong> the page stops being under anyone's
+         control, no money can be paid out, and a person picks it up. Nothing is charged.</p>
+
+      {# One field, optional. A required "reason" box is a barrier in front of a safety
+         action, and the point of this page is that stopping something wrong should be
+         easier than letting it stand. #}
+      <form method="POST" action="/claim/dispute/{{ token }}">
+        <input type="hidden" name="_token" value="{{ csrf_token }}">
+        <label class="cdp__lab" for="cdpNote">Anything you want the person reviewing it to know? <span style="font-weight:400;color:#5a6d6f">(optional)</span></label>
+        <textarea class="cdp__note" id="cdpNote" name="note" maxlength="400"
+                  placeholder="For example: this is my daughter's page and nobody in the family claimed it."></textarea>
+        <button type="submit" class="cdp__go">Pause this claim</button>
+      </form>
+
+      <div class="cdp__ref">
+        {% if claim.nominee %}Page: <b>{{ claim.nominee }}</b><br>{% endif %}
+        {% if claim.reference %}Claim reference: <code>{{ claim.reference }}</code><br>{% endif %}
+        {% if claim.activated_at %}Claimed: {{ claim.activated_at|date('j M Y, H:i') }}{% endif %}
+      </div>
+
+      <p class="cdp__alt">If this <em>was</em> you, simply close this page — nothing happens unless you
+        press the button. Prefer to talk to a person? Write to
+        <a href="mailto:{{ support_email }}">{{ support_email }}</a>.</p>
+    {% endif %}
+  </div>
+{% endif %}
+
+</div>
+{% endblock %}

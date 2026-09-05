@@ -1,9 +1,10 @@
 <?php
 declare(strict_types=1);
+use AfricaGates\Support\Env;
 use Psr\Container\ContainerInterface;
 use Slim\Views\Twig;
-use AfricaGates\Services\{CacheService,ProfileService,AwardService,LegacyService,OpportunityService,OtpService,VoteService,BonusVoteService,RateLimitService,SpamService,CommunityService,GoogleSheetsService,TurnstileService,StatsService,FraudService,EventService,MilestoneService,PaymentService};
-use AfricaGates\Controllers\{HomeController,ApiController,RegistryController,AwardsController,LeaderboardController,LegacyController,OpportunityController,NominationController,PartnerController,VoteController,CommunityController,EventsController,BlogController,PaymentController};
+use AfricaGates\Services\{CacheService,ProfileService,AwardService,LegacyService,OpportunityService,OtpService,VoteService,BonusVoteService,RateLimitService,SpamService,AiService,CommunityService,GoogleSheetsService,TurnstileService,StatsService,FraudService,EventService,MilestoneService,PaymentService,GuideService,CurrencyService,UserAccountService};
+use AfricaGates\Controllers\{HomeController,ApiController,RegistryController,AwardsController,LeaderboardController,ResultsController,LegacyController,OpportunityController,NominationController,PartnerController,VoteController,CommunityController,EventsController,BlogController,PaymentController,ShopController,ShopCheckoutController,GuideController,DonationController,PaidVoteController,PulseController,JudgesController,AccountController,GatedFormController,FormController,ActivityController,FlierController};
 use AfricaGates\Judge\Services\JudgeService;
 use AfricaGates\Judge\Controllers\{
     AuthController as JudgeAuthController,
@@ -15,26 +16,43 @@ use AfricaGates\Admin\Controllers\{
     DashboardController as AdminDashboardController,
     ProfilesController as AdminProfilesController,
     NominationsController as AdminNominationsController,
+    ModerationController as AdminModerationController,
     ProgrammesController as AdminProgrammesController,
     NomineesController as AdminNomineesController,
     LegacyController as AdminLegacyController,
     OpportunitiesController as AdminOpportunitiesController,
     EventsController as AdminEventsController,
+    RegistrationsController as AdminRegistrationsController,
+    DataController as AdminDataController,
+    FormsController as AdminFormsController,
     PostsController as AdminPostsController,
     PartnersController as AdminPartnersController,
     JudgesController as AdminJudgesController,
     AdminsController as AdminAdminsController,
-    SettingsController as AdminSettingsController
+    SettingsController as AdminSettingsController,
+    AwardsPageController as AdminAwardsPageController,
+    MediaController as AdminMediaController,
+    ProductsController as AdminProductsController,
+    ShopController as AdminShopController,
+    WebhooksController as AdminWebhooksController
 };
 
 return [
     Twig::class => function(ContainerInterface $c) {
-        $isDev = ($_ENV['APP_ENV'] ?? 'production') !== 'production';
+        $isDev = Env::get('APP_ENV', 'production') !== 'production';
         $twig = Twig::create(__DIR__.'/../templates', [
-            'cache' => ($_ENV['TWIG_CACHE'] ?? 'false') === 'true' ? __DIR__.'/../var/cache/twig' : false,
+            'cache' => Env::bool('TWIG_CACHE') ? __DIR__.'/../var/cache/twig' : false,
             'auto_reload' => true,
             'debug' => $isDev,
         ]);
+        // Where the content hasher looks, and what it falls back to when a path is
+        // not a file under public/. Told explicitly so the CLI, the tests and a web
+        // request cannot disagree about which public/ is being hashed.
+        \AfricaGates\Support\Assets::configure(
+            __DIR__ . '/../public',
+            (string) Env::get('ASSET_VERSION', 'v1')
+        );
+
         // Load runtime settings if available (overrides env defaults)
         $settings = [];
         try { $settings = $c->get(SettingsService::class)->all(); } catch (\Throwable $e) {}
@@ -45,35 +63,184 @@ return [
             'JSON_SAFE'         => JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP,
             // Demo mode: gates clearly-labeled sample/illustrative content so it
             // is never shown as real data in production (APP_ENV=demo only).
-            'is_demo'           => (($_ENV['APP_ENV'] ?? 'production') === 'demo'),
-            'app_url'           => rtrim($_ENV['APP_URL'] ?? '', '/'),
-            // In debug/dev, derive from the redesign stylesheet's mtime so every
-            // CSS edit busts the browser cache automatically; in prod use the
-            // pinned ASSET_VERSION (set at deploy) for stable far-future caching.
-            'asset_version'     => (($_ENV['APP_DEBUG'] ?? 'false') === 'true')
-                ? (string) (@filemtime(__DIR__ . '/../public/assets/css/redesign-2026.css') ?: 'dev')
-                : ($_ENV['ASSET_VERSION'] ?? 'v1'),
+            'is_demo'           => (Env::get('APP_ENV', 'production') === 'demo'),
+            'app_url'           => rtrim(Env::get('APP_URL', ''), '/'),
+            // In debug/dev, bust the browser cache from the NEWEST mtime across
+            // every css/js file (so editing ANY asset forces a fresh fetch); in
+            // prod use the pinned ASSET_VERSION (set at deploy) for far-future caching.
+            // Still here, and still used for the handful of things that are not a
+            // file under public/ (and as the fallback inside asset()). Prefer
+            // `{{ asset('/path') }}`, which hashes the file itself — see the
+            // addFunction call below and Support\Assets.
+            'asset_version'     => \AfricaGates\Support\Assets::version(
+                Env::bool('APP_DEBUG'),
+                Env::get('ASSET_VERSION'),
+                __DIR__ . '/../public/assets'
+            ),
             'csrf_token'        => $_SESSION['csrf_token'] ?? '',
             'current_section'   => 'projects',
             'has_hero'          => false,
-            'announcement_text' => $settings['announce_text'] ?? ($_ENV['ANNOUNCE_TEXT'] ?? 'Nominations open — live in Nigeria, building toward 54'),
-            'announcement_url'  => $settings['announce_url']  ?? '/africa-gates/nominate',
+            // ── THE FOURTH COPY OF THE SAME CLAIM ────────────────────────────
+            //
+            // "live in Nigeria, building toward 54" was typed here too, as the banner's
+            // default — behind the operator's own setting, which is why it survived the
+            // sweep that fixed the description, the JSON-LD, the footer and the guide.
+            //
+            // Chained with `??` so the count is only queried when there is nothing else to
+            // show: an operator who has written their own banner, or set ANNOUNCE_TEXT,
+            // costs this nothing. `Env::get()` returns null with no default, which is what
+            // makes the chain lazy rather than eager.
+            'announcement_text' => $settings['announce_text']
+                ?? Env::get('ANNOUNCE_TEXT')
+                ?? ('Nominations open — live in ' . \AfricaGates\Support\NationsLive::phrase()
+                    . ', building toward ' . (int) ($settings['nations_count'] ?? 54)),
+            // Was `/africa-gates/nominate`, which no route serves. It survives in
+            // production only because public/.htaccess still carries the pre-subdomain
+            // legacy rule `^africa-gates/(.+)$ → /$1`, so Apache 301s it. That makes
+            // the announcement bar — above the nav on every page, and this default
+            // applies until an admin sets announce_url — depend on a redirect kept for
+            // old bookmarks: a wasted round trip on every click today, and a hard 404
+            // the day that rule is retired or the app is served by anything but that
+            // Apache config. Point it at the route directly. Found by tools/qa/links.js.
+            'announcement_url'  => $settings['announce_url']  ?? '/nominate',
             'announcement_cta'  => $settings['announce_cta']  ?? 'Nominate now →',
-            'gas_url'           => $_ENV['GAS_URL'] ?? '',
+            // Real, admin-configurable bonus-vote ratio (so methodology copy never hardcodes it).
+            'donation_votes_per_1000' => (int)($settings['donation_votes_per_1000'] ?? 5),
+            // Admin-configurable display constants — so copy across the site never hardcodes
+            // these numbers. Settings override the defaults; templates read the globals.
+            // The AMBITION — 54, an admin setting, and a different claim from
+            // `nations_live()` below, which counts the ones that are actually running.
+            'nations_count'       => (int)($settings['nations_count'] ?? 54),
+            'cpi_recompute_hours' => (int)($settings['cpi_recompute_hours'] ?? 6),
+            'review_sla_hours'    => (int)($settings['review_sla_hours'] ?? 48),
+            'nomination_seconds'  => (int)($settings['nomination_seconds'] ?? 90),
+            'otp_expiry_minutes'  => (int)($settings['otp_expiry_minutes'] ?? 10),
+            'processing_fee_pct'  => (string)($settings['processing_fee_pct'] ?? '1.5'),
+            // Social card image (OG/Twitter) — admin-settable; defaults to a hosted,
+            // on-brand asset (NEVER an external stock URL). Pages can override per-record.
+            'og_image' => (function() use ($settings) {
+                $v = trim((string)($settings['og_image'] ?? ''));
+                if ($v !== '') return $v;
+                // /gates-logo.png DID NOT EXIST — 404 on disk and over HTTP. So every page
+                // that did not pass its own image advertised a broken og:image, and every
+                // share of the home page, the leaderboard, the awards index or the help
+                // centre rendered with an empty preview box. Silent, because a crawler
+                // does not complain and nobody views-source on a share.
+                //
+                // og-default.png is 1200x630, which is the size every network crops to —
+                // a square card gets centre-cropped, and on a logo the part that gets cut
+                // is the wordmark.
+                return rtrim(\AfricaGates\Support\SiteUrl::base(), '/') . '/assets/img/og-default.png';
+            })(),
+            // Admin-configurable social presence (footer links + rel=me). Empty = hidden.
+            'social_links' => array_filter([
+                'x'         => trim((string)($settings['social_x'] ?? '')),
+                'facebook'  => trim((string)($settings['social_facebook'] ?? '')),
+                'instagram' => trim((string)($settings['social_instagram'] ?? '')),
+                'linkedin'  => trim((string)($settings['social_linkedin'] ?? '')),
+                'youtube'   => trim((string)($settings['social_youtube'] ?? '')),
+                'tiktok'    => trim((string)($settings['social_tiktok'] ?? '')),
+            ]),
+            // Ad monetization (Google AdSense). Off until a publisher client + slot are
+            // configured — admin setting overrides env; empty means no ads render at all.
+            'adsense_client' => trim((string)($settings['adsense_client'] ?? Env::get('ADSENSE_CLIENT', ''))),
+            'adsense_slot'   => trim((string)($settings['adsense_slot']   ?? Env::get('ADSENSE_SLOT', ''))),
+            'adsense_slot_2' => trim((string)($settings['adsense_slot_2'] ?? Env::get('ADSENSE_SLOT_2', ''))),
+            // Canonical shop delivery regions — drives the checkout region selector.
+            'shop_regions'   => \AfricaGates\Admin\Controllers\ProductsController::REGIONS,
+            // The address printed on help, partner and support pages, quoted by
+            // the assistant and used to deliver tickets. A global because it was
+            // previously typed out in three templates, which is how a site ends
+            // up advertising a mailbox nobody reads any more.
+            'support_email'     => \AfricaGates\Services\Notifier::supportEmail(),
+            // Email transport health for the admin banner — config check only
+            // (no network). Null-safe when the mailer can't build.
+            'smtp_ok'           => (function () use ($c) {
+                if (empty($_SESSION['admin_id'])) return true; // only admins see the banner
+                try { return $c->get(OtpService::class)->smtpConfigured(); } catch (\Throwable) { return true; }
+            })(),
+            // Pending DB migrations — the #1 cause of admin "action 500s" after a
+            // deploy: writes touch new columns/tables that were never applied,
+            // while reads keep working. Surface it LOUDLY (admins only, one cheap
+            // ledger query) so the operator sees an instruction, not a mystery 500.
+            'migrations_pending' => (function () {
+                if (empty($_SESSION['admin_id'])) return [];
+                try { return \AfricaGates\Services\MigrationRunner::status()['pending'] ?? []; }
+                catch (\Throwable) { return []; }
+            })(),
             'admin_name'        => $_SESSION['admin_name']  ?? null,
             'admin_role'        => $_SESSION['admin_role']  ?? null,
             'admin_email'       => $_SESSION['admin_email'] ?? null,
+            // Sections this admin's role may view — drives the sidebar (mirrors
+            // the server-side SectionGuardMiddleware so UI never offers a 403).
+            'admin_sections'    => isset($_SESSION['admin_role'])
+                ? \AfricaGates\Admin\Support\Permissions::allowedSections((string)$_SESSION['admin_role'])
+                : [],
+            // The nav tree, filtered to this role. One definition — see AdminNav for why
+            // thirty-six hand-written links in the layout was the thing to remove.
+            'admin_nav'         => \AfricaGates\Admin\Support\AdminNav::visible(
+                isset($_SESSION['admin_role'])
+                    ? \AfricaGates\Admin\Support\Permissions::allowedSections((string)$_SESSION['admin_role'])
+                    : []
+            ),
+            'admin_role_label'  => isset($_SESSION['admin_role'])
+                ? \AfricaGates\Admin\Support\Permissions::label((string)$_SESSION['admin_role'])
+                : null,
             'judge_id'          => $_SESSION['judge_id']    ?? null,
             'judge_name'        => $_SESSION['judge_name']  ?? null,
             'judge_email'       => $_SESSION['judge_email'] ?? null,
+            // Signed-in MEMBER (public account) — session-only, no DB read.
+            // Drives members-only UI (community composer, Gee suppression there).
+            'is_member'         => !empty($_SESSION['user_id']),
+            'member_name'       => $_SESSION['user_name'] ?? null,
             // Per-request canonical/og:url inputs (were undefined → every page
             // self-reported as the homepage). site_url tracks APP_URL so canonical
             // + Open Graph use the real deployed host.
             'request_path'      => parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH) ?: '/',
-            'site_url'          => rtrim($_ENV['APP_URL'] ?? '', '/') ?: 'https://afg.afrovanguard.org.ng',
-            'flash_ok'          => $_SESSION['flash_ok']    ?? null,
-            'flash_error'       => $_SESSION['flash_error'] ?? null,
+            // The canonical path is NOT always request_path: `?page=4` is a distinct
+            // page and must self-canonicalise, while `?ref=`, `?utm_*` and every facet
+            // must not create one. `robots_auto` noindexes internal search results for
+            // the same reason. See AfricaGates\Support\Canonical for both bugs.
+            'canonical_path'    => \AfricaGates\Support\Canonical::path($_SERVER['REQUEST_URI'] ?? '/'),
+            'robots_auto'       => \AfricaGates\Support\Canonical::robots($_SERVER['REQUEST_URI'] ?? '/'),
+            'site_url'          => rtrim(Env::get('APP_URL', ''), '/') ?: 'https://afg.afrovanguard.org.ng',
+            // ── `flash` IS AN ALIAS OF `flash_ok`, AND THAT IS A BUG FIX ─────
+            //
+            // Sixty-odd admin and account actions write their success message to
+            // $_SESSION['flash'] — `$_SESSION[$r['ok'] ? 'flash' : 'flash_error']` is the
+            // shape almost every controller on this platform uses. NOTHING read it. No
+            // template renders `flash`, and the unset() below never cleared it, so every
+            // one of those confirmations was invisible AND accumulated in the session for
+            // the rest of the login.
+            //
+            // The symptom is not subtle and it is what got reported: you add a stand from
+            // the catalogue, the page reloads, and there is no sign anything happened —
+            // identical to a silent failure. Same for building the sandbox, sending
+            // questionnaire invitations, saving a payout account.
+            //
+            // Aliased here rather than by editing sixty call sites, because the intent at
+            // every one of them is unambiguous (it is the success branch of a
+            // success/error ternary) and a rename touching sixty files is sixty chances to
+            // miss one. `flash_ok` wins if both are somehow set. FlashKeyTest asserts no
+            // controller writes a flash key this list does not read.
+            // `org_flash_*` is the third alias, and it was silent for the same reason
+            // `flash` was. The vendor-facing controllers write it and ONLY the org
+            // dashboard read it, so a stand controller that set it and redirected to a
+            // public page — "applications for this event are closed" — sent the vendor
+            // somewhere that rendered nothing. Nor was it ever consumed, so the org
+            // dashboard replayed the same message on every reload for the rest of the
+            // session.
+            'flash_ok'          => $_SESSION['flash_ok'] ?? $_SESSION['flash'] ?? $_SESSION['org_flash_ok'] ?? null,
+            // The per-request CSP nonce. Every inline <script> must carry it or the
+            // browser refuses to run it — see AfricaGates\Support\Csp.
+            'csp_nonce'         => \AfricaGates\Support\Csp::nonce(),
+            'flash_error'       => $_SESSION['flash_error'] ?? $_SESSION['org_flash_error'] ?? null,
             'flash_notice'      => $_SESSION['flash_notice'] ?? null,
+            // The built CSS bundle, or null when the layout must fall back to the
+            // fifteen individual stylesheets. Null on ANY doubt — no manifest, missing
+            // file, or a source edited since the build — because stale CSS is a far
+            // worse failure than nine extra requests. See Support\AssetBundle.
+            'css_bundle'        => \AfricaGates\Support\AssetBundle::url(),
         ];
         foreach ($globals as $k => $v) $twig->getEnvironment()->addGlobal($k, $v);
         // Allowlist-sanitise admin-authored rich text (blog/legacy bodies) at render
@@ -83,8 +250,138 @@ return [
             [\AfricaGates\Support\Html::class, 'sanitize'],
             ['is_safe' => ['html']]
         ));
-        // Consume one-shot flash
-        unset($_SESSION['flash_ok'], $_SESSION['flash_error'], $_SESSION['flash_notice']);
+        // Stored image path → the URL to actually request. A filter rather than
+        // forty hand-written transformation strings, so the crop rule that frames a
+        // nominee's face lives in ONE place — see AfricaGates\Support\Media. Safe on a
+        // local `/uploads/...` path, which it returns untouched, so templates can call
+        // it unconditionally while a Cloudinary migration is only partly through.
+        $twig->getEnvironment()->addFilter(new \Twig\TwigFilter(
+            'media_url',
+            [\AfricaGates\Support\Media::class, 'url']
+        ));
+        // `{{ asset('/assets/js/gee.js') }}` → the path with a CONTENT-HASH cache
+        // buster. Replaces `?v={{ asset_version }}`, which in production returned
+        // the pinned ASSET_VERSION — shipped as "v1", bumped by a deploy step this
+        // shell-less host does not have. Every asset was therefore `?v=v1` forever,
+        // so a returning visitor kept last month's JS against this month's HTML.
+        // See AfricaGates\Support\Assets::url().
+        // Stored (UTC) datetime → the zone the operator configured, WAT by default.
+        //
+        // A filter rather than each controller pre-formatting, because storage is UTC by
+        // this application's convention and EVERY date on every page therefore needs the
+        // same conversion — and the one template that forgets is the one showing somebody
+        // a deadline an hour out. `|when` reads as what it is at the call site.
+        // See AfricaGates\Support\DisplayTime for why storage is not simply switched.
+        $twig->getEnvironment()->addFilter(new \Twig\TwigFilter(
+            'when',
+            [\AfricaGates\Support\DisplayTime::class, 'show']
+        ));
+        // The same, with the zone appended — for anything a decision hangs on.
+        $twig->getEnvironment()->addFilter(new \Twig\TwigFilter(
+            'when_zoned',
+            [\AfricaGates\Support\DisplayTime::class, 'showZoned']
+        ));
+        // A stored datetime as a `datetime-local` value, in the display zone, so an admin
+        // form round-trips without shifting what it shows by the offset.
+        $twig->getEnvironment()->addFilter(new \Twig\TwigFilter(
+            'when_input',
+            [\AfricaGates\Support\DisplayTime::class, 'forInput']
+        ));
+        // `{{ tz_abbr() }}` → 'WAT'. For labelling a time field so nobody has to guess.
+        $twig->getEnvironment()->addFunction(new \Twig\TwigFunction(
+            'tz_abbr',
+            [\AfricaGates\Support\DisplayTime::class, 'abbr']
+        ));
+        // ── AN EVENT'S OWN CLOCK ─────────────────────────────────────────────
+        //
+        // `|when` and `|date` both render in the PLATFORM's zone, which is right for a
+        // deadline and wrong for a room: a Nairobi gala's start time is 19:00 in Nairobi
+        // whatever a settings screen in Lagos says. These three take the event and read
+        // its own zone, falling back to the platform's — so every event saved before the
+        // column existed reads exactly as it did.
+        //
+        // `event_when` returns the time WITH its zone letters, and that is the shape on
+        // purpose: the event page used to print the time from one source and "WAT" typed
+        // by hand beside it, which states a wrong hour with a confident label the moment
+        // either assumption stops holding.
+        foreach ([
+            'event_when'  => 'zoned',      // the time and its zone, for anything a guest reads
+            'event_at'    => 'at',         // the time alone, where the label is elsewhere on screen
+            'event_input' => 'forInput',   // a datetime-local value in the event's zone
+        ] as $name => $method) {
+            $twig->getEnvironment()->addFunction(new \Twig\TwigFunction(
+                $name,
+                [\AfricaGates\Support\EventTime::class, $method]
+            ));
+        }
+        $twig->getEnvironment()->addFunction(new \Twig\TwigFunction(
+            'event_tz',
+            [\AfricaGates\Support\EventTime::class, 'abbr']
+        ));
+        $twig->getEnvironment()->addFunction(new \Twig\TwigFunction(
+            'asset',
+            [\AfricaGates\Support\Assets::class, 'url']
+        ));
+        // ── WHICH NATIONS GATES IS ACTUALLY LIVE IN ──────────────────────────
+        //
+        // `{{ nations_live() }}` → 'Nigeria' · 'Nigeria and Ghana' · '12 nations'.
+        //
+        // Counted from the awards rather than typed. "Live in Nigeria" was written into the
+        // page description, the JSON-LD, the footer and the terms, and the day a second
+        // nation had somebody standing in a live award every one of them was wrong —
+        // nobody edits a meta description because a nomination came in.
+        //
+        // A FUNCTION and not a global, for the same reason `cron_health` below is one: it
+        // is a four-table join, this container builds its globals for every request, and
+        // most of them never render a footer. Nothing is queried until a template asks.
+        foreach ([
+            'nations_live'       => 'phrase',
+            'nations_live_count' => 'count',
+        ] as $name => $method) {
+            $twig->getEnvironment()->addFunction(new \Twig\TwigFunction(
+                $name,
+                [\AfricaGates\Support\NationsLive::class, $method]
+            ));
+        }
+
+        // ── EVERY DATE TWIG PRINTS IS IN THE DISPLAY ZONE ────────────────────
+        //
+        // Twig's `|date` filter falls back to PHP's default timezone, which is UTC here
+        // because APP_TIMEZONE is unset. `when_zoned` converts to DisplayTime::zone(),
+        // which is Africa/Lagos. So the platform printed the SAME stored timestamp as two
+        // different dates depending on which filter a template happened to use:
+        //
+        //     /vote      closes  ...|when_zoned  →  "4 Sep 2026, 00:12"   (Lagos)
+        //     /nominate  opens   ...|date        →  "3 Sep 2026"          (UTC)
+        //
+        // One hour a day, every day, on pages a visitor moves between. On a stand call it
+        // is worse than confusing: a vendor reads "applications close 3 September" from
+        // one page while the deadline the system enforces is the 4th in their own
+        // timezone — or believes they have a day they do not.
+        //
+        // Fixed HERE rather than by converting seventy-eight `|date` call sites: this is
+        // one decision about how the platform displays time, and spreading it across every
+        // template guarantees the next one added forgets. `|date('c')` still emits a valid
+        // ISO-8601 string — now with a +01:00 offset instead of Z, which is if anything
+        // more useful to a machine — and `|date('U')` is a Unix timestamp and unaffected.
+        $twig->getEnvironment()->getExtension(\Twig\Extension\CoreExtension::class)
+             ->setTimezone(\AfricaGates\Support\DisplayTime::zone());
+        // `{{ cron_health() }}` → is the schedule still running?
+        //
+        // A function rather than something each controller passes, because a stalled
+        // schedule has to show on WHATEVER admin screen somebody happens to open, and
+        // threading it through twenty render() calls guarantees the one that forgets
+        // is the one they were on. Lazy — nothing is queried until the admin layout
+        // asks, so public pages pay nothing for it.
+        // See AfricaGates\Support\CronHealth: a stalled run cannot report itself.
+        $twig->getEnvironment()->addFunction(new \Twig\TwigFunction(
+            'cron_health',
+            [\AfricaGates\Support\CronHealth::class, 'status']
+        ));
+        // Consume one-shot flash. `flash` included — it was leaking for the whole session.
+        unset($_SESSION['flash_ok'], $_SESSION['flash'],
+              $_SESSION['flash_error'], $_SESSION['flash_notice'],
+              $_SESSION['org_flash_ok'], $_SESSION['org_flash_error']);
         return $twig;
     },
 
@@ -99,6 +396,8 @@ return [
 
     // Public services
     CacheService::class         => fn()=>new CacheService(),
+    \AfricaGates\Services\SitemapService::class
+                                => fn(ContainerInterface $c)=>new \AfricaGates\Services\SitemapService($c->get(CacheService::class)),
     StatsService::class         => fn(ContainerInterface $c)=>new StatsService($c->get(CacheService::class)),
     ProfileService::class       => fn()=>new ProfileService(),
     AwardService::class         => fn(ContainerInterface $c)=>new AwardService($c->get(SpamService::class)),
@@ -108,73 +407,279 @@ return [
     VoteService::class          => fn(ContainerInterface $c)=>new VoteService($c->get(\Psr\Log\LoggerInterface::class)),
     BonusVoteService::class     => fn(ContainerInterface $c)=>new BonusVoteService($c->get(\Psr\Log\LoggerInterface::class)),
     PaymentService::class       => fn(ContainerInterface $c)=>new PaymentService($c->get(\Psr\Log\LoggerInterface::class)),
+    GuideService::class         => fn(ContainerInterface $c)=>new GuideService($c->get(\Psr\Log\LoggerInterface::class), $c->get(CacheService::class)),
     FraudService::class         => fn(ContainerInterface $c)=>new FraudService($c->get(\Psr\Log\LoggerInterface::class)),
     EventService::class         => fn()=>new EventService(),
     MilestoneService::class     => fn(ContainerInterface $c)=>new MilestoneService($c->get(OtpService::class), $c->get(EventService::class), $c->get(\Psr\Log\LoggerInterface::class)),
+    // BOTH keys, not just the secret. The service has to know whether a widget can
+    // even be rendered: a secret with no site key is unpassable by anyone and closes
+    // the ballot, which is a different situation from "protection is on".
     TurnstileService::class     => fn(ContainerInterface $c)=>new TurnstileService(
-        (string)($_ENV['TURNSTILE_SECRET'] ?? ''),
-        $c->get(\Psr\Log\LoggerInterface::class)
+        (string) Env::get('TURNSTILE_SECRET', ''),
+        $c->get(\Psr\Log\LoggerInterface::class),
+        null,
+        (string) Env::get('TURNSTILE_SITE_KEY', '')
     ),
-    SpamService::class          => fn()=>new SpamService(
-        $_ENV['GROQ_API_KEY']      ?? null,
-        $_ENV['GEMINI_API_KEY']    ?? null,
-        $_ENV['ANTHROPIC_API_KEY'] ?? null,
-        $_ENV['OPENAI_API_KEY']    ?? null
-    ),
+    // Pluggable AI gateway — resolves provider keys from admin settings (with
+    // .env fallback); inert until a key is set, then auto-upgrades moderation
+    // + powers auto-filter presets / AI integrations across the platform.
+    AiService::class            => fn()=>AiService::boot(),
+    // Moderation gets its OWN AiService (dedicated Groq key + best model, with
+    // a free fallback to the general key) so safety decisions are isolated from
+    // high-volume public AI traffic.
+    SpamService::class          => fn(ContainerInterface $c)=>new SpamService(AiService::boot('moderation')),
     CommunityService::class     => fn(ContainerInterface $c)=>new CommunityService($c->get(SpamService::class)),
     JudgeService::class         => fn()=>new JudgeService(),
-    GoogleSheetsService::class  => fn(ContainerInterface $c)=>new GoogleSheetsService(
-        (string)($_ENV['GAS_URL'] ?? ''),
+    // boot() rather than Env::get: the /exec URL is settable from admin Settings now, and
+    // reading it here from .env only meant the sheet sync stayed off on a host where the
+    // operator had just configured it. One resolver, in GoogleMeetService::gasUrl().
+    GoogleSheetsService::class  => fn(ContainerInterface $c)=>GoogleSheetsService::boot(
         $c->has(\AfricaGates\Admin\Services\LogService::class) ? $c->get(\AfricaGates\Admin\Services\LogService::class) : null
     ),
-    OtpService::class           => fn(ContainerInterface $c)=>new OtpService([
-        'host' => $_ENV['SMTP_HOST'] ?? 'smtp-relay.brevo.com',
-        'port' => (int)($_ENV['SMTP_PORT'] ?? 587),
-        'username' => $_ENV['SMTP_USER'] ?? '',
-        'password' => $_ENV['SMTP_PASS'] ?? '',
-        'from_address' => $_ENV['MAIL_FROM_ADDRESS'] ?? 'noreply@afrovanguard.org.ng',
-        'from_name'    => $_ENV['MAIL_FROM_NAME'] ?? 'Africa GATES',
-    ], $c->get(\Psr\Log\LoggerInterface::class)),
+    OtpService::class           => function(ContainerInterface $c) {
+        // Every value — credentials included — resolves in OtpService::boot():
+        // gates_settings first, .env as the fallback. This used to build the array
+        // here and read the credentials from the environment only, which meant the
+        // SMTP login could not be set on a host with no shell. See boot().
+        $mailer = OtpService::boot($c->get(\Psr\Log\LoggerInterface::class));
+        // Hand the same transport to CheckoutMailer, which sends receipts from
+        // PaidVoteController and PaymentController — neither of which has a mailer to
+        // inject. It can boot its own, but then it would not share this logger, so a
+        // send failure on a payment path would be missing from app.log.
+        \AfricaGates\Services\CheckoutMailer::using($mailer);
+        return $mailer;
+    },
 
     // Admin services
     LogService::class       => fn()=>new LogService(),
     AuditService::class     => fn()=>new AuditService(),
     SettingsService::class  => fn()=>new SettingsService(),
     UploadService::class    => fn()=>new UploadService(),
+    \AfricaGates\Admin\Controllers\PartnerOrgsController::class => fn(ContainerInterface $c)=>new \AfricaGates\Admin\Controllers\PartnerOrgsController($c->get(Twig::class), $c->get(\AfricaGates\Admin\Services\AuditService::class), $c->get(PaymentService::class), $c->get(UploadService::class)),
     AdminValidator::class   => fn()=>new AdminValidator(),
     AuthService::class      => fn(ContainerInterface $c)=>new AuthService($c->get(LogService::class), $c->get(AuditService::class), $c->get(RateLimitService::class)),
 
     // Public controllers
     HomeController::class        => fn(ContainerInterface $c)=>new HomeController($c->get(Twig::class), $c->get(CacheService::class), $c->get(ProfileService::class), $c->get(AwardService::class), $c->get(LegacyService::class), $c->get(OpportunityService::class), $c->get(StatsService::class)),
-    ApiController::class         => fn(ContainerInterface $c)=>new ApiController($c->get(CacheService::class), $c->get(ProfileService::class), $c->get(AwardService::class), $c->get(VoteService::class), $c->get(OtpService::class), $c->get(RateLimitService::class), $c->get(GoogleSheetsService::class), $c->get(CommunityService::class), $c->get(TurnstileService::class), $c->get(FraudService::class), $c->get(EventService::class), $c->get(MilestoneService::class)),
+    ApiController::class         => fn(ContainerInterface $c)=>new ApiController($c->get(CacheService::class), $c->get(ProfileService::class), $c->get(AwardService::class), $c->get(VoteService::class), $c->get(OtpService::class), $c->get(RateLimitService::class), $c->get(GoogleSheetsService::class), $c->get(CommunityService::class), $c->get(TurnstileService::class), $c->get(FraudService::class), $c->get(EventService::class), $c->get(MilestoneService::class), $c->get(LegacyService::class), $c->get(OpportunityService::class)),
     RegistryController::class    => fn(ContainerInterface $c)=>new RegistryController($c->get(Twig::class), $c->get(CacheService::class), $c->get(ProfileService::class), $c->get(RateLimitService::class), $c->get(GoogleSheetsService::class), $c->get(CommunityService::class), $c->get(OtpService::class)),
-    AwardsController::class      => fn(ContainerInterface $c)=>new AwardsController($c->get(Twig::class), $c->get(CacheService::class), $c->get(AwardService::class)),
+    AwardsController::class      => fn(ContainerInterface $c)=>new AwardsController($c->get(Twig::class), $c->get(CacheService::class), $c->get(AwardService::class), $c->get(SettingsService::class)),
+    CurrencyService::class        => fn(ContainerInterface $c)=>new CurrencyService($c->get(CacheService::class)),
+    ShopController::class         => fn(ContainerInterface $c)=>new ShopController($c->get(Twig::class), $c->get(PaymentService::class), $c->get(CurrencyService::class)),
+    JudgesController::class       => fn(ContainerInterface $c)=>new JudgesController($c->get(Twig::class), $c->get(JudgeService::class)),
+    UserAccountService::class     => fn()=>new UserAccountService(),
+    AccountController::class      => fn(ContainerInterface $c)=>new AccountController($c->get(Twig::class), $c->get(UserAccountService::class), $c->get(OtpService::class), $c->get(RateLimitService::class), $c->get(CommunityService::class)),
     LeaderboardController::class => fn(ContainerInterface $c)=>new LeaderboardController($c->get(Twig::class), $c->get(CacheService::class), $c->get(ProfileService::class)),
+    ResultsController::class     => fn(ContainerInterface $c)=>new ResultsController($c->get(Twig::class), $c->get(CommunityService::class)),
     LegacyController::class      => fn(ContainerInterface $c)=>new LegacyController($c->get(Twig::class), $c->get(CacheService::class), $c->get(LegacyService::class), $c->get(CommunityService::class)),
     OpportunityController::class => fn(ContainerInterface $c)=>new OpportunityController($c->get(Twig::class), $c->get(CacheService::class), $c->get(OpportunityService::class)),
-    EventsController::class      => fn(ContainerInterface $c)=>new EventsController($c->get(Twig::class), $c->get(CacheService::class)),
-    BlogController::class        => fn(ContainerInterface $c)=>new BlogController($c->get(Twig::class), $c->get(CacheService::class)),
+    EventsController::class      => fn(ContainerInterface $c)=>new EventsController($c->get(Twig::class), $c->get(CacheService::class), $c->get(OtpService::class), $c->get(PaymentService::class), $c->get(RateLimitService::class)),
+    BlogController::class        => fn(ContainerInterface $c)=>new BlogController($c->get(Twig::class), $c->get(CacheService::class), $c->get(CommunityService::class)),
+    GatedFormController::class   => fn(ContainerInterface $c)=>new GatedFormController($c->get(Twig::class)),
+    FormController::class        => fn(ContainerInterface $c)=>new FormController($c->get(Twig::class), $c->get(RateLimitService::class)),
     NominationController::class  => fn(ContainerInterface $c)=>new NominationController($c->get(Twig::class), $c->get(CacheService::class), $c->get(AwardService::class), $c->get(RateLimitService::class), $c->get(GoogleSheetsService::class), $c->get(CommunityService::class), $c->get(OtpService::class)),
-    PartnerController::class     => fn(ContainerInterface $c)=>new PartnerController($c->get(Twig::class), $c->get(RateLimitService::class), $c->get(GoogleSheetsService::class), $c->get(OtpService::class), $c->get(PaymentService::class)),
-    PaymentController::class     => fn(ContainerInterface $c)=>new PaymentController($c->get(PaymentService::class), $c->get(Twig::class), $c->get(\Psr\Log\LoggerInterface::class)),
-    VoteController::class        => fn(ContainerInterface $c)=>new VoteController($c->get(Twig::class), $c->get(CacheService::class), $c->get(AwardService::class)),
+    PartnerController::class     => fn(ContainerInterface $c)=>new PartnerController($c->get(Twig::class), $c->get(RateLimitService::class), $c->get(GoogleSheetsService::class), $c->get(OtpService::class), $c->get(PaymentService::class), $c->get(StatsService::class)),
+    PaymentController::class     => fn(ContainerInterface $c)=>new PaymentController($c->get(PaymentService::class), $c->get(Twig::class), $c->get(\Psr\Log\LoggerInterface::class), $c->get(RateLimitService::class)),
+    ShopCheckoutController::class => fn(ContainerInterface $c)=>new ShopCheckoutController($c->get(PaymentService::class), $c->get(Twig::class), $c->get(OtpService::class), $c->get(\Psr\Log\LoggerInterface::class), $c->get(RateLimitService::class)),
+    // Gee gets the SUPPORT agent too. Gee is on every page and the support desk is
+    // on one, so the assistant a stuck person actually meets is nearly always Gee
+    // — same agent, same tools, same session-scoped identity as /support. See the
+    // GuideController class note for what is deliberately NOT relaxed.
+    GuideController::class        => fn(ContainerInterface $c)=>new GuideController(
+        $c->get(GuideService::class),
+        $c->get(RateLimitService::class),
+        $c->get(\Psr\Log\LoggerInterface::class),
+        new \AfricaGates\Services\SupportAgentService(
+            $c->get(\AfricaGates\Services\AiService::class),
+            new \AfricaGates\Services\SupportTicketService($c->get(OtpService::class))
+        )
+    ),
+    \AfricaGates\Controllers\OrgDashboardController::class => fn(ContainerInterface $c)=>new \AfricaGates\Controllers\OrgDashboardController($c->get(Twig::class), $c->get(PaymentService::class), $c->get(RateLimitService::class), $c->get(UploadService::class)),
+
+    // A vendor's photographs of what they sell. UploadService because every byte goes
+    // through the one sniff-and-re-encode path; rate limiter because the cost being limited
+    // is disk and image decoding rather than requests.
+    \AfricaGates\Controllers\StandPhotoController::class => fn(ContainerInterface $c)=>new \AfricaGates\Controllers\StandPhotoController($c->get(UploadService::class), $c->get(RateLimitService::class)),
+
+    // Vendors applying for stands. Rate limiter injected because the form CREATES ACCOUNTS
+    // for people who are not signed in, which is the one public endpoint here worth abusing.
+    \AfricaGates\Controllers\StandApplyController::class => fn(ContainerInterface $c)=>new \AfricaGates\Controllers\StandApplyController($c->get(Twig::class), $c->get(RateLimitService::class)),
+
+    // Organisations applying to raise gifts. Rate limited for the same reason as the vendor
+    // form: the half worth abusing is the one that creates accounts.
+    \AfricaGates\Controllers\OrgApplyController::class => fn(ContainerInterface $c)=>new \AfricaGates\Controllers\OrgApplyController($c->get(Twig::class), $c->get(RateLimitService::class)),
+
+    \AfricaGates\Admin\Controllers\StandsController::class => fn(ContainerInterface $c)=>new \AfricaGates\Admin\Controllers\StandsController($c->get(Twig::class), $c->get(\AfricaGates\Admin\Services\AuditService::class)),
+    DonationController::class     => fn(ContainerInterface $c)=>new DonationController($c->get(PaymentService::class), $c->get(Twig::class), $c->get(RateLimitService::class), $c->get(OtpService::class), $c->get(\Psr\Log\LoggerInterface::class)),
+    PaidVoteController::class     => fn(ContainerInterface $c)=>new PaidVoteController($c->get(PaymentService::class), $c->get(Twig::class), $c->get(RateLimitService::class), $c->get(\Psr\Log\LoggerInterface::class)),
+    \AfricaGates\Admin\Controllers\AssistantController::class => fn(ContainerInterface $c)=>new \AfricaGates\Admin\Controllers\AssistantController($c->get(Twig::class), $c->get(RateLimitService::class), $c->get(\Psr\Log\LoggerInterface::class)),
+    FlierController::class        => fn(ContainerInterface $c)=>new FlierController($c->get(Twig::class), new \AfricaGates\Services\FlierService()),
+    // No dependencies: it reads the cycle straight from the DB and draws. Bound
+    // explicitly anyway, because every other controller here is.
+    \AfricaGates\Controllers\CountdownController::class => fn(ContainerInterface $c)=>new \AfricaGates\Controllers\CountdownController(),
+    \AfricaGates\Controllers\HonourController::class  => fn(ContainerInterface $c)=>new \AfricaGates\Controllers\HonourController($c->get(Twig::class)),
+    \AfricaGates\Admin\Controllers\InvitesController::class => fn(ContainerInterface $c)=>new \AfricaGates\Admin\Controllers\InvitesController($c->get(Twig::class)),
+    \AfricaGates\Controllers\EmailPrefsController::class => fn(ContainerInterface $c)=>new \AfricaGates\Controllers\EmailPrefsController($c->get(Twig::class)),
+    ActivityController::class     => fn(ContainerInterface $c)=>new ActivityController($c->get(Twig::class), new \AfricaGates\Services\ActivityFeedService()),
+    // Support assistant. The agent gets AiService (Groq + Gemini, whichever the
+    // admin configured) and the ticket service; the ticket service gets the
+    // mailer so an escalation can actually reach somebody.
+    \AfricaGates\Controllers\SupportController::class => fn(ContainerInterface $c)=>new \AfricaGates\Controllers\SupportController(
+        $c->get(Twig::class),
+        new \AfricaGates\Services\SupportAgentService(
+            $c->get(\AfricaGates\Services\AiService::class),
+            new \AfricaGates\Services\SupportTicketService($c->get(OtpService::class))
+        ),
+        new \AfricaGates\Services\SupportTicketService($c->get(OtpService::class)),
+        $c->get(RateLimitService::class)
+    ),
+    // Refunds. Gets the mailer so the buyer is told, and the auditor because
+    // money leaving needs a name against it.
+    \AfricaGates\Admin\Controllers\RefundsController::class => fn(ContainerInterface $c)=>new \AfricaGates\Admin\Controllers\RefundsController(
+        $c->get(Twig::class),
+        $c->get(OtpService::class),
+        $c->get(AuditService::class)
+    ),
+    // Vote delivery. Audited, because delivering writes to a public tally and
+    // "who did this and when" has to be answerable months later.
+    \AfricaGates\Admin\Controllers\VoteDeliveryController::class => fn(ContainerInterface $c)=>new \AfricaGates\Admin\Controllers\VoteDeliveryController(
+        $c->get(Twig::class),
+        $c->get(AuditService::class)
+    ),
+    // Vote recovery — same reason, one step further. This one mints votes on behalf
+    // of people who never got their code, so the audit line is the record of who
+    // prepared a batch and, separately, who agreed to it.
+    // The door. Wired explicitly for the rate limiter: autowiring a nullable dependency
+    // gives null, and a limiter that is silently absent is a limiter that is not there —
+    // which on this endpoint means an unmetered name-lookup oracle behind a link that is
+    // meant to be shared into a group chat.
+    \AfricaGates\Controllers\DoorController::class => fn(ContainerInterface $c)=>new \AfricaGates\Controllers\DoorController(
+        $c->get(Twig::class),
+        $c->get(\AfricaGates\Services\RateLimitService::class)
+    ),
+    \AfricaGates\Admin\Controllers\VoteRecoveryController::class => fn(ContainerInterface $c)=>new \AfricaGates\Admin\Controllers\VoteRecoveryController(
+        $c->get(Twig::class),
+        $c->get(AuditService::class)
+    ),
+    // The support queue. Gets the ticket service so a staff reply travels the
+    // same path as an automated one — mailed, and recorded on the member's thread.
+    // Payment triage. Gets the audit service so a repair — which confirms orders and
+    // moves money — is recorded against the admin who pressed the button.
+    \AfricaGates\Admin\Controllers\PaymentsTriageController::class => fn(ContainerInterface $c)=>new \AfricaGates\Admin\Controllers\PaymentsTriageController(
+        $c->get(Twig::class),
+        $c->get(\AfricaGates\Admin\Services\AuditService::class)
+    ),
+    // Judging interviews. Takes the mailer and the SMS gateway because an invitation that
+    // reaches nobody is the whole failure mode of an appointment — and the audit service,
+    // because publishing a nominee's recorded words to the panel is a decision with a
+    // person's name on it.
+    \AfricaGates\Admin\Controllers\InterviewsController::class => fn(ContainerInterface $c)=>new \AfricaGates\Admin\Controllers\InterviewsController(
+        $c->get(Twig::class),
+        $c->get(\AfricaGates\Admin\Services\AuditService::class),
+        $c->get(OtpService::class),
+        \AfricaGates\Services\SmsService::boot()
+    ),
+    // Nominee campaigns. The mailer for test sends and the real thing; AuditService
+    // because "who pressed send on the mail to eight hundred people" is a question that
+    // gets asked afterwards.
+    \AfricaGates\Judge\Controllers\EvidenceController::class => fn()=>new \AfricaGates\Judge\Controllers\EvidenceController(),
+    \AfricaGates\Admin\Controllers\PayoutsController::class => fn(ContainerInterface $c)=>new \AfricaGates\Admin\Controllers\PayoutsController(
+        $c->get(Twig::class),
+        $c->get(\AfricaGates\Admin\Services\AuditService::class)
+    ),
+    \AfricaGates\Admin\Controllers\CampaignsController::class => fn(ContainerInterface $c)=>new \AfricaGates\Admin\Controllers\CampaignsController(
+        $c->get(Twig::class),
+        $c->get(\AfricaGates\Admin\Services\AuditService::class),
+        $c->get(OtpService::class)
+    ),
+    \AfricaGates\Controllers\InterviewController::class => fn(ContainerInterface $c)=>new \AfricaGates\Controllers\InterviewController(
+        $c->get(Twig::class)
+    ),
+    // The nominee questionnaire. Same shape as interviews: the mailer and SMS gateway,
+    // because a questionnaire nobody is told about is a table nobody fills in.
+    \AfricaGates\Admin\Controllers\QuestionnairesController::class => fn(ContainerInterface $c)=>new \AfricaGates\Admin\Controllers\QuestionnairesController(
+        $c->get(Twig::class),
+        $c->get(\AfricaGates\Admin\Services\AuditService::class),
+        $c->get(OtpService::class),
+        \AfricaGates\Services\SmsService::boot()
+    ),
+    \AfricaGates\Controllers\MyWorkController::class => fn(ContainerInterface $c)=>new \AfricaGates\Controllers\MyWorkController(
+        $c->get(Twig::class)
+    ),
+    \AfricaGates\Admin\Controllers\SupportController::class => fn(ContainerInterface $c)=>new \AfricaGates\Admin\Controllers\SupportController(
+        $c->get(Twig::class),
+        new \AfricaGates\Services\SupportTicketService($c->get(OtpService::class))
+    ),
+    // Nominee page claiming. Gets the mailer AND the SMS gateway, because §5 of
+    // docs/CLAIM-FAIRNESS-AND-FRAUD.md turns on reaching a channel the claimant could
+    // not control — with email alone the fan-out cannot do the one job it exists for.
+    // The ticket service so a HELD claim lands in front of a person rather than
+    // stopping at a message on a page, and RateLimitService so a farmer cannot walk a
+    // whole category (§4, attacker 5).
+    \AfricaGates\Controllers\ClaimController::class => fn(ContainerInterface $c)=>new \AfricaGates\Controllers\ClaimController(
+        $c->get(Twig::class),
+        new \AfricaGates\Services\NomineeClaimService(
+            $c->get(OtpService::class),
+            \AfricaGates\Services\SmsService::boot(),
+            new \AfricaGates\Services\SupportTicketService($c->get(OtpService::class)),
+            $c->get(RateLimitService::class),
+        )
+    ),
+    // The Help Centre reads a corpus of literals in HelpCentre, so it needs
+    // nothing but a renderer — no cache, no database, no gateway. That is also
+    // why /help keeps working on a database that is mid-migration, which is
+    // exactly when somebody is most likely to be looking for help.
+    \AfricaGates\Controllers\HelpController::class => fn(ContainerInterface $c)=>new \AfricaGates\Controllers\HelpController($c->get(Twig::class)),
+    PulseController::class        => fn(ContainerInterface $c)=>new PulseController($c->get(Twig::class), $c->get(CacheService::class), $c->get(ProfileService::class), $c->get(CommunityService::class), $c->get(RateLimitService::class), $c->get(OtpService::class), new \AfricaGates\Services\PulseFeedService(), new \AfricaGates\Services\PulseMediaService($c->get(UploadService::class), new \AfricaGates\Services\R2Service(null, $c->get(\Psr\Log\LoggerInterface::class)), new \AfricaGates\Services\MediaModerationService())),
+    VoteController::class        => fn(ContainerInterface $c)=>new VoteController($c->get(Twig::class), $c->get(CacheService::class), $c->get(AwardService::class), $c->get(PaymentService::class)),
     CommunityController::class   => fn(ContainerInterface $c)=>new CommunityController($c->get(Twig::class), $c->get(CommunityService::class), $c->get(CacheService::class), $c->get(OtpService::class), $c->get(RateLimitService::class)),
     JudgeAuthController::class   => fn(ContainerInterface $c)=>new JudgeAuthController($c->get(Twig::class), $c->get(JudgeService::class), $c->get(OtpService::class), $c->get(RateLimitService::class)),
     JudgeBallotController::class => fn(ContainerInterface $c)=>new JudgeBallotController($c->get(Twig::class), $c->get(JudgeService::class)),
 
     // Admin controllers
     AdminAuthController::class         => fn(ContainerInterface $c)=>new AdminAuthController($c->get(Twig::class), $c->get(AuthService::class), $c->get(LogService::class), $c->get(OtpService::class), $c->get(RateLimitService::class)),
-    AdminDashboardController::class    => fn(ContainerInterface $c)=>new AdminDashboardController($c->get(Twig::class), $c->get(AuditService::class)),
+    // The mailer is here for ONE thing: emailing a stalled schedule. A run that has
+    // stopped cannot report its own stall, so the alert has to leave from a page load.
+    AdminDashboardController::class    => fn(ContainerInterface $c)=>new AdminDashboardController($c->get(Twig::class), $c->get(AuditService::class), $c->get(OtpService::class)),
     AdminProfilesController::class     => fn(ContainerInterface $c)=>new AdminProfilesController($c->get(Twig::class), $c->get(AuditService::class)),
-    AdminNominationsController::class  => fn(ContainerInterface $c)=>new AdminNominationsController($c->get(Twig::class), $c->get(AuditService::class), $c->get(OtpService::class)),
-    AdminProgrammesController::class   => fn(ContainerInterface $c)=>new AdminProgrammesController($c->get(Twig::class), $c->get(AuditService::class)),
-    AdminNomineesController::class     => fn(ContainerInterface $c)=>new AdminNomineesController($c->get(Twig::class), $c->get(AuditService::class)),
+    AdminNominationsController::class  => fn(ContainerInterface $c)=>new AdminNominationsController($c->get(Twig::class), $c->get(AuditService::class), $c->get(OtpService::class), $c->get(AwardService::class)),
+    AdminModerationController::class   => fn(ContainerInterface $c)=>new AdminModerationController($c->get(Twig::class), $c->get(AuditService::class)),
+    AdminProgrammesController::class   => fn(ContainerInterface $c)=>new AdminProgrammesController($c->get(Twig::class), $c->get(AuditService::class), $c->get(CacheService::class)),
+    AdminNomineesController::class     => fn(ContainerInterface $c)=>new AdminNomineesController($c->get(Twig::class), $c->get(AuditService::class), $c->get(UploadService::class)),
     AdminLegacyController::class       => fn(ContainerInterface $c)=>new AdminLegacyController($c->get(Twig::class), $c->get(AuditService::class), $c->get(UploadService::class)),
     AdminOpportunitiesController::class=> fn(ContainerInterface $c)=>new AdminOpportunitiesController($c->get(Twig::class), $c->get(AuditService::class)),
-    AdminEventsController::class       => fn(ContainerInterface $c)=>new AdminEventsController($c->get(Twig::class), $c->get(AuditService::class), $c->get(CacheService::class)),
-    AdminPostsController::class        => fn(ContainerInterface $c)=>new AdminPostsController($c->get(Twig::class), $c->get(AuditService::class), $c->get(CacheService::class)),
+    // The mailer is the fourth argument and it is NOT optional in practice: without it, a
+    // waiting-list promotion silently offers seats and tells nobody, so the organiser sees
+    // four outstanding offers and four people who never heard from them.
+    AdminEventsController::class       => fn(ContainerInterface $c)=>new AdminEventsController($c->get(Twig::class), $c->get(AuditService::class), $c->get(CacheService::class), $c->get(OtpService::class)),
+    AdminRegistrationsController::class => fn(ContainerInterface $c)=>new AdminRegistrationsController($c->get(Twig::class)),
+    AdminDataController::class          => fn(ContainerInterface $c)=>new AdminDataController($c->get(Twig::class)),
+    AdminFormsController::class         => fn(ContainerInterface $c)=>new AdminFormsController($c->get(Twig::class), $c->get(AuditService::class)),
+    AdminPostsController::class        => fn(ContainerInterface $c)=>new AdminPostsController($c->get(Twig::class), $c->get(AuditService::class), $c->get(CacheService::class), $c->get(CommunityService::class)),
     AdminPartnersController::class     => fn(ContainerInterface $c)=>new AdminPartnersController($c->get(Twig::class), $c->get(AuditService::class)),
     AdminJudgesController::class       => fn(ContainerInterface $c)=>new AdminJudgesController($c->get(Twig::class), $c->get(AuditService::class), $c->get(UploadService::class), $c->get(OtpService::class)),
+    AdminWebhooksController::class     => fn(ContainerInterface $c)=>new AdminWebhooksController($c->get(Twig::class), $c->get(AuditService::class)),
     AdminAdminsController::class       => fn(ContainerInterface $c)=>new AdminAdminsController($c->get(Twig::class), $c->get(AuditService::class)),
     AdminSettingsController::class     => fn(ContainerInterface $c)=>new AdminSettingsController($c->get(Twig::class), $c->get(SettingsService::class), $c->get(AuditService::class), $c->get(OtpService::class)),
+    AdminAwardsPageController::class   => fn(ContainerInterface $c)=>new AdminAwardsPageController($c->get(Twig::class), $c->get(SettingsService::class), $c->get(AuditService::class)),
+    AdminMediaController::class        => fn(ContainerInterface $c)=>new AdminMediaController($c->get(Twig::class), $c->get(AuditService::class)),
+    \AfricaGates\Admin\Controllers\LegalController::class    => fn(ContainerInterface $c)=>new \AfricaGates\Admin\Controllers\LegalController($c->get(Twig::class), $c->get(AuditService::class)),
+    \AfricaGates\Admin\Controllers\ShortlistsController::class => fn(ContainerInterface $c)=>new \AfricaGates\Admin\Controllers\ShortlistsController($c->get(Twig::class), $c->get(AuditService::class)),
+    \AfricaGates\Admin\Controllers\StandPresetsController::class => fn(ContainerInterface $c)=>new \AfricaGates\Admin\Controllers\StandPresetsController($c->get(Twig::class), $c->get(AuditService::class)),
+    \AfricaGates\Admin\Controllers\AttendeeController::class => fn(ContainerInterface $c)=>new \AfricaGates\Admin\Controllers\AttendeeController($c->get(Twig::class), $c->get(\AfricaGates\Admin\Services\SettingsService::class), $c->get(AuditService::class)),
+    \AfricaGates\Admin\Controllers\AiPromptsController::class => fn(ContainerInterface $c)=>new \AfricaGates\Admin\Controllers\AiPromptsController($c->get(Twig::class), $c->get(AuditService::class)),
+    \AfricaGates\Admin\Controllers\IntegrityController::class => fn(ContainerInterface $c)=>new \AfricaGates\Admin\Controllers\IntegrityController($c->get(Twig::class)),
+    \AfricaGates\Admin\Controllers\DocumentsController::class => fn(ContainerInterface $c)=>new \AfricaGates\Admin\Controllers\DocumentsController($c->get(AuditService::class)),
+    \AfricaGates\Admin\Controllers\VendorPolicyController::class => fn(ContainerInterface $c)=>new \AfricaGates\Admin\Controllers\VendorPolicyController($c->get(Twig::class), $c->get(AuditService::class)),
+    \AfricaGates\Admin\Controllers\SandboxController::class => fn(ContainerInterface $c)=>new \AfricaGates\Admin\Controllers\SandboxController($c->get(Twig::class), $c->get(AuditService::class)),
+    \AfricaGates\Admin\Controllers\AiAssistController::class => fn(ContainerInterface $c)=>new \AfricaGates\Admin\Controllers\AiAssistController($c->get(RateLimitService::class)),
+    // The mailer is the fourth argument: without it, restocking a sold-out size changes a
+    // number and tells the people who asked to be told nothing.
+    AdminProductsController::class     => fn(ContainerInterface $c)=>new AdminProductsController($c->get(Twig::class), $c->get(AuditService::class), $c->get(UploadService::class), $c->get(OtpService::class)),
+    // The mailer is the third argument and NOT optional in practice: marking an order shipped
+    // without it changes a status and tells the buyer nothing, which is the one state change
+    // they are actually waiting on.
+    AdminShopController::class         => fn(ContainerInterface $c)=>new AdminShopController($c->get(Twig::class), $c->get(AuditService::class), $c->get(OtpService::class)),
+    \AfricaGates\Admin\Controllers\UsersController::class => fn(ContainerInterface $c)=>new \AfricaGates\Admin\Controllers\UsersController($c->get(AuditService::class)),
+    \AfricaGates\Admin\Controllers\AuditController::class => fn(ContainerInterface $c)=>new \AfricaGates\Admin\Controllers\AuditController($c->get(Twig::class), $c->get(AuditService::class)),
 ];

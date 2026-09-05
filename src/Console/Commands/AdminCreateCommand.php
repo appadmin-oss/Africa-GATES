@@ -5,6 +5,7 @@ namespace AfricaGates\Console\Commands;
 
 use Illuminate\Database\Capsule\Manager as DB;
 use Illuminate\Support\Carbon;
+use AfricaGates\Admin\Support\Permissions;
 use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Input\InputInterface;
@@ -22,7 +23,7 @@ class AdminCreateCommand extends Command
             ->addArgument('email',    InputArgument::REQUIRED, 'Admin email')
             ->addArgument('name',     InputArgument::REQUIRED, 'Admin display name')
             ->addArgument('password', InputArgument::REQUIRED, 'Admin password')
-            ->addOption('role',  null, InputOption::VALUE_REQUIRED, 'Role (superadmin|admin|editor|judge|viewer)', 'admin');
+            ->addOption('role',  null, InputOption::VALUE_REQUIRED, 'Role (superadmin|admin|editor|moderator|viewer)', 'admin');
     }
 
     protected function execute(InputInterface $input, OutputInterface $output): int
@@ -37,8 +38,8 @@ class AdminCreateCommand extends Command
             $io->error("Invalid email: $email");
             return Command::FAILURE;
         }
-        if (!in_array($role, ['superadmin','admin','editor','judge','viewer'], true)) {
-            $io->error("Invalid role: $role");
+        if (!Permissions::isRole($role)) {
+            $io->error("Invalid role: $role — use one of: " . implode(', ', array_keys(Permissions::ROLES)));
             return Command::FAILURE;
         }
 

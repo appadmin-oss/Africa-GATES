@@ -1,0 +1,241 @@
+{% extends 'admin/layout.twig' %}
+
+{#
+  WHO HAS BEEN ASKED, AND WHO HAS ANSWERED.
+
+  Three states lead to an action and every other is noise: nobody has asked this nominee,
+  somebody asked and they have not started, and they submitted so a judge can now read it.
+  The counters across the top are those three, and the list is ordered so the unfinished work
+  is at the top.
+
+  The bulk buttons exist because the realistic use is "we have just approved sixty nominees":
+  opening sixty questionnaires one at a time is how a stage gets skipped.
+#}
+
+{% block head_styles %}
+<style nonce="{{ csp_nonce }}">
+  .qz-lede{ margin:0 0 16px; font-size:13px; line-height:1.65; color:#4a5256; max-width:90ch }
+  .qz-stats{ display:grid; grid-template-columns:repeat(auto-fit,minmax(min(100%,150px),1fr));
+    gap:10px; margin-bottom:18px }
+  .qz-stat{ background:#fff; border:1px solid rgba(16,41,44,.1); border-radius:12px; padding:13px 15px }
+  .qz-stat--warn{ border-color:#ecd9a0; background:#fff8df }
+  .qz-stat--ok{ border-color:#bfe0bd; background:#f7fbf6 }
+  .qz-stat__k{ font:700 10px/1 var(--ag-font-body,inherit); letter-spacing:.08em;
+    text-transform:uppercase; color:#5a6d6f }
+  .qz-stat__v{ font-size:22px; font-weight:700; color:#10292C; margin-top:7px }
+  .qz-stat__n{ font-size:11.5px; line-height:1.5; color:#67797b; margin-top:4px }
+
+  .qz-sec{ background:#fff; border:1px solid rgba(16,41,44,.1); border-radius:14px;
+    padding:18px 20px; margin-bottom:16px }
+  .qz-sec h2{ margin:0 0 3px; font-size:15px; color:#10292C }
+  .qz-sec p{ margin:8px 0 0; font-size:12.5px; line-height:1.7; color:#5a6d6f }
+  .qz-grid{ display:grid; gap:12px; grid-template-columns:repeat(auto-fit,minmax(min(100%,220px),1fr));
+    margin-top:14px }
+  .qz-in{ width:100%; box-sizing:border-box; font-family:inherit; font-size:13.5px; padding:9px 11px;
+    border:1px solid rgba(16,41,44,.18); border-radius:9px; background:#fff; color:#10292C }
+  .qz-lab{ display:block; font:700 10px/1 var(--ag-font-body,inherit); letter-spacing:.08em;
+    text-transform:uppercase; color:#5a6d6f; margin-bottom:6px }
+  .qz-btn{ cursor:pointer; font:650 13px/1 inherit; border:none; padding:10px 17px; border-radius:999px;
+    background:#10292C; color:#fff; text-decoration:none; display:inline-block }
+  .qz-btn--ghost{ background:none; border:1px solid rgba(16,41,44,.2); color:#10292C }
+  .qz-row{ display:flex; gap:9px; flex-wrap:wrap; align-items:center; margin-top:14px }
+
+  .qz-card{ background:#fff; border:1px solid rgba(16,41,44,.1); border-radius:13px;
+    padding:14px 16px; margin-bottom:9px; display:grid; gap:10px;
+    grid-template-columns:minmax(0,1fr) auto; align-items:center }
+  .qz-card--done{ border-color:#bfe0bd; background:#f9fdf8 }
+  .qz-card--silent{ border-color:#ecd9a0; background:#fffdf5 }
+  .qz-who{ font-size:14.5px; font-weight:650; color:#10292C }
+  .qz-who a{ color:inherit; text-decoration:none }
+  .qz-who a:hover{ text-decoration:underline }
+  .qz-meta{ font-size:12px; line-height:1.6; color:#5a6d6f; margin-top:3px }
+  .qz-tags{ display:flex; flex-wrap:wrap; gap:6px; margin-top:7px }
+  .qz-tag{ font-size:10.5px; font-weight:700; letter-spacing:.05em; text-transform:uppercase;
+    padding:3px 8px; border-radius:999px; background:rgba(16,41,44,.07); color:#3d4b4d }
+  .qz-tag--ok{ background:#eaf7ea; color:#1c5f1b }
+  .qz-tag--no{ background:#fdeaea; color:#8a2020 }
+  .qz-tag--test{ background:#10292c; color:#fff }
+  /* A test is dashed and grey, so a queue with one in it never reads as a queue of people. */
+  .qz-card--test{ border-style:dashed; border-color:rgba(16,41,44,.3); background:#fafbfa }
+  .qz-empty{ background:#f7fbf6; border:1px solid #bfe0bd; border-radius:14px; padding:20px;
+    font-size:13.5px; color:#2b5c2a }
+  @media (max-width:640px){ .qz-card{ grid-template-columns:minmax(0,1fr) } }
+</style>
+{% endblock %}
+
+{% block content %}
+<p class="qz-lede">
+  A judge's dossier is otherwise written entirely by other people — the nominator's paragraph,
+  a category, a photograph. This is where a nominee describes the work <em>themselves</em> and
+  attaches what exists: links, documents, photographs, reports, letters, awards. Each answer is
+  filed against the scoring criterion it speaks to, and everything they send lands in the
+  dossier labelled <strong>as their own claim, never as verified</strong> — a judge is shown the
+  difference. <strong>Nothing here writes a score.</strong>
+</p>
+
+<div class="qz-stats">
+  <div class="qz-stat {{ summary.not_invited ? 'qz-stat--warn' : '' }}">
+    <div class="qz-stat__k">Not asked yet</div><div class="qz-stat__v">{{ summary.not_invited }}</div>
+    <div class="qz-stat__n">Opened, nobody told</div>
+  </div>
+  <div class="qz-stat {{ summary.silent ? 'qz-stat--warn' : '' }}">
+    <div class="qz-stat__k">Asked, not started</div><div class="qz-stat__v">{{ summary.silent }}</div>
+    <div class="qz-stat__n">A nudge is worth more than a reminder email</div>
+  </div>
+  <div class="qz-stat">
+    <div class="qz-stat__k">In progress</div><div class="qz-stat__v">{{ summary.started }}</div>
+    <div class="qz-stat__n">Started, not sent</div>
+  </div>
+  <div class="qz-stat qz-stat--ok">
+    <div class="qz-stat__k">With the judges</div><div class="qz-stat__v">{{ summary.submitted }}</div>
+    <div class="qz-stat__n">In the dossiers now</div>
+  </div>
+</div>
+
+{# ── open and invite ─────────────────────────────────────────────────────── #}
+<div class="qz-sec">
+  <h2>Ask a nominee</h2>
+  <p>Opening a questionnaire tells nobody — you review it first, then invite. The invitation goes
+     to the contact on their approved nomination, never an address typed here.</p>
+
+  <form method="post" action="/admin/questionnaires/open">
+    <input type="hidden" name="_token" value="{{ csrf_token }}">
+    <div class="qz-grid">
+      <div>
+        <label class="qz-lab" for="nom">Nominee</label>
+        <select class="qz-in" id="nom" name="nominee_id">
+          <option value="">Choose…</option>
+          {% for c in candidates %}
+            <option value="{{ c.id }}">{{ c.name }}{{ c.category ? ' — ' ~ c.category : '' }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div style="align-self:end">
+        <button class="qz-btn" type="submit">Open one</button>
+      </div>
+    </div>
+  </form>
+
+  <div class="qz-row">
+    <form method="post" action="/admin/questionnaires/open">
+      <input type="hidden" name="_token" value="{{ csrf_token }}">
+      <input type="hidden" name="all" value="1">
+      <button class="qz-btn qz-btn--ghost" type="submit">
+        Open one for all {{ candidates|length }} nominee(s) with none</button>
+    </form>
+    <form method="post" action="/admin/questionnaires/invite-all">
+      <input type="hidden" name="_token" value="{{ csrf_token }}">
+      <button class="qz-btn qz-btn--ghost" type="submit">Invite everyone not yet told</button>
+    </form>
+  </div>
+</div>
+
+{# ── a questionnaire to rehearse on ──────────────────────────────────────────
+   Its own section rather than a checkbox on "Open one", because it is a different act with a
+   different consequence. Before this existed, the only way to find out what a nominee actually
+   sees was to open one against a real person: a live token, a row in the counts above, and on
+   submit a set of evidence rows written into that person's judging dossier. Nobody rehearses
+   on those terms — so the first person to meet a confusing question was always a nominee. #}
+<div class="qz-sec">
+  <h2>Try it yourself first</h2>
+  <p>A test questionnaire behaves exactly like a real one — same questions for the programme you
+     pick, the same conversation, the same file uploads, and you can send it at the end. Three
+     things it cannot do: <strong>reach a judge</strong>, <strong>be emailed to anybody</strong>,
+     or <strong>be counted</strong> in the figures above. Answer it as a nominee would, then
+     delete it.</p>
+
+  <form method="post" action="/admin/questionnaires/test">
+    <input type="hidden" name="_token" value="{{ csrf_token }}">
+    <div class="qz-grid">
+      <div>
+        <label class="qz-lab" for="tprog">Whose questions</label>
+        <select class="qz-in" id="tprog" name="programme_id">
+          <option value="">The default set (questions used by every programme)</option>
+          {% for p in programmes %}
+            <option value="{{ p.id }}">{{ p.title }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div>
+        <label class="qz-lab" for="tlabel">A name to be greeted by</label>
+        <input class="qz-in" type="text" id="tlabel" name="label" maxlength="120"
+               placeholder="Test nominee">
+      </div>
+      <div style="align-self:end">
+        <button class="qz-btn" type="submit">Create a test questionnaire</button>
+      </div>
+    </div>
+  </form>
+  {% if summary.tests %}
+    <p><strong>{{ summary.tests }}</strong> test questionnaire(s) exist. They are marked
+      <em>test</em> in the list below and counted nowhere else.</p>
+  {% endif %}
+</div>
+
+{# ── the questions per programme ─────────────────────────────────────────── #}
+<div class="qz-sec">
+  <h2>The questions</h2>
+  <p>Every programme starts with a default set built from its own scoring criteria, so a
+     questionnaire can be sent today without designing one. Open a programme to see the exact
+     questions and edit them.</p>
+  <div class="qz-row">
+    {% for p in programmes %}
+      <a class="qz-btn qz-btn--ghost" href="/admin/questionnaires/programme/{{ p.id }}">{{ p.title }}</a>
+    {% else %}
+      <span style="font-size:12.5px; color:#67797b">No award programmes yet.</span>
+    {% endfor %}
+  </div>
+</div>
+
+{# ── the queue ───────────────────────────────────────────────────────────── #}
+{% if rows is empty %}
+  <div class="qz-empty">
+    <strong>No questionnaires yet.</strong> Open one above. Until a nominee is asked, the only
+    thing in their dossier is what somebody else wrote about them.
+  </div>
+{% else %}
+  {% for r in rows %}
+    {% set tone = r.is_test|default(false) ? 'test'
+                    : (r.status == 'submitted' ? 'done' : ((r.invited and not r.started) ? 'silent' : '')) %}
+    <div class="qz-card {{ tone ? 'qz-card--' ~ tone : '' }}">
+      <div>
+        <div class="qz-who"><a href="/admin/questionnaires/{{ r.id }}">{{ r.nominee }}</a></div>
+        <div class="qz-meta">
+          {{ r.programme ?: 'no programme' }}
+          {%- if r.is_test|default(false) %} · a rehearsal, not a person
+          {%- elseif r.status == 'submitted' %} · sent {{ r.submitted_at }}
+          {%- elseif r.invited %} · invited {{ r.invited_at }}
+          {%- else %} · nobody told yet{% endif %}
+        </div>
+        <div class="qz-tags">
+          {% if r.is_test|default(false) %}<span class="qz-tag qz-tag--test">test</span>{% endif %}
+          <span class="qz-tag">{{ r.status }}</span>
+          {# "not invited" on a test would read as a job somebody still has to do. #}
+          {% if not r.is_test|default(false) %}
+            {% if not r.invited and r.status == 'draft' %}<span class="qz-tag qz-tag--no">not invited</span>{% endif %}
+            {% if r.invited and not r.started and r.status == 'draft' %}
+              <span class="qz-tag qz-tag--no">not opened</span>{% endif %}
+          {% endif %}
+          {% if r.answers %}<span class="qz-tag">{{ r.answers }} answered</span>{% endif %}
+          {% if r.works %}<span class="qz-tag">{{ r.works }} work(s)</span>{% endif %}
+          {% if r.evidence %}<span class="qz-tag qz-tag--ok">{{ r.evidence }} in the dossier</span>{% endif %}
+        </div>
+      </div>
+      <div class="qz-row" style="margin-top:0">
+        <a class="qz-btn qz-btn--ghost" href="/admin/questionnaires/{{ r.id }}">Open</a>
+        {% if r.is_test|default(false) %}
+          <form method="post" action="/admin/questionnaires/{{ r.id }}/delete-test">
+            <input type="hidden" name="_token" value="{{ csrf_token }}">
+            {# A hard delete, and the only one on this screen. The service refuses unless
+               is_test = 1, so a real nominee's answers can never be reached by this button
+               — which is exactly why the confirmation names the test rather than warning
+               about something that cannot happen. #}
+            <button class="qz-btn qz-btn--ghost" type="submit"
+              data-confirm="Delete test questionnaire #{{ r.id }}? Its answers and uploads go with it and cannot be recovered. Only tests can be deleted — a real nominee's questionnaire is reopened, never removed.">Delete</button>
+          </form>
+        {% endif %}
+      </div>
+    </div>
+  {% endfor %}
+{% endif %}
+{% endblock %}

@@ -1,59 +1,168 @@
 {% extends "layout/gates.twig" %}
+
+{# ── Thread composer (community v2) ───────────────────────────────────
+   Members only — guests are redirected by the controller before render.
+   Data: programmes (id,title), error (string|null). The regular form POST
+   keeps the CSRF token; author identity is stamped server-side from the
+   member's account, so there are no name/email fields. #}
+
+{% block head_styles %}
+<style nonce="{{ csp_nonce }}">
+  body[data-page="community"]{ background:#eef0ec; color:var(--ag-ink,#10292C); }
+  body[data-page="community"] [x-cloak]{ display:none !important; }
+  .cm-wrap{ max-width:680px; margin:0 auto; padding:0 var(--ag-gutter,28px) 60px; }
+
+  .cm-hero{ position:relative; overflow:hidden; border-radius:24px; margin-top:24px; background:radial-gradient(130% 130% at 80% 0%,#1d5b2a,#10292C 60%); padding:clamp(2rem,5vw,2.7rem) clamp(1.6rem,4vw,2.4rem); color:#fff; }
+  .cm-hero__orb{ position:absolute; right:-50px; bottom:-70px; width:280px; height:280px; border-radius:50%; background:radial-gradient(circle,rgba(212,154,14,.26),transparent 68%); }
+  .cm-hero__in{ position:relative; max-width:520px; }
+  .cm-badge{ display:inline-flex; align-items:center; gap:7px; font-size:11px; font-weight:700; letter-spacing:.1em; text-transform:uppercase; color:#ffd24a; background:rgba(8,26,16,.55); box-shadow:inset 0 0 0 1px rgba(212,154,14,.32); padding:7px 14px; border-radius:999px; }
+  .cm-hero h1{ margin:14px 0 0; color:#fff; font-family:var(--ag-font-display); font-weight:800; font-size:clamp(1.8rem,4.6vw,2.4rem); line-height:1.05; letter-spacing:-.02em; }
+  .cm-hero h1 em{ color:#7FC87C; font-style:normal; }
+  .cm-hero p{ margin:12px 0 0; font-size:14.5px; line-height:1.55; color:rgba(255,255,255,.85); }
+
+  .cm-card{ background:var(--ag-surface,#fff); border:1px solid rgba(16,41,44,.08); border-radius:20px; padding:clamp(1.4rem,3vw,1.9rem); margin-top:20px; }
+  .cm-alert{ display:flex; gap:.6rem; align-items:flex-start; border-radius:12px; padding:.8rem 1rem; margin:0 0 1.2rem; font-size:14px; font-weight:500; background:#fdeaea; border:1px solid #f5c2c2; color:#8c2626; }
+
+  .cm-field{ margin-top:16px; } .cm-field:first-of-type{ margin-top:0; }
+  .cm-label{ display:block; font-size:12.5px; font-weight:600; color:#3a4448; margin-bottom:6px; }
+  .cm-label span{ font-weight:400; color:#5f7273; }
+  .cm-in, .cm-select, .cm-ta{ width:100%; border:1px solid rgba(16,41,44,.16); border-radius:11px; padding:12px 14px; font-family:inherit; font-size:16px; color:var(--ag-ink,#10292C); background:#fff; transition:border-color .15s, box-shadow .15s; }
+  .cm-in:focus, .cm-select:focus, .cm-ta:focus{ border-color:var(--ag-green,#237b22); box-shadow:0 0 0 3px rgba(35,123,34,.1); }
+  .cm-in[aria-invalid="true"], .cm-ta[aria-invalid="true"]{ border-color:#b4452f; box-shadow:0 0 0 3px rgba(180,69,47,.1); }
+  .cm-ta{ resize:vertical; min-height:150px; line-height:1.55; }
+  .cm-hint{ display:flex; justify-content:space-between; gap:10px; margin-top:6px; font-size:12px; color:#5f7273; }
+  .cm-count{ font-family:var(--ag-font-mono,monospace); }
+  .cm-ferr{ margin:7px 0 0; font-size:12.5px; font-weight:600; color:#9c2b2b; }
+
+  .cm-poll{ margin-top:10px; border:1px solid rgba(16,41,44,.12); border-radius:12px; padding:14px; background:#f9fbf8; }
+  .cm-poll legend{ padding:0; font-size:12.5px; font-weight:600; color:#3a4448; }
+  .cm-check{ display:flex; align-items:center; gap:8px; cursor:pointer; font-size:12.5px; font-weight:600; color:#3a4448; }
+  .cm-check input{ width:16px; height:16px; accent-color:var(--ag-green,#237b22); }
+  .cm-pollbtn{ border:none; background:#eef7ee; color:#1a6118; font-weight:600; border-radius:999px; padding:8px 14px; cursor:pointer; font-family:inherit; font-size:13px; }
+  .cm-pollbtn:hover{ background:#dcecdb; }
+  .cm-pollbtn--quiet{ background:#f0f2f0; color:#4a5256; }
+  .cm-pollbtn--quiet:hover{ background:#e4e8e4; }
+
+  .cm-cta{ margin-top:20px; cursor:pointer; border:none; background:var(--ag-green,#237b22); color:#fff; font-family:inherit; font-weight:600; font-size:15px; padding:13px 26px; border-radius:999px; }
+  .cm-cta:hover{ background:#1a6118; }
+  .cm-cta:disabled{ background:#5f7273; cursor:not-allowed; }
+  .cm-note{ margin-top:16px; background:#f4f7f4; border:1px solid #d6e8d3; border-radius:13px; padding:13px 16px; font-size:13px; line-height:1.55; color:#245722; }
+  .cm-back{ display:inline-flex; align-items:center; gap:6px; margin-top:16px; font-size:12.5px; font-weight:600; color:#4a5f60; text-decoration:none; }
+  .cm-back:hover{ color:#1a6118; }
+</style>
+{% endblock %}
+
 {% block content %}
-
-<section class="r26-hero" style="padding-block:clamp(2.5rem,6vw,4.25rem) clamp(1.5rem,3vw,2.5rem);text-align:center">
-  <img class="r26-hero__wm" src="/assets/img/africa-watermark.svg?v={{ asset_version }}" alt="" aria-hidden="true">
-  <div class="wrap">
-    <div class="r26-hero__inner">
-      <p class="r26-eyebrow r26-reveal r26-d1" style="justify-content:center;display:inline-flex">Start a thread</p>
-      <h1 class="r26-hl r26-reveal r26-d2" style="font-size:clamp(2.2rem,5.2vw,3.9rem)">Open a <em style="color:var(--emerald-600)">conversation.</em></h1>
-      <p class="r26-sub r26-reveal r26-d3" style="margin-left:auto;margin-right:auto">Threads are moderated for signal. Keep them specific, attributed, and useful to the next reader.</p>
+<div class="cm-wrap">
+  <header class="cm-hero">
+    <div class="cm-hero__orb" aria-hidden="true"></div>
+    <div class="cm-hero__in">
+      <span class="cm-badge">💬 Start a thread</span>
+      <h1>Open a <em>conversation.</em></h1>
+      <p>Threads are moderated for signal. Keep them specific, attributed, and useful to the next reader — you're posting as your member account.</p>
     </div>
-  </div>
-</section>
+  </header>
 
-<section class="section" style="padding-top:1rem">
-  <div class="wrap" style="max-width:46rem">
-    <div class="r26-surface">
-      <form method="POST" action="/community/new" class="form-stack" data-anim>
-        <input type="hidden" name="_token" value="{{ csrf_token }}">
-        <div class="form-group">
-          <label class="form-label" for="tProg">Channel</label>
-          <select id="tProg" name="programme_id" class="form-select">
-            <option value="">— General —</option>
-            {% for p in channels|default([
-              {id:1, title:'Principals Awards'},
-              {id:2, title:'Incorruptible Awards'},
-              {id:3, title:'Carol Awards'},
-              {id:4, title:'Business Excellence'}
-            ]) %}
-            <option value="{{ p.id }}">{{ p.title }}</option>
-            {% endfor %}
-          </select>
-        </div>
-        <div class="form-group">
-          <label class="form-label" for="tTitle">Title</label>
-          <input id="tTitle" name="title" class="form-input" type="text" required maxlength="140" placeholder="A one-line question or claim">
-        </div>
-        <div class="form-group">
-          <label class="form-label" for="tBody">Body</label>
-          <textarea id="tBody" name="body" class="form-textarea" rows="6" required minlength="40" placeholder="Specifics, evidence, links. The first paragraph matters."></textarea>
-        </div>
-        <div class="form-row">
-          <div class="form-group">
-            <label class="form-label" for="tName">Your name</label>
-            <input id="tName" name="author_name" class="form-input" type="text" required>
-          </div>
-          <div class="form-group">
-            <label class="form-label" for="tEmail">Email <span class="text-soft" style="font-weight:400">(OTP)</span></label>
-            <input id="tEmail" name="author_email" class="form-input" type="email" required>
-          </div>
-        </div>
-        <button class="btn btn--emerald" type="submit" style="align-self:flex-start">Publish thread</button>
-      </form>
+  <form method="POST" action="/community/new" class="cm-card" novalidate
+        x-data="cmCompose()" @submit="if (!validate()) { $event.preventDefault(); } else { busy = true; }"
+        aria-labelledby="cmFormH">
+    <h2 class="sr-only" id="cmFormH">New thread details</h2>
+    <input type="hidden" name="_token" value="{{ csrf_token }}">
+
+    {% if error %}
+    <p class="cm-alert" role="alert">
+      <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex:none;margin-top:1px" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="10"/><path d="M12 8v4M12 16h.01"/></svg>
+      {{ error }}
+    </p>
+    {% endif %}
+
+    <div class="cm-field">
+      <label class="cm-label" for="tProg">Space <span>(where the thread lives)</span></label>
+      <select id="tProg" name="programme_id" class="cm-select">
+        <option value="">— General —</option>
+        {% for p in programmes %}
+        <option value="{{ p.id }}">{{ p.title }}</option>
+        {% endfor %}
+      </select>
     </div>
-    <div class="r26-note r26-note--emerald" style="margin-top:1.25rem"><strong>Before you post:</strong> threads are reviewed by moderators. Specific, evidenced posts surface faster — your email is used only for one-time verification.</div>
-  </div>
-</section>
 
+    <div class="cm-field">
+      <label class="cm-label" for="tTitle">Title</label>
+      <input id="tTitle" name="title" class="cm-in" type="text" maxlength="140" required
+             x-model="title" :aria-invalid="errors.title ? 'true' : 'false'"
+             :aria-describedby="errors.title ? 'tTitleErr' : 'tTitleHint'"
+             placeholder="A one-line question or claim">
+      <p class="cm-hint" id="tTitleHint"><span>Specific beats broad — name names, cite the cycle.</span><span class="cm-count" x-text="(140 - title.length) + ' left'" aria-hidden="true"></span></p>
+      <p class="cm-ferr" id="tTitleErr" x-show="errors.title" x-cloak role="alert" x-text="errors.title"></p>
+    </div>
+
+    <div class="cm-field">
+      <label class="cm-label" for="tBody">Body</label>
+      <textarea id="tBody" name="body" class="cm-ta" rows="6" minlength="40" required
+                x-model="body" :aria-invalid="errors.body ? 'true' : 'false'"
+                :aria-describedby="errors.body ? 'tBodyErr' : 'tBodyHint'"
+                placeholder="Specifics, evidence, links. The first paragraph matters."></textarea>
+      <p class="cm-hint" id="tBodyHint"><span>At least 40 characters.</span><span class="cm-count" x-text="body.length + ' chars'" aria-hidden="true"></span></p>
+      <p class="cm-ferr" id="tBodyErr" x-show="errors.body" x-cloak role="alert" x-text="errors.body"></p>
+    </div>
+
+    <div class="cm-field">
+      <label class="cm-check"><input type="checkbox" x-model="pollOn"> Add a poll <span style="font-weight:400;color:#5f7273">(optional)</span></label>
+
+      <fieldset class="cm-poll" x-show="pollOn" x-cloak style="border-style:solid" :disabled="!pollOn">
+        <legend>Poll builder</legend>
+        <div class="cm-field" style="margin-top:8px">
+          <label class="cm-label" for="tPollQ">Poll question</label>
+          <input id="tPollQ" name="poll_question" class="cm-in" type="text" maxlength="200"
+                 x-model="pollQ" :aria-invalid="errors.poll ? 'true' : 'false'"
+                 placeholder="e.g. Which programme should headline the gala?">
+        </div>
+        {# Uncontrolled inputs iterated by a count — typing never re-renders the loop, so focus/values are kept. #}
+        <template x-for="i in pollN" :key="i">
+          <div class="cm-field" style="margin-top:8px">
+            <label class="sr-only" :for="'tPollOpt' + i" x-text="'Poll option ' + i"></label>
+            <input :id="'tPollOpt' + i" name="poll_options[]" class="cm-in" type="text" maxlength="120" :placeholder="'Option ' + i">
+          </div>
+        </template>
+        <div style="display:flex;gap:10px;margin-top:10px;flex-wrap:wrap">
+          <button type="button" class="cm-pollbtn" x-show="pollN < 6" @click="pollN++">+ Add option</button>
+          <button type="button" class="cm-pollbtn cm-pollbtn--quiet" x-show="pollN > 2" @click="pollN--">− Remove last</button>
+        </div>
+        <label class="cm-check" style="margin-top:12px"><input type="checkbox" name="poll_multi" value="1"> Allow multiple answers</label>
+        <p style="font-size:12px;color:#5f7273;margin:8px 0 0">2–6 options. Single-answer votes can be changed; multiple-answer lets voters pick several.</p>
+        <p class="cm-ferr" x-show="errors.poll" x-cloak role="alert" x-text="errors.poll"></p>
+      </fieldset>
+    </div>
+
+    <button class="cm-cta" type="submit" :disabled="busy" x-text="busy ? 'Publishing…' : 'Publish thread'">Publish thread</button>
+    <p class="cm-note"><strong>Before you post:</strong> threads are reviewed by moderators against the community charter. Specific, evidenced posts surface faster.</p>
+    <a class="cm-back" href="/community">← Back to the community</a>
+  </form>
+</div>
+
+<script nonce="{{ csp_nonce }}">
+function cmCompose(){
+  return {
+    title: '', body: '', pollOn: false, pollQ: '', pollN: 2, busy: false,
+    errors: { title: '', body: '', poll: '' },
+    validate(){
+      this.errors = { title: '', body: '', poll: '' };
+      if (!this.title.trim()) this.errors.title = 'Give your thread a title.';
+      if (this.body.trim().length < 40) this.errors.body = 'Say a little more — at least 40 characters.';
+      if (this.pollOn) {
+        var opts = Array.prototype.slice.call(this.$el.querySelectorAll('input[name="poll_options[]"]'))
+          .map(el => el.value.trim()).filter(v => v !== '');
+        if (!this.pollQ.trim()) this.errors.poll = 'Add a poll question, or untick “Add a poll”.';
+        else if (opts.length < 2) this.errors.poll = 'A poll needs at least two options.';
+      }
+      var ok = !this.errors.title && !this.errors.body && !this.errors.poll;
+      if (!ok) {
+        var bad = this.errors.title ? '#tTitle' : (this.errors.body ? '#tBody' : '#tPollQ');
+        this.$nextTick(() => { var el = this.$el.querySelector(bad); if (el) el.focus(); });
+      }
+      return ok;
+    }
+  };
+}
+</script>
 {% endblock %}

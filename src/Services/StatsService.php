@@ -20,7 +20,17 @@ class StatsService
     {
         $compute = static fn(): array => [
             'total_profiles' => (int) DB::table('gates_profiles')->where('status', 'approved')->count(),
-            'total_votes'    => (int) DB::table('gates_votes')->count(),
+            // SUM(weight), NOT COUNT(*).
+            //
+            // A row in gates_votes is a vote EVENT, not a vote: a paid or bonus pack
+            // writes ONE row carrying its whole quantity in `weight` (PaidVoteService
+            // ::mint, BonusVoteService). Counting rows reported a 25-vote pack as 1, so
+            // "Votes cast" on the front page was really a count of transactions — and it
+            // contradicted every nominee card on the site, which are built from those
+            // same weights. The more paid activity, the further apart the two drifted.
+            //
+            // `?? 0` because SUM over an empty table is NULL and a new site must show 0.
+            'total_votes'    => (int) (DB::table('gates_votes')->sum('weight') ?? 0),
             'nations_live'   => (int) DB::table('gates_profiles')->where('status', 'approved')
                                         ->whereNotNull('country_code')->distinct()->count('country_code'),
             'legacy_events'  => (int) DB::table('gates_legacy_events')->where('is_published', 1)->count(),

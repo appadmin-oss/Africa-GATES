@@ -1,0 +1,53 @@
+{% extends "layout/gates.twig" %}
+
+{% block head_styles %}
+<link rel="stylesheet" href="{{ asset('/assets/css/components/auth.css') }}">
+{% endblock %}
+
+{% block content %}
+<div class="ag-auth">
+  <aside class="ag-auth__brand">
+    <div class="ag-auth__orb" aria-hidden="true"></div>
+    <a class="ag-auth__logo" href="/" aria-label="Africa GATES — home">
+      <span class="ag-auth__logo-glyph" aria-hidden="true">G</span>
+      <span class="ag-auth__logo-word"><b>Africa</b><span>GATES</span></span>
+    </a>
+    <div class="ag-auth__pitch">
+      <p class="ag-auth__pitch-title">Earn points.<br>Power the vote.</p>
+      <p>Create a free account to collect voting points from your activity — shop orders, event tickets and donations — and redeem them for votes.</p>
+    </div>
+    <p class="ag-auth__copy">© {{ "now"|date("Y") }} Africa GATES · An Afrovanguard initiative</p>
+  </aside>
+
+  <div class="ag-auth__panel">
+    <div class="ag-auth__form-wrap">
+      {% include 'partials/lottie.twig' with { src: '/assets/anim/people-welcome.json', width: 220, height: 150 } only %}
+      <p class="ag-auth__eyebrow">Create your account</p>
+      <h1 class="ag-auth__h">Join Africa GATES</h1>
+      <p class="ag-auth__sub">Free, takes a minute. A password is optional — you can always sign in with an email code.</p>
+      {% if error %}<div class="ag-auth__alert ag-auth__alert--err" role="alert">{{ error }}</div>{% endif %}
+      <form method="post" action="/account/register">
+        <input type="hidden" name="_token" value="{{ csrf_token }}">
+        <div class="ag-auth__field">
+          <label class="ag-auth__label" for="name">Full name</label>
+          <input class="ag-auth__input" id="name" type="text" name="name" value="{{ old.name|default('') }}" autocomplete="name" placeholder="First and last name" required autofocus>
+        </div>
+        <div class="ag-auth__field">
+          <label class="ag-auth__label" for="email">Email</label>
+          <input class="ag-auth__input" id="email" type="email" name="email" value="{{ old.email|default('') }}" autocomplete="email" placeholder="you@email.com" required>
+        </div>
+        <div class="ag-auth__field">
+          <label class="ag-auth__label" for="phone">Phone</label>
+          <input class="ag-auth__input" id="phone" type="tel" name="phone" value="{{ old.phone|default('') }}" autocomplete="tel" inputmode="tel" placeholder="+234…" required>
+        </div>
+        <div class="ag-auth__field">
+          <label class="ag-auth__label" for="password">Password <span style="font-weight:400;color:#5f7273">(optional)</span></label>
+          <input class="ag-auth__input" id="password" type="password" name="password" autocomplete="new-password" placeholder="At least 8 characters">
+        </div>
+        <button class="ag-auth__cta" type="submit">Create account →</button>
+      </form>
+      <p class="ag-auth__fine">Already a member? <a href="/account/login">Sign in</a></p>
+    </div>
+  </div>
+</div>
+{% endblock %}

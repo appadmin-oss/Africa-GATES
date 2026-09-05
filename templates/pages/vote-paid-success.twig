@@ -1,0 +1,213 @@
+{% extends "layout/gates.twig" %}
+{% block content %}
+
+{# THREE states, because two was a lie.
+
+   `confirmed` says the money arrived; `minted` says the votes landed. Those come
+   apart whenever a payment initiated inside the voting window confirms after it
+   closes — PaidVoteService::mint() refuses that on purpose rather than pushing
+   weighted votes into a closed tally, leaving votes_used = 0. This page used to
+   branch on `confirmed` alone and told that buyer their votes were "already in
+   the public tally" with a receipt on the way.
+
+   paid + minted   → celebrate, and mark the /vote hub's per-device tracker.
+   paid + NOT minted → say plainly that nothing was counted and a refund is owed.
+   not confirmed   → the gateway has not landed yet. #}
+
+{% if confirmed and not minted %}
+  {% include 'partials/success.twig' with {
+    sc_accent: 'slate',
+    sc_art: 'slate',
+    sc_glyph: 'clock',
+    sc_kicker: 'Payment received · no votes added',
+    sc_heading: 'Voting closed before this payment confirmed',
+    sc_body: 'Your payment of ₦' ~ amount_naira|number_format ~ ' went through, but voting for '
+      ~ (nominee_name ? nominee_name : 'this nominee') ~ ' had already closed by the time it reached us — so '
+      ~ 'no votes were added to the tally. We will not count votes in a closed category, which means this '
+      ~ 'order is refundable. Keep the reference below and contact us to arrange it.',
+    sc_receipt: reference ? { label: 'Reference', code: reference } : null,
+    sc_primary: { label: 'Contact support', href: '/support' },
+    sc_secondary: { label: 'Back to the ballot', href: ballot_url },
+    sc_confetti: false,
+    sc_next_label: 'What happens next',
+    sc_steps: [
+      'Nothing was added to the public tally — the standings are unchanged.',
+      'Quote the reference above to us and we will refund the full amount.',
+      'If the category reopens before then, we can deliver the votes instead — your choice.'
+    ]
+  } only %}
+  {# A refund is a human decision — the assistant is told never to promise one —
+     so this prompt is here to open the thread and carry the reference into it,
+     not to settle it. #}
+  {% include 'partials/support-prompt.twig' with {
+    sp_kind: 'payment', sp_ref: reference|default(''),
+    sp_title: 'Arrange the refund',
+    sp_body: 'Start here and the reference travels with you. A person decides every refund, but the assistant opens the support ticket and makes sure it reaches them with everything attached.'
+  } %}
+{% else %}
+  {% include 'partials/success.twig' with {
+    sc_accent: 'green',
+    sc_art: 'green',
+    sc_glyph: 'check',
+    sc_kicker: minted ? 'Votes confirmed' : 'Almost there',
+    sc_heading: minted
+      ? (votes ~ ' vote' ~ (votes == 1 ? '' : 's') ~ ' counted' ~ (nominee_name ? ' for ' ~ nominee_name : ''))
+      : 'We could not confirm that payment yet',
+    sc_body: minted
+      ? 'Your payment of ₦' ~ amount_naira|number_format ~ ' was verified and your votes are already in the public tally. Paid votes raise the tally — the jury/CPI score stays independent.'
+      : 'If you completed the payment, the confirmation can take a moment to land — refresh this page shortly, or contact support with your reference.',
+    sc_receipt: reference ? { label: 'Reference', code: reference } : null,
+    sc_primary: { label: minted ? 'Back to the ballot' : 'Try again', href: ballot_url },
+    sc_secondary: { label: 'See the leaderboard', href: '/leaderboard' },
+    sc_email_note: minted ? 'A receipt is on its way to your email.' : null,
+    sc_confetti: minted,
+    sc_next_label: 'What happens next',
+    sc_steps: minted ? [
+      'The public tally updates immediately; leaderboards refresh every few minutes.',
+      'Rally more support — share the nominee\'s page with your community.',
+      'The independent jury score (' ~ judge_pct|default(55) ~ '% of the CPI) is never affected by paid votes.',
+      'Why voting works this way: read the philosophy at /philosophy.'
+    ] : [
+      'Payments are verified server-side with the gateway before any vote counts.',
+      'If you were charged but see no votes within a few minutes, use the re-check below — it asks the gateway directly.'
+    ]
+  } only %}
+  {# Only on the branch where something is still wrong. Offering a repair to
+     somebody whose votes have just landed reads as doubt about the thing that
+     did work. #}
+  {% if not minted %}
+    {% include 'partials/support-prompt.twig' with { sp_kind: 'payment', sp_ref: reference|default('') } %}
+  {% endif %}
+{% endif %}
+
+{# ── SAY SOMETHING, AND SHARE IT ──────────────────────────────────────────────
+
+   Only on the branch where votes actually landed. Inviting somebody to write a
+   message of support underneath "no votes were counted and a refund is owed" would
+   be tone-deaf, and inviting them to share it would be worse.
+
+   WHY THE MESSAGE IS COLLECTED HERE rather than on the ballot before checkout: a
+   paid vote's checkout leaves for a bank and comes back, so a message captured
+   before the handoff is a message stored for a payment that may never complete —
+   start a checkout, abandon it, and the words are already on a real person's page.
+   The payment reference below is what authorises this one, and a reference belongs
+   to somebody who actually paid. See VoteMessageController::post().
+
+   The free ballot has no such gap — its OTP proves the voter in the same request —
+   so there the field sits on the form itself. #}
+{% if minted and reference %}
+{# `msg_posted` means the buyer already wrote something on the ballot and the callback
+   stored it once the payment cleared. The component starts in its sent state rather
+   than offering a second box — one message per person per nominee, so a second
+   submission would silently overwrite the first and read as if the first was lost. #}
+<section class="pvm" x-data="paidMessage('{{ reference|e('js') }}', {{ msg_max|default(400) }}, {{ msg_posted|default(false) ? 'true' : 'false' }})">
+  <div class="pvm__in">
+
+    <div x-show="!sent">
+      <h2 class="pvm__h">Say something about {{ nominee_name ? nominee_name : 'them' }}</h2>
+      <p class="pvm__s">Optional, and it appears on their page once checked. Other supporters read these — it is the part of a vote that a person can actually keep. No links or phone numbers, please.</p>
+      <label class="sr-only" for="pvmBody">Say something about them</label>
+      <textarea class="pvm__t" id="pvmBody" x-model="body" :maxlength="max" placeholder="What do you want people to know?"></textarea>
+      <div class="pvm__m">
+        <span x-text="err" class="pvm__err"></span>
+        <span><b x-text="body.length"></b>/<span x-text="max"></span></span>
+      </div>
+      {# NO name-consent control here, and that is not an omission. The buyer already
+         answered this question at checkout — the name field there is optional and the
+         form says plainly that filling it in publishes it — so the choice they made
+         is carried onto the message by the server. Asking again with a different
+         default available would let one order hold two different answers. #}
+      <button type="button" class="pvm__go" @click="send()" :disabled="busy || body.trim().length < 3"
+              x-text="busy ? 'Posting…' : 'Post my message'"></button>
+    </div>
+
+    <div x-show="sent" x-cloak>
+      <h2 class="pvm__h" x-text="published ? 'Posted ✓' : 'Thank you'"></h2>
+      <p class="pvm__s" x-text="note"></p>
+      <template x-if="url">
+        <p class="pvm__links">
+          <a :href="url">Open your message ↗</a>
+          <a :href="'https://www.facebook.com/sharer/sharer.php?u=' + encodeURIComponent(url)" target="_blank" rel="noopener">Share it on Facebook</a>
+          <a :href="'https://wa.me/?text=' + encodeURIComponent(url)" target="_blank" rel="noopener">WhatsApp</a>
+        </p>
+      </template>
+    </div>
+
+    {# The rally panel, always on this branch. The ballot URL is what gets shared
+       here — a message has its own links above; this one is for votes. #}
+    <div class="pvm__share">
+      <p class="pvm__share-h">Rally more votes{{ nominee_name ? ' for ' ~ nominee_name : '' }}</p>
+      {% include 'partials/share.twig' with {
+        share_url: (site_url|default('')) ~ ballot_url,
+        share_text: 'I just backed ' ~ (nominee_name ? nominee_name : 'a nominee') ~ ' at Africa GATES. Add your vote:',
+        share_label: '',
+        share_grid: true
+      } only %}
+    </div>
+  </div>
+</section>
+
+<style nonce="{{ csp_nonce }}">
+  .pvm{ max-width:720px; margin:0 auto 56px; padding:0 20px; }
+  .pvm__in{ background:#fff; border:1px solid rgba(16,41,44,.1); border-radius:18px; padding:26px 26px 24px; box-shadow:0 1px 2px rgba(16,41,44,.04); }
+  .pvm__h{ margin:0; font-size:1.08rem; letter-spacing:-.01em; color:#10292C; }
+  .pvm__s{ margin:7px 0 0; font-size:13.5px; line-height:1.7; color:#5a6d6f; }
+  .pvm__t{ width:100%; box-sizing:border-box; margin-top:14px; font:inherit; font-size:14.5px; line-height:1.65; color:#10292C; border:1px solid rgba(16,41,44,.18); border-radius:12px; padding:12px 14px; min-height:92px; resize:vertical; }
+  .pvm__t:focus{ outline:none; border-color:#237b22; box-shadow:0 0 0 3px rgba(35,123,34,.12); }
+  .pvm__m{ display:flex; justify-content:space-between; gap:12px; margin-top:6px; font-size:11.5px; color:#5a6d6f; }
+  .pvm__err{ color:#b3261e; font-weight:600; }
+  .pvm__go{ margin-top:14px; background:#10292C; color:#fff; border:none; border-radius:999px; padding:12px 24px; font:700 14px/1 inherit; cursor:pointer; }
+  .pvm__go:disabled{ opacity:.45; cursor:default; }
+  .pvm__links{ margin:12px 0 0; display:flex; flex-wrap:wrap; gap:14px; font-size:13.5px; font-weight:600; }
+  .pvm__links a{ color:#237b22; text-decoration:none; }
+  .pvm__share{ margin-top:24px; padding-top:20px; border-top:1px solid rgba(16,41,44,.09); }
+  .pvm__share-h{ margin:0 0 10px; font-size:13px; font-weight:600; color:#3d5254; }
+</style>
+<script nonce="{{ csp_nonce }}">
+function paidMessage(ref, max, alreadyPosted){
+  return {
+    ref: ref, max: max, body: '', busy: false,
+    // Opens in the sent state when the ballot's message was stored on confirmation.
+    sent: !!alreadyPosted,
+    published: !!alreadyPosted,
+    note: alreadyPosted
+      ? 'The message you wrote on the ballot has been saved. If it needs checking first it will appear shortly.'
+      : '',
+    url: '', err: '',
+    async send(){
+      if (this.busy || this.body.trim().length < 3) return;
+      this.busy = true; this.err = '';
+      try {
+        const r = await fetch('/api/vote-message', {
+          // X-Requested-With, because /api/ writes are same-origin-guarded and this
+          // header is the one thing a cross-origin form post cannot set. See
+          // CsrfMiddleware::sameOrigin().
+          method:'POST', headers:{'Content-Type':'application/json','X-Requested-With':'XMLHttpRequest'},
+          body: JSON.stringify({ ref: this.ref, body: this.body })
+        });
+        const d = await r.json().catch(function(){ return {}; });
+        if (d && d.success) {
+          this.sent = true; this.published = !!d.published;
+          this.note = d.message || ''; this.url = d.url || '';
+        } else {
+          this.err = (d && d.message) || 'Could not post that. Please try again.';
+        }
+      } catch(e){ this.err = 'Network error. Please try again.'; }
+      finally { this.busy = false; }
+    }
+  };
+}
+</script>
+{% endif %}
+
+{# The /vote hub counts "programmes voted on this device" from localStorage. The
+   OTP and points paths already write it; the paid path did not, so buying votes
+   left the tracker reading zero. Gated on `minted` — recording a vote that was
+   refused would be the same lie in a different place. #}
+{% if minted and programme_id %}
+<script nonce="{{ csp_nonce }}">
+  try { localStorage.setItem('afg_voted_prog_{{ programme_id }}', String(Date.now())); } catch (e) {}
+</script>
+{% endif %}
+
+{% endblock %}

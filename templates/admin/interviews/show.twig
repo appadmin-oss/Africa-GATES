@@ -1,0 +1,797 @@
+{% extends 'admin/layout.twig' %}
+
+{#
+  ONE SITTING, at a desk. The console (/run) is the screen used during the call; this is
+  where the appointment is arranged and the transcript is dealt with afterwards.
+
+  Order follows the life of a sitting rather than importance: when → who → link → invite →
+  questions → transcript → what the model found. An operator opening this mid-process should
+  be able to read down and stop at the first thing that is not done.
+#}
+
+{% set row = iv.row %}
+
+{#
+  ── WHICH PHASE THIS SITTING IS IN ────────────────────────────────────────────
+
+  Eleven sections, all open at once, in a page that scrolled for six screens. Every one of
+  them was addressed to a different moment: arranging the appointment, sitting in the call,
+  and dealing with what came out of it. An operator opening this to paste a transcript read
+  past the panel picker, the invitation, the guest list and the question pack to reach it,
+  and an operator opening it an hour before the call read past the transcript box and the
+  close-the-sitting button — which is the one that ends the sitting.
+
+  So the sections are grouped by when they are used, and the group matching the sitting's
+  actual state is the one that starts open.
+
+  `<details>`, not a tab strip: the admin CSP has no 'unsafe-inline', a tab strip needs
+  script to work at all, and a screen whose sections are unreachable without JavaScript is
+  worse than one that scrolls. Closed sections are still one press away and still findable
+  with the browser's own find-in-page, which a tab strip breaks.
+
+  Set HERE, at template scope, and not inside `{{ '{% block %}' }}` — a set inside one block
+  is invisible to every other one and renders as null, silently. That has taken out a whole
+  navigation and a share link on this platform already; `tests/Unit/TwigBlockScopeTest.php`
+  scans for it now.
+#}
+{% set is_over   = row.status in ['done', 'no_show', 'cancelled'] %}
+{% set is_live   = row.status == 'live' %}
+{# The transcript wins over the status. A sitting can be `live` in the database and already
+   have a transcript pasted in — that is somebody catching up after the call, and the work
+   they came here to do is in the last group, not the middle one. #}
+{% set phase     = (is_over or row.transcript_id) ? 'after' : (is_live ? 'during' : 'before') %}
+
+{% block head_styles %}
+<style nonce="{{ csp_nonce }}">
+  .is-head{ display:flex; justify-content:space-between; align-items:baseline; gap:14px; flex-wrap:wrap }
+  .is-sub{ font-size:13px; color:#5a6d6f; margin:2px 0 18px }
+  .is-sec{ background:#fff; border:1px solid rgba(16,41,44,.1); border-radius:14px;
+    padding:18px 20px; margin-bottom:14px }
+  .is-sec h2{ margin:0 0 3px; font-size:14.5px; color:#10292C }
+  .is-sec p{ margin:8px 0 0; font-size:12.5px; line-height:1.7; color:#5a6d6f }
+  .is-grid{ display:grid; gap:12px; grid-template-columns:repeat(auto-fit,minmax(min(100%,200px),1fr));
+    margin-top:14px }
+  .is-f label{ display:block; font:700 10px/1 var(--ag-font-body,inherit); letter-spacing:.08em;
+    text-transform:uppercase; color:#5a6d6f; margin-bottom:6px }
+  .is-in{ width:100%; box-sizing:border-box; font-family:inherit; font-size:13.5px; padding:9px 11px;
+    border:1px solid rgba(16,41,44,.18); border-radius:9px; background:#fff; color:#10292C }
+  textarea.is-in{ min-height:160px; line-height:1.6; resize:vertical }
+  .is-btn{ cursor:pointer; font:650 13px/1 inherit; border:none; padding:10px 17px; border-radius:999px;
+    background:#10292C; color:#fff; text-decoration:none; display:inline-block }
+  .is-btn--ghost{ background:none; border:1px solid rgba(16,41,44,.2); color:#10292C }
+  .is-btn--warn{ background:#8a2020; color:#fff }
+  .is-row{ display:flex; gap:9px; flex-wrap:wrap; align-items:center; margin-top:14px }
+  .is-tag{ font-size:10.5px; font-weight:700; letter-spacing:.05em; text-transform:uppercase;
+    padding:3px 8px; border-radius:999px; background:rgba(16,41,44,.07); color:#3d4b4d }
+  .is-tag--ok{ background:#eaf7ea; color:#1c5f1b }
+  .is-tag--no{ background:#fdeaea; color:#8a2020 }
+  .is-warn{ background:#fff8df; border:1px solid #ecd9a0; border-radius:10px; padding:12px 14px;
+    font-size:12.5px; line-height:1.7; color:#6b5312; margin-top:12px }
+  .is-link{ font-family:var(--ag-font-mono,monospace); font-size:12px; word-break:break-all;
+    background:#f6f9f6; border:1px solid rgba(16,41,44,.09); border-radius:8px; padding:9px 11px;
+    margin-top:10px; color:#3d5254 }
+  .is-q{ border-top:1px solid rgba(16,41,44,.08); padding:12px 0 }
+  .is-q:first-of-type{ border-top:none }
+  .is-q__k{ font-size:10.5px; font-weight:700; letter-spacing:.06em; text-transform:uppercase;
+    color:#5a6d6f }
+  .is-q__q{ font-size:14px; line-height:1.6; color:#10292C; margin-top:5px; font-weight:600 }
+  .is-q__w{ font-size:12px; line-height:1.65; color:#67797b; margin-top:5px }
+  .is-q__p{ font-size:12px; color:#5a6d6f; margin-top:5px }
+  .is-quote{ border-left:3px solid rgba(16,41,44,.15); padding:2px 0 2px 12px; margin:9px 0;
+    font-size:13px; line-height:1.7; color:#3d5254 }
+  .is-fig{ display:grid; gap:8px; margin-top:10px }
+  .is-fig__r{ border-radius:10px; padding:11px 13px; font-size:12.5px; line-height:1.65 }
+  .is-fig--confirmed{ background:#f2faf2; border:1px solid #cbe6c9; color:#265825 }
+  .is-fig--differs{ background:#fff8df; border:1px solid #ecd9a0; color:#6b5312 }
+  .is-fig--unmentioned{ background:#f6f8f8; border:1px solid rgba(16,41,44,.09); color:#4a5256 }
+
+  /* ── the three phases of a sitting ──────────────────────────────────────
+     A <details> per phase. The marker is drawn by us because the native triangle
+     sits at a different size and colour in every browser, and this is a heading. */
+  .is-ph{ margin:0 0 16px }
+  .is-ph > summary{ list-style:none; cursor:pointer; display:flex; align-items:baseline;
+    gap:11px; padding:11px 4px 11px 0; border-bottom:1px solid rgba(16,41,44,.14) }
+  .is-ph > summary::-webkit-details-marker{ display:none }
+  .is-ph > summary:focus-visible{ outline:2px solid #f3b416; outline-offset:3px; border-radius:6px }
+  .is-ph__i{ font:700 10px/1 var(--ag-font-mono,monospace); letter-spacing:.1em;
+    text-transform:uppercase; color:#8a9698; width:1.4em; flex:none }
+  .is-ph__t{ font:650 13.5px/1.3 inherit; color:#10292C }
+  .is-ph__w{ margin-left:auto; font-size:11.5px; color:#67797b; text-align:right }
+  /* The affordance. Without it a closed group reads as a heading with nothing under it,
+     which is how a collapsed screen loses sections rather than tidying them. */
+  .is-ph__c{ font:700 10px/1 var(--ag-font-mono,monospace); letter-spacing:.08em;
+    text-transform:uppercase; color:#8a9698; flex:none }
+  .is-ph[open] > summary .is-ph__c::after{ content:'hide' }
+  .is-ph:not([open]) > summary .is-ph__c::after{ content:'show' }
+  .is-ph[open] > summary{ margin-bottom:14px }
+  /* The phase this sitting is actually in. One gold hairline, so the eye lands on it
+     without the other two having to be greyed into looking disabled. */
+  .is-ph--now > summary{ border-bottom-color:#f3b416 }
+  .is-ph--now .is-ph__i{ color:#a8791a }
+</style>
+{% endblock %}
+
+{# The nominee's name IS the title of this page, so it goes in the layout's topbar block
+   rather than being printed a second time underneath it. #}
+{% block topbar_title %}{{ iv.nominee }}{% endblock %}
+{% block topbar_actions %}
+  <a class="is-btn" href="/admin/interviews/{{ row.id }}/run">Open the console →</a>
+{% endblock %}
+
+{% block content %}
+<p class="is-sub">
+  Interview #{{ row.id }} · {{ iv.category ?: 'no category' }}{{ iv.org ? ' · ' ~ iv.org : '' }}
+  {{ iv.country ? ' · ' ~ iv.country : '' }} · <a href="/admin/interviews">back to the schedule</a>
+</p>
+
+<div class="is-row" style="margin:0 0 16px">
+  <span class="is-tag">{{ row.status }}</span>
+  {% if iv.consented %}<span class="is-tag is-tag--ok">permission given</span>
+  {% else %}<span class="is-tag is-tag--no">no permission to record</span>{% endif %}
+  {# ── WAS THE PERSON TOLD A BOT WOULD JOIN? ─────────────────────────────
+     Separate from "permission given", which is consent to be RECORDED. Being
+     recorded by the person you are talking to and a stranger appearing in the
+     participant list are different things to agree to, which is the reason this
+     column exists — and for a long time it existed only in the schema and in a
+     paragraph of the index describing behaviour no code had.
+
+     Shown only where a bot is actually in play. On a deployment with no recorder
+     configured this is a fact about nothing, and a row of tags that answer
+     questions nobody asked is how the two that matter stop being read.
+
+     `iv.bot.available` is the one resolver for "a bot will attend" — the same value
+     the console's bot panel reads. Recomputing it here from the controller would be a
+     second reader of one setting, which is how the halves of an integration come to
+     disagree about whether it is configured. #}
+  {% if iv.bot.available %}
+    {% if row.bot_disclosed_at %}<span class="is-tag is-tag--ok">bot disclosed {{ row.bot_disclosed_at|when }}</span>
+    {% else %}<span class="is-tag is-tag--no">bot not yet disclosed</span>{% endif %}
+  {% endif %}
+  {% if row.transcript_id %}<span class="is-tag is-tag--ok">in the judges' dossier</span>{% endif %}
+  {% if row.brief_source %}<span class="is-tag">questions: {{ row.brief_source }}</span>{% endif %}
+  {% if row.review_source %}<span class="is-tag">transcript read: {{ row.review_source }}</span>{% endif %}
+</div>
+
+{# ══ BEFORE THE CALL ════════════════════════════════════════════════════════ #}
+<details class="is-ph{{ phase == 'before' ? ' is-ph--now' : '' }}"{{ phase == 'before' ? ' open' : '' }}>
+  <summary>
+    <span class="is-ph__i">1</span>
+    <span class="is-ph__t">Before the call</span>
+    <span class="is-ph__w">
+      {# What is outstanding, not what the group contains. A count of sections is a fact
+         about this template; "no time set yet" is a fact about the interview. #}
+      {%- if not row.scheduled_at %}no time set yet
+      {%- elseif not row.meet_url %}no joining link yet
+      {%- elseif iv.panel is empty %}nobody on the panel yet
+      {%- elseif not iv.consented %}awaiting permission to record
+      {%- else %}{{ iv.when_text }}{% endif %}
+    </span>
+    <span class="is-ph__c" aria-hidden="true"></span>
+  </summary>
+
+{# ── when, who, where ───────────────────────────────────────────────────── #}
+<form class="is-sec" method="post" action="/admin/interviews/{{ row.id }}/schedule">
+  <input type="hidden" name="_token" value="{{ csrf_token }}">
+  <h2>When, and who is on the panel</h2>
+  <p>{{ iv.when_text }}{% if iv.hours_away is not null %} —
+     {{ iv.hours_away < 0 ? 'that time has passed' : 'in ' ~ iv.hours_away ~ ' hours' }}{% endif %}.
+     Moving a confirmed sitting asks the nominee to confirm again, because their yes was for a
+     time. Their permission to be recorded is <em>not</em> reset — that was given for being
+     recorded, which a new time does not change.</p>
+
+  <div class="is-grid">
+    <div class="is-f">
+      <label for="when">Date and time</label>
+      <input class="is-in" id="when" name="scheduled_at" type="datetime-local"
+             value="{{ row.scheduled_at ? row.scheduled_at|when_input : '' }}" required step="1">
+    </div>
+    <div class="is-f">
+      <label for="tz">Timezone</label>
+      <input class="is-in" id="tz" name="timezone" type="text" value="{{ row.timezone }}">
+    </div>
+    <div class="is-f">
+      <label for="mins">Minutes</label>
+      <input class="is-in" id="mins" name="duration_mins" type="number" min="10" max="180"
+             value="{{ row.duration_mins }}">
+    </div>
+  </div>
+
+  <div class="is-f" style="margin-top:14px">
+    <label>Panel</label>
+    <div class="is-row" style="margin-top:0">
+      {% set onPanel = iv.panel|map(p => p.id) %}
+      {% for j in judges %}
+        <label style="font-weight:500; text-transform:none; letter-spacing:0; font-size:13px; color:#3d5254">
+          <input type="checkbox" name="panel[]" value="{{ j.id }}" {{ j.id in onPanel ? 'checked' : '' }}>
+          {{ j.name }}</label>
+      {% else %}
+        <span style="font-size:12.5px; color:#67797b">No active judges to choose from.</span>
+      {% endfor %}
+    </div>
+  </div>
+
+  <div class="is-row"><button class="is-btn" type="submit">Save the time and panel</button></div>
+</form>
+
+{# ── the meet link ──────────────────────────────────────────────────────── #}
+<form class="is-sec" method="post" action="/admin/interviews/{{ row.id }}/meet">
+  <input type="hidden" name="_token" value="{{ csrf_token }}">
+  <h2>The Google Meet room</h2>
+  {% if row.meet_url %}
+    <div class="is-link">{{ row.meet_url }}{% if row.meet_code %} — code {{ row.meet_code }}{% endif %}</div>
+    <p>{% if row.meet_code %}The code is what lets the transcript be matched back to this
+       interview afterwards.{% else %}This is not a meet.google.com link, so a transcript cannot
+       be fetched automatically — you can still paste one in below.{% endif %}</p>
+  {% else %}
+    <p><strong>There is no link yet, so nobody can join.</strong></p>
+  {% endif %}
+
+  <div class="is-grid">
+    <div class="is-f">
+      <label for="meet">Paste a link</label>
+      <input class="is-in" id="meet" name="meet_url" type="text"
+             placeholder="https://meet.google.com/abc-defg-hij">
+    </div>
+    <div class="is-f" style="align-self:end">
+      <button class="is-btn is-btn--ghost" type="submit">Save the pasted link</button>
+    </div>
+  </div>
+
+  {% if auto_meet %}
+    <div class="is-row">
+      <button class="is-btn" type="submit" name="create" value="1">Create it in Google for me</button>
+      <span style="font-size:12px; color:#67797b">Makes a calendar event with a Meet link and
+        invites the panel. Leave the paste box empty.</span>
+    </div>
+  {% else %}
+    <div class="is-warn">{{ meet_why }}</div>
+  {% endif %}
+</form>
+
+{# ── the invitation ─────────────────────────────────────────────────────── #}
+<div class="is-sec">
+  <h2>Telling the nominee</h2>
+  <p>The invitation goes to the address on their approved nomination — never one typed here,
+     the same rule the claim path follows. It carries their private page, which is where they
+     confirm and give permission to be recorded. Two reminders are queued automatically,
+     24 hours and 2 hours before.</p>
+  <div class="is-link">{{ iv.link }}</div>
+  <p>{{ row.invited_at ? 'Invited ' ~ row.invited_at : 'Not invited yet.' }}
+     {{ row.confirmed_at ? '· confirmed ' ~ row.confirmed_at : '' }}
+     {{ row.declined_at ? '· they asked to move it ' ~ row.declined_at : '' }}
+     {% if row.reschedule_note %}<br>They said: “{{ row.reschedule_note }}”{% endif %}</p>
+  <form method="post" action="/admin/interviews/{{ row.id }}/invite" class="is-row">
+    <input type="hidden" name="_token" value="{{ csrf_token }}">
+    <button class="is-btn" type="submit">{{ row.invited_at ? 'Send it again' : 'Send the invitation' }}</button>
+  </form>
+</div>
+
+{# The row on this page is a COPY of an appointment that lives in Google Calendar. An
+   organiser who drags the meeting there has changed the truth and told us nothing — and
+   the recording bot is dispatched off this copy, so a stale row means a bot arriving at an
+   empty room while the interview happens somewhere else, unrecorded. #}
+{% if row.calendar_event_id %}
+<div class="is-sec">
+  <h2>The calendar</h2>
+  <p>This appointment lives in Google Calendar; what you see here is our copy of it. If you
+     moved the meeting there, or replaced its link, read it back in.</p>
+  <form method="post" action="/admin/interviews/{{ row.id }}/refresh" class="is-row">
+    <input type="hidden" name="_token" value="{{ csrf_token }}">
+    <button class="is-btn is-btn--ghost" type="submit">Re-read from the calendar</button>
+    <span style="font-size:12px;color:#67797b">Happens on its own too, for any sitting due
+      within two hours — so the bot is sent to the right room at the right time.</span>
+  </form>
+</div>
+{% endif %}
+
+{# ── PEOPLE IN THE MEETING WHO ARE NOT ON THE PANEL ─────────────────────────
+   The Google event's attendee list was built from ONE source: the judges assigned to this
+   sitting. So the only way to get somebody into the call was to appoint them to the judging
+   panel — an integrity decision with a published consequence (they appear on "Meet the
+   Judges", their scores count) and a wildly disproportionate thing to do so that an
+   interpreter can join.
+
+   There was no field anywhere to type an address into. This is that field. #}
+<div class="is-sec">
+  <h2>Others in the meeting</h2>
+  <p>An interpreter, a note-taker, a programme officer, the nominee's own support person —
+     anybody who should be in the call without being on the judging panel. External
+     addresses are fine; they are ordinary guests as far as Google is concerned.</p>
+
+  <form method="post" action="/admin/interviews/{{ row.id }}/guests">
+    <input type="hidden" name="_token" value="{{ csrf_token }}">
+    <label for="ivGuests" style="display:block;font-size:12px;color:#67797b;margin-bottom:5px">
+      Email addresses — commas, spaces or one per line</label>
+    <textarea id="ivGuests" name="guests" rows="3" style="width:100%"
+      placeholder="interpreter@example.org, notes@partner.org">{{ (iv.guests ?? [])|join("\n") }}</textarea>
+
+    <label style="display:flex;gap:8px;align-items:flex-start;margin-top:10px;font-size:13px">
+      <input type="checkbox" name="guests_can_edit" value="1" style="margin-top:3px"
+             {{ iv.guests_can_edit ? 'checked' : '' }}>
+      <span>Let them change the appointment — move it, edit it, add people.
+        <span style="display:block;color:#67797b;font-size:12px;margin-top:2px">
+          Off by default. An invitation is what everybody needs; editing the booking is not.</span>
+      </span>
+    </label>
+
+    <div class="is-row" style="margin-top:12px">
+      <button class="is-btn" type="submit">Save the guest list</button>
+      <span style="font-size:12px;color:#67797b">Saved is not invited &mdash; create or update
+        the meeting below to actually send it.</span>
+    </div>
+  </form>
+
+  {# Said plainly rather than implied, because "co-host" is the word people ask in and
+     Calendar genuinely cannot grant one. Overpromising here would have somebody discover
+     it at the start of a real interview. #}
+  <p style="margin-top:14px;font-size:12.5px;color:#67797b;line-height:1.7">
+    <strong>On co-hosts.</strong> Google Calendar has no co-host setting — co-host is a Meet
+    thing, and the host grants it inside the call (the people panel, next to a name). What
+    being invited here does get somebody: Meet lets them straight in instead of making them
+    knock, and they receive the invitation and the reminders. That is what usually matters.
+  </p>
+</div>
+
+{# ── the question pack ──────────────────────────────────────────────────── #}
+<div class="is-sec">
+  <h2>The questions</h2>
+  <p>Built from this nominee's own file and mapped to the scoring criteria.
+     {% if row.brief_source == 'ai' %}A model shaped these; the questions quoting a figure from
+     the nomination are generated from the record itself.{% else %}Built from the rubric and the
+     record with no model involved — which is the normal case when no AI key is set, and it
+     works.{% endif %}
+     The nominee is shown the <em>themes</em> only, never this wording.</p>
+
+  {% for w in iv.brief.warnings ?? [] %}<div class="is-warn">{{ w }}</div>{% endfor %}
+
+  {% for q in iv.brief.questions ?? [] %}
+    <div class="is-q">
+      <div class="is-q__k">{{ q.criterion }}{{ q.source == 'claim' ? ' · from the record' : '' }}</div>
+      <div class="is-q__q">{{ q.q }}</div>
+      <div class="is-q__w">{{ q.why }}</div>
+      {% if q.probe|length %}<div class="is-q__p">Follow up: {{ q.probe|join(' · ') }}</div>{% endif %}
+    </div>
+  {% else %}
+    <p>No pack has been built yet. It is built automatically on the maintenance run, or when
+       the console is opened.</p>
+  {% endfor %}
+
+  <form method="post" action="/admin/interviews/{{ row.id }}/rebuild" class="is-row">
+    <input type="hidden" name="_token" value="{{ csrf_token }}">
+    <button class="is-btn is-btn--ghost" type="submit">Rebuild the questions</button>
+    <span style="font-size:12px; color:#67797b">Do this after adding evidence to the nominee's file.</span>
+  </form>
+</div>
+
+</details>
+
+{# ══ DURING THE CALL ═══════════════════════════════════════════════════════════
+   The two ways a conversation gets written down. Both are optional and both fail into
+   "type it in afterwards", which is why neither is in the group above: setting them up is
+   not part of arranging the appointment. #}
+<details class="is-ph{{ phase == 'during' ? ' is-ph--now' : '' }}"{{ phase == 'during' ? ' open' : '' }}>
+  <summary>
+    <span class="is-ph__i">2</span>
+    <span class="is-ph__t">During the call</span>
+    <span class="is-ph__w">
+      {%- if iv.live.lines %}{{ iv.live.lines }} caption line{{ iv.live.lines == 1 ? '' : 's' }} captured
+      {%- elseif iv.bot.state == 'joined' %}the recording bot is in the room
+      {%- elseif not iv.consented %}nothing is captured without permission
+      {%- else %}nothing captured yet{% endif %}
+    </span>
+    <span class="is-ph__c" aria-hidden="true"></span>
+  </summary>
+
+{# ── live capture from inside the call ──────────────────────────────────── #}
+<div class="is-sec">
+  <h2>Capture the call as it happens (the browser extension)</h2>
+  <p>Google's own transcription needs a paid Workspace plan. Its <strong>live captions</strong> do
+     not — they are free on every account. The Africa GATES extension reads them from the call
+     as they appear, so the transcript writes itself, and it shows the question pack beside the
+     video with the criterion each question is testing. It also asks for a follow-up question
+     based on what the nominee just said.</p>
+  <p><strong>The extension cannot speak in the call.</strong> It reads and displays; the next
+     question appears on your screen and you read it out. If you want a voice in the room,
+     that is the recording bot below — a separate thing, on separate hosting, and off unless
+     you switch it on for a sitting.</p>
+
+  {% set L = iv.live %}
+  <div class="is-fig">
+    <div class="is-fig__r {{ L.live ? 'is-fig--confirmed' : (L.lines ? 'is-fig--differs' : 'is-fig--unmentioned') }}">
+      {% if L.live %}
+        <strong>Captions are arriving now</strong> — {{ L.lines }} lines captured.
+      {% elseif L.lines %}
+        <strong>{{ L.lines }} lines captured</strong>, last
+        {{ L.minutes is null ? 'unknown' : (L.minutes == 0 ? 'under a minute ago' : L.minutes ~ ' minutes ago') }}.
+        If the call is still running, check captions are still switched on in Meet.
+      {% else %}
+        <strong>Nothing captured yet.</strong> That is normal before a call. During one it means
+        either captions are off (press <em>CC</em> in Meet — Google needs a person to do that),
+        or the extension could not find them in the page.
+      {% endif %}
+    </div>
+  </div>
+
+  {% if not iv.consented %}
+    <div class="is-warn"><strong>Capture will not start.</strong> The nominee has not given
+      permission to be recorded, and the extension is told so rather than quietly collecting a
+      conversation nobody agreed to. Ask them on the call and have them press the button on
+      their own link — capture begins the moment they do.</div>
+  {% endif %}
+
+  <div class="is-f" style="margin-top:14px">
+    <label for="livekey">Live key for this interview — paste it into the extension</label>
+    {# data-ag-do, not onclick: an inline handler would need 'unsafe-inline' in script-src,
+       and CspTest fails the build for exactly this. Same convention the webhook secret and
+       the cron URL already use. #}
+    <input class="is-in" id="livekey" type="text" readonly value="{{ iv.live_key }}"
+           data-ag-do="select-all" style="font-family:var(--ag-font-mono,monospace)">
+  </div>
+  <p>One key per interview, and it opens nothing else: it can read this sitting's questions,
+     add caption lines to it, and close it. It cannot see the nominee's contact details, any
+     other interview, or anything else in this console.</p>
+
+  <div class="is-row">
+    <form method="post" action="/admin/interviews/{{ row.id }}/live/rotate">
+      <input type="hidden" name="_token" value="{{ csrf_token }}">
+      <button class="is-btn is-btn--ghost" type="submit">Replace this key</button>
+    </form>
+    {% if L.lines %}
+      <form method="post" action="/admin/interviews/{{ row.id }}/live/save">
+        <input type="hidden" name="_token" value="{{ csrf_token }}">
+        <button class="is-btn" type="submit">Save the captured captions as the transcript</button>
+      </form>
+    {% endif %}
+    {# ── A DOWNLOAD, NOT AN INSTRUCTION ─────────────────────────────────────
+       This used to read "Load unpacked → the extension/ folder from the upload", and
+       nothing served that folder. It sits outside the web root — correctly, a browsable
+       directory of extension source under public/ is one anybody can enumerate — and
+       there is no SSH on this host, so the operator had no way to obtain it. The
+       instruction named a folder they could not reach, which is why triggering the
+       extension was impossible.
+
+       The zip is built per request with THIS deployment's host injected into the manifest
+       and both DEFAULT_BASE constants. Typing the address into the popup is not enough:
+       host_permissions is what makes the service worker's fetch a privileged extension
+       request, and pointed at the wrong host every call is a blocked cross-origin one. #}
+    {% if ext_ready %}
+      <a class="is-btn is-btn--ghost" href="/admin/interviews/extension.zip"
+         download>Download the extension</a>
+    {% else %}
+      <span style="font-size:12px; color:#8a5b16">The extension download is unavailable — {{ ext_why }}</span>
+    {% endif %}
+  </div>
+
+  <p style="font-size:12px;color:#67797b">
+    <strong>Install once per laptop.</strong> Unzip it, then <code>chrome://extensions</code> →
+    Developer mode → <em>Load unpacked</em> → the unzipped folder, the one holding
+    <code>manifest.json</code>. Click the extension icon, paste the key above; the site
+    address is already filled in. Then join the call and press <strong>CC</strong> —
+    Google needs a person to turn captions on, every call.
+    Full notes are in the <code>INSTALL.txt</code> inside the download.
+  </p>
+
+  {% if L.lines %}
+    <div class="is-f" style="margin-top:14px">
+      <label>What has been captured so far</label>
+      <div class="is-link" style="max-height:14rem; overflow:auto; white-space:pre-wrap">{{ iv.live_text }}</div>
+    </div>
+  {% endif %}
+</div>
+
+{# ── the recording bot ──────────────────────────────────────────────────────
+   The half the extension cannot do. Attendee holds a participant seat on its own
+   host, so it records, transcribes with a recogniser primed on this nominee's name,
+   and — only when a sitting says so — speaks.
+
+   The panel prints the EFFECTIVE voice mode, never the requested one: the platform
+   cap and a missing OpenAI key both lower it silently, and an operator who reads
+   "auto" here and gets a mute bot in the interview has been misled by this screen. #}
+{% set B = iv.bot %}
+<div class="is-sec">
+  <h2>The recording bot</h2>
+
+  {% if not B.available %}
+    <p>No bot is configured, so nothing is sent to any sitting and this section does nothing.
+       Interviews carry on exactly as before, on the extension above.</p>
+    <p style="font-size:12px; color:#67797b">To enable it: run an Attendee instance
+       (<code>github.com/attendee-labs/attendee</code>) and set <code>ATTENDEE_API_KEY</code> and
+       <code>ATTENDEE_BASE_URL</code>. Leaving the base URL blank points at the vendor's hosted
+       service, which is billed per meeting-hour.</p>
+  {% else %}
+    {% if not B.self_hosted %}
+      <div class="is-warn"><strong>This is the vendor's hosted instance</strong>
+        (<code>app.attendee.dev</code>), which bills per meeting-hour. Point
+        <code>ATTENDEE_BASE_URL</code> at your own instance to stop that.</div>
+    {% endif %}
+
+    <div class="is-fig">
+      <div class="is-fig__r {{ B.state == 'in_call' ? 'is-fig--confirmed'
+                              : (B.state in ['requested','joining'] ? 'is-fig--differs'
+                              : (B.state == 'error' ? 'is-fig--differs' : 'is-fig--unmentioned')) }}">
+        {% if B.state == 'in_call' %}
+          <strong>The bot is in the call</strong>{% if B.joined_at %}, since {{ B.joined_at }}{% endif %}.
+        {% elseif B.state == 'requested' %}
+          <strong>Sent.</strong> It joins at the scheduled start.
+        {% elseif B.state == 'joining' %}
+          <strong>Joining now</strong> — it may be waiting to be admitted. Let it in from Meet.
+        {% elseif B.state == 'done' %}
+          <strong>Finished.</strong> The transcript has been read into the capture buffer above.
+        {% elseif B.state == 'removed' %}
+          <strong>It has left the call.</strong>
+        {% elseif B.state == 'error' %}
+          <strong>It could not join.</strong> {{ B.error|default('No reason was given.') }}
+        {% else %}
+          <strong>No bot has been sent yet.</strong> One goes automatically a few minutes before
+          the start, once the nominee has given permission.
+        {% endif %}
+      </div>
+    </div>
+
+    {% if not iv.consented %}
+      <div class="is-warn"><strong>No bot will be sent.</strong> The nominee has not given
+        permission to be recorded. This is stricter than the capture rule on purpose: a bot in
+        the room is a recording process, and it does not go in before somebody agrees to it.
+        Once they press the button on their own link, one is sent within a few minutes.</div>
+    {% endif %}
+
+    <div class="is-row" style="margin-top:12px">
+      {% if B.state not in ['requested','joining','in_call'] %}
+        <form method="post" action="/admin/interviews/{{ row.id }}/bot/send">
+          <input type="hidden" name="_token" value="{{ csrf_token }}">
+          <button class="is-btn" type="submit" {{ iv.consented ? '' : 'disabled' }}>Send the bot now</button>
+        </form>
+      {% else %}
+        <form method="post" action="/admin/interviews/{{ row.id }}/bot/remove">
+          <input type="hidden" name="_token" value="{{ csrf_token }}">
+          {# The transcript so far is ingested BEFORE the bot leaves, so nothing already
+             said is lost. What is lost is everything said after — and the bot cannot be
+             sent back into a sitting that has ended. #}
+          <button class="is-btn is-btn--ghost" type="submit"
+            data-confirm="Take the bot out of this meeting? What it has captured so far is saved first, but nothing said after it leaves will be recorded.">Take the bot out</button>
+        </form>
+      {% endif %}
+      {% if B.has_recording %}
+        <a class="is-btn is-btn--ghost" href="/admin/interviews/{{ row.id }}/bot/recording" rel="noopener" target="_blank">The recording</a>
+      {% endif %}
+    </div>
+
+    {# ── the voice ─────────────────────────────────────────────────────────── #}
+    <h3 style="margin-top:22px">What it is allowed to say</h3>
+
+    {% if not B.voice_ready %}
+      <p>No <code>OPENAI_API_KEY</code> is set, so the bot records and transcribes but has no
+         voice. Every sitting below reads as <em>off</em> whatever it is set to.</p>
+    {% endif %}
+
+    <form method="post" action="/admin/interviews/{{ row.id }}/bot/voice">
+      <input type="hidden" name="_token" value="{{ csrf_token }}">
+      <div class="is-f">
+        <label for="voice_mode">Voice for this sitting</label>
+        <select class="is-in" id="voice_mode" name="voice_mode">
+          <option value="off"      {{ B.voice_mode == 'off'      ? 'selected' : '' }}>Off — records and transcribes, never speaks</option>
+          <option value="assisted" {{ B.voice_mode == 'assisted' ? 'selected' : '' }}>Assisted — it reads out a question when you press ask</option>
+          <option value="auto"     {{ B.voice_mode == 'auto'     ? 'selected' : '' }}>Auto — it asks and follows up on its own</option>
+        </select>
+      </div>
+      <button class="is-btn is-btn--ghost" type="submit">Save</button>
+    </form>
+
+    {% if B.voice_effective != B.voice_mode %}
+      <div class="is-warn" style="margin-top:10px">Set to <strong>{{ B.voice_mode }}</strong>, but this
+        sitting will actually run as <strong>{{ B.voice_effective }}</strong>
+        {%- if B.platform_max != 'auto' %} — the platform is capped at {{ B.platform_max }} in
+        Settings{% else %} — the voice provider is not configured{% endif %}.</div>
+    {% endif %}
+
+    {% if B.voice_effective == 'auto' %}
+      <div class="is-warn" style="margin-top:10px"><strong>A model will conduct this interview.</strong>
+        It asks the question pack, writes its own follow-ups from what the nominee says, and speaks
+        them without anybody approving each one. This sitting feeds a judging score, so record in the
+        outcome note that it was run this way. Turns take a few seconds each — it is a structured
+        interviewer, not a conversationalist, and a panellist should stay on the call.</div>
+    {% endif %}
+
+    {% if B.voice_effective != 'off' %}
+      <p style="font-size:12px; color:#67797b">It opens with, word for word:
+         &ldquo;{{ B.opening }}&rdquo;</p>
+    {% endif %}
+
+    {% if B.refused %}
+      <h3 style="margin-top:22px">What the guard stopped</h3>
+      <p>Questions refused before anybody heard them — usually because they named a figure or
+         a name nobody had mentioned. A few of these across a sitting is the guard working.
+         Many of them means the question pack needs attention, or the transcriber is mangling
+         a name badly enough that the model is guessing at it.</p>
+      <div class="is-link" style="max-height:12rem; overflow:auto">
+        {% for r in B.refused %}
+          <div style="padding:7px 0; border-bottom:1px solid rgba(16,41,44,.08)">
+            <code style="font-size:11px">{{ r.reason }}</code>
+            &nbsp;<span style="font-size:12.5px">&ldquo;{{ r.text }}&rdquo;</span>
+            <div style="font-size:11.5px; color:#67797b">{{ r.note }}</div>
+          </div>
+        {% endfor %}
+      </div>
+    {% endif %}
+
+    {% if B.voice_effective == 'assisted' and B.state == 'in_call' %}
+      <form method="post" action="/admin/interviews/{{ row.id }}/bot/say" style="margin-top:12px">
+        <input type="hidden" name="_token" value="{{ csrf_token }}">
+        <div class="is-f">
+          <label for="botsay">Ask this out loud</label>
+          <input class="is-in" id="botsay" name="text" type="text" maxlength="600"
+                 placeholder="How many pupils were in the club last term?">
+        </div>
+        <button class="is-btn" type="submit">Ask it</button>
+        <span style="font-size:12px; color:#67797b">The bot reads it into the call and the line goes
+          into the transcript, attributed to the bot.</span>
+      </form>
+    {% endif %}
+  {% endif %}
+</div>
+
+</details>
+
+{# ══ AFTER THE CALL ════════════════════════════════════════════════════════════
+   And the reason the grouping is worth doing at all: "Close the sitting" is the last
+   section on this page, and closing a sitting is not reversible. It used to sit two
+   screens below the panel picker with nothing between them but scroll. #}
+<details class="is-ph{{ phase == 'after' ? ' is-ph--now' : '' }}"{{ phase == 'after' ? ' open' : '' }}>
+  <summary>
+    <span class="is-ph__i">3</span>
+    <span class="is-ph__t">After the call</span>
+    <span class="is-ph__w">
+      {%- if row.status == 'cancelled' %}cancelled
+      {%- elseif row.status == 'no_show' %}nobody came
+      {%- elseif row.transcript_id %}in the judges' dossier
+      {%- elseif iv.transcript %}transcript saved, not published
+      {%- else %}no transcript yet{% endif %}
+    </span>
+    <span class="is-ph__c" aria-hidden="true"></span>
+  </summary>
+
+{# ── the transcript ─────────────────────────────────────────────────────── #}
+<form class="is-sec" method="post" action="/admin/interviews/{{ row.id }}/transcript">
+  <input type="hidden" name="_token" value="{{ csrf_token }}">
+  <h2>The transcript</h2>
+
+  {% if not iv.consented %}
+    <div class="is-warn">
+      <strong>The nominee has not given permission for a transcript to be kept.</strong>
+      Nothing can be published to the panel until they do — press the button on their own page,
+      or ask them on the call and have them do it from the link. This is not a setting that can
+      be overridden here, deliberately: it is their recorded voice being shown to the people
+      deciding their award.
+    </div>
+  {% endif %}
+
+  {% if row.transcript_id %}
+    <p><strong>Published.</strong> The panel can read this in {{ iv.nominee }}'s dossier
+       ({{ iv.transcript|length|number_format }} characters). Saving again replaces it rather
+       than adding a second copy.</p>
+  {% endif %}
+
+  <p>Paste it, or fetch it from Google when transcription was switched on during the call
+     (Activities → Transcripts — it is off by default and Google cannot make one afterwards).
+     A machine transcript is labelled as one for the judges, because a model mishears names and
+     numbers and those are the load-bearing facts in an impact claim.</p>
+
+  <div class="is-f" style="margin-top:12px">
+    <label for="tr">Transcript</label>
+    <textarea class="is-in" id="tr" name="transcript"
+              placeholder="Paste the transcript here…">{{ iv.transcript }}</textarea>
+  </div>
+
+  <div class="is-grid">
+    <div class="is-f">
+      <label for="src">Who transcribed it</label>
+      <select class="is-in" id="src" name="source">
+        <option value="machine">A machine (Meet, or another transcriber)</option>
+        <option value="human">A person, typing</option>
+        <option value="hybrid">A machine, then corrected by a person</option>
+      </select>
+    </div>
+    <div class="is-f">
+      <label for="lang">Language it is in</label>
+      <input class="is-in" id="lang" name="language" type="text" value="{{ row.language }}"
+             placeholder="en, yo, ha, ig, pcm">
+    </div>
+    <div class="is-f">
+      <label for="tfrom">Translated from (leave blank if not)</label>
+      <input class="is-in" id="tfrom" name="translated_from" type="text" placeholder="yo">
+    </div>
+  </div>
+
+  <div class="is-row">
+    <button class="is-btn" type="submit">Publish to the dossier</button>
+    <button class="is-btn is-btn--ghost" type="submit" name="fetch" value="1">Fetch from Google</button>
+    {% if row.transcript_id %}
+      <button class="is-btn is-btn--ghost" type="submit" formaction="/admin/interviews/{{ row.id }}/review">
+        Read it again</button>
+    {% endif %}
+  </div>
+</form>
+
+{# ── what the reading found ─────────────────────────────────────────────── #}
+{% if iv.review is not empty %}
+  <div class="is-sec">
+    <h2>What the transcript contains</h2>
+    <p>Sorted by criterion, quoting the nominee.
+      {% if iv.review.source == 'ai' %}Read by a model.{% else %}Matched on wording only — no model
+      read this, so read the quotes rather than trusting the selection.{% endif %}
+      {% if iv.review.machine %}The transcript itself was machine-written.{% endif %}
+      <strong>There is no score here and there will not be one</strong> — a suggested number would
+      anchor the judge who read it, and the panel's 55% would in practice be set by a model.</p>
+
+    {% if iv.review.figures|length %}
+      <h2 style="margin-top:18px">Figures claimed, and what was said</h2>
+      <div class="is-fig">
+        {% for f in iv.review.figures %}
+          <div class="is-fig__r is-fig--{{ f.status }}">
+            <strong>{{ f.figure }}</strong> — {{ f.status == 'confirmed' ? 'confirmed in the interview'
+              : (f.status == 'differs' ? 'the interview says ' ~ f.said : 'never mentioned') }}<br>
+            <span style="opacity:.85">“{{ f.claim }}”</span><br>{{ f.note }}
+          </div>
+        {% endfor %}
+      </div>
+    {% endif %}
+
+    {% for c in iv.review.criteria ?? [] %}
+      <div class="is-q">
+        <div class="is-q__k">{{ c.criterion }}</div>
+        {% if c.summary %}<div class="is-q__w">{{ c.summary }}</div>{% endif %}
+        {% for q in c.quotes %}
+          <div class="is-quote">“{{ q.quote }}”{% if q.note %}<br><span style="font-size:12px; color:#67797b">{{ q.note }}</span>{% endif %}</div>
+        {% endfor %}
+      </div>
+    {% endfor %}
+
+    {% if iv.review.unanswered|length %}
+      <div class="is-warn">
+        <strong>Prepared but never answered:</strong>
+        {% for u in iv.review.unanswered %}{{ u.criterion }} — “{{ u.q|slice(0,90) }}…”{{ loop.last ? '' : ' · ' }}{% endfor %}
+      </div>
+    {% endif %}
+
+    {% if iv.review.gaps|length %}
+      <div class="is-warn"><strong>Not established:</strong>
+        {{ iv.review.gaps|join(' · ') }}</div>
+    {% endif %}
+  </div>
+{% endif %}
+
+{# ── closing it out ─────────────────────────────────────────────────────── #}
+<div class="is-sec">
+  <h2>Close the sitting</h2>
+  <p>A no-show recorded as one is a fact the panel can see. A no-show left as “confirmed”
+     looks like an interview nobody bothered to write up.</p>
+  <div class="is-row">
+    <form method="post" action="/admin/interviews/{{ row.id }}/close">
+      <input type="hidden" name="_token" value="{{ csrf_token }}">
+      <input type="hidden" name="held" value="1">
+      <button class="is-btn" type="submit">It was held</button>
+    </form>
+    <form method="post" action="/admin/interviews/{{ row.id }}/close">
+      <input type="hidden" name="_token" value="{{ csrf_token }}">
+      <input type="hidden" name="held" value="0">
+      <button class="is-btn is-btn--ghost" type="submit">Nobody came</button>
+    </form>
+    {% if row.transcript_id %}
+      <form method="post" action="/admin/interviews/{{ row.id }}/withdraw">
+        <input type="hidden" name="_token" value="{{ csrf_token }}">
+        <button class="is-btn is-btn--warn" type="submit">Take it out of the dossier</button>
+      </form>
+    {% endif %}
+    <form method="post" action="/admin/interviews/{{ row.id }}/cancel">
+      <input type="hidden" name="_token" value="{{ csrf_token }}">
+      {# Terminal. reschedule() refuses a cancelled sitting, so this is not "postpone" —
+         it ends this one and a new appointment means opening a new interview, with a new
+         invite link the nominee has to be sent. #}
+      <button class="is-btn is-btn--ghost" type="submit"
+        data-confirm="Cancel this interview? It cannot be reopened or moved afterwards — you would have to open a new one and send the nominee a new link. To change the time instead, use Reschedule.">Cancel the interview</button>
+    </form>
+  </div>
+</div>
+</details>
+
+{% endblock %}

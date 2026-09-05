@@ -1,0 +1,127 @@
+<?php
+declare(strict_types=1);
+
+namespace Tests\Unit;
+
+use Tests\TestCase;
+use Illuminate\Database\Capsule\Manager as DB;
+use Slim\Psr7\Factory\ServerRequestFactory;
+use Slim\Psr7\Response;
+
+/**
+ * Controller→Twig render smoke tests. These catch the class of bug that hid on
+ * the registry — a controller passing a variable under a name the template
+ * doesn't read, which Twig's non-strict mode silently renders as an EMPTY state
+ * (no error, green suite, blank page). We boot the REAL DI container + Twig and
+ * render each data page against seeded data, asserting the content shows and the
+ * empty-state copy does NOT.
+ */
+class PageRenderSmokeTest extends TestCase
+{
+    protected function setUp(): void
+    {
+        parent::setUp();
+        DB::table('gates_profiles')->insert([
+            ['slug' => 'ada-obi',  'display_name' => 'Ada Obi',  'email' => 'ada@example.com',  'category' => 'Music', 'profile_type' => 'individual', 'country_code' => 'NG', 'region' => 'west', 'cpi_score' => 812, 'cpi_tier' => 'platinum', 'status' => 'approved', 'completeness_pct' => 90],
+            ['slug' => 'bola-ade',  'display_name' => 'Bola Ade', 'email' => 'bola@example.com', 'category' => 'Film',  'profile_type' => 'individual', 'country_code' => 'GH', 'region' => 'west', 'cpi_score' => 640, 'cpi_tier' => 'gold',     'status' => 'approved', 'completeness_pct' => 80],
+        ]);
+    }
+
+    private function render(string $class, string $method, string $path = '/'): array
+    {
+        $builder = new \DI\ContainerBuilder();
+        $builder->addDefinitions(require dirname(__DIR__, 2) . '/config/container.php');
+        $container = $builder->build();
+
+        $ctrl = $container->get($class);
+        $req  = (new ServerRequestFactory())->createServerRequest('GET', $path);
+        $out  = $ctrl->$method($req, new Response());
+        return [$out->getStatusCode(), (string) $out->getBody()];
+    }
+
+    public function test_registry_renders_profiles_not_empty_state(): void
+    {
+        [$status, $body] = $this->render(\AfricaGates\Controllers\RegistryController::class, 'index', '/registry');
+        $this->assertSame(200, $status);
+        $this->assertStringContainsString('Ada Obi', $body, 'seeded profile must appear in the grid');
+        $this->assertStringNotContainsString('just getting started', $body, 'must NOT fall back to the empty state when profiles exist');
+    }
+
+    public function test_leaderboard_renders_entries_not_empty_state(): void
+    {
+        [$status, $body] = $this->render(\AfricaGates\Controllers\LeaderboardController::class, 'index', '/leaderboard');
+        $this->assertSame(200, $status);
+        $this->assertStringContainsString('Ada Obi', $body, 'top profile must appear in the ranking');
+        $this->assertStringNotContainsString("hasn’t been ranked yet", $body, 'must NOT show the pre-cycle empty state');
+    }
+
+    public function test_opportunities_renders_listings_not_empty_state(): void
+    {
+        DB::table('gates_opportunities')->insert([
+            'slug' => 'mandela-fellowship', 'title' => 'Mandela Washington Fellowship', 'provider' => 'YALI',
+            'opportunity_type' => 'fellowship', 'scope' => 'Pan-African', 'status' => 'active',
+        ]);
+        [$status, $body] = $this->render(\AfricaGates\Controllers\OpportunityController::class, 'index', '/opportunities');
+        $this->assertSame(200, $status);
+        $this->assertStringContainsString('Mandela Washington Fellowship', $body);
+        $this->assertStringNotContainsString('No open listings right now', $body);
+    }
+
+    public function test_blog_renders_published_posts(): void
+    {
+        DB::table('gates_posts')->insert([
+            'slug' => 'announcing-2026', 'title' => 'Announcing the 2026 Cycle',
+            'status' => 'published', 'published_at' => date('Y-m-d H:i:s'),
+        ]);
+        [$status, $body] = $this->render(\AfricaGates\Controllers\BlogController::class, 'index', '/blog');
+        $this->assertSame(200, $status);
+        $this->assertStringContainsString('Announcing the 2026 Cycle', $body);
+    }
+
+    public function test_events_renders_upcoming_not_empty_state(): void
+    {
+        DB::table('gates_site_events')->insert([
+            'slug' => 'continental-gala', 'title' => 'Continental Gala Night',
+            'event_date' => date('Y-m-d H:i:s', time() + 7 * 86400), 'status' => 'published',
+        ]);
+        [$status, $body] = $this->render(\AfricaGates\Controllers\EventsController::class, 'index', '/events');
+        $this->assertSame(200, $status);
+        $this->assertStringContainsString('Continental Gala Night', $body);
+        $this->assertStringNotContainsString('No upcoming events just yet', $body);
+    }
+
+    public function test_awards_renders_active_programmes(): void
+    {
+        DB::table('gates_award_programmes')->insert([
+            'slug' => 'music-excellence', 'title' => 'Music Excellence Award',
+            'scope' => 'continental', 'sort_order' => 1, 'is_active' => 1,
+        ]);
+        [$status, $body] = $this->render(\AfricaGates\Controllers\AwardsController::class, 'index', '/awards');
+        $this->assertSame(200, $status);
+        $this->assertStringContainsString('Music Excellence Award', $body);
+    }
+
+    public function test_pulse_renders_community_threads(): void
+    {
+        // Guards the fix for the gates_community_threads → gates_threads table typo
+        // (the thread rail was permanently empty because the safe() wrapper hid the
+        // missing-table error).
+        DB::table('gates_threads')->insert([
+            'slug' => 'welcome-thread', 'title' => 'Welcome to the community',
+            'author_name' => 'Ada', 'author_email_hash' => str_repeat('a', 64),
+            'body' => 'Say hello here.', 'status' => 'approved',
+        ]);
+        [$status, $body] = $this->render(\AfricaGates\Controllers\PulseController::class, 'index', '/pulse');
+        $this->assertSame(200, $status);
+        $this->assertStringContainsString('Welcome to the community', $body, 'community threads must show on Pulse');
+    }
+
+    public function test_home_renders_seeded_profiles(): void
+    {
+        // Home aggregates many sources; the seeded profiles must surface through
+        // the leaderboard / ticker / spotlight rails.
+        [$status, $body] = $this->render(\AfricaGates\Controllers\HomeController::class, 'index', '/');
+        $this->assertSame(200, $status);
+        $this->assertStringContainsString('Ada Obi', $body);
+    }
+}

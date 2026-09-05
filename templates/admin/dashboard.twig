@@ -1,24 +1,191 @@
 {% extends "admin/layout.twig" %}
+
+{# ── THE FIRST SCREEN AFTER LOGIN ─────────────────────────────────────────────
+
+   This page used to open on eight counts — approved profiles, total votes, open nominations,
+   legacy events, active opportunities, partner enquiries, judges, admins — followed by three
+   charts. Every one of those numbers was true and not one of them was a job. Somebody with
+   twenty minutes read "14,203 votes", learned nothing they could act on, and went hunting in
+   the sidebar for the work.
+
+   And the numbers were flattering where the silences were not. A chargeback that Paystack
+   accepts for you after sixteen hours, an interview held three weeks ago whose transcript
+   nobody published, sixty nominees who were opened a questionnaire and never told — none of
+   them appeared here at all.
+
+   So the order is now: WHAT NEEDS YOU, then what to watch, then what the platform measures.
+
+     • THE BOARD comes first, and a card only exists when its count is above zero. A grid of
+       green zeroes teaches an operator to stop reading the grid, and once they have stopped
+       the one red number in it is invisible too. Nothing waiting is said in a sentence.
+     • EVERY CARD CARRIES ITS "WHY". "3 chargebacks" is a number; "Paystack accepts a dispute
+       for you after 16 hours and refunds from your balance" is a reason to click.
+     • THE INTEGRITY BRIEFING stays where it was — it is the one thing on the old page that
+       was already a judgement rather than a measurement.
+     • THE COUNTS SURVIVE, smaller, below the work. An operator does want to know how big this
+       is; they just should not have to read it first.
+#}
+
 {% block topbar_eyebrow %}<small>Overview</small>{% endblock %}
 {% block topbar_title %}Welcome back, {{ admin_name|split(' ')|first }}{% endblock %}
 {% block topbar_actions %}
-  <a class="ad-btn" href="/" target="_blank">
-    <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
-    View site
+  <a class="ad-btn" href="/" target="_blank" rel="noopener noreferrer">
+    <svg aria-hidden="true" focusable="false" class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+    View site<span class="sr-only"> (opens in a new tab)</span>
   </a>
+{% endblock %}
+
+{% block head_styles %}
+<style nonce="{{ csp_nonce }}">
+  .db-h{ display:flex; align-items:baseline; justify-content:space-between; gap:12px;
+    flex-wrap:wrap; margin:0 0 12px }
+  .db-h h2{ margin:0; font-size:16px; letter-spacing:-.01em; color:var(--ad-text,#10292C) }
+  .db-h span{ font-size:12.5px; color:var(--ad-text-mute,#61728e) }
+
+  /* the board */
+  .db-board{ display:grid; gap:12px; margin-bottom:26px;
+    grid-template-columns:repeat(auto-fit,minmax(min(100%,290px),1fr)) }
+  .db-job{ display:flex; flex-direction:column; background:var(--ad-surface,#fff);
+    border:1px solid var(--ad-line,rgba(16,41,44,.11)); border-left:4px solid var(--ad-line,#cfd8d6);
+    border-radius:14px; padding:16px 17px 14px }
+  /* Urgency is carried by the left edge and the number's colour, not by a full red panel:
+     four screaming cards side by side rank nothing, and ranking is the entire point. */
+  .db-job--urgent{ border-left-color:#b3261e; background:#fff9f8 }
+  .db-job--warn{ border-left-color:#c79a3a; background:#fffdf6 }
+  /* Long-hand, not the `font` shorthand. `font: 700 30px/1 inherit` is INVALID — `inherit`
+     is not a font-family token there — so the whole declaration was dropped and the count
+     rendered at body size, which is the one thing on the card that has to be seen first. */
+  .db-job__n{ font-size:30px; font-weight:700; line-height:1; letter-spacing:-.02em;
+    color:var(--ad-text,#10292C) }
+  .db-job--urgent .db-job__n{ color:#b3261e }
+  .db-job--warn .db-job__n{ color:#8a6a12 }
+  .db-job__l{ margin-top:5px; font-size:13.5px; font-weight:650; line-height:1.4;
+    color:var(--ad-text,#10292C) }
+  .db-job__w{ margin:8px 0 0; font-size:12px; line-height:1.65; color:var(--ad-text-soft,#5a6d6f) }
+  .db-job__go{ margin-top:13px; align-self:flex-start; text-decoration:none;
+    font-size:12.5px; font-weight:650; line-height:1;
+    padding:9px 15px; border-radius:999px; background:var(--ad-text,#10292C); color:#fff }
+  .db-job--urgent .db-job__go{ background:#b3261e }
+
+  .db-clear{ background:#f7fbf6; border:1px solid #bfe0bd; border-radius:14px;
+    padding:20px 22px; margin-bottom:26px }
+  .db-clear b{ display:block; font-size:15px; color:#1c5f1b; margin-bottom:6px }
+  .db-clear p{ margin:0; font-size:13px; line-height:1.7; color:#3d5254; max-width:80ch }
+
+  /* the quiet numbers
+     Separate bordered cells rather than the one-pixel-gap-over-a-coloured-container trick:
+     eight items in a five-column row leave two empty cells, and with that trick the empties
+     render as grey blocks that read as a rendering fault. */
+  .db-pulse{ display:grid; gap:10px; margin-bottom:26px;
+    grid-template-columns:repeat(auto-fit,minmax(min(100%,168px),1fr)) }
+  .db-p{ background:var(--ad-surface,#fff); border:1px solid var(--ad-line,rgba(16,41,44,.11));
+    border-radius:12px; padding:13px 14px }
+  .db-p__k{ font-size:9.5px; font-weight:700; line-height:1.3; letter-spacing:.09em;
+    text-transform:uppercase; color:var(--ad-text-mute,#61728e) }
+  .db-p__v{ margin-top:7px; font-size:20px; font-weight:700; color:var(--ad-text,#10292C) }
+  .db-p__n{ margin-top:3px; font-size:11px; line-height:1.5; color:var(--ad-text-soft,#67797b) }
+</style>
 {% endblock %}
 
 {% block content %}
 
-<div class="ad-stat-grid">
-  <div class="ad-stat ad-stat--accent"><div class="ad-stat__lbl">Approved Profiles</div><div class="ad-stat__num">{{ stats.total_profiles|number_format }}</div><div class="ad-stat__hint">{{ stats.pending_profiles }} pending review</div></div>
-  <div class="ad-stat ad-stat--accent"><div class="ad-stat__lbl">Total Votes</div><div class="ad-stat__num">{{ stats.total_votes|number_format }}</div><div class="ad-stat__hint">+{{ stats.votes_24h }} in last 24h</div></div>
-  <div class="ad-stat"><div class="ad-stat__lbl">Open Nominations</div><div class="ad-stat__num">{{ stats.pending_nominations }}</div><div class="ad-stat__hint">{{ stats.approved_nominations }} approved this cycle</div></div>
-  <div class="ad-stat"><div class="ad-stat__lbl">Legacy Events</div><div class="ad-stat__num">{{ stats.legacy_events }}</div><div class="ad-stat__hint">Published</div></div>
-  <div class="ad-stat"><div class="ad-stat__lbl">Active Opportunities</div><div class="ad-stat__num">{{ stats.opportunities }}</div><div class="ad-stat__hint">Live for the community</div></div>
-  <div class="ad-stat"><div class="ad-stat__lbl">Partner Enquiries</div><div class="ad-stat__num">{{ stats.partner_enquiries }}</div><div class="ad-stat__hint">Need follow-up</div></div>
-  <div class="ad-stat"><div class="ad-stat__lbl">Judges</div><div class="ad-stat__num">{{ stats.judges }}</div><div class="ad-stat__hint">Active panel members</div></div>
-  <div class="ad-stat"><div class="ad-stat__lbl">Admins</div><div class="ad-stat__num">{{ stats.admins }}</div><div class="ad-stat__hint">With console access</div></div>
+{# ── 1. what needs you ──────────────────────────────────────────────────────
+   Above the integrity briefing, because a chargeback with hours left on it outranks a
+   summary of signals that have already been recorded. #}
+<div class="db-h">
+  <h2>What needs you</h2>
+  <span>
+    {%- if board is empty %}nothing is waiting
+    {%- else %}{{ board_total }} item{{ board_total == 1 ? '' : 's' }} across {{ board|length }} place{{ board|length == 1 ? '' : 's' }}, most consequential first{% endif %}
+  </span>
+</div>
+
+{% if board is empty %}
+  <div class="db-clear">
+    <b>Nothing is waiting for you.</b>
+    <p>No chargeback on the clock, no interview overdue, no transcript unpublished, no nominee
+      sitting un-asked, and nothing held for a moderator. This is the honest version of an empty
+      queue: cards appear here only when there is something to do, so a quiet board means quiet
+      and not that nobody looked.</p>
+  </div>
+{% else %}
+  <div class="db-board">
+    {% for j in board %}
+      <div class="db-job {{ j.tone ? 'db-job--' ~ j.tone : '' }}">
+        <div class="db-job__n">{{ j.count|number_format }}</div>
+        <div class="db-job__l">{{ j.label }}</div>
+        <p class="db-job__w">{{ j.why }}</p>
+        <a class="db-job__go" href="{{ j.href }}">{{ j.cta }} →</a>
+      </div>
+    {% endfor %}
+  </div>
+{% endif %}
+
+{# ── 2. the integrity briefing ───────────────────────────────────────────────
+   AI integrity briefing — synthesises collusion, judge-anomaly and fraud signals into one
+   prioritised read. Deterministic on load; the button upgrades it to AI. #}
+{% if integrity is defined %}
+{% set border = integrity.total > 0 ? '#c79a3a' : '#237b22' %}
+<div class="ad-card" style="margin-bottom:26px;border-left:4px solid {{ border }}">
+  <div class="ad-card__head" style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap">
+    <div class="ad-card__title">🛡 Integrity briefing
+      {% if integrity.total > 0 %}<span class="ad-chip ad-chip--gold" style="margin-left:6px">{{ integrity.total }} signal{{ integrity.total == 1 ? '' : 's' }}</span>{% else %}<span class="ad-chip ad-chip--green" style="margin-left:6px">clear</span>{% endif %}
+    </div>
+    {% if ai_enabled %}<button type="button" id="aiBriefBtn" class="ad-btn ad-btn--sm">✨ AI briefing</button>{% endif %}
+  </div>
+  <div class="ad-card__body">
+    <p id="integrityBrief" style="font-size:13.5px;line-height:1.65;color:var(--ad-text);margin:0 0 10px">{{ integrity_brief }}</p>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;font-size:12px">
+      <a href="/admin/data/collusion" class="ad-chip ad-chip--grey" style="text-decoration:none">Collusion: {{ integrity.collusion.open }} open</a>
+      <a href="/admin/judges" class="ad-chip ad-chip--grey" style="text-decoration:none">Judge anomalies: {{ integrity.judges.flags }}</a>
+      <span class="ad-chip ad-chip--grey">Fraud-flagged votes (24h): {{ integrity.fraud_votes_24h }}</span>
+      <a href="/admin/nominations/review" class="ad-chip ad-chip--grey" style="text-decoration:none">Pending review: {{ integrity.pending_nominations }}</a>
+    </div>
+  </div>
+</div>
+{% if ai_enabled %}
+<script nonce="{{ csp_nonce }}">
+(function () {
+  var btn = document.getElementById('aiBriefBtn'), out = document.getElementById('integrityBrief');
+  if (!btn || !out) return;
+  btn.addEventListener('click', function () {
+    var orig = btn.textContent; btn.disabled = true; btn.textContent = '✦ Thinking…';
+    fetch('/admin/integrity-brief', { headers: { 'X-Requested-With': 'fetch' }, credentials: 'same-origin' })
+      .then(function (r) { return r.json(); })
+      .then(function (j) {
+        btn.disabled = false; btn.textContent = orig;
+        if (j && j.ok && j.text) { out.textContent = j.text; if (j.ai) btn.textContent = '✓ AI briefing'; }
+      })
+      .catch(function () { btn.disabled = false; btn.textContent = orig; });
+  });
+})();
+</script>
+{% endif %}
+{% endif %}
+
+{# ── 3. the quiet numbers ────────────────────────────────────────────────────
+   Kept, because somebody does want to know how big this is — but small, and after the work.
+   Each pairs a recent figure with a total, since "how many ever" says how large this is and
+   "how many today" says whether it is alive, and the second is the more useful question on any
+   given morning. #}
+<div class="db-h">
+  <h2>Where the platform stands</h2>
+  <span>counts, not jobs</span>
+</div>
+<div class="db-pulse">
+  {% for p in pulse %}
+    <div class="db-p">
+      <div class="db-p__k">{{ p.k }}</div>
+      <div class="db-p__v">{{ p.v|number_format }}</div>
+      <div class="db-p__n">{{ p.n }}</div>
+    </div>
+  {% endfor %}
+</div>
+
+{# ── 4. the shape of it over time ────────────────────────────────────────────#}
+<div class="db-h">
+  <h2>How it is moving</h2>
+  <span>last 14 days, and the spread</span>
 </div>
 
 <div class="ad-grid-2" style="margin-bottom:18px">
@@ -41,7 +208,7 @@
     <div class="ad-card__head"><div class="ad-card__title">Top nominees<small>Highest vote counts right now</small></div></div>
     <div class="ad-card__body">
       <table class="ad-table">
-        <thead><tr><th>Nominee</th><th>Category</th><th style="text-align:right">Votes</th></tr></thead>
+        <thead><tr><th scope="col">Nominee</th><th scope="col">Category</th><th scope="col" style="text-align:right">Votes</th></tr></thead>
         <tbody>
           {% for n in top_nominees %}
           <tr>
@@ -59,17 +226,32 @@
 </div>
 
 <div class="ad-card">
-  <div class="ad-card__head"><div class="ad-card__title">Recent admin activity<small>Latest 12 actions</small></div></div>
+  <div class="ad-card__head" style="display:flex;justify-content:space-between;align-items:center;gap:12px">
+    <div class="ad-card__title">Recent admin activity<small>Latest 12 actions</small></div>
+    {# The whole log, searchable. This strip is twelve rows — under a minute on a busy
+       morning — and until /admin/audit existed it was one of only two ways to read a
+       table 124 places write to. #}
+    <a class="ad-btn ad-btn--sm" href="/admin/audit">The whole log →</a>
+  </div>
   <div class="ad-card__body">
     <table class="ad-table">
-      <thead><tr><th>When</th><th>Admin</th><th>Action</th><th>Target</th></tr></thead>
+      <thead><tr><th scope="col">When</th><th scope="col">Admin</th><th scope="col">Action</th><th scope="col">Target</th></tr></thead>
       <tbody>
         {% for e in recent_activity %}
         <tr>
-          <td style="color:var(--ad-text-soft);font-family:'Space Mono',monospace;font-size:12px">{{ e.created_at }}</td>
-          <td>{{ e.admin_name|default('—') }}</td>
+          {# |when, not the raw column: storage is UTC by this application's convention,
+             so printing it unconverted showed an operator in Lagos a time an hour off
+             with nothing on the page saying which zone it was. #}
+          <td style="color:var(--ad-text-soft);font-family:'Space Mono',monospace;font-size:12px">{{ e.created_at|when }}</td>
+          <td>{% if e.admin_id %}<a href="/admin/audit/actor/{{ e.admin_id }}">{{ e.admin_name|default('Admin #' ~ e.admin_id) }}</a>{% else %}<span style="color:var(--ad-text-mute)">Unattributed</span>{% endif %}</td>
           <td><span class="ad-chip ad-chip--grey">{{ e.action }}</span></td>
-          <td style="color:var(--ad-text-soft)">{{ e.target_type ?? '—' }}{% if e.target_id %} #{{ e.target_id }}{% endif %}</td>
+          {# The target NAMED. AuditService::search() resolves it now, so this strip no
+             longer says `nominee #412` at somebody who cannot look 412 up. #}
+          <td style="color:var(--ad-text-soft)">
+            {%- if e.target_type -%}
+              <a href="/admin/audit?type={{ e.target_key|url_encode }}{% if e.target_id %}&amp;tid={{ e.target_id }}{% endif %}">{{ e.target_name ?? (e.target_label ~ (e.target_id ? ' #' ~ e.target_id : '')) }}</a>
+            {%- else -%}—{%- endif -%}
+          </td>
         </tr>
         {% else %}
         <tr><td colspan="4" style="text-align:center;color:var(--ad-text-mute);padding:24px">No activity yet.</td></tr>
@@ -83,7 +265,7 @@
 
 {% block foot_scripts %}
 <script src="/assets/vendor/chart.min.js"></script>
-<script>
+<script nonce="{{ csp_nonce }}">
 (function(){
   if (typeof Chart === 'undefined') return;
   Chart.defaults.font.family = 'Montserrat, sans-serif';

@@ -1,0 +1,929 @@
+{% extends "admin/layout.twig" %}
+{% block topbar_title %}Finance{% endblock %}
+{% block topbar_actions %}<a class="ad-btn" href="/admin/finance/export">⤓ Export CSV</a>{% endblock %}
+
+{#
+  Money in, grouped.
+
+  The tabs are plain radio inputs + CSS, not Alpine. This page has to render its
+  numbers correctly with JavaScript unavailable or still loading, because it is the
+  page someone opens to check whether a payment arrived — and a finance figure that
+  appears a moment after the page does is a finance figure that can be misread while
+  it is still empty. Every total below is already in the HTML.
+#}
+{% block content %}
+<style nonce="{{ csp_nonce }}">
+  .fi-tabs{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px}
+  /* The radios are SIBLINGS of .fi-tabs, not children — the :checked ~ .fi-body rules
+     below need them at this level. So they are hidden by their own class rather than
+     by descent, which an earlier `.fi-tabs input` selector failed to do: it matched
+     nothing and left five bare radio dots sitting above the tab strip. */
+  .fi-tabs__radio{position:absolute;width:1px;height:1px;opacity:0;pointer-events:none}
+  .fi-tabs label{border:1px solid var(--ad-line,#e5eae8);background:var(--ad-surface,#fff);color:var(--ad-text,#10292c);border-radius:999px;padding:7px 15px;font-size:12.5px;font-weight:600;cursor:pointer;user-select:none}
+  #fi-t-summary:checked ~ .fi-tabs label[for="fi-t-summary"],
+  #fi-t-sources:checked ~ .fi-tabs label[for="fi-t-sources"],
+  #fi-t-tx:checked      ~ .fi-tabs label[for="fi-t-tx"],
+  #fi-t-recon:checked   ~ .fi-tabs label[for="fi-t-recon"],
+  #fi-t-votes:checked   ~ .fi-tabs label[for="fi-t-votes"],
+  #fi-t-recon2:checked  ~ .fi-tabs label[for="fi-t-recon2"],
+  #fi-t-growth:checked  ~ .fi-tabs label[for="fi-t-growth"],
+  #fi-t-people:checked  ~ .fi-tabs label[for="fi-t-people"],
+  #fi-t-leak:checked    ~ .fi-tabs label[for="fi-t-leak"],
+  #fi-t-ref:checked     ~ .fi-tabs label[for="fi-t-ref"]{background:var(--ad-accent,#237b22);border-color:transparent;color:#fff}
+
+  /* ── The wider read. Same CSS-only tab machinery as above; no new JS. ───── */
+  .fx-note{margin:0 0 12px;font-size:12.5px;line-height:1.6;color:#5a6d6f;max-width:86ch}
+  .fx-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;margin-bottom:14px}
+  .fx-up{color:#177015;font-weight:700} .fx-down{color:#8a2020;font-weight:700} .fx-flat{color:#7a8a8c;font-weight:700}
+  .fx-tbl{width:100%;border-collapse:collapse;font-size:12.5px}
+  .fx-tbl th{text-align:left;font:700 10px/1 var(--ag-font-body,inherit);letter-spacing:.08em;text-transform:uppercase;
+    color:#5a6d6f;padding:7px 9px;border-bottom:1px solid rgba(16,41,44,.12)}
+  .fx-tbl td{padding:8px 9px;border-bottom:1px solid rgba(16,41,44,.05)}
+  .fx-tbl td.n{font-family:var(--ag-font-mono,monospace);text-align:right;white-space:nowrap}
+  .fx-two{display:grid;grid-template-columns:repeat(auto-fit,minmax(330px,1fr));gap:12px}
+  .fx-scroll{overflow-x:auto}
+  /* Heatmap: one cell per hour, colour carries the amount. */
+  .fx-heat{border-collapse:separate;border-spacing:2px;font-size:10px}
+  .fx-heat th{font:700 9px/1 var(--ag-font-body,inherit);color:#7a8a8c;padding:2px;text-align:center}
+  .fx-heat th.lbl{text-align:right;padding-right:7px;font-family:var(--ag-font-mono,monospace)}
+  .fx-heat td{width:15px;height:15px;border-radius:3px;background:rgba(16,41,44,.05)}
+  .fx-fun__row{margin-bottom:10px}
+  .fx-fun__top{display:flex;justify-content:space-between;gap:10px;font-size:12.5px;margin-bottom:4px}
+  .fx-fun__n{font-family:var(--ag-font-mono,monospace);font-weight:700}
+  .fx-fun__bar{height:9px;border-radius:99px;background:rgba(16,41,44,.07);overflow:hidden}
+  .fx-fun__fill{height:100%;border-radius:99px}
+  .fx-empty{font-size:12.5px;color:#7a8a8c;margin:8px 0 0}
+  .fx-bad{background:#fdf3f3;border:1px solid #f0c9c9;color:#8a2020;border-radius:10px;padding:11px 14px;
+    font-size:12.5px;line-height:1.6;margin-top:10px}
+  .fx-ok{background:#f2f9f1;border:1px solid #bfe0bd;color:#1a4d18;border-radius:10px;padding:11px 14px;
+    font-size:12.5px;line-height:1.6;margin-top:10px}
+
+  /* Reconciliation outcomes. Colour carries the meaning at a glance because the
+     table is scanned, not read: green moved money, amber needs a person. */
+  .fi-act{display:inline-block;border-radius:999px;padding:3px 10px;font-size:11.5px;font-weight:800;letter-spacing:.02em}
+  .fi-act--confirmed{background:#e6f4e6;color:#1c6b1c}
+  .fi-act--mismatch{background:#fdf0d5;color:#8a5a00}
+  .fi-act--unverifiable{background:#fdf0d5;color:#8a5a00}
+  .fi-act--failed{background:#f3f4f6;color:#4b5563}
+  .fi-act--pending{background:#eef2f0;color:#5a6d6f}
+  /* Grey with the other terminal states: an abandoned checkout is a row leaving
+     the queue, not money anybody needs to chase. */
+  .fi-act--expired{background:#f3f4f6;color:#4b5563}
+  .fi-danger{border:1px solid #f0c9c9;background:#fdf3f3;border-radius:12px;padding:12px 14px}
+  /* Focus must survive the visually-hidden input — the strip is keyboard-navigable
+     with arrow keys, and without this the focused tab is invisible. */
+  .fi-tabs__radio:focus-visible ~ .fi-tabs label{outline:1px dashed var(--ad-accent,#237b22);outline-offset:2px}
+  .fi-panel{display:none}
+  #fi-t-summary:checked ~ .fi-body #fi-p-summary,
+  #fi-t-sources:checked ~ .fi-body #fi-p-sources,
+  #fi-t-tx:checked      ~ .fi-body #fi-p-tx,
+  #fi-t-recon:checked   ~ .fi-body #fi-p-recon,
+  #fi-t-votes:checked   ~ .fi-body #fi-p-votes,
+  #fi-t-recon2:checked  ~ .fi-body #fi-p-recon2,
+  #fi-t-growth:checked  ~ .fi-body #fi-p-growth,
+  #fi-t-people:checked  ~ .fi-body #fi-p-people,
+  #fi-t-leak:checked    ~ .fi-body #fi-p-leak,
+  #fi-t-ref:checked     ~ .fi-body #fi-p-ref{display:block}
+
+  .fi-kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;margin-bottom:14px}
+  .fi-kpi{background:var(--ad-surface,#fff);border:1px solid var(--ad-line,#e5eae8);border-radius:14px;padding:14px 16px}
+  .fi-kpi__l{font-size:11.5px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--ad-text-mute,#5a6d6f)}
+  .fi-kpi__v{font-size:26px;font-weight:800;margin-top:6px;line-height:1.1}
+  .fi-kpi__s{font-size:12px;color:var(--ad-text-mute,#5a6d6f);margin-top:4px}
+  .fi-kpi--good .fi-kpi__v{color:var(--ad-accent,#237b22)}
+  .fi-kpi--warn .fi-kpi__v{color:#a8730a}
+  .fi-kpi--bad  .fi-kpi__v{color:#a32020}
+
+  .fi-bars{display:grid;gap:10px}
+  .fi-bar__top{display:flex;justify-content:space-between;font-size:13px;margin-bottom:4px}
+  .fi-bar__track{height:12px;border-radius:999px;background:var(--ad-line,#eef2f0);overflow:hidden}
+  .fi-bar__fill{height:100%;border-radius:999px;background:var(--ad-accent,#237b22)}
+
+  /* The daily chart. Bars, because the series is a count of naira per day and a line
+     between two zero days implies a value that was never taken. */
+  .fi-spark{display:flex;align-items:flex-end;gap:2px;height:120px;padding:8px 0}
+  .fi-spark__b{flex:1;min-width:2px;background:var(--ad-accent,#237b22);border-radius:2px 2px 0 0;opacity:.85}
+  .fi-spark__b[data-zero="1"]{background:var(--ad-line,#e5eae8)}
+
+  .fi-note{font-size:12.5px;color:var(--ad-text-mute,#5a6d6f);margin:0 0 12px}
+  .fi-empty{text-align:center;color:var(--ad-text-mute,#61728e);padding:34px 10px}
+  .fi-num{font-family:'Space Mono',monospace;font-size:12.5px;white-space:nowrap}
+  .fi-right{text-align:right}
+</style>
+
+<form method="get" action="/admin/finance" class="ad-card" style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;margin-bottom:14px">
+  <div>
+    <label for="fiRange" style="display:block;font-size:12px;font-weight:600;color:var(--ad-text-mute,#5a6d6f);margin-bottom:4px">Period</label>
+    <select id="fiRange" name="range" style="padding:9px 12px;border:1px solid var(--ad-line,#dfe4e3);border-radius:9px">
+      {% for k, label in ranges %}<option value="{{ k }}" {% if range == k %}selected{% endif %}>{{ label }}</option>{% endfor %}
+    </select>
+  </div>
+  <div>
+    <label for="fiFrom" style="display:block;font-size:12px;font-weight:600;color:var(--ad-text-mute,#5a6d6f);margin-bottom:4px">From</label>
+    <input id="fiFrom" type="date" name="from" value="{{ from }}" style="padding:9px 12px;border:1px solid var(--ad-line,#dfe4e3);border-radius:9px">
+  </div>
+  <div>
+    <label for="fiTo" style="display:block;font-size:12px;font-weight:600;color:var(--ad-text-mute,#5a6d6f);margin-bottom:4px">To</label>
+    <input id="fiTo" type="date" name="to" value="{{ to }}" style="padding:9px 12px;border:1px solid var(--ad-line,#dfe4e3);border-radius:9px">
+  </div>
+  <button class="ad-btn ad-btn--primary" type="submit">Apply</button>
+  <a class="ad-btn" href="/admin/finance">Reset</a>
+  <span class="fi-note" style="margin:0 0 9px auto">A date overrides the period.</span>
+</form>
+
+<div class="fi-tabs-wrap">
+  <div style="display:contents">
+    <input class="fi-tabs__radio" type="radio" name="fitab" id="fi-t-summary" checked>
+    <input class="fi-tabs__radio" type="radio" name="fitab" id="fi-t-sources">
+    <input class="fi-tabs__radio" type="radio" name="fitab" id="fi-t-tx">
+    <input class="fi-tabs__radio" type="radio" name="fitab" id="fi-t-recon">
+    <input class="fi-tabs__radio" type="radio" name="fitab" id="fi-t-votes">
+    <input class="fi-tabs__radio" type="radio" name="fitab" id="fi-t-recon2" {% if recon %}checked{% endif %}>
+    <input class="fi-tabs__radio" type="radio" name="fitab" id="fi-t-growth">
+    <input class="fi-tabs__radio" type="radio" name="fitab" id="fi-t-people">
+    <input class="fi-tabs__radio" type="radio" name="fitab" id="fi-t-leak">
+    <input class="fi-tabs__radio" type="radio" name="fitab" id="fi-t-ref">
+
+    <div class="fi-tabs" role="tablist" aria-label="Finance sections">
+      <label for="fi-t-summary">Summary</label>
+      <label for="fi-t-growth">Growth</label>
+      <label for="fi-t-sources">By source</label>
+      <label for="fi-t-people">Supporters</label>
+      <label for="fi-t-leak">Leakage{% if leak.abandoned %} ({{ leak.abandoned }}){% endif %}</label>
+      <label for="fi-t-tx">Transactions</label>
+      <label for="fi-t-recon">Needs attention{% if uncredited|length or owed.count %} ({{ uncredited|length + owed.count }}){% endif %}</label>
+      <label for="fi-t-votes">Paid votes</label>
+      <label for="fi-t-recon2">Reconcile</label>
+      <label for="fi-t-ref">Referrals{% if referral.owed_members %} ({{ referral.owed_members }}){% endif %}</label>
+    </div>
+
+    <div class="fi-body">
+
+      {# ── SUMMARY ────────────────────────────────────────────────────────── #}
+      <section class="fi-panel" id="fi-p-summary" aria-labelledby="fi-t-summary">
+        <div class="fi-kpis">
+          <div class="fi-kpi fi-kpi--good">
+            <div class="fi-kpi__l">Confirmed revenue</div>
+            <div class="fi-kpi__v">₦{{ totals.confirmed|number_format }}</div>
+            <div class="fi-kpi__s">{{ totals.transactions|number_format }} payment{{ totals.transactions == 1 ? '' : 's' }}{% if totals.average %} · ₦{{ totals.average|number_format }} average{% endif %}</div>
+          </div>
+          <div class="fi-kpi {{ totals.pending ? 'fi-kpi--warn' : '' }}">
+            <div class="fi-kpi__l">Pending</div>
+            <div class="fi-kpi__v">₦{{ totals.pending|number_format }}</div>
+            <div class="fi-kpi__s">{{ totals.pending_count|number_format }} not yet confirmed</div>
+          </div>
+          <div class="fi-kpi {{ totals.refunded ? 'fi-kpi--bad' : '' }}">
+            <div class="fi-kpi__l">Refunded</div>
+            <div class="fi-kpi__v">₦{{ totals.refunded|number_format }}</div>
+            <div class="fi-kpi__s">{{ totals.refunded_count|number_format }} reversed · already excluded above</div>
+          </div>
+          <div class="fi-kpi">
+            <div class="fi-kpi__l">Failed attempts</div>
+            <div class="fi-kpi__v">{{ totals.failed_count|number_format }}</div>
+            <div class="fi-kpi__s">Declined or abandoned at the gateway</div>
+          </div>
+        </div>
+
+        <div class="ad-card">
+          <strong style="font-size:14px">Confirmed revenue per day</strong>
+          <p class="fi-note" style="margin-top:4px">Days with no payment are shown flat, not skipped.</p>
+          <div class="fi-spark">
+            {% for d in daily %}
+              <div class="fi-spark__b" data-zero="{{ d.naira > 0 ? 0 : 1 }}"
+                   style="height:{{ d.naira > 0 ? (4 + (d.naira * 96 / peak))|round : 3 }}px"
+                   title="{{ d.date }} — ₦{{ d.naira|number_format }}"></div>
+            {% endfor %}
+          </div>
+          <div style="display:flex;justify-content:space-between;font-size:11.5px;color:var(--ad-text-mute,#5a6d6f)">
+            <span>{{ daily|first.date }}</span><span>peak ₦{{ peak|number_format }}</span><span>{{ daily|last.date }}</span>
+          </div>
+        </div>
+      </section>
+
+      {# ── BY SOURCE ──────────────────────────────────────────────────────── #}
+      <section class="fi-panel" id="fi-p-sources" aria-labelledby="fi-t-sources">
+        <div class="ad-card">
+          <strong style="font-size:14px">Where the money came from</strong>
+          <p class="fi-note" style="margin-top:4px">Confirmed and not refunded, within the selected period.</p>
+          {% if sources %}
+          <div class="fi-bars">
+            {% for s in sources %}
+            <div>
+              <div class="fi-bar__top">
+                <span><strong>{{ s.label }}</strong> <span style="color:var(--ad-text-mute,#5a6d6f)">· {{ s.count|number_format }} payment{{ s.count == 1 ? '' : 's' }}</span></span>
+                <span><strong>₦{{ s.gross|number_format }}</strong> <span style="color:var(--ad-text-mute,#5a6d6f)">{{ s.pct }}%</span></span>
+              </div>
+              <div class="fi-bar__track"><div class="fi-bar__fill" style="width:{{ s.pct }}%"></div></div>
+            </div>
+            {% endfor %}
+          </div>
+          {% else %}<div class="fi-empty">No confirmed payments in this period.</div>{% endif %}
+        </div>
+
+        {# ── WHERE IT SETTLED ──────────────────────────────────────────────
+           The other half of "where the money came from", and the half that was
+           missing: which Paystack account each stream's money actually landed in.
+           The attribution has been recorded on every routed payment since
+           subaccounts shipped and read by nothing, so this question could only be
+           answered at the bank — which is the situation subaccounts were introduced
+           to end. Counted from each stream's own ledger and filtered to what
+           actually completed, so an abandoned checkout is never reported as
+           settled income. #}
+        {% if settlement %}
+        <div class="ad-card" style="margin-top:14px">
+          <strong style="font-size:14px">Where it settled</strong>
+          <p class="fi-note" style="margin-top:4px">
+            The Paystack account each stream's completed payments were routed to. A stream with
+            no subaccount configured settles to the main account, which is the default and not
+            a problem.
+          </p>
+          <table class="ad-table">
+            <thead><tr>
+              <th scope="col">Stream</th>
+              <th scope="col">Settles to</th>
+              <th scope="col" class="fi-right">Routed</th>
+              <th scope="col" class="fi-right">Main account</th>
+            </tr></thead>
+            <tbody>
+              {% for s in settlement %}
+              <tr>
+                <td>
+                  <strong>{{ s.label }}</strong>
+                  {% if s.configured and s.bearer == 'subaccount' %}
+                  <br><span style="font-size:11.5px;color:var(--ad-text-mute,#5a6d6f)">subaccount bears the fee</span>
+                  {% endif %}
+                </td>
+                <td style="font-family:var(--ag-font-mono,monospace);font-size:12px">
+                  {% if s.configured %}{{ s.configured }}
+                  {% else %}<span style="color:var(--ad-text-mute,#5a6d6f)">main account</span>{% endif %}
+                  {# A stream whose code CHANGED mid-period shows every code the period's
+                     payments actually used — the one case a single figure would hide, and
+                     the reason the code is stored per payment rather than looked up now. #}
+                  {% for code, naira in s.subaccounts %}
+                    {% if code != s.configured %}
+                    <br><span style="color:#a45e14">{{ code }} · ₦{{ naira|number_format }} (no longer configured)</span>
+                    {% endif %}
+                  {% endfor %}
+                </td>
+                <td class="fi-right fi-num">
+                  ₦{{ s.routed_naira|number_format }}
+                  <br><span style="font-size:11.5px;color:var(--ad-text-mute,#5a6d6f)">{{ s.routed_count|number_format }} payment{{ s.routed_count == 1 ? '' : 's' }}</span>
+                </td>
+                <td class="fi-right fi-num">
+                  ₦{{ s.main_naira|number_format }}
+                  <br><span style="font-size:11.5px;color:var(--ad-text-mute,#5a6d6f)">{{ s.main_count|number_format }} payment{{ s.main_count == 1 ? '' : 's' }}</span>
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+          {# Money in the main account for a stream that IS routed means the subaccount was
+             refused at the gateway and the payment fell back — recoverable, and invisible
+             unless it is said. See PaymentDestination::reportRefusal(). #}
+          {% for s in settlement %}
+            {% if s.configured and s.main_count > 0 %}
+            <p class="fi-note" style="margin-top:10px;color:#a45e14">
+              <strong>{{ s.label }}:</strong> {{ s.main_count|number_format }} completed
+              payment{{ s.main_count == 1 ? '' : 's' }} (₦{{ s.main_naira|number_format }})
+              settled to the main account despite this stream being routed. Either they were
+              taken before the subaccount was set, or Paystack refused it and the payment fell
+              back — check Settings → Where the money settles.
+            </p>
+            {% endif %}
+          {% endfor %}
+        </div>
+        {% endif %}
+
+        {% if providers %}
+        <div class="ad-card" style="margin-top:14px">
+          <strong style="font-size:14px">Shop gateways</strong>
+          <p class="fi-note" style="margin-top:4px">Only shop orders record which gateway handled them.</p>
+          <table class="ad-table">
+            <thead><tr><th scope="col">Gateway</th><th scope="col" class="fi-right">Paid</th><th scope="col" class="fi-right">Failed</th><th scope="col" class="fi-right">Revenue</th></tr></thead>
+            <tbody>
+              {% for p in providers %}
+              <tr>
+                <td><strong>{{ p.provider }}</strong></td>
+                <td class="fi-right fi-num">{{ p.paid|number_format }}</td>
+                <td class="fi-right fi-num">{{ p.failed|number_format }}</td>
+                <td class="fi-right fi-num">₦{{ p.naira|number_format }}</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        {% endif %}
+      </section>
+
+      {# ── TRANSACTIONS ───────────────────────────────────────────────────── #}
+      <section class="fi-panel" id="fi-p-tx" aria-labelledby="fi-t-tx">
+        <div class="ad-card"><div class="ad-table-wrap">
+          <div style="display:flex;justify-content:space-between;align-items:center;padding:4px 4px 12px">
+            <strong style="font-size:14px">Most recent payments</strong>
+            <span class="fi-note" style="margin:0">Newest first, every source. Export for the full ledger.</span>
+          </div>
+          <table class="ad-table">
+            <thead><tr><th scope="col">When</th><th scope="col">Source</th><th scope="col">Who</th><th scope="col">Email</th><th scope="col" class="fi-right">Amount</th><th scope="col">Status</th><th scope="col">Reference</th></tr></thead>
+            <tbody>
+              {% for t in recent %}
+              <tr>
+                <td class="fi-num">{{ t.when|date('Y-m-d H:i') }}</td>
+                <td><span class="ad-chip">{{ t.source }}</span></td>
+                <td><strong>{{ t.who }}</strong></td>
+                <td>{{ t.email }}</td>
+                <td class="fi-right fi-num">₦{{ t.naira|number_format }}</td>
+                <td>
+                  {% if t.status == 'confirmed' %}<span class="ad-chip ad-chip--green">confirmed</span>
+                  {% elseif t.status == 'pending' %}<span class="ad-chip ad-chip--gold">pending</span>
+                  {% elseif t.status == 'refunded' %}<span class="ad-chip">refunded</span>
+                  {% else %}<span class="ad-chip ad-chip--red">{{ t.status }}</span>{% endif %}
+                </td>
+                <td class="fi-num" style="color:var(--ad-text-mute,#5a6d6f)">{{ t.ref|default('—') }}</td>
+              </tr>
+              {% else %}<tr><td colspan="7" class="fi-empty">No payments recorded yet.</td></tr>{% endfor %}
+            </tbody>
+          </table>
+        </div></div>
+      </section>
+
+      {# ── NEEDS ATTENTION ────────────────────────────────────────────────── #}
+      <section class="fi-panel" id="fi-p-recon" aria-labelledby="fi-t-recon">
+        <div class="ad-card">
+          <strong style="font-size:14px">Paid but never credited</strong>
+          <p class="fi-note" style="margin-top:4px">
+            Confirmed paid-vote orders whose votes were never minted — usually because voting
+            closed between checkout and confirmation. This is money taken for votes that were
+            not delivered, so each row is a refund the organisation owes.
+          </p>
+          {% if owed.count %}
+          <div class="fi-kpi fi-kpi--bad" style="margin-bottom:12px">
+            <div class="fi-kpi__l">Owed</div>
+            <div class="fi-kpi__v">₦{{ owed.naira|number_format }}</div>
+            <div class="fi-kpi__s">across {{ owed.count|number_format }} order{{ owed.count == 1 ? '' : 's' }}</div>
+          </div>
+          <table class="ad-table">
+            <thead><tr><th scope="col">When</th><th scope="col">Who</th><th scope="col">Email</th><th scope="col" class="fi-right">Amount</th><th scope="col" class="fi-right">Votes owed</th><th scope="col">Reference</th></tr></thead>
+            <tbody>
+              {% for r in owed.rows %}
+              <tr>
+                <td class="fi-num">{{ r.created_at|date('Y-m-d H:i') }}</td>
+                <td><strong>{{ r.donor_name|default('Supporter') }}</strong></td>
+                <td>{{ r.donor_email }}</td>
+                <td class="fi-right fi-num">₦{{ r.amount_naira|number_format }}</td>
+                <td class="fi-right fi-num">{{ r.bonus_votes|number_format }}</td>
+                <td class="fi-num" style="color:var(--ad-text-mute,#5a6d6f)">{{ r.payment_ref|default('—') }}</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+          {% else %}<div class="fi-empty">Nothing owed — every confirmed paid-vote order minted its votes.</div>{% endif %}
+        </div>
+
+        <div class="ad-card" style="margin-top:14px">
+          <strong style="font-size:14px">Pending for over an hour</strong>
+          <p class="fi-note" style="margin-top:4px">
+            A checkout still pending a minute later is someone mid-flow. Still pending an hour
+            later is either an abandoned cart or a bank transfer that settled after the callback —
+            and the second kind is real money sitting uncredited. The row cannot tell you which,
+            so re-ask the gateway: <a href="/admin/settings#maintenance" style="color:var(--ad-accent,#237b22)">Settings → Credit paid votes now</a>.
+          </p>
+          {% if uncredited %}
+          <table class="ad-table">
+            <thead><tr><th scope="col">Age</th><th scope="col">Source</th><th scope="col">Who</th><th scope="col">Email</th><th scope="col" class="fi-right">Amount</th><th scope="col">Reference</th></tr></thead>
+            <tbody>
+              {% for u in uncredited %}
+              <tr>
+                <td class="fi-num">{{ u.age_h }}h</td>
+                <td><span class="ad-chip">{{ u.source }}</span></td>
+                <td><strong>{{ u.who }}</strong></td>
+                <td>{{ u.email }}</td>
+                <td class="fi-right fi-num">₦{{ u.naira|number_format }}</td>
+                <td class="fi-num" style="color:var(--ad-text-mute,#5a6d6f)">{{ u.ref|default('—') }}</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+          {% else %}<div class="fi-empty">No stale pending payments.</div>{% endif %}
+        </div>
+      </section>
+
+      {# ── PAID VOTES ─────────────────────────────────────────────────────── #}
+      <section class="fi-panel" id="fi-p-votes" aria-labelledby="fi-t-votes">
+        <div class="ad-card"><div class="ad-table-wrap">
+          <strong style="font-size:14px">Paid votes by nominee</strong>
+          <p class="fi-note" style="margin-top:4px">
+            Confirmed, not refunded, all time. Public votes are one part of the score — an
+            independent jury decides the award, so this is a fundraising figure and not a
+            standing.
+          </p>
+          <table class="ad-table">
+            <thead><tr><th scope="col">Nominee</th><th scope="col">Category</th><th scope="col" class="fi-right">Orders</th><th scope="col" class="fi-right">Votes</th><th scope="col" class="fi-right">Raised</th></tr></thead>
+            <tbody>
+              {% for n in nominees %}
+              <tr>
+                <td><strong>{{ n.nominee }}</strong></td>
+                <td>{{ n.category }}</td>
+                <td class="fi-right fi-num">{{ n.orders|number_format }}</td>
+                <td class="fi-right fi-num">{{ n.votes|number_format }}</td>
+                <td class="fi-right fi-num">₦{{ n.naira|number_format }}</td>
+              </tr>
+              {% else %}<tr><td colspan="5" class="fi-empty">No paid votes yet.</td></tr>{% endfor %}
+            </tbody>
+          </table>
+        </div></div>
+      </section>
+
+      {# ── RECONCILE ──────────────────────────────────────────────────────── #}
+      <section class="fi-panel" id="fi-p-recon2" aria-labelledby="fi-t-recon2">
+        <div class="ad-card">
+          <strong style="font-size:14px">Re-verify pending payments against the gateway</strong>
+          <p class="fi-note" style="margin-top:4px">
+            A payment is recorded when the buyer's browser returns to the callback URL, and
+            that last hop is the least reliable part of the flow — a lost signal, a closed
+            tab, a bank transfer that settles after the buyer gave up. The money moved; the
+            row still says pending. From the row alone that is indistinguishable from an
+            abandoned cart, so this asks the gateway, which is the only party that knows.
+          </p>
+
+          <form method="POST" action="/admin/finance/reconcile" style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;margin-top:12px">
+            <input type="hidden" name="_token" value="{{ csrf_token }}">
+            <input type="hidden" name="mode" value="check">
+            <div>
+              <label for="rcMin" style="display:block;font-size:12px;font-weight:600;color:var(--ad-text-mute,#5a6d6f);margin-bottom:4px">Older than</label>
+              <select id="rcMin" name="minutes" style="padding:9px 12px;border:1px solid var(--ad-line,#dfe4e3);border-radius:9px">
+                <option value="15">15 minutes</option>
+                <option value="60" selected>1 hour</option>
+                <option value="1440">24 hours</option>
+                <option value="10080">7 days</option>
+              </select>
+            </div>
+            <button class="ad-btn ad-btn--primary" type="submit">Check now</button>
+            <span class="fi-note" style="margin:0 0 9px">Read-only. Asks the gateway and changes nothing.</span>
+          </form>
+        </div>
+
+        {% if recon %}
+        <div class="ad-card" style="margin-top:14px">
+          <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
+            <strong style="font-size:14px">
+              {{ recon.applied ? 'Applied' : 'Check' }} — {{ recon.checked|number_format }} pending payment{{ recon.checked == 1 ? '' : 's' }} examined
+            </strong>
+            <span class="fi-note" style="margin:0">
+              {{ recon.confirmed }} {{ recon.applied ? 'confirmed' : 'would be confirmed' }} (₦{{ recon.naira|number_format }})
+              · {{ recon.mismatch }} mismatched · {{ recon.unverifiable }} unverifiable · {{ recon.failed }} failed
+              {% if recon.expired|default(0) %}· {{ recon.expired }} expired{% endif %}
+            </span>
+          </div>
+
+          {% if recon.items %}
+          <div class="ad-table-wrap" style="margin-top:10px">
+            <table class="ad-table">
+              <thead><tr><th scope="col">Outcome</th><th scope="col">Kind</th><th scope="col">Who</th><th scope="col">Reference</th><th scope="col" class="fi-right">Ours</th><th scope="col" class="fi-right">Gateway</th><th scope="col">Detail</th></tr></thead>
+              <tbody>
+                {% for i in recon.items %}
+                <tr>
+                  <td><span class="fi-act fi-act--{{ i.action }}">{{ i.action }}</span></td>
+                  <td>{{ i.kind }}</td>
+                  <td><strong>{{ i.who }}</strong></td>
+                  <td class="fi-num" style="color:var(--ad-text-mute,#5a6d6f)">{{ i.ref }}</td>
+                  <td class="fi-right fi-num">₦{{ i.amount_ours|number_format }}</td>
+                  <td class="fi-right fi-num">{{ i.amount_gateway > 0 ? '₦' ~ i.amount_gateway|number_format : '—' }}</td>
+                  <td style="font-size:12.5px">{{ i.note }}</td>
+                </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+          {% else %}<div class="fi-empty">Nothing pending in that window — everything is already reconciled.</div>{% endif %}
+
+          {# The apply step is offered only when a check has actually found something to
+             apply, and never before the operator has seen the table above. #}
+          {% if not recon.applied and (recon.confirmed > 0 or recon.failed > 0) %}
+          <div class="fi-danger" style="margin-top:14px">
+            <strong style="font-size:13.5px">Apply these changes</strong>
+            <p class="fi-note" style="margin:6px 0 10px">
+              Confirms the {{ recon.confirmed }} genuinely-paid payment{{ recon.confirmed == 1 ? '' : 's' }} (₦{{ recon.naira|number_format }}),
+              mints any votes owed and sends the receipts{% if recon.failed %}, and marks {{ recon.failed }} definitively-failed order{{ recon.failed == 1 ? '' : 's' }} as failed{% endif %}.
+              Rows shown as <strong>mismatched</strong> or <strong>unverifiable</strong> are never touched — those need a person.
+              This cannot be undone from here.
+            </p>
+            <form method="POST" action="/admin/finance/reconcile" style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
+              <input type="hidden" name="_token" value="{{ csrf_token }}">
+              <input type="hidden" name="mode" value="apply">
+              <input type="hidden" name="minutes" value="{{ recon.minutes|default(60) }}">
+              <label for="rcConfirm" style="font-size:12.5px;font-weight:600">Type <code>APPLY</code> to confirm</label>
+              <input id="rcConfirm" name="confirm" autocomplete="off" placeholder="APPLY"
+                     style="padding:9px 12px;border:1px solid var(--ad-line,#dfe4e3);border-radius:9px;width:120px;font-family:'Space Mono',monospace">
+              <button class="ad-btn ad-btn--primary" type="submit">Apply reconciliation</button>
+            </form>
+          </div>
+          {% endif %}
+        </div>
+        {% endif %}
+
+        <div class="ad-card" style="margin-top:14px">
+          <strong style="font-size:14px">Reconciliation history</strong>
+          <p class="fi-note" style="margin-top:4px">
+            Every run, by cron or by hand. A finance correction with no record of who made
+            it and what the gateway said is indistinguishable from tampering.
+          </p>
+          {% if recon_log %}
+          <table class="ad-table">
+            <thead><tr><th scope="col">When</th><th scope="col">By</th><th scope="col">Mode</th><th scope="col" class="fi-right">Checked</th><th scope="col" class="fi-right">Confirmed</th><th scope="col" class="fi-right">Amount</th><th scope="col" class="fi-right">Needs attention</th></tr></thead>
+            <tbody>
+              {% for r in recon_log %}
+              <tr>
+                <td class="fi-num">{{ r.ran_at|date('Y-m-d H:i') }}</td>
+                <td class="fi-num">{{ r.actor }}</td>
+                <td>{% if r.mode == 'apply' %}<span class="ad-chip ad-chip--gold">apply</span>{% else %}<span class="ad-chip">check</span>{% endif %}</td>
+                <td class="fi-right fi-num">{{ r.checked|number_format }}</td>
+                <td class="fi-right fi-num">{{ r.confirmed|number_format }}</td>
+                <td class="fi-right fi-num">₦{{ r.naira|number_format }}</td>
+                <td class="fi-right fi-num">{{ (r.mismatch + r.unverifiable)|number_format }}</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+          {% else %}<div class="fi-empty">No reconciliation has been run yet.</div>{% endif %}
+        </div>
+      </section>
+
+      {# ══ GROWTH ══════════════════════════════════════════════════════════ #}
+      <section class="fi-panel" id="fi-p-growth" aria-labelledby="fi-t-growth">
+        <div class="ad-card">
+          <strong style="font-size:14px">This period against the last one</strong>
+          <p class="fx-note" style="margin-top:5px">
+            The comparison window is always exactly the same length as this one, ending the day
+            before it opens ({{ compare.window.prev_from }} → {{ compare.window.prev_to }}). Chosen
+            by hand it would sometimes be a different length, and a percentage across two unequal
+            windows reads as a collapse or a boom that never happened.
+          </p>
+
+          {% set deltas = {
+            'Revenue':      {'now': compare.current.gross,   'was': compare.previous.gross,   'd': compare.delta.gross,   'money': true},
+            'Payments':     {'now': compare.current.count,   'was': compare.previous.count,   'd': compare.delta.count,   'money': false},
+            'Supporters':   {'now': compare.current.people,  'was': compare.previous.people,  'd': compare.delta.people,  'money': false},
+            'Average gift': {'now': compare.current.average, 'was': compare.previous.average, 'd': compare.delta.average, 'money': true}
+          } %}
+
+          <div class="fx-grid">
+            {% for label, v in deltas %}
+              <div class="fi-kpi">
+                <div class="fi-kpi__l">{{ label }}</div>
+                <div class="fi-kpi__v">{% if v.money %}₦{% endif %}{{ v.now|number_format }}</div>
+                <div class="fi-kpi__s">
+                  {% if v.d is null %}
+                    <span class="fx-flat">no prior activity</span> to compare against
+                  {% else %}
+                    <span class="{{ v.d >= 0 ? 'fx-up' : 'fx-down' }}">{{ v.d >= 0 ? '+' : '' }}{{ v.d }}%</span>
+                    on {% if v.money %}₦{% endif %}{{ v.was|number_format }}
+                  {% endif %}
+                </div>
+              </div>
+            {% endfor %}
+          </div>
+        </div>
+
+        <div class="ad-card" style="margin-top:12px">
+          <strong style="font-size:14px">Running total</strong>
+          <p class="fx-note" style="margin-top:5px">
+            A daily bar chart shows volatility and hides trajectory; this shows trajectory and
+            hides volatility. Both are here because a campaign is judged on one and run on the other.
+          </p>
+          {% set cmax = 1 %}
+          {% for p in cumulative %}{% if p.total > cmax %}{% set cmax = p.total %}{% endif %}{% endfor %}
+          {% set n = cumulative|length %}
+          {% if n > 1 %}
+            {% set pts = [] %}
+            {% for i, p in cumulative %}
+              {% set pts = pts|merge([(i / (n - 1) * 100)|round(2) ~ ',' ~ (60 - (p.total / cmax) * 57)|round(2)]) %}
+            {% endfor %}
+            <svg viewBox="0 0 100 60" preserveAspectRatio="none" role="img" style="width:100%;height:120px;display:block;margin-top:8px"
+                 aria-label="Cumulative revenue, ending at ₦{{ cumulative|last.total|number_format }}">
+              <polygon points="0,60 {{ pts|join(' ') }} 100,60" fill="#237B22" opacity="0.12"/>
+              <polyline points="{{ pts|join(' ') }}" fill="none" stroke="#237B22" stroke-width="1.8"
+                        vector-effect="non-scaling-stroke" stroke-linejoin="round"/>
+            </svg>
+            <div style="display:flex;justify-content:space-between;font-size:11px;color:#7a8a8c;
+                        font-family:var(--ag-font-mono,monospace);margin-top:4px">
+              <span>{{ cumulative|first.date }}</span>
+              <span>₦{{ cumulative|last.total|number_format }}</span>
+              <span>{{ cumulative|last.date }}</span>
+            </div>
+          {% else %}<p class="fx-empty">Not enough days to draw a line.</p>{% endif %}
+        </div>
+
+        <div class="ad-card" style="margin-top:12px">
+          <strong style="font-size:14px">When the money arrives</strong>
+          <p class="fx-note" style="margin-top:5px">
+            Day of week against hour of day, platform clock, no timezone conversion. This is the
+            most directly actionable table on the page: it says when to send the campaign mail and
+            when to schedule a close. Guessing is how a deadline lands at 09:00 on a Monday and
+            takes a third of what a Sunday evening would have taken.
+          </p>
+          {% if rhythm.peak > 0 %}
+            <div class="fx-scroll">
+              <table class="fx-heat">
+                <thead>
+                  <tr><th></th>{% for h in 0..23 %}<th>{{ h % 3 == 0 ? h : '' }}</th>{% endfor %}</tr>
+                </thead>
+                <tbody>
+                {% set dayNames = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'] %}
+                {% for d in 0..6 %}
+                  <tr>
+                    <th class="lbl">{{ dayNames[d] }}</th>
+                    {% for h in 0..23 %}
+                      {% set v = rhythm.grid[d][h] %}
+                      <td style="{% if v > 0 %}background:rgba(35,123,34,{{ (v / rhythm.peak * 0.85 + 0.12)|round(3) }}){% endif %}"
+                          title="{{ dayNames[d] }} {{ h }}:00 — ₦{{ v|number_format }}"></td>
+                    {% endfor %}
+                  </tr>
+                {% endfor %}
+                </tbody>
+              </table>
+            </div>
+            <p class="fx-note" style="margin:10px 0 0">
+              Darkest cell is ₦{{ rhythm.peak|number_format }}. Total across the grid:
+              ₦{{ rhythm.total|number_format }}.
+            </p>
+          {% else %}<p class="fx-empty">No confirmed payments in this window to place on a clock.</p>{% endif %}
+        </div>
+      </section>
+
+      {# ══ SUPPORTERS ══════════════════════════════════════════════════════ #}
+      <section class="fi-panel" id="fi-p-people" aria-labelledby="fi-t-people">
+        <div class="ad-card">
+          <strong style="font-size:14px">People, not transactions</strong>
+          <p class="fx-note" style="margin-top:5px">
+            A supporter is one email address, lowercased. Not a user id — most people who pay here
+            never make an account, and counting only the ones who did would report a fraction of
+            the audience and call it the audience. Somebody paying from two addresses therefore
+            counts twice; there is no way to fix that without inventing identity, which is worse.
+          </p>
+
+          <div class="fx-grid">
+            <div class="fi-kpi">
+              <div class="fi-kpi__l">Supporters</div>
+              <div class="fi-kpi__v">{{ people.people|number_format }}</div>
+              <div class="fi-kpi__s">{{ people.new|number_format }} new · {{ people.returning|number_format }} returning</div>
+            </div>
+            <div class="fi-kpi">
+              <div class="fi-kpi__l">Median gift</div>
+              <div class="fi-kpi__v">₦{{ people.median|number_format }}</div>
+              <div class="fi-kpi__s">The actual middle person</div>
+            </div>
+            <div class="fi-kpi">
+              <div class="fi-kpi__l">Mean gift</div>
+              <div class="fi-kpi__v">₦{{ people.average|number_format }}</div>
+              <div class="fi-kpi__s">
+                {% if people.median > 0 and people.average > people.median * 2 %}
+                  <span class="fx-down">Skewed</span> — one or two large gifts are pulling this up
+                {% else %}Close to the median, so the set is even{% endif %}
+              </div>
+            </div>
+            <div class="fi-kpi {{ people.top_decile_pct >= 70 ? 'fi-kpi--warn' : '' }}">
+              <div class="fi-kpi__l">Top 10% share</div>
+              <div class="fi-kpi__v">{{ people.top_decile_pct }}%</div>
+              <div class="fi-kpi__s">Largest single gift ₦{{ people.largest|number_format }}</div>
+            </div>
+          </div>
+
+          {% if people.top_decile_pct >= 70 and people.people > 3 %}
+            <div class="fx-bad">
+              {{ people.top_decile_pct }}% of the money in this window came from the top
+              {{ (people.people / 10)|round(0, 'ceil') }} supporter(s). That is a concentration
+              risk, not a milestone — a campaign that loses those people loses most of its income.
+            </div>
+          {% endif %}
+        </div>
+
+        <div class="fx-two" style="margin-top:12px">
+          <div class="ad-card">
+            <strong style="font-size:14px">Largest supporters</strong>
+            {% if people.top|length %}
+              <table class="fx-tbl" style="margin-top:8px">
+                <thead><tr><th>Supporter</th><th class="n">Given</th><th class="n">Payments</th></tr></thead>
+                <tbody>
+                {% for p in people.top %}
+                  <tr>
+                    <td>{{ p.name ?: p.email }}<br><span style="color:#7a8a8c;font-size:11.5px">{{ p.email }}</span></td>
+                    <td class="n">₦{{ p.naira|number_format }}</td>
+                    <td class="n">{{ p.payments }}</td>
+                  </tr>
+                {% endfor %}
+                </tbody>
+              </table>
+            {% else %}<p class="fx-empty">Nobody paid in this window.</p>{% endif %}
+          </div>
+
+          <div class="ad-card">
+            <strong style="font-size:14px">Which programme carried the money</strong>
+            <p class="fx-note" style="margin:5px 0 0">
+              Paid-vote revenue attributed up the tree. The nominee ranking answers “who is winning
+              the fundraising”; this answers “which programme is worth running again”, which is the
+              question that decides next year's calendar.
+            </p>
+            {% if programmes.programmes|length %}
+              <table class="fx-tbl" style="margin-top:8px">
+                <thead><tr><th>Programme</th><th class="n">Revenue</th><th class="n">Votes</th></tr></thead>
+                <tbody>
+                {% for p in programmes.programmes %}
+                  <tr><td>{{ p.label }}</td><td class="n">₦{{ p.naira|number_format }}</td><td class="n">{{ p.votes|number_format }}</td></tr>
+                {% endfor %}
+                </tbody>
+              </table>
+              {% if programmes.categories|length %}
+                <table class="fx-tbl" style="margin-top:14px">
+                  <thead><tr><th>Category</th><th class="n">Revenue</th><th class="n">Votes</th></tr></thead>
+                  <tbody>
+                  {% for c in programmes.categories %}
+                    <tr>
+                      <td>{{ c.title }}<br><span style="color:#7a8a8c;font-size:11.5px">{{ c.programme }}{% if c.year %} · {{ c.year }}{% endif %}</span></td>
+                      <td class="n">₦{{ c.naira|number_format }}</td>
+                      <td class="n">{{ c.votes|number_format }}</td>
+                    </tr>
+                  {% endfor %}
+                  </tbody>
+                </table>
+              {% endif %}
+            {% endif %}
+
+            {# Unattributed is reported OUTSIDE the programmes branch on purpose.
+               It sat inside, and the consequence was that a window where EVERY
+               paid vote failed to resolve to a nominee rendered "No paid votes in
+               this window" — which is false, and the most misleading thing this
+               panel could say. #}
+            {% if programmes.unattributed > 0 %}
+              <p class="fx-note" style="margin:10px 0 0">
+                <strong>₦{{ programmes.unattributed|number_format }} could not be attributed</strong> —
+                those orders point at no nominee, or at one that was merged away or deleted. Reported
+                rather than dropped, so the parts still add up to the paid-vote total.
+              </p>
+            {% elseif programmes.programmes is empty %}
+              <p class="fx-empty">No paid votes in this window.</p>
+            {% endif %}
+          </div>
+        </div>
+      </section>
+
+      {# ══ LEAKAGE ═════════════════════════════════════════════════════════ #}
+      <section class="fi-panel" id="fi-p-leak" aria-labelledby="fi-t-leak">
+        <div class="ad-card">
+          <strong style="font-size:14px">The money that did not arrive</strong>
+          <p class="fx-note" style="margin-top:5px">
+            Every other figure here measures revenue that exists. This measures revenue that was one
+            step from existing — somebody opened checkout and did not finish. A conversion rate
+            halving overnight is a broken payment page, and nothing else on this dashboard would
+            move; gross would just be lower, which reads as a quiet week.
+          </p>
+
+          <div class="fx-grid">
+            <div class="fi-kpi">
+              <div class="fi-kpi__l">Checkouts started</div>
+              <div class="fi-kpi__v">{{ leak.started|number_format }}</div>
+              <div class="fi-kpi__s">{{ leak.still_open|number_format }} still in flight right now</div>
+            </div>
+            <div class="fi-kpi {{ leak.conversion is not null and leak.conversion < 50 ? 'fi-kpi--warn' : 'fi-kpi--good' }}">
+              <div class="fi-kpi__l">Conversion</div>
+              <div class="fi-kpi__v">{{ leak.conversion is null ? '—' : leak.conversion ~ '%' }}</div>
+              <div class="fi-kpi__s">Of the ones that reached a decision</div>
+            </div>
+            <div class="fi-kpi {{ leak.lost_naira ? 'fi-kpi--bad' : '' }}">
+              <div class="fi-kpi__l">Value lost</div>
+              <div class="fi-kpi__v">₦{{ leak.lost_naira|number_format }}</div>
+              <div class="fi-kpi__s">Failed, expired or abandoned</div>
+            </div>
+            <div class="fi-kpi {{ leak.recoverable_naira ? 'fi-kpi--warn' : '' }}">
+              <div class="fi-kpi__l">Still chaseable</div>
+              <div class="fi-kpi__v">₦{{ leak.recoverable_naira|number_format }}</div>
+              <div class="fi-kpi__s">Abandoned — nothing refused it, they just stopped</div>
+            </div>
+          </div>
+
+          {% if leak.started > 0 %}
+            {% set buckets = [
+              {'k':'Paid and kept',   'n': leak.confirmed,  'c':'#237B22', 'note':'Confirmed and not reversed.'},
+              {'k':'Refunded',        'n': leak.refunded,   'c':'#5A6D6F', 'note':'It did pay, then it went back. Its own event, neither revenue nor loss.'},
+              {'k':'Declined',        'n': leak.failed,     'c':'#B0453F', 'note':'The gateway said no.'},
+              {'k':'Window closed',   'n': leak.expired,    'c':'#C9A24B', 'note':'The voting gate shut or the hold ran out. The platform ended it, not the buyer.'},
+              {'k':'Abandoned',       'n': leak.abandoned,  'c':'#8A2020', 'note':'Nothing refused it and nothing closed it. They stopped. This is the one to attack.'},
+              {'k':'Still open',      'n': leak.still_open, 'c':'#A9B6B8', 'note':'Inside its window. Not a loss, and must not be counted as one.'}
+            ] %}
+            <div style="margin-top:6px">
+              {% for b in buckets %}
+                <div class="fx-fun__row">
+                  <div class="fx-fun__top">
+                    <span>{{ b.k }}</span>
+                    <span class="fx-fun__n">{{ b.n|number_format }} · {{ (b.n / leak.started * 100)|round }}%</span>
+                  </div>
+                  <div class="fx-fun__bar">
+                    <div class="fx-fun__fill" style="width:{{ (b.n / leak.started * 100)|round(2) }}%;background:{{ b.c }}"></div>
+                  </div>
+                  <div class="fx-note" style="margin:4px 0 0">{{ b.note }}</div>
+                </div>
+              {% endfor %}
+            </div>
+            <p class="fx-note" style="margin-top:10px">
+              These six sum to {{ leak.started|number_format }} exactly — each checkout is tested in
+              priority order and lands in one bucket only. A funnel whose stages overlap can report
+              more than 100% conversion.
+            </p>
+
+            {% if leak.abandoned > 0 %}
+              <div class="fx-bad">
+                {{ leak.abandoned|number_format }} checkout(s) worth ₦{{ leak.recoverable_naira|number_format }}
+                were abandoned. Nothing refused them — a nudge can still reach these people.
+              </div>
+            {% else %}
+              <div class="fx-ok">Nothing was abandoned in this window.</div>
+            {% endif %}
+          {% else %}
+            <p class="fx-empty">No checkout was started in this window.</p>
+          {% endif %}
+        </div>
+      </section>
+
+      {# ── REFERRALS ──────────────────────────────────────────────────────────
+         Commission owed to members. Deliberately NOT filtered by the date range
+         above: a debt does not stop existing because somebody narrowed the view to
+         last week, and a liability that shrinks when you change a filter is exactly
+         the number that ends up in front of a board.
+
+         There is no "mark as paid" button here, and that is not an omission. The
+         payout route is still an open decision (HANDOFF.md §4 — how money actually
+         leaves), and a button that stamps paid_out_at with no transfer behind it
+         makes the ledger claim somebody was paid when they were not, and destroys
+         the evidence that they were not. #}
+      <section class="fi-panel" id="fi-p-ref" aria-labelledby="fi-t-ref">
+        <p class="fx-note">
+          Event referral commission, at {{ referral.rate_pct }}% of what a referred buyer paid,
+          unlocked once a member reaches {{ referral.threshold }} paid referrals. All time —
+          not the period selected above.
+        </p>
+
+        <div class="fi-kpis">
+          <div class="fi-kpi {{ referral.payable_naira ? 'fi-kpi--warn' : '' }}">
+            <div class="fi-kpi__l">Payable now</div>
+            <div class="fi-kpi__v">₦{{ referral.payable_naira|number_format }}</div>
+            <div class="fi-kpi__s">{{ referral.owed_members|number_format }} member{{ referral.owed_members == 1 ? '' : 's' }} past the threshold</div>
+          </div>
+          <div class="fi-kpi">
+            <div class="fi-kpi__l">Not yet unlocked</div>
+            <div class="fi-kpi__v">₦{{ referral.locked_naira|number_format }}</div>
+            <div class="fi-kpi__s">accrued below the threshold — owed eventually, not today</div>
+          </div>
+          <div class="fi-kpi">
+            <div class="fi-kpi__l">Already paid out</div>
+            <div class="fi-kpi__v">₦{{ referral.paid_out_naira|number_format }}</div>
+            <div class="fi-kpi__s">stamped on the credit row</div>
+          </div>
+          <div class="fi-kpi fi-kpi--good">
+            <div class="fi-kpi__l">Referred ticket sales</div>
+            <div class="fi-kpi__v">₦{{ referral.gross_naira|number_format }}</div>
+            <div class="fi-kpi__s">{{ referral.referrals|number_format }} paid referral{{ referral.referrals == 1 ? '' : 's' }} by {{ referral.earners|number_format }} member{{ referral.earners == 1 ? '' : 's' }}</div>
+          </div>
+        </div>
+
+        {% if referral.rows %}
+          <table class="fx-tbl">
+            <thead>
+              <tr>
+                <th scope="col">Member</th>
+                <th scope="col">Referrals</th>
+                <th scope="col">Owed</th>
+                <th scope="col">Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for r in referral.rows %}
+                <tr>
+                  <td>
+                    {{ r.name }}
+                    {% if r.email %}<br><span style="color:#5a6d6f;font-size:11.5px">{{ r.email }}</span>{% endif %}
+                  </td>
+                  <td>{{ r.referrals|number_format }}</td>
+                  <td>₦{{ r.owed|number_format }}{% if r.paid_out %}<br><span style="color:#5a6d6f;font-size:11.5px">₦{{ r.paid_out|number_format }} paid before</span>{% endif %}</td>
+                  <td>
+                    {% if r.unlocked %}
+                      <span class="fx-up">Payable</span>
+                    {% else %}
+                      <span class="fx-flat">{{ r.remaining }} more referral{{ r.remaining == 1 ? '' : 's' }}</span>
+                    {% endif %}
+                  </td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+          <p class="fx-note" style="margin-top:12px">
+            Largest first. Settling one is a manual transfer today; there is no withdrawal
+            flow yet, and nothing on this page writes to the ledger.
+          </p>
+        {% else %}
+          <p class="fx-empty">Nothing is owed. Commission appears here once a referred ticket is confirmed.</p>
+        {% endif %}
+      </section>
+
+    </div>
+  </div>
+</div>
+{% endblock %}

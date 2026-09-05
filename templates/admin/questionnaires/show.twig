@@ -1,0 +1,409 @@
+{% extends 'admin/layout.twig' %}
+
+{#
+  ONE SUBMISSION, read as a judge will read it.
+
+  There is deliberately NO editing of a nominee's answers here. Staff correcting what somebody
+  wrote about their own work — in rows labelled `nominee_supplied` and presented to a panel as
+  the nominee's own words — would make the provenance a lie. If something needs changing, the
+  submission is re-opened and the nominee changes it; their original link keeps working.
+#}
+
+{% block head_styles %}
+<style nonce="{{ csp_nonce }}">
+  .qs-sub{ font-size:13px; color:#5a6d6f; margin:2px 0 18px }
+  .qs-sec{ background:#fff; border:1px solid rgba(16,41,44,.1); border-radius:14px;
+    padding:18px 20px; margin-bottom:14px }
+  .qs-sec h2{ margin:0 0 3px; font-size:14.5px; color:#10292C }
+  .qs-sec p{ margin:8px 0 0; font-size:12.5px; line-height:1.7; color:#5a6d6f }
+  .qs-a{ border-top:1px solid rgba(16,41,44,.08); padding:14px 0 }
+  .qs-a:first-of-type{ border-top:none }
+  .qs-q{ font-size:13px; font-weight:650; color:#10292C; line-height:1.5 }
+  .qs-crit{ display:inline-block; margin-left:6px; font-size:10px; font-weight:700;
+    letter-spacing:.06em; text-transform:uppercase; color:#1c5f1b; background:#eaf7ea;
+    border-radius:999px; padding:2px 8px }
+  .qs-v{ margin-top:7px; font-size:13.5px; line-height:1.75; color:#3d5254; white-space:pre-wrap }
+  .qs-v--none{ color:#98a5a7; font-style:italic }
+  .qs-work{ border:1px solid rgba(16,41,44,.13); border-radius:12px; padding:13px 15px;
+    margin-top:10px; background:#fbfdfb }
+  .qs-work h3{ margin:0; font-size:13.5px; color:#10292C }
+  .qs-work div{ font-size:12.5px; line-height:1.7; color:#5a6d6f; margin-top:5px }
+  .qs-work a{ color:#237b22; font-weight:600; word-break:break-all }
+  .qs-tag{ font-size:10.5px; font-weight:700; letter-spacing:.05em; text-transform:uppercase;
+    padding:3px 8px; border-radius:999px; background:rgba(16,41,44,.07); color:#3d4b4d }
+  .qs-tag--ok{ background:#eaf7ea; color:#1c5f1b }
+  .qs-tag--no{ background:#fdeaea; color:#8a2020 }
+  .qs-row{ display:flex; gap:9px; flex-wrap:wrap; align-items:center; margin-top:14px }
+  .qs-btn{ cursor:pointer; font:650 13px/1 inherit; border:none; padding:10px 17px;
+    border-radius:999px; background:#10292C; color:#fff; text-decoration:none; display:inline-block }
+  .qs-btn--ghost{ background:none; border:1px solid rgba(16,41,44,.2); color:#10292C }
+  .qs-link{ font-family:var(--ag-font-mono,monospace); font-size:12px; word-break:break-all;
+    background:#f6f9f6; border:1px solid rgba(16,41,44,.09); border-radius:8px; padding:9px 11px;
+    margin-top:10px; color:#3d5254 }
+  .qs-warn{ background:#fff8df; border:1px solid #ecd9a0; border-radius:10px; padding:12px 14px;
+    font-size:12.5px; line-height:1.7; color:#6b5312; margin-top:12px }
+  .qs-in{ width:100%; box-sizing:border-box; font-family:inherit; font-size:13.5px; padding:9px 11px;
+    border:1px solid rgba(16,41,44,.18); border-radius:9px; background:#fff; color:#10292C }
+</style>
+{% endblock %}
+
+{% block topbar_title %}{{ form ? form.nominee : 'Questionnaire' }}{% endblock %}
+
+{% block content %}
+<p class="qs-sub">
+  Questionnaire #{{ row.id }}{% if form and form.programme %} · {{ form.programme }}{% endif %}
+  {%- if form and form.category %} · {{ form.category }}{% endif %} ·
+  <a href="/admin/questionnaires">back to the queue</a>
+</p>
+
+{# A submission back in draft AFTER being sent is a different state from one never sent, and
+   the difference matters: the earlier version is still in front of the judges. Showing
+   "draft" beside "sent" with no explanation is a screen contradicting itself. #}
+{% set reopened = row.status == 'draft' and row.submitted_at %}
+{% set is_test = row.is_test|default(0) == 1 %}
+
+{% if is_test %}
+  {# Said at the top, before anything else on the screen, because every figure and every button
+     below means something different on a rehearsal — and somebody who scrolled straight to
+     "sent" would otherwise draw exactly the wrong conclusion. #}
+  <div class="qs-warn" style="margin:0 0 16px">
+    <strong>This is a test questionnaire.</strong> Answer it exactly as a nominee would — the
+    questions, the conversation, the uploads and the send button all behave the same. Nothing in
+    it reaches a judging panel, no evidence is written whatever you submit, it is counted in none
+    of the figures on the queue screen, and there is nobody to invite. Delete it when you have
+    finished with it.
+  </div>
+{% endif %}
+
+<div class="qs-row" style="margin:0 0 16px">
+  {% if is_test %}<span class="qs-tag" style="background:#10292c;color:#fff">test</span>{% endif %}
+  <span class="qs-tag">{{ reopened ? 're-opened for changes' : row.status }}</span>
+  {% if is_test %}{# "not invited" would read as an outstanding job. #}
+  {% elseif row.invited_at %}<span class="qs-tag qs-tag--ok">invited</span>
+  {% else %}<span class="qs-tag qs-tag--no">not invited</span>{% endif %}
+  {% if row.submitted_at %}
+    <span class="qs-tag qs-tag--ok">{{ reopened ? 'last sent' : 'sent' }} {{ row.submitted_at }}</span>
+  {% endif %}
+  {% if row.evidence_count %}<span class="qs-tag qs-tag--ok">{{ row.evidence_count }} in the dossier</span>{% endif %}
+</div>
+
+{# ── the link and the invitation ─────────────────────────────────────────── #}
+<div class="qs-sec">
+  {% if is_test %}
+    <h2>The link to try</h2>
+    <p>Open this in another tab — ideally on a phone, which is where most nominees will read it.
+       It is the same page a nominee gets, with the same conversation and the same questions for
+       this programme.</p>
+    <div class="qs-link">{{ link }}</div>
+    <div class="qs-row">
+      <a class="qs-btn" href="{{ link }}" target="_blank" rel="noopener noreferrer">Open the nominee's page</a>
+      <form method="post" action="/admin/questionnaires/{{ row.id }}/delete-test">
+        <input type="hidden" name="_token" value="{{ csrf_token }}">
+        {# See the queue screen for why this cannot reach a real nominee. #}
+        <button class="qs-btn qs-btn--ghost" type="submit"
+          data-confirm="Delete this test questionnaire? Its answers and uploads go with it and cannot be recovered.">Delete this test</button>
+      </form>
+    </div>
+  {% else %}
+    <h2>Their link</h2>
+    <p>The invitation goes to the contact on their approved nomination — never one typed here, the
+       rule the claim path and the interview invitation both follow. Send this yourself if no
+       contact is on file.</p>
+    <div class="qs-link">{{ link }}</div>
+    <p>{{ row.invited_at ? 'Invited ' ~ row.invited_at : 'Nobody has been told yet.' }}
+       {{ row.started_at ? '· they opened it ' ~ row.started_at : '' }}</p>
+    <form method="post" action="/admin/questionnaires/{{ row.id }}/invite" class="qs-row">
+      <input type="hidden" name="_token" value="{{ csrf_token }}">
+      <button class="qs-btn" type="submit">{{ row.invited_at ? 'Send it again' : 'Send the invitation' }}</button>
+    </form>
+  {% endif %}
+</div>
+
+{# ── what they wrote ─────────────────────────────────────────────────────── #}
+<div class="qs-sec">
+  <h2>What they wrote</h2>
+  {% if is_test %}
+    <div class="qs-warn">Whatever appears here is a rehearsal. It is stored so you can come back
+      to it, and it is written to no dossier at any point.</div>
+  {% elseif reopened %}
+    <div class="qs-warn">This is <strong>re-opened for changes</strong>, and the version the
+      nominee sent on {{ row.submitted_at }} is <strong>still in front of the judges</strong> —
+      {{ row.evidence_count }} item(s). That is deliberate: withdrawing their work while they
+      edit one answer would cost them everything if they never came back. When they send it
+      again, the new version <strong>replaces</strong> the old one rather than adding to it.</div>
+  {% elseif row.status == 'draft' %}
+    <div class="qs-warn">This is still a draft, so <strong>no judge can see any of it</strong>.
+      Nothing reaches a dossier until the nominee presses send on their own page.</div>
+  {% elseif row.status == 'withdrawn' %}
+    <div class="qs-warn">This questionnaire has been <strong>closed</strong>. The nominee's link
+      no longer accepts changes.</div>
+  {% elseif row.status == 'disqualified' %}
+    {# The reason is printed rather than implied. A disqualification that cannot answer "why
+       is this nominee gone?" is the failure QuestionnairePolicy exists to avoid. #}
+    <div class="qs-warn"><strong>Disqualified.</strong>
+      {{ row.disqualify_note|default('No reason was recorded.') }}
+      {% if row.autodisqualify_at %}Applied {{ row.autodisqualify_at }}.{% endif %}
+      {% if may_reinstate %}
+      <form method="post" action="/admin/questionnaires/{{ row.id }}/reinstate" style="margin-top:10px">
+        <input type="hidden" name="_token" value="{{ csrf_token }}">
+        <button class="ad-btn ad-btn--sm" type="submit"
+          data-confirm="Reinstate this nominee? Their questionnaire opens again and the disqualification is removed entirely.">Reinstate</button>
+      </form>
+      {% endif %}
+    </div>
+  {% endif %}
+
+  {# ── TWO SILENCES, NOT ONE ────────────────────────────────────────────────
+     A blank here used to read "not answered" whether the nominee declined the question
+     outright or simply never reached it, and a panel cannot tell a refusal from somebody
+     who ran out of evening. Nothing on this page is weighed harder than a refusal to
+     answer, so the one that was never made must not look like one.
+
+     `form.declined` is the durable set — the chat transcript is a rolling window and
+     loses an early decline, which is why the column exists. #}
+  {% for q in (form.questions ?? []) %}
+    {% set v = form.answers[q.slug]|default('') %}
+    <div class="qs-a">
+      <div class="qs-q">{{ q.label }}{% if q.criterion %}<span class="qs-crit">{{ q.criterion }}</span>{% endif %}</div>
+      <div class="qs-v {{ v ? '' : 'qs-v--none' }}">
+        {%- if v %}{{ v }}
+        {%- elseif q.slug in (form.declined ?? []) %}the nominee was asked and chose not to answer
+        {%- else %}not answered{% endif -%}
+      </div>
+    </div>
+  {% else %}
+    <p>No questions are configured for this programme.</p>
+  {% endfor %}
+</div>
+
+{# ── their works ─────────────────────────────────────────────────────────── #}
+{# ── THE INTERVIEW ──────────────────────────────────────────────────────────
+   Only for a submission answered as a conversation. Two panels, deliberately in this order:
+   what the machine concluded, then what was actually said. An operator checking a claim reads
+   the quote first and the transcript when the quote is not enough. #}
+{% if style == 'interview' %}
+<div class="qs-sec">
+  <h2>What the interview recorded</h2>
+  <p class="qs-sub">Every heading below was written by the model. Every quote is the nominee's
+     own words, checked against the transcript before it was stored — a quote that is not
+     found in what they typed is refused, which is what makes this readable as evidence at
+     all. {{ tokens|number_format }} tokens spent.</p>
+
+  {% for o in iv.ledger %}
+    <div class="qs-a">
+      <div class="qs-q">
+        {{ o.label }}
+        <span class="qs-tag">{{ o.status == 'met' ? 'met' : (o.status == 'partial' ? 'part-answered' : 'not covered') }}</span>
+        {% if not o.required %}<span class="qs-tag">optional</span>{% endif %}
+        {% if o.edited %}<span class="qs-tag">corrected by the nominee</span>{% endif %}
+      </div>
+      {% if o.quote %}
+        <div class="qs-v">“{{ o.quote }}”</div>
+        <div class="qs-v" style="font-size:12px; color:#5a6d6f">
+          {% if o.summary and not o.edited %}Machine-derived heading: {{ o.summary }} · {% endif %}
+          {% if o.turn is not null %}from turn {{ o.turn + 1 }}{% endif %}
+        </div>
+      {% else %}
+        <div class="qs-v qs-v--none">nothing recorded</div>
+      {% endif %}
+    </div>
+  {% else %}
+    <p class="qs-sub">Nothing recorded yet.</p>
+  {% endfor %}
+
+  {% if iv.notes|length %}
+    <h2 style="margin-top:20px">Notes for the programme team</h2>
+    <p class="qs-sub">Kept by the interviewer for staff, and never shown to the nominee as
+       their own words.</p>
+    {% for n in iv.notes %}
+      <div class="qs-a"><div class="qs-v">{{ n.text }}</div></div>
+    {% endfor %}
+  {% endif %}
+</div>
+
+<div class="qs-sec">
+  <h2>The conversation, in full</h2>
+  <p class="qs-sub">{{ iv.turns|length }} messages. The nominee's turns are stored exactly as
+     they typed them; nothing here has been tidied.</p>
+  {% for t in iv.turns %}
+    <div class="qs-a">
+      <div class="qs-q">{{ t.role == 'nominee' ? 'The nominee' : 'The interviewer' }}
+        <span class="qs-tag">turn {{ t.i + 1 }}</span>
+        {% if t.amended %}<span class="qs-tag">edited by them</span>{% endif %}</div>
+      <div class="qs-v">{{ t.text }}</div>
+    </div>
+  {% endfor %}
+</div>
+{% endif %}
+
+<div class="qs-sec">
+  <h2>Their works and evidence</h2>
+  {% for w in (form.works ?? []) %}
+    <div class="qs-work">
+      <h3>{{ w.title ?: 'Untitled item' }}</h3>
+      <div>
+        {% if w.kind %}{{ w.kind }}{% endif %}{% if w.year %} · {{ w.year }}{% endif %}
+        {% if w.description %}<br>{{ w.description }}{% endif %}
+        {% if w.confirm %}<br><strong>Who can confirm it:</strong> {{ w.confirm }}{% endif %}
+        {% if w.link %}<br><a href="{{ w.link }}" target="_blank" rel="noopener noreferrer">{{ w.link }}</a>{% endif %}
+        {% if w.file %}<br>📎 <a href="{{ w.file }}" target="_blank" rel="noopener noreferrer">{{ w.file_name ?: 'attached file' }}</a>{% endif %}
+      </div>
+    </div>
+  {% else %}
+    <p>Nothing has been attached.</p>
+  {% endfor %}
+</div>
+
+{# ── what the judges actually see ────────────────────────────────────────── #}
+{% if is_test %}
+  <div class="qs-sec">
+    <h2>What the judges can see</h2>
+    <p><strong>Nothing, and nothing ever will.</strong> The refusal is in the writer rather than
+       on this screen: a test submission is turned away by the function that builds dossier rows,
+       so no route, no button and no future caller can put one in front of a panel.</p>
+  </div>
+{% else %}
+<div class="qs-sec">
+  <h2>What the judges can see</h2>
+  <p>These are the rows written into the dossier. Every one is labelled as the nominee's own
+     claim and <strong>none is marked verified</strong> — verification means somebody outside this
+     platform checked it, and a self-uploaded document is not that. The ballot shows a judge the
+     difference.</p>
+  {% for e in evidence %}
+    <div class="qs-a">
+      <div class="qs-q">{{ e.title }} <span class="qs-tag">{{ e.kind }}</span></div>
+      {# A path printed as text is not a document anybody can look at. Absolute URLs are
+         somebody else's link and open directly; anything stored here goes through the
+         viewer, because a direct /uploads/ hit is sandboxed and a PDF opens blank. #}
+      {% if e.source_url %}
+        {% if e.source_url starts with 'http' %}
+          <div class="qs-v" style="font-size:12px">
+            <a href="{{ e.source_url }}" target="_blank" rel="noopener noreferrer nofollow">{{ e.source_url }}</a></div>
+        {% else %}
+          <div class="qs-v" style="font-size:12px">
+            <a href="/admin/documents/evidence/{{ e.id }}" target="_blank" rel="noopener">Open</a>
+            <a href="/admin/documents/evidence/{{ e.id }}?download=1" style="margin-left:8px">download</a>
+          </div>
+        {% endif %}
+      {% endif %}
+    </div>
+  {% else %}
+    <p>Nothing yet. Rows appear here when the nominee sends the questionnaire.</p>
+  {% endfor %}
+
+  <div class="qs-row">
+    {% if row.status == 'submitted' %}
+      <form method="post" action="/admin/questionnaires/{{ row.id }}/republish">
+        <input type="hidden" name="_token" value="{{ csrf_token }}">
+        <button class="qs-btn qs-btn--ghost" type="submit">Rewrite these rows</button>
+      </form>
+    {% endif %}
+  </div>
+</div>
+
+{# ── READING THE ATTACHED DOCUMENTS ────────────────────────────────────────────
+   A separate section from the dossier above, and below it, because these two things
+   are not the same kind of fact. Above is what the nominee supplied. Here is what a
+   model made of it — useful for a reviewer with forty dossiers and a morning, and
+   checked by nobody. The heading says so rather than leaving it to be inferred. #}
+<div class="qs-sec" id="qsAi">
+  <h2>Reading the attached documents</h2>
+  <p>A model can read the files above and write down what each one is, what it states, and
+     whether it is legible. <strong>It produces notes, never a score</strong> — nothing here
+     can approve, reject or rank anybody, and a reviewer still opens the document. Results
+     are kept against the file's contents, so a nominee who replaces a file gets read again
+     and one who does not costs nothing to look at twice.</p>
+
+  {% if not ai.available %}
+    <p class="qs-v">{{ ai.reason }}</p>
+  {% else %}
+    <p class="qs-v">
+      {{ ai.readable }} of {{ ai.files }} attached file(s) can be sent.
+      {% if ai.unread > 0 %}{{ ai.unread }} not yet read.{% else %}All of them have been read.{% endif %}
+      Using {{ ai.model }}.
+    </p>
+    <div class="qs-row">
+      <form method="post" action="/admin/questionnaires/{{ row.id }}/analyse">
+        <input type="hidden" name="_token" value="{{ csrf_token }}">
+        <button class="qs-btn{% if ai.unread == 0 %} qs-btn--ghost{% endif %}"
+                type="submit"{% if ai.readable == 0 %} disabled{% endif %}>
+          {% if ai.unread > 0 %}Read {{ ai.unread }} document(s){% else %}Nothing new to read{% endif %}
+        </button>
+      </form>
+      {% if ai.items|length %}
+        <form method="post" action="/admin/questionnaires/{{ row.id }}/analyse">
+          <input type="hidden" name="_token" value="{{ csrf_token }}">
+          <input type="hidden" name="force" value="1">
+          {# Spends the budget again on files already read. Worth having and worth being
+             the quieter of the two buttons: the reason to press it is a changed prompt or
+             a bad first answer, not routine use. #}
+          <button class="qs-btn qs-btn--ghost" type="submit">Read them all again</button>
+        </form>
+      {% endif %}
+    </div>
+  {% endif %}
+
+  {% for e in evidence %}
+    {% set a = ai.items[e.id]|default(null) %}
+    {% if a %}
+      <div class="qs-a">
+        <div class="qs-q">
+          {{ e.title }}
+          {% if a.status == 'ok' %}
+            <span class="qs-tag">{{ a.doc_type }}</span>
+            {% if a.legibility is not null %}<span class="qs-tag">scan {{ a.legibility }}% legible</span>{% endif %}
+          {% elseif a.status == 'skipped' %}
+            <span class="qs-tag">not sent</span>
+          {% else %}
+            <span class="qs-tag qs-tag--no">failed</span>
+          {% endif %}
+        </div>
+
+        {% if a.status == 'ok' %}
+          <div class="qs-v">{{ a.summary }}</div>
+          {% if a.claims|length %}
+            <div class="qs-v" style="margin-top:8px"><strong>States:</strong>
+              <ul style="margin:5px 0 0;padding-left:18px">
+                {% for c in a.claims %}<li>{{ c }}</li>{% endfor %}
+              </ul>
+            </div>
+          {% endif %}
+          {% if a.concerns|length %}
+            <div class="qs-v" style="margin-top:8px"><strong>Worth checking yourself:</strong>
+              <ul style="margin:5px 0 0;padding-left:18px">
+                {% for c in a.concerns %}<li>{{ c }}</li>{% endfor %}
+              </ul>
+            </div>
+          {% endif %}
+          {% if a.names|length or a.dates|length %}
+            <div class="qs-v" style="margin-top:8px;font-size:12px">
+              {% if a.names|length %}Names: {{ a.names|join(', ') }}.{% endif %}
+              {% if a.dates|length %} Dates: {{ a.dates|join(', ') }}.{% endif %}
+            </div>
+          {% endif %}
+        {% else %}
+          <div class="qs-v">{{ a.error ?: 'No reason was recorded.' }}</div>
+        {% endif %}
+      </div>
+    {% endif %}
+  {% endfor %}
+</div>
+{% endif %}
+
+{# ── letting them change it ──────────────────────────────────────────────── #}
+{% if not is_test and (row.status == 'submitted' or reopened) %}
+  <div class="qs-sec">
+    <h2>Let them change it</h2>
+    <p>Nothing here can edit a nominee's answers, deliberately: these rows are presented to the
+       panel as the nominee's own words. Re-open it and they can correct or add to it using the
+       same link — and re-sending replaces the dossier rows rather than adding a second copy.</p>
+    <form method="post" action="/admin/questionnaires/{{ row.id }}/reopen">
+      <input type="hidden" name="_token" value="{{ csrf_token }}">
+      <label class="sr-only" for="qsNote">What should they change? (optional — for your own record)</label>
+      <input class="qs-in" id="qsNote" name="note" type="text" maxlength="500" style="margin-top:12px"
+             placeholder="What should they change? (optional — for your own record)">
+      <div class="qs-row"><button class="qs-btn qs-btn--ghost" type="submit">Re-open for the nominee</button></div>
+    </form>
+  </div>
+{% endif %}
+{% endblock %}

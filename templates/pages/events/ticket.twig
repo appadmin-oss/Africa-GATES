@@ -1,0 +1,1158 @@
+{% extends "layout/gates.twig" %}
+
+{# ── THE TICKET ───────────────────────────────────────────────────────────────
+
+   Reachable with the reference alone, which is the same doctrine as the claim link, the
+   interview page and the nominee questionnaire: an attendee has no account, and putting a
+   login between somebody and the door they are standing at is how a queue stops moving.
+
+   ── WHAT THIS IS BUILT AGAINST ──────────────────────────────────────────────
+
+   Two design documents, and they specify two DIFFERENT artefacts from the same markup:
+
+     • `Mobile Ticket — Spec.dc.html` — the stub a guest opens on a phone. 390 wide, 1087
+       tall, dark frame, cream stub. Its numbers are reproduced exactly below and they are
+       marked · SPEC · where they are, so nobody "tidies" one of them later.
+     • `Event Ticket.dc.html` (artboard 1a) — the printed stub. 148 × 62 mm landscape, art
+       left, tear, stub right. NOT a screenshot of the screen layout; the spec is explicit
+       that print is specified separately, and the print block at the bottom of this file
+       rebuilds the same DOM into that shape.
+
+   ── THE ANATOMY, AND WHY IT IS THIS ONE ─────────────────────────────────────
+
+   A ticket is one of the few documents where convention IS the usability, so the shape is
+   the one people already know how to read:
+
+     • A HERO CARRYING THE EVENT'S OWN IMAGE, with the title over a wash of the organiser's
+       accent so the text stays legible whatever the photograph is doing underneath.
+     • A PERFORATION — a cream strip, two notches punched in the frame colour, one dashed
+       rule. It says "tear here" without a word of explanation.
+     • A STUB holding the QR and the code. That is where a hand goes and where a scanner is
+       pointed, and it clears an 844px fold so it is never the thing below the screen.
+     • A DETAIL GRID rather than a list of rows, so the holder, the tier and the address are
+       findable at arm's length instead of read in order.
+     • AND THE ACTIONS OUTSIDE THE STUB, so the ticket itself is a clean screenshot and the
+       print block can drop them without leaving a hole in the document.
+
+   ── WHAT DID NOT CHANGE, BECAUSE IT MUST NOT ────────────────────────────────
+
+     • THE CODE IS STILL THE POINT. Large, monospaced, widely tracked, high contrast.
+     • QR AND PRINTED CODE, ALWAYS BOTH — never one or the other. A camera fails; a printed
+       code does not. They carry the same string so they cannot disagree.
+     • NO SCRIPT IS NEEDED to show any of it. A ticket that needs JavaScript to render is a
+       ticket that sometimes does not.
+     • IT PRINTS, and prints without the site's navigation across it.
+     • IT SAYS WHAT IS STILL OWED. A pending payment shows NO CODE AT ALL, because a pending
+       payment rendered as a scannable ticket is an argument at a door.
+
+   ── AND WHY THE COLOURS COME FROM PHP ───────────────────────────────────────
+
+   `design` is resolved by {@see \AfricaGates\Services\EventTicketDesign}, which refuses
+   anything that is not a hex colour rather than escaping it. The accent lands inside a
+   `style` attribute, which makes it the one value on the organiser's form that is executed
+   rather than displayed — so the template is handed a colour it can trust and does no
+   validation of its own. `ink` and `accent_soft` are derived there too: an organiser who
+   picks a pale accent gets dark text handed back automatically, because the alternative is
+   a ticket nobody can read and no explanation of why.
+
+   The organiser's THEME now chooses the frame the ticket sits in rather than the ticket
+   itself. `dark` is the spec's #10292C ground and the default; `light` is the same document
+   on the platform's paper ground, for an organiser whose event is not a night event. The
+   hero is the accent and the stub is cream in both, because those two are what make the
+   thing legible and scannable and neither is a matter of taste.
+#}
+
+{% set D = design %}
+{% set dark = D.theme == 'dark' %}
+
+{% block head_styles %}
+<style nonce="{{ csp_nonce }}">
+  /* ══════════════════════════════════════════════════════════════════════════
+     TOKENS
+
+     Every value further down resolves to one of these. Nothing below hard-codes a
+     hex except inside `@media print`, where the palette is deliberately forced.
+     ══════════════════════════════════════════════════════════════════════════ */
+  /* ── the page the ticket sits on ────────────────────────────────────────
+     · SPEC · #f0f2f2, which is the design document's own ground, and the dark frame
+     centred on it at 390. At phone width the frame goes full bleed, so the page has
+     to match it or a band of white opens up under the ticket and reads as a bug.
+
+     Scoped to `body[data-page="events"]`, which is only ever emitted from a page's
+     own `head_styles` — so this rule ships on the ticket page and nowhere else. */
+  body[data-page="events"]{ background:#f0f2f2; }
+  @media (max-width:430px){
+    body[data-page="events"]{ background:{{ dark ? '#10292C' : '#f0f2f2' }}; }
+  }
+  @media print{ body[data-page="events"]{ background:#fff; } }
+
+  .tk{
+    /* the event's own accent, resolved and validated in PHP */
+    --tk-accent:{{ D.accent }}; --tk-ink:{{ D.ink }}; --tk-soft:{{ D.accent_soft }};
+
+    /* ── INK OVER THE HERO ────────────────────────────────────────────────
+       The kicker is gold in the design document, and the design document assumes a
+       dark accent. An organiser may pick a pale one — the form allows any hex — and
+       gold on pale gold is a date nobody can read, which defeats the reason the date
+       is on a ticket at all.
+
+       So these three follow `D.ink`, which EventTicketDesign computes from the
+       accent's own luminance and returns as exactly `#FFFFFF` or `#10292C`. On a
+       light hero the gold steps down to --gold-700, which is the same rule the spec
+       states for gold on cream. */
+    --tk-hero-gold:{{ D.ink == '#FFFFFF' ? '#f3b416' : '#745001' }};
+    --tk-hero-title:{{ D.ink == '#FFFFFF' ? '#fbf6e6' : '#10292C' }};
+    --tk-hero-soft:{{ D.ink == '#FFFFFF' ? 'rgba(251,246,230,.78)' : 'rgba(16,41,44,.72)' }};
+
+    /* · SPEC · the ticket's own two grounds. Not organiser-settable: the stub is
+       cream because a QR needs a light quiet zone, and the cream is what makes the
+       dashed tear read as a tear rather than as a border. */
+    --tk-stub:#f6f2e6;
+    --tk-cream:#fbf6e6;
+    --tk-gold:#f3b416;
+
+    /* · SPEC · #626a6e is the floor for small type on light ground — never lighter.
+       #10292C is every dark word on the stub. */
+    --tk-text:#10292C;
+    --tk-mute:#626a6e;
+    --tk-line:rgba(16,41,44,.12);
+
+    /* The frame. Light theme: the platform's own paper. Gold steps down to
+       --gold-700 on it, because #f3b416 on a light ground misses 4.5:1 and the
+       kicker is 9.5px type. */
+    --tk-frame:#f0f2f2;
+    --tk-on-frame:#4a5256;
+    --tk-on-frame-2:#626a6e;
+    --tk-frame-gold:#745001;
+    --tk-frame-line:rgba(16,41,44,.24);
+
+    /* · SPEC · 390 wide, border-box, 52 / 20 / 30 padding. Content runs past 844,
+       so the page scrolls — the hero, the QR and the code all clear the fold and
+       adding an optional row pushes the ACTIONS down, never the scan block. */
+    box-sizing:border-box; width:100%; max-width:390px; margin:24px auto 40px;
+    padding:52px 20px 30px; border-radius:34px;
+    background:var(--tk-frame); color:var(--tk-on-frame);
+    display:flex; flex-direction:column; gap:20px;
+  }
+  .tk--dark{
+    --tk-frame:#10292C;
+    /* .62 rather than the .45 in the artboard. At .45 this lands at 3.9:1 against
+       #10292C and the spec's own floor for anything under 18px is 4.5:1 — the
+       reference contradicts its own rule, so the rule wins. .62 measures 6.1:1. */
+    --tk-on-frame:rgba(251,246,230,.86);
+    --tk-on-frame-2:rgba(251,246,230,.62);
+    --tk-frame-gold:var(--tk-gold);
+    /* .38, not .22: a control's own boundary is non-text UI and wants 3:1. The
+       artboard value measures 1.9:1, which is a button nobody can see the edge of. */
+    --tk-frame-line:rgba(251,246,230,.38);
+  }
+  /* Full bleed at phone width. The frame IS the phone there, so its corners are the
+     device's and drawing a second set inside them is a card, not a ticket. The 20px
+     side padding is kept, which is what makes the inner column 350px at 390. */
+  @media (max-width:430px){
+    .tk{ max-width:none; margin:0; border-radius:0; }
+  }
+
+  /* ── the header row ──────────────────────────────────────────────────────
+     · SPEC · mono 9.5px, ADMIT ONE at .24em in gold, the reference at .16em. This
+     is the only place the reference appears on screen: it is what somebody reads
+     out to support, and the floating help button covers the bottom-right of the
+     viewport, so it goes at the top. */
+  .tk__meta{ display:flex; align-items:center; justify-content:space-between; gap:12px; }
+  .tk__admit{ font-family:var(--ag-font-mono, monospace); font-size:9.5px; font-weight:700;
+    letter-spacing:.24em; text-transform:uppercase; color:var(--tk-frame-gold); }
+  .tk__ref{ font-family:var(--ag-font-mono, monospace); font-size:9.5px; letter-spacing:.16em;
+    color:var(--tk-on-frame-2); text-align:right; overflow-wrap:anywhere; }
+
+  /* ── the document ────────────────────────────────────────────────────────
+     One elevation for the whole artefact rather than a shadow per panel, so the
+     hero, the tear and the stub read as one piece of card. */
+  .tk__doc{ position:relative; display:flex; flex-direction:column;
+    box-shadow:0 24px 56px -30px rgba(0,0,0,.7); }
+  .tk:not(.tk--dark) .tk__doc{ box-shadow:0 24px 56px -34px rgba(16,41,44,.5); }
+
+  /* ── the hero ────────────────────────────────────────────────────────────
+     · SPEC · a 268px band, 20px radius on the top two corners only. */
+  .tk__hero{ position:relative; height:268px; overflow:hidden; border-radius:20px 20px 0 0;
+    background:var(--tk-accent); color:var(--tk-ink); }
+  /* `object-fit:cover`, and a fallback focal point for the images nobody has framed.
+
+     The artboard pins `left:-150 top:-178 width:700 height:875` against the band,
+     which frames the subject of one particular poster and means nothing for the
+     next event's. The spec named the real fix — a dedicated 3:2 crop stored per
+     event rather than a poster cropped in CSS — and that now exists: the admin's
+     artwork editor writes one with AfricaGates\Services\TicketArtwork, and
+     `D.image` is the 1200×800 render of it.
+
+     These two lines are what happens for everyone else: an event still using its
+     cover photograph, or an organiser who pasted an address the editor cannot cut.
+     `50% 32%` keeps faces and figures in frame on portrait artwork, which is what
+     event covers overwhelmingly are; on a framed image it is a no-op, because a 3:2
+     render into a 390×268 band has about 3% of width to spare and nothing to
+     choose between. The wash below is what keeps the type legible either way. */
+  .tk__shot{ position:absolute; inset:0; width:100%; height:100%;
+    object-fit:cover; object-position:50% 32%; }
+  /* The wash: the accent, bottom to top. It is what makes the title legible over an
+     unknown photograph, and it is what keeps EventTicketDesign::contrastInk's promise
+     true — that computes readable ink for the ACCENT, and the promise only holds if
+     the accent is what is actually behind the words.
+
+     ── WHERE THIS DEVIATES FROM THE DESIGN DOCUMENT, AND WHY ────────────────
+     The artboard's stops are 97% at the foot, 90% at 22%, 42% at 42% and clear by
+     66%, measured against one dark purple poster. The type block ends 36% up the band
+     on a one-line title and 46% up on a wrapped one, so on that curve the 9.5px date
+     lands on the accent at roughly 66% alpha. Over a LIGHT cover that measures
+     3.1:1 — under the 4.5:1 floor the same spec sets for anything below 18px, and the
+     date is the single most useful line on a ticket.
+
+     This repository has already been here: the previous ticket ran this wash at D9,
+     "a light illustration showed through and the date became unreadable", and that is
+     why it shipped nearly opaque. So the curve keeps the artboard's SHAPE — artwork at
+     the top, accent at the foot — with the alpha held above 95% through the whole type
+     block and clear by 78%. The top 38% of the band is still the artwork. */
+  .tk__scrim{ position:absolute; inset:0; }
+  .tk__title{ position:absolute; left:22px; right:22px; bottom:20px;
+    display:flex; flex-direction:column; gap:6px; }
+  .tk__kick{ margin:0; font-family:var(--ag-font-mono, monospace); font-size:9.5px;
+    font-weight:700; letter-spacing:.26em; text-transform:uppercase;
+    color:var(--tk-hero-gold); }
+  .tk__title h1{ margin:0; font-family:var(--ag-font-display, Georgia, serif);
+    font-size:40px; font-weight:900; line-height:1; letter-spacing:-.025em;
+    color:var(--tk-hero-title); text-wrap:balance; overflow-wrap:break-word; }
+  /* Two lines is the ceiling at 390. A longer title steps down rather than eating
+     the image — this is the one string on the page with no length limit upstream. */
+  .tk__title h1.is-long{ font-size:30px; line-height:1.06; letter-spacing:-.02em; }
+  .tk__sub{ margin:0; font-size:11px; font-weight:500; letter-spacing:.16em;
+    text-transform:uppercase; color:var(--tk-hero-soft); }
+
+  /* ── the perforation ─────────────────────────────────────────────────────
+     · SPEC · a 20px cream strip, two 22px circles in the FRAME colour pushed half
+     outside each edge, and a 1px dashed rule at 28% ink. The notches take the frame
+     colour rather than white so they still read as holes on either theme. */
+  .tk__tear{ position:relative; height:20px; background:var(--tk-stub); }
+  .tk__tear::before, .tk__tear::after{ content:""; position:absolute; top:50%;
+    width:22px; height:22px; border-radius:50%; background:var(--tk-frame);
+    transform:translateY(-50%); }
+  .tk__tear::before{ left:-11px }
+  .tk__tear::after{ right:-11px }
+  .tk__tear i{ position:absolute; left:16px; right:16px; top:50%; height:0;
+    border-top:1px dashed rgba(16,41,44,.28); }
+
+  /* ── the stub ────────────────────────────────────────────────────────────
+     · SPEC · cream, 20px radius on the bottom two corners, 10 / 24 / 26 padding,
+     22px between blocks.
+
+     TWO ELEMENTS, not one, and they abut so that on screen they are one cream panel.
+     The split exists for the printed sheet: there the scan block becomes the tear-off
+     stub down the right-hand side and the facts become a band under the artwork, and
+     a grid can only place children it actually has. Doing it with `display:contents`
+     on a single panel loses the panel's own background and its dashed edge, which are
+     the two things the printed stub is made of. */
+  .tk__stub{ background:var(--tk-stub); padding:10px 24px 0; color:var(--tk-text);
+    display:flex; flex-direction:column; }
+  .tk__facts{ background:var(--tk-stub); border-radius:0 0 20px 20px;
+    padding:0 24px 26px; display:flex; flex-direction:column; gap:22px;
+    color:var(--tk-text); }
+
+  /* the scan block · SPEC · 140px symbol, 17px mono code at .22em */
+  .tk__scan{ display:flex; flex-direction:column; align-items:center; gap:12px; }
+  /* The white ground is Qr::svg's own quiet zone, and it is kept rather than
+     recoloured to the cream: the quiet zone is what a decoder uses to find the
+     symbol's edge, and "pure black on white with no tint behind it" is the same
+     rule the print block obeys. One code path for screen and paper means the thing
+     that scans at a door is the thing that was tested. */
+  .tk__qr{ padding:6px; line-height:0; }
+  .tk__qr svg{ display:block; width:140px; height:140px; border-radius:3px; }
+  .tk__codewrap{ display:flex; flex-direction:column; align-items:center; gap:3px; }
+  .tk__code{ font-family:var(--ag-font-mono, monospace); font-size:17px; font-weight:700;
+    letter-spacing:.22em; color:var(--tk-text); text-align:center; overflow-wrap:anywhere;
+    /* The tracking is applied to the right of every glyph including the last, which
+       walks the string off centre. Pulled back by one step. */
+    margin-right:-.22em; }
+  .tk__qrnote{ font-size:11px; letter-spacing:.01em; color:var(--tk-mute); }
+  /* Print only — see the note beside it in the markup. */
+  .tk__who{ display:none }
+
+  /* the detail grid · SPEC · two columns, 18 / 16 gutters, over a hairline
+     TWO columns and not one at every width. Collapsing doubles the height of
+     everything under the fold for no gain — these are short labelled values, not
+     paragraphs — and it is why the reference used to end up two screens down. */
+  .tk__grid{ display:grid; grid-template-columns:1fr 1fr; gap:18px 16px;
+    padding-top:22px; border-top:1px solid var(--tk-line); }
+  .tk__cell{ display:flex; flex-direction:column; gap:3px; min-width:0; }
+  .tk__cell small{ font-family:var(--ag-font-mono, monospace); font-size:8px; font-weight:700;
+    letter-spacing:.22em; text-transform:uppercase; color:var(--tk-mute); }
+  .tk__cell b{ font-size:13.5px; font-weight:500; letter-spacing:-.005em; line-height:1.45;
+    color:var(--tk-text); overflow-wrap:anywhere; }
+  .tk__cell--wide{ grid-column:1 / -1 }
+  /* Print only. The 46mm stub cannot carry the day name AND the time as two cells, so
+     paper gets a joined line and the reference instead — and neither may appear on
+     screen, where the same facts are already in the cells above and in the header. */
+  .tk__cell--print{ display:none }
+  /* The tier dot. A dot beside the name, never the name in colour: the tier is
+     already named in words, so the colour is a second and faster way to recognise
+     it and never the only way. The 1px edge is the palette's own `edge` value,
+     which clears 3:1 by construction — without it a pale fill on cream is an
+     absence rather than a mark. */
+  .tk__dot{ display:inline-block; width:9px; height:9px; border-radius:50%;
+    border:1px solid; margin-right:7px; vertical-align:baseline; flex:none; }
+
+  .tk__note2{ font-size:12px; line-height:1.55; color:var(--tk-mute); }
+  .tk__note2 b{ color:var(--tk-text); font-weight:700; }
+
+  /* the signature row · SPEC · the mark on the left, the domain on the right */
+  .tk__sig{ display:flex; align-items:center; justify-content:space-between; gap:12px;
+    padding-top:18px; border-top:1px solid var(--tk-line); }
+  .tk__sig img{ width:26px; height:26px; display:block; opacity:.9; }
+  .tk__sig span{ font-family:var(--ag-font-mono, monospace); font-size:9.5px;
+    letter-spacing:.18em; color:var(--tk-mute); }
+  /* Paper cannot be clicked. This is how somebody who printed a ticket and then
+     lost the email finds it again, so on paper it is spelled out as text. */
+  .tk__url{ display:none }
+
+  /* ── the states ──────────────────────────────────────────────────────────
+     Between the stub and the actions, per the spec. Tinted panels on the frame
+     rather than white chips: a white chip on the dark ground reads as a second
+     document, and the point of these is that they belong to the ticket. */
+  .tk__flag{ border-radius:14px; padding:14px 16px; font-size:13px; line-height:1.65;
+    border:1px solid; }
+  .tk__flag strong{ font-weight:700 }
+  .tk__flag--wait{ background:rgba(243,180,22,.12); border-color:rgba(243,180,22,.42);
+    color:#6b5312; }
+  .tk__flag--dead{ background:rgba(180,42,26,.09); border-color:rgba(180,42,26,.34);
+    color:#7d2b24; }
+  .tk__flag--in{ background:rgba(35,123,34,.10); border-color:rgba(35,123,34,.34);
+    color:#1c5f1b; }
+  .tk--dark .tk__flag--wait{ color:#ffd97a }
+  .tk--dark .tk__flag--dead{ background:rgba(255,120,105,.12);
+    border-color:rgba(255,120,105,.42); color:#ffb3a8; }
+  .tk--dark .tk__flag--in{ background:rgba(143,213,139,.12);
+    border-color:rgba(143,213,139,.4); color:#a8e0a4; }
+
+  /* ── the actions ─────────────────────────────────────────────────────────
+     · SPEC · outside the document, 46px tall, 12px radius, gold primary. Outside so
+     the print block drops them without leaving a gap in the ticket, and so the
+     ticket is a clean screenshot. */
+  .tk__acts{ display:flex; gap:10px; margin-top:2px; }
+  .tk__act{ flex:1; display:inline-flex; align-items:center; justify-content:center; gap:7px;
+    min-height:46px; padding:0 10px; border-radius:12px; font-size:13.5px; font-weight:700;
+    letter-spacing:.01em; text-align:center; text-decoration:none; }
+  .tk__act--go{ background:var(--tk-gold); color:#10292C; }
+  .tk__act--go:hover{ background:#ffc63d }
+  .tk__act--ghost{ border:1px solid var(--tk-frame-line); font-weight:500;
+    color:var(--tk-on-frame); }
+  .tk__act--ghost:hover{ border-color:var(--tk-frame-gold); color:var(--tk-frame-gold) }
+  .tk__act svg{ width:15px; height:15px; flex:none }
+  .tk__act:focus-visible{ outline:3px solid var(--tk-gold); outline-offset:3px }
+
+  .tk__foot{ margin:2px 0 0; font-size:11px; line-height:1.7; color:var(--tk-on-frame-2);
+    text-wrap:pretty; }
+  .tk__foot + .tk__foot{ margin-top:10px }
+  .tk__foot b{ color:var(--tk-on-frame) }
+  .tk__foot a{ color:var(--tk-frame-gold); text-decoration:underline }
+
+  /* ── the dead link ───────────────────────────────────────────────────────
+     A mistyped reference is a person with a ticket they cannot find, not an error. */
+  .tk__lost{ background:var(--tk-stub); border-radius:20px; padding:26px 24px;
+    color:var(--tk-text); }
+  .tk__lost h1{ margin:0 0 10px; font-family:var(--ag-font-display, Georgia, serif);
+    font-size:22px; font-weight:800; line-height:1.2; letter-spacing:-.02em; }
+  .tk__lost p{ margin:0 0 10px; font-size:13.5px; line-height:1.65; color:var(--tk-mute) }
+  .tk__lost a{ color:#1a6118; font-weight:700; text-decoration:underline }
+
+  /* ══════════════════════════════════════════════════════════════════════════
+     PRINT — a different artefact, not a screenshot
+
+     A ticket gets printed far more often than the web pretends: a cracked phone, a
+     battery that will not last the day, a door team working from paper, a sponsor's
+     table of twelve. So this is designed, and the spec is explicit that it is
+     specified separately rather than inherited from the screen.
+
+     THE SHEET is 148 × 62 mm landscape — a cut-to-size stub. THE SPLIT is art left,
+     stub right at 46mm, with the fold a real perforation rather than the drawn
+     notches used on screen. Every rule below exists because the paper fails without
+     it:
+
+       · THE QR IS SIZED IN MILLIMETRES. It is the one thing on the page whose size
+         is a physical fact rather than a typographic taste. 26mm is the spec's
+         floor; below about 22mm a handheld scanner starts failing on inkjet output.
+         Left in px it prints at whatever the browser felt like, which is how a
+         ticket comes off the printer unscannable and nobody finds out until the
+         door.
+       · print-color-adjust:exact, or the driver strips the accent ground and the
+         ticket prints as a white rectangle.
+       · THE QR NEVER SITS ON A TINT. The stub stays cream even if the accent is
+         dark: the code needs the contrast more than the design needs the colour.
+       · INK-SAFE TYPE. 6pt floor for labels, 8.5pt for values, 9pt mono for the
+         code. The screen scale is too fine once it is halftoned.
+       · AND THE URL IS PRINTED AS TEXT, because paper cannot be clicked and the
+         link is how a lost ticket is recovered.
+     ══════════════════════════════════════════════════════════════════════════ */
+  /* ── THE SHEET IS NOT THE TICKET ──────────────────────────────────────────
+     This used to read `size:148mm 62mm landscape`, which is not valid CSS: `size`
+     takes either two lengths OR a named page size with an orientation keyword, never
+     both. The whole declaration was therefore dropped — margin included — and every
+     ticket printed onto a default Letter page, jammed into the corner with no margin
+     and nothing to say where to cut. Measured, not guessed: with that declaration
+     Chromium reports a 215.9 × 279.4mm MediaBox, and with the keyword removed it
+     reports 148.2 × 62.1mm.
+
+     Removing the keyword would have made it work. It is not what this does, because a
+     card-sized @page is the wrong thing to ask for: no home printer has 148 × 62mm
+     media, so the driver scales the page to whatever is loaded — the ticket comes out
+     28% oversized on A4 and cannot be cut to the size it was designed at.
+
+     So the sheet is left alone. No `size`, which means the paper the person actually
+     chose; a real margin; and the ticket laid on it at its true 148 × 62mm with a cut
+     line around it. A4 and Letter both have well over 148mm of printable width, so the
+     same rule is right on both without asking which one it is. */
+  @page{ margin:10mm }
+
+  @media print{
+    /* Force the light palette onto BOTH themes. Written on `.tk` rather than
+       `:root` so it cannot leak into anything else the page happens to print. */
+    .tk, .tk--dark{ --tk-frame:#fff; --tk-line:#b9c4c3; --tk-text:#000; --tk-mute:#3d4749;
+      --tk-stub:#f6f2e6; --tk-on-frame:#000; --tk-on-frame-2:#3d4749; }
+
+    /* Centred at its true size on whatever paper turned up. `margin:0 auto` and not
+       `margin:0`: against the left edge of an A4 it reads as a printing error rather
+       than as a ticket somebody is meant to cut out. */
+    .tk{ width:180mm; height:86mm; max-width:none; min-height:0; margin:0 auto; padding:0;
+      border-radius:0; background:#fff; display:block; gap:0;
+      /* An OUTLINE, not a border: outlines take no space, so the cut guide cannot push
+         the ticket off its own measurements. 2mm out, which is the width of a pair of
+         scissors' error and leaves the line itself on the offcut. */
+      outline:.25mm dashed #9aa8a6; outline-offset:2mm;
+      -webkit-print-color-adjust:exact; print-color-adjust:exact; }
+    /* Said once, under the ticket, in the smallest type on the sheet. A printed page
+       with a card floating in the middle of it and no instruction is a page people
+       fold instead of cutting. */
+    .tk__cut{ display:block; width:180mm; margin:7mm auto 0; font-size:7.5pt;
+      line-height:1.4; color:#5a6462; text-align:center }
+    /* ── THE SHEET, AND WHY THE DETAILS PRINT UNDER THE ART ─────────────────
+       Art left, tear, stub right at 46mm — the artboard's split, and the spec's.
+
+       What the artboard cannot do is carry the whole field set in that 46mm column.
+       Measured in a real print render: the sheet gives 215px of usable stub height at
+       96dpi, a 26mm symbol takes 98 of it, and at the spec's own ink-safe scale — 6pt
+       labels, 8.5pt values — four labelled rows plus the recovery URL need 145 more.
+       That is 43px of overflow, and the thing that falls off the bottom of a
+       cut-to-size stub is whatever comes last.
+
+       The QR size is not negotiable (below ~22mm a handheld reader starts failing on
+       printed output) and neither is the type floor (6pt is what survives halftoning).
+       So the LAYOUT gives way: the left column becomes two rows — the artwork, then a
+       cream band carrying the details in three columns, where 102mm of width means
+       nothing wraps. The stub keeps the code, the name and the URL, which is what a
+       tear-off half is for.
+
+       Every fact still lands on a light ground, which is the point of the whole
+       arrangement: `print-color-adjust` is a request a driver may refuse, and a ticket
+       whose date and address were only ever on the accent fill prints as a blank. */
+    /* ── 190 × 86MM, THE SAME CARD THE PDF PRINTS ───────────────────────────
+       This was 148 × 62 — the artboard's own measurements — and the PDF path has always
+       been 190 × 86, because a 30mm QR is the size below which the scanners a venue
+       actually owns start hunting for the symbol, and a stub that holds one cannot be
+       46mm wide. Two print paths producing two differently-sized tickets is a defect on
+       its own: the same booking came out as two different objects depending on which
+       button somebody pressed.
+       
+       So the browser follows the PDF, and 148 × 62 remains what it always was — the
+       shape the design was drawn at, now scaled to a card that fits a real scanner. It
+       still sits well inside A4's 190mm of printable width at a 10mm margin, and inside
+       Letter's 196mm. Everything below is re-measured against the new card rather than
+       multiplied: the artwork gains proportionally more than the type does, because at
+       62mm the picture was down to a 4.4:1 letterbox. */
+    .tk__doc{ width:180mm; height:86mm; box-shadow:none; overflow:hidden;
+      display:grid; grid-template-columns:1fr 56mm; grid-template-rows:1fr auto;
+      -webkit-print-color-adjust:exact; print-color-adjust:exact; }
+    .tk__hero{ grid-area:1 / 1 }
+    .tk__facts{ grid-area:2 / 1 }
+    .tk__stub{ grid-area:1 / 2 / span 2 / span 1 }
+
+    /* `display:none`, not the `all:unset` in the spec's snippet. The tear is the
+       document's third child, and unset leaves it an in-flow grid item — so it
+       takes the 46mm column and pushes the stub onto an implicit second row, which
+       is off the sheet. The fold is physical here; nothing is drawn for it. */
+    .tk__tear{ display:none }
+
+    /* ── ART LEFT, AND THE IMAGE COMES OUT OF THE POSITIONED LAYER ──────────
+       On screen `.tk__shot` is `position:absolute; inset:0` and the title floats over
+       its foot on a gradient. That is the right thing for a screen and the wrong thing
+       for paper twice over.
+
+       It is fragile: an absolutely-positioned element inside a paginated box is the
+       single most inconsistently-handled thing in print CSS, and this is the one part
+       of the document that is a photograph — when an engine drops it, the ticket prints
+       with a blank band and nothing says why.
+
+       And it is wasteful: the solid title band paints over the bottom 43% of the
+       artwork, so nearly half of the picture is printed and then covered.
+
+       So on paper the hero is a two-row grid, the image is an ordinary in-flow item in
+       the first row, and the title band is the second. No absolute positioning, no
+       overlap, and the art gets the whole of its own band.
+
+       `min-height:0` on both, so the 1fr rows may shrink to what is left — a grid
+       item's automatic minimum size is its content, and without it the details band
+       gets pushed off the sheet. */
+    .tk__hero{ height:auto; min-height:0; border-radius:0; overflow:hidden;
+      display:grid; grid-template-rows:1fr auto; }
+    .tk__shot{ position:static; grid-row:1; width:100%; height:100%; min-height:0;
+      object-fit:cover;
+      /* A framed image is already a 3:2 crop somebody chose — but this band is about
+         124 × 36mm, i.e. 3.4:1, so a slice of that choice still has to be taken and
+         somebody has to decide which. Centred loses the top of the picture, and the top
+         of an event poster is where faces are; the screen band picks 32% for exactly the
+         same reason. 38% rather than the screen's 32% because the slice here is much
+         thinner, so the same bias would walk the subject straight off the top edge. */
+      object-position:50% 38%;
+      -webkit-print-color-adjust:exact; print-color-adjust:exact }
+    /* ── ON PAPER THE TYPE GETS A SOLID BAND, NOT A GRADIENT ────────────────
+       The screen wash is calibrated against a 268px band. Printed, the artwork panel
+       is about a third of that, so the same percentage stops put the 6.5pt date up
+       where the wash has already cleared — gold on whatever the top of the poster
+       happens to be, which on a light cover measures under 2:1.
+
+       A gradient cannot be made safe for an unknown image at an unknown height, so
+       print does not use one: the hero becomes art above and a solid accent band
+       below, and `D.ink` is computed for exactly that accent. Same shape as the
+       artboard, and legible by construction rather than by measurement. */
+    .tk__scrim{ display:none }
+    /* The second row of the hero grid, under the art rather than over it. `static` is
+       safe now precisely because the image is no longer in the positioned layer — when
+       it was, a static title painted underneath it and the ticket printed with no title
+       on it at all. Both are in flow, so grid placement decides and nothing overlaps. */
+    .tk__title{ position:static; grid-row:2; left:auto; right:auto; bottom:auto;
+      padding:2.4mm 4mm 3mm; gap:1mm; background:var(--tk-accent);
+      -webkit-print-color-adjust:exact; print-color-adjust:exact; }
+    .tk__kick{ font-size:7.5pt; line-height:1.15; letter-spacing:.22em }
+    /* 1.12 and not the screen's 1.0: Yoruba orthography puts dots under o and e, and at
+       a line-height of 1 the band's own edge cut them off — which turns Ọmọ into Omo on
+       the one document that carries somebody's name. */
+    .tk__title h1, .tk__title h1.is-long{ font-size:21pt; line-height:1.12 }
+    .tk__sub{ font-size:7.5pt; line-height:1.15; letter-spacing:.14em }
+
+    /* STUB RIGHT. 0.4mm dashed at 55% ink — a real perforation, and the one thing
+       on the sheet that is heavier on paper than on screen, because the notches
+       print as white circles on a white page, i.e. as nothing. */
+    /* `overflow:hidden` is the safety valve. A four-line address is the one string here
+       with no length limit upstream, and if something has to be lost off the bottom of a
+       cut-to-size stub it must be the tail of the address — never the symbol, which is
+       why the scan block is first in the DOM and therefore first on the sheet. */
+    .tk__stub{ border-radius:0; border-left:.4mm dashed rgba(16,41,44,.55);
+      padding:4mm; gap:2mm; align-items:center; justify-content:center;
+      overflow:hidden;
+      -webkit-print-color-adjust:exact; print-color-adjust:exact; }
+    /* The details band. `align-content:end` so a short field set sits against the foot
+       of the artwork rather than floating in the middle of its own row. */
+    .tk__facts{ border-radius:0; padding:2.6mm 4mm 3mm; gap:0; overflow:hidden;
+      -webkit-print-color-adjust:exact; print-color-adjust:exact; }
+
+    .tk__scan{ gap:1.4mm; width:100% }
+    /* 30mm, matching TicketPdf::QR_MM — the one measurement on this document that is a
+       physical fact rather than a taste. 26mm was what the old 46mm stub could hold, not
+       what a handheld reader wants off an inkjet. */
+    .tk__qr{ width:30mm; padding:0 }
+    .tk__qr svg{ width:30mm; height:30mm; border-radius:0; shape-rendering:crispEdges }
+    .tk__codewrap{ gap:1mm }
+    .tk__code{ font-size:11pt; line-height:1.05; letter-spacing:.18em; margin-right:-.18em }
+    .tk__who{ display:block; font-size:9.5pt; line-height:1.1; font-weight:700;
+      text-align:center; color:#000 }
+    /* The screen caption is an instruction for a person holding a phone. On paper
+       the code is simply there to be read. */
+    .tk__qrnote{ display:none }
+
+    /* ── WHAT FITS IN 46 × 62 MM, MEASURED ──────────────────────────────────
+       A 26mm symbol is 42% of the sheet's height. That is the price of a code that
+       scans off an inkjet, and it is not negotiable — below about 22mm a handheld
+       reader starts failing on printed output.
+
+       What is left is 2.5mm of padding at each end, the symbol, its code, and about
+       97px at 96dpi. At the spec's ink-safe scale — 6pt labels, 8.5pt values — a
+       single-line row is 23.7px and a wrapped one 36.4px, so the sheet holds FOUR:
+       date and ticket type across two columns, then the address and the holder full
+       width because those are the two that wrap. Everything else is marked
+       `--nopaper` in the markup, with the reasoning beside it.
+
+       Two columns stay two, not `auto-fit`: against a print context auto-fit resolves
+       the available width differently across engines and can put six cells on one
+       line at 3pt. */
+    /* Three columns across 102mm. Fixed, not `auto-fit`: against a print context
+       auto-fit resolves the available width differently across engines and can put six
+       cells on one line at 3pt. At ~31mm a column takes `05 Sep 2026 · 5:00 pm` without
+       wrapping, which is what stopped this fitting in the 46mm stub. */
+    /* Three columns across 102mm, weighted rather than equal: the middle one carries
+       `05 Sep 2026 · 5:00 pm`, which is half again as wide as `Standard` or a name, and
+       at equal thirds it wrapped onto a second line and cost the artwork 12px of band.
+       Fixed, not `auto-fit`: against a print context auto-fit resolves the available
+       width differently across engines and can put six cells on one line at 3pt. */
+    .tk__grid{ grid-template-columns:1.35fr 1fr; gap:1.8mm 4mm;
+      padding-top:0; border-top:0 }
+    .tk__cell{ gap:0 }
+    .tk__cell--wide{ grid-column:1 / -1 }
+    /* ── THE HOLDER IS PRINTED ONCE, NOT TWICE ─────────────────────────────
+       It was in this band AND under the code on the stub, which is the same name
+       twice on a card 62mm tall. The stub's copy is the one that has to stay: the
+       stub is the half that tears off and is kept by the door, and a torn-off stub
+       with a code and no name is not a record of who came in.
+
+       Dropping it here is what pays for the rest. The band goes from three columns
+       to two, so the address gets a full 102mm line instead of sharing it, the date
+       stops wrapping, and the row that disappears is ~3mm of height that goes back
+       to the artwork. */
+    .tk__cell--holder{ display:none }
+    .tk__cell small{ font-size:6.5pt; line-height:1.15; letter-spacing:.18em; color:#3d4749 }
+    .tk__cell b{ font-size:10pt; line-height:1.14; color:#000 }
+    .tk__cell--screen{ display:none }
+    .tk__cell--print{ display:flex }
+    /* The optional set stays on screen and comes off the sheet. The band is 102mm wide
+       but only about 20mm tall, and these are the cells a door does not read. */
+    .tk__cell--nopaper{ display:none }
+    .tk__dot{ width:1.8mm; height:1.8mm; margin-right:1.2mm }
+
+    .tk__note2{ display:none }
+    /* Screen only. On 46mm the domain is already the head of the printed recovery URL,
+       and a second mark is decoration the sheet cannot pay for. */
+    .tk__sig{ display:none }
+    /* In the details band rather than on the stub: the band is 102mm wide, so the URL
+       sits on one line there instead of breaking across three in a 40mm column. */
+    .tk__url{ display:block; margin-top:1.6mm; font-family:var(--ag-font-mono, monospace);
+      font-size:6.5pt; line-height:1.25; color:#3d4749; word-break:break-all }
+
+    /* A state that matters on paper is a state the door has to see. It goes under
+       the stub's own fields, in words — never a colour alone. */
+    .tk__flag{ display:none }
+    .tk__flag--dead, .tk__flag--wait{ display:block; margin:1mm 0 0; padding:1mm 1.4mm;
+      border-radius:0; border:.3mm solid #000; background:#fff; color:#000;
+      font-size:6pt; line-height:1.25; }
+
+    /* Everything that is not the ticket. `.ag-mobnav` is the one that caught this
+       out once: the bottom bar printed across the foot of every ticket because the
+       guess at its class name was never checked against a rendered page. Print CSS
+       fails silently — there is no console warning for a selector that matches
+       nothing — so this list is verified against the real markup. */
+    .tk__acts, .tk__foot, .tk__meta, .tk__self, .ag-nav, .ag-announce, .ag-mobnav,
+    .ag-foot, .afg-tabbar, .community-fab, .scroll-prog, .toast-host, .ag-loader,
+    .skip-link, .gee-fab, .gee-panel, .gee-launch, .afg-drawer{ display:none !important }
+
+    /* The site stylesheet expands every link to its href on paper. Inside a ticket
+       that turns "the event page" into a line of URL through the middle of the card. */
+    .tk a[href]::after{ content:none !important }
+  }
+
+  /* ── SELF-SERVICE ────────────────────────────────────────────────────────
+     Collapsed by default and dropped from print. This page opens at a door; a form
+     must never be between somebody and their QR code. */
+  .tk__self{ width:100%; max-width:390px; margin:0 auto 28px; padding:0 20px;
+    box-sizing:border-box; }
+  @media (max-width:430px){ .tk__self{ max-width:none; padding:0 16px } }
+  .tk__d{ border:1px solid #dde5e4; border-radius:12px; background:#fff }
+  .tk__d summary{ cursor:pointer; padding:14px 16px; min-height:48px; display:flex;
+    align-items:center; font-size:14.5px; font-weight:600; color:#10292C; border-radius:12px }
+  .tk__d summary:focus-visible{ outline:3px solid #237b22; outline-offset:2px }
+  .tk__dbody{ padding:2px 16px 18px; border-top:1px solid #eef3f2 }
+  .tk__dnote{ font-size:12.5px; line-height:1.65; color:#5a6d6f; margin:12px 0 }
+  .tk__act2{ margin:10px 0 }
+  .tk__lab{ display:block; font-size:12px; font-weight:600; color:#3d5457; margin:12px 0 4px }
+  /* 16px: anything smaller and iOS zooms the page on focus. */
+  .tk__in{ width:100%; box-sizing:border-box; font-size:16px; padding:11px 12px; min-height:46px;
+    border:1px solid #cfdad8; border-radius:9px; background:#fff; color:#10292C }
+  .tk__in:focus{ outline:3px solid #237b22; outline-offset:1px; border-color:#237b22 }
+  .tk__btn{ margin-top:12px; min-height:46px; padding:0 20px; font-size:14.5px; font-weight:650;
+    border:0; border-radius:999px; background:#10292C; color:#fff; cursor:pointer }
+  .tk__btn--ghost{ background:#fff; color:#10292C; border:1px solid #cfdad8; width:100%; margin-top:0 }
+  .tk__btn:disabled{ opacity:.55; cursor:default }
+  /* Destructive, and deliberately not red-by-default: it sits inside a panel somebody opened
+     on purpose, and a page of alarm colours makes the one that matters invisible. Outlined
+     until hover, and the WORD carries the meaning — never the colour alone. */
+  .tk__btn--danger{ background:#fff; color:#a32b1f; border:1.5px solid #a32b1f }
+  .tk__btn--danger:hover{ background:#a32b1f; color:#fff }
+  .tk__fs{ border:0; border-top:1px solid #eef3f2; margin:18px 0 0; padding:14px 0 0 }
+  .tk__fs legend{ font-size:13.5px; font-weight:700; color:#10292C; padding:0 }
+  .tk__said{ margin:14px 0 0; font-size:13.5px; line-height:1.6; min-height:1.2em }
+  .tk__said.is-ok{ color:#1c5f1b } .tk__said.is-no{ color:#a32b1f }
+  /* `@media screen`, not a bare rule. Bare, it sits AFTER the print block in this file and
+     wins on source order at equal specificity — so the print caption was in the document,
+     measured, and invisible on the one medium it exists for. */
+  @media screen { .tk__cut{ display:none } }
+  @media print { .tk__self{ display:none } }
+</style>
+{% endblock %}
+
+{% block content %}
+{#
+  `where` is resolved once, at the top, because the address is used in the stub and again in
+  the printed recovery block. Filtered rather than joined blind: an event with a venue and no
+  city must not print a trailing comma.
+#}
+{% set where = event ? [event.venue|default(''), event.location|default('')]|filter(v => v) : [] %}
+
+<div class="tk{{ dark ? ' tk--dark' : '' }}">
+
+{% if reg is null %}
+  <div class="tk__lost">
+    <h1>This ticket link is not working</h1>
+    <p>It may have been mistyped, or belong to a registration that was cancelled. Nothing has
+      gone wrong with any payment you made.</p>
+    <p>Write to <a href="mailto:{{ support_email|default('') }}">{{ support_email|default('the team') }}</a>
+      with the name and email you registered with and a person will find it.</p>
+  </div>
+
+{% else %}
+  {# ── PRICED IS NOT PAID ──────────────────────────────────────────────────
+     `amount_naira > 0` says a price was set. It does not say the money arrived, and the
+     two got conflated: a pending booking rendered `Admit one · paid` in the header and
+     `Paid ₦75,000` in the grid, on a stub deliberately showing no code because the
+     payment has NOT been seen. That is a document arguing with itself at a door, and the
+     person holding it has every reason to believe the half that says paid.
+
+     So the word `paid` is only used where the status confirms it, and a priced booking
+     that is not yet confirmed reads `Price` — the same wording a free ticket gets, for
+     the same reason: it is the amount, not a receipt. #}
+  {% set priced = (reg.amount_naira|default(0)) > 0 %}
+  {% set paid   = priced and reg.status == 'confirmed' %}
+  {% set title  = event.title|default('Africa GATES event') %}
+
+  {# ── the header row ──────────────────────────────────────────────────────── #}
+  <header class="tk__meta">
+    <span class="tk__admit">{{ paid ? 'Admit one · paid' : 'Admit one' }}</span>
+    <span class="tk__ref">{{ reg.reference }}</span>
+  </header>
+
+  {# ══ THE DOCUMENT ══════════════════════════════════════════════════════════ #}
+  <div class="tk__doc">
+
+    {# ── the hero ─────────────────────────────────────────────────────────── #}
+    <section class="tk__hero">
+      {% if D.image %}
+        {# A real <img> rather than a background-image: it is content-adjacent, it is the
+           thing that makes a ticket recognisably this event's, and a static `style` beside
+           an Alpine `:style` is what AlpineStyleClobberTest fails the build over — so
+           nothing here is bound.
+
+           EAGER, and high priority. This is the largest above-the-fold paint on the page:
+           lazy-loading defers the request until layout has run, which is the standard way
+           to push LCP past 2.5s, and the event cover is served at poster resolution — so
+           the deferral cost real seconds on a phone at a door.
+
+           aria-hidden, because the title it sits behind says the same thing in words. #}
+        <img class="tk__shot" src="{{ D.image }}" alt=""
+             fetchpriority="high" decoding="async" aria-hidden="true">
+      {% endif %}
+      {# The wash. Four stops rather than two: opaque through the type block so the date and
+         the title stay legible whatever the photograph does, and clear near the top so the
+         artwork is still the artwork. Built from the validated accent, which is what keeps
+         EventTicketDesign::contrastInk's promise true. The measurement behind each stop is
+         in the stylesheet above. #}
+      <span class="tk__scrim" aria-hidden="true"
+            style="background:linear-gradient(to top,{{ D.accent }}F7 0%,{{ D.accent }}F2 48%,{{ D.accent }}B0 62%,{{ D.accent }}00 78%)"></span>
+      <div class="tk__title">
+        {# The kicker, in the compact form a ticket uses — `05.09.26 · IGANDO, LAGOS`. The
+           written-out date is in the stub, where it is read rather than recognised. #}
+        <p class="tk__kick">
+          {%- if event.event_date|default('') %}{{ event.event_date|date('d.m.y') }}{% endif -%}
+          {%- if event.event_date|default('') and event.location|default('') %} · {% endif -%}
+          {{ event.location|default('')|upper }}
+        </p>
+        <h1{{ title|length > 26 ? ' class="is-long"' : '' }}>{{ title }}</h1>
+        {% if event.tagline|default('') %}<p class="tk__sub">{{ event.tagline }}</p>{% endif %}
+      </div>
+    </section>
+
+    <div class="tk__tear" aria-hidden="true"><i></i></div>
+
+    {# ── the stub ─────────────────────────────────────────────────────────── #}
+    <section class="tk__stub">
+
+      {# QR and code, always both — never one or the other. A camera fails: a cracked
+         screen, a dead battery lending somebody else's phone, low light, an organiser on a
+         device whose browser has no barcode support. The printed code is the fallback, and
+         it is the same string the QR contains, so the two can never disagree.
+
+         {@see \AfricaGates\Support\Qr} returns null for anything it cannot encode, and this
+         renders the code alone in that case rather than a broken image.
+
+         Nothing here for a booking that is not confirmed. A pending payment rendered as a
+         scannable ticket is an argument at a door, and the person having it is the attendee
+         rather than us. #}
+      {% if reg.status == 'confirmed' %}
+        <div class="tk__scan">
+          {% if qr %}<div class="tk__qr">{{ qr|raw }}</div>{% endif %}
+          <div class="tk__codewrap">
+            {# Selectable, and not an image: it is what somebody reads out when a scanner
+               will not read their screen. #}
+            <b class="tk__code">{{ reg.ticket_code|default('—') }}</b>
+            {% if qr %}<span class="tk__qrnote">Scan it, or read the code out</span>{% endif %}
+            {# Print only, and inside the scan block rather than the grid below: on the
+               printed sheet this element IS the tear-off stub, and the name of the person
+               it admits belongs on the half that gets torn off and kept. #}
+            <span class="tk__who">{{ reg.name }}</span>
+          </div>
+        </div>
+      {% endif %}
+    </section>
+
+    {# ── the facts ────────────────────────────────────────────────────────── #}
+    <section class="tk__facts">
+
+      {# ── the details ────────────────────────────────────────────────────
+         Which optional cells appear is the organiser's choice — `D.rows` — because an
+         organiser running a free community day does not want a "Paid ₦0" cell, and one
+         running a gala very much wants the table number. Holder, date and address are not
+         switchable: a ticket without them is not a ticket, and on paper they are all that
+         survives the accent fill being dropped by a driver. #}
+      <div class="tk__grid">
+        {% if event.event_date|default('') %}
+          {# Two cells on screen, one on paper. The screen has room for the day name —
+             "Saturday" is what somebody checks against their own week — and 46mm of stub
+             does not, so print gets the joined form below instead of both. #}
+          <div class="tk__cell tk__cell--screen"><small>Date</small>
+            <b>{{ event.event_date|date('D d M Y') }}</b></div>
+          <div class="tk__cell tk__cell--screen"><small>Doors</small>
+            <b>{{ event.event_date|date('g:i a') }}{% if event.end_date|default('') %} – {{ event.end_date|date('g:i a') }}{% endif %}</b></div>
+        {% endif %}
+
+        {% if reg.tier|default('') %}
+          <div class="tk__cell"><small>Ticket type</small><b>
+            {%- if tier_swatch %}<span class="tk__dot" aria-hidden="true"
+                 style="background:{{ tier_swatch.fill }};border-color:{{ tier_swatch.edge }}"></span>{% endif -%}
+            {{ reg.tier }}</b></div>
+        {% endif %}
+        {# A SEAT PRINTS. It is the one optional cell a door team acts on, so it keeps its
+           place on paper while the rest of the optional set does not. #}
+        {% if 'seat' in D.rows and reg.seat_label|default('') %}
+          <div class="tk__cell"><small>Seat</small><b>{{ reg.seat_label }}</b></div>
+        {% endif %}
+
+        {# ── WHAT PAPER HAS NO ROOM FOR ────────────────────────────────────
+           A 46 × 62 mm stub holds a 26mm symbol, its code and about four rows. These
+           five are the ones a door does not read: the price is settled, the phone and
+           the email are ours to look up, the count and the booking date are records
+           rather than credentials. Dropped from the sheet, kept on the screen. #}
+        {% if 'price' in D.rows %}
+          <div class="tk__cell tk__cell--nopaper"><small>{{ paid ? 'Paid' : 'Price' }}</small>
+            <b>{{ priced ? '₦' ~ reg.amount_naira|number_format : 'Free' }}</b></div>
+        {% endif %}
+        {% if 'seats' in D.rows and (reg.quantity|default(1)) > 1 %}
+          <div class="tk__cell tk__cell--nopaper"><small>Seats</small><b>{{ reg.quantity }}</b></div>
+        {% endif %}
+        {% if 'phone' in D.rows and reg.phone|default('') %}
+          <div class="tk__cell tk__cell--nopaper"><small>Phone</small><b>{{ reg.phone }}</b></div>
+        {% endif %}
+        {% if 'bought' in D.rows and reg.created_at|default('') %}
+          <div class="tk__cell tk__cell--nopaper"><small>Booked</small>
+            <b>{{ reg.created_at|slice(0, 10) }}</b></div>
+        {% endif %}
+        {% if 'email' in D.rows and reg.email|default('') %}
+          <div class="tk__cell tk__cell--wide tk__cell--nopaper"><small>Email</small>
+            <b>{{ reg.email }}</b></div>
+        {% endif %}
+
+        {# Print only, and only because 46mm of stub cannot carry the day name as well as
+           the time. Same fact as the two screen cells above, in one line. #}
+        {% if event.event_date|default('') %}
+          <div class="tk__cell tk__cell--print"><small>Date</small>
+            <b>{{ event.event_date|date('d M Y') }} · {{ event.event_date|date('g:i a') }}</b></div>
+        {% endif %}
+
+        {# Last, and both full width, because these two are the ones that wrap. #}
+        {% if where|length %}
+          <div class="tk__cell tk__cell--wide"><small>Where</small><b>{{ where|join(', ') }}</b></div>
+        {% endif %}
+        <div class="tk__cell tk__cell--wide tk__cell--holder"><small>Ticket holder</small>
+          <b>{{ reg.name }}</b></div>
+      </div>
+
+      {# Paper cannot be clicked, and this is how somebody who printed a ticket and then
+         lost the email finds it again. A bare line rather than a labelled cell: on a sheet
+         with three rows to spare, a `REFERENCE` label above a URL that already ends in the
+         reference is a row spent saying the same thing twice. #}
+      <span class="tk__url">{{ site_url }}/events/ticket/{{ reg.reference|url_encode }}</span>
+
+      {% if D.note %}<p class="tk__note2"><b>{{ D.note }}</b></p>{% endif %}
+
+      {# The signature. Screen only: on 46mm of paper the domain is already in the printed
+         recovery URL above, and a second mark is decoration the sheet has no room for. #}
+      <div class="tk__sig">
+        <img src="/assets/img/afg-mark.svg" alt="Africa GATES" width="26" height="26">
+        <span>AGATES.ORG</span>
+      </div>
+    </section>
+  </div>
+
+  {# ── the states ─────────────────────────────────────────────────────────── #}
+  {% if reg.status == 'pending' %}
+    <div class="tk__flag tk__flag--wait">
+      <strong>We have not seen your payment yet.</strong> If your bank has debited you it
+      can take a few minutes to reach us — this page will show your ticket code as soon as
+      it does, so keep the link. Nothing further is needed from you.
+    </div>
+  {% elseif reg.status == 'cancelled' %}
+    <div class="tk__flag tk__flag--dead">
+      <strong>This registration was cancelled.</strong> If that is a surprise, it is usually
+      a checkout that was never completed — nothing was charged. You are welcome to book again.
+    </div>
+  {% elseif reg.status == 'waitlisted' %}
+    <div class="tk__flag tk__flag--wait">
+      <strong>You are on the waiting list.</strong> This tier is full. If a seat comes free
+      the longest-waiting person is offered it first, and you will be emailed — keep this
+      link, because the offer appears here too.
+    </div>
+  {% elseif reg.status != 'confirmed' %}
+    <div class="tk__flag tk__flag--wait">This registration is
+      <strong>{{ reg.status|default('incomplete') }}</strong>.</div>
+  {% endif %}
+
+  {% if reg.checked_in_at|default('') %}
+    {# The ticket stays visible. Afterwards it is a receipt. #}
+    <div class="tk__flag tk__flag--in">Checked in at {{ reg.checked_in_at }}. Welcome.</div>
+  {% endif %}
+
+  {# ── the actions ────────────────────────────────────────────────────────
+     Outside the document, so print drops them without leaving a gap in the ticket.
+
+     The calendar link is a real download rather than a script: a paid seat that goes unused
+     is usually somebody who meant to write the date down and did not.
+
+     The second action is a GENERATED PDF and not the browser's print dialogue. `@media
+     print` hands the page size, the margins and — the one that breaks things — the scale
+     factor to the browser and the driver, and "Fit to page" is on by default in more than
+     one of them: it rescales the QR below the module size a scanner can resolve, which
+     nobody discovers until a gate with a queue behind it. The PDF is fixed millimetres. #}
+  {% if event.event_date|default('') or reg.status == 'confirmed' %}
+  <div class="tk__acts">
+    {% if event.event_date|default('') %}
+      <a class="tk__act tk__act--go" href="/events/ticket/{{ reg.reference|url_encode }}/calendar.ics">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+          <rect x="3" y="5" width="18" height="16" rx="2"/><path d="M8 3v4M16 3v4M3 11h18"/>
+        </svg>Add to calendar</a>
+    {% endif %}
+    {% if reg.status == 'confirmed' %}
+      <a class="tk__act tk__act--ghost" href="/events/ticket/{{ reg.reference|url_encode }}/ticket.pdf">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+          <path d="M12 3v12m0 0-4-4m4 4 4-4M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/>
+        </svg>Save or print</a>
+    {% endif %}
+  </div>
+  {% endif %}
+
+  {# Print only — `.tk__cut` has no screen rule at all, and `.tk__foot` beside it is the
+     screen's version of the same sentence and is hidden on paper. Two audiences, two
+     sentences, neither of them shown to the other. #}
+  <p class="tk__cut">Cut along the dotted line. At the door the stub tears off down the
+    dashes — or just show the code on your phone.</p>
+
+  <p class="tk__foot">Keep this link — it is your ticket, and it works without signing in to
+    anything.{% if event.slug|default('') %} Full details are on the
+    <a href="/events/{{ event.slug }}">event page</a>.{% endif %}</p>
+  <p class="tk__foot"><b>Nothing about attending costs more than the price above.</b>
+    If anybody asks you for a further payment to attend, it is not us.</p>
+{% endif %}
+
+</div>
+
+{# ── SELF-SERVICE ────────────────────────────────────────────────────────────
+   The three things that otherwise arrive in a support inbox as free text and get done by
+   hand. Collapsed behind <details> rather than laid out, and OUTSIDE the ticket frame: this
+   page's job is to open at a door, and a form is the last thing somebody wants between them
+   and their QR code.
+
+   Not a cancel button up front. Giving a seat up is a money decision — the organiser may
+   hold a deposit, the tier may be non-refundable — and a self-service cancel that silently
+   did neither would be the worst of both. That one stays a conversation. #}
+{% if reg is not null and reg.status == 'confirmed' and not reg.checked_in_at|default('') %}
+<div class="tk__self">
+  <details class="tk__d">
+    <summary>Manage this ticket</summary>
+    <div class="tk__dbody">
+
+      <p class="tk__dnote">Changes are confirmed with a code sent to the email this ticket
+        was booked with, so somebody who has only seen your QR code cannot alter it.</p>
+
+      <div class="tk__act2">
+        <button type="button" class="tk__btn tk__btn--ghost" data-tk="resend">Email me this ticket again</button>
+      </div>
+
+      <div class="tk__act2">
+        <button type="button" class="tk__btn tk__btn--ghost" data-tk="code">Send me a code to make a change</button>
+      </div>
+
+      <div id="tkChange" hidden>
+        <label class="tk__lab" for="tkCode">6-digit code</label>
+        <input class="tk__in" id="tkCode" inputmode="numeric" autocomplete="one-time-code"
+               maxlength="6" placeholder="123456">
+
+        <fieldset class="tk__fs">
+          <legend>Change the name on the ticket</legend>
+          <label class="tk__lab" for="tkName">Name</label>
+          <input class="tk__in" id="tkName" maxlength="160" value="{{ reg.name }}">
+          <button type="button" class="tk__btn" data-tk="rename">Save the new name</button>
+        </fieldset>
+
+        {# ── CANCELLING ────────────────────────────────────────────────
+           The figure is fetched and shown BEFORE the confirm. A cancellation flow that
+           reveals what you get back only after the irreversible step is the pattern
+           regulators enforce against, and it is also how somebody ends up furious with an
+           organiser who did nothing wrong. The button is deliberately quiet and last: it is
+           the one action here nobody should hit by accident. #}
+        <fieldset class="tk__fs">
+          <legend>Cancel this booking</legend>
+          <p class="tk__dnote" id="tkCancelWhy">Checking what the organiser's policy gives
+            back…</p>
+          <button type="button" class="tk__btn tk__btn--danger" data-tk="cancel" hidden
+                  id="tkCancelGo">Cancel and give up my place</button>
+        </fieldset>
+
+        <fieldset class="tk__fs">
+          <legend>Give this ticket to somebody else</legend>
+          <label class="tk__lab" for="tkTName">Their name</label>
+          <input class="tk__in" id="tkTName" maxlength="160" placeholder="Who is coming instead">
+          <label class="tk__lab" for="tkTMail">Their email</label>
+          <input class="tk__in" id="tkTMail" type="email" placeholder="them@example.com">
+          <p class="tk__dnote">We email them the ticket with a new code, and
+            <strong>this one stops working at the door</strong>.</p>
+          <button type="button" class="tk__btn" data-tk="transfer">Transfer the ticket</button>
+        </fieldset>
+      </div>
+
+      {# One live region for every reply, so a screen reader hears the outcome wherever it
+         came from, and sighted users are not hunting for which form answered. #}
+      <p class="tk__said" id="tkSaid" role="status" aria-live="polite"></p>
+    </div>
+  </details>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block foot_scripts %}
+{% if reg is not null %}
+{# The only script on the page, and nothing depends on it: `data-tk` attributes rather than
+   inline handlers, because CspTest fails the build on an inline event handler. #}
+<script nonce="{{ csp_nonce }}">
+/* ── SELF-SERVICE ──────────────────────────────────────────────────────────
+   One handler for four endpoints, because the reply shape is identical and the only thing
+   that differs is which fields go up. Every outcome lands in ONE live region: a screen
+   reader hears it wherever it came from, and nobody has to work out which form answered. */
+(function () {
+  var wrap = document.getElementById('tkSaid');
+  if (!wrap) return;
+  var base = {{ ('/events/ticket/' ~ reg.reference ~ '/')|json_encode|raw }};
+  var change = document.getElementById('tkChange');
+
+  function say(ok, msg) {
+    wrap.className = 'tk__said ' + (ok ? 'is-ok' : 'is-no');
+    wrap.textContent = msg || '';
+  }
+
+  async function post(path, payload, btn) {
+    var label = btn ? btn.textContent : '';
+    if (btn) { btn.disabled = true; btn.textContent = 'Working…'; }
+    say(true, '');
+    try {
+      var r = await fetch(base + path, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest',
+                   /* These endpoints CHANGE the ticket, so they go through CSRF like every
+                      other write on the platform. The door is the exception, not this. */
+                   'X-CSRF-Token': {{ csrf_token|json_encode|raw }} },
+        body: JSON.stringify(payload || {})
+      });
+      var j = await r.json();
+      say(!!j.success, j.message || '');
+      return j;
+    } catch (e) {
+      say(false, 'That did not go through. Check your connection and try again.');
+      return null;
+    } finally {
+      if (btn) { btn.disabled = false; btn.textContent = label; }
+    }
+  }
+
+  /* The quote is fetched when the panel OPENS, so the refund figure is already on screen by
+     the time somebody reaches the cancel button — never after they have pressed it. */
+  var det = document.querySelector('.tk__d');
+  var quoted = false;
+  if (det) {
+    det.addEventListener('toggle', async function () {
+      if (!det.open || quoted) return;
+      quoted = true;
+      var why = document.getElementById('tkCancelWhy');
+      var go  = document.getElementById('tkCancelGo');
+      try {
+        var r = await fetch(base + 'cancel-quote', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest',
+                     'X-CSRF-Token': {{ csrf_token|json_encode|raw }} },
+          body: '{}'
+        });
+        var q = await r.json();
+        if (why) {
+          why.textContent = q.message || '';
+          if (q.policy_text) { why.textContent += ' ' + q.policy_text; }
+          if (!q.success && q.contact) {
+            why.textContent += ' To cancel, contact ' + q.contact + '.';
+          }
+        }
+        if (go && q.success) { go.hidden = false; go.setAttribute('data-owed', String(q.naira || 0)); }
+      } catch (e) {
+        if (why) { why.textContent = 'We could not check the refund policy just now.'; }
+      }
+    });
+  }
+
+  document.addEventListener('click', async function (e) {
+    var btn = e.target.closest ? e.target.closest('[data-tk]') : null;
+    if (!btn) return;
+    e.preventDefault();
+    var what = btn.getAttribute('data-tk');
+    var code = (document.getElementById('tkCode') || {}).value || '';
+
+    if (what === 'resend')   { await post('resend', {}, btn); return; }
+    if (what === 'code') {
+      var j = await post('code', {}, btn);
+      /* The change fields appear only once a code is actually on its way. Showing them up
+         front would invite somebody to fill in a transfer and then be told to go and fetch
+         a code — which is the point at which they email support instead. */
+      if (j && j.success && change) { change.hidden = false;
+        var f = document.getElementById('tkCode'); if (f) f.focus(); }
+      return;
+    }
+    if (what === 'rename') {
+      await post('rename', { code: code, name: (document.getElementById('tkName') || {}).value || '' }, btn);
+      return;
+    }
+    if (what === 'cancel') {
+      var why = document.getElementById('tkCancelWhy');
+      var owed = btn.getAttribute('data-owed') || '0';
+      /* The amount is repeated in the confirm, not just above it. This is the last moment
+         before something irreversible, and it is the moment somebody actually reads. */
+      var line = owed === '0'
+        ? 'Give up your place? Nothing is refunded, and your ticket code stops working.'
+        : 'Give up your place and refund ₦' + Number(owed).toLocaleString()
+          + '? Your ticket code stops working.';
+      if (!window.confirm(line)) return;
+      var c = await post('cancel', { code: code }, btn);
+      if (c && c.success) {
+        if (why) { why.textContent = ''; }
+        btn.hidden = true;
+        setTimeout(function () { location.reload(); }, 3000);
+      }
+      return;
+    }
+    if (what === 'transfer') {
+      var nm = (document.getElementById('tkTName') || {}).value || '';
+      var em = (document.getElementById('tkTMail') || {}).value || '';
+      /* Confirmed in the browser as well as refused on the server, because this is the one
+         action on the page that cannot be undone by the person taking it: after it, their
+         own code stops working. */
+      if (!window.confirm('Transfer this ticket to ' + (nm || 'them') + '? Your own code will stop working at the door.')) return;
+      var t = await post('transfer', { code: code, name: nm, email: em }, btn);
+      if (t && t.success) { setTimeout(function () { location.reload(); }, 2500); }
+      return;
+    }
+  });
+})();
+</script>
+{% endif %}
+{% endblock %}

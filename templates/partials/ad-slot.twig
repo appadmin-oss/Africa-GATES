@@ -1,0 +1,22 @@
+{# ── Standard display ad (Google AdSense) — enterprise-grade ─────────────────
+   Renders ONLY when a publisher client + ad slot are configured (admin settings
+   or ADSENSE_CLIENT / ADSENSE_SLOT env) — otherwise nothing shows, so dev and
+   un-monetised deployments stay clean. Labeled "Advertisement", responsive, and
+   height-reserved (CSS) to avoid layout shift. The unit is LAZY-loaded (only when
+   it nears the viewport) and the whole block COLLAPSES if the network returns no
+   ad, so users never see an empty placeholder. The adsbygoogle.js loader + the
+   lazy/collapse controller are added once per page by the host template
+   (see shop/index.twig). Pass `slot` to target a specific unit; defaults to the
+   configured `adsense_slot`. #}
+{% set _adslot = slot|default(adsense_slot) %}
+{% if adsense_client and _adslot %}
+<aside class="ad-slot" role="complementary" aria-label="Advertisement" data-ad-lazy>
+  <span class="ad-slot__label">Advertisement</span>
+  <ins class="adsbygoogle"
+       style="display:block"
+       data-ad-client="{{ adsense_client }}"
+       data-ad-slot="{{ _adslot }}"
+       data-ad-format="auto"
+       data-full-width-responsive="true"></ins>
+</aside>
+{% endif %}

@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 namespace AfricaGates\Admin\Controllers;
 
+use AfricaGates\Support\Env;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
 use Slim\Views\Twig;
@@ -32,11 +33,400 @@ class SettingsController
             'page_title'     => 'Settings — Admin',
             'admin_page'     => 'settings',
             'values'         => $this->settings->all(),
+            // Display timezone: the choices, and what is in force right now.
+            'tz_choices'     => \AfricaGates\Support\DisplayTime::choices(),
+            'tz_current'     => \AfricaGates\Support\DisplayTime::zone(),
+            'tz_abbr'        => \AfricaGates\Support\DisplayTime::abbr(),
             'admin_settings' => $adminSettings,
             'smtp_configured'=> $this->mailer?->smtpConfigured() ?? false,
-            'flash_ok'       => $_SESSION['flash_ok']   ?? null,
-            'flash_error'    => $_SESSION['flash_error'] ?? null,
+            // Whether a password is resolvable at all, from either source — the field
+            // itself is WRITE-ONLY, like every provider key, so this only picks the
+            // placeholder. Same shape as ai_mod_dedicated below.
+            // Deliberately settings-only, not "configured from either source": the
+            // placeholder promises that leaving the box blank KEEPS what is there, and
+            // what blank keeps is the stored row. An .env password is the fallback
+            // underneath, not something this form is holding on to.
+            'smtp_pass_set'  => trim((string) (\Illuminate\Database\Capsule\Manager::table('gates_settings')->where('key_name', 'mail_smtp_pass')->value('value') ?? '')) !== '',
+            // Image hosting. Read through the resolver, so what the card reports is
+            // what an upload will actually do rather than what one source of two says.
+            'cloudinary_on'     => \AfricaGates\Services\CloudinaryService::enabled(),
+            'cloudinary_cloud'  => \AfricaGates\Services\CloudinaryService::cloudName(),
+            'cloudinary_folder' => \AfricaGates\Services\CloudinaryService::rootFolder(),
+            // Shown as the placeholder, so an operator can see the sentence they are
+            // replacing rather than an empty box.
+            'invite_witness_nominee_default' => \AfricaGates\Services\InviteAudience::spec(
+                \AfricaGates\Services\InviteAudience::NOMINEE)['witness_default'],
+            'invite_witness_judge_default'   => \AfricaGates\Services\InviteAudience::spec(
+                \AfricaGates\Services\InviteAudience::JUDGE)['witness_default'],
+            // The reminder schedule and its two sentences, resolved rather than read raw:
+            // the screen has to show the marks that WILL be used, which for an operator
+            // who has set nothing is the default list and not an empty box.
+            'invite_reminder_on'    => \AfricaGates\Services\InviteReminders::enabled(),
+            'invite_reminder_marks' => \AfricaGates\Services\InviteReminders::marks(),
+            'invite_reminder_days_default' => implode(', ', \AfricaGates\Services\InviteReminders::DEFAULT_MARKS),
+            // The questionnaire deadline warnings. Resolved for the same reason the
+            // invitation marks are: an operator who has set nothing is on the defaults,
+            // and an empty box beside a schedule that runs every morning reads as "off".
+            // The door's voice: whether it is configured, what is wrong when it is not, and
+            // the two Nigerian voices Azure publishes. Resolved rather than echoed, same as
+            // every other credential screen here.
+            // ── TWO DIFFERENT QUESTIONS, AND THE SCREEN ASKED ONLY ONE ──────
+            //
+            // `azure_*` answers "is the Azure BOX filled in", which is what the Azure key
+            // and region fields need. `door_voice_*` answers "can this door speak", which
+            // is what every other control on the card needs — the subtitle, the Hear
+            // buttons, and whether the pronunciation rows are disabled.
+            //
+            // Seven places used the Azure answer for the door question. With OpenAI
+            // selected and its key set, the card said "Not configured — the door works
+            // exactly as it does now, in silence", disabled every Hear button, and told
+            // the operator to set an Azure key. Their key was right, the provider was
+            // right, the door would have spoken, and every control on the screen said
+            // otherwise.
+            'azure_voice_on'    => \AfricaGates\Services\AzureVoice::configured(),
+            'azure_voice_why'   => \AfricaGates\Services\AzureVoice::why(),
+            'door_voice_on'     => \AfricaGates\Services\DoorVoice::configured(),
+            'door_voice_why'    => \AfricaGates\Services\DoorVoice::why(),
+            'door_voice_label'  => \AfricaGates\Services\DoorVoice::PROVIDERS[
+                                       \AfricaGates\Services\DoorVoice::provider()] ?? '',
+            // THE CASE NOTHING RENDERED: configured, and refusing.
+            //
+            // `why()` is empty whenever a key is present, so a key that is present and
+            // WRONG — expired, revoked, wrong project, out of credit — produced a card
+            // with no warning on it at all and a door that made no sound. That is
+            // indistinguishable from working, and it is exactly what "my key is intact
+            // but it still does not function" looks like from the inside.
+            'door_voice_error'  => \AfricaGates\Services\DoorVoice::lastError(),
+            // ── THE WHOLE CHAIN, ON THE SCREEN WHERE THE KEY IS SET ─────────
+            //
+            // Four independent things must ALL be true for a guest to hear their name:
+            // the greeting is switched on, a provider is configured, the cache directory
+            // is writable, and a clip has actually been rendered. Any one of them false
+            // is silence, and at the door all four look identical.
+            //
+            // DoorWelcome::readiness() has walked that chain correctly since it was
+            // written — and only the EVENT ticket panel ever displayed it. An operator
+            // who has just set a key is on THIS screen, where three of the four links
+            // were invisible. Same resolver, second reader; nothing new decides anything.
+            'door_readiness'    => \AfricaGates\Services\DoorWelcome::readiness(),
+            // Who speaks at the door, and the OpenAI voice for when it is OpenAI. The
+            // trade-off between them is real — name accuracy against naturalness — so both
+            // sides are named on the screen rather than left to be discovered on the night.
+            'door_voice_providers' => \AfricaGates\Services\DoorVoice::PROVIDERS,
+            'door_voice_provider'  => \AfricaGates\Services\DoorVoice::provider(),
+            'openai_voices'        => \AfricaGates\Services\OpenAiVoice::VOICES,
+            'openai_voice_pick'    => \AfricaGates\Services\OpenAiVoice::voice(),
+            'azure_voices'      => \AfricaGates\Services\AzureVoice::VOICES,
+            'azure_voice_pick'  => \AfricaGates\Services\AzureVoice::voice(),
+            'azure_region'      => \AfricaGates\Services\AzureVoice::region(),
+            // Which provider leads. Was a constant the screen kept describing wrongly;
+            // now the screen reads the same value the router does.
+            'ai_primary_choices'  => \AfricaGates\Services\AiCapability::PROVIDERS,
+            'ai_primary'          => \AfricaGates\Services\AiCapability::primaryProvider(),
+            'azure_tiers'       => \AfricaGates\Services\AzureVoice::TIERS,
+            'azure_tier'        => \AfricaGates\Services\AzureVoice::tier(),
+            // ── THE REVIEW SHEET ──────────────────────────────────────────
+            //
+            // How every name on the way is CURRENTLY said, and who decided — the operator,
+            // what the platform worked out, or the rule. It used to be a list of names with
+            // no pronunciation, which made this box homework: an operator had to fill it in
+            // before the voice was any good. Every name here already has an answer, so the
+            // screen asks somebody to listen rather than to teach.
+            // ── WHICH EVENT'S DOOR ────────────────────────────────────────
+            //
+            // The greeting prefix is taken from the EVENT's start in the EVENT's own
+            // timezone — "Good evening." at a gala, nothing at all at a 2am one — so a
+            // preview with no event previews a sentence the door never says. Offered as a
+            // choice rather than assumed, because an operator setting up next month's
+            // gala is not testing tonight's.
+            'door_events'         => (function (): array {
+                try {
+                    return \Illuminate\Database\Capsule\Manager::table('gates_site_events')->where('status', 'published')
+                        ->orderByDesc('event_date')->limit(20)
+                        ->get(['id', 'title', 'event_date'])
+                        ->map(static fn (object $r): array => (array) $r)->all();
+                } catch (\Throwable) { return []; }
+            })(),
+            'voice_pending'       => \AfricaGates\Services\DoorWelcome::nameSheet(),
+            'voice_known'         => \AfricaGates\Services\NameSays::count(),
+            'voice_lead'          => \AfricaGates\Services\DoorWelcome::LEAD_DAYS,
+            'azure_rates'       => \AfricaGates\Services\AzureVoice::RATES,
+            'azure_pitches'     => \AfricaGates\Services\AzureVoice::PITCHES,
+            // Resolved, not echoed: these come back '' when neutral, and the picker needs
+            // the value that was actually stored so it can select the right row.
+            'azure_rate'        => \AfricaGates\Services\AzureVoice::conf('azure_speech_rate'),
+            'azure_pitch'       => \AfricaGates\Services\AzureVoice::conf('azure_speech_pitch'),
+            // How many greetings one run may attempt, so the screen can say what the
+            // choice above actually does rather than leaving it as a word.
+            'azure_per_run'     => min(\AfricaGates\Services\DoorWelcome::CAP,
+                                       \AfricaGates\Services\AzureVoice::perMinute()),
+            'door_welcome_on'   => \AfricaGates\Services\DoorWelcome::enabled(),
+            'questionnaire_reminder_marks' => \AfricaGates\Services\QuestionnaireReminders::marks(),
+            'questionnaire_reminder_days_default' =>
+                implode(', ', \AfricaGates\Services\QuestionnaireReminders::DEFAULT_MARKS),
+            // Resolved, not echoed: an operator who has set no time is on 09:00, and the
+            // screen has to say 09:00 rather than show them an empty box beside a schedule
+            // that is demonstrably running.
+            'invite_reminder_time'      => \AfricaGates\Services\InviteReminders::sendTimeLabel(),
+            'invite_reminder_time_zone' => \AfricaGates\Support\DisplayTime::abbr(),
+            // The arc, and what an operator may write into it. The token list is READ
+            // from the class rather than copied into the template: a list of placeholders
+            // that lives in Twig is one that goes out of date the first time one is added.
+            'invite_seq_days'    => \AfricaGates\Services\InviteSequence::DAYS,
+            // Both arcs. Nominees and judges are honoured for different things, so the
+            // letters are written twice and edited separately.
+            'invite_seq_audiences' => \AfricaGates\Services\InviteAudience::all(),
+            'visits_on'         => \AfricaGates\Services\VisitTracker::enabled(),
+            'visits_days_value' => \AfricaGates\Services\VisitTracker::keepDays(),
+            'invite_seq_tokens'  => \AfricaGates\Services\InviteSequence::TOKENS,
+            'invite_seq_values_default'  => \AfricaGates\Services\InviteSequence::values(),
+            'invite_seq_outcome_default' => \AfricaGates\Services\InviteSequence::DEFAULT_OUTCOME,
+            'invite_seq_action_default'  => \AfricaGates\Services\InviteSequence::DEFAULT_ACTION,
+            'invite_seq_team_default'    => \AfricaGates\Services\InviteSequence::DEFAULT_TEAM,
+            'invite_reminder_line_nominee_default' => \AfricaGates\Services\InviteReminders::copy(
+                \AfricaGates\Services\InviteAudience::NOMINEE)['line_default'],
+            'invite_reminder_line_judge_default'   => \AfricaGates\Services\InviteReminders::copy(
+                \AfricaGates\Services\InviteAudience::JUDGE)['line_default'],
+            'cloudinary_secret_set' => trim((string) (\Illuminate\Database\Capsule\Manager::table('gates_settings')->where('key_name', 'cloudinary_api_secret')->value('value') ?? '')) !== '',
+            // Flash renders from the Twig globals via the layout — do not shadow them.
+            // Where each revenue stream settles. Resolved, so the screen shows the code that
+            // WILL be used rather than a raw setting somebody has to interpret.
+            'payouts'        => \AfricaGates\Services\PaymentDestination::all(),
+            'payout_bearers' => \AfricaGates\Services\PaymentDestination::BEARERS,
+            'payouts_routed' => \AfricaGates\Services\PaymentDestination::anyRouted(),
+            'shop_regions'   => \AfricaGates\Services\ShopPricing::regions(),
+            'shop_mults'     => \AfricaGates\Services\ShopPricing::multipliers(),
+            // The EFFECTIVE per-order maximum, not the raw setting — it is the lower of
+            // that setting and what the cash ceiling allows at the current rate, and
+            // showing the raw number would tell an admin they had configured a limit the
+            // checkout does not actually honour.
+            'paid_max_qty'          => \AfricaGates\Services\PaidVoteService::maxQtyForOrder(),
+            'paid_max_order_naira'  => \AfricaGates\Services\PaidVoteService::MAX_ORDER_NAIRA,
+            // The ladder as ROWS, not as the raw JSON string. An admin editing JSON in a
+            // textarea is one missing brace away from silently reverting the site's whole
+            // pricing to defaults, and the ballot reads this on every page view.
+            'vote_tiers'            => \AfricaGates\Services\PaidVoteService::tiers(),
+            // Which AI providers have a key (booleans only — keys are never echoed).
+            // Raw provider state — deliberately direct, not through the gateway:
+            // this is the diagnostics surface and must see the true key state
+            // even when a kill switch is off.
+            // ElevenLabs is not one of AiService's chat providers — it only speaks — so
+            // its "configured" dot has to be added, or the card renders "not set" beside a
+            // key that is working and offers no way to remove it.
+            'ai_status'      => \AfricaGates\Services\AiService::boot()->status()
+                                + ['elevenlabs' => \AfricaGates\Services\ElevenLabsVoice::configured()],
+            // Governance view. Both figures were previously impossible to
+            // produce: nothing recorded token usage, and nothing recorded whether
+            // a reviewer agreed with a suggestion.
+            'ai_enabled_flag' => \AfricaGates\Services\AiGateway::globallyEnabled(),
+            'ai_spend'        => \AfricaGates\Services\AiGateway::spendReport(),
+            // WHY the failures in that report happened. The count beside each capability was
+            // the end of the trail on a host with no shell: "3 failures", with the provider's
+            // own refusal sitting unread in a column since the log was built. A rejected key,
+            // a decommissioned model, an egress block and a summary that ran out of time all
+            // showed as the same gold chip, and each is a different fix.
+            'ai_failures'     => \AfricaGates\Services\AiGateway::recentFailures(),
+            'ai_agreement'    => \AfricaGates\Services\AiDecisionLog::agreement(30),
+            'ai_capabilities' => array_map(
+                static fn (\AfricaGates\Services\AiCapability $c) => [
+                    'name'       => $c->name,
+                    'purpose'    => $c->purpose,
+                    'model'      => $c->model,
+                    'on_failure' => $c->onFailure,
+                    'calls'      => $c->callsPerDay,
+                    'tokens'     => $c->tokensPerDay,
+                    'enabled'    => \AfricaGates\Services\AiGateway::capabilityEnabled($c->name),
+                ],
+                \AfricaGates\Services\AiCapability::all()
+            ),
+            // Whether a DEDICATED moderation Groq key is set (vs falling back to
+            // the general key). Read straight from settings — never echoed.
+            'ai_mod_dedicated' => trim((string) (\Illuminate\Database\Capsule\Manager::table('gates_settings')->where('key_name', 'ai_groq_key_mod')->value('value') ?? Env::get('GROQ_MODERATION_KEY', ''))) !== '',
+            'ai_mod_model'   => \AfricaGates\Services\AiService::MODERATION_MODEL,
+            // Placeholders for the four model fields. Read from the service so the
+            // default an operator is shown is the default the request will use —
+            // they were four literals in the template, and the Gemini one was stale.
+            'ai_default_models' => \AfricaGates\Services\AiService::DEFAULT_MODELS,
+            // The last per-provider probe, consumed once. Not persisted: a verdict from a
+            // week ago rendered as if it were current is worse than no verdict, because it
+            // is the one an operator would act on.
+            'ai_probe' => (static function (): array {
+                $r = $_SESSION['ai_probe'] ?? [];
+                unset($_SESSION['ai_probe']);
+                return is_array($r) ? $r : [];
+            })(),
+            // ── THE GOOGLE DOOR, NOW SETTABLE FROM HERE ─────────────────────
+            //
+            // Both values used to be readable only from .env, and there is no SSH on this
+            // production host — so the screen that told an operator to "set GAS_SECRET in
+            // .env" was describing a file they could not open, and the whole calendar and
+            // Meet integration stayed off with a correct-looking explanation beside it.
+            //
+            // The URL is ECHOED because an operator has to be able to see which deployment
+            // they are pointed at without pasting it again to find out; a stale /exec URL
+            // from a previous deployment is the commonest way this integration half-works.
+            // The secret is write-only, like every other credential on this page.
+            'gas_url'        => \AfricaGates\Services\GoogleMeetService::gasUrl(),
+            'gas_secret_set' => \AfricaGates\Services\GoogleMeetService::gasSecret() !== '',
+            // Consumed once, for the same reason as the AI probe above: a verdict about a
+            // deployment that has since been re-published is the one an operator would act on.
+            'sync_probe' => (static function (): array {
+                $r = $_SESSION['sync_probe'] ?? [];
+                unset($_SESSION['sync_probe']);
+                return is_array($r) ? $r : [];
+            })(),
+            // ElevenLabs — the voice on the nominee's questionnaire. Booleans and defaults
+            // only; the key itself is write-only like every other provider key on this page.
+            'voice_status'    => (static function (): array {
+                $v = \AfricaGates\Services\VoiceService::boot();
+                return ['configured' => $v->configured(), 'voice' => $v->voiceId(),
+                        'tts' => $v->ttsModel(), 'stt' => $v->sttModel(), 'why' => $v->why()];
+            })(),
+            'voice_defaults'  => ['voice' => \AfricaGates\Services\VoiceService::DEFAULT_VOICE,
+                                  'tts'   => \AfricaGates\Services\VoiceService::TTS_MODEL,
+                                  'stt'   => \AfricaGates\Services\VoiceService::STT_MODEL],
+            // Messaging channels configured state (booleans only — secrets never echoed).
+            'sms_status'     => \AfricaGates\Services\SmsService::boot()->status(),
+            // The shipped wording, shown as the textarea's placeholder so an operator can
+            // see what "leave blank" actually sends rather than being asked to trust it.
+            'checkin_sms_default' => \AfricaGates\Services\CheckInThanks::DEFAULT_TEMPLATE,
+            // Email delivery health — recent sends with status/error so "links
+            // aren't arriving" is diagnosable at a glance.
+            'mail_health'    => $this->mailHealth(),
+
+            // ── Community return ─────────────────────────────────────────────
+            //
+            // Resolved through the same helper the public pages use, so the form
+            // shows literally what /integrity is publishing. This card is the ONLY
+            // place the share is decided; every reader in the codebase goes through
+            // RuleEngine to find out what it is.
+            'community_return' => \AfricaGates\Services\CommunityReturnService::displayRules(
+                (new \AfricaGates\Services\RuleEngine())->effective()
+            ),
+            // The scoring curves, so the form can show what is actually in force rather
+            // than the defaults. Whole ruleset rather than five picked keys: the template
+            // reads them by name and a missing one under strict_variables is a 500.
+            'scoring'    => (new \AfricaGates\Services\RuleEngine())->effective(),
+
+            // Automation / webcron status for the no-SSH setup card.
+            'app_url'        => rtrim((string) Env::get('APP_URL', ''), '/'),
+            'cron_last'      => (function () {
+                try { return \Illuminate\Database\Capsule\Manager::table('gates_cron_log')->where('job_name', 'maintenance')->orderByDesc('id')->first(); }
+                catch (\Throwable) { return null; }
+            })(),
         ]);
+    }
+
+    /**
+     * GET /admin/settings/providers — the page that asks every provider a real question.
+     *
+     * Renders the catalogue only; nothing is called until the operator presses Run. A page
+     * that probed sixteen vendors on load would take ten seconds to open and would do it
+     * again on every accidental refresh, on a live system, possibly during an event.
+     */
+    public function providers(Request $req, Response $res): Response
+    {
+        return $this->view->render($res, 'admin/providers.twig', [
+            'page_title'  => 'Integrations',
+            'admin_page'  => 'settings',
+            'catalogue'   => \AfricaGates\Services\ProviderProbe::catalogue(),
+            'groups'      => \AfricaGates\Services\ProviderProbe::GROUPS,
+            // ── THE SEND TEST ────────────────────────────────────────────────
+            //
+            // Which channels can be tested at all, so the form offers WhatsApp only where
+            // there is a transport for it — an operator picking a channel that cannot send
+            // gets a refusal that reads like a broken button.
+            'msg'         => \AfricaGates\Services\SmsService::boot()->status(),
+            'msg_left'    => \AfricaGates\Services\MessageSendTest::remaining(
+                (int) ($_SESSION['admin_id'] ?? 0)),
+            'msg_cap'     => \AfricaGates\Services\MessageSendTest::PER_HOUR,
+        ]);
+    }
+
+    /**
+     * POST /admin/settings/providers/run — run one probe, or all of them.
+     *
+     * ONE AT A TIME by default, driven from the page. Sixteen probes at eight seconds each
+     * is two minutes of a held-open request that a proxy will cut in the middle, leaving
+     * an operator with a blank screen and no idea which provider hung. Asking for them one
+     * by one means each row answers as it lands, and a provider that times out costs its
+     * own row rather than the whole page.
+     */
+    public function providersRun(Request $req, Response $res): Response
+    {
+        $id = trim((string) (((array) $req->getParsedBody())['id'] ?? ''));
+
+        $out = $id !== ''
+            ? [\AfricaGates\Services\ProviderProbe::one($id)]
+            : \AfricaGates\Services\ProviderProbe::all();
+
+        try {
+            $this->audit->record((int) ($_SESSION['admin_id'] ?? 0),
+                'settings.provider_probe', null, null, ['id' => $id !== '' ? $id : 'all']);
+        } catch (\Throwable) {}
+
+        $res->getBody()->write((string) json_encode(['ok' => true, 'results' => $out],
+                                                    JSON_UNESCAPED_SLASHES));
+        return $res->withHeader('Content-Type', 'application/json');
+    }
+
+    /**
+     * POST /admin/settings/providers/send-test — the one thing on that page that SENDS.
+     *
+     * ── WHY A PAGE OF READ-ONLY PROBES NEEDS ONE WRITE ───────────────────────
+     *
+     * Every probe beside it is a read, on purpose: a diagnostic that fires on a page load
+     * must never spend money or ring a stranger's phone. But a gateway can pass every read
+     * this platform can perform and still deliver nothing — the Africa's Talking sandbox,
+     * an unapproved Termii sender ID and a Twilio trial account all authenticate perfectly
+     * and drop the message. The only question that separates them is whether a phone
+     * buzzed, and it cannot be asked without sending.
+     *
+     * So this exists, and it is bound: a number typed by hand, an explicit press, the
+     * opt-out list honoured, capped per admin per hour, and filed under its own template so
+     * a test can never be mistaken for a notification somebody was owed.
+     */
+    public function providersSendTest(Request $req, Response $res): Response
+    {
+        $b       = (array) $req->getParsedBody();
+        $channel = trim((string) ($b['channel'] ?? 'sms'));
+        $number  = trim((string) ($b['number'] ?? ''));
+        $adminId = (int) ($_SESSION['admin_id'] ?? 0);
+
+        $out = \AfricaGates\Services\MessageSendTest::send($channel, $number, $adminId);
+
+        try {
+            // The NUMBER never reaches the audit row in full — `to` is already masked by the
+            // service, and this log is read by more people than the one who pressed it.
+            $this->audit->record($adminId, 'settings.message_test', null, null, [
+                'channel' => $out['channel'], 'provider' => $out['provider'],
+                'to' => $out['to'], 'ok' => $out['ok'], 'ref' => $out['ref'],
+            ]);
+        } catch (\Throwable) {}
+
+        $out['left'] = \AfricaGates\Services\MessageSendTest::remaining($adminId);
+
+        $res->getBody()->write((string) json_encode($out, JSON_UNESCAPED_SLASHES));
+        return $res->withHeader('Content-Type', 'application/json');
+    }
+
+    /** @return array{sent_24h:int, failed_24h:int, dev_24h:int, recent:array, last_error:?string} */
+    private function mailHealth(): array
+    {
+        $out = ['sent_24h' => 0, 'failed_24h' => 0, 'dev_24h' => 0, 'recent' => [], 'last_error' => null];
+        try {
+            $since = date('Y-m-d H:i:s', time() - 86400);
+            $counts = \Illuminate\Database\Capsule\Manager::table('gates_mail_log')
+                ->where('created_at', '>=', $since)->selectRaw('status, COUNT(*) c')->groupBy('status')->pluck('c', 'status');
+            $out['sent_24h']   = (int) ($counts['sent'] ?? 0);
+            $out['failed_24h'] = (int) ($counts['failed'] ?? 0);
+            $out['dev_24h']    = (int) ($counts['logged_dev'] ?? 0);
+            $out['recent'] = \Illuminate\Database\Capsule\Manager::table('gates_mail_log')
+                ->orderByDesc('id')->limit(8)->get()->map(fn($r) => (array) $r)->all();
+            $out['last_error'] = \Illuminate\Database\Capsule\Manager::table('gates_mail_log')
+                ->where('status', 'failed')->orderByDesc('id')->value('error');
+        } catch (\Throwable) {}
+        return $out;
     }
 
     public function save(Request $req, Response $res): Response
@@ -44,10 +434,237 @@ class SettingsController
         $b = (array)$req->getParsedBody();
         $adminId = (int)$_SESSION['admin_id'];
 
-        // Core site settings (gates_settings table)
-        foreach (['announce_text','announce_url','announce_cta','site_title','contact_email'] as $k) {
+        // Core site settings + email sender identity (gates_settings table)
+        foreach (['announce_text','announce_url','announce_cta','site_title','contact_email',
+                  'mail_from_name','mail_from_address','mail_reply_to','admin_alert_email',
+                  // Public-facing support address. Distinct from admin_alert_email:
+                  // that one is internal plumbing, this one is printed on pages and
+                  // quoted by the assistant, so a stranger must be able to write to it.
+                  'support_email',
+                  // SMTP transport. The host, port and login are echoed back like any
+                  // other field; the PASSWORD is handled below and never rendered.
+                  // These used to be readable only from .env, on a host with no shell.
+                  'mail_smtp_host','mail_smtp_port','mail_smtp_user',
+                  // Image hosting. Cloud name, key and folder are identifiers, not
+                  // secrets — the API secret and the combined URL are handled below.
+                  'cloudinary_cloud_name','cloudinary_api_key','cloudinary_folder',
+                  // Invitation quotas and the guest discount. Clamped in InviteAudience
+                  // rather than here, because they are read from settings by services that
+                  // must not trust the row either.
+                  'invite_quota_nominee','invite_quota_judge','invite_discount_percent',
+                  // The one sentence that names why the hall is being filled. Editable
+                  // because programmes honour different things — see InviteAudience.
+                  'invite_witness_nominee','invite_witness_judge',
+                  // The reminder run: whether it sends, how many days out it starts, and
+                  // the sentence each audience reads. Parsed and clamped in
+                  // InviteReminders — a free-text day list must not be trusted by the
+                  // sweep any more than it is trusted here.
+                  'invite_reminder_days','invite_reminder_time',
+                  // The questionnaire deadline warnings. Same free-text day list, parsed
+                  // and clamped in QuestionnaireReminders rather than trusted here.
+                  'questionnaire_reminder_days',
+                  // The door's Nigerian voice. Region and voice are identifiers, not secrets.
+                  // The KEY is deliberately absent here and handled by the write-only path
+                  // below — a credential in this list is a credential in the page source of
+                  // every settings render.
+                  // The TIER is here because it is a rate limit, not a price: F0 allows
+                  // about twenty requests a minute, and a sweep that does not know which
+                  // tier it is on collects 429s for most of the guest list.
+                  // Validated in AiCapability::primaryProvider() against the four it
+                  // knows; anything else falls back to the shipped default rather than
+                  // being sent to a router that would skip it silently.
+                  'ai_primary',
+                  // WHO speaks at the door, and the OpenAI voice for when it is OpenAI.
+                  // Both validated against their own lists in DoorVoice and OpenAiVoice —
+                  // an unknown value falls back to the shipped default rather than
+                  // silencing the door on the night somebody mistypes it.
+                  'door_voice_provider','door_voice_openai','door_voice_elevenlabs',
+                  'azure_speech_region','azure_speech_voice','azure_speech_tier',
+                  // Pacing. Both validated against their own lists in AzureVoice, because
+                  // an out-of-range prosody value is a 400 during an unattended 06:00 run.
+                  'azure_speech_rate','azure_speech_pitch',
+                  // How to SAY a name the voice gets wrong. Free text, parsed and
+                  // clamped in DoorWelcome::dictionary() rather than trusted here.
+                  'door_welcome_says',
+                  'invite_reminder_line_nominee','invite_reminder_line_judge',
+                  // The countdown letters: the facts no database can know, and the five
+                  // bodies themselves. Tokens are resolved at send time against the event,
+                  // so an operator running a second gala changes none of this.
+                  'invite_seq_theme','invite_seq_outcome','invite_seq_values',
+                  'invite_seq_action','invite_seq_team',
+                  // The legacy nominee keys stay accepted: a screen saved before the
+                  // audience was in the key still posts them, and dropping them here
+                  // would turn that save into a silent revert.
+                  'invite_seq_body_5','invite_seq_body_4','invite_seq_body_3',
+                  'invite_seq_body_2','invite_seq_body_1',
+                  'invite_seq_body_nominee_5','invite_seq_body_nominee_4','invite_seq_body_nominee_3',
+                  'invite_seq_body_nominee_2','invite_seq_body_nominee_1',
+                  'invite_seq_body_judge_5','invite_seq_body_judge_4','invite_seq_body_judge_3',
+                  'invite_seq_body_judge_2','invite_seq_body_judge_1'] as $k) {
             if (array_key_exists($k, $b)) {
-                $this->settings->set($k, (string)$b[$k], $adminId);
+                $this->settings->set($k, trim((string)$b[$k]), $adminId);
+            }
+        }
+
+        // ── Credentials: WRITE-ONLY, exactly like the AI provider keys below ──
+        //
+        // Never rendered back to the page. A blank field leaves the stored value
+        // untouched — otherwise every save of an unrelated field on this form would
+        // wipe the SMTP password — and the matching "clear" box removes it.
+        //
+        // `cloudinary_url` is in this list rather than the echoed one above because
+        // `cloudinary://key:secret@cloud` carries the secret inside it; echoing it back
+        // would put the credential in the page source of every settings render.
+        foreach (['mail_smtp_pass' => 'smtp_pass',
+                  'cloudinary_api_secret' => 'cloudinary_secret',
+                  'cloudinary_url' => 'cloudinary_url',
+                  'azure_speech_key' => 'azure_key'] as $settingKey => $clearName) {
+            $clear = (array) ($b['secret_clear'] ?? []);
+            if (!empty($clear[$clearName])) { $this->settings->set($settingKey, '', $adminId); continue; }
+            $val = trim((string) ($b[$settingKey] ?? ''));
+            if ($val !== '') $this->settings->set($settingKey, $val, $adminId);
+        }
+
+        // ── Display timezone ────────────────────────────────────────────────
+        //
+        // What operators SEE and TYPE. Storage stays UTC — see DisplayTime for why
+        // switching the process clock instead reinterprets every existing row by the
+        // offset, permanently and with nothing recording which rows are which.
+        //
+        // Validated against the real tz database rather than stored as typed: an invalid
+        // identifier here would make every date on every page throw.
+        if (array_key_exists('display_timezone', $b)) {
+            $tz = trim((string) $b['display_timezone']);
+            if ($tz !== '' && \AfricaGates\Support\Clock::isValid($tz)) {
+                $this->settings->set('display_timezone', $tz, $adminId);
+                // The zone is cached per request; this request has already read it.
+                \AfricaGates\Support\DisplayTime::forget();
+            }
+        }
+
+        // Arrival tracking. Marker-gated like the others: an unchecked box posts nothing,
+        // so a plain allowlist entry could turn it on and never off. `visits_days` always
+        // posts, so its presence marks the section as submitted.
+        if (array_key_exists('visits_days', $b)) {
+            $this->settings->set('visits_enabled', !empty($b['visits_enabled']) ? '1' : '0', $adminId);
+            $days = (int) trim((string) $b['visits_days']);
+            // Clamped, and the floor matters: a retention of zero would delete every
+            // arrival on the next maintenance tick, including today's.
+            $this->settings->set('visits_days',
+                (string) ($days > 0 ? max(7, min(730, $days)) : \AfricaGates\Services\VisitTracker::KEEP_DAYS),
+                $adminId);
+        }
+
+        // Whether the reminder run sends anything. NOT in the echo list above: an
+        // unchecked box posts NOTHING, so `array_key_exists` is false and the loop would
+        // leave the old '1' in place — a switch that can be turned on and never off. The
+        // day-marks field always posts, even empty, so its presence is what marks this
+        // section as submitted, exactly as the automation and voting-integrity cards do.
+        if (array_key_exists('invite_reminder_days', $b)) {
+            $this->settings->set('invite_reminder_enabled',
+                                 !empty($b['invite_reminder_enabled']) ? '1' : '0', $adminId);
+        }
+
+        // The door's greeting. Marker-gated like the others: an unchecked box posts NOTHING,
+        // so without a field that always posts, a switch could be turned on and never off.
+        if (array_key_exists('azure_speech_region', $b)) {
+            $this->settings->set('door_welcome_enabled',
+                                 !empty($b['door_welcome_enabled']) ? '1' : '0', $adminId);
+        }
+
+        // Automation / webcron: toggle opportunistic self-maintenance + manage the
+        // browser-set cron token (no SSH needed). Marker field gates the section.
+        if (array_key_exists('automation_settings', $b)) {
+            $this->settings->set('webcron_auto', !empty($b['webcron_auto']) ? '1' : '0', $adminId);
+            $current = trim((string) ($this->settings->get('cron_token') ?? ''));
+            if (!empty($b['cron_token_generate']) || $current === '') {
+                $this->settings->set('cron_token', bin2hex(random_bytes(24)), $adminId);
+            }
+        }
+
+        // Voting-integrity: admin-extensible disposable-email blocklist + optional
+        // MX deliverability check. The textarea always posts (even empty), so its
+        // presence marks this section as submitted and drives the checkbox flag.
+        if (array_key_exists('disposable_domains_extra', $b)) {
+            $this->settings->set('disposable_domains_extra', trim((string)$b['disposable_domains_extra']), $adminId);
+            $this->settings->set('disposable_require_mx', !empty($b['disposable_require_mx']) ? '1' : '0', $adminId);
+        }
+
+        // ── REFERRAL TERMS ──────────────────────────────────────────────────
+        //
+        // Marker-gated like the sections above, so a save from a form without this panel
+        // cannot rewrite what people earn.
+        //
+        // The two numbers behave differently and the screen says so. The RATE is stamped
+        // onto every credit row when it is earned, so changing it governs future referrals
+        // and leaves settled balances untouched. The THRESHOLD is evaluated live, so
+        // lowering it makes balances payable that were locked and raising it locks
+        // balances that were payable — real money owed to real people, which is why it is
+        // clamped and why the help text beside it is blunt.
+        if (array_key_exists('referral_settings', $b)) {
+            $this->settings->set('referrals_enabled', !empty($b['referrals_enabled']) ? '1' : '0', $adminId);
+
+            // A percentage on screen, basis points in storage: an operator thinks in "10%",
+            // and the money is computed with intdiv on bps so it can never round up.
+            $pct = (float) str_replace(',', '.', trim((string) ($b['referral_rate_pct'] ?? '')));
+            if ($pct >= 0 && $pct <= 50) {
+                $this->settings->set('referral_rate_bps', (string) (int) round($pct * 100), $adminId);
+            }
+
+            $threshold = (int) ($b['referral_threshold'] ?? 0);
+            if ($threshold >= 1 && $threshold <= 1000) {
+                $this->settings->set('referral_threshold', (string) $threshold, $adminId);
+            }
+        }
+
+        // ── WHERE EACH KIND OF MONEY SETTLES ────────────────────────────────
+        //
+        // Ticket money, shop money and vote money are three kinds of money to whoever has to
+        // account for them, and a subaccount answers "how much of this is ticket income" at the
+        // BANK rather than from our own records. See PaymentDestination.
+        //
+        // A marker field gates the block, so a save from any other section cannot clear the
+        // routing. And a malformed code is REFUSED and reported rather than stored: Paystack
+        // rejects an initialise with a bad subaccount, so a typo here would take that stream's
+        // payments offline with no visible cause. Refusing to route is recoverable; refusing to
+        // sell is not.
+        if (array_key_exists('payout_settings', $b)) {
+            $codes = [];
+            $bearers = [];
+            foreach (array_keys(\AfricaGates\Services\PaymentDestination::STREAMS) as $stream) {
+                if (array_key_exists('sub_' . $stream, $b)) {
+                    $codes[$stream] = (string) $b['sub_' . $stream];
+                }
+                $bearers[$stream] = (string) ($b['bearer_' . $stream] ?? 'account');
+            }
+            // Paystack is ASKED whether each code exists on this integration, not merely
+            // pattern-matched. A well-formed code from somebody else's integration is the
+            // failure that actually takes a stream offline, and shape validation cannot see
+            // it — see PaymentDestination::reportRefusal().
+            $r = \AfricaGates\Services\PaymentDestination::save(
+                $codes, $bearers, new \AfricaGates\Services\PaymentService()
+            );
+
+            if ($r['refused'] !== []) {
+                $lines = [];
+                foreach ($r['refused'] as $stream => $why) {
+                    $lines[] = (\AfricaGates\Services\PaymentDestination::STREAMS[$stream] ?? $stream)
+                             . ': ' . $why;
+                }
+                // Paystack's own words, per stream, and the old value kept. "Subaccount not
+                // found" tells an operator what to do; "invalid" does not.
+                $_SESSION['flash_error'] = 'Not saved — ' . implode(' · ', $lines)
+                    . ' The previous setting has been kept.';
+            }
+            if (($r['checked'] ?? []) !== []) {
+                // The business name Paystack has against the code. An operator who pasted the
+                // wrong one recognises the wrong name far faster than the wrong code.
+                $ok = [];
+                foreach ($r['checked'] as $stream => $who) {
+                    $ok[] = (\AfricaGates\Services\PaymentDestination::STREAMS[$stream] ?? $stream)
+                          . ' → ' . $who;
+                }
+                $verified = 'Verified with Paystack: ' . implode(' · ', $ok);
             }
         }
 
@@ -69,9 +686,374 @@ class SettingsController
                 );
         }
 
+        // Shop location-based pricing — per-region multipliers (gates_settings,
+        // JSON map region=>multiplier). Only non-1.0 values are stored, so an
+        // all-default config disables regional pricing entirely.
+        if (array_key_exists('region_mult', $b) && is_array($b['region_mult'])) {
+            $map = [];
+            foreach (\AfricaGates\Services\ShopPricing::regions() as $region) {
+                $v = (float)($b['region_mult'][$region] ?? 1);
+                if ($v > 0 && abs($v - 1.0) > 0.0001) {
+                    $map[$region] = max(0.1, min(10.0, round($v, 3)));
+                }
+            }
+            $this->settings->set('shop_region_mult', $map ? json_encode($map) : '', $adminId);
+            // Currency-conversion master toggle lives in the same shop card.
+            $this->settings->set('currency_conversion', isset($b['currency_conversion']) ? '1' : '', $adminId);
+        }
+
+        // Voting points — earn/redeem rates + master toggle (gates_settings).
+        if (array_key_exists('points_per_vote', $b)) {
+            $this->settings->set('points_per_1000_naira', (string) max(0, (int) ($b['points_per_1000_naira'] ?? 50)), $adminId);
+            $this->settings->set('points_per_vote', (string) max(1, (int) ($b['points_per_vote'] ?? 500)), $adminId);
+            $this->settings->set('points_enabled', isset($b['points_enabled']) ? '1' : '', $adminId);
+        }
+
+        // Paid voting — admin-toggleable business model (OFF by default).
+        //
+        // A paid vote counts in the index exactly as a free one does: the community
+        // half normalises over `vote_count`, the full tally. It did once read
+        // `organic_vote_count` alone, and this comment described that — but where
+        // `paid_voting_disable_free` is set nothing can ever write that column, so
+        // the community half was structurally zero and the panel silently decided
+        // every award at 100%. See CpiService and NomineeScoringService.
+        //
+        // Switching paid voting OFF also switches the community return off, because
+        // that ledger accrues from bought votes and nothing else — see
+        // CommunityReturnService::active(), which is what the public pages read.
+        if (array_key_exists('paid_vote_settings', $b)) {
+            $this->settings->set('paid_voting_enabled', isset($b['paid_voting_enabled']) ? '1' : '', $adminId);
+            $this->settings->set('paid_voting_disable_free', isset($b['paid_voting_disable_free']) ? '1' : '', $adminId);
+            $this->settings->set('vote_price_naira', (string) max(10, (int) ($b['vote_price_naira'] ?? \AfricaGates\Services\PaidVoteService::DEFAULT_PRICE_NAIRA)), $adminId);
+            // Only when the editor actually posted rows. The tier inputs are rendered
+            // by Alpine's x-for, so on a browser where that script did not run there
+            // are no `vote_tier_qty[]` fields in the body at all — and treating that
+            // absence as "the admin cleared the ladder" would reprice the whole site
+            // to defaults for someone who came here to change the announcement banner.
+            $tiers = $this->tiersJson($b);
+            if ($tiers !== null) $this->settings->set('vote_tiers', $tiers, $adminId);
+            // Largest quantity ONE order may carry. Clamped to the hard ceiling here AND
+            // in PaidVoteService::maxQty(), because this value ends up in a public vote
+            // tally and a settings row is not a trusted input just because an admin typed
+            // it — a stray zero is one keystroke away from a nine-figure order.
+            $this->settings->set('vote_max_qty', (string) max(1, min(
+                \AfricaGates\Services\PaidVoteService::HARD_MAX_QTY,
+                (int) ($b['vote_max_qty'] ?? \AfricaGates\Services\PaidVoteService::DEFAULT_MAX_QTY)
+            )), $adminId);
+
+            // ── THE TWO TIMING WINDOWS, NOW REACHABLE WITHOUT A SHELL ────────
+            //
+            // Both already existed and both were read from settings; neither had a
+            // field, so in practice they were constants nobody could change.
+            //
+            // The grace window is the one that matters, and it is not cosmetic. It
+            // decides whether an order confirmed AFTER a cycle closed can still be
+            // delivered — which is exactly the question a backlog recovery runs
+            // into. At the 6-hour default, a stranded payment from a cycle that
+            // closed yesterday refuses with CONFIRMED_TOO_LATE and there is no way,
+            // short of a database client, for the operator to say "these were paid
+            // on time, deliver them".
+            //
+            // Clamped to the same ceilings the service applies (168 hours, 240
+            // minutes), because a settings row is not a trusted input just because
+            // an admin typed it.
+            if (array_key_exists('paid_vote_grace_hours', $b)) {
+                $this->settings->set('paid_vote_grace_hours',
+                    (string) max(0, min(168, (int) $b['paid_vote_grace_hours'])), $adminId);
+            }
+            if (array_key_exists('paid_vote_cutoff_minutes', $b)) {
+                $this->settings->set('paid_vote_cutoff_minutes',
+                    (string) max(0, min(240, (int) $b['paid_vote_cutoff_minutes'])), $adminId);
+            }
+        }
+
+        // AI providers — keys live in gates_settings and are WRITE-ONLY: they
+        // are never rendered back to the page. A blank field leaves the stored
+        // key untouched; ticking the matching "clear" box removes it. The first
+        // configured provider (Groq → Gemini → Anthropic → OpenAI) is used.
+        if (array_key_exists('ai_settings', $b)) {
+            // Two Groq keys: 'groq' = general/public, 'groq_mod' = dedicated
+            // moderation key (runs the best model; free-falls back to the
+            // general key when unset).
+            // `elevenlabs` rides here rather than beside the Azure key, because it is a
+            // key and nothing else — no region, no tier — and this is the write-only path
+            // that never echoes a credential back into the page source.
+            $providerKeys = ['groq' => 'ai_groq_key', 'groq_mod' => 'ai_groq_key_mod', 'gemini' => 'ai_gemini_key', 'anthropic' => 'ai_anthropic_key', 'openai' => 'ai_openai_key', 'elevenlabs' => 'ai_elevenlabs_key'];
+            $clear = (array) ($b['ai_clear'] ?? []);
+            foreach ($providerKeys as $name => $settingKey) {
+                if (!empty($clear[$name])) { $this->settings->set($settingKey, '', $adminId); continue; }
+                $val = trim((string) ($b[$settingKey] ?? ''));
+                if ($val !== '') $this->settings->set($settingKey, $val, $adminId);
+            }
+            foreach (['ai_groq_model', 'ai_groq_model_mod', 'ai_gemini_model', 'ai_anthropic_model', 'ai_openai_model'] as $modelKey) {
+                if (array_key_exists($modelKey, $b)) $this->settings->set($modelKey, trim((string) $b[$modelKey]), $adminId);
+            }
+            // Gee ↔ Make.com agent bridge: URL is plain (echoed), the shared
+            // key is WRITE-ONLY like the provider keys above.
+            if (array_key_exists('gee_make_agent_url', $b)) {
+                $url = trim((string) $b['gee_make_agent_url']);
+                if ($url === '' || str_starts_with($url, 'https://')) $this->settings->set('gee_make_agent_url', $url, $adminId);
+            }
+            // ElevenLabs — the voice on the nominee's questionnaire. The key is WRITE-ONLY
+            // like every provider key above it; the voice and model ids are plain text and
+            // are echoed back, because an operator has to be able to see which voice their
+            // nominees are hearing without pasting it in again to find out.
+            if (!empty($clear['voice'])) $this->settings->set('voice_elevenlabs_key', '', $adminId);
+            else {
+                $vk = trim((string) ($b['voice_elevenlabs_key'] ?? ''));
+                if ($vk !== '') $this->settings->set('voice_elevenlabs_key', $vk, $adminId);
+            }
+            foreach (['voice_elevenlabs_voice', 'voice_elevenlabs_model',
+                      'voice_elevenlabs_stt_model'] as $vKey) {
+                if (array_key_exists($vKey, $b)) $this->settings->set($vKey, trim((string) $b[$vKey]), $adminId);
+            }
+
+            if (!empty($clear['make_key'])) $this->settings->set('gee_make_agent_key', '', $adminId);
+            else {
+                $mk = trim((string) ($b['gee_make_agent_key'] ?? ''));
+                if ($mk !== '') $this->settings->set('gee_make_agent_key', $mk, $adminId);
+            }
+        }
+
+        // ── GOOGLE CALENDAR / MEET / SHEETS: ONE APPS SCRIPT DEPLOYMENT ─────
+        //
+        // Marker-gated like every block above, so a save from another group cannot blank
+        // the integration.
+        //
+        // The URL is REFUSED rather than stored when it is not a URL. A malformed /exec
+        // address does not fail loudly: `curl` returns nothing, every action reports "the
+        // Apps Script did not answer", and the operator goes looking at Google — which is
+        // the wrong place, for weeks. Refusing to store it names the fault at the moment
+        // it is made.
+        if (($why = $this->saveGoogle($b, $adminId)) !== null) {
+            $_SESSION['flash_error'] = $why;
+        }
+
+        // Messaging (SMS / WhatsApp) — Twilio + WhatsApp Business Cloud API.
+        // Secrets are WRITE-ONLY (never rendered back); a blank field leaves the
+        // stored value untouched, the matching "clear" box removes it. Master
+        // toggles are OFF by default; unconfigured = the gateway stays inert.
+        if (array_key_exists('messaging_settings', $b)) {
+            $this->settings->set('sms_enabled', isset($b['sms_enabled']) ? '1' : '', $adminId);
+            $this->settings->set('wa_enabled',  isset($b['wa_enabled'])  ? '1' : '', $adminId);
+            $clear = (array) ($b['messaging_clear'] ?? []);
+            foreach (['sms_twilio_sid', 'sms_twilio_token', 'wa_access_token',
+                      'sms_at_api_key', 'sms_termii_api_key'] as $k) {
+                if (!empty($clear[$k])) { $this->settings->set($k, '', $adminId); continue; }
+                $val = trim((string) ($b[$k] ?? ''));
+                if ($val !== '') $this->settings->set($k, $val, $adminId);
+            }
+            foreach (['sms_twilio_from', 'sms_twilio_wa_from', 'wa_phone_number_id',
+                      'sms_at_username', 'sms_at_from', 'sms_termii_from'] as $k) {
+                if (array_key_exists($k, $b)) $this->settings->set($k, trim((string) $b[$k]), $adminId);
+            }
+
+            // ── THE TEXT SOMEBODY GETS FOR WALKING IN ───────────────────────
+            //
+            // Off by default like every outbound channel here: an upgrade must never
+            // start texting an existing event's attendees because a new feature shipped.
+            //
+            // The copy is editable because it is the platform speaking in its own voice to
+            // somebody who has just paid and travelled, and a sentence written here in
+            // English by a developer is not that. What an operator CANNOT edit is the
+            // "Reply STOP" line — CheckInThanks appends it after the template, so a
+            // rewrite cannot remove the way out of it.
+            $this->settings->set(\AfricaGates\Services\CheckInThanks::K_ENABLED,
+                                 isset($b['checkin_sms_enabled']) ? '1' : '', $adminId);
+            if (array_key_exists('checkin_sms_template', $b)) {
+                $this->settings->set(\AfricaGates\Services\CheckInThanks::K_TEMPLATE,
+                                     trim((string) $b['checkin_sms_template']), $adminId);
+            }
+        }
+
+        // Moderation thresholds — where AI/heuristic scores flip to quarantine
+        // or auto-reject. Clamped in SpamService::thresholds() so a typo can
+        // never disable moderation entirely.
+        if (array_key_exists('moderation_settings', $b)) {
+            $q = (float) ($b['mod_threshold_quarantine'] ?? 0.30);
+            $r = (float) ($b['mod_threshold_reject'] ?? 0.65);
+            $this->settings->set('mod_threshold_quarantine', (string) max(0.05, min(0.90, $q)), $adminId);
+            $this->settings->set('mod_threshold_reject', (string) max($q + 0.05, min(0.99, $r)), $adminId);
+        }
+
+        // ── Community return ─────────────────────────────────────────────────
+        //
+        // Unlike everything above it, this does NOT live in gates_settings. The
+        // share is a scoring rule: it has to be overridable per programme and per
+        // cycle, and it has to be readable by the same RuleEngine the accrual
+        // consults — otherwise the admin edits one number and the ledger uses
+        // another. So it is written as a GLOBAL rule set.
+        //
+        // MERGED, never replaced. RuleEngine::set() writes the whole JSON document
+        // for a scope, and the global scope also carries the CPI weights, the fraud
+        // bands and the judge quorum. Writing only these three keys would erase the
+        // rest — the entire scoring configuration, silently, from a form about
+        // revenue sharing.
+        if (array_key_exists('community_return_settings', $b)) {
+            $engine  = new \AfricaGates\Services\RuleEngine();
+            $current = [];
+            try {
+                $row = \Illuminate\Database\Capsule\Manager::table('gates_rule_sets')
+                    ->where('scope', 'global')->whereNull('scope_id')->value('rules');
+                $decoded = json_decode((string) $row, true);
+                if (is_array($decoded)) $current = $decoded;
+            } catch (\Throwable) {}
+
+            // Percent in the form, basis points in the store. An admin thinks in
+            // "30%"; the accrual needs an integer it can multiply without a float
+            // ever touching money. Two decimal places, so 12.5% is expressible.
+            $pct = max(0.0, min(100.0, (float) ($b['community_return_pct'] ?? 30)));
+
+            $engine->set('global', null, array_merge($current, [
+                'community_return_bps'               => (int) round($pct * 100),
+                'community_return_vote_threshold'    => max(1, (int) ($b['community_return_vote_threshold'] ?? 250)),
+                // Clamped here AND in the service, because a settings row is not a
+                // trusted input just because an admin typed it: 0 would lock every
+                // nominee out of qualifying forever, and >100 would stop being a cap.
+                'community_return_supporter_cap_pct' => max(1, min(100, (int) ($b['community_return_supporter_cap_pct'] ?? 10))),
+            ]));
+        }
+
+        // ── The scoring curves ───────────────────────────────────────────────
+        //
+        // Four rules decided every published index and NONE of them had a form. They are
+        // read from RuleEngine, documented on /integrity, and were reachable only by
+        // editing a JSON column by hand — on a host with no shell. A rule an operator
+        // cannot change is a rule they cannot defend, and `community_basis` in particular
+        // would have been a declared setting with no writer, which is the most expensive
+        // shape of bug in this codebase.
+        //
+        // Same merge discipline as the community return above: the global scope carries
+        // the weights, the fraud bands and the quorum too, and writing only these keys
+        // would erase them.
+        if (array_key_exists('scoring_settings', $b)) {
+            $engine  = new \AfricaGates\Services\RuleEngine();
+            $current = [];
+            try {
+                $row = \Illuminate\Database\Capsule\Manager::table('gates_rule_sets')
+                    ->where('scope', 'global')->whereNull('scope_id')->value('rules');
+                $decoded = json_decode((string) $row, true);
+                if (is_array($decoded)) $current = $decoded;
+            } catch (\Throwable) {}
+
+            $engine->set('global', null, array_merge($current, [
+                // Normalised through the scorer, never trusted as typed: an unrecognised
+                // value must fall back to the published behaviour rather than silently
+                // switch how every award in the system is decided.
+                'community_basis' => \AfricaGates\Services\CpiService::basis(
+                    (string) ($b['community_basis'] ?? '')),
+                // Clamped to the same range CpiService clamps to, so the form cannot show
+                // an operator a number the scorer will quietly refuse to use.
+                'community_curve' => max(0.1, min(6.0, (float) ($b['community_curve'] ?? 2.0))),
+                'community_full_credit_votes' => max(1, (int) ($b['community_full_credit_votes'] ?? 1000)),
+                'judge_floor'     => max(0.0, min(9.0, (float) ($b['judge_floor'] ?? 5.0))),
+                'judge_curve'     => max(0.1, min(6.0, (float) ($b['judge_curve'] ?? 1.5))),
+            ]));
+        }
+
+        // Nomination eligibility — admin-toggleable "considered" threshold + min distinct locations.
+        if (array_key_exists('nomination_settings', $b)) {
+            $this->settings->set('nomination_eligibility_enabled', isset($b['nomination_eligibility_enabled']) ? '1' : '', $adminId);
+            $this->settings->set('nomination_min_locations', (string) max(1, (int) ($b['nomination_min_locations'] ?? 5)), $adminId);
+        }
+
+        // Display constants — values that used to be hardcoded in copy across the site.
+        if (array_key_exists('display_settings', $b)) {
+            // `donation_goal_naira` rides here because it is the same kind of value: a
+            // number the public copy states, which used not to exist at all. Zero is a
+            // real answer and means "no target" — the donation page then draws exactly
+            // what it drew before, rather than a bar against a figure nobody chose.
+            foreach (['nations_count', 'cpi_recompute_hours', 'review_sla_hours',
+                      'nomination_seconds', 'otp_expiry_minutes', 'donation_goal_naira'] as $k) {
+                if (array_key_exists($k, $b)) $this->settings->set($k, (string) max(0, (int) $b[$k]), $adminId);
+            }
+            if (array_key_exists('processing_fee_pct', $b)) {
+                $this->settings->set('processing_fee_pct', (string) max(0, (float) $b['processing_fee_pct']), $adminId);
+            }
+        }
+
         $this->audit->record($adminId, 'settings.update', null, null);
-        $_SESSION['flash_ok'] = 'Settings saved.';
-        return $res->withHeader('Location', '/admin/settings')->withStatus(302);
+        // The subaccount confirmation rides along with the generic message rather than being
+        // set earlier and clobbered by it — which is what happened the first time.
+        $_SESSION['flash_ok'] = 'Settings saved.'
+            . (isset($verified) ? ' ' . $verified : '');
+
+        // Back to the GROUP they saved from. A browser drops the URL fragment when it
+        // posts a form, so the page cannot preserve its own tab across the redirect —
+        // only the server can put it back. Without this, grouping the settings meant
+        // every save returned the admin to the first tab, several clicks from the field
+        // they were in the middle of adjusting.
+        //
+        // Allowlisted, not echoed: this value reaches a Location header, and a posted
+        // string is not somewhere to take a URL fragment from on trust.
+        $section = (string) ($b['st_section'] ?? '');
+        $anchor  = in_array($section, ['site', 'mail', 'money', 'integrity', 'ai', 'ops'], true)
+            ? '#' . $section
+            : '';
+
+        // ── A PROBE BUTTON SAVES THE WHOLE PAGE FIRST ───────────────────────
+        //
+        // Both probe buttons used to post to their own route, which stored nothing. So
+        // pressing "Check the sync" after editing anything on this page discarded the edit
+        // silently — the redirect reloads, the unsaved-changes tracker resets with it, and
+        // there is no moment at which the operator is told. Worse, the verdict then
+        // described the configuration they had just replaced.
+        //
+        // Routed through here instead: everything saves, then the probe runs against what
+        // was saved. Allowlisted rather than dispatched from the posted string.
+        $probe = (string) ($b['probe'] ?? '');
+        if ($probe === 'sync') return $this->probeSync($req, $res);
+        if ($probe === 'ai')   return $this->probeAi($req, $res);
+
+        return $res->withHeader('Location', '/admin/settings' . $anchor)->withStatus(302);
+    }
+
+    /**
+     * Normalise the posted tier rows into the JSON `vote_tiers` string.
+     *
+     * ── WHY THE FORM POSTS ROWS AND NOT JSON ─────────────────────────────────
+     *
+     * The ladder is read on the public ballot on every page view. A textarea of raw
+     * JSON puts one missing brace between an admin and the site quietly reverting to
+     * default pricing — and because {@see \AfricaGates\Services\PaidVoteService::tiers()}
+     * degrades to defaults rather than throwing (which is right for the ballot), the
+     * admin would get no error at all. So the form posts `vote_tier_qty[]` /
+     * `vote_tier_off[]` and this method is the only thing that ever writes the JSON.
+     *
+     * Everything invalid is DROPPED rather than rejected, matching the reader: a blank
+     * row is how you delete a tier, so an empty qty cannot be an error message. What is
+     * kept is clamped — the percentage to 0–90 (a 100% discount is a ₦0 order no gateway
+     * will take) and the quantity to the same hard ceiling every other quantity obeys.
+     *
+     * Returns '' when rows were posted but none survived, which makes the reader fall
+     * back to DEFAULT_TIERS — "no ladder configured" and "the default ladder" being the
+     * same state is what lets an admin reset by clearing every row.
+     *
+     * Returns NULL when the editor did not post at all, which is a different thing and
+     * must leave the stored ladder untouched. See the caller.
+     *
+     * @param array<string,mixed> $b the parsed request body
+     */
+    private function tiersJson(array $b): ?string
+    {
+        if (!array_key_exists('vote_tier_qty', $b)) return null;
+
+        $qtys = (array) ($b['vote_tier_qty'] ?? []);
+        $offs = (array) ($b['vote_tier_off'] ?? []);
+
+        $rows = [];
+        foreach ($qtys as $i => $rawQty) {
+            $qty = (int) $rawQty;
+            if ($qty < 1) continue; // a cleared row is a deleted tier
+            $qty = min(\AfricaGates\Services\PaidVoteService::HARD_MAX_QTY, $qty);
+            // Keyed by quantity, so two rows for the same qty collapse to the last one
+            // typed instead of producing a ladder with an unreachable rung.
+            $rows[$qty] = ['qty' => $qty, 'off' => max(0, min(90, (int) ($offs[$i] ?? 0)))];
+        }
+        if (!$rows) return '';
+
+        ksort($rows);
+        return (string) json_encode(array_values($rows));
     }
 
     /** POST /admin/settings/smtp-test — sends a test email to the logged-in admin. */
@@ -98,5 +1080,372 @@ class SettingsController
 
         $this->audit->record($adminId, 'settings.smtp_test', null, null);
         return $res->withHeader('Location', '/admin/settings')->withStatus(302);
+    }
+
+    /** Run the maintenance hub now, from the browser — for no-SSH hosts. */
+    public function runCron(Request $req, Response $res): Response
+    {
+        $adminId = (int)($_SESSION['admin_id'] ?? 0);
+        try {
+            $r = (new \AfricaGates\Support\Maintenance(null, false))->run('auto');
+            $done = array_sum(array_map(static fn($x) => (int)($x[1] ?? 0), $r['ran'] ?? []));
+            $_SESSION['flash_ok'] = sprintf('Maintenance ran (%d task groups, %dms). Queue delivery + integrations run on the automatic tick.', count($r['ran'] ?? []), (int)($r['runtime_ms'] ?? 0));
+        } catch (\Throwable $e) {
+            error_log('[settings run-cron] ' . $e->getMessage());
+            $_SESSION['flash_error'] = 'Maintenance run failed — check the logs.';
+        }
+        try { $this->audit->record($adminId, 'settings.run_cron', null, null); } catch (\Throwable) {}
+        return $res->withHeader('Location', '/admin/settings')->withStatus(302);
+    }
+
+    /**
+     * Re-verify stale pending payments against the gateway, right now.
+     *
+     * WHY THIS IS ITS OWN BUTTON. "I paid and my votes did not appear" is the one
+     * support message that costs trust rather than time, and the answer to it is a
+     * single task — payments:reconcile — inside a maintenance pass that also drains
+     * queues, prunes caches and can recompute the CPI. Making an operator run all of
+     * that, and wait for it, to answer one supporter is the reason it does not get
+     * run. This does the one thing and reports the count.
+     *
+     * It is the same idempotent reconciliation the scheduler uses: it asks the gateway
+     * what actually happened and only the single winning `WHERE status='pending'`
+     * UPDATE credits an order, so pressing it twice cannot double-credit anyone.
+     *
+     * A bank transfer to Paystack's checkout account settles minutes after the buyer
+     * leaves the site, long after the callback would have fired — so those orders are
+     * ALWAYS reconciled rather than confirmed live. That makes this the normal path
+     * for transfer payments, not an exception.
+     */
+    public function reconcilePayments(Request $req, Response $res): Response
+    {
+        $adminId = (int) ($_SESSION['admin_id'] ?? 0);
+        try {
+            $r = (new \AfricaGates\Support\Maintenance(null, false))->run('payments');
+            $failed = ($r['failures'] ?? []) !== [];
+            $lines  = array_slice((array) ($r['lines'] ?? []), -6);
+            $_SESSION[$failed ? 'flash_error' : 'flash_ok'] = ($failed
+                ? 'Reconciliation reported a problem — '
+                : 'Payments reconciled in ' . (int) ($r['runtime_ms'] ?? 0) . 'ms. ')
+                . ($lines ? implode(' · ', array_map('strval', $lines)) : 'No stale pending orders were waiting.');
+        } catch (\Throwable $e) {
+            error_log('[settings reconcile] ' . $e->getMessage());
+            $_SESSION['flash_error'] = 'Could not reconcile: ' . $e->getMessage();
+        }
+        try { $this->audit->record($adminId, 'settings.reconcile_payments', null, null); } catch (\Throwable) {}
+        return $res->withHeader('Location', '/admin/settings')->withStatus(302);
+    }
+
+    /**
+     * Make one live AI call and report which provider answered — diagnoses "AI doesn't work".
+     *
+     * This is the only way to read the provider's own refusal on this deployment,
+     * because there is no shell to tail a log with. So it reports EVERY hop that
+     * failed rather than one of them, and the action each code implies, and it
+     * records both in the audit trail — otherwise the answer scrolls away with the
+     * flash message and the next person starts from nothing.
+     */
+    public function testAi(Request $req, Response $res): Response
+    {
+        $adminId = (int)($_SESSION['admin_id'] ?? 0);
+        $r = \AfricaGates\Services\AiService::boot()->selfTest();
+
+        $_SESSION[$r['ok'] ? 'flash_ok' : 'flash_error'] = $r['ok']
+            ? sprintf('AI OK — answered by %s (%s).', $r['provider'] ?? '?', $r['model'] ?? '?')
+            // The provider's own words first, then what to change. Never only the
+            // interpretation: a guess that displaces the evidence is how somebody
+            // rotates a working key while the real fault is an egress block.
+            : 'AI test failed. Tried: ' . ($r['error'] ?? 'no response')
+              . (($r['cause'] ?? null) !== null ? ' — ' . $r['cause'] : '');
+
+        try {
+            $this->audit->record($adminId, 'settings.ai_test', null, null, [
+                'ok' => $r['ok'], 'provider' => $r['provider'],
+                'hops' => $r['hops'] ?? [], 'cause' => $r['cause'] ?? null,
+            ]);
+        } catch (\Throwable) {}
+        return $res->withHeader('Location', '/admin/settings')->withStatus(302);
+    }
+
+    /**
+     * Test EACH provider on its own, and show the four verdicts side by side.
+     *
+     * ── WHY THIS IS A SECOND BUTTON AND NOT A BETTER FIRST ONE ──────────────
+     *
+     * "Test AI now" walks the ladder and stops at the first provider that answers, which is
+     * exactly how the platform behaves and exactly the wrong instrument for "Gemini is not
+     * operational": a healthy Groq at the top means Gemini is never called and the console
+     * reports a green tick. A provider can be unfunded, blocked by the host's egress firewall
+     * or pinned to a decommissioned model for months, and the only symptom is that failover
+     * quietly does nothing on the day the primary goes down.
+     *
+     * The result goes into the session rather than a flash string because four verdicts, four
+     * models, four latencies and four causes are a table, and a table flattened into one
+     * sentence is the thing nobody reads.
+     */
+    public function probeAi(Request $req, Response $res): Response
+    {
+        $adminId = (int) ($_SESSION['admin_id'] ?? 0);
+        $rows    = \AfricaGates\Services\AiService::boot()->probeAll();
+
+        $_SESSION['ai_probe'] = $rows;
+
+        $live = array_values(array_filter($rows, static fn (array $r): bool => (bool) $r['ok']));
+        $set  = array_values(array_filter($rows, static fn (array $r): bool => (bool) $r['configured']));
+
+        $_SESSION[$live === [] ? 'flash_error' : 'flash_ok'] = $set === []
+            ? 'No provider key is configured, so there was nothing to test.'
+            : sprintf('%d of %d configured provider%s answered. Each verdict is below.',
+                      count($live), count($set), count($set) === 1 ? '' : 's');
+
+        try {
+            $this->audit->record($adminId, 'settings.ai_probe', null, null, ['rows' => $rows]);
+        } catch (\Throwable) {}
+
+        return $res->withHeader('Location', '/admin/settings#ai-probe')->withStatus(302);
+    }
+
+    /**
+     * Store the two Apps Script values, from whichever button posted them.
+     *
+     * Shared with {@see probeSync()} deliberately. The probe button posts the same form, so
+     * pressing "Check the sync" straight after pasting a secret has to test the secret the
+     * operator is looking at — not the one that was stored before they typed. A probe that
+     * reports the previous state as though it were current is the verdict they would act on,
+     * and it is why there is no "save first" caveat on the button.
+     *
+     * @param array<string,mixed> $b
+     * @return string|null a message for the operator, or null when there was nothing to say
+     */
+    private function saveGoogle(array $b, int $adminId): ?string
+    {
+        if (!array_key_exists('google_settings', $b)) return null;
+
+        $why = null;
+
+        if (array_key_exists('gas_url', $b)) {
+            $url = trim((string) $b['gas_url']);
+            // REFUSED rather than stored when malformed. A bad /exec address does not fail
+            // loudly — curl returns nothing, every action reports "the Apps Script did not
+            // answer", and the operator goes looking at Google, which is the wrong place.
+            if ($url === '' || filter_var($url, FILTER_VALIDATE_URL) !== false) {
+                $this->settings->set('gas_url', $url, $adminId);
+            } else {
+                $why = 'The Apps Script address was not saved — “'
+                     . mb_substr($url, 0, 80) . '” is not a URL. It should be the whole '
+                     . '/exec link, starting https://script.google.com/. Everything else on '
+                     . 'this page was saved.';
+            }
+        }
+
+        // Write-only, and a blank field KEEPS the stored secret. An operator who opened this
+        // page to correct the URL must not lose the secret by not retyping it.
+        if (!empty($b['google_clear']['secret'])) {
+            $this->settings->set('gas_secret', '', $adminId);
+        } else {
+            $sec = trim((string) ($b['gas_secret'] ?? ''));
+            if ($sec !== '') $this->settings->set('gas_secret', $sec, $adminId);
+        }
+
+        return $why;
+    }
+
+    /**
+     * Ask the Apps Script whether it is really there.
+     *
+     * Same shape as the AI probe above and for the same reason: every part of the Google
+     * integration can be configured correctly and still not work, and from the .env file
+     * all five failures look identical. The screen shows what was tried, what answered,
+     * and the fix for each row.
+     */
+    public function probeSync(Request $req, Response $res): Response
+    {
+        $adminId = (int) ($_SESSION['admin_id'] ?? 0);
+
+        // Whatever is in the boxes right now, stored BEFORE asking. See saveGoogle().
+        $badUrl = $this->saveGoogle((array) $req->getParsedBody(), $adminId);
+
+        $rows = \AfricaGates\Services\GoogleMeetService::boot()->probeAll();
+
+        $_SESSION['sync_probe'] = $rows;
+
+        $tested = array_values(array_filter($rows, static fn (array $r): bool => (bool) $r['tested']));
+        $failed = array_values(array_filter($tested, static fn (array $r): bool => !$r['ok']));
+
+        // A refused URL is reported ahead of the probe's own verdict: the rows below
+        // describe the deployment that is still stored, and "nothing could be tested"
+        // would send the operator hunting for a cause they have already been told.
+        $_SESSION[$failed === [] && $badUrl === null ? 'flash_ok' : 'flash_error'] = $badUrl
+            ?? ($tested === []
+            ? 'Nothing could be tested — the address and the secret have to be set first.'
+            : ($failed === []
+                ? sprintf('All %d live check%s passed. Creating events is the one step that cannot be '
+                          . 'tested without making one.', count($tested), count($tested) === 1 ? '' : 's')
+                : sprintf('%d of %d live check%s failed. Each row below says what to change.',
+                          count($failed), count($tested), count($tested) === 1 ? '' : 's')));
+
+        try {
+            $this->audit->record($adminId, 'settings.sync_probe', null, null, ['rows' => $rows]);
+        } catch (\Throwable) {}
+
+        return $res->withHeader('Location', '/admin/settings#sync-probe')->withStatus(302);
+    }
+
+    // ══ THE VOICE, HEARD BEFORE THE NIGHT ═══════════════════════════════════
+
+    /**
+     * POST /admin/settings/voice-preview — say one name, now, so somebody can hear it.
+     *
+     * ── WHY THIS EXISTS AT ALL ───────────────────────────────────────────────
+     *
+     * The pronunciation list below it is the only fix available for a name Azure says
+     * wrongly, and it is written blind: an operator types `Ọláṣubọ̀mi = Ola-shu-BOR-mi`,
+     * saves, and has no way to find out whether it worked until a guest hears their own
+     * name mangled at their own event, in front of a queue. A correction nobody can hear
+     * is a correction nobody will make.
+     *
+     * ── AND WHY IT IS THE ONE PLACE THAT MAY SYNTHESISE ON A REQUEST ─────────
+     *
+     * {@see AzureVoice} says, as a hard rule, that nothing may call it from a request a
+     * person is waiting on. This is the exception and it is a narrow one: the person
+     * waiting is a superadmin who pressed a button labelled "hear it", not an attendee in
+     * a queue, and the result is cached to the same file the door will later play — so
+     * the second press, and the door itself, cost nothing.
+     *
+     * ── AND WHY IT ANSWERS WITH A URL RATHER THAN THE AUDIO ──────────────────
+     *
+     * `media-src` in {@see \AfricaGates\Support\Csp} is `'self'` plus two video hosts —
+     * no `data:`, no `blob:`. Returning the MP3 inline as a data URI would be blocked by
+     * the browser with no error the operator would ever see: a play button that does
+     * nothing, forever. So the bytes come from a same-origin path, which is the only
+     * thing the policy permits.
+     */
+    public function voicePreview(Request $req, Response $res): Response
+    {
+        $adminId = (int) ($_SESSION['admin_id'] ?? 0);
+        $name    = trim((string) (((array) $req->getParsedBody())['name'] ?? ''));
+
+        $out = static function (Response $r, array $body, int $status = 200): Response {
+            $r->getBody()->write((string) json_encode($body, JSON_UNESCAPED_SLASHES));
+            return $r->withHeader('Content-Type', 'application/json')->withStatus($status);
+        };
+
+        $body  = (array) $req->getParsedBody();
+        $kind  = (string) ($body['kind'] ?? 'guest');
+        $role  = trim((string) ($body['role'] ?? ''));
+        $event = (int) ($body['event'] ?? 0) > 0
+            ? \AfricaGates\Services\DoorWelcome::eventOf((int) $body['event'])
+            : null;
+
+        // ── THE LINE COMES FIRST, AND IT COMES WITH THE EVENT ────────────────
+        //
+        // This asked whether Azure was configured BEFORE it built anything, so a
+        // deployment without a key could not check the wording — not the greeting, not
+        // the pronunciation list, not which of the four forms a name lands on. All of
+        // that is text and costs nothing to compute. Refusing to show it because a
+        // synthesiser is missing made "test the welcome voice" mean "buy a key first".
+        //
+        // And the EVENT is the correction that matters. The door calls
+        // `line($name, eventOfPass($pass))`, so a real guest hears "Good evening. Ada,
+        // you are welcome." This built the line with no event and previewed "Ada, you
+        // are welcome" — a different sentence, a different cache key, and a preview of
+        // something nobody will ever hear, on the one screen whose entire job is to let
+        // somebody hear it before the night.
+        $line = match ($kind) {
+            'honour'  => \AfricaGates\Services\DoorWelcome::honourLine($name, $role, $event),
+            // What plays when a name cannot be said aloud at all. Reachable nowhere
+            // before this, and it is the line that covers every failure on the door.
+            'generic' => \AfricaGates\Services\DoorWelcome::greeting($event)
+                         . \AfricaGates\Services\DoorWelcome::genericLine(),
+            default   => \AfricaGates\Services\DoorWelcome::line($name, $event),
+        };
+
+        if ($line === '') {
+            return $out($res, ['ok' => false,
+                'why' => 'That is not a name the door would say aloud — letters only, at least two.'], 422);
+        }
+
+        // From here the answer is always OK: the operator asked what the door will say
+        // and this is what it will say. `spoken` is the separate question of whether it
+        // could be heard, which has its own separate reasons.
+        // ── IT ASKED THE WRONG PROVIDER, AND TOLD THE OPERATOR TO FIX IT ────
+        //
+        // Every branch below used to name AzureVoice — `configured()`, `why()`,
+        // `lastError()`, `plain()` — while {@see DoorWelcome::render()}, the thing that
+        // actually speaks, dispatches on {@see DoorVoice::provider()}.
+        //
+        // So on a deployment with OpenAI selected and its key set, this screen — the ONE
+        // place built to answer "does the voice work" — checked Azure, found no Azure key,
+        // and answered "No voice is configured" with Azure's own instruction to go and add
+        // an Azure Speech key. The operator's key was correct, the provider was correct,
+        // the door would have spoken, and the diagnostic said it could not and sent them
+        // to the wrong box. There was no way to discover otherwise short of standing at a
+        // door with a guest.
+        //
+        // Worse in the branch below it: with Azure configured but OpenAI selected, a
+        // failure reported `AzureVoice::lastError()` — the recorded reason from a provider
+        // that had not been asked to do anything, usually empty, so it fell through to
+        // "Azure did not answer. Check the key and the region" for a fault in OpenAI.
+        //
+        // ONE RESOLVER. DoorVoice answers all four questions about whoever is actually
+        // speaking. This is the exact "two readers of one setting" fault CLAUDE.md names,
+        // sitting inside the tool for finding it.
+        if (!\AfricaGates\Services\DoorVoice::configured()) {
+            return $out($res, ['ok' => true, 'line' => \AfricaGates\Services\DoorVoice::plain($line),
+                'spoken' => false,
+                'why' => \AfricaGates\Services\DoorVoice::why()
+                    ?: 'No voice is configured, so this is the wording only.']);
+        }
+
+        if (!\AfricaGates\Services\DoorWelcome::render($line)) {
+            // The recorded reason, not a guess, and from the provider that was ASKED.
+            // "Check the key and the region" sent an operator to the wrong box for every
+            // failure that was not the key — and on this screen, where somebody may press
+            // Hear twenty times in a minute, the likeliest one is a rate limit.
+            $who = \AfricaGates\Services\DoorVoice::PROVIDERS[
+                       \AfricaGates\Services\DoorVoice::provider()] ?? 'The voice';
+            return $out($res, ['ok' => true, 'line' => \AfricaGates\Services\DoorVoice::plain($line),
+                'spoken' => false,
+                // Named, so the operator knows which key and which dashboard to open —
+                // this screen offers two and the message used to assume one.
+                'why' => \AfricaGates\Services\DoorVoice::lastError()
+                    ?: (explode(' —', $who)[0] . ' did not answer. Check its key.')]);
+        }
+
+        try { $this->audit->record($adminId, 'settings.voice_preview', null, null); } catch (\Throwable) {}
+
+        return $out($res, [
+            'ok'     => true,
+            // The readable form. The KEY is still taken from the raw line, because that is
+            // what was rendered — stripping the marker before hashing would look for a
+            // clip that was never made.
+            'line'   => \AfricaGates\Services\DoorVoice::plain($line),
+            'spoken' => true,
+            'url'    => '/admin/settings/voice-sample/' . \AfricaGates\Services\DoorWelcome::keyFor($line),
+        ]);
+    }
+
+    /**
+     * GET /admin/settings/voice-sample/{key} — the bytes for a preview.
+     *
+     * Never renders, and behind the same superadmin gate as the rest of this screen: the
+     * cache holds every guest's name for the next three days as audio, and a path that
+     * served it to anybody who could guess a hash would be the attendee list read aloud.
+     */
+    public function voiceSample(Request $req, Response $res, array $args): Response
+    {
+        $path = \AfricaGates\Services\DoorWelcome::pathFor((string) ($args['key'] ?? ''));
+        if ($path === null || !is_file($path)) return $res->withStatus(404);
+
+        $bytes = @file_get_contents($path);
+        if ($bytes === false || $bytes === '') return $res->withStatus(404);
+
+        $res->getBody()->write($bytes);
+
+        return $res
+            ->withHeader('Content-Type', 'audio/mpeg')
+            ->withHeader('Content-Length', (string) strlen($bytes))
+            ->withHeader('Cache-Control', 'private, max-age=3600')
+            ->withHeader('X-Robots-Tag', 'noindex, nofollow');
     }
 }

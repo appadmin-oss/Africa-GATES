@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,600;0,700;0,800;1,600&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&family=JetBrains+Mono:wght@500;600;700&display=swap" rel="stylesheet">
+<script src="image-slot.js"></script>
+<style>
+  *{box-sizing:border-box}
+  body{margin:0;font-family:'DM Sans',system-ui,sans-serif;-webkit-font-smoothing:antialiased;background:#eef0ec}
+  image-slot::part(frame){background:transparent}
+  image-slot[data-deco]::part(empty){display:none}
+  @keyframes edFade{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
+  @keyframes edSpin{to{transform:rotate(360deg)}}
+</style>
+</helmet>
+
+<div style="min-height:100vh;background:#eef0ec">
+  <header style="position:sticky;top:0;z-index:50;background:rgba(251,251,250,.82);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);border-bottom:1px solid rgba(16,41,44,.07)">
+    <div style="max-width:1080px;margin:0 auto;padding:0 32px;height:72px;display:flex;align-items:center;justify-content:space-between;gap:28px">
+      <a href="#" style="text-decoration:none;display:flex;align-items:center;gap:11px"><span style="width:38px;height:38px;border-radius:11px;background:#10292C;display:flex;align-items:center;justify-content:center;font-family:'Playfair Display',serif;font-weight:700;font-size:21px;color:#7FC87C">G</span><span style="display:flex;flex-direction:column;line-height:1"><span style="font-family:'Playfair Display',serif;font-weight:700;font-size:17px;color:#10292C">Africa</span><span style="font-size:10px;font-weight:700;letter-spacing:.26em;color:#237b22">GATES</span></span></a>
+      <nav style="display:flex;align-items:center;gap:4px">
+        <a href="#" style="text-decoration:none;font-size:14.5px;font-weight:600;color:#3a4448;padding:9px 14px;border-radius:10px;display:flex;align-items:center;gap:7px"><span style="width:7px;height:7px;border-radius:50%;background:#e0245e"></span>Pulse</a>
+        <a href="#" style="text-decoration:none;font-size:14.5px;font-weight:600;color:#10292C;padding:9px 14px;border-radius:10px">Events</a>
+        <a href="#" style="text-decoration:none;font-size:14.5px;font-weight:500;color:#3a4448;padding:9px 14px;border-radius:10px">Leaderboard</a>
+      </nav>
+      <a href="#" style="text-decoration:none;background:#237b22;color:#fff;font-size:14px;font-weight:600;padding:10px 20px;border-radius:999px;box-shadow:0 8px 18px -8px rgba(35,123,34,.6)">Vote</a>
+    </div>
+  </header>
+
+  <div style="max-width:1080px;margin:0 auto;padding:18px 32px 0"><span style="font-size:12.5px;color:#92a6a7">Events · <span style="color:#10292C;font-weight:500">Inaugural Awards Gala</span></span></div>
+
+  <!-- HERO -->
+  <div style="max-width:1080px;margin:14px auto 0;padding:0 32px">
+    <div style="position:relative;border-radius:24px;overflow:hidden;background:radial-gradient(130% 130% at 78% 0%,#1d5b2a,#10292C 60%);min-height:340px;display:flex;align-items:flex-end;padding:38px 40px">
+      <image-slot id="ed-hero" data-deco fit="cover" style="position:absolute;inset:0;width:100%;height:100%;opacity:.42" placeholder=""></image-slot>
+      <div style="position:absolute;right:-60px;top:-60px;width:300px;height:300px;border-radius:50%;background:radial-gradient(circle,rgba(212,154,14,.3),transparent 68%)"></div>
+      <div style="position:relative">
+        <span style="display:inline-flex;align-items:center;gap:7px;font-size:11px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:#fbc329;background:rgba(212,154,14,.18);padding:7px 14px;border-radius:999px">🏆 Ceremony · 2026</span>
+        <h1 style="margin:16px 0 0;font-family:'Playfair Display',serif;font-weight:800;font-size:46px;line-height:1.02;letter-spacing:-.02em;color:#fff">Inaugural Awards Gala</h1>
+        <div style="display:flex;flex-wrap:wrap;gap:22px;margin-top:18px">
+          <div style="display:flex;align-items:center;gap:8px;color:rgba(255,255,255,.85);font-size:14px"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#7FC87C" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>15 September 2026</div>
+          <div style="display:flex;align-items:center;gap:8px;color:rgba(255,255,255,.85);font-size:14px"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#7FC87C" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>18:00 WAT</div>
+          <div style="display:flex;align-items:center;gap:8px;color:rgba(255,255,255,.85);font-size:14px"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#7FC87C" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg>Eko Hotel, Lagos</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- BODY -->
+  <div style="max-width:1080px;margin:28px auto 0;padding:0 32px 60px;display:grid;grid-template-columns:1fr 340px;gap:28px;align-items:start">
+    <!-- main -->
+    <div style="display:flex;flex-direction:column;gap:24px">
+      <div style="background:#fff;border:1px solid rgba(16,41,44,.08);border-radius:20px;padding:28px">
+        <h2 style="margin:0 0 12px;font-family:'Playfair Display',serif;font-weight:700;font-size:21px;color:#10292C">About this evening</h2>
+        <p style="margin:0;font-size:15px;line-height:1.7;color:#3a4448">One night where the continent's most recognised are honoured in person — the Cultural Power Index made physical. Expect a red carpet, eight headline honours, a seated gala dinner, and live performance from across Africa. Black-tie; doors at 18:00.</p>
+      </div>
+
+      <!-- schedule -->
+      <div style="background:#fff;border:1px solid rgba(16,41,44,.08);border-radius:20px;padding:28px">
+        <h2 style="margin:0 0 18px;font-family:'Playfair Display',serif;font-weight:700;font-size:21px;color:#10292C">Run of show</h2>
+        <div style="display:flex;flex-direction:column">
+          <sc-for list="{{ schedule }}" as="s" hint-placeholder-count="5">
+            <div style="display:flex;gap:18px;padding:13px 0;border-bottom:1px solid rgba(16,41,44,.06)">
+              <span style="flex:none;width:70px;font-family:'JetBrains Mono',monospace;font-weight:700;font-size:13px;color:#a47306">{{ s.time }}</span>
+              <div><div style="font-weight:600;font-size:14.5px;color:#10292C">{{ s.title }}</div><div style="font-size:13px;color:#717a7e;margin-top:2px">{{ s.body }}</div></div>
+            </div>
+          </sc-for>
+        </div>
+      </div>
+
+      <!-- venue -->
+      <div style="background:#fff;border:1px solid rgba(16,41,44,.08);border-radius:20px;padding:28px">
+        <h2 style="margin:0 0 14px;font-family:'Playfair Display',serif;font-weight:700;font-size:21px;color:#10292C">Venue</h2>
+        <div style="position:relative;height:180px;border-radius:14px;overflow:hidden;background:linear-gradient(135deg,#dfe7e2,#cfdcd4)">
+          <image-slot id="ed-map" data-deco fit="cover" style="position:absolute;inset:0;width:100%;height:100%;pointer-events:none" placeholder=""></image-slot>
+          <span style="position:absolute;left:50%;top:50%;transform:translate(-50%,-100%);color:#237b22"><svg width="34" height="34" viewBox="0 0 24 24" fill="#237b22" stroke="#fff" stroke-width="1.4"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="2.6" fill="#fff" stroke="none"/></svg></span>
+        </div>
+        <div style="margin-top:14px;font-weight:600;font-size:15px;color:#10292C">Eko Hotel &amp; Suites</div>
+        <div style="font-size:13.5px;color:#717a7e;margin-top:3px">1415 Adetokunbo Ademola St, Victoria Island, Lagos</div>
+      </div>
+    </div>
+
+    <!-- ticket rail -->
+    <div style="position:sticky;top:88px;display:flex;flex-direction:column;gap:18px">
+      <div style="background:#fff;border:1px solid rgba(16,41,44,.08);border-radius:20px;padding:22px;box-shadow:0 12px 36px -20px rgba(16,41,44,.35)">
+        <div style="display:flex;align-items:center;justify-content:space-between"><span style="font-size:12px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:#a47306">Tickets selling fast</span><span style="font-size:12px;color:#92a6a7">68% sold</span></div>
+        <div style="height:7px;border-radius:5px;background:#eef2ee;overflow:hidden;margin-top:9px"><span style="display:block;height:100%;width:68%;border-radius:5px;background:linear-gradient(90deg,#d49a0e,#fbc329)"></span></div>
+        <div style="display:flex;flex-direction:column;gap:9px;margin-top:18px">
+          <sc-for list="{{ tiers }}" as="t" hint-placeholder-count="3">
+            <button onClick="{{ t.set }}" style="cursor:{{ t.cursor }};text-align:left;border:1.5px solid {{ t.border }};background:{{ t.bg }};border-radius:13px;padding:13px 14px;display:flex;align-items:center;gap:11px;opacity:{{ t.op }}">
+              <span style="flex:none;width:20px;height:20px;border-radius:50%;border:2px solid {{ t.radio }};display:flex;align-items:center;justify-content:center"><span style="width:10px;height:10px;border-radius:50%;background:{{ t.dot }}"></span></span>
+              <div style="flex:1"><div style="font-weight:600;font-size:14px;color:#10292C">{{ t.name }}</div><div style="font-size:11.5px;color:#92a6a7">{{ t.perk }}</div></div>
+              <span style="font-family:'JetBrains Mono',monospace;font-weight:700;font-size:14px;color:#10292C">{{ t.price }}</span>
+            </button>
+          </sc-for>
+        </div>
+        <button onClick="{{ getTickets }}" style="width:100%;margin-top:16px;cursor:pointer;border:none;background:#237b22;color:#fff;font-family:inherit;font-weight:600;font-size:15px;padding:14px;border-radius:999px" style-hover="background:#1a6118">Get tickets · {{ selPrice }}</button>
+        <div style="display:flex;align-items:center;justify-content:center;gap:7px;margin-top:12px;font-size:11.5px;color:#92a6a7"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#92a6a7" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>Secure checkout · instant e-ticket</div>
+      </div>
+
+      <div style="background:#fff;border:1px solid rgba(16,41,44,.08);border-radius:20px;padding:20px">
+        <p style="margin:0 0 12px;font-size:11px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:#92a6a7">Share this event</p>
+        <div style="display:flex;gap:9px">
+          <button onClick="{{ share }}" style="cursor:pointer;flex:1;border:1px solid rgba(16,41,44,.14);background:#fff;color:#10292C;font-family:inherit;font-size:13px;font-weight:600;padding:10px;border-radius:11px;display:flex;align-items:center;justify-content:center;gap:7px"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="m8.6 13.5 6.8 4M15.4 6.5l-6.8 4"/></svg>Share</button>
+          <button onClick="{{ addCal }}" style="cursor:pointer;flex:1;border:1px solid rgba(16,41,44,.14);background:#fff;color:#10292C;font-family:inherit;font-size:13px;font-weight:600;padding:10px;border-radius:11px;display:flex;align-items:center;justify-content:center;gap:7px"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>Add</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <sc-if value="{{ toastOpen }}" hint-placeholder-val="{{ false }}">
+    <div style="position:fixed;left:50%;bottom:32px;transform:translateX(-50%);z-index:95;background:#10292C;color:#fff;font-size:13.5px;font-weight:500;padding:13px 22px;border-radius:999px;box-shadow:0 16px 40px -12px rgba(0,0,0,.5)">{{ toastMsg }}</div>
+  </sc-if>
+
+  <footer style="background:#0c2225"><div style="max-width:1080px;margin:0 auto;padding:40px 32px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:16px">
+    <div style="display:flex;align-items:center;gap:11px"><span style="width:32px;height:32px;border-radius:9px;background:rgba(127,200,124,.16);display:flex;align-items:center;justify-content:center;font-family:'Playfair Display',serif;font-weight:700;font-size:16px;color:#7FC87C">G</span><span style="font-family:'Playfair Display',serif;font-weight:700;font-size:15px;color:#fff">Africa<span style="color:#7FC87C">GATES</span></span></div>
+    <span style="font-size:12.5px;color:rgba(255,255,255,.5)">© 2026 Africa GATES · An Afrovanguard initiative</span>
+  </div></footer>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:1080,&quot;height&quot;:900}}">
+class Component extends DCLogic {
+  state = { tier:1, toast:null };
+  ping(m){ this.setState({toast:m}); clearTimeout(this._t); this._t=setTimeout(()=>this.setState({toast:null}),2100); }
+  renderVals(){
+    const s = this.state;
+    const schedule = [
+      { time:'18:00', title:'Red carpet & arrivals', body:'Press line and the continental welcome.' },
+      { time:'19:00', title:'Opening & first honours', body:'Education, Science and Arts awards.' },
+      { time:'20:00', title:'Gala dinner', body:'Three-course seated service.' },
+      { time:'21:00', title:'Headline honours', body:'Cultural Icon and Continental Legacy.' },
+      { time:'22:00', title:'After-party', body:'Live performance and dancing.' }
+    ];
+    const T = [
+      { name:'Student', perk:'Valid student ID required', price:5000, soldOut:true },
+      { name:'General Admission', perk:'Entry · welcome pack', price:15000 },
+      { name:'VIP', perk:'Front rows · dinner · after-party', price:45000 }
+    ];
+    const NGN = n => '₦'+n.toLocaleString();
+    const tiers = T.map((t,i)=>{ const sel=s.tier===i && !t.soldOut; return {
+      name: t.name + (t.soldOut?' · sold out':''), perk:t.perk, price:NGN(t.price),
+      cursor: t.soldOut?'not-allowed':'pointer', op: t.soldOut?0.5:1,
+      border: sel?'#237b22':'rgba(16,41,44,.12)', bg: sel?'#f6fcf5':'#fff', radio: sel?'#237b22':'rgba(16,41,44,.2)', dot: sel?'#237b22':'transparent',
+      set: ()=>{ if(!t.soldOut) this.setState({tier:i}); } }; });
+    const cur = T[s.tier]||T[1];
+    return { schedule, tiers, selPrice: NGN(cur.price),
+      getTickets:()=>this.ping('Opening secure checkout…'), share:()=>this.ping('Link copied'), addCal:()=>this.ping('Added to your calendar'),
+      toastOpen:!!s.toast, toastMsg:s.toast||'' };
+  }
+}
+</script>
+</body>
+</html>

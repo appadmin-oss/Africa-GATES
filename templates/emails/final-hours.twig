@@ -1,0 +1,355 @@
+{#
+  "Final hours" — the nominee broadcast.
+
+  Rendered by NomineeBroadcastCommand, one pass per recipient. Twig, not a
+  string-replace, so output autoescaping applies to every name that reaches it —
+  a nominee called "Ade & Sons" must not break the markup it lands in.
+
+  ── WHAT CHANGED FROM THE SUPPLIED DESIGN, AND WHY ─────────────────────────
+  · The countdown was a `countdown_gif_url` placeholder for a hosted timer
+    service. It now points at THIS platform's /email/countdown.gif, which draws
+    the animation per request. See CountdownGif for why we do not use Sendtric.
+  · "Share your voting link" pointed at the generic /vote. Every nominee has their
+    OWN vote page, and telling somebody to rally supporters while handing them the
+    all-nominees ballot is the ask undermining itself. It is now their page.
+  · "Get them a seat" pointed at /tickets, which is not a route on this platform —
+    it is /events. That link was a 404.
+  · "View in browser" pointed at /email/view?id=…, which does not exist either.
+    Removed rather than shipped dead.
+  · Unsubscribe had nothing to point at. It is now a real one-click token link,
+    and "Email preferences" is gone because there is no preferences screen to send
+    anybody to.
+#}
+<!DOCTYPE html>
+<html lang="en" xmlns="http://www.w3.org/1999/xhtml" xmlns:v="urn:schemas-microsoft-com:vml" xmlns:o="urn:schemas-microsoft-com:office:office">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta http-equiv="X-UA-Compatible" content="IE=edge">
+<meta name="format-detection" content="telephone=no, date=no, address=no, email=no, url=no">
+<meta name="color-scheme" content="light">
+<meta name="supported-color-schemes" content="light">
+<title>The Final Hours — Africa GATES</title>
+<!--[if mso]>
+<noscript>
+<xml>
+<o:OfficeDocumentSettings>
+<o:PixelsPerInch>96</o:PixelsPerInch>
+</o:OfficeDocumentSettings>
+</xml>
+</noscript>
+<![endif]-->
+<style>
+  body, table, td, a { -webkit-text-size-adjust: 100%; -ms-text-size-adjust: 100%; }
+  table, td { mso-table-lspace: 0pt; mso-table-rspace: 0pt; }
+  img { -ms-interpolation-mode: bicubic; border: 0; height: auto; line-height: 100%; outline: none; text-decoration: none; display: block; }
+  body { margin: 0; padding: 0; width: 100% !important; height: 100% !important; background-color: #f2f2ef; }
+  table { border-collapse: collapse !important; }
+  a[x-apple-data-detectors] { color: inherit !important; text-decoration: none !important; font-size: inherit !important; font-family: inherit !important; font-weight: inherit !important; line-height: inherit !important; }
+  u + #body a { color: inherit; text-decoration: none; }
+  #MessageViewBody a { color: inherit; text-decoration: none; }
+  span.MsoHyperlink { color: inherit; mso-style-priority: 99; }
+  [data-ogsc] .agw-bg { background-color: #ffffff !important; }
+  [data-ogsc] .agw-text { color: #14171a !important; }
+
+  /* Outlook (Word engine) ignores line-height unless told the rule is exact, and
+     collapses to single spacing on long paragraphs. */
+  p, td, a, div, h1 { mso-line-height-rule: exactly; }
+
+  /* ── DARK MODE ───────────────────────────────────────────────────────────
+     `color-scheme: light` above already stops Apple Mail and iOS inverting anything,
+     which is why the palette below is a deliberate dark counterpart rather than a
+     defensive one. Gmail's and Outlook.com's dark modes invert regardless and do it
+     badly on near-white surfaces — dark text left on a darkened background. Declaring
+     the dark values explicitly means the clients that DO honour the query render a
+     chosen design, and the ones that force-invert have less to get wrong. */
+  @media (prefers-color-scheme: dark) {
+    .agw-body   { background-color: #0d1512 !important; }
+    .agw-bg     { background-color: #14201b !important; }
+    .agw-text   { color: #f3f5f2 !important; }
+    .agw-muted  { color: #a9b4ad !important; }
+    .agw-body-t { color: #dfe4e0 !important; }
+    .agw-hero   { background-color: #16261d !important; }
+    .agw-rule   { border-color: #2c3a32 !important; }
+    /* The green CTA already clears 4.5:1 against white text, so it is left alone —
+       lightening it here would only reduce that. */
+  }
+
+  @media screen and (max-width: 600px) {
+    .agw-wrapper { width: 100% !important; }
+    .agw-px { padding-left: 28px !important; padding-right: 28px !important; }
+    .agw-headline { font-size: 26px !important; line-height: 32px !important; }
+    .agw-btn-pad { padding-left: 28px !important; padding-right: 28px !important; }
+    .agw-hero-pad { padding: 28px 20px !important; }
+  }
+</style>
+</head>
+<body id="body" class="agw-body" style="margin:0; padding:0; background-color:#f2f2ef;">
+
+{# The brand mark is a HOSTED PNG, not an inlined data: URI.
+
+   It was base64 — 20,848 bytes, over half the entire email — and Gmail, Outlook desktop,
+   Outlook.com and Yahoo all refuse data: URIs in an img src, so the majority of readers
+   paid that weight and saw the alt text anyway. It also spent half the headroom before
+   Gmail's ~102KB clipping point, and what Gmail clips off a campaign is the footer, which
+   is where the unsubscribe link lives.
+
+   Not the SVG at /assets/img/logo-africa-gates.svg either: it is 1.4MB of embedded
+   bitmap, and email clients do not render SVG at all. #}
+<!-- PREHEADER -->
+<div style="display:none; max-height:0; overflow:hidden; mso-hide:all; font-size:1px; line-height:1px; color:#f2f2ef; opacity:0;">
+  Voting closes soon. Rally your supporters and get them a seat — let's finish strong.
+  &nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;
+</div>
+
+<table role="presentation" class="agw-body" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="#f2f2ef" style="background-color:#f2f2ef;">
+<tr>
+<td align="center" style="padding:32px 12px;">
+
+
+  <!--[if mso]>
+  <table role="presentation" width="560" cellpadding="0" cellspacing="0" border="0" style="width:560px;"><tr><td>
+  <![endif]-->
+  {# FLUID-HYBRID, not a fixed 560px table.
+
+     This was width="560" with the mobile override living only inside the one @media
+     block. Gmail strips <style> in several configurations (notably a non-Gmail address
+     fetched via POP/IMAP into a Gmail account), and when it does, a 560px table lands on
+     a 320px screen: the reader gets a horizontally scrolling email or a zoomed-out one.
+     A percentage width with a max-width needs no media query to work, and the MSO
+     conditional above gives Outlook — which ignores max-width — its fixed 560. #}
+  <table role="presentation" class="agw-wrapper agw-bg" width="100%" cellpadding="0" cellspacing="0" border="0" style="width:100%; max-width:560px; background-color:#ffffff; border-radius:20px; overflow:hidden;">
+
+    <!-- DARK HEADER BAR (logo left, status badge right) -->
+    <tr>
+      <td style="background-color:#131a15;">
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+          <tr>
+            <td class="agw-px" style="padding:20px 32px;">
+              <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%">
+                <tr>
+                  <td valign="middle">
+                    <table role="presentation" cellpadding="0" cellspacing="0" border="0">
+                      <tr>
+                        <td valign="middle" width="40" style="padding-right:10px;">
+                          {# THE MARK ONLY, not the full lockup. The wordmark version is
+                             illegible below about 96px, and the words "Africa GATES" are
+                             already set in live text in the cell beside this one — printing
+                             them twice, once as unreadable pixels, is worse than not
+                             printing them at all.
+
+                             Served at 2x (192px for a 40px box) so it is not soft on a
+                             retina phone, which is where most of these are opened. #}
+                          <img src="{{ site_url }}/assets/img/logo-mark.png" width="40" height="40" alt="Africa GATES" style="display:block;">
+                        </td>
+                        <td valign="middle">
+                          <p style="margin:0; font-family:Helvetica, Arial, sans-serif; font-size:15px; font-weight:700; color:#ffffff; line-height:16px;">Africa</p>
+                          <p style="margin:1px 0 0 0; font-family:Helvetica, Arial, sans-serif; font-size:10px; font-weight:700; letter-spacing:2px; color:#4fbf7f; line-height:12px;">GATES</p>
+                        </td>
+                      </tr>
+                    </table>
+                  </td>
+                  <td valign="middle" align="right">
+                    <p style="margin:0; font-family:Helvetica, Arial, sans-serif; font-size:10.5px; font-weight:700; letter-spacing:1.6px; color:#8a9089; text-transform:uppercase;">Final Hours</p>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+
+    <!-- HERO: live countdown GIF -->
+    <tr>
+      <td class="agw-hero-pad agw-hero" align="center" bgcolor="#e9f2ec" style="background-color:#e9f2ec; padding:40px 20px;">
+        <!-- Animated GIF, redrawn by the server on every open, so the time is true each
+             time the message is looked at rather than true when it was sent. Frame 1 is a
+             correct still for Outlook, which never advances past it. -->
+        {# IMAGES OFF IS THE COMMON CASE, NOT THE EDGE CASE. Outlook desktop blocks remote
+           images by default and so does most corporate mail. The countdown IS the hero, so
+           with images off this block has to still carry the deadline:
+
+             · the alt text is STYLED — an unstyled alt renders as 10px browser-default
+               serif and reads as a broken attachment rather than as words somebody wrote;
+             · width/height are set so a blocked image reserves its box instead of
+               collapsing the panel to nothing;
+             · the deadline is repeated as real text underneath, which is the line that
+               actually does the work when the image never arrives. #}
+        <img src="{{ countdown_url }}" width="320" height="104" alt="{{ countdown_alt }}"
+             style="display:block; width:100%; max-width:320px; height:auto; margin:0 auto;
+                    font-family:Helvetica, Arial, sans-serif; font-size:15px; font-weight:700;
+                    line-height:1.4; color:#14171a; text-align:center;">
+        <p class="agw-muted" style="margin:16px 0 0 0; font-family:Helvetica, Arial, sans-serif; font-size:13px; font-weight:700; color:#3f4a43; mso-line-height-rule:exactly; line-height:18px;">Voting closes {{ closes_human }}</p>
+      </td>
+    </tr>
+
+    <!-- HEADLINE -->
+    <tr>
+      <td class="agw-px" align="center" style="padding:36px 40px 0 40px;">
+        <h1 class="agw-headline agw-text" style="margin:0; font-family:Helvetica, Arial, sans-serif; font-weight:700; font-size:28px; line-height:34px; color:#14171a; letter-spacing:-0.3px; text-align:center;">
+          Finish <span style="color:#1f9d55;">strong</span>
+        </h1>
+        <p style="margin:10px 0 0 0; font-family:Helvetica, Arial, sans-serif; font-size:14px; color:#71756c; text-align:center;">
+          {% if first_name %}{{ first_name }}, you're{% else %}You're{% endif %} in the final stretch of Africa GATES voting{% if category_name %} in {{ category_name }}{% endif %}.
+        </p>
+      </td>
+    </tr>
+
+    <!-- WHY IT MATTERS -->
+    <tr>
+      <td class="agw-px" style="padding:32px 40px 0 40px;">
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+          <tr>
+            <td style="border-left:2px solid #1f9d55; padding:2px 0 2px 16px;">
+              <p style="margin:0; font-family:Helvetica, Arial, sans-serif; font-size:14px; line-height:22px; color:#5b6b60; font-style:italic;">
+                "The end of a matter is better than its beginning." — The Preacher
+              </p>
+            </td>
+          </tr>
+        </table>
+        <p style="margin:18px 0 12px 0; font-family:Helvetica, Arial, sans-serif; font-size:14px; line-height:23px; color:#43473f;">
+          This is no longer just about how the journey began — it's about how we choose to finish it. You've come this far because your work, influence, and contribution to your community have been seen and recognised.
+        </p>
+        <p style="margin:0; font-family:Helvetica, Arial, sans-serif; font-size:14px; line-height:23px; color:#43473f;">
+          Now, help us make Africa GATES one of the most remarkable community experiences we've ever created.
+        </p>
+      </td>
+    </tr>
+
+    <!-- TWO ASKS -->
+    <tr>
+      <td class="agw-px" style="padding:34px 40px 0 40px;">
+        <p style="margin:0 0 18px 0; font-family:Helvetica, Arial, sans-serif; font-weight:700; font-size:11px; letter-spacing:1.2px; color:#9a9c95; text-transform:uppercase;">
+          Two things we're asking of you
+        </p>
+      </td>
+    </tr>
+    <tr>
+      <td class="agw-px" style="padding:0 40px 0 40px;">
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+          <tr>
+            <td style="padding:0 0 22px 0;" valign="top">
+              <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+                <tr>
+                  <td width="30" valign="top" style="padding:1px 14px 0 0;">
+                    <p style="margin:0; font-family:Helvetica, Arial, sans-serif; font-size:14px; font-weight:700; color:#1f9d55;">01</p>
+                  </td>
+                  <td valign="top">
+                    <p style="margin:0 0 3px 0; font-family:Helvetica, Arial, sans-serif; font-size:14.5px; line-height:21px; color:#14171a; font-weight:700;">
+                      Mobilise your supporters
+                    </p>
+                    <p style="margin:0 0 8px 0; font-family:Helvetica, Arial, sans-serif; font-size:13.5px; line-height:21px; color:#5b6b60;">
+                      Rally your fans, friends, family, colleagues and community to vote for you and help secure your place in this historic moment.
+                    </p>
+                    <a href="{{ vote_url }}" target="_blank" style="font-family:Helvetica, Arial, sans-serif; font-size:13px; font-weight:700; color:#1f9d55; text-decoration:none;">
+                      Share your voting link &nbsp;&rarr;
+                    </a>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:0 0 4px 0;" valign="top">
+              <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+                <tr>
+                  <td width="30" valign="top" style="padding:1px 14px 0 0;">
+                    <p style="margin:0; font-family:Helvetica, Arial, sans-serif; font-size:14px; font-weight:700; color:#1f9d55;">02</p>
+                  </td>
+                  <td valign="top">
+                    <p style="margin:0 0 3px 0; font-family:Helvetica, Arial, sans-serif; font-size:14.5px; line-height:21px; color:#14171a; font-weight:700;">
+                      Fill the room
+                    </p>
+                    <p style="margin:0 0 8px 0; font-family:Helvetica, Arial, sans-serif; font-size:13.5px; line-height:21px; color:#5b6b60;">
+                      Encourage your supporters to get their event tickets and physically join us — the people who believed in you should be there to celebrate with you.
+                    </p>
+                    <a href="{{ events_url }}" target="_blank" style="font-family:Helvetica, Arial, sans-serif; font-size:13px; font-weight:700; color:#1f9d55; text-decoration:none;">
+                      Get event tickets &nbsp;&rarr;
+                    </a>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+
+    <!-- DARK CALLOUT -->
+    <tr>
+      <td class="agw-px" style="padding:32px 40px 0 40px;">
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#131a15; border-radius:14px;">
+          <tr>
+            <td align="center" style="padding:26px 28px;">
+              <p style="margin:0; font-family:Helvetica, Arial, sans-serif; font-size:14.5px; line-height:23px; color:#e9f2ec;">
+                Every vote matters. Every supporter matters. Every ticket matters.
+              </p>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+
+    <!-- CTA -->
+    <tr>
+      <td class="agw-px agw-btn-pad" align="center" style="padding:32px 40px 0 40px;">
+        <!--[if mso]>
+        <v:roundrect xmlns:v="urn:schemas-microsoft-com:vml" xmlns:w="urn:schemas-microsoft-com:office:word" href="{{ vote_url }}" style="height:48px;v-text-anchor:middle;width:300px;" arcsize="12%" strokecolor="#1f9d55" fillcolor="#1f9d55">
+        <w:anchorlock/>
+        <center style="color:#ffffff;font-family:Helvetica,Arial,sans-serif;font-size:14px;font-weight:bold;">Vote &amp; Share Your Link</center>
+        </v:roundrect>
+        <![endif]-->
+        <!--[if !mso]><!-->
+        <a href="{{ vote_url }}" target="_blank" style="display:inline-block; width:100%; max-width:300px; box-sizing:border-box; background-color:#1f9d55; border-radius:8px; padding:15px 24px; font-family:Helvetica, Arial, sans-serif; font-size:14px; font-weight:700; color:#ffffff; text-decoration:none; text-align:center;">
+          Vote &amp; Share Your Link
+        </a>
+        <!--<![endif]-->
+      </td>
+    </tr>
+    <tr>
+      <td align="center" style="padding:14px 40px 0 40px;">
+        <a href="{{ events_url }}" target="_blank" style="font-family:Helvetica, Arial, sans-serif; font-size:13px; font-weight:700; color:#43473f; text-decoration:underline;">
+          Get event tickets
+        </a>
+      </td>
+    </tr>
+
+    <!-- CLOSING -->
+    <tr>
+      <td class="agw-px" style="padding:38px 40px 0 40px;">
+        <p style="margin:0 0 16px 0; font-family:Helvetica, Arial, sans-serif; font-size:14px; line-height:22px; color:#5b6b60;">
+          Let us not simply participate in Africa GATES. Let us make history together.
+        </p>
+        <p style="margin:0 0 2px 0; font-family:Helvetica, Arial, sans-serif; font-size:13.5px; color:#5b6b60;">With appreciation and anticipation,</p>
+        <p style="margin:0; font-family:Helvetica, Arial, sans-serif; font-weight:700; font-size:13.5px; color:#14171a;">The Africa GATES Team</p>
+      </td>
+    </tr>
+
+    <!-- FOOTER -->
+    <tr>
+      <td class="agw-px" align="center" style="padding:36px 40px 32px 40px;">
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+          <tr><td style="border-top:1px solid #f0f0ec; font-size:0; line-height:0; padding-bottom:22px;">&nbsp;</td></tr>
+        </table>
+        <p style="margin:0 0 6px 0; font-family:Helvetica, Arial, sans-serif; font-size:10.5px; letter-spacing:1.2px; color:#1f9d55; font-weight:700; text-transform:uppercase;">Africa G.A.T.E.S.</p>
+        <p style="margin:0 0 14px 0; font-family:Helvetica, Arial, sans-serif; font-size:11px; color:#9a9c95;">
+          {{ postal_address }}
+        </p>
+        <p style="margin:0; font-family:Helvetica, Arial, sans-serif; font-size:10.5px; color:#9a9c95;">
+          <a href="{{ site_url }}" style="color:#9a9c95; text-decoration:underline;">africagates.org</a>&nbsp;&nbsp;·&nbsp;&nbsp;<a href="{{ unsubscribe_url }}" style="color:#9a9c95; text-decoration:underline;">Unsubscribe</a>
+        </p>
+      </td>
+    </tr>
+
+  </table>
+  <!--[if mso]>
+  </td></tr></table>
+  <![endif]-->
+
+</td>
+</tr>
+</table>
+
+</body>
+</html>

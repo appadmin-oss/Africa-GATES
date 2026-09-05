@@ -1,0 +1,552 @@
+{% extends "admin/layout.twig" %}
+
+{# The vetting record. Everything a reviewer needs to decide, on one page, with every
+   decision written down against the admin who took it. #}
+
+{# The layout draws the header. This page used to draw a second one underneath it. #}
+{% block topbar_eyebrow %}<small>Partner organisation</small>{% endblock %}
+{% block topbar_title %}{{ org.name }}{% endblock %}
+{% block topbar_actions %}
+  <a class="ad-btn ad-btn--sm" href="/admin/partner-orgs">← All partners</a>
+  {% if live %}<a class="ad-btn ad-btn--sm" href="/donate/{{ org.slug }}" target="_blank" rel="noopener">View appeal</a>{% endif %}
+{% endblock %}
+
+{% block content %}
+
+{% set chip = {'approved':'green','pending':'gold','draft':'grey','suspended':'red','rejected':'red'}[org.status]|default('grey') %}
+
+<div class="ad-card" style="margin-bottom:16px"><div class="ad-card__body"
+     style="display:flex;gap:22px;flex-wrap:wrap;align-items:center">
+  <div>
+    <div style="font-size:11px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--ad-text-soft)">Status</div>
+    <span class="ad-chip ad-chip--{{ chip }}" style="margin-top:5px">{{ org.status|capitalize }}</span>
+  </div>
+  <div>
+    <div style="font-size:11px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--ad-text-soft)">Kind</div>
+    <div style="margin-top:5px;font-weight:600">
+      {{ kinds[org.kind]|default('Donation partner') }}{% if individual %} · individual{% endif %}
+      {% if org.self_registered %}
+        <span class="ad-chip ad-chip--gold" style="margin-left:6px"
+              title="Applied through the public form — nobody here has met them">Self-registered</span>
+      {% endif %}
+    </div>
+  </div>
+  <div>
+    <div style="font-size:11px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--ad-text-soft)">Collecting</div>
+    <div style="margin-top:5px;font-weight:600">{{ live ? 'Yes' : 'No' }}</div>
+  </div>
+  <div>
+    <div style="font-size:11px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--ad-text-soft)">Received</div>
+    <div style="margin-top:5px;font-family:'Space Mono',monospace;font-weight:700">₦{{ totals.gross|number_format }}</div>
+  </div>
+  <div>
+    <div style="font-size:11px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--ad-text-soft)">Our share</div>
+    <div style="margin-top:5px;font-family:'Space Mono',monospace;font-weight:700">₦{{ totals.platform_fee|number_format }}</div>
+  </div>
+  <div>
+    <div style="font-size:11px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--ad-text-soft)">Theirs</div>
+    <div style="margin-top:5px;font-family:'Space Mono',monospace;font-weight:700">₦{{ totals.net|number_format }}</div>
+  </div>
+</div></div>
+
+{% if org.status == 'suspended' and org.suspended_reason %}
+  <div class="ad-card" style="margin-bottom:16px;border-left:4px solid var(--ad-danger)">
+    <div class="ad-card__body"><strong>Suspended.</strong> {{ org.suspended_reason }}</div>
+  </div>
+{% endif %}
+
+{# ── 1 · THE SETTLEMENT ACCOUNT ─────────────────────────────────────────────
+   The one thing on this page that IS verified automatically: Paystack is asked who owns
+   the account number before a subaccount is created, and the answer sits here beside the
+   registered name for a human to judge. #}
+<div class="ad-card" style="margin-bottom:16px">
+  <div class="ad-card__head"><div class="ad-card__title">Settlement account
+    <small>where this partner's share lands — never held by us</small></div></div>
+  <div class="ad-card__body">
+
+  {% if org.subaccount_code %}
+    <table class="ad-table" style="max-width:640px">
+      <caption class="sr-only">Settlement account details</caption>
+      <tbody>
+        <tr><th scope="row" style="width:210px">Account</th>
+            <td>{{ org.account_last4 ? '••••' ~ org.account_last4 : '—' }} · bank {{ org.settlement_bank }}</td></tr>
+        <tr><th scope="row">Bank says the name is</th>
+            <td><strong>{{ org.account_name_resolved|default('—') }}</strong></td></tr>
+        <tr><th scope="row">{{ individual ? 'Their own name' : 'Registered as' }}</th>
+            <td>{{ org.legal_name|default(org.name) }}</td></tr>
+        <tr><th scope="row">Name match</th>
+            <td>
+              {% if name_match is null %}<span style="color:var(--ad-text-soft)">Not compared</span>
+              {% elseif name_match >= 0.86 %}
+                <span class="ad-chip ad-chip--green">Strong ({{ (name_match * 100)|round }}%)</span>
+              {% else %}
+                <span class="ad-chip ad-chip--red">Weak ({{ (name_match * 100)|round }}%)</span>
+                <div style="margin-top:6px;font-size:12.5px;line-height:1.6;color:var(--ad-text-soft)">
+                  {% if individual %}
+                    The bank's name does not match the name this person gave. Names are compared
+                    as a set of parts, so surname-first ordering and an extra middle name already
+                    score highly — a weak score here means a part they claimed is not on the
+                    account at all. Ask before approving.
+                  {% else %}
+                    The bank's name for this account does not closely match the registered name.
+                    That can be a legitimate trading name — or somebody collecting donations into
+                    a personal account. Confirm before approving.
+                  {% endif %}
+                </div>
+              {% endif %}
+            </td></tr>
+        <tr><th scope="row">Platform share</th>
+            <td>{{ org.platform_fee_bps > 0 ? (org.platform_fee_bps / 100)|number_format(2) ~ '%' : 'Nothing — 100% goes to them' }}</td></tr>
+        <tr><th scope="row">Settlement schedule</th><td>{{ org.settlement_schedule }}</td></tr>
+        <tr><th scope="row">Payout recipient</th>
+            <td>{% if org.payout_recipient_code %}On file
+                {% else %}<span style="color:#b91c1c">Missing — transfers cannot be built.
+                Re-attach the account to create one.</span>{% endif %}</td></tr>
+      </tbody>
+    </table>
+  {% elseif may_decide %}
+    <p style="font-size:13.5px;line-height:1.7;color:var(--ad-text-soft);margin:0 0 12px">
+      The account number is sent to Paystack once and <strong>never stored here</strong>. We keep
+      the subaccount code, the bank, the last four digits and the name the bank resolved.
+    </p>
+    <form method="post" action="/admin/partner-orgs/{{ org.id }}/account">
+      <input type="hidden" name="_token" value="{{ csrf_token }}">
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:14px">
+        <div>
+          <label for="poBank">Bank</label>
+          <select id="poBank" name="bank_code" required>
+            <option value="">Choose…</option>
+            {% for b in banks %}<option value="{{ b.code }}">{{ b.name }}</option>{% endfor %}
+          </select>
+          {% if banks is empty %}
+            <small style="color:#b91c1c">Paystack is unreachable, so the bank list is empty.</small>
+          {% endif %}
+        </div>
+        <div>
+          <label for="poAcct">Account number</label>
+          <input id="poAcct" name="account_number" type="text" inputmode="numeric" maxlength="20" required>
+        </div>
+        <div>
+          <label for="poFee">Platform share (%)</label>
+          <input id="poFee" name="fee_percent" type="number" min="0" max="100" step="0.01" value="0">
+          <small style="color:var(--ad-text-mute)">0 keeps the “100% goes to the cause” promise</small>
+        </div>
+        <div>
+          <label for="poSched">Settlement schedule</label>
+          <select id="poSched" name="settlement_schedule">
+            <option value="auto">Auto (T+1 to their bank)</option>
+            <option value="weekly">Weekly</option>
+            <option value="monthly">Monthly</option>
+            <option value="manual">Manual (only on request)</option>
+          </select>
+        </div>
+      </div>
+      <div style="margin-top:14px">
+        <button class="ad-btn ad-btn--primary" type="submit">Resolve and attach</button>
+      </div>
+    </form>
+  {% else %}
+    <p style="color:var(--ad-text-soft);margin:0">No settlement account attached.</p>
+  {% endif %}
+  </div>
+</div>
+
+{# ── 2 · REGISTRY CHECKS ────────────────────────────────────────────────────
+   Honest about what is automated. There is no free public API for the CAC register — the
+   Commission runs a search page for humans — so unless a verifier is configured, the only
+   truthful states are "a named admin checked this" and "nobody has". #}
+<div class="ad-card" style="margin-bottom:16px">
+  <div class="ad-card__head"><div class="ad-card__title">Registry checks
+    <small>CAC and SCUML — both legal requirements, not paperwork</small></div></div>
+  <div class="ad-card__body">
+
+    {% if not verifier_on %}
+      <p style="font-size:13px;line-height:1.7;color:var(--ad-text-soft);margin:0 0 14px">
+        No automatic verifier is configured, so a number is <strong>confirmed by you</strong>
+        rather than verified by a machine. Search the register below — the result lands on this
+        page, beside the number it is about. Set <code>CAC_VERIFY_URL</code> and
+        <code>CAC_VERIFY_KEY</code> for an automated lookup that answers on its own.
+      </p>
+    {% endif %}
+
+    {# ── THE REGISTER, SEARCHED FROM HERE ─────────────────────────────────────
+       The one-click link to the CAC portal worked, and was the weakest part of onboarding:
+       a reviewer left this record, searched in a tab, came back, and pressed "I checked
+       this" from memory. Nothing connected the two — a mistyped digit and a careful check
+       left the same trace. Searching here puts the result beside the number, and the
+       register's own spelling of the name gets stored rather than somebody's recollection
+       of it. A GET, so it needs no script and survives a reload with the results still up. #}
+    <form method="get" action="/admin/partner-orgs/{{ org.id }}"
+          style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;margin-bottom:14px">
+      <div style="flex:1 1 280px">
+        <label for="cacQ">Search the CAC register</label>
+        <input id="cacQ" name="q" type="search" maxlength="120"
+               value="{{ cac_query|default(org.cac_number ?: org.legal_name ?: org.name) }}"
+               placeholder="Registered name or RC/BN/IT number">
+      </div>
+      <button class="ad-btn ad-btn--primary" type="submit">Search</button>
+      <a class="ad-btn ad-btn--sm" href="{{ cac_search }}" target="_blank" rel="noopener noreferrer"
+         title="If the register is unreachable from this server">Open the CAC portal</a>
+    </form>
+
+    {% if cac_results %}
+      {% if not cac_results.ok %}
+        {# Unreachable is UNKNOWN, and the wording has to say so. On a screen where somebody
+           decides whether a charity is real, an outage that reads as a refusal is the most
+           dangerous thing this page could do. #}
+        <div style="margin-bottom:14px;border-left:4px solid var(--ad-gold);background:#fffdf5;
+                    border-radius:0 10px 10px 0;padding:12px 15px;font-size:13.5px;line-height:1.65;
+                    color:#6b5312" role="status">
+          {{ cac_results.message }}
+        </div>
+      {% elseif cac_results.results is empty %}
+        <div style="margin-bottom:14px;font-size:13.5px;line-height:1.65;color:var(--ad-text-soft)">
+          {{ cac_results.message }}
+        </div>
+      {% else %}
+        <div class="ad-table-wrap" style="margin-bottom:14px">
+          <table class="ad-table">
+            <caption class="sr-only">Results from the CAC register</caption>
+            <thead><tr>
+              <th scope="col">Registered name</th><th scope="col">Number</th>
+              <th scope="col">Kind</th><th scope="col">Status</th><th scope="col" class="col-actions">&nbsp;</th>
+            </tr></thead>
+            <tbody>
+            {% for r in cac_results.results %}
+              <tr>
+                <td><strong>{{ r.name }}</strong>
+                  {% if r.address %}<div style="font-size:12px;color:var(--ad-text-soft);margin-top:3px">{{ r.address }}</div>{% endif %}</td>
+                <td style="font-family:'Space Mono',monospace">{{ r.rc|default('—') }}</td>
+                <td>{{ r.type|default('—') }}
+                  {% if r.date %}<div style="font-size:12px;color:var(--ad-text-soft)">{{ r.date }}</div>{% endif %}</td>
+                <td>{{ r.status|default('—') }}</td>
+                <td class="col-actions">
+                  {% if may_decide %}
+                    <form method="post" action="/admin/partner-orgs/{{ org.id }}/registry">
+                      <input type="hidden" name="_token" value="{{ csrf_token }}">
+                      <input type="hidden" name="reg_name" value="{{ r.name }}">
+                      <input type="hidden" name="rc_number" value="{{ r.rc }}">
+                      <button class="ad-btn ad-btn--sm" type="submit"
+                              data-confirm="Record “{{ r.name }}” as this organisation's registered identity, against your name?">This is them</button>
+                    </form>
+                  {% endif %}
+                </td>
+              </tr>
+            {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        <p style="font-size:12.5px;line-height:1.65;color:var(--ad-text-soft);margin:0 0 14px">
+          {{ cac_results.message }} Recording one stores the register's spelling of the name,
+          which is what the bank account name is later compared against — so it must not be
+          retyped by hand.
+        </p>
+      {% endif %}
+    {% endif %}
+
+    <table class="ad-table" style="max-width:760px">
+      <caption class="sr-only">Registration numbers and their check state</caption>
+      <thead><tr><th scope="col">Register</th><th scope="col">Number</th><th scope="col">State</th><th scope="col">Record</th></tr></thead>
+      <tbody>
+        <tr>
+          <th scope="row">CAC</th>
+          <td>
+            {{ org.cac_number|default('—') }}
+            {% if org.cac_number and not cac_format.ok %}
+              <div style="font-size:12px;color:#b91c1c;margin-top:4px">{{ cac_format.message }}</div>
+            {% elseif cac_format.ok and not cac_format.nonprofit %}
+              <div style="font-size:12px;color:#84610b;margin-top:4px">{{ cac_format.message }}</div>
+            {% endif %}
+            {% if org.cac_registered_name %}
+              <div style="font-size:12px;color:var(--ad-text-soft);margin-top:4px">
+                Register says: <strong>{{ org.cac_registered_name }}</strong></div>
+            {% endif %}
+            {# ── WHAT THE BACKGROUND CHECK FOUND ───────────────────────────────
+               Machine output, and labelled as such. It carries the things the state
+               column cannot: that this number is already on file against somebody else,
+               that it is a business name rather than an incorporated trustee, or that
+               nobody could be reached — none of which are verdicts, and the most useful
+               of which (the duplicate) is a question for the reader rather than an
+               answer. Written by the queued check and by nothing else, so it is never
+               mistaken for a colleague's opinion. #}
+            {% if org.cac_check_note|default('') %}
+              {# Inline, like every other note on this page. The template carries no style
+                 block and inventing a class with nowhere to live is how a rule ends up in
+                 admin.css that only one row uses. #}
+              <div style="margin-top:8px;padding:8px 10px;border-left:3px solid #84610b;
+                          background:rgba(132,97,11,.06);font-size:12px;line-height:1.55">
+                <strong>Background check{% if org.cac_checked_at|default('') %} ·
+                  {{ org.cac_checked_at|slice(0,16) }}{% endif %}</strong>
+                <div style="margin-top:3px">{{ org.cac_check_note }}</div>
+              </div>
+            {% endif %}
+          </td>
+          <td>
+            {% set cs = org.cac_check|default('unchecked') %}
+            <span class="ad-chip ad-chip--{{ cs == 'verified' or cs == 'confirmed' ? 'green' : (cs == 'rejected' ? 'red' : 'grey') }}">
+              {{ check_states[cs]|default(cs) }}</span>
+          </td>
+          <td>
+            {% if may_decide %}
+              <a class="ad-btn ad-btn--xs" href="{{ cac_search }}" target="_blank" rel="noopener">Open CAC search</a>
+              <form method="post" action="/admin/partner-orgs/{{ org.id }}/check" style="display:inline">
+                <input type="hidden" name="_token" value="{{ csrf_token }}">
+                <input type="hidden" name="which" value="cac">
+                <button class="ad-btn ad-btn--xs" name="verdict" value="confirmed" type="submit">I checked it</button>
+                <button class="ad-btn ad-btn--xs ad-btn--danger" name="verdict" value="rejected" type="submit">Not found</button>
+                {% if verifier_on %}
+                  <button class="ad-btn ad-btn--xs ad-btn--primary" name="verdict" value="api" type="submit">Verify via API</button>
+                {% endif %}
+              </form>
+            {% endif %}
+          </td>
+        </tr>
+        <tr>
+          <th scope="row">SCUML</th>
+          <td>{{ org.scuml_number|default('—') }}
+            <div style="font-size:12px;color:var(--ad-text-soft);margin-top:4px">
+              No public lookup exists. Check the certificate itself.</div>
+          </td>
+          <td>
+            {% set ss = org.scuml_check|default('unchecked') %}
+            <span class="ad-chip ad-chip--{{ ss == 'verified' or ss == 'confirmed' ? 'green' : (ss == 'rejected' ? 'red' : 'grey') }}">
+              {{ check_states[ss]|default(ss) }}</span>
+          </td>
+          <td>
+            {% if may_decide %}
+              <form method="post" action="/admin/partner-orgs/{{ org.id }}/check" style="display:inline">
+                <input type="hidden" name="_token" value="{{ csrf_token }}">
+                <input type="hidden" name="which" value="scuml">
+                <button class="ad-btn ad-btn--xs" name="verdict" value="confirmed" type="submit">I checked it</button>
+                <button class="ad-btn ad-btn--xs ad-btn--danger" name="verdict" value="rejected" type="submit">Not valid</button>
+              </form>
+            {% endif %}
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    {% if org.checked_at %}
+      <p style="font-size:12.5px;color:var(--ad-text-soft);margin:12px 0 0">
+        Last recorded {{ org.checked_at }}{% if org.checked_by %} by admin #{{ org.checked_by }}{% endif %}.
+      </p>
+    {% endif %}
+  </div>
+</div>
+
+{# ── 3 · DOCUMENTS ──────────────────────────────────────────────────────────#}
+<div class="ad-card" style="margin-bottom:16px">
+  <div class="ad-card__head"><div class="ad-card__title">Certificates
+    <small>an expiry that lapsed is the thing nobody notices</small></div></div>
+  <div class="ad-card__body">
+
+  {% if documents %}
+    <table class="ad-table" style="max-width:760px">
+      <caption class="sr-only">Uploaded certificates</caption>
+      <thead><tr><th scope="col">Kind</th><th scope="col">File</th><th scope="col">Expires</th><th scope="col">Added</th></tr></thead>
+      <tbody>
+      {% for d in documents %}
+        {% set expired = d.expires_on and d.expires_on < "now"|date('Y-m-d') %}
+        <tr>
+          <td>{{ doc_kinds[d.kind]|default(d.kind) }}</td>
+          {# Through the viewer, not at the file. A direct /uploads/ hit is served under the
+             directory's sandbox CSP, which blocks the PDF viewer — so a certificate opened
+             to a blank tab and looked like a failed upload. #}
+          <td>
+            <a href="/admin/documents/org-doc/{{ d.id }}" target="_blank" rel="noopener">{{ d.original_name|default('document') }}</a>
+            <a href="/admin/documents/org-doc/{{ d.id }}?download=1"
+               style="margin-left:8px;font-size:11.5px;color:var(--ad-text-soft)">download</a>
+          </td>
+          <td>
+            {% if d.expires_on %}
+              <span class="ad-chip ad-chip--{{ expired ? 'red' : 'green' }}">
+                {{ expired ? 'Expired ' : '' }}{{ d.expires_on }}</span>
+            {% else %}<span style="color:var(--ad-text-soft)">—</span>{% endif %}
+          </td>
+          <td style="font-size:12.5px;color:var(--ad-text-soft)">{{ d.created_at }}</td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  {% else %}
+    <p style="color:var(--ad-text-soft);margin:0 0 12px">Nothing uploaded yet.</p>
+  {% endif %}
+
+  {% if may_decide %}
+    <form method="post" action="/admin/partner-orgs/{{ org.id }}/document" enctype="multipart/form-data"
+          style="margin-top:14px;display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:14px;align-items:end">
+      <input type="hidden" name="_token" value="{{ csrf_token }}">
+      <div>
+        <label for="poKind">Kind</label>
+        <select id="poKind" name="kind">
+          {% for k, label in doc_kinds %}<option value="{{ k }}">{{ label }}</option>{% endfor %}
+        </select>
+      </div>
+      <div>
+        <label for="poFile">File (PDF or image)</label>
+        <input id="poFile" name="document" type="file" accept=".pdf,image/*" required>
+      </div>
+      <div>
+        <label for="poExp">Expires (optional)</label>
+        <input id="poExp" name="expires_on" type="date">
+      </div>
+      <div><button class="ad-btn" type="submit">Attach</button></div>
+    </form>
+  {% endif %}
+  </div>
+</div>
+
+{# ── 3b · APPEALS ───────────────────────────────────────────────────────────
+   Publishing an appeal puts Africa GATES' name beside somebody else's claim about what
+   they will do with money, so it is reviewed like the organisation itself. The shortfall
+   policy is shown here because it is the promise a reviewer is actually approving. #}
+<div class="ad-card" style="margin-bottom:16px">
+  <div class="ad-card__head"><div class="ad-card__title">Appeals
+    <small>what donors are told the money is for</small></div></div>
+  <div class="ad-card__body">
+
+  {% if campaigns %}
+    <div class="ad-table-wrap">
+      <table class="ad-table">
+        <caption class="sr-only">Appeals run by this organisation</caption>
+        <thead><tr>
+          <th scope="col">Appeal</th><th scope="col">Raised</th>
+          <th scope="col">If target missed</th><th scope="col">Status</th>
+          <th scope="col" class="col-actions">&nbsp;</th>
+        </tr></thead>
+        <tbody>
+        {% for c in campaigns %}
+          {% set st = c.row.status %}
+          {% set chip = st == 'live' ? 'green' : (st == 'review' ? 'gold' : (st == 'closed' ? 'red' : 'grey')) %}
+          <tr>
+            <td>
+              <strong>{{ c.row.title }}</strong>
+              {% if c.row.summary %}<div style="font-size:12px;color:var(--ad-text-soft)">{{ c.row.summary }}</div>{% endif %}
+              <div style="font-size:12px;color:var(--ad-text-soft)">
+                /donate/{{ org.slug }}/{{ c.row.slug }}
+                {%- if c.row.closes_on %} · closes {{ c.row.closes_on }}{% endif %}
+              </div>
+            </td>
+            <td style="font-family:'Space Mono',monospace">
+              ₦{{ c.progress.raised|number_format }}
+              {%- if c.progress.target > 0 %}<div style="font-size:11.5px;color:var(--ad-text-soft)">of ₦{{ c.progress.target|number_format }} ({{ c.progress.pct }}%)</div>{% endif %}
+            </td>
+            <td style="font-size:12.5px">{{ shortfall[c.row.shortfall_policy]|default('—') }}</td>
+            <td>
+              <span class="ad-chip ad-chip--{{ chip }}">{{ camp_states[st]|default(st) }}</span>
+              {% if st == 'live' and not c.open %}
+                <div style="font-size:11.5px;color:var(--ad-text-soft);margin-top:3px">Outside its dates</div>
+              {% endif %}
+            </td>
+            <td class="col-actions">
+              {% if may_decide %}
+                {% if st != 'live' %}
+                  <form method="post" action="/admin/partner-orgs/appeal/{{ c.row.id }}/publish" style="display:inline">
+                    <input type="hidden" name="_token" value="{{ csrf_token }}">
+                    <button class="ad-btn ad-btn--xs ad-btn--primary" type="submit"
+                            data-confirm="Publish “{{ c.row.title }}”? It goes live at /donate/{{ org.slug }}/{{ c.row.slug }} and starts collecting immediately.">Publish</button>
+                  </form>
+                {% else %}
+                  <form method="post" action="/admin/partner-orgs/appeal/{{ c.row.id }}/close" style="display:inline">
+                    <input type="hidden" name="_token" value="{{ csrf_token }}">
+                    <button class="ad-btn ad-btn--xs ad-btn--danger" type="submit"
+                            data-confirm="Close “{{ c.row.title }}”? It stops accepting donations immediately. Everything already given is unaffected.">Close</button>
+                  </form>
+                {% endif %}
+              {% endif %}
+            </td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  {% else %}
+    <p style="color:var(--ad-text-soft);margin:0">
+      No appeals. This organisation collects to its general fund at /donate/{{ org.slug }}.
+    </p>
+  {% endif %}
+  </div>
+</div>
+
+{# ── 4 · DASHBOARD LOGINS ───────────────────────────────────────────────────#}
+<div class="ad-card" style="margin-bottom:16px">
+  <div class="ad-card__head"><div class="ad-card__title">Dashboard logins
+    <small>they sign in at /org — an owner can request payouts, a viewer cannot</small></div></div>
+  <div class="ad-card__body">
+
+  {% if users %}
+    <table class="ad-table" style="max-width:700px">
+      <caption class="sr-only">Dashboard logins</caption>
+      <thead><tr><th scope="col">Email</th><th scope="col">Name</th><th scope="col">Role</th><th scope="col">Last sign-in</th></tr></thead>
+      <tbody>
+      {% for u in users %}
+        <tr>
+          <td>{{ u.email }}</td>
+          <td>{{ u.name|default('—') }}</td>
+          <td><span class="ad-chip ad-chip--{{ u.role == 'owner' ? 'blue' : 'grey' }}">{{ u.role }}</span></td>
+          <td style="font-size:12.5px;color:var(--ad-text-soft)">{{ u.last_login_at|default('never') }}</td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  {% else %}
+    <p style="color:var(--ad-text-soft);margin:0 0 12px">No logins yet.</p>
+  {% endif %}
+
+  {% if may_decide %}
+    <form method="post" action="/admin/partner-orgs/{{ org.id }}/user"
+          style="margin-top:14px;display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:14px;align-items:end">
+      <input type="hidden" name="_token" value="{{ csrf_token }}">
+      <div><label for="poUEmail">Email</label><input id="poUEmail" name="email" type="email" required></div>
+      <div><label for="poUName">Name</label><input id="poUName" name="name" type="text" maxlength="160"></div>
+      <div>
+        <label for="poURole">Role</label>
+        <select id="poURole" name="role"><option value="owner">Owner</option><option value="viewer">Viewer</option></select>
+      </div>
+      <div><button class="ad-btn" type="submit">Create login</button></div>
+    </form>
+    <p style="font-size:12.5px;color:var(--ad-text-soft);margin:10px 0 0">
+      A password is generated and shown <strong>once</strong> on the next screen. It is never
+      emailed — a credential that can request payouts should not live in two mailboxes.
+    </p>
+  {% endif %}
+  </div>
+</div>
+
+{# ── 5 · THE DECISION ───────────────────────────────────────────────────────#}
+{% if may_decide %}
+<div class="ad-card">
+  <div class="ad-card__head"><div class="ad-card__title">Decision</div></div>
+  <div class="ad-card__body" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:20px">
+
+    <form method="post" action="/admin/partner-orgs/{{ org.id }}/approve">
+      <input type="hidden" name="_token" value="{{ csrf_token }}">
+      <label for="poNote">Approval note (recorded)</label>
+      <input id="poNote" name="note" type="text" maxlength="255" placeholder="What you checked, in one line">
+      <div style="margin-top:12px">
+        <button class="ad-btn ad-btn--primary" type="submit"
+                data-confirm="Approve {{ org.name }}? Their appeal page goes live and they can start receiving donations immediately.">
+          Approve and go live
+        </button>
+      </div>
+      <p style="font-size:12.5px;color:var(--ad-text-soft);margin:10px 0 0">
+        Refused unless a settlement account, a CAC number and a SCUML number are all on file.
+      </p>
+    </form>
+
+    <form method="post" action="/admin/partner-orgs/{{ org.id }}/suspend">
+      <input type="hidden" name="_token" value="{{ csrf_token }}">
+      <label for="poReason">Reason for suspending</label>
+      <input id="poReason" name="reason" type="text" maxlength="255" placeholder="e.g. CAC restricted its trustees">
+      <div style="margin-top:12px">
+        <button class="ad-btn ad-btn--danger" type="submit"
+                data-confirm="Suspend {{ org.name }}? Their appeal page stops accepting donations immediately and payouts go on hold. Everything already given to them is unaffected.">
+          Suspend
+        </button>
+      </div>
+    </form>
+
+  </div>
+</div>
+{% endif %}
+{% endblock %}

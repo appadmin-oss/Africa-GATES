@@ -1,0 +1,398 @@
+{% extends "layout/gates.twig" %}
+
+{# ═══════════════════════════════════════════════════════════════════════════
+   Activity — one searchable timeline of everything happening on the platform.
+
+   BUILT AS A WORKING FORM FIRST. The <form method="get"> below submits to this
+   same page and renders results server-side, so the search works with no
+   JavaScript, with JavaScript that failed to load, and on a browser too old for
+   fetch(). For an audience that is largely low-end Android on an intermittent
+   connection, a script that did not arrive is routine — and a search box that is
+   only a script is a search box that is sometimes just missing.
+
+   The script at the bottom UPGRADES that form into an ARIA combobox that answers
+   as you type. It never replaces the form: if it does not run, everything still
+   works, just with a round trip per search.
+
+   ACCESSIBILITY, deliberately rather than incidentally:
+     • combobox pattern per WAI-ARIA 1.2 — aria-expanded, aria-controls,
+       aria-autocomplete, aria-activedescendant, role=listbox/option
+     • full keyboard operation: ↓ ↑ Home End Enter Escape Tab
+     • a polite live region announcing the result COUNT, because a sighted user
+       sees the list change and a screen-reader user is told nothing otherwise
+     • the active option is moved with aria-activedescendant, NOT with focus, so
+       the typed query stays editable — moving focus into the list is the classic
+       way this pattern breaks for keyboard users
+     • every result is a real link, so it works with Enter, middle-click,
+       long-press and "open in new tab"
+     • no hover-only affordance, and prefers-reduced-motion respected
+   ═══════════════════════════════════════════════════════════════════════════ #}
+
+{% block content %}
+<section class="ag-scope act" aria-labelledby="actHeading">
+  <div class="act__wrap">
+
+    <header class="act__head">
+      <h1 id="actHeading" class="act__title">Activity</h1>
+      <p class="act__sub">Everything happening across Africa GATES — nominees entered, results
+        published, cycles opening and closing, stories, events and discussions. Search it live.</p>
+    </header>
+
+    {# A real GET form. `role="search"` gives it a landmark; the visible <label>
+       is not a placeholder, because a placeholder disappears the moment you type
+       and is not reliably announced. #}
+    <form class="act__form" method="get" action="/activity" role="search" data-act-form>
+      <label class="act__label" for="actQ">Search activity</label>
+      <div class="act__row">
+        <input class="act__input" type="search" id="actQ" name="q"
+               value="{{ q }}"
+               autocomplete="off" spellcheck="false"
+               placeholder="A nominee, a category, a country, a story…"
+               aria-describedby="actHint"
+               {# The combobox attributes are added by script. Without it this stays a
+                  plain text input, which is exactly right for a plain form. #}
+               data-act-input>
+        <button class="act__go" type="submit">Search</button>
+      </div>
+      <p class="act__hint" id="actHint">
+        Type at least {{ min_query }} characters. Results are read live from the site — nothing cached.
+      </p>
+    </form>
+
+    {# The status line is the accessible announcement channel AND visible text, so
+       sighted and screen-reader users get the same information rather than one of
+       them getting a silent update. aria-live is on a container that is always in
+       the DOM: a live region added at the same moment as its content is often not
+       announced at all. #}
+    <p class="act__status" id="actStatus" role="status" aria-live="polite" aria-atomic="true">
+      {%- if q -%}
+        {{ items|length }} result{{ items|length == 1 ? '' : 's' }} for “{{ q }}”
+      {%- else -%}
+        Showing the {{ items|length }} most recent update{{ items|length == 1 ? '' : 's' }}
+      {%- endif -%}
+    </p>
+
+    {# What the search understood, when a model read the query. Shown BEFORE the
+       results and with an escape hatch: a wrong reading is one click from a plain text
+       search, rather than something a visitor has to guess their way around. The
+       interpretation only ever ADDS filters — the literal text match runs regardless —
+       so this can never be the reason a search found less than it would have. #}
+    {% if understood %}
+      <p class="act__read">
+        <span class="act__read-tag">Understood as</span>
+        {{ understood.note ?: 'a filtered search' }}
+        {% if understood.kinds %}<span class="act__chip">{{ understood.kinds|join(', ') }}</span>{% endif %}
+        {% if understood.country %}<span class="act__chip">{{ understood.country }}</span>{% endif %}
+        {% if understood.days %}<span class="act__chip">last {{ understood.days }} day{{ understood.days == 1 ? '' : 's' }}</span>{% endif %}
+        <a class="act__literal" href="/activity?q={{ q|url_encode }}&amp;literal=1">Search these words literally instead</a>
+      </p>
+    {% elseif literal and q %}
+      <p class="act__read"><span class="act__read-tag">Literal</span> Matching your words exactly.
+        <a class="act__literal" href="/activity?q={{ q|url_encode }}">Let the search interpret it</a></p>
+    {% endif %}
+
+    {% if sources is defined and sources < 7 %}
+      {# Honesty about a partial read. "No results" and "four of seven sources are
+         unavailable on this install" must not look the same to an operator. #}
+      <p class="act__warn">Some activity sources are unavailable on this deployment
+        ({{ sources }} of 7 responded), so this timeline may be incomplete.</p>
+    {% endif %}
+
+    {# aria-live is NOT on this list. The status line above announces the change;
+       a live region wrapping a whole result list makes a screen reader read every
+       item on every keystroke, which is unusable. #}
+    <ul class="act__list" id="actResults" data-act-results>
+      {% for it in items %}
+        <li class="act__item">
+          <a class="act__link" href="{{ it.url }}">
+            <span class="act__kind act__kind--{{ it.kind }}">{{ it.label }}</span>
+            <span class="act__body">
+              <span class="act__name">{{ it.title }}</span>
+              {% if it.detail %}<span class="act__detail">{{ it.detail }}</span>{% endif %}
+            </span>
+            {# The machine-readable datetime sits on <time> so assistive tech and
+               crawlers get the real instant, while a reader sees "4 hours ago". #}
+            <time class="act__when" datetime="{{ it.at }}">{{ it.at_label }}</time>
+          </a>
+        </li>
+      {% else %}
+        <li class="act__empty">
+          {% if q %}
+            Nothing matches “{{ q }}” yet. Try a nominee's name, an award category, or a country.
+          {% else %}
+            No activity to show yet.
+          {% endif %}
+        </li>
+      {% endfor %}
+    </ul>
+
+  </div>
+</section>
+
+<style nonce="{{ csp_nonce }}">
+  .act { padding: 28px 0 64px; }
+  .act__wrap { max-width: 820px; margin: 0 auto; padding: 0 18px; }
+  .act__title { font-size: clamp(1.6rem, 4vw, 2.2rem); margin: 0 0 6px; }
+  .act__sub { color: var(--ag-text-soft, #566); margin: 0 0 22px; max-width: 60ch; }
+
+  .act__form { margin: 0 0 18px; }
+  .act__label { display: block; font-weight: 600; font-size: .92rem; margin: 0 0 6px; }
+  .act__row { display: flex; gap: 8px; }
+  /* 44px minimum on both controls: the WCAG 2.5.8 target size, and the difference
+     between a usable and an infuriating search box on a phone. */
+  .act__input {
+    flex: 1 1 auto; min-height: 46px; padding: 10px 14px; font-size: 1rem;
+    border: 1.5px solid var(--ag-line, #d7e0de); border-radius: 10px; background: #fff;
+    color: inherit; min-width: 0;
+  }
+  .act__input:focus-visible,
+  .act__go:focus-visible,
+  .act__link:focus-visible {
+    /* A real, high-contrast focus ring. outline:none with no replacement is the
+       single most common keyboard-accessibility failure. */
+    outline: 3px solid var(--ag-accent, #1a6118); outline-offset: 2px;
+  }
+  .act__go {
+    flex: 0 0 auto; min-height: 46px; padding: 0 18px; font-weight: 600; cursor: pointer;
+    border: 0; border-radius: 10px; background: var(--ag-accent, #1a6118); color: #fff;
+  }
+  .act__hint { font-size: .8rem; color: var(--ag-text-mute, #7b8a88); margin: 6px 0 0; }
+  .act__status { font-size: .88rem; font-weight: 600; margin: 0 0 10px; }
+  .act__warn {
+    font-size: .82rem; color: #8a6d00; background: #fff8e1;
+    border-left: 3px solid #c9a227; padding: 8px 12px; border-radius: 6px; margin: 0 0 12px;
+  }
+
+  .act__read {
+    font-size: .84rem; margin: 0 0 12px; padding: 8px 12px; border-radius: 8px;
+    background: var(--ag-bg-soft, #f2f8f5); border-left: 3px solid var(--ag-accent, #1a6118);
+    display: flex; flex-wrap: wrap; gap: 6px 10px; align-items: baseline;
+  }
+  .act__read-tag { font-size: .7rem; font-weight: 700; letter-spacing: .07em; text-transform: uppercase;
+    color: var(--ag-accent, #1a6118); }
+  .act__chip { font-size: .72rem; font-weight: 600; padding: 2px 8px; border-radius: 999px;
+    background: #fff; border: 1px solid var(--ag-line, #dfe7e4); }
+  /* The escape hatch is a plain link, always visible — not a hover affordance and not
+     hidden behind an icon. A visitor who thinks the search misread them needs to see
+     the way out without looking for it. */
+  .act__literal { margin-left: auto; font-weight: 600; }
+
+  .act__list { list-style: none; margin: 0; padding: 0; }
+  .act__item + .act__item { border-top: 1px solid var(--ag-line, #eef2f1); }
+  .act__link {
+    display: flex; gap: 12px; align-items: baseline; flex-wrap: wrap;
+    padding: 12px 10px; text-decoration: none; color: inherit; border-radius: 8px;
+  }
+  .act__link:hover, .act__link:focus-visible { background: var(--ag-bg-soft, #f5faf8); }
+  /* The active option under keyboard navigation. Not :hover — a keyboard user
+     never hovers, and styling only :hover leaves them unable to see where they are. */
+  .act__item[data-active="true"] > .act__link { background: var(--ag-bg-soft, #eef7ee); }
+
+  .act__kind {
+    flex: 0 0 auto; font-size: .68rem; font-weight: 700; letter-spacing: .04em;
+    text-transform: uppercase; padding: 3px 8px; border-radius: 999px;
+    background: #eef2f1; color: #45605d; white-space: nowrap;
+  }
+  .act__kind--result { background: #fdf3d7; color: #7a5c00; }
+  .act__kind--phase  { background: #e6f0fb; color: #1c4e80; }
+  .act__kind--nominee{ background: #eef7ee; color: #1a6118; }
+  .act__body { flex: 1 1 240px; min-width: 0; }
+  .act__name { display: block; font-weight: 600; }
+  .act__detail { display: block; font-size: .86rem; color: var(--ag-text-soft, #667); }
+  .act__when {
+    flex: 0 0 auto; font-size: .78rem; color: var(--ag-text-mute, #7b8a88);
+    font-variant-numeric: tabular-nums;
+  }
+  .act__empty { padding: 20px 10px; color: var(--ag-text-soft, #667); }
+
+  .act--busy .act__status::after {
+    content: ''; display: inline-block; width: .6em; height: .6em; margin-left: .5em;
+    border: 2px solid currentColor; border-right-color: transparent; border-radius: 50%;
+    animation: actSpin .7s linear infinite; vertical-align: baseline;
+  }
+  @keyframes actSpin { to { transform: rotate(360deg); } }
+  @media (prefers-reduced-motion: reduce) {
+    /* The spinner becomes a static ring rather than disappearing, so the busy
+       state is still visible to someone who cannot tolerate the animation. */
+    .act--busy .act__status::after { animation: none; border-right-color: currentColor; opacity: .45; }
+  }
+
+  @media (max-width: 520px) {
+    .act__row { flex-wrap: wrap; }
+    .act__go { width: 100%; }
+  }
+</style>
+
+<script nonce="{{ csp_nonce }}">
+/* Upgrade the working form into an ARIA 1.2 combobox. Everything here is additive:
+   if this script never runs, the form above still searches. */
+(function () {
+  var form    = document.querySelector('[data-act-form]');
+  var input   = document.querySelector('[data-act-input]');
+  var list    = document.getElementById('actResults');
+  var status  = document.getElementById('actStatus');
+  var section = document.querySelector('.act');
+  if (!form || !input || !list || !status || !window.fetch) return;
+
+  var MIN = {{ min_query }};
+  var active = -1, timer = null, seq = 0, lastQuery = input.value;
+
+  /* The combobox contract is declared HERE rather than in the markup, because the
+     markup must describe a plain input when this script is absent. Announcing
+     role="combobox" on an input with no listbox behaviour would be a lie to a
+     screen reader — worse than the plain input it replaced. */
+  input.setAttribute('role', 'combobox');
+  input.setAttribute('aria-expanded', 'false');
+  input.setAttribute('aria-controls', 'actResults');
+  input.setAttribute('aria-autocomplete', 'list');
+  input.setAttribute('aria-haspopup', 'listbox');
+  list.setAttribute('role', 'listbox');
+  list.setAttribute('aria-label', 'Activity results');
+
+  function esc(s) { var d = document.createElement('div'); d.textContent = s == null ? '' : String(s); return d.innerHTML; }
+
+  function options() { return Array.prototype.slice.call(list.querySelectorAll('[role="option"]')); }
+
+  /* aria-activedescendant, not focus(). Moving focus into the list takes it out of
+     the input, so the next keystroke goes nowhere and the query cannot be edited —
+     the classic way this pattern is got wrong. */
+  function setActive(i) {
+    var opts = options();
+    if (!opts.length) { active = -1; input.removeAttribute('aria-activedescendant'); return; }
+    if (i < 0) i = opts.length - 1;
+    if (i >= opts.length) i = 0;
+    active = i;
+    opts.forEach(function (o, n) {
+      var on = n === i;
+      o.setAttribute('aria-selected', on ? 'true' : 'false');
+      o.parentElement && o.parentElement.setAttribute('data-active', on ? 'true' : 'false');
+      if (on) {
+        input.setAttribute('aria-activedescendant', o.id);
+        if (o.scrollIntoView) o.scrollIntoView({ block: 'nearest' });
+      }
+    });
+  }
+
+  function render(items, query, count) {
+    if (!items.length) {
+      list.innerHTML = '<li class="act__empty">' + (query
+        ? 'Nothing matches “' + esc(query) + '” yet. Try a nominee\'s name, an award category, or a country.'
+        : 'No activity to show yet.') + '</li>';
+    } else {
+      list.innerHTML = items.map(function (it, i) {
+        return '<li class="act__item" role="presentation">'
+          + '<a class="act__link" role="option" id="actOpt' + i + '" aria-selected="false" href="' + esc(it.url) + '">'
+          + '<span class="act__kind act__kind--' + esc(it.kind) + '">' + esc(it.label) + '</span>'
+          + '<span class="act__body"><span class="act__name">' + esc(it.title) + '</span>'
+          + (it.detail ? '<span class="act__detail">' + esc(it.detail) + '</span>' : '')
+          + '</span>'
+          + '<time class="act__when" datetime="' + esc(it.at) + '">' + esc(it.at_label) + '</time>'
+          + '</a></li>';
+      }).join('');
+    }
+    input.setAttribute('aria-expanded', items.length ? 'true' : 'false');
+    active = -1;
+    input.removeAttribute('aria-activedescendant');
+
+    /* The COUNT, not the items. A sighted user sees the list change; without this a
+       screen-reader user is told nothing at all. Reading the list itself on every
+       keystroke would be unusable, which is why aria-live is here and not on the list. */
+    status.textContent = query
+      ? count + ' result' + (count === 1 ? '' : 's') + ' for “' + query + '”'
+      : 'Showing the ' + count + ' most recent update' + (count === 1 ? '' : 's');
+  }
+
+  function run(query) {
+    var mine = ++seq;
+    section.classList.add('act--busy');
+    fetch('/activity/search?limit=40&q=' + encodeURIComponent(query), {
+      headers: { 'X-Requested-With': 'fetch' }, credentials: 'same-origin'
+    })
+      .then(function (r) { return r.json(); })
+      .then(function (j) {
+        /* Out-of-order responses are dropped. Type fast on a slow connection and an
+           earlier request can land after a later one, leaving the list showing
+           results for a query the box no longer contains. */
+        if (mine !== seq) return;
+        section.classList.remove('act--busy');
+        if (!j || !j.ok) { status.textContent = (j && j.error) || 'Search is unavailable right now.'; return; }
+        render(j.items || [], j.query || '', j.count || 0);
+      })
+      .catch(function () {
+        if (mine !== seq) return;
+        section.classList.remove('act--busy');
+        /* Falls back to what already works. The form is still a form. */
+        status.textContent = 'Could not reach the search — press Search to load the page instead.';
+      });
+  }
+
+  input.addEventListener('input', function () {
+    var q = input.value.trim();
+    if (q === lastQuery) return;
+    lastQuery = q;
+    clearTimeout(timer);
+    if (q.length && q.length < MIN) {
+      status.textContent = 'Type at least ' + MIN + ' characters.';
+      return;
+    }
+    /* 220ms debounce. The search is uncached by design, so every keystroke that gets
+       through is seven real queries — this is what keeps a live search from being a
+       load generator. The server-side rate limit is the backstop when something
+       bypasses this. */
+    timer = setTimeout(function () { run(q); }, 220);
+  });
+
+  input.addEventListener('keydown', function (e) {
+    var opts = options();
+    switch (e.key) {
+      case 'ArrowDown': if (opts.length) { e.preventDefault(); setActive(active + 1); } break;
+      case 'ArrowUp':   if (opts.length) { e.preventDefault(); setActive(active - 1); } break;
+      case 'Home':      if (opts.length && active >= 0) { e.preventDefault(); setActive(0); } break;
+      case 'End':       if (opts.length && active >= 0) { e.preventDefault(); setActive(opts.length - 1); } break;
+      case 'Enter':
+        /* Enter with nothing highlighted must SUBMIT THE FORM, not be swallowed.
+           That is the no-JS path and it has to keep working for someone who simply
+           types and presses Enter. */
+        if (active >= 0 && opts[active]) { e.preventDefault(); opts[active].click(); }
+        break;
+      case 'Escape':
+        /* First Escape closes the list, a second clears the box. Clearing on the
+           first press destroys a query someone is still working on. */
+        e.preventDefault();
+        if (active >= 0 || input.getAttribute('aria-expanded') === 'true') {
+          active = -1;
+          input.removeAttribute('aria-activedescendant');
+          options().forEach(function (o) {
+            o.setAttribute('aria-selected', 'false');
+            o.parentElement && o.parentElement.removeAttribute('data-active');
+          });
+          input.setAttribute('aria-expanded', 'false');
+        } else if (input.value !== '') {
+          input.value = ''; lastQuery = ''; run('');
+        }
+        break;
+    }
+  });
+
+  /* Tab away closes the popup without stealing the tab. */
+  input.addEventListener('blur', function () {
+    setTimeout(function () {
+      if (!list.contains(document.activeElement)) input.setAttribute('aria-expanded', 'false');
+    }, 120);
+  });
+
+  /* Server-rendered results are already in the list, so mark them up as options
+     immediately — otherwise a page loaded with ?q=… would have a keyboard-navigable
+     list only after the first keystroke. */
+  if (list.querySelector('.act__link')) {
+    Array.prototype.forEach.call(list.querySelectorAll('.act__link'), function (a, i) {
+      a.setAttribute('role', 'option');
+      a.setAttribute('aria-selected', 'false');
+      a.id = 'actOpt' + i;
+      a.parentElement && a.parentElement.setAttribute('role', 'presentation');
+    });
+    input.setAttribute('aria-expanded', 'true');
+  }
+})();
+</script>
+{% endblock %}

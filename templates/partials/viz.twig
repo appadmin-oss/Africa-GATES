@@ -1,0 +1,435 @@
+{#
+  ══ THE CHART COMPONENT ═════════════════════════════════════════════════════
+
+  One macro renders every chart on the site from a spec built by
+  {@see AfricaGates\Support\Viz}. Call `viz.chart(spec)` and once per page
+  `viz.assets(csp_nonce)`.
+
+  ── WHY THERE IS A <script> HERE AT ALL ─────────────────────────────────────
+
+  The stands admin's charts carried a note saying a chart cannot have one,
+  because "the CSP on this site carries no 'unsafe-inline' and no CDN host".
+  Half right: no CDN, and no bare inline script — but the policy DOES carry a
+  nonce, and every page on this platform already uses it. The consequence of
+  believing otherwise was four charts with no hover, no keyboard reading, and a
+  native `title` tooltip that appears after a second and cannot be styled or
+  read on a phone at all.
+
+  ── WHAT INTERACTION IS FOR ─────────────────────────────────────────────────
+
+  Not motion. Three things, and each is a way to read a value that some reader
+  cannot get any other way:
+
+    · HOVER, with a real tooltip rather than the browser's — it appears at once,
+      it can hold two lines, and it works on touch.
+    · KEYBOARD, showing the same readout. The plot is one tab stop and the arrow
+      keys walk it; if the only way to a number is landing a pointer on an 8px
+      mark, that number is unreachable for a lot of people.
+    · THE TABLE, always present behind a toggle. Which is the honest admission
+      that a chart is a summary — anybody who needs the actual figures gets them
+      without a mouse, a screen reader, or working colour vision.
+
+  Legend entries FILTER by dimming rather than removing, and never repaint: a
+  reader who learned that food pitches are orange keeps that when crafts are
+  switched off.
+#}
+
+{% macro chart(v) %}
+{%- import _self as viz -%}
+<figure class="viz" id="{{ v.id }}" data-viz="{{ v.kind }}">
+  <figcaption class="viz__head">
+    <div>
+      <span class="viz__t">{{ v.title }}</span>
+      {% if v.sub %}<span class="viz__s">{{ v.sub }}</span>{% endif %}
+    </div>
+    {% if v.ok and v.table.rows|default([]) %}
+    {# `table_open` is a SPEC decision, not a preference. On the public floor plan the
+       figures are the point — a drawing captioned "indicative only" is worth less than
+       the numbers under it — so that surface opens the table and the admin's does not. #}
+    <button type="button" class="viz__btn" data-viz-table
+            aria-expanded="{{ v.table_open|default(false) ? 'true' : 'false' }}"
+            aria-controls="{{ v.id }}-tbl">Table</button>
+    {% endif %}
+  </figcaption>
+
+  {% if not v.ok %}
+    <p class="viz__empty">{{ v.empty }}</p>
+  {% else %}
+
+  {# ── AREA ───────────────────────────────────────────────────────────── #}
+  {% if v.kind == 'area' %}
+    <div class="viz__plot" tabindex="0" role="group"
+         aria-label="{{ v.title }}. Arrow keys read each point."
+         data-viz-points='{{ v.points|json_encode }}' data-viz-unit="{{ v.unit }}">
+      <svg viewBox="0 0 {{ v.w }} {{ v.h + 26 }}" role="img"
+           aria-label="{{ v.title }}: {{ v.unit }}{{ v.first.balance|default(0)|number_format }} on {{ v.first.date|default('')|date('j M') }} to {{ v.unit }}{{ v.last.balance|default(0)|number_format }} on {{ v.last.date|default('')|date('j M') }}.">
+        {% for g in v.grid %}
+          <line class="viz__grid" x1="0" y1="{{ g.y }}" x2="{{ v.w }}" y2="{{ g.y }}"></line>
+          <text class="viz__ax" x="0" y="{{ g.y - 5 }}">{{ g.label }}</text>
+        {% endfor %}
+        <path class="viz__area" d="{{ v.area }}"></path>
+        <path class="viz__line" d="{{ v.line }}"></path>
+        <g data-viz-cursor hidden>
+          <line class="viz__cur" y1="0" y2="{{ v.h }}"></line>
+          <circle class="viz__dot" r="4.5"></circle>
+        </g>
+        {% for t in v.ticks %}
+          <text class="viz__ax" x="{{ t.x }}" y="{{ v.h + 18 }}"
+                text-anchor="{{ loop.first ? 'start' : (loop.last ? 'end' : 'middle') }}">{{ t.label }}</text>
+        {% endfor %}
+        <rect class="viz__hit" data-viz-hit x="0" y="0" width="{{ v.w }}" height="{{ v.h }}"></rect>
+      </svg>
+    </div>
+
+  {# ── BARS ───────────────────────────────────────────────────────────── #}
+  {% elseif v.kind == 'bars' %}
+    {# Rows of HTML rather than one SVG: the label, the track and the value are
+       text that has to wrap, ellipsize and be selectable, and none of that is
+       something SVG does. The bar is a div because the bar is the easy part. #}
+    <ul class="viz__bars">
+      {% for m in v.marks %}
+      <li class="viz__bar" data-viz-key="{{ m.key }}" tabindex="0"
+          data-viz-tip="{{ m.label }} — {{ m.shown }}{% if m.note %} · {{ m.note }}{% endif %}">
+        <span class="viz__bar-l">{{ m.label }}</span>
+        <span class="viz__bar-t"><span class="viz__bar-f" style="width:{{ m.pct }}%;background:{{ m.colour }}"></span></span>
+        <span class="viz__bar-v">{{ m.shown }}</span>
+      </li>
+      {% endfor %}
+    </ul>
+
+  {# ── STACK ──────────────────────────────────────────────────────────── #}
+  {% elseif v.kind == 'stack' %}
+    <div class="viz__stack" role="img"
+         aria-label="{{ v.title }}: {% for m in v.marks %}{{ m.label }} {{ m.shown }}{{ loop.last ? '' : ', ' }}{% endfor %}">
+      {% for m in v.marks %}
+      {# 2px surface gap between segments, done with a border rather than a
+         stroke around each mark — a border drawn to separate marks reads as an
+         outline on the data. #}
+      <span class="viz__seg" data-viz-key="{{ m.key }}" tabindex="0"
+            data-viz-tip="{{ m.label }} — {{ m.shown }} ({{ m.pct }}%)"
+            style="width:{{ m.w }}%;background:{{ m.colour }}">
+        {% if m.w > 7 %}<b>{{ m.shown }}</b>{% endif %}
+      </span>
+      {% endfor %}
+    </div>
+
+  {# ── BUDGET ─────────────────────────────────────────────────────────── #}
+  {% elseif v.kind == 'budget' %}
+    <div class="viz__budget {{ v.over ? 'is-over' : '' }}">
+      <div class="viz__track" role="img"
+           aria-label="{{ v.used_label }} of {{ v.limit_label }} {{ v.limit_word }}{% if v.over %}, over by {{ v.over_label }}{% endif %}">
+        <span class="viz__used" style="width:{{ v.used_pct }}%"
+              data-viz-tip="{{ v.used_label }} committed"></span>
+        {% if v.over %}
+        <span class="viz__spill" style="left:{{ v.limit_pct }}%;width:{{ v.over_pct }}%"
+              data-viz-tip="Over by {{ v.over_by }}"></span>
+        {% endif %}
+        <span class="viz__limit" style="left:{{ v.limit_pct }}%"></span>
+      </div>
+      <div class="viz__budget-l">
+        <span>{{ v.used_label }} used</span>
+        {# The word, not only the colour. A driver that drops fills, a monochrome
+           print, a reader who cannot see red — all of them still get told. #}
+        <span class="{{ v.over ? 'is-bad' : '' }}">
+          {%- if v.over %}Over by {{ v.over_label }}{% else %}{{ v.limit_label }} {{ v.limit_word }} · {{ v.pct }}% used{% endif -%}
+        </span>
+      </div>
+    </div>
+
+  {# ── PLAN ───────────────────────────────────────────────────────────── #}
+  {% elseif v.kind == 'plan' %}
+    <div class="viz__planwrap">
+      <span class="viz__dim viz__dim--w">{{ v.floor_w }} m</span>
+      <span class="viz__dim viz__dim--d">{{ v.floor_d }} m</span>
+      <div class="viz__plan" role="img"
+           aria-label="Indicative block layout: {{ v.placed }} of {{ v.pitches }} pitches in a hall {{ v.floor_w }} by {{ v.floor_d }} metres. Not a site plan.">
+        {% for m in v.marks %}
+        <span class="viz__pitch" data-viz-key="{{ m.key }}" tabindex="0"
+              data-viz-tip="{{ m.label }} — {{ m.size }} m"
+              style="left:{{ m.x }}%;top:{{ m.y }}%;width:{{ m.w }}%;height:{{ m.h }}%;background:{{ m.colour }}"></span>
+        {% endfor %}
+      </div>
+    </div>
+    <p class="viz__count">{{ v.placed }} of {{ v.pitches }} pitches placed.</p>
+  {% endif %}
+
+  {# ── legend ─────────────────────────────────────────────────────────── #}
+  {% if v.legend|default([])|length > 1 %}
+  <ul class="viz__legend" role="group" aria-label="Filter {{ v.title }}">
+    {% for l in v.legend %}
+    <li><button type="button" class="viz__key" data-viz-key="{{ l.key }}" aria-pressed="true">
+      <span class="viz__swatch" style="background:{{ l.colour }}"></span>
+      {{ l.label }}{% if l.value is defined %} <em>{{ l.value }}</em>{% endif %}
+    </button></li>
+    {% endfor %}
+  </ul>
+  {% endif %}
+
+  <p class="viz__read" data-viz-read aria-live="polite"></p>
+  {% if v.note %}<p class="viz__note">{{ v.note }}</p>{% endif %}
+
+  {# ── the table twin ─────────────────────────────────────────────────── #}
+  {% if v.table.rows|default([]) %}
+  <div class="viz__tw" id="{{ v.id }}-tbl"{% if not v.table_open|default(false) %} hidden{% endif %}>
+    <table class="viz__table">
+      <caption class="sr-only">{{ v.title }}</caption>
+      <thead><tr>{% for c in v.table.cols %}<th scope="col"{% if not loop.first %} class="num"{% endif %}>{{ c }}</th>{% endfor %}</tr></thead>
+      <tbody>
+        {% for r in v.table.rows %}
+        <tr>{% for cell in r %}<td{% if not loop.first %} class="num"{% endif %}>{{ cell }}</td>{% endfor %}</tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% endif %}
+  {% endif %}
+</figure>
+{% endmacro %}
+
+
+{#
+  Styles and behaviour. Include ONCE per page, after the charts.
+  `nonce` is the page's `csp_nonce` — this site's policy has no 'unsafe-inline'.
+#}
+{% macro assets(nonce) %}
+<style nonce="{{ nonce }}">
+  .viz{ margin:0; --viz-ink:#10292c; --viz-mute:#5a6d6f; --viz-line:rgba(16,41,44,.10);
+    --viz-surface:#fff; }
+  .viz__head{ display:flex; align-items:flex-start; justify-content:space-between; gap:12px;
+    margin:0 0 12px; }
+  .viz__t{ display:block; font-size:14.5px; font-weight:700; color:var(--viz-ink); }
+  .viz__s{ display:block; margin-top:2px; font-size:12.5px; color:var(--viz-mute); }
+  .viz__btn{ flex:none; min-height:32px; padding:0 11px; cursor:pointer; font:600 12px/1 inherit;
+    color:var(--viz-mute); background:none; border:1px solid rgba(16,41,44,.16); border-radius:999px; }
+  .viz__btn:hover{ color:var(--viz-ink); border-color:var(--viz-ink); }
+  .viz__btn:focus-visible{ outline:3px solid #237b22; outline-offset:2px; }
+  .viz__empty{ margin:0; padding:22px 0; font-size:13.5px; color:var(--viz-mute); }
+  .viz__note{ margin:10px 0 0; font-size:12px; line-height:1.6; color:var(--viz-mute); }
+  .viz__count{ margin:8px 0 0; font-size:12.5px; color:var(--viz-mute); }
+  /* Reserved, so a readout appearing under the pointer does not move what is under it. */
+  .viz__read{ min-height:18px; margin:10px 0 0; font-size:12.5px; color:var(--viz-mute); }
+  .viz__read b{ color:var(--viz-ink); font-family:var(--ag-font-mono,monospace);
+    font-variant-numeric:tabular-nums; }
+
+  /* ── area ─────────────────────────────────────────────────────────────── */
+  .viz__plot svg{ display:block; width:100%; height:auto; overflow:visible; }
+  .viz__plot:focus-visible{ outline:3px solid #237b22; outline-offset:3px; border-radius:6px; }
+  .viz__grid{ stroke:var(--viz-line); stroke-width:1; }
+  .viz__area{ fill:#237b22; fill-opacity:.10; }
+  .viz__line{ fill:none; stroke:#237b22; stroke-width:2; stroke-linejoin:round; stroke-linecap:round; }
+  .viz__cur{ stroke:var(--viz-ink); stroke-width:1; opacity:.35; }
+  .viz__dot{ fill:var(--viz-surface); stroke:#237b22; stroke-width:2.5; }
+  .viz__ax{ font:600 10.5px/1 var(--ag-font-mono,monospace); fill:var(--viz-mute); }
+  .viz__hit{ fill:transparent; cursor:crosshair; }
+
+  /* ── bars ─────────────────────────────────────────────────────────────── */
+  .viz__bars{ list-style:none; margin:0; padding:0; display:grid; gap:9px; }
+  .viz__bar{ display:grid; grid-template-columns:minmax(0,1fr) minmax(90px,2.2fr) auto;
+    align-items:center; gap:10px; border-radius:7px; }
+  .viz__bar:focus-visible{ outline:3px solid #237b22; outline-offset:3px; }
+  .viz__bar-l{ font-size:13px; color:var(--viz-ink); overflow:hidden; text-overflow:ellipsis;
+    white-space:nowrap; }
+  .viz__bar-t{ height:12px; border-radius:99px; background:rgba(16,41,44,.06); overflow:hidden; }
+  .viz__bar-f{ display:block; height:100%; border-radius:99px; min-width:3px;
+    transition:opacity .12s, width .3s var(--ag-ease,ease); }
+  .viz__bar-v{ font:700 12.5px/1 var(--ag-font-mono,monospace); font-variant-numeric:tabular-nums;
+    color:var(--viz-ink); }
+  @media (max-width:520px){ .viz__bar{ grid-template-columns:minmax(0,1fr) auto; }
+    .viz__bar-t{ grid-column:1 / -1; } }
+
+  /* ── stack ────────────────────────────────────────────────────────────── */
+  .viz__stack{ display:flex; height:28px; border-radius:6px; overflow:hidden;
+    background:rgba(16,41,44,.06); }
+  .viz__seg{ display:flex; align-items:center; justify-content:center; min-width:2px;
+    /* The 2px separation is a surface-coloured border, not a stroke around the mark. */
+    box-shadow:inset -2px 0 0 var(--viz-surface); transition:opacity .12s; }
+  .viz__seg:last-child{ box-shadow:none; }
+  .viz__seg b{ font:700 11.5px/1 inherit; color:#fff; }
+  .viz__seg:focus-visible{ outline:3px solid var(--viz-ink); outline-offset:-3px; }
+
+  /* ── budget ───────────────────────────────────────────────────────────── */
+  .viz__track{ position:relative; height:30px; border-radius:6px;
+    background:rgba(16,41,44,.06); overflow:hidden; }
+  .viz__used{ position:absolute; left:0; top:0; bottom:0; background:#237b22; border-radius:6px 0 0 6px; }
+  .viz__spill{ position:absolute; top:0; bottom:0; background:#c0392b; }
+  .viz__limit{ position:absolute; top:-2px; bottom:-2px; width:2px; background:var(--viz-ink); }
+  .viz__budget-l{ display:flex; justify-content:space-between; gap:12px; flex-wrap:wrap;
+    margin-top:8px; font-size:12.5px; color:var(--viz-mute); }
+  .viz__budget-l .is-bad{ color:#c0392b; font-weight:700; }
+
+  /* ── plan ─────────────────────────────────────────────────────────────── */
+  .viz__planwrap{ position:relative; padding:16px 0 0 22px; }
+  .viz__plan{ position:relative; width:100%; aspect-ratio:var(--viz-plan-ar,16/10);
+    background:#fcfcfb; border:2px solid #c3c2b7; border-radius:3px; }
+  .viz__pitch{ position:absolute; border-radius:2px; box-shadow:0 0 0 1.5px #fcfcfb;
+    transition:opacity .12s; }
+  .viz__pitch:focus-visible{ outline:3px solid var(--viz-ink); outline-offset:1px; z-index:2; }
+  .viz__dim{ position:absolute; font:600 10.5px/1 var(--ag-font-mono,monospace); color:var(--viz-mute); }
+  .viz__dim--w{ top:0; left:50%; transform:translateX(-50%); }
+  .viz__dim--d{ left:0; top:55%; transform:translateY(-50%) rotate(-90deg); transform-origin:left center; }
+
+  /* ── legend ───────────────────────────────────────────────────────────── */
+  .viz__legend{ list-style:none; display:flex; flex-wrap:wrap; gap:6px 8px; margin:12px 0 0; padding:0; }
+  .viz__key{ display:inline-flex; align-items:center; gap:7px; min-height:30px; padding:0 10px;
+    cursor:pointer; font:600 12px/1 inherit; color:var(--viz-ink); background:none;
+    border:1px solid rgba(16,41,44,.14); border-radius:999px; }
+  .viz__key em{ font-style:normal; font-family:var(--ag-font-mono,monospace); color:var(--viz-mute); }
+  .viz__key:hover{ border-color:var(--viz-ink); }
+  .viz__key:focus-visible{ outline:3px solid #237b22; outline-offset:2px; }
+  /* Switched off says so with a strikethrough and a faded swatch, never by colour alone. */
+  .viz__key[aria-pressed="false"]{ color:var(--viz-mute); text-decoration:line-through; }
+  .viz__key[aria-pressed="false"] .viz__swatch{ opacity:.25; }
+  .viz__swatch{ width:11px; height:11px; border-radius:3px; flex:none; }
+  .viz [data-viz-key].is-off{ opacity:.14; }
+
+  /* ── table twin ───────────────────────────────────────────────────────── */
+  .viz__tw{ overflow-x:auto; margin-top:12px; }
+  .viz__table{ width:100%; border-collapse:collapse; font-size:12.5px; }
+  .viz__table th, .viz__table td{ text-align:left; padding:8px 12px 8px 0;
+    border-top:1px solid var(--viz-line); white-space:nowrap; }
+  .viz__table thead th{ border-top:0; font:700 10px/1 var(--ag-font-mono,monospace);
+    letter-spacing:.13em; text-transform:uppercase; color:var(--viz-mute); }
+  .viz__table .num{ text-align:right; padding-right:0; font-family:var(--ag-font-mono,monospace);
+    font-variant-numeric:tabular-nums; }
+
+  /* ── tooltip ──────────────────────────────────────────────────────────── */
+  .viz-tip{ position:fixed; z-index:60; pointer-events:none; max-width:260px;
+    padding:7px 10px; border-radius:8px; background:#10292c; color:#fff;
+    font:600 12px/1.45 var(--ag-font-body,system-ui); box-shadow:0 8px 20px -10px rgba(0,0,0,.6); }
+  @media (prefers-reduced-motion:reduce){ .viz *{ transition:none !important } }
+  @media print{ .viz__btn, .viz__legend{ display:none } .viz__tw{ display:block !important } }
+</style>
+<script nonce="{{ nonce }}">
+(function () {
+  'use strict';
+  var charts = document.querySelectorAll('[data-viz]');
+  if (!charts.length) return;
+
+  // ── one tooltip for the page ──────────────────────────────────────────────
+  // Not one per chart: it is a single floating element that follows whatever is
+  // being pointed at, so there is nothing to keep in sync and nothing to leak.
+  var tip = null;
+  function showTip(text, x, y) {
+    if (!tip) { tip = document.createElement('div'); tip.className = 'viz-tip'; document.body.appendChild(tip); }
+    tip.textContent = text;
+    tip.hidden = false;
+    var r = tip.getBoundingClientRect();
+    // Flipped rather than clipped at the edges — a tooltip half off the screen is
+    // a tooltip that told you nothing.
+    var left = Math.min(Math.max(8, x - r.width / 2), window.innerWidth - r.width - 8);
+    var top  = y - r.height - 12;
+    if (top < 8) top = y + 18;
+    tip.style.left = left + 'px'; tip.style.top = top + 'px';
+  }
+  function hideTip() { if (tip) tip.hidden = true; }
+
+  charts.forEach(function (fig) {
+    var kind = fig.getAttribute('data-viz');
+    var read = fig.querySelector('[data-viz-read]');
+
+    // ── the table twin ──────────────────────────────────────────────────────
+    var tBtn = fig.querySelector('[data-viz-table]');
+    var tBox = tBtn && document.getElementById(fig.id + '-tbl');
+    if (tBtn && tBox) tBtn.addEventListener('click', function () {
+      var on = tBox.hasAttribute('hidden');
+      if (on) tBox.removeAttribute('hidden'); else tBox.setAttribute('hidden', '');
+      tBtn.setAttribute('aria-expanded', on ? 'true' : 'false');
+      tBtn.textContent = on ? 'Hide table' : 'Table';
+    });
+
+    // ── legend filtering ────────────────────────────────────────────────────
+    // Dims, never removes and never repaints. Removing rescales the chart under
+    // the reader's hand; repainting breaks the one thing a legend is for.
+    fig.querySelectorAll('.viz__key').forEach(function (key) {
+      key.addEventListener('click', function () {
+        var on = key.getAttribute('aria-pressed') !== 'true';
+        key.setAttribute('aria-pressed', on ? 'true' : 'false');
+        var k = key.getAttribute('data-viz-key');
+        fig.querySelectorAll('[data-viz-key="' + k + '"]').forEach(function (el) {
+          if (el === key) return;
+          el.classList.toggle('is-off', !on);
+        });
+      });
+    });
+
+    // ── marks with their own tooltip text ───────────────────────────────────
+    fig.querySelectorAll('[data-viz-tip]').forEach(function (m) {
+      var text = m.getAttribute('data-viz-tip');
+      var at = function (e) {
+        var r = m.getBoundingClientRect();
+        showTip(text, e.clientX || (r.left + r.width / 2), r.top);
+      };
+      m.addEventListener('pointerenter', at);
+      m.addEventListener('pointermove', at);
+      m.addEventListener('pointerleave', hideTip);
+      // Focus shows the same thing hover does, in the reserved line rather than a
+      // floating box — a tooltip a keyboard user cannot dismiss is a trap.
+      m.addEventListener('focus', function () { if (read) read.textContent = text; });
+      m.addEventListener('blur',  function () { if (read) read.textContent = ''; });
+    });
+
+    // ── the area plot: crosshair, nearest point, arrow keys ─────────────────
+    if (kind !== 'area') return;
+    var plot = fig.querySelector('.viz__plot');
+    if (!plot) return;
+    var pts  = JSON.parse(plot.getAttribute('data-viz-points') || '[]');
+    if (pts.length < 2) return;
+    var unit = plot.getAttribute('data-viz-unit') || '';
+    var hit  = fig.querySelector('[data-viz-hit]');
+    var cur  = fig.querySelector('[data-viz-cursor]');
+    var line = cur && cur.querySelector('line');
+    var dot  = cur && cur.querySelector('circle');
+    var at   = -1;
+
+    function show(i, clientX, clientY) {
+      if (i < 0 || i >= pts.length) return;
+      at = i;
+      var p = pts[i];
+      line.setAttribute('x1', p.x); line.setAttribute('x2', p.x);
+      dot.setAttribute('cx', p.x);  dot.setAttribute('cy', p.y);
+      cur.removeAttribute('hidden');
+      var d = new Date(p.date + 'T00:00:00');
+      var when = d.toLocaleDateString(undefined, { day:'numeric', month:'short', year:'numeric' });
+      var body = unit + p.balance.toLocaleString() + ' on ' + when +
+                 (p.delta ? ' · ' + (p.delta > 0 ? '+' : '') + unit + p.delta.toLocaleString() + ' that day' : '');
+      if (read) read.innerHTML = '<b>' + unit + p.balance.toLocaleString() + '</b> on ' + when +
+        (p.delta ? ' · <b>' + (p.delta > 0 ? '+' : '') + unit + p.delta.toLocaleString() + '</b> that day' : '');
+      if (clientX !== undefined) showTip(body, clientX, clientY);
+    }
+    function clear() { at = -1; cur.setAttribute('hidden', ''); if (read) read.textContent = ''; hideTip(); }
+
+    function nearest(clientX) {
+      var r = hit.getBoundingClientRect();
+      if (!r.width) return -1;
+      // The plot's own coordinate space, not the rendered one — the SVG scales with
+      // its container and the two stop agreeing the moment it does.
+      var vx = ((clientX - r.left) / r.width) * pts[pts.length - 1].x;
+      var best = 0, bestD = Infinity;
+      for (var i = 0; i < pts.length; i++) {
+        var d = Math.abs(pts[i].x - vx);
+        if (d < bestD) { bestD = d; best = i; }
+      }
+      return best;
+    }
+
+    hit.addEventListener('pointermove', function (e) {
+      var r = hit.getBoundingClientRect();
+      show(nearest(e.clientX), e.clientX, r.top);
+    });
+    hit.addEventListener('pointerleave', clear);
+    plot.addEventListener('blur', clear);
+    plot.addEventListener('keydown', function (e) {
+      if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') {
+        e.preventDefault();
+        var next = at < 0 ? pts.length - 1 : at + (e.key === 'ArrowRight' ? 1 : -1);
+        show(Math.max(0, Math.min(pts.length - 1, next)));
+      } else if (e.key === 'Home') { e.preventDefault(); show(0); }
+      else if (e.key === 'End')    { e.preventDefault(); show(pts.length - 1); }
+      else if (e.key === 'Escape') { clear(); }
+    });
+  });
+
+  window.addEventListener('scroll', hideTip, { passive: true });
+})();
+</script>
+{% endmacro %}

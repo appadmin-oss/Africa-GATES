@@ -1,207 +1,224 @@
-{# ═══ ANNOUNCE BAR ═══════════════════════════════════════════ #}
+{# ═══════════════════════════════════════════════════════════════
+   Africa GATES — Navigation (new design system: components/nav.css)
+   Desktop: sticky nav + Participate/Explore megas.
+   Mobile: no top nav → bottom bar (Home · Pulse · Nominate · Ranks ·
+   Menu) + full-screen overlay menu.
+   ═══════════════════════════════════════════════════════════════ #}
+{% set _p = gates_page|default('') %}
+
 {% if announcement_text %}
-<div class="announce" id="announceBar" role="region" aria-label="Announcement">
-  <span class="announce__dot" aria-hidden="true"></span>
+<div class="ag-announce ag-scope" role="region" aria-label="Announcement">
+  <span class="ag-announce__dot" aria-hidden="true"></span>
   <span>{{ announcement_text }}</span>
   {% if announcement_url %}<a href="{{ announcement_url }}">{{ announcement_cta|default('Learn more →') }}</a>{% endif %}
-  <button class="announce__close" type="button" aria-label="Dismiss"
-          onclick="this.parentElement.style.display='none'">×</button>
+  <button class="ag-announce__x" type="button" aria-label="Dismiss" data-ag-do="dismiss-parent">×</button>
 </div>
 {% endif %}
 
-{# ═══ AFG · PRIMARY NAV ═══════════════════════════════════════ #}
-<header class="afg-nav" id="afgNav" role="banner">
-  <div class="wrap afg-nav__row">
-    <a class="afg-brand" href="/" aria-label="Africa GATES home">
-      <span class="afg-brand__mark" aria-hidden="true">
-        <img src="/assets/img/gates-logo-240.png?v={{ asset_version }}" alt="" width="44" height="44" class="afg-brand__mark-light">
-        <img src="/assets/img/gates-logo-240.png?v={{ asset_version }}" alt="" width="44" height="44" class="afg-brand__mark-scrolled">
-      </span>
-      <span class="afg-brand__words">
-        <span class="afg-brand__name">Africa</span>
-        <span class="afg-brand__tag">GATES</span>
-      </span>
+{# ════ DESKTOP NAV ════ #}
+<header class="ag-nav ag-scope" id="agNav" role="banner">
+  <div class="ag-nav__row">
+    <a class="ag-brand" href="/" aria-label="Africa GATES home">
+      <img class="ag-brand__mark" src="{{ asset('/assets/img/logo-mark.png') }}" width="38" height="38" alt="" aria-hidden="true">
+      <span class="ag-brand__words"><span class="ag-brand__name">Africa</span><span class="ag-brand__tag">GATES</span></span>
     </a>
 
-    <nav class="afg-links" aria-label="Primary">
-      <div class="afg-mega-wrap" data-mega>
-        <button type="button" class="afg-link afg-link--toggle {% if gates_page in ['awards','nominate','vote','leaderboard'] %}is-active{% endif %}" data-mega-trigger aria-haspopup="true" aria-expanded="false">
-          Participate
-          <svg width="11" height="11" viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M13.825 7.16L10 10.977 6.175 7.16 5 8.335l5 5 5-5-1.175-1.175z" fill="currentColor"/></svg>
-        </button>
-        <div class="afg-mega" data-mega-panel>
-          <div class="afg-mega__col">
-            <p class="afg-mega__hd">Take part</p>
-            <a href="/nominate" class="afg-mega__link {% if gates_page == 'nominate' %}is-active{% endif %}">
-              <span class="afg-mega__txt"><strong>Nominate</strong><small>Surface a profile in under 90 seconds</small></span>
-            </a>
-            <a href="/vote" class="afg-mega__link {% if gates_page == 'vote' %}is-active{% endif %}">
-              <span class="afg-mega__txt"><strong>Vote</strong><small>One verified voter, one vote per category</small></span>
-            </a>
-            <a href="/register" class="afg-mega__link">
-              <span class="afg-mega__txt"><strong>Register a profile</strong><small>Join the continental registry, free</small></span>
-            </a>
-          </div>
-          <div class="afg-mega__col">
-            <p class="afg-mega__hd">Recognition</p>
-            <a href="/awards" class="afg-mega__link {% if gates_page == 'awards' %}is-active{% endif %}">
-              <span class="afg-mega__txt"><strong>Awards</strong><small>Education, integrity, choral &amp; business programmes</small></span>
-            </a>
-            <a href="/leaderboard" class="afg-mega__link {% if gates_page == 'leaderboard' %}is-active{% endif %}">
-              <span class="afg-mega__txt"><strong>Leaderboard</strong><small>Live CPI rankings, refreshed every 6 hours</small></span>
-            </a>
-            <a href="/integrity" class="afg-mega__link">
-              <span class="afg-mega__txt"><strong>Integrity Center</strong><small>How voting, scoring and audits work</small></span>
-            </a>
-          </div>
-          <div class="afg-mega__col">
-            <p class="afg-mega__hd">Support</p>
-            <a href="/partner" class="afg-mega__link {% if gates_page == 'partner' %}is-active{% endif %}">
-              <span class="afg-mega__txt"><strong>Become a partner</strong><small>Voting packs, tickets, sponsorships</small></span>
-            </a>
-            <a href="https://afrovanguard.org.ng/donate.html" class="afg-mega__link">
-              <span class="afg-mega__txt"><strong>Donate</strong><small>Fund child leadership programmes</small></span>
-            </a>
-          </div>
+    <nav class="ag-nav__links" aria-label="Primary">
+      <a href="/pulse" class="ag-link ag-link--pulse {% if _p=='pulse' %}is-active{% endif %}"{% if _p=='pulse' %} aria-current="page"{% endif %}><span class="ag-link__dot" aria-hidden="true"></span>Pulse</a>
+
+      <div class="ag-mega-wrap" data-ag-mega>
+        <button type="button" class="ag-link" data-ag-mega-trigger aria-haspopup="true" aria-expanded="false">Participate
+          <svg class="ag-link__chev" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path d="M13.8 7.2 10 11 6.2 7.2 5 8.3l5 5 5-5z"/></svg></button>
+        <div class="ag-mega" data-ag-mega-panel>
+          <a href="/nominate" class="ag-mega__item"><span class="ag-mega__ico" style="background:#eef7ee;color:#1a6118">🎓</span><span class="ag-mega__txt"><strong>Nominate</strong><small>Put someone forward for continental recognition</small></span></a>
+          <a href="/vote" class="ag-mega__item"><span class="ag-mega__ico" style="background:#effaf0;color:#237b22">✓</span><span class="ag-mega__txt"><strong>Vote</strong><small>One verified voter, one vote per category</small></span></a>
+          <a href="/account/register" class="ag-mega__item"><span class="ag-mega__ico" style="background:#fff8df;color:#7a5600">✦</span><span class="ag-mega__txt"><strong>Create an account</strong><small>Free — earn voting points and redeem them for votes</small></span></a>
+          <a href="/awards" class="ag-mega__item"><span class="ag-mega__ico" style="background:#fff8df;color:#7a5600">🏅</span><span class="ag-mega__txt"><strong>Awards</strong><small>Education, integrity, choral &amp; business</small></span></a>
+          <a href="/leaderboard" class="ag-mega__item"><span class="ag-mega__ico" style="background:#e9efef;color:#2b373d">📊</span><span class="ag-mega__txt"><strong>Leaderboard</strong><small>Live CPI rankings, refreshed every {{ cpi_recompute_hours }} hours</small></span></a>
+          {# The awards themselves. Without this the only way into a decided result is a
+             link somebody sent you: the page existed, the Pulse and the emails pointed at
+             it, and nobody browsing the site could find it. #}
+          <a href="/results" class="ag-mega__item"><span class="ag-mega__ico" style="background:#fff8df;color:#7a5600">🏆</span><span class="ag-mega__txt"><strong>Results</strong><small>Every award decided, with the working shown</small></span></a>
+          <a href="/integrity" class="ag-mega__item"><span class="ag-mega__ico" style="background:#f0f2f2;color:#5d7374">⚖️</span><span class="ag-mega__txt"><strong>Integrity Center</strong><small>How voting, scoring and audits work</small></span></a>
+          <a href="/donate" class="ag-mega__item"><span class="ag-mega__ico" style="background:#fdeaf0;color:#b03a5b">♥</span><span class="ag-mega__txt"><strong>Donate</strong><small>Fund child leadership programmes</small></span></a>
         </div>
       </div>
 
-      <div class="afg-mega-wrap" data-mega>
-        <button type="button" class="afg-link afg-link--toggle {% if gates_page in ['registry','legacy','community'] %}is-active{% endif %}" data-mega-trigger aria-haspopup="true" aria-expanded="false">
-          Explore
-          <svg width="11" height="11" viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M13.825 7.16L10 10.977 6.175 7.16 5 8.335l5 5 5-5-1.175-1.175z" fill="currentColor"/></svg>
-        </button>
-        <div class="afg-mega" data-mega-panel>
-          <div class="afg-mega__col">
-            <p class="afg-mega__hd">Discover</p>
-            <a href="/registry" class="afg-mega__link {% if gates_page == 'registry' %}is-active{% endif %}">
-              <span class="afg-mega__txt"><strong>Registry</strong><small>Browse verified African profiles</small></span>
-            </a>
-            <a href="/legacy" class="afg-mega__link {% if gates_page == 'legacy' %}is-active{% endif %}">
-              <span class="afg-mega__txt"><strong>Legacy Vault</strong><small>Every edition, permanently archived</small></span>
-            </a>
-            <a href="/events" class="afg-mega__link {% if gates_page == 'events' %}is-active{% endif %}">
-              <span class="afg-mega__txt"><strong>Events</strong><small>Ceremonies, webinars and sessions</small></span>
-            </a>
-          </div>
-          <div class="afg-mega__col">
-            <p class="afg-mega__hd">Engage</p>
-            <a href="/community" class="afg-mega__link {% if gates_page == 'community' %}is-active{% endif %}">
-              <span class="afg-mega__txt"><strong>Community</strong><small>Programme channels, OTP-verified</small></span>
-            </a>
-            <a href="/opportunities" class="afg-mega__link {% if gates_page == 'opportunities' %}is-active{% endif %}">
-              <span class="afg-mega__txt"><strong>Opportunities</strong><small>Grants, residencies and fellowships</small></span>
-            </a>
-            <a href="/blog" class="afg-mega__link {% if gates_page == 'blog' %}is-active{% endif %}">
-              <span class="afg-mega__txt"><strong>Blog</strong><small>Announcements and methodology notes</small></span>
-            </a>
-          </div>
-          <div class="afg-mega__col">
-            <p class="afg-mega__hd">Help</p>
-            <button type="button" class="afg-mega__link" style="text-align:left;width:100%;border:0;background:none;cursor:pointer" onclick="(window.openAiAssistant||(()=>document.getElementById('aiAssistantFab')?.click()))()">
-              <span class="afg-mega__txt"><strong>GATES Guide</strong><small>Quick pointers for CPI, voting &amp; more</small></span>
-            </button>
-            <a href="https://afrovanguard.org.ng/about/" class="afg-mega__link">
-              <span class="afg-mega__txt"><strong>About Afrovanguard</strong><small>The initiative behind Africa GATES</small></span>
-            </a>
-          </div>
+      <div class="ag-mega-wrap" data-ag-mega>
+        <button type="button" class="ag-link" data-ag-mega-trigger aria-haspopup="true" aria-expanded="false">Explore
+          <svg class="ag-link__chev" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path d="M13.8 7.2 10 11 6.2 7.2 5 8.3l5 5 5-5z"/></svg></button>
+        <div class="ag-mega" data-ag-mega-panel>
+          <a href="/pulse" class="ag-mega__item"><span class="ag-mega__ico" style="background:#eef7ee;color:#237b22">📅</span><span class="ag-mega__txt"><strong>Pulse</strong><small>Reels, posts and live moments</small></span></a>
+          <a href="/activity" class="ag-mega__item"><span class="ag-mega__ico" style="background:#eef4fb;color:#1c4e80">🔎</span><span class="ag-mega__txt"><strong>Activity</strong><small>Search everything happening, live</small></span></a>
+          <a href="/registry" class="ag-mega__item"><span class="ag-mega__ico" style="background:#e9efef;color:#2b373d">👥</span><span class="ag-mega__txt"><strong>Registry</strong><small>Browse verified African profiles</small></span></a>
+          <a href="/legacy" class="ag-mega__item"><span class="ag-mega__ico" style="background:#fff8df;color:#7a5600">🏛️</span><span class="ag-mega__txt"><strong>Legacy Vault</strong><small>Every edition, permanently archived</small></span></a>
+          <a href="/community" class="ag-mega__item"><span class="ag-mega__ico" style="background:#f0f2f2;color:#5d7374">💬</span><span class="ag-mega__txt"><strong>Community</strong><small>Programme channels, OTP-verified</small></span></a>
+          <a href="/events" class="ag-mega__item"><span class="ag-mega__ico" style="background:#eef7ee;color:#237b22">📅</span><span class="ag-mega__txt"><strong>Events</strong><small>Ceremonies, webinars &amp; sessions</small></span></a>
+          <a href="/blog" class="ag-mega__item"><span class="ag-mega__ico" style="background:#e9efef;color:#2b373d">✎</span><span class="ag-mega__txt"><strong>Blog</strong><small>Announcements and methodology notes</small></span></a>
+          <a href="/judges" class="ag-mega__item"><span class="ag-mega__ico" style="background:#fff8df;color:#7a5600">⚖️</span><span class="ag-mega__txt"><strong>Meet the Judges</strong><small>The independent evaluation panel</small></span></a>
+          <a href="/shop" class="ag-mega__item"><span class="ag-mega__ico" style="background:#eef7ee;color:#1a6118">🛍️</span><span class="ag-mega__txt"><strong>Shop</strong><small>Wear the recognition — funds programmes</small></span></a>
         </div>
       </div>
+
+      <a href="/leaderboard" class="ag-link {% if _p=='leaderboard' %}is-active{% endif %}"{% if _p=='leaderboard' %} aria-current="page"{% endif %}>Leaderboard</a>
     </nav>
 
-    <div class="afg-cta">
-      <a href="/partner"  class="btn btn--ghost btn--sm afg-partner">Partner</a>
-      <a href="/register" class="btn btn--emerald btn--sm">
-        Register
-        <svg class="btn__arrow" viewBox="0 0 20 20" fill="none"><path d="M7.5 4.5 13 10 7.5 15.5" stroke="currentColor" stroke-width="1.75" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
-      </a>
-      <button class="afg-toggle" id="afgToggle" aria-controls="afgDrawer" aria-expanded="false" aria-label="Menu">
-        <span></span><span></span><span></span>
+    <div class="ag-nav__cta">
+      {# Opens the site-wide search. A BUTTON, not a link: it opens a dialog on this
+         page rather than navigating, and announcing "link" for something that does
+         not go anywhere is a promise the control cannot keep. The shortcut is named
+         in the accessible label, because a keyboard or touch user has no hover to
+         discover it with. #}
+      <button type="button" class="ag-searchbtn" data-ag-search-open
+              aria-haspopup="dialog" aria-label="Search the site. Shortcut: press the slash key">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true" focusable="false"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.6-3.6" stroke-linecap="round"/></svg>
+        <span class="ag-searchbtn__k" aria-hidden="true">/</span>
       </button>
+      <a href="/vote" class="ag-vote {% if _p=='vote' %}is-active{% endif %}"{% if _p=='vote' %} aria-current="page"{% endif %}>Vote</a>
+      {% if is_member %}
+        <a href="/account" class="ag-register {% if _p=='account' %}is-active{% endif %}"{% if _p=='account' %} aria-current="page"{% endif %}>{{ member_name ? 'My account' : 'Account' }}
+          <svg viewBox="0 0 20 20" fill="none" aria-hidden="true" focusable="false"><path d="M7.5 4.5 13 10 7.5 15.5" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/></svg></a>
+      {% else %}
+        <a href="/account/login" class="ag-signin {% if _p=='account' %}is-active{% endif %}">Sign in</a>
+        <a href="/account/register" class="ag-register">Register
+          <svg viewBox="0 0 20 20" fill="none" aria-hidden="true" focusable="false"><path d="M7.5 4.5 13 10 7.5 15.5" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/></svg></a>
+      {% endif %}
     </div>
   </div>
 </header>
 
-{# Mobile drawer #}
-<nav class="afg-drawer" id="afgDrawer" aria-label="Mobile menu">
-  <div class="afg-drawer__scroll">
-    {% set _p = gates_page|default('') %}
-    <p class="afg-drawer__label">Participate</p>
-    <a href="/vote" class="afg-drawer__item {% if _p=='vote' %}is-active{% endif %}">
-      <span class="afg-drawer__ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg></span>
-      <span class="afg-drawer__txt"><strong>Vote</strong><small>One verified vote per category</small></span>
-      <svg class="afg-drawer__chev" viewBox="0 0 20 20" fill="none"><path d="M7 5l5 5-5 5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
-    </a>
-    <a href="/nominate" class="afg-drawer__item {% if _p=='nominate' %}is-active{% endif %}">
-      <span class="afg-drawer__ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg></span>
-      <span class="afg-drawer__txt"><strong>Nominate</strong><small>Surface someone in 90 seconds</small></span>
-      <svg class="afg-drawer__chev" viewBox="0 0 20 20" fill="none"><path d="M7 5l5 5-5 5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
-    </a>
-    <a href="/awards" class="afg-drawer__item {% if _p=='awards' %}is-active{% endif %}">
-      <span class="afg-drawer__ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="6"/><polyline points="8.21 13.89 7 22 12 19 17 22 15.79 13.88"/></svg></span>
-      <span class="afg-drawer__txt"><strong>Awards</strong><small>Programmes across education, integrity, choral &amp; business</small></span>
-      <svg class="afg-drawer__chev" viewBox="0 0 20 20" fill="none"><path d="M7 5l5 5-5 5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
-    </a>
-    <a href="/leaderboard" class="afg-drawer__item {% if _p=='leaderboard' %}is-active{% endif %}">
-      <span class="afg-drawer__ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg></span>
-      <span class="afg-drawer__txt"><strong>Leaderboard</strong><small>Live CPI rankings</small></span>
-      <svg class="afg-drawer__chev" viewBox="0 0 20 20" fill="none"><path d="M7 5l5 5-5 5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
-    </a>
+{# ════ MOBILE BOTTOM BAR ════ #}
+<nav class="ag-mobnav ag-scope" aria-label="Primary mobile">
+  <a href="/" class="ag-tab {% if _p=='' or _p=='home' %}is-active{% endif %}"{% if _p=='' or _p=='home' %} aria-current="page"{% endif %} aria-label="Home">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9.5 12 3l9 6.5V20a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1V9.5Z"/></svg><span>Home</span></a>
+  <a href="/pulse" class="ag-tab {% if _p=='pulse' %}is-active{% endif %}"{% if _p=='pulse' %} aria-current="page"{% endif %} aria-label="Pulse">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="5"/><path d="m10 8.5 5 3.5-5 3.5z" fill="currentColor" stroke="none"/></svg><span>Pulse</span></a>
+  <a href="/nominate" class="ag-tab ag-tab--cta {% if _p=='nominate' %}is-active{% endif %}"{% if _p=='nominate' %} aria-current="page"{% endif %} aria-label="Nominate">
+    <span class="ag-tab__fab"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg></span><span>Nominate</span></a>
+  <a href="/leaderboard" class="ag-tab {% if _p=='leaderboard' %}is-active{% endif %}"{% if _p=='leaderboard' %} aria-current="page"{% endif %} aria-label="Ranks">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg><span>Ranks</span></a>
+  <button type="button" class="ag-tab" id="agMenuOpen" aria-controls="agMenu" aria-expanded="false" aria-label="Open menu">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg><span>Menu</span></button>
+</nav>
 
-    <p class="afg-drawer__label">Explore</p>
-    <div class="afg-drawer__grid">
-      <a href="/registry" class="afg-drawer__chip {% if _p=='registry' %}is-active{% endif %}">Registry</a>
-      <a href="/legacy" class="afg-drawer__chip {% if _p=='legacy' %}is-active{% endif %}">Legacy</a>
-      <a href="/events" class="afg-drawer__chip {% if _p=='events' %}is-active{% endif %}">Events</a>
-      <a href="/blog" class="afg-drawer__chip {% if _p=='blog' %}is-active{% endif %}">Blog</a>
-      <a href="/community" class="afg-drawer__chip {% if _p=='community' %}is-active{% endif %}">Community</a>
-      <a href="/opportunities" class="afg-drawer__chip {% if _p=='opportunities' %}is-active{% endif %}">Opportunities</a>
+{# ════ FULL-SCREEN OVERLAY MENU ════ #}
+<div class="ag-menu ag-scope" id="agMenu" role="dialog" aria-modal="true" aria-label="Menu">
+  <div class="ag-menu__top">
+    <a class="ag-brand" href="/" aria-label="Africa GATES home">
+      <img class="ag-brand__mark" src="{{ asset('/assets/img/logo-mark.png') }}" width="38" height="38" alt="" aria-hidden="true">
+      <span class="ag-brand__words"><span class="ag-brand__name">Africa</span><span class="ag-brand__tag">GATES</span></span>
+    </a>
+    <button type="button" class="ag-menu__x" id="agMenuClose" aria-label="Close menu">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
+  </div>
+  <div class="ag-menu__body">
+    <div class="ag-menu__group">
+      <p class="ag-menu__label">Participate</p>
+      <a href="/activity" class="ag-menu__link {% if _p=='activity' %}is-active{% endif %}"{% if _p=='activity' %} aria-current="page"{% endif %}><span class="ag-menu__ico" style="background:#eef4fb;color:#1c4e80">🔎</span><span class="ag-menu__txt"><strong>Activity</strong><small>Search everything happening across the platform, live</small></span></a>
+      <a href="/nominate" class="ag-menu__link {% if _p=='nominate' %}is-active{% endif %}"{% if _p=='nominate' %} aria-current="page"{% endif %}><span class="ag-menu__ico" style="background:#eef7ee;color:#1a6118">🎓</span><span class="ag-menu__txt"><strong>Nominate</strong><small>Put someone forward for continental recognition</small></span></a>
+      <a href="/vote" class="ag-menu__link {% if _p=='vote' %}is-active{% endif %}"{% if _p=='vote' %} aria-current="page"{% endif %}><span class="ag-menu__ico" style="background:#effaf0;color:#237b22">✓</span><span class="ag-menu__txt"><strong>Vote</strong><small>One verified voter, one vote per category</small></span></a>
+      <a href="/account/register" class="ag-menu__link"><span class="ag-menu__ico" style="background:#fff8df;color:#7a5600">✦</span><span class="ag-menu__txt"><strong>Create an account</strong><small>Free — earn voting points and redeem them for votes</small></span></a>
+      <a href="/awards" class="ag-menu__link {% if _p=='awards' %}is-active{% endif %}"{% if _p=='awards' %} aria-current="page"{% endif %}><span class="ag-menu__ico" style="background:#fff8df;color:#7a5600">🏅</span><span class="ag-menu__txt"><strong>Awards</strong><small>Education, integrity, choral &amp; business</small></span></a>
+      <a href="/leaderboard" class="ag-menu__link {% if _p=='leaderboard' %}is-active{% endif %}"{% if _p=='leaderboard' %} aria-current="page"{% endif %}><span class="ag-menu__ico" style="background:#e9efef;color:#2b373d">📊</span><span class="ag-menu__txt"><strong>Leaderboard</strong><small>Live CPI rankings, every {{ cpi_recompute_hours }} hours</small></span></a>
+      <a href="/results" class="ag-menu__link {% if _p=='results' %}is-active{% endif %}"{% if _p=='results' %} aria-current="page"{% endif %}><span class="ag-menu__ico" style="background:#fff8df;color:#7a5600">🏆</span><span class="ag-menu__txt"><strong>Results</strong><small>Every award decided, with the working shown</small></span></a>
+      <a href="/integrity" class="ag-menu__link"><span class="ag-menu__ico" style="background:#f0f2f2;color:#5d7374">⚖️</span><span class="ag-menu__txt"><strong>Integrity Center</strong><small>How voting, scoring and audits work</small></span></a>
+      <a href="/donate" class="ag-menu__link {% if _p=='donate' %}is-active{% endif %}"{% if _p=='donate' %} aria-current="page"{% endif %}><span class="ag-menu__ico" style="background:#fdeaf0;color:#b03a5b">♥</span><span class="ag-menu__txt"><strong>Donate</strong><small>Fund child leadership programmes</small></span></a>
     </div>
-
-    <button type="button" class="afg-drawer__ai" onclick="(window.openAiAssistant||(()=>document.getElementById('aiAssistantFab')?.click()))()">
-      <span class="afg-drawer__ai-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v3M12 19v3M4.93 4.93l2.12 2.12M16.95 16.95l2.12 2.12M2 12h3M19 12h3M4.93 19.07l2.12-2.12M16.95 7.05l2.12-2.12"/><circle cx="12" cy="12" r="4"/></svg></span>
-      <span><strong>GATES Guide</strong><small>Quick links for CPI, voting &amp; more</small></span>
-    </button>
-
-    <div class="afg-drawer__ctas">
-      <a href="/register" class="btn btn--emerald">Register your profile
-        <svg class="btn__arrow" viewBox="0 0 20 20" fill="none"><path d="M7.5 4.5 13 10 7.5 15.5" stroke="currentColor" stroke-width="1.75" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
-      </a>
-      <a href="/partner" class="btn btn--ghost">Become a partner</a>
+    <div class="ag-menu__group">
+      <p class="ag-menu__label">Explore</p>
+      <a href="/pulse" class="ag-menu__link {% if _p=='pulse' %}is-active{% endif %}"{% if _p=='pulse' %} aria-current="page"{% endif %}><span class="ag-menu__ico" style="background:#eef7ee;color:#237b22">📅</span><span class="ag-menu__txt"><strong>Pulse</strong><small>Reels, posts and live moments</small></span></a>
+      <a href="/registry" class="ag-menu__link {% if _p=='registry' %}is-active{% endif %}"{% if _p=='registry' %} aria-current="page"{% endif %}><span class="ag-menu__ico" style="background:#e9efef;color:#2b373d">👥</span><span class="ag-menu__txt"><strong>Registry</strong><small>Browse verified African profiles</small></span></a>
+      <a href="/legacy" class="ag-menu__link {% if _p=='legacy' %}is-active{% endif %}"{% if _p=='legacy' %} aria-current="page"{% endif %}><span class="ag-menu__ico" style="background:#fff8df;color:#7a5600">🏛️</span><span class="ag-menu__txt"><strong>Legacy Vault</strong><small>Every edition, permanently archived</small></span></a>
+      <a href="/community" class="ag-menu__link {% if _p=='community' %}is-active{% endif %}"{% if _p=='community' %} aria-current="page"{% endif %}><span class="ag-menu__ico" style="background:#f0f2f2;color:#5d7374">💬</span><span class="ag-menu__txt"><strong>Community</strong><small>Programme channels, OTP-verified</small></span></a>
+      <a href="/events" class="ag-menu__link {% if _p=='events' %}is-active{% endif %}"{% if _p=='events' %} aria-current="page"{% endif %}><span class="ag-menu__ico" style="background:#eef7ee;color:#237b22">📅</span><span class="ag-menu__txt"><strong>Events</strong><small>Ceremonies, webinars &amp; sessions</small></span></a>
+      <a href="/blog" class="ag-menu__link {% if _p=='blog' %}is-active{% endif %}"{% if _p=='blog' %} aria-current="page"{% endif %}><span class="ag-menu__ico" style="background:#e9efef;color:#2b373d">✎</span><span class="ag-menu__txt"><strong>Blog</strong><small>Announcements and methodology notes</small></span></a>
+      <a href="/judges" class="ag-menu__link {% if _p=='judges' %}is-active{% endif %}"{% if _p=='judges' %} aria-current="page"{% endif %}><span class="ag-menu__ico" style="background:#fff8df;color:#7a5600">⚖️</span><span class="ag-menu__txt"><strong>Meet the Judges</strong><small>The independent evaluation panel</small></span></a>
+      <a href="/shop" class="ag-menu__link {% if _p=='shop' %}is-active{% endif %}"{% if _p=='shop' %} aria-current="page"{% endif %}><span class="ag-menu__ico" style="background:#eef7ee;color:#1a6118">🛍️</span><span class="ag-menu__txt"><strong>Shop</strong><small>Wear the recognition — funds programmes</small></span></a>
     </div>
-
-    <div class="afg-drawer__foot">
-      <div class="afg-drawer__social">
-        <a href="https://twitter.com/afrovanguard" aria-label="X" target="_blank" rel="noopener"><svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M18.24 2.25h3.31l-7.23 8.26L22.5 21.75h-6.34l-4.97-6.5-5.68 6.5H2.2l7.73-8.84L1.5 2.25h6.5l4.49 5.94 5.75-5.94Zm-1.16 17.52h1.83L7.01 4.13H5.04L17.08 19.77Z"/></svg></a>
-        <a href="https://instagram.com/afrovanguard" aria-label="Instagram" target="_blank" rel="noopener"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="18" height="18" rx="5"/><circle cx="12" cy="12" r="4"/><circle cx="17.5" cy="6.5" r="1" fill="currentColor" stroke="none"/></svg></a>
-        <a href="https://linkedin.com/company/afrovanguard" aria-label="LinkedIn" target="_blank" rel="noopener"><svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M20.45 20.45h-3.55v-5.57c0-1.33-.02-3.04-1.85-3.04-1.86 0-2.14 1.45-2.14 2.94v5.67H9.36V9h3.41v1.56h.05c.48-.9 1.64-1.85 3.37-1.85 3.6 0 4.27 2.37 4.27 5.46v6.28zM5.34 7.43a2.06 2.06 0 1 1 0-4.12 2.06 2.06 0 0 1 0 4.12zM7.12 20.45H3.56V9h3.56v11.45z"/></svg></a>
-      </div>
-      <p>An initiative of <a href="https://afrovanguard.org.ng" target="_blank" rel="noopener">Afrovanguard</a> · live in Nigeria · building toward 54</p>
+    <div class="ag-menu__ctas">
+      {% if is_member %}
+      <a href="/account" class="ag-register" style="justify-content:center">My account
+        <svg viewBox="0 0 20 20" fill="none" aria-hidden="true" focusable="false"><path d="M7.5 4.5 13 10 7.5 15.5" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/></svg></a>
+      <a href="/account/logout" class="ag-menu__link" style="justify-content:center"><span class="ag-menu__txt" style="text-align:center"><strong>Sign out</strong></span></a>
+      {% else %}
+      <a href="/account/register" class="ag-register" style="justify-content:center">Create your account
+        <svg viewBox="0 0 20 20" fill="none" aria-hidden="true" focusable="false"><path d="M7.5 4.5 13 10 7.5 15.5" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/></svg></a>
+      <a href="/account/login" class="ag-menu__link" style="justify-content:center;background:var(--ag-surface-2)"><span class="ag-menu__txt" style="text-align:center"><strong>Sign in to your account</strong></span></a>
+      {% endif %}
+      <a href="/partner" class="ag-menu__link {% if _p=='partner' %}is-active{% endif %}"{% if _p=='partner' %} aria-current="page"{% endif %} style="justify-content:center;background:var(--ag-surface-2)"><span class="ag-menu__txt" style="text-align:center"><strong>Become a partner</strong></span></a>
+      <a href="/support" class="ag-menu__link {% if _p=='support' %}is-active{% endif %}"{% if _p=='support' %} aria-current="page"{% endif %} style="justify-content:center"><span class="ag-menu__txt" style="text-align:center"><strong>Support &amp; appeals</strong></span></a>
     </div>
   </div>
-</nav>
+</div>
 
-{# ═══ MOBILE BOTTOM TAB BAR — app-style primary nav (thumb zone) ═══ #}
-<nav class="afg-tabbar" aria-label="Primary mobile">
-  {% set _p = gates_page|default('') %}
-  <a href="/" class="afg-tab {% if _p=='' or _p=='home' %}is-active{% endif %}" aria-label="Home">
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9.5 12 3l9 6.5V20a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1V9.5Z"/></svg>
-    <span>Home</span>
-  </a>
-  <a href="/vote" class="afg-tab {% if _p=='vote' %}is-active{% endif %}" aria-label="Vote">
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
-    <span>Vote</span>
-  </a>
-  <a href="/nominate" class="afg-tab afg-tab--cta {% if _p=='nominate' %}is-active{% endif %}" aria-label="Nominate">
-    <span class="afg-tab__fab"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg></span>
-    <span>Nominate</span>
-  </a>
-  <a href="/leaderboard" class="afg-tab {% if _p=='leaderboard' %}is-active{% endif %}" aria-label="Leaderboard">
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
-    <span>Ranks</span>
-  </a>
-  <button type="button" class="afg-tab afg-tab--menu" id="afgTabMenu" aria-controls="afgDrawer" aria-expanded="false" aria-label="Open menu">
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
-    <span>Menu</span>
-  </button>
-</nav>
+<script nonce="{{ csp_nonce }}">
+(function(){
+  function init(){
+    var wraps = Array.prototype.slice.call(document.querySelectorAll('.ag-mega-wrap'));
+    function closeMegas(except){ wraps.forEach(function(o){ if(o!==except){ o.classList.remove('is-open'); var b=o.querySelector('[data-ag-mega-trigger]'); if(b) b.setAttribute('aria-expanded','false'); } }); }
+    // Megas — direct per-trigger handlers bound (after DOMContentLoaded) to the
+    // FINAL elements, with stopPropagation so no other document click handler can
+    // immediately re-close the panel. A click outside any wrap closes all.
+    wraps.forEach(function(w){
+      var btn=w.querySelector('[data-ag-mega-trigger]'); if(!btn) return;
+      btn.addEventListener('click', function(e){
+        e.preventDefault(); e.stopPropagation();
+        var willOpen=!w.classList.contains('is-open');
+        closeMegas(w);
+        w.classList.toggle('is-open', willOpen);
+        btn.setAttribute('aria-expanded', willOpen?'true':'false');
+      });
+      // Hover-to-open on desktop (fine pointer only) — click still works everywhere,
+      // and touch devices fall through to click since they don't fire hover.
+      if (window.matchMedia && window.matchMedia('(hover:hover) and (pointer:fine)').matches){
+        var hideT;
+        w.addEventListener('mouseenter', function(){ clearTimeout(hideT); closeMegas(w); w.classList.add('is-open'); btn.setAttribute('aria-expanded','true'); });
+        w.addEventListener('mouseleave', function(){ hideT=setTimeout(function(){ w.classList.remove('is-open'); btn.setAttribute('aria-expanded','false'); }, 140); });
+      }
+    });
+    document.addEventListener('click', function(e){ if(!(e.target.closest && e.target.closest('.ag-mega-wrap'))) closeMegas(null); });
+    // ── Mobile overlay menu ──────────────────────────────────────────────────
+    //
+    // This carries role="dialog" aria-modal="true", which is a claim about three things.
+    // Only the class toggle was here, so: focus stayed on the Menu BUTTON — which the
+    // open overlay has just hidden from assistive tech, leaving the caret on something a
+    // screen reader will not announce — Tab walked straight out into that hidden page, and
+    // closing dropped focus at the top of the document.
+    var menu = document.getElementById('agMenu'), openB = document.getElementById('agMenuOpen'), closeB = document.getElementById('agMenuClose');
+    function menuFocusables(){
+      if(!menu) return [];
+      return Array.prototype.slice.call(menu.querySelectorAll('a[href], button, [tabindex]:not([tabindex="-1"])'))
+        .filter(function(n){ return !n.disabled && n.offsetParent !== null; });
+    }
+    function setMenu(on){
+      if(!menu) return;
+      menu.classList.toggle('is-open', on);
+      document.documentElement.classList.toggle('ag-menu-open', on);
+      if(openB) openB.setAttribute('aria-expanded', on?'true':'false');
+      if(on){
+        // The close button, not the first link: it is the thing somebody who opened this by
+        // accident is looking for, and Tab from there walks the menu in reading order.
+        if(closeB) closeB.focus();
+      } else if(openB && typeof openB.focus === 'function'){
+        openB.focus();
+      }
+    }
+    if(openB) openB.addEventListener('click', function(){ setMenu(true); });
+    if(closeB) closeB.addEventListener('click', function(){ setMenu(false); });
+    // Tab cannot leave the menu while it is open.
+    if(menu) menu.addEventListener('keydown', function(e){
+      if(e.key !== 'Tab' || !menu.classList.contains('is-open')) return;
+      var f = menuFocusables(); if(!f.length) return;
+      var first = f[0], last = f[f.length-1];
+      if(e.shiftKey && document.activeElement === first){ e.preventDefault(); last.focus(); }
+      else if(!e.shiftKey && document.activeElement === last){ e.preventDefault(); first.focus(); }
+    });
+    document.addEventListener('keydown', function(e){
+      if(e.key!=='Escape') return;
+      if(menu && menu.classList.contains('is-open')) setMenu(false);
+      closeMegas(null);
+    });
+  }
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded', init); else init();
+})();
+</script>

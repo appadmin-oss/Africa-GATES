@@ -1,0 +1,106 @@
+{# The styles and behaviour for partials/vote-message.twig. Included ONCE per page
+   that renders any messages — the item partial is rendered in a loop and neither a
+   stylesheet nor a component definition wants to be. #}
+<style nonce="{{ csp_nonce }}">
+  .vmi-list{ list-style:none; margin:18px 0 0; padding:0; display:grid; gap:11px; }
+  .vmi{ background:#f7faf7; border:1px solid #dfeade; border-left:3px solid #7FC87C;
+        border-radius:0 12px 12px 0; padding:14px 16px; }
+  .vmi__b{ margin:0; font-size:14.5px; line-height:1.65; color:#20393b; }
+  /* Attribution left, controls right — on one line when there is room, on two when
+     there is not, and the SAME either way for every message in the list. Grouping the
+     controls is what fixes that: a wrapping single row put "Report" inline or on its
+     own line depending on the length of the supporter's name. */
+  .vmi__f{ margin-top:9px; display:flex; align-items:center; justify-content:space-between;
+           flex-wrap:wrap; gap:0 12px; font-size:12px; color:var(--ag-ink-soft,#626a6e); }
+  .vmi__who{ display:inline-flex; align-items:center; gap:8px; flex-wrap:wrap; min-width:0; }
+  .vmi__acts{ display:inline-flex; align-items:center; gap:10px; flex:none; }
+  .vmi__n{ font-weight:600; color:#3d5254; overflow-wrap:anywhere; }
+  .vmi__tag{ background:#e8f3e7; color:#1a6118; border-radius:999px; padding:3px 9px; font-size:11px; font-weight:600; }
+  /* The actions sit right, away from the attribution: a Report button beside
+     somebody's name reads as being about the person rather than the words.
+
+     ── THE 40px IS NOT DECORATION ──────────────────────────────────────────
+     These were 27px tall with a 10px gap, which measured out at roughly a
+     thumb-width for THREE controls in a row — and the third is Report. A mis-tap
+     on a phone did not cost a stray "like"; it reported somebody's message about a
+     child. So every control gets a 40px-high hit area (the visible text stays the
+     same size — the padding does the work), and Report is pushed away from the
+     other two by a wider gap of its own. */
+  .vmi__act{ display:inline-flex; align-items:center; gap:5px; background:none; border:none;
+             min-height:40px; padding:4px 6px; font:600 12px/1 inherit; color:#237b22;
+             cursor:pointer; text-decoration:none; white-space:nowrap; }
+  .vmi__act:hover{ text-decoration:underline; }
+  .vmi__act.is-on{ color:#1a6118; }
+  .vmi__act[disabled]{ opacity:.5; cursor:default; }
+  /* Extra separation from Cheer, which is two controls away and does something very
+     different. A mis-tap here reports somebody's message about a child. */
+  .vmi__act--report{ color:var(--ag-ink-soft,#626a6e); font-weight:500; margin-left:6px; }
+  .vmi__act--report:hover{ color:#b3261e; }
+  .vmi__done{ font-size:12px; color:var(--ag-ink-soft,#626a6e); min-height:40px; display:inline-flex; align-items:center; }
+  @media (max-width:520px){
+    /* On a phone the controls always take their own full-width row under the
+       attribution, and spread across it — so Report ends up as far from Cheer as the
+       row allows, and every message in the list is the same height. */
+    .vmi__f{ flex-direction:column; align-items:stretch; gap:0; }
+    .vmi__acts{ width:100%; justify-content:space-between; gap:4px; }
+  }
+</style>
+<script nonce="{{ csp_nonce }}">
+/**
+ * Cheer and report, for one message.
+ *
+ * Both remember the reader's own action in localStorage. That is politeness, not the
+ * rule — the server enforces one of each per network per message per day, because
+ * there is no account here to key on and demanding one would silence exactly the
+ * reader this needs to hear from.
+ *
+ * Neither call reports a failure to the reader. A cheer that did not land is not
+ * worth an error message, and a report that was refused (already reported, over the
+ * hourly ceiling) must look identical to one that landed — telling somebody "you
+ * already reported this" leaks that the first one counted, and an over-limit error
+ * tells a brigade where the ceiling is.
+ */
+if (!window.vmItem) window.vmItem = function(token, initial){
+  return {
+    n: initial, mine: false, reported: false, busy: false,
+    init(){
+      try {
+        this.mine     = !!localStorage.getItem('afg_cheer_' + token);
+        this.reported = !!localStorage.getItem('afg_report_' + token);
+      } catch(e){}
+    },
+    async cheer(){
+      if (this.mine || this.busy || !token) return;
+      this.busy = true;
+      // Optimistic, and then corrected by the server's number. The tap has to feel
+      // instant on a phone on a slow connection, and the worst case is a count that
+      // settles one lower a moment later.
+      this.n += 1; this.mine = true;
+      try { localStorage.setItem('afg_cheer_' + token, '1'); } catch(e){}
+      try {
+        const d = await this._post('/api/vote-message/cheer');
+        if (d && typeof d.cheers === 'number') this.n = d.cheers;
+      } catch(e){}
+      finally { this.busy = false; }
+    },
+    async report(){
+      if (this.reported || this.busy || !token) return;
+      this.busy = true;
+      this.reported = true;
+      try { localStorage.setItem('afg_report_' + token, '1'); } catch(e){}
+      try { await this._post('/api/vote-message/report'); } catch(e){}
+      finally { this.busy = false; }
+    },
+    async _post(url){
+      // X-Requested-With satisfies the same-origin guard on /api/ writes — see
+      // CsrfMiddleware::sameOrigin().
+      const r = await fetch(url, {
+        method:'POST',
+        headers:{'Content-Type':'application/json','X-Requested-With':'XMLHttpRequest'},
+        body: JSON.stringify({ token: token })
+      });
+      return await r.json().catch(function(){ return {}; });
+    }
+  };
+};
+</script>

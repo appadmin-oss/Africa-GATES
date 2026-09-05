@@ -38,12 +38,18 @@
     {% endif %}
   </div>
 
+  {# The notice and the practice card are not exclusive: somebody with no real panel yet is
+     exactly the person who most wants to try the ballot before they get one. What they must
+     never do is mistake the practice card for the assignment they are waiting for, which is
+     why the notice stays up regardless. #}
   {% if no_assignments %}
     <div class="jd-empty" style="margin-top:24px">
       <strong>You haven't been assigned to any programmes yet.</strong>
-      <p style="margin-top:6px;color:var(--ink-500)">An administrator will email you once you're rostered onto a judging panel.</p>
+      <p style="margin-top:6px;color:var(--ink-500)">An administrator will email you once you're rostered onto a judging panel.{% if has_practice|default(false) %} In the meantime, the practice ballot below is open — nothing scored there counts.{% endif %}</p>
     </div>
-  {% else %}
+  {% endif %}
+
+  {% if not no_assignments or has_practice|default(false) %}
 
   {# ── Overview stat band ────────────────────────────────────────── #}
   <div class="jdh-stats">
@@ -83,6 +89,49 @@
   </div>
   {% endif %}
 
+  {# ── WHERE YOU ARE EXPECTED ─────────────────────────────────────────
+     Above the programmes, because a call at eleven tomorrow outranks a ballot with
+     three weeks on it.
+
+     The sittings were in the database with a time, a panel and a joining link, and
+     the only place any of it reached a judge was an email three days old — so on the
+     morning of a call the link had to be found again in an inbox. This is the same
+     information, on the page they are already signed in to, with one button that puts
+     all of it in their own calendar. #}
+  {% if sittings|default([]) %}
+  <div class="jdh-section">
+    <div class="jdh-section__head">
+      <h2 class="jdh-section__title">Your calls</h2>
+      {# GET, because it spends nothing and has to be reachable from a link in an
+         email. One file with every sitting in it — a judge on six presses once. #}
+      <a class="jdh-ics" href="/judge/schedule.ics">Add all to my calendar</a>
+    </div>
+    <ul class="jdh-calls">
+      {% for s in sittings %}
+      <li class="jdh-call">
+        <div class="jdh-call__when">
+          <time datetime="{{ s.when|date('c') }}">{{ s.when|when('D j M, H:i') }}</time>
+          <span>{{ tz_abbr() }} · {{ s.minutes }} min</span>
+        </div>
+        <div class="jdh-call__who">
+          <strong>{{ s.nominee }}</strong>
+          {% if s.category %}<span>{{ s.category }}</span>{% endif %}
+        </div>
+        {% if s.meet_url %}
+          <a class="jdh-call__go" href="{{ s.meet_url }}" rel="noopener">Join</a>
+        {% else %}
+          {# Said, not blank. A missing link is somebody's job, and a judge who sees an
+             empty space assumes the page is broken and does not mention it. #}
+          <span class="jdh-call__pending">Link to follow</span>
+        {% endif %}
+      </li>
+      {% endfor %}
+    </ul>
+    <p class="jdh-calls__note">Read the dossier before the call. The map at the top of an
+      entry is a finding aid, not a judgement, and nobody has checked it.</p>
+  </div>
+  {% endif %}
+
   {# ── Programmes ────────────────────────────────────────────────── #}
   <div class="jdh-section">
     <div class="jdh-section__head"><h2 class="jdh-section__title">Your programmes</h2></div>
@@ -90,18 +139,31 @@
       {% for b in programmes %}
         {% set pct = b.progress.total > 0 ? (b.progress.scored / b.progress.total * 100)|round : 0 %}
         {% set recused = b.coi is not null %}
-        {% set tag = 'jd-card' ~ (recused ? ' jd-card--recused' : (b.judging_open ? ' jd-card--open' : '')) %}
-        {% set href = recused ? null : '/judge/ballot/' ~ b.programme.id %}
-        <{{ href ? 'a' : 'div' }} class="{{ tag }}" {{ href ? 'href="' ~ href ~ '"' : '' }}>
+        {# A practice ballot has to be unmistakable at a glance. A judge who cannot tell it
+           from a live one has been handed something worse than no practice at all — they
+           would either treat a real round as a rehearsal, or spend an afternoon carefully
+           scoring nobody. #}
+        {% set practice = b.is_practice|default(false) %}
+        {% set tag = 'jd-card' ~ (practice ? ' jd-card--practice' : (recused ? ' jd-card--recused' : (b.judging_open ? ' jd-card--open' : ''))) %}
+        {# Recused cards still link to their (locked) ballot so the judge can reach
+           the "Withdraw recusal" control — otherwise reversing a COI is a dead end. #}
+        {% set href = '/judge/ballot/' ~ b.programme.id %}
+        <a class="{{ tag }}" href="{{ href }}">
           <div class="jd-card__head">
             <span class="jd-card__ico" aria-hidden="true">{{ b.programme.icon_emoji|default('🏆') }}</span>
             <div style="min-width:0;flex:1">
-              <h3 class="jd-card__title">{{ b.programme.title }}</h3>
-              <div class="jd-card__chip">{{ b.cycle.year ? b.cycle.year ~ ' · ' : '' }}{{ (b.status|default('—'))|upper }}</div>
+              <h3 class="jd-card__title">{{ practice ? 'Practice run' : b.programme.title }}</h3>
+              <div class="jd-card__chip">{{ practice ? 'NOTHING HERE COUNTS' : ((b.cycle.year ? b.cycle.year ~ ' · ' : '') ~ (b.status|default('—'))|upper) }}</div>
             </div>
           </div>
 
-          {% if b.programme.subtitle %}<p class="jd-card__sub">{{ b.programme.subtitle }}</p>{% endif %}
+          {% if practice %}
+            <p class="jd-card__sub">Try the ballot before a live round — read a dossier, move
+              the sliders, save, and see what a panel actually does. Your marks here are yours
+              alone and reach no result.</p>
+          {% elseif b.programme.subtitle %}
+            <p class="jd-card__sub">{{ b.programme.subtitle }}</p>
+          {% endif %}
 
           <div class="jd-card__stats">
             <span>{{ b.categories }} categor{{ b.categories == 1 ? 'y' : 'ies' }}</span>
@@ -131,7 +193,7 @@
               </span>
             {% endif %}
           </div>
-        </{{ href ? 'a' : 'div' }}>
+        </a>
       {% endfor %}
     </div>
   </div>

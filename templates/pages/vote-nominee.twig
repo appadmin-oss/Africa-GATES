@@ -1,0 +1,1419 @@
+{% extends "layout/gates.twig" %}
+
+{# ── `slug` IS AT TEMPLATE SCOPE, AND IT HAS TO BE ────────────────────────────
+
+   It was `{% set %}` inside `{% block content %}` and read inside `{% block foot_scripts %}`.
+   A Twig set inside a block is scoped to that block, so the share URL in autoShare()
+   rendered as `/vote/principals/` — the programme list, with the nominee silently missing.
+
+   Which means every person who voted, hit the native share sheet, and sent the link on was
+   sending their friends to a list of forty nominees instead of the one they had just voted
+   for. Nothing threw, the page was perfect, and the only symptom was votes that did not
+   arrive from shares that did. #}
+{% set n = nominee %}
+{% set slug = n.id ~ '-' ~ (n.name|lower|replace({' ':'-'})) %}
+
+{% block head_styles %}
+<style nonce="{{ csp_nonce }}">
+  body[data-page="awards"]{ background:#eef0ec; color:var(--ag-ink); }
+  [x-cloak]{ display:none !important; }
+  .vn{ max-width:1080px; margin:0 auto; padding:0 var(--ag-gutter,32px); }
+  .vn-crumb{ padding:18px 0 0; font-size:12.5px; color:#5a6d6f; }
+  /* Breadcrumb links were 15px tall — a 12.5px line box and nothing else. The trail
+     is how somebody gets back to the category they were browsing, so it has to be
+     tappable; inline-block plus vertical padding grows the hit area without moving
+     anything on the line. */
+  .vn-crumb a{ color:#5a6d6f; text-decoration:none; display:inline-block; padding:9px 0; }
+  .vn-crumb a:hover{ color:var(--ag-ink); }
+  .vn-crumb b{ color:var(--ag-ink); font-weight:500; }
+
+  /* hero — mirrors the registry profile hero */
+  .vn-hero{ position:relative; overflow:hidden; border-radius:24px; margin-top:14px; background:radial-gradient(130% 130% at 82% 6%,#1d5b2a 0%,#10292C 58%); }
+  .vn-hero__orb{ position:absolute; right:-70px; bottom:-90px; width:340px; height:340px; border-radius:50%; background:radial-gradient(circle,rgba(212,154,14,.28),transparent 68%); }
+  .vn-hero__in{ position:relative; display:flex; align-items:stretch; gap:8px; padding:clamp(28px,4vw,38px) clamp(22px,4vw,40px); }
+  .vn-hero__main{ flex:1; min-width:0; display:flex; flex-direction:column; justify-content:center; }
+  .vn-tags{ display:flex; align-items:center; gap:10px; margin-bottom:16px; flex-wrap:wrap; }
+  .vn-badge{ font-size:11px; font-weight:600; letter-spacing:.06em; padding:6px 13px; border-radius:999px; background:rgba(212,154,14,.18); color:#fbc329; display:inline-flex; align-items:center; gap:6px; }
+  .vn-rankpill{ font-size:11px; font-weight:600; letter-spacing:.04em; padding:6px 13px; border-radius:999px; background:rgba(127,200,124,.16); color:#7FC87C; }
+  .vn-hero h1{ margin:0; font-family:var(--ag-font-display); font-weight:800; font-size:clamp(2rem,5vw,3rem); line-height:1; letter-spacing:-.02em; color:#fff; }
+  .vn-meta{ margin:14px 0 0; font-size:15.5px; color:rgba(255,255,255,.86); }
+  .vn-stats{ display:flex; align-items:center; gap:clamp(16px,3vw,26px); margin-top:24px; flex-wrap:wrap; }
+  .vn-stat__n{ font-family:var(--ag-font-mono); font-weight:700; font-size:clamp(24px,3.5vw,30px); line-height:1; color:#fff; }
+  .vn-stat__n.g{ color:#7FC87C; }
+  .vn-stat__l{ font-size:10px; letter-spacing:.06em; text-transform:uppercase; color:rgba(255,255,255,.62); margin-top:4px; }
+  /* Under the tally, not beside it: this is a caveat on a number, and a caveat set at the
+     same level as the thing it qualifies reads as a second statistic. */
+  .vn-vsplit{ margin:14px 0 0; max-width:56ch; font-size:13px; line-height:1.55;
+              color:rgba(255,255,255,.72); }
+  .vn-vsplit a{ color:#7FC87C; font-weight:600; }
+  .vn-stat__div{ width:1px; height:40px; background:rgba(255,255,255,.18); }
+  .vn-cta{ display:flex; gap:11px; margin-top:28px; flex-wrap:wrap; }
+  .vn-btn{ cursor:pointer; text-decoration:none; font-family:inherit; font-weight:600; font-size:15px; padding:14px 28px; border-radius:999px; display:inline-flex; align-items:center; gap:8px; border:1px solid transparent; }
+  .vn-btn--light{ background:#fff; color:#10292C; }
+  .vn-btn--ghost{ background:none; border-color:rgba(255,255,255,.32); color:#fff; }
+  .vn-btn--ghost:hover{ background:rgba(255,255,255,.1); }
+  .vn-btn--icon{ padding:14px; }
+  .vn-hero__side{ flex:none; width:260px; position:relative; display:flex; align-items:flex-end; justify-content:center; }
+  .vn-hero__glow{ position:absolute; bottom:-38px; width:230px; height:230px; border-radius:50%; background:radial-gradient(circle at 50% 40%,rgba(127,200,124,.42),transparent 66%); }
+  .vn-portrait{ position:relative; z-index:2; width:230px; height:270px; object-fit:cover; border-radius:18px; }
+  .vn-mono{ position:relative; z-index:2; width:170px; height:170px; border-radius:50%; align-self:center; display:flex; align-items:center; justify-content:center; font-family:var(--ag-font-display); font-weight:700; font-size:68px; color:#fff; background:linear-gradient(135deg,rgba(127,200,124,.9),rgba(35,123,34,.85)); }
+
+  /* body grid */
+  .vn-grid{ margin:28px 0 0; padding-bottom:60px; display:grid; grid-template-columns:1fr 340px; gap:28px; align-items:start; }
+  .vn-col{ display:flex; flex-direction:column; gap:24px; min-width:0; }
+  .vn-side{ display:flex; flex-direction:column; gap:20px; position:sticky; top:88px; }
+  .vn-card{ background:var(--ag-surface,#fff); border:1px solid rgba(16,41,44,.08); border-radius:20px; padding:clamp(20px,3vw,26px); }
+
+  /* ── The celebration ──────────────────────────────────────────────────────
+     Dark, so it reads as an occasion rather than as one more card in the stack,
+     and gold rather than the site's green because this is the one moment on the
+     platform that is not about process. It appears at most twice per category
+     per cycle; it is allowed to be loud. */
+  .vn-laurel{ position:relative; overflow:hidden; background:#10292C; border-color:rgba(201,162,75,.35); color:#fff; }
+  .vn-laurel__glow{ position:absolute; inset:-40% 30% auto -10%; height:280px; border-radius:50%;
+                    background:radial-gradient(circle,rgba(201,162,75,.28),transparent 68%); pointer-events:none; }
+  .vn-laurel__head{ position:relative; }
+  .vn-laurel__badge{ display:inline-flex; align-items:center; gap:8px; background:rgba(201,162,75,.16);
+                     border:1px solid rgba(201,162,75,.42); color:#e8cf95; border-radius:999px;
+                     padding:6px 14px; font-size:12px; font-weight:600; letter-spacing:.03em; }
+  /* Two class names deep, deliberately. `.vn-card h2` is declared later in this
+     same stylesheet at equal specificity, so a plain `.vn-laurel h2` LOSES on
+     source order and the headline renders near-black on the dark card — invisible,
+     and only on the one screen that exists to be looked at. */
+  .vn-laurel .vn-laurel__head h2{ margin:14px 0 0; font-family:var(--ag-font-display); font-weight:700;
+                 color:#fff; font-size:clamp(1.5rem,4vw,2rem); letter-spacing:-.02em; line-height:1.15; }
+  .vn-laurel .vn-laurel__roll h3{ color:#e8cf95; }
+  .vn-laurel__lede{ margin:10px 0 0; font-size:15px; line-height:1.7; color:rgba(255,255,255,.78); max-width:56ch; }
+  .vn-laurel__lede strong{ color:#e8cf95; }
+  .vn-laurel__lede em{ color:#fff; font-style:italic; }
+  .vn-laurel__lede a{ color:#e8cf95; }
+  .vn-laurel__roll{ position:relative; margin-top:22px; padding-top:20px; border-top:1px solid rgba(255,255,255,.14); }
+  .vn-laurel__roll h3{ margin:0; font-size:13px; font-weight:700; letter-spacing:.12em; text-transform:uppercase; color:#e8cf95; }
+  .vn-laurel__roll p{ margin:7px 0 0; font-size:13px; line-height:1.6; color:rgba(255,255,255,.6); max-width:60ch; }
+  .vn-laurel__names{ display:flex; flex-wrap:wrap; gap:8px; margin-top:15px; }
+  .vn-laurel__name{ display:inline-flex; align-items:center; background:rgba(255,255,255,.07);
+                    border:1px solid rgba(255,255,255,.14); border-radius:999px; padding:6px 14px;
+                    font-size:13.5px; font-weight:500; color:#fff; }
+  .vn-card h2{ margin:0; font-family:var(--ag-font-display); font-weight:700; font-size:20px; color:var(--ag-ink); }
+  /* `overflow-wrap:anywhere` rather than `break-word`: break-word only breaks a
+     word that is alone on its line, so "see https://very-long-url…" still pushes
+     the box wide. `anywhere` also lets the browser count the break opportunity
+     when sizing, which is what keeps the column from growing in the first place.
+     Hyphens make the forced break read as a break rather than as a typo. */
+  .vn-card p.body{ margin:14px 0 0; font-size:15px; line-height:1.7; color:#3a4448;
+                   overflow-wrap:anywhere; hyphens:auto; }
+  /* The nomination brief, when a fuller profile bio follows it. Set apart so the
+     two read as a lead and a body rather than as one paragraph that repeats. */
+  .vn-card p.vn-lede{ font-size:16px; line-height:1.65; color:var(--ag-ink,#10292c); font-weight:500; }
+  /* The nomination story. Unclamped by default — the clamp is added by Alpine only
+     after it has measured that there is more to show, so no-JS readers get all of it
+     and a short story never gets a button that does nothing. */
+  .vn-story{ position:relative; }
+  .vn-story.is-clamped{ max-height:300px; overflow:hidden; }
+  .vn-story__fade{ position:absolute; left:0; right:0; bottom:0; height:86px; pointer-events:none;
+    background:linear-gradient(to bottom, rgba(255,255,255,0), var(--ag-surface,#fff) 86%); }
+  .vn-more{ display:inline-flex; align-items:center; gap:6px; min-height:40px; margin-top:6px;
+    background:none; border:none; padding:6px 0; cursor:pointer;
+    font:700 13.5px/1 inherit; color:var(--ag-green,#237b22); }
+  .vn-more:hover{ text-decoration:underline; }
+  .vn-more svg{ transition:transform .18s ease; }
+  /* One "Support for X" card holding the messages and the named chips — the two used
+     to be separate cards saying the same thing twice. */
+  .vn-sect{ margin-top:18px; }
+  .vn-sect--split{ padding-top:18px; border-top:1px solid rgba(16,41,44,.09); }
+  .vn-sect__h{ margin:0; font-size:14px; font-weight:700; color:var(--ag-ink,#10292c); }
+  .vn-sect__sub{ margin:8px 0 0; font-size:13px; line-height:1.6; color:#5a6d6f; }
+  .vn-sect__more{ margin:14px 0 0; font-size:13px; }
+  .vn-sect__more a{ display:inline-flex; align-items:center; min-height:40px;
+    color:#237b22; font-weight:600; text-decoration:none; }
+  .vn-sect__more a:hover{ text-decoration:underline; }
+  .vn-chips{ display:flex; flex-wrap:wrap; gap:8px; margin-top:14px; }
+  .vn-chip{ display:inline-flex; align-items:center; gap:7px; background:#f4f9f4; border:1px solid #cfe6cf;
+    border-radius:999px; padding:6px 13px 6px 7px; font-size:13px; color:#10292c; }
+  .vn-chip strong{ font-weight:600; }
+  .vn-chip__av{ width:24px; height:24px; border-radius:50%; background:#237b22; color:#fff;
+    display:inline-flex; align-items:center; justify-content:center; font-size:11px; font-weight:700; }
+  .vn-full{ margin:16px 0 0; font-size:13.5px; font-weight:600; color:var(--ag-green-dark); text-decoration:none; display:inline-flex; align-items:center; gap:6px; }
+
+  /* others in category */
+  .vn-sim{ display:flex; flex-direction:column; gap:14px; }
+  .vn-sim__row{ display:flex; align-items:center; gap:12px; text-decoration:none; }
+  .vn-sim__av{ flex:none; width:40px; height:40px; border-radius:11px; display:flex; align-items:center; justify-content:center; font-family:var(--ag-font-display); font-weight:700; font-size:17px; background-size:cover; background-position:center; }
+  .vn-sim__b{ flex:1; min-width:0; }
+  .vn-sim__n{ font-weight:600; font-size:13.5px; color:var(--ag-ink); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .vn-sim__c{ font-size:11.5px; color:#5a6d6f; }
+  .vn-sim__go{ font-size:12px; font-weight:600; color:var(--ag-green-dark); }
+
+  /* at a glance */
+
+  /* ballot card (white, clean inputs; green-accent header) */
+  .vn-ballot{ background:var(--ag-surface,#fff); border:1px solid rgba(16,41,44,.08); border-radius:20px; box-shadow:0 14px 40px -22px rgba(16,41,44,.4); overflow:hidden; }
+  .vn-ballot__top{ position:relative; overflow:hidden; background:#10292C; padding:20px 22px; }
+  .vn-ballot__orb{ position:absolute; right:-40px; top:-40px; width:150px; height:150px; border-radius:50%; background:radial-gradient(circle,rgba(127,200,124,.22),transparent 68%); }
+  .vn-ballot__k{ position:relative; margin:0; font-size:11px; font-weight:600; letter-spacing:.1em; text-transform:uppercase; color:#7FC87C; }
+  .vn-ballot__h{ position:relative; margin:6px 0 0; font-family:var(--ag-font-display); font-weight:700; font-size:20px; color:#fff; }
+  .vn-ballot__in{ padding:20px 22px; }
+  .vn-redeem{ background:linear-gradient(135deg,#0f3d1a,#10292C); border-radius:14px; padding:15px 16px; margin-bottom:16px; }
+  .vn-redeem__hd{ display:flex; flex-direction:column; gap:2px; margin-bottom:11px; }
+  .vn-redeem__hd strong{ font-size:14.5px; color:#fff; }
+  .vn-redeem__hd span{ font-size:12.5px; color:rgba(255,255,255,.78); line-height:1.45; }
+  .vn-redeem__btn{ width:100%; cursor:pointer; border:none; background:#7FC87C; color:#10292C; font-family:inherit; font-weight:700; font-size:14px; padding:11px; border-radius:999px; }
+  .vn-redeem__btn:disabled{ opacity:.55; cursor:not-allowed; }
+  .vn-redeem__err{ margin:9px 0 0; font-size:12.5px; color:#ffd24a; text-align:center; }
+  .vn-redeem__ok{ display:flex; align-items:center; justify-content:center; gap:8px; font-size:14px; font-weight:600; color:#bff0bc; padding:6px 0; }
+  .vn-redeem__or{ margin:11px 0 0; text-align:center; font-size:11px; letter-spacing:.05em; color:rgba(255,255,255,.5); text-transform:uppercase; }
+  .vn-sub{ margin:0; font-size:13.5px; line-height:1.55; color:#626a6e; }
+  .vn-sub strong{ color:var(--ag-ink); }
+  .vn-note{ font-size:12.5px; background:var(--ag-green-wash,#e7f3e6); border-radius:12px; padding:11px 14px; margin-top:14px; color:var(--ag-green-dark); }
+  .vn-note a{ color:inherit; font-weight:700; }
+  .vn-label{ display:block; font-size:12px; font-weight:600; color:#4a5256; margin:16px 0 7px; }
+  .vn-input{ width:100%; border:1px solid rgba(16,41,44,.16); border-radius:12px; padding:13px 15px; font-family:inherit; font-size:16px; color:var(--ag-ink); outline:none; transition:border-color .15s; }
+  .vn-input:focus{ border-color:var(--ag-green); }
+  .vn-input--otp{ text-align:center; font-family:var(--ag-font-mono); font-size:26px; font-weight:700; letter-spacing:.3em; padding:15px; margin-top:16px; }
+  /* The whole LABEL is the target, which is what makes a 16px box acceptable: a tap
+     anywhere on the sentence toggles it. The padding is there so the row is at least
+     a thumb tall even when the text wraps to one line, and the box keeps its 16px
+     visual size because a 40px checkbox looks like a bug. */
+  .vn-check{ display:flex; align-items:flex-start; gap:9px; margin-top:13px; cursor:pointer;
+    min-height:40px; padding:6px 0; }
+  .vn-check input{ margin-top:2px; width:16px; height:16px; accent-color:var(--ag-green);
+    /* A larger invisible hit box around the control itself, for anyone aiming at the
+       box rather than the words. */
+    padding:12px; margin-right:-12px; margin-left:-12px; }
+  .vn-check span{ font-size:12px; line-height:1.5; color:#626a6e; }
+  .vn-check a{ color:var(--ag-green); }
+  .vn-go{ width:100%; margin-top:16px; cursor:pointer; border:none; background:var(--ag-green); color:#fff; font-family:inherit; font-weight:600; font-size:15px; padding:14px; border-radius:999px; transition:background .15s; }
+  .vn-go:hover{ background:var(--ag-green-dark); }
+  .vn-go:disabled{ background:#dfe4e3; color:#5b6669; cursor:not-allowed; }
+  .vn-secure{ display:flex; align-items:center; justify-content:center; gap:7px; margin-top:13px; font-size:11.5px; color:#5a6d6f; }
+  .vn-back{ cursor:pointer; border:none; background:none; font-family:inherit; font-size:13px; font-weight:600; color:#5a6d6f; padding:0; margin-bottom:8px; }
+  .vn-err{ font-size:13px; color:#b42318; background:#fdecec; border:1px solid rgba(180,35,24,.18); border-radius:11px; padding:10px 13px; margin-top:13px; }
+  .vn-done{ text-align:center; }
+  .vn-done__ico{ width:60px; height:60px; margin:4px auto 12px; border-radius:50%; background:#effaf0; display:flex; align-items:center; justify-content:center; }
+  .vn-tally{ background:#f4f7f4; border-radius:14px; padding:14px 16px; display:flex; align-items:center; justify-content:space-between; margin:14px 0; }
+  /* ── The race block ──────────────────────────────────────────────────────
+     Deliberately quiet in colour: it sits inside the hero, and a scoreboard that
+     shouts competes with the vote button it exists to drive traffic to. */
+  .vn-race{ margin:14px 0 16px; padding:13px 15px; border-radius:14px;
+    background:rgba(255,255,255,.07); border:1px solid rgba(255,255,255,.12); }
+  .vn-race__h{ margin:0 0 9px; font-size:14.5px; font-weight:700; color:#fff; }
+  .vn-race__track{ position:relative; height:10px; border-radius:5px;
+    background:rgba(255,255,255,.16); overflow:visible; }
+  .vn-race__fill{ display:block; height:100%; border-radius:5px; background:#7FC87C;
+    /* Transitioned so a vote cast on this page visibly moves the bar rather than
+       teleporting it — the movement IS the feedback. */
+    transition:width .6s cubic-bezier(.22,.61,.36,1); }
+  @media (prefers-reduced-motion: reduce){ .vn-race__fill{ transition:none; } }
+  /* The position above, as a tick. Not a label: naming the nominee ahead turns a
+     scoreboard into a campaign against a person. */
+  .vn-race__mark{ position:absolute; top:-4px; width:2px; height:18px; background:#fbc329;
+    border-radius:1px; transform:translateX(-1px); }
+  .vn-race__facts{ list-style:none; display:flex; flex-wrap:wrap; gap:6px 14px;
+    margin:10px 0 0; padding:0; font-size:12.5px; color:rgba(255,255,255,.82); }
+  .vn-race__facts strong{ color:#fff; font-weight:700; }
+  .vn-race__hot strong{ color:#fbc329; }
+  .vn-race__cta{ margin:9px 0 0; font-size:13px; color:#fff; font-weight:600; }
+  .vn-race__fine{ margin:6px 0 0; font-size:11px; color:rgba(255,255,255,.6); }
+
+  /* ── The recovery disclosure ──────────────────────────────────────────────
+     Sits in the hero beside the number it explains, and is deliberately the ONE
+     block here that does not stay quiet: a gold hairline, because this is the
+     platform admitting it put votes on a public tally itself and a disclosure
+     styled to be skimmed past is not a disclosure. Body text is rgba(255,255,255,.9)
+     rather than the .82 the race facts use — those are decoration around a bar, this
+     is a statement somebody may need to quote back at us. */
+  .vn-rec{ margin:14px 0 16px; padding:13px 15px; border-radius:14px;
+    background:rgba(251,195,41,.10); border:1px solid rgba(251,195,41,.42); }
+  .vn-rec__h{ margin:0 0 7px; font-size:14.5px; font-weight:700; color:#fbc329; }
+  .vn-rec__b{ margin:0; font-size:13px; line-height:1.6; color:rgba(255,255,255,.9); }
+  .vn-rec__l{ list-style:none; margin:10px 0 0; padding:0;
+    font-size:12.5px; line-height:1.6; color:rgba(255,255,255,.9); }
+  .vn-rec__l li + li{ margin-top:7px; padding-top:7px; border-top:1px solid rgba(255,255,255,.12); }
+  .vn-rec__l strong{ color:#fff; font-weight:700; }
+  /* The reference is the point of printing it: a reader can name the batch that put
+     these votes here and ask us about it by that name. Monospace so it survives being
+     read aloud, copied, or written down. */
+  .vn-rec__r{ display:inline-block; margin-left:6px; font-family:var(--ag-font-mono,monospace);
+    font-size:11.5px; color:rgba(255,255,255,.72); }
+  .vn-rec__f{ margin:10px 0 0; font-size:11.5px; line-height:1.55; color:rgba(255,255,255,.72); }
+  .vn-rec__f a{ color:#fbc329; }
+
+  .vn-share{ display:flex; gap:9px; }
+  .vn-share button, .vn-share a{ flex:1; cursor:pointer; border:1px solid rgba(16,41,44,.16); background:#fff; color:var(--ag-ink); font-family:inherit; font-weight:600; font-size:13.5px; padding:11px; border-radius:999px; display:inline-flex; align-items:center; justify-content:center; gap:7px; text-decoration:none; }
+  .vn-share button:hover, .vn-share a:hover{ border-color:var(--ag-green); color:var(--ag-green); }
+  /* The wall's item styles live in partials/vote-message-assets.twig, beside the
+     markup they belong to, because the full messages page renders the same items. */
+  /* The optional message field on the ballot. */
+  .vn-msg{ margin-top:15px; padding-top:15px; border-top:1px dashed rgba(16,41,44,.14); }
+  .vn-msg textarea{ width:100%; box-sizing:border-box; margin-top:7px; font:inherit; font-size:16px; line-height:1.6; color:var(--ag-ink); background:#fff; border:1px solid rgba(16,41,44,.18); border-radius:12px; padding:11px 13px; resize:vertical; min-height:78px; }
+  .vn-msg textarea:focus{ outline:none; border-color:var(--ag-green,#237b22); box-shadow:0 0 0 3px rgba(35,123,34,.12); }
+  .vn-msg__meta{ display:flex; justify-content:space-between; gap:10px; margin-top:6px; font-size:11.5px; color:#5a6d6f; }
+  .vn-msg__meta b{ font-variant-numeric:tabular-nums; }
+  .vn-msg__over{ color:#b3261e; font-weight:700; }
+  /* min-height 40px: this is the door to the whole message feature and it measured 23px
+     tall on any width where its label fits on one line. */
+  .vn-msg__toggle{ display:inline-flex; align-items:center; gap:7px; background:none; border:none;
+    padding:6px 0; min-height:40px;
+    font:600 13px/1.4 inherit; color:var(--ag-green,#237b22); cursor:pointer; text-align:left; }
+  .vn-msg__toggle:hover{ text-decoration:underline; }
+  .vn-msg__count{ font-style:normal; font-weight:600; font-size:11px; letter-spacing:.02em;
+    background:#e8f3e7; color:#1a6118; border-radius:999px; padding:3px 8px; }
+  .vn-msg__as{ margin:8px 0 0; font-size:12px; line-height:1.6; color:#5a6d6f; }
+  .vn-msg__as strong{ color:#10292c; }
+  /* The quick-amount chips. A CLASS rather than an inline style, because the Alpine
+     `:style` binding that used to mark the selected one replaced the whole style
+     attribute and stripped every chip back to bare text — see the markup. min-height
+     40px because they measured 23px, the smallest tap target on the platform sitting
+     on its highest-intent control. */
+  .vn-qty{ border:1.5px solid rgba(16,41,44,.16); background:#fff; color:#10292c;
+    border-radius:999px; padding:7px 14px; min-height:40px; display:inline-flex;
+    align-items:center; font:700 12.5px/1 inherit; cursor:pointer;
+    transition:background .15s, color .15s, border-color .15s; }
+  .vn-qty:hover{ border-color:var(--ag-green,#237b22); color:var(--ag-green,#237b22); }
+  .vn-qty.is-on{ background:#237b22; color:#fff; border-color:transparent; }
+  /* Quantity + email. `align-items:flex-start` so the two labels start on the same
+     line even when one of them wraps — flex-end pinned the inputs and let the labels
+     drift apart, which is what made the row look broken. */
+  .vn-payrow{ display:flex; gap:10px; flex-wrap:wrap; align-items:flex-start; }
+  .vn-payrow__qty{ flex:0 0 110px; }
+  .vn-payrow__email{ flex:1; min-width:150px; }
+  @media (max-width:480px){
+    /* Stacked on a phone: side by side, the email label wraps to two lines in a
+       150px column and an address is uncomfortable to type in half a screen. */
+    .vn-payrow{ flex-direction:column; align-items:stretch; gap:4px; }
+    .vn-payrow__qty, .vn-payrow__email{ flex:1 1 auto; min-width:0; }
+  }
+  .vn-closed{ background:#fff8df; border:1px solid #f0e0b0; border-radius:14px; padding:14px 16px; font-size:13.5px; line-height:1.55; color:#7a5600; }
+  .vn-toast{ position:fixed; left:50%; bottom:32px; transform:translateX(-50%); z-index:90; background:#10292C; color:#fff; font-size:13.5px; font-weight:500; padding:13px 22px; border-radius:999px; box-shadow:0 16px 40px -12px rgba(0,0,0,.5); }
+  .vn-claimline{ margin:34px 0 8px; padding-top:20px; border-top:1px solid rgba(16,41,44,.09); font-size:13px; color:#5a6d6f; text-align:center; }
+  .vn-claimline a{ color:#237b22; font-weight:600; text-decoration:none; }
+  .vn-claimline a:hover{ text-decoration:underline; }
+
+  @media (max-width:880px){
+    .vn-grid{ grid-template-columns:1fr; gap:18px; }
+    .vn-side{ position:static; order:-1; }   /* pull the ballot above the content on mobile */
+    /* Keep the nominee's image as the hero on mobile — stacked on top, centred. */
+    .vn-hero__in{ flex-direction:column-reverse; text-align:center; padding:22px 18px 24px; gap:2px; }
+    .vn-hero__side{ width:auto; justify-content:center; margin-bottom:6px; }
+    .vn-portrait{ width:186px; height:224px; }
+    .vn-mono{ width:140px; height:140px; font-size:56px; }
+    .vn-tags, .vn-stats{ justify-content:center; }
+    .vn-cta{ width:100%; justify-content:center; }
+    .vn-btn--light{ flex:1; justify-content:center; }   /* full-width primary CTA — clearer, bigger tap target */
+  }
+  @media (max-width:520px){ .vn-stat__div{ display:none; } }
+</style>
+{% endblock %}
+
+{% block content %}
+{% set FLAGS = {'NG':'🇳🇬','GH':'🇬🇭','ZA':'🇿🇦','KE':'🇰🇪','ET':'🇪🇹','EG':'🇪🇬','MA':'🇲🇦','TZ':'🇹🇿','UG':'🇺🇬','CI':'🇨🇮','CM':'🇨🇲','SN':'🇸🇳','ML':'🇲🇱','RW':'🇷🇼','ZM':'🇿🇲','ZW':'🇿🇼','BF':'🇧🇫','NE':'🇳🇪','BW':'🇧🇼','AO':'🇦🇴','CD':'🇨🇩'} %}
+{% set CCN = {'NG':'Nigeria','GH':'Ghana','ZA':'South Africa','KE':'Kenya','ET':'Ethiopia','EG':'Egypt','MA':'Morocco','TZ':'Tanzania','UG':'Uganda','CI':"Côte d'Ivoire",'CM':'Cameroon','SN':'Senegal','ML':'Mali','RW':'Rwanda','ZM':'Zambia','ZW':'Zimbabwe','BF':'Burkina Faso','NE':'Niger','BW':'Botswana','AO':'Angola','CD':'DR Congo'} %}
+{% set AV = [['#e3f1e3','#155a13'],['#fff8df','#8a6005'],['#e2e8e9','#243034'],['#f3eef7','#5b3a8a'],['#fdeaf0','#b03a5b']] %}
+{# media_url: Cloudinary-hosted portraits come back face-cropped at the size this
+   element actually renders. A local path passes through untouched. #}
+{% set portrait = ((profile and profile.avatar_path) ? profile.avatar_path : n.photo_path)|media_url('portrait') %}
+{% set flag = FLAGS[n.country_code]|default('🌍') %}
+{% set ctry = CCN[n.country_code]|default(n.country_code) %}
+{% set firstName = n.name|split(' ')|first %}
+
+<div class="vn" x-data="voteNominee()">
+
+  <nav class="vn-crumb" aria-label="Breadcrumb">
+    <a href="/vote">Vote</a> · <a href="/vote/{{ n.programme_slug }}">{{ n.programme_title }}</a> · <span>{{ n.category }}</span> · <b>{{ n.name }}</b>
+  </nav>
+
+  {# ── Hero ── #}
+  <header class="vn-hero">
+    <div class="vn-hero__orb" aria-hidden="true"></div>
+    <div class="vn-hero__in">
+      <div class="vn-hero__main">
+        <div class="vn-tags">
+          {% if rank %}<span class="vn-rankpill">#{{ rank }}{% if cat_count %} of {{ cat_count }}{% endif %} in category</span>{% endif %}
+          {% if profile and profile.cpi_tier and profile.cpi_tier != 'unranked' %}<span class="vn-badge"><svg width="12" height="12" viewBox="0 0 24 24" fill="#fbc329" aria-hidden="true"><path d="m12 2 2.6 6.6L21 9.2l-5 4.3L17.6 21 12 17.3 6.4 21 8 13.5l-5-4.3 6.4-.6L12 2Z"/></svg>{{ profile.cpi_tier|capitalize }}</span>{% endif %}
+        </div>
+        <h1>{{ n.name }}</h1>
+        <p class="vn-meta">{{ flag }} {{ ctry }} · {{ n.category }}{% if n.programme_title %} · {{ n.programme_title }}{% endif %}</p>
+        {# School / organisation. Collected on the nomination form and dropped at
+           approval until now, so it existed in the database and appeared nowhere a
+           supporter could see it. `default` because the column is optional until every
+           deployment has migrated — see VoteController::nominee(). #}
+        {% if n.organisation|default('') %}
+        <p class="vn-meta" style="display:flex;align-items:center;gap:6px;margin-top:2px">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M3 21h18"/><path d="M5 21V7l7-4 7 4v14"/><path d="M9 21v-6h6v6"/></svg>
+          {{ n.organisation }}
+        </p>
+        {% endif %}
+        {# NO BRIEF HERE. It is rendered in full in the "About" card below, and
+           printing it twice made the hero carry a paragraph the reader then met
+           again forty pixels later — which reads as a mistake even when it is
+           deliberate, and pushed the vote count and the CTA down the page on a
+           phone. The hero's job is who this is and where they stand; the case
+           for them belongs where there is room to make it. #}
+        <div class="vn-stats">
+          {% if profile and profile.cpi_score %}
+          <div><div class="vn-stat__n g">{{ profile.cpi_score }}</div><div class="vn-stat__l">CPI · of 1000</div></div>
+          <div class="vn-stat__div" aria-hidden="true"></div>
+          {% endif %}
+          <div><div class="vn-stat__n" x-text="votes.toLocaleString()">{{ n.vote_count }}</div><div class="vn-stat__l">Votes</div></div>
+          {% if rank %}<div class="vn-stat__div" aria-hidden="true"></div><div><div class="vn-stat__n">#{{ rank }}</div><div class="vn-stat__l">In {{ n.category }}</div></div>{% endif %}
+        </div>
+
+        {#
+          ── THE OTHER HALF OF "VOTES" ────────────────────────────────────────
+
+          The figure above is the full public tally: free votes, votes bought in a pack,
+          and votes awarded as a bonus against a contribution, added together. The award's
+          result page prints only the organic subset, because that is the only part the
+          index reads — so this nominee carried two different vote numbers on two pages of
+          one platform, and neither page said why.
+
+          A reader who notices that does not go looking for a methodology; they conclude
+          the number was revised down where the award was decided. The distinction was
+          documented on /integrity, which is an FAQ two clicks from here. Being written
+          down elsewhere is not the same as being stated where the number is.
+
+          Drawn only when the two actually differ. On a nominee nobody has bought a vote
+          for, a line explaining that none were bought is noise on the page that is trying
+          to get somebody to vote.
+
+          `is defined` guards the column: it is selected optionally, because this is the
+          ballot and a bare column name on an un-migrated deployment takes the whole page
+          down rather than one line of it.
+        #}
+        {#
+          AND ONE MORE CONDITION, WHICH IS THE BALLOT THIS SITE ACTUALLY RUNS.
+
+          `paid_free_disabled` means the free path answers 403: a contribution is the only
+          way to vote here. The sentence below distinguishes the free part of a tally from
+          the bought part, which is the right thing to say where somebody had a choice —
+          and where they did not, it tells a visitor that this nominee's support was bought
+          while every other nominee's was too, and while the reader's own vote is about to
+          be. It reads as an allegation and describes a decision nobody made.
+        #}
+        {% if paid_free_disabled %}
+          <p class="vn-vsplit">Voting here is by contribution — free voting is not open on
+            this programme, so every vote on this ballot, including the one you are about to
+            cast, was paid for. Each counts the same toward this nominee’s Cultural Power
+            Index. <a href="/integrity">How the index works</a>.</p>
+        {% elseif n.organic_vote_count is defined and n.organic_vote_count is not null
+              and n.vote_count > n.organic_vote_count %}
+          <p class="vn-vsplit">{{ n.organic_vote_count|number_format }} of those are organic —
+            free, one per verified person — and the rest were bought or awarded against a
+            contribution. Every one of them counts the same toward this nominee’s Cultural
+            Power Index; the split is published so you can see what their support is made
+            of. <a href="/integrity">How the index works</a>.</p>
+        {% endif %}
+
+        {# ── WHAT WE PUT ON THIS TALLY OURSELVES ─────────────────────────────
+           When a vote code fails to send, the platform records its own failure and
+           that person's vote never exists. Recovery mints it for them after the
+           ballot closes — derived from our delivery log, never from a list anybody
+           typed, approved by a second person, capped, and reversible.
+
+           This block is that mechanism's strongest control, and the reason is worth
+           keeping: the approvals bind the people who happen to be in the room, and
+           publication binds everybody afterwards. It is beside the number it changed
+           because that is where the question is actually asked.
+
+           Omitted entirely at zero. A permanent "0 recovered votes" would be noise on
+           every page on the site in order to be honest about none of them. #}
+        {% if recovered.total > 0 %}
+        <div class="vn-rec" role="note" aria-labelledby="vnRecH">
+          <p class="vn-rec__h" id="vnRecH">
+            {{ recovered.total|number_format }} of these vote{{ recovered.total == 1 ? '' : 's' }}
+            {{ recovered.total == 1 ? 'was' : 'were' }} added by us
+          </p>
+          <p class="vn-rec__b">
+            {{ recovered.total == 1 ? 'One person' : recovered.total|number_format ~ ' people' }} came to this
+            ballot, chose {{ firstName }}, and never received the code we owed them — because our own
+            sending failed, which we recorded at the time. After voting closed we put those votes on
+            the tally rather than leave a result we had quietly distorted.
+          </p>
+          <ul class="vn-rec__l">
+            {% for b in recovered.batches %}
+              <li>
+                <strong>{{ b.votes|number_format }}</strong> from {{ b.window }} —
+                {{ b.incident }}
+                <span class="vn-rec__r">{{ b.reference }}</span>
+              </li>
+            {% endfor %}
+          </ul>
+          <p class="vn-rec__f">
+            Each one is an ordinary vote from a real request we can point at, and each can be taken
+            back off. <a href="/integrity">How this is controlled</a>.
+          </p>
+        </div>
+        {% endif %}
+
+        {# ── The race ────────────────────────────────────────────────────────
+           A vote total answers no question a supporter has. This block answers
+           three: where does this nominee stand, how close is it, and did the last
+           push work. Everything is real (StandingsService) — where a figure is not
+           measurable the element is omitted, never zeroed, because "0 votes in 24
+           hours" printed as a measurement is an argument against voting.
+           Rendered server-side so it is present with no JavaScript; the Alpine
+           counter above it only animates the total after a vote. #}
+        {% if standing.field >= 2 %}
+        <div class="vn-race" role="group" aria-labelledby="vnRaceH">
+          <p class="vn-race__h" id="vnRaceH">{{ standing_headline }}</p>
+
+          {# The bar is the whole point of the block: a share of the leader's total is
+             instantly legible in a way "412 votes" is not. role=img with a full label
+             because a bar conveys nothing to a screen reader on its own. #}
+          <div class="vn-race__track" role="img"
+               aria-label="{{ standing.votes|number_format }} votes — {{ standing.progress_pct }}% of the leader's total, position {{ standing.rank }} of {{ standing.field }}">
+            <span class="vn-race__fill" style="width:{{ standing.progress_pct }}%"></span>
+            {% if standing.gap_ahead is not null and standing.gap_ahead > 0 and not standing.is_leader %}
+              {# A marker for the position above, so the gap is spatial and not only a
+                 number. Placed by the leader-relative share, same scale as the fill. #}
+              <span class="vn-race__mark" aria-hidden="true"
+                    style="left:{{ ((standing.votes + standing.gap_ahead) / (standing.leader_votes ?: 1) * 100)|round }}%"></span>
+            {% endif %}
+          </div>
+
+          {# The headline above already states the gap and the position, so this row
+             carries only what it does NOT say. Repeating "1 from #191" underneath
+             "#192 of 379 — 1 vote from #191" wastes the one line of space that could
+             have shown momentum. #}
+          <ul class="vn-race__facts">
+            <li><strong>{{ standing.votes|number_format }}</strong> vote{{ standing.votes == 1 ? '' : 's' }}</li>
+            {% if standing.is_leader and standing.gap_behind %}
+              <li><strong>{{ standing.gap_behind }}</strong> clear of #2</li>
+            {% endif %}
+            {% if standing.momentum_available and standing.momentum_24h > 0 %}
+              <li class="vn-race__hot"><strong>{{ standing.momentum_24h }}</strong> in the last 24h</li>
+            {% endif %}
+            {# Only when it is actually notable. "Top 51%" reads as praise for a median
+               position and devalues every other figure beside it. #}
+            {% if standing.top_notable %}<li>Top <strong>{{ standing.top_pct }}%</strong> of the field</li>{% endif %}
+          </ul>
+
+          <p class="vn-race__cta">{{ standing_cta }}</p>
+          {# The rank is not the result, and a nominee screenshotting this needs to
+             know that. 55% of the CPI is an independent jury. #}
+          <p class="vn-race__fine">Public votes are one part of the score — an independent jury decides the award.</p>
+        </div>
+        {% endif %}
+
+        <div class="vn-cta">
+          <a class="vn-btn vn-btn--light" href="#vn-ballot">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.6l-1-1a5.5 5.5 0 0 0-7.8 7.8l1 1L12 21l7.8-7.6 1-1a5.5 5.5 0 0 0 0-7.8Z"/></svg>
+            Vote for {{ firstName }}
+          </a>
+          {# A real link, not a script action: the flier page works with no JavaScript
+             and is the single most useful thing a nominee can take away from here. #}
+          <a class="vn-btn vn-btn--ghost" href="{{ flier_url }}">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 8h8M8 12h8M8 16h5"/></svg>
+            Get a flier
+          </a>
+          <button type="button" class="vn-btn vn-btn--ghost vn-btn--icon" @click="share()" aria-label="Share">
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="m8.6 13.5 6.8 4M15.4 6.5l-6.8 4"/></svg>
+          </button>
+        </div>
+      </div>
+
+      <div class="vn-hero__side">
+        <div class="vn-hero__glow" aria-hidden="true"></div>
+        {% if portrait %}
+          <img class="vn-portrait" src="{{ portrait }}" alt="{{ n.name }}">
+        {% else %}
+          <div class="vn-mono" aria-hidden="true">{{ n.name|slice(0,1)|upper }}</div>
+        {% endif %}
+      </div>
+    </div>
+  </header>
+
+  {# ── Body grid ── #}
+  <div class="vn-grid">
+    <div class="vn-col">
+      {% if (profile and profile.bio) or n.story|default('') or n.tagline %}
+      <section class="vn-card">
+        <h2>Why {{ firstName }} is nominated</h2>
+        {# The nomination brief is the ONE place a nominee's case is stated in
+           their nominator's words, and it used to vanish entirely whenever a
+           registry profile existed — the bio replaced it rather than joining it.
+           Now the brief leads and the fuller profile bio follows, and when the
+           two are the same text only one of them prints.
+
+           ── AND IT IS NO LONGER 200 CHARACTERS ──────────────────────────────
+           `tagline` is a SUMMARY: approval derives it from the story's first
+           sentence for use on cards, fliers and leaderboard rows. `story` is the
+           nominator's full text. This prints the story when there is one and falls
+           back to the tagline for nominees approved before the column existed, so
+           an un-backfilled row still shows what it always did rather than nothing. #}
+        {% set _story = n.story|default('')|trim %}
+        {% set _brief = n.tagline|default('')|trim %}
+        {% set _case  = _story ?: _brief %}
+        {% set _bio   = (profile and profile.bio) ? profile.bio|trim : '' %}
+
+        {# ── FULL TEXT IN THE HTML, CLAMPED ONLY IF JAVASCRIPT SAYS SO ────────
+           The whole story is always in the markup: a crawler indexes it, a reader with
+           no JavaScript reads all of it, and nothing waits on a request. `long` is
+           measured from the RENDERED height inside $nextTick — after Alpine has
+           registered $refs and the browser has laid the text out — and the clamp class
+           only appears once that measurement says it is needed, so the clamp and the
+           button arrive together and short stories are never given a pointless button.
+
+           If Alpine never boots, nothing is clamped and everything is readable. That
+           is the opposite of the previous behaviour, where the text was already gone
+           before the page was rendered. #}
+        {% if _case or _bio %}
+        <div x-data="{ open:false, long:false }" x-init="$nextTick(() => { long = $refs.story.scrollHeight > 300 })">
+          <div class="vn-story" x-ref="story" :class="long && !open ? 'is-clamped' : ''">
+            {% if _case and _case != _bio %}<p class="body vn-lede">{{ _case|nl2br }}</p>{% endif %}
+            {% if _bio %}<p class="body">{{ _bio|nl2br }}</p>{% endif %}
+            <span class="vn-story__fade" x-show="long && !open" x-cloak aria-hidden="true"></span>
+          </div>
+          <button type="button" class="vn-more" x-show="long" x-cloak
+                  @click="open = !open" :aria-expanded="open ? 'true' : 'false'">
+            <span x-text="open ? 'Show less' : 'Read the full nomination'">Read the full nomination</span>
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"
+                 stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"
+                 :style="open ? 'transform:rotate(180deg)' : ''"><path d="m6 9 6 6 6-6"/></svg>
+          </button>
+        </div>
+        {% endif %}
+
+        {% if profile and profile.slug %}<a class="vn-full" href="/registry/{{ profile.slug }}">View full profile <svg width="14" height="14" viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M7.5 4.5 13 10 7.5 15.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></a>{% endif %}
+      </section>
+      {% endif %}
+
+      {# ── The celebration ────────────────────────────────────────────────────
+         Present only for a nominee the standings actually promoted. It leads with
+         the SUPPORTERS rather than with the trophy on purpose: the winner already
+         has a congratulations email and a leaderboard entry, and the several
+         hundred people who decided the community half of that result had, until
+         this block existed, nothing anywhere with their names on it.
+
+         `roll_of_honour` is the same consented list the wall below uses — one
+         reader, one consent rule — just more of it. Nobody appears here who did
+         not tick the box. #}
+      {% if award_kind|default('') %}
+      <section class="vn-card vn-laurel" data-ag-reveal="lg">
+        <div class="vn-laurel__glow" aria-hidden="true"></div>
+        <div class="vn-laurel__head">
+          <span class="vn-laurel__badge">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 3h12v5a6 6 0 0 1-12 0z"/><path d="M6 5H4a2 2 0 0 0 2 2M18 5h2a2 2 0 0 1-2 2"/><path d="M12 14v4M9 21h6"/></svg>
+            {{ award_kind == 'winner' ? 'Winner' : 'Runner-up' }} · {{ n.category }}
+          </span>
+          <h2>{{ award_kind == 'winner' ? n.name ~ ' won.' : n.name ~ ' placed.' }}</h2>
+          {% if backer_count|default(0) > 0 %}
+            <p class="vn-laurel__lede">And <strong data-ag-count>{{ backer_count|number_format }}</strong>
+               {{ backer_count == 1 ? 'person' : 'people' }} put {{ firstName }} there. The community half of
+               the score is the part they decided — that is not a footnote to the result, it <em>is</em> the
+               result.</p>
+          {% else %}
+            <p class="vn-laurel__lede">The full standings, and the working behind them, are on the
+               <a href="/leaderboard">leaderboard</a>.</p>
+          {% endif %}
+        </div>
+
+        {% if roll_of_honour|default([])|length %}
+          <div class="vn-laurel__roll">
+            <h3>Roll of honour</h3>
+            <p>The supporters who asked to be named. Everyone else counted exactly the same and stays private.</p>
+            <div class="vn-laurel__names" data-ag-cascade="sm">
+              {% for s in roll_of_honour %}
+                <span class="vn-laurel__name">{{ s.name }}</span>
+              {% endfor %}
+            </div>
+          </div>
+        {% endif %}
+      </section>
+      {% endif %}
+
+      {# ── ONE CARD FOR THE CROWD ─────────────────────────────────────────────
+         This was TWO cards — "Supporters of X" and "What voters are saying about X" —
+         stacked one above the other, saying the same thing twice in two different
+         registers and pushing the rest of the page down. They are one section now,
+         which is a declutter and also the truer shape: the messages ARE what the
+         supporters said, and the named chips are the same crowd with faces on.
+
+         The messages lead because they are the substance; the names follow as a
+         footer. Each half still appears only when it has content, so a nominee with
+         messages and no named supporters gets no empty half — and a nominee with
+         neither gets no card at all. An empty "no supporters yet" panel on a real
+         person's page reads as a verdict on them; consent defaults to off and every
+         vote cast before the field existed is private, so absence means "not asked
+         yet", never "not supported". #}
+      {% if messages|default([])|length or supporters|default([])|length %}
+      <section class="vn-card">
+        <h2>Support for {{ firstName }}</h2>
+
+        {% if messages|default([])|length %}
+        <p class="vn-sect__sub">
+          {{ message_count }} {{ message_count == 1 ? 'message' : 'messages' }} from verified voters,
+          checked before publication. A name appears only where its owner asked for it.
+        </p>
+        {# The item markup lives in ONE partial, shared with the full messages page and
+           with a message's own permalink, so the cheer and report controls cannot exist
+           in one place and not the other. #}
+        <ul class="vmi-list" data-ag-cascade="sm">
+          {% for m in messages %}{% include 'partials/vote-message.twig' with { m: m } only %}{% endfor %}
+        </ul>
+        {% include 'partials/vote-message-assets.twig' %}
+        {% if message_count > messages|length %}
+        {# A LINK, not a "load more" button. Everything past the first page would
+           otherwise be invisible to crawlers and to anyone without JavaScript, the wall
+           would need a second renderer, and "all the messages about me" — a thing a
+           nominee sends to their family — would have no URL of its own. #}
+        <p class="vn-sect__more">
+          <a href="{{ messages_url }}">Read all {{ message_count }} messages →</a>
+        </p>
+        {% endif %}
+        {% endif %}
+
+        {% if supporters|default([])|length %}
+        <div class="vn-sect{{ messages|default([])|length ? ' vn-sect--split' : '' }}">
+          <h3 class="vn-sect__h">Named supporters</h3>
+          <p class="vn-sect__sub">These supporters asked to be named. Votes from everyone else count exactly the same and stay private.</p>
+          <div class="vn-chips" data-ag-cascade="sm">
+            {% for s in supporters %}
+            <span class="vn-chip">
+              <span class="vn-chip__av" aria-hidden="true">{{ s.name|slice(0,1)|upper }}</span>
+              <strong>{{ s.name }}</strong>
+            </span>
+            {% endfor %}
+            {# No per-supporter vote numbers, deliberately. The list is RANKED by
+               contribution, but printing each person's total turns a thank-you into a
+               table of who spent most — it invites exactly the escalation this platform
+               should not encourage, and it discloses one person's spending to every
+               reader. The ranking is the useful part; the figure behind it is nobody's
+               business. #}
+          </div>
+          {# "and 40 more" used to lead NOWHERE. Every one of those people ticked a box
+             asking to be named in public, so the phrase is a link now. #}
+          {% if supporter_count > supporters|length %}
+          <p class="vn-sect__more">
+            <a href="{{ supporters_url }}">See all {{ supporter_count }} named supporters →</a>
+          </p>
+          {% elseif supporters_more|default('') %}
+          <p class="vn-sect__more"><a href="{{ supporters_url }}">{{ supporters_more }} →</a></p>
+          {% endif %}
+        </div>
+        {% endif %}
+      </section>
+      {% endif %}
+
+      {% if others|length %}
+      <section class="vn-card">
+        <h2>Others in {{ n.category }}</h2>
+        <div class="vn-sim" style="margin-top:16px">
+          {% for o in others %}
+          {% set oav = AV[loop.index0 % AV|length] %}
+          <a class="vn-sim__row" href="/vote/{{ nominee.programme_slug }}/{{ o.id }}-{{ o.name|lower|replace({' ':'-'}) }}">
+            <span class="vn-sim__av" style="{% if o.photo_path %}background-image:url('{{ o.photo_path|media_url('avatar') }}'){% else %}background:{{ oav[0] }};color:{{ oav[1] }}{% endif %}">{% if not o.photo_path %}{{ o.name|slice(0,1)|upper }}{% endif %}</span>
+            <span class="vn-sim__b">
+              <span class="vn-sim__n">{{ FLAGS[o.country_code]|default('🌍') }} {{ o.name }}</span>
+              <span class="vn-sim__c">{{ o.vote_count|number_format }} votes</span>
+            </span>
+            <span class="vn-sim__go">Vote</span>
+          </a>
+          {% endfor %}
+        </div>
+      </section>
+      {% endif %}
+
+      {# ── "AT A GLANCE" HAS BEEN REMOVED ─────────────────────────────────────
+         It listed Country, School / organisation, Programme, Category, Current rank
+         and Votes — and every one of those is already on this page, most of them
+         twice: the breadcrumb carries programme and category, the hero carries the
+         rank pill, the name, "country · category · programme", the organisation line
+         and the live vote count. It was a table restating the top of the page at the
+         bottom of it, and on a phone it was another screen of scrolling between the
+         reader and the ballot.
+
+         Region was the one fact unique to it, and it is a coarse label ("west") that
+         the country already implies. #}
+    </div>
+
+    {# ── Ballot — primary action; pulled above the content on mobile via order ── #}
+    <aside class="vn-side">
+    <div class="vn-ballot" id="vn-ballot">
+        <div class="vn-ballot__top">
+          <div class="vn-ballot__orb" aria-hidden="true"></div>
+          <p class="vn-ballot__k">{{ phase.label|default(voting_open ? 'Voting open' : 'Voting') }}</p>
+          <p class="vn-ballot__h">Back {{ firstName }}</p>
+          {# ── THE DEADLINE, TICKING IN THE LAST HOURS ──────────────────────
+             This was a static date, on the reasoning that a ticking element has
+             nothing to re-announce to assistive tech. The concern was right and
+             the conclusion was one step too far: the shared partial already
+             resolves it — the digits are aria-hidden and the group's accessible
+             label is the absolute deadline, so a screen reader gets the fixed
+             date and nothing that changes every second.
+
+             So this page — the one where the vote is actually cast, and the one
+             a "closing soon" share link lands on — gets the same escalation the
+             /vote hub already had: a quiet line while the deadline is far off, a
+             live clock inside the 48 hours `closing_soon` marks server-side.
+
+             The remaining seconds come from the SERVER. A phone with a wrong
+             clock, common on cheap Android after a flat battery, would otherwise
+             be shown a confident wrong answer about when its vote stops
+             counting — on the page where that answer decides whether somebody
+             bothers. See partials/vote-countdown.twig. #}
+          {% if voting_open %}
+            {% include 'partials/vote-countdown.twig' with { phase: phase, variant: 'dark' } only %}
+          {% endif %}
+        </div>
+        <div class="vn-ballot__in">
+          {% if paid_notice %}
+          {# PaidVoteController bounces back here with a ?paid= reason on every
+             refusal. Nothing rendered them, so a supporter turned away — often
+             because voting had CLOSED — landed on an unchanged page with no
+             explanation and their form values gone. role=alert because this is
+             the outcome of an action the user just took. #}
+          <div class="vn-err" role="alert" style="margin:0 0 14px">{{ paid_notice }}</div>
+          {% endif %}
+          {% if not voting_open %}
+            {# A real state per phase, from the view-model — not one message for
+               "closed", "not open yet" and "archived" alike. #}
+            <div class="vn-closed">
+              <strong style="display:block;margin-bottom:3px">{{ phase.label|default('Voting is closed') }}</strong>
+              {{ phase.detail|default('Follow the leaderboard — we’ll announce when it opens.') }}
+            </div>
+            <a class="vn-go" href="/leaderboard" style="display:block;text-align:center;text-decoration:none;margin-top:14px">See the leaderboard</a>
+            <a href="/vote/{{ nominee.programme_slug }}" style="display:block;text-align:center;margin-top:11px;font-size:13px;font-weight:600;color:#5a6d6f;text-decoration:none">← All {{ nominee.programme_title }} nominees</a>
+          {% else %}
+            {% if can_redeem %}
+            <div class="vn-redeem" x-data="{ busy:false, done:false, msg:'', bal:{{ member_points }} }">
+              <div x-show="!done">
+                <div class="vn-redeem__hd"><strong x-text="'You have ' + bal.toLocaleString() + ' points'"></strong><span>Redeem {{ points_per_vote|number_format }} to instantly add a vote for {{ firstName }}.</span></div>
+                <button type="button" class="vn-redeem__btn" :disabled="busy || bal < {{ points_per_vote }}"
+                  @click="busy=true;msg='';fetch('/account/redeem',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded','X-CSRF-Token':(document.querySelector('meta[name=csrf-token]')||{}).content||''},body:new URLSearchParams({nominee_id:{{ nominee.id }}})}).then(r=>r.json()).then(d=>{busy=false;if(d.ok){done=true;msg=d.message;bal=d.new_balance;try{localStorage.setItem('afg_voted_prog_{{ nominee.programme_id }}',String(Date.now()));}catch(e){}}else{msg=d.message||'Could not redeem right now.';}}).catch(()=>{busy=false;msg='Network error. Please try again.';})"
+                  x-text="busy ? 'Redeeming…' : 'Redeem points to vote'"></button>
+                <p class="vn-redeem__err" x-show="msg" x-cloak x-text="msg"></p>
+              </div>
+              <div class="vn-redeem__ok" x-show="done" x-cloak><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#7FC87C" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg> <span x-text="msg"></span></div>
+              <p class="vn-redeem__or">— or vote free with email verification —</p>
+            </div>
+            {% elseif member_logged_in and points_enabled %}
+            <div class="vn-note"><strong>Members:</strong> you have {{ member_points|number_format }} points — {{ points_per_vote|number_format }} earns a vote. <a href="/shop">Earn more →</a></div>
+            {% endif %}
+            {% if paid_voting and pay_providers is not empty %}
+            {# ── Paid voting (admin-enabled): leads the ballot ── #}
+            {# `paid_retry` carries a bounced checkout's own values back (session flash,
+               never the query string — the email must not reach an access log). On a
+               normal visit it is empty and the form opens at its defaults. #}
+            {# THE LADDER IS SENT WHOLE, NOT AS PRE-PRICED BUTTONS.
+
+               `tiers` is the same list PaidVoteService::price() charges from, so the
+               figure under the buyer's finger and the figure on the gateway page come
+               from one rule. Pricing in the browser from a set of look-up totals would
+               have covered the chips and left a hand-typed 17 with no price at all —
+               and the previous version's two-rule "cheaper of per-vote or bundle" maths
+               was reimplemented here in JavaScript, a second copy that could drift from
+               the PHP and quietly quote a total the checkout would not honour.
+
+               The server still prices the order. Nothing here is trusted. #}
+            <section aria-labelledby="pv-h" x-data="{
+                qty: {{ paid_retry.qty|default(0) > 0 ? paid_retry.qty : 1 }},
+                per: {{ vote_price }},
+                {# NOT |raw. json_encode emits double quotes, and this is inside a
+                   double-quoted HTML attribute — raw output ends the attribute at the
+                   first key and Alpine is handed a syntax error instead of a ladder.
+                   Twig's autoescape turns them into &quot;, which the HTML parser hands
+                   back to Alpine as the JSON that was meant. #}
+                tiers: {{ vote_tiers|json_encode }},
+                {# `off()` still PRICES the order — the ladder is live, it is simply
+                   never named on the page. `saving()` and `next()` were deleted with
+                   the discount line rather than left unused: a helper that exists only
+                   to phrase an offer is how that offer gets put back by accident. #}
+                off(){ let o=0; for (const t of this.tiers) if (this.q() >= t.qty) o = t.off; return o },
+                q(){ return Math.max(1, Math.min({{ max_qty }}, this.qty|0)) },
+                gross(){ return this.q() * this.per },
+                cost(){ return Math.max(100, Math.ceil(this.gross() * (100 - this.off()) / 100)) } }"
+              style="background:#f4f9f4;border:1.5px solid #cfe6cf;border-radius:16px;padding:16px 18px;margin:0 0 16px">
+              <h3 id="pv-h" style="margin:0 0 4px;font-size:15.5px;color:#10292c">Support {{ firstName }}</h3>
+              {# NO DISCOUNT IS ADVERTISED ANYWHERE ON THIS PAGE.
+                 The ladder still PRICES the order — `cost()` below applies it, and the
+                 server recomputes the same figure — but the percentage is never named,
+                 no "save up to N%" is promised and no next tier is dangled. A buyer
+                 sees a quantity and the price of that quantity. #}
+              <p style="margin:0 0 12px;font-size:13px;color:#5a6d6f;line-height:1.5">A contribution of ₦{{ vote_price|number_format }} adds one vote to {{ firstName }}'s public tally and helps fund the programme. It does not affect the jury score or the Cultural Power Index.{% if max_qty > 1000 %} Up to {{ max_qty|number_format }} in one contribution.{% endif %} <a href="/integrity#money" style="color:#177015">How this works</a> &middot; <a href="/philosophy" style="color:#177015">why voting is paid</a>.</p>
+              <form method="POST" action="/vote/paid/start">
+                <input type="hidden" name="_token" value="{{ csrf_token }}">
+                <input type="hidden" name="nominee_id" value="{{ nominee.id }}">
+                {# Quick amounts, straight off the admin's ladder and filtered to what one
+                   order can actually carry — an offered button the checkout would refuse
+                   is worse than no button. #}
+                <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px" role="group" aria-label="Quick amounts">
+                  {% for t in vote_tiers|filter(t => t.qty <= max_qty) %}
+                  {# ── :class, NOT :style ──────────────────────────────────────
+                     These carried a static `style` attribute AND an Alpine
+                     `:style` binding, and Alpine's :style with a string value
+                     REPLACES the style attribute wholesale. So the moment Alpine
+                     booted, every chip lost its border, its radius, its padding
+                     and its font weight — 23px of bare text with a green blob on
+                     the selected one. It looked like a broken page, on the control
+                     most buyers use to choose what they are about to pay for.
+
+                     A class cannot do that: :class adds and removes, it does not
+                     overwrite what the stylesheet already said. #}
+                  <button type="button" class="vn-qty" @click="qty={{ t.qty }}"
+                          :aria-pressed="qty==={{ t.qty }}"
+                          :class="qty==={{ t.qty }} && 'is-on'">{{ t.qty }} vote{{ t.qty == 1 ? '' : 's' }}</button>
+                  {% endfor %}
+                </div>
+                {# CLASSES, not inline flex. The two fields sat side by side at every width
+                   with `align-items:flex-end`, and "Your email (for the receipt)" wraps to
+                   two lines in a 150px column while "Votes" does not — so the labels sat
+                   at different heights and the row read as broken. Below 480px they stack,
+                   which also gives an email address the full width it wants on a phone. #}
+                <div class="vn-payrow">
+                  <div class="vn-payrow__qty">
+                    <label class="vn-label" for="pvQty">Votes</label>
+                    {# max from the server, not a literal 1000 — PaidVoteService::maxQtyForOrder()
+                       is the one authority, and the checkout rejects against the same value. #}
+                    <input id="pvQty" name="qty" class="vn-input" type="number" min="1" max="{{ max_qty }}" x-model.number="qty" required>
+                  </div>
+                  <div class="vn-payrow__email">
+                    <label class="vn-label" for="pvEmail">Your email <span style="font-weight:400;color:#5a6d6f">(for the receipt)</span></label>
+                    <input id="pvEmail" name="email" class="vn-input" type="email" required autocomplete="email" placeholder="you@email.com" value="{{ paid_retry.email|default('') ?: (member ? member.email : '') }}">
+                  </div>
+                </div>
+                {# THE FIELD IS THE CONSENT — no checkbox.
+
+                   This name is OPTIONAL and it has exactly one purpose, so a separate
+                   "and show it publicly?" tickbox asked the same question twice: fill in
+                   the box if you want to be named, leave it empty to stay anonymous. What
+                   the old label got wrong was never the absence of a checkbox, it was that
+                   "Shown as the supporter name" named no audience — a buyer could read it
+                   as the name on their receipt, and several plainly did. So the microcopy
+                   states the audience and the alternative, and typing a name means what it
+                   says it means.
+
+                   This is why the consent still needed a COLUMN. Existing orders have a
+                   name typed under the old, ambiguous label; inferring consent from a
+                   non-empty name would publish all of them retroactively. `show_name`
+                   defaults to 0, so only orders placed from here on can carry a yes. #}
+                {# The name and the message share one Alpine scope, because the message's
+                   byline preview has to reflect the name as it is typed. `pvName` is
+                   seeded from the SAME Twig expression the input's value uses — x-model
+                   overwrites the DOM value on init, so seeding it from anything else
+                   would silently discard a bounced checkout's remembered name. #}
+                {# `|e('html_attr')` on the JSON, NOT |raw. json_encode emits DOUBLE quotes,
+                   so `|raw` inside a double-quoted attribute closes the attribute at the
+                   first one — with an empty name that is `x-data="{ pvName: ""` and Alpine
+                   reports `Unexpected token '}'`, which is what happened. html_attr
+                   escaping lets the HTML parser hand Alpine the real string back, and it
+                   survives a name containing a quote or an apostrophe either way. #}
+                <div style="margin-top:10px"
+                     x-data="{ pvName: {{ (paid_retry.name|default('') ?: (member ? member.name : ''))|json_encode|e('html_attr') }}, pvMsg: '' }">
+                  <label class="vn-label" for="pvName">Your name <span style="font-weight:400;color:#5a6d6f">(optional)</span></label>
+                  {# NO autocomplete here, deliberately, and it is the one field on this form
+                     that must not have it. Per the note above, THE FIELD IS THE CONSENT: an
+                     empty box means "publish nothing". A browser that helpfully autofilled a
+                     saved name would opt somebody into a public supporters list without them
+                     choosing it, and the pre-filled value would submit unnoticed. The email
+                     beside it is tagged, because nothing is published from it. #}
+                  <input id="pvName" name="name" class="vn-input" type="text" autocomplete="off" placeholder="e.g. Amara Okonkwo" x-model="pvName">
+                  <p style="margin:5px 0 0;font-size:11.5px;color:#5a6d6f;line-height:1.5">Shown on {{ firstName }}’s public supporters list and on your receipt. <strong>Leave it blank to give anonymously</strong> — your vote counts exactly the same. Only the name is ever published: never your email, your phone or the amount. <a href="/privacy#supporters" style="color:var(--ag-green,#237b22);font-weight:600">How we handle voter names</a></p>
+
+                {# ── SAY SOMETHING, ON THE PAID FORM TOO ─────────────────────────
+                   This was originally only on the free ballot, and on a paid-only
+                   deployment — `paid_voting_disable_free`, which is a real setting
+                   several programmes run — the whole free block is hidden, so the
+                   message box did not exist anywhere before payment. The only way to
+                   leave one was to pay first and find the box on the receipt page,
+                   which nobody would ever discover.
+
+                   WHAT HAPPENS TO IT, AND WHY NOTHING IS STORED YET. The text is put
+                   in the SESSION alongside the checkout reference, not written to the
+                   database — because a message stored before the gateway confirms is
+                   an open door: start a checkout, abandon it, and the words are
+                   already on a real person's page. PaidVoteController stores it only
+                   after the payment is verified, and the receipt page still carries
+                   the box for anyone whose session did not survive the round trip.
+                   See PaidVoteController::start()/callback(). #}
+                  <div class="vn-msg" style="margin-top:12px;padding-top:12px">
+                    <label class="vn-label" for="pvMsg">Say something about {{ firstName }} <span style="font-weight:400;color:#5a6d6f">(optional)</span></label>
+                    <textarea id="pvMsg" name="message" x-model="pvMsg" maxlength="{{ msg_max }}"
+                              placeholder="What do you want people to know about {{ firstName }}?"></textarea>
+                    <div class="vn-msg__meta">
+                      <span>Appears on this page once checked. No links or phone numbers.</span>
+                      <span :class="pvMsg.length > {{ msg_max }} - 40 ? 'vn-msg__over' : ''"><b x-text="pvMsg.length">0</b>/{{ msg_max }}</span>
+                    </div>
+                    {# No second consent control: the name field above IS the choice, and
+                       the server carries that same decision onto the message rather than
+                       asking a question one order could answer two different ways. #}
+                    <p class="vn-msg__as" x-show="pvMsg.trim().length" x-cloak>
+                      Appears as <strong x-text="pvName.trim() ? pvName.trim() : 'A supporter'">A supporter</strong>
+                    </p>
+                  </div>
+                </div>
+                {% if pay_providers|length > 1 %}
+                <fieldset style="border:0;padding:0;margin:12px 0 0">
+                  <legend class="vn-label" style="padding:0">Contribute with</legend>
+                  <div style="display:flex;gap:12px;flex-wrap:wrap">
+                    {% for p in pay_providers %}
+                    <label style="display:inline-flex;align-items:center;gap:6px;font-size:13px;color:#10292c;cursor:pointer"><input type="radio" name="provider" value="{{ p.id }}" {% if loop.first %}checked{% endif %}> {{ p.label }}</label>
+                    {% endfor %}
+                  </div>
+                </fieldset>
+                {% else %}
+                <input type="hidden" name="provider" value="{{ pay_providers[0].id }}">
+                {% endif %}
+                {# The discount line lived here and has been REMOVED at the client's
+                   request — no percentage, no "you save ₦x", and no prompt to buy more
+                   to reach the next tier.
+
+                   The pay button below still states the real total, which is the one
+                   figure a buyer needs and the one the server will charge. Anyone
+                   comparing it against qty × unit price can still see it is lower; the
+                   page simply does not sell that as an offer. #}
+                <button type="submit" class="vn-go" style="margin-top:10px">
+                  <span x-text="'Contribute ₦' + cost().toLocaleString() + ' · ' + q() + (q() === 1 ? ' vote' : ' votes') + ' →'"></span>
+                </button>
+                <p style="margin:8px 0 0;font-size:11.5px;color:#5a6d6f">Secured checkout — the charge is verified server-side before any vote counts.</p>
+              </form>
+              {# One line, on the buy form itself. Somebody who paid an hour ago and
+                 came back to try again is about to pay TWICE for votes they have
+                 already bought — and this is the last screen before they do. #}
+              {% include 'partials/support-prompt.twig' with {
+                sp_compact: true,
+                sp_title: 'Paid already and the votes never arrived? Get it re-checked instead of paying again.'
+              } %}
+            </section>
+            {% if not paid_free_disabled %}<p class="vn-redeem__or" aria-hidden="true">— or vote free with email verification —</p>{% endif %}
+            {% endif %}
+
+            {% if not paid_free_disabled %}
+            {# step: email #}
+            <div x-show="step === 'email'">
+              <p class="vn-sub">One verified vote per category. We email a 6-digit code to confirm it’s you — your email is hashed for the one-vote check. By voting you agree to the <a href="/terms/{{ nominee.programme_slug }}" target="_blank" rel="noopener" style="color:var(--ag-green,#237b22);font-weight:600;text-decoration:underline">programme terms</a>.</p>
+              {% if donation_votes_per_1000 > 0 %}<div class="vn-note"><strong>Want more votes?</strong> <a href="/donate">Donate</a> to earn {{ donation_votes_per_1000 }} bonus votes per ₦1,000.</div>{% endif %}
+              {% include 'partials/member-autofill.twig' with {
+                member: member|default(null),
+                maf_fields: [
+                  {sel: '#vnName',  key: 'name'},
+                  {sel: '#vnEmail', key: 'email'},
+                  {sel: '#vnPhone', key: 'phone'},
+                ],
+              } only %}
+              <label class="vn-label" for="vnName">Full name</label>
+              <input id="vnName" class="vn-input" x-model="fullName" type="text" placeholder="First and last name" autocomplete="name" @keyup.enter="requestOtp()">
+              <label class="vn-label" for="vnPhone">Phone number</label>
+              <input id="vnPhone" class="vn-input" x-model="phone" type="tel" inputmode="tel" placeholder="e.g. +234 801 234 5678" autocomplete="tel" @keyup.enter="requestOtp()">
+              <label class="vn-label" for="vnEmail">Email</label>
+              <input id="vnEmail" class="vn-input" x-model="email" type="email" placeholder="you@email.com" autocomplete="email" @keyup.enter="requestOtp()">
+              {# NO name-consent control on this path, and the difference is not an
+                 oversight. On the paid form the name is optional, so filling it in IS the
+                 choice to be named. Here the name is REQUIRED for accountability — a voter
+                 cannot decline to give it — so providing it says nothing about wanting it
+                 published. Free votes therefore stay off the public supporters list
+                 (gates_votes.show_name keeps its 0 default), which is what the field was
+                 collected under. #}
+              {# ── SAY SOMETHING ABOUT THEM ───────────────────────────────────
+                 Optional, and placed BEFORE the code is requested rather than after.
+                 A voter who has just typed a 6-digit code is finished; asking them to
+                 write a sentence at that point gets a blank field. Asked here, while
+                 they are still thinking about the person they came to back, it gets an
+                 answer — and it travels with the vote in the same request, so there is
+                 no second submission that can fail on its own.
+
+                 Every message is checked before it appears on a real person's page.
+                 The line below says so, because "your message is with a moderator" is
+                 a much better sentence to read before writing than after. #}
+              <div class="vn-msg" x-data="{ open: false }">
+                <button type="button" class="vn-msg__toggle" @click="open = !open" :aria-expanded="open ? 'true' : 'false'" aria-controls="vnMsgPanel">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2Z"/></svg>
+                  <span x-text="open ? 'Hide the message box' : 'Say something about {{ firstName|e('js') }}'">Say something about {{ firstName }}</span>
+                  {# SOCIAL PROOF, not decoration. "Optional" on its own reads as "skip
+                     me"; the number of people who already did it is the thing that makes
+                     somebody open the box. Absent when it would say zero — "be the first"
+                     is a nudge, "0 others" is a discouragement. #}
+                  {% if message_count > 0 %}
+                  <em class="vn-msg__count">{{ message_count }} {{ message_count == 1 ? 'other' : 'others' }}</em>
+                  {% else %}
+                  <em class="vn-msg__count">be the first</em>
+                  {% endif %}
+                </button>
+                <div id="vnMsgPanel" x-show="open" x-cloak>
+                  <label class="vn-label" for="vnMsg" style="margin-top:10px">Your message</label>
+                  <textarea id="vnMsg" x-model="message" maxlength="{{ msg_max }}" placeholder="What do you want people to know about {{ firstName }}?"></textarea>
+                  <div class="vn-msg__meta">
+                    <span>Checked before it appears. No links or phone numbers.</span>
+                    <span :class="message.length > {{ msg_max }} - 40 ? 'vn-msg__over' : ''"><b x-text="message.length"></b>/{{ msg_max }}</span>
+                  </div>
+                  {# A SEPARATE consent, and not the same question as the name field.
+                     The name above is REQUIRED to cast a free vote, so giving it is not
+                     a choice to be published — see the note further down. Putting that
+                     name on a message beside it IS a choice, so it is asked for here
+                     and defaults to off. #}
+                  <label class="vn-check" style="margin-top:10px"><input type="checkbox" x-model="messageShowName"><span>Show my name with this message.</span></label>
+                  {# THE PREVIEW IS THE POINT OF THE CONTROL.
+                     "Leave it unticked to appear as 'A supporter'" made the reader hold
+                     two states in their head. This just shows them the byline they are
+                     about to publish, using the name they actually typed — which is also
+                     the only honest way to present it, because an empty name field means
+                     the tickbox cannot deliver what it promises. #}
+                  <p class="vn-msg__as" x-show="message.trim().length" x-cloak>
+                    Appears as
+                    <strong x-text="messageShowName &amp;&amp; fullName.trim() ? fullName.trim() : 'A supporter'">A supporter</strong>
+                    <span x-show="messageShowName &amp;&amp; !fullName.trim()">— add your full name above to be named.</span>
+                  </p>
+                </div>
+              </div>
+              <label class="vn-check"><input type="checkbox" x-model="agreed"><span>I’m a real person voting once, and I accept the <a href="/terms">voting rules</a>.</span></label>
+              {# RENDERED EXPLICITLY, not by the `cf-turnstile` auto-scan.
+                 The auto-scan gives the page a widget it holds no handle to, and a
+                 handle is exactly what is needed: a Turnstile token is SINGLE-USE and
+                 expires after 300s, so it has to be reset after every submission. See
+                 initTurnstile()/resetTurnstile() below. #}
+              {% if turnstile_site_key %}
+              <div x-ref="ts" style="margin-top:14px"></div>
+              <p class="vn-err" x-show="tsError" x-cloak x-text="tsError"></p>
+              {% endif %}
+              <p class="vn-err" x-show="otpError" x-cloak x-text="otpError"></p>
+              <button type="button" class="vn-go" :disabled="busy || !canRequest || !agreed" @click="requestOtp()" x-text="busy ? 'Sending…' : 'Vote for {{ firstName|e('js') }} →'"></button>
+              <div class="vn-secure">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#5a6d6f" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+                OTP-secured · one vote per category · audited
+              </div>
+              {# ── THE DOOR THAT IS ALWAYS HERE ─────────────────────────────
+                 There is a second link to the philosophy up in the contribution
+                 panel, beside the paragraph that explains the money — which is the
+                 better place for it, because that is where the question gets asked.
+                 But that whole panel is hidden when paid voting is off or
+                 unconfigured, and on a free-only ballot the one page explaining why
+                 any of this works this way was unreachable from here.
+                 So: on the free form too, which always renders. #}
+              <p style="margin:12px 0 0;font-size:12.5px;line-height:1.6;color:#5a6d6f">
+                <a href="/philosophy" style="color:#177015;font-weight:600">Why voting works this way</a>
+                &middot;
+                <a href="/integrity" style="color:#177015">How a winner is decided</a>
+              </p>
+            </div>
+            {# step: otp #}
+            <div x-show="step === 'otp'" x-cloak>
+              <button type="button" class="vn-back" @click="step='email'">← Back</button>
+              <p class="vn-sub">We sent a 6-digit code to <strong x-text="email"></strong>. It expires in 10 minutes.</p>
+              <label class="sr-only" for="vnOtp">6-digit code from your email</label>
+              {# autocomplete="one-time-code" lets the platform offer the code straight from the
+                 notification instead of making somebody memorise six digits and switch apps. #}
+              <input class="vn-input vn-input--otp" id="vnOtp" x-model="otp" inputmode="numeric"
+                     autocomplete="one-time-code" maxlength="6" placeholder="······" @keyup.enter="submitVote()">
+              <p class="vn-err" x-show="voteError" x-cloak x-text="voteError"></p>
+              <button type="button" class="vn-go" :disabled="busy || otp.length !== 6" @click="submitVote()" x-text="busy ? 'Recording…' : 'Confirm vote'"></button>
+              <p style="margin:13px 0 0;text-align:center;font-size:12.5px;color:#5a6d6f">Didn’t get it? <button type="button" @click="requestOtp()" style="color:var(--ag-green);font-weight:500;background:none;border:none;cursor:pointer;font:inherit">Resend code</button></p>
+            </div>
+            {# step: done #}
+            <div x-show="step === 'done'" x-cloak class="vn-done">
+              <div class="vn-done__ico"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#237b22" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></div>
+              <h2 style="font-size:1.25rem">Your vote is in ✓</h2>
+              <p class="vn-sub" style="margin-top:6px">Counted for <strong>{{ n.name }}</strong> in {{ n.category }}. Tallies refresh every 6 hours.</p>
+              <div class="vn-tally">
+                <div style="text-align:left"><div style="font-size:10.5px;text-transform:uppercase;letter-spacing:.05em;color:#5a6d6f">Now at</div><div style="font-family:var(--ag-font-mono);font-weight:700;font-size:18px;color:var(--ag-ink)" x-text="votes.toLocaleString() + ' votes'"></div></div>
+                <span style="font-size:11.5px;font-weight:600;color:#1a6118;background:#dff0df;padding:6px 11px;border-radius:999px" x-show="newRank" x-text="'#' + newRank"></span>
+              </div>
+
+              {# What happened to the message, if one was written. Three outcomes, and
+                 the voter is told which — including "a moderator has it", because a
+                 message that silently fails to appear reads as a message that was
+                 thrown away. `message_url` is only ever set for one that is live. #}
+              <template x-if="messageNote">
+                <div style="margin:14px 0 0;background:#f4f9f4;border:1px solid #cfe6cf;border-radius:12px;padding:12px 14px;font-size:13px;line-height:1.6;color:#1a4a19;text-align:left">
+                  <span x-text="messageNote"></span>
+                  {# The MESSAGE's own links, distinct from the panel below. That panel
+                     shares the ballot to rally votes; these share the sentence this
+                     voter wrote, at its own URL, so Facebook previews their words
+                     instead of the same card everybody else posts. #}
+                  <template x-if="messageUrl">
+                    <span style="display:flex;flex-wrap:wrap;gap:12px;margin-top:8px">
+                      <a :href="messageUrl" style="color:#237b22;font-weight:600">Open your message ↗</a>
+                      <a :href="'https://www.facebook.com/sharer/sharer.php?u=' + encodeURIComponent(messageUrl)" target="_blank" rel="noopener" style="color:#0d6ce8;font-weight:600">Share it on Facebook</a>
+                      <a :href="'https://wa.me/?text=' + encodeURIComponent(messageUrl)" target="_blank" rel="noopener" style="color:#15823d;font-weight:600">WhatsApp</a>
+                    </span>
+                  </template>
+                </div>
+              </template>
+
+              {# ── SHARE, IMMEDIATELY, WHERE THE MOMENT IS ────────────────────
+                 The share panel is here rather than behind a second tap because the
+                 instant after voting is the only moment a voter is certain to rally
+                 anybody. When a message went live, the thing shared is the MESSAGE's
+                 own permalink — it previews as the words they wrote — and otherwise it
+                 is the nominee's ballot.
+
+                 On the honest limits of "automatic": the device's share sheet is
+                 opened for the voter automatically, once, from inside the tap that
+                 confirmed the vote — that click is the user gesture browsers require,
+                 and nothing can open a share sheet without one. Posting to somebody's
+                 Facebook or X account on their behalf is a different thing entirely
+                 (an OAuth login, granted publish permissions, and per-platform app
+                 review) and is not what happens here. If the sheet is unavailable or
+                 dismissed, these buttons are already on screen. #}
+              <p style="margin:16px 0 8px;font-size:13px;font-weight:600;color:#3d5254">Rally more votes for {{ firstName }}</p>
+              {% include 'partials/share.twig' with {
+                share_url: site_url|default('') ~ '/vote/' ~ nominee.programme_slug ~ '/' ~ slug,
+                share_text: 'I just voted for ' ~ n.name ~ ' in ' ~ n.category ~ ' at Africa GATES. Add your vote:',
+                share_label: '',
+                share_grid: true
+              } only %}
+              <div class="vn-share" style="margin-top:12px">
+                <a href="/vote">Vote in another</a>
+                <a href="{{ flier_url }}">Get a flier</a>
+              </div>
+            </div>
+            {% endif %}{# /free OTP flow (hidden when the admin disables free voting) #}
+          {% endif %}
+        </div>
+      </div>
+    </aside>
+  </div>
+
+  {# The claim entry point. Deliberately quiet, and at the foot: this page is built for
+     VOTERS, and a loud "claim this page" button above the fold reads as an instruction
+     to everybody rather than a note to one person. The nominee arrives here having been
+     sent the link and looks for exactly this sentence.
+     See docs/CLAIM-FAIRNESS-AND-FRAUD.md §2 and ClaimController. #}
+  <p class="vn-claimline">
+    Is this you, or someone you manage?
+    <a href="/claim/{{ n.id }}" rel="nofollow">Claim this page</a> — it is free and takes a minute.
+  </p>
+
+  <div class="vn-toast" x-show="toast" x-transition x-cloak x-text="toast"></div>
+</div>
+{% endblock %}
+
+{% block foot_scripts %}
+{% if turnstile_site_key %}
+<script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
+{% endif %}
+<script nonce="{{ csp_nonce }}">
+function voteNominee() {
+  return {
+    nomineeId: {{ nominee.id|e('js') }},
+    awardId: {{ nominee.programme_id|e('js') }},
+    votes: {{ nominee.vote_count|default(0)|e('js') }},
+    step: 'email', email: '', fullName: '', phone: '', otp: '', agreed: false, busy: false,
+    newRank: {{ rank|default(0)|e('js') }} || null,
+    otpError: '', voteError: '', toast: '', _t: null,
+    // The optional message of support and its own consent flag. Carried in this
+    // component rather than a nested one so it travels with the vote in a single
+    // POST — see submitVote().
+    message: '', messageShowName: false,
+    // Filled from the server's reply: what happened to the message, and its
+    // permalink when it went live.
+    messageNote: '', messageUrl: '',
+
+    // ── Turnstile ───────────────────────────────────────────────────────────
+    // tsOn is a template constant, not a runtime probe: when no site key is
+    // configured there is no widget, no token, and nothing to wait for.
+    tsOn: {{ turnstile_site_key ? 'true' : 'false' }},
+    tsToken: '', tsWidget: null, tsError: '',
+
+    get emailValid(){ return /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(this.email); },
+    get nameValid(){ return /\S+\s+\S+/.test(this.fullName.trim()); },
+    get phoneValid(){ return this.phone.replace(/\D/g, '').length >= 7; },
+    get canRequest(){ return this.nameValid && this.phoneValid && this.emailValid; },
+    ping(m){ this.toast = m; clearTimeout(this._t); this._t = setTimeout(() => this.toast = '', 2500); },
+
+    // Alpine calls this automatically when the component mounts.
+    init() { this.initTurnstile(); },
+
+    /**
+     * Render the widget and keep the token in component state.
+     *
+     * api.js is `async defer`, so it may land before OR after Alpine initialises this
+     * component — there is no ordering to rely on and no load event Alpine can await.
+     * Hence the poll: try immediately, and if `window.turnstile` is not there yet,
+     * keep looking for ~15s. Cheap, and it removes an entire class of "sometimes the
+     * widget just does not appear" that depends on network timing.
+     */
+    initTurnstile() {
+      // A site key is configured but this page has no widget slot — voting is closed,
+      // or the admin disabled the free path so the OTP form was never rendered. Nothing
+      // to mount, and nothing will ask for a token.
+      if (!this.tsOn || !this.$refs.ts) { this.tsOn = false; return; }
+      const boot = () => {
+        if (!window.turnstile || this.tsWidget !== null) return this.tsWidget !== null;
+        this.tsWidget = window.turnstile.render(this.$refs.ts, {
+          {# `e('js')`, NOT the autoescaped default and NOT json_encode. This is script
+             CONTENT, not an attribute: the HTML parser does not decode entities here, so
+             the default html escaping would put a literal `&quot;` into the site key. The
+             attribute version of this decision is on the paid-vote x-data above, and it
+             goes the other way — same file, opposite answer. #}
+          sitekey: '{{ turnstile_site_key|e('js') }}',
+          theme: 'light',
+          // Each of these three is a state the old code could not see, and all three
+          // presented to the voter as the same dead end.
+          callback: (t) => { this.tsToken = t; this.tsError = ''; },
+          'expired-callback': () => { this.tsToken = ''; },
+          'error-callback': () => {
+            this.tsToken = '';
+            this.tsError = 'The security check could not load. Disable any ad-blocker for this page, or reload.';
+          },
+        });
+        return true;
+      };
+      if (boot()) return;
+      let tries = 0;
+      const poll = setInterval(() => { if (boot() || ++tries > 150) clearInterval(poll); }, 100);
+    },
+
+    /**
+     * A FRESH token for the next attempt. This is the fix for the bug users actually
+     * hit: a token is spent the moment the server verifies it, so the second request
+     * from a page — a resend, or a retry after any refusal — was replaying a used one
+     * and getting `timeout-or-duplicate` back forever. Called in the `finally` of every
+     * request, because the token is consumed whether or not the request succeeded.
+     */
+    resetTurnstile() {
+      if (!this.tsOn) return;
+      this.tsToken = '';
+      try { if (this.tsWidget !== null && window.turnstile) window.turnstile.reset(this.tsWidget); } catch (e) {}
+    },
+
+    /**
+     * The current token, waiting up to ~8s for the challenge to solve.
+     *
+     * Returns null on timeout so the caller can distinguish "not ready yet" from
+     * "protection is off". Without this a voter who filled the form quickly submitted
+     * an empty token and was told bot verification had failed.
+     */
+    async turnstileToken() {
+      if (!this.tsOn) return '';
+      for (let i = 0; i < 80; i++) {
+        if (this.tsToken) return this.tsToken;
+        // Belt and braces: read the hidden input Turnstile injects, in case a
+        // callback was missed.
+        const el = this.$refs.ts && this.$refs.ts.querySelector('[name="cf-turnstile-response"]');
+        if (el && el.value) return el.value;
+        await new Promise(r => setTimeout(r, 100));
+      }
+      return null;
+    },
+
+    async requestOtp() {
+      this.otpError = '';
+      if (!this.nameValid) { this.otpError = 'Enter your full name (first and last).'; return; }
+      if (!this.phoneValid) { this.otpError = 'Enter a valid phone number.'; return; }
+      if (!this.emailValid) { this.otpError = 'Enter a valid email address.'; return; }
+      if (!this.agreed) { this.otpError = 'Please confirm you’re a real person voting once.'; return; }
+      this.busy = true;
+      // Waits for the challenge rather than posting an empty token and letting the
+      // server call it a bot. `null` means it never solved — usually a blocked or
+      // very slow challenges.cloudflare.com, which is a different problem and gets a
+      // different sentence.
+      const tsToken = await this.turnstileToken();
+      if (tsToken === null) {
+        this.otpError = this.tsError || 'The security check hasn’t finished loading. Give it a moment, then try again.';
+        this.busy = false;
+        return;
+      }
+      if (window.AFG) AFG.trackFunnel('otp_requested', { nominee_id: this.nomineeId, award_id: this.awardId });
+      try {
+        const r = await fetch('/api/otp/request', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            email: this.email, nominee_id: this.nomineeId, award_id: this.awardId,
+            session_id: window.AFG_SESSION || '', device_hash: window.AFG_DEVICE || '',
+            turnstile_token: tsToken,
+          })
+        });
+        const d = await r.json().catch(() => ({}));
+        if (r.ok && d.success) { this.step = 'otp'; }
+        else { this.otpError = d.message || 'Could not send the code. Please try again.'; }
+      } catch (e) { this.otpError = 'Network error. Please try again.'; }
+      finally {
+        // ALWAYS, and this is the whole bug. The token is spent by the verification
+        // itself, so it is dead whether the request succeeded, was rate-limited, or
+        // failed on the email — and the next attempt (a resend, a corrected address)
+        // used to replay it and get `timeout-or-duplicate` back every single time.
+        // Resetting here is what makes "please try again" a true statement.
+        this.resetTurnstile();
+        this.busy = false;
+      }
+    },
+
+    async submitVote() {
+      this.voteError = '';
+      if (this.otp.length !== 6) { this.voteError = 'Enter the 6-digit code.'; return; }
+      this.busy = true;
+      try {
+        const r = await fetch('/api/vote', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            email: this.email, otp: this.otp, nominee_id: this.nomineeId, award_id: this.awardId,
+            name: this.fullName, phone: this.phone,
+            // Optional. The server ignores an empty string entirely — no row is written
+            // and no moderation runs — so nothing here can affect a vote cast without one.
+            message: this.message, message_show_name: this.messageShowName,
+            session_id: window.AFG_SESSION || '', device_hash: window.AFG_DEVICE || '',
+          })
+        });
+        const d = await r.json().catch(() => ({}));
+        if (d && d.success) {
+          this.votes = d.new_count || (this.votes + 1);
+          this.newRank = d.new_rank || this.newRank;
+          this.messageNote = d.message_note || '';
+          this.messageUrl  = d.message_url  || '';
+          this.step = 'done';
+          // Inside the same tap that confirmed the vote. That click is the user
+          // gesture every browser requires before it will open a share sheet, and it
+          // is the only reason "share automatically after voting" can work at all —
+          // see autoShare().
+          this.autoShare();
+          // The /vote hub's "your ballot" tracker READS this key but nothing in
+          // the codebase ever wrote it, so it was permanently "0 of N voted".
+          this.markVoted();
+          if (window.AGCommunity) AGCommunity.open('vote');
+          if (window.AFG) AFG.trackFunnel('vote_cast', { nominee_id: this.nomineeId, award_id: this.awardId });
+        } else {
+          this.voteError = d.message || 'Could not record your vote.';
+        }
+      } catch (e) { this.voteError = 'Network error. Please try again.'; }
+      finally { this.busy = false; }
+    },
+
+    /** Record on THIS DEVICE that a vote was cast in this programme. */
+    markVoted() {
+      try { localStorage.setItem('afg_voted_prog_' + this.awardId, String(Date.now())); } catch (e) {}
+    },
+
+    share() {
+      const url = location.origin + '/vote/{{ nominee.programme_slug|e('js') }}/{{ nominee.id|e('js') }}';
+      const text = 'Vote for {{ nominee.name|e('js') }} in the Africa GATES awards:';
+      if (navigator.share) { navigator.share({ title: 'Africa GATES', text, url }).catch(() => {}); }
+      else if (navigator.clipboard) { navigator.clipboard.writeText(url).then(() => this.ping('Link copied — share it to rally votes')).catch(() => {}); }
+      else { this.ping('Copy the page link to share'); }
+    },
+
+    /**
+     * ── "AUTOMATIC SHARING AFTER THEY'VE VOTED", HONESTLY ────────────────────
+     *
+     * What this does: opens the device's own share sheet — every messaging and
+     * social app the voter has installed — the moment their vote lands, without
+     * them having to find a button. It runs inside the click that confirmed the
+     * vote, because a share sheet cannot be opened outside a user gesture in any
+     * browser. That is a deliberate anti-hijack rule and it is not worth trying to
+     * defeat: a page that could open share dialogs on its own would be a spam
+     * cannon.
+     *
+     * What it is NOT: posting to somebody's Facebook, X or Instagram account for
+     * them. That requires an OAuth login to each platform, publish permissions
+     * granted by the account holder, and per-platform app review — a different
+     * feature with a login attached, not a switch. Nothing here posts anything.
+     * The voter still taps their app and still sees what they are about to send,
+     * which is also what keeps this from putting words in anybody's mouth.
+     *
+     * ONCE per vote, and never twice: `_shared` guards a re-run, and a dismissed
+     * sheet (AbortError) is a decision, not a failure. When there is no sheet at
+     * all — most desktop browsers — nothing happens and the share buttons that are
+     * already on screen are the whole answer.
+     */
+    autoShare() {
+      if (this._shared || !navigator.share) return;
+      this._shared = true;
+      const url  = this.messageUrl || (location.origin + '{{ ('/vote/' ~ nominee.programme_slug ~ '/' ~ slug)|e('js') }}');
+      const text = 'I just voted for {{ nominee.name|e('js') }} in the Africa GATES awards. Add your vote:';
+      try { navigator.share({ title: 'Africa GATES', text: text, url: url }).catch(() => {}); }
+      catch (e) { /* NotAllowedError = the gesture had already expired. The panel stands. */ }
+    },
+    _shared: false,
+  };
+}
+</script>
+{% endblock %}

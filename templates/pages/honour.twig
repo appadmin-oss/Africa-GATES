@@ -1,0 +1,336 @@
+{% extends "layout/gates.twig" %}
+
+{#
+  A GUEST OF HONOUR'S PASS.
+
+  ── THE DIRECTION, IN ONE SENTENCE ──────────────────────────────────────────
+  An engraved credential: ink ground, one gold hairline, Playfair over JetBrains
+  Mono, a real perforation between the stub and the plate. The same voice as the
+  invitation email that carries it — no gradients, no glass, no icon rows.
+
+  ── WHAT THE FIRST VERSION GOT WRONG ────────────────────────────────────────
+  It was three near-identical rounded cards stacked down a dark page, with a
+  decorative spinner beside the code. Everything had the same weight, so nothing was
+  the pass; the "countdown" span told you a code refreshes without telling you when;
+  and there was no state for the two things that actually happen at a door — no
+  signal, and a code that went stale in a pocket.
+
+  ── SO THE STRUCTURE IS THE DESIGN ──────────────────────────────────────────
+  One object, built like the thing it is:
+
+    · A STUB carrying the identity of the evening and the date, as a numeral.
+    · A PERFORATION, with real notches cut into the card edge. It is the line that
+      makes the shape read as a pass rather than a panel, and it is the only
+      ornament on the page.
+    · A PLATE — paper, not ink — holding the code. It is the brightest thing on a
+      dark screen because at a door it is the only thing that matters, and the eye
+      must land on it with no help.
+    · The RING around the code depletes. Functional motion: it is the remaining
+      life of what is on screen, which is a fact a steward and a guest both need.
+    · Their NAME, engraved under the plate, because this is a credential and a
+      credential names its holder.
+
+  Two actions survive: get your guests' tickets, and see the event. The schedule,
+  the map and the programme are one tap away on the event page and are not here.
+#}
+
+{% block content %}
+<style nonce="{{ csp_nonce }}">
+  /* Scoped to .hn — a dark island inside a paper-ground site. */
+  .hn{
+    --ink:#0a1d20; --ink-2:#102a2e; --ink-3:#16383c;
+    --paper:#f4f6f5; --gold:#f3b416; --gold-dim:#c9930f;
+    --emerald:#3fa93c; --rust:#e58a72;
+    --mute:#8fa5a4; --line:rgba(243,180,22,.20);
+    background:var(--ink); color:var(--paper); margin:-1px 0 0; padding:0 0 60px;
+  }
+  .hn__wrap{ max-width:480px; margin:0 auto; padding:0 16px; }
+
+  /* ── the pass ───────────────────────────────────────────────────────── */
+  .hn__pass{
+    position:relative; margin:26px 0 0; background:var(--ink-2);
+    border:1px solid var(--line); border-radius:20px; overflow:hidden;
+  }
+
+  .hn__stub{ padding:20px 22px 18px; display:flex; gap:16px; align-items:flex-start; }
+  .hn__stubtxt{ min-width:0; flex:1 1 auto; }
+  .hn__mark{
+    font-family:var(--ag-font-mono,ui-monospace,monospace); font-size:10px;
+    letter-spacing:.24em; text-transform:uppercase; color:var(--gold); margin:0 0 8px;
+  }
+  .hn__event{
+    font-family:var(--ag-font-display,Georgia,serif); font-weight:600;
+    font-size:20px; line-height:1.2; letter-spacing:-.01em; margin:0; color:#fff;
+    text-wrap:balance;
+  }
+  /* The date as a numeral. A ticket stub does this because a date read at a glance
+     is a number, not a sentence. */
+  .hn__date{
+    flex:0 0 auto; text-align:center; border:1px solid var(--line);
+    border-radius:12px; padding:8px 11px 7px; min-width:56px;
+  }
+  .hn__day{
+    font-family:var(--ag-font-display,Georgia,serif); font-weight:700; font-size:24px;
+    line-height:1; color:var(--gold); font-variant-numeric:tabular-nums; display:block;
+  }
+  .hn__mon{
+    font-family:var(--ag-font-mono,monospace); font-size:9.5px; letter-spacing:.14em;
+    text-transform:uppercase; color:var(--mute); margin-top:4px; display:block;
+  }
+
+  /* The perforation. Two notches cut from the card edges and a dashed rule between
+     them — the one piece of ornament on this page, and it is what makes the shape
+     read as a pass. */
+  .hn__perf{ position:relative; height:24px; }
+  .hn__perf::before, .hn__perf::after{
+    content:""; position:absolute; top:50%; width:22px; height:22px; border-radius:50%;
+    background:var(--ink); transform:translateY(-50%);
+  }
+  .hn__perf::before{ left:-11px; }
+  .hn__perf::after{ right:-11px; }
+  .hn__perfline{
+    position:absolute; top:50%; left:18px; right:18px; height:0;
+    border-top:1px dashed rgba(243,180,22,.32);
+  }
+
+  /* ── the plate ──────────────────────────────────────────────────────── */
+  .hn__plate{ background:var(--paper); color:var(--ink); padding:22px 22px 20px; text-align:center; }
+  .hn__qrwrap{ position:relative; width:min(248px,64vw); margin:0 auto 16px; }
+  .hn__qr{ position:relative; z-index:1; padding:12px; }
+  .hn__qr svg, .hn__qr img{ width:100%; height:auto; display:block; }
+
+  /* The depleting ring. Drawn behind the symbol, at the plate's edge. */
+  .hn__ring{ position:absolute; inset:0; width:100%; height:100%; transform:rotate(-90deg); }
+  .hn__ring circle{ fill:none; stroke-width:3; }
+  .hn__ring .t{ stroke:rgba(16,41,44,.10); }
+  .hn__ring .p{
+    stroke:var(--emerald); stroke-linecap:round;
+    transition:stroke-dashoffset .95s linear, stroke .3s ease;
+  }
+  .hn--stale .hn__ring .p{ stroke:var(--rust); }
+
+  .hn__ref{
+    font-family:var(--ag-font-mono,monospace); font-size:19px; font-weight:600;
+    letter-spacing:.16em; margin:0; color:var(--ink);
+  }
+  .hn__reflab{
+    font-family:var(--ag-font-mono,monospace); font-size:9.5px; letter-spacing:.16em;
+    text-transform:uppercase; color:#5d7275; margin:6px 0 0;
+  }
+  .hn__tick{
+    font-family:var(--ag-font-mono,monospace); font-size:11px; letter-spacing:.06em;
+    color:#5d7275; margin:14px 0 0; font-variant-numeric:tabular-nums;
+  }
+  .hn--stale .hn__tick{ color:#8a3a22; font-weight:600; }
+
+  /* ── the holder ─────────────────────────────────────────────────────── */
+  .hn__who{ padding:20px 22px 22px; text-align:center; border-top:1px solid var(--line); }
+  .hn__name{
+    font-family:var(--ag-font-display,Georgia,serif); font-weight:600; font-style:italic;
+    font-size:clamp(1.35rem,5.4vw,1.75rem); line-height:1.15; margin:0; color:#fff;
+    text-wrap:balance;
+  }
+  .hn__role{
+    font-family:var(--ag-font-mono,monospace); font-size:10px; letter-spacing:.2em;
+    text-transform:uppercase; color:var(--gold); margin:10px 0 0;
+  }
+
+  /* ── offline ────────────────────────────────────────────────────────── */
+  .hn__off{
+    display:none; margin:14px 0 0; padding:11px 14px; border-radius:11px;
+    background:rgba(229,138,114,.12); border:1px solid rgba(229,138,114,.4);
+    font-size:13.5px; line-height:1.5; color:#f7d9d1;
+  }
+  .hn--offline .hn__off{ display:block; }
+
+  /* ── the rest ───────────────────────────────────────────────────────── */
+  .hn__sec{ margin:16px 0 0; background:var(--ink-2); border:1px solid var(--line); border-radius:16px; padding:18px 20px; }
+  .hn__lab{
+    font-family:var(--ag-font-mono,monospace); font-size:9.5px; letter-spacing:.18em;
+    text-transform:uppercase; color:var(--gold); margin:0 0 10px;
+  }
+  .hn__p{ font-size:15px; line-height:1.62; margin:0; color:#dbe6e5; }
+  .hn__p + .hn__p{ margin-top:10px; }
+  .hn__p b{ color:var(--gold); font-weight:600; }
+  .hn__code{
+    font-family:var(--ag-font-mono,monospace); font-size:17px; font-weight:600;
+    letter-spacing:.14em; color:var(--gold); display:block; margin:0 0 4px;
+  }
+  .hn__facts{ list-style:none; padding:0; margin:0; display:grid; gap:12px; }
+  .hn__facts div{ font-size:14.5px; line-height:1.5; color:#dbe6e5; }
+  .hn__facts dt{
+    font-family:var(--ag-font-mono,monospace); font-size:9.5px; letter-spacing:.16em;
+    text-transform:uppercase; color:var(--mute); margin:0 0 3px;
+  }
+  .hn__cta{
+    display:block; text-align:center; background:var(--gold); color:#17110b;
+    font-weight:700; font-size:15px; text-decoration:none; padding:14px 18px;
+    border-radius:12px; margin:14px 0 0; min-height:44px; box-sizing:border-box;
+  }
+  .hn__cta:focus-visible{ outline:3px solid var(--paper); outline-offset:3px; }
+  .hn__alt{
+    display:block; text-align:center; color:var(--mute); font-size:13.5px;
+    margin:12px 0 0; text-decoration:underline; min-height:44px; line-height:44px;
+  }
+  .hn__foot{ font-size:12.5px; line-height:1.65; color:var(--mute); margin:22px 0 0; text-align:center; }
+
+  @media (prefers-reduced-motion:reduce){ .hn__ring .p{ transition:none; } }
+</style>
+
+<div class="hn" id="hn-root" data-ref="{{ invite.reference }}" data-step="{{ step }}">
+  <div class="hn__wrap">
+
+    {# ── THE PASS ───────────────────────────────────────────────────────── #}
+    <div class="hn__pass">
+      <div class="hn__stub">
+        <div class="hn__stubtxt">
+          <p class="hn__mark">Guest of honour</p>
+          <h1 class="hn__event">{{ event.title }}</h1>
+        </div>
+        <div class="hn__date" aria-hidden="true">
+          <span class="hn__day">{{ event.event_date|when('j') }}</span>
+          <span class="hn__mon">{{ event.event_date|when('M') }}</span>
+        </div>
+      </div>
+
+      <div class="hn__perf" aria-hidden="true"><span class="hn__perfline"></span></div>
+
+      <div class="hn__plate">
+        <div class="hn__qrwrap">
+          {# The ring is behind the symbol and depletes over the code's life. It is drawn
+             at 100 units and scaled, so it needs no knowledge of the rendered size. #}
+          <svg class="hn__ring" viewBox="0 0 100 100" aria-hidden="true">
+            <circle class="t" cx="50" cy="50" r="48.5"></circle>
+            <circle class="p" cx="50" cy="50" r="48.5" id="hn-arc"
+                    stroke-dasharray="304.7" stroke-dashoffset="0"></circle>
+          </svg>
+          <div class="hn__qr" id="hn-qr">
+            {# Server-rendered first paint: the code must be scannable before any script
+               runs, because the one place this page is used has the worst signal. #}
+            <img src="/honour/{{ invite.reference|url_encode }}/qr.svg"
+                 alt="Your entry code, {{ invite.reference }}" width="248" height="248">
+          </div>
+        </div>
+
+        <p class="hn__ref">{{ invite.reference }}</p>
+        <p class="hn__reflab">Show this at the door</p>
+        <p class="hn__tick" id="hn-tick" role="status" aria-live="polite">Refreshes every {{ step }} seconds</p>
+      </div>
+
+      <div class="hn__who">
+        <p class="hn__name">{{ invite.name }}</p>
+        <p class="hn__role">{{ audience.one }} · admits one</p>
+      </div>
+    </div>
+
+    <p class="hn__off" id="hn-off" role="status">
+      No connection. The code above still works for a few more seconds — the door also
+      accepts the one before it, so try the scan anyway.
+    </p>
+
+    {# ── WHY ────────────────────────────────────────────────────────────── #}
+    <div class="hn__sec">
+      <p class="hn__lab">Why the hall is being filled</p>
+      <p class="hn__p">We want the hall packed {{ audience.witness }}.</p>
+    </div>
+
+    {# ── THE ASK ────────────────────────────────────────────────────────── #}
+    <div class="hn__sec">
+      <p class="hn__lab">Bring your people</p>
+      <span class="hn__code">{{ invite.discount_code }}</span>
+      <p class="hn__p">
+        Share this code with the people you want in the room. It takes
+        <b>{{ discount }}% off</b> for up to <b>{{ invite.guest_quota }}</b> of them
+        {%- if lowest_tier %}, from <b>₦{{ lowest_tier.price_naira|number_format }}</b>
+        ({{ lowest_tier.name }}) upwards{% endif %}.
+      </p>
+      <a class="hn__cta" href="/events/{{ event.slug }}">Get their tickets</a>
+    </div>
+
+    {# ── THE EVENING ────────────────────────────────────────────────────── #}
+    <div class="hn__sec">
+      <p class="hn__lab">The evening</p>
+      <dl class="hn__facts">
+        <div><dt>When</dt><dd style="margin:0">{{ event.event_date|when_zoned }}</dd></div>
+        {% if event.venue %}<div><dt>Where</dt><dd style="margin:0">{{ event.venue }}{% if event.location %}, {{ event.location }}{% endif %}</dd></div>{% endif %}
+      </dl>
+      <a class="hn__alt" href="/events/{{ event.slug }}">See the full evening</a>
+    </div>
+
+    <p class="hn__foot">
+      This pass is yours alone. The code changes every {{ step }} seconds, so a screenshot
+      of it will not open the door — and you need no ticket.
+    </p>
+  </div>
+</div>
+
+<script nonce="{{ csp_nonce }}">
+(function () {
+  var root = document.getElementById('hn-root');
+  var box  = document.getElementById('hn-qr');
+  var tick = document.getElementById('hn-tick');
+  var arc  = document.getElementById('hn-arc');
+  if (!root || !box || !tick) return;
+
+  var ref  = root.getAttribute('data-ref');
+  var step = parseInt(root.getAttribute('data-step'), 10) || 30;
+  var CIRC = 304.7;                       /* 2πr at r=48.5, matching the markup */
+  var timer = null;
+
+  var reduce = window.matchMedia
+    && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  function paint(left) {
+    tick.textContent = left <= 1 ? 'New code…' : 'New code in ' + left + 's';
+    if (!arc) return;
+    /* The ring is the remaining life of what is on screen. Offset grows as time is
+       spent, so the stroke retreats — which is the direction people read as depleting. */
+    arc.setAttribute('stroke-dashoffset', String(CIRC * (1 - left / step)));
+  }
+
+  function refresh() {
+    var img = new Image();
+    img.width = 248; img.height = 248;
+    img.alt = 'Your entry code, ' + ref;
+    img.onload  = function () { box.replaceChildren(img); root.classList.remove('hn--stale'); };
+    img.onerror = function () { root.classList.add('hn--stale'); };
+    img.src = '/honour/' + encodeURIComponent(ref) + '/qr.svg?w=' + Date.now();
+  }
+
+  /* The countdown comes from the SERVER, never from this clock. A phone that slept in a
+     pocket wakes with a local countdown reading nine seconds and a code that expired four
+     minutes ago — which is the one moment this has to be right. */
+  function sync() {
+    fetch('/honour/' + encodeURIComponent(ref) + '/tick', { cache: 'no-store' })
+      .then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (d) {
+        if (!d) throw new Error('no body');
+        root.classList.remove('hn--offline', 'hn--stale');
+        var left = Math.max(1, parseInt(d.seconds_left, 10) || step);
+        paint(left);
+        clearTimeout(timer);
+        timer = setTimeout(function () { refresh(); sync(); }, left * 1000);
+      })
+      .catch(function () {
+        /* Offline at a door is the expected failure, not an edge case. The symbol on
+           screen is still this window's for a few more seconds and the door accepts the
+           previous window too — so this says something true and useful rather than
+           throwing an error at somebody in a queue. */
+        root.classList.add('hn--offline');
+        tick.textContent = 'Offline — showing the last code';
+        clearTimeout(timer);
+        timer = setTimeout(sync, 4000);
+      });
+  }
+
+  /* Waking up is the case that matters: visibilitychange fires when the phone comes out
+     of a pocket, and that is exactly when what is on screen is stale. */
+  document.addEventListener('visibilitychange', function () {
+    if (!document.hidden) { refresh(); sync(); }
+  });
+
+  if (reduce && arc) arc.style.transition = 'none';
+  sync();
+})();
+</script>
+{% endblock %}

@@ -1,142 +1,654 @@
 {% extends "layout/gates.twig" %}
+{% import "partials/article.twig" as art %}
+
+{#
+  ══════════════════════════════════════════════════════════════════════════════
+  THE METHODOLOGY — how a winner is decided
+  ══════════════════════════════════════════════════════════════════════════════
+
+  Half of a pair. /philosophy argues; this page enforces. Each ends by handing the
+  reader to the other, which is what makes them one Integrity Centre rather than
+  two pages that happen to share a stylesheet.
+
+  ── WHY THE PHILOSOPHY IS ONLY A PRÉCIS HERE ────────────────────────────────
+
+  The full argument used to open this page: sixteen sections before the first
+  table. That put Ubuntu between a reader arriving from a ballot and the answer to
+  the question they came with, which is "how is a winner decided". So the argument
+  moved to its own page and what stays is
+  {@see CommunityVotingPhilosophy::summary()} — about four hundred words, enough
+  that the {community_pct}/{judge_pct} split does not read as an unexplained hedge,
+  with a door to the whole of it.
+
+  It is a PRÉCIS, not an excerpt: a separate rendering written to stand alone at
+  this length, carrying the same {tokens} so it cannot quote a figure the engine
+  has changed.
+
+  ── EVERY NUMBER ON THIS PAGE IS READ, NOT TYPED ────────────────────────────
+
+  The weights, the bonus-vote ceiling, the judge quorum, the fraud bands and the
+  community-return share all arrive from RuleEngine via the route — the same
+  object the scorer consults. An operator can change any of them per programme and
+  per cycle, and of every page on this site the METHODOLOGY page is the one that
+  must not go on describing a system the code has stopped running.
+
+  `default()` on each figure below is a rendering guard, not a published number: if
+  the engine is unreachable the page must still say something coherent.
+
+  ── NO COPY, NO DOWNLOAD, ON PURPOSE ────────────────────────────────────────
+
+  Cite only. This page's prose lives in this template rather than in PHP, so there
+  is no .txt or .md that IS this page — and a Download that saved a different
+  document would be worse than no Download, because the reader would file it and
+  find out later. {@see MethodologyDocument} for when that changes.
+#}
+
+{% block structured_data %}
+{{ art.cite_meta({
+  title: doc_title, author: doc_author, publisher: doc_publisher,
+  published: doc_published, updated: doc_updated, url: doc_url
+}) }}
+{{ art.article_ld({
+  title: doc_title, subtitle: doc_subtitle, description: meta_description,
+  author: doc_author, publisher: doc_publisher, published: doc_published,
+  updated: doc_updated, version: doc_version, url: doc_url,
+  terms_url: _site_url ~ '/terms'
+}, csp_nonce) }}
+
+{#
+  A FAQPage, built from questions this page VISIBLY ANSWERS. That constraint is the
+  whole discipline: marking up an answer the reader cannot find is the thing search
+  engines penalise, and it is also just a lie told in a format nobody reads.
+
+  The figures interpolate from the same route variables the visible copy uses, so
+  the machine-readable answer and the human one cannot drift — and a cycle override
+  changes both at once.
+#}
+<script nonce="{{ csp_nonce }}" type="application/ld+json">
+{% set faq = [
+  {
+    q: 'How is the Cultural Power Index calculated?',
+    a: 'The CPI is ' ~ community_pct|default(45) ~ '% verified community votes and ' ~ judge_pct|default(55) ~ '% independent judge panel. The community share is normalised within each category, so a nominee in a small category is measured against their own field rather than against the whole platform.'
+  },
+  {
+    q: 'Can you buy votes to win an Africa GATES award?',
+    a: 'Yes. Every vote counts toward the Cultural Power Index the same amount, whether it was free or bought — and there is no ceiling, so a nominee whose supporters buy more votes than anybody else will hold the largest community share in their category. The index also carries a judging half (' ~ judge_pct|default(55) ~ '%) that no purchase reaches: judges never see a nominee’s vote count. Both figures are published on every result — the full tally, and how much of it was bought — so anybody can see what a nominee’s support was made of.'
+  },
+  {
+    q: 'Why might the nominee with the most votes not win?',
+    a: 'Winning also requires at least ' ~ min_judges|default(2) ~ ' complete judge scorecards. A partial scorecard counts as nothing, judges recuse themselves from nominees they are connected to, and if nobody in a category reaches the quorum the award is not given.'
+  },
+  {
+    q: 'What happens if two nominees tie?',
+    a: 'The tiebreak is organic votes — the free, code-verified ones. Contributions are not consulted, so the closest possible race is decided by people rather than by spending. A tie on both the index and organic votes is recorded as a dead heat and escalated to the integrity team.'
+  },
+  {
+    q: 'How do you know the results were not edited afterwards?',
+    a: 'Every computed standing is sealed with a fingerprint of itself and of the record before it, so editing an old result breaks every record after it. The chain is re-verified automatically every day, and the database refuses to record two standings claiming the same predecessor.'
+  },
+  {
+    q: 'What is the Africa GATES community return?',
+    a: 'A nominee keeps ' ~ return_pct|default('50') ~ '% of what supporters contribute in their name, win or lose, once they have gathered ' ~ return_threshold|default(250) ~ ' votes of qualifying support. No single supporter can supply more than ' ~ return_cap_pct|default(10) ~ '% of that threshold, so qualifying takes at least ' ~ return_people|default(10) ~ ' different verified people.'
+  }
+] %}
+{"@context":"https://schema.org","@type":"FAQPage","mainEntity":[{% for f in faq %}{"@type":"Question","name":{{ f.q|json_encode|raw }},"acceptedAnswer":{"@type":"Answer","text":{{ f.a|json_encode|raw }}}}{% if not loop.last %},{% endif %}{% endfor %}]}
+</script>
+{% endblock %}
+
+{% block head_styles %}{{ art.styles() }}{% endblock %}
+
 {% block content %}
+{{ art.script({ txt_url: '/philosophy/download/txt', url: doc_url, tab_ids: doc_citations|column('id') }, csp_nonce) }}
 
-<section class="r26-hero" style="padding-block:clamp(2.5rem,6vw,4.25rem) clamp(1.5rem,3vw,2.5rem);text-align:center">
-  <div class="aurora aurora--soft" aria-hidden="true"></div>
-  <img class="r26-hero__wm" src="/assets/img/africa-watermark.svg?v={{ asset_version }}" alt="" aria-hidden="true">
-  <div class="wrap">
-    <div class="r26-hero__inner">
-      <p class="r26-eyebrow r26-reveal r26-d1" style="justify-content:center;display:inline-flex">Awards integrity center</p>
-      <h1 class="r26-hl r26-reveal r26-d2" style="font-size:clamp(2.2rem,5.2vw,3.9rem)">How Africa GATES <em style="color:var(--emerald-600)">works.</em></h1>
-      <p class="r26-sub r26-reveal r26-d3" style="margin-left:auto;margin-right:auto">Transparent rules. Verified identities. Independent scoring. Every decision made here is defensible — this page is your reference if anything is ever disputed.</p>
-      {# Trust signals strip #}
-      <div class="r26-reveal r26-d4" style="margin-top:1.5rem;display:flex;flex-wrap:wrap;gap:0.6rem;justify-content:center">
-        {% for label in [
-          'OTP-verified voting',
-          'One vote per identity per category',
-          'Fraud detection on every vote',
-          'Independent judging panel',
-          'Weighted public + judge scoring',
-          'Full audit trail'
-        ] %}
-        <span class="r26-chip2"><span class="r26-chip2__dot"></span>{{ label }}</span>
-        {% endfor %}
+{% set method_toc = [
+  { id: 'why',      title: 'Why this exists' },
+  { id: 'score',    title: 'The score' },
+  { id: 'eligible', title: 'Who can actually win' },
+  { id: 'criteria', title: 'What judges score' },
+  { id: 'money',    title: 'What money does, and what it cannot reach' },
+  { id: 'return',   title: 'The community return' },
+  { id: 'honest',   title: 'Keeping the count honest' },
+  { id: 'failures', title: 'When a payment goes wrong' },
+  { id: 'sealed',   title: 'Sealing the result' },
+  { id: 'cycle',    title: 'The cycle, stage by stage' },
+  { id: 'disputes', title: 'Disputes and your data' }
+] %}
+{% set toc = [{ label: '', items: method_toc }] %}
+
+<div class="ar" x-data="agArticleDoc()">
+  <div class="ar-shell">
+    {{ art.contents(toc, true) }}
+
+    <article class="ar-body">
+      <header class="ar-head">
+        {{ art.masthead({
+          eyebrow: 'Integrity Centre · Methodology',
+          title: doc_title, subtitle: doc_subtitle,
+          standfirst: 'The Cultural Power Index is meant to survive being questioned. This is the
+                       whole method: what counts, what deliberately does not, who checks it, and what
+                       happens when we get something wrong. Every figure below is read live from the
+                       scoring engine.',
+          author: doc_author, version: doc_version, updated: doc_updated,
+          read_minutes: doc_read_minutes
+        }) }}
+        {{ art.tools({ portable: false, id: 'top' }) }}
+      </header>
+
+      {{ art.contents(toc, false) }}
+
+      {# ── THE PRÉCIS ───────────────────────────────────────────────────────
+         The philosophy in about four hundred words, rendered from the same source
+         as /philosophy so the two cannot quote different figures. Unnumbered: it
+         is a preamble to the method, not the first step of it. #}
+      <section class="ar-sec" id="why" data-ag-reveal>
+        <h3><span class="ar-sn">01</span>Why this exists</h3>
+        {{ art.blocks(doc_summary) }}
+        {{ art.next({
+          url: '/philosophy',
+          kicker: 'The argument in full',
+          title: 'The philosophy behind Africa GATES community voting',
+          blurb: 'Sixteen sections on what a vote means here, what we mean by a community, what
+                  standing for someone asks of a nominee, and what this model cannot do. Available
+                  to copy, download and cite.'
+        }) }}
+      </section>
+
+      {# ── THE SCORE ───────────────────────────────────────────────────── #}
+      <section class="ar-sec" id="score" data-ag-reveal>
+        <h3><span class="ar-sn">02</span>The score</h3>
+        <p>The Cultural Power Index is a weighted combination of the community’s verified votes
+           and an independent judge panel. Neither alone decides a winner, and that is the point
+           of having both.</p>
+
+        <div class="ar-tw">
+          <table class="ar-table">
+            <caption>Composition of the Cultural Power Index</caption>
+            <thead>
+              <tr><th scope="col">Input</th><th scope="col">Share</th><th scope="col">What it measures</th></tr>
+            </thead>
+            <tbody>
+              <tr>
+                <th scope="row">Community votes</th>
+                <td class="ar-num">{{ community_pct|default(45) }}%</td>
+                <td>Normalised <strong>within each category</strong>, against that category’s strongest
+                    vote count — so a nominee in a small field is not punished for being in one.
+                    <strong>Every vote counts</strong>: free votes cast by a verified person, votes
+                    bought in a pack, and votes awarded as a bonus against a contribution, added
+                    together. How much of a nominee’s tally was bought is published beside it on
+                    every result. The share is <strong>curved</strong> — half the leader’s support
+                    is worth a quarter of this weight, not half of it — so trailing a field costs
+                    more than a straight proportion would suggest.</td>
+              </tr>
+              <tr>
+                <th scope="row">Judge panel</th>
+                <td class="ar-num">{{ judge_pct|default(55) }}%</td>
+                <td>An independent panel scores each shortlisted nominee on four equally-weighted
+                    criteria, on a scale that starts from the mark below which a panel awards
+                    nothing — so a middling mark is worth considerably less than half of this
+                    weight. Only complete scorecards are counted, and judges do not see the vote
+                    tally while scoring.</td>
+              </tr>
+            </tbody>
+            <tfoot>
+              <tr><td colspan="3">{{ community_pct|default(45) }}% community + {{ judge_pct|default(55) }}% judges = CPI.
+                  The split is a per-cycle setting, and this page always shows the one currently in force.</td></tr>
+            </tfoot>
+          </table>
+        </div>
+
+        <p><strong>Why {{ community_pct|default(45) }}/{{ judge_pct|default(55) }}?</strong> Popularity alone
+           should not decide a winner — a well-funded campaign can generate disproportionate vote
+           volume, and reach on the internet is not the same thing as impact on the continent. The
+           slight tilt to the panel keeps merit, not marketing, in charge of the decision.</p>
+
+        <div class="ar-refs">
+          <span>Further reading</span>
+          <ul>
+            <li><a href="/help/how-cpi-works">How the CPI is calculated</a> — the full method, end to end.</li>
+            <li><a href="/help/why-a-small-category-is-not-a-disadvantage">Why a small category is not a disadvantage</a> — what normalising inside a category actually does.</li>
+          </ul>
+        </div>
+      </section>
+
+      {# ── ELIGIBILITY ─────────────────────────────────────────────────── #}
+      <section class="ar-sec" id="eligible" data-ag-reveal>
+        <h3><span class="ar-sn">03</span>Who can actually win</h3>
+        <p>Leading the public vote makes a nominee the front-runner. It does not, by itself, make
+           them eligible to be declared the winner.</p>
+        <p><strong>Complete judge scorecards, minimum {{ min_judges|default(2) }}.</strong> A nominee needs
+           at least {{ min_judges|default(2) }} judges to have scored them on every criterion. A
+           half-finished card counts as nothing — not as a zero, which would be a silent penalty for a
+           judge’s browser crashing. If nobody in a category reaches the quorum, the award is not
+           given: an empty result is more honest than one nobody scored.</p>
+
+        <h4 class="ar-h4">Three exclusions that apply before anything is counted</h4>
+        <ul class="ar-list">
+          <li><strong>Judges recuse themselves.</strong> A judge with any connection to a nominee steps
+              out of scoring them, and a judge’s own votes in a category they judge are excluded from
+              the community count.</li>
+          <li><strong>The shortlist is frozen.</strong> Once a category opens for voting, nobody can be
+              added to it. A late entrant would be competing against totals that had a head start, and
+              every earlier vote would have been cast on a different ballot.</li>
+          <li><strong>Unverified profiles score nothing.</strong> A profile must clear human review
+              before any votes or impact points attach to it, so a fabricated nominee cannot accumulate
+              a score while waiting to be noticed.</li>
+        </ul>
+
+        <div class="ar-refs">
+          <span>Further reading</span>
+          <ul>
+            <li><a href="/help/why-the-leader-may-not-be-eligible-to-win">Why the vote leader may not be eligible</a> — quorum, complete cards and recusal, in detail.</li>
+            <li><a href="/help/what-happens-if-two-nominees-tie">What happens if two nominees tie</a> — the tiebreak is the vote tally, the same votes the index counts.</li>
+          </ul>
+        </div>
+      </section>
+
+      {# ── CRITERIA ────────────────────────────────────────────────────── #}
+      <section class="ar-sec" id="criteria" data-ag-reveal>
+        <h3><span class="ar-sn">04</span>What the judges score</h3>
+        <p>Every judge scores each nominee from 0 to 10 on four dimensions. The four carry equal
+           weight — there is no hidden multiplier making one of them decide the card.</p>
+
+        <div class="ar-tw">
+          <table class="ar-table">
+            <caption>The judging rubric</caption>
+            <thead>
+              <tr><th scope="col">Criterion</th><th scope="col">Weight</th><th scope="col">What it asks</th></tr>
+            </thead>
+            <tbody>
+              {% set crit = {
+                'Impact':'The measurable difference made for a community, an industry or the continent. What is different because this person did the work?',
+                'Originality':'Inventiveness. Has something genuinely new been introduced, or is this an existing thing done competently?',
+                'Reach':'Breadth of influence — local, regional, continental, global. Reach is not follower count.',
+                'Integrity':'Consistency of values and accountability under pressure, including how a nominee behaves when it costs them something.'
+              } %}
+              {% for title, desc in crit %}
+                <tr><th scope="row">{{ title }}</th><td class="ar-num">25%</td><td>{{ desc }}</td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+
+        <div class="ar-aside">
+          <p>Judges see a nominee’s dossier, not their vote count. The public tally is kept off the
+             scoring screen deliberately, so it cannot anchor a score before the judge has formed one.</p>
+        </div>
+
+        <div class="ar-refs">
+          <span>Further reading</span>
+          <ul>
+            <li><a href="/help/what-the-judges-actually-score">What the judges actually score you on</a> — each criterion, and what evidence counts for it.</li>
+          </ul>
+        </div>
+      </section>
+
+      {# ── MONEY ───────────────────────────────────────────────────────────
+         Published because the separation was real in the engine and invisible on
+         the site. A promise nobody can see is not a promise anybody can hold us
+         to. #}
+      <section class="ar-sec" id="money" data-ag-reveal>
+        <h3><span class="ar-sn">05</span>What a contribution does, and what it cannot reach</h3>
+        <p>Supporters can contribute to the programme in a nominee’s name, and each contribution
+           adds votes to that nominee’s tally. The money keeps the awards running — the panel, the
+           verification work, the platform itself. It is fair to ask what it actually buys, and the
+           honest answer is: <strong>it buys community support, and community support is
+           {{ community_pct|default(45) }}% of the index.</strong> It buys nothing on the other
+           {{ judge_pct|default(55) }}%, and it buys no privacy — every purchased vote is published
+           as a purchased vote.</p>
+
+        <div class="ar-cols">
+          <div class="ar-cols--can">
+            <h4>What a contribution does</h4>
+            <ul class="ar-list">
+              <li>Adds to the nominee’s <strong>tally</strong> — the number on their page, on the leaderboard, and in the community half of their index.</li>
+              <li><strong>Counts toward the ranking.</strong> Every vote is worth the same, whether it was free or bought, and there is no ceiling on how many a campaign may buy.</li>
+              <li>Puts the supporter’s name on the nominee’s supporters list, if they chose to be named.</li>
+              <li>Sets aside a share for the nominee themselves, once they qualify — see <a href="#return">the community return</a>.</li>
+              <li>Funds the judging panel, the verification work and running the programme.</li>
+            </ul>
+          </div>
+          <div class="ar-cols--cannot">
+            <h4>What it cannot reach</h4>
+            <ul class="ar-list">
+              <li>It <strong>reaches none of the judging half</strong> — {{ judge_pct|default(55) }}% of
+                  the index. A panel scores each nominee against a published rubric and cannot see a
+                  vote count, a contribution, or who paid for what.</li>
+              <li>It <strong>buys no consideration from a judge</strong>, who cannot see it.</li>
+              <li>It <strong>is not hidden</strong>. Every result publishes the full tally and how much
+                  of it was bought, per nominee, beside the index it produced.</li>
+              <li>A <strong>contribution</strong> mints bonus votes against a ceiling — no more than
+                  {{ paid_cap_pct|default(50) }}% of the organic support a nominee has already earned.
+                  That ceiling applies to contributions only; <strong>vote packs bought on the ballot
+                  have no such limit</strong>, and we would rather name that difference than let it be
+                  discovered.</li>
+              <li>It <strong>does not survive a refund</strong>. A reversed contribution takes its
+                  votes back out of the tally, and the index is recomputed.</li>
+            </ul>
+          </div>
+        </div>
+
+        <p>Put plainly: <strong>buying votes does help a nominee win, and we say so here rather
+           than let anybody find out from the numbers.</strong> The community
+           {{ community_pct|default(45) }}% counts every vote equally and has no ceiling, so a
+           well-funded campaign can lead its category on spending. What money cannot do is reach the
+           judging {{ judge_pct|default(55) }}%, and what it cannot do is hide: every result page
+           publishes each nominee’s full tally and how much of it was bought, side by side.
+           If any of that ever stops being true, this page is wrong and we want to hear about it —
+           the numbers above are read from the live scoring configuration, not typed in by hand.</p>
+
+        <div class="ar-refs">
+          <span>Further reading</span>
+          <ul>
+            <li><a href="/help/what-paid-votes-do">What paid votes actually do</a> — price, how they count, and the half of the index they cannot reach.</li>
+            <li><a href="/help/how-free-voting-works">How free voting works</a> — the free vote, the code, and one per person per category.</li>
+          </ul>
+        </div>
+      </section>
+
+      {# ── COMMUNITY RETURN ────────────────────────────────────────────── #}
+      <section class="ar-sec" id="return" data-ag-reveal>
+        <h3><span class="ar-sn">06</span>The community return</h3>
+
+        {# ── DOES THIS MECHANISM EXIST HERE AT ALL? ────────────────────────
+           The return accrues from one thing and one thing only: somebody buying votes
+           on a ballot. Where this site sells no votes there is no contribution to take
+           a share OF, so every sentence below describes something that cannot happen —
+           and this section used to print all of them in the present tense with nothing
+           but the rate to gate it.
+
+           Stated FIRST, above the rules, and not as a clause at the end. A nominee who
+           reads three paragraphs about what they keep and then meets a caveat has
+           already been told they are earning. The two reasons are named separately
+           because they are different facts about the site: `rate_zero` is a decision
+           somebody made about a live mechanism, `no_paid_voting` is the mechanism
+           having no input. One sentence covering both would be false to half the
+           people reading it. #}
+        {% if return_off_reason|default('') == 'no_paid_voting' %}
+          <div class="ar-note">
+            <h4>Not running on this site</h4>
+            <p>The return is a share of what supporters <em>contribute</em>, and this site does not
+               sell votes — voting here is free, and nothing is being raised in anybody’s name. So
+               nothing accrues, and no nominee is earning. The rules below are the ones that would
+               apply if vote contribution were opened.</p>
+          </div>
+        {% elseif return_off_reason|default('') == 'rate_zero' %}
+          <div class="ar-note">
+            <h4>Currently set to nothing</h4>
+            <p>The share is set to <strong>0%</strong>, so no new contribution is accruing anything for
+               a nominee. Shares already recorded are unaffected — the ledger only ever grows.</p>
+          </div>
+        {% endif %}
+
+        <p>If money is going to be part of this, the people whose communities raised it should see
+           some of it back. A nominee keeps a share of what supporters contribute in their name —
+           whether or not they win, because they raised it either way.</p>
+
+        <div class="ar-tw">
+          <table class="ar-table">
+            <caption>How a nominee qualifies, and what they keep</caption>
+            <thead>
+              <tr><th scope="col">Rule</th><th scope="col">Setting</th><th scope="col">What it means</th></tr>
+            </thead>
+            <tbody>
+              <tr>
+                <th scope="row">Qualifying support</th>
+                <td class="ar-num">{{ return_threshold|default(250)|number_format }} votes</td>
+                <td>A nominee begins earning once they have gathered
+                    {{ return_threshold|default(250)|number_format }} votes of qualifying support.
+                    Votes are counted, not heads — somebody who bought twenty-five votes did more
+                    than somebody who cast one, and a rule that scored them the same would call
+                    generosity noise.</td>
+              </tr>
+              <tr>
+                <th scope="row">No single pocket</th>
+                <td class="ar-num">{{ return_cap_pct|default(10) }}%</td>
+                <td>One supporter’s votes count for at most
+                    <strong>{{ return_cap_votes|default(25)|number_format }}</strong> toward that
+                    threshold, however many they bought. So it takes at least
+                    <strong>{{ return_people|default(10) }} different verified people</strong>,
+                    whatever anybody is willing to spend.</td>
+              </tr>
+              <tr>
+                <th scope="row">The share</th>
+                <td class="ar-num">{{ return_pct|default('50') }}%</td>
+                <td>From that point on, {{ return_pct|default('50') }}% of each further contribution is
+                    set aside for the nominee. Crossing the line does not reach backwards — earlier
+                    contributions stay unshared, so nobody is rewarded retroactively by a threshold
+                    moving.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <p>The ceiling is the safeguard, and it is deliberately not a headcount rule. A threshold in
+           raw votes is not a rule at all, it is a <em>price</em>: one person could buy the whole thing
+           in a single order and everything genuine afterwards would earn. Capping each supporter’s
+           contribution to the threshold keeps that impossible while still letting the people who gave
+           most count for most. Free votes and contributions are added together per person, so
+           splitting an order cannot buy a second allowance.</p>
+
+        <p>It is held as an <em>append-only ledger</em>, not a balance we can quietly edit. Every entry
+           records what it was computed from and at what rate; if a contribution is refunded or charged
+           back, the share accrued on it is reversed and the reversal stays on the record beside the
+           original. Nothing is payable until that cycle has ended and its results have been
+           announced — a nominee cannot cash out mid-race, and the platform is not paying out money an
+           integrity finding might still reverse.</p>
+
+        <div class="ar-refs">
+          <span>Further reading</span>
+          <ul>
+            <li><a href="/help/the-community-return">The community return, in full</a> — qualifying support, the ceiling, the ledger and payout.</li>
+          </ul>
+        </div>
+      </section>
+
+      {# ── HONEST COUNT ────────────────────────────────────────────────── #}
+      <section class="ar-sec" id="honest" data-ag-reveal>
+        <h3><span class="ar-sn">07</span>Keeping the count honest</h3>
+        <p>Every vote needs a one-time code sent to a working email address, and every attempt is
+           scored for risk from 0 to 100 <em>before</em> anything is written down.</p>
+
+        <div class="ar-tw">
+          <table class="ar-table">
+            <caption>Risk bands, and what each one does</caption>
+            <thead>
+              <tr><th scope="col">Score</th><th scope="col">Band</th><th scope="col">What happens</th></tr>
+            </thead>
+            <tbody>
+              <tr><td class="ar-num">0–{{ fraud_monitor|default(30) }}</td><th scope="row">Clear</th><td>Approved as it is cast.</td></tr>
+              <tr><td class="ar-num">{{ fraud_monitor|default(30) }}–{{ fraud_flag|default(60) }}</td><th scope="row">Monitored</th><td>Counted, and kept under observation.</td></tr>
+              <tr><td class="ar-num">{{ fraud_flag|default(60) }}–{{ fraud_block|default(80) }}</td><th scope="row">Flagged</th><td>Held for a person to review.</td></tr>
+              <tr><td class="ar-num">{{ fraud_block|default(80) }}+</td><th scope="row">Blocked</th><td>Refused before the vote exists.</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <ul class="ar-list">
+          <li><strong>One identity, one vote</strong>, per category. The address is stored only as a
+              SHA-256 hash, so we can tell that two votes came from the same person without holding
+              the person.</li>
+          <li><strong>Disposable mail is refused</strong> at the moment a code is requested — before any
+              database write happens at all.</li>
+          <li><strong>A total can go down.</strong> Votes later found to be fraudulent are removed, and a
+              refunded contribution takes its bonus votes with it. A falling number is usually the
+              integrity system working.</li>
+        </ul>
+
+        <div class="ar-aside">
+          <p>Being flagged is not an accusation. A shared office network or a campus wifi produces the
+             same pattern a vote farm does, which is exactly why a flag sends a vote to a human rather
+             than to the bin.</p>
+        </div>
+
+        <div class="ar-refs">
+          <span>Further reading</span>
+          <ul>
+            <li><a href="/help/how-we-spot-a-vote-that-is-not-real">How we decide a vote is not real</a> — the signals, the bands, and what to do if yours was refused.</li>
+            <li><a href="/help/already-voted">It says I already voted</a> — the commonest reason a real person is turned away.</li>
+          </ul>
+        </div>
+      </section>
+
+      {# ── WHEN MONEY GOES WRONG ───────────────────────────────────────── #}
+      <section class="ar-sec" id="failures" data-ag-reveal>
+        <h3><span class="ar-sn">08</span>When a payment goes wrong</h3>
+        <p>A payment passes through a bank and a gateway before it reaches us, and any of those steps
+           can fail after a card has been charged. We would rather say so than pretend it never
+           happens.</p>
+        <ul class="ar-list">
+          <li><strong>The votes are still owed to you.</strong> If the ballot was open when you paid, the
+              votes are yours even if the confirmation reached us late. We check the time you
+              <em>started</em> the payment, not the moment our system happened to notice it.</li>
+          <li><strong>If they cannot be delivered, the money goes back.</strong> Where votes genuinely
+              cannot be counted — the nominee left the ballot, or the payment confirmed long after
+              voting closed — the order is refunded rather than kept. We do not keep money for votes we
+              did not deliver.</li>
+          <li><strong>Tell us, with your reference.</strong> Every order carries a reference beginning
+              <code>AFG-</code>. Give it to the <a href="/support/assistant">assistant</a> and it
+              re-checks the payment with the bank directly, adding the votes on the spot if the money
+              arrived.</li>
+        </ul>
+        <div class="ar-aside">
+          <p>The same honesty applies to our own failures. When our records show a voting code never
+             left the building, that vote can be restored after voting closes — proposed by one person,
+             approved by a different one, capped in size, and disclosed on the nominee’s page.</p>
+        </div>
+
+        <div class="ar-refs">
+          <span>Further reading</span>
+          <ul>
+            <li><a href="/help/paid-but-no-votes">I paid but my votes have not appeared</a> — fixable in under a minute, without waiting for anyone.</li>
+            <li><a href="/help/refund-when-votes-cannot-count">When do you refund?</a> — the one case that refunds itself, and the rest.</li>
+            <li><a href="/help/votes-we-could-not-deliver">Votes that never reached you</a> — how a failed code becomes a restored vote.</li>
+          </ul>
+        </div>
+      </section>
+
+      {# ── SEALED ──────────────────────────────────────────────────────── #}
+      <section class="ar-sec" id="sealed" data-ag-reveal>
+        <h3><span class="ar-sn">09</span>Sealing the result</h3>
+        <p>A result you have to take on trust is not a result. Every time the standings are computed
+           they are sealed — each record carrying a fingerprint of itself and of the record before it,
+           all the way back to the first.</p>
+        <p>The consequence is the useful part. Editing an old standing — nudging one number in a table
+           months later — breaks its fingerprint, and because the next record contains that
+           fingerprint, it breaks every record after it. There is no quiet edit available; there is
+           only an edit that announces itself.</p>
+        <ol class="ar-steps">
+          <li>The chain is re-verified automatically every day, link by link.</li>
+          <li>A break is not a line in a log somebody might read. It is raised as a failure, to people,
+              with the position of the broken link.</li>
+          <li>The database refuses to record two standings claiming the same predecessor, so the chain
+              cannot be forked into a convenient second history.</li>
+          <li>Every recomputation is logged, and an independent reviewer can replay the arithmetic from
+              source.</li>
+        </ol>
+        <p>This protects you from us as much as from anybody else. A platform that can silently rewrite
+           its own results has to be taken on trust; one that cannot does not need to be.</p>
+
+        <div class="ar-refs">
+          <span>Further reading</span>
+          <ul>
+            <li><a href="/help/how-results-are-sealed">How you can tell a result was not edited</a> — the chain, the daily check, and what a break looks like.</li>
+            <li><a href="/help/dispute-a-result">I think a count or a ranking is wrong</a> — ask for an audit; we will show the working.</li>
+          </ul>
+        </div>
+      </section>
+
+      {# ── CYCLE ───────────────────────────────────────────────────────── #}
+      <section class="ar-sec" id="cycle" data-ag-reveal>
+        <h3><span class="ar-sn">10</span>The cycle, stage by stage</h3>
+        <p>A programme moves through six stages in one direction. The stage is not a label on a page —
+           the system enforces it, and each transition closes something permanently.</p>
+        <ol class="ar-steps">
+          {% set steps = [
+            ['Nominated','Anyone can enter someone; entries queue for moderation.'],
+            ['Verified','The team checks eligibility, accuracy and completeness.'],
+            ['Shortlisted','Approved nominees go public — and the list is frozen.'],
+            ['Voted','Code-verified, risk-scored votes are collected.'],
+            ['Judged','The panel scores the shortlist, without seeing tallies.'],
+            ['Sealed','A signed snapshot is taken; results computed and archived.']
+          ] %}
+          {% for s in steps %}<li><strong>{{ s[0] }}.</strong> {{ s[1] }}</li>{% endfor %}
+        </ol>
+        <div class="ar-aside">
+          <p>Card contribution closes a little earlier than free voting, so payments already in flight
+             have time to land before the ballot shuts. Free voting runs to the bell.</p>
+        </div>
+
+        <div class="ar-refs">
+          <span>Further reading</span>
+          <ul>
+            <li><a href="/help/the-stages-of-an-award-cycle">The stages, and what freezes at each</a> — what each transition closes, and why.</li>
+            <li><a href="/help/when-does-voting-close">When does voting close?</a> — deadlines, and the gap before them.</li>
+          </ul>
+        </div>
+      </section>
+
+      {# ── DISPUTES ────────────────────────────────────────────────────── #}
+      <section class="ar-sec" id="disputes" data-ag-reveal>
+        <h3><span class="ar-sn">11</span>Disputes and your data</h3>
+        <p>If you believe a result was manipulated or a fraud pattern was missed, say so. Every
+           recomputation is logged, so a count can be replayed from the underlying votes and the
+           working shown to you.</p>
+        <p>Raise it at <a href="mailto:integrity@afrovanguard.org.ng">integrity@afrovanguard.org.ng</a>
+           or through <a href="/support">Support &amp; appeals</a>. Appeals go to somebody independent
+           of the original decision. We will:</p>
+        <ol class="ar-steps">
+          <li>Acknowledge the complaint within {{ review_sla_hours }} hours.</li>
+          <li>Export the relevant vote audit trail — timestamps, hashed identities, risk scores.</li>
+          <li>Engage an independent reviewer if the complaint is substantiated.</li>
+          <li>Publish a summary of findings if the dispute affected a final result.</li>
+        </ol>
+        <h4 class="ar-h4">What we store when you vote</h4>
+        <p>A SHA-256 hash of your email and IP, a device fingerprint, and the nominee ID and timestamp
+           of your vote. We never store your plain-text email, name or personal identifier against a
+           vote, and we never sell or monetise voter data. Full details:
+           <a href="/privacy">Privacy Policy</a> · <a href="/terms">Terms</a>.</p>
+
+        <div class="ar-refs">
+          <span>Further reading</span>
+          <ul>
+            <li><a href="/help/dispute-a-result">I think a count or a ranking is wrong</a> — what to send, and what happens next.</li>
+            <li><a href="/help/report-a-profile">How do I report a nominee or profile?</a> — confidentially, and without needing proof.</li>
+            <li><a href="/help/what-data-do-you-keep">What data do you keep about me?</a> — held, never held, and your rights.</li>
+          </ul>
+        </div>
+      </section>
+
+      {# The handover. The method ends by pointing back at the argument it
+         enforces, so a reader who arrived here from a ballot can go and find out
+         why any of it is shaped this way. #}
+      {{ art.next({
+        url: '/philosophy',
+        kicker: 'The argument behind the method',
+        title: 'The philosophy behind Africa GATES community voting',
+        blurb: 'Why the public vote carries a token contribution, what we mean by a community,
+                what standing for someone asks of a nominee, and what this model cannot do.'
+      }) }}
+
+      {{ art.cite({
+        citations: doc_citations, version: doc_version, published: doc_published,
+        updated: doc_updated, accessed: doc_accessed, url: doc_url,
+        portable: false,
+        portable_note: 'This page has no plain-text edition, because its figures are tables read from
+                        the live scoring engine. The philosophy that accompanies it does:
+                        <a href="/philosophy">read it in full</a>, or download it from there.',
+        note: 'This is a versioned document with a stable address. Please cite the version you read
+               &mdash; the figures on it track live programme settings, so an undated reference to
+               &ldquo;the Africa GATES methodology&rdquo; may not describe what you saw. The version
+               changes when the METHOD changes; a figure moving is not a new version, because the
+               claim is that the page reports whatever the engine is running.'
+      }) }}
+
+      <div class="ar-end">
+        <p>Questions this document does not answer? Write to
+           <a href="mailto:integrity@afrovanguard.org.ng">integrity@afrovanguard.org.ng</a>, or browse
+           every written answer in the <a href="/help">Help Centre</a>.</p>
+        <p><em>{{ doc_publisher }}</em></p>
       </div>
-    </div>
+
+    </article>
   </div>
-</section>
-
-<article class="r26-article wrap" style="padding-top:1.5rem">
-  <div class="r26-prose">
-
-    {# ── Section 1: Lifecycle ── #}
-    <h2>1 — Award lifecycle</h2>
-    <p>Every award programme runs through five mandatory stages. No stage can be skipped and stages cannot overlap — the platform enforces this at the database level.</p>
-    {% set stages = [
-      {num:'01', name:'Nomination', desc:'Anyone can nominate a person or organisation. Submissions are queued for moderation — they are not visible to the public until approved.'},
-      {num:'02', name:'Verification', desc:'The moderation team reviews each submission for eligibility, accuracy, and completeness. Nominees who do not meet criteria are rejected with a reason logged.'},
-      {num:'03', name:'Shortlist Published', desc:'Approved nominees appear publicly. The shortlist is frozen — no new entries are accepted once voting opens.'},
-      {num:'04', name:'Public Voting', desc:'Community votes are collected. Each email address can cast one vote per category per cycle. Every vote is OTP-verified and fraud-scored before recording.'},
-      {num:'05', name:'Judging', desc:'An independent panel scores each shortlisted nominee on four weighted criteria. Judge scores are recorded separately and combined with public votes at close.'},
-      {num:'06', name:'Results & Audit', desc:'A signed vote snapshot is generated at the moment voting closes. The weighted final score is calculated and winners are announced. The snapshot is permanently archived.'},
-    ] %}
-    <div style="display:flex;flex-direction:column;gap:0.75rem;margin:1.25rem 0 0" data-anim>
-      {% for s in stages %}
-      <div style="display:flex;gap:1rem;background:#fff;border:1px solid rgba(16,41,44,0.08);border-radius:16px;padding:1.1rem 1.25rem">
-        <div style="font-family:var(--font-mono);font-weight:700;color:var(--emerald-600);flex:none;font-size:0.95rem;line-height:1.6">{{ s.num }}</div>
-        <div>
-          <h3 class="r26-h3" style="margin:0 0 0.3rem;font-size:1.05rem">{{ s.name }}</h3>
-          <p style="margin:0;font-size:0.95rem">{{ s.desc }}</p>
-        </div>
-      </div>
-      {% endfor %}
-    </div>
-
-    {# ── Section 2: Voting rules ── #}
-    <h2>2 — Voting rules</h2>
-    <h3 class="r26-h3" style="margin:1.4rem 0 0.35rem">One vote per category per person</h3>
-    <p>Your email address is hashed using SHA-256 and stored against your vote. The plain-text email is never saved. Each hash can appear once per category per cycle — enforced by a database unique constraint that cannot be bypassed.</p>
-    <h3 class="r26-h3" style="margin:1.4rem 0 0.35rem">OTP verification required</h3>
-    <p>Every vote requires a one-time 6-digit code delivered to the voter's email. The code expires in 10 minutes, can only be used once, and is cryptographically bound to the specific nominee it was requested for — it cannot be reused for a different nominee.</p>
-    <h3 class="r26-h3" style="margin:1.4rem 0 0.35rem">Fraud scoring on every vote</h3>
-    <p>Each vote attempt is assigned a risk score (0–100) based on device fingerprint, IP vote density, OTP request patterns, and behavioural signals. Scores below 30 are auto-approved. Scores 60–79 are flagged for manual review. Scores 80+ are blocked before the vote is recorded.</p>
-    <h3 class="r26-h3" style="margin:1.4rem 0 0.35rem">Disposable email addresses blocked</h3>
-    <p>Known temporary email domains (Mailinator, Guerrilla Mail, 10-minute mail, and 30+ others) are rejected at OTP request time — before any database write occurs.</p>
-    <h3 class="r26-h3" style="margin:1.4rem 0 0.35rem">Donation votes</h3>
-    <p>Supporters who donate to Africa GATES earn bonus votes (currently 5 per ₦1,000 donated, admin-configurable). Bonus votes are subject to the same OTP verification and fraud scoring as standard votes. They do not bypass any anti-fraud control.</p>
-
-    {# ── Section 3: Scoring formula ── #}
-    <h2>3 — How winners are scored</h2>
-    <p>The final CPI (Cultural Power Index) score is a weighted combination of community votes and judge scores. Neither alone determines the winner.</p>
-    <div class="r26-surface" style="padding:1.75rem;margin:1.25rem 0 0" data-anim>
-      <div class="r26-metrics" style="grid-template-columns:repeat(2,1fr);max-width:none">
-        <div class="r26-metric">
-          <div class="r26-metric__num">45%</div>
-          <div class="r26-metric__lbl"><strong>Public votes</strong> — community voice, normalised within each category against the category's highest vote count.</div>
-        </div>
-        <div class="r26-metric">
-          <div class="r26-metric__num">55%</div>
-          <div class="r26-metric__lbl"><strong>Judge panel</strong> — average of four criteria: Impact (25%), Originality (25%), Reach (25%), and Integrity (25%).</div>
-        </div>
-      </div>
-      <p style="text-align:center;margin:1.25rem 0 0;font-family:var(--font-mono);font-size:0.9rem;color:var(--r26-ink,#10292c)">45% public + 55% judges = CPI Score</p>
-    </div>
-    <div class="r26-note r26-note--gold" style="margin-top:1.25rem">
-      <strong>Why 45/55?</strong> Popularity alone should not determine the winner — a well-funded campaign can generate disproportionate vote volume. The slight tilt to the judge panel ensures that merit, not marketing, carries the decision.
-    </div>
-
-    {# ── Section 4: Judge criteria ── #}
-    <h2>4 — Judging criteria</h2>
-    <p>Every judge scores each nominee on four dimensions. Scores are 0–10 per criterion. The weighted average becomes the judge score.</p>
-    <div class="r26-cards" style="grid-template-columns:repeat(2,1fr);margin-top:1.25rem" data-anim>
-      {% for title,desc in {
-        'Impact': 'Measurable difference made for the community, industry, or continent.',
-        'Originality': 'Inventiveness and novelty — has this person introduced something genuinely new?',
-        'Reach': 'Breadth of influence: local, regional, continental, or global.',
-        'Integrity': 'Consistency of values, ethics, and accountability under pressure.'
-      } %}
-      <div class="r26-card">
-        <h3 class="r26-card__title" style="display:flex;align-items:center;justify-content:space-between;gap:0.5rem">{{ title }} <span class="r26-chip2" style="font-size:0.78rem;padding:0.3rem 0.7rem">25%</span></h3>
-        <p style="margin:0;font-size:0.95rem">{{ desc }}</p>
-      </div>
-      {% endfor %}
-    </div>
-
-    {# ── Section 5: Nomination eligibility ── #}
-    <h2>5 — Nomination eligibility</h2>
-    <h3 class="r26-h3" style="margin:1.4rem 0 0.35rem">Who can nominate</h3>
-    <p>Any person with a valid, non-disposable email address. There is no fee to nominate. Nominators provide their full name, phone number, and location for accountability.</p>
-    <h3 class="r26-h3" style="margin:1.4rem 0 0.35rem">Who can be nominated</h3>
-    <p>Any African individual, school, choir, or business that meets the stated criteria for the specific award programme. Self-nominations are accepted.</p>
-    <h3 class="r26-h3" style="margin:1.4rem 0 0.35rem">Business Awards criteria</h3>
-    <p>Business nominees must have a minimum of 5 staff members, maintain a physical office presence in Alimosho, and demonstrate excellence worthy of emulation.</p>
-    <h3 class="r26-h3" style="margin:1.4rem 0 0.35rem">Grounds for rejection</h3>
-    <p>A nomination will be rejected if: the nominee does not meet the eligibility criteria, the reason provided is demonstrably false, the nomination is a duplicate of an existing approved entry, or the submission violates our community standards.</p>
-
-    {# ── Section 6: Dispute resolution ── #}
-    <h2>6 — Dispute resolution</h2>
-    <p>If you believe a result was manipulated, a nominee was improperly approved, or a fraud pattern was missed, contact us at <a href="mailto:integrity@afrovanguard.org.ng">integrity@afrovanguard.org.ng</a>.</p>
-    <p>We will:</p>
-    <ol style="padding-left:1.5rem;display:flex;flex-direction:column;gap:0.5rem;font-size:0.9375rem;color:var(--neutral-600,#4a5256);margin:0 0 1.3rem">
-      <li>Acknowledge the complaint within 48 hours.</li>
-      <li>Export the relevant vote audit trail (timestamps, hashed identities, risk scores).</li>
-      <li>Engage an independent reviewer if the complaint is substantiated.</li>
-      <li>Publish a summary of findings if the dispute affected a final result.</li>
-    </ol>
-
-    {# ── Section 7: Data and privacy ── #}
-    <h2>7 — Your data</h2>
-    <h3 class="r26-h3" style="margin:1.4rem 0 0.35rem">What we store</h3>
-    <p>A SHA-256 hash of your email. Your IP address (also hashed). A device fingerprint. The nominee ID and timestamp of your vote. We never store your plain-text email, name, or personal identifier against a vote.</p>
-    <h3 class="r26-h3" style="margin:1.4rem 0 0.35rem">What we never sell</h3>
-    <p>We do not sell, share, or monetise voter data. Africa GATES products are ad-free. Data collected is used only for fraud prevention, vote integrity, and aggregate analytics.</p>
-    <p>Full details: <a href="/privacy">Privacy Policy</a> · <a href="/terms">Terms of Use</a></p>
-
-    <div style="margin-top:2.5rem;text-align:center" data-anim>
-      <p style="margin-bottom:1rem">Questions not answered here?</p>
-      <a href="mailto:integrity@afrovanguard.org.ng" class="btn btn--emerald">Contact the Integrity Team</a>
-    </div>
-
-  </div>
-</article>
+</div>
 {% endblock %}

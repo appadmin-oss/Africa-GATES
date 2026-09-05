@@ -1,0 +1,171 @@
+{# ════════════════════════════════════════════════════════════════════
+   Unified success / confirmation card — Africa GATES v3
+   Mirrors Success Pages.dc.html. Renders inside layout/gates.twig
+   {% block content %}; uses the real site nav/footer/Gee chrome.
+   ALL copy + data is supplied by the caller — this partial fabricates
+   nothing. Inline-styled (no asset-cache dance), reduced-motion safe.
+
+   Caller vars (all optional, sensibly defaulted):
+     sc_kicker     uppercase eyebrow                    (string)
+     sc_heading    display headline                     (string)
+     sc_body       supporting paragraph                 (string)
+     sc_accent     'green' | 'gold' | 'slate'           (badge/check tone)
+     sc_art        '' | 'green' | 'gold' | 'slate'      (art panel tone; defaults to sc_accent)
+     sc_glyph      check|plane|ballot|heart|ticket|bag|tree|link|shield
+     sc_receipt    { label, code, amount }  → chip shown only when .code set
+     sc_primary    { label, href }
+     sc_secondary  { label, href }                      (omit to hide)
+     sc_email_note short reassurance line                (string; omit to hide)
+     sc_confetti   celebratory flakes                    (bool)
+     sc_next_label heading of the steps card             (string)
+     sc_steps      [ '…', '…', … ]                       (array; omit to hide card)
+   ════════════════════════════════════════════════════════════════════ #}
+{% set _tones = {
+  green: { code:'#1a6118', badgeBg:'#eef7ee', badgeBorder:'#cfe8cd', art:'#d9ead1', glow:'rgba(35,123,34,.18)', m1:'#2f9e2c', m2:'#176315' },
+  gold:  { code:'#a47306', badgeBg:'#fff8df', badgeBorder:'#f0e0b0', art:'#f7f0db', glow:'rgba(212,154,14,.22)', m1:'#e0a414', m2:'#a47306' },
+  slate: { code:'#2d373d', badgeBg:'#eef1f1', badgeBorder:'#d6dddd', art:'#e9efef', glow:'rgba(45,55,61,.16)', m1:'#5b676d', m2:'#2d373d' }
+} %}
+{% set _ac = _tones[sc_accent|default('green')] %}
+{% set _ar = _tones[sc_art|default(sc_accent|default('green'))] %}
+{% set _glyphs = {
+  check:  '<path d="M20 6 9 17l-5-5"/>',
+  plane:  '<path d="M22 2 11 13"/><path d="M22 2 15 22l-4-9-9-4 20-7Z"/>',
+  ballot: '<path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/>',
+  heart:  '<path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.6l-.9-1a5.5 5.5 0 1 0-7.8 7.8L12 21l8.8-8.6a5.5 5.5 0 0 0 0-7.8Z"/>',
+  ticket: '<path d="M3 9a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2 2 2 0 0 0 0 4 2 2 0 0 1-2 2H5a2 2 0 0 1-2-2 2 2 0 0 0 0-4Z"/><path d="M13 7v10"/>',
+  bag:    '<path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4Z"/><path d="M3 6h18"/><path d="M16 10a4 4 0 0 1-8 0"/>',
+  tree:   '<path d="M12 22v-7"/><path d="M12 15a5 5 0 0 0-5-5H4a7 7 0 0 0 7 7"/><path d="M12 13a5 5 0 0 1 5-5h3a7 7 0 0 1-7 7"/>',
+  link:   '<path d="M10 13a5 5 0 0 0 7 0l3-3a5 5 0 0 0-7-7l-1 1"/><path d="M14 11a5 5 0 0 0-7 0l-3 3a5 5 0 0 0 7 7l1-1"/>',
+  shield: '<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10Z"/><path d="M9 11.5l2 2 4-4"/>',
+  clock:  '<circle cx="12" cy="12" r="9"/><path d="M12 7.5V12l3.2 1.9"/>'
+} %}
+{% set _gly = _glyphs[sc_glyph|default('check')]|default(_glyphs.check) %}
+
+<style nonce="{{ csp_nonce }}">
+  .sc{ background:#eef0ec; padding:clamp(2.2rem,6vw,4.25rem) var(--ag-gutter,24px); display:flex; align-items:center; justify-content:center; }
+  .sc-grid{ max-width:900px; width:100%; display:grid; grid-template-columns:1fr 1fr;
+    grid-template-areas:"copy art" "copy next"; gap:clamp(26px,4.5vw,48px); align-items:start; animation:scUp .5s ease both; }
+  .sc-copy{ grid-area:copy; align-self:center; min-width:0; }
+  .sc-art{ grid-area:art; } .sc-next{ grid-area:next; }
+  .sc-badge{ display:inline-flex; align-items:center; gap:9px; border:1px solid; padding:7px 14px; border-radius:999px; margin-bottom:20px; }
+  .sc-dot{ position:relative; width:18px; height:18px; display:flex; align-items:center; justify-content:center; }
+  .sc-ring{ position:absolute; inset:0; border-radius:50%; opacity:.22; animation:scRing 1.8s ease-out infinite; }
+  .sc-kicker{ font-size:11px; font-weight:700; letter-spacing:.08em; text-transform:uppercase; }
+  .sc-h1{ margin:0; font-family:var(--ag-font-display,'Playfair Display',serif); font-weight:800;
+    font-size:clamp(2rem,4.8vw,2.7rem); line-height:1.05; letter-spacing:-.025em; color:#10292c; }
+  .sc-body{ margin:15px 0 0; font-size:clamp(.95rem,2.3vw,1rem); line-height:1.62; color:#4a5256; max-width:430px; }
+  .sc-receipt{ margin-top:22px; display:flex; align-items:center; justify-content:space-between; gap:16px; max-width:340px;
+    background:#fff; border:1px solid rgba(16,41,44,.1); border-radius:14px; padding:14px 18px; }
+  .sc-receipt__l{ font-size:10.5px; text-transform:uppercase; letter-spacing:.06em; color:var(--ag-ink-soft,#626a6e); }
+  .sc-receipt__v{ font-family:var(--ag-font-mono,'JetBrains Mono',monospace); font-weight:700; font-size:16px; color:#10292c; margin-top:3px; word-break:break-word; }
+  .sc-cta{ display:flex; align-items:center; gap:12px; margin-top:26px; flex-wrap:wrap; }
+  .sc-btn{ display:inline-flex; align-items:center; gap:8px; font-weight:600; font-size:15px; border-radius:999px; text-decoration:none; line-height:1.1; }
+  .sc-btn--p{ background:#237b22; color:#fff; padding:14px 24px; box-shadow:0 10px 22px -10px rgba(35,123,34,.6); transition:background .15s,transform .15s; }
+  .sc-btn--p:hover{ background:#1a6118; transform:translateY(-1px); }
+  .sc-btn--s{ background:#fff; color:#10292c; padding:13px 22px; border:1px solid rgba(16,41,44,.16); transition:border-color .15s; }
+  .sc-btn--s:hover{ border-color:rgba(16,41,44,.32); }
+  .sc-mail{ margin:20px 0 0; display:flex; align-items:center; gap:8px; font-size:12.5px; color:var(--ag-ink-soft,#626a6e); }
+  .sc-mail svg{ flex:none; }
+  .sc-art{ position:relative; border-radius:24px; padding:34px; overflow:hidden; display:flex; align-items:center; justify-content:center; min-height:210px; }
+  .sc-glow{ position:absolute; right:-40px; top:-40px; width:180px; height:180px; border-radius:50%; pointer-events:none; }
+  .sc-med{ position:relative; width:106px; height:106px; border-radius:50%; display:flex; align-items:center; justify-content:center;
+    box-shadow:0 18px 40px -16px rgba(16,41,44,.55); animation:scFloat 6s ease-in-out infinite; }
+  .sc-med svg{ width:48px; height:48px; }
+  .sc-flake{ position:absolute; top:-14px; width:8px; height:8px; border-radius:2px; animation:scFall linear infinite; }
+  .sc-next{ background:#fff; border:1px solid rgba(16,41,44,.08); border-radius:18px; padding:18px 20px; }
+  .sc-next__l{ margin:0 0 13px; font-size:11px; font-weight:700; letter-spacing:.08em; text-transform:uppercase; color:var(--ag-ink-soft,#626a6e); }
+  .sc-steps{ display:flex; flex-direction:column; gap:12px; }
+  .sc-step{ display:flex; align-items:flex-start; gap:11px; }
+  .sc-step__n{ flex:none; width:24px; height:24px; border-radius:50%; background:#eef7ee; color:#176315;
+    display:flex; align-items:center; justify-content:center; font-family:var(--ag-font-mono,'JetBrains Mono',monospace); font-weight:700; font-size:11px; margin-top:1px; }
+  .sc-step__t{ font-size:13.5px; line-height:1.5; color:#3a4448; }
+  @keyframes scUp{ from{opacity:0;transform:translateY(16px)} to{opacity:1;transform:translateY(0)} }
+  @keyframes scFloat{ 0%,100%{transform:translateY(0)} 50%{transform:translateY(-8px)} }
+  @keyframes scRing{ 0%{transform:scale(.8);opacity:.55} 100%{transform:scale(1.9);opacity:0} }
+  @keyframes scFall{ 0%{transform:translateY(0) rotate(0);opacity:0} 12%{opacity:1} 100%{transform:translateY(430px) rotate(330deg);opacity:0} }
+  @media (max-width:760px){
+    .sc-grid{ grid-template-columns:1fr; grid-template-areas:"art" "copy" "next"; gap:24px; max-width:460px; }
+    .sc-copy{ align-self:auto; }
+    .sc-art{ min-height:150px; padding:26px; }
+    .sc-med{ width:90px; height:90px; } .sc-med svg{ width:40px; height:40px; }
+  }
+  @media (prefers-reduced-motion:reduce){
+    .sc-grid,.sc-med,.sc-ring{ animation:none!important; }
+    .sc-flake{ display:none!important; }
+  }
+  /* Printable receipt — reveal only the confirmation card, drop site chrome + art. */
+  @media print{
+    body *{ visibility:hidden!important; }
+    .sc, .sc *{ visibility:visible!important; }
+    .sc{ position:absolute; inset:0 auto auto 0; width:100%; background:#fff!important; padding:0!important; }
+    .sc-grid{ grid-template-columns:1fr!important; grid-template-areas:"copy" "next"!important; gap:18px!important; max-width:520px!important; animation:none!important; }
+    .sc-art{ display:none!important; }
+    .sc-cta, .sc-mail{ display:none!important; }
+    .sc-receipt, .sc-next{ break-inside:avoid; }
+  }
+</style>
+
+<section class="sc">
+  <div class="sc-grid">
+    <div class="sc-copy">
+      <span class="sc-badge" style="background:{{ _ac.badgeBg }};border-color:{{ _ac.badgeBorder }}">
+        <span class="sc-dot">
+          <span class="sc-ring" style="background:{{ _ac.code }}"></span>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="{{ _ac.code }}" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M20 6 9 17l-5-5"/></svg>
+        </span>
+        <span class="sc-kicker" style="color:{{ _ac.code }}">{{ sc_kicker|default('Done') }}</span>
+      </span>
+      <h1 class="sc-h1">{{ sc_heading|default('Thank you') }}</h1>
+      {% if sc_body is defined and sc_body %}<p class="sc-body">{{ sc_body }}</p>{% endif %}
+
+      {% if sc_receipt is defined and sc_receipt and sc_receipt.code %}
+      <div class="sc-receipt">
+        <div>
+          <div class="sc-receipt__l">{{ sc_receipt.label|default('Reference') }}</div>
+          <div class="sc-receipt__v">{{ sc_receipt.code }}</div>
+        </div>
+        {% if sc_receipt.amount is defined and sc_receipt.amount %}
+        <div style="text-align:right">
+          <div class="sc-receipt__l">Amount</div>
+          <div class="sc-receipt__v" style="color:{{ _ac.code }}">{{ sc_receipt.amount }}</div>
+        </div>
+        {% endif %}
+      </div>
+      {% endif %}
+
+      <div class="sc-cta">
+        <a class="sc-btn sc-btn--p" href="{{ sc_primary.href|default('/') }}">{{ sc_primary.label|default('Continue') }}
+          <svg width="15" height="15" viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M7.5 4.5 13 10 7.5 15.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></a>
+        {% if sc_secondary is defined and sc_secondary and sc_secondary.label %}
+        <a class="sc-btn sc-btn--s" href="{{ sc_secondary.href|default('/') }}">{{ sc_secondary.label }}</a>
+        {% endif %}
+      </div>
+
+      {% if sc_email_note is defined and sc_email_note %}
+      <p class="sc-mail"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><rect x="2" y="4" width="20" height="16" rx="3"/><path d="m3 6 9 7 9-7"/></svg>{{ sc_email_note }}</p>
+      {% endif %}
+    </div>
+
+    <div class="sc-art" style="background:{{ _ar.art }}">
+      <span class="sc-glow" style="background:radial-gradient(circle,{{ _ar.glow }},transparent 68%)"></span>
+      {% if sc_confetti|default(false) %}
+        {% set _fc = ['#237b22','#fbc329','#e0245e','#7FC87C','#a47306'] %}
+        {% for i in 0..8 %}<span class="sc-flake" style="left:{{ 6 + i*11 }}%;background:{{ _fc[i % 5] }};animation-duration:{{ (26 + (i % 4)*5)/10 }}s;animation-delay:{{ (i*32)/100 }}s"></span>{% endfor %}
+      {% endif %}
+      <span class="sc-med" style="background:linear-gradient(140deg,{{ _ac.m1 }},{{ _ac.m2 }})">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">{{ _gly|raw }}</svg>
+      </span>
+    </div>
+
+    {% if sc_steps is defined and sc_steps is not empty %}
+    <div class="sc-next">
+      <p class="sc-next__l">{{ sc_next_label|default('What happens next') }}</p>
+      <div class="sc-steps">
+        {% for s in sc_steps %}
+        <div class="sc-step"><span class="sc-step__n">{{ loop.index }}</span><span class="sc-step__t">{{ s }}</span></div>
+        {% endfor %}
+      </div>
+    </div>
+    {% endif %}
+  </div>
+</section>

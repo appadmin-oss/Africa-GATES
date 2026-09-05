@@ -1,0 +1,214 @@
+{% extends "layout/gates.twig" %}
+
+{#
+  ── ONE VENDOR, ONE OFFER, THREE THINGS TO DO ────────────────────────────────
+
+  Read the terms, accept the pitch, pay the fee. In that order, and the page will
+  not let them happen in any other — a Pay button on an unaccepted offer is a
+  charge for a place the trader has not agreed to take.
+
+  Reached by a token in an email. The reader is a market trader on a phone with a
+  two-day clock running, so everything that matters is above the fold: what the
+  stand is, what it costs, when the offer runs out, and the one button.
+#}
+
+{% block head_styles %}
+<style nonce="{{ csp_nonce }}">
+  body[data-page="stands"]{ background:#f0f2f2; }
+  .so{ max-width:660px; margin:0 auto; padding:clamp(1.8rem,4vw,2.6rem) var(--ag-gutter,24px) 4rem; }
+
+  .so-kick{ font-family:var(--ag-font-mono); font-size:var(--ag-fs-label); letter-spacing:var(--ag-tracking-label);
+    text-transform:uppercase; color:var(--ag-ink-soft); margin:0 0 12px; }
+  .so h1{ margin:0; font-family:var(--ag-font-display); font-weight:700; letter-spacing:-.015em;
+    font-size:clamp(1.6rem,4vw,2.3rem); line-height:1.15; color:var(--ag-ink); }
+  .so-lede{ margin:12px 0 0; font-size:1.0125rem; line-height:1.65; color:#3c4649; }
+
+  .so-card{ margin-top:20px; background:#fff; border:1px solid rgba(16,41,44,.1);
+    border-radius:16px; padding:20px 22px; }
+  .so-card h2{ margin:0 0 4px; font-size:1rem; color:var(--ag-ink); }
+
+  /* The clock. Loud on purpose — an unaccepted offer is released, and before this page
+     existed the only way to learn that had happened was to notice the pitch was gone. */
+  .so-clock{ margin-top:16px; padding:13px 16px; border-radius:12px; background:#fffdf5;
+    border:1px solid #ecd9a0; border-left:3px solid #c9a24b; font-size:.9375rem;
+    line-height:1.6; color:#6b5312; }
+  .so-clock--gone{ background:#fdf3f3; border-color:#f0c9c9; border-left-color:#b3261e; color:#8a2020; }
+
+  .so-rows{ list-style:none; margin:14px 0 0; padding:0; }
+  .so-row{ display:flex; justify-content:space-between; gap:14px; padding:11px 0;
+    border-top:1px solid rgba(16,41,44,.08); font-size:.9375rem; }
+  .so-row:first-child{ border-top:none; }
+  .so-row dt{ color:var(--ag-ink-soft); }
+  .so-row dd{ margin:0; font-weight:600; color:var(--ag-ink); text-align:right; }
+
+  .so-money{ margin-top:16px; padding:16px 18px; border-radius:12px; background:#f6f9f6;
+    border:1px solid rgba(35,123,34,.18); }
+  .so-money__n{ font-family:var(--ag-font-display); font-weight:700; font-size:1.6rem;
+    color:var(--ag-ink); letter-spacing:-.01em; }
+  .so-money__l{ margin:6px 0 0; font-size:.9125rem; line-height:1.6; color:#3c4649; }
+
+  .so-terms{ margin-top:18px; padding-top:16px; border-top:1px solid rgba(16,41,44,.1); }
+  .so-check{ display:flex; align-items:flex-start; gap:11px; font-size:.9375rem;
+    line-height:1.6; color:#3c4649; cursor:pointer; }
+  .so-check input{ flex:none; width:20px; height:20px; margin-top:2px; accent-color:#237b22; }
+
+  .so-go{ display:block; width:100%; margin-top:16px; cursor:pointer; border:none;
+    border-radius:999px; background:#237b22; color:#fff; font:700 1rem/1 inherit;
+    padding:16px 20px; min-height:52px; }
+  .so-go:hover{ background:#1a6118; }
+  .so-go--pay{ background:#10292C; }
+  .so-go--pay:hover{ background:#1a3f43; }
+
+  .so-done{ margin-top:16px; padding:14px 16px; border-radius:12px; background:#f0fdf4;
+    border:1px solid #b6e3b6; font-size:.9375rem; line-height:1.6; color:#1c5f1b; }
+  .so-note{ margin:14px 0 0; font-size:.875rem; line-height:1.65; color:var(--ag-ink-soft); }
+  .so-note a{ color:#1a6118; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="so">
+
+{% if dead %}
+
+  {# A dead link is a real state and gets a sentence. The commonest cause is an offer that
+     ran out and was released, and somebody holding the link is owed that rather than a
+     blank 404 wall. #}
+  <p class="so-kick">Stands</p>
+  <h1>That link is not working</h1>
+  <p class="so-lede">It may have been replaced by a newer one, or the offer it pointed to may
+    have run out and gone to somebody on the waiting list.</p>
+  <div class="so-card">
+    <p style="margin:0">Everything about your application is on your dashboard, including any
+      offer that is still open. <a href="/org">Sign in to your vendor account</a>, or write to
+      the organiser and they will send you a new link.</p>
+  </div>
+
+{% else %}
+
+  <p class="so-kick">{{ org ? org.name : 'Your stand' }}</p>
+  <h1>{% if is_accepted %}Your stand at {{ event.title }}{% else %}You have been offered a stand at {{ event.title }}{% endif %}</h1>
+
+  {% if is_offer and not expired %}
+    <p class="so-lede">The place below is held for you. Read the trading terms, then accept it —
+      after that you can pay the fee here.</p>
+  {% elseif is_accepted %}
+    <p class="so-lede">This place is yours. {{ owing.settled ? 'Nothing is outstanding.' : 'The fee is below.' }}</p>
+  {% endif %}
+
+  {# ── THE CLOCK ─────────────────────────────────────────────────────────── #}
+  {% if is_offer %}
+    {% if expired %}
+      <div class="so-clock so-clock--gone" role="alert">
+        <strong>This offer ran out on {{ expires_at|slice(0,16) }}.</strong>
+        The place may have gone to somebody on the waiting list. Write to the organiser —
+        if it has not, they can offer it again.
+      </div>
+    {% else %}
+      <div class="so-clock" role="status">
+        <strong>Accept by {{ expires_at|date('l j F') }}, {{ expires_at|date('g:i a') }}.</strong>
+        After that the place goes to the next applicant on the list. That is not a penalty —
+        a place held indefinitely is a place taken from a list that was told it would move.
+      </div>
+    {% endif %}
+  {% endif %}
+
+  {# ── WHAT IS ON OFFER ──────────────────────────────────────────────────── #}
+  <div class="so-card">
+    <h2>The pitch</h2>
+    <dl class="so-rows">
+      <div class="so-row"><dt>Event</dt><dd>{{ event.title }}</dd></div>
+      {% if event.event_date %}
+        <div class="so-row"><dt>Date</dt><dd>{{ event.event_date|date('j F Y') }}</dd></div>
+      {% endif %}
+      {% if type %}
+        <div class="so-row"><dt>Stand</dt><dd>{{ type.name }}</dd></div>
+        {% if type.includes_power %}
+          <div class="so-row"><dt>Power</dt><dd>Included</dd></div>
+        {% endif %}
+      {% endif %}
+      <div class="so-row"><dt>Trading as</dt><dd>{{ org ? org.name : '—' }}</dd></div>
+    </dl>
+
+    {# ── THE MONEY ───────────────────────────────────────────────────────
+         Said in naira, in one number, before anybody presses anything. A fee first
+         discovered at a checkout is the fastest way to lose a trader permanently. #}
+    <div class="so-money">
+      <div class="so-money__n">
+        {% if owing.fee > 0 %}₦{{ owing.fee|number_format }}{% else %}No fee{% endif %}
+      </div>
+      <p class="so-money__l">{{ owing.label }}</p>
+    </div>
+  </div>
+
+  {% if error %}<div class="so-clock so-clock--gone" role="alert">{{ error }}</div>{% endif %}
+
+  {# ══ ACCEPTING ═══════════════════════════════════════════════════════════ #}
+  {% if is_offer and not expired %}
+    <div class="so-card" id="terms">
+      <h2>Before you accept</h2>
+      <p style="margin:9px 0 0;font-size:.9375rem;line-height:1.7;color:#3c4649">
+        The <a href="/{{ terms_slug }}" target="_blank" rel="noopener">trading terms</a> cover
+        the things that actually come up at a market: who insures your stock, what happens if
+        the event is cancelled or postponed, what you may and may not sell, and when the fee
+        can be refunded. They open in a new tab so you do not lose this page.</p>
+
+      <form method="post" action="/stand/{{ app.access_token }}/accept" class="so-terms">
+        <input type="hidden" name="_token" value="{{ csrf_token }}">
+        {# A real checkbox, not a "by continuing you agree" line. The second is a sentence
+           people scroll past, and this one has money and a cancellation policy behind it. #}
+        <label class="so-check">
+          <input type="checkbox" name="agree_terms" value="1" required>
+          <span>I have read the <a href="/{{ terms_slug }}" target="_blank" rel="noopener">Vendor
+            Trading Terms</a> and the terms published with this call, and I agree to them.</span>
+        </label>
+        <button class="so-go" type="submit">Accept this stand</button>
+      </form>
+
+      <p class="so-note">Accepting holds the pitch in your name. It is not transferable — if
+        somebody else will be running the stall on the day, tell the organiser who they are.</p>
+    </div>
+  {% endif %}
+
+  {# ══ PAYING ══════════════════════════════════════════════════════════════ #}
+  {% if is_accepted %}
+    {% if owing.settled %}
+      <div class="so-done" role="status">
+        <strong>{{ owing.stage == 'free' ? 'Your place is confirmed.' : 'Paid in full — your place is confirmed.' }}</strong>
+        {% if agreed_at %}<br>Terms agreed {{ agreed_at|slice(0,10) }}.{% endif %}
+      </div>
+    {% else %}
+      <div class="so-card">
+        <h2>Pay for your stand</h2>
+        <p style="margin:9px 0 0;font-size:.9375rem;line-height:1.7;color:#3c4649">
+          {{ owing.label }} Paid by card on our secure gateway — the receipt goes to the email
+          on your account.</p>
+
+        {% if can_pay %}
+          <form method="post" action="/stand/{{ app.access_token }}/pay">
+            <input type="hidden" name="_token" value="{{ csrf_token }}">
+            {# No amount field. What is owed is computed on the server from the stamped fee
+               and what has already been credited — a posted amount would let anybody pay ₦1
+               for a ₦35,000 pitch and have the row say paid. #}
+            <button class="so-go so-go--pay" type="submit">Pay ₦{{ owing.due|number_format }} now</button>
+          </form>
+        {% else %}
+          <p class="so-note" style="margin-top:14px">Card payment is not available on this site
+            just now. <strong>Your place is still held</strong> — write to the organiser and
+            they will arrange the fee another way.</p>
+        {% endif %}
+
+        <p class="so-note">A stand is confirmed once the amount due has been paid. An organiser
+          may release an unpaid pitch, and will tell you before doing so.</p>
+      </div>
+    {% endif %}
+  {% endif %}
+
+  {# ── AND THE REST OF THE ACCOUNT ──────────────────────────────────────── #}
+  <p class="so-note" style="margin-top:22px">
+    Your documents, your other applications and everything else about this account are on your
+    <a href="/org">vendor dashboard</a>. This link reaches only this one offer.</p>
+
+{% endif %}
+</div>
+{% endblock %}

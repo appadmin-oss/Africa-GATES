@@ -1,0 +1,88 @@
+{# ── THE ONE SHARE ROW ────────────────────────────────────────────────────────
+   Every place on this platform that asks somebody to pass a link on renders THIS,
+   so the set of destinations, the copy and the fallback behaviour cannot drift
+   apart between the ballot, a message permalink and a receipt.
+
+   Optional context:
+     share_url     absolute URL to share      (default: the canonical URL)
+     share_text    the sentence that travels  (default: og_title / page_title)
+     share_label   the row's own label, or '' to omit it
+     share_grid    true → wrap into a grid of tiles instead of one long row
+     share_native  false → omit the native share-sheet button
+
+   ── WHY THESE ARE PLAIN ANCHORS ────────────────────────────────────────────
+   Each destination is an ordinary link to that platform's own share intent. No
+   SDK, no tracking pixel, nothing that has to load before the button works — the
+   same reason the article download stopped being a JavaScript popover. If Alpine
+   never boots, five of the seven controls here still work.
+
+   The two that need JavaScript (the native sheet, copy-to-clipboard) are the two
+   that have no non-JavaScript equivalent, and both are additive. #}
+{% set _su = share_url|default(canonical_url|default((site_url|default('')) ~ (request_path|default('/')))) %}
+{% set _st = share_text|default(og_title|default(page_title|default('Africa GATES'))) %}
+{# `is defined`, NOT |default('Share'). Twig's default filter fires on any EMPTY
+   value, so a caller passing share_label:'' to suppress the label got 'Share' back —
+   which is how the post-vote panel ended up with its own heading and a redundant
+   "SHARE" chip underneath it. #}
+{% set _lb = share_label is defined ? share_label : 'Share' %}
+<div class="ag-share{% if share_grid|default(false) %} ag-share--grid{% endif %}" x-data="agShare()" data-url="{{ _su }}" data-text="{{ _st }}">
+  {% if _lb %}<span class="ag-share__label">{{ _lb }}</span>{% endif %}
+  <a class="ag-share__btn ag-share__btn--fb" href="https://www.facebook.com/sharer/sharer.php?u={{ _su|url_encode }}" target="_blank" rel="noopener" aria-label="Share on Facebook"><svg viewBox="0 0 24 24" width="15" height="15" fill="currentColor" aria-hidden="true"><path d="M22 12.06C22 6.5 17.52 2 12 2S2 6.5 2 12.06c0 5 3.66 9.15 8.44 9.94v-7.03H7.9v-2.9h2.54V9.85c0-2.51 1.49-3.9 3.78-3.9 1.09 0 2.24.2 2.24.2v2.46h-1.26c-1.24 0-1.63.78-1.63 1.57v1.88h2.78l-.44 2.9h-2.34V22c4.78-.79 8.43-4.94 8.43-9.94Z"/></svg><span>Facebook</span></a>
+  <a class="ag-share__btn ag-share__btn--wa" href="https://wa.me/?text={{ (_st ~ ' — ' ~ _su)|url_encode }}" target="_blank" rel="noopener" aria-label="Share on WhatsApp"><svg viewBox="0 0 24 24" width="15" height="15" fill="currentColor" aria-hidden="true"><path d="M12.04 2C6.58 2 2.13 6.45 2.13 11.91c0 1.75.46 3.45 1.32 4.95L2 22l5.25-1.38a9.9 9.9 0 0 0 4.79 1.22h.01c5.46 0 9.9-4.45 9.9-9.91C21.95 6.45 17.5 2 12.04 2Zm5.8 14.16c-.25.69-1.43 1.32-1.97 1.36-.5.07-1.14.1-1.84-.12-.42-.13-.97-.31-1.66-.61-2.92-1.26-4.83-4.2-4.98-4.4-.14-.2-1.18-1.57-1.18-3s.75-2.13 1.02-2.42c.27-.29.58-.36.77-.36l.55.01c.18.01.42-.07.65.5.25.6.84 2.07.91 2.22.07.15.12.32.02.52-.1.2-.15.32-.29.5-.15.17-.31.39-.44.52-.15.15-.3.31-.13.6.17.29.76 1.25 1.63 2.02 1.12.99 2.06 1.3 2.35 1.45.29.15.46.12.63-.07.17-.2.73-.85.92-1.14.2-.29.39-.24.66-.15.27.1 1.7.8 1.99.95.29.15.49.22.56.34.07.12.07.69-.18 1.38Z"/></svg><span>WhatsApp</span></a>
+  <a class="ag-share__btn ag-share__btn--x" href="https://twitter.com/intent/tweet?url={{ _su|url_encode }}&text={{ _st|url_encode }}" target="_blank" rel="noopener" aria-label="Share on X (Twitter)"><svg viewBox="0 0 24 24" width="15" height="15" fill="currentColor" aria-hidden="true"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24h-6.66l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231 5.45-6.231Zm-1.161 17.52h1.833L7.084 4.126H5.117L17.083 19.77Z"/></svg><span>X</span></a>
+  <a class="ag-share__btn ag-share__btn--tg" href="https://t.me/share/url?url={{ _su|url_encode }}&text={{ _st|url_encode }}" target="_blank" rel="noopener" aria-label="Share on Telegram"><svg viewBox="0 0 24 24" width="15" height="15" fill="currentColor" aria-hidden="true"><path d="M21.94 4.3 19 19.1c-.2 1-.82 1.24-1.66.77l-4.6-3.4-2.22 2.14c-.25.25-.45.45-.92.45l.33-4.68 8.5-7.68c.37-.33-.08-.51-.57-.18L7.4 13.1l-4.5-1.41c-.98-.3-1-.98.2-1.45l17.6-6.78c.81-.3 1.52.2 1.24 1.84Z"/></svg><span>Telegram</span></a>
+  <a class="ag-share__btn ag-share__btn--li" href="https://www.linkedin.com/sharing/share-offsite/?url={{ _su|url_encode }}" target="_blank" rel="noopener" aria-label="Share on LinkedIn"><svg viewBox="0 0 24 24" width="15" height="15" fill="currentColor" aria-hidden="true"><path d="M20.45 20.45h-3.56v-5.57c0-1.33-.02-3.04-1.85-3.04-1.85 0-2.14 1.45-2.14 2.94v5.67H9.35V9h3.42v1.56h.05c.48-.9 1.64-1.85 3.37-1.85 3.6 0 4.27 2.37 4.27 5.46v6.28ZM5.34 7.43a2.07 2.07 0 1 1 0-4.14 2.07 2.07 0 0 1 0 4.14ZM7.12 20.45H3.56V9h3.56v11.45ZM22.22 0H1.77C.8 0 0 .78 0 1.74v20.52C0 23.22.8 24 1.77 24h20.45c.98 0 1.78-.78 1.78-1.74V1.74C24 .78 23.2 0 22.22 0Z"/></svg><span>LinkedIn</span></a>
+  {% if share_native|default(true) %}
+  {# Shown only where the browser actually has a share sheet — a button that opens
+     nothing is worse than no button. x-cloak so it does not flash in before Alpine
+     has had a chance to hide it. #}
+  <button type="button" class="ag-share__btn ag-share__btn--native" x-show="canNative" x-cloak @click="native()" aria-label="Open your device's share sheet"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 12v7a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-7M12 3v13M8 7l4-4 4 4"/></svg><span>More apps</span></button>
+  {% endif %}
+  <button type="button" class="ag-share__btn ag-share__btn--copy" @click="copy()" aria-label="Copy the link"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg><span x-text="copied ? 'Copied ✓' : 'Copy link'">Copy link</span></button>
+</div>
+<style nonce="{{ csp_nonce }}">
+  .ag-share{ display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+  .ag-share__label{ font-size:12px; font-weight:600; letter-spacing:.04em; text-transform:uppercase; color:#5f7273; }
+  .ag-share__btn{ display:inline-flex; align-items:center; gap:6px; border:1px solid rgba(16,41,44,.14); background:var(--ag-surface,#fff); color:var(--ag-ink,#10292C); border-radius:999px; padding:8px 12px; font:600 13px/1 inherit; cursor:pointer; text-decoration:none; transition:border-color .15s, color .15s, background .15s; }
+  .ag-share__btn:hover{ border-color:var(--ag-green,#237b22); color:var(--ag-green,#237b22); }
+  .ag-share__btn--x:hover{ border-color:#111; color:#111; }
+  .ag-share__btn--wa:hover{ border-color:#25d366; color:#15823d; }
+  .ag-share__btn--fb:hover{ border-color:#0d6ce8; color:#0d6ce8; }
+  .ag-share__btn--tg:hover{ border-color:#229ed9; color:#1979a8; }
+  .ag-share__btn--li:hover{ border-color:#0a66c2; color:#0a66c2; }
+  /* The grid variant, for the post-vote panel: equal tiles that stay legible on a
+     narrow phone instead of one row that wraps into an uneven staircase. */
+  .ag-share--grid{ display:grid; grid-template-columns:repeat(auto-fit, minmax(122px, 1fr)); gap:8px; }
+  .ag-share--grid .ag-share__label{ grid-column:1/-1; }
+  .ag-share--grid .ag-share__btn{ justify-content:center; padding:11px 10px; }
+  @media (max-width:420px){ .ag-share--grid{ grid-template-columns:repeat(2, 1fr); } }
+</style>
+<script nonce="{{ csp_nonce }}">
+if (!window.agShare) window.agShare = function(){
+  return {
+    copied:false, canNative:false, _t:null,
+    init(){ this.canNative = !!(navigator.share); },
+    /** The device's own share sheet — every installed app, including ones we have
+     *  no intent URL for. Called from a click, which is the only context browsers
+     *  allow it in. */
+    async native(){
+      try { await navigator.share({ title:this.$root.dataset.text, text:this.$root.dataset.text, url:this.$root.dataset.url }); }
+      catch(e){ /* AbortError = the user closed the sheet. Not a failure. */ }
+    },
+    async copy(){
+      var url = this.$root.dataset.url;
+      try { await navigator.clipboard.writeText(url); }
+      catch(e){
+        // No clipboard permission (or an insecure origin): select the URL in a
+        // throwaway field so the reader can still copy it by hand.
+        try {
+          var t = document.createElement('textarea');
+          t.value = url; t.setAttribute('readonly',''); t.style.position='fixed'; t.style.opacity='0';
+          document.body.appendChild(t); t.select(); document.execCommand('copy'); document.body.removeChild(t);
+        } catch(e2){ return; }
+      }
+      this.copied = true; var self=this; clearTimeout(this._t); this._t = setTimeout(function(){ self.copied=false; }, 2000);
+    }
+  };
+};
+</script>

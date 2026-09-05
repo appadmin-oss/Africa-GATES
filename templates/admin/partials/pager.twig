@@ -1,0 +1,21 @@
+{# Numbered pager so ANY page is reachable directly (not just prev/next).
+   Expects: base (path), qs (preserved query string minus page, may be ''),
+   page, pages, window (int[] from Filters::pageWindow, 0 = ellipsis). #}
+{% if pages > 1 %}
+{% set sep = qs ? '?' ~ qs ~ '&' : '?' %}
+<nav class="ad-pager" aria-label="Pagination" style="display:flex;gap:6px;justify-content:center;align-items:center;flex-wrap:wrap;padding:16px 0 4px">
+  {% if page > 1 %}
+    <a class="ad-btn ad-btn--sm" href="{{ base }}{{ sep }}page=1" aria-label="First page">« First</a>
+    <a class="ad-btn ad-btn--sm" href="{{ base }}{{ sep }}page={{ page - 1 }}" rel="prev">‹ Prev</a>
+  {% endif %}
+  {% for n in window %}
+    {% if n == 0 %}<span aria-hidden="true" style="padding:0 4px;color:var(--ad-text-mute,#61728e)">…</span>
+    {% elseif n == page %}<span class="ad-btn ad-btn--sm ad-btn--primary" aria-current="page">{{ n }}</span>
+    {% else %}<a class="ad-btn ad-btn--sm" href="{{ base }}{{ sep }}page={{ n }}">{{ n }}</a>{% endif %}
+  {% endfor %}
+  {% if page < pages %}
+    <a class="ad-btn ad-btn--sm" href="{{ base }}{{ sep }}page={{ page + 1 }}" rel="next">Next ›</a>
+    <a class="ad-btn ad-btn--sm" href="{{ base }}{{ sep }}page={{ pages }}" aria-label="Last page">Last »</a>
+  {% endif %}
+</nav>
+{% endif %}

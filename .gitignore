@@ -1,17 +1,46 @@
 .env
-vendor/
-var/cache/twig/*.php
+# `/vendor/*`, not `/vendor/`: git cannot re-include a file whose PARENT DIRECTORY
+# is excluded, and vendor/.htaccess must ship. On a deployment whose DocumentRoot
+# is the project root — the misconfiguration that produced a site-wide 403 here —
+# vendor/ is inside the web root, and it is the largest attack surface in the tree
+# (every dependency's tests, fixtures and dev scripts). Composer does not remove
+# unrecognised files, so the deny survives `composer install`.
+/vendor/*
+!/vendor/.htaccess
+# Twig writes compiled templates into HASHED SUBDIRECTORIES (twig/fb/fb02….php), which
+# `twig/*.php` does not match — so the cache surfaced as untracked the first time a page
+# was rendered outside the test harness. The whole directory is derived.
+var/cache/
 var/data/
 public/assets/vendor/*.map
 var/logs/
+# Screenshots and other throwaway artefacts written under var/ by tooling. `var/`
+# is the project's scratch directory, and 6.8MB of PNGs got committed from a
+# verification run because only its named subdirectories were ignored.
+#
+# A glob rather than another named line: the last two verification runs each invented
+# the next number, and `var/shots3/` turned up untracked for exactly the reason the
+# paragraph above already describes.
+var/shots*/
+var/tmp/
+# Nominee voice recordings. These are people talking about themselves — the most personal
+# thing this platform stores — and a verification run left forty of them untracked in the
+# working tree. They belong on the server that received them and nowhere else.
+var/uploads/
+# Build/deploy archives written here for hand-off. They are outputs of the tree,
+# so committing them puts a copy of the tree inside the tree — the first attempt
+# produced a 26MB "changed files" zip containing the full-app zip.
+var/deploy/
 
 # Off-host build output + user uploads (not committed)
 public/assets/dist/
-public/uploads/
-
-# Duplicate app snapshot & archive shipped in the tree (Phase 0 hygiene: to be deleted)
-africa-gates-voting-and-nomination-claude-eager-wozniak-QLdKH/
-africa-gates-voting-and-nomination-claude-eager-wozniak-QLdKH.zip
+# `public/uploads/*`, not `public/uploads/` — git cannot re-include a file whose
+# PARENT DIRECTORY is excluded, so the directory form made the negation below
+# impossible. That is why public/uploads/.htaccess — the "Layer 2" the root
+# .htaccess has always pointed at — did not exist in any deployment: it could not
+# be committed. The uploaded files themselves stay ignored.
+public/uploads/*
+!public/uploads/.htaccess
 
 # OS / editor
 .DS_Store
@@ -22,3 +51,16 @@ composer.phar
 
 # PHPUnit cache
 .phpunit.cache/
+
+# Node modules — only the browser QA tools in tools/browser and tools/qa need
+# these, and they are installed on demand (npm i --no-save playwright). Nothing
+# the application serves comes from here, and Chromium already ships with the
+# environment at /opt/pw-browsers.
+/node_modules/
+package-lock.json
+var/cache/ticket-art/
+
+# Any local .env variant — a moved-aside copy of a real .env still carries the
+# real keys, and `git add -A` does not know the difference.
+.env.*
+!.env.example

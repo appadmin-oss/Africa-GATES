@@ -1,74 +1,106 @@
 {% extends "layout/gates.twig" %}
+
+{% block head_styles %}
+<style nonce="{{ csp_nonce }}">
+  body[data-page="register"]{ background:#eef0ec; color:var(--ag-ink); }
+  .rg{ max-width:760px; margin:0 auto; padding:0 var(--ag-gutter,32px) 64px; }
+
+  .rg-hero{ position:relative; overflow:hidden; border-radius:24px; margin-top:24px; background:radial-gradient(130% 130% at 80% 0%,#1d5b2a,#10292C 60%); padding:clamp(2.4rem,5.5vw,3.2rem) clamp(1.6rem,4vw,2.6rem); color:#fff; }
+  .rg-hero__orb{ position:absolute; right:-60px; bottom:-80px; width:320px; height:320px; border-radius:50%; background:radial-gradient(circle,rgba(212,154,14,.28),transparent 68%); }
+  .rg-hero__in{ position:relative; max-width:560px; }
+  .rg-badge{ display:inline-flex; align-items:center; gap:7px; font-size:11px; font-weight:700; letter-spacing:.1em; text-transform:uppercase; color:#ffd24a; background:rgba(8,26,16,.55); box-shadow:inset 0 0 0 1px rgba(212,154,14,.32); padding:7px 14px; border-radius:999px; }
+  .rg-hero h1{ margin:16px 0 0; color:#fff; font-family:var(--ag-font-display); font-weight:800; font-size:clamp(2rem,5vw,2.7rem); line-height:1.04; letter-spacing:-.02em; }
+  .rg-hero h1 em{ color:#7FC87C; font-style:normal; }
+  .rg-hero p{ margin:14px 0 0; font-size:15.5px; line-height:1.6; color:rgba(255,255,255,.85); max-width:480px; }
+
+  .rg-card{ background:var(--ag-surface,#fff); border:1px solid rgba(16,41,44,.08); border-radius:20px; padding:clamp(1.5rem,3vw,2rem); margin-top:22px; box-shadow:0 14px 40px -28px rgba(16,41,44,.4); }
+  .rg-row{ display:grid; grid-template-columns:1fr 1fr; gap:16px; }
+  @media(max-width:560px){ .rg-row{ grid-template-columns:1fr; } }
+  .rg-field{ margin-top:15px; }
+  .rg-field:first-child, .rg-row .rg-field{ margin-top:0; }
+  .rg-row{ margin-top:15px; }
+  .rg-card > .rg-row:first-of-type{ margin-top:0; }
+  .rg-label{ display:block; font-size:12.5px; font-weight:600; color:#4a5256; margin-bottom:6px; }
+  .rg-label span{ font-weight:400; color:#7a8588; }
+  .rg-input, .rg-select, .rg-textarea{ width:100%; border:1px solid rgba(16,41,44,.16); border-radius:11px; padding:12px 14px; font-family:inherit; font-size:16px; color:var(--ag-ink); outline:none; background:#fff; transition:border-color .15s, box-shadow .15s; }
+  .rg-input:focus, .rg-select:focus, .rg-textarea:focus{ border-color:var(--ag-green,#237b22); box-shadow:0 0 0 3px rgba(35,123,34,.1); }
+  .rg-textarea{ resize:vertical; min-height:96px; line-height:1.55; }
+  .rg-err{ font-size:13.5px; color:#b42318; background:#fdecec; border:1px solid rgba(180,35,24,.2); border-radius:11px; padding:11px 14px; margin-bottom:16px; }
+  .rg-note{ margin:16px 0 0; font-size:12.5px; line-height:1.55; color:#626a6e; }
+  .rg-note a{ color:var(--ag-green,#237b22); font-weight:600; text-decoration:none; }
+  .rg-cta{ margin-top:18px; cursor:pointer; border:none; background:var(--ag-green,#237b22); color:#fff; font-family:inherit; font-weight:600; font-size:15px; padding:14px 26px; border-radius:999px; display:inline-flex; align-items:center; gap:8px; }
+  .rg-cta:hover{ background:var(--ag-green-dark,#1a6118); }
+</style>
+{% endblock %}
+
 {% block content %}
-
-<section class="p-hero p-hero--light">
-  <div class="wrap">
-    <p class="eyebrow" data-anim>Register a profile</p>
-    <h1 data-text-anim>Get on <em>the board.</em></h1>
-    <p data-anim data-anim-delay="1">Free. Verified. The moment your profile is approved, your CPI score starts ticking and you become eligible for every cycle.</p>
+<div class="rg">
+  <div class="rg-hero">
+    <div class="rg-hero__orb" aria-hidden="true"></div>
+    <div class="rg-hero__in">
+      <span class="rg-badge">✦ Register a profile</span>
+      <h1>Get on <em>the board.</em></h1>
+      <p>Free and verified. The moment your profile is approved, your Cultural Power Index score starts ticking and you become eligible for every cycle.</p>
+    </div>
   </div>
-</section>
 
-<section class="section">
-  <div class="wrap" style="max-width:44rem">
-    <form method="POST" action="/register" class="form-stack" data-anim>
-      <input type="hidden" name="_token" value="{{ csrf_token }}">
+  <form method="POST" action="/register" class="rg-card">
+    <input type="hidden" name="_token" value="{{ csrf_token }}">
+    {% if error %}<div class="rg-err" role="alert">{{ error }}</div>{% endif %}
 
-      <div class="form-row">
-        <div class="form-group">
-          <label class="form-label" for="rName">Display name</label>
-          <input id="rName" name="display_name" class="form-input" type="text" required placeholder="e.g. Amara Nwosu">
-        </div>
-        <div class="form-group">
-          <label class="form-label" for="rType">Profile type</label>
-          <select id="rType" name="profile_type" class="form-select">
-            <option value="individual">Individual</option>
-            <option value="business">Business</option>
-            <option value="organisation">Organisation</option>
-          </select>
-        </div>
+    <div class="rg-row">
+      <div class="rg-field">
+        <label class="rg-label" for="rName">Display name</label>
+        <input id="rName" name="display_name" class="rg-input" type="text" required value="{{ old.display_name|default('') }}" placeholder="e.g. Amara Nwosu">
       </div>
-
-      <div class="form-row">
-        <div class="form-group">
-          <label class="form-label" for="rCategory">Category</label>
-          <input id="rCategory" name="category" class="form-input" type="text" placeholder="e.g. Education leader, EdTech, Choir">
-        </div>
-        <div class="form-group">
-          <label class="form-label" for="rCountry">Country</label>
-          <select id="rCountry" name="country_code" class="form-select" required>
-            <option value="">— Select —</option>
-            {% for code, name in {'NG':'Nigeria','GH':'Ghana','ZA':'South Africa','KE':'Kenya','ET':'Ethiopia','EG':'Egypt','MA':'Morocco','TZ':'Tanzania','UG':'Uganda','CI':'Côte d\'Ivoire','CM':'Cameroon','SN':'Senegal','RW':'Rwanda','ZM':'Zambia','ZW':'Zimbabwe','BF':'Burkina Faso','MZ':'Mozambique','BW':'Botswana','NA':'Namibia','GA':'Gabon','TN':'Tunisia','DZ':'Algeria'} %}
-            <option value="{{ code }}">{{ name }}</option>
-            {% endfor %}
-          </select>
-        </div>
+      <div class="rg-field">
+        <label class="rg-label" for="rType">Profile type</label>
+        <select id="rType" name="profile_type" class="rg-select">
+          {% for val, lbl in {'individual':'Individual','business':'Business','organisation':'Organisation'} %}
+          <option value="{{ val }}" {% if old.profile_type|default('individual') == val %}selected{% endif %}>{{ lbl }}</option>
+          {% endfor %}
+        </select>
       </div>
+    </div>
 
-      <div class="form-group">
-        <label class="form-label" for="rBio">A paragraph about your work</label>
-        <textarea id="rBio" name="bio" class="form-textarea" rows="4" placeholder="What do you do? Where? Why does it matter? Specifics land better than adjectives."></textarea>
+    <div class="rg-row">
+      <div class="rg-field">
+        <label class="rg-label" for="rCategory">Category</label>
+        <input id="rCategory" name="category" class="rg-input" type="text" value="{{ old.category|default('') }}" placeholder="e.g. Education leader, EdTech, Choir">
       </div>
-
-      <div class="form-row">
-        <div class="form-group">
-          <label class="form-label" for="rEmail">Email <span class="text-soft" style="font-weight:400">(for OTP verification)</span></label>
-          <input id="rEmail" name="email" class="form-input" type="email" required placeholder="you@example.com">
-        </div>
-        <div class="form-group">
-          <label class="form-label" for="rWeb">Website / link (optional)</label>
-          <input id="rWeb" name="website" class="form-input" type="url" placeholder="https://…">
-        </div>
+      <div class="rg-field">
+        <label class="rg-label" for="rCountry">Country</label>
+        <select id="rCountry" name="country_code" class="rg-select" required>
+          <option value="">— Select —</option>
+          {% for code, name in {'NG':'Nigeria','GH':'Ghana','ZA':'South Africa','KE':'Kenya','ET':'Ethiopia','EG':'Egypt','MA':'Morocco','TZ':'Tanzania','UG':'Uganda','CI':'Côte d\'Ivoire','CM':'Cameroon','SN':'Senegal','RW':'Rwanda','ZM':'Zambia','ZW':'Zimbabwe','BF':'Burkina Faso','MZ':'Mozambique','BW':'Botswana','NA':'Namibia','GA':'Gabon','TN':'Tunisia','DZ':'Algeria'} %}
+          <option value="{{ code }}" {% if old.country_code|default('') == code %}selected{% endif %}>{{ name }}</option>
+          {% endfor %}
+        </select>
       </div>
+    </div>
 
-      <p class="text-xs text-soft">Your CPI score starts at 0 and ticks up as votes, judge panels, and profile completeness contribute. <a href="/awards" style="color:var(--emerald-600);font-weight:500">How CPI works →</a></p>
+    <div class="rg-field">
+      <label class="rg-label" for="rBio">A paragraph about your work</label>
+      <textarea id="rBio" name="bio" class="rg-textarea" rows="4" placeholder="What do you do? Where? Why does it matter? Specifics land better than adjectives.">{{ old.bio|default('') }}</textarea>
+    </div>
 
-      <button class="btn btn--gold" type="submit" style="align-self:flex-start">
-        Register profile
-        <svg class="btn__arrow" viewBox="0 0 20 20" fill="none"><path d="M7.5 4.5 13 10 7.5 15.5" stroke="currentColor" stroke-width="1.75" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
-      </button>
-    </form>
-  </div>
-</section>
+    <div class="rg-row">
+      <div class="rg-field">
+        <label class="rg-label" for="rEmail">Email <span>(for OTP verification)</span></label>
+        <input id="rEmail" name="email" class="rg-input" type="email" required value="{{ old.email|default('') }}" placeholder="you@example.com">
+      </div>
+      <div class="rg-field">
+        <label class="rg-label" for="rWeb">Website / link <span>(optional)</span></label>
+        <input id="rWeb" name="website" class="rg-input" type="url" value="{{ old.website|default('') }}" placeholder="https://…">
+      </div>
+    </div>
 
+    <p class="rg-note">Your CPI score starts at 0 and ticks up as votes, judge panels and profile completeness contribute. <a href="/awards">How CPI works →</a></p>
+
+    <button class="rg-cta" type="submit">
+      Register profile
+      <svg width="15" height="15" viewBox="0 0 20 20" fill="none" aria-hidden="true" focusable="false"><path d="M7.5 4.5 13 10 7.5 15.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    </button>
+  </form>
+</div>
 {% endblock %}

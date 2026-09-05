@@ -1,0 +1,1569 @@
+{% extends "layout/gates.twig" %}
+
+{# This page renders flash_* itself, beside the thing the message is about, so the
+   layout rail is suppressed — otherwise every message would appear twice. #}
+{% set own_flash = true %}
+
+{#
+  ══ THE MEMBER'S OWN PAGE ═══════════════════════════════════════════════════
+
+  ── WHAT WAS WRONG WITH IT ──────────────────────────────────────────────────
+
+  Eight full-width cards in one column, every one of them the same 20px-radius
+  white panel: points, how-you-earn, orders, tickets, votes, nominations, share
+  links, profile, saved threads, ledger. Everything had the same weight, so
+  nothing was important, and finding "where is my ticket" meant scrolling past
+  four unrelated cards to reach it. That is the absence of a decision rather
+  than a bad decision — the page had accreted.
+
+  It is sections now, with a rail. Six of them, named by the JOB a member came
+  to do — see what I have, check my points, find my order, see what I did, read
+  what I saved, change my details — and the rail carries counts, because a
+  section label with no number beside it is a door people open to find out
+  whether it was worth opening.
+
+  ── HOW THE SECTIONS SWITCH, AND WHY IT IS NOT ALPINE ───────────────────────
+
+  One attribute on <html>, set synchronously in the head from location.hash, and
+  six CSS rules keyed off it. That buys three things a JS-driven tab set does not:
+
+    · NO FLASH. The correct section is chosen before first paint, because the
+      attribute is set by a blocking script in the head rather than by a
+      deferred framework that boots after the page is already on screen.
+    · NO JAVASCRIPT, NO PROBLEM. With scripting off the attribute is never set,
+      no rule matches, and every section is visible — which is exactly the page
+      this replaced. The enhancement degrades to the thing it improved on.
+    · DEEP LINKS FOR FREE. /account#points is a real address, the back button
+      moves between sections, and a support reply can point at one.
+
+  ── AND THE CHART IS DRAWN ON THE SERVER ────────────────────────────────────
+
+  {@see AfricaGates\Support\Spark} works out the geometry and this prints it, so
+  the balance line is in the document: it needs no script to appear, it prints,
+  and it is there for a reader that does not run one. Every value on it is also
+  in a table behind a toggle, because a value only reachable by hovering is a
+  value some people cannot reach at all.
+#}
+
+{# ── THE TAB LIST LIVES AT TEMPLATE SCOPE, AND THAT IS THE FIX ────────────────
+
+   It used to sit INSIDE `{% block head_styles %}`. A Twig `set` inside a block is scoped to
+   that block, so the head script and the CSS (same block) saw the array and the foot script
+   (a different block) rendered `var IDS = null`.
+
+   `paint()` then threw `Cannot read properties of null` on its very first call — at module
+   level, before a single listener was registered — which aborted the whole IIFE. So EVERY
+   rail tab was dead, the search box did nothing, and the rail highlight never moved: the
+   page looked like tabs that do nothing, on every account, for everybody.
+
+   The comment below claimed the list was "defined here and rendered into both". It was
+   defined once and rendered into one. AccountDashboardTest now asserts the foot script gets
+   a real array, because "this is defined in one place" is a claim a test can check and a
+   comment cannot. #}
+{% set me_tabs = ['overview','points','referral','purchases','vendor','activity','saved','settings'] %}
+
+{% block head_styles %}
+{# Synchronous and FIRST — it decides what is painted, so it cannot be deferred. #}
+{# ── THE TAB LIST, ONCE ──────────────────────────────────────────────────────
+   This existed twice — here and again in the script at the foot — and the two drifted
+   the moment a section was added. The referral panel was the casualty: it had no rail
+   tab, its id did not match the `#me-<tab>` the CSS un-hides, and neither list knew
+   about it, so `[data-me] .me-sec{display:none}` hid it on EVERY tab and
+   /account#referral fell back to Overview. The whole feature was unreachable for
+   anybody with JavaScript.
+
+   So the list is defined here and rendered into both. Adding a section now means
+   adding it in one place, and the rail loop below reads the same array.
+
+   AND THAT IS EXACTLY WHAT WENT WRONG AGAIN. "Your stall" was added as a `<section
+   id="me-vendor">` with a rail link, and NOT to this list — so `vendor` was not in the
+   accepted set, the head script fell back to `overview`, the CSS rule that reveals
+   `#me-vendor` was never generated, and clicking the tab bounced a vendor to Overview with
+   their whole stall invisible. Same failure as the referral panel, one section later.
+
+   The list carries EVERY section id. The rail decides separately whether to render a row
+   for one — the vendor row appears only for a linked vendor — but a section that exists in
+   the document must be reachable, or it is dead markup with a door onto it. AccountNavTest
+   now asserts the two cannot drift again. #}
+
+<script nonce="{{ csp_nonce }}">
+  (function () {
+    var ok = {{ me_tabs|json_encode|raw }};
+    // The hash is the SECTION ID (`#me-referral`), because that is what makes `:target`
+    // work with no JavaScript at all — see the note on `.me-sec:target` below. The bare
+    // form is still accepted so links shared before this change keep working.
+    var h  = (location.hash || '').replace('#','').replace(/^me-/,'');
+    document.documentElement.setAttribute('data-me', ok.indexOf(h) >= 0 ? h : 'overview');
+  })();
+</script>
+<style nonce="{{ csp_nonce }}">
+  /* ── the palette this page commits to ──────────────────────────────────────
+     Site tokens, tightened for a records screen. The two deliberate departures
+     from the rest of the site are the RADIUS (14px, not the 20–24px pillow the
+     marketing pages use — a dense list of rows inside a very round box reads as
+     a widget) and the SHADOWS (none; one hairline does the separating work, and
+     eight drop-shadowed cards in a column is the look this page had). */
+  body[data-page="account"]{ background:var(--me-paper); color:var(--me-ink); }
+  .me{
+    --me-paper:#f3f4f2;
+    --me-panel:#fff;
+    --me-ink:#10292c;
+    --me-mute:#5a6d6f;          /* 4.9:1 on white, 4.7:1 on the paper */
+    --me-line:rgba(16,41,44,.09);
+    --me-line-2:rgba(16,41,44,.16);
+    --me-accent:#237b22;        /* 4.6:1 on white */
+    --me-accent-wash:#f1f8f1;
+    --me-warn:#8a5a00;          /* 5.4:1 — the gold, made legible on light */
+    --me-warn-wash:#fdf6e6;
+    --me-bad:#a8321f;
+    --me-bad-wash:#fdf1ef;
+    --me-r:14px;
+    --me-r-sm:10px;
+    max-width:1080px; margin:0 auto; padding:0 var(--ag-gutter,28px) 72px;
+  }
+
+  /* ── identity bar ────────────────────────────────────────────────────────── */
+  .me-top{ display:flex; align-items:center; gap:16px; flex-wrap:wrap;
+    padding:26px 0 20px; border-bottom:1px solid var(--me-line); }
+  /* Initials, not a gravatar and not a silhouette. There is no avatar upload on
+     this platform, so a generic person-icon would be the same picture on every
+     account — a person's own initials at least identify the account they are in. */
+  .me-ava{ flex:none; width:46px; height:46px; border-radius:50%; display:grid;
+    place-items:center; background:var(--me-ink); color:#fff;
+    font:700 16px/1 var(--ag-font-body,system-ui); letter-spacing:.02em; }
+  .me-who{ min-width:0; flex:1 1 220px; }
+  .me-who h1{ margin:0; font-family:var(--ag-font-display,serif); font-weight:800;
+    font-size:clamp(1.35rem,3.4vw,1.75rem); line-height:1.15; color:var(--me-ink);
+    overflow-wrap:anywhere; }
+  .me-who p{ margin:3px 0 0; font-size:13px; color:var(--me-mute); overflow-wrap:anywhere; }
+  .me-top__act{ display:flex; align-items:center; gap:8px; margin-left:auto; }
+  /* On a phone the identity bar is two rows, not one squeezed one: sharing 358px between
+     a search field and a button put "Sign out" on two lines inside a pill. */
+  @media (max-width:560px){
+    .me-top{ padding-top:20px }
+    .me-top__act{ width:100%; margin-left:0 }
+    .me-find{ flex:1 1 auto }
+  }
+
+  /* ── search ──────────────────────────────────────────────────────────────── */
+  .me-find{ position:relative; flex:0 1 260px; min-width:180px; }
+  .me-find svg{ position:absolute; left:11px; top:50%; transform:translateY(-50%);
+    color:var(--me-mute); pointer-events:none; }
+  .me-find input{ width:100%; box-sizing:border-box; height:40px; padding:0 14px 0 34px;
+    font:400 14px/1 inherit; color:var(--me-ink); background:var(--me-panel);
+    border:1px solid var(--me-line-2); border-radius:999px; }
+  .me-find input::placeholder{ color:var(--me-mute); }
+  .me-find input:focus-visible{ outline:3px solid var(--me-accent); outline-offset:2px;
+    border-color:var(--me-accent); }
+
+  .me-btn{ display:inline-flex; align-items:center; justify-content:center; gap:7px;
+    min-height:40px; padding:0 15px; box-sizing:border-box; cursor:pointer;
+    font:600 13.5px/1 inherit; color:var(--me-ink); text-decoration:none; white-space:nowrap;
+    background:var(--me-panel); border:1px solid var(--me-line-2); border-radius:999px; }
+  .me-btn:hover{ border-color:var(--me-ink); }
+  .me-btn:focus-visible{ outline:3px solid var(--me-accent); outline-offset:2px; }
+  .me-btn--go{ background:var(--me-accent); border-color:var(--me-accent); color:#fff; }
+  .me-btn--go:hover{ background:var(--ag-green-dark,#1a6118); border-color:var(--ag-green-dark,#1a6118); }
+  .me-btn--quiet{ background:none; color:var(--me-mute); }
+  .me-btn--quiet:hover{ color:var(--me-ink); }
+  /* Copy confirmation, said twice on purpose: the border and tick are for people who can
+     see the button, and the aria-label swap in the script is for people who cannot. */
+  .me-btn.is-copied{ border-color:var(--me-accent); color:var(--me-accent);
+    background:var(--me-accent-wash); }
+  .me-btn.is-copied::after{ content:"Copied"; font-weight:700; }
+  .me-btn.is-copied svg, .me-btn.is-copied .me-code{ display:none; }
+
+  /* ── the rail + pane ─────────────────────────────────────────────────────── */
+  .me-body{ display:grid; grid-template-columns:216px minmax(0,1fr); gap:30px; margin-top:24px; }
+  .me-rail{ position:sticky; top:calc(var(--ag-nav-h,72px) + 14px); align-self:start;
+    display:flex; flex-direction:column; gap:2px; }
+  .me-rail__i{ display:flex; align-items:center; gap:10px; min-height:40px; padding:0 12px;
+    border-radius:var(--me-r-sm); border:0; background:none; cursor:pointer; text-align:left;
+    font:600 14px/1.2 inherit; color:var(--me-mute); text-decoration:none; width:100%;
+    box-sizing:border-box; }
+  .me-rail__i:hover{ background:rgba(16,41,44,.05); color:var(--me-ink); }
+  .me-rail__i:focus-visible{ outline:3px solid var(--me-accent); outline-offset:-1px; }
+  /* ── THE HIGHLIGHT FOLLOWS THE SECTION, NOT A SCRIPT ────────────────────
+     `aria-selected` was rendered server-side as overview="true", and the FOOT script's
+     paint() was the only thing that corrected it. The head script sets `data-me` before
+     first paint, so arriving at /account#referral showed the referral SECTION with the
+     Overview tab highlighted — and if the foot script never ran, it stayed that way.
+
+     CSS cannot compare two attributes, so this is one rule per tab, generated from the
+     same `me_tabs` list the scripts read. It cannot drift from them, and the highlight is
+     correct in the first frame with no JavaScript involved. `aria-selected` stays for
+     assistive tech and is still maintained by paint(). */
+  {% for t in me_tabs %}
+  [data-me="{{ t }}"] .me-rail__i[data-me-go="{{ t }}"],
+  {% endfor %}
+  .me-rail__i[aria-selected="true"]{ background:var(--me-ink); color:#fff; }
+  /* The selected item is dark, and a two-tone icon drawn for a white ground loses its
+     stroke against it. Brightened rather than swapped for a monochrome copy: the hue is
+     what tells the sections apart, and dropping it on the one that is selected would make
+     the icon change meaning at the moment it is being looked at. */
+  {% for t in me_tabs %}
+  [data-me="{{ t }}"] .me-rail__i[data-me-go="{{ t }}"] .ico,
+  {% endfor %}
+  .me-rail__i[aria-selected="true"] .ico{ filter:brightness(1.9) saturate(1.15); }
+  .me-rail__i svg{ flex:none; }
+  .me-rail__n{ flex:1; min-width:0; }
+  /* Tabular, because these sit in a vertical column and ragged digits make the
+     column look broken. (The hero figure below is the opposite case.) */
+  .me-rail__c{ flex:none; font:600 11.5px/1 var(--ag-font-mono,monospace);
+    font-variant-numeric:tabular-nums; color:var(--me-mute);
+    background:rgba(16,41,44,.06); border-radius:999px; padding:4px 7px; }
+  {% for t in me_tabs %}
+  [data-me="{{ t }}"] .me-rail__i[data-me-go="{{ t }}"] .me-rail__c,
+  {% endfor %}
+  .me-rail__i[aria-selected="true"] .me-rail__c{ background:rgba(255,255,255,.18); color:#fff; }
+
+  @media (max-width:900px){
+    .me-body{ grid-template-columns:minmax(0,1fr); gap:18px; }
+    /* A horizontal strip on a phone, scrolled rather than wrapped: wrapping puts
+       the last two sections on a second line that looks like a different control. */
+    .me-rail{ position:static; flex-direction:row; gap:6px; overflow-x:auto;
+      padding-bottom:4px; margin:0 calc(var(--ag-gutter,28px) * -1); padding-inline:var(--ag-gutter,28px);
+      scrollbar-width:none; }
+    .me-rail::-webkit-scrollbar{ display:none }
+    .me-rail__i{ width:auto; flex:none; min-height:44px; padding:0 14px;
+      border:1px solid var(--me-line-2); border-radius:999px; background:var(--me-panel); }
+    .me-rail__i[aria-selected="true"]{ border-color:var(--me-ink); }
+  }
+
+  /* ── sections: shown by the attribute the head script set ────────────────── */
+  /* ── Event referrals ─────────────────────────────────────────────────────
+     The link is the product, so it gets the full-width row and the only button. The
+     code is deliberately quieter type below it: it exists for a link that cannot be
+     clicked, and it should not compete with the thing people should send. */
+  .rf-card{ background:var(--ag-surface,#fff); border:1px solid var(--ag-line,rgba(16,41,44,.1));
+            border-radius:16px; padding:18px; }
+  .rf-label{ display:block; font:700 11px/1 var(--ag-font-mono,monospace); letter-spacing:.14em;
+             text-transform:uppercase; color:var(--ag-ink-soft,#626a6e); margin-bottom:9px; }
+  .rf-row{ display:flex; gap:9px; flex-wrap:wrap; }
+  /* 16px, so focusing it does not zoom the viewport on iOS. */
+  .rf-link{ flex:1 1 260px; min-width:0; font-size:16px; font-family:var(--ag-font-mono,monospace);
+            padding:13px 14px; border:1px solid var(--ag-line,rgba(16,41,44,.16)); border-radius:11px;
+            background:var(--ag-surface-2,#f6f7f6); color:var(--ag-ink,#10292c); }
+  .rf-copy,.rf-get{ flex:none; min-height:48px; padding:0 22px; border:0; border-radius:999px;
+            background:var(--ag-ink,#10292c); color:#fff; font-family:inherit; font-size:15px;
+            font-weight:600; cursor:pointer; }
+  .rf-copy:hover,.rf-get:hover{ background:#1b3d41; }
+  .rf-hint{ margin:10px 0 0; font-size:14px; line-height:1.55; color:var(--ag-ink-soft,#626a6e); }
+  .rf-code{ margin:14px 0 0; padding-top:13px; border-top:1px solid var(--ag-line,rgba(16,41,44,.1));
+            font-size:14px; line-height:1.55; color:var(--ag-ink-soft,#626a6e); }
+  .rf-code strong{ font-family:var(--ag-font-mono,monospace); letter-spacing:.06em; color:var(--ag-ink,#10292c); }
+  .rf-stats{ display:flex; gap:12px; flex-wrap:wrap; margin-top:14px; }
+  .rf-stat{ flex:1 1 150px; background:var(--ag-surface-2,#f6f7f6); border-radius:14px; padding:14px 16px; }
+  .rf-stat__n{ display:block; font:700 24px/1.1 var(--ag-font-mono,monospace); color:var(--ag-ink,#10292c); }
+  .rf-stat__of{ font-size:15px; font-weight:600; color:var(--ag-ink-soft,#626a6e); }
+  .rf-stat__l{ display:block; margin-top:5px; font-size:13px; color:var(--ag-ink-soft,#626a6e); }
+  .rf-note{ margin:14px 0 0; font-size:15px; line-height:1.6; color:var(--ag-ink,#10292c); }
+  .rf-note--ok{ font-weight:600; color:#1a6118; }
+  .rf-note a{ color:var(--ag-green,#237b22); font-weight:600; }
+  .rf-small{ margin:10px 0 0; font-size:13px; line-height:1.55; color:var(--ag-ink-soft,#626a6e); }
+  .me-sec{ scroll-margin-top:90px; }
+  .me-sec + .me-sec{ margin-top:26px; }
+  [data-me] .me-sec{ display:none; }
+  /* ── THE HASH ALONE HAS TO WORK ─────────────────────────────────────────
+     Every rail link is a real `<a href="#me-…">`, and `:target` reveals the section the
+     browser navigated to. No listener, no `data-me`, no JavaScript.
+
+     This is the mechanism and the script below is the enhancement, which is the way round
+     this platform already treats the admin cycle switcher. It was the other way round —
+     the rail worked ONLY if a delegated click handler ran, so anything that stopped that
+     script left every tab dead and the reader stranded on Overview with the URL changing
+     under them. There is no shortage of things that stop a script: a 404 after a deploy,
+     a CSP mismatch, an extension, an error thrown by unrelated code earlier in the file.
+
+     `!important` because the hiding rule above is also an attribute+class selector and
+     this has to beat it whatever `data-me` currently says. */
+  .me-sec:target{ display:block !important; }
+  [data-me] .me-sec + .me-sec{ margin-top:0; }
+  /* GENERATED from `me_tabs`, and it has to be. This block was hand-written — seven rules
+     typed out beside a comment claiming the list fed "both" places — so it was a THIRD list
+     that could drift, and it did: "Your stall" was added to the markup, to the rail and to
+     `me_tabs`, and stayed invisible on every tab because nothing here revealed it. Adding a
+     section must not require remembering four files. */
+  {% for t in me_tabs %}
+  [data-me="{{ t }}"] #me-{{ t }}{{ loop.last ? '' : ',' }}
+  {% endfor %}
+  { display:block; }
+  /* While a search is running the rail is irrelevant: results come from every
+     section, so every section is on and the empty ones are hidden by the filter. */
+  [data-me].me-searching .me-sec{ display:block; }
+  /* ── AND NO LANDING FLASH ON A TAB SWITCH ───────────────────────────────
+     a11y.css rings a `:target` for 1.2s so an anchor jump deep into a long document is
+     visible when you arrive. Right for that; wrong here, because the hash names the
+     section that is ALREADY on screen — so every rail click drew an animated ring around
+     the whole pane, saying "you have arrived" to somebody who never left.
+
+     Scoped to when the attribute is set, which is exactly when JavaScript is switching
+     sections. With scripting off the page is a long scroll again and the flash is doing
+     its real job, so it stays. */
+  [data-me] .me-sec:target{ animation:none; }
+
+  .me-sec__h{ display:flex; align-items:baseline; justify-content:space-between; gap:12px;
+    flex-wrap:wrap; margin:0 0 4px; }
+  .me-sec__h h2{ margin:0; font-family:var(--ag-font-display,serif); font-weight:700;
+    font-size:1.3rem; color:var(--me-ink); }
+  .me-sec__lead{ margin:0 0 16px; font-size:13.5px; line-height:1.6; color:var(--me-mute); max-width:62ch; }
+
+  .me-panel{ background:var(--me-panel); border:1px solid var(--me-line);
+    border-radius:var(--me-r); padding:20px 22px; }
+  .me-panel + .me-panel{ margin-top:14px; }
+  .me-panel__h{ margin:0 0 2px; font-size:14.5px; font-weight:700; color:var(--me-ink); }
+  .me-panel__s{ margin:0 0 14px; font-size:12.5px; color:var(--me-mute); }
+
+  /* ── rows ────────────────────────────────────────────────────────────────── */
+  .me-list{ list-style:none; margin:0; padding:0; }
+  .me-row{ display:flex; align-items:flex-start; gap:12px; padding:13px 0;
+    border-top:1px solid var(--me-line); }
+  .me-list > .me-row:first-child{ border-top:0; padding-top:2px; }
+  .me-row__b{ flex:1; min-width:0; }
+  .me-row__t{ font-size:14px; font-weight:600; color:var(--me-ink); overflow-wrap:anywhere; }
+  a.me-row__t{ text-decoration:none; }
+  a.me-row__t:hover{ text-decoration:underline; }
+  .me-row__m{ font-size:12.5px; color:var(--me-mute); margin-top:3px; line-height:1.55; }
+  .me-row__r{ flex:none; text-align:right; }
+  .me-code{ display:inline-block; margin-top:6px; font:700 13.5px/1 var(--ag-font-mono,monospace);
+    letter-spacing:.06em; color:var(--me-ink); }
+
+  /* Never colour alone — every one of these carries its own word. */
+  .me-tag{ display:inline-flex; align-items:center; gap:5px; font:700 11px/1 inherit;
+    border-radius:999px; padding:4px 9px; white-space:nowrap;
+    color:var(--me-mute); background:rgba(16,41,44,.06); }
+  .me-tag--ok{ color:#166534; background:#f0fdf4; }
+  .me-tag--wait{ color:var(--me-warn); background:var(--me-warn-wash); }
+  .me-tag--bad{ color:var(--me-bad); background:var(--me-bad-wash); }
+
+  /* ── the balance figure ──────────────────────────────────────────────────── */
+  .me-hero{ display:flex; align-items:flex-end; gap:20px; flex-wrap:wrap; }
+  .me-hero__k{ font:700 11px/1 var(--ag-font-mono,monospace); letter-spacing:.16em;
+    text-transform:uppercase; color:var(--me-mute); }
+  /* The sans, and PROPORTIONAL figures. A display serif on a hero number reads as
+     decoration, and tabular digits at 3rem leave visible gaps inside `1,240` —
+     equal-width digits are for columns that align, which this is not. */
+  .me-hero__n{ display:block; margin-top:6px; font-family:var(--ag-font-body,system-ui);
+    font-weight:800; font-size:clamp(2.4rem,7vw,3.1rem); line-height:.95;
+    letter-spacing:-.02em; color:var(--me-ink); font-variant-numeric:proportional-nums; }
+  .me-hero__u{ font-size:.34em; font-weight:700; color:var(--me-mute); margin-left:6px;
+    letter-spacing:0; }
+  .me-hero__f{ display:flex; gap:22px; flex-wrap:wrap; margin-bottom:4px; }
+  .me-fact__k{ font:700 10.5px/1 var(--ag-font-mono,monospace); letter-spacing:.13em;
+    text-transform:uppercase; color:var(--me-mute); }
+  .me-fact__v{ font:700 15px/1.2 var(--ag-font-mono,monospace); font-variant-numeric:tabular-nums;
+    color:var(--me-ink); margin-top:5px; }
+
+  .me-spark__a{ fill:var(--me-accent); fill-opacity:.10; }
+  .me-spark__l{ fill:none; stroke:var(--me-accent); stroke-width:2;
+    stroke-linejoin:round; stroke-linecap:round; }
+
+  /* ── checklist ───────────────────────────────────────────────────────────── */
+  .me-steps{ display:grid; grid-template-columns:repeat(auto-fit,minmax(200px,1fr)); gap:8px; }
+  .me-step{ display:flex; align-items:center; gap:10px; min-height:44px; padding:9px 12px;
+    box-sizing:border-box; border:1px solid var(--me-line-2); border-radius:var(--me-r-sm);
+    text-decoration:none; font-size:13px; font-weight:600; color:var(--me-ink); }
+  .me-step:hover{ border-color:var(--me-ink); }
+  .me-step:focus-visible{ outline:3px solid var(--me-accent); outline-offset:2px; }
+  .me-step--done{ border-color:rgba(35,123,34,.3); background:var(--me-accent-wash);
+    color:#3f5a44; }
+  .me-step--done .me-step__n{ background:var(--me-accent); color:#fff; }
+  .me-step__n{ flex:none; width:22px; height:22px; border-radius:50%; display:grid;
+    place-items:center; font:800 11px/1 inherit; background:rgba(16,41,44,.07);
+    color:var(--me-mute); }
+  .me-meter{ display:flex; align-items:center; gap:9px; min-width:170px; }
+  .me-meter__t{ flex:1; height:6px; border-radius:99px; background:rgba(16,41,44,.08);
+    overflow:hidden; }
+  .me-meter__f{ height:100%; border-radius:99px; background:var(--me-accent); }
+  .me-meter__n{ font:700 12px/1 var(--ag-font-mono,monospace); color:var(--me-accent); }
+
+  /* ── forms ───────────────────────────────────────────────────────────────── */
+  .me-field{ display:block; margin-top:14px; }
+  .me-field > span{ display:block; font-size:12.5px; font-weight:600; color:var(--me-mute);
+    margin-bottom:5px; }
+  /* The same label, for a <label> that is not inside a .me-field wrapper. Identical rule
+     rather than a second style: two label treatments on one page is one too many. */
+  .me-lab{ display:block; font-size:12.5px; font-weight:600; color:var(--me-mute);
+    margin-bottom:5px; }
+  .me-in{ width:100%; box-sizing:border-box; min-height:44px; padding:11px 13px;
+    font:400 15px/1.3 inherit; color:var(--me-ink); background:var(--me-panel);
+    border:1px solid var(--me-line-2); border-radius:var(--me-r-sm); }
+  .me-in:focus-visible{ outline:3px solid var(--me-accent); outline-offset:1px;
+    border-color:var(--me-accent); }
+  .me-in[readonly]{ background:#f7f8f7; color:var(--me-mute); }
+  .me-grid2{ display:grid; grid-template-columns:repeat(auto-fit,minmax(210px,1fr)); gap:0 16px; }
+  .me-hint{ font-size:12.5px; color:var(--me-mute); margin:8px 0 0; line-height:1.6; }
+
+  /* ── states ──────────────────────────────────────────────────────────────── */
+  .me-empty{ text-align:center; padding:34px 20px; }
+  .me-empty__i{ width:40px; height:40px; margin:0 auto 12px; border-radius:12px;
+    display:grid; place-items:center; background:rgba(16,41,44,.05); color:var(--me-mute); }
+  .me-empty h3{ margin:0; font-size:15px; font-weight:700; color:var(--me-ink); }
+  .me-empty p{ margin:6px auto 0; max-width:44ch; font-size:13.5px; line-height:1.65;
+    color:var(--me-mute); }
+  .me-empty .me-btn{ margin-top:14px; }
+  .me-note{ border-radius:var(--me-r-sm); padding:11px 14px; font-size:13.5px;
+    line-height:1.55; margin-bottom:16px; }
+  .me-note--ok{ background:var(--me-accent-wash); border:1px solid rgba(35,123,34,.28); color:#1a6118; }
+  .me-note--bad{ background:var(--me-bad-wash); border:1px solid rgba(168,50,31,.3); color:var(--me-bad); }
+
+  .me-flag{ display:none; }
+  .me-searching .me-flag{ display:block; }
+  [hidden]{ display:none !important; }
+
+  @media (prefers-reduced-motion:reduce){ .me *{ transition:none !important; animation:none !important } }
+  @media print{ .me-rail, .me-top__act, .me-find{ display:none } [data-me] .me-sec{ display:block } }
+</style>
+{% endblock %}
+
+{% block content %}
+{# The shared set. Section icons are coloured — see the note in that file for why the
+   emoji this page used to carry were the right idea and the wrong mechanism. #}
+{% import "partials/icons.twig" as gi %}
+{# The site's one chart component — see partials/viz.twig for what interaction is for. #}
+{% import "partials/viz.twig" as viz %}
+
+
+
+{% set labels = {
+  'earn.shop_order':'Shop order', 'earn.donation':'Donation', 'earn.event_ticket':'Event ticket',
+  'spend.vote':'Redeemed for votes', 'adjust.admin':'Adjustment by the team'
+} %}
+{% set open_steps = checklist|default([])|filter(s => not s.done) %}
+{% set initials = (user.name|default('?')|split(' ')|map(w => w|first)|slice(0,2)|join)|upper %}
+
+<div class="me" id="me">
+
+  <header class="me-top">
+    <span class="me-ava" aria-hidden="true">{{ initials }}</span>
+    <div class="me-who">
+      <h1>{{ user.name }}</h1>
+      <p>{{ user.email }}{% if member_since|default('') %} · Member since {{ member_since|date('F Y') }}{% endif %}</p>
+    </div>
+    <div class="me-top__act">
+      {# One field, filtering everything. On a page that is somebody's whole record with this
+         platform, "where is that order" is the actual question, and it is faster to type four
+         characters of a product name than to reason about which section it lives in. #}
+      <div class="me-find">
+        {{ gi.ui('search', 16) }}
+        {# No `/` shortcut and no key hint. The site already binds `/` to its own search
+           overlay on every page, and a second field claiming the same key would either
+           steal it here or — what actually happened when this was tried — advertise a
+           shortcut that opens somebody else's search box. The established binding wins. #}
+        <input id="meFind" type="search" autocomplete="off" spellcheck="false"
+               placeholder="Search your account" aria-label="Search your orders, tickets, votes and points"
+               aria-describedby="meFindNote">
+      </div>
+      <a class="me-btn me-btn--quiet" href="/account/logout">Sign out</a>
+    </div>
+  </header>
+  <p id="meFindNote" class="me-flag me-hint" role="status" aria-live="polite" style="margin:12px 0 0"></p>
+
+  {% if flash_ok %}<div class="me-note me-note--ok" style="margin-top:16px" role="status">{{ flash_ok }}</div>{% endif %}
+  {% if flash_error %}<div class="me-note me-note--bad" style="margin-top:16px" role="alert">{{ flash_error }}</div>{% endif %}
+
+  <div class="me-body">
+
+    {# ── the rail ──────────────────────────────────────────────────────────
+       Real links, not buttons. The href IS the deep link, so the section is
+       reachable, shareable and back-buttonable with no script at all; the
+       script only stops the jump and swaps the attribute. `aria-selected` is
+       written server-side for the default so a reader is never told nothing. #}
+    <nav class="me-rail" id="meRail" aria-label="Your account">
+    {# `on` gates a row. "Your stall" appears only for a member linked to a vendor account:
+       a rail entry for a section that is not rendered is a door onto nothing. Its count is
+       the number with a deadline attached — an unaccepted offer is released. A Twig comment
+       cannot sit INSIDE the array literal below; it closes the brace. #}
+      {% set rail = [
+        {'id':'overview',  'label':'Overview',  'ico':'overview', 'n':null},
+        {'id':'points',    'label':'Points',    'ico':'points',   'n':counts.points|default(0)},
+        {'id':'referral',  'label':'Referrals', 'ico':'refer',    'n':referral.referrals|default(0)},
+        {'id':'purchases', 'label':'Purchases', 'ico':'bag',      'n':counts.purchases|default(0)},
+        {'id':'vendor',    'label':'Your stall', 'ico':'stand',
+         'n':(vendor ? (vendor.live_offers|length ?: (vendor.applications|length ?: null)) : null),
+         'on':(vendor is not null)},
+        {'id':'activity',  'label':'Activity',  'ico':'activity', 'n':counts.activity|default(0)},
+        {'id':'saved',     'label':'Saved',     'ico':'saved',    'n':counts.saved|default(0)},
+        {'id':'settings',  'label':'Settings',  'ico':'settings', 'n':null}
+      ] %}
+      {% for r in rail %}
+        {% if (r.on is not defined or r.on) and (r.id != 'saved' or r.n > 0) %}
+        <a class="me-rail__i" href="#me-{{ r.id }}" data-me-go="{{ r.id }}"
+           {# Not hardcoded to overview: the hash decides, and the server cannot see it.
+              paint() sets this on load; the CSS above carries the visual meanwhile. #}
+           aria-selected="false">
+          {{ gi.sec(r.ico, 18) }}
+          <span class="me-rail__n">{{ r.label }}</span>
+          {% if r.n %}<span class="me-rail__c">{{ r.n }}</span>{% endif %}
+        </a>
+        {% endif %}
+      {% endfor %}
+    </nav>
+
+    <div class="me-pane">
+
+      {# ══ OVERVIEW ══════════════════════════════════════════════════════ #}
+      <section class="me-sec" id="me-overview" aria-labelledby="me-overview-h">
+        <div class="me-sec__h"><h2 id="me-overview-h">Overview</h2></div>
+
+        {% if is_new|default(false) %}
+        {# A first-run screen, not six empty sections. A dashboard where every panel says
+           "nothing yet" reads as a product that is not working, and it is the first thing
+           a new member sees. #}
+        <div class="me-panel">
+          <div class="me-empty">
+            <span class="me-empty__i">{{ gi.sec('spark', 24) }}</span>
+            <h3>Welcome, {{ user.name|split(' ')|first }}</h3>
+            <p>Nothing has happened on this account yet. Points arrive from what you buy,
+              the events you book and what you give — and they convert into votes you can
+              cast in the awards.</p>
+            <a class="me-btn me-btn--go" href="/vote">See the ballot {{ gi.ui('go', 15) }}</a>
+          </div>
+        </div>
+        {% endif %}
+
+        <div class="me-panel">
+          <div class="me-hero">
+            <div>
+              <span class="me-hero__k">Voting points</span>
+              <span class="me-hero__n" data-find="points balance">{{ points|number_format }}<span class="me-hero__u">pts</span></span>
+            </div>
+            <div class="me-hero__f">
+              <div>
+                <div class="me-fact__k">Earned</div>
+                <div class="me-fact__v">{{ summary.earned|number_format }}</div>
+              </div>
+              <div>
+                <div class="me-fact__k">Redeemed</div>
+                <div class="me-fact__v">{{ summary.spent|number_format }}</div>
+              </div>
+              {% if points_enabled %}
+              <div>
+                <div class="me-fact__k">Worth</div>
+                <div class="me-fact__v">{{ redeemable }} vote{{ redeemable == 1 ? '' : 's' }}</div>
+              </div>
+              {% endif %}
+            </div>
+          </div>
+          {% if points_spark.ok|default(false) %}
+          {# Decorative BY DESIGN: every fact it carries — the balance, what was earned, what
+             was redeemed, the direction of travel — is written in text on this panel already,
+             and the reading of it day by day is the chart in Points. A second announced
+             figure here would be the same number said twice. #}
+          <svg class="me-spark" viewBox="0 0 {{ points_spark.w }} {{ points_spark.h }}"
+               preserveAspectRatio="none" aria-hidden="true" focusable="false">
+            <path class="me-spark__a" d="{{ points_spark.area }}"></path>
+            <path class="me-spark__l" d="{{ points_spark.line }}" vector-effect="non-scaling-stroke"></path>
+          </svg>
+          <p class="me-spark__c">Last 90 days · {% if points_chart.change > 0 %}up {{ points_chart.change|number_format }}{% elseif points_chart.change < 0 %}down {{ (points_chart.change * -1)|number_format }}{% else %}no change{% endif %}</p>
+          {% endif %}
+
+          <p class="me-hint">
+            {% if points_enabled %}
+              {{ points_per_vote }} points make one vote.
+              {% if redeemable > 0 %}You can cast {{ redeemable }} right now.{% else %}You need {{ (points_per_vote - points % points_per_vote) }} more for your first.{% endif %}
+            {% else %}
+              Points are being collected now. Redemption opens with the ballot.
+            {% endif %}
+          </p>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:14px">
+            {% if points_enabled and redeemable > 0 %}<a class="me-btn me-btn--go" href="/vote">Redeem at the ballot {{ gi.ui('go', 15) }}</a>{% endif %}
+            <a class="me-btn" href="#me-points" data-me-go="points">Points history</a>
+          </div>
+        </div>
+
+        {% if open_steps is not empty %}
+        <div class="me-panel">
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap;margin-bottom:12px">
+            <div>
+              <p class="me-panel__h">Finish setting up</p>
+              <p class="me-panel__s" style="margin:0">{{ open_steps|length }} thing{{ open_steps|length == 1 ? '' : 's' }} left.</p>
+            </div>
+            {% if completeness is defined and completeness.pct < 100 %}
+            {# Only while it means something. At 100% it sat beside "3 things left" — two true
+               statements that read as one contradiction, because the meter measures the
+               PROFILE and the list counts things to do. A full bar is not news. #}
+            <div class="me-meter">
+              <span class="me-fact__k" style="letter-spacing:.1em">Profile</span>
+              <span class="me-meter__t"><span class="me-meter__f" style="width:{{ completeness.pct }}%"></span></span>
+              <span class="me-meter__n">{{ completeness.pct }}%</span>
+            </div>
+            {% endif %}
+          </div>
+          <div class="me-steps">
+            {% for s in checklist %}
+            <a class="me-step {{ s.done ? 'me-step--done' : '' }}" href="{{ s.href }}">
+              {# An SVG tick and not a `✓` character: the rest of this page's icons are
+                 drawn, and one glyph among them inherits whatever the reader's font does
+                 with it — which on this repo's own measurement is sometimes a tofu box. #}
+              <span class="me-step__n" aria-hidden="true">{% if s.done %}{{ gi.ui('tick', 12) }}{% else %}{{ loop.index }}{% endif %}</span>
+              <span>{{ s.label }}{% if s.done %} <span class="sr-only">— done</span>{% endif %}</span>
+            </a>
+            {% endfor %}
+          </div>
+        </div>
+        {% endif %}
+
+        {% if not is_new|default(false) %}
+        <div class="me-panel">
+          <p class="me-panel__h">Where you are</p>
+          <p class="me-panel__s">Everything on this account, at a glance.</p>
+          <ul class="me-list">
+            <li class="me-row">
+              <div class="me-row__b"><div class="me-row__t">Purchases</div>
+                <div class="me-row__m">{{ my_orders|default([])|length }} order{{ my_orders|default([])|length == 1 ? '' : 's' }} · {{ my_tickets|default([])|length }} ticket{{ my_tickets|default([])|length == 1 ? '' : 's' }}</div></div>
+              <div class="me-row__r"><a class="me-btn" href="#me-purchases" data-me-go="purchases">Open</a></div>
+            </li>
+            <li class="me-row">
+              <div class="me-row__b"><div class="me-row__t">Activity</div>
+                <div class="me-row__m">{{ my_votes|length }} vote{{ my_votes|length == 1 ? '' : 's' }} · {{ my_nominations|length }} nomination{{ my_nominations|length == 1 ? '' : 's' }}</div></div>
+              <div class="me-row__r"><a class="me-btn" href="#me-activity" data-me-go="activity">Open</a></div>
+            </li>
+          </ul>
+        </div>
+        {% endif %}
+      </section>
+
+      {# ══ POINTS ════════════════════════════════════════════════════════ #}
+      <section class="me-sec" id="me-points" aria-labelledby="me-points-h">
+        <div class="me-sec__h">
+          <h2 id="me-points-h">Points</h2>
+          {% if ledger is not empty %}
+          <a class="me-btn" href="/account/points.csv" download>{{ gi.ui('down', 15) }} Download</a>
+          {% endif %}
+        </div>
+        <p class="me-sec__lead">Every point that has arrived or been spent, and what it was for.
+          This is the record behind the number — download it if you want to keep a copy.</p>
+
+        {# The shared component. The bespoke SVG, hover handler and table toggle that
+           used to live here are gone — this page was the third implementation of "what
+           is a chart" on the site, and now there is one.
+
+           Still guarded. The component has its own empty state, which is the right thing
+           when a chart is expected and its data is momentarily absent — a filter with no
+           matches, an event with no bookings yet. It is the wrong thing on an account that
+           has never had a point: "Balance, last 90 days — nothing to chart yet" is a
+           promise of a graph, made to somebody who has not started. #}
+        {% if points_chart.ok|default(false) %}
+        <div class="me-panel">
+          {{ viz.chart(points_chart) }}
+        </div>
+        {% endif %}
+
+        <div class="me-panel">
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap">
+            <div>
+              <p class="me-panel__h">History</p>
+              <p class="me-panel__s" style="margin:0">Newest first.</p>
+            </div>
+            {% if ledger is not empty %}
+            {# Three states and no dropdown: with three options a select costs a click to
+               open, a read and a click to choose, where the buttons cost one click. #}
+            <div role="group" aria-label="Filter the points history" style="display:flex;gap:6px">
+              <button type="button" class="me-btn" data-me-filter="all" aria-pressed="true">All</button>
+              <button type="button" class="me-btn" data-me-filter="pos" aria-pressed="false">Earned</button>
+              <button type="button" class="me-btn" data-me-filter="neg" aria-pressed="false">Redeemed</button>
+            </div>
+            {% endif %}
+          </div>
+
+          {% if ledger is empty %}
+            <div class="me-empty">
+              <span class="me-empty__i">{{ gi.sec('points', 24) }}</span>
+              <h3>No points yet</h3>
+              <p>Points arrive when you buy from the shop, book a paid event or make a donation.
+                They appear here the moment the payment is confirmed.</p>
+              <a class="me-btn" href="/shop">Visit the shop {{ gi.ui('go', 15) }}</a>
+            </div>
+          {% else %}
+            <ul class="me-list" id="meLedger" style="margin-top:12px">
+              {% for e in ledger %}
+              {% set what = labels[e.reason]|default(e.reason|replace({'.':' · ','_':' '})|capitalize) %}
+              <li class="me-row" data-me-sign="{{ e.delta >= 0 ? 'pos' : 'neg' }}"
+                  data-find="{{ what }} {{ e.note|default('') }} {{ e.created_at|date('j M Y') }}">
+                <div class="me-row__b">
+                  <div class="me-row__t">{{ what }}</div>
+                  <div class="me-row__m"><time datetime="{{ e.created_at }}">{{ e.created_at|date('j M Y, H:i') }}</time>{% if e.note %} · {{ e.note }}{% endif %}</div>
+                </div>
+                <div class="me-row__r">
+                  <div class="{{ e.delta >= 0 ? 'me-delta--pos' : 'me-delta--neg' }}" style="font:700 14px/1 var(--ag-font-mono,monospace);font-variant-numeric:tabular-nums">{{ e.delta >= 0 ? '+' : '' }}{{ e.delta|number_format }}</div>
+                  <div class="me-row__m" style="font-family:var(--ag-font-mono,monospace)">{{ e.balance_after|number_format }}</div>
+                </div>
+              </li>
+              {% endfor %}
+            </ul>
+            <p class="me-hint" id="meLedgerNone" hidden>Nothing in the history matches that filter.</p>
+          {% endif %}
+        </div>
+      </section>
+
+      {# ══ EVENT REFERRALS ═══════════════════════════════════════════════
+         THE LINK IS THE PRODUCT. It leads, at full width, with one copy button — because
+         the referrer's entire job is to share a URL and the buyer's is to do nothing. The
+         code below it is the fallback for a link that cannot survive being read down a
+         phone or printed on a flyer, and it is shown small on purpose so it does not
+         compete with the thing people should actually send. #}
+      <section class="me-sec" id="me-referral" aria-labelledby="me-ref-h">
+        <div class="me-sec__h"><h2 id="me-ref-h">Refer people to events</h2></div>
+        <p class="me-sec__lead">Share your link. Once <strong>{{ referral.threshold }}</strong>
+          people have booked and paid through it, you earn
+          <strong>{{ referral.rate_pct|round(0) }}%</strong> of everything they paid —
+          including those first {{ referral.threshold }}.</p>
+
+        {% if referral.code %}
+          <div class="rf-card">
+            <label class="rf-label" for="rfLink">Your referral link</label>
+            <div class="rf-row">
+              <input id="rfLink" class="rf-link" type="text" readonly
+                     value="{{ referral_site }}/events?ref={{ referral.code }}"
+                     data-ag-do="select-all" aria-describedby="rfLinkHint">
+              <button type="button" class="rf-copy" data-rf-copy="rfLink">Copy</button>
+            </div>
+            <p class="rf-hint" id="rfLinkHint">Send this anywhere. Anyone who books an event
+              after opening it counts as your referral — they do not have to type anything.</p>
+
+            <p class="rf-code">Can’t share a link? Your code is
+              <strong>{{ referral.code }}</strong> — it goes in the discount-code box at
+              checkout. It doesn’t change their price.</p>
+          </div>
+
+          {# Progress before earnings. Below the threshold the money figure is not the
+             number that tells somebody what to do next; the count is. #}
+          <div class="rf-stats">
+            <div class="rf-stat">
+              <span class="rf-stat__n">{{ referral.referrals }}<span class="rf-stat__of">/{{ referral.threshold }}</span></span>
+              <span class="rf-stat__l">Paid referrals</span>
+            </div>
+            <div class="rf-stat">
+              <span class="rf-stat__n">₦{{ referral.accrued_naira|number_format }}</span>
+              <span class="rf-stat__l">Earned so far</span>
+            </div>
+            <div class="rf-stat">
+              <span class="rf-stat__n">₦{{ referral.payable_naira|number_format }}</span>
+              <span class="rf-stat__l">Ready to pay out</span>
+            </div>
+          </div>
+
+          {% if referral.unlocked %}
+            <p class="rf-note rf-note--ok">Unlocked. ₦{{ referral.payable_naira|number_format }}
+              is owed to you{% if referral.paid_out_naira > 0 %} (₦{{ referral.paid_out_naira|number_format }}
+              already paid){% endif %}.</p>
+
+            {# ── WITHDRAWING ──────────────────────────────────────────────
+               This used to say "ask us to pay it out" and link to /support, which meant
+               the only route to somebody's own money was a support ticket. The bank
+               details are asked for HERE and stored on the request rather than on the
+               account, so each payment records where that money actually went. #}
+            {% if payout_open %}
+              <div class="rf-card">
+                <p class="rf-note">
+                  <strong>₦{{ payout_open.amount_naira|number_format }} requested</strong>
+                  on {{ payout_open.requested_at ? payout_open.requested_at|slice(0,10) : '' }},
+                  to {{ payout_open.bank_name }} · {{ payout_open.account_name }}.
+                  We pay by bank transfer and will be in touch once it has gone.
+                </p>
+              </div>
+            {% elseif payout_can %}
+              <form class="rf-card" method="post" action="/account/payout">
+                <input type="hidden" name="_token" value="{{ csrf_token }}">
+                <label class="rf-label" for="poBank">Withdraw ₦{{ payout_amount|number_format }} to your bank</label>
+                <p class="rf-hint" style="margin:0 0 10px">
+                  Paid by bank transfer, usually within a few working days. Make sure the
+                  account name matches your own — a mismatch is the usual reason one is
+                  refused.
+                </p>
+                <div class="rf-row" style="flex-wrap:wrap;gap:8px">
+                  <input id="poBank" class="rf-link" type="text" name="bank" required maxlength="120"
+                         placeholder="Bank (e.g. GTBank)" style="flex:1 1 150px"
+                         value="{{ payout_bank.bank|default('') }}">
+                  <input class="rf-link" type="text" name="account_name" required maxlength="160"
+                         placeholder="Account name" style="flex:1 1 170px"
+                         value="{{ payout_bank.account_name|default('') }}">
+                  <input class="rf-link" type="text" name="account_number" required
+                         inputmode="numeric" maxlength="20" placeholder="Account number" style="flex:1 1 150px"
+                         value="{{ payout_bank.account_number|default('') }}">
+                  <button type="submit" class="rf-copy">Request payout</button>
+                </div>
+              </form>
+            {% elseif payout_why %}
+              <p class="rf-note">{{ payout_why }}</p>
+            {% endif %}
+
+            <details class="rf-card" {% if not payout_bank.account_number|default('') %}open{% endif %}>
+              <summary style="cursor:pointer;font-size:14px;font-weight:600">
+                {{ payout_bank.account_number|default('') ? 'Change your bank details' : 'Save your bank details' }}
+              </summary>
+              <p class="rf-hint" style="margin:8px 0 10px">
+                Saved once and reused for every withdrawal. Each payout keeps its own copy,
+                so changing these never alters where an earlier transfer went. We pay by
+                ordinary bank transfer — nothing is set up on your behalf with the payment
+                provider.
+              </p>
+              <form method="post" action="/account/bank">
+                <input type="hidden" name="_token" value="{{ csrf_token }}">
+                <div class="rf-row" style="flex-wrap:wrap;gap:8px">
+                  <input class="rf-link" type="text" name="bank" required maxlength="120"
+                         placeholder="Bank (e.g. GTBank)" style="flex:1 1 150px"
+                         value="{{ payout_bank.bank|default('') }}">
+                  <input class="rf-link" type="text" name="account_name" required maxlength="160"
+                         placeholder="Account name — must be yours" style="flex:1 1 170px"
+                         value="{{ payout_bank.account_name|default('') }}">
+                  <input class="rf-link" type="text" name="account_number" required
+                         inputmode="numeric" maxlength="20" placeholder="Account number" style="flex:1 1 150px"
+                         value="{{ payout_bank.account_number|default('') }}">
+                  <button type="submit" class="rf-copy">Save details</button>
+                </div>
+              </form>
+            </details>
+
+            {% if payout_history %}
+              <ul class="rf-small" style="list-style:none;padding:0;margin:10px 0 0">
+                {% for h in payout_history %}
+                  <li style="margin-bottom:4px">
+                    ₦{{ h.amount_naira|number_format }} —
+                    {% if h.status == 'paid' %}paid{% if h.payment_ref %} ({{ h.payment_ref }}){% endif %}
+                    {% elseif h.status == 'rejected' %}refused{% if h.note %} — {{ h.note }}{% endif %}
+                    {% else %}waiting{% endif %}
+                    <span style="opacity:.7">· {{ h.requested_at ? h.requested_at|slice(0,10) : '' }}</span>
+                  </li>
+                {% endfor %}
+              </ul>
+            {% endif %}
+          {% else %}
+            {# The honest version: what is accrued is real and is not payable yet. Showing
+               ₦0 until the tenth would make the tenth look like a jackpot rather than a
+               threshold, and hiding the gate would be worse. #}
+            <p class="rf-note">{{ referral.remaining }} more paid
+              {{ referral.remaining == 1 ? 'booking' : 'bookings' }} and the
+              ₦{{ referral.accrued_naira|number_format }} above becomes yours to withdraw.</p>
+          {% endif %}
+
+          <p class="rf-small">A referral counts when the ticket is <strong>paid for</strong>,
+            not when it is reserved. Your own bookings don’t count.</p>
+        {% else %}
+          <p class="me-sec__lead" style="margin-bottom:14px">You don’t have a referral link yet.</p>
+          <form method="post" action="/account/referral">
+            <input type="hidden" name="_token" value="{{ csrf_token }}">
+            <button type="submit" class="rf-get">Create my referral link</button>
+          </form>
+        {% endif %}
+      </section>
+
+      {# ══ PURCHASES ═════════════════════════════════════════════════════ #}
+      {# ══ YOUR STALL ══════════════════════════════════════════════════════
+           A registered vendor, managed from the page a trader actually opens.
+
+           /org was built for a DONATION PARTNER — confirmed-gift totals, appeals, payout
+           schedules, settlement accounts — and a stand vendor has none of it and never will:
+           they PAY for a pitch rather than receiving anything through it. What is left over
+           there is a console a market trader has to remember a second password for.
+
+           Rendered only when this member's VERIFIED address matches an active org user. See
+           VendorAccount, where that verification is load-bearing and not decorative: a
+           vendor account holds a settlement account, registration certificates and the power
+           to accept a charge. #}
+      {% if vendor %}
+      <section class="me-sec" id="me-vendor" aria-labelledby="me-vendor-h">
+        <div class="me-sec__h"><h2 id="me-vendor-h">Your stall</h2></div>
+        <p class="me-sec__lead">{{ vendor.org.name }} — your applications, what you owe, and
+          what you sell. Everything here is the same account as the partner console; you do
+          not need a second sign-in.</p>
+
+        {% if not vendor.is_owner %}
+          <div class="me-panel"><p class="me-panel__s" style="margin:0">You have view-only
+            access to this account, so you can read everything here and change nothing. The
+            account owner can change the catalogue and accept offers.</p></div>
+        {% endif %}
+
+        {# ── THE ONE THING WITH A DEADLINE ───────────────────────────────
+             An unaccepted offer is released to the waiting list. Before the offer email
+             carried its own link, the only way to find that out was to notice the pitch had
+             gone — so this sits at the top of the section, above everything that can wait. #}
+        {% if vendor.live_offers %}
+        <div class="me-panel" style="border-color:#ecd9a0;background:#fffdf5">
+          <p class="me-panel__h">{{ vendor.live_offers|length == 1 ? 'You have been offered a stand'
+                                                                   : 'You have ' ~ vendor.live_offers|length ~ ' stand offers' }}</p>
+          <p class="me-panel__s">Accept before the deadline or the place goes to the next
+            applicant on the list.</p>
+          <ul class="me-list">
+            {% for a in vendor.live_offers %}
+            <li class="me-row">
+              <div class="me-row__b">
+                <div class="me-row__t">{{ a.event ? a.event.title : 'An event' }}</div>
+                <div class="me-row__m">{{ a.type ? a.type.name : 'A stand' }}{% if a.owing.fee > 0 %}
+                  · ₦{{ a.owing.fee|number_format }}{% endif %}{% if a.expires_at %}
+                  · accept by {{ a.expires_at|date('j M, g:ia') }}{% endif %}</div>
+              </div>
+              <div class="me-row__r">
+                {% if a.token %}
+                  <a class="me-btn me-btn--go" href="/stand/{{ a.token }}">Open the offer</a>
+                {% else %}
+                  {# No token: a decision recorded before the link existed. The partner
+                     console still has the accept button, so say where it is rather than
+                     rendering a control that goes nowhere. #}
+                  <a class="me-btn" href="/org">Accept in the partner console</a>
+                {% endif %}
+              </div>
+            </li>
+            {% endfor %}
+          </ul>
+        </div>
+        {% endif %}
+
+        {# ── WHAT IS OWED ────────────────────────────────────────────────── #}
+        {% if vendor.owed > 0 %}
+        <div class="me-panel">
+          <p class="me-panel__h">₦{{ vendor.owed|number_format }} to pay</p>
+          <p class="me-panel__s">A stand is confirmed once the amount due has been paid. An
+            organiser may release an unpaid pitch, and will tell you before doing so.</p>
+        </div>
+        {% endif %}
+
+        {# ── WHAT IS MISSING ─────────────────────────────────────────────
+             The reason an application sits unread, said in the vendor's own words. It was
+             only ever visible on the other dashboard. #}
+        {% if vendor.missing_docs %}
+        <div class="me-panel" style="border-color:#f0c9c9;background:#fdf3f3">
+          <p class="me-panel__h">Your account is not complete yet</p>
+          <p class="me-panel__s">Applications are ranked by when they became complete, so
+            this is worth doing today. Still needed:</p>
+          <ul style="margin:9px 0 0;padding-left:20px;font-size:13.5px;line-height:1.8;color:#8a2020">
+            {% for m in vendor.missing_docs %}<li>{{ m }}</li>{% endfor %}
+          </ul>
+          <p style="margin:12px 0 0"><a class="me-btn" href="/org#documents">Upload them</a></p>
+        </div>
+        {% endif %}
+
+        {# ── EVERY APPLICATION ───────────────────────────────────────────── #}
+        {% if vendor.applications %}
+        <div class="me-panel">
+          <p class="me-panel__h">Your applications</p>
+          <ul class="me-list">
+            {% for a in vendor.applications %}
+            {% set badge = {
+              'pending':    ['wait', 'Being read'],
+              'offered':    ['wait', 'Offered'],
+              'accepted':   ['ok',   'Yours'],
+              'rejected':   ['',     'Not this time'],
+              'waitlisted': ['wait', 'On the waiting list'],
+              'expired':    ['',     'Offer ran out']
+            }[a.app.decision]|default(['', a.app.decision|capitalize]) %}
+            <li class="me-row" data-find="{{ a.event ? a.event.title : '' }} stand">
+              <div class="me-row__b">
+                <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+                  <span class="me-row__t">{{ a.event ? a.event.title : 'An event' }}</span>
+                  <span class="me-tag {{ badge[0] ? 'me-tag--' ~ badge[0] : '' }}">{{ badge[1] }}</span>
+                </div>
+                <div class="me-row__m">
+                  {{ a.type ? a.type.name : 'A stand' }}{% if a.owing.fee > 0 %} · {{ a.owing.label }}{% endif %}
+                </div>
+                {# The reason, quoted rather than paraphrased. An applicant told
+                   "unsuccessful" cannot tell whether they failed a rule or a taste. #}
+                {% if a.app.decision == 'rejected' and a.app.decision_reason %}
+                  <div class="me-row__m" style="margin-top:5px;font-style:italic">“{{ a.app.decision_reason }}”</div>
+                {% endif %}
+              </div>
+              {% if a.token %}
+                <div class="me-row__r"><a class="me-btn" href="/stand/{{ a.token }}">Open</a></div>
+              {% endif %}
+            </li>
+            {% endfor %}
+          </ul>
+        </div>
+        {% else %}
+        <div class="me-panel"><div class="me-empty">
+          <span class="me-empty__i">{{ gi.sec('stand', 24) }}</span>
+          <h3>No stand applications yet</h3>
+          <p>When an event opens its call for stands, the terms go up first — the prices, the
+            quotas and the closing date — and anybody can apply.</p>
+          <a class="me-btn" href="/events">See what is coming up {{ gi.ui('go', 15) }}</a>
+        </div></div>
+        {% endif %}
+
+        {# ══ THE CATALOGUE ═══════════════════════════════════════════════
+             What this vendor sells, as rows rather than as the one free-text paragraph on a
+             frozen application form. That paragraph is still the record of what they said
+             when they applied; this is what they sell NOW — and it is what makes "this is a
+             food trader" a fact the category quota can count rather than a reading somebody
+             has to make by eye across forty applications. #}
+        <div class="me-panel" id="catalogue">
+          <p class="me-panel__h">What you sell</p>
+          <p class="me-panel__s">Visitors see this on the event page, and an organiser
+            allocating against category quotas can count it. Up to {{ vendor_max }} items.
+            {% if vendor.lead_cat %}Mostly
+              <strong>{{ vendor_cats[vendor.lead_cat]|default(vendor.lead_cat) }}</strong>
+              at the moment — that is a count of what you have listed, not a decision anybody
+              has made.{% endif %}</p>
+
+          {% if vendor.items %}
+          <ul class="me-list">
+            {% for i in vendor.items %}
+            <li class="me-row" data-find="{{ i.name }} {{ i.category|default('') }}">
+              <div class="me-row__b">
+                <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+                  <span class="me-row__t">{{ i.name }}</span>
+                  {% if not i.is_available %}<span class="me-tag">Not on the list</span>{% endif %}
+                </div>
+                <div class="me-row__m">
+                  {% if i.category %}{{ vendor_cats[i.category]|default(i.category) }} · {% endif %}
+                  {% if i.price_naira %}₦{{ i.price_naira|number_format }}{% elseif i.price_note %}{{ i.price_note }}{% else %}Ask at the stand{% endif %}
+                </div>
+                {% if i.description %}<div class="me-row__m" style="margin-top:4px">{{ i.description }}</div>{% endif %}
+              </div>
+              {% if vendor.is_owner %}
+              <div class="me-row__r" style="display:flex;gap:6px;flex-wrap:wrap">
+                <form method="post" action="/org/item/{{ i.id }}/show">
+                  <input type="hidden" name="_token" value="{{ csrf_token }}">
+                  {% if i.is_available %}
+                    <button class="me-btn me-btn--quiet" type="submit">Mark unavailable</button>
+                  {% else %}
+                    <input type="hidden" name="available" value="1">
+                    <button class="me-btn" type="submit">Put it back</button>
+                  {% endif %}
+                </form>
+                <form method="post" action="/org/item/{{ i.id }}/delete">
+                  <input type="hidden" name="_token" value="{{ csrf_token }}">
+                  <button class="me-btn me-btn--quiet" type="submit">Remove</button>
+                </form>
+              </div>
+              {% endif %}
+            </li>
+            {% endfor %}
+          </ul>
+          {% else %}
+            <p class="me-panel__s" style="margin-top:10px">Nothing listed yet. One line per
+              thing you sell is enough — a name and a price.</p>
+          {% endif %}
+
+          {% if vendor.is_owner %}
+          <details style="margin-top:14px">
+            <summary class="me-btn" style="cursor:pointer">Add an item</summary>
+            <form method="post" action="/org/item" enctype="multipart/form-data"
+                  style="margin-top:12px;display:grid;gap:10px">
+              <input type="hidden" name="_token" value="{{ csrf_token }}">
+              <div>
+                <label class="me-lab" for="viName">What is it</label>
+                <input class="me-in" id="viName" name="name" type="text" required
+                       maxlength="160" placeholder="Jollof rice, one plate">
+              </div>
+              <div>
+                <label class="me-lab" for="viCat">Category</label>
+                <select class="me-in" id="viCat" name="category">
+                  <option value="">Not saying</option>
+                  {% for k, label in vendor_cats %}<option value="{{ k }}">{{ label }}</option>{% endfor %}
+                </select>
+              </div>
+              <div>
+                <label class="me-lab" for="viPrice">Price in naira</label>
+                {# Optional, and it says so. A column that defaulted to zero would print
+                   "Free" beside a bag of rice for everybody who had not decided yet. #}
+                <input class="me-in" id="viPrice" name="price_naira" type="text"
+                       inputmode="numeric" placeholder="Leave empty if you would rather not say">
+              </div>
+              <div>
+                <label class="me-lab" for="viNote">A note beside the price</label>
+                <input class="me-in" id="viNote" name="price_note" type="text" maxlength="80"
+                       placeholder="per plate, from, negotiable…">
+              </div>
+              <div>
+                <label class="me-lab" for="viDesc">Anything else worth saying</label>
+                <textarea class="me-in" id="viDesc" name="description" rows="2"
+                          maxlength="600"></textarea>
+              </div>
+              <div>
+                <label class="me-lab" for="viPhoto">A photograph</label>
+                <input class="me-in" id="viPhoto" name="photo" type="file"
+                       accept=".jpg,.jpeg,.png,.webp">
+              </div>
+              <div><button class="me-btn me-btn--go" type="submit">Add it</button></div>
+            </form>
+          </details>
+          {% endif %}
+        </div>
+      </section>
+      {% endif %}
+
+      <section class="me-sec" id="me-purchases" aria-labelledby="me-purchases-h">
+        <div class="me-sec__h"><h2 id="me-purchases-h">Purchases</h2></div>
+        <p class="me-sec__lead">What you have bought and where each one has got to — so
+          "has it shipped" and "where is my ticket" never depend on finding an old email.</p>
+
+        {% if my_orders|default([]) is empty and my_tickets|default([]) is empty %}
+          <div class="me-panel"><div class="me-empty">
+            <span class="me-empty__i">{{ gi.sec('bag', 24) }}</span>
+            <h3>Nothing bought yet</h3>
+            <p>Orders from the shop and tickets to events will show up here, with their
+              delivery status and the code that gets you in.</p>
+            <a class="me-btn" href="/events">See what is coming up {{ gi.ui('go', 15) }}</a>
+          </div></div>
+        {% endif %}
+
+        {% if my_tickets|default([]) %}
+        <div class="me-panel">
+          <p class="me-panel__h">Tickets</p>
+          <p class="me-panel__s">The code is what gets you in. Tap it to copy.</p>
+          <ul class="me-list">
+            {% for t in my_tickets %}
+            {% set tb = {
+              'confirmed': ['ok',   'Confirmed'],
+              'offered':   ['wait', 'Seat held for you'],
+              'waiting':   ['wait', 'On the waiting list'],
+              'unpaid':    ['wait', 'Payment not completed']
+            }[t.state]|default(['', t.state|capitalize]) %}
+            <li class="me-row" data-find="{{ t.event }} {{ t.code|default('') }} {{ t.where|default('') }} ticket">
+              <div class="me-row__b">
+                <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+                  <a class="me-row__t" href="{{ t.url }}">{{ t.event }}</a>
+                  <span class="me-tag {{ tb[0] ? 'me-tag--' ~ tb[0] : '' }}">{{ tb[1] }}</span>
+                </div>
+                <div class="me-row__m">
+                  {%- if t.when %}<time datetime="{{ t.when }}">{{ t.when|date('j M Y') }}</time>{% endif -%}
+                  {%- if t.tier %} · {{ t.tier }}{% endif -%}
+                  {%- if t.seats > 1 %} · {{ t.seats }} seats{% endif -%}
+                  {%- if t.where %} · {{ t.where }}{% endif -%}
+                </div>
+                {% if t.code %}
+                <button type="button" class="me-btn" data-me-copy="{{ t.code }}"
+                        style="margin-top:7px;min-height:36px;padding:0 12px"
+                        aria-label="Copy ticket code {{ t.code }}">
+                  <span class="me-code" style="margin:0">{{ t.code }}</span>{{ gi.ui('copy', 14) }}
+                </button>
+                {% endif %}
+                {# ── THE FLIER ─────────────────────────────────────────────
+                   Entry point three. It opens the event page's own generator with this
+                   ticket's credential already in hand, so "switch format" and "re-share"
+                   are the generator's own controls rather than a second, smaller copy of
+                   them living here.
+
+                   Confirmed rows only, because `flier` is empty for the others — a held
+                   seat is not a ticket. #}
+                {% if t.flier|default('') %}
+                <a class="me-btn" href="{{ t.flier }}"
+                   style="margin-top:7px;min-height:36px;padding:0 12px;display:inline-flex;align-items:center;gap:6px">
+                  Make an “I will be there” flier</a>
+                {% endif %}
+                {% if t.state == 'offered' and t.expires %}
+                <div class="me-row__m" style="color:var(--me-bad);font-weight:700;margin-top:6px">
+                  Take it by {{ t.expires|date('j M, H:i') }} or it goes to the next person waiting.
+                </div>
+                {% endif %}
+              </div>
+            </li>
+            {% endfor %}
+          </ul>
+        </div>
+        {% endif %}
+
+        {% if my_orders|default([]) %}
+        <div class="me-panel">
+          <p class="me-panel__h">Orders</p>
+          <p class="me-panel__s">From the shop.</p>
+          <ul class="me-list">
+            {% for o in my_orders %}
+            {% set fb = {
+              'unfulfilled': ['',     'Being prepared'],
+              'packed':      ['wait', 'Packed'],
+              'shipped':     ['ok',   'Shipped'],
+              'delivered':   ['ok',   'Delivered'],
+              'cancelled':   ['bad',  'Cancelled']
+            }[o.fulfilment]|default(['', 'Being prepared']) %}
+            <li class="me-row" data-find="{{ o.what }} order {{ o.tracking|default('') }}">
+              <div class="me-row__b">
+                <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+                  <a class="me-row__t" href="{{ o.url }}">{{ o.what }}</a>
+                  {% if o.status == 'pending' %}
+                    {# Ahead of the delivery badge, and instead of it: an unpaid order has not
+                       started being prepared, and "being prepared" would be a promise. #}
+                    <span class="me-tag me-tag--wait">Confirming payment</span>
+                  {% else %}
+                    <span class="me-tag {{ fb[0] ? 'me-tag--' ~ fb[0] : '' }}">{{ fb[1] }}</span>
+                  {% endif %}
+                </div>
+                <div class="me-row__m">
+                  ₦{{ o.total|number_format }} · {{ o.items }} item{{ o.items == 1 ? '' : 's' }} ·
+                  <time datetime="{{ o.placed }}">{{ o.placed|date('j M Y') }}</time>
+                </div>
+                {% if o.tracking %}<div class="me-row__m" style="color:#166534;font-weight:600">{{ o.tracking }}</div>{% endif %}
+              </div>
+            </li>
+            {% endfor %}
+          </ul>
+        </div>
+        {% endif %}
+      </section>
+
+      {# ══ ACTIVITY ══════════════════════════════════════════════════════ #}
+      <section class="me-sec" id="me-activity" aria-labelledby="me-activity-h">
+        <div class="me-sec__h"><h2 id="me-activity-h">Activity</h2></div>
+        <p class="me-sec__lead">What you have put into the cycle — who you backed, who you
+          put forward, and the links you made so other people could second them.</p>
+
+        <div class="me-panel">
+          <p class="me-panel__h">Votes cast</p>
+          {% if my_votes is empty %}
+            <div class="me-empty">
+              <span class="me-empty__i">{{ gi.sec('activity', 24) }}</span>
+              <h3>You have not voted yet</h3>
+              <p>The ballot is open to everyone — you do not have to spend points to look.</p>
+              <a class="me-btn" href="/vote">Explore the ballot {{ gi.ui('go', 15) }}</a>
+            </div>
+          {% else %}
+            <ul class="me-list" style="margin-top:10px">
+              {% for v in my_votes %}
+              <li class="me-row" data-find="{{ v.nominee }} {{ v.category|default('') }} vote">
+                <div class="me-row__b">
+                  <div class="me-row__t">{{ v.nominee }}</div>
+                  <div class="me-row__m">{{ v.category ?: 'Category' }} · <time datetime="{{ v.voted_at }}">{{ v.voted_at|date('j M Y') }}</time></div>
+                </div>
+              </li>
+              {% endfor %}
+            </ul>
+          {% endif %}
+        </div>
+
+        <div class="me-panel">
+          <p class="me-panel__h">Nominations</p>
+          {% if my_nominations is empty %}
+            <div class="me-empty">
+              <span class="me-empty__i">{{ gi.sec('saved', 24) }}</span>
+              <h3>No nominations yet</h3>
+              <p>If you know someone whose work deserves continental recognition, put them
+                forward. It takes a few minutes and costs nothing.</p>
+              <a class="me-btn" href="/nominate">Nominate someone {{ gi.ui('go', 15) }}</a>
+            </div>
+          {% else %}
+            <ul class="me-list" style="margin-top:10px">
+              {% for n in my_nominations %}
+              {% set nb = {'pending':['wait','Pending review'],'approved':['ok','Approved'],'rejected':['bad','Not approved']}[n.status]|default(['', n.status|capitalize]) %}
+              <li class="me-row" data-find="{{ n.nominee }} {{ n.reference }} nomination">
+                <div class="me-row__b">
+                  <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+                    <span class="me-row__t">{{ n.nominee }}</span>
+                    <span class="me-tag {{ nb[0] ? 'me-tag--' ~ nb[0] : '' }}">{{ nb[1] }}</span>
+                  </div>
+                  <div class="me-row__m"><time datetime="{{ n.created_at }}">{{ n.created_at|date('j M Y') }}</time></div>
+                  <button type="button" class="me-btn" data-me-copy="{{ n.reference }}"
+                          style="margin-top:7px;min-height:36px;padding:0 12px"
+                          aria-label="Copy reference {{ n.reference }}">
+                    <span class="me-code" style="margin:0;font-size:12.5px">{{ n.reference }}</span>{{ gi.ui('copy', 14) }}
+                  </button>
+                </div>
+              </li>
+              {% endfor %}
+            </ul>
+          {% endif %}
+        </div>
+
+        {% if my_links is not empty %}
+        <div class="me-panel">
+          <p class="me-panel__h">Share links</p>
+          <p class="me-panel__s">Links you made so others could second a nomination. Opens are counted live.</p>
+          <ul class="me-list">
+            {% for l in my_links %}
+            <li class="me-row" data-find="{{ l.nominee }} share link">
+              <div class="me-row__b">
+                <div class="me-row__t">{{ l.nominee }}</div>
+                <div class="me-row__m">{{ l.hits }} open{{ l.hits == 1 ? '' : 's' }} · {{ l.expired ? 'expired' : ('expires ' ~ l.expires_at|date('j M Y')) }}</div>
+              </div>
+              {% if not l.expired %}
+              <div class="me-row__r">
+                <button type="button" class="me-btn" data-me-copy="{{ l.url }}"
+                        aria-label="Copy the share link for {{ l.nominee }}">{{ gi.ui('copy', 14) }} Copy</button>
+              </div>
+              {% endif %}
+            </li>
+            {% endfor %}
+          </ul>
+        </div>
+        {% endif %}
+      </section>
+
+      {# ══ SAVED ═════════════════════════════════════════════════════════ #}
+      {% if bookmarks is not empty %}
+      <section class="me-sec" id="me-saved" aria-labelledby="me-saved-h">
+        <div class="me-sec__h"><h2 id="me-saved-h">Saved</h2></div>
+        <p class="me-sec__lead">Discussions you bookmarked in the community.</p>
+        <div class="me-panel">
+          <ul class="me-list">
+            {% for bm in bookmarks %}
+            <li class="me-row" data-find="{{ bm.title }} discussion saved">
+              <div class="me-row__b">
+                <a class="me-row__t" href="/community/{{ bm.slug }}">{{ bm.title }}</a>
+                <div class="me-row__m">{{ bm.reply_count|default(0) }} repl{{ bm.reply_count|default(0) == 1 ? 'y' : 'ies' }} · {{ bm.cheer_count|default(0) }} reaction{{ bm.cheer_count|default(0) == 1 ? '' : 's' }}</div>
+              </div>
+            </li>
+            {% endfor %}
+          </ul>
+        </div>
+      </section>
+      {% endif %}
+
+      {# ══ SETTINGS ══════════════════════════════════════════════════════ #}
+      <section class="me-sec" id="me-settings" aria-labelledby="me-settings-h">
+        <div class="me-sec__h"><h2 id="me-settings-h">Settings</h2></div>
+        <p class="me-sec__lead">Your details and how you sign in.</p>
+
+        {# One form, always editable — no Edit button. The old page hid these behind a
+           toggle, which is a click and a mode for somebody who came here specifically to
+           change something. A read-only view is what the identity bar at the top is. #}
+        <form class="me-panel" method="post" action="/account/profile">
+          <input type="hidden" name="_token" value="{{ csrf_token }}">
+          <p class="me-panel__h">Your details</p>
+          <p class="me-panel__s">Used on tickets, orders and anything the team sends you.</p>
+          <div class="me-grid2">
+            <label class="me-field"><span>Full name</span>
+              <input class="me-in" name="name" type="text" value="{{ user.name }}" required
+                     autocomplete="name" enterkeyhint="done"></label>
+            <label class="me-field"><span>Phone</span>
+              <input class="me-in" name="phone" type="tel" value="{{ user.phone }}" required
+                     autocomplete="tel" inputmode="tel"></label>
+          </div>
+          <label class="me-field"><span>Email</span>
+            {# Shown and not hidden: it is the address everything is sent to, and an account
+               screen that does not show you which address that is invites people to guess. #}
+            <input class="me-in" type="email" value="{{ user.email }}" readonly
+                   aria-describedby="meEmailNote"></label>
+          <p class="me-hint" id="meEmailNote">Your email is how this account is identified, so
+            it is changed by the team rather than here — write to support and they will move it.</p>
+          <div style="margin-top:18px"><button class="me-btn me-btn--go" type="submit">Save details</button></div>
+        </form>
+
+        <form class="me-panel" method="post" action="/account/profile">
+          <input type="hidden" name="_token" value="{{ csrf_token }}">
+          {# The name and phone ride along so the profile update does not blank them — the
+             endpoint writes both on every post. Hidden rather than duplicated as fields,
+             because two visible copies of the same value is how they end up different. #}
+          <input type="hidden" name="name" value="{{ user.name }}">
+          <input type="hidden" name="phone" value="{{ user.phone }}">
+          <p class="me-panel__h">Password</p>
+          <p class="me-panel__s">
+            {% if user.password_hash %}Change it here. You will stay signed in on this device.
+            {%- else %}You sign in with a one-time code by email. Setting a password is optional —
+            the code keeps working either way.{% endif %}
+          </p>
+          {% if user.password_hash %}
+          <label class="me-field"><span>Current password</span>
+            <input class="me-in" name="current_password" type="password" autocomplete="current-password"></label>
+          {% endif %}
+          <label class="me-field"><span>New password</span>
+            <input class="me-in" name="new_password" type="password" autocomplete="new-password"
+                   minlength="8" aria-describedby="mePwNote"></label>
+          <p class="me-hint" id="mePwNote">At least 8 characters. Longer beats complicated —
+            three unrelated words is stronger than one word with symbols in it.</p>
+          <div style="margin-top:18px"><button class="me-btn me-btn--go" type="submit">{{ user.password_hash ? 'Change password' : 'Set a password' }}</button></div>
+        </form>
+
+        <div class="me-panel">
+          <p class="me-panel__h">Your data</p>
+          <p class="me-panel__s">Take a copy of anything on this page.</p>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px">
+            <a class="me-btn" href="/account/points.csv" download>{{ gi.ui('down', 15) }} Points history (CSV)</a>
+            <a class="me-btn me-btn--quiet" href="/account/logout">Sign out</a>
+          </div>
+        </div>
+      </section>
+
+    </div>
+  </div>
+</div>
+
+<script nonce="{{ csp_nonce }}">
+(function () {
+  'use strict';
+  var root = document.documentElement;
+  var page = document.getElementById('me');
+  if (!page) return;
+
+  // ── sections ──────────────────────────────────────────────────────────────
+  // The head script already chose one. This only keeps it in step with clicks
+  // and the back button; the CSS does the showing.
+  var IDS  = {{ me_tabs|json_encode|raw }};
+  var rail = document.getElementById('meRail');
+  // Declared up here because the section handler below clears a running search, and a
+  // `var` used before its assignment is `undefined` rather than an error — which would
+  // have been a silent no-op instead of a visible one.
+  var find  = document.getElementById('meFind');
+  var note  = document.getElementById('meFindNote');
+  var rows  = Array.prototype.slice.call(page.querySelectorAll('[data-find]'));
+  var timer = null;
+
+  function paint(id) {
+    if (IDS.indexOf(id) < 0) id = 'overview';
+    root.setAttribute('data-me', id);
+    if (!rail) return;
+    var items = rail.querySelectorAll('[data-me-go]');
+    for (var i = 0; i < items.length; i++) {
+      items[i].setAttribute('aria-selected', items[i].getAttribute('data-me-go') === id ? 'true' : 'false');
+    }
+  }
+  function fromHash() { return (location.hash || '').replace('#', '').replace(/^me-/, ''); }
+  paint(fromHash());
+
+  // ── THE CLICK IS NOT INTERCEPTED ────────────────────────────────────────
+  //
+  // No `preventDefault`. The links are real `<a href="#me-…">` and the browser's own hash
+  // navigation is what reveals the section, through `.me-sec:target` in the CSS above.
+  // This handler only keeps the RAIL HIGHLIGHT and the search box in step.
+  //
+  // It used to be the other way round: the handler swallowed the click and set `data-me`
+  // itself, so the entire rail depended on this script running. Anything that stopped it —
+  // a 404 after a deploy, a CSP mismatch, an error thrown earlier in the file, an
+  // extension — left every tab dead while the URL still changed, which reads as "the tabs
+  // do nothing" and is impossible to diagnose from the outside. Letting the browser do the
+  // navigation means the worst case is a stale highlight, not a broken page.
+  page.addEventListener('click', function (e) {
+    var go = e.target.closest ? e.target.closest('[data-me-go]') : null;
+    if (!go) return;
+    var id = go.getAttribute('data-me-go');
+    if (find && find.value) { find.value = ''; runFind(); }
+    paint(id);
+  });
+
+  // The hash can also change without a click here — Back, Forward, a pasted link, or one
+  // of the in-page shortcuts. `hashchange` covers all of them; `popstate` alone did not.
+  window.addEventListener('hashchange', function () { paint(fromHash()); });
+  window.addEventListener('popstate',   function () { paint(fromHash()); });
+
+  // Arrow keys along the rail, which is what a set of related navigation
+  // controls is expected to do.
+  if (rail) rail.addEventListener('keydown', function (e) {
+    if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp' && e.key !== 'ArrowRight' && e.key !== 'ArrowLeft') return;
+    var items = Array.prototype.slice.call(rail.querySelectorAll('[data-me-go]'));
+    var at = items.indexOf(document.activeElement);
+    if (at < 0) return;
+    e.preventDefault();
+    var step = (e.key === 'ArrowDown' || e.key === 'ArrowRight') ? 1 : -1;
+    items[(at + step + items.length) % items.length].focus();
+  });
+
+  function runFind() {
+    var q = (find.value || '').trim().toLowerCase();
+    if (!q) {
+      page.classList.remove('me-searching');
+      root.classList.remove('me-searching');
+      for (var i = 0; i < rows.length; i++) rows[i].hidden = false;
+      var panels = page.querySelectorAll('.me-panel');
+      for (var p = 0; p < panels.length; p++) panels[p].hidden = false;
+      var back = page.querySelectorAll('.me-sec');
+      for (var k = 0; k < back.length; k++) back[k].hidden = false;
+      note.textContent = '';
+      return;
+    }
+    root.classList.add('me-searching');
+    page.classList.add('me-searching');
+    var hits = 0;
+    for (var j = 0; j < rows.length; j++) {
+      var hay = (rows[j].getAttribute('data-find') + ' ' + rows[j].textContent).toLowerCase();
+      var on  = hay.indexOf(q) >= 0;
+      rows[j].hidden = !on;
+      if (on) hits++;
+    }
+    // A panel whose every row is hidden is a heading over nothing — and a SECTION whose
+    // every panel is hidden is the same thing one level up. Both get hidden, or the
+    // results read as "Purchases: (nothing) Activity: (nothing) Settings: (nothing)".
+    var boxes = page.querySelectorAll('.me-panel');
+    for (var b = 0; b < boxes.length; b++) {
+      var mine = boxes[b].querySelectorAll('[data-find]');
+      if (!mine.length) { boxes[b].hidden = true; continue; }
+      var any = false;
+      for (var m = 0; m < mine.length; m++) if (!mine[m].hidden) { any = true; break; }
+      boxes[b].hidden = !any;
+    }
+    var secs = page.querySelectorAll('.me-sec');
+    for (var v = 0; v < secs.length; v++) {
+      var panels = secs[v].querySelectorAll('.me-panel');
+      var live = false;
+      for (var w = 0; w < panels.length; w++) if (!panels[w].hidden) { live = true; break; }
+      secs[v].hidden = !live;
+    }
+    note.textContent = hits === 0
+      ? 'Nothing matches “' + find.value.trim() + '”.'
+      : hits + (hits === 1 ? ' match' : ' matches') + ' for “' + find.value.trim() + '”.';
+  }
+
+  if (find) {
+    find.addEventListener('input', function () {
+      clearTimeout(timer);
+      // 120ms: long enough that a fast typist does not filter on every keystroke,
+      // short enough to feel like it is keeping up.
+      timer = setTimeout(runFind, 120);
+    });
+    find.addEventListener('keydown', function (e) { if (e.key === 'Escape') { find.value = ''; runFind(); } });
+  }
+
+  // ── ledger filter ─────────────────────────────────────────────────────────
+  var ledger = document.getElementById('meLedger');
+  var none   = document.getElementById('meLedgerNone');
+  page.addEventListener('click', function (e) {
+    var b = e.target.closest('[data-me-filter]');
+    if (!b || !ledger) return;
+    var want = b.getAttribute('data-me-filter');
+    var all  = page.querySelectorAll('[data-me-filter]');
+    for (var i = 0; i < all.length; i++) all[i].setAttribute('aria-pressed', all[i] === b ? 'true' : 'false');
+    var items = ledger.querySelectorAll('[data-me-sign]');
+    var shown = 0;
+    for (var j = 0; j < items.length; j++) {
+      var on = want === 'all' || items[j].getAttribute('data-me-sign') === want;
+      items[j].hidden = !on;
+      if (on) shown++;
+    }
+    if (none) none.hidden = shown > 0;
+  });
+
+  // ── copy ──────────────────────────────────────────────────────────────────
+  page.addEventListener('click', function (e) {
+    var b = e.target.closest('[data-me-copy]');
+    if (!b) return;
+    var text = b.getAttribute('data-me-copy');
+    var done = function () {
+      var was = b.getAttribute('aria-label');
+      b.setAttribute('aria-label', 'Copied');
+      // A visual tick AND an announcement: the icon swap is invisible to a
+      // screen reader and the label change is invisible to everyone else.
+      b.classList.add('is-copied');
+      setTimeout(function () { b.setAttribute('aria-label', was); b.classList.remove('is-copied'); }, 1600);
+    };
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(done, function () {});
+    } else {
+      var ta = document.createElement('textarea');
+      ta.value = text; ta.setAttribute('readonly', ''); ta.style.position = 'fixed'; ta.style.opacity = '0';
+      document.body.appendChild(ta); ta.select();
+      try { document.execCommand('copy'); done(); } catch (err) {}
+      document.body.removeChild(ta);
+    }
+  });
+
+})();
+</script>
+{{ viz.assets(csp_nonce) }}
+<script nonce="{{ csp_nonce }}">
+/* Copy-to-clipboard for the referral link.
+   The input stays readonly-and-visible rather than hidden behind the button, so with no
+   JS — or a clipboard API the browser refuses — the link is still there to select by hand.
+   That matters more here than anywhere else on this page: the link IS the feature. */
+(function(){
+  var btn = document.querySelector('[data-rf-copy]');
+  if (!btn) return;
+  var field = document.getElementById(btn.getAttribute('data-rf-copy'));
+  if (!field) return;
+  var original = btn.textContent;
+  btn.addEventListener('click', function(){
+    field.select();
+    var done = function(ok){
+      btn.textContent = ok ? 'Copied' : 'Press Ctrl+C';
+      if (window.agAnnounce) window.agAnnounce(ok ? 'Referral link copied' : 'Select and copy the link');
+      setTimeout(function(){ btn.textContent = original; }, 2200);
+    };
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(field.value).then(function(){ done(true); }, function(){ done(false); });
+    } else {
+      /* Older Safari and any context where the async API is unavailable. */
+      var ok = false;
+      try { ok = document.execCommand('copy'); } catch (e) {}
+      done(ok);
+    }
+  });
+})();
+</script>
+{% endblock %}

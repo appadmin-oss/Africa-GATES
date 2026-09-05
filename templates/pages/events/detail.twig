@@ -1,0 +1,2586 @@
+{% extends "layout/gates.twig" %}
+
+{# ── IS THIS EVENT A FUNDRAISER? ───────────────────────────────────────────────
+   Derived from the live appeals already joined to the event rather than from a new
+   flag on the row. An event that is raising for something IS one with an open
+   appeal attached, and a second boolean beside it is a second thing to keep in
+   step — the first time somebody closes the appeal and forgets the flag, the page
+   asks for money for a campaign that has ended.
+
+   At TEMPLATE scope on purpose: a `{% set %}` inside a `{% block %}` is invisible
+   to every other block and renders as null with no error, which has taken out this
+   codebase's navigation once and a share link a second time. #}
+{% set is_fundraiser = appeals|default([]) is not empty %}
+{% set appeal_for = is_fundraiser ? (appeals|first).campaign.title : '' %}
+
+{% block head_styles %}
+<style nonce="{{ csp_nonce }}">
+  body[data-page="events"]{ background:#eef0ec; color:var(--ag-ink); }
+  [x-cloak]{ display:none !important; }
+  .ed{ max-width:1080px; margin:0 auto; padding:18px var(--ag-gutter,32px) clamp(3rem,6vw,4rem); }
+  .ed-crumb{ font-size:12.5px; color:#5a6d6f; margin-bottom:14px; }
+  .ed-crumb a{ color:#5a6d6f; text-decoration:none; }
+  .ed-crumb b{ color:var(--ag-ink); font-weight:500; }
+
+  .ed-hero{ position:relative; overflow:hidden; border-radius:24px; min-height:320px; display:flex; align-items:flex-end;
+    padding:clamp(1.8rem,3vw,2.4rem); background:radial-gradient(130% 130% at 78% 0%,#1d5b2a,#10292C 60%); }
+  .ed-hero__bg{ position:absolute; inset:0; width:100%; height:100%; object-fit:cover; opacity:.42; }
+  .ed-hero__orb{ position:absolute; right:-60px; top:-60px; width:300px; height:300px; border-radius:50%; background:radial-gradient(circle,rgba(212,154,14,.3),transparent 68%); }
+  .ed-hero__in{ position:relative; }
+  .ed-hero__badge{ display:inline-flex; align-items:center; gap:7px; font-size:11px; font-weight:600; letter-spacing:.1em; text-transform:uppercase; color:#fbc329; background:rgba(212,154,14,.18); padding:7px 14px; border-radius:999px; }
+  .ed-hero__title{ margin:16px 0 0; font-family:var(--ag-font-display); font-weight:800; font-size:clamp(2rem,4.6vw,2.9rem); line-height:1.03; letter-spacing:-.02em; color:#fff; }
+  .ed-hero__meta{ display:flex; flex-wrap:wrap; gap:20px; margin-top:18px; }
+  .ed-hero__meta span{ display:flex; align-items:center; gap:8px; color:rgba(255,255,255,.85); font-size:14px; }
+
+  .ed-grid{ display:grid; grid-template-columns:1fr 340px; gap:28px; align-items:start; margin-top:28px; }
+  .ed-main{ display:flex; flex-direction:column; gap:24px; min-width:0; }
+  .ed-card{ background:var(--ag-surface); border:1px solid rgba(16,41,44,.08); border-radius:20px; padding:clamp(1.4rem,3vw,1.75rem); }
+  .ed-card h2{ margin:0 0 12px; font-family:var(--ag-font-display); font-weight:700; font-size:1.3rem; color:var(--ag-ink); }
+  .ed-card p{ margin:0; font-size:15px; line-height:1.7; color:#3a4448; white-space:pre-line; }
+  .ed-venue__name{ font-weight:600; font-size:15px; color:var(--ag-ink); margin-top:4px; }
+  .ed-venue__addr{ font-size:13.5px; color:#626a6e; margin-top:3px; }
+
+  .ed-rail{ position:sticky; top:88px; display:flex; flex-direction:column; gap:18px; }
+  .ed-rsvp{ background:var(--ag-surface); border:1px solid rgba(16,41,44,.08); border-radius:20px; padding:22px; box-shadow:0 12px 36px -20px rgba(16,41,44,.35); }
+  .ed-rsvp__top{ display:flex; align-items:center; justify-content:space-between; }
+  .ed-rsvp__eyebrow{ font-size:12px; font-weight:600; letter-spacing:.06em; text-transform:uppercase; color:var(--ag-green); }
+  /* The fundraiser line. Sits between the eyebrow and the tier list because it is the
+     thing that changes what the prices below MEAN, and a reader who meets it after the
+     prices has already decided. */
+  .ed-rsvp__fund{ margin:10px 0 0; font-size:13px; line-height:1.55; color:#3c4649;
+    padding-left:11px; border-left:2px solid rgba(243,180,22,.55); }
+  .ed-rsvp__fund strong{ font-weight:600; color:var(--ag-ink); }
+  .ed-rsvp__count{ font:700 13px/1 var(--ag-font-mono); color:#5a6d6f; }
+  .ed-rsvp h2{ margin:10px 0 0; font-family:var(--ag-font-display); font-weight:700; font-size:1.2rem; color:var(--ag-ink); }
+  .ed-rsvp p.sub{ margin:7px 0 0; font-size:13px; line-height:1.5; color:#626a6e; }
+  .ed-label{ display:block; font-size:12px; font-weight:600; color:#4a5256; margin:14px 0 6px; }
+  .ed-input{ width:100%; border:1px solid rgba(16,41,44,.16); border-radius:11px; padding:12px 14px; font-family:inherit; font-size:16px; color:var(--ag-ink); outline:none; transition:border-color .15s; }
+  .ed-input:focus{ border-color:var(--ag-green); }
+  .ed-cta{ width:100%; margin-top:16px; cursor:pointer; border:none; background:var(--ag-green); color:#fff; font-family:inherit; font-weight:600; font-size:15px; padding:13px; border-radius:999px; transition:background .15s; }
+  .ed-cta:hover{ background:var(--ag-green-dark); }
+  .ed-cta:disabled{ background:#dfe4e3; color:#5b6669; opacity:1; cursor:not-allowed; }
+  .ed-secure{ display:flex; align-items:center; justify-content:center; gap:7px; margin-top:12px; font-size:11.5px; color:#5a6d6f; }
+  .ed-err{ font-size:13px; color:#b42318; background:#fdecec; border:1px solid rgba(180,35,24,.18); border-radius:10px; padding:9px 12px; margin-top:12px; }
+  .ed-ext{ display:block; text-align:center; margin-top:12px; font-size:12.5px; color:var(--ag-green); font-weight:600; text-decoration:none; }
+  .ed-done{ text-align:center; padding:8px 0; }
+  .ed-done__ico{ width:60px; height:60px; margin:0 auto 12px; border-radius:50%; background:#effaf0; display:flex; align-items:center; justify-content:center; }
+  .ed-done h2{ margin:0; }
+  .ed-past{ font-size:14px; color:#626a6e; margin-top:10px; line-height:1.6; }
+
+  /* early-bird banner */
+  .ed-eb{ display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:12px; background:#eafaf0; border:1px solid rgba(35,123,34,.2); border-radius:14px; padding:12px 18px; margin-bottom:16px; }
+  .ed-eb__t{ font-weight:600; font-size:14px; color:#10292C; }
+  .ed-eb__cta{ font-size:13px; font-weight:600; color:var(--ag-green); text-decoration:none; white-space:nowrap; }
+  /* run of show */
+  .ed-sched__row{ display:flex; gap:18px; padding:13px 0; border-bottom:1px solid rgba(16,41,44,.06); }
+  .ed-sched__row:last-child{ border-bottom:0; padding-bottom:0; }
+  .ed-sched__time{ flex:none; width:72px; font:700 13px/1.4 var(--ag-font-mono,monospace); color:#966905; }
+  .ed-sched__t{ font-weight:600; font-size:14.5px; color:var(--ag-ink); }
+  .ed-sched__b{ font-size:13px; color:var(--ag-ink-soft,#626a6e); margin-top:2px; }
+  .ed-maplink{ display:inline-flex; align-items:center; gap:6px; margin-top:14px; font-size:13px; font-weight:600; color:var(--ag-green); text-decoration:none; }
+  /* agenda — sessions as rows, grouped by day */
+  .ed-ag__day + .ed-ag__day{ margin-top:22px; }
+  .ed-ag__dayh{ display:flex; align-items:center; gap:10px; font-size:12px; font-weight:700; letter-spacing:.07em; text-transform:uppercase; color:var(--ag-green); }
+  .ed-ag__dayh::after{ content:''; flex:1; height:1px; background:rgba(16,41,44,.1); }
+  .ed-ag__row{ display:flex; gap:16px; padding:14px 0; border-bottom:1px solid rgba(16,41,44,.06); }
+  .ed-ag__row:last-child{ border-bottom:0; padding-bottom:0; }
+  .ed-ag__time{ flex:none; width:104px; font-family:var(--ag-font-mono,monospace); font-size:12.5px; font-weight:700; line-height:1.5; color:#966905; }
+  .ed-ag__t{ font-weight:600; font-size:15px; color:var(--ag-ink); }
+  .ed-ag__b{ font-size:13.5px; line-height:1.65; color:var(--ag-ink-soft,#626a6e); margin-top:4px; white-space:pre-line; }
+  .ed-ag__tags{ display:flex; flex-wrap:wrap; gap:6px; margin-top:7px; }
+  .ed-ag__tag{ font-size:11px; font-weight:600; padding:3px 9px; border-radius:999px; background:#eef2ee; color:#4a5256; }
+  .ed-ag__tag.is-track{ background:#eafaf0; color:#1a6118; }
+  .ed-ag__who{ font-size:12.5px; color:#5a6d6f; margin-top:6px; }
+  .ed-ag__filter{ display:flex; flex-wrap:wrap; gap:7px; margin-bottom:16px; }
+  .ed-ag__fb{ cursor:pointer; font-family:inherit; font-size:12px; font-weight:600; padding:6px 13px; border-radius:999px; border:1px solid rgba(16,41,44,.14); background:#fff; color:#4a5256; }
+  .ed-ag__fb.is-on{ background:var(--ag-green); border-color:var(--ag-green); color:#fff; }
+  /* the small print an organiser writes once */
+  .ed-fine dt{ font-size:12px; font-weight:700; letter-spacing:.05em; text-transform:uppercase; color:var(--ag-ink-soft,#626a6e); margin-top:14px; }
+  .ed-fine dt:first-child{ margin-top:0; }
+  .ed-fine dd{ margin:5px 0 0; font-size:14px; line-height:1.7; color:#3a4448; white-space:pre-line; }
+  .ed-fine a{ color:var(--ag-green); font-weight:600; text-decoration:none; }
+  /* ── THE VENDOR CALL ──────────────────────────────────────────────────────
+     A different audience from everything else on this page. Attendees are being sold a
+     seat in the rail on the right; this is a business being told it can trade here, and
+     the two do not compete for the same person's attention — which is exactly why it is
+     in the main column and low, rather than a second button beside Register.
+
+     Kale ground, not the page's white card. Not decoration: it is the one block here
+     addressed to somebody who did not come for a ticket, and a card identical to "About
+     this event" reads as more of the same and is scrolled past. */
+  .ed-vend{ position:relative; overflow:hidden; border-radius:20px; padding:clamp(1.4rem,3vw,1.8rem);
+    background:linear-gradient(135deg,#10292C,#164a2c); color:#eef5f0; }
+  .ed-vend__orb{ position:absolute; inset:auto -60px -90px auto; width:230px; height:230px;
+    border-radius:50%; background:radial-gradient(circle at 35% 35%,rgba(127,200,124,.34),transparent 68%);
+    pointer-events:none; }
+  .ed-vend__in{ position:relative; }
+  .ed-vend__kick{ display:block; font-family:var(--ag-font-mono,monospace); font-size:11px;
+    font-weight:700; letter-spacing:.16em; text-transform:uppercase; color:#7FC87C; }
+  .ed-vend h2{ margin:8px 0 0; font-family:var(--ag-font-display,serif); font-weight:700;
+    font-size:1.35rem; line-height:1.25; color:#fff; }
+  .ed-vend p{ margin:9px 0 0; font-size:14.5px; line-height:1.7; color:#c9dbd2; white-space:normal; }
+  /* The facts, as a row of small statements rather than prose. A vendor is deciding on
+     three numbers — how many places, from what price, by when — and a paragraph makes
+     them read forty words to find each one. */
+  .ed-vend__facts{ display:flex; flex-wrap:wrap; gap:8px; margin:14px 0 0; padding:0; list-style:none; }
+  .ed-vend__facts li{ display:inline-flex; align-items:center; gap:7px; padding:6px 12px;
+    border:1px solid rgba(255,255,255,.18); border-radius:999px; background:rgba(255,255,255,.06);
+    font-size:12.5px; font-weight:600; color:#eef5f0; }
+  .ed-vend__facts b{ font-family:var(--ag-font-mono,monospace); font-weight:700; color:#fff; }
+  .ed-vend__act{ display:flex; flex-wrap:wrap; align-items:center; gap:12px 16px; margin-top:18px; }
+  .ed-vend__cta{ display:inline-flex; align-items:center; gap:8px; padding:12px 22px;
+    border-radius:999px; background:#f3b416; color:#3a2800; font-weight:700; font-size:14.5px;
+    text-decoration:none; transition:transform .15s, background .15s; }
+  .ed-vend__cta:hover{ background:#ffc633; transform:translateY(-1px); }
+  .ed-vend__cta:focus-visible{ outline:3px solid #7FC87C; outline-offset:3px; }
+  /* #c9dbd2 on this ground measures 8.4:1; the gold used for the CTA fill would be 2.9:1
+     as text here, which is why the reassurance line is not gold. */
+  .ed-vend__free{ font-size:12.5px; color:#c9dbd2; }
+  .ed-vend__free b{ color:#fff; font-weight:600; }
+  /* A shut call gets a line, not a card. It is still worth saying — a vendor who arrived
+     late is owed the date rather than silence — but it is not worth a gold button. */
+  .ed-vend--shut{ background:none; border:1px solid rgba(16,41,44,.12); color:#3a4448;
+    padding:14px clamp(1rem,2.4vw,1.25rem); border-radius:16px; }
+  .ed-vend--shut .ed-vend__kick{ color:var(--ag-green,#237b22); }
+  .ed-vend--shut p{ color:#3a4448; font-size:14px; }
+  .ed-vend--shut a{ color:var(--ag-green,#237b22); font-weight:600; }
+  /* discount code */
+  .ed-disc{ display:flex; gap:8px; margin-top:6px; }
+  .ed-disc .ed-input{ text-transform:uppercase; letter-spacing:.04em; }
+  .ed-disc button{ flex:none; cursor:pointer; border:1px solid rgba(16,41,44,.16); background:#fff; color:#10292C; font-family:inherit; font-size:13px; font-weight:600; padding:0 15px; border-radius:11px; }
+  .ed-disc button:disabled{ opacity:.5; cursor:not-allowed; }
+  .ed-disc__ok{ font-size:12.5px; font-weight:600; color:#1a6118; margin-top:7px; }
+  .ed-disc__no{ font-size:12.5px; color:#8a5a00; margin-top:7px; }
+  .ed-was{ text-decoration:line-through; color:var(--ag-ink-soft,#626a6e); font-weight:500; }
+  /* waitlist */
+  .ed-wl{ background:#fff8ec; border:1px solid rgba(212,154,14,.28); border-radius:14px; padding:14px 16px; margin-top:14px; }
+  .ed-wl__h{ font-weight:700; font-size:13.5px; color:#7a4d00; }
+  .ed-wl__p{ font-size:12.5px; line-height:1.6; color:#7a5a1a; margin:5px 0 0; }
+  .ed-wl__go{ width:100%; margin-top:10px; cursor:pointer; border:none; background:#a47306; color:#fff; font-family:inherit; font-weight:600; font-size:13.5px; padding:11px; border-radius:999px; }
+  .ed-wl__go:disabled{ opacity:.6; cursor:not-allowed; }
+  /* tiers + sold bar */
+  .ed-sold__top{ display:flex; justify-content:space-between; font-size:12px; color:#5a6d6f; }
+  .ed-sold__bar{ height:7px; border-radius:5px; background:#eef2ee; overflow:hidden; margin:7px 0 4px; }
+  .ed-sold__fill{ display:block; height:100%; border-radius:5px; background:linear-gradient(90deg,#d49a0e,#fbc329); }
+  /* align-items:flex-start, not center: a tier with three perks is a tall card, and a radio
+     floating halfway down one reads as belonging to whichever perk it happens to sit beside. */
+  /* min-height, not just padding: a one-line tier row came to 43.6px, which clears WCAG
+     2.5.8's 24px AA floor but misses 2.5.5's 44px and Android's 48dp guidance. This is a
+     row people press three or four times while comparing, on a phone, with a thumb. */
+  .ed-tier{ position:relative; width:100%; min-height:48px; text-align:left; border:1.5px solid rgba(16,41,44,.12); background:#fff; border-radius:13px; padding:12px 14px; display:flex; align-items:flex-start; gap:11px; cursor:pointer; margin-top:9px; font-family:inherit;
+    /* The tone's own colour, overridden per row from the event's accent ladder. Declared
+       here so a row whose hue never arrives still tints in the platform's green rather
+       than in `transparent`, which is invisible and reads as the effect being broken. */
+    --tier-hue:var(--ag-green,#237b22);
+    /* How hard this row's ink lands, 0–1, from EventTierTone::HEAT. It was declared here
+       from the day the effect shipped and NOTHING ever set it — a dead custom property is
+       §17's bug in CSS, and it is the reason the ladder existed only in the arc's speed.
+       It is set per row from PHP now; see `--tier-w` below for what it drives. */
+    --tier-heat:.34;
+    /* The state layer's weight, derived once. Material's opacities are flat tokens; this
+       platform has a rank ladder that has to survive, so heat modulates them ABOVE A FLOOR
+       rather than multiplying them: .34 heat at a straight multiply is .027 opacity, which
+       is nothing at all, and a hover state nobody can see is a hover state that is missing.
+       calm ≈ .90 · rise ≈ 1.03 · peak = 1.20 · hold = .75. */
+    --tier-w:calc(.75 + .45 * var(--tier-heat));
+    /* The gate that stops the layers stacking. 1 normally; 0 while a ripple is on the row.
+       See THE PRESS — state layers are alternatives, not a pile, and multiplying them by
+       one switch is what keeps that true without four specificity fights. */
+    --tier-state:1;
+    --tier-grow:380ms;
+    transition:border-color var(--ag-dur-fast,.15s) var(--ag-ease,ease),
+               background var(--ag-dur-fast,.15s) var(--ag-ease,ease),
+               box-shadow var(--ag-dur,.25s) var(--ag-ease,ease); }
+  /* The BORDER takes the edge, not the identity: a pale fill as a 1.5px line on white is
+     an absence rather than a mark, and a selected-state indicator owes 3:1 (WCAG 1.4.11).
+     The colour the organiser chose is what runs the rim as light — see .ed-fx. */
+  .ed-tier.is-sel{ border-color:var(--tier-edge); background:#f6fcf5; }
+  /* The persistent warm inner light on the chosen row — an INSET rim, not a wash across the
+     face. A tinted face would sit behind `.ed-tier__perk` at 11.5px, and that text is
+     #626a6e, which is AA on white with little room to spend. The rim carries the same
+     "this one is chosen" signal and touches no text. A static value with a transition,
+     never a keyframe: box-shadow is the one property here that repaints. */
+  .ed-tier.is-sel{ box-shadow:inset 0 0 0 1px color-mix(in srgb, var(--tier-hue) 26%, transparent),
+                              inset 0 1px 12px -6px color-mix(in srgb, var(--tier-hue) 60%, transparent); }
+  .ed-tier:disabled{ opacity:.5; cursor:not-allowed; }
+  /* Focus is drawn on the row, and it has to survive the selected state's border change —
+     an outline rather than a border swap, so the two cannot cancel each other out. */
+  .ed-tier:focus-visible{ outline:2px solid var(--ag-green,#237b22); outline-offset:2px; }
+  .ed-tier__radio{ flex:none; width:18px; height:18px; margin-top:2px; border-radius:50%; border:2px solid rgba(16,41,44,.25); display:flex; align-items:center; justify-content:center; }
+  /* `background: fill` inside a `1px solid edge` ring — the printed ticket's `.tk__dot`,
+     to the pixel. The organiser picks one colour and sees the same object in the admin
+     picker, on this row, and on the door. */
+  .ed-tier.is-sel .ed-tier__radio{ border-color:var(--tier-edge); }
+  .ed-tier.is-sel .ed-tier__radio::after{ content:''; width:9px; height:9px; border-radius:50%;
+    background:var(--tier-hue); box-shadow:0 0 0 1px var(--tier-edge); }
+  .ed-tier__name{ font-weight:600; font-size:14px; color:var(--ag-ink); }
+  /* Darker than the site's `--ag-ink-soft` (#626a6e), and only here.
+     #626a6e is 5.52:1 on white — AA at 11.5px with almost nothing to spend, which is what
+     the original effect's comment meant by "little room" and why that effect kept off the
+     row's face entirely. The state layer DOES cross the face, so the room has to exist:
+     against a black wash — the worst accent an organiser can produce — #626a6e stops
+     clearing 4.5:1 at 7.3% opacity, and the heaviest persistent state here is 12%.
+     #545c60 is 6.83:1 and moves that ceiling to 16.2%, which clears every state the
+     stylesheet declares including the ripple's. Held by EventTierSelectionTest, which
+     sweeps the accent space rather than trusting the hues that happen to exist today. */
+  .ed-tier__perk{ font-size:11.5px; color:#545c60; }
+  .ed-tier__price{ flex:none; margin-left:auto; padding-left:8px; font-family:var(--ag-font-mono,monospace); font-size:14px; font-weight:700; line-height:1.4; white-space:nowrap; color:var(--ag-ink); }
+
+  /* ══════════════════════════════════════════════════════════════════════════
+     THE PRESS — A STATE LAYER AND A RIPPLE, ON THE ROW THAT WAS PRESSED
+     ══════════════════════════════════════════════════════════════════════════
+
+     ── WHAT THIS REPLACED, AND WHY ─────────────────────────────────────────
+
+     Pressing a tier used to animate the whole REGISTRATION CARD: arcs racing the card's
+     perimeter for 950–1400ms, a lift shadow, sparks off the corner, and every unpressed row
+     dimmed to .42 while it ran. Three things were wrong with it, and none of them is a
+     matter of taste.
+
+     1 · IT BROKE CAUSALITY. The finger lands on a 48px row; the light appears 22px above it
+         and 400px below it, on a border the row does not own. Motion's job in a press is to
+         say "that — the thing you touched — is what responded". A card-wide effect says
+         something responded, somewhere.
+
+     2 · IT WAS TOO LONG FOR WHAT IT WAS. The comment on the old effect had the insight
+         exactly right — "choosing a tier is COMPARISON, not commitment; people press
+         General, Supporter, Patron, then General again" — and then spent up to 1.4 seconds
+         on each of those presses. A state change in place is a 75–100ms event.
+
+     3 · IT DIMMED THE THING BEING COMPARED. `edDim` took every other row to .42 opacity for
+         850ms. The rows somebody is reading against are the rows the animation hid.
+
+     And a fourth, quieter one: there was no hover or focus response AT ALL. The row had a
+     one-shot burst and nothing in between, so on a desktop the list was inert until clicked.
+
+     ── THE MODEL ────────────────────────────────────────────────────────────
+
+     Material's two parts, in this platform's own colours:
+
+       · A STATE LAYER — a flat wash of the tier's own hue over the row, at a fixed opacity
+         per state. It is PERSISTENT while the state holds, not an animation, which is what
+         makes a control feel continuously alive rather than only at the instant of a click.
+       · A RIPPLE — one circle, born at the pointer, grown to cover the row, held while the
+         finger is down, faded on release. Born at the pointer is the whole point: it is the
+         part that says the row you touched is the row that answered.
+
+     ── AND WHAT THE RANK LADDER DOES NOW ────────────────────────────────────
+
+     Google expresses emphasis statically — a filled card, a badge — never by animating
+     harder. But `EventTierTone`'s ladder is a real, tested decision (rank from PRICE, not
+     from list position, because organisers drag their premium row to the top) and throwing
+     it away to be more Material would be losing an argument that was already won.
+
+     So rank moved rather than went: from the arc's SPEED and PARTICLE COUNT to the ink's
+     WEIGHT and REACH. `HEAT` sets how heavily the wash lands; `MS` sets how fast the ripple
+     crosses the row, at .4× — the same ordering the tone test holds, rescaled into the band
+     a press belongs in. A peak tier's ink is fractionally darker and arrives fractionally
+     sooner. Nobody names it and everybody feels it, which is what a ladder is for.
+
+     The firework was not deleted. It moved to `won` — see THE ARRIVAL below.
+     ══════════════════════════════════════════════════════════════════════════ */
+
+  /* The clipping host. `overflow:hidden` lives HERE and not on `.ed-tier`, so the row's
+     focus outline (drawn outside the border box, at +2px) and the selected row's inset rim
+     are both untouched. A ripple is a circle wider than the row; without this it is a
+     circle wider than the row. */
+  .ed-tier__ink{ position:absolute; inset:0; border-radius:inherit; overflow:hidden;
+                 pointer-events:none; z-index:0; }
+  /* Everything else in the row sits above the ink. `::before` is generated as the first
+     child, so with both positioned and no z-index the later siblings would already win —
+     but the ripples are appended LAST by script, and they would not. */
+  .ed-tier > *:not(.ed-tier__ink){ position:relative; z-index:1; }
+
+  /* THE STATE LAYER. One element, one property, three values.
+     `linear` rather than an ease: this is a wash appearing in place, not a thing moving,
+     and 90ms of eased opacity reads as a lag rather than as a curve. */
+  .ed-tier__ink::before{ content:''; position:absolute; inset:0; background:var(--tier-hue);
+                         opacity:0; transition:opacity 90ms linear; }
+  /* ONE LAYER AT A TIME. Every opacity below is multiplied by `--tier-state`, which the
+     script drops to 0 for as long as a ripple is on the row.
+     Without it the layers composite: a keyboard press is focus (.12) UNDER the ripple
+     (.144), which comes to about .25 — twice the ink a press is supposed to carry, and
+     enough to put the 11.5px perk line under AA on a dark accent. They are alternatives,
+     not a pile: the ripple is the pressed state, and while it is there it is the whole of
+     what the row is showing. Material draws it the same way.
+
+     Done with a multiplier rather than an overriding rule because `:not(:disabled):hover`
+     outweighs a plain class, and winning that four times over is four places for the next
+     state to be forgotten. */
+
+  /* Guarded on `hover:hover`: on a touch screen `:hover` sticks after a tap, and a row that
+     stays washed after you have moved on reads as a second selection. */
+  @media (hover:hover){
+    .ed-tier:not(:disabled):hover .ed-tier__ink::before{ opacity:calc(.08 * var(--tier-w) * var(--tier-state)); }
+  }
+  .ed-tier:not(:disabled):focus-visible .ed-tier__ink::before{ opacity:calc(.10 * var(--tier-w) * var(--tier-state)); }
+  /* NO `:active` RULE HERE, and that is not an omission.
+     The ripple IS the pressed state — that is what it is for — and a `:active` wash under
+     it does not deepen the press, it doubles it: two layers at .144 composite to about .27,
+     which is a slab rather than ink, and it is enough to push the 11.5px perk line under
+     AA on a dark accent. Material has the same single layer for the same reason.
+     The pressed wash comes back under `prefers-reduced-motion`, where there is no ripple
+     to be it — see the bottom of this stylesheet. */
+  /* The chosen row keeps a resting wash, so the selection reads on a list where nothing is
+     hovered — and so moving the pointer onto it is a change rather than a no-op. */
+  .ed-tier.is-sel .ed-tier__ink::before{ opacity:calc(.05 * var(--tier-w) * var(--tier-state)); }
+  @media (hover:hover){
+    .ed-tier.is-sel:not(:disabled):hover .ed-tier__ink::before{ opacity:calc(.10 * var(--tier-w) * var(--tier-state)); }
+  }
+  /* The gate itself. Set by `ripple_()` for as long as at least one ripple is alive. */
+  .ed-tier.is-inking{ --tier-state:0; }
+
+  /* THE RIPPLE. Position and size are written by script — they depend on where the pointer
+     landed and cannot be expressed here. Everything else is. `transform` and `opacity`
+     only, so it composites and the sidebar never repaints. */
+  .ed-tier__ripple{ position:absolute; border-radius:50%; background:var(--tier-hue);
+                    opacity:calc(.12 * var(--tier-w)); transform:scale(0);
+                    pointer-events:none; will-change:transform,opacity; }
+
+
+  /* ══════════════════════════════════════════════════════════════════════════
+     THE ARRIVAL — the card-wide light, for the one press that is not a comparison
+     ══════════════════════════════════════════════════════════════════════════
+
+     This ran on every tier press once. It should not have: choosing a tier is COMPARISON,
+     and people press General, Supporter, Patron, then General again. A card that throws a
+     firework four times in ten seconds is a card that has misread what is happening on it.
+     See THE PRESS above for what a comparison gets now.
+
+     What it IS right for is the moment it was always right for, and which the old code
+     already named: a registration that came back successful. That happens once, it is an
+     outcome rather than a step, and it is worth the whole card. So every layer below
+     survives intact and fires on `won` alone.
+
+     It runs at one fixed intensity whatever was bought, which was already the decision here
+     and is still the right one: a seat secured is a seat secured, and a Patron table
+     celebrating harder than a free General place is the page ranking the people in it.
+
+     That is also why `EventTierTone::LAPS` and `SPARKS` are gone. They were the ladder's
+     particle vocabulary and they only ever spoke through the press — the arrival is
+     uniform by choice and the press is a ripple now, so nothing was left for them to say.
+     `HEAT` and `MS` survive: they are what the ladder speaks through instead.
+
+     Everything below animates `transform` or `opacity` and nothing else, so the whole
+     effect composites and the sidebar never repaints. The two exceptions are stated where
+     they are: the chosen row's inner rim and the card's lift shadow are static box-shadow
+     values crossfaded by opacity, because box-shadow as a keyframe repaints every frame.
+
+     ── ON NOT USING DISCS THAT BLEED PAST THE CARD ─────────────────────────
+
+     The design put the bloom on absolutely-positioned discs extending ~22px beyond the
+     card. At 390px the sidebar's gutter is not 22px, and an element that wide is a
+     horizontal scrollbar on the whole document. `box-shadow` does not contribute to scroll
+     width — only element boxes do — so the bloom is a shadow on a layer pinned to the
+     card's own bounds. Same light, no geometry outside the card, and the 390px check
+     cannot fail by construction rather than by measurement.
+
+     ── AND ON RESTARTING ──────────────────────────────────────────────────
+
+     A finished CSS animation does NOT restart when the same `animation-name` is re-applied.
+     Pressing one tier twice would do nothing at all. Every animated thing here therefore
+     has two identical keyframe sets under different names, and the card carries `.is-a` or
+     `.is-b` by `burst % 2`. The NAME CHANGE is what restarts it. This is the mechanism the
+     handoff called out as the one not to simplify, and it is used for every layer rather
+     than only the focusable ones — re-keying a subtree in Alpine means an `x-for` over a
+     one-item array, which churns the DOM on every press for no gain.
+     ══════════════════════════════════════════════════════════════════════════ */
+
+  .ed-rsvp{ position:relative; }
+  /* NOT overflow:hidden on the card — it would clip the whole effect. */
+  .ed-fx{ position:absolute; inset:0; border-radius:20px; pointer-events:none; z-index:0; }
+  .ed-fx > *{ position:absolute; opacity:0; will-change:transform,opacity; }
+  /* Everything in the card's own content sits above the light. Scoped to the registration
+     card by ID: `.ed-rsvp` is also the class on the share panel and on the fully-booked and
+     past-event cards, and giving every child of those a stacking context to solve a problem
+     they do not have is how a change to one card turns up as a bug on another. */
+  #ed-rsvp > *:not(.ed-fx){ position:relative; z-index:1; }
+
+  /* 1–2 · the lift. A pre-painted shadow crossfaded in, so the card rises without a
+     box-shadow keyframe. Two layers: neutral depth, then the tier's own colour. */
+  .ed-fx__lift, .ed-fx__lifttint{ inset:0; border-radius:20px; }
+  .ed-fx__lift{ box-shadow:0 26px 46px -22px rgba(16,41,44,.44); }
+  .ed-fx__lifttint{ box-shadow:0 22px 40px -20px color-mix(in srgb, var(--tier-hue) 70%, transparent); }
+
+  /* 3 · the bloom out from the perimeter */
+  .ed-fx__glow{ inset:0; border-radius:20px;
+    box-shadow:0 0 0 1.5px color-mix(in srgb, var(--tier-hue) 70%, transparent),
+               0 0 18px 2px color-mix(in srgb, var(--tier-hue) 45%, transparent); }
+
+  /* 4 · the strike point, where the light enters at the top edge */
+  .ed-fx__impact{ top:-1px; left:50%; width:34%; height:3px; border-radius:999px; transform:translateX(-50%) scaleX(.2);
+    background:linear-gradient(90deg,transparent,color-mix(in srgb, var(--tier-hue) 85%, #fff),transparent); }
+
+  /* 5–8 · the arcs. The ring is what confines the rotating conic gradients to the rim: its
+     radius stays 2px larger than the card's, and it is the ONE place overflow:hidden is
+     correct. The card's own opaque face masks the middle, which is why only the lit edge
+     is ever visible. */
+  .ed-fx__ring{ position:absolute; inset:-2px; border-radius:22px; overflow:hidden; opacity:1; }
+  .ed-fx__ring > *{ position:absolute; inset:-40%; opacity:0; will-change:transform,opacity; }
+  .ed-fx__tail{ background:conic-gradient(from -52deg, transparent 0turn, color-mix(in srgb, var(--tier-hue) 40%, transparent) .04turn, transparent .1turn); }
+  .ed-fx__head{ background:conic-gradient(from 0deg, transparent 0turn, var(--tier-hue) .035turn, transparent .075turn); }
+  .ed-fx__flash{ background:conic-gradient(from 26deg, transparent 0turn, #fff .018turn, transparent .04turn); }
+  .ed-fx__flash2{ background:conic-gradient(from 26deg, transparent 0turn, #fff .014turn, transparent .032turn); }
+
+  /* 9 · the border holds after the arc has gone, then cools */
+  /* The rim HOLDS after the arc has gone, long enough to read as a border rather than as
+     motion — so it is the one effect layer that takes the edge. Everything that moves takes
+     the identity. */
+  .ed-fx__rim{ inset:0; border-radius:20px; box-shadow:0 0 0 1.5px var(--tier-edge); }
+
+  /* 10 · sparks off the top-right corner. Seven, on the peak tone only.
+     They fan up and INWARD rather than out past the right edge. Outward is the obvious
+     direction and it is the one that puts a positioned element ~25px beyond the card — at
+     390px the sidebar's gutter is 16px, and an element wider than its gutter is a
+     horizontal scrollbar on the whole document. Up-and-left sheds off the same corner,
+     stays inside the card's width by construction, and only ever bleeds vertically, which
+     cannot scroll anything. */
+  .ed-fx__spark{ top:7px; right:16px; width:3px; height:3px; border-radius:50%;
+    background:color-mix(in srgb, var(--tier-hue) 30%, #fff); }
+
+  /* ── the keyframes, twice each ─────────────────────────────────────────── */
+  @keyframes edLiftA{ 0%{opacity:0;transform:translateY(6px)} 30%{opacity:1;transform:translateY(0)} 100%{opacity:0;transform:translateY(0)} }
+  @keyframes edLiftB{ 0%{opacity:0;transform:translateY(6px)} 30%{opacity:1;transform:translateY(0)} 100%{opacity:0;transform:translateY(0)} }
+  @keyframes edGlowA{ 0%{opacity:0;transform:scale(.985)} 22%{opacity:1;transform:scale(1)} 100%{opacity:0;transform:scale(1)} }
+  @keyframes edGlowB{ 0%{opacity:0;transform:scale(.985)} 22%{opacity:1;transform:scale(1)} 100%{opacity:0;transform:scale(1)} }
+  @keyframes edImpactA{ 0%{opacity:0;transform:translateX(-50%) scaleX(.2)} 18%{opacity:1;transform:translateX(-50%) scaleX(1)} 100%{opacity:0;transform:translateX(-50%) scaleX(1.15)} }
+  @keyframes edImpactB{ 0%{opacity:0;transform:translateX(-50%) scaleX(.2)} 18%{opacity:1;transform:translateX(-50%) scaleX(1)} 100%{opacity:0;transform:translateX(-50%) scaleX(1.15)} }
+  /* The head overshoots to 1.055turn and settles — the arc arriving back at the strike
+     point and rocking, rather than stopping dead on the number it was aiming at. */
+  @keyframes edArcA{ 0%{opacity:0;transform:rotate(0turn)} 8%{opacity:1} 88%{transform:rotate(calc(var(--tier-laps,1) * 1turn + .055turn))} 100%{opacity:0;transform:rotate(calc(var(--tier-laps,1) * 1turn))} }
+  @keyframes edArcB{ 0%{opacity:0;transform:rotate(0turn)} 8%{opacity:1} 88%{transform:rotate(calc(var(--tier-laps,1) * 1turn + .055turn))} 100%{opacity:0;transform:rotate(calc(var(--tier-laps,1) * 1turn))} }
+  @keyframes edLapA{ 0%{opacity:0;transform:rotate(0turn)} 10%{opacity:1} 100%{opacity:0;transform:rotate(1turn)} }
+  @keyframes edLapB{ 0%{opacity:0;transform:rotate(0turn)} 10%{opacity:1} 100%{opacity:0;transform:rotate(1turn)} }
+  @keyframes edRimA{ 0%{opacity:0} 12%{opacity:1} 62%{opacity:1} 100%{opacity:0} }
+  @keyframes edRimB{ 0%{opacity:0} 12%{opacity:1} 62%{opacity:1} 100%{opacity:0} }
+  @keyframes edSparkA{ 0%{opacity:0;transform:translate(0,0) scale(1)} 12%{opacity:1} 100%{opacity:0;transform:translate(var(--sx,10px),var(--sy,-14px)) scale(.3)} }
+  @keyframes edSparkB{ 0%{opacity:0;transform:translate(0,0) scale(1)} 12%{opacity:1} 100%{opacity:0;transform:translate(var(--sx,10px),var(--sy,-14px)) scale(.3)} }
+  /* The total is what actually changed, so it takes a beat as the arc reaches it. */
+  @keyframes edTotalA{ 0%{transform:scale(1)} 40%{transform:scale(1.075)} 100%{transform:scale(1)} }
+  @keyframes edTotalB{ 0%{transform:scale(1)} 40%{transform:scale(1.075)} 100%{transform:scale(1)} }
+
+  /* ── wiring the names to the A/B flip ─────────────────────────────────────
+     A finished CSS animation does NOT restart when the same `animation-name` is re-applied,
+     so every layer has two identical keyframe sets and the card carries `.is-a` or `.is-b`
+     by `burst % 2`. The NAME CHANGE is the restart.
+
+     `burst` is incremented on an ARRIVAL now, not on a press — so on this card the flip
+     matters for a retry after a failed payment, and the tier list next to it restarts by
+     construction instead, because each press builds a new ripple element. The mechanism is
+     kept rather than simplified away: a second registration in one session is a real path,
+     and it is the path where a once-only animation silently does nothing.
+
+     Each `animation-duration` is the bought tier's `ms` times the multiplier from the
+     design's layer table. */
+  .ed-rsvp.is-a .ed-fx__lift{ animation:edLiftA calc(var(--tier-ms) * 1.35) var(--ag-ease,ease) both; }
+  .ed-rsvp.is-b .ed-fx__lift{ animation:edLiftB calc(var(--tier-ms) * 1.35) var(--ag-ease,ease) both; }
+  .ed-rsvp.is-a .ed-fx__lifttint{ animation:edLiftA calc(var(--tier-ms) * 1.5) var(--ag-ease,ease) both; }
+  .ed-rsvp.is-b .ed-fx__lifttint{ animation:edLiftB calc(var(--tier-ms) * 1.5) var(--ag-ease,ease) both; }
+  .ed-rsvp.is-a .ed-fx__glow{ animation:edGlowA calc(var(--tier-ms) * 1.2) var(--ag-ease,ease) both; }
+  .ed-rsvp.is-b .ed-fx__glow{ animation:edGlowB calc(var(--tier-ms) * 1.2) var(--ag-ease,ease) both; }
+  .ed-rsvp.is-a .ed-fx__impact{ animation:edImpactA calc(var(--tier-ms) * .72) var(--ag-ease,ease) both; }
+  .ed-rsvp.is-b .ed-fx__impact{ animation:edImpactB calc(var(--tier-ms) * .72) var(--ag-ease,ease) both; }
+  .ed-rsvp.is-a .ed-fx__tail{ animation:edArcA calc(var(--tier-ms) * 1.34) var(--ag-ease,ease) both; }
+  .ed-rsvp.is-b .ed-fx__tail{ animation:edArcB calc(var(--tier-ms) * 1.34) var(--ag-ease,ease) both; }
+  .ed-rsvp.is-a .ed-fx__head{ animation:edArcA var(--tier-ms) var(--ag-ease,ease) both; }
+  .ed-rsvp.is-b .ed-fx__head{ animation:edArcB var(--tier-ms) var(--ag-ease,ease) both; }
+  .ed-rsvp.is-a .ed-fx__flash{ animation:edArcA calc(var(--tier-ms) * .96) var(--ag-ease,ease) both; }
+  .ed-rsvp.is-b .ed-fx__flash{ animation:edArcB calc(var(--tier-ms) * .96) var(--ag-ease,ease) both; }
+  /* The second, faster lap. Rendered only on the peak tone — see the markup — so this
+     selector matches nothing on the other three. */
+  .ed-rsvp.is-a .ed-fx__flash2{ animation:edLapA calc(var(--tier-ms) * .62) var(--ag-ease,ease) calc(var(--tier-ms) * .34) both; }
+  .ed-rsvp.is-b .ed-fx__flash2{ animation:edLapB calc(var(--tier-ms) * .62) var(--ag-ease,ease) calc(var(--tier-ms) * .34) both; }
+  .ed-rsvp.is-a .ed-fx__rim{ animation:edRimA calc(var(--tier-ms) * 1.5) var(--ag-ease,ease) calc(var(--tier-ms) * .5) both; }
+  .ed-rsvp.is-b .ed-fx__rim{ animation:edRimB calc(var(--tier-ms) * 1.5) var(--ag-ease,ease) calc(var(--tier-ms) * .5) both; }
+  .ed-rsvp.is-a .ed-fx__spark{ animation:edSparkA calc(var(--tier-ms) * .62) var(--ag-ease,ease) var(--sd,0ms) both; }
+  .ed-rsvp.is-b .ed-fx__spark{ animation:edSparkB calc(var(--tier-ms) * .62) var(--ag-ease,ease) var(--sd,0ms) both; }
+  /* The total is the number that actually changed, so it says so — and it is the one thing
+     from the old press effect that survives on a press, because a value changing in place
+     is exactly what a beat is for. 220ms rather than 760ms: it is a digit, not an event.
+     Its own counter, so it fires on a comparison while the card-wide light does not. */
+  .ed-total{ display:inline-block; transform-origin:left center; }
+  .ed-total.is-a{ animation:edTotalA 220ms var(--ag-ease,ease) both; }
+  .ed-total.is-b{ animation:edTotalB 220ms var(--ag-ease,ease) both; }
+
+  /* The arrival holds longer than the tier light ever did, because it is the last thing
+     that happens rather than one of four. */
+  .ed-rsvp.is-won .ed-fx__glow, .ed-rsvp.is-won .ed-fx__rim{ animation-duration:1400ms; }
+
+  /* ── reduced motion ────────────────────────────────────────────────────────
+     Collapsed to .01ms rather than `none`, so `animationend` still fires and nothing is
+     left waiting on it. Nothing is lost, because nothing is carried by the animation: the
+     border, the background, the inner rim and the filled radio are all static state and
+     all still there.
+
+     The RIPPLE is refused at the source as well as here — see `ripple_()` in the script.
+     A ripple is a growing circle and there is no honest .01ms version of one; a caller who
+     has asked for less motion gets the state layer, which is a flat wash that appears and
+     conveys the same thing without anything travelling. The wash itself keeps a short
+     transition rather than none, because an instantaneous colour change on hover is the
+     one thing that reads as a rendering fault. */
+  @media (prefers-reduced-motion: reduce){
+    .ed-fx{ display:none; }
+    .ed-tier__ripple{ display:none; }
+    /* The pressed state, for the only readers who do not get a ripple to be it. Same
+       weight the ripple carries, so a press looks the same here as it does there — it
+       simply arrives all at once instead of spreading. */
+    .ed-tier:not(:disabled):active .ed-tier__ink::before{ opacity:calc(.12 * var(--tier-w) * var(--tier-state)); }
+    .ed-total.is-a, .ed-total.is-b{ animation-duration:.01ms !important; }
+    .ed-tier{ transition:none; }
+    .ed-tier__ink::before{ transition-duration:60ms; }
+  }
+  /* ══════════════════════════════════════════════════════════════════════════
+     THE "I WILL BE THERE" FLIER GENERATOR
+     ══════════════════════════════════════════════════════════════════════════
+
+     Ten states, not one. The handoff is explicit that the first pass drew only the
+     confirmed, photo-supplied, share-works case and that "that is the demo, not the
+     feature" — so every state below is reachable and each is listed in the markup.
+
+     Generating and Ready are SEPARATE screens. A progress bar above an enabled "Save the
+     image" is an interface offering an action it cannot perform, and "Copy the caption
+     again" implies a copy that never happened. */
+  .fl{ margin-top:16px; border:1px solid rgba(16,41,44,.1); border-radius:16px; background:var(--ag-surface,#fff); overflow:hidden }
+  .fl__head{ padding:16px 18px 0 }
+  .fl__eyebrow{ font-size:11px; font-weight:700; letter-spacing:.1em; text-transform:uppercase; color:var(--ag-green,#237b22) }
+  .fl__h{ margin:6px 0 0; font-family:var(--ag-font-display,Georgia,serif); font-weight:700; font-size:1.05rem; color:var(--ag-ink,#10292c) }
+  .fl__p{ margin:6px 0 0; font-size:12.5px; line-height:1.6; color:var(--ag-ink-soft,#626a6e) }
+  .fl__body{ padding:14px 18px 18px }
+  .fl__row{ display:flex; gap:9px; flex-wrap:wrap; margin-top:12px }
+  /* 44px is the WCAG 2.5.5 target and 52 is this platform's primary-CTA height. Measured,
+     not assumed — it is the rule broken most often. */
+  .fl__btn{ min-height:44px; padding:0 18px; border-radius:999px; border:1px solid rgba(16,41,44,.18);
+    background:#fff; color:var(--ag-ink,#10292c); font:600 13.5px/1 inherit; cursor:pointer;
+    display:inline-flex; align-items:center; justify-content:center; gap:8px }
+  .fl__btn--go{ min-height:52px; border:none; background:var(--ag-green,#237b22); color:#fff; font-size:15px; flex:1 1 auto }
+  .fl__btn--go:hover{ background:var(--ag-green-dark,#1a6118) }
+  .fl__btn:disabled{ opacity:.55; cursor:not-allowed }
+  .fl__btn:focus-visible, .fl__fmt:focus-visible, .fl input:focus-visible, .fl textarea:focus-visible{
+    outline:2px solid var(--ag-green,#237b22); outline-offset:2px }
+  /* The format picker is a radio group, for the same reason the tier list is: it is a
+     single choice from a set, and users arrive knowing arrow keys move inside one. */
+  .fl__fmts{ display:flex; gap:8px; flex-wrap:wrap; margin-top:10px }
+  .fl__fmt{ min-height:44px; padding:0 14px; border-radius:11px; border:1.5px solid rgba(16,41,44,.14);
+    background:#fff; font:600 12.5px/1 inherit; color:var(--ag-ink,#10292c); cursor:pointer; display:flex;
+    flex-direction:column; align-items:flex-start; justify-content:center; gap:2px; text-align:left }
+  .fl__fmt[aria-checked="true"]{ border-color:var(--ag-green,#237b22); background:#f6fcf5 }
+  .fl__fmt small{ font-weight:400; font-size:10.5px; color:var(--ag-ink-soft,#626a6e) }
+  /* The style picker. A radiogroup like the shape and the tier list, for the same reason:
+     one choice from a set, and people arrive knowing arrow keys move inside one. */
+  /* `grid-auto-rows:1fr` so the chips are the same height whatever their note does. Without
+     it the row's height came from the tallest note and only that chip filled it, which reads
+     as one option being more important than the others. */
+  .fl__sts{ display:grid; grid-template-columns:repeat(auto-fit, minmax(118px, 1fr));
+    grid-auto-rows:1fr; gap:8px; margin-top:10px }
+  .fl__st{ min-height:44px; padding:8px 9px 9px; border-radius:12px; border:1.5px solid rgba(16,41,44,.14);
+    background:#fff; cursor:pointer; display:flex; flex-direction:column; align-items:flex-start; gap:4px;
+    text-align:left; font:inherit; color:var(--ag-ink,#10292c) }
+  .fl__st[aria-checked="true"]{ border-color:var(--ag-green,#237b22); box-shadow:0 0 0 1px var(--ag-green,#237b22) inset }
+  .fl__st:focus-visible{ outline:2px solid var(--ag-green,#237b22); outline-offset:2px }
+  .fl__st__n{ font:600 12.5px/1 inherit }
+  .fl__st small{ font-weight:400; font-size:10.5px; line-height:1.35; color:var(--ag-ink-soft,#626a6e) }
+  /* A MINIATURE OF THE FLIER, not a colour blob. Two type lines and the accent bar, in the
+     same order they appear on the graphic — so the chip answers "which design" rather than
+     "which colour", which is the question being asked. */
+  .fl__st__sw{ display:block; width:100%; aspect-ratio:16/10; border-radius:7px; overflow:hidden;
+    position:relative; border:1px solid rgba(16,41,44,.12) }
+  .fl__st__sw i{ position:absolute; left:10%; height:8%; width:78%; border-radius:2px; opacity:.92 }
+  .fl__st__sw i:nth-of-type(1){ top:34% }
+  .fl__st__sw i:nth-of-type(2){ top:50% }
+  .fl__st__sw b{ position:absolute; left:10%; top:22%; width:26%; height:5%; border-radius:2px }
+  .fl__lab{ display:block; font:700 10.5px/1 inherit; letter-spacing:.08em; text-transform:uppercase;
+    color:var(--ag-ink-soft,#626a6e); margin:14px 0 6px }
+  .fl__in{ width:100%; box-sizing:border-box; border:1px solid rgba(16,41,44,.16); border-radius:11px;
+    padding:12px 14px; font-family:inherit; font-size:16px; color:var(--ag-ink,#10292c) }
+  .fl__note{ margin:8px 0 0; font-size:11.5px; line-height:1.6; color:var(--ag-ink-soft,#626a6e) }
+  .fl__err{ margin:10px 0 0; font-size:12.5px; line-height:1.6; color:#8a2020; font-weight:600 }
+  /* The reframe stage. The type line is drawn ON the preview, because the whole point is
+     showing what gets covered — a mis-cropped selfie is the main reason a flier is binned. */
+  .fl__frame{ position:relative; margin-top:12px; border-radius:12px; overflow:hidden;
+    background:#0d2f26; touch-action:none; cursor:grab; aspect-ratio:9/16; max-height:420px }
+  .fl__frame--sq{ aspect-ratio:1/1 }
+  .fl__frame img{ position:absolute; inset:0; width:100%; height:100%; object-fit:cover; user-select:none; pointer-events:none }
+  .fl__typeline{ position:absolute; left:0; right:0; bottom:0; height:42%; pointer-events:none;
+    background:linear-gradient(to bottom, rgba(13,47,38,0), rgba(13,47,38,.86) 55%) }
+  .fl__typeline span{ position:absolute; left:10px; bottom:8px; font:700 10px/1.4 inherit;
+    letter-spacing:.08em; text-transform:uppercase; color:rgba(255,255,255,.8) }
+  .fl__prev{ display:block; width:100%; max-width:320px; margin:12px auto 0; border-radius:12px;
+    border:1px solid rgba(16,41,44,.1) }
+  /* Progress, announced. `role="progressbar"` with no value is the indeterminate form, which
+     is honest here: the server does not report how far through a render it is. */
+  .fl__bar{ margin-top:14px; height:6px; border-radius:5px; background:#eef2ee; overflow:hidden }
+  .fl__bar span{ display:block; height:100%; width:38%; border-radius:5px; background:var(--ag-green,#237b22);
+    animation:flSlide 1.1s ease-in-out infinite }
+  @keyframes flSlide{ 0%{transform:translateX(-100%)} 100%{transform:translateX(360%)} }
+  @media (prefers-reduced-motion: reduce){
+    .fl__bar span{ animation:none; width:100% }
+  }
+  /* ══ THE GENERATOR IS A DIALOG, NOT A CARD IN THE RAIL ═══════════════════════
+     It shipped inside `.ed-rail`, which is where this page puts its asides — and a
+     five-screen flow is not an aside. The rail is 320px and `position:sticky`, so the
+     reframe canvas was ~300px tall and scrolled with a sticky ancestor: a face-cropping
+     control the size of a business card, on the one screen whose entire job is showing
+     somebody their own face.
+
+     So it is over the page instead. The event stays visible behind it, because the flier is
+     about THIS event and losing sight of it while making one is a navigation somebody has
+     to undo. Bottom sheet on a phone, centred dialog from 721px — the same breakpoint the
+     rail collapses at, so there is one place where the page changes shape rather than two.
+
+     HISTORY IS PART OF THE DESIGN. Opening pushes a state, so the phone's back gesture
+     closes the sheet instead of leaving the page — the interaction people try first and the
+     one overlays get wrong most often. See evFlier's open()/close(). */
+  /* ── THE STACKING SLOT, PICKED BY MEASUREMENT ────────────────────────────
+     70 put it level with the Gee assistant, which is also fixed and also 70 — so DOM order
+     decided, and Gee won: its launcher sat on top of the caption field, covering a control
+     inside a modal. The site's fixed chrome measures 50 (nav), 60 (mobile nav and admin
+     rail), 68 (the two FABs), 70–91 (Gee and its panel) and 150 (the scroll progress bar);
+     the app-level modals sit at 1200 (search) and above (join).
+
+     1100 is the gap between those two groups: over every piece of page chrome, under the two
+     dialogs that should win if one of them somehow opens on top. Measured in a browser with
+     getComputedStyle over every fixed and sticky element, not guessed — a z-index chosen by
+     adding ten to the last one somebody remembers is how this collision happened. */
+  .flo{ position:fixed; inset:0; z-index:1100; display:flex; align-items:flex-end; justify-content:center }
+  @media (min-width:721px){ .flo{ align-items:center; padding:24px } }
+  .flo__scrim{ position:absolute; inset:0; background:rgba(9,26,24,.62) }
+  /* `min()` against both, so a tall phone gets a tall sheet and a short laptop window does
+     not get a panel taller than its viewport with the Share button below the fold. */
+  .flo__panel{ position:relative; display:flex; flex-direction:column; width:100%; max-width:560px;
+    max-height:min(94vh, 920px); background:var(--ag-surface,#fff);
+    border-radius:20px 20px 0 0; box-shadow:0 -10px 44px rgba(9,26,24,.3); overflow:hidden }
+  @media (min-width:721px){
+    .flo__panel{ border-radius:20px; box-shadow:0 24px 72px rgba(9,26,24,.34) }
+    .flo__grab{ display:none }
+  }
+  .flo__grab{ display:block; width:40px; height:4px; border-radius:3px; margin:9px auto 0;
+    background:rgba(16,41,44,.18) }
+  .flo__bar{ display:flex; align-items:flex-start; gap:12px; padding:14px 18px 12px;
+    border-bottom:1px solid rgba(16,41,44,.09) }
+  .flo__bar > div{ flex:1 1 auto; min-width:0 }
+  .flo__x{ flex:0 0 auto; width:44px; height:44px; border-radius:999px; border:1px solid rgba(16,41,44,.14);
+    background:#fff; cursor:pointer; display:flex; align-items:center; justify-content:center;
+    color:var(--ag-ink,#10292c) }
+  .flo__x:focus-visible{ outline:2px solid var(--ag-green,#237b22); outline-offset:2px }
+  /* The panel does not scroll; this does. A scrolling panel takes the title bar and the
+     close button with it, and a dialog whose only escape scrolls off screen is a trap. */
+  .flo__scroll{ flex:1 1 auto; min-height:0; overflow-y:auto; -webkit-overflow-scrolling:touch;
+    overscroll-behavior:contain; padding:14px 18px 22px;
+    /* The home indicator on a modern phone sits over the last ~20px of the viewport, and a
+       bottom sheet's primary button lands exactly there. `max()` so a browser without the
+       inset keeps the designed padding rather than losing it to a zero. */
+    padding-bottom:max(22px, env(safe-area-inset-bottom, 0px)) }
+  /* Room the rail never had: the reframe frame and the finished preview are the two things
+     somebody is actually looking at, and in a 320px column both were thumbnails. */
+  /* Height-capped, so the frame keeps the format's aspect ratio rather than the column's —
+     and therefore narrower than the sheet on a tall phone. Centred for that reason: left-
+     aligned it sat against one edge with a third of the row empty, which reads as a layout
+     that ran out rather than as a frame the shape of the thing being made. */
+  .flo .fl__frame{ max-height:min(58vh, 460px); margin-left:auto; margin-right:auto }
+  /* Capped on HEIGHT, not only width. A story flier is 1080×1920, so at 380px wide it is
+     675px tall — taller than the sheet — and "Share it" was below the fold on the one screen
+     whose entire purpose is pressing it. `width:auto` so the aspect ratio does the rest, and
+     the tall and square formats both land inside the panel. */
+  .flo .fl__prev{ max-width:min(100%, 380px); max-height:52vh; width:auto }
+  /* The one control on this sheet the browser paints itself. Left alone it is the UA's blue,
+     which is the only off-brand pixel in the flow — and `accent-color` is the whole fix, on
+     every engine that has shipped a range in the last three years. */
+  .flo input[type="range"]{ accent-color:var(--ag-green,#237b22); min-height:44px }
+  @media (prefers-reduced-motion: reduce){
+    .flo, .flo__panel{ transition:none !important }
+  }
+  /* share / calendar */
+  .ed-share{ display:flex; gap:9px; margin-top:4px; }
+  .ed-share button{ flex:1; cursor:pointer; border:1px solid rgba(16,41,44,.14); background:#fff; color:#10292C; font-family:inherit; font-size:13px; font-weight:600; padding:10px; border-radius:11px; display:flex; align-items:center; justify-content:center; gap:7px; }
+  .ed-share button:hover{ background:#f0f4f0; }
+  /* The calendar download. Styled like the share button rather than as a link, because it
+     is an action of the same weight — and it is the PRIMARY of the two, since a .ics works
+     in every calendar app with no account and no page in the middle. */
+  .ed-cal{ flex:1; cursor:pointer; border:1px solid rgba(16,41,44,.14); background:#fff;
+    color:#10292C; font-size:13px; font-weight:600; padding:10px; border-radius:11px;
+    display:flex; align-items:center; justify-content:center; gap:7px; text-decoration:none; }
+  .ed-cal:hover{ background:#f0f4f0; border-color:rgba(16,41,44,.24); }
+  .ed-cal__alt{ margin:9px 0 0; font-size:11.5px; color:var(--ag-ink-soft,#626a6e); text-align:center; }
+  .ed-cal__alt a{ color:#237b22; font-weight:600; }
+
+  @media (max-width:820px){ .ed-grid{ grid-template-columns:1fr; } .ed-rail{ position:static; } }
+
+  /* ── EARN FROM SHARING ──────────────────────────────────────────────────
+     Quiet on purpose. It sits beside the buy button and must not compete with it: a
+     supporter who came to buy a ticket and left having read about commission instead
+     is a worse outcome than one who never saw this. Hence a bordered card in the
+     sidebar rather than a coloured banner in the flow. */
+  /* The appeal. Warmer than the referral card beside it and above it, because giving is
+     the ask and earning is the aside. */
+  .ed-fund{ margin-top:14px; padding:16px; border:1px solid rgba(35,123,34,.22); border-radius:14px;
+    background:#f6faf6 }
+  .ed-fund__t{ margin:6px 0 0; font-size:16px; font-weight:700; line-height:1.35; color:#10292C }
+  .ed-fund__s{ margin:6px 0 0; font-size:13.5px; line-height:1.6; color:#3a4448 }
+  .ed-fund__bar{ display:block; margin-top:12px; height:9px; border-radius:99px;
+    background:rgba(16,41,44,.1); overflow:hidden }
+  .ed-fund__bar span{ display:block; height:100%; background:#237b22; border-radius:99px }
+  .ed-fund__n{ margin:8px 0 0; font-size:13px; color:#3a4448 }
+  .ed-fund__go{ display:inline-block; margin-top:12px; padding:11px 20px; border-radius:999px;
+    background:#237b22; color:#fff; font-weight:650; font-size:14px; text-decoration:none }
+  .ed-fund__go:hover{ background:#1a6118 }
+  .ed-fund__by{ margin:10px 0 0; font-size:11.5px; line-height:1.55; color:#5a6d6f }
+
+  .ed-earn{ margin-top:14px; padding:16px; border:1px solid rgba(16,41,44,.1); border-radius:14px;
+    background:var(--ag-surface,#fff); }
+  .ed-earn__k{ margin:0 0 8px; font-size:11px; font-weight:600; letter-spacing:.08em;
+    text-transform:uppercase; color:var(--ag-ink-soft,#626a6e); }
+  .ed-earn__t{ margin:0 0 12px; font-size:13.5px; line-height:1.6; color:var(--ag-ink,#10292C); }
+  .ed-earn__row{ display:flex; gap:6px; }
+  .ed-earn__in{ flex:1 1 auto; min-width:0; padding:9px 11px; font-size:12px;
+    font-family:var(--ag-font-mono,ui-monospace,monospace); border:1px solid rgba(16,41,44,.14);
+    border-radius:9px; background:#f7f9f9; color:var(--ag-ink,#10292C); }
+  .ed-earn__btn{ flex:none; padding:9px 14px; font-size:12.5px; font-weight:700; cursor:pointer;
+    border:1px solid #1a6118; border-radius:9px; background:#1a6118; color:#fff; }
+  .ed-earn__btn:hover{ background:#145012; }
+  .ed-earn__n{ margin:10px 0 0; font-size:12px; line-height:1.6; color:var(--ag-ink-soft,#626a6e); }
+  .ed-earn__n a{ color:#1a6118; font-weight:600; }
+  .ed-earn__cta{ display:inline-block; margin-bottom:4px; font-size:13px; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="ed">
+  {% if early_bird %}
+  <div class="ed-eb">
+    <span class="ed-eb__t">🎟 {{ early_bird.text }}</span>
+    <a class="ed-eb__cta" href="{{ early_bird.url|default('#ed-rsvp') }}">Register{% if early_bird.deadline %} — ends {{ early_bird.deadline|date('j F') }}{% endif %} →</a>
+  </div>
+  {% endif %}
+  <div class="ed-crumb"><a href="/events">Events</a> · <b>{{ event.title }}</b></div>
+
+  <div class="ed-hero">
+    {% if event.cover_image %}<img class="ed-hero__bg" src="{{ event.cover_image }}" alt="" aria-hidden="true">{% endif %}
+    <div class="ed-hero__orb" aria-hidden="true"></div>
+    <div class="ed-hero__in">
+      <span class="ed-hero__badge">{{ is_past ? 'Past event' : 'Upcoming' }} · {{ event.event_date|date('Y') }}</span>
+      <h1 class="ed-hero__title">{{ event.title }}</h1>
+      <div class="ed-hero__meta">
+        <span><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#7FC87C" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>{{ event_at(event, event.event_date, 'j F Y') }}</span>
+        <span><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#7FC87C" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>{{ event_at(event, event.event_date, 'H:i') }}{% if event.end_date %}–{{ event_at(event, event.end_date, 'H:i') }}{% endif %} {{ event_tz(event, event.event_date) }}</span>
+        {% if event.location or event.venue %}<span><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#7FC87C" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg>{{ event.venue|default(event.location) }}</span>{% endif %}
+      </div>
+    </div>
+  </div>
+
+  <div class="ed-grid">
+    <div class="ed-main">
+      {% if event.description %}
+      <div class="ed-card">
+        <h2>About this event</h2>
+        <p>{{ event.description }}</p>
+      </div>
+      {% endif %}
+
+      {# ── AGENDA ─────────────────────────────────────────────────────────────
+         Sessions are rows now, grouped into days by EventAgenda so no date arithmetic
+         happens in a template — an undated session in Twig silently becomes 1 January
+         1970. The track filter is offered only when there is more than one track,
+         because a filter with one option is a control that cannot do anything. #}
+      {% if agenda|default([]) %}
+      {% set tracks = [] %}
+      {% for d in agenda %}{% for s in d.sessions %}{% if s.track and s.track not in tracks %}{% set tracks = tracks|merge([s.track]) %}{% endif %}{% endfor %}{% endfor %}
+      <div class="ed-card" x-data="{ track: '' }">
+        <h2>Agenda</h2>
+        {% if tracks|length > 1 %}
+        <div class="ed-ag__filter">
+          <button type="button" class="ed-ag__fb" :class="track === '' ? 'is-on' : ''" @click="track = ''">All tracks</button>
+          {% for t in tracks %}
+          <button type="button" class="ed-ag__fb" :class="track === {{ t|json_encode }} ? 'is-on' : ''" @click="track = {{ t|json_encode }}">{{ t }}</button>
+          {% endfor %}
+        </div>
+        {% endif %}
+        {% for d in agenda %}
+        <div class="ed-ag__day">
+          {% if agenda|length > 1 or d.key == '' %}<div class="ed-ag__dayh">{{ d.label }}</div>{% endif %}
+          {% for s in d.sessions %}
+          <div class="ed-ag__row" x-show="track === '' || track === {{ s.track|json_encode }}">
+            <span class="ed-ag__time">{{ s.when ?: '—' }}</span>
+            <div>
+              <div class="ed-ag__t">{{ s.title }}</div>
+              {% if s.description %}<div class="ed-ag__b">{{ s.description }}</div>{% endif %}
+              {% if s.speakers %}<div class="ed-ag__who">🎤 {{ s.speakers|join(', ') }}</div>{% endif %}
+              {% if s.track or s.room %}
+              <div class="ed-ag__tags">
+                {% if s.track %}<span class="ed-ag__tag is-track">{{ s.track }}</span>{% endif %}
+                {% if s.room %}<span class="ed-ag__tag">{{ s.room }}</span>{% endif %}
+              </div>
+              {% endif %}
+            </div>
+          </div>
+          {% endfor %}
+        </div>
+        {% endfor %}
+      </div>
+      {% elseif schedule %}
+      {# The old JSON run of show, for an event that never moved to sessions. #}
+      <div class="ed-card">
+        <h2>Run of show</h2>
+        <div class="ed-sched">
+          {% for s in schedule %}
+          <div class="ed-sched__row">
+            {% if s.time %}<span class="ed-sched__time">{{ s.time }}</span>{% endif %}
+            <div><div class="ed-sched__t">{{ s.title }}</div>{% if s.body %}<div class="ed-sched__b">{{ s.body }}</div>{% endif %}</div>
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+      {% endif %}
+
+      {% if event.venue or event.location %}
+      <div class="ed-card">
+        <h2>Venue</h2>
+        <div class="ed-venue__name">{{ event.venue|default(event.location) }}</div>
+        {% if event.venue and event.location %}<div class="ed-venue__addr">{{ event.location }}</div>{% endif %}
+        {% if event.map_embed %}<a class="ed-maplink" href="{{ event.map_embed }}" target="_blank" rel="noopener">📍 View on map →</a>{% endif %}
+      </div>
+      {% endif %}
+
+      {# ── THE SMALL PRINT, BEFORE ANYBODY PAYS ───────────────────────────────
+         A refund policy discovered after a card has been charged is not a policy, it is a
+         complaint waiting to be made — and a question about parking that reaches this
+         platform's support desk instead of the organiser is a question nobody can answer. #}
+      {% if refund_policy|default('') or attendee_note|default('') or organiser_email|default('') or organiser_phone|default('') %}
+      <div class="ed-card">
+        <h2>Good to know</h2>
+        <dl class="ed-fine">
+          {% if attendee_note|default('') %}
+          <dt>Before you come</dt><dd>{{ attendee_note }}</dd>
+          {% endif %}
+          {# The rule first, in one line, then the organiser's own words. The rule is what the
+             platform will actually do; the prose is what they mean. #}
+          {% if refund_rule|default('') %}
+            <p style="font-weight:600">{{ refund_rule }}</p>
+          {% endif %}
+          {% if refund_policy|default('') %}
+          <dt>Refunds &amp; transfers</dt><dd>{{ refund_policy }}</dd>
+          {% endif %}
+          {% if organiser_email|default('') or organiser_phone|default('') %}
+          <dt>Questions about this event</dt>
+          <dd>
+            {% if organiser_email|default('') %}<a href="mailto:{{ organiser_email }}">{{ organiser_email }}</a>{% endif %}
+            {% if organiser_email|default('') and organiser_phone|default('') %} · {% endif %}
+            {% if organiser_phone|default('') %}<a href="tel:{{ organiser_phone|replace({' ': ''}) }}">{{ organiser_phone }}</a>{% endif %}
+          </dd>
+          {% endif %}
+        </dl>
+      </div>
+      {% endif %}
+
+      {# ── TRADE AT THIS EVENT ────────────────────────────────────────────────
+         The call for vendor stands lived at /events/{slug}/stands and nothing on this site
+         linked to it, so the only businesses applying were the ones the organiser had
+         already phoned. That is precisely the outcome a published quota exists to prevent:
+         an open call nobody can find is a private invitation with extra steps.
+
+         LAST in the main column on purpose. This page's job is to sell a seat, and the
+         person reading it came for one — a vendor pitch above the agenda would be pushing a
+         different audience's business in front of the one that is actually here. Whoever
+         needs this is looking for it, and the people who are not lose nothing by scrolling
+         past it. #}
+      {% if stand_call|default(null) %}
+        {% if stand_call.state == 'closed' %}
+          {# One line, no button. Still said, because a vendor who arrived a fortnight late is
+             owed a date and a page rather than silence — and next year they will look earlier. #}
+          <div class="ed-vend ed-vend--shut">
+            <span class="ed-vend__kick">Vendor stands</span>
+            <p>
+              {%- if stand_call.closes_at %}Applications closed on
+                <b>{{ stand_call.closes_at|date('j F Y') }}</b>.
+              {%- else %}This event is not taking stand applications.{% endif %}
+              The quotas, the prices and the rules they were judged against are all still
+              published — <a href="{{ stand_call.url }}">see what was on offer</a>.
+            </p>
+          </div>
+        {% else %}
+          <div class="ed-vend">
+            <span class="ed-vend__orb" aria-hidden="true"></span>
+            <div class="ed-vend__in">
+              <span class="ed-vend__kick">Vendor stands</span>
+              <h2>Sell something at {{ event.title }}?</h2>
+              <p>Stands here are applied for and allocated against quotas published before
+                anyone applies — not sold to whoever pays first. Everything that decides your
+                application is on one page, in advance.</p>
+
+              {# Three numbers, as three statements. A vendor decides on how many places are
+                 left, what the cheapest one costs and when it shuts; buried in a paragraph
+                 each of those takes forty words to find. Any that is unknown is simply not
+                 printed — a chip reading "0 stands" or "from ₦0" is worse than no chip. #}
+              <ul class="ed-vend__facts">
+                {% if stand_call.left > 0 %}
+                  <li><b>{{ stand_call.left }}</b> of {{ stand_call.quota }} places open</li>
+                {% elseif stand_call.quota > 0 %}
+                  <li>All {{ stand_call.quota }} held · waiting list</li>
+                {% endif %}
+                {% if stand_call.from > 0 %}
+                  <li>From <b>₦{{ stand_call.from|number_format }}</b></li>
+                {% endif %}
+                {% if stand_call.kinds > 1 %}
+                  <li>{{ stand_call.kinds }} stand sizes</li>
+                {% endif %}
+                {% if stand_call.state == 'open' and stand_call.closes_at %}
+                  <li>Closes <b>{{ stand_call.closes_at|date('j M') }}</b></li>
+                {% elseif stand_call.state == 'soon' and stand_call.opens_at %}
+                  <li>Opens <b>{{ stand_call.opens_at|date('j M') }}</b></li>
+                {% endif %}
+              </ul>
+
+              <div class="ed-vend__act">
+                <a class="ed-vend__cta" href="{{ stand_call.url }}">
+                  {{ stand_call.state == 'open' ? 'Apply for a stand' : 'See the terms' }}
+                  <svg aria-hidden="true" focusable="false" width="15" height="15" viewBox="0 0 20 20" fill="none"><path d="M7.5 4.5 13 10 7.5 15.5" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                </a>
+                <span class="ed-vend__free">
+                  {%- if stand_call.state == 'open' -%}
+                    <b>Applying is free</b> and you do not need an account first — the form
+                    makes one.
+                  {%- else -%}
+                    The terms are published now, so you can decide before it opens.
+                  {%- endif -%}
+                </span>
+              </div>
+            </div>
+          </div>
+        {% endif %}
+      {% endif %}
+    </div>
+
+    {# ── RSVP rail ── #}
+    <aside class="ed-rail">
+      {% if is_past %}
+        <div class="ed-rsvp">
+          <span class="ed-rsvp__eyebrow">Closed</span>
+          <h2>This event has ended</h2>
+          <p class="ed-past">Thanks to everyone who joined{% if reg_count %} — {{ reg_count }} registered{% endif %}. Catch the next one on the <a href="/events" style="color:var(--ag-green);font-weight:600">events calendar</a>.</p>
+        </div>
+      {% elseif sales_closed|default('') %}
+        {# A cutoff BEFORE the event date, which almost every organiser needs for catering
+           and badges. Said with its date rather than as a bare "closed", because the two
+           are different amounts of respect for somebody who arrived a day late. #}
+        <div class="ed-rsvp">
+          <span class="ed-rsvp__eyebrow" style="color:#b42318">Registration closed</span>
+          <h2>Bookings have closed</h2>
+          <p class="ed-past">{{ sales_closed }} The event itself still goes ahead — if you need to come, please
+            {% if organiser_email|default('') %}email <a href="mailto:{{ organiser_email }}" style="color:var(--ag-green);font-weight:600">{{ organiser_email }}</a>{% else %}contact the organisers{% endif %}.</p>
+        </div>
+      {% elseif is_full %}
+        <div class="ed-rsvp">
+          <span class="ed-rsvp__eyebrow" style="color:#b42318">Fully booked</span>
+          <h2>This event is full</h2>
+          <p class="ed-past">All {{ capacity }} places have been reserved. Join the <a href="/community" style="color:var(--ag-green);font-weight:600">community</a> to hear first about the next one — and any released places.</p>
+        </div>
+      {% else %}
+        <div class="ed-rsvp" id="ed-rsvp"
+             :class="burst === 0 ? '' : ((burst % 2 ? 'is-a' : 'is-b') + (won ? ' is-won' : ''))"
+             :style="'--tier-hue:' + hue + ';--tier-edge:' + edge + ';--tier-ms:' + toneMs + 'ms;--tier-laps:' + toneLaps"
+             x-data="evReg('{{ event.slug|e('js') }}', '{{ csrf_token|e('js') }}', {{ reg_count }}, {{ tiers ? 'true' : 'false' }}, {{ access_code|default('')|json_encode }}, {{ waitlist_open|default(false) ? 'true' : 'false' }})">
+
+          {# ── THE SELECTION LIGHT ────────────────────────────────────────
+             Ten layers, all `transform`/`opacity`, all confined to the card's own bounds —
+             see the stylesheet for why the bloom is a shadow rather than a disc that bleeds
+             past the card, and for why every keyframe exists twice.
+
+             `aria-hidden` and `pointer-events:none`: it carries no text, no meaning and no
+             target. Everything it says is also said by the border, the background, the
+             inner rim and the filled radio, which is what makes it safe to remove entirely
+             under `prefers-reduced-motion`. #}
+          <span class="ed-fx" aria-hidden="true">
+            <span class="ed-fx__lift"></span>
+            <span class="ed-fx__lifttint"></span>
+            <span class="ed-fx__glow"></span>
+            <span class="ed-fx__impact"></span>
+            <span class="ed-fx__ring">
+              <span class="ed-fx__tail"></span>
+              <span class="ed-fx__head"></span>
+              <span class="ed-fx__flash"></span>
+              {# The second lap, on the peak tone only. Rendered conditionally rather than
+                 hidden, so a calm press is four animated elements and not twelve — the
+                 budget matters on the mid-range Android this actually runs on. #}
+              <template x-if="toneLaps > 1">
+                <span class="ed-fx__flash2"></span>
+              </template>
+            </span>
+            <span class="ed-fx__rim"></span>
+            {# Seven sparks, peak tone only. The offsets are fixed per index rather than
+               random: a random spray differs on every press, and a press people make four
+               times in a row should look like the same event happening again.
+
+               `--sx` is negative — up and to the LEFT. See the stylesheet: outward past the
+               right edge is what would put a positioned element outside its own gutter. #}
+            <template x-for="i in toneSparks" :key="i">
+              <span class="ed-fx__spark"
+                    :style="'--sx:' + (-2 - i * 3.4) + 'px;--sy:' + (-5 - i * 2.8) + 'px;--sd:' + (i * 26) + 'ms'"></span>
+            </template>
+          </span>
+
+          <div x-show="step==='form'">
+            {# ── THE PANEL NAMES WHAT KIND OF EVENT THIS IS ────────────────
+               "Tickets" alone is right for a summit and wrong for a fundraising
+               dinner, where the whole point of buying a place is what it pays for.
+               The eyebrow follows the event rather than the payment mechanism.
+
+               What it deliberately does NOT say is that the ticket is a donation.
+               It is not: the money moves through the ticket flow, with the ticket
+               flow's refund terms, and the appeal below is a separate transaction
+               with its own. Calling a ₦5,000 admission a gift would be the same
+               category error in the other direction — and the one that ends up in
+               a dispute. #}
+            <div class="ed-rsvp__top">
+              <span class="ed-rsvp__eyebrow">
+                {%- if is_fundraiser %}Fundraiser · {{ tiers ? 'tickets' : 'free registration' }}
+                {%- else %}{{ tiers ? 'Support Tickets' : 'Free registration' }}{% endif -%}
+              </span>
+              <span class="ed-rsvp__count" x-text="count + ' registered'"></span>
+            </div>
+            {% if is_fundraiser %}
+              <p class="ed-rsvp__fund">This event raises money.
+                {%- if appeal_for %} Your place helps fund <strong>{{ appeal_for }}</strong>.{% endif %}
+                Giving directly is separate and welcome on its own — the appeal is further down
+                this page.</p>
+            {% endif %}
+            {% if pct_sold is not null %}
+            <div style="margin-top:12px">
+              <div class="ed-sold__top"><span>{{ pct_sold >= 80 ? 'Selling fast' : 'Filling up' }}</span><span>{{ pct_sold }}% full</span></div>
+              <div class="ed-sold__bar"><span class="ed-sold__fill" style="width:{{ pct_sold }}%"></span></div>
+            </div>
+            {% endif %}
+            {% if tiers %}
+            {# Tiers are rows now, each with its OWN attendee limit — so a tier can be sold
+               out while the event is not, and it says which of those it is rather than just
+               going grey. `state` is the one word the branch reads: open / sold_out / early
+               / closed, each a different sentence to somebody who wants to come. #}
+            {# ── A RADIO GROUP, NOT A ROW OF TOGGLE BUTTONS ──────────────────
+               This was a list of plain `<button>`s whose only selected signal was a CSS
+               class. To a screen reader the chosen tier was conveyed by colour alone —
+               WCAG 1.4.1 — and there was no name, role or value for the selection at all
+               (4.1.2): every row announced as an unremarkable button, none of them as
+               chosen, and none as one of a set.
+
+               `role="radiogroup"` with `aria-checked` per row fixes both, and it is also
+               the convention: a single-select list of options is a radio group everywhere
+               else on the web, so Arrow keys move between rows and Tab leaves the group.
+               The handoff specified `aria-pressed` on buttons instead — that announces a
+               toggle rather than a choice, and makes Tab visit every tier, which is the
+               wrong shape for "pick exactly one of these three".
+
+               Roving tabindex: only the chosen row is tabbable, so the group is one stop.
+               `tierId === 0` before anything is chosen makes the FIRST row the stop, or
+               the group would be unreachable by keyboard. #}
+            {# `pointerdown` is delegated to the group rather than bound per row: one
+               listener for three tiers, and it keeps working if a tier is ever added
+               without a page load. It fires BEFORE click, which is the point — a ripple
+               that waits for the click has missed the press it describes. #}
+            <div style="margin-top:8px" role="radiogroup" aria-label="Ticket type"
+                 @pointerdown="down_($event)"
+                 @keydown.arrow-down.prevent="step_(1)" @keydown.arrow-right.prevent="step_(1)"
+                 @keydown.arrow-up.prevent="step_(-1)" @keydown.arrow-left.prevent="step_(-1)"
+                 @keydown.home.prevent="edge_(0)" @keydown.end.prevent="edge_(-1)">
+              {% for t in tiers %}
+                {% set gone = (t.state|default('open')) == 'sold_out' %}
+                {# A sold-out tier stays PRESSABLE when there is a waiting list, because the
+                   thing to do about it is join that list — and a disabled button is a dead
+                   end for the most motivated person on the page. Without a list it is
+                   disabled, since there is genuinely nothing to press. #}
+                {% set shut = (t.state|default('open')) != 'open' and not (gone and waitlist_open|default(false)) %}
+                {# Tone and hue come from PHP. Rank is a price question and this list is
+                   ordered by `sort_order` — a column the organiser drags rows around with —
+                   so `loop.last` is not the dearest tier. See EventTierTone. #}
+                {% set tone = tier_tones[t.id]|default('calm') %}
+                <button type="button" class="ed-tier" role="radio" data-ed-tier
+                        :class="tierId === {{ t.id|default(0) }} ? 'is-sel' : ''"
+                        :aria-checked="tierId === {{ t.id|default(0) }} ? 'true' : 'false'"
+                        :tabindex="(tierId === {{ t.id|default(0) }} || (tierId === 0 && {{ loop.first ? 'true' : 'false' }})) ? 0 : -1"
+                        {# Two values, not one. `--tier-hue` is the colour the organiser set
+                           and it drives the light; `--tier-edge` is the palette's darker
+                           variant and it draws the border and the filled radio, which are
+                           non-text indicators of state and owe 3:1 against white (WCAG
+                           1.4.11). It is the same pair the printed ticket's dot draws —
+                           `background: fill`, `1px solid edge` — which is what makes the
+                           row here and the mark on the door the same object. #}
+                        {# `--tier-heat` is the third value and the one that was missing: it is
+                           declared on `.ed-tier` and, until now, set by nothing, so the rank
+                           ladder existed only inside the arc's speed. It weighs the state
+                           layer and the ripple. `--tier-grow` is EventTierTone::MS at .4×,
+                           which is that table's ordering rescaled into the band a press
+                           belongs in — see THE PRESS in the stylesheet. #}
+                        style="--tier-hue:{{ tier_hues[t.id].hue|default('#237b22') }};--tier-edge:{{ tier_hues[t.id].edge|default('#1a6118') }};--tier-heat:{{ tier_heats[t.id]|default(0.34) }};--tier-grow:{{ (tier_ms[t.id]|default(950) * 0.4)|round }}ms"
+                        {{ shut ? 'disabled' : '' }}
+                        {# `tap_` draws the ripple for the presses that carry no pointer —
+                           Enter, Space, and the `.click()` `step_()` fires when an arrow
+                           key moves the selection. It no-ops when `down_` already started
+                           one, so a mouse press does not get two. #}
+                        @click="tap_($event.currentTarget); pick({{ t.id|default(0) }}, {{ t.price_naira|default(0) }}, {{ t.max|default(10) }}, {{ (t.min|default(1)) }}, {{ gone ? 'true' : 'false' }}, {{ waitlist_counts[t.id]|default(0) }}, '{{ tone }}', '{{ tier_hues[t.id].hue|default('#237b22') }}', '{{ tier_hues[t.id].edge|default('#1a6118') }}')">
+                  {# The ink layer, first in the row so everything after it paints on top.
+                     It carries the state layer and hosts the ripples, and it is the one
+                     thing here with `overflow:hidden` — a ripple is a circle wider than
+                     the row it is drawn in. Untouchable and unspoken: the selection is
+                     announced by `aria-checked` and drawn by the border and the filled
+                     radio, so this can be removed entirely and nothing is lost. #}
+                  <span class="ed-tier__ink" aria-hidden="true"></span>
+                  <span class="ed-tier__radio"></span>
+                  <span>
+                    <span class="ed-tier__name">{{ t.name }}{% if gone %} · sold out{% endif %}</span>
+                    {% if t.description|default('') %}<br><span class="ed-tier__perk">{{ t.description }}</span>{% endif %}
+                    {% for p in t.perks|default([]) %}<br><span class="ed-tier__perk">✓ {{ p }}</span>{% endfor %}
+                    {% if (t.state|default('open')) != 'open' and t.why|default('') %}<br><span class="ed-tier__perk">{{ t.why }}</span>
+                    {% if gone and waitlist_open|default(false) %}<br><span class="ed-tier__perk" style="color:#7b5604;font-weight:700">Join the waiting list{% if waitlist_counts[t.id]|default(0) %} · {{ waitlist_counts[t.id] }} waiting{% endif %}</span>{% endif %}
+                    {# The scarcity line is a FACT read off the tier's own remaining count,
+                       not a nudge: it appears when there are few enough left that somebody
+                       deciding today deserves to know, and never otherwise. #}
+                    {% elseif t.left is not null and t.left <= 10 %}<br><span class="ed-tier__perk" style="color:#8a2020;font-weight:700">Only {{ t.left }} left</span>
+                    {% endif %}
+                  </span>
+                  <span class="ed-tier__price">{{ (t.price_naira|default(0)) > 0 ? '₦' ~ (t.price_naira|number_format) : 'Free' }}</span>
+                </button>
+              {% endfor %}
+            </div>
+
+            {# Seats, only when the chosen tier allows more than one. A quantity box on a
+               one-per-person ticket is a question with a single legal answer. #}
+            <div x-show="maxQty > 1 && !soldOut" x-cloak style="margin-top:12px">
+              <label class="ed-label" for="edQty">How many seats</label>
+              <select id="edQty" class="ed-input" x-model.number="qty">
+                <template x-for="n in seatOptions()" :key="n">
+                  <option :value="n" x-text="n"></option>
+                </template>
+              </select>
+            </div>
+
+            {# ── DISCOUNT CODE ────────────────────────────────────────────────
+               A preview and nothing more: EventTicketService::reserve() prices the row
+               again from the tier and the code rows, so what is shown here cannot change
+               what anybody is charged. Offered only on a paid tier — a code on a free
+               ticket is a field with nothing to do. #}
+            <div x-show="price > 0 && !soldOut" x-cloak style="margin-top:12px">
+              <label class="ed-label" for="edDisc">Discount code <span style="font-weight:400;color:var(--ag-ink-soft,#626a6e)">(optional)</span></label>
+              <div class="ed-disc">
+                <input id="edDisc" class="ed-input" x-model="discount" placeholder="ALUMNI20"
+                       autocomplete="off" @keydown.enter.prevent="checkCode()">
+                <button type="button" :disabled="checking || !discount.trim()" @click="checkCode()"
+                        x-text="checking ? '…' : 'Apply'"></button>
+              </div>
+              <p class="ed-disc__ok" x-show="off > 0" x-cloak x-text="codeNote"></p>
+              <p class="ed-disc__no" x-show="codeNote && off === 0" x-cloak x-text="codeNote"></p>
+            </div>
+
+            <p class="sub" x-show="price > 0 && !soldOut" x-cloak style="margin-top:10px;font-weight:700;color:#10292C">
+              Total:
+              <span class="ed-was" x-show="off > 0" x-cloak x-text="'₦' + (price * qty).toLocaleString()"></span>
+              {# The total is the thing that actually changed when a tier was pressed, so it
+                 takes a beat as the arc passes it. `ed-total` is the hook; the scale is in
+                 the stylesheet. #}
+              <span class="ed-total" x-text="'₦' + Math.max(0, price * qty - off).toLocaleString()"
+                    :class="totalBeat === 0 ? '' : (totalBeat % 2 ? 'is-a' : 'is-b')"></span>
+            </p>
+
+            {# ── THE WAITING LIST ─────────────────────────────────────────────
+               Shown when the chosen tier has gone and the organiser has opened a list.
+               A seat comes back often enough — a declined card, an expired hold, three
+               cancellations the week before — that re-selling them to whoever happens to
+               be looking is a lottery dressed as a queue. #}
+            <div class="ed-wl" x-show="soldOut" x-cloak>
+              <div class="ed-wl__h">This ticket has sold out</div>
+              <p class="ed-wl__p">
+                Leave your details and you will be emailed the moment a seat comes back — a
+                declined card, an expired checkout, a cancellation. You get
+                {{ constant('AfricaGates\\Services\\EventWaitlist::OFFER_HOURS') }} hours to take it
+                before it passes to the next person.
+                <span x-show="wlCount > 0" x-cloak x-text="' ' + wlCount + ' already waiting.'"></span>
+              </p>
+            </div>
+            {% else %}
+            <h2>Reserve your place</h2>
+            <p class="sub">Register and we’ll email you the details and any updates.</p>
+            {% endif %}
+
+            {% if paid_tiers and not gateway_ready %}
+              {# Said out loud rather than discovered at the end. A buyer who fills in three
+                 fields and then meets "payments are unavailable" has been wasted; and the
+                 operator needs to know their own site cannot take money. #}
+              {# Hidden in waitlist mode: joining a queue asks for no money, and warning
+                 somebody about card payment while they are giving you their name reads as
+                 a problem with the thing they are actually doing. #}
+              <p class="ed-err" style="margin-top:10px" x-show="!soldOut">Card payment is not
+                available on this site right now, so paid tickets cannot be bought here. Please
+                contact us and we will register you directly.</p>
+            {% endif %}
+            {% if spots_left is not null %}<p class="sub" style="color:#1a6118;font-weight:600;margin-top:9px">⚡ Only {{ spots_left }} {{ spots_left == 1 ? 'place' : 'places' }} left</p>{% endif %}
+            {% include 'partials/member-autofill.twig' with {
+              member: member|default(null),
+              maf_fields: [
+                {sel: '#edName',  key: 'name'},
+                {sel: '#edEmail', key: 'email'},
+                {sel: '#edPhone', key: 'phone'},
+              ],
+            } only %}
+            <label class="ed-label" for="edName">Full name</label>
+            <input id="edName" class="ed-input" x-model="name" placeholder="Amara Okonkwo" autocomplete="name">
+            <label class="ed-label" for="edEmail">Email</label>
+            <input id="edEmail" class="ed-input" x-model="email" type="email" placeholder="you@email.com" autocomplete="email" @keydown.enter="submit()">
+            <label class="ed-label" for="edPhone">Phone</label>
+            <input id="edPhone" class="ed-input" x-model="phone" type="tel" inputmode="tel" placeholder="+234…" autocomplete="tel" @keydown.enter="submit()">
+            <p class="ed-err" x-show="error" x-cloak x-text="error"></p>
+            <button type="button" class="ed-cta" :disabled="busy || !valid" @click="submit()" x-text="cta"></button>
+            <div class="ed-secure"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#5a6d6f" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>Your details are kept private</div>
+          </div>
+          <div class="ed-done" x-show="step==='done'" x-cloak>
+            <div class="ed-done__ico"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#237b22" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></div>
+            <h2 class="ed-card" style="border:0;padding:0;background:none;font-family:var(--ag-font-display);font-weight:700;font-size:1.2rem"
+                x-text="wlPlace ? 'You’re on the list ✓' : 'You’re registered ✓'"></h2>
+            <p class="sub" x-text="msg"></p>
+            {# The ticket, not just a thank-you. It is the thing they will need at the door,
+               and burying it in an email that may not arrive for ten minutes is how somebody
+               turns up with nothing to show. #}
+            <a class="ed-cta" x-show="ticketUrl" x-cloak :href="ticketUrl" style="margin-top:14px;display:block;text-align:center;text-decoration:none">View your ticket →</a>
+            {# The flier, right where somebody has just registered. The card itself is
+               further down the page and already knows it is confirmed by then — this is the
+               nudge to it, not a second copy of it. #}
+            {# Opens the generator rather than scrolling to it. It used to be `href="#flier"`,
+               which jumped the page to a card in the rail — and the flier is now a dialog, so
+               a fragment jump would land on a hidden element and appear to do nothing. #}
+            <button type="button" class="ed-ext" style="margin-top:14px;background:none;border:0;width:100%;cursor:pointer;font:inherit;font-weight:600"
+                    @click="window.dispatchEvent(new CustomEvent('ag:flier-open', {detail:{name:name}}))">Make your “I will be there” flier →</button>
+            <a class="ed-ext" href="/events" style="margin-top:10px">Back to all events →</a>
+          </div>
+        </div>
+      {% endif %}
+
+{# ══════════════════════════════════════════════════════════════════════════════
+   THE "I WILL BE THERE" FLIER — THE DOOR TO IT
+   ══════════════════════════════════════════════════════════════════════════════
+
+   A shareable image an attendee makes for THEMSELVES. Not an organiser's promo asset:
+   anyone can make one, no account and no ticket, and a confirmed ticket earns a visible
+   mark and turns the code into that person's referral link so the flier pays them.
+
+   That last part is why it exists at all. The referral programme already worked and was
+   already on this page — as a read-only field behind a sign-in, which is precisely why
+   nobody used it. This is the same link in a form people already share unprompted.
+
+   ── THE GENERATOR IS NOT HERE ─────────────────────────────────────────────────
+
+   This card is the invitation. The generator itself is an overlay at the end of this
+   document, because it is a five-screen flow with a file picker, a drag-to-reframe canvas
+   and a full-bleed preview — and a 320px rail is the wrong shape for every one of them.
+   The rail is where a page puts its asides; a flow is not an aside. #}
+{% if not is_past and (event.status|default('published')) != 'cancelled' %}
+<div class="fl">
+  <div class="fl__head">
+    <span class="fl__eyebrow">Tell people</span>
+    <h2 class="fl__h">Make an “I will be there” flier</h2>
+  </div>
+  <div class="fl__body">
+    {# The offer, printed from live values rather than written into the copy. An admin can
+       change the rate, and a page promising 10% after a change to 8% is a promise the
+       ledger will not honour. #}
+    <p class="fl__p">Your name, this event, and a code people can scan. No account and no
+      ticket needed{% if referral and referral.pct %} — and once you register, that code
+      becomes your referral link and earns you <strong>{{ referral.pct }}%</strong> of every
+      ticket bought through it{% endif %}.</p>
+    <div class="fl__row">
+      {# `x-data` with nothing in it, because Alpine only processes directives inside a
+         component and this button is outside every one on the page. The overlay listens on
+         `window` rather than being an ancestor — two components that do not reach into each
+         other, which is how the register card already hands over its token. #}
+      <button type="button" class="fl__btn fl__btn--go" x-data
+              @click="window.dispatchEvent(new CustomEvent('ag:flier-open'))">Make my flier</button>
+    </div>
+  </div>
+</div>
+{% else %}
+{# ── PAST OR CANCELLED ────────────────────────────────────────────────────────
+   Explained, with somewhere to go. A live code on a finished evening is worse than no
+   flier: somebody scans it, finds nothing, and concludes the platform is broken — which is
+   why the route answers 410 as well, rather than trusting this branch alone. #}
+<div class="fl">
+  <div class="fl__head"><span class="fl__eyebrow">Tell people</span>
+    <h2 class="fl__h">This event has finished</h2></div>
+  <div class="fl__body">
+    <p class="fl__p">Fliers are only made for events still to come — a code pointing at a
+      finished evening sends people nowhere.</p>
+    <div class="fl__row"><a class="fl__btn" href="/events">See what is coming up →</a></div>
+  </div>
+</div>
+{% endif %}
+
+      {# ── Share and save the date ────────────────────────────────────────────
+         The DOWNLOAD is the primary action, not the Google link. A `.ics` file is understood
+         by Apple Calendar, Outlook, Thunderbird, Samsung, Fastmail and Google alike, works
+         with no account and no third-party page in the middle, and is the only one of the
+         two that a phone can open offline. Google keeps its place because a Google user
+         genuinely prefers it — but as the second option, not the only one.
+
+         THE `Z` ON THE GOOGLE DATES IS A BUG FIX. This link previously emitted
+         `date('Ymd\THis')` with no zone marker. Google reads a bare timestamp as the
+         READER's local time, and stored datetimes here are UTC by convention
+         ({@see \AfricaGates\Support\Clock}) — so anybody outside UTC was adding the event at
+         the wrong hour, silently, with a perfectly plausible-looking entry in their diary.
+         `|date('Ymd\THis\Z')` converts and marks it. The same reasoning is why
+         {@see \AfricaGates\Support\Ics} emits UTC throughout. #}
+      {% if not is_past %}
+      {% set gcal = 'https://calendar.google.com/calendar/render?action=TEMPLATE&text=' ~ event.title|url_encode ~ '&dates=' ~ event.event_date|date('Ymd\\THis\\Z') ~ '/' ~ (event.end_date ?: event.event_date)|date('Ymd\\THis\\Z') ~ '&location=' ~ (event.venue ?: event.location)|default('')|url_encode ~ '&details=' ~ event.tagline|default('')|url_encode %}
+      <div class="ed-rsvp" x-data="evShare()">
+        <p style="margin:0 0 10px;font-size:11px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--ag-ink-soft,#626a6e)">Share &amp; save the date</p>
+        <div class="ed-share">
+          <button type="button" @click="share()"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="m8.6 13.5 6.8 4M15.4 6.5l-6.8 4"/></svg>Share</button>
+          <a class="ed-cal" href="/events/{{ event.slug|url_encode }}/calendar.ics"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>Add to calendar</a>
+        </div>
+        <p class="ed-cal__alt">Uses Google Calendar? <a href="{{ gcal }}" target="_blank" rel="noopener">Add it there instead</a>.</p>
+        <span x-show="note" x-cloak x-text="note" style="display:block;text-align:center;margin-top:8px;font-size:12px;color:#1a6118;font-weight:600"></span>
+      </div>
+      {% endif %}
+
+      {# ── EARN FROM SHARING ────────────────────────────────────────────────
+         Directly under Share, deliberately: this is the one moment somebody is already
+         thinking about telling a friend, and it is where the offer means anything. The
+         referral programme existed and nobody knew — a member had to already know it was
+         there, sign in, and find the panel on their account page.
+
+         The rate and the threshold are printed from live values rather than written into
+         the copy. An admin can change both, and a page promising 10% after a change to 8%
+         is a promise the ledger will not honour. #}
+      {# ── WHAT THIS EVENT IS RAISING FOR ──────────────────────────────────
+         Above the referral card, because giving is the ask and earning is the aside.
+
+         The total is summed from confirmed gifts every time it is shown rather than
+         cached, so it cannot drift from the rows behind it — a fundraising bar that is
+         wrong is worse than no bar, and it is the number people screenshot.
+
+         Nothing here is a payment form: it links to the appeal, which is where the money
+         actually moves and where the refund terms live. #}
+      {% for a in appeals|default([]) %}
+      <div class="ed-fund">
+        <p class="ed-earn__k">Raising for</p>
+        <p class="ed-fund__t">{{ a.campaign.title }}</p>
+        {% if a.campaign.summary %}<p class="ed-fund__s">{{ a.campaign.summary }}</p>{% endif %}
+
+        {% if a.progress.target > 0 %}
+          <div class="ed-fund__bar" role="img"
+               aria-label="₦{{ a.progress.raised|number_format }} raised of a ₦{{ a.progress.target|number_format }} target">
+            <span style="width:{{ a.progress.pct }}%"></span>
+          </div>
+          <p class="ed-fund__n">
+            <strong>₦{{ a.progress.raised|number_format }}</strong> of
+            ₦{{ a.progress.target|number_format }}
+            {%- if a.progress.count %} · {{ a.progress.count }} gift{{ a.progress.count == 1 ? '' : 's' }}{% endif %}
+            {%- if a.days_left is not null %} · {{ a.days_left }} day{{ a.days_left == 1 ? '' : 's' }} left{% endif %}
+          </p>
+        {% elseif a.progress.count %}
+          {# No target set. The total still means something; a bar without one does not. #}
+          <p class="ed-fund__n"><strong>₦{{ a.progress.raised|number_format }}</strong> raised so far
+            · {{ a.progress.count }} gift{{ a.progress.count == 1 ? '' : 's' }}</p>
+        {% endif %}
+
+        <a class="ed-fund__go" href="{{ a.url }}">Give to this appeal</a>
+        <p class="ed-fund__by">Raised by {{ a.org }}. A ticket is not a donation — this is
+          separate, and either is welcome on its own.</p>
+      </div>
+      {% endfor %}
+
+      {% if referral %}
+      <div class="ed-earn">
+        <p class="ed-earn__k">Earn from sharing</p>
+        {% if referral.link %}
+          <p class="ed-earn__t">Share <strong>your</strong> link. When someone buys a ticket
+            through it you earn <strong>{{ referral.pct }}%</strong>.</p>
+          {# The link leads and is a real input, so it can be selected by hand when the
+             clipboard API is refused or the script never loads. The link IS the feature. #}
+          <label class="sr-only" for="edRefLink">Your referral link for this event</label>
+          <div class="ed-earn__row">
+            <input class="ed-earn__in" id="edRefLink" type="text" readonly value="{{ referral.link }}">
+            <button type="button" class="ed-earn__btn" data-rf-copy="edRefLink">Copy</button>
+          </div>
+          <p class="ed-earn__n">
+            {% if referral.threshold > 1 %}
+              Paid once you have <strong>{{ referral.threshold }}</strong> referrals — and it is
+              backdated, so the {{ referral.threshold }}th makes all of them payable.
+            {% else %}
+              Paid from your first referral.
+            {% endif %}
+            <a href="/account#me-referral">Your referrals →</a>
+          </p>
+        {% else %}
+          <p class="ed-earn__t">Tell people about this event and earn
+            <strong>{{ referral.pct }}%</strong> of every ticket bought through your link.</p>
+          {# A link needs an owner: a code with nobody behind it is a code with nobody to
+             pay. So the offer is shown to everybody and the account is the next step. #}
+          <p class="ed-earn__n"><a class="ed-earn__cta" href="/account/login?next=/events/{{ event.slug|url_encode }}">Sign in to get your link</a>
+            <br>Free, and your link works on every event.</p>
+        {% endif %}
+      </div>
+      {% endif %}
+    </aside>
+  </div>
+</div>
+
+{# ══════════════════════════════════════════════════════════════════════════════
+   THE FLIER GENERATOR — A DIALOG OVER THIS PAGE
+   ══════════════════════════════════════════════════════════════════════════════
+
+   Outside the grid on purpose. It is `position:fixed`, so its DOM position only decides
+   what it can be nested inside — and inside `.ed-rail` it inherited the rail's `sticky`
+   containing block and its width, which is what put a face-cropping canvas in a 320px
+   column.
+
+   ── EVERY ONE OF THE HANDOFF'S STATES IS STILL HERE ───────────────────────────
+
+   Entry, photo picker, reframe, generating, ready-with-share, ready-without-share, failed,
+   past/cancelled. What changed is the ORDER: reframe now comes AFTER the first render
+   rather than before it, and the reason is that the server now finds the face
+   ({@see \AfricaGates\Services\FaceFinder}). A reframe screen shown BEFORE any render has
+   to guess where the crop will land, and it guessed the middle of the picture while the
+   render used the face — a preview that disagrees with the image it previews. Rendering
+   first means the first thing somebody sees is their own face in the frame, and reframing
+   is a correction to a real image rather than a step to get through before seeing one.
+
+   Rendered only for a live event: a past or cancelled one has no generator at all, and the
+   route answers 410 independently so this branch is not the only guard. #}
+{% if not is_past and (event.status|default('published')) != 'cancelled' %}
+<div class="flo" id="flier" x-cloak x-show="open" x-transition.opacity.duration.140ms
+     x-data="evFlier('{{ event.slug|e('js') }}', '{{ csrf_token|e('js') }}', {{ referral and referral.pct ? referral.pct : 0 }})"
+     @keydown.escape.window="close()" role="dialog" aria-modal="true" aria-labelledby="flTitle">
+
+  {# Clicking the ground closes it. Standard for a sheet, and the gesture people try before
+     they look for an X. #}
+  <div class="flo__scrim" @click="close()"></div>
+
+  <div class="flo__panel" x-ref="panel" @keydown.tab="trap($event)">
+    {# The grabber. A sheet that can be dismissed should look dismissible before anybody
+       tries — on a phone this is the affordance people reach for first. Decorative, so it is
+       hidden from the accessibility tree; the X below is the real control. #}
+    <span class="flo__grab" aria-hidden="true"></span>
+
+    <div class="flo__bar">
+      <div>
+        <span class="fl__eyebrow">Tell people</span>
+        <h2 class="fl__h" id="flTitle">Make an “I will be there” flier</h2>
+      </div>
+      <button type="button" class="flo__x" @click="close()" x-ref="closer" aria-label="Close">
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
+      </button>
+    </div>
+
+    <div class="flo__scroll">
+
+    {# ── 1 · ENTRY ────────────────────────────────────────────────────────
+       One required field. No account, no ticket — and it says so, because the ungated path
+       is the whole point and a form that looks like it needs a login is a form nobody
+       starts. #}
+    <div x-show="stage === 'entry'" x-cloak>
+      <p class="fl__p" x-show="!token" x-cloak>
+        No ticket needed — put your name on it and share it. If you register, the code on
+        your flier becomes your referral link, and you earn
+        <strong x-text="pct ? pct + '%' : 'a share'"></strong> of every ticket bought through it.
+      </p>
+      <p class="fl__p" x-show="token" x-cloak>
+        Your ticket is confirmed, so your flier carries the mark — and its code is your own
+        referral link.
+      </p>
+
+      <label class="fl__lab" for="flName">Your name</label>
+      <input class="fl__in" id="flName" x-ref="name" x-model="name" maxlength="60" autocomplete="name"
+             placeholder="Ada Nwosu" @keydown.enter.prevent="start()">
+
+      <span class="fl__lab" id="flFmtLab">Shape</span>
+      <div class="fl__fmts" role="radiogroup" aria-labelledby="flFmtLab"
+           @keydown.arrow-right.prevent="stepFmt(1)" @keydown.arrow-down.prevent="stepFmt(1)"
+           @keydown.arrow-left.prevent="stepFmt(-1)" @keydown.arrow-up.prevent="stepFmt(-1)">
+        {# `plain` FIRST, because it is the most common case by far: most people upload no
+           photo, and it is a design for that rather than a degraded version of the others. #}
+        <button type="button" class="fl__fmt" role="radio" data-fl-fmt
+                :aria-checked="fmt === 'plain' ? 'true' : 'false'"
+                :tabindex="fmt === 'plain' ? 0 : -1" @click="setFmt('plain')">
+          No photo<small>Square · post or profile</small></button>
+        <button type="button" class="fl__fmt" role="radio" data-fl-fmt
+                :aria-checked="fmt === 'story' ? 'true' : 'false'"
+                :tabindex="fmt === 'story' ? 0 : -1" @click="setFmt('story')">
+          With a photo<small>Tall · status and stories</small></button>
+        <button type="button" class="fl__fmt" role="radio" data-fl-fmt
+                :aria-checked="fmt === 'square' ? 'true' : 'false'"
+                :tabindex="fmt === 'square' ? 0 : -1" @click="setFmt('square')">
+          With a photo<small>Square · display picture</small></button>
+      </div>
+
+      {# ── 1b · THE STYLE ────────────────────────────────────────────────
+         Four treatments, drawn in THIS event's colours. The swatch is a miniature of the
+         composition — ground, a line of type, the accent bar — rather than an abstract
+         colour blob, because what somebody is choosing between is four designs and a
+         circle of colour does not tell them which.
+
+         The colours come from the server ({@see \AfricaGates\Services\EventFlierTheme}),
+         not from anything written here. A picker showing a generic dark-green chip beside
+         a flier that comes out teal is a control that lies about its own outcome, and
+         taking the organiser's colour is the whole point of this. #}
+      <span class="fl__lab" id="flStyleLab">Style</span>
+      <div class="fl__sts" role="radiogroup" aria-labelledby="flStyleLab"
+           @keydown.arrow-right.prevent="stepStyle(1)" @keydown.arrow-down.prevent="stepStyle(1)"
+           @keydown.arrow-left.prevent="stepStyle(-1)" @keydown.arrow-up.prevent="stepStyle(-1)">
+        <template x-for="s in styles()" :key="s.key">
+          <button type="button" class="fl__st" role="radio" data-fl-style
+                  :aria-checked="style === s.key ? 'true' : 'false'"
+                  :tabindex="style === s.key ? 0 : -1"
+                  @click="style = s.key">
+            {# `aria-hidden`, because the label and the note carry the meaning. A colour is
+               never the only signal — WCAG 1.4.1 — and a screen reader hearing three hex
+               values would be worse off than one hearing nothing. #}
+            <span class="fl__st__sw" aria-hidden="true" :style="'background:' + s.ground">
+              <i :style="'background:' + s.ink"></i>
+              <i :style="'background:' + s.ink + ';width:60%'"></i>
+              <b :style="'background:' + s.accent"></b>
+            </span>
+            <span class="fl__st__n" x-text="s.label"></span>
+            <small x-text="s.note"></small>
+          </button>
+        </template>
+      </div>
+
+      {# ── 2 · THE PHOTO PICKER ──────────────────────────────────────────
+         Optional everywhere, and the reason to trust it is stated HERE rather than in a
+         policy page. Asking somebody to upload a photo of their face to an events site
+         needs a stated reason, at the moment of asking.
+
+         The face-finding is stated too. Software that looks at a face is software people are
+         entitled to know about, and the honest version of the sentence is short: it happens
+         on the server, in the same request that draws the image, and nothing about the face
+         is kept — because the photo itself is not kept. #}
+      <div x-show="fmt !== 'plain'" x-cloak>
+        <label class="fl__lab" for="flPhoto">Your photo <span style="font-weight:400;text-transform:none;letter-spacing:0">(optional)</span></label>
+        <input class="fl__in" id="flPhoto" type="file" accept="image/*" x-ref="photo" @change="pick()">
+        <p class="fl__note">
+          We find the face and frame the picture around it, then draw the flier and throw the
+          photo away — it is never saved on our server, and you can move the frame yourself
+          afterwards. Leave it empty and you get the “No photo” design instead.
+        </p>
+      </div>
+
+      {# ── 3 · THE CAPTION ────────────────────────────────────────────────
+         It goes in the SHARE MESSAGE, not on the image. The first line is left blank on
+         purpose: a fully prefilled caption gets sent verbatim and reads like an ad, and an
+         empty one gets sent with no context. #}
+      <label class="fl__lab" for="flCap">Caption <span style="font-weight:400;text-transform:none;letter-spacing:0">(optional — goes with the message, not on the image)</span></label>
+      <textarea class="fl__in" id="flCap" rows="4" x-model="caption" style="font-size:14px;line-height:1.6"></textarea>
+
+      <div class="fl__row">
+        {# `!token && !name.trim()`, not `!name.trim()`.
+
+           fields() below already encodes the real rule — `if (this.token) o.t = this.token;
+           else o.name = ...` — because flierMake() takes the name OUT OF THE TOKEN and never
+           reads the field when one is present. This button did not know that, and the third
+           entry point is the one that suffers: arriving from the account area with
+           `#flier=<token>` sets the token and no name, so a ticket-holder saw the confirmed
+           copy, an empty box and a dead button, and had to type a name the server discards. #}
+        <button type="button" class="fl__btn fl__btn--go" @click="start()"
+                :disabled="!token && !name.trim()">Make my flier</button>
+      </div>
+      <p class="fl__err" x-show="error" x-cloak x-text="error"></p>
+    </div>
+
+    {# ── 4 · REFRAME ──────────────────────────────────────────────────────
+       Reached from the preview, not before it. The frame opens where the render actually
+       put it — the server echoes the focal point it used in `X-Flier-Focus` — so this is a
+       correction to something visible rather than a guess.
+
+       The type line is drawn over the preview, because showing what gets covered is the
+       entire point: a mis-cropped selfie is the main reason a generated flier gets binned,
+       and the type sits over the lower third. #}
+    <div x-show="stage === 'frame'" x-cloak>
+      <p class="fl__p" x-text="faced
+        ? 'We framed this on the face we found. Drag it if you would rather show something else.'
+        : 'Drag the picture to choose what shows.'"></p>
+      <div class="fl__frame" :class="fmt === 'square' ? 'fl__frame--sq' : ''"
+           x-ref="frame" @pointerdown="grab($event)" role="group" aria-label="Position your photo">
+        <img :src="photoUrl" alt="" :style="'object-position:' + (fx*100) + '% ' + (fy*100) + '%'">
+        <span class="fl__typeline"><span>Your name and the event go here</span></span>
+      </div>
+      <label class="fl__lab" for="flZoomY">How high in the frame</label>
+      {# A range as well as the drag: dragging is the good interaction and a slider is the
+         one that works with a keyboard and a screen reader. #}
+      <input id="flZoomY" type="range" min="0" max="100" step="1" style="width:100%"
+             :value="Math.round(fy*100)" @input="fy = $event.target.value/100"
+             aria-label="Move the photo up or down in the frame">
+      <div class="fl__row">
+        <button type="button" class="fl__btn fl__btn--go" @click="render()">Use this framing</button>
+        <button type="button" class="fl__btn" @click="stage = pngUrl ? 'ready' : 'entry'">Back</button>
+      </div>
+    </div>
+
+    {# ── 5 · GENERATING ───────────────────────────────────────────────────
+       Its own screen, with NOTHING pressable but Cancel. A progress bar above an enabled
+       "Save the image" is an interface offering an action it cannot perform. #}
+    <div x-show="stage === 'busy'" x-cloak>
+      <p class="fl__p" role="status">Drawing your flier…</p>
+      <div class="fl__bar" role="progressbar" aria-label="Making your flier"><span></span></div>
+      <div class="fl__row">
+        <button type="button" class="fl__btn" @click="cancel()">Cancel</button>
+      </div>
+    </div>
+
+    {# ── 6 · READY ────────────────────────────────────────────────────────
+       Two shapes, decided by feature detection and not by user agent. Where the device can
+       share a FILE there is one button and it opens the share sheet with the image and the
+       caption. Where it cannot, Save is primary, the caption is copied, and one sentence
+       says why there are two steps — never a silent fall back to wa.me, which cannot attach
+       an image and produces a link with no flier. #}
+    <div x-show="stage === 'ready'" x-cloak>
+      <img class="fl__prev" :src="pngUrl" :alt="'Your flier for ' + title">
+
+      <div class="fl__row" x-show="canShareFile" x-cloak>
+        <button type="button" class="fl__btn fl__btn--go" @click="share()">Share it</button>
+        <button type="button" class="fl__btn" @click="save()">Save the image</button>
+      </div>
+
+      <div x-show="!canShareFile" x-cloak>
+        <div class="fl__row">
+          <button type="button" class="fl__btn fl__btn--go" @click="save()">Save the image</button>
+          <button type="button" class="fl__btn" @click="copy()" x-text="copied ? 'Caption copied' : 'Copy the caption'"></button>
+        </div>
+        <p class="fl__note">This browser cannot hand an image straight to WhatsApp, so it is
+          two steps: save the picture, then attach it and paste the caption.</p>
+      </div>
+
+      <div class="fl__row">
+        {# Only where there is something to reframe. A "move the photo" button on a design
+           with no photo in it is a control that cannot do anything. #}
+        <button type="button" class="fl__btn" x-show="file && fmt !== 'plain'" x-cloak
+                @click="stage = 'frame'">Move the photo</button>
+        <button type="button" class="fl__btn" @click="stage = 'entry'">Change something</button>
+      </div>
+      {# The photo could not be sent, but a flier was still made. Said plainly, because the
+         alternative is somebody seeing the "No photo" design and thinking we ignored them.
+         See render()'s transport ladder for what this is reporting. #}
+      <p class="fl__note" x-show="dropped" x-cloak style="color:#8a6d1f">
+        Your host would not accept the photo, so this is the no-photo design. Everything
+        else on it is yours.
+      </p>
+      <p class="fl__err" x-show="error" x-cloak x-text="error"></p>
+    </div>
+
+    {# ── 7 · FAILED ───────────────────────────────────────────────────────
+       Retry, and the name is still in the box behind this — `stage` is the only thing that
+       changed, so nothing typed is lost. #}
+    <div x-show="stage === 'failed'" x-cloak>
+      <p class="fl__err" x-text="error || 'The flier could not be made just now.'"></p>
+      <p class="fl__p">Nothing you typed has been lost.</p>
+      <div class="fl__row">
+        <button type="button" class="fl__btn fl__btn--go" @click="render()">Try again</button>
+        <button type="button" class="fl__btn" @click="stage = 'entry'">Change something</button>
+      </div>
+    </div>
+
+    </div>
+  </div>
+</div>
+{% endif %}
+
+<script nonce="{{ csp_nonce }}">
+  function evReg(slug, csrf, count, hasTiers, code, wlOpen){
+    return {
+      step:'form', name:'', email:'', phone:'', busy:false, error:'', msg:'',
+      count: count || 0, hasTiers: !!hasTiers, code: code || '',
+      /* The tier is chosen by ID now, not by its NAME. A name is display text an organiser
+         may edit after somebody has bought against it, and matching on it is also how
+         "VIP" and "V.I.P." became two tiers sharing one limit. */
+      tierId: 0, price: 0, qty: 1, minQty: 1, maxQty: 1,
+      ticketUrl: '',
+      /* Discount state. `off` is what the SERVER said this code takes off — never computed
+         here, because a total worked out in the browser is a total anybody can edit, and
+         confirm() refuses a payment smaller than the amount on the row. */
+      discount: '', off: 0, codeNote: '', checking: false,
+      /* Sold out, and whether there is a queue to join about it. */
+      soldOut: false, wlOpen: !!wlOpen, wlCount: 0, wlPlace: 0,
+
+      /* ── THE ARRIVAL ───────────────────────────────────────────────────────
+         `burst` is a counter, and it is the only thing that makes the card-wide light
+         replay. A finished CSS animation does NOT restart when the same `animation-name`
+         is re-applied, so the card carries `is-a` or `is-b` by `burst % 2` and the NAME
+         CHANGE is the restart.
+
+         It is incremented on an ARRIVAL now, not on a press. A press gets a ripple on the
+         row it landed on — see `ripple_()` — and a ripple restarts by construction,
+         because each one is a new element. The card-wide light is for the registration
+         coming back successful, which is an outcome rather than a step.
+
+         The A/B flip is kept rather than simplified away even though an arrival is
+         usually once: a second registration in one session, or a retry after a declined
+         card, is a real path, and it is exactly the path where a once-only animation
+         silently does nothing.
+
+         Zero until then, so nothing animates on page load.
+
+         The counter is per CARD, which here means per Alpine component. */
+      burst: 0,
+      /* Its own counter, for the one beat that still belongs to a press: the total is the
+         number that actually changed. Same A/B trick, because the same restart problem
+         applies to a digit somebody changes four times while comparing. */
+      totalBeat: 0,
+      /* Tone and hue arrive from the pressed row rather than being worked out here: rank
+         is a price question and PHP already answered it. See EventTierTone. */
+      toneMs: 950, toneLaps: 1, toneSparks: 0, hue: '#237b22', edge: '#1a6118',
+      /* Set on a SUCCESSFUL registration and never on submit — see submit(). */
+      won: false,
+
+      init(){
+        /* A percentage code against three seats is not the same number as against one, so a
+           quantity change re-prices it. Re-asked rather than scaled here, because scaling in
+           the browser would reimplement the rounding rule and eventually disagree with the
+           server about what somebody owes. */
+        this.$watch('qty', () => { if (this.discount.trim() !== '') this.checkCode(); });
+      },
+
+      pick(id, price, max, min, soldOut, wlCount, tone, hue, edge){
+        /* No tone is played here any more. The press is a ripple on the row that was
+           pressed, drawn by `ripple_()` from that row's own `--tier-heat` and
+           `--tier-grow` — so the ladder reaches it through CSS, from PHP, without this
+           function knowing the numbers. The card-wide light belongs to the arrival and
+           sets its own; see submit().
+
+           `tone` is still taken as an argument: it is what the row IS, and dropping it
+           from the call would mean editing three hundred lines of markup to add it back
+           the first time anything else needs to know. */
+        /* `hue` is the colour the organiser set on this tier and it drives the light;
+           `edge` is the palette's darker variant, for the rim that HOLDS. Both come from
+           the row rather than being derived here — one resolver, in EventTierTone, so the
+           card and the printed ticket cannot come to disagree about a tier's colour. */
+        this.hue = hue || '#237b22';
+        this.edge = edge || '#1a6118';
+        /* A fresh selection is a comparison, not an outcome: any previous success glow is
+           dropped rather than compounding into it. */
+        this.won = false;
+        /* The total is about to change, and a number that changes in place should say so.
+           The only beat a comparison gets. */
+        this.totalBeat++;
+
+        this.tierId = id; this.price = price;
+        this.minQty = min || 1;
+        this.maxQty = Math.max(this.minQty, max || 1);
+        /* Clamp rather than reset: somebody who picked 4 of one tier and switches to
+           another that allows 2 meant "as many as I can", not "start again". */
+        this.qty = Math.min(Math.max(this.qty, this.minQty), this.maxQty);
+        this.soldOut = !!soldOut && this.wlOpen;
+        this.wlCount = wlCount || 0;
+        /* A code priced against the old tier is not priced against this one. Dropping it
+           rather than re-checking it silently is the honest move: the number on screen must
+           never belong to a ticket they are no longer buying. */
+        this.off = 0; this.codeNote = '';
+        this.error = '';
+      },
+      /* ══ THE RIPPLE ═══════════════════════════════════════════════════════
+         One circle, born where the pointer landed, grown until it covers the row, held
+         while the finger is down, faded on release.
+
+         ── WHY IT IS SCRIPTED AND NOT A KEYFRAME ────────────────────────────
+
+         Two of its four numbers are unknowable in a stylesheet. WHERE it starts is where
+         the pointer landed; HOW BIG it has to get is the distance from there to the row's
+         farthest corner, which depends on both. A CSS-only ripple has to centre itself,
+         and a ripple that always starts in the middle is a ripple that has given up the
+         one thing it was for.
+
+         Built with the Web Animations API rather than by adding a class, for the reason
+         the card-wide light needed two keyframe sets and an A/B flip: a finished CSS
+         animation does not restart. Here it never has to. Each press builds a NEW element
+         and drops it when the fade ends, so the fourth press in ten seconds behaves like
+         the first by construction.
+
+         ── PRESS-HOLD, THEN RELEASE-FADE ────────────────────────────────────
+
+         The part that reads as Google rather than as "a circle animated once". The ripple
+         grows while the finger is DOWN and only fades when it lifts, so a long press holds
+         a full-size wash and a tap is over in about half a second. Fading on a fixed timer
+         instead makes every press identical in a way a finger can feel is wrong.
+
+         `finished` is awaited before the fade so a quick tap still shows the growth it
+         started; without it, a 90ms tap fades a circle that never got anywhere. */
+      RIPPLE_FADE: 160,
+
+      ripple_(btn, x, y){
+        if (!btn || btn.disabled) return;
+        /* Refused at the source, not collapsed to .01ms. There is no honest reduced version
+           of a growing circle — the state layer says the same thing without travelling, and
+           it is still there. */
+        try {
+          if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+        } catch (e) {}
+        var host = btn.querySelector('.ed-tier__ink');
+        if (!host || typeof host.animate !== 'function') return;
+
+        var r = btn.getBoundingClientRect();
+        if (r.width === 0) return;
+        /* Centred when there is no pointer to read — a keyboard selection, or an arrow key
+           moving through the group. Material does the same, and the alternative is a
+           ripple at (0,0) that crawls out of the corner. */
+        var px = (typeof x === 'number') ? x - r.left : r.width / 2;
+        var py = (typeof y === 'number') ? y - r.top  : r.height / 2;
+
+        /* Reach the FARTHEST corner, so the wash covers the row rather than stopping short
+           of the price at the far end — which is the corner a thumb on the left is
+           furthest from, and the number they are reading. */
+        var far = Math.max(
+          Math.hypot(px, py), Math.hypot(r.width - px, py),
+          Math.hypot(px, r.height - py), Math.hypot(r.width - px, r.height - py)
+        );
+
+        var el = document.createElement('span');
+        el.className = 'ed-tier__ripple';
+        el.style.left   = (px - far) + 'px';
+        el.style.top    = (py - far) + 'px';
+        el.style.width  = (far * 2) + 'px';
+        el.style.height = (far * 2) + 'px';
+        host.appendChild(el);
+        /* The gate. `is-inking` takes the row's persistent state layers to 0 for as long as
+           a ripple is alive on it, so the press is the ripple and nothing else — see the
+           note in the stylesheet for what stacking them cost. Counted rather than a plain
+           flag: a second press can land while the first is still fading, and a boolean
+           would have the first one's cleanup turn the second one's gate off. */
+        btn._ink = (btn._ink || 0) + 1;
+        btn.classList.add('is-inking');
+        var ungate = function(){
+          btn._ink = Math.max(0, (btn._ink || 1) - 1);
+          if (btn._ink === 0) btn.classList.remove('is-inking');
+        };
+
+        var grow = el.animate(
+          [{ transform: 'scale(0)' }, { transform: 'scale(1)' }],
+          /* Decelerate-in: the ink arrives and settles. The duration is the tier's own,
+             from `--tier-grow` on the row — EventTierTone::MS at .4×. Read off the element
+             rather than passed in, so the one place that number is written is the one
+             place it is read. */
+          { duration: this.growMs_(btn), easing: 'cubic-bezier(.2,.8,.2,1)', fill: 'forwards' }
+        );
+
+        var done = false;
+        var self = this;
+        var fade = function(){
+          if (done) return;
+          done = true;
+          var run = function(){
+            /* The node may already be gone — a re-render, or a second press that removed
+               it. Guarded rather than assumed: an exception here would take the click
+               handler down with it. */
+            if (!el.isConnected) { ungate(); return; }
+            var drop = function(){
+              if (el.parentNode) el.parentNode.removeChild(el);
+              ungate();
+            };
+            var out = el.animate([{ opacity: getComputedStyle(el).opacity }, { opacity: 0 }],
+                                 { duration: self.RIPPLE_FADE, easing: 'linear', fill: 'forwards' });
+            out.onfinish = drop;
+            /* A belt for the case `onfinish` never arrives — a background tab throttles
+               animations, and a ripple left at full opacity on a row is a row that looks
+               permanently pressed, with its hover state gated off behind it. */
+            setTimeout(drop, self.RIPPLE_FADE + 400);
+          };
+          if (grow.finished && typeof grow.finished.then === 'function') {
+            grow.finished.then(run).catch(run);
+          } else {
+            run();
+          }
+        };
+
+        /* Every way a press can end, including the ones that are not a click: dragging off
+           the row, a system gesture cancelling the pointer, the window losing focus
+           mid-press. Miss one and the ripple stays on screen. */
+        ['pointerup', 'pointercancel', 'pointerleave', 'blur'].forEach(function(ev){
+          btn.addEventListener(ev, fade, { once: true });
+        });
+        window.addEventListener('pointerup', fade, { once: true });
+        return fade;
+      },
+
+      /* The tier's grow duration, off the row's own custom property. Falls back to the
+         calm tier's rather than to 0 — a 0ms ripple is a flash, which is the one thing
+         this is not. */
+      growMs_(btn){
+        var v = 0;
+        try { v = parseFloat(getComputedStyle(btn).getPropertyValue('--tier-grow')); } catch (e) {}
+        return (v > 0 && v < 2000) ? v : 380;
+      },
+
+      /* pointerdown, not click: a ripple that waits for the click has already missed the
+         press it is describing. `press_` marks the row so the click handler below knows a
+         ripple is already running and does not draw a second, centred one on top. */
+      down_(e){
+        var btn = e.target && e.target.closest ? e.target.closest('[data-ed-tier]') : null;
+        if (!btn) return;
+        btn.dataset.rippling = '1';
+        this.ripple_(btn, e.clientX, e.clientY);
+      },
+
+      /* The keyboard and programmatic path. Enter, Space, an arrow key moving through the
+         group, and `step_()`'s own `.click()` all arrive here with no pointer behind them.
+         Centred, and released on the next frame so it plays as one gesture. */
+      tap_(btn){
+        if (!btn) return;
+        if (btn.dataset.rippling === '1') { delete btn.dataset.rippling; return; }
+        var fade = this.ripple_(btn);
+        if (fade) setTimeout(fade, 90);
+      },
+
+      /* ── ARROW KEYS ACROSS THE GROUP ────────────────────────────────────────
+         The convention for a radio group, and the reason this is a radiogroup rather than
+         a row of toggle buttons: Arrow moves and selects, Tab leaves. Reading the DOM
+         rather than the tier list, because a `disabled` row must be skipped and only the
+         DOM knows which rows those are — `shut` is computed in Twig from three conditions
+         and duplicating that here is how the two come to disagree. */
+      rows_(){
+        var g = this.$root.querySelector('[role="radiogroup"]');
+        if (!g) return [];
+        return Array.prototype.filter.call(g.querySelectorAll('[data-ed-tier]'),
+                                           function(b){ return !b.disabled; });
+      },
+      step_(dir){
+        var rows = this.rows_();
+        if (rows.length === 0) return;
+        var at = rows.indexOf(document.activeElement);
+        /* Wrapping, which is what a radio group does — and from -1 (focus is on the group
+           itself, not a row) a Down lands on the first row rather than nowhere. */
+        var next = rows[(((at < 0 ? (dir > 0 ? -1 : 0) : at) + dir) + rows.length) % rows.length];
+        if (next) { next.focus(); next.click(); }
+      },
+      edge_(which){
+        var rows = this.rows_();
+        var el = which === 0 ? rows[0] : rows[rows.length - 1];
+        if (el) { el.focus(); el.click(); }
+      },
+
+      seatOptions(){
+        var out = [];
+        for (var n = this.minQty; n <= this.maxQty; n++) out.push(n);
+        return out;
+      },
+      get valid(){
+        return this.name.trim() !== '' && /.+@.+\..+/.test(this.email)
+          && this.phone.replace(/\D/g,'').length >= 7 && (!this.hasTiers || this.tierId > 0);
+      },
+      get cta(){
+        if (this.soldOut) return this.busy ? 'Adding you…' : 'Join the waiting list';
+        if (this.busy) return this.due > 0 ? 'Taking you to payment…' : 'Registering…';
+        if (this.due > 0) return 'Pay ₦' + this.due.toLocaleString();
+        if (this.price > 0) return 'Get my ticket — free with code';
+        return this.hasTiers ? 'Get my ticket' : 'Register — free';
+      },
+      get due(){
+        return Math.max(0, this.price * this.qty - this.off);
+      },
+
+      /* Ask the server what a code does. A preview only — see the panel comment. */
+      async checkCode(){
+        var typed = this.discount.trim();
+        if(typed === '' || this.tierId === 0){ return; }
+        this.checking = true;
+        try{
+          var r = await fetch('/events/'+slug+'/quote', {
+            method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded'},
+            body: new URLSearchParams({ _token: csrf, tier_id:this.tierId,
+                                        quantity:this.qty, discount:typed, email:this.email })
+          });
+          var d = await r.json().catch(function(){ return {}; });
+          this.off = d.applied ? (d.off || 0) : 0;
+          this.codeNote = d.message || (d.applied ? '' : 'That code could not be applied.');
+        }catch(e){ this.off = 0; this.codeNote = 'We could not check that code just now.'; }
+        finally{ this.checking = false; }
+      },
+
+      async submit(){
+        if(this.name.trim()===''){ this.error='Please enter your name.'; return; }
+        if(!/.+@.+\..+/.test(this.email)){ this.error='Please enter a valid email.'; return; }
+        if(this.phone.replace(/\D/g,'').length < 7){ this.error='Please enter a valid phone number.'; return; }
+        if(this.hasTiers && this.tierId === 0){ this.error='Please choose a ticket type.'; return; }
+        if(this.soldOut){ return this.joinList(); }
+        this.busy=true; this.error='';
+        try{
+          var r = await fetch('/events/'+slug+'/register', {
+            method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded'},
+            body: new URLSearchParams({ _token: csrf, name:this.name, email:this.email,
+                                        phone:this.phone, tier_id:this.tierId,
+                                        quantity:this.qty, code:this.code,
+                                        discount:this.discount.trim() })
+          });
+          var d = await r.json().catch(function(){ return {}; });
+
+          /* A paid tier answers with a hand-off URL instead of a confirmation. The seats
+             are already held server-side by then, so leaving the button spinning while the
+             browser navigates is honest: nothing more is asked of them here. */
+          if(d.success && d.pay){ window.location.href = d.pay; return; }
+
+          if(d.success){
+            this.msg = d.message || 'You’re registered.';
+            this.ticketUrl = d.ticket_url || '';
+            this.count += (this.qty || 1);
+            /* ── THE ONE BURST THAT IS NOT A COMPARISON ──────────────────────
+               Fired HERE, on a successful response, and nowhere else. Not on submit: a
+               burst followed by "that card was declined" is worse than no burst, and the
+               paid path above this does not reach here at all — it hands off to the
+               gateway, where nothing has succeeded yet.
+               Also deliberately not in joinList(): a waiting list is not a win. */
+            /* ── HAND THE FLIER ITS CREDENTIAL ───────────────────────────────
+               An event rather than a direct reach into the other component: they are two
+               Alpine roots on one page, and two components holding references to each other
+               is how a change to one breaks the other silently.
+
+               This is the handoff's first entry point and the reason it is first: it is the
+               only moment somebody is proud, and asking then costs nothing. */
+            if (d.flier_token) {
+              window.dispatchEvent(new CustomEvent('ag:flier-token', {
+                detail: { token: d.flier_token, name: this.name.trim() }
+              }));
+            }
+
+            this.won = true;
+            /* Five sparks and a single slow lap, whatever the tier was. This is not the
+               tier ladder speaking — it is one outcome, and it is the same outcome for a
+               free General seat as for a Patron table. The only place these three are
+               written, now that a press draws a ripple instead of a firework. */
+            this.toneMs = 1100; this.toneLaps = 1; this.toneSparks = 5;
+            this.burst++;
+            this.step='done';
+          } else {
+            /* The seats went while they were filling the form in. If there is a list, offer
+               it here rather than making them find the tier button again — the answer to
+               "it sold out just now" is the queue, and they are already typed in. */
+            if(d.full && d.waitlist){ this.soldOut = true; this.error = d.message || ''; }
+            else { this.error = d.message || 'Could not register. Please try again.'; }
+          }
+        }catch(e){ this.error='Network error. Please try again.'; }
+        finally{ this.busy=false; }
+      },
+
+      async joinList(){
+        this.busy=true; this.error='';
+        try{
+          var r = await fetch('/events/'+slug+'/waitlist', {
+            method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded'},
+            body: new URLSearchParams({ _token: csrf, name:this.name, email:this.email,
+                                        phone:this.phone, tier_id:this.tierId })
+          });
+          var d = await r.json().catch(function(){ return {}; });
+          if(d.success){
+            this.wlPlace = d.place || 0;
+            this.msg = (d.message || 'You are on the list.')
+                     + (d.place ? ' You are number ' + d.place + ' in the queue.' : '');
+            this.ticketUrl = '';
+            this.step='done';
+          } else {
+            this.error = d.message || 'Could not add you to the list. Please try again.';
+          }
+        }catch(e){ this.error='Network error. Please try again.'; }
+        finally{ this.busy=false; }
+      }
+    };
+  }
+{% if referral and referral.link %}
+  /* The copy button. Same shape as the account page's referral panel: the field is a real
+     input first, so a browser that refuses the clipboard API — or a page whose script never
+     arrived — still leaves the link there to select by hand. The link IS the feature.
+
+     Emitted only when there IS a link, so a page with no referral offer does not ship a
+     listener with nothing to listen to. */
+  (function(){
+    var btn = document.querySelector('[data-rf-copy]');
+    if (!btn) return;
+    var field = document.getElementById(btn.getAttribute('data-rf-copy'));
+    if (!field) return;
+    var original = btn.textContent;
+    btn.addEventListener('click', function(){
+      field.select();
+      var done = function(ok){
+        btn.textContent = ok ? 'Copied' : 'Press Ctrl+C';
+        if (window.agAnnounce) window.agAnnounce(ok ? 'Referral link copied' : 'Select and copy the link');
+        setTimeout(function(){ btn.textContent = original; }, 2200);
+      };
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(field.value).then(function(){ done(true); }, function(){ done(false); });
+      } else {
+        try { done(document.execCommand('copy')); } catch (e) { done(false); }
+      }
+    });
+  })();
+{% endif %}
+
+  /**
+   * The flier generator.
+   *
+   * ── WHY THE IMAGE IS FETCHED AS A BLOB AND NOT SET AS AN <img src> ─────────
+   *
+   * Because the share path needs a File. `navigator.share({files})` cannot be handed a URL,
+   * so the PNG has to exist in the page as bytes — and once it does, the preview, the save
+   * and the share are all the same object. Fetching it also means the POST can carry the
+   * photo, which is what keeps the upload off our disk entirely.
+   *
+   * ── AND WHY FEATURE DETECTION, NOT A USER-AGENT GUESS ─────────────────────
+   *
+   * `navigator.canShare({files:[…]})` is the only honest test: the API exists on desktop
+   * Chrome and refuses files, and it exists on iOS Safari and accepts them. A lone "Share to
+   * WhatsApp" button promises something the device may simply not do, and the documented
+   * wrong answer is falling back to a wa.me link — which cannot attach an image and produces
+   * a message with no flier in it.
+   */
+  /* ── THE STYLE DATA LIVES HERE, NOT IN AN `x-data` ATTRIBUTE ────────────────
+     It was passed as two JSON arguments inside `x-data="evFlier(…, {…}, {…})"`, and the HTML
+     parser destroyed it: the first `"` inside the JSON closed the attribute, and everything
+     after it was re-read as a list of attribute names. The element came out with `in=""`,
+     `the=""`, `full=""` on it and Alpine never saw a component at all — no error in the
+     console, no failed request, just a dialog that did nothing.
+
+     `|e('html_attr')` would also work, at the cost of a 4KB wall of `&#x7b;` in the markup.
+     A script block is where JSON belongs, and this file already hands the title over this way
+     for the same reason. */
+  var AG_FLIER_STYLES   = {{ flier_styles|default({})|json_encode|raw }};
+  var AG_FLIER_DEFAULTS = {{ flier_style_default|default({})|json_encode|raw }};
+
+  function evFlier(slug, csrf, pct){
+    var styleSets = AG_FLIER_STYLES, styleDefaults = AG_FLIER_DEFAULTS;
+    return {
+      /* ── THE SHEET ──────────────────────────────────────────────────────────
+         Closed on load. It is a dialog now, not a card, so its own visibility is state and
+         `open` is the only thing that decides it — no CSS class toggling from two places. */
+      open: false,
+      /* Whether WE pushed the history entry that is currently on top. Tracked rather than
+         assumed, because close() must only go back when there is something of ours to go
+         back to: an unconditional history.back() from a sheet somebody opened by pressing
+         back would walk them off the page. */
+      pushed: false,
+      lastFocus: null,
+
+      /* entry · frame · busy · ready · failed. Generating and Ready are deliberately
+         separate: a progress bar above an enabled "Save the image" offers an action the
+         page cannot perform yet. */
+      stage: 'entry',
+      name: '', fmt: 'plain', caption: '', error: '', copied: false,
+      pct: pct || 0,
+      /* The chosen treatment. Not stored anywhere and not a colour — a KEY, resolved to hexes
+         on the server from the event's own accent, the same way a tier stores a slot rather
+         than a hex. See EventFlierTheme. */
+      style: (styleDefaults && styleDefaults.plain) || 'paper',
+      /* The confirmed credential, when there is one. Minted server-side by the register
+         response — a browser cannot assert a registration, which is the whole point of
+         EventFlierToken. Empty here means the ungated path, which is the common one. */
+      token: '',
+      title: {{ event.title|default('')|json_encode|raw }},
+      /* The photo never leaves this page except as the body of one POST. `photoUrl` is an
+         object URL for the reframe preview only. */
+      file: null, photoUrl: '',
+      /* Where the crop is centred, 0..1. Null until either the server reports where it put
+         the frame (`X-Flier-Focus`, from FaceFinder) or somebody drags it — and null is what
+         MEANS "nobody has decided yet", which is what lets the server detect rather than
+         being handed a guess this page made. A literal 0.5/0.22 default here would have been
+         exactly that guess, and it would have overruled the face on every first render. */
+      fx: null, fy: null,
+      /* True when the server said it found a face. Only used to word one sentence honestly:
+         claiming "we framed this on the face" over a crop that fell back to the fixed anchor
+         is a claim somebody can see is false. */
+      faced: false,
+      /* The photo could not be sent at all and a no-photo flier was made instead. Surfaced,
+         never silent — see the transport ladder in render(). */
+      dropped: false,
+      pngUrl: '', blob: null,
+      canShareFile: false,
+      ctrl: null,
+
+      init(){
+        /* Prefilled, so the caption is one edit rather than one composition — and the FIRST
+           LINE IS LEFT BLANK on purpose. A fully prefilled caption gets sent verbatim and
+           reads like an ad; an empty one gets sent with no context. */
+        this.style = (styleDefaults && styleDefaults[this.fmt]) || this.style;
+
+        this.caption = '\n' + this.title + '\n'
+          + {{ (event.event_date|default(''))|json_encode|raw }}.slice(0, 10) + '\n'
+          + location.origin + '/events/' + slug;
+
+        /* A one-byte PNG is enough to ask the question, and asking it with a real File is the
+           only way to get a true answer. */
+        try {
+          var probe = new File([new Uint8Array([137,80,78,71])], 'f.png', { type: 'image/png' });
+          this.canShareFile = !!(navigator.canShare && navigator.canShare({ files: [probe] }));
+        } catch (e) { this.canShareFile = false; }
+
+        /* The confirmed path. `evReg` publishes the token on its success state, and this
+           picks it up rather than the two components reaching into each other. */
+        window.addEventListener('ag:flier-token', (e) => {
+          this.token = (e.detail && e.detail.token) || '';
+          if (e.detail && e.detail.name) this.name = e.detail.name;
+        });
+
+        /* The door. Dispatched by the rail card and by the register card's success state,
+           both of which are outside this component. */
+        window.addEventListener('ag:flier-open', (e) => {
+          if (e.detail && e.detail.name && !this.name) this.name = e.detail.name;
+          this.openIt();
+        });
+
+        /* ── BACK CLOSES THE SHEET ───────────────────────────────────────────
+           The whole reason opening pushes a state. Without this the back gesture on a phone
+           leaves the event page entirely, which is not what anybody means by it while a
+           sheet is over the page. */
+        window.addEventListener('popstate', () => {
+          this.pushed = false;
+          if (this.open) this.shut();
+        });
+
+        /* ── ARRIVING FROM THE ACCOUNT AREA ──────────────────────────────────
+           The third entry point hands the credential over in the URL FRAGMENT, which is
+           never sent to a server — so it is not in an access log, not in a Referer header,
+           and not in anything an intermediary keeps. That is worth one line of parsing for
+           a token that renders somebody's name onto an image.
+
+           Consumed and then removed from the address bar, so a copied URL does not carry
+           somebody else's credential and a reload does not silently reuse it. */
+        var m = (location.hash || '').match(/flier=([^&]+)/);
+        if (m) {
+          this.token = decodeURIComponent(m[1]);
+          try { history.replaceState(null, '', location.pathname + location.search); }
+          catch (e) {}
+          this.openIt();
+        } else if ((location.hash || '') === '#flier') {
+          /* A shared or bookmarked #flier still opens it — the fragment was the address of
+             this thing before it became a dialog, and links to it exist. */
+          this.openIt();
+        }
+      },
+
+      /* ── OPEN ───────────────────────────────────────────────────────────────
+         Named openIt() and not open() because `open` is the state above and a method of the
+         same name would shadow it on the Alpine proxy — one of those collisions that fails
+         by rendering nothing rather than by throwing. */
+      openIt(){
+        if (this.open) return;
+        this.lastFocus = document.activeElement;
+        this.open = true;
+
+        /* The page must not scroll under a fixed sheet. `position:fixed` on the body would
+           also work and would lose the scroll position, so it is `overflow` on the root. */
+        document.documentElement.style.overflow = 'hidden';
+
+        try {
+          history.pushState({ agFlier: 1 }, '', '#flier');
+          this.pushed = true;
+        } catch (e) { this.pushed = false; }
+
+        /* Focus moves INTO the dialog, or a keyboard user is still on the page behind it and
+           tabbing through content they cannot see. The name field when that is the screen,
+           because it is the one thing to do; the close button otherwise. */
+        this.$nextTick(() => {
+          var el = (this.stage === 'entry' && this.$refs.name) ? this.$refs.name : this.$refs.closer;
+          if (el) el.focus();
+        });
+      },
+
+      /* The visible half of closing, with no history side effect — so popstate can call it
+         without pushing or popping anything further. */
+      shut(){
+        this.open = false;
+        document.documentElement.style.overflow = '';
+        if (this.ctrl) { this.ctrl.abort(); this.ctrl = null; }
+        /* Focus goes back where it came from. A dialog that closes and leaves focus on
+           <body> drops a keyboard user at the top of the document. */
+        if (this.lastFocus && this.lastFocus.focus) { try { this.lastFocus.focus(); } catch (e) {} }
+      },
+
+      close(){
+        if (!this.open) return;
+        if (this.pushed) {
+          /* Let popstate do the closing, so the address bar and the sheet cannot disagree. */
+          this.pushed = false;
+          try { history.back(); return; } catch (e) {}
+        }
+        try { history.replaceState(null, '', location.pathname + location.search); } catch (e) {}
+        this.shut();
+      },
+
+      /* ── THE FOCUS TRAP ─────────────────────────────────────────────────────
+         `aria-modal` tells a screen reader the rest of the page is inert; it does nothing
+         about Tab. Without this, tabbing out of the last control lands on the event page
+         behind a dark scrim, which is where a keyboard user gets lost and stays lost. */
+      trap(e){
+        var f = this.$refs.panel.querySelectorAll(
+          'a[href], button:not([disabled]), input:not([disabled]), textarea, select, [tabindex]:not([tabindex="-1"])');
+        f = Array.prototype.filter.call(f, function(el){
+          return el.offsetWidth > 0 || el.offsetHeight > 0 || el === document.activeElement;
+        });
+        if (!f.length) return;
+        var first = f[0], last = f[f.length - 1];
+        if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+        else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+      },
+
+      stepFmt(dir){
+        var els = Array.prototype.slice.call(this.$root.querySelectorAll('[data-fl-fmt]'));
+        var order = ['plain', 'story', 'square'];
+        var at = order.indexOf(this.fmt);
+        this.setFmt(order[((at + dir) + order.length) % order.length]);
+        var el = els[order.indexOf(this.fmt)];
+        if (el) el.focus();
+      },
+
+      /* ── THE SHAPE AND THE STYLE ARE NOT INDEPENDENT ─────────────────────────
+         `tint` re-colours a photograph, so the no-photo design cannot draw it. Changing the
+         shape therefore has to re-check the style, or the picker keeps a selected chip that
+         is no longer in the list and the render silently uses something else. Going through
+         one setter is what makes that impossible to forget at a call site. */
+      setFmt(next){
+        this.fmt = next;
+        var ok = this.styles().some((s) => s.key === this.style);
+        if (!ok) this.style = (styleDefaults && styleDefaults[next]) || 'paper';
+      },
+
+      /* The styles this shape can offer, with THIS event's colours in them. Server-computed;
+         nothing here invents a hex. */
+      styles(){
+        return (styleSets && styleSets[this.fmt]) || [];
+      },
+
+      stepStyle(dir){
+        var list = this.styles();
+        if (!list.length) return;
+        var at = list.findIndex((s) => s.key === this.style);
+        this.style = list[((at < 0 ? 0 : at) + dir + list.length) % list.length].key;
+        var els = Array.prototype.slice.call(this.$root.querySelectorAll('[data-fl-style]'));
+        var el = els[list.findIndex((s) => s.key === this.style)];
+        if (el) el.focus();
+      },
+
+      pick(){
+        var f = this.$refs.photo && this.$refs.photo.files ? this.$refs.photo.files[0] : null;
+        if (this.photoUrl) URL.revokeObjectURL(this.photoUrl);
+        this.file = f || null;
+        this.photoUrl = f ? URL.createObjectURL(f) : '';
+        /* A NEW photo means the old framing is meaningless — it was measured against a
+           different picture. Back to null so the server finds the face in this one. */
+        this.fx = null; this.fy = null; this.faced = false;
+        this.error = '';
+      },
+
+      start(){
+        this.error = '';
+        /* Same rule as the button above and as fields() below: a name is required only
+           when there is no token to take it from. Three places encoded this and one of
+           them was right. */
+        if (!this.token && !this.name.trim()) { this.error = 'Add your name first.'; return; }
+        /* Straight to the render, always. The reframe used to come first and had to guess
+           where the crop would land; the server finds the face now, so the first thing
+           somebody sees is the real image and reframing is a correction to it. */
+        this.render();
+      },
+
+      /* Drag the frame. Pointer events, so one handler covers mouse, touch and pen — and
+         `touch-action:none` on the element is what stops the page scrolling under a drag. */
+      grab(e){
+        var box = this.$refs.frame.getBoundingClientRect();
+        var move = (ev) => {
+          this.fx = Math.min(1, Math.max(0, (ev.clientX - box.left) / box.width));
+          this.fy = Math.min(1, Math.max(0, (ev.clientY - box.top) / box.height));
+        };
+        move(e);
+        var up = () => {
+          window.removeEventListener('pointermove', move);
+          window.removeEventListener('pointerup', up);
+        };
+        window.addEventListener('pointermove', move);
+        window.addEventListener('pointerup', up);
+      },
+
+      /* The fields every attempt carries, whatever the transport. */
+      fields(){
+        var o = { _token: csrf, fmt: this.fmt, style: this.style };
+        if (this.token) o.t = this.token; else o.name = this.name.trim();
+        if (this.fx !== null) o.focus_x = String(this.fx);
+        if (this.fy !== null) o.focus_y = String(this.fy);
+        return o;
+      },
+
+      /* ══ THE TRANSPORT LADDER ═══════════════════════════════════════════════
+
+         Production answered this route **406 Not Acceptable** — a status this application
+         returns from no route, for any input. That makes it a request filter in front of PHP:
+         cPanel ships mod_security with `status:406` as its default deny, and its multipart
+         rules are the ones an image upload trips. There is no shell on that host, so the
+         filter cannot be read, tuned or switched off from our side.
+
+         So the browser tries the shapes in order of preference and stops at the first one
+         that gets through:
+
+           1. multipart with the file        — cheapest on the wire, and what a browser does
+           2. urlencoded with the photo as base64 — a different shape to a filter, ~33% larger
+           3. urlencoded with no photo at all — a real flier, and it SAYS the photo was dropped
+
+         Only statuses this application never emits count as "filtered": 405, 406, 415, 501.
+         403 is deliberately NOT among them — CsrfMiddleware answers 403, and retrying a
+         rejected CSRF token in three transports is three failures and a confusing message.
+         413 skips step 2, because base64 makes the body bigger and retrying a too-large body
+         with a larger one is a round trip nobody needs.
+
+         Step 3 is the one that matters: a flier with somebody's name and a working code is
+         worth far more than no flier, and the sentence on the ready screen means they are
+         never left guessing why their photo is missing. */
+      filtered(code){ return code === 405 || code === 406 || code === 415 || code === 501; },
+
+      async post(kind){
+        var url = '/events/' + slug + '/flier';
+        var f = this.fields();
+
+        if (kind === 'multipart') {
+          var fd = new FormData();
+          Object.keys(f).forEach(function(k){ fd.append(k, f[k]); });
+          if (this.file) fd.append('photo', this.file);
+          return fetch(url, { method: 'POST', body: fd, signal: this.ctrl.signal });
+        }
+
+        var body = new URLSearchParams();
+        Object.keys(f).forEach(function(k){ body.append(k, f[k]); });
+        if (kind === 'b64' && this.file) body.append('photo_b64', await this.b64(this.file));
+
+        return fetch(url, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8' },
+          body: body.toString(),
+          signal: this.ctrl.signal
+        });
+      },
+
+      b64(file){
+        return new Promise(function(res, rej){
+          var r = new FileReader();
+          r.onload = function(){ res(String(r.result || '')); };
+          r.onerror = function(){ rej(r.error); };
+          /* A data: URL, not an ArrayBuffer walked byte by byte — btoa over a 4MB photo in a
+             loop blocks the main thread for long enough to be visible. The server accepts
+             the data: prefix and strips it. */
+          r.readAsDataURL(file);
+        });
+      },
+
+      async render(){
+        this.error = '';
+        this.dropped = false;
+        this.stage = 'busy';
+        /* An AbortController, because Cancel has to actually cancel. A Cancel button that
+           only changes the screen leaves the request running and the next one racing it. */
+        this.ctrl = new AbortController();
+
+        var wantsPhoto = this.fmt !== 'plain' && !!this.file;
+
+        try {
+          var plan = wantsPhoto ? ['multipart', 'b64', 'none'] : ['urlencoded'];
+          var r = null;
+
+          for (var i = 0; i < plan.length; i++) {
+            r = await this.post(plan[i] === 'none' ? 'urlencoded' : plan[i]);
+            if (r.ok) { if (plan[i] === 'none') this.dropped = true; break; }
+            if (!this.filtered(r.status) && r.status !== 413) break;
+            /* 413 means too big, so skip the bigger body and go straight to no photo. */
+            if (r.status === 413 && plan[i] === 'multipart') i++;
+          }
+
+          if (!r.ok) {
+            var d = await r.json().catch(function(){ return {}; });
+            this.error = d.message
+              || (this.filtered(r.status)
+                  ? 'This connection would not carry the request. Try again on another network.'
+                  : 'The flier could not be made just now.');
+            this.stage = 'failed';
+            return;
+          }
+
+          if (this.pngUrl) URL.revokeObjectURL(this.pngUrl);
+          this.blob = await r.blob();
+          this.pngUrl = URL.createObjectURL(this.blob);
+          /* The token the server used, so "share as a link" and a later format change need
+             no retyping — and so the confirmed state survives a regenerate. */
+          this.token = r.headers.get('X-Flier-Token') || this.token;
+
+          /* ── WHERE THE CROP ACTUALLY LANDED ─────────────────────────────────
+             Sent back by the route, from the one resolver both halves use
+             (EventFlier::focus). Adopted here so the reframe control opens on the frame in
+             the image somebody is looking at — a reframe screen that starts anywhere else is
+             a preview of a different picture. A pair with an empty axis means the server used
+             its own anchor and found no face, which is what `faced` reports. */
+          /* ── AND THE STYLE IT ACTUALLY DREW ─────────────────────────────────
+             A requested style is normalised against the format that ends up being DRAWN, and
+             those differ when a photo does not arrive: `tint` on a photo format with no photo
+             becomes `paper` on `plain`. A picker still showing `tint` would be describing an
+             image that is not on screen. */
+          var st = r.headers.get('X-Flier-Style');
+          if (st) this.style = st;
+
+          var fp = (r.headers.get('X-Flier-Focus') || '').split(',');
+          if (fp.length === 2 && fp[0] !== '' && fp[1] !== '') {
+            var hadOwn = this.fx !== null || this.fy !== null;
+            this.fx = parseFloat(fp[0]); this.fy = parseFloat(fp[1]);
+            this.faced = !hadOwn;
+          } else { this.faced = false; }
+
+          this.stage = 'ready';
+        } catch (e) {
+          if (e && e.name === 'AbortError') { this.stage = 'entry'; return; }
+          this.error = 'Network error. Nothing you typed has been lost.';
+          this.stage = 'failed';
+        } finally { this.ctrl = null; }
+      },
+
+      cancel(){
+        if (this.ctrl) this.ctrl.abort();
+        this.stage = 'entry';
+      },
+
+      fileName(){
+        return 'i-will-be-there-' + slug + '.png';
+      },
+
+      async share(){
+        if (!this.blob) return;
+        try {
+          var file = new File([this.blob], this.fileName(), { type: 'image/png' });
+          await navigator.share({ files: [file], text: this.caption });
+        } catch (e) {
+          /* A cancelled share sheet throws AbortError, and treating that as a failure would
+             put an error under a button somebody deliberately dismissed. */
+          if (e && e.name === 'AbortError') return;
+          this.error = 'That did not open. Save the image instead and attach it.';
+        }
+      },
+
+      save(){
+        if (!this.pngUrl) return;
+        var a = document.createElement('a');
+        a.href = this.pngUrl;
+        a.download = this.fileName();
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        /* On the two-step path the caption is copied WITH the save, so the second step is
+           paste rather than "go back and press another button". */
+        if (!this.canShareFile) this.copy();
+      },
+
+      copy(){
+        var done = (ok) => {
+          this.copied = ok;
+          if (window.agAnnounce) window.agAnnounce(ok ? 'Caption copied' : 'Could not copy the caption');
+          if (ok) setTimeout(() => { this.copied = false; }, 2400);
+        };
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          navigator.clipboard.writeText(this.caption).then(function(){ done(true); }, function(){ done(false); });
+        } else { done(false); }
+      }
+    };
+  }
+
+  function evShare(){
+    return {
+      note:'',
+      async share(){
+        var url = location.href;
+        try{ if(navigator.share){ await navigator.share({ title: document.title, url: url }); return; } }
+        catch(e){ if(e && e.name === 'AbortError') return; }
+        try{ await navigator.clipboard.writeText(url); }catch(e){}
+        this.note = 'Link copied ✓'; clearTimeout(this._t); this._t = setTimeout(function(){}, 0);
+        var self = this; this._t = setTimeout(function(){ self.note = ''; }, 2000);
+      }
+    };
+  }
+</script>
+{% endblock %}

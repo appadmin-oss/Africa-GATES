@@ -1,0 +1,125 @@
+{% extends "layout/gates.twig" %}
+
+{#
+  THE ORGANISATION SIGN-IN.
+
+  Deliberately plain: this screen's only job is to be unambiguous about which organisation's
+  money is behind it.
+
+  ── WHAT WAS WRONG WITH IT ──────────────────────────────────────────────────
+
+  It said "Partner sign in · for organisations collecting donations through Africa GATES",
+  and roughly half the accounts that reach it are STAND VENDORS. A trader signing in to
+  upload a hygiene certificate was told, on the way, that this door is for somebody else —
+  which is exactly the moment a person decides they are in the wrong place and leaves.
+
+  It also had no way back to the application. Somebody who arrived here without an account
+  had a dead end and a password field.
+#}
+
+{% block head_styles %}
+<style nonce="{{ csp_nonce }}">
+  body[data-page="partner"]{
+    --pl-paper:#f0f2f2; --pl-card:#fff; --pl-cream:#f6f2e6;
+    --pl-ink:#10292C; --pl-ink-2:#4a5256; --pl-mute:#626a6e;
+    --pl-line:rgba(16,41,44,.12); --pl-line-2:rgba(16,41,44,.22);
+    --pl-gold-ink:#745001; --pl-green:#237b22; --pl-green-dark:#12481d;
+    background:var(--pl-paper); color:var(--pl-ink);
+  }
+  .pl{ max-width:440px; margin:0 auto; padding:clamp(32px,7vw,64px) var(--ag-gutter,32px) 90px; }
+
+  .pl-kick{ display:block; font-family:var(--ag-font-mono,monospace); font-size:10.5px;
+    font-weight:700; letter-spacing:.24em; text-transform:uppercase; color:var(--pl-gold-ink); }
+  .pl h1{ margin:12px 0 0; font-family:var(--ag-font-display,Georgia,serif); font-weight:800;
+    font-size:clamp(1.6rem,4vw,2.2rem); line-height:1.06; letter-spacing:-.03em;
+    color:var(--pl-ink); }
+  .pl__sub{ margin:12px 0 26px; font-size:14.5px; line-height:1.65; color:var(--pl-ink-2); }
+
+  .pl__card{ background:var(--pl-card); border:1px solid var(--pl-line);
+    border-radius:14px; padding:24px 22px; }
+  .pl__f{ display:block; margin-bottom:18px; }
+  .pl__f span{ display:block; font-family:var(--ag-font-mono,monospace); font-size:11px;
+    font-weight:700; letter-spacing:.18em; text-transform:uppercase; color:var(--pl-ink-2);
+    margin-bottom:8px; }
+  /* 16px, or iOS zooms the page on focus. */
+  .pl__f input{ width:100%; box-sizing:border-box; font:inherit; font-size:16px;
+    color:var(--pl-ink); border:1px solid var(--pl-line-2); border-radius:4px;
+    padding:0 14px; min-height:48px; background:var(--pl-card); outline:none; }
+  .pl__f input:focus{ border-color:var(--pl-green); box-shadow:0 0 0 3px rgba(35,123,34,.16); }
+  .pl__go{ width:100%; min-height:50px; cursor:pointer; border:none;
+    border-radius:var(--ag-r-pill,999px); background:var(--pl-green-dark); color:#fff;
+    font:700 15px/1 inherit; }
+  .pl__go:hover{ background:#0d3716 }
+  .pl__go:focus-visible{ outline:3px solid var(--pl-green); outline-offset:3px }
+  /* #b42318 on #fdeaea is 6.1:1. An error nobody can read is not an error message. */
+  .pl__err{ background:#fdeaea; border:1px solid #f3c2c2; color:#b42318; border-radius:4px;
+    padding:12px 14px; font-size:13.5px; line-height:1.6; margin-bottom:18px; font-weight:600; }
+  .pl__note{ margin:20px 0 0; font-size:12.5px; line-height:1.7; color:var(--pl-mute); }
+
+  /* No account? The two doors, named by what they are for rather than by what we call
+     them internally — a trader looking for "vendor" will not find "partner". */
+  .pl__doors{ margin-top:26px; padding-top:22px; border-top:1px solid var(--pl-line-2); }
+  .pl__doors h2{ margin:0 0 4px; font-family:var(--ag-font-mono,monospace); font-size:11px;
+    font-weight:700; letter-spacing:.22em; text-transform:uppercase; color:var(--pl-mute); }
+  .pl__door{ display:block; padding:15px 0; border-bottom:1px solid var(--pl-line);
+    text-decoration:none; }
+  .pl__door b{ display:block; font-size:14.5px; font-weight:700; color:var(--pl-ink); }
+  .pl__door span{ display:block; margin-top:4px; font-size:12.5px; line-height:1.55;
+    color:var(--pl-mute); }
+  .pl__door:hover b{ color:var(--pl-green-dark); text-decoration:underline }
+  .pl__door:focus-visible{ outline:3px solid var(--pl-green); outline-offset:3px }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="pl">
+  <span class="pl-kick">Organisation account</span>
+  <h1>Sign in</h1>
+  {# BOTH kinds, named. A stand vendor and a donation partner share this door, and the old
+     copy told the vendor it was somebody else's. #}
+  <p class="pl__sub">For vendors trading at our events and for organisations raising
+    donations through Africa GATES.</p>
+
+  <div class="pl__card">
+    {# One message for every kind of failure. Telling an unknown address apart from a wrong
+       password is an account-enumeration oracle. #}
+    {% if error %}<div class="pl__err" role="alert">{{ error }}</div>{% endif %}
+
+    <form method="post" action="/org/login">
+      <input type="hidden" name="_token" value="{{ csrf_token }}">
+
+      <label class="pl__f" for="plEmail">
+        <span>Email address</span>
+        <input id="plEmail" name="email" type="email" autocomplete="username" required>
+      </label>
+
+      <label class="pl__f" for="plPassword">
+        <span>Password</span>
+        <input id="plPassword" name="password" type="password" autocomplete="current-password" required>
+      </label>
+
+      <button class="pl__go" type="submit">Sign in</button>
+    </form>
+
+    <p class="pl__note">
+      This sign-in can see your organisation’s money and request payouts. If you have lost
+      access, contact Africa GATES — we will not send a password over email.
+    </p>
+  </div>
+
+  {# A password field and no way to get an account is a dead end. #}
+  <div class="pl__doors">
+    <h2>No account yet</h2>
+    <a class="pl__door" href="/events">
+      <b>Trading at an event</b>
+      <span>Apply for a stand. The form creates your account in the same step, and applying
+        costs nothing.</span>
+    </a>
+    <a class="pl__door" href="/gift/apply">
+      <b>Raising donations</b>
+      <span>Apply for a page in your organisation’s name. CAC and SCUML registration are
+        both required.</span>
+    </a>
+  </div>
+</div>
+{% endblock %}

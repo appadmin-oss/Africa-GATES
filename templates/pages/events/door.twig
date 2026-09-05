@@ -1,0 +1,1028 @@
+{#
+  THE DOOR — the scanner a steward holds at the entrance.
+
+  ── WHY THIS TEMPLATE DOES NOT EXTEND layout/gates.twig ────────────────────
+  It used to, and that put the ENTIRE SITE on a door: the desktop nav, the footer, the
+  community FAB, the Gee launcher, and — because `.ag-nav` hides below 900px and
+  `.ag-mobnav` takes over — a bottom tab bar under the steward's thumb offering Home,
+  Pulse, Nominate, Ranks and Menu. On a phone, mid-queue, the largest tap targets on the
+  door were five ways to leave it.
+
+  So this is a standalone document that loads one stylesheet. It is not an optimisation;
+  it is the first thing the redesign fixes.
+
+  ── EVERY TIME HERE IS PRE-FORMATTED BY THE CONTROLLER ─────────────────────
+  In the EVENT's own zone. These were once `|slice(11, 5)` over the stored string, and
+  storage is UTC by this application's convention — so a gate closing at 23:00 in Lagos
+  told its steward it closed at 22:00. Slicing a datetime is not formatting it; it is
+  reading the storage convention out loud. Nothing below formats a time.
+
+  ── THE THREE RULES THE OLD PAGE WAS BUILT ON, AND WHERE THEY WENT ─────────
+    1. "The verdict is a WORD before it is a colour." KEPT, and strengthened: every state
+       has its own word AND its own mark glyph, so the colour is confirmation. The
+       redesign adds that the whole FRAME carries the hue, because a steward reads it at
+       arm's length in the dark and colour arrives before typography.
+    2. "The typed box is the door, not the fallback." REVERSED, deliberately. The camera
+       is now the ground state and the keypad is behind `123` — because the two reasons
+       the camera never worked in production were a `Permissions-Policy` header and a
+       feature gate on `BarcodeDetector`, and both are fixed. The keypad is kept for the
+       wet lens and for iOS, and it is one tap away.
+    3. "Nothing reloads." KEPT. A page load per attendee IS the queue.
+#}<!doctype html>
+<html lang="en" class="dr-html">
+<head>
+<meta charset="utf-8">
+{# `viewport-fit=cover` so the dock can pad past the home indicator rather than under it. #}
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#04080a">
+<meta name="robots" content="noindex, nofollow">
+<title>{{ page_title|default('Door — Africa GATES') }}</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="{{ asset('/assets/css/components/door.css') }}">
+{% if ok %}
+{# The organiser's own accent, lifted by DoorTone until it clears the dark frame. Three
+   values and not one: `accent` owes 3:1 as a user-interface component (the sweep, the
+   torch, the rule, the mark), `accent_text` owes 4.5:1 because a guest of honour's name
+   is 21px at weight 500 and somebody has to read it, and `soft` is the sweep gradient's
+   mid stop as a resolved rgba — a browser that does not know color-mix() drops the whole
+   background declaration and takes the scan line with it. #}
+<style nonce="{{ csp_nonce }}">
+.dr{--dr-accent:{{ tone.accent }};--dr-accent-text:{{ tone.accent_text }};--dr-accent-soft:{{ tone.soft }}}
+</style>
+{% endif %}
+</head>
+<body class="dr-body">
+
+{% if not ok %}
+  {# ── THE PASS IS DEAD ───────────────────────────────────────────────────
+     Camera off, light out. A dead gate should look dead — there is nothing this person
+     can do but read the time, so the screen gives them the time and nothing else. It is
+     still a PAGE and not a 404, because somebody is standing at a door and "this opens at
+     18:00" is the difference between waiting two minutes and ringing an organiser. #}
+  <div class="dr" data-state="closed">
+    <div class="dr__shut">
+      <span class="dr__shut__m" aria-hidden="true">✕</span>
+      <p class="dr__shut__k">This pass</p>
+      <p class="dr__shut__w">{{ reason == 'early' ? 'Not open yet' : 'Door closed' }}</p>
+      {% if reason == 'early' and opens_at %}
+        <p class="dr__shut__l">It opens at {{ opens_at }}</p>
+      {% elseif closes_at %}
+        <p class="dr__shut__l">It closed at {{ closes_at }}</p>
+      {% endif %}
+      <p class="dr__shut__b">
+        {{ message }}
+        {%- if opens_at and closes_at %} Valid from {{ opens_at }} to {{ closes_at }}.{% endif %}
+        Ask whoever sent the link for a new one.
+      </p>
+    </div>
+  </div>
+
+{% else %}
+
+<div class="dr" id="dr" data-state="idle">
+
+  {# The light. Two blurred fields drifting on unequal cycles behind everything, a
+     hairline rim, and one flare per scan that settles by itself. Every colour in here
+     comes from the custom properties `data-state` sets. #}
+  <div class="dr__aura" id="drAura" aria-hidden="true"></div>
+  <div class="dr__vig" aria-hidden="true"></div>
+  <div class="dr__rim" aria-hidden="true"></div>
+
+  {# ── THE VIEWFINDER, WHICH IS THE GROUND STATE ────────────────────────
+     The camera never leaves. A verdict FREEZES and dims it rather than emptying the
+     frame, so the screen reads as held rather than blank. #}
+  <div class="dr__feed" id="drFeed" aria-hidden="true">
+    <video class="dr__video" id="drVideo" playsinline muted autoplay></video>
+    <div class="dr__reticle"><i class="dr__sweep" id="drSweep"></i></div>
+  </div>
+
+  {# The camera is started on load, but a browser may refuse to open one without a
+     gesture and every browser may refuse without permission. Rather than a dead black
+     rectangle, the reticle itself becomes the button — one tap, in the place the
+     steward is already looking. #}
+  <button type="button" class="dr__tap" id="drTap" hidden>
+    <span class="dr__tap__t" id="drTapT">Tap to start the camera</span>
+  </button>
+
+  <header class="dr__head">
+    <div class="dr__head__l">
+      <p class="dr__ev">{{ event.title }}</p>
+      <p class="dr__gate">
+        {{- label ?: 'Door' }}{% if closes_short %} · closes {{ closes_short }}{% endif -%}
+      </p>
+    </div>
+    <p class="dr__tally">
+      <span id="drCount">{{ admitted }}</span><i>/{{ expected }}</i>
+      <span class="dr__sr" aria-live="polite" id="drCountSr">{{ admitted }} of {{ expected }} in</span>
+    </p>
+  </header>
+
+  {# Scans taken while the line was down. A hairline under the header, never a chip. #}
+  <div class="dr__held" id="drHeld" hidden>
+    <span class="dr__held__t" id="drHeldT"></span>
+    <button type="button" class="dr__held__b" id="drSend">Send</button>
+  </div>
+
+  <div class="dr__spacer"></div>
+
+  {# ── THE VERDICT ──────────────────────────────────────────────────────
+     `aria-live="assertive"` because it interrupts for a reason: the steward is looking
+     at a person, not at the phone, and this is the one thing on the screen that must
+     reach them without being looked for. #}
+  <section class="dr__slab" id="drSlab" role="status" aria-live="assertive" hidden>
+    <i class="dr__slab__rule" id="drRule" aria-hidden="true"></i>
+
+    <div class="dr__vh">
+      <span class="dr__mark" id="drMark" aria-hidden="true"></span>
+      <span class="dr__kicker" id="drKicker"></span>
+      <span class="dr__code" id="drCode"></span>
+      <button type="button" class="dr__x" id="drDismiss" aria-label="Back to scanning">✕</button>
+    </div>
+
+    <p class="dr__word" id="drWord"></p>
+    <p class="dr__name" id="drName" hidden></p>
+    <p class="dr__meta" id="drMeta" hidden></p>
+
+    {# A multi-seat ticket with more than one seat free admits NOBODY until a count is
+       chosen. Guests of honour skip it entirely. #}
+    <div class="dr__party" id="drParty" role="group" aria-label="How many are here" hidden></div>
+
+    {# Two taps, no dialog. A modal at a door is a second thing to dismiss one-handed
+       with a queue waiting, and the relabel carries what a confirm box would. #}
+    <button type="button" class="dr__undo" id="drUndo" hidden>Not them — take it back</button>
+  </section>
+
+  <div class="dr__dock">
+    <button type="button" class="dr__circ" id="drTorch" aria-label="Torch" aria-pressed="false">☀</button>
+    {# Hidden unless the browser has actually refused a greeting. A control that is always
+       there would be one more thing on a screen a steward glances at with a queue in front
+       of them, and for most of them there is nothing to fix. #}
+    <button type="button" class="dr__circ dr__circ--sound" id="drSound"
+            aria-label="Let the door greet guests aloud" hidden>♪</button>
+    <button type="button" class="dr__arr" id="drOpenLog">
+      <span class="dr__arr__last" id="drLast">Nothing scanned yet tonight</span>
+      <span class="dr__arr__w">Arrivals</span>
+    </button>
+    <button type="button" class="dr__circ dr__circ--pad" id="drOpenPad" aria-label="Type a code instead">123</button>
+  </div>
+
+  {# ── WHY THE DOOR IS SILENT ──────────────────────────────────────────────
+     Only ever drawn when the voice is switched ON and cannot speak. A gate where nobody
+     is greeted looked identical whether the voice was off, no clips had been made, or
+     the browser refused playback — and all three reach a person as "the voice is not
+     working", which is the report that cannot be acted on.
+
+     The server knows two of the three. The third it cannot possibly know: whether THIS
+     browser is allowing sound on this site at all. `Permissions-Policy` is decided
+     before a line of this page runs and has twice switched a shipped feature off here
+     with nothing on the page to say so — so the page asks the browser directly. #}
+  {% if welcome_on %}
+    <p class="dr__quiet" id="drQuiet"{% if not welcome_why %} hidden{% endif %}>{{ welcome_why }}</p>
+  {% endif %}
+
+  {# ── THE KEYPAD — kept because iOS Safari has no BarcodeDetector and lenses get wet.
+     A fallback, never the default. #}
+  <div class="dr__pad" id="drPad" hidden>
+    <div class="dr__pad__h">
+      <p class="dr__pad__l" id="drPadL">Type it instead</p>
+      <button type="button" class="dr__x" id="drClosePad" aria-label="Close the keypad">✕</button>
+    </div>
+    <form class="dr__pad__f" id="drForm" autocomplete="off">
+      <input class="dr__pad__i" id="drInput" name="code" placeholder="ABCD-2468"
+             aria-labelledby="drPadL" autocomplete="off" spellcheck="false"
+             autocapitalize="characters" inputmode="latin" maxlength="64">
+      <button type="submit" class="dr__pad__go" id="drGo">Check</button>
+    </form>
+  </div>
+
+  {# ── ARRIVALS — every admission, refusal and reversal, newest first ────
+     Seeded from `gates_event_checkin_log` so a steward taking over a gate mid-evening
+     sees what happened before they arrived, rather than an empty list that reads as
+     "nobody has come in". #}
+  <div class="dr__log" id="drLog" role="dialog" aria-modal="true" aria-label="Arrivals" hidden>
+    <div class="dr__log__h">
+      <p class="dr__log__t">Arrivals</p>
+      <p class="dr__log__n" id="drLogN"></p>
+      <button type="button" class="dr__x dr__x--lg" id="drCloseLog" aria-label="Close arrivals">✕</button>
+    </div>
+    <div class="dr__log__b">
+      <p class="dr__log__e" id="drLogE" hidden>Nobody yet tonight. Every admission, refusal and reversal is written here as it happens.</p>
+      <div id="drRows"></div>
+    </div>
+  </div>
+
+</div>
+
+<script nonce="{{ csp_nonce }}">
+(function () {
+  'use strict';
+
+  // Captured HERE, synchronously. `document.currentScript` is only set during a script's
+  // initial pass — read inside a click handler it is null, and the decoder injected below
+  // would carry an empty nonce.
+  var NONCE = (document.currentScript && document.currentScript.nonce) || '';
+
+  var TOKEN = {{ token|json_encode|raw }};
+  var URL_CHECK = '/door/' + TOKEN + '/check';
+  var URL_UNDO  = '/door/' + TOKEN + '/undo';
+  var URL_SYNC  = '/door/' + TOKEN + '/sync';
+
+  var $ = function (id) { return document.getElementById(id); };
+  var root = $('dr'), aura = $('drAura'), slab = $('drSlab');
+  if (!root || !slab) return;
+
+  var el = {
+    feed: $('drFeed'), video: $('drVideo'), sweep: $('drSweep'), tap: $('drTap'), tapT: $('drTapT'),
+    count: $('drCount'), countSr: $('drCountSr'),
+    held: $('drHeld'), heldT: $('drHeldT'), send: $('drSend'),
+    rule: $('drRule'), mark: $('drMark'), kicker: $('drKicker'), code: $('drCode'),
+    word: $('drWord'), name: $('drName'), meta: $('drMeta'),
+    party: $('drParty'), undo: $('drUndo'), dismiss: $('drDismiss'),
+    torch: $('drTorch'), openLog: $('drOpenLog'), last: $('drLast'), openPad: $('drOpenPad'),
+    sound: $('drSound'), quiet: $('drQuiet'),
+    pad: $('drPad'), form: $('drForm'), input: $('drInput'), go: $('drGo'), closePad: $('drClosePad'),
+    log: $('drLog'), logN: $('drLogN'), logE: $('drLogE'), rows: $('drRows'), closeLog: $('drCloseLog')
+  };
+
+  // ══ THE VOICE ═══════════════════════════════════════════════════════════
+  //
+  // One <audio> element, reused. Created ONCE AND EAGERLY, and this is the whole of why
+  // the greeting never played: the element used to be built lazily inside greet(), which
+  // runs from the decode loop. So the only element that ever existed was created outside
+  // a user gesture, was never once played inside one, and every browser that gates
+  // audible playback refused it — as a rejected promise the catch below swallows, which
+  // is the right thing to do with it and is exactly why nobody saw this. No error, no
+  // console line, no log: a room of people never hearing their names.
+  //
+  // (The other half was a HEADER. `Permissions-Policy: autoplay=()` denied the feature to
+  // our own pages site-wide, so the refusal came before any of this ran — the same shape
+  // as the `camera=()` that had the ticket scanner dead. Fixed in
+  // SecurityHeadersMiddleware::SHARED and public/.htaccess together.)
+  //
+  // The src is a key the server rendered HOURS ago by a maintenance sweep. Nothing is
+  // synthesised here and nothing is awaited: play() is fired and forgotten, so a slow
+  // clip, a muted phone or a refused autoplay cannot hold up the verdict or the queue.
+  var welcomeOn = {{ welcome_on|default(false) ? 'true' : 'false' }};
+  var audio     = welcomeOn ? new Audio() : null;
+  var unlocked  = false;
+  var pending   = '';                       // a greeting refused, waiting on one tap
+
+  if (audio) audio.preload = 'none';
+
+  function clipUrl(key) { return '/door/' + TOKEN + '/welcome/' + key; }
+
+  /**
+   * A silent sound, built here, needing nothing.
+   *
+   * ── WHY THIS IS NOT A CLIP FROM THE SERVER ───────────────────────────────
+   *
+   * It was one, and that is the bug this replaced. The primer used to be the generic
+   * greeting, on the reasoning that it is "the only clip guaranteed to exist whenever
+   * the voice is on" — which is false, and false in exactly the case that matters. Every
+   * clip is made by a maintenance sweep; this host has no shell, so the sweep only runs
+   * if somebody wired up the cron Worker. Where nobody had, NOTHING was on disk, the
+   * primer was the empty string, unlock() returned on its first line for every touch of
+   * the evening, and the first guest's greeting hit the autoplay gate with the player
+   * never once having been played inside a gesture. A door that had greetings by then —
+   * primed on page open — still could not say them.
+   *
+   * Forty-five bytes of PCM: one 8-bit sample at 0x80, which is silence. A Blob and not
+   * a `data:` URI because `media-src` allows `blob:` and does not allow `data:`, and a
+   * blocked primer fails the same silent way as no primer at all. Local, so it needs no
+   * network inside the gesture — a venue's wifi must not be able to cost us the unlock.
+   */
+  function silentSrc() {
+    var b = new Uint8Array([
+      82,73,70,70, 37,0,0,0, 87,65,86,69,          // "RIFF" 37 "WAVE"
+      102,109,116,32, 16,0,0,0, 1,0, 1,0,          // "fmt " 16, PCM, mono
+      68,172,0,0, 68,172,0,0, 1,0, 8,0,            // 44100Hz, 44100B/s, align 1, 8-bit
+      100,97,116,97, 1,0,0,0, 128                  // "data" 1, one silent sample
+    ]);
+    return URL.createObjectURL(new Blob([b], { type: 'audio/wav' }));
+  }
+
+  /**
+   * Bank the steward's first touch, whatever they touched.
+   *
+   * SILENT, so the torch button does not answer with "You are welcome." — the point is
+   * only that this element has been played inside a gesture once. After that the decode
+   * loop may play it audibly for the rest of the evening.
+   *
+   * Nothing here may depend on a clip, a key, a request or the cron having been set up:
+   * this runs on the one gesture the evening is going to give us, and there is no second
+   * chance to ask for it.
+   */
+  function unlock() {
+    if (!audio || unlocked) return;
+    unlocked = true;
+    try {
+      audio.src = silentSrc();
+      var mine = audio.src;
+      var p = audio.play();
+      // The pause only fires if nothing has taken the player over in the meantime. A
+      // steward who taps and scans in the same second would otherwise have this cleanup
+      // stop the first guest's greeting a beat after it started — and that guest is the
+      // one person in the queue whose greeting anybody would be listening for.
+      var done = function () {
+        try { if (audio.src === mine) audio.pause(); } catch (e) {}
+      };
+      if (p && p.then) p.then(done, done); else done();
+    } catch (e) { /* the greeting will ask for its own tap if this was needed */ }
+
+    // ── AND THE LAST VOICE IN THE CHAIN, WHICH IS GATED THE SAME WAY ───────
+    //
+    // speechSynthesis is what speaks when no clip exists — a walk-up, a late booking, or
+    // a deployment whose sweep has never run, which is every one of them until somebody
+    // wires the cron. On iOS it is refused from a timer unless it has spoken once inside
+    // a gesture, and greet() is only ever called from the decode loop. So spend this
+    // gesture on both voices: an empty utterance is inaudible and unlocks the queue.
+    try {
+      var synth = window.speechSynthesis;
+      if (synth && typeof SpeechSynthesisUtterance === 'function') {
+        var warm = new SpeechSynthesisUtterance(' ');
+        warm.volume = 0;
+        synth.speak(warm);
+      }
+    } catch (e) { /* an older browser has no second voice to lose */ }
+  }
+
+  // ── ASK THE BROWSER WHETHER IT WILL LET THIS SITE MAKE A SOUND ───────────
+  //
+  // `Permissions-Policy` is decided before any of this runs, and has twice switched a
+  // shipped feature off here with nothing on the page to say so — the camera once, and
+  // this voice. The server cannot see the header the browser actually received; the
+  // browser can, and answers in one call. A door that is silent because of a header now
+  // says so, instead of looking like a door with no clips made.
+  (function () {
+    if (!welcomeOn || !el.quiet) return;
+    try {
+      var fp = document.featurePolicy || document.permissionsPolicy;
+      if (fp && fp.allowsFeature && !fp.allowsFeature('autoplay')) {
+        el.quiet.textContent = 'This browser is blocking sound on this site, so nobody '
+                             + 'will be greeted aloud. Nothing else here is affected.';
+        el.quiet.hidden = false;
+      }
+    } catch (e) { /* an older browser cannot be asked; the door is silent either way */ }
+  })();
+
+  // ── MAKE THIS EVENING'S GREETINGS, NOW, BEFORE ANYBODY IS STANDING HERE ──
+  //
+  // The door plays clips that are already on disk and never renders one — right, because
+  // a queue cannot wait on a datacentre. They are made ahead by a sweep that runs from
+  // cron, and on a host with no shell cron is a Worker somebody has to have set up.
+  // Where that never happened, no clip has ever existed and every scan fell through to
+  // silence — while the settings preview, which synthesises on demand, spoke perfectly.
+  // "It only speaks when you test it" was both of those facts at once.
+  //
+  // This is the one moment in the evening when a round trip costs nothing: the page is
+  // open, the gate is not. Fired once, not awaited, and its failure is ignored — a door
+  // that cannot prime is exactly as usable as it was a minute ago, and a steward has
+  // nothing to do about it mid-queue.
+  (function () {
+    if (!welcomeOn) return;
+    try {
+      fetch('/door/' + TOKEN + '/prime', { method: 'POST', credentials: 'same-origin' })
+        .then(function (r) { return r.json(); })
+        .then(function (d) {
+          if (!d || !el.quiet) return;
+          // Only ever said when something is actually missing. "Made 40 greetings" on a
+          // door that was already ready is a notification about nothing, forty seconds
+          // before the first guest.
+          if (d.ok && d.left > 0) {
+            el.quiet.textContent = d.left + ' guest' + (d.left === 1 ? '' : 's')
+              + ' still to be recorded — they will be greeted in the standard welcome. '
+              + 'Reload to make the next batch.';
+            el.quiet.hidden = false;
+          } else if (!d.ok && d.detail) {
+            el.quiet.textContent = d.detail;
+            el.quiet.hidden = false;
+          }
+        })
+        .catch(function () { /* the door works exactly as it did */ });
+    } catch (e) { /* likewise */ }
+  })();
+
+  // `once`, and on the capture phase, so it fires before any handler that stops the
+  // event — the keypad and the log both do.
+  document.addEventListener('pointerdown', unlock, { capture: true, once: true });
+  document.addEventListener('keydown', unlock, { capture: true, once: true });
+
+  // ── THE LAST VOICE IN THE CHAIN, AND THE ONLY ONE THAT NEEDS NOTHING ─────
+  //
+  // Every provider before this one needs a key, a network and a clip rendered hours
+  // earlier by a sweep. All three fail routinely: a walk-up or a late booking has no clip
+  // by definition, and on a host with no shell the sweep only runs if somebody wired up
+  // the cron.
+  //
+  // The browser has a voice built in. No key, no request, nothing to configure and
+  // nothing to go wrong at 7pm — and it is the difference between a guest hearing a
+  // slightly robotic welcome and hearing nothing at all. Used ONLY when there is no clip:
+  // a rendered greeting is better in every way, and this must never pre-empt one.
+  function speakHere(text) {
+    if (!text) return false;
+    try {
+      var synth = window.speechSynthesis;
+      if (!synth || typeof SpeechSynthesisUtterance !== 'function') return false;
+      // A queued utterance from the previous guest would otherwise play over this one,
+      // and at a door the queue moves faster than the sentence.
+      synth.cancel();
+      var u = new SpeechSynthesisUtterance(text);
+      u.rate = 0.98;              // a shade under default; names survive it better
+      u.lang = document.documentElement.lang || 'en-NG';
+      synth.speak(u);
+      return true;
+    } catch (e) { return false; }
+  }
+
+  function greet(key, say) {
+    // No clip: the browser says it instead of the door saying nothing.
+    if (!key) { speakHere(say); return; }
+    if (!audio) return;
+    try {
+      audio.muted = false;
+      audio.src = clipUrl(key);
+      var p = audio.play();
+      if (p && p.catch) p.catch(function () {
+        // REFUSED — and this is the one place it is worth saying so. Silently swallowed
+        // it is indistinguishable from a muted phone, a missing clip or the voice being
+        // switched off, and the steward has no way to tell and nothing to try. One tap
+        // fixes it for the whole evening, so offer the tap.
+        //
+        // The browser voice is NOT tried here. This refusal is the autoplay gate, and
+        // speechSynthesis is behind the same gate — so it would fail identically and the
+        // one thing that does fix it, the tap, would be buried under a second silence.
+        pending = key;
+        el.sound.hidden = false;
+      });
+    } catch (e) { /* a door with no sound is a working door */ }
+  }
+
+  // ══ THE LIGHT ═══════════════════════════════════════════════════════════
+
+  function restart(node, css) {
+    if (!node) return;
+    node.style.animation = 'none';
+    void node.offsetWidth;            // reflow, or the reassignment is coalesced away
+    node.style.animation = css;
+  }
+
+  /** One acknowledgement per scan that settles by itself. */
+  function flare() {
+    restart(aura, 'dr-flare 1.8s cubic-bezier(.22,.61,.36,1) forwards, '
+                + 'dr-breathe 9s ease-in-out 1.8s infinite');
+  }
+
+  // ══ THE VERDICT ═════════════════════════════════════════════════════════
+
+  // Copy lives here, in one table, because it is the screen's entire vocabulary and a
+  // sentence spread across four branches is how two states come to say the same thing.
+  // Each carries a distinct WORD and a distinct MARK, so the frame's colour is
+  // confirmation rather than information — a steward with any kind of colour vision, or
+  // a phone in direct sun, reads the same verdict.
+  var SAY = {
+    admit:     { mark: '✓', kicker: 'Let them in',     word: 'Admit' },
+    honour:    { mark: '★', kicker: 'Guest of honour', word: 'Admit' },
+    ask:       { mark: '',  kicker: 'How many',        word: '' },
+    duplicate: { mark: '!', kicker: 'Stop and look',   word: 'Already in' },
+    refuse:    { mark: '✕', kicker: 'Stop and look',   word: 'No ticket' },
+    held:      { mark: '⋯', kicker: 'Not checked',     word: 'Recorded' },
+    undone:    { mark: '↩', kicker: 'Taken back',      word: 'Un-admitted' },
+    // The rate limiter. The design has no state for it, so it borrows refuse's light —
+    // it IS a refusal — and takes its word and detail from the server, which is the only
+    // thing that knows how long the steward has to wait.
+    slow:      { mark: '»', kicker: 'Slow down',       word: 'Too fast' }
+  };
+
+  var LOGWORD  = { admit: 'in', honour: 'in', duplicate: 'again', refuse: 'no',
+                   held: 'held', undone: 'back', slow: 'no' };
+
+  var cur = null;          // the verdict on screen, or null
+  var onCode = '';         // the code the undo would reverse
+  var armed = false;
+  var busy = false;
+  var dismissAt = null;
+
+  // The verdict is the SERVER's, and `ask` is one of its answers rather than something
+  // the browser works out from a seat count. A door that decided locally when to stop and
+  // ask could be talked out of stopping — by a stale page, by an offline queue, or by a
+  // second gate — and the whole point of the question is that nobody is admitted until it
+  // has been answered.
+  function kindOf(v) {
+    if (!v) return 'idle';
+    if (v.verdict === 'admit' && v.honour) return 'honour';
+    return v.verdict || 'refuse';
+  }
+
+  function setState(k) { root.setAttribute('data-state', k); }
+
+  function clear() {
+    cur = null; armed = false;
+    if (dismissAt) { clearTimeout(dismissAt); dismissAt = null; }
+    slab.hidden = true;
+    root.classList.remove('is-frozen');
+    el.undo.classList.remove('is-armed');
+    setState('idle');
+  }
+
+  /**
+   * Draw a server verdict.
+   *
+   * Nothing here decides anything. `kind` is the server's; the client owns the
+   * presentation, the arming of undo and the offline queue, and nothing else. A door that
+   * inferred "admit" locally would be guessing on the steward's behalf.
+   */
+  function paint(v) {
+    var kind = kindOf(v);
+    var say  = SAY[kind] || SAY.refuse;
+
+    cur = v;
+    armed = false;
+    el.undo.classList.remove('is-armed');
+    el.undo.textContent = 'Not them — take it back';
+
+    setState(kind);
+    root.classList.add('is-frozen');
+
+    el.mark.textContent = say.mark;
+    el.mark.hidden = say.mark === '';
+    el.kicker.textContent = say.kicker;
+    el.code.textContent = v.code || '';
+
+    // `ask` names the size of the party and `slow` is the server's own sentence; every
+    // other word is fixed copy.
+    el.word.textContent = kind === 'ask'
+      ? 'Party of ' + Number(v.seats || 0)
+      : (kind === 'slow' ? (v.title || say.word) : say.word);
+
+    var name = v.name || '';
+    el.name.textContent = name;
+    el.name.hidden = name === '';
+    el.name.classList.toggle('is-honour', kind === 'honour');
+
+    el.meta.textContent = metaFor(kind, v);
+    el.meta.hidden = el.meta.textContent === '';
+
+    party(kind, v);
+    el.undo.hidden = !(kind === 'admit');
+
+    slab.hidden = false;
+    restart(slab, (kind === 'refuse' || kind === 'duplicate' || kind === 'held' || kind === 'slow')
+      ? 'dr-nudge .3s ease-in-out'
+      : 'dr-rise .3s cubic-bezier(.22,.61,.36,1)');
+    restart(el.rule, 'dr-rule .55s cubic-bezier(.22,.61,.36,1)');
+    flare();
+
+    if (kind === 'admit' || kind === 'honour') { onCode = v.code || ''; greet(v.welcome, v.say); }
+    if (typeof v.admitted === 'number') tally(v.admitted);
+
+    // A queue should not need a tap per guest, so a verdict clears itself — except the
+    // two that say STOP AND LOOK, and the one waiting on a count. Those are the states
+    // where the steward has something to do, and a screen that wipes itself mid-decision
+    // is worse than one tap.
+    if (kind === 'admit' || kind === 'honour' || kind === 'undone') {
+      dismissAt = setTimeout(clear, 6000);
+    }
+  }
+
+  function metaFor(kind, v) {
+    var seats = Number(v.seats || 0), left = Number(v.seats_left || 0), took = Number(v.admitted_now || 0);
+
+    if (kind === 'honour') return v.detail || 'Received as a guest of honour.';
+    if (kind === 'admit') {
+      if (seats > 1) return took + ' of ' + seats + ' seats · ' + left + ' still to come';
+      return (v.tier ? v.tier : 'Standard') + ' · seat 1 of 1';
+    }
+    if (kind === 'ask')       return left + ' of ' + seats + ' still to come — how many are here?';
+    // The check-in clock comes pre-formatted in the EVENT's zone; a browser formatting the
+    // stored value would show a steward in Lagos an hour that never happened.
+    if (kind === 'duplicate') return 'Came in ' + (v.at_short || '') + (v.via_label ? ' · ' + v.via_label : '');
+    if (kind === 'refuse')    return 'This code is not on tonight’s event.';
+    // ── THE ONE PLACE THIS DEPARTS FROM THE DESIGN'S COPY ─────────────────
+    //
+    // The handoff gives "The gate is offline. Checked the moment the line is back." —
+    // which describes a system state, and the same document's copy rule says the sentence
+    // must tell the steward what to DO. Offline, the steward IS the check: nothing has
+    // verified this ticket and nothing will until the line returns. A line that omits
+    // that leaves them to guess whether to let the person in, which is the one decision
+    // this screen exists to take off them.
+    if (kind === 'held')      return 'The gate is offline. Check the ticket yourself and let '
+                                   + 'them through if it looks right — it is checked the moment '
+                                   + 'the line is back.';
+    if (kind === 'undone')    return 'Their seat is back and the arrivals log says so.';
+    return v.detail || '';
+  }
+
+  function party(kind, v) {
+    el.party.innerHTML = '';
+    el.party.hidden = kind !== 'ask';
+    if (kind !== 'ask') return;
+
+    var left = Number(v.seats_left || 0), code = v.code || '';
+    var add = function (n, label, all) {
+      var b = document.createElement('button');
+      b.type = 'button';
+      b.textContent = label;
+      if (all) b.className = 'is-all';
+      b.addEventListener('click', function () { check(code, n); });
+      el.party.appendChild(b);
+    };
+    add(left, 'All ' + left, true);
+    for (var i = Math.min(left - 1, 3); i >= 1; i--) add(i, String(i), false);
+  }
+
+  function tally(n) {
+    el.count.textContent = String(n);
+    el.countSr.textContent = n + ' of ' + el.count.parentNode.querySelector('i').textContent.slice(1) + ' in';
+  }
+
+  // ══ ARRIVALS ════════════════════════════════════════════════════════════
+
+  var log = {{ arrivals|default([])|json_encode|raw }};
+
+  function remember(v, seatsNote) {
+    var kind = kindOf(v);
+    log.unshift({
+      t: clock(),
+      v: LOGWORD[kind] || 'no',
+      n: (v.name || v.code || '') + (seatsNote || '')
+    });
+    log = log.slice(0, 200);
+    drawLog();
+  }
+
+  function clock() {
+    var d = new Date(), p = function (n) { return (n < 10 ? '0' : '') + n; };
+    return p(d.getHours()) + ':' + p(d.getMinutes());
+  }
+
+  function drawLog() {
+    el.last.textContent = log.length ? (log[0].t + ' · ' + log[0].n) : 'Nothing scanned yet tonight';
+    el.logN.textContent = log.length + (log.length === 1 ? ' entry' : ' entries');
+    el.logE.hidden = log.length !== 0;
+
+    var frag = document.createDocumentFragment();
+    for (var i = 0; i < log.length; i++) {
+      var r = log[i];
+      var row = document.createElement('div'); row.className = 'dr__row';
+      var t = document.createElement('span'); t.className = 'dr__row__t'; t.textContent = r.t;
+      var n = document.createElement('span'); n.className = 'dr__row__n'; n.textContent = r.n;
+      var w = document.createElement('span'); w.className = 'dr__row__v';
+      w.setAttribute('data-v', r.v); w.textContent = r.v;
+      row.appendChild(t); row.appendChild(n); row.appendChild(w);
+      frag.appendChild(row);
+    }
+    el.rows.innerHTML = '';
+    el.rows.appendChild(frag);
+  }
+
+  // ══ THE OFFLINE QUEUE ═══════════════════════════════════════════════════
+  //
+  // Keyed to this pass, so two gates on one borrowed phone never flush each other's
+  // scans. The door must never show `Admit` on a guess: a queued scan is RECORDED and
+  // said to be unchecked, which is a different promise and the only honest one.
+  var QKEY = 'ag-door-q:' + TOKEN.slice(0, 12);
+  var pending = [];
+
+  function qLoad() {
+    try { var raw = localStorage.getItem(QKEY); pending = raw ? (JSON.parse(raw) || []) : []; }
+    catch (e) { pending = []; }
+    if (!Array.isArray(pending)) pending = [];
+    paintPending();
+  }
+  function qSave() {
+    try { localStorage.setItem(QKEY, JSON.stringify(pending)); }
+    catch (e) { /* a full or disabled store must not stop the door; the queue lives in memory */ }
+    paintPending();
+  }
+  function paintPending() {
+    el.held.hidden = pending.length === 0;
+    el.heldT.textContent = pending.length
+      + (pending.length === 1 ? ' scan held — not checked yet' : ' scans held — not checked yet');
+  }
+  function qAdd(code, seats) {
+    pending.push({
+      // A client id, so a flush that half-succeeds or is retried after a timeout cannot
+      // record the same person twice.
+      id: (Date.now().toString(36) + Math.random().toString(36).slice(2, 8)),
+      code: code,
+      seats: Number(seats || 0),
+      // The moment it HAPPENED. Sent so the log reads as an evening rather than as forty
+      // people arriving in the same second half an hour later.
+      at: stamp()
+    });
+    qSave();
+  }
+  function stamp() {
+    var d = new Date(), p = function (n) { return (n < 10 ? '0' : '') + n; };
+    return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate()) + ' '
+         + p(d.getHours()) + ':' + p(d.getMinutes()) + ':' + p(d.getSeconds());
+  }
+
+  var flushing = false;
+  async function flush() {
+    if (flushing || !pending.length) return;
+    flushing = true;
+    var sending = pending.slice(0, 200);
+    try {
+      var r = await fetch(URL_SYNC, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+        body: JSON.stringify({ scans: sending })
+      });
+      var d = await r.json();
+      var done = {};
+      (d.results || []).forEach(function (x) { if (x && x.id) done[x.id] = x; });
+      pending = pending.filter(function (i) { return !done[i.id]; });
+      qSave();
+      if (typeof d.admitted === 'number') tally(d.admitted);
+      (d.results || []).forEach(function (x) {
+        if (x && x.verdict) remember({ verdict: x.verdict, name: x.name || '', code: x.code || '' });
+      });
+    } catch (e) { /* still down; the queue keeps it and the strip keeps saying so */ }
+    flushing = false;
+  }
+
+  // ══ CHECKING ════════════════════════════════════════════════════════════
+
+  async function check(code, seats) {
+    code = (code || '').trim();
+    if (!code || busy) return;
+    busy = true; el.go.disabled = true;
+
+    try {
+      var r = await fetch(URL_CHECK, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+        body: JSON.stringify({ code: code, seats: Number(seats || 0) })
+      });
+      var v = await r.json();
+      paint(v);
+      // `ask` is a QUESTION, not an arrival. Writing it to the log put a name in the list
+      // and on the dock's last line for somebody standing in front of the steward who had
+      // not been admitted, refused, or anything else — and it was logged as a refusal,
+      // because `ask` has no word in the log's vocabulary and the fallback is 'no'.
+      if (kindOf(v) !== 'ask') {
+        remember(v, (Number(v.seats || 0) > 1 && v.verdict === 'admit')
+          ? ' · ' + Number(v.admitted_now || 0) + ' of ' + Number(v.seats || 0) : '');
+      }
+    } catch (e) {
+      // The line is down. RECORD it and keep the queue moving — and say exactly what that
+      // means, because this is the one verdict the door does not know the answer to.
+      qAdd(code, Number(seats || 0));
+      paint({ verdict: 'held', code: code });
+      remember({ verdict: 'held', code: code });
+    }
+
+    el.input.value = '';
+    busy = false; el.go.disabled = false;
+  }
+
+  el.form.addEventListener('submit', function (e) {
+    e.preventDefault();
+    // READ BEFORE CLOSING. `closePad()` empties the field, so passing `el.input.value`
+    // after it hands `check()` an empty string and it returns without asking anything —
+    // the keypad looked completely normal and did nothing at all, on the one path every
+    // iOS phone depends on.
+    var code = el.input.value;
+    closePad();
+    check(code);
+  });
+
+  el.dismiss.addEventListener('click', clear);
+
+  el.undo.addEventListener('click', async function () {
+    if (!onCode || busy) return;
+
+    if (!armed) {
+      armed = true;
+      el.undo.classList.add('is-armed');
+      // First name only: the full name overruns the pill at 400px, and the point is that
+      // it names a person rather than which person exactly.
+      var first = (cur && cur.name) ? String(cur.name).split(/\s+/)[0] : 'them';
+      el.undo.textContent = 'Press again to un-admit ' + first;
+      if (dismissAt) { clearTimeout(dismissAt); dismissAt = null; }
+      return;
+    }
+
+    busy = true; el.undo.disabled = true;
+    try {
+      var r = await fetch(URL_UNDO, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+        body: JSON.stringify({ code: onCode })
+      });
+      var v = await r.json();
+      paint(v); remember(v);
+    } catch (e) {
+      paint({ verdict: 'refuse', code: onCode, detail: 'Nothing was changed. Scan again and retry.' });
+    }
+    busy = false; el.undo.disabled = false;
+  });
+
+  // ══ SHEETS — mutually exclusive, and the keypad clears the verdict ══════
+
+  function openPad() {
+    closeLog();
+    clear();
+    el.pad.hidden = false;
+    root.classList.add('is-frozen');
+    el.input.focus();
+  }
+  function closePad() {
+    el.pad.hidden = true;
+    el.input.value = '';
+    if (!cur) root.classList.remove('is-frozen');
+  }
+  function openLog()  { closePad(); el.log.hidden = false; el.closeLog.focus(); }
+  function closeLog() { el.log.hidden = true; }
+
+  // The tap that fixes the evening. Playing the greeting HERE — inside the gesture — both
+  // greets the guest standing there and leaves the element unlocked for every guest after.
+  el.sound.addEventListener('click', function () {
+    unlocked = true;
+    el.sound.hidden = true;
+    var key = pending; pending = '';
+    if (key) greet(key);
+  });
+
+  el.openPad.addEventListener('click', openPad);
+  el.closePad.addEventListener('click', closePad);
+  el.openLog.addEventListener('click', openLog);
+  el.closeLog.addEventListener('click', closeLog);
+  el.send.addEventListener('click', function () { flush(); });
+
+  document.addEventListener('keydown', function (e) {
+    if (e.key !== 'Escape') return;
+    if (!el.log.hidden) closeLog();
+    else if (!el.pad.hidden) closePad();
+    else if (cur) clear();
+  });
+
+  // ══ COMING BACK ═════════════════════════════════════════════════════════
+  //
+  // Three ways, because none is reliable alone at a venue: `online` does not fire on
+  // every recovery, and `navigator.onLine` reports the wifi association rather than
+  // whether anything is reachable through it — a captive portal is "online" and useless.
+  // So the browser's hint, a slow poll, and a button the steward can press.
+  qLoad();
+  drawLog();
+  flush();
+  window.addEventListener('online', function () { flush(); });
+  setInterval(function () { if (pending.length) flush(); }, 20000);
+
+  // ══ THE CAMERA ══════════════════════════════════════════════════════════
+  //
+  // TWO THINGS KEPT THIS FROM EVER WORKING IN PRODUCTION, and both failed silently.
+  //
+  //   1. `Permissions-Policy: camera=()` denied the camera on every page of the site.
+  //      getUserMedia was rejected before any of this ran, and the catch wrote "Camera
+  //      unavailable" — indistinguishable from a refused prompt or a broken lens.
+  //   2. The camera was gated on `BarcodeDetector`, which exists on no iOS browser (they
+  //      are all WebKit) and not on Firefox. A steward holding an iPhone saw no camera at
+  //      all, which at a Nigerian gala is a large share of the people working a gate.
+  //
+  // So the gate is getUserMedia alone, and WHICH decoder runs is decided after the stream
+  // opens: the native one where it exists, jsQR where it does not. jsQR is vendored and
+  // lazy — a door on venue wifi cannot fetch a third-party script the moment a queue
+  // forms, and a Chrome phone should not download 130KB it never uses.
+  var vid = el.video;
+  var secure = window.isSecureContext || location.hostname === 'localhost';
+  var stream = null, timer = null, native = null, jsqr = null, canvas = null, ctx = null;
+  var lastRaw = '', lastAt = 0;
+
+  function offer(msg) {
+    el.tapT.textContent = msg;
+    el.tap.hidden = false;
+  }
+
+  async function nativeDecoder() {
+    if (!('BarcodeDetector' in window)) return null;
+    try {
+      var f = await BarcodeDetector.getSupportedFormats();
+      if (f.indexOf('qr_code') === -1) return null;
+      return new BarcodeDetector({ formats: ['qr_code'] });
+    } catch (e) { return null; }
+  }
+
+  function loadJsQR() {
+    if (window.jsQR) return Promise.resolve(window.jsQR);
+    return new Promise(function (resolve, reject) {
+      var s = document.createElement('script');
+      // The nonce is carried deliberately. `script-src` is `'self'` plus a nonce, so a
+      // same-origin src loads without it today — but the day this policy gains
+      // `strict-dynamic`, host sources stop applying and an un-nonced injected script is
+      // refused. The failure then is a scanner that stops working on exactly the phones
+      // that need it, months after the change that did it.
+      s.nonce = NONCE;
+      s.src = '/assets/vendor/jsqr.min.js';
+      s.onload = function () { resolve(window.jsQR || null); };
+      s.onerror = function () { reject(new Error('decoder')); };
+      document.head.appendChild(s);
+    });
+  }
+
+  async function readFrame() {
+    if (native) {
+      var found = await native.detect(vid);
+      return (found && found.length) ? String(found[0].rawValue || '') : '';
+    }
+    if (!jsqr) return '';
+    var w = vid.videoWidth, h = vid.videoHeight;
+    if (!w || !h) return '';
+    if (!canvas) { canvas = document.createElement('canvas'); ctx = canvas.getContext('2d', { willReadFrequently: true }); }
+    if (canvas.width !== w) { canvas.width = w; canvas.height = h; }
+    ctx.drawImage(vid, 0, 0, w, h);
+    // A QR symbol decodes from its geometry, so the frame is sized to the VIDEO's own
+    // dimensions and not the element's — a CSS-scaled video hands the decoder a stretched
+    // image it cannot read.
+    var r = jsqr(ctx.getImageData(0, 0, w, h).data, w, h, { inversionAttempts: 'dontInvert' });
+    return r && r.data ? String(r.data) : '';
+  }
+
+  async function startCamera() {
+    if (stream) return true;
+    if (!secure || !navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      offer('No camera here — type the code');
+      return false;
+    }
+    try {
+      // The REAR camera: the steward holds the phone and the ticket faces it.
+      stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: { ideal: 'environment' } }, audio: false });
+      vid.srcObject = stream;
+      vid.setAttribute('playsinline', '');   // iOS will not start an inline video without it
+      await vid.play();
+    } catch (e) {
+      stream = null;
+      // NAMED, because "unavailable" sent an operator to the wrong fix for two of these.
+      var n = (e && e.name) || '';
+      offer(n === 'NotAllowedError'  ? 'Camera blocked — allow it, then tap'
+          : n === 'NotFoundError'    ? 'No camera on this phone — type the code'
+          : n === 'NotReadableError' ? 'Another app has the camera — close it and tap'
+          : 'Tap to start the camera');
+      return false;
+    }
+
+    native = await nativeDecoder();
+    if (!native) {
+      try { jsqr = await loadJsQR(); } catch (e) { jsqr = null; }
+      if (!jsqr) { stopCamera(); offer('The scanner would not load — type the code'); return false; }
+    }
+
+    el.tap.hidden = true;
+    timer = setInterval(async function () {
+      if (busy || cur || !el.pad.hidden || vid.readyState < 2) return;
+      try {
+        var raw = (await readFrame()).trim();
+        if (!raw) return;
+        // A camera pointed at one ticket fires many times a second. The same code inside
+        // three seconds is the same person, and re-sending it would report them as a
+        // duplicate of themselves — the one wrong answer that looks like fraud.
+        var now = Date.now();
+        if (raw === lastRaw && now - lastAt < 3000) return;
+        lastRaw = raw; lastAt = now;
+        check(raw);
+      } catch (e) { /* a bad frame is not an error */ }
+    }, native ? 300 : 180);
+    return true;
+  }
+
+  function stopCamera() {
+    if (stream) { stream.getTracks().forEach(function (t) { t.stop(); }); stream = null; }
+    if (timer) { clearInterval(timer); timer = null; }
+  }
+
+  el.tap.addEventListener('click', function () { el.tap.hidden = true; startCamera(); });
+
+  // ── THE TORCH ────────────────────────────────────────────────────────────
+  // Only where the track advertises it. A button that does nothing on a phone whose
+  // camera has no lamp is worse than no button, so it hides itself rather than lying.
+  var torchOn = false;
+  el.torch.addEventListener('click', async function () {
+    if (!stream) return;
+    var track = stream.getVideoTracks()[0];
+    if (!track || typeof track.applyConstraints !== 'function') return;
+    try {
+      torchOn = !torchOn;
+      await track.applyConstraints({ advanced: [{ torch: torchOn }] });
+      el.torch.classList.toggle('is-on', torchOn);
+      el.torch.setAttribute('aria-pressed', torchOn ? 'true' : 'false');
+    } catch (e) { torchOn = false; el.torch.classList.remove('is-on'); }
+  });
+
+  // A camera left running behind a locked screen is a flat battery an hour into a gala.
+  document.addEventListener('visibilitychange', function () {
+    if (document.hidden) stopCamera();
+    else if (!stream && el.tap.hidden) startCamera();
+  });
+
+  startCamera();
+
+})();
+</script>
+{% endif %}
+
+</body>
+</html>

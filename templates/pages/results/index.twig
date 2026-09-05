@@ -1,0 +1,123 @@
+{% extends "layout/gates.twig" %}
+
+{#
+  THE LIST OF AWARDS THIS PLATFORM HAS DECIDED.
+
+  Deliberately a ledger and not a trophy case. Every row carries the winner's index and
+  the split that produced it, because a list of names is an announcement and a list of
+  decomposable numbers is a record. The one gold accent is reserved for the index itself.
+#}
+
+{% block head_styles %}
+<style nonce="{{ csp_nonce }}">
+  body[data-page="results"]{ background:#f0f2f2; color:var(--ag-ink); }
+
+  .rx{ max-width:1080px; margin:0 auto; padding:clamp(2rem,5vw,2.8rem) var(--ag-gutter,32px) clamp(3rem,6vw,4.5rem); }
+
+  .rx-head{ max-width:44rem; }
+  .rx-eyebrow{ margin:0 0 10px; font:600 var(--ag-fs-label) / 1 var(--ag-font-mono);
+               letter-spacing:var(--ag-tracking-label); text-transform:uppercase; color:var(--ag-green); }
+  .rx-head h1{ margin:0; font-family:var(--ag-font-display); font-weight:700;
+               font-size:clamp(2rem,4.6vw,2.7rem); letter-spacing:-.02em; }
+  .rx-head p{ margin:14px 0 0; font-size:15.5px; line-height:1.62; color:#4a5256; max-width:62ch; }
+
+  .rx-rule{ height:1px; background:var(--ag-line-strong); margin:clamp(1.6rem,4vw,2.2rem) 0 0; }
+
+  .rx-list{ list-style:none; margin:0; padding:0; }
+  .rx-item{ border-bottom:1px solid var(--ag-line); }
+  .rx-a{ display:grid; grid-template-columns:minmax(0,1fr) auto; gap:8px 20px; align-items:center;
+         padding:20px 4px; text-decoration:none; color:inherit; transition:background var(--ag-dur-fast) var(--ag-ease); }
+  .rx-a:hover{ background:rgba(16,41,44,.03); }
+  .rx-a:focus-visible{ outline:2px solid var(--ag-green); outline-offset:2px; }
+
+  .rx-meta{ font:600 11px/1.4 var(--ag-font-mono); letter-spacing:.1em; text-transform:uppercase;
+            color:var(--ag-ink-soft); margin:0 0 6px; }
+  .rx-cat{ margin:0; font-family:var(--ag-font-display); font-weight:700; font-size:1.22rem;
+           letter-spacing:-.01em; line-height:1.25; }
+  .rx-won{ margin:6px 0 0; font-size:14.5px; color:#4a5256; }
+  .rx-won b{ color:var(--ag-ink); font-weight:600; }
+
+  .rx-score{ text-align:right; }
+  .rx-cpi{ font:700 1.7rem/1 var(--ag-font-mono); color:var(--ag-ink); font-variant-numeric:tabular-nums; }
+  .rx-cpi span{ font-size:.72rem; color:var(--ag-ink-soft); font-weight:600; }
+  .rx-split{ margin:5px 0 0; font:600 10.5px/1 var(--ag-font-mono); letter-spacing:.07em;
+             text-transform:uppercase; color:var(--ag-ink-soft); font-variant-numeric:tabular-nums; }
+  .rx-split i{ font-style:normal; color:var(--ag-green); }
+
+  .rx-held{ margin:26px 0 0; padding:16px 18px; border-left:3px solid var(--ag-gold);
+            background:rgba(201,162,75,.07); font-size:14px; line-height:1.6; color:#4a5256; }
+
+  .rx-empty{ margin-top:30px; padding:clamp(2rem,5vw,3rem) 1.5rem; text-align:center;
+             border:1px solid var(--ag-line-strong); border-radius:var(--ag-r-lg); background:var(--ag-surface); }
+  .rx-empty h2{ margin:0 0 .5rem; font-family:var(--ag-font-display); font-weight:700; font-size:1.4rem; }
+  .rx-empty p{ margin:0 auto 1.4rem; max-width:44ch; color:#4a5256; line-height:1.62; }
+  .rx-btn{ display:inline-flex; align-items:center; gap:.5rem; min-height:44px; padding:0 24px;
+           border-radius:var(--ag-r-pill); background:var(--ag-green); color:#fff; font-weight:600;
+           font-size:14.5px; text-decoration:none; box-shadow:var(--ag-shadow-cta); }
+  .rx-btn:hover{ background:var(--ag-green-dark); }
+
+  @media (max-width:560px){
+    .rx-a{ grid-template-columns:minmax(0,1fr); }
+    .rx-score{ text-align:left; }
+    .rx-cpi{ font-size:1.4rem; }
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+{% set rows = items|default([]) %}
+
+<div class="rx">
+  <header class="rx-head">
+    <p class="rx-eyebrow">The record</p>
+    <h1>Results</h1>
+    <p>Every award decided here, with the working shown. A Cultural Power Index runs from 0
+       to 1000 and always splits two ways — support the community gave, and marks the panel
+       awarded. Open any award to see every nominee who scored, every weight, and the
+       denominator each community share was measured against.</p>
+  </header>
+
+  <div class="rx-rule"></div>
+
+  {% if rows %}
+    <ul class="rx-list">
+      {% for c in rows %}
+        <li class="rx-item">
+          <a class="rx-a" href="{{ c.url }}">
+            <div>
+              <p class="rx-meta">{{ c.programme }}{% if c.edition %} · {{ c.edition }}{% endif %}</p>
+              <h2 class="rx-cat">{{ c.category.title }}</h2>
+              <p class="rx-won"><b>{{ c.winner.name }}</b>{% if c.dead_heat %} — dead heat, separated by nominee id{% endif %}</p>
+            </div>
+            <div class="rx-score">
+              <div class="rx-cpi">{{ c.winner.cpi }}<span> / 1000</span></div>
+              {# Community first — the half a reader came to check, and the half that was
+                 reading zero for whole categories on the cycle this page was built for. #}
+              <p class="rx-split"><i>{{ c.winner.community_points }} community</i> · {{ c.winner.judge_points }} judges</p>
+            </div>
+          </a>
+        </li>
+      {% endfor %}
+    </ul>
+  {% else %}
+    <div class="rx-empty">
+      <h2>No award has been decided yet</h2>
+      <p>Results appear here the moment a cycle closes and its panel has finished. Nothing
+         is published before the arithmetic can be shown in full.</p>
+      <a href="/awards" class="rx-btn">See the awards running now</a>
+    </div>
+  {% endif %}
+
+  {#
+    A withheld result is SAID, not hidden. A category that vanishes from this list reads as
+    a category that never existed; one that is named as being verified is a promise somebody
+    can hold this platform to.
+  #}
+  {% if held > 0 %}
+    <p class="rx-held">{{ held }} further {{ held == 1 ? 'award is' : 'awards are' }} decided but
+      not published: {{ held == 1 ? 'its' : 'their' }} community half has not been counted into
+      the index yet, or no nominee met the judging quorum. Nothing is announced until the
+      whole index can be shown.</p>
+  {% endif %}
+</div>
+{% endblock %}

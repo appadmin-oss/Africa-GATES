@@ -1,0 +1,124 @@
+{% extends "layout/gates.twig" %}
+{% import "partials/article.twig" as art %}
+
+{#
+  ══════════════════════════════════════════════════════════════════════════════
+  LEGAL — the terms, the privacy policy, and anything else filed beside them
+  ══════════════════════════════════════════════════════════════════════════════
+
+  Same article design as /philosophy and /integrity, and for the same reason: these
+  are documents people are asked to accept and occasionally need to keep a copy of.
+  A policy in a white card with 14.5px text reads as small print. A policy set as an
+  article reads as something written to be read, which is the honest signal when the
+  content is genuinely meant to be understood.
+
+  ── WHERE THE CONTENT COMES FROM ────────────────────────────────────────────
+
+  `legal_body` is {@see LegalDocument::bodyWithAnchors()} — the admin-authored HTML
+  from `gates_legal_docs`, already sanitized, with an id injected into every <h2> so
+  the contents can link to it, PLUS anything generated.
+
+  The generated part matters: on /privacy the automated-processing disclosure is
+  built from the AI capability registry rather than written into the editable body,
+  because hand-writing "we send nomination text to a third-party model" would go
+  stale the first time a capability changed. It used to be assembled in this
+  template. It moved into LegalDocument so the .txt and .md editions carry it too —
+  a privacy download that silently omitted the AI section would be missing the one
+  section somebody most plausibly downloaded the document to keep.
+
+  So there is no disclosure loop here any more. One variable, one source, three
+  renderings.
+#}
+
+{% set cur = legal_doc %}
+
+{% block structured_data %}
+{{ art.cite_meta({
+  title: cur.title, author: doc_author, publisher: doc_publisher,
+  published: doc_effective, updated: doc_effective, url: doc_url
+}) }}
+{{ art.article_ld({
+  title: cur.title, description: meta_description,
+  author: doc_author, publisher: doc_publisher,
+  published: doc_effective, updated: doc_effective,
+  version: doc_effective, url: doc_url
+}, csp_nonce) }}
+{% endblock %}
+
+{% block head_styles %}{{ art.styles() }}{% endblock %}
+
+{% block content %}
+{{ art.script({ txt_url: doc_txt_url, url: doc_url, tab_ids: doc_citations|column('id') }, csp_nonce) }}
+
+{# Contents from the document's own <h2>s, plus the sibling policies. A legal page
+   is one of a set and a reader arriving at the terms often wants the privacy
+   policy, so the set is part of the navigation rather than a footnote. #}
+{% set groups = [] %}
+{% if doc_outline is not empty %}
+  {% set groups = groups|merge([{ label: 'In this document', items: doc_outline }]) %}
+{% endif %}
+
+<div class="ar" x-data="agArticleDoc()">
+  <div class="ar-shell">
+
+    <aside class="ar-rail">
+      {{ art.contents(groups, true) }}
+      <nav class="ar-refs" aria-label="Other policies" style="margin-top:1.6rem">
+        <span>Also filed here</span>
+        <ul>
+          {% for t in legal_tabs %}
+            {% if t.slug != cur.slug %}
+              <li><a href="/{{ t.slug }}">{{ t.title }}</a></li>
+            {% endif %}
+          {% endfor %}
+          <li><a href="/integrity">How a winner is decided</a></li>
+          <li><a href="/philosophy">The philosophy behind community voting</a></li>
+        </ul>
+      </nav>
+    </aside>
+
+    <article class="ar-body">
+      <header class="ar-head">
+        {{ art.masthead({
+          eyebrow: 'Legal · Africa GATES',
+          title: cur.title,
+          standfirst: doc_standfirst,
+          author: doc_author,
+          version: '',
+          updated: doc_effective
+        }) }}
+        {{ art.tools({ txt_url: doc_txt_url, md_url: doc_md_url, file_stem: doc_file_stem, id: 'top' }) }}
+      </header>
+
+      {{ art.contents(groups, false) }}
+
+      {# The authored body. `|raw` is safe here and only here: LegalDocument has
+         already put it through Html::sanitize(), and re-escaping it would print the
+         markup instead of rendering it. #}
+      <div class="ar-rich ar-sec">
+        {{ legal_body|raw }}
+      </div>
+
+      {{ art.cite({
+        citations: doc_citations, version: '', published: doc_effective,
+        updated: doc_effective, accessed: doc_accessed, url: doc_url,
+        txt_url: doc_txt_url, md_url: doc_md_url, file_stem: doc_file_stem,
+        note: 'Policy documents are cited by effective date rather than by version number, so every
+               format below quotes the date this document took effect. Please cite the date you read
+               &mdash; these documents are revised, and the copy you were shown is the one that
+               applied to you.'
+      }) }}
+
+      <div class="ar-end">
+        <p>Questions about this document? Write to
+           <a href="mailto:legal@afrovanguard.org.ng">legal@afrovanguard.org.ng</a>. For anything
+           about how a result was reached, the
+           <a href="/integrity">Integrity Centre</a> sets out the method.</p>
+        <p>An initiative of <a href="https://afrovanguard.org.ng">Afrovanguard</a>, Lagos, Nigeria,
+           and governed by the laws of the Federal Republic of Nigeria. Provided for transparency
+           &mdash; this document does not constitute legal advice.</p>
+      </div>
+    </article>
+  </div>
+</div>
+{% endblock %}

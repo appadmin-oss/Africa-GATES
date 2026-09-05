@@ -2,7 +2,7 @@
 {% block content %}
 
 <section class="r26-hero" style="padding-block:clamp(2.5rem,6vw,4.25rem) clamp(1.5rem,3vw,2.5rem);text-align:center">
-  <img class="r26-hero__wm" src="/assets/img/africa-watermark.svg?v={{ asset_version }}" alt="" aria-hidden="true">
+  <img class="r26-hero__wm" src="{{ asset('/assets/img/africa-watermark.svg') }}" alt="" aria-hidden="true">
   <div class="wrap">
     <div class="r26-hero__inner">
       <p class="r26-eyebrow r26-reveal r26-d1" style="justify-content:center;display:inline-flex">Last updated · 1 May 2025</p>
@@ -19,6 +19,13 @@
 
     <h2>Why we collect it</h2>
     <p>Hashed emails let us guarantee one vote per category per person without ever holding identifying data. Profile details are used to compute and display your CPI score and to surface you in cycle shortlists.</p>
+
+    {# Anchored, because the ballot's microcopy links straight here. A policy the
+       person cannot reach from the field it governs is a policy they will not read. #}
+    <h2 id="supporters">Voter and supporter names</h2>
+    <p><strong>Buying votes:</strong> the name field is optional and it is the one that appears on the nominee’s public supporters list. Fill it in to be named; leave it blank to give anonymously — your votes count exactly the same. Only the name is published: never your email, your phone number, the amount you paid, or when you paid it.</p>
+    <p><strong>Free voting:</strong> we ask for your name so a vote can be accounted for, and you cannot vote without giving one — so we do not treat it as permission to publish. Free votes are never listed.</p>
+    <p>The choice is recorded per order, not per person, so being named once does not opt you in anywhere else. Payments made before the field said any of this are treated as not consented and are never listed. To have a published name removed, email <a href="mailto:privacy@afrovanguard.org.ng">privacy@afrovanguard.org.ng</a> — the votes still count; only the name comes down.</p>
 
     <h2>Cookies</h2>
     <p>We set a session cookie for CSRF protection, a remembered-locale cookie if you choose one, and a fingerprint hash used only for rate-limiting. No third-party trackers.</p>

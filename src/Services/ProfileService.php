@@ -10,6 +10,7 @@ class ProfileService {
 
     public function paginatedList(int $page,int $perPage,string $cat,string $tier,string $search,string $sort='cpi_desc',string $region='',string $country=''): array {
         $q=DB::table('gates_profiles')->where('status','approved');
+        ProfileMergeService::notMerged($q);   // merge tombstones never list/rank
         if($cat) $q->where('profile_type',$cat);
         if($tier) $q->where('cpi_tier',$tier);
         if($region) $q->where('region',$region);
@@ -20,33 +21,34 @@ class ProfileService {
         [$oc,$od]=$ordArr[$sort]??['cpi_score','desc'];
         $q->orderBy($oc,$od);
         $total=$q->count();
-        $rows=$q->select(['id','slug','display_name','category','profile_type','cpi_score','cpi_tier','verification_tier','avatar_path','country_code','region','completeness_pct'])->offset(($page-1)*$perPage)->limit($perPage)->get();
+        $rows=$q->select(['id','slug','display_name','category','profile_type','cpi_score','cpi_tier','cpi_basis','verification_tier','avatar_path','country_code','region','completeness_pct'])->offset(($page-1)*$perPage)->limit($perPage)->get();
         return ['profiles'=>$rows->map(fn($r)=>$this->fmt($r))->values()->all(),'total'=>$total];
     }
 
     private function fmt(object $r): array {
         $g=$this->g((int)$r->id);
-        return['id'=>$r->id,'slug'=>$r->slug,'display_name'=>$r->display_name,'category'=>$r->category,'profile_type'=>$r->profile_type,'cpi_score'=>(int)$r->cpi_score,'cpi_tier'=>$r->cpi_tier,'verification_tier'=>$r->verification_tier,'avatar_path'=>$r->avatar_path??null,'country_code'=>$r->country_code,'region'=>$r->region,'completeness_pct'=>(int)$r->completeness_pct,'cover_from'=>$g[0],'cover_to'=>$g[1]];
+        return['id'=>$r->id,'slug'=>$r->slug,'display_name'=>$r->display_name,'category'=>$r->category,'profile_type'=>$r->profile_type,'cpi_score'=>(int)$r->cpi_score,'cpi_tier'=>$r->cpi_tier,'cpi_basis'=>(string)($r->cpi_basis??'baseline'),'verification_tier'=>$r->verification_tier,'avatar_path'=>$r->avatar_path??null,'country_code'=>$r->country_code,'region'=>$r->region,'completeness_pct'=>(int)$r->completeness_pct,'cover_from'=>$g[0],'cover_to'=>$g[1]];
     }
 
     public function getLeaderboard(int $limit=20, string $category='', string $country=''): array {
         $q=DB::table('gates_profiles')->where('status','approved')->orderByDesc('cpi_score');
+        ProfileMergeService::notMerged($q);
         if($category) $q->where('category',$category);
         if($country)  $q->where('country_code',$country);
-        return $q->limit($limit)->get(['id','slug','display_name','category','profile_type','cpi_score','cpi_tier','verification_tier','avatar_path','country_code','region','completeness_pct'])->map(fn($r)=>array_merge($this->fmt($r),['rank'=>0]))->values()->all();
+        return $q->limit($limit)->get(['id','slug','display_name','category','profile_type','cpi_score','cpi_tier','cpi_basis','verification_tier','avatar_path','country_code','region','completeness_pct'])->map(fn($r)=>array_merge($this->fmt($r),['rank'=>0]))->values()->all();
     }
 
     public function getTopCpiProfiles(int $limit=8): array {
-        return DB::table('gates_profiles')->where('status','approved')->orderByDesc('cpi_score')->limit($limit)->get(['id','display_name','cpi_score','cpi_tier','category','country_code'])->map(fn($r)=>['display_name'=>$r->display_name,'cpi_score'=>(int)$r->cpi_score,'cpi_tier'=>$r->cpi_tier,'category'=>$r->category,'country_code'=>$r->country_code])->values()->all();
+        return ProfileMergeService::notMerged(DB::table('gates_profiles')->where('status','approved'))->orderByDesc('cpi_score')->limit($limit)->get(['id','display_name','cpi_score','cpi_tier','category','country_code'])->map(fn($r)=>['display_name'=>$r->display_name,'cpi_score'=>(int)$r->cpi_score,'cpi_tier'=>$r->cpi_tier,'category'=>$r->category,'country_code'=>$r->country_code])->values()->all();
     }
 
     public function getFeaturedProfiles(int $limit=5): array {
-        return DB::table('gates_profiles')->where('status','approved')->whereIn('cpi_tier',['diamond','platinum','gold'])->orderByDesc('cpi_score')->limit($limit)->get(['id','slug','display_name','category','profile_type','cpi_score','cpi_tier','verification_tier','avatar_path','country_code','region','completeness_pct'])->map(fn($r)=>$this->fmt($r))->values()->all();
+        return ProfileMergeService::notMerged(DB::table('gates_profiles')->where('status','approved'))->whereIn('cpi_tier',['diamond','platinum','gold'])->orderByDesc('cpi_score')->limit($limit)->get(['id','slug','display_name','category','profile_type','cpi_score','cpi_tier','cpi_basis','verification_tier','avatar_path','country_code','region','completeness_pct'])->map(fn($r)=>$this->fmt($r))->values()->all();
     }
 
     public function getBySlug(string $slug): ?array {
-        $r=DB::table('gates_profiles')->where('slug',$slug)->where('status','approved')->first();
-        if(!$r) return null;
+        $r=ProfileMergeService::notMerged(DB::table('gates_profiles')->where('slug',$slug)->where('status','approved'))->first();
+        if(!$r) return null;   // a merged-away profile's slug 404s (its data lives on the survivor)
         DB::table('gates_profiles')->where('id',$r->id)->increment('view_count');
         return array_merge($this->fmt($r),['bio'=>$r->bio,'phone'=>$r->phone,'website'=>$r->website,'instagram_handle'=>$r->instagram_handle,'twitter_handle'=>$r->twitter_handle,'latitude'=>$r->latitude,'longitude'=>$r->longitude,'gallery_paths'=>$r->gallery_paths?json_decode($r->gallery_paths,true):[],'achievements'=>$r->achievements?json_decode($r->achievements,true):[],'tags'=>$r->tags?json_decode($r->tags,true):[],'registered_at'=>$r->registered_at,'view_count'=>(int)$r->view_count,'cpi_last_computed'=>$r->cpi_last_computed]);
     }
@@ -57,14 +59,22 @@ class ProfileService {
     }
 
     public function getMapPins(): array {
-        return DB::table('gates_profiles')->where('status','approved')->whereNotNull('latitude')->whereNotNull('longitude')->get(['id','slug','display_name','category','cpi_tier','cpi_score','latitude','longitude','country_code'])->map(fn($r)=>['id'=>$r->id,'slug'=>$r->slug,'display_name'=>$r->display_name,'category'=>$r->category,'cpi_tier'=>$r->cpi_tier,'cpi_score'=>(int)$r->cpi_score,'lat'=>(float)$r->latitude,'lng'=>(float)$r->longitude,'country_code'=>$r->country_code])->values()->all();
+        return ProfileMergeService::notMerged(DB::table('gates_profiles')->where('status','approved'))->whereNotNull('latitude')->whereNotNull('longitude')->get(['id','slug','display_name','category','cpi_tier','cpi_score','latitude','longitude','country_code'])->map(fn($r)=>['id'=>$r->id,'slug'=>$r->slug,'display_name'=>$r->display_name,'category'=>$r->category,'cpi_tier'=>$r->cpi_tier,'cpi_score'=>(int)$r->cpi_score,'lat'=>(float)$r->latitude,'lng'=>(float)$r->longitude,'country_code'=>$r->country_code])->values()->all();
     }
 
+    /**
+     * Build a unique profile slug. The base is AI-generated when a provider is
+     * configured (transliterates accents/non-Latin names, drops honorifics —
+     * e.g. "Dr. Chinwé Okónkwò" → "chinwe-okonkwo"), with a deterministic
+     * slugifier as the guaranteed fallback; uniqueness (-2, -3…) is enforced
+     * against gates_profiles either way.
+     */
     private function makeSlug(string $name): string {
-        $base=trim(strtolower(preg_replace('/[^a-z0-9]+/i','-',$name)),'-');
-        $slug=$base;$i=1;
-        while(DB::table('gates_profiles')->where('slug',$slug)->exists()) $slug="$base-".$i++;
-        return $slug;
+        return AiHelper::uniqueSlug(
+            $name,
+            fn(string $slug): bool => DB::table('gates_profiles')->where('slug', $slug)->exists(),
+            'profile'
+        );
     }
 
     private function completeness(array $d): int {

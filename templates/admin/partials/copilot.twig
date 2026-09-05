@@ -1,0 +1,35 @@
+{# Ambient console copilot — a floating assistant available on EVERY admin page
+   (hidden on the full-page /admin/assistant to avoid doubling up). Reuses the
+   same /admin/assistant/chat endpoint; Alpine-driven, so it relies on the
+   Alpine.js loaded by admin/layout.twig. #}
+<style nonce="{{ csp_nonce }}">[x-cloak]{display:none!important}</style>
+<div x-data="agChat({storageKey:'ag-copilot',logId:'copilotLog',focusId:'copilotInput',csrf:'{{ csrf_token }}'})" x-cloak style="position:fixed;right:20px;bottom:20px;z-index:1200;font-family:inherit">
+  <button type="button" @click="toggle()" :aria-expanded="open ? 'true' : 'false'" aria-label="Open console copilot"
+    title="Console copilot"
+    style="width:52px;height:52px;border-radius:50%;border:0;background:var(--ad-accent,#237b22);color:#fff;font-size:22px;line-height:1;cursor:pointer;box-shadow:0 8px 24px -8px rgba(0,0,0,.5)">✦</button>
+  <div x-show="open" x-transition x-cloak
+       role="dialog" aria-label="Console copilot"
+       style="position:absolute;right:0;bottom:64px;width:min(380px,92vw);background:#fff;border:1px solid var(--ad-line,#dfe4e3);border-radius:16px;box-shadow:0 24px 60px -20px rgba(0,0,0,.45);display:flex;flex-direction:column;overflow:hidden">
+    <div style="display:flex;justify-content:space-between;align-items:center;padding:12px 14px;background:var(--ad-bg-soft,#f4f5f5);border-bottom:1px solid var(--ad-line,#dfe4e3)">
+      <strong style="font-size:14px">Console copilot</strong>
+      <a href="/admin/assistant" style="margin-left:auto;margin-right:10px;font-size:12px;color:var(--ad-text-mute,#5a6d6f)">Full view ↗</a>
+      <button type="button" @click="open=false" aria-label="Close copilot" style="border:0;background:none;font-size:18px;line-height:1;cursor:pointer;color:var(--ad-text-mute,#5a6d6f)">×</button>
+    </div>
+    <div id="copilotLog" role="log" aria-live="polite" style="flex:1;min-height:200px;max-height:46vh;overflow-y:auto;display:flex;flex-direction:column;gap:8px;padding:12px">
+      <template x-for="(m, i) in msgs" :key="i">
+        <div :style="m.role === 'user'
+            ? 'align-self:flex-end;background:var(--ad-accent,#237b22);color:#fff;border-radius:12px 12px 3px 12px;padding:8px 12px;max-width:85%;font-size:13px;line-height:1.5;white-space:pre-wrap'
+            : 'align-self:flex-start;background:var(--ad-bg-soft,#f4f5f5);color:var(--ad-text,#10292c);border-radius:12px 12px 12px 3px;padding:8px 12px;max-width:85%;font-size:13px;line-height:1.5;white-space:pre-wrap'"><span x-text="m.text"></span></div>
+      </template>
+      <div x-show="busy" x-cloak style="align-self:flex-start;color:var(--ad-text-mute,#5a6d6f);font-size:12.5px">Thinking…</div>
+      <p x-show="!msgs.length && !busy" style="margin:auto;text-align:center;color:var(--ad-text-mute,#5a6d6f);font-size:12.5px;max-width:280px">Ask about the platform&rsquo;s live state — &ldquo;What needs my attention today?&rdquo;</p>
+    </div>
+    <p role="alert" x-show="error" x-cloak x-text="error" style="color:#b42318;font-size:12px;font-weight:600;margin:0;padding:0 12px 6px"></p>
+    <form @submit.prevent="send()" style="display:flex;gap:6px;padding:10px;border-top:1px solid var(--ad-line,#dfe4e3)">
+      <label for="copilotInput" class="sr-only">Message the copilot</label>
+      <input id="copilotInput" x-model="draft" maxlength="2000" @keydown.enter.exact.prevent="send()" placeholder="Ask the copilot…"
+             style="flex:1;border:1px solid var(--ad-line,#dfe4e3);border-radius:10px;padding:9px 12px;font:inherit;font-size:13px">
+      <button class="ad-btn ad-btn--primary ad-btn--sm" type="submit" x-bind:disabled="busy || !draft.trim()">Send</button>
+    </form>
+  </div>
+</div>

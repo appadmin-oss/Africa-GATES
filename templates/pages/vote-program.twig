@@ -1,0 +1,334 @@
+{% extends "layout/gates.twig" %}
+
+{% block head_styles %}
+<style nonce="{{ csp_nonce }}">
+  body[data-page="awards"]{ background:#eef0ec; color:var(--ag-ink); }
+  .vp{ max-width:1180px; margin:0 auto; padding:0 var(--ag-gutter,28px) 56px; }
+  .vp-crumb{ font-size:12.5px; color:#5a6d6f; padding:16px 0 0; }
+  .vp-crumb a{ color:#5a6d6f; text-decoration:none; } .vp-crumb a:hover{ color:var(--ag-ink); }
+
+  .vp-hero{ position:relative; overflow:hidden; border-radius:22px; margin-top:14px; background:radial-gradient(130% 130% at 82% 0%,#1d5b2a,#10292C 60%); padding:clamp(1.8rem,5vw,2.9rem) clamp(1.4rem,4vw,2.6rem); color:#fff; }
+  .vp-hero__orb{ position:absolute; right:-50px; bottom:-70px; width:300px; height:300px; border-radius:50%; background:radial-gradient(circle,rgba(212,154,14,.26),transparent 68%); }
+  .vp-hero__in{ position:relative; max-width:680px; }
+  .vp-hero__ico{ font-size:30px; line-height:1; }
+  .vp-hero h1{ margin:12px 0 0; color:#fff; font-family:var(--ag-font-display); font-weight:800; font-size:clamp(1.8rem,5vw,2.7rem); line-height:1.05; letter-spacing:-.02em; }
+  .vp-hero p{ margin:12px 0 0; font-size:15px; line-height:1.6; color:rgba(255,255,255,.85); }
+  .vp-hero__meta{ display:flex; flex-wrap:wrap; gap:10px; margin-top:18px; }
+  .vp-pill{ display:inline-flex; align-items:center; gap:7px; font-size:12px; font-weight:600; padding:7px 13px; border-radius:999px; background:rgba(255,255,255,.1); box-shadow:inset 0 0 0 1px rgba(255,255,255,.16); color:#fff; }
+  .vp-pill--open{ background:rgba(127,200,124,.18); color:#bff0bc; box-shadow:inset 0 0 0 1px rgba(127,200,124,.4); }
+  .vp-pill b{ font-family:var(--ag-font-mono,monospace); color:#7FC87C; }
+
+  .vp-cat{ margin-top:34px; }
+  .vp-cat__head{ display:flex; align-items:baseline; gap:10px; margin-bottom:14px; }
+  .vp-cat__title{ margin:0; font-family:var(--ag-font-display); font-weight:800; font-size:clamp(1.25rem,3vw,1.6rem); color:var(--ag-ink); }
+  .vp-cat__n{ font-size:12.5px; color:#626a6e; }
+  .vp-cat__desc{ margin:-8px 0 14px; font-size:13.5px; color:#5a6d6f; max-width:640px; line-height:1.5; }
+
+  /* TWO columns, not three. A race card carries four things a plain card did not —
+     rank, organisation, the gap to the position above, and a progress track — and at
+     three-up the footer wrapped "11 from #1" onto three lines. Fewer, wider cards
+     read better than more, broken ones. */
+  .vp-grid{ display:grid; grid-template-columns:repeat(2,1fr); gap:16px; }
+  @media(max-width:900px){ .vp-grid{ grid-template-columns:1fr; gap:12px; } }
+  .vp-card{ display:flex; gap:14px; align-items:center; background:var(--ag-surface,#fff); border:1px solid rgba(16,41,44,.08); border-radius:16px; padding:13px; text-decoration:none; color:inherit; transition:transform .15s, box-shadow .15s, border-color .15s; }
+  .vp-card:hover{ transform:translateY(-2px); border-color:rgba(16,41,44,.16); box-shadow:0 16px 34px -24px rgba(16,41,44,.45); }
+  .vp-card__av{ flex:none; width:58px; height:58px; border-radius:13px; background-size:cover; background-position:center top; background-color:#10292C; display:flex; align-items:center; justify-content:center; }
+  .vp-card__mono{ font-family:var(--ag-font-display,serif); font-weight:800; font-size:24px; color:#7FC87C; }
+  .vp-card__b{ flex:1; min-width:0; }
+  .vp-card__name{ font-weight:700; font-size:15px; color:var(--ag-ink); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  /* Shortlisted. Deliberately quiet: it is a fact about a nominee, not a call to
+     action, and a loud badge beside a "Vote →" button competes with the button. */
+  .vp-short{ display:inline-flex; align-items:center; gap:4px; margin-top:5px; padding:2px 8px 2px 6px;
+    border-radius:999px; background:#e8f6ec; color:#146c37; border:1px solid #bfe5cb;
+    font-size:10.5px; font-weight:700; letter-spacing:.04em; text-transform:uppercase; align-self:flex-start; }
+  .vp-card__tag{ font-size:12.5px; color:#5a6d6f; margin-top:2px; display:-webkit-box; -webkit-line-clamp:1; -webkit-box-orient:vertical; overflow:hidden; }
+  /* The CTA is pushed to the right edge so votes and gap read as one group, and the
+     row is allowed to wrap rather than squeezing three items into a narrow card. */
+  .vp-card__foot{ display:flex; align-items:center; gap:10px; margin-top:7px; flex-wrap:wrap; }
+  .vp-card__cta{ margin-left:auto }
+  /* Below 420px the footer wrapped for SOME cards and not others — 8 of 12 at
+     360px — because whether "Vote →" fitted depended on how many digits the vote
+     count had. A list where the same control sits on a different line in each row
+     reads as broken layout, not as a responsive one. Under 420px it therefore
+     wraps for ALL of them, deliberately, and gets a full line to itself. */
+  @media (max-width:419px){
+    .vp-card__cta{ flex-basis:100%; margin-left:0; text-align:right; }
+  }
+  .vp-card__votes{ font:700 12px/1 var(--ag-font-mono,monospace); color:#1a6118; }
+  .vp-card__cta{ font-size:12.5px; font-weight:600; color:var(--ag-green,#237b22); }
+  .vp-card__chev{ flex:none; color:#c4cdc6; }
+
+  .vp-empty{ background:var(--ag-surface,#fff); border:1px solid rgba(16,41,44,.08); border-radius:18px; padding:clamp(1.8rem,5vw,2.6rem); text-align:center; margin-top:18px; }
+  .vp-empty h3{ margin:0 0 .35rem; font-family:var(--ag-font-display); font-weight:700; font-size:1.3rem; }
+  .vp-empty p{ margin:0 auto 16px; color:#4a5256; max-width:420px; }
+  .vp-empty a{ display:inline-flex; align-items:center; gap:6px; background:var(--ag-green,#237b22); color:#fff; font-weight:600; font-size:14px; padding:11px 20px; border-radius:999px; text-decoration:none; }
+
+  /* ── The race ───────────────────────────────────────────────────────────
+     Rank, the gap to the position above, and a bar showing share of the
+     LEADER's total — not share of all votes cast, which reads as "12% of the
+     vote": a different and far more discouraging claim than "12% of the way
+     to first". */
+  .vp-card__org{ font-size:12px; color:#6b7a7c; margin-top:2px; display:flex; align-items:center; gap:5px; }
+  .vp-card__org svg{ flex:none; opacity:.7 }
+  /* Centred against the row, not pushed down by a magic 20px.
+     `align-self:flex-start; padding-top:20px` lined the rank up with the avatar
+     ONLY while the card was exactly as tall as the desktop layout made it. On a
+     narrow screen the name, the school and the footer each wrap or not depending
+     on their length, so the rank drifted between 3px and 37px away from the
+     avatar's top — different in every card in the same list. The card is already
+     `align-items:center`, so centring the rank puts it level with the avatar at
+     every card height, with nothing to tune. */
+  .vp-rank{ flex:none; width:30px; text-align:center; font:800 13px/1 var(--ag-font-mono,monospace);
+            color:var(--ag-ink-soft,#626a6e); align-self:center }
+  .vp-rank--1{ color:#b8860b }
+  .vp-rank--2, .vp-rank--3{ color:#5a6d6f }
+  /* display:block is load-bearing — these are <span>s inside an <a>, and an inline
+     element ignores height, so the track rendered as nothing at all. */
+  .vp-track{ display:block; height:6px; border-radius:999px; background:rgba(16,41,44,.08); overflow:hidden; margin-top:8px }
+  .vp-fill{ display:block; height:100%; border-radius:999px; background:var(--ag-green,#237b22); transition:width .5s ease }
+  .vp-fill--lead{ background:linear-gradient(90deg,#c9a227,#e0bc4a) }
+  .vp-gap{ font-size:12px; font-weight:700; color:#8a5a00 }
+  .vp-gap--lead{ color:#1a6118 }
+
+  /* The one line that makes a category worth watching.
+
+     `border-radius:14px`, not 999px. A capsule is only a capsule while its text
+     fits on one line; "Mrs Chinelo Eze leads Mr Tunde Adeyemi by 136 votes" wraps
+     to two lines below about 420px, and a 999px radius turned that into a lozenge
+     with the words bulging out of the curve. `align-items:flex-start` keeps the
+     trend icon on the first line instead of floating to the middle of a two-line
+     block. */
+  .vp-close{ display:inline-flex; align-items:flex-start; gap:7px; background:rgba(201,162,39,.12);
+             border:1px solid rgba(201,162,39,.3); border-radius:14px; padding:6px 12px;
+             font-size:12.5px; font-weight:600; line-height:1.45; color:#7a5c00; margin-top:8px }
+  .vp-close svg{ flex:none; margin-top:3px }
+  /* `hidden` is a UA rule of the lowest possible specificity, so ANY class rule
+     that sets `display` beats it. This element carries `hidden` when a category
+     has no contest to describe — and rendered anyway, as an empty gold pill with
+     an icon and no words, on every such category, at every width. The attribute
+     was always right; it just needed saying twice. */
+  .vp-close[hidden]{ display:none }
+
+  /* Live updates. The pulse only runs while the page is actually being watched. */
+  .vp-live{ display:inline-flex; align-items:center; gap:7px; font-size:12.5px; color:#5a6d6f }
+  .vp-live__dot{ width:7px; height:7px; border-radius:50%; background:#7FC87C; animation:vpPulse 2.4s ease-in-out infinite }
+  @keyframes vpPulse{ 0%,100%{opacity:1} 50%{opacity:.25} }
+  /* A vote count that just changed. Brief, and only on the number that moved — a
+     whole card flashing on every poll is noise rather than information. */
+  .vp-bumped{ animation:vpBump 1.4s ease-out }
+  @keyframes vpBump{ 0%{ background:rgba(127,200,124,.45) } 100%{ background:transparent } }
+  @media (prefers-reduced-motion: reduce){
+    .vp-live__dot, .vp-bumped{ animation:none }
+    .vp-fill{ transition:none }
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+{% set cy = programme.cycle %}
+<div class="vp">
+  <nav class="vp-crumb" aria-label="Breadcrumb"><a href="/vote">Vote</a> · <span>{{ programme.title }}</span></nav>
+
+  <header class="vp-hero">
+    <div class="vp-hero__orb" aria-hidden="true"></div>
+    <div class="vp-hero__in">
+      <span class="vp-hero__ico" aria-hidden="true">{{ programme.icon_emoji|default('🏆') }}</span>
+      <h1>{{ programme.title }}</h1>
+      {% if programme.subtitle or programme.description %}<p>{{ programme.subtitle|default(programme.description) }}</p>{% endif %}
+      <div class="vp-hero__meta">
+        {# Label from the phase view-model, never the raw status column. #}
+        {% if voting_open %}<span class="vp-pill vp-pill--open">● {{ phase.label|default('Voting open') }}{% if cy.year %} · {{ cy.year }}{% endif %}</span>
+        {% else %}<span class="vp-pill">{{ phase.label|default((cy.status|default('Coming soon'))|capitalize) }}{% if cy.year %} · {{ cy.year }}{% endif %}</span>{% endif %}
+        {% if phase and phase.detail %}<span class="vp-pill" style="background:rgba(255,255,255,.06)">{{ phase.detail }}</span>{% endif %}
+        <span class="vp-pill"><b>{{ total_nominees }}</b> nominee{{ total_nominees == 1 ? '' : 's' }}</span>
+        <span class="vp-pill"><b>{{ categories|length }}</b> categor{{ categories|length == 1 ? 'y' : 'ies' }}</span>
+      </div>
+    </div>
+  </header>
+
+  {% if categories is not empty %}
+    {% for c in categories %}
+    <section class="vp-cat">
+      <div class="vp-cat__head">
+        <h2 class="vp-cat__title">{{ c.category.title }}</h2>
+        <span class="vp-cat__n">{{ c.nominees|length }} nominee{{ c.nominees|length == 1 ? '' : 's' }}</span>
+      </div>
+      {% if c.category.description %}<p class="vp-cat__desc">{{ c.category.description }}</p>{% endif %}
+      {# How close the top of this category is. Omitted entirely when there is no
+         contest to describe — RaceService returns null for a field of one or a
+         leader on zero, where "0 ahead" is noise rather than drama. #}
+      {% if voting_open %}
+        <span class="vp-close" data-headline="{{ c.category.id }}"{% if not c.headline %} hidden{% endif %}>
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" aria-hidden="true"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg>
+          <span data-headline-text>{% if c.headline %}{% if c.headline.lead == 0 %}{{ c.headline.leader }} is tied at the top{% else %}{{ c.headline.leader }} leads {{ c.headline.chaser }} by {{ c.headline.lead|number_format }} vote{{ c.headline.lead == 1 ? '' : 's' }}{% endif %}{% endif %}</span>
+        </span>
+      {% endif %}
+      <div class="vp-grid" data-cat="{{ c.category.id }}">
+        {% for n in c.nominees %}
+        <a class="vp-card" href="{{ n.url }}" data-nominee="{{ n.id }}">
+          {% if n.field > 1 %}<span class="vp-rank vp-rank--{{ n.rank }}" aria-label="Position {{ n.rank }} of {{ n.field }}">#{{ n.rank }}</span>{% endif %}
+          <span class="vp-card__av" {% if n.photo_path %}style="background-image:url('{{ n.photo_path|media_url('thumb') }}')"{% endif %}>
+            {% if not n.photo_path %}<span class="vp-card__mono" aria-hidden="true">{{ n.name|first|upper }}</span>{% endif %}
+          </span>
+          <span class="vp-card__b">
+            <span class="vp-card__name">{{ n.name }}</span>
+            {# On a PUBLISHED shortlist. Not computed from a live threshold — see the note
+               in VoteController::program(). #}
+            {% if n.shortlisted|default(false) %}
+            <span class="vp-short" title="On the published shortlist for this category">
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg>
+              Shortlisted
+            </span>
+            {% endif %}
+            {# The school or organisation. Collected on the nomination form and, until
+               now, dropped at approval — so it existed in the database and appeared
+               nowhere a supporter could see it. #}
+            {% if n.organisation %}
+            <span class="vp-card__org">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M3 21h18"/><path d="M5 21V7l7-4 7 4v14"/><path d="M9 21v-6h6v6"/></svg>
+              {{ n.organisation }}
+            </span>
+            {% elseif n.tagline %}<span class="vp-card__tag">{{ n.tagline }}</span>{% endif %}
+            <span class="vp-card__foot">
+              <span class="vp-card__votes" data-votes>{{ n.vote_count|number_format }} vote{{ n.vote_count == 1 ? '' : 's' }}</span>
+              {% if voting_open and n.field > 1 %}
+                {% if n.is_leader %}<span class="vp-gap vp-gap--lead" data-gap>Leading</span>
+                {% else %}<span class="vp-gap" data-gap>{{ n.gap|number_format }} from #{{ n.next_rank }}</span>{% endif %}
+              {% endif %}
+              <span class="vp-card__cta">{{ voting_open ? 'Vote →' : 'View →' }}</span>
+            </span>
+            {% if voting_open and n.field > 1 %}
+            <span class="vp-track" role="img" aria-label="{{ n.pct }}% of the leader's total">
+              <span class="vp-fill{{ n.is_leader ? ' vp-fill--lead' : '' }}" data-fill style="width:{{ n.pct }}%"></span>
+            </span>
+            {% endif %}
+          </span>
+        </a>
+        {% endfor %}
+      </div>
+    </section>
+    {% endfor %}
+  {% else %}
+    <div class="vp-empty">
+      <h2>Nominees coming soon</h2>
+      <p>This programme’s nominees for the current cycle are being finalised. Check back shortly — or nominate someone now.</p>
+      <a href="/nominate">Submit a nomination →</a>
+    </div>
+  {% endif %}
+</div>
+
+{% if voting_open and categories is not empty %}
+{#
+  LIVE TALLIES.
+
+  Polling, not a socket. This platform runs on shared cPanel hosting with no
+  persistent process — a websocket or SSE stream would hold a PHP worker open per
+  viewer, and the audience arrives in bursts when a nominee posts a flier, which is
+  exactly the moment that would exhaust the pool and take the ballot down. A cached
+  poll degrades the opposite way: more viewers hit the same cached payload.
+
+  The server sends rank, gap and percentage already computed by the same RaceService
+  that rendered this page. The client patches numbers; it never re-derives a standing,
+  because a second implementation of rank arithmetic in JavaScript is how the page and
+  its own updates start disagreeing.
+#}
+<script nonce="{{ csp_nonce }}">
+(function () {
+  var URL_ = {{ ('/vote/' ~ programme.slug ~ '/tallies')|json_encode|raw }};
+  var BASE = 15000, MAX = 120000, wait = BASE, timer = null;
+
+  var fmt = function (n) { return n.toLocaleString(); };
+
+  function paint(cats) {
+    cats.forEach(function (c) {
+      var grid = document.querySelector('.vp-grid[data-cat="' + c.category_id + '"]');
+      if (!grid) return;
+
+      c.nominees.forEach(function (n) {
+        var card = grid.querySelector('.vp-card[data-nominee="' + n.id + '"]');
+        if (!card) return;
+
+        var votes = card.querySelector('[data-votes]');
+        if (votes) {
+          var next = fmt(n.votes) + ' vote' + (n.votes === 1 ? '' : 's');
+          // Flash ONLY the number that actually moved. Re-running the animation on
+          // every poll would make a still leaderboard look like a busy one.
+          if (votes.textContent.trim() !== next) {
+            votes.textContent = next;
+            votes.classList.remove('vp-bumped');
+            void votes.offsetWidth;          // restart the animation
+            votes.classList.add('vp-bumped');
+          }
+        }
+
+        var rank = card.querySelector('.vp-rank');
+        if (rank) { rank.textContent = '#' + n.rank; rank.className = 'vp-rank vp-rank--' + n.rank; }
+
+        var gap = card.querySelector('[data-gap]');
+        if (gap) {
+          if (n.gap === null) { gap.textContent = 'Leading'; gap.className = 'vp-gap vp-gap--lead'; }
+          else { gap.textContent = fmt(n.gap) + ' from #' + (n.rank - 1); gap.className = 'vp-gap'; }
+        }
+
+        var fill = card.querySelector('[data-fill]');
+        if (fill) {
+          fill.style.width = n.pct + '%';
+          fill.className = 'vp-fill' + (n.gap === null ? ' vp-fill--lead' : '');
+        }
+      });
+
+      // REORDER to the new standings. Without this the bars and ranks update while the
+      // cards stay in their original order, so the page shows #3 above #1 and reads as
+      // broken rather than live.
+      c.nominees.forEach(function (n) {
+        var card = grid.querySelector('.vp-card[data-nominee="' + n.id + '"]');
+        if (card) grid.appendChild(card);
+      });
+
+      // THE HEADLINE HAS TO MOVE TOO. Repainting the cards but not this line leaves
+      // "X leads Y by 11" sitting above a table that now shows Y in front — a stale
+      // summary contradicting live figures is worse than no summary at all.
+      var head = document.querySelector('[data-headline="' + c.category_id + '"]');
+      if (head) {
+        var txt = head.querySelector('[data-headline-text]');
+        if (!c.headline) { head.hidden = true; }
+        else {
+          head.hidden = false;
+          txt.textContent = c.headline.lead === 0
+            ? c.headline.leader + ' is tied at the top'
+            : c.headline.leader + ' leads ' + c.headline.chaser + ' by '
+              + fmt(c.headline.lead) + ' vote' + (c.headline.lead === 1 ? '' : 's');
+        }
+      }
+    });
+  }
+
+  function tick() {
+    // Never poll a tab nobody is looking at. On a phone left open on a nominee's page
+    // that is the difference between a handful of requests and thousands.
+    if (document.hidden) { schedule(BASE); return; }
+
+    fetch(URL_, { headers: { 'Accept': 'application/json' } })
+      .then(function (r) { if (!r.ok) throw new Error(r.status); return r.json(); })
+      .then(function (d) {
+        if (d && d.ok && d.categories) { paint(d.categories); wait = BASE; }
+        schedule(wait);
+      })
+      .catch(function () {
+        // Back off on failure rather than hammering a struggling server — the most
+        // likely cause of an error here is that it is already under load.
+        wait = Math.min(MAX, wait * 2);
+        schedule(wait);
+      });
+  }
+
+  function schedule(ms) { clearTimeout(timer); timer = setTimeout(tick, ms); }
+
+  // Catch up immediately when the tab comes back, so returning to it never shows a
+  // stale figure while waiting out the rest of an interval.
+  document.addEventListener('visibilitychange', function () { if (!document.hidden) schedule(800); });
+  schedule(BASE);
+})();
+</script>
+{% endif %}
+{% endblock %}

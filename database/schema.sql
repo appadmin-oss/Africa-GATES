@@ -22,6 +22,8 @@ CREATE TABLE IF NOT EXISTS gates_profiles (
   status ENUM('pending','approved','suspended','rejected') NOT NULL DEFAULT 'pending',
   completeness_pct TINYINT UNSIGNED NOT NULL DEFAULT 0,
   view_count INT UNSIGNED NOT NULL DEFAULT 0,
+  merged_into BIGINT UNSIGNED DEFAULT NULL,
+  merged_at TIMESTAMP NULL DEFAULT NULL,
   registered_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (id), UNIQUE KEY uq_slug(slug), UNIQUE KEY uq_email(email),
@@ -36,6 +38,7 @@ CREATE TABLE IF NOT EXISTS gates_award_programmes (
   scope ENUM('continental','regional','national') NOT NULL DEFAULT 'continental',
   cover_path VARCHAR(400) DEFAULT NULL, icon_emoji VARCHAR(20) DEFAULT '🏆',
   sort_order TINYINT UNSIGNED NOT NULL DEFAULT 0, is_active TINYINT(1) NOT NULL DEFAULT 1,
+  terms MEDIUMTEXT,
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY(id), UNIQUE KEY uq_slug(slug)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
@@ -43,7 +46,13 @@ CREATE TABLE IF NOT EXISTS gates_award_programmes (
 CREATE TABLE IF NOT EXISTS gates_award_cycles (
   id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT, programme_id TINYINT UNSIGNED NOT NULL,
   year YEAR NOT NULL, edition_label VARCHAR(100) DEFAULT NULL,
-  status ENUM('upcoming','nominations','voting','judging','results','archived') NOT NULL DEFAULT 'upcoming',
+  status ENUM('upcoming','nominations','shortlisting','voting','judging','results','archived') NOT NULL DEFAULT 'upcoming',
+  -- The next declared boundary this cycle is waiting on. A computed phase
+  -- cannot be indexed (NOW() is non-deterministic and rejected in generated
+  -- columns, and MySQL builds functional indexes as hidden generated columns),
+  -- so this materialises the one question an operator needs indexed: which
+  -- cycles need attention right now.
+  next_boundary_at DATETIME NULL DEFAULT NULL,
   nominations_open DATETIME DEFAULT NULL, nominations_close DATETIME DEFAULT NULL,
   voting_open DATETIME DEFAULT NULL, voting_close DATETIME DEFAULT NULL,
   results_date DATETIME DEFAULT NULL, created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -63,12 +72,56 @@ CREATE TABLE IF NOT EXISTS gates_nominees (
   id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT, category_id BIGINT UNSIGNED NOT NULL,
   profile_id BIGINT UNSIGNED DEFAULT NULL, name VARCHAR(200) NOT NULL,
   tagline VARCHAR(300) DEFAULT NULL, photo_path VARCHAR(400) DEFAULT NULL,
-  country_code CHAR(2) DEFAULT NULL, vote_count INT UNSIGNED NOT NULL DEFAULT 0,
+  -- The nominator's full case for this person. `tagline` is the SHORT line a
+  -- leaderboard row, card or flier needs; this is what the ballot prints. Approval
+  -- used to keep only the first 200 characters of the story in `tagline` and drop
+  -- the rest, so every ballot showed a sentence cut mid-word with no way to read on.
+  story TEXT NULL,
+  country_code CHAR(2) DEFAULT NULL,
+  -- School / organisation, carried across from the nomination on approval.
+  organisation VARCHAR(200) DEFAULT NULL,
+  vote_count INT UNSIGNED NOT NULL DEFAULT 0,
+  organic_vote_count INT UNSIGNED NOT NULL DEFAULT 0,
   status ENUM('pending','approved','winner','runner_up') NOT NULL DEFAULT 'pending',
+  merged_into BIGINT UNSIGNED DEFAULT NULL,
+  merged_at TIMESTAMP NULL DEFAULT NULL,
   nominated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  PRIMARY KEY(id), KEY idx_category(category_id), KEY idx_votes(vote_count DESC),
+  PRIMARY KEY(id), KEY idx_category(category_id), KEY idx_votes(vote_count DESC), KEY idx_merged_into(merged_into),
   CONSTRAINT fk_nominee_cat FOREIGN KEY(category_id) REFERENCES gates_award_categories(id) ON DELETE CASCADE,
   CONSTRAINT fk_nominee_profile FOREIGN KEY(profile_id) REFERENCES gates_profiles(id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Per-row undo journal for nominee merges: every reassigned row (old value) and
+-- every collision-dropped row (full snapshot) so an unmerge restores exactly.
+CREATE TABLE IF NOT EXISTS gates_merge_log (
+  id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  batch VARCHAR(40) NOT NULL,
+  keep_id BIGINT UNSIGNED NOT NULL,
+  merged_id BIGINT UNSIGNED NOT NULL,
+  op ENUM('reassign','delete') NOT NULL,
+  tbl VARCHAR(64) NOT NULL,
+  row_pk BIGINT UNSIGNED DEFAULT NULL,
+  col VARCHAR(64) DEFAULT NULL,
+  old_val VARCHAR(64) DEFAULT NULL,
+  snapshot TEXT DEFAULT NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY(id), KEY idx_merge_log_merged(merged_id), KEY idx_merge_log_batch(batch)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Same undo journal, for registry-profile merges (see gates_merge_log).
+CREATE TABLE IF NOT EXISTS gates_profile_merge_log (
+  id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  batch VARCHAR(40) NOT NULL,
+  keep_id BIGINT UNSIGNED NOT NULL,
+  merged_id BIGINT UNSIGNED NOT NULL,
+  op ENUM('reassign','delete') NOT NULL,
+  tbl VARCHAR(64) NOT NULL,
+  row_pk BIGINT UNSIGNED DEFAULT NULL,
+  col VARCHAR(64) DEFAULT NULL,
+  old_val VARCHAR(64) DEFAULT NULL,
+  snapshot TEXT DEFAULT NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY(id), KEY idx_pmerge_log_merged(merged_id), KEY idx_pmerge_log_batch(batch)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS gates_votes (
@@ -78,15 +131,34 @@ CREATE TABLE IF NOT EXISTS gates_votes (
   ip_hash VARCHAR(64) DEFAULT NULL,
   device_hash VARCHAR(64) DEFAULT NULL,
   idempotency_key VARCHAR(80) DEFAULT NULL,
+  voter_name VARCHAR(120) DEFAULT NULL,
+  voter_phone VARCHAR(40) DEFAULT NULL,
+  -- Consent to appear on the PUBLIC supporters list. 0 unless the voter ticked the
+  -- box, so a name collected for a receipt is never published by default.
+  show_name TINYINT(1) NOT NULL DEFAULT 0,
   vote_type ENUM('standard','bonus','paid') NOT NULL DEFAULT 'standard',
-  weight SMALLINT UNSIGNED NOT NULL DEFAULT 1,
+  -- INT, not SMALLINT. A paid-vote order mints ONE row with weight = quantity, so
+  -- SMALLINT's 65,535 was the real (and unmeasured) ceiling on a bulk purchase — and
+  -- on a host that overrides sql_mode away from strict, MySQL would have CLAMPED to it
+  -- and reported success, crediting 65,535 votes for an order of 100,000. Matches
+  -- gates_nominees.vote_count and gates_donations.bonus_votes, which were already INT.
+  weight INT UNSIGNED NOT NULL DEFAULT 1,
+  -- Which recovery batch put this vote here, if any. NULL on every vote cast the
+  -- normal way, so "which votes did we place ourselves" is a one-column question.
+  -- A column rather than a new vote_type: a recovered vote IS an ordinary organic
+  -- vote, and inventing a type would make every existing query learn about it.
+  recovery_batch_id BIGINT UNSIGNED DEFAULT NULL,
   donation_id BIGINT UNSIGNED DEFAULT NULL,
   risk_score TINYINT UNSIGNED NOT NULL DEFAULT 0,
   fraud_flag TINYINT(1) NOT NULL DEFAULT 0,
   voted_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY(id), UNIQUE KEY uq_one_vote(voter_email_hash,category_id),
-  UNIQUE KEY uq_votes_idem(idempotency_key),
+  UNIQUE KEY uq_votes_idem(voter_email_hash,idempotency_key),
   KEY idx_nominee(nominee_id), KEY idx_voted_at(voted_at), KEY idx_votes_device(device_hash),
+  -- Read on every paid-vote clawback, which scans by donation_id. It was only
+  -- ever created by a catch-up migration whose CREATE INDEX IF NOT EXISTS is
+  -- MySQL-invalid, so it existed on no MySQL install at all until now.
+  KEY idx_votes_donation(donation_id),
   CONSTRAINT fk_vote_nominee FOREIGN KEY(nominee_id) REFERENCES gates_nominees(id) ON DELETE CASCADE,
   CONSTRAINT fk_vote_cat FOREIGN KEY(category_id) REFERENCES gates_award_categories(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
@@ -100,15 +172,25 @@ CREATE TABLE IF NOT EXISTS gates_vote_snapshots (
   cpi_score INT UNSIGNED NOT NULL DEFAULT 0,
   snapshot_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   prev_hash VARCHAR(64) DEFAULT NULL, hash VARCHAR(64) DEFAULT NULL,
-  PRIMARY KEY (id), KEY idx_snap_cycle (cycle_id), KEY idx_snap_nominee (nominee_id)
+  PRIMARY KEY (id), KEY idx_snap_cycle (cycle_id), KEY idx_snap_nominee (nominee_id),
+  -- A link may be extended exactly once. Two concurrent captures reading the same
+  -- tail would otherwise fork the chain, and a forked chain reports itself as
+  -- tampered with, permanently and unclearably. NULLs are distinct in a unique
+  -- index, so rows predating prev_hash are unaffected.
+  UNIQUE KEY uq_snap_prev (prev_hash)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE TABLE IF NOT EXISTS gates_cycle_transitions (
   id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT, cycle_id BIGINT UNSIGNED NOT NULL,
   from_status VARCHAR(20) DEFAULT NULL, to_status VARCHAR(20) NOT NULL,
   reason VARCHAR(200) DEFAULT NULL, actor VARCHAR(80) DEFAULT NULL,
+  boundary_at DATETIME NULL DEFAULT NULL, observed_at DATETIME NULL DEFAULT NULL,
+  notify TINYINT(1) NOT NULL DEFAULT 1,
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  PRIMARY KEY (id), KEY idx_cyctrans_cycle (cycle_id)
+  PRIMARY KEY (id), KEY idx_cyctrans_cycle (cycle_id),
+  -- The INSERT is the claim: exactly one caller records a phase entry and
+  -- fires its side effects, even when two schedulers run concurrently.
+  UNIQUE KEY uq_cyctrans_phase (cycle_id, to_status)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE TABLE IF NOT EXISTS gates_jobs (
@@ -117,8 +199,12 @@ CREATE TABLE IF NOT EXISTS gates_jobs (
   attempts TINYINT UNSIGNED NOT NULL DEFAULT 0,
   run_after TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP, locked_at TIMESTAMP NULL DEFAULT NULL,
   last_error VARCHAR(500) DEFAULT NULL,
+  dedupe_key VARCHAR(191) NULL DEFAULT NULL,
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP, updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  PRIMARY KEY (id), KEY idx_jobs_due (status, run_after)
+  PRIMARY KEY (id), KEY idx_jobs_due (status, run_after),
+  -- The outbox delivers at-least-once, so anything with a user-visible effect
+  -- needs a way to refuse a duplicate enqueue.
+  UNIQUE KEY uq_jobs_dedupe (dedupe_key)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE TABLE IF NOT EXISTS gates_rule_sets (
@@ -189,8 +275,15 @@ CREATE TABLE IF NOT EXISTS gates_otp_tokens (
   token_hash VARCHAR(64) NOT NULL, purpose VARCHAR(30) NOT NULL DEFAULT 'vote',
   nominee_id BIGINT UNSIGNED DEFAULT NULL, award_id TINYINT UNSIGNED DEFAULT NULL,
   attempts TINYINT UNSIGNED NOT NULL DEFAULT 0, is_used TINYINT(1) NOT NULL DEFAULT 0,
+  -- Did the code actually leave the building? 'failed' is the platform's own record
+  -- that it let this person down, and the only basis on which their dropped vote may
+  -- later be recovered. 'unknown' predates the column and is never recoverable.
+  delivery_state ENUM('unknown','sent','failed') NOT NULL DEFAULT 'unknown',
+  delivery_error VARCHAR(300) NULL,
+  delivery_at TIMESTAMP NULL DEFAULT NULL,
   expires_at DATETIME NOT NULL, created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  PRIMARY KEY(id), KEY idx_email_purpose(email_hash,purpose), KEY idx_expires(expires_at)
+  PRIMARY KEY(id), KEY idx_email_purpose(email_hash,purpose), KEY idx_expires(expires_at),
+  KEY idx_otp_delivery(purpose, delivery_state, is_used)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS gates_nominations (
@@ -202,6 +295,10 @@ CREATE TABLE IF NOT EXISTS gates_nominations (
   country_code CHAR(2) DEFAULT NULL,
   nominee_state VARCHAR(100) DEFAULT NULL,
   nominee_lga VARCHAR(100) DEFAULT NULL,
+  nominee_org VARCHAR(200) DEFAULT NULL,
+  nominee_phone VARCHAR(40) DEFAULT NULL,
+  nominee_photo_path VARCHAR(400) DEFAULT NULL,
+  reference VARCHAR(24) DEFAULT NULL,
   reason TEXT,
   reference_url VARCHAR(400) DEFAULT NULL,
   reference_url_2 VARCHAR(400) DEFAULT NULL,
@@ -210,10 +307,18 @@ CREATE TABLE IF NOT EXISTS gates_nominations (
   nominator_email VARCHAR(191) NOT NULL,
   nominator_phone VARCHAR(30) DEFAULT NULL,
   nominator_location VARCHAR(200) DEFAULT NULL,
+  nominator_country CHAR(2) DEFAULT NULL,
+  nominator_state VARCHAR(100) DEFAULT NULL,
+  nominator_lga VARCHAR(100) DEFAULT NULL,
+  nominator_age_range VARCHAR(20) DEFAULT NULL,
+  decision_reason TEXT,
+  nominator_ack_at TIMESTAMP NULL DEFAULT NULL,
   status ENUM('pending','approved','rejected') NOT NULL DEFAULT 'pending',
   ip_hash VARCHAR(64) DEFAULT NULL,
+  device_fp VARCHAR(64) DEFAULT NULL,
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  PRIMARY KEY(id), KEY idx_cycle(cycle_id), KEY idx_status(status),
+  PRIMARY KEY(id), KEY idx_cycle(cycle_id), KEY idx_status(status), KEY idx_nominations_device(device_fp),
+  UNIQUE KEY uq_nom_reference(reference),
   CONSTRAINT fk_nom_cycle FOREIGN KEY(cycle_id) REFERENCES gates_award_cycles(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
@@ -246,6 +351,78 @@ CREATE TABLE IF NOT EXISTS gates_rate_limits (
   action VARCHAR(50) NOT NULL, hit_count SMALLINT UNSIGNED NOT NULL DEFAULT 1,
   window_start TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY(id), UNIQUE KEY uq_fp_action(fingerprint,action), KEY idx_window(window_start)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Shareable prefill nomination links: an opaque high-entropy token maps to a
+-- nominee-side payload (JSON) that prefills the wizard for whoever opens it.
+-- PII stays server-side behind the token; links expire and count their hits.
+CREATE TABLE IF NOT EXISTS gates_nomination_links (
+  id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  token VARCHAR(64) NOT NULL,
+  payload TEXT NOT NULL,
+  created_ip_hash VARCHAR(64) DEFAULT NULL,
+  created_by BIGINT UNSIGNED DEFAULT NULL,
+  hits INT UNSIGNED NOT NULL DEFAULT 0,
+  expires_at TIMESTAMP NULL DEFAULT NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY(id), UNIQUE KEY uq_nomlink_token(token), KEY idx_nomlink_expires(expires_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Editable legal / policy documents (privacy, terms, cookies, + custom).
+-- Replaces the hardcoded copy that used to live in templates/pages/legal.twig
+-- so operators can edit policies from the admin without a deploy.
+CREATE TABLE IF NOT EXISTS gates_legal_docs (
+  slug VARCHAR(60) NOT NULL,
+  title VARCHAR(160) NOT NULL,
+  body_html MEDIUMTEXT,
+  updated_label VARCHAR(60) DEFAULT NULL,
+  is_published TINYINT(1) NOT NULL DEFAULT 1,
+  sort_order INT NOT NULL DEFAULT 0,
+  updated_by BIGINT UNSIGNED DEFAULT NULL,
+  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY(slug), KEY idx_legal_pub(is_published, sort_order)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- AI triage for nomination review at scale: one advisory row per nomination
+-- (quality score, summary, duplicate hints). NEVER auto-approves/rejects —
+-- operators decide; this only helps them decide faster and more accurately.
+CREATE TABLE IF NOT EXISTS gates_nomination_insights (
+  nomination_id BIGINT UNSIGNED NOT NULL,
+  quality_score TINYINT UNSIGNED DEFAULT NULL, -- 0-100 advisory
+  summary TEXT,
+  duplicates_json TEXT,
+  model VARCHAR(40) DEFAULT NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY(nomination_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Email delivery audit: one row per attempted send (recipient masked).
+-- Powers the admin Email-health card so "emails are not arriving" is
+-- diagnosable in one glance instead of silent.
+CREATE TABLE IF NOT EXISTS gates_mail_log (
+  id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  to_masked VARCHAR(120) NOT NULL,
+  subject VARCHAR(200) NOT NULL,
+  category VARCHAR(40) DEFAULT NULL,
+  status ENUM('sent','failed','logged_dev') NOT NULL,
+  error VARCHAR(300) DEFAULT NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY(id), KEY idx_mail_created(created_at), KEY idx_mail_status(status)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Outbound SMS / WhatsApp delivery audit (recipients stored hashed + masked, never raw).
+CREATE TABLE IF NOT EXISTS gates_messages (
+  id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  channel ENUM('sms','whatsapp') NOT NULL,
+  to_hash VARCHAR(64) NOT NULL,
+  to_masked VARCHAR(24) NOT NULL,
+  template VARCHAR(60) NOT NULL DEFAULT 'generic',
+  status ENUM('sent','failed','queued') NOT NULL,
+  provider VARCHAR(20) DEFAULT NULL,
+  provider_ref VARCHAR(80) DEFAULT NULL,
+  error VARCHAR(300) DEFAULT NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY(id), KEY idx_messages_created(created_at), KEY idx_messages_status(status)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS gates_cache (
@@ -312,24 +489,73 @@ CREATE TABLE IF NOT EXISTS gates_donations (
   tier VARCHAR(50) DEFAULT NULL,
   bonus_votes INT UNSIGNED NOT NULL DEFAULT 0,
   votes_used INT UNSIGNED NOT NULL DEFAULT 0,
+  intent_nominee_id BIGINT UNSIGNED DEFAULT NULL, -- paid-vote orders: auto-mint target on confirm
   payment_ref VARCHAR(200) DEFAULT NULL,
+  -- The GATEWAY's own identifiers for this payment, captured at confirmation.
+  -- `payment_ref`/`reference` above is the reference WE mint and hand to the gateway;
+  -- these two are what Paystack's receipt, dashboard and SMS actually show the buyer, so
+  -- without them the number in a supporter's hand matches nothing on the platform.
+  -- Deliberately NOT unique: a transaction id is unique per gateway, not across them, and
+  -- some providers reuse a reference on a retried charge.
+  -- See database/migrations/2026_08_26_gateway_reference.php.
+  gateway_txn_id VARCHAR(64) DEFAULT NULL,
+  gateway_ref VARCHAR(80) DEFAULT NULL,
   status ENUM('pending','confirmed','failed') NOT NULL DEFAULT 'pending',
+  -- The buyer's answer to "show my name publicly", carried through the gateway
+  -- round-trip and copied onto the vote at mint. Default 0 = private.
+  show_name TINYINT(1) NOT NULL DEFAULT 0,
+  refunded_at TIMESTAMP NULL DEFAULT NULL,
+  -- Automatic-refund bookkeeping. `refund_requested_at` is the CLAIM stamp,
+  -- written before the gateway is called so two workers can never both refund
+  -- the same order — see AfricaGates\Services\RefundService.
+  refund_state VARCHAR(16) DEFAULT NULL,
+  refund_ref VARCHAR(120) DEFAULT NULL,
+  refund_reason VARCHAR(255) DEFAULT NULL,
+  refund_requested_at TIMESTAMP NULL DEFAULT NULL,
+  -- Refusal pacing. A refused refund releases its claim (no money moved, so a
+  -- retry is safe) but must NOT be retried on the next 14-minute tick; these
+  -- two turn that loop into 1h -> 6h -> 24h and then a stop.
+  refund_attempts INT UNSIGNED NOT NULL DEFAULT 0,
+  refund_retry_after TIMESTAMP NULL DEFAULT NULL,
+  -- The gateway's own answer behind a refund decision. `unreachable` is a
+  -- distinct verdict: a confident refusal made out of a network timeout is the
+  -- worst thing this column could be used to justify. See RefundDecision.
+  gateway_checked_at TIMESTAMP NULL DEFAULT NULL,
+  gateway_verdict VARCHAR(24) DEFAULT NULL,
+  gateway_evidence TEXT DEFAULT NULL,
+  -- WHEN the money arrived, as distinct from when checkout started. The refund
+  -- grace window measures this; before the column it measured created_at.
+  confirmed_at TIMESTAMP NULL DEFAULT NULL,
+  -- WHICH gateway took the money. Without it the reconciler asks every gateway
+  -- about every reference, and a refund has to guess where to send cash back to.
+  provider VARCHAR(24) DEFAULT NULL,
+  -- Stamped when the reconciler gives up on a checkout nobody ever completed.
+  -- `status` also becomes 'failed'; this records that TIME decided, not a bank.
+  expired_at TIMESTAMP NULL DEFAULT NULL,
+  -- Send-exactly-once claim stamps. Both emails have more than one caller racing
+  -- to send them (callback vs webhook; every maintenance tick), so the claim is a
+  -- guarded UPDATE on a NULL column. See CheckoutMailer.
+  receipt_sent_at TIMESTAMP NULL DEFAULT NULL,
+  abandoned_mail_at TIMESTAMP NULL DEFAULT NULL,
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY(id),
   KEY idx_donation_email(donor_email),
-  KEY idx_donation_status(status)
+  KEY idx_dona_gwtxn (gateway_txn_id),
+  KEY idx_dona_gwref (gateway_ref),
+  KEY idx_donation_status(status),
+  KEY idx_donations_pending_age(status, created_at),
+  KEY idx_donation_refund_retry(refund_state, refund_retry_after),
+  KEY idx_donations_abandon(status, abandoned_mail_at, created_at),
+  KEY idx_donation_refundable(status, tier, votes_used, refund_requested_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- Migration helper: add new columns to existing installations
--- (safe to run even if columns already exist — IF NOT EXISTS guard)
-ALTER TABLE gates_nominations
-  ADD COLUMN IF NOT EXISTS nominee_state VARCHAR(100) DEFAULT NULL AFTER country_code,
-  ADD COLUMN IF NOT EXISTS nominee_lga VARCHAR(100) DEFAULT NULL AFTER nominee_state,
-  ADD COLUMN IF NOT EXISTS reference_url VARCHAR(400) DEFAULT NULL,
-  ADD COLUMN IF NOT EXISTS reference_url_2 VARCHAR(400) DEFAULT NULL,
-  ADD COLUMN IF NOT EXISTS reference_url_3 VARCHAR(400) DEFAULT NULL,
-  ADD COLUMN IF NOT EXISTS nominator_phone VARCHAR(30) DEFAULT NULL AFTER nominator_email,
-  ADD COLUMN IF NOT EXISTS nominator_location VARCHAR(200) DEFAULT NULL AFTER nominator_phone;
+-- NOTE: the gates_nominations location + reference columns (nominee_state,
+-- nominee_lga, reference_url[_2/_3], nominator_phone/location/country/state/lga)
+-- are added by the idempotent, driver-aware migration
+--   database/migrations/2026_06_30_nomination_location_columns.php
+-- A raw `ALTER TABLE … ADD COLUMN IF NOT EXISTS …` was REMOVED from here because
+-- that syntax is MariaDB-only and a hard error on Oracle MySQL — it aborted the
+-- entire schema apply (and every later migration) on MySQL hosts.
 
 SET FOREIGN_KEY_CHECKS=1;
 
@@ -347,9 +573,114 @@ CREATE TABLE IF NOT EXISTS gates_site_events (
   cover_image VARCHAR(500) NULL,
   rsvp_url VARCHAR(500) NULL,
   status VARCHAR(20) NOT NULL DEFAULT 'published',
+  capacity INT UNSIGNED DEFAULT NULL,
+  price_naira INT UNSIGNED DEFAULT NULL,
+  schedule TEXT NULL,
+  map_embed VARCHAR(500) NULL,
+  ticket_tiers TEXT NULL,
+  early_bird_text VARCHAR(255) NULL,
+  early_bird_deadline DATETIME NULL,
+  early_bird_url VARCHAR(500) NULL,
   created_at DATETIME NULL,
   PRIMARY KEY (id),
   UNIQUE KEY uq_site_events_slug (slug)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ─── Event registrations (on-platform RSVP for site events) ───
+CREATE TABLE IF NOT EXISTS gates_event_registrations (
+  id INT UNSIGNED NOT NULL AUTO_INCREMENT,
+  event_id INT UNSIGNED NOT NULL,
+  name VARCHAR(160) NOT NULL,
+  email VARCHAR(190) NOT NULL,
+  phone VARCHAR(40) NULL,
+  ip_hash VARCHAR(64) NULL,
+  amount_naira INT DEFAULT 0,
+  reference VARCHAR(80) DEFAULT NULL,
+  tier VARCHAR(80) DEFAULT NULL,
+  user_id BIGINT UNSIGNED DEFAULT NULL,
+  created_at DATETIME NULL,
+  PRIMARY KEY (id),
+  UNIQUE KEY uq_evreg_event_email (event_id, email),
+  KEY idx_evreg_event (event_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ─── Gated single-use form links (verified nominees + judge invites) ───
+CREATE TABLE IF NOT EXISTS gates_form_tokens (
+  id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  purpose VARCHAR(16) NOT NULL,
+  subject_id BIGINT UNSIGNED NOT NULL,
+  email_hash VARCHAR(64) DEFAULT NULL,
+  token_hash VARCHAR(64) NOT NULL,
+  payload TEXT,
+  is_used TINYINT(1) NOT NULL DEFAULT 0,
+  used_at TIMESTAMP NULL DEFAULT NULL,
+  expires_at TIMESTAMP NULL DEFAULT NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  UNIQUE KEY uq_formtok (token_hash),
+  KEY idx_formtok_subject (purpose, subject_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ─── Form builder (admin-designed forms + submissions) ───
+CREATE TABLE IF NOT EXISTS gates_forms (
+  id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  form_key VARCHAR(80) NOT NULL,
+  title VARCHAR(200) NOT NULL,
+  description TEXT,
+  schema_json MEDIUMTEXT NOT NULL,
+  submit_message TEXT,
+  status VARCHAR(20) NOT NULL DEFAULT 'draft',
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  UNIQUE KEY uq_form_key (form_key)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS gates_form_submissions (
+  id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  form_id BIGINT UNSIGNED NOT NULL,
+  form_key VARCHAR(80) NOT NULL,
+  data_json MEDIUMTEXT NOT NULL,
+  ip_hash VARCHAR(64) DEFAULT NULL,
+  user_id BIGINT UNSIGNED DEFAULT NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  KEY idx_formsub_form (form_key)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ─── User accounts + voting-points ledger ───
+CREATE TABLE IF NOT EXISTS gates_users (
+  id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  name VARCHAR(160) NOT NULL,
+  email VARCHAR(191) NOT NULL,
+  phone VARCHAR(40) DEFAULT NULL,
+  password_hash VARCHAR(255) DEFAULT NULL,
+  points INT NOT NULL DEFAULT 0,
+  status VARCHAR(20) NOT NULL DEFAULT 'active',
+  email_verified TINYINT(1) NOT NULL DEFAULT 0,
+  created_at TIMESTAMP NULL DEFAULT NULL,
+  last_login_at TIMESTAMP NULL DEFAULT NULL,
+  last_login_ip VARCHAR(64) DEFAULT NULL,
+  -- How far this member has read their alerts. The ONLY state the alerts
+  -- feature stores: everything else is derived from the tables that already
+  -- record the events. NULL = never opened = everything unread.
+  alerts_read_at DATETIME NULL DEFAULT NULL,
+  PRIMARY KEY (id),
+  UNIQUE KEY uq_user_email (email)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS gates_points_ledger (
+  id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  user_id BIGINT UNSIGNED NOT NULL,
+  delta INT NOT NULL,
+  reason VARCHAR(40) NOT NULL,
+  ref_type VARCHAR(40) DEFAULT NULL,
+  ref_id VARCHAR(80) DEFAULT NULL,
+  balance_after INT NOT NULL DEFAULT 0,
+  note VARCHAR(200) DEFAULT NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  KEY idx_ledger_user (user_id, created_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ─── Blog posts ───
@@ -360,6 +691,7 @@ CREATE TABLE IF NOT EXISTS gates_posts (
   excerpt VARCHAR(400) NULL,
   body MEDIUMTEXT NULL,
   cover_image VARCHAR(500) NULL,
+  audio_path VARCHAR(500) NULL,
   author VARCHAR(120) NULL,
   tag VARCHAR(60) NULL,
   status VARCHAR(20) NOT NULL DEFAULT 'published',
@@ -367,4 +699,228 @@ CREATE TABLE IF NOT EXISTS gates_posts (
   created_at DATETIME NULL,
   PRIMARY KEY (id),
   UNIQUE KEY uq_posts_slug (slug)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Shadow-mode ledger for the COMPUTED cycle phase (see AfricaGates\Services\BallotGuard).
+-- One row whenever the computed phase and the stored gates_award_cycles.status
+-- disagree about whether a vote/nomination may proceed, so a mis-configured
+-- live cycle surfaces to an operator instead of silently mis-gating traffic.
+CREATE TABLE IF NOT EXISTS gates_phase_drift (
+  id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  cycle_id BIGINT UNSIGNED NOT NULL,
+  action ENUM('vote','nominate') NOT NULL DEFAULT 'vote',
+  computed_phase VARCHAR(20) NOT NULL,
+  stored_status VARCHAR(20) NOT NULL,
+  would_allow TINYINT(1) NOT NULL DEFAULT 0,
+  phase_allows TINYINT(1) NOT NULL DEFAULT 0,
+  mode VARCHAR(10) NOT NULL DEFAULT 'strict',
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  KEY idx_drift_cycle (cycle_id, created_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- AI audit log. Every model call, whatever the outcome: which capability ran,
+-- which provider answered, tokens spent, and what happened. The prompt itself is
+-- NOT stored — only a hash — so the log does not become a second copy of every
+-- nominator's free text. Budgets are enforced against this table, so the spend
+-- figure and the record can never disagree.
+CREATE TABLE IF NOT EXISTS gates_ai_calls (
+  id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  capability VARCHAR(60) NOT NULL,
+  purpose VARCHAR(20) DEFAULT NULL,
+  provider VARCHAR(20) DEFAULT NULL,
+  model VARCHAR(80) DEFAULT NULL,
+  subject_type VARCHAR(40) DEFAULT NULL,
+  subject_id BIGINT UNSIGNED DEFAULT NULL,
+  input_hash CHAR(64) DEFAULT NULL,
+  output_summary VARCHAR(300) DEFAULT NULL,
+  tokens_in INT UNSIGNED NOT NULL DEFAULT 0,
+  tokens_out INT UNSIGNED NOT NULL DEFAULT 0,
+  latency_ms INT UNSIGNED NOT NULL DEFAULT 0,
+  outcome VARCHAR(24) NOT NULL DEFAULT 'OK',
+  error VARCHAR(300) DEFAULT NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  KEY idx_ai_cap_day (capability, created_at),
+  KEY idx_ai_subject (subject_type, subject_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- What the AI suggested vs what the human decided. gates_ai_calls records that a
+-- call happened; this records whether it was any use — the only thing that
+-- justifies keeping an advisory AI, and the accountability trail for a decision
+-- made with a machine score in front of the reviewer.
+CREATE TABLE IF NOT EXISTS gates_ai_decisions (
+  id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  capability VARCHAR(60) NOT NULL,
+  subject_type VARCHAR(40) NOT NULL,
+  subject_id BIGINT UNSIGNED NOT NULL,
+  suggested VARCHAR(120) DEFAULT NULL,
+  decided VARCHAR(120) NOT NULL,
+  agreed TINYINT(1) DEFAULT NULL,
+  actor_id BIGINT UNSIGNED DEFAULT NULL,
+  note VARCHAR(300) DEFAULT NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  KEY idx_aidec_cap_day (capability, created_at),
+  KEY idx_aidec_subject (subject_type, subject_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- The reconciliation audit trail. One row per RUN of the payment reconciler:
+-- who ran it, in which mode, and what the gateway said at the time. A finance
+-- correction with no trail is indistinguishable from tampering, and this became
+-- load-bearing the moment an admin (not just cron) could press the button.
+CREATE TABLE IF NOT EXISTS gates_reconciliation_runs (
+  id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  ran_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  actor VARCHAR(120) NOT NULL DEFAULT 'system',
+  mode VARCHAR(10) NOT NULL DEFAULT 'check',
+  checked INT UNSIGNED NOT NULL DEFAULT 0,
+  confirmed INT UNSIGNED NOT NULL DEFAULT 0,
+  failed INT UNSIGNED NOT NULL DEFAULT 0,
+  mismatch INT UNSIGNED NOT NULL DEFAULT 0,
+  unverifiable INT UNSIGNED NOT NULL DEFAULT 0,
+  naira BIGINT UNSIGNED NOT NULL DEFAULT 0,
+  detail_json LONGTEXT,
+  PRIMARY KEY(id),
+  KEY idx_recon_ran (ran_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Shop orders. Lived only in the 2026_06_22_shop migration, so a database built from
+-- this file alone had no shop table at all. Byte-compatible with that migration,
+-- which is idempotent and still safe to run on an existing install.
+CREATE TABLE IF NOT EXISTS gates_orders (
+  id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  reference VARCHAR(64) NOT NULL,
+  email VARCHAR(190) NOT NULL,
+  name VARCHAR(160) NOT NULL,
+  phone VARCHAR(40) DEFAULT NULL,
+  address TEXT,
+  items_json TEXT NOT NULL,
+  subtotal_naira INT UNSIGNED NOT NULL DEFAULT 0,
+  status VARCHAR(20) NOT NULL DEFAULT 'pending',
+  provider VARCHAR(30) DEFAULT NULL,
+  provider_ref VARCHAR(120) DEFAULT NULL,
+  -- The GATEWAY's own identifiers for this payment, captured at confirmation.
+  -- `payment_ref`/`reference` above is the reference WE mint and hand to the gateway;
+  -- these two are what Paystack's receipt, dashboard and SMS actually show the buyer, so
+  -- without them the number in a supporter's hand matches nothing on the platform.
+  -- Deliberately NOT unique: a transaction id is unique per gateway, not across them, and
+  -- some providers reuse a reference on a retried charge.
+  -- See database/migrations/2026_08_26_gateway_reference.php.
+  gateway_txn_id VARCHAR(64) DEFAULT NULL,
+  gateway_ref VARCHAR(80) DEFAULT NULL,
+  ip_hash VARCHAR(64) DEFAULT NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  paid_at TIMESTAMP NULL DEFAULT NULL,
+  PRIMARY KEY (id),
+  UNIQUE KEY uq_order_ref (reference),
+  KEY idx_order_status (status),
+  KEY idx_orde_gwtxn (gateway_txn_id),
+  KEY idx_orde_gwref (gateway_ref)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Shop catalogue. Same gap gates_orders had: it lived only in the 2026_06_22_shop
+-- migration, so a database built from this file had orders with no products for them
+-- to reference. Found by diffing a fresh schema build against a migrated one.
+CREATE TABLE IF NOT EXISTS gates_products (
+  id INT UNSIGNED NOT NULL AUTO_INCREMENT,
+  slug VARCHAR(160) NOT NULL,
+  name VARCHAR(200) NOT NULL,
+  category VARCHAR(80) NOT NULL DEFAULT 'Apparel',
+  description TEXT,
+  price_naira INT UNSIGNED NOT NULL DEFAULT 0,
+  cover_path VARCHAR(400) DEFAULT NULL,
+  tag VARCHAR(40) DEFAULT NULL,
+  stock INT DEFAULT NULL,
+  is_active TINYINT(1) NOT NULL DEFAULT 1,
+  sort_order INT NOT NULL DEFAULT 0,
+  delivery_regions TEXT DEFAULT NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  UNIQUE KEY uq_product_slug (slug),
+  KEY idx_product_active (is_active, sort_order)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ── SUPPORT DESK ────────────────────────────────────────────────────────────
+-- See the note in sqlite-schema.sql: these tables shipped only as migrations, so
+-- a database built from this file had a support desk with nothing behind it.
+CREATE TABLE IF NOT EXISTS gates_support_tickets (
+  id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  reference VARCHAR(24) NOT NULL,
+  user_id BIGINT UNSIGNED NULL,
+  email VARCHAR(255) NULL,
+  name VARCHAR(160) NULL,
+  subject VARCHAR(255) NOT NULL,
+  transcript MEDIUMTEXT NULL,
+  tools_used VARCHAR(255) NULL,
+  severity VARCHAR(16) NOT NULL DEFAULT 'normal',
+  status VARCHAR(16) NOT NULL DEFAULT 'open',
+  emailed TINYINT(1) NOT NULL DEFAULT 0,
+  webhooked TINYINT(1) NOT NULL DEFAULT 0,
+  page_url VARCHAR(500) NULL,
+  user_agent VARCHAR(255) NULL,
+  ip_hash CHAR(64) NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  last_activity TIMESTAMP NULL,
+  resolved_at TIMESTAMP NULL,
+  PRIMARY KEY (id),
+  UNIQUE KEY uq_ticket_ref (reference),
+  KEY idx_ticket_status (status),
+  KEY idx_ticket_created (created_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS gates_support_messages (
+  id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  ticket_id BIGINT UNSIGNED NOT NULL,
+  author_type VARCHAR(12) NOT NULL DEFAULT 'member',
+  author_id BIGINT UNSIGNED NULL,
+  author_name VARCHAR(160) NULL,
+  body MEDIUMTEXT NOT NULL,
+  is_internal TINYINT(1) NOT NULL DEFAULT 0,
+  emailed TINYINT(1) NOT NULL DEFAULT 0,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  KEY idx_smsg_ticket (ticket_id, id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ── VOTE MESSAGES ──────────────────────────────────────────────────────────
+-- A voter's message of support for a nominee. A separate table rather than a
+-- column on gates_votes: a message needs a moderation lifecycle, and putting that
+-- on the integrity table would conflate "is this vote real" with "is this
+-- sentence publishable". See database/migrations/2026_08_22_vote_messages.php.
+CREATE TABLE IF NOT EXISTS gates_vote_messages (
+  id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  nominee_id BIGINT UNSIGNED NOT NULL,
+  category_id BIGINT UNSIGNED NULL,
+  -- NULL for a paid contribution: its votes are minted after the gateway
+  -- confirms, so the message exists before the vote row does.
+  vote_id BIGINT UNSIGNED NULL,
+  donation_id BIGINT UNSIGNED NULL,
+  voter_email_hash VARCHAR(64) NOT NULL,
+  display_name VARCHAR(120) NULL,
+  -- Shown only when 1, exactly like the supporters list.
+  show_name TINYINT(1) NOT NULL DEFAULT 0,
+  body TEXT NOT NULL,
+  source ENUM('free','paid') NOT NULL DEFAULT 'free',
+  status ENUM('pending','approved','rejected','quarantined') NOT NULL DEFAULT 'pending',
+  mod_score DECIMAL(4,3) NULL,
+  mod_reason VARCHAR(190) NULL,
+  moderated_by BIGINT UNSIGNED NULL,
+  moderated_at TIMESTAMP NULL DEFAULT NULL,
+  cheers INT UNSIGNED NOT NULL DEFAULT 0,
+  -- Reader reports. Counted on the row rather than in gates_reports because that
+  -- table requires a member id and constrains target_type to thread|comment: a
+  -- reader who arrives from a WhatsApp link and sees something about a child is not
+  -- going to register in order to say so.
+  reports INT UNSIGNED NOT NULL DEFAULT 0,
+  reported_at TIMESTAMP NULL DEFAULT NULL,
+  share_token CHAR(22) NULL,
+  created_at TIMESTAMP NULL DEFAULT NULL,
+  deleted_at TIMESTAMP NULL DEFAULT NULL,
+  KEY idx_vmsg_wall (nominee_id, status, created_at),
+  UNIQUE KEY uq_vmsg_voter (nominee_id, voter_email_hash),
+  UNIQUE KEY uq_vmsg_token (share_token),
+  KEY idx_vmsg_queue (status, created_at),
+  KEY idx_vmsg_reported (reports, reported_at),
+  CONSTRAINT fk_vmsg_nominee FOREIGN KEY (nominee_id) REFERENCES gates_nominees(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

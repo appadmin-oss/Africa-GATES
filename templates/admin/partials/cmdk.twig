@@ -1,0 +1,83 @@
+{# ── THE COMMAND PALETTE, WIRED ──────────────────────────────────────────────
+   Plain JS, no framework: this is the control that has to work when something else
+   on the page has broken, which is exactly when somebody is hunting for a page.
+
+   Substring matching only. Fuzzy matching is a nice demo and a poor experience on a
+   fixed set of thirty-seven known names — it surfaces "Disputes" for "dsp" and also
+   for half of everything else. The haystack is the page name plus its section, so
+   "money" finds every payment screen. #}
+<script nonce="{{ csp_nonce }}">
+(function () {
+  var dlg   = document.getElementById('adCmd');
+  var input = document.getElementById('adCmdIn');
+  var list  = document.getElementById('adCmdList');
+  var none  = document.getElementById('adCmdNone');
+  var open  = document.getElementById('adCmdOpen');
+  if (!dlg || !input || !list || typeof dlg.showModal !== 'function') return;
+
+  var items = Array.prototype.slice.call(list.querySelectorAll('.ad-cmd__i'));
+  var shown = items.slice();
+  var at    = 0;
+
+  // Mac shows ⌘K, everyone else Ctrl. The markup ships the Mac glyph because it is the
+  // shorter string; correcting it here avoids a layout shift on the wider label.
+  if (open && !/Mac|iPhone|iPad/.test(navigator.platform || '')) {
+    var kbd = open.querySelector('kbd');
+    if (kbd) kbd.textContent = 'Ctrl K';
+  }
+
+  function mark() {
+    shown.forEach(function (a, i) {
+      var on = i === at;
+      a.classList.toggle('is-on', on);
+      a.parentElement.setAttribute('aria-selected', on ? 'true' : 'false');
+      if (on) a.scrollIntoView({ block: 'nearest' });
+    });
+  }
+
+  function filter() {
+    var q = input.value.trim().toLowerCase();
+    shown = [];
+    items.forEach(function (a) {
+      var hit = q === '' || a.getAttribute('data-cmd').indexOf(q) !== -1;
+      a.parentElement.hidden = !hit;
+      if (hit) shown.push(a);
+    });
+    at = 0;
+    if (none) none.hidden = shown.length > 0;
+    mark();
+  }
+
+  function show() {
+    input.value = '';
+    filter();
+    dlg.showModal();
+    // After showModal, or the browser puts focus on the dialog itself.
+    input.focus();
+  }
+
+  if (open) open.addEventListener('click', show);
+
+  document.addEventListener('keydown', function (e) {
+    if ((e.metaKey || e.ctrlKey) && (e.key === 'k' || e.key === 'K')) {
+      e.preventDefault();
+      dlg.open ? dlg.close() : show();
+      return;
+    }
+    if (!dlg.open) return;
+
+    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+      e.preventDefault();
+      if (!shown.length) return;
+      at = (at + (e.key === 'ArrowDown' ? 1 : -1) + shown.length) % shown.length;
+      mark();
+    } else if (e.key === 'Enter') {
+      // Enter follows the highlighted row. The form is method="dialog", so without this
+      // it would close the palette and go nowhere — which reads as the palette ignoring you.
+      if (shown[at]) { e.preventDefault(); window.location = shown[at].href; }
+    }
+  });
+
+  input.addEventListener('input', filter);
+})();
+</script>

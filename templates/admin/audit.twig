@@ -1,0 +1,343 @@
+{% extends "admin/layout.twig" %}
+
+{# ── WHO DID WHAT, TO WHICH RECORD, FROM WHERE ────────────────────────────────
+   124 places write gates_audit_log. Before this screen it could be read two ways:
+   the dashboard's last twelve rows, and the generic table dump at
+   /admin/data/audit-log where the admin is an integer, the target is an integer,
+   `meta` is not a column at all and `ip_hash` is stripped by the _hash rule.
+
+   Every filter here narrows ONE query (AuditService::search) — the same one the
+   dashboard strip uses — so the log cannot say two different things depending on
+   which screen asked. ────────────────────────────────────────────────────────── #}
+
+{% block topbar_title %}Audit log{% endblock %}
+{% block topbar_actions %}
+  <a class="ad-btn" href="/admin/data/audit-log">Raw table</a>
+{% endblock %}
+
+{% block content %}
+
+{% set span = facets.span %}
+
+{# ── WHAT THIS LOG COVERS ─────────────────────────────────────────────────────
+   Said before anything is filtered. "No results" against an unknown corpus is
+   unreadable — it could mean a narrow filter or an empty log, and those are
+   opposite conclusions. ────────────────────────────────────────────────────── #}
+<div class="ad-card" style="margin-bottom:14px">
+  <div class="ad-card__body" style="display:flex;gap:26px;flex-wrap:wrap;align-items:baseline">
+    <div>
+      <div class="aud__k">Recorded</div>
+      <div class="aud__v">{{ result.total|number_format }}{% if active %} <span style="font-weight:400;color:var(--ad-text-mute)">of {{ facets.total|number_format }}</span>{% endif %}</div>
+    </div>
+    <div>
+      <div class="aud__k">First</div>
+      <div class="aud__v aud__v--sm">{{ span.first ? span.first|when : '—' }}</div>
+    </div>
+    <div>
+      <div class="aud__k">Latest</div>
+      <div class="aud__v aud__v--sm">{{ span.last ? span.last|when : '—' }}</div>
+    </div>
+    <div>
+      <div class="aud__k">Admins</div>
+      <div class="aud__v aud__v--sm">{{ facets.admins|length }}</div>
+    </div>
+    <div>
+      <div class="aud__k">Areas</div>
+      <div class="aud__v aud__v--sm">{{ facets.areas|length }}</div>
+    </div>
+  </div>
+</div>
+
+{# ── ONE ADMIN, SUMMARISED ────────────────────────────────────────────────────
+   `devices` is the count of distinct ip_hash values. That column has been written
+   on every row since the table shipped and rendered nowhere until now. ─────── #}
+{% if actor is defined and actor %}
+<div class="ad-card" style="margin-bottom:14px;border-left:3px solid var(--ad-gold,#f3b416)">
+  <div class="ad-card__head"><div class="ad-card__title">
+    {{ result.rows|length ? (result.rows[0].admin_name ?? result.rows[0].admin_email ?? 'Admin #' ~ actor_id) : 'Admin #' ~ actor_id }}
+    <small>{{ actor.total|number_format }} recorded action{{ actor.total == 1 ? '' : 's' }}</small>
+  </div></div>
+  <div class="ad-card__body">
+    <div style="display:flex;gap:26px;flex-wrap:wrap;align-items:baseline;margin-bottom:14px">
+      <div><div class="aud__k">First seen</div><div class="aud__v aud__v--sm">{{ actor.first_at ? actor.first_at|when : '—' }}</div></div>
+      <div><div class="aud__k">Last seen</div><div class="aud__v aud__v--sm">{{ actor.last_at ? actor.last_at|when : '—' }}</div></div>
+      <div>
+        <div class="aud__k">Networks</div>
+        <div class="aud__v aud__v--sm">{{ actor.devices }}</div>
+      </div>
+      <div><div class="aud__k">Browsers</div><div class="aud__v aud__v--sm">{{ actor.agents }}</div></div>
+    </div>
+    {% if actor.devices > 5 %}
+      {# Not an accusation and phrased as one question, not a verdict. The number is
+         high or low only against how this person works, which the screen cannot know. #}
+      <p class="aud__note">
+        <strong>{{ actor.devices }} distinct networks.</strong> Ordinary for somebody who
+        travels or works from a phone; worth asking about beside a run of deletions.
+      </p>
+    {% endif %}
+    {% if actor.top|length %}
+    <div style="display:flex;gap:6px;flex-wrap:wrap">
+      {% for t in actor.top %}
+        <a class="ad-chip ad-chip--grey" style="text-decoration:none"
+           href="/admin/audit?admin={{ actor_id }}&amp;action={{ t.action|url_encode }}">{{ t.action }} · {{ t.n }}</a>
+      {% endfor %}
+    </div>
+    {% endif %}
+  </div>
+</div>
+{% endif %}
+
+{# ── ONE RECORD'S WHOLE HISTORY ───────────────────────────────────────────── #}
+{% if subject %}
+<div class="ad-card" style="margin-bottom:14px;border-left:3px solid var(--ad-primary,#237b22)">
+  <div class="ad-card__body" style="display:flex;justify-content:space-between;gap:14px;align-items:center;flex-wrap:wrap">
+    <div>
+      <div class="aud__k">{{ subject.label }} #{{ subject.id }}</div>
+      <div class="aud__v">{{ subject.name ?? 'No longer on file' }}</div>
+      {% if not subject.name %}
+        {# Deleted years ago is the audit trail working, not failing. Say which it is. #}
+        <p class="aud__note" style="margin:6px 0 0">The record itself is gone. Its history is not.</p>
+      {% endif %}
+    </div>
+    {% if subject.href %}<a class="ad-btn" href="{{ subject.href }}">Open the record →</a>{% endif %}
+  </div>
+</div>
+{% endif %}
+
+{# ── FILTERS ──────────────────────────────────────────────────────────────────
+   A GET form: every view of this log is a URL somebody can paste into a ticket,
+   which is most of what an audit trail is for. ───────────────────────────── #}
+<form method="get" action="{{ form_action }}" class="ad-card" style="margin-bottom:14px">
+  <div class="ad-card__body aud__filters">
+    <div class="aud__field" style="flex:2;min-width:220px">
+      <label for="aud-q">Search</label>
+      <input type="search" id="aud-q" name="q" value="{{ f.q }}"
+             placeholder="Action or details…">
+    </div>
+
+    {% if actor is not defined or not actor %}
+    <div class="aud__field">
+      <label for="aud-admin">Admin</label>
+      <select id="aud-admin" name="admin">
+        <option value="">Anyone</option>
+        {% for a in facets.admins %}
+          <option value="{{ a.admin_id ?? 0 }}"{{ f.admin is not null and f.admin == (a.admin_id ?? 0) ? ' selected' : '' }}>
+            {{ a.name ?? (a.admin_id ? 'Admin #' ~ a.admin_id : 'Unattributed') }} ({{ a.n }})
+          </option>
+        {% endfor %}
+      </select>
+    </div>
+    {% endif %}
+
+    <div class="aud__field">
+      <label for="aud-area">Area</label>
+      <select id="aud-area" name="area">
+        <option value="">Everything</option>
+        {% for a in facets.areas %}
+          <option value="{{ a.area }}"{{ f.area == a.area ? ' selected' : '' }}>{{ a.area }} ({{ a.n }})</option>
+        {% endfor %}
+      </select>
+    </div>
+
+    <div class="aud__field">
+      <label for="aud-type">Acted on</label>
+      <select id="aud-type" name="type">
+        <option value="">Anything</option>
+        {% for t in facets.types %}
+          <option value="{{ t.type }}"{{ f.target_type == t.type ? ' selected' : '' }}>{{ t.label }} ({{ t.n }})</option>
+        {% endfor %}
+      </select>
+    </div>
+
+    <div class="aud__field aud__field--narrow">
+      <label for="aud-tid">Record #</label>
+      <input type="number" id="aud-tid" name="tid" min="1" value="{{ f.target_id ?: '' }}" placeholder="any">
+    </div>
+
+    <div class="aud__field aud__field--narrow">
+      <label for="aud-from">From</label>
+      <input type="date" id="aud-from" name="from" value="{{ f.from }}">
+    </div>
+    <div class="aud__field aud__field--narrow">
+      <label for="aud-to">To</label>
+      <input type="date" id="aud-to" name="to" value="{{ f.to }}">
+    </div>
+
+    <div class="aud__field aud__field--actions">
+      <button class="ad-btn ad-btn--primary" type="submit">Filter</button>
+      {% if active %}<a class="ad-btn" href="{{ form_action }}">Clear</a>{% endif %}
+      {% if actor is defined and actor %}<a class="ad-btn" href="/admin/audit">All admins</a>{% endif %}
+    </div>
+
+    {# The exact action is set by a chip elsewhere on the page and has no control of its
+       own — a hundred-odd actions is not a usable select. Carried here so touching any
+       other filter does not silently drop it, and shown as a removable chip below so it
+       is never a filter somebody cannot see. #}
+    {% if f.action %}<input type="hidden" name="action" value="{{ f.action }}">{% endif %}
+  </div>
+
+  {% if f.action or (f.area and areaActions|default([])|length) %}
+  <div class="ad-card__body aud__refine">
+    {% if f.action %}
+      <span class="aud__k">Action</span>
+      <a class="ad-chip ad-chip--gold aud__off" href="{{ form_action }}{{ qs_no_action ? '?' ~ qs_no_action|trim('&') : '' }}">
+        {{ f.action }} <span aria-hidden="true">×</span><span class="sr-only">— remove this filter</span>
+      </a>
+    {% elseif f.area %}
+      {# What this area actually contains. Thirty-odd areas is a usable select; the
+         hundred actions under them are not, so they appear once an area is chosen. #}
+      <span class="aud__k">{{ f.area }} covers</span>
+      {% for a in areaActions %}
+        <a class="ad-chip ad-chip--grey aud__off" href="{{ form_action }}?area={{ f.area|url_encode }}&amp;action={{ a.action|url_encode }}">{{ a.action }} · {{ a.n }}</a>
+      {% endfor %}
+    {% endif %}
+  </div>
+  {% endif %}
+</form>
+
+{# ── THE LOG ───────────────────────────────────────────────────────────────── #}
+<div class="ad-card">
+  <div class="ad-table-wrap">
+    <table class="ad-table aud__table">
+      <thead>
+        <tr>
+          <th scope="col">When</th>
+          <th scope="col">Who</th>
+          <th scope="col">Did</th>
+          <th scope="col">To</th>
+          <th scope="col">Details</th>
+          <th scope="col">From</th>
+        </tr>
+      </thead>
+      <tbody>
+      {% for r in result.rows %}
+        <tr>
+          <td class="aud__when">
+            <span title="{{ r.created_at }} UTC">{{ r.created_at|when }}</span>
+          </td>
+
+          <td>
+            {% if r.admin_id %}
+              <a href="/admin/audit/actor/{{ r.admin_id }}">{{ r.admin_name ?? r.admin_email ?? 'Admin #' ~ r.admin_id }}</a>
+            {% else %}
+              {# Cron, console, or a session that had already expired. Worth naming
+                 rather than showing an em-dash: unattributed is a fact, not a gap. #}
+              <span class="aud__muted" title="No admin session — scheduled work, the console, or an expired session">Unattributed</span>
+            {% endif %}
+          </td>
+
+          <td><span class="ad-chip ad-chip--grey">{{ r.action }}</span></td>
+
+          <td>
+            {% if r.target_type %}
+              <a class="aud__target" href="/admin/audit?type={{ r.target_key|url_encode }}{% if r.target_id %}&amp;tid={{ r.target_id }}{% endif %}">
+                <span class="aud__target__k">{{ r.target_label }}</span>
+                <span class="aud__target__n">{{ r.target_name ?? (r.target_id ? '#' ~ r.target_id : '—') }}</span>
+              </a>
+              {% if r.target_href %}<a class="aud__open" href="{{ r.target_href }}"><span aria-hidden="true">↗</span><span class="sr-only">Open the {{ r.target_label|lower }} record</span></a>{% endif %}
+            {% else %}
+              <span class="aud__muted">—</span>
+            {% endif %}
+          </td>
+
+          <td class="aud__meta">
+            {% if r.meta %}
+              {% for k, v in r.meta %}
+                <span class="aud__kv"><b>{{ k }}</b>{% if v is iterable %}{{ v|join(', ')|slice(0, 90) }}{% else %}{{ v|default('')|slice(0, 90) }}{% endif %}</span>
+              {% endfor %}
+            {% else %}
+              <span class="aud__muted">—</span>
+            {% endif %}
+          </td>
+
+          <td class="aud__from">
+            {% if r.device %}
+              {# Six characters of a sha256, not an address: enough to see two rows came
+                 from one network, and it cannot be turned back into an IP. #}
+              <span class="aud__dev" title="Network fingerprint — a hash, not an address">{{ r.device }}</span>
+            {% endif %}
+            {% if r.agent %}<span class="aud__ua">{{ r.agent }}</span>{% endif %}
+            {% if not r.device and not r.agent %}<span class="aud__muted">—</span>{% endif %}
+          </td>
+        </tr>
+      {% else %}
+        <tr><td colspan="6" class="aud__empty">
+          {% if active %}
+            Nothing recorded matches those filters.
+            <a href="/admin/audit">Clear them</a> to see the whole log.
+          {% else %}
+            Nothing has been recorded yet.
+          {% endif %}
+        </td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+
+    {% include 'admin/partials/pager.twig' with {
+      base: actor is defined and actor ? '/admin/audit/actor/' ~ actor_id : '/admin/audit',
+      qs: qs|trim('&'), page: result.page, pages: result.pages, window: window
+    } only %}
+  </div>
+</div>
+
+{% endblock %}
+
+{% block head_styles %}
+<style nonce="{{ csp_nonce }}">
+  /* Micro-label + figure, the house pattern for a stat. */
+  .aud__k{font-family:'Space Mono',monospace;font-size:10.5px;letter-spacing:.09em;
+          text-transform:uppercase;color:var(--ad-text-mute,#5a6d6f)}
+  .aud__v{font-size:22px;font-weight:600;color:var(--ad-text,#12211f);line-height:1.25}
+  .aud__v--sm{font-size:14px;font-weight:500}
+  .aud__note{font-size:13px;color:var(--ad-text-soft,#42514f);margin:0 0 12px;line-height:1.5}
+
+  .aud__filters{display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap}
+  .aud__refine{display:flex;gap:8px;flex-wrap:wrap;align-items:center;
+               border-top:1px solid var(--ad-line,#dfe4e3);padding-top:12px}
+  /* A chip is a link and therefore a target: the 24px floor applies (WCAG 2.5.8). */
+  .aud__off{text-decoration:none;min-height:24px;display:inline-flex;align-items:center}
+  .aud__field{display:flex;flex-direction:column;gap:4px;min-width:150px}
+  .aud__field--narrow{min-width:110px}
+  .aud__field--actions{flex-direction:row;gap:8px;align-items:flex-end;min-width:0}
+  .aud__field label{font-family:'Space Mono',monospace;font-size:10.5px;letter-spacing:.09em;
+                    text-transform:uppercase;color:var(--ad-text-mute,#5a6d6f)}
+  .aud__field input,.aud__field select{
+    padding:9px 11px;border:1px solid var(--ad-line,#dfe4e3);border-radius:9px;
+    background:#fff;font:inherit;font-size:14px;color:var(--ad-text,#12211f);
+    /* 24px is the WCAG 2.5.8 floor; this clears it with room for a fingertip. */
+    min-height:40px}
+  .aud__field input:focus-visible,.aud__field select:focus-visible{
+    outline:2px solid var(--ad-primary,#237b22);outline-offset:1px}
+
+  .aud__table td{vertical-align:top}
+  .aud__when{font-family:'Space Mono',monospace;font-size:12px;
+             color:var(--ad-text-soft,#42514f);white-space:nowrap}
+  .aud__muted{color:var(--ad-text-mute,#5a6d6f)}
+  .aud__target{text-decoration:none;display:inline-flex;flex-direction:column;gap:1px}
+  .aud__target__k{font-family:'Space Mono',monospace;font-size:10px;letter-spacing:.08em;
+                  text-transform:uppercase;color:var(--ad-text-mute,#5a6d6f)}
+  .aud__target__n{color:var(--ad-text,#12211f);font-size:13px}
+  .aud__target:hover .aud__target__n{text-decoration:underline}
+  .aud__open{margin-left:6px;text-decoration:none;color:var(--ad-text-mute,#5a6d6f);
+             /* A bare glyph is a 12px target; pad it to the 24px floor. */
+             display:inline-block;min-width:24px;min-height:24px;line-height:24px;text-align:center}
+
+  .aud__meta{max-width:320px}
+  .aud__kv{display:block;font-size:12px;color:var(--ad-text-soft,#42514f);
+           line-height:1.5;word-break:break-word}
+  .aud__kv b{font-family:'Space Mono',monospace;font-size:10px;letter-spacing:.06em;
+             text-transform:uppercase;color:var(--ad-text-mute,#5a6d6f);margin-right:6px;font-weight:400}
+
+  .aud__from{white-space:nowrap}
+  .aud__dev{font-family:'Space Mono',monospace;font-size:11px;padding:2px 6px;
+            border:1px solid var(--ad-line,#dfe4e3);border-radius:5px;
+            color:var(--ad-text-soft,#42514f)}
+  .aud__ua{display:block;font-size:11px;color:var(--ad-text-mute,#5a6d6f);margin-top:3px}
+  .aud__empty{text-align:center;padding:34px 16px;color:var(--ad-text-mute,#5a6d6f)}
+
+  @media (max-width:760px){
+    .aud__meta{max-width:200px}
+    .aud__ua{display:none}
+  }
+</style>
+{% endblock %}

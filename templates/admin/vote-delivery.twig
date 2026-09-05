@@ -1,0 +1,274 @@
+{% extends "admin/layout.twig" %}
+{% block topbar_title %}Vote delivery{% endblock %}
+
+{#
+  THE PAGE THAT ANSWERS "IS IT ACTUALLY FIXED?", AND FIXES IT.
+
+  Built because there is no SSH on this deployment — so `votes:proof` and
+  `votes:remint` were unreachable by the only person who needed them. Same engine,
+  driven from a browser, exactly as reconciliation already is.
+
+  The headline is deliberately a VERDICT, not a percentage. "99.8% delivered" is
+  not "sorted" to the 0.2%, and they are the ones writing the messages. Either
+  nothing is outstanding or something is, and the page says which in one sentence
+  that can be read across a room.
+#}
+
+{% block head_styles %}
+<style nonce="{{ csp_nonce }}">
+  .vd-verdict{ border-radius:16px; padding:22px 24px; margin-bottom:18px; }
+  .vd-verdict--ok{ background:#eef7ee; border:1px solid #bfe0bd; }
+  .vd-verdict--bad{ background:#fdf3f3; border:1px solid #f0c9c9; }
+  .vd-verdict--none{ background:#f7f9f7; border:1px solid rgba(16,41,44,.12); }
+  .vd-verdict h2{ margin:0; font-family:var(--ag-font-display,inherit); font-weight:700; font-size:20px; line-height:1.3; }
+  .vd-verdict--ok h2{ color:#1a4d18 } .vd-verdict--bad h2{ color:#8a2020 }
+  .vd-verdict p{ margin:9px 0 0; font-size:14px; line-height:1.65; color:#39464a; }
+  .vd-verdict__stamp{ margin-top:12px; font-size:11.5px; color:#5a6d6f; }
+
+  .vd-grid{ display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:12px; margin-bottom:18px; }
+  .vd-stat{ background:#fff; border:1px solid rgba(16,41,44,.09); border-radius:12px; padding:15px 16px; }
+  .vd-stat__n{ font-family:var(--ag-font-display,inherit); font-weight:700; font-size:24px; line-height:1; color:#10292C; }
+  .vd-stat__k{ margin-top:6px; font-size:11.5px; font-weight:650; letter-spacing:.05em; text-transform:uppercase; color:#5a6d6f; }
+  .vd-stat__d{ margin-top:5px; font-size:11.5px; line-height:1.5; color:#7a8a86; }
+  .vd-stat--bad .vd-stat__n{ color:#8a2020 }
+  .vd-stat--ok  .vd-stat__n{ color:#1a6118 }
+
+  .vd-card{ background:#fff; border:1px solid rgba(16,41,44,.09); border-radius:14px; padding:20px 22px; }
+  .vd-card + .vd-card{ margin-top:16px }
+  .vd-card h3{ margin:0 0 6px; font-family:var(--ag-font-display,inherit); font-weight:700; font-size:16px; color:#10292C; }
+  .vd-card p.vd-sub{ margin:0 0 16px; font-size:13px; line-height:1.6; color:#5a6d6f; }
+
+  .vd-row{ display:flex; gap:10px; flex-wrap:wrap; align-items:center; }
+  .vd-btn{ cursor:pointer; border:none; font-family:inherit; font-weight:650; font-size:13.5px;
+    padding:11px 20px; border-radius:999px; }
+  .vd-btn--check{ background:#10292C; color:#fff }
+  .vd-btn--go{ background:#a32020; color:#fff }
+  .vd-input{ border:1px solid rgba(16,41,44,.16); border-radius:10px; padding:10px 13px;
+    font-family:inherit; font-size:13.5px; outline:none; }
+  .vd-input:focus{ border-color:#3f9c3c }
+  .vd-danger{ background:#fdf3f3; border:1px solid #f0c9c9; border-radius:12px; padding:14px 16px; margin-top:14px; }
+  .vd-danger p{ margin:0 0 11px; font-size:13px; line-height:1.6; color:#8a2020 }
+
+  .vd-scroll{ overflow-x:auto }
+  table.vd{ width:100%; border-collapse:collapse; min-width:620px; font-size:13px }
+  .vd th{ text-align:left; font:650 10.5px/1 inherit; letter-spacing:.07em; text-transform:uppercase;
+    color:#5a6d6f; padding:10px 12px; background:#f7f9f7; border-bottom:1px solid rgba(16,41,44,.09); white-space:nowrap }
+  .vd td{ padding:11px 12px; border-bottom:1px solid rgba(16,41,44,.06); color:#39464a; vertical-align:top }
+  .vd tr:last-child td{ border-bottom:none }
+  .vd code{ font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-size:11.5px }
+  .vd a{ color:#177015; text-decoration:none; font-weight:600 }
+  .vd-tag{ display:inline-block; font:700 9.5px/1 inherit; letter-spacing:.05em; text-transform:uppercase;
+    padding:4px 8px; border-radius:999px; white-space:nowrap }
+  .vd-tag--ok{ background:#eef7ee; color:#1a6118 }
+  .vd-tag--bad{ background:#fdf3f3; color:#8a2020 }
+  .vd-tag--wait{ background:#fff8df; color:#7a5600 }
+
+  .vd-note{ background:#f4f7f4; border:1px solid #d6e8d3; border-radius:12px; padding:14px 16px;
+    font-size:13px; line-height:1.65; color:#2d4a2c; margin-top:16px }
+</style>
+{% endblock %}
+
+{% block content %}
+
+{% if tally.ok is not defined or not tally.ok %}
+  <div class="vd-verdict vd-verdict--none">
+    <h2>The report could not run</h2>
+    <p>{{ tally.error|default('Unknown problem reading the orders.') }}</p>
+  </div>
+{% else %}
+
+  {# ── the verdict ──────────────────────────────────────────────────────── #}
+  {% if tally.paid_orders == 0 %}
+    <div class="vd-verdict vd-verdict--none">
+      <h2>No paid vote orders {{ days ? 'in this window' : 'yet' }}</h2>
+      <p>Nothing to verify. This becomes meaningful once paid voting has taken money.</p>
+    </div>
+  {% elseif tally.clean %}
+    <div class="vd-verdict vd-verdict--ok">
+      <h2>Every confirmed paid-vote order has its votes on the tally.</h2>
+      <p>{{ tally.paid_orders|number_format }} paid order(s) checked, {{ tally.votes.delivered|number_format }}
+         vote(s) delivered. Nothing is outstanding.</p>
+      <p><strong>This sentence is safe to publish.</strong> And you do not have to ask anyone to take your word
+         for it — every supporter can check their own order at <code>/vote/verify</code> with their AFG-
+         reference, which shows the individual vote records and the time each was written.</p>
+      <div class="vd-verdict__stamp">Counted from the vote ROWS, not the order counter · {{ tally.generated }} · {{ tally.window }}</div>
+    </div>
+  {% else %}
+    <div class="vd-verdict vd-verdict--bad">
+      <h2>{{ tally.broken }} order(s) are paid and do not have their votes.</h2>
+      <p>₦{{ tally.naira_owed|number_format }} taken for {{ tally.votes.owed|number_format }} vote(s) that are
+         not on any tally. <strong>Do not tell anyone this is resolved yet.</strong> Use “Check, then deliver”
+         below — it does the same work the console command does, from here.</p>
+      <div class="vd-verdict__stamp">Counted from the vote ROWS, not the order counter · {{ tally.generated }} · {{ tally.window }}</div>
+    </div>
+  {% endif %}
+
+  {# ── the buckets ──────────────────────────────────────────────────────── #}
+  <div class="vd-grid">
+    <div class="vd-stat vd-stat--ok">
+      <div class="vd-stat__n">{{ tally.orders.delivered|number_format }}</div>
+      <div class="vd-stat__k">Delivered</div>
+      <div class="vd-stat__d">Votes on the tally, counter agrees</div>
+    </div>
+    <div class="vd-stat {{ tally.orders.awaiting_delivery > 0 ? 'vd-stat--bad' : '' }}">
+      <div class="vd-stat__n">{{ tally.orders.awaiting_delivery|number_format }}</div>
+      <div class="vd-stat__k">Still owed</div>
+      <div class="vd-stat__d">Paid, no votes. These are the ones to deliver.</div>
+    </div>
+    <div class="vd-stat {{ tally.orders.claimed_but_missing > 0 ? 'vd-stat--bad' : '' }}">
+      <div class="vd-stat__n">{{ tally.orders.claimed_but_missing|number_format }}</div>
+      <div class="vd-stat__k">Ghost mints</div>
+      <div class="vd-stat__d">Counter says minted, no rows exist. Nothing else detects this.</div>
+    </div>
+    <div class="vd-stat {{ tally.orders.partial > 0 ? 'vd-stat--bad' : '' }}">
+      <div class="vd-stat__n">{{ tally.orders.partial|number_format }}</div>
+      <div class="vd-stat__k">Partial</div>
+      <div class="vd-stat__d">Some rows, fewer than claimed</div>
+    </div>
+    <div class="vd-stat">
+      <div class="vd-stat__n">{{ tally.orders.refunded|number_format }}</div>
+      <div class="vd-stat__k">Refunded</div>
+      <div class="vd-stat__d">Money back, votes correctly absent</div>
+    </div>
+    <div class="vd-stat">
+      <div class="vd-stat__n">{{ (tally.orders.pending + tally.orders.not_paid)|number_format }}</div>
+      <div class="vd-stat__k">Never paid</div>
+      <div class="vd-stat__d">Abandoned or declined — not a fault</div>
+    </div>
+  </div>
+
+  {# ── spot-check ───────────────────────────────────────────────────────── #}
+  {% if tally.examples %}
+    <div class="vd-card">
+      <h3>Spot-check these</h3>
+      <p class="vd-sub">Real references from the outstanding set, so you can verify this report rather than
+         trust it. Each opens the page the supporter themselves sees.</p>
+      <div class="vd-scroll">
+        <table class="vd">
+          <thead><tr><th>Reference</th><th>State</th><th>Ordered</th><th>On tally</th><th>Amount</th><th></th></tr></thead>
+          <tbody>
+            {% for e in tally.examples %}
+              <tr>
+                <td><code>{{ e.ref }}</code></td>
+                <td><span class="vd-tag vd-tag--bad">{{ e.state }}</span></td>
+                <td>{{ e.ordered }}</td>
+                <td>{{ e.delivered }}</td>
+                <td>₦{{ e.naira|number_format }}</td>
+                <td><a href="/vote/verify?ref={{ e.ref|url_encode }}" target="_blank" rel="noopener">Proof page →</a></td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  {% endif %}
+{% endif %}
+
+{# ── check, then deliver ─────────────────────────────────────────────────── #}
+<div class="vd-card">
+  <h3>Check, then deliver</h3>
+  <p class="vd-sub">The same work <code>votes:remint</code> does, from here — because there is no shell on this
+     deployment and a repair you cannot reach is a repair that does not exist. Checking writes nothing.</p>
+
+  {% if not is_super %}
+    <p style="margin:0;font-size:13px;color:#8a2020">Only a superadmin can deliver votes — it writes to a live
+       public tally.</p>
+  {% else %}
+    <form method="post" action="/admin/vote-delivery/deliver" class="vd-row">
+      <input type="hidden" name="_token" value="{{ csrf_token }}">
+      <input type="hidden" name="mode" value="check">
+      <button class="vd-btn vd-btn--check" type="submit">Check what is owed</button>
+      <span style="font-size:12.5px;color:#5a6d6f">Safe. Reports the population and changes nothing.</span>
+    </form>
+
+    <div class="vd-danger">
+      <p><strong>Delivering writes votes to a live public tally.</strong> Every decision is still
+         <code>mint()</code>'s own — it re-checks the phase on each order's own clock, the grace window and the
+         refund state, and it cannot double-credit anybody however many times you press this. What it will not
+         do is move a tally whose cycle closed long ago; those orders are refundable instead, and the automatic
+         refund path returns them without you doing anything.</p>
+      <form method="post" action="/admin/vote-delivery/deliver" class="vd-row">
+        <input type="hidden" name="_token" value="{{ csrf_token }}">
+        <input type="hidden" name="mode" value="apply">
+        <input class="vd-input" type="text" name="confirm" placeholder="Type DELIVER" autocomplete="off"
+               aria-label="Type DELIVER to confirm" style="width:150px">
+        <button class="vd-btn vd-btn--go" type="submit">Deliver the owed votes</button>
+      </form>
+    </div>
+  {% endif %}
+
+  {% if run %}
+    <div class="vd-note" style="margin-top:18px">
+      <strong>{{ run.applied ? 'Delivered' : 'Dry run' }} —</strong> {{ run.say }}
+    </div>
+    {% if run.items %}
+      <div class="vd-scroll" style="margin-top:14px">
+        <table class="vd">
+          <thead><tr><th>Reference</th><th>Votes</th><th>Amount</th><th>Ordered</th><th>Outcome</th></tr></thead>
+          <tbody>
+            {% for i in run.items %}
+              <tr>
+                <td><code>{{ i.ref }}</code></td>
+                <td>{{ i.votes }}</td>
+                <td>₦{{ i.naira|number_format }}</td>
+                <td style="white-space:nowrap">{{ i.when }}</td>
+                <td>
+                  <span class="vd-tag {{ i.outcome == 'delivered' ? 'vd-tag--ok' : (i.outcome == 'would try' ? 'vd-tag--wait' : 'vd-tag--bad') }}">
+                    {{ i.outcome }}
+                  </span>
+                </td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    {% endif %}
+  {% endif %}
+</div>
+
+{# ── one order ───────────────────────────────────────────────────────────── #}
+<div class="vd-card">
+  <h3>Look up one order</h3>
+  <p class="vd-sub">For answering a specific message. This is exactly what the supporter sees at
+     <code>/vote/verify</code>, so you can send them the link instead of a promise.</p>
+  <form method="get" action="/admin/vote-delivery" class="vd-row">
+    <label class="sr-only" for="vdRef">Payment reference</label>
+    <input class="vd-input" id="vdRef" type="text" name="ref" value="{{ ref }}" placeholder="AFG-PVOTE-…" style="min-width:240px">
+    <button class="vd-btn vd-btn--check" type="submit">Look up</button>
+  </form>
+
+  {% if lookup %}
+    {% if not lookup.found %}
+      <div class="vd-note" style="background:#fff8df;border-color:#ecd9a0;color:#6b4a00">{{ lookup.say }}</div>
+    {% else %}
+      <div class="vd-scroll" style="margin-top:14px">
+        <table class="vd">
+          <tbody>
+            <tr><th style="width:150px">State</th><td>
+              <span class="vd-tag {{ lookup.state == 'delivered' ? 'vd-tag--ok' : (lookup.state == 'refunded' ? 'vd-tag--wait' : 'vd-tag--bad') }}">{{ lookup.state }}</span>
+            </td></tr>
+            <tr><th>Reference</th><td><code>{{ lookup.reference }}</code></td></tr>
+            {% if lookup.nominee %}<tr><th>For</th><td>{{ lookup.nominee }}</td></tr>{% endif %}
+            <tr><th>Ordered</th><td>{{ lookup.ordered }}</td></tr>
+            <tr><th>On the tally</th><td>{{ lookup.delivered }}{% if lookup.mismatch %}
+              &nbsp;<span class="vd-tag vd-tag--bad">counter says {{ lookup.claimed }}</span>{% endif %}</td></tr>
+            <tr><th>Amount</th><td>₦{{ lookup.amount|number_format }}</td></tr>
+            {% if lookup.confirmed_at %}<tr><th>Confirmed</th><td>{{ lookup.confirmed_at }}</td></tr>{% endif %}
+            {% if lookup.refunded_at %}<tr><th>Refunded</th><td>{{ lookup.refunded_at }}</td></tr>{% endif %}
+            <tr><th>Send them</th><td><a href="/vote/verify?ref={{ lookup.reference|url_encode }}" target="_blank" rel="noopener">/vote/verify?ref={{ lookup.reference }} →</a></td></tr>
+          </tbody>
+        </table>
+      </div>
+    {% endif %}
+  {% endif %}
+</div>
+
+<div class="vd-note">
+  <strong>Why this counts vote rows and not the order counter.</strong>
+  <code>votes_used</code> is the mint's own claim stamp. Reading it asks the system whether it <em>thinks</em> it
+  did the work; reading the vote records asks whether the work is there. Those can disagree — a claim with no
+  rows behind it is a mint that died half-way, and it is invisible to every other report on this platform. That
+  is the “ghost mints” figure above, and it is why this page is allowed to contradict us.
+</div>
+
+{% endblock %}
