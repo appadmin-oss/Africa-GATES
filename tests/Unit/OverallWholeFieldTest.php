@@ -114,20 +114,51 @@ final class OverallWholeFieldTest extends TestCase
 
     // ══ the whole field ══════════════════════════════════════════════════════
 
-    public function test_a_strong_second_is_ranked_above_the_winner_of_a_thinner_field(): void
+    /**
+     * EVERY NOMINEE IS RANKED — AND THE THIN FIELD'S LEADER NOW TIES THE DEEP ONE'S.
+     *
+     * The first half of that is the property this file was written for and it holds: the
+     * cycle-wide standing contains a nominee who did not win their own category.
+     *
+     * ── THE SECOND HALF IS A COST OF THE REACH BASIS AND IS RECORDED, NOT HIDDEN ──
+     *
+     * Both of reach's terms are shares of the FIELD'S OWN best — that is what makes them
+     * checkable, and it is exactly what the operator specified — so leading a field is
+     * worth the whole community half however deep that field was:
+     *
+     *     Leader of the deep field   1,955 votes, panel 8.0   →  890
+     *     Leader of the thin field      89 votes, panel 8.0   →  890
+     *     Strong second              1,536 votes, panel 8.0   →  794
+     *
+     * The old basis multiplied the half by `sqrt(cohortMax / fullCredit)`, which is what
+     * used to separate these (706 / 390 / 533) and what put the strong second above the
+     * thin leader. Reach has no such term, so within a category it is fair and across
+     * categories it is silent — and the OVERALL award is decided across categories.
+     *
+     * That is a real trade and only the operator can price it. It is asserted here so
+     * that whoever revisits it is looking at the actual numbers rather than rediscovering
+     * the fault from a nominee's complaint.
+     */
+    public function test_every_nominee_is_ranked_and_a_thin_field_leader_is_not_discounted(): void
     {
         $this->seedCycle();
 
-        $o    = ResultRelease::overall(self::CYCLE);
+        $o     = ResultRelease::overall(self::CYCLE);
         $names = array_column($o['contenders'], 'name');
+        $byName = array_column($o['contenders'], 'cpi', 'name');
 
         $this->assertContains('Strong second', $names,
             'the cycle-wide standing still excludes everybody who did not win their own '
             . 'category, so its second-strongest nominee is simply absent');
 
         $this->assertSame(
-            ['Leader of the deep field', 'Strong second', 'Leader of the thin field'],
+            ['Leader of the deep field', 'Leader of the thin field', 'Strong second'],
             $names);
+
+        $this->assertSame(
+            $byName['Leader of the deep field'], $byName['Leader of the thin field'],
+            'the depth of a field has come back into the index by some other door — if '
+            . 'that is deliberate, this test is the place it should be argued');
     }
 
     /** Two rows from one category is the point, not an accident. */
@@ -184,15 +215,26 @@ final class OverallWholeFieldTest extends TestCase
         }
     }
 
-    /** The winner is unchanged by widening the list — only the places below it move. */
+    /**
+     * The winner is unchanged by widening the list — only the places below it move.
+     *
+     * The runner-up is the thin field's leader, on a margin of nothing: see
+     * {@see test_every_nominee_is_ranked_and_a_thin_field_leader_is_not_discounted} for
+     * why reach ties them, and why that is a decision rather than a defect. A zero margin
+     * at the top of a cycle is exactly the sort of thing an operator needs to see before
+     * an announcement, so it is asserted rather than tolerated.
+     */
     public function test_the_top_of_the_cycle_is_not_disturbed(): void
     {
         $this->seedCycle();
 
         $o = ResultRelease::overall(self::CYCLE);
         $this->assertSame('Leader of the deep field', $o['winner']['name']);
-        $this->assertSame('Strong second', $o['runner_up']['name']);
+        $this->assertSame('Leader of the thin field', $o['runner_up']['name']);
         $this->assertSame($o['winner']['cpi'] - $o['runner_up']['cpi'], $o['margin']);
+        $this->assertSame(0, $o['margin'],
+            'the two field leaders no longer tie — the depth of a field is being priced '
+            . 'again somewhere, and this test should say where');
     }
 
     /** Nothing scored, nothing to rank — and it says so rather than erroring. */

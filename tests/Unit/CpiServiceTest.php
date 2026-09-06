@@ -50,9 +50,11 @@ class CpiServiceTest extends TestCase
         $s = new CpiService();
         // Full share → 1.0^2 = 1.0. Judge 8/10 → ((8−5)/5)^1.5 = 0.6^1.5 = 0.4648.
         // 0.45×1000 + 0.55×0.4648×1000 = 450 + 256 = 706.
-        $this->assertSame(706, $s->nomineeScore(10, 10, 8.0, 0.45, 0.55, null, null, null, self::FULL));
+        $this->assertSame(706, $s->nomineeScore(10, 10, 8.0, 0.45, 0.55, null, null, null, self::FULL,
+            communityBasis: CpiService::BASIS_RELATIVE, judgeScale: CpiService::SCALE_CURVED));
         // no judge score -> only the 45% public component
-        $this->assertSame(450, $s->nomineeScore(10, 10, null, 0.45, 0.55, null, null, null, self::FULL));
+        $this->assertSame(450, $s->nomineeScore(10, 10, null, 0.45, 0.55, null, null, null, self::FULL,
+            communityBasis: CpiService::BASIS_RELATIVE, judgeScale: CpiService::SCALE_CURVED));
         // Was `500` — the MEAN, which punished a person for being nominated twice: a 900
         // and a 100 came out below a lone 900. It is the best result lifted by each
         // further one now, so 600 with a 400 beside it is 640. The properties that must
@@ -66,8 +68,10 @@ class CpiServiceTest extends TestCase
     {
         $s = new CpiService();
         // Same raw votes (5), different cohort maxes -> different public share.
-        $lowCohort  = $s->nomineeScore(5, 5,  null, 0.45, 0.55, null, null, null, self::FULL);   // 5/5  = full share
-        $highCohort = $s->nomineeScore(5, 50, null, 0.45, 0.55, null, null, null, self::FULL);   // 5/50 = a tenth of the leader
+        $lowCohort  = $s->nomineeScore(5, 5,  null, 0.45, 0.55, null, null, null, self::FULL,
+            communityBasis: CpiService::BASIS_RELATIVE, judgeScale: CpiService::SCALE_CURVED);   // 5/5  = full share
+        $highCohort = $s->nomineeScore(5, 50, null, 0.45, 0.55, null, null, null, self::FULL,
+            communityBasis: CpiService::BASIS_RELATIVE, judgeScale: CpiService::SCALE_CURVED);   // 5/50 = a tenth of the leader
         $this->assertGreaterThan($highCohort, $lowCohort);
         $this->assertSame(450, $lowCohort);
         // 0.1^2 = 0.01 → 4.5, rounds to 5. Under the old linear share this was 45 — a tenth
@@ -88,17 +92,24 @@ class CpiServiceTest extends TestCase
     public function test_nominee_score_boundary_cases(): void
     {
         $s = new CpiService();
-        $this->assertSame(0,    $s->nomineeScore(0, 0, null, 0.45, 0.55, null, null, null, self::FULL));    // zero cohort + zero votes → no divide-by-zero
-        $this->assertSame(450,  $s->nomineeScore(5, 0, null, 0.45, 0.55, null, null, null, self::FULL));    // cohortMax 0 guarded to 1 → full public share
-        $this->assertSame(450,  $s->nomineeScore(20, 10, null, 0.45, 0.55, null, null, null, self::FULL));  // votes > cohort max clamps at 1.0 (not 900)
-        $this->assertSame(450,  $s->nomineeScore(10, 10, 0.0, 0.45, 0.55, null, null, null, self::FULL));   // judge 0.0 is a real low score
-        $this->assertSame(1000, $s->nomineeScore(10, 10, 10.0, 0.45, 0.55, null, null, null, self::FULL));  // full public + full judge
+        $this->assertSame(0,    $s->nomineeScore(0, 0, null, 0.45, 0.55, null, null, null, self::FULL,
+            communityBasis: CpiService::BASIS_RELATIVE, judgeScale: CpiService::SCALE_CURVED));    // zero cohort + zero votes → no divide-by-zero
+        $this->assertSame(450,  $s->nomineeScore(5, 0, null, 0.45, 0.55, null, null, null, self::FULL,
+            communityBasis: CpiService::BASIS_RELATIVE, judgeScale: CpiService::SCALE_CURVED));    // cohortMax 0 guarded to 1 → full public share
+        $this->assertSame(450,  $s->nomineeScore(20, 10, null, 0.45, 0.55, null, null, null, self::FULL,
+            communityBasis: CpiService::BASIS_RELATIVE, judgeScale: CpiService::SCALE_CURVED));  // votes > cohort max clamps at 1.0 (not 900)
+        $this->assertSame(450,  $s->nomineeScore(10, 10, 0.0, 0.45, 0.55, null, null, null, self::FULL,
+            communityBasis: CpiService::BASIS_RELATIVE, judgeScale: CpiService::SCALE_CURVED));   // judge 0.0 is a real low score
+        $this->assertSame(1000, $s->nomineeScore(10, 10, 10.0, 0.45, 0.55, null, null, null, self::FULL,
+            communityBasis: CpiService::BASIS_RELATIVE, judgeScale: CpiService::SCALE_CURVED));  // full public + full judge
         // A mark AT the floor is worth nothing on the judge half — that is what the floor
         // means. It was 725 (half the judge weight) and a panel does not call 5/10 half
         // distinguished.
-        $this->assertSame(450,  $s->nomineeScore(10, 10, 5.0, 0.45, 0.55, null, null, null, self::FULL));
+        $this->assertSame(450,  $s->nomineeScore(10, 10, 5.0, 0.45, 0.55, null, null, null, self::FULL,
+            communityBasis: CpiService::BASIS_RELATIVE, judgeScale: CpiService::SCALE_CURVED));
         // And below it cannot go negative.
-        $this->assertSame(450,  $s->nomineeScore(10, 10, 3.0, 0.45, 0.55, null, null, null, self::FULL));
+        $this->assertSame(450,  $s->nomineeScore(10, 10, 3.0, 0.45, 0.55, null, null, null, self::FULL,
+            communityBasis: CpiService::BASIS_RELATIVE, judgeScale: CpiService::SCALE_CURVED));
 
         // ── THE CURVES ARE SETTINGS, AND A BAD ONE CANNOT INVERT THE MEASURE ─
         //
@@ -106,9 +117,12 @@ class CpiServiceTest extends TestCase
         // a tuning knob rather than a rewrite. And an exponent of zero would make every
         // share return 1.0 — the whole community half collapsing to a constant, silently,
         // from one bad setting — so it is clamped.
-        $this->assertSame(45,  $s->nomineeScore(5, 50, null, 0.45, 0.55, 1.0, null, null, self::FULL));
-        $this->assertSame(725, $s->nomineeScore(10, 10, 5.0, 0.45, 0.55, 1.0, 0.0, 1.0, self::FULL));
-        $this->assertGreaterThan(0, $s->nomineeScore(5, 50, null, 0.45, 0.55, 0.0, null, null, self::FULL),
+        $this->assertSame(45,  $s->nomineeScore(5, 50, null, 0.45, 0.55, 1.0, null, null, self::FULL,
+            communityBasis: CpiService::BASIS_RELATIVE, judgeScale: CpiService::SCALE_CURVED));
+        $this->assertSame(725, $s->nomineeScore(10, 10, 5.0, 0.45, 0.55, 1.0, 0.0, 1.0, self::FULL,
+            communityBasis: CpiService::BASIS_RELATIVE, judgeScale: CpiService::SCALE_CURVED));
+        $this->assertGreaterThan(0, $s->nomineeScore(5, 50, null, 0.45, 0.55, 0.0, null, null, self::FULL,
+            communityBasis: CpiService::BASIS_RELATIVE, judgeScale: CpiService::SCALE_CURVED),
             'an exponent of zero was accepted and flattened the community half to a constant');
     }
 
@@ -129,8 +143,10 @@ class CpiServiceTest extends TestCase
     {
         $s = new CpiService();
 
-        $deep = $s->nomineeScore(1955, 1955, null);   // leads a category with real backing
-        $thin = $s->nomineeScore(89, 89, null);       // leads a category with almost none
+        $deep = $s->nomineeScore(1955, 1955, null,
+            communityBasis: CpiService::BASIS_RELATIVE, judgeScale: CpiService::SCALE_CURVED);   // leads a category with real backing
+        $thin = $s->nomineeScore(89, 89, null,
+            communityBasis: CpiService::BASIS_RELATIVE, judgeScale: CpiService::SCALE_CURVED);       // leads a category with almost none
 
         $this->assertSame(450, $deep, 'a leader past the full-credit mark is paid in full');
         $this->assertSame(134, $thin);
@@ -150,13 +166,16 @@ class CpiServiceTest extends TestCase
     {
         $s = new CpiService();
 
-        $this->assertSame(318, $s->nomineeScore(500, 500, null));   // 0.71 of the weight
-        $this->assertSame(450, $s->nomineeScore(5000, 5000, null)); // capped, never above
+        $this->assertSame(318, $s->nomineeScore(500, 500, null,
+            communityBasis: CpiService::BASIS_RELATIVE, judgeScale: CpiService::SCALE_CURVED));   // 0.71 of the weight
+        $this->assertSame(450, $s->nomineeScore(5000, 5000, null,
+            communityBasis: CpiService::BASIS_RELATIVE, judgeScale: CpiService::SCALE_CURVED)); // capped, never above
 
         // Monotonic: more support behind a category is never worth less.
         $last = -1;
         foreach ([10, 50, 100, 400, 900, 1000, 4000] as $votes) {
-            $now = $s->nomineeScore($votes, $votes, null);
+            $now = $s->nomineeScore($votes, $votes, null,
+            communityBasis: CpiService::BASIS_RELATIVE, judgeScale: CpiService::SCALE_CURVED);
             $this->assertGreaterThanOrEqual($last, $now, "depth went backwards at {$votes}");
             $last = $now;
         }
@@ -172,7 +191,8 @@ class CpiServiceTest extends TestCase
     {
         $s = new CpiService();
 
-        $this->assertSame(450, $s->nomineeScore(89, 89, null, 0.45, 0.55, null, null, null, 1),
+        $this->assertSame(450, $s->nomineeScore(89, 89, null, 0.45, 0.55, null, null, null, 1,
+            communityBasis: CpiService::BASIS_RELATIVE, judgeScale: CpiService::SCALE_CURVED),
             'the discount cannot be switched off, so it is a rule rather than a setting');
     }
 }

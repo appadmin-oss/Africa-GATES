@@ -1036,8 +1036,9 @@
         <div>
           <label for="f-community_basis">What the community half measures</label>
           <select name="community_basis" id="f-community_basis">
-            <option value="relative" {% if scoring.community_basis|default('relative') != 'absolute' %}selected{% endif %}>Share of their own category&rsquo;s leader</option>
-            <option value="absolute" {% if scoring.community_basis|default('relative') == 'absolute' %}selected{% endif %}>Their own turnout, on one scale</option>
+            <option value="reach" {% if scoring.community_basis|default('reach') not in ['relative','absolute'] %}selected{% endif %}>How many people backed them (70%) + total votes (30%)</option>
+            <option value="relative" {% if scoring.community_basis|default('reach') == 'relative' %}selected{% endif %}>Share of their own category&rsquo;s leader</option>
+            <option value="absolute" {% if scoring.community_basis|default('reach') == 'absolute' %}selected{% endif %}>Their own turnout, on one scale</option>
           </select>
         </div>
         <div>
@@ -1046,7 +1047,20 @@
         </div>
       </div>
 
-      <p style="margin:10px 0 0;font-size:12px;line-height:1.6;color:var(--ad-text-mute,#5a6d6f)"><strong>Share of their own leader</strong> is what decides a category &mdash; being top of your field is what wins one &mdash; and it means nothing outside that field. On a real cycle it put a 19-vote nominee who <em>led</em> a 19-vote category above a nominee with 691 votes who was a third of a large one. Both figures were right; neither was comparable to the other, and the overall winner across categories is drawn from exactly that comparison.</p>
+      <div class="row" style="margin-top:12px">
+        <div>
+          <label for="f-judge_scale">How a panel mark becomes points</label>
+          <select name="judge_scale" id="f-judge_scale">
+            <option value="linear" {% if scoring.judge_scale|default('linear') != 'curved' %}selected{% endif %}>The mark, straight &mdash; 8.0 is 440 of 550</option>
+            <option value="curved" {% if scoring.judge_scale|default('linear') == 'curved' %}selected{% endif %}>Rebased above a floor, then curved</option>
+          </select>
+        </div>
+        <div></div>
+      </div>
+
+      <p style="margin:10px 0 0;font-size:12px;line-height:1.6;color:var(--ad-text-mute,#5a6d6f)"><strong>How many people backed them</strong> is the default and the only one money cannot move in bulk. Seventy per cent of the community half &mdash; 315 of 450 &mdash; is this nominee&rsquo;s unique verified voters over the most any nominee in the category has; the other 135 is their total votes over the largest total in the category. A supporter who buys ten separate orders is <em>one</em> person; a granted bonus vote is nobody. Two nominees on 2,000 votes each, one from a thousand people and one from two, score 450 and 136.</p>
+      <p style="margin:6px 0 0;font-size:12px;line-height:1.6;color:var(--ad-text-mute,#5a6d6f)"><strong>The mark, straight</strong> is the default for the panel: 550 &times; the average out of ten, with no floor and no exponent. It is the rule a judge already thinks they are applying when they write 8, and it is the only version a nominee can check without being walked through an exponent. The curved form is kept so an already-announced cycle can be reproduced digit for digit.</p>
+      <p style="margin:6px 0 0;font-size:12px;line-height:1.6;color:var(--ad-text-mute,#5a6d6f)"><strong>Share of their own leader</strong> is what decides a category &mdash; being top of your field is what wins one &mdash; and it means nothing outside that field. On a real cycle it put a 19-vote nominee who <em>led</em> a 19-vote category above a nominee with 691 votes who was a third of a large one. Both figures were right; neither was comparable to the other, and the overall winner across categories is drawn from exactly that comparison.</p>
       <p style="margin:6px 0 0;font-size:12px;line-height:1.6;color:var(--ad-text-mute,#5a6d6f)"><strong>Their own turnout</strong> puts every nominee on one scale, so the index can be compared across categories. It never changes the order <em>within</em> a category. It does change the balance between the two halves &mdash; set the full-credit mark above your largest realistic tally, or every nominee past it ties on the community half and the panel decides between them.</p>
 
       <div class="row">

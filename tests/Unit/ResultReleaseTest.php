@@ -492,11 +492,12 @@ final class ResultReleaseTest extends TestCase
         // And the halves are the halves: 45% of a full community share is 450 of 1000.
         $this->assertSame(450, $by['Grace Abiodun']['community_points']);
         $this->assertSame(100, $by['Grace Abiodun']['community_share']);
-        // 2,650 behind a leader on 4,820 is 55% of the leader's support — and the share is
-        // CURVED, so it is worth 0.55^2 = 30% of the community weight, not 55% of it. The
-        // percentage shown to a reader stays the RAW share: that is the number somebody
-        // counts, and the curve is how it is paid.
-        $this->assertSame(136, $by['Fatima Bello']['community_points']);
+        // 2,650 behind a leader on 4,820 is 55% of the leader's support, and under reach
+        // it is worth 55% of the community weight — the share IS the payment now, with no
+        // exponent between what a reader counts and what it is worth. (These rows carry no
+        // vote data, so the people term is unmeasurable and the tally takes the whole half;
+        // see CpiService::reachPart().)
+        $this->assertSame(247, $by['Fatima Bello']['community_points']);
         $this->assertSame(55, $by['Fatima Bello']['community_share']);
     }
 
@@ -627,8 +628,8 @@ final class ResultReleaseTest extends TestCase
         $this->assertSame(1000, $c['cohort_max'],
             'the cohort emptied out and the denominator fell back to the floor of one');
         $this->assertSame(450, $by['Yetunde Adeyemi']['community_points']);
-        // A quarter of the leader's votes, curved: 0.25^2 = 6.25% of the weight.
-        $this->assertSame(28, $by['Ngozi Eze']['community_points'],
+        // A quarter of the leader's votes is a quarter of the weight: 0.25 × 450 = 113.
+        $this->assertSame(113, $by['Ngozi Eze']['community_points'],
             'a nominee on a quarter of the votes was handed the same community half as '
             . 'the leader — the field was flattened, not scored');
     }
@@ -839,11 +840,11 @@ final class ResultReleaseTest extends TestCase
         // Same index by different routes: more votes and a lower mark, against fewer votes
         // and a higher one. 1000 sets the cohort scale.
         //
-        // RECALIBRATED for the curved halves — the old pair (1000/756) no longer meets.
-        //   loud : 450×1.00²        + 550×((6−5)/5)^1.5 = 450.0 + 49.2  = 499
-        //   quiet: 450×(735/1000)²  + 550×((8−5)/5)^1.5 = 243.1 + 255.6 = 499
+        // Both halves are linear again, so the pair that meets is 1000/756:
+        //   loud : 450×1.000 + 550×0.6 = 450.0 + 330 = 780
+        //   quiet: 450×0.756 + 550×0.8 = 340.2 + 440 = 780
         $loud  = $this->nominee('More votes, lower mark', 1000);
-        $quiet = $this->nominee('Fewer votes, higher mark', 735);
+        $quiet = $this->nominee('Fewer votes, higher mark', 756);
         $this->scoreAll($j1, $loud, 6);  $this->scoreAll($j2, $loud, 6);
         $this->scoreAll($j1, $quiet, 8); $this->scoreAll($j2, $quiet, 8);
 

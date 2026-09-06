@@ -228,16 +228,42 @@ Full account in `docs/CODEBASE-INDEX.md` §16.
 - **A criterion, code, or record that has been used is retired, never deleted.** Ballots,
   receipts and published results point at rows by id; deleting one changes history that has
   already been published. See `src/Services/JudgeRubric.php` for the worked example.
-- **Every vote counts toward the index, whatever it cost.** The community half reads
-  `vote_count` — free, bought and awarded votes added together — and so does the tiebreak and
-  the promotion's eligibility filter. It read `organic_vote_count` until an operator decision
-  in 2026, and the reason for the change is the one worth carrying: a deployment may switch
-  free voting off entirely (`paid_voting_disable_free`), and `VoteService::castVote()` is the
-  ONLY path that increments the organic counter — so on such a deployment the community half
-  was structurally zero for everybody, forever, while every page said 45/55. The old rule did
-  not protect a community vote there, it deleted one. `organic_vote_count` is still maintained
-  and published beside the total on every public surface; it decides nothing. There is no
-  ceiling on purchases, and every page says so.
+- **Money buys the tally, never the reach.** The community half is 450 points and it is
+  split: **70% (315) is how many verified PEOPLE backed a nominee**, 30% (135) is the total
+  tally — bought, free and granted votes added together. Two nominees on 2,000 votes each,
+  one from a thousand supporters and one from two, score 450 and 136.
+  The 70% is counted by `VoterReach`, and the obvious implementation destroys it:
+  `COUNT(DISTINCT voter_email_hash)` counts **rows**, and three of the five services that
+  mint a vote write a *randomised synthetic* hash — `paidvote:<order>:<rand>`,
+  `bonus:<order>:<rand>`, `points:<user>:<rand>`. Under a distinct count a supporter who
+  splits ₦200,000 into a thousand ₦200 orders buys a thousand units of reach, which is the
+  exact scheme the 70% exists to defeat. So a paid row resolves through `donation_id` to
+  the buyer's own address, hashed with `VoteService::voterHash()` and **no prefix** so it
+  collides with their organic vote; a grant is nobody; a fraud-flagged row is nobody.
+  The 30% still counts every bought vote at full weight — this platform does not pretend
+  otherwise, and the receipts would contradict it. `organic_vote_count` is still maintained
+  and published beside the total; it decides nothing. It used to decide the whole half,
+  which was structurally zero wherever `paid_voting_disable_free` is set, because
+  `VoteService::castVote()` is the only path that increments it.
+- **And where reach is unmeasurable the tally takes the whole half, deliberately.** A
+  cohort maximum of *zero* unique voters does not mean "nobody has support" — it means the
+  vote **rows** are missing while the tallies are not (an import from before this platform
+  held rows, a fixture, a purged cycle). Flooring that denominator to one instead pays the
+  whole field 30% of the community half; the order *within* a category survives, which is
+  what makes it dangerous, and the category is then ranked against full-scored ones to pick
+  an **overall** winner. Same shape as the two faults below it in this list.
+- **The judge half is the mark, and nothing else:** `550 × avg/10`. It was
+  `((avg−5)/5)^1.5` — a floor at five and an exponent — which moved the number the judge
+  wrote (8.0 paid 256 of 550, not 440), paid 5.0 and 4.0 identically, and could not be
+  explained to a nominee who lost by it. The discrimination that curve was defending now
+  happens in the community half, by counting people rather than by steepening a tally.
+- **Both older forms survive as settings** (`community_basis` = `relative` | `absolute`,
+  `judge_scale` = `curved`), per programme and per cycle through `RuleEngine`, so an
+  announced standing stays reproducible to the digit. `CommunityBasisTest` pins that.
+  **Reach removed the depth discount, and that is a real cost across categories:** a
+  1,955-vote field leader and an 89-vote field leader both take the full 450, so the
+  *overall* award no longer prices how deep a field was. Recorded in
+  `OverallWholeFieldTest`, not hidden.
 - **The CPI's denominator is the FIELD, and exactly one thing computes it.** The community
   half is `votes / cohortMax`, and `cohortMax` used to be the most-voted nominee in the
   whole *entry list* — with the shortlist applied afterwards. So a popular nominee who had

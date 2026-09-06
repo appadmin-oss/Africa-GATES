@@ -102,11 +102,15 @@ class CpiService
         ?float $judgeFloor = null,
         ?float $judgeCurve = null,
         ?int $fullCredit = null,
-        ?string $communityBasis = null
+        ?string $communityBasis = null,
+        int $uniqueVoters = 0,
+        int $cohortMaxUnique = 0,
+        ?string $judgeScale = null
     ): int {
         $publicPart = self::communityPart($voteCount, $cohortMaxVotes, $communityCurve,
-                                          $fullCredit, $communityBasis);
-        $judgeNorm  = self::judgePart($judgeAvg0to10, $judgeFloor, $judgeCurve);
+                                          $fullCredit, $communityBasis,
+                                          $uniqueVoters, $cohortMaxUnique);
+        $judgeNorm  = self::judgePart($judgeAvg0to10, $judgeFloor, $judgeCurve, $judgeScale);
 
         return self::split($publicPart, $judgeNorm, $communityWeight, $judgeWeight)['cpi'];
     }
@@ -154,9 +158,14 @@ class CpiService
      */
     public static function communityPart(int $voteCount, int $cohortMaxVotes,
                                          ?float $curve = null, ?int $fullCredit = null,
-                                         ?string $basis = null): float
+                                         ?string $basis = null,
+                                         int $uniqueVoters = 0, int $cohortMaxUnique = 0): float
     {
-        if (($basis ?? self::BASIS_RELATIVE) === self::BASIS_ABSOLUTE) {
+        if (self::basis($basis) === self::BASIS_REACH) {
+            return self::reachPart($uniqueVoters, $cohortMaxUnique, $voteCount, $cohortMaxVotes);
+        }
+
+        if (self::basis($basis) === self::BASIS_ABSOLUTE) {
             // A nominee's OWN turnout, on the same curve as the depth discount, so the
             // two bases agree exactly for a category leader: at v = cohortMax the
             // relative share is 1 and this reduces to depth(v). Switching bases can
@@ -217,12 +226,104 @@ class CpiService
      */
     public const BASIS_RELATIVE = 'relative';
     public const BASIS_ABSOLUTE = 'absolute';
+    public const BASIS_REACH    = 'reach';
 
-    /** The basis, normalised — anything unrecognised is today's behaviour, never a guess. */
+    /**
+     * The basis, normalised. Anything unrecognised is the DEFAULT, never a guess — and the
+     * default is `reach`, so a deployment that has never opened the settings screen is
+     * scored on how many people backed a nominee rather than on how much was spent.
+     */
     public static function basis(?string $raw): string
     {
-        return trim((string) $raw) === self::BASIS_ABSOLUTE
-            ? self::BASIS_ABSOLUTE : self::BASIS_RELATIVE;
+        return match (trim((string) $raw)) {
+            self::BASIS_ABSOLUTE => self::BASIS_ABSOLUTE,
+            self::BASIS_RELATIVE => self::BASIS_RELATIVE,
+            default              => self::BASIS_REACH,
+        };
+    }
+
+    /**
+     * ══════════════════════════════════════════════════════════════════════════
+     * REACH: 70% THE NUMBER OF PEOPLE, 30% THE NUMBER OF VOTES
+     * ══════════════════════════════════════════════════════════════════════════
+     *
+     * ── THE FAULT IT CLOSES ─────────────────────────────────────────────────
+     *
+     * Both older bases measure ONE thing — the size of a tally — and a tally is the number
+     * money moves most easily. Two nominees, same category:
+     *
+     *     A   1,000 people, 2,000 votes
+     *     B       2 people, 2,000 votes
+     *
+     * On any tally-only basis those are the same nominee. B bought an identical community
+     * half from two cheques. Nothing in the arithmetic could tell them apart, because
+     * nothing in the arithmetic was looking at how many human beings were behind either
+     * number.
+     *
+     * So the community half is split. The larger share — seventy per cent, 315 of the 450 —
+     * is the one thing that cannot be bought in bulk: how many separate, verified people
+     * chose this nominee. The remaining thirty per cent, 135, is the total tally, which is
+     * where depth of commitment still counts and where a bought vote is still a real vote.
+     *
+     *     A:  315 × 1000/1000 = 315    +  135 × 2000/2000 = 135   →  450
+     *     B:  315 ×    2/1000 = 0.63   +  135 × 2000/2000 = 135   →  135.63
+     *
+     * B cannot win the community component by matching A's spend through two large donors,
+     * and A is not punished for the two thousand votes their thousand supporters cast.
+     *
+     * ── BOTH TERMS ARE LINEAR AND BOTH ARE SHARES OF THE FIELD'S BEST ───────
+     *
+     * No curve, no floor, no full-credit discount. A share of the leader is a figure a
+     * nominee can check against a published list in their head, and every exponent this
+     * index has carried was a correction for a defect that measuring PEOPLE removes at the
+     * source. The benchmark for each term is stated once and audibly: the highest verified
+     * unique-voter count, and the highest verified total vote count, recorded by any
+     * nominee in that category's field.
+     *
+     * ── WHAT "UNIQUE VOTER" MEANS, AND WHY IT IS NOT A DISTINCT COUNT ───────
+     *
+     * A verified individual PERSON, resolved by {@see VoterReach} — not a row and not a
+     * transaction. Paid orders resolve to the buyer's own address, so ten purchases by one
+     * supporter are one supporter; a granted bonus vote is nobody at all. Counting rows
+     * here would hand the seventy per cent straight back to whoever could place the most
+     * orders, which is the exact thing this basis exists to prevent.
+     *
+     * @param int $uniqueVoters    verified people behind this nominee
+     * @param int $cohortMaxUnique the most any nominee in the field has
+     * @param int $voteCount       this nominee's total votes, bought and free together
+     * @param int $cohortMaxVotes  the most any nominee in the field has
+     */
+    public const REACH_PEOPLE_SHARE = 0.70;
+
+    public static function reachPart(int $uniqueVoters, int $cohortMaxUnique,
+                                     int $voteCount, int $cohortMaxVotes): float
+    {
+        $volume = min(1.0, max(0, $voteCount) / max(1, $cohortMaxVotes));
+
+        // ══ NOBODY IN THE FIELD HAS A RECORDED VOTER: MEASURE WHAT THERE IS ══
+        //
+        // `cohortMaxUnique` of zero does not mean "everybody has no support". It means the
+        // question cannot be asked here — vote ROWS are missing while the tallies are not.
+        // That happens for real: a tally imported from before this platform held rows, a
+        // seeded fixture, a cycle whose rows were purged after release.
+        //
+        // Flooring the denominator to one instead would hand every nominee people = 0/1
+        // and quietly pay the whole field 30% of the community half. Within the category
+        // the ORDER survives, which is exactly what makes it dangerous: nothing looks
+        // wrong, no screen says anything, and a category scored out of 135 is then ranked
+        // against categories scored out of 450 to pick an OVERALL winner. This platform
+        // has shipped that shape of fault twice — a percentage of `organic_vote_count`
+        // where free voting is off, and a bonus cap read off the same column — and both
+        // times the tell was a number that stayed plausible while measuring nothing.
+        //
+        // So where reach is unmeasurable the tally takes the whole half. That is the older
+        // basis's answer, which is the honest fallback: it is what we could measure.
+        if ($cohortMaxUnique <= 0) return $volume;
+
+        $people = min(1.0, max(0, $uniqueVoters) / $cohortMaxUnique);
+
+        return self::REACH_PEOPLE_SHARE * $people
+             + (1.0 - self::REACH_PEOPLE_SHARE) * $volume;
     }
 
     /**
@@ -283,10 +384,65 @@ class CpiService
      */
     public const FULL_CREDIT_VOTES = 1000;
 
-    /** The judge component, 0..1, re-based on the range a panel uses and curved. */
-    public static function judgePart(?float $judgeAvg0to10, ?float $floor = null, ?float $curve = null): float
+    /**
+     * ══════════════════════════════════════════════════════════════════════════
+     * THE JUDGE HALF IS THE MARK, AND NOTHING ELSE
+     * ══════════════════════════════════════════════════════════════════════════
+     *
+     *     judge points = 550 × (average mark ÷ 10)
+     *
+     * A panel mark of 8.0 is worth 440 of 550. That is the whole rule, it is the rule a
+     * judge already believes they are applying when they write 8, and it is the only form
+     * of it a nominee can check without being walked through an exponent.
+     *
+     * ── WHAT IT REPLACES, AND WHY THAT WENT ─────────────────────────────────
+     *
+     * `((mark − 5) ÷ 5) ^ 1.5`: a floor at five, because panels rarely award below it, and
+     * an exponent to spread what was left. Both were corrections for a real defect — under
+     * a flat share, 7.6 returned seventy per cent of the judge weight and the index did not
+     * discriminate — but they cost more than they fixed:
+     *
+     *   IT MOVED THE MARK THE JUDGE WROTE.  8.0 came out at 256 of 550, not 440. The
+     *                                       panel's own number stopped being the number in
+     *                                       the result, so no judge could predict what
+     *                                       their scorecard was worth.
+     *   IT PAID 5.0 AND 4.0 IDENTICALLY.    Everything at or below the floor was zero, so
+     *                                       the difference between a weak entry and a poor
+     *                                       one was formally nothing.
+     *   IT WAS NOT EXPLICABLE.              A losing nominee is owed an arithmetic they can
+     *                                       follow. "Your mark was rebased and raised to
+     *                                       the power of one and a half" is not one.
+     *
+     * The discrimination the curve was defending is now done where it belongs — in the
+     * community half, by measuring PEOPLE ({@see reachPart()}) rather than by steepening a
+     * tally. So the judge half no longer carries a correction for somebody else's defect,
+     * and goes back to being what it says it is.
+     *
+     * `curved` remains available per programme and per cycle, so an already-announced
+     * standing can still be reproduced exactly from the settings that produced it.
+     */
+    public const SCALE_LINEAR = 'linear';
+    public const SCALE_CURVED = 'curved';
+
+    /** The judge scale, normalised. Unrecognised is the default, never a guess. */
+    public static function judgeScale(?string $raw): string
+    {
+        return trim((string) $raw) === self::SCALE_CURVED
+            ? self::SCALE_CURVED : self::SCALE_LINEAR;
+    }
+
+    /** The judge component, 0..1. */
+    public static function judgePart(?float $judgeAvg0to10, ?float $floor = null,
+                                     ?float $curve = null, ?string $scale = null): float
     {
         if ($judgeAvg0to10 === null) return 0.0;
+
+        if (self::judgeScale($scale) === self::SCALE_LINEAR) {
+            // Clamped at both ends: a stored average above ten — a backfilled column, a
+            // rubric somebody rescaled — must not pay more than the whole judge weight,
+            // and a negative one must not subtract from the community half.
+            return min(1.0, max(0.0, $judgeAvg0to10 / 10.0));
+        }
 
         $f       = max(0.0, min(9.0, $floor ?? self::JUDGE_FLOOR));
         $span    = max(0.1, 10.0 - $f);

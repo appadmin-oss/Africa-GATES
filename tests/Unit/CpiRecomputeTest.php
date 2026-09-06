@@ -77,13 +77,36 @@ class CpiRecomputeTest extends TestCase
         ]);
     }
 
-    private function seedNominee(int $id, int $cat, int $votes, ?int $profileId): void
+    /**
+     * A nominee, its tally, and the vote ROWS behind that tally.
+     *
+     * The rows are not decoration. Under the default basis seventy per cent of the
+     * community half is how many PEOPLE voted, counted from `gates_votes` — so a fixture
+     * that sets `vote_count` and mints nothing exercises the unmeasurable-reach fallback
+     * rather than the path production takes. `$people` defaults to one vote each, which
+     * is what organic voting actually looks like.
+     */
+    private function seedNominee(int $id, int $cat, int $votes, ?int $profileId,
+                                 ?int $people = null): void
     {
         DB::table('gates_nominees')->insert([
             'id' => $id, 'category_id' => $cat, 'profile_id' => $profileId,
             'name' => "N{$id}", 'country_code' => 'NG', 'status' => 'approved',
             'vote_count' => $votes, 'organic_vote_count' => $votes,
         ]);
+
+        $people = max(0, min($people ?? $votes, $votes));
+        for ($i = 0; $i < $people; $i++) {
+            DB::table('gates_votes')->insert([
+                'nominee_id' => $id, 'category_id' => $cat,
+                // A real per-person hash, exactly as VoteService writes one.
+                'voter_email_hash' => hash('sha256', "n{$id}.v{$i}@example.test"),
+                'vote_type' => 'standard',
+                // The first voter carries whatever the tally has left over, so the rows
+                // always sum to `vote_count` however few people are behind it.
+                'weight' => $i === 0 ? $votes - ($people - 1) : 1,
+            ]);
+        }
     }
 
     private function judge(string $name): int
@@ -140,11 +163,12 @@ class CpiRecomputeTest extends TestCase
         $p1 = (int) DB::table('gates_profiles')->where('id', 1)->value('cpi_score');
         $p2 = (int) DB::table('gates_profiles')->where('id', 2)->value('cpi_score');
 
-        // Both halves are curved now — see CpiService::nomineeScore() for why.
-        //   community: (5/5)^2 = 1.0 → 450   ;   (5/50)^2 = 0.01 → 4 (was 45)
-        //   judge 6/10: ((6−5)/5)^1.5 = 0.2^1.5 = 0.0894 → 49
-        $this->assertSame(499, $p1);
-        $this->assertSame(54,  $p2);
+        // Reach, and a judge half that is the mark itself.
+        //   P1 leads its field on both terms      → 315 + 135 = 450
+        //   P2 has a tenth of the leader on both  → 31.5 + 13.5 = 45
+        //   judge 6.0/10 → 0.60 × 550             → 330
+        $this->assertSame(780, $p1);
+        $this->assertSame(375, $p2);
         $this->assertGreaterThan($p2, $p1);
     }
 
@@ -229,7 +253,7 @@ class CpiRecomputeTest extends TestCase
 
         $row = DB::table('gates_profiles')->where('id', 1)->first();
         $this->assertSame('judged', (string) $row->cpi_basis);
-        $this->assertSame(499, (int) $row->cpi_score);
+        $this->assertSame(780, (int) $row->cpi_score);
     }
 
     /**
@@ -253,7 +277,7 @@ class CpiRecomputeTest extends TestCase
 
         $rows = DB::table('gates_cpi_history')->where('profile_id', 1)->get();
         $this->assertCount(1, $rows, 'the history grew a row per run for a score that never moved');
-        $this->assertSame(499, (int) $rows[0]->cpi_score);
+        $this->assertSame(780, (int) $rows[0]->cpi_score);
 
         // And a real movement IS recorded — otherwise the assertion above is satisfied by
         // a table nothing writes to at all.
@@ -305,7 +329,7 @@ class CpiRecomputeTest extends TestCase
 
         $this->runRecompute();
 
-        $this->assertSame(499, (int) DB::table('gates_profiles')->where('id', 1)->value('cpi_score'),
+        $this->assertSame(780, (int) DB::table('gates_profiles')->where('id', 1)->value('cpi_score'),
             'a nomination still waiting on its panel pulled down an award already decided');
     }
 }

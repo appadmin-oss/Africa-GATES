@@ -63,7 +63,18 @@ class RuleEngine
         // published and printed onto physical awards; a cycle that has announced its
         // standings must keep them to the digit. Per-cycle, so a later cycle opts in
         // without moving a released one. See CpiService::basis().
-        'community_basis' => CpiService::BASIS_RELATIVE,
+        // ── THE TWO THAT DECIDE AN AWARD ─────────────────────────────────
+        //
+        // `community_basis` is REACH: 70% of the community half is how many verified
+        // people backed a nominee, 30% is the total tally. `relative` and `absolute` are
+        // the older tally-only bases, kept so an already-announced standing can still be
+        // reproduced exactly from the settings that produced it.
+        //
+        // `judge_scale` is LINEAR: the panel's mark, straight, out of ten. `curved` is the
+        // old rebased-and-raised form, kept for the same reason. `judge_floor` and
+        // `judge_curve` below are read ONLY by `curved` and are inert under `linear`.
+        'community_basis' => CpiService::BASIS_REACH,
+        'judge_scale'     => CpiService::SCALE_LINEAR,
         'judge_floor'     => 5.0,
         'judge_curve'     => 1.5,
 

@@ -8,42 +8,46 @@ use Illuminate\Database\Capsule\Manager as DB;
 use Tests\TestCase;
 
 /**
- * WHAT THE COMMUNITY HALF IS A SHARE OF — AND WHY IT IS A SETTING.
+ * WHAT THE COMMUNITY HALF IS A SHARE OF.
  *
  * ══════════════════════════════════════════════════════════════════════════════
- * THE FAULT
+ * THE FAULT EVERY TALLY-ONLY BASIS SHARES
  * ══════════════════════════════════════════════════════════════════════════════
  *
- * The community half measures a nominee against the leader of their OWN category. That
- * is the right question for deciding a category and it is meaningless outside one. Three
- * real rows off one released cycle, all on the same 0–1000 index:
+ * `relative` measures a nominee against the leader of their own category; `absolute`
+ * measures them against a fixed full-credit mark. Both measure ONE thing — the size of a
+ * tally — and a tally is the number money moves most easily:
  *
- *     Mr Aoyera Kayode John        19 votes · LEADER of a 19-vote field  → community 62
- *     Ogunyemi Olusola Titilope   691 votes · 35% of a 1,955-vote field  → community 56
- *     Amb. Ojewola Olawale        161 votes ·  8% of the same field      → community  3
+ *     A   1,000 people, 2,000 votes
+ *     B       2 people, 2,000 votes
  *
- * Nineteen votes out-scoring six hundred and ninety-one. Both figures are correct and
- * neither is comparable to the other. The depth discount cut the small category's credit
- * to 0.138 of full — and its leader still collects all of that, while 8% squared is
- * 0.68% of a category whose discount is waived entirely.
+ * On either basis those are the same nominee. Nothing in the arithmetic was looking at
+ * how many human beings were behind either number, so nothing could tell them apart.
  *
- * It matters because this platform crowns an OVERALL winner across categories, which is
- * that incomparable comparison made into an award.
+ * `reach` splits the half: 70% (315 of 450) is how many verified PEOPLE backed a
+ * nominee, 30% (135) is the total tally. B collects 135.63 of 450 and A collects 450.
  *
  * ══════════════════════════════════════════════════════════════════════════════
- * WHY A SETTING RATHER THAN A CORRECTION
+ * WHY THE DEFAULT MOVED, HAVING BEEN PINNED
  * ══════════════════════════════════════════════════════════════════════════════
  *
- * Results here are published and printed onto physical awards. A cycle that has announced
- * its standings must keep them to the digit, and switching basis moves them: on the two
- * released cycles no winner and no overall position changed, but a 3rd/4th place did —
- * 918 votes at 6.8 overtaking 398 votes at 7.6.
+ * This file used to open by saying results are printed onto physical awards, so the
+ * default must reproduce the announced standings to the digit. The operator has since
+ * decided the other way, in as many words: *do not mind the physical award, be fair.*
+ * That is their call to make and it is recorded here because the reasoning below only
+ * makes sense against it.
  *
- * So the default is today's behaviour exactly, and a later cycle opts in. RuleEngine
- * resolves it per programme and per cycle, which is what makes that possible.
+ * So `reach` is the default. The older bases remain settings, and
+ * {@see test_the_old_settings_still_reproduce_the_published_index_exactly} still pins the
+ * announced figures — not because they may not move, but because a platform that cannot
+ * reproduce what it published cannot show its working for it either.
  *
- * `test_the_default_reproduces_the_published_index_exactly` is the load-bearing one: it
- * pins the figures that are on an award right now.
+ * ── WHAT SWITCHING COSTS, STATED RATHER THAN DISCOVERED ─────────────────────
+ *
+ * Reach needs a number no release screen ever recorded: unique voters per nominee. It is
+ * recoverable — `gates_votes` still holds one row per voter per category — but it comes
+ * from a recompute over those rows, not from `gates_vote_snapshots`. A cycle whose vote
+ * rows have been purged can be scored on `relative` and on nothing else.
  */
 final class CommunityBasisTest extends TestCase
 {
@@ -54,16 +58,20 @@ final class CommunityBasisTest extends TestCase
     // ══ the default cannot move ══════════════════════════════════════════════
 
     /**
-     * THE PUBLISHED NUMBERS, PINNED.
+     * THE PUBLISHED NUMBERS, STILL REPRODUCIBLE FROM THE SETTINGS THAT MADE THEM.
      *
      * These are the community halves and indexes of real nominees in two released cycles.
-     * They are printed. If this test fails, something has changed a result that has
-     * already been announced — which is not a regression to be triaged, it is a thing
-     * that must not ship.
+     * They are no longer what the DEFAULT produces — the operator moved it deliberately —
+     * but `relative` + `curved` must go on producing them exactly, because the working
+     * behind an announced result has to stay checkable after the rule changes. A platform
+     * whose whole claim is that a ranking can be verified cannot lose the ability to
+     * verify the ones it already published.
      */
-    public function test_the_default_reproduces_the_published_index_exactly(): void
+    public function test_the_old_settings_still_reproduce_the_published_index_exactly(): void
     {
-        $s = new CpiService();
+        $s   = new CpiService();
+        $old = ['communityBasis' => CpiService::BASIS_RELATIVE,
+                'judgeScale'     => CpiService::SCALE_CURVED];
 
         // [votes, cohortMax, judgeAvg, expected CPI, expected community]
         foreach ([
@@ -74,27 +82,43 @@ final class CommunityBasisTest extends TestCase
             [89,    89, 8.1, 403, 134],   // Idowu Olayemi Olubukunola — SOCIAL DEVELOPMENT
             [19,    19, 6.1, 119,  62],   // Mr Aoyera Kayode John — LEADERSHIP
         ] as [$v, $m, $j, $cpi, $comm]) {
-            $this->assertSame($cpi, $s->nomineeScore($v, $m, $j),
-                "a published index moved: {$v} votes, cohort {$m}, panel {$j}");
+            $this->assertSame($cpi, $s->nomineeScore($v, $m, $j,
+                    communityBasis: $old['communityBasis'], judgeScale: $old['judgeScale']),
+                "a published index can no longer be reproduced: {$v} votes, cohort {$m}, panel {$j}");
             $this->assertSame($comm, CpiService::split(
-                CpiService::communityPart($v, $m), CpiService::judgePart($j), .45, .55)['community']);
+                CpiService::communityPart($v, $m, null, null, $old['communityBasis']),
+                CpiService::judgePart($j, null, null, $old['judgeScale']), .45, .55)['community']);
         }
     }
 
-    /** And an unrecognised value is today's behaviour, never a guess. */
-    public function test_an_unknown_basis_falls_back_to_the_published_one(): void
+    /**
+     * An unrecognised value is the DEFAULT, never a guess and never the old behaviour.
+     *
+     * The direction matters. If a typo fell back to a tally-only basis, then a deployment
+     * that fat-fingered its settings would silently go back to a rule money can move —
+     * and every screen would agree with itself while it happened.
+     */
+    public function test_an_unknown_basis_falls_back_to_the_default(): void
     {
-        foreach (['', 'RELATIVE', 'abolute', 'true', '1', 'Absolute '] as $raw) {
-            $this->assertSame(CpiService::BASIS_RELATIVE, CpiService::basis($raw),
+        foreach (['', 'REACH', 'relatve', 'abolute', 'true', '1', 'Absolute '] as $raw) {
+            $this->assertSame(CpiService::BASIS_REACH, CpiService::basis($raw),
                 '"' . $raw . '" was accepted as a scoring basis');
         }
         $this->assertSame(CpiService::BASIS_ABSOLUTE, CpiService::basis('absolute'));
-        $this->assertSame(CpiService::BASIS_RELATIVE, CpiService::basis(null));
+        $this->assertSame(CpiService::BASIS_RELATIVE, CpiService::basis('relative'));
+        $this->assertSame(CpiService::BASIS_REACH,    CpiService::basis(null));
+
+        // And the same for the judge scale, which decides the other 550.
+        foreach (['', 'CURVED', 'curvd', 'nonsense', null] as $raw) {
+            $this->assertSame(CpiService::SCALE_LINEAR, CpiService::judgeScale($raw),
+                'a stray value quietly restored the exponent on every panel mark');
+        }
+        $this->assertSame(CpiService::SCALE_CURVED, CpiService::judgeScale('curved'));
 
         [$v, $m] = self::LEADER_OF_A_TINY_FIELD;
         $this->assertSame(
-            CpiService::communityPart($v, $m, null, null, 'nonsense'),
-            CpiService::communityPart($v, $m),
+            CpiService::communityPart($v, $m, null, null, 'nonsense', 3, 9),
+            CpiService::communityPart($v, $m, null, null, null, 3, 9),
             'a stray string quietly switched how every award is decided');
     }
 
@@ -133,15 +157,41 @@ final class CommunityBasisTest extends TestCase
      * balance between the halves, which is why the released cycles were checked
      * individually rather than trusted to this property.
      */
-    public function test_a_category_leader_scores_the_same_under_both(): void
+    public function test_a_category_leader_scores_the_same_under_both_tally_bases(): void
     {
         foreach ([19, 89, 500, 620, 1955] as $v) {
             $this->assertSame(
-                CpiService::communityPart($v, $v),
+                CpiService::communityPart($v, $v, null, null, CpiService::BASIS_RELATIVE),
                 CpiService::communityPart($v, $v, null, null, CpiService::BASIS_ABSOLUTE),
                 'the bases disagree for the leader of a ' . $v . '-vote category, so '
                 . 'switching one on could crown somebody else');
         }
+    }
+
+    /**
+     * REACH HAS THE SAME PROPERTY, AND IT IS NOT OBVIOUS.
+     *
+     * A nominee who leads a field on BOTH terms — most people and most votes — collects
+     * the whole community half, exactly as they do under either tally basis. It has to be
+     * checked rather than assumed, because reach is the first basis with two numerators:
+     * a weighted sum of two shares reaches 1.0 only if both shares do, and getting the
+     * weights wrong (0.7 + 0.7, say) would quietly pay a leader more than the half.
+     */
+    public function test_a_leader_on_both_terms_collects_the_whole_community_half(): void
+    {
+        foreach ([[19, 40], [89, 200], [1955, 4000]] as [$people, $votes]) {
+            $this->assertSame(1.0, CpiService::communityPart(
+                $votes, $votes, null, null, CpiService::BASIS_REACH, $people, $people),
+                'the field leader does not collect the whole community half');
+        }
+
+        // And the two terms are exactly 70/30 of it — the figures the rule is stated in.
+        $this->assertSame(0.70, round(CpiService::communityPart(
+            0, 100, null, null, CpiService::BASIS_REACH, 50, 50), 10),
+            'all the people and none of the votes is not worth 315 of 450');
+        $this->assertSame(0.30, round(CpiService::communityPart(
+            100, 100, null, null, CpiService::BASIS_REACH, 0, 50), 10),
+            'all the votes and none of the people is not worth 135 of 450');
     }
 
     // ══ and it is reachable ══════════════════════════════════════════════════

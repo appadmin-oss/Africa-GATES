@@ -946,6 +946,12 @@ class SettingsController
                 // an operator a number the scorer will quietly refuse to use.
                 'community_curve' => max(0.1, min(6.0, (float) ($b['community_curve'] ?? 2.0))),
                 'community_full_credit_votes' => max(1, (int) ($b['community_full_credit_votes'] ?? 1000)),
+                // Normalised for the same reason the basis is: a typo here must not
+                // silently put the exponent back on every panel mark in the system.
+                'judge_scale'     => \AfricaGates\Services\CpiService::judgeScale(
+                    (string) ($b['judge_scale'] ?? '')),
+                // Read only by the `curved` scale, and kept whatever the scale is so a
+                // cycle can be switched back and reproduce its announced figures exactly.
                 'judge_floor'     => max(0.0, min(9.0, (float) ($b['judge_floor'] ?? 5.0))),
                 'judge_curve'     => max(0.1, min(6.0, (float) ($b['judge_curve'] ?? 1.5))),
             ]));

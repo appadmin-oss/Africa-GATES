@@ -379,14 +379,17 @@ final class JudgingIntegrityAuditTest extends TestCase
     {
         $cpi = new \AfricaGates\Services\CpiService();
 
-        // Called directly, so the RuleEngine row in setUp does not reach it: the full-credit
-        // mark is passed here instead. 100 votes against the live default of 1,000 would be
-        // discounted to a third, which is correct and is a different test.
-        $judged     = $cpi->nomineeScore(100, 100, 6.0, 0.45, 0.55, null, null, null, 1);
-        $unjudged   = $cpi->nomineeScore(100, 100, null, 0.45, 0.55, null, null, null, 1);
+        // Called directly, so the RuleEngine row in setUp does not reach it. A field leader
+        // on both terms: 100 people, 100 votes, so the community half is whole and the
+        // only thing separating these two is whether the panel has spoken.
+        $judged     = $cpi->nomineeScore(100, 100, 6.0, 0.45, 0.55,
+                                         uniqueVoters: 100, cohortMaxUnique: 100);
+        $unjudged   = $cpi->nomineeScore(100, 100, null, 0.45, 0.55,
+                                         uniqueVoters: 100, cohortMaxUnique: 100);
         $renormed   = 1000;                                // what community-only would give
 
-        $this->assertSame(499, $judged);
+        // 450 community + 6.0/10 × 550 = 330 judge.
+        $this->assertSame(780, $judged);
         $this->assertSame(450, $unjudged);
 
         $this->assertLessThan($judged, $unjudged,

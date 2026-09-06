@@ -77,6 +77,35 @@ class PaidVoteCpiSeparationTest extends TestCase
             ['id' => 2, 'category_id' => 10, 'name' => 'B', 'country_code' => 'NG',
              'status' => 'approved', 'vote_count' => 102, 'organic_vote_count' => 2],
         ]);
+
+        // ── AND THE ROWS BEHIND THOSE TALLIES ────────────────────────────────
+        //
+        // The tally columns alone are not the input any more: seventy per cent of the
+        // community half is counted from `gates_votes`, one person at a time. A: ten
+        // separate people. B: two people, plus ONE buyer whose single order carries a
+        // hundred votes — which is what "2 free and 100 bought" actually looks like on
+        // disk, and the shape the whole basis exists to tell apart.
+        for ($i = 0; $i < 10; $i++) {
+            DB::table('gates_votes')->insert([
+                'nominee_id' => 1, 'category_id' => 10, 'vote_type' => 'standard', 'weight' => 1,
+                'voter_email_hash' => hash('sha256', "a{$i}@example.test"),
+            ]);
+        }
+        for ($i = 0; $i < 2; $i++) {
+            DB::table('gates_votes')->insert([
+                'nominee_id' => 2, 'category_id' => 10, 'vote_type' => 'standard', 'weight' => 1,
+                'voter_email_hash' => hash('sha256', "b{$i}@example.test"),
+            ]);
+        }
+        DB::table('gates_donations')->insert([
+            'id' => 900, 'donor_name' => 'One Backer', 'donor_email' => 'backer@example.test',
+            'amount_naira' => 100000, 'status' => 'confirmed',
+        ]);
+        DB::table('gates_votes')->insert([
+            'nominee_id' => 2, 'category_id' => 10, 'vote_type' => 'paid', 'weight' => 100,
+            'donation_id' => 900,
+            'voter_email_hash' => 'paidvote:900:' . bin2hex(random_bytes(6)),
+        ]);
     }
 
     public function test_the_index_normalises_over_every_vote_not_the_free_ones(): void
@@ -85,12 +114,22 @@ class PaidVoteCpiSeparationTest extends TestCase
 
         $scores = (new NomineeScoringService())->scoreCategory(10);
 
-        // No judges → community-only. cohortMax = 102 (the largest TALLY), weight 0.45,
-        // and the share is CURVED (`CpiService::COMMUNITY_CURVE`, 2.0):
-        //   A: 0.45 × (10/102)^2 × 1000 =   4
-        //   B: 0.45 × (102/102)^2 × 1000 = 450
-        $this->assertSame(4,   $scores[1]['cpi_score']);
-        $this->assertSame(450, $scores[2]['cpi_score']);
+        // No judges → community-only. Two denominators now, both drawn from the field:
+        // the largest TALLY (102, B's) and the largest number of PEOPLE (10, A's).
+        //
+        //   A:  0.7 × 10/10 + 0.3 × 10/102  = 0.7294 → 328
+        //   B:  0.7 ×  3/10 + 0.3 × 102/102 = 0.5100 → 230
+        //
+        // B's hundred bought votes still count in full toward the thirty per cent — they
+        // are real votes and this platform does not pretend otherwise. What they cannot
+        // do any more is carry the other seventy, because one buyer is one person however
+        // large the cheque. Under the old tally-only rule these came out 4 and 450: the
+        // nominee with ten supporters scored four points, and the one with three scored
+        // the maximum.
+        $this->assertSame(328, $scores[1]['cpi_score']);
+        $this->assertSame(230, $scores[2]['cpi_score']);
+        $this->assertGreaterThan($scores[2]['cpi_score'], $scores[1]['cpi_score'],
+            'a hundred votes from one buyer still outrank ten separate supporters');
 
         // The denominator moved with the numerator. Scaling a total against an organic
         // maximum would let a nominee exceed 100% of the cohort and take more than the
@@ -101,23 +140,61 @@ class PaidVoteCpiSeparationTest extends TestCase
     }
 
     /**
-     * SPENDING CAN OVERTAKE FREE SUPPORT, AND NOTHING STOPS IT.
+     * SPENDING STILL COUNTS IN FULL — AND IT BUYS THIRTY PER CENT, NOT ALL OF IT.
      *
-     * This is the assertion the file previously made in reverse, and it is stated as a
-     * property rather than left as a side effect: purchases are capped per ORDER, not
-     * against a nominee's organic base, so there is no ceiling at which money stops
-     * mattering. Anybody changing that later should have to change this line, and read
-     * the header above before they do.
+     * This file used to assert the reverse of its own reverse: first that bought votes
+     * could not win, then — correctly, after an operator decision — that they could, with
+     * no ceiling at which money stopped mattering. Under the reach basis the honest
+     * statement is neither, and it is worth being exact about because both halves of it
+     * are load-bearing:
+     *
+     *   MONEY IS NOT NEUTERED.  Every bought vote counts, at full weight, toward the
+     *                           thirty per cent that is the tally — and toward the
+     *                           tiebreak and the eligibility filter, which are unchanged.
+     *                           A hundred bought votes are worth 135 of B's 230 here.
+     *                           Pretending otherwise would be a lie the receipts contradict.
+     *   MONEY CANNOT BUY REACH. One buyer is one person however large the cheque, so the
+     *                           other seventy per cent is beyond it. That is the whole
+     *                           point, and it is why B loses to A above.
+     *
+     * So: with reach held equal, spending decides. That is the case this pins.
      */
-    public function test_purchased_votes_can_overtake_a_nominee_with_more_free_support(): void
+    public function test_with_reach_held_equal_the_larger_tally_still_wins(): void
     {
         $this->seedCohort();
 
+        // A third nominee with A's ten supporters exactly, and one bought order on top.
+        // Same people, more votes — so the seventy per cent ties and the thirty decides.
+        DB::table('gates_nominees')->insert([
+            'id' => 3, 'category_id' => 10, 'name' => 'C', 'country_code' => 'NG',
+            'status' => 'approved', 'vote_count' => 210, 'organic_vote_count' => 10,
+        ]);
+        for ($i = 0; $i < 10; $i++) {
+            DB::table('gates_votes')->insert([
+                'nominee_id' => 3, 'category_id' => 10, 'vote_type' => 'standard', 'weight' => 1,
+                'voter_email_hash' => hash('sha256', "c{$i}@example.test"),
+            ]);
+        }
+        DB::table('gates_donations')->insert([
+            'id' => 901, 'donor_name' => 'Backer Two', 'donor_email' => 'two@example.test',
+            'amount_naira' => 200000, 'status' => 'confirmed',
+        ]);
+        DB::table('gates_votes')->insert([
+            'nominee_id' => 3, 'category_id' => 10, 'vote_type' => 'paid', 'weight' => 200,
+            'donation_id' => 901,
+            'voter_email_hash' => 'paidvote:901:' . bin2hex(random_bytes(6)),
+        ]);
+
         $scores = (new NomineeScoringService())->scoreCategory(10);
 
-        $this->assertGreaterThan($scores[1]['cpi_score'], $scores[2]['cpi_score'],
-            'B outspent A five to one on the tally and did not out-rank them — the index '
-            . 'is reading a subset of the votes again');
+        $this->assertGreaterThan($scores[1]['cpi_score'], $scores[3]['cpi_score'],
+            'C matched A on people and outspent them on the tally, and the thirty per cent '
+            . 'did not move — money has been neutered rather than bounded');
+
+        // And the size of the win is the thirty per cent, not more: C leads the tally
+        // outright (135 of 135) where A holds 10/210 of it.
+        $this->assertSame(11, $scores[3]['unique_voters'], 'C\'s buyer counted as more than one person');
+        $this->assertSame(11, $scores[1]['cohort_max_unique'], 'the people denominator is not the field\'s best');
     }
 
     /**

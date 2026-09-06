@@ -45,6 +45,7 @@ class NomineeScoringService
         $cCurve = (float) ($eff['community_curve'] ?? RuleEngine::DEFAULTS['community_curve']);
         $jFloor = (float) ($eff['judge_floor']     ?? RuleEngine::DEFAULTS['judge_floor']);
         $jCurve = (float) ($eff['judge_curve']     ?? RuleEngine::DEFAULTS['judge_curve']);
+        $jScale = CpiService::judgeScale($eff['judge_scale'] ?? null);
         // Normalised through CpiService rather than compared here: an unrecognised value
         // has to fall back to today's behaviour, and a template or a settings form is one
         // typo away from writing one. A silent switch of scoring basis is the worst
@@ -130,6 +131,26 @@ class NomineeScoringService
         // the whole community weight — the two have to be the same measure or the share
         // is not a share.
         $cohortMax = max(1, (int) $field->max('vote_count'));
+
+        // ── THE SECOND DENOMINATOR, AND IT IS THE SAME FIELD ─────────────────
+        //
+        // Reach measures a nominee against the most PEOPLE any nominee in this field has,
+        // exactly as the tally term measures against the most votes. Drawn from `$field`
+        // and not from `$nominees` for the reason set out above: a nominee who cannot win
+        // must not decide what the finalists' support is worth.
+        //
+        // Counted from the vote rows themselves rather than read off a column — see
+        // {@see VoterReach} for why a stored counter and a DISTINCT count are both wrong
+        // here, and why one buyer's ten orders are one person.
+        $reach     = VoterReach::forNominees($nominees->pluck('id')->map('intval')->all());
+        $fieldIds  = $field->pluck('id')->map('intval')->all();
+        $maxUnique = 0;
+        foreach ($fieldIds as $fid) $maxUnique = max($maxUnique, $reach[$fid] ?? 0);
+        // NOT floored to one. Zero is a meaningful answer here — "this field has no vote
+        // rows to count people from" — and CpiService::reachPart() needs to be able to
+        // tell it apart from "everybody has nobody". Flooring it here would erase that
+        // distinction before the scorer ever saw it.
+        $cohortMaxUnique = $maxUnique;
         $quorum = (int) ($this->rules->effective($ctx->programme_id ?? null, $ctx->cycle_id ?? null)['min_judges_per_nominee']
             ?? RuleEngine::DEFAULTS['min_judges_per_nominee']);
         $stats = $this->judgeStatsFor($nominees->pluck('id')->all());
@@ -141,12 +162,23 @@ class NomineeScoringService
             $judges   = $st['judges'] ?? 0;
             $eligible = $judges >= $quorum;                        // winner-eligible only at quorum
 
+            $unique = $reach[(int) $n->id] ?? 0;
+
             $split = CpiService::split(
-                CpiService::communityPart((int) $n->vote_count, $cohortMax, $cCurve, $full, $cBasis),
-                CpiService::judgePart($eligible ? $ja : null, $jFloor, $jCurve),
+                CpiService::communityPart((int) $n->vote_count, $cohortMax, $cCurve, $full,
+                                          $cBasis, $unique, $cohortMaxUnique),
+                CpiService::judgePart($eligible ? $ja : null, $jFloor, $jCurve, $jScale),
                 $w['community'], $w['judge']);
             $out[(int) $n->id] = [
                 'vote_count'  => (int) $n->vote_count,            // total display support
+                // ── AND THE OTHER HALF OF THE WORKING ────────────────────────
+                //
+                // Published for the same reason `cohort_max` is: under the reach basis
+                // seventy per cent of the community half is decided by these two numbers,
+                // and a figure that appears on no screen is a figure nobody can check. A
+                // nominee is owed both terms of their own score.
+                'unique_voters'     => $unique,
+                'cohort_max_unique' => $cohortMaxUnique,
                 // ── THE DENOMINATOR THE COMMUNITY HALF IS MEASURED AGAINST ───
                 //
                 // Returned rather than kept local, because without it NOBODY can check a
