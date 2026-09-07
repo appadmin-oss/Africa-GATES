@@ -626,6 +626,85 @@ final class EditionScaleTest extends TestCase
             . 'which is the one thing the person who followed this link needs');
     }
 
+    /**
+     * NO SCREEN MAY DESCRIBE A CATEGORY DISCOUNT, BECAUSE THERE ISN'T ONE.
+     *
+     * ══════════════════════════════════════════════════════════════════════════
+     * THE RELEASE SCREEN DREW ONE LONG AFTER IT COULD BE TRUE
+     * ══════════════════════════════════════════════════════════════════════════
+     *
+     * "category discounted — 89 votes against a full-credit mark of 1,000" sat under the
+     * community column. It described {@see \AfricaGates\Services\CpiService::depth()},
+     * which once scaled a category's whole community weight by how deep that category's
+     * support was.
+     *
+     * It cannot be right under any basis this platform now runs:
+     *
+     *   · the default never calls depth() at all — the full-credit mark decides nothing;
+     *   · `relative` passes the cohort maximum, and that is the EDITION's maximum, so the
+     *     factor is one constant applied identically to every category in the cycle;
+     *   · `absolute` passes the nominee's own tally, which was never about categories.
+     *
+     * The category is not a scoring unit here — the award is one, and categories are how
+     * it is organised. This is a sweep rather than an assertion about one template,
+     * because the fault is a CONCEPT surviving in prose after the arithmetic dropped it,
+     * and the next person to reintroduce it will write it somewhere else.
+     */
+    public function test_no_screen_describes_a_per_category_discount(): void
+    {
+        $root = dirname(__DIR__, 2);
+        $bad  = [];
+
+        $it = new \RecursiveIteratorIterator(
+            new \RecursiveDirectoryIterator($root . '/templates'));
+        foreach ($it as $file) {
+            if (!$file->isFile() || $file->getExtension() !== 'twig') continue;
+            $text = (string) file_get_contents($file->getPathname());
+            foreach (['category discounted', 'category is discounted',
+                      'discounted category'] as $claim) {
+                if (stripos($text, $claim) !== false) {
+                    $bad[] = basename($file->getPathname()) . ' — "' . $claim . '"';
+                }
+            }
+        }
+
+        $this->assertSame([], $bad,
+            "a screen describes a per-category scoring adjustment that the arithmetic "
+            . "does not have:\n  " . implode("\n  ", $bad));
+    }
+
+    /**
+     * AND THE FACTOR IT DESCRIBED IS THE SAME FOR EVERY CATEGORY, MEASURED.
+     *
+     * The prose above is only worth trusting if the arithmetic backs it. Under `relative`
+     * — the one basis that still reads the depth term against a cohort maximum — two
+     * categories a factor of a hundred apart in their own support get an IDENTICAL
+     * community factor, because the maximum both are measured against is the edition's.
+     */
+    public function test_the_depth_term_is_one_constant_across_the_whole_edition(): void
+    {
+        (new \AfricaGates\Services\RuleEngine())->set('global', null, [
+            'community_basis' => \AfricaGates\Services\CpiService::BASIS_RELATIVE,
+        ]);
+
+        $this->nominee(9001, self::DEEP, 'Deep leader', 4000);
+        $this->nominee(9002, self::THIN, 'Thin leader',   40);
+
+        $scoring = new NomineeScoringService();
+        $deep = $scoring->scoreCategory(self::DEEP)[9001];
+        $thin = $scoring->scoreCategory(self::THIN)[9002];
+
+        // Same denominator, so the depth factor depth(cohortMax) is the same term in both.
+        $this->assertSame($deep['cohort_max'], $thin['cohort_max']);
+
+        // And the thin category is not scaled by anything of its own: its nominee's share
+        // is exactly (40/4000)^curve of what a full share would earn, with no extra
+        // per-category factor applied on top.
+        $this->assertSame(450, $deep['community_points'],
+            'the edition leader is not collecting the full community half, so a factor '
+            . 'is being applied that is not the share itself');
+    }
+
     // ══ where the scale stops ════════════════════════════════════════════════
 
     /**

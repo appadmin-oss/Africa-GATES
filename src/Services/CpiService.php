@@ -362,9 +362,27 @@ class CpiService
      * scales on the depth of support in the category, not on how many nominees are in it,
      * so a two-horse race with real backing behind it is unaffected.
      *
+     * ══ AND IT IS NOT A CATEGORY DISCOUNT ANY MORE — IT CANNOT BE ══════════
+     *
+     * Everything above is the history. This term is read by `relative` and `absolute`
+     * only, both of which are kept for reproducing an announced standing, and NEITHER
+     * discounts a category today:
+     *
+     *   · `relative` passes the cohort maximum, and that is the whole EDITION's maximum
+     *     ({@see \AfricaGates\Services\NomineeScoringService::editionScale()}) — so it is
+     *     one constant applied identically to every category in the cycle. It scales
+     *     everybody by the same factor and therefore changes no order anywhere.
+     *   · `absolute` passes the nominee's OWN tally, which was never about categories.
+     *
+     * It is a per-category adjustment only under `community_scope = category`, which
+     * exists to reproduce numbers that were already announced. The category is not a
+     * scoring unit in this platform: the award is one, and categories are how it is
+     * organised. A screen that names a "category discount" is describing a mechanism the
+     * arithmetic no longer has, and the release screen no longer draws one.
+     *
      * ── THE SHAPE ───────────────────────────────────────────────────────────
      *
-     * `min(1, cohortMax / fullCredit)`, square-rooted so it is a discount rather than a
+     * `min(1, cohortMax / fullCredit)`, square-rooted so it is gradual rather than a
      * cliff. At the default full-credit mark of 1,000 votes:
      *
      *     leader on 1,955 → capped at 1.00 → the full community weight
@@ -388,10 +406,12 @@ class CpiService
     }
 
     /**
-     * The category-leader vote count at which the community half pays in full.
+     * The vote count at which {@see depth()} stops scaling the community half.
      *
-     * Below it the whole category's community weight is discounted — nobody in a field
-     * nobody voted in can earn what somebody in a field thousands voted in earns.
+     * Read by the `relative` and `absolute` bases only. Under the default it decides
+     * nothing at all, and under `relative` it now applies one factor to the whole edition
+     * rather than to a category — see depth(), and do not describe it as a category
+     * discount on any screen.
      */
     public const FULL_CREDIT_VOTES = 1000;
 

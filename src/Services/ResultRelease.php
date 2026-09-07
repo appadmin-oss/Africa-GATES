@@ -106,11 +106,6 @@ final class ResultRelease
         // Part of the methodology a public page has to be able to state, so it travels
         // with the quorum and the weights rather than being fetched again downstream.
         $paidCap = (int) ($eff['max_paid_weight_pct'] ?? 50);
-        // The category-leader vote count at which the community half pays in full. On the
-        // screen so an operator can see WHY a leader's 450 came out lower — without it the
-        // discount is invisible and the page looks like it has miscounted.
-        $fullCredit = (int) ($eff['community_full_credit_votes']
-                             ?? RuleEngine::DEFAULTS['community_full_credit_votes']);
         // Normalised through CpiService for the same reason the scorer does it: an
         // unrecognised value has to fall back to the same behaviour in both places, or the
         // screen explains a number the scorer did not produce.
@@ -118,7 +113,7 @@ final class ResultRelease
 
         $empty = ['category' => $cat, 'quorum' => $quorum, 'weights' => $weights,
                   'paid_only' => PaidVoteService::freeVotingDisabled(),
-                  'paid_cap_pct' => $paidCap, 'community_full_credit' => $fullCredit,
+                  'paid_cap_pct' => $paidCap,
                   'shortlisted' => null, 'rows' => [], 'winner' => null, 'runner_up' => null,
                   'margin' => null, 'dead_heat' => false, 'tie_broken_by_votes' => false,
                   'blocked' => null,
@@ -341,7 +336,6 @@ final class ResultRelease
             'quorum'      => $quorum,
             'weights'     => $weights,
             'paid_cap_pct' => $paidCap,
-            'community_full_credit' => $fullCredit,
             // True when NOT ONE nominee has an organic vote. Distinct from `cohort_max` being
             // zero, which a template could work out for itself and which does not say what
             // the consequence is.

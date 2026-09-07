@@ -366,6 +366,16 @@ Full account in `docs/CODEBASE-INDEX.md` §16.
   is retired** — it is a published URL somebody was sent — and the answer at the end of it is
   rewritten. `EditionScaleTest` sweeps every article for the retired phrasings, because the
   fault is not "this article is wrong", it is that prose outlives the rule it describes.
+- **There is no category discount, and no screen may describe one.** `CpiService::depth()`
+  once scaled a category's whole community weight by how deep that category's support was,
+  and the release screen drew a "category discounted" label for it. It cannot be right under
+  any basis now: the default never calls `depth()` (the full-credit mark decides nothing);
+  `relative` passes the **edition's** maximum, so the factor is one constant applied
+  identically to every category and changes no order anywhere; `absolute` passes the
+  nominee's own tally. The category is not a scoring unit — the award is one, and categories
+  are how it is organised. `EditionScaleTest` sweeps every template for the phrasing, and a
+  comment explaining the removal must **describe** the old label rather than quote it, or it
+  trips the sweep it is documenting.
 - **A number that is now constant is not evidence any more.** The overall table printed
   `cohort_max` per row to show the comparison was uneven. Edition-wide it is the same figure
   down the page — the very fact that made it worth printing is what removed the need for it.

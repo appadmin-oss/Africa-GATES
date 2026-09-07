@@ -48,8 +48,9 @@
   .ja-name{ font-weight:600; color:#10292C }
   /* The denominator, set beside the figure it qualifies rather than under it. */
   .ja-den{ display:block; margin-top:3px; font-size:11px; color:#5a6d6f }
-  /* A discount an operator has to be able to SEE — without it the leader's lower
-     community half looks like the page has miscounted. */
+  /* Reserved for a figure that needs an operator to look at it — a nominee whose
+     reach could not be counted, not a scoring adjustment. There is no per-category
+     discount in this index; see the note further down where one used to be drawn. */
   .ja-den--warn{ color:#8a6100; font-weight:600 }
 
   .ja-flag{ font-family:var(--ag-font-mono,monospace); font-size:10px; font-weight:700;
@@ -625,25 +626,34 @@
                     people scores zero</span>
                 {% endif %}
                 {#
-                  AND WHY THE LEADER'S 450 IS NOT ALWAYS 450.
+                  ── THERE IS NO SUCH THING AS A CATEGORY DISCOUNT ──────────
 
-                  Under the `relative` basis the half is scaled by how deep the support in
-                  the cohort actually was, so its leader does not collect the whole 450.
-                  Without this line the discount is invisible and the screen looks like it
-                  has miscounted.
+                  A warning used to sit here saying this category's community weight had
+                  been scaled down, against a full-credit mark. It described
+                  `CpiService::depth()`, which once scaled a category's whole community
+                  weight by how deep that category's own support was.
 
-                  GATED ON THE BASIS, because under the default there is no depth term at
-                  all — the full-credit mark decides nothing, and printing "category
-                  discounted" beside a number nothing discounted is a screen inventing an
-                  explanation. `community_basis` is resolved once, by the drawn result,
-                  from the same effective ruleset the scorer read.
+                  Its exact wording is deliberately NOT reproduced in this comment: the
+                  sweep that keeps it gone is a plain text scan over every template
+                  ({@see \Tests\Unit\EditionScaleTest}), and a comment quoting the phrase
+                  would trip it — which is the sweep working, and a good reason to describe
+                  the removed label rather than repeat it.
+
+                  It cannot be right under any basis this platform now runs:
+
+                    · under the default the depth term is never called at all — the
+                      full-credit mark decides nothing;
+                    · under `relative` it reads the cohort maximum, and that is the whole
+                      EDITION's maximum now, so it is one constant applied identically to
+                      every category in the cycle. Not a category discount: a uniform
+                      scaling that changes no order anywhere;
+                    · under `absolute` it reads the nominee's own tally, so it is not about
+                      categories either.
+
+                  A screen that names a per-category adjustment is describing a mechanism
+                  the arithmetic no longer has, on the page an award is signed off from. The
+                  scale is the edition and the category is not a scoring unit.
                 #}
-                {% if c.community_basis == 'relative'
-                      and not c.community_dark and c.cohort_max < c.community_full_credit %}
-                  <span class="ja-den ja-den--warn">category discounted &mdash;
-                    {{ c.cohort_max|number_format }} votes against a full-credit mark of
-                    {{ c.community_full_credit|number_format }}</span>
-                {% endif %}
               </td>
               {# The judge half is an average of averages of marks, three steps from
                  anything a judge wrote — so it is the one figure on this page that
