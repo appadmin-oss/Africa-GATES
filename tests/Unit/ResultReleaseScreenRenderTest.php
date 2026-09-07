@@ -91,6 +91,19 @@ final class ResultReleaseScreenRenderTest extends TestCase
         ]);
     }
 
+    /** $n real, distinct, verified voters — the vote ROWS reach is counted from. */
+    private function backers(int $nominee, int $n, string $tag): void
+    {
+        for ($i = 0; $i < $n; $i++) {
+            DB::table('gates_votes')->insert([
+                'nominee_id' => $nominee, 'category_id' => $this->categoryId,
+                'vote_type' => 'standard', 'weight' => 1,
+                'voter_email_hash' => \AfricaGates\Services\VoteService::voterHash(
+                    $tag . $i . '@x.test'),
+            ]);
+        }
+    }
+
     private function judge(string $name): int
     {
         return (int) DB::table('gates_judges')->insertGetId([
@@ -163,11 +176,21 @@ final class ResultReleaseScreenRenderTest extends TestCase
     /**
      * The cycle's one award draws, WITH the caveat that makes it defensible.
      *
-     * A CPI compares cleanly inside a category and only half compares across them — the
-     * judge half is absolute, the community half is a share of that category's own leader.
-     * The screen cannot fix that, so it has to say it, next to the figures that let an
-     * operator check it: how big each field was and what denominator each winner's
-     * community half was measured against.
+     * ── AND THE CAVEAT CHANGED, WHICH IS WHY THIS TEST IS WORTH READING ─────
+     *
+     * It used to be that a CPI "only half compares" across categories: the judge half was
+     * absolute and the community half was a share of that category's OWN leader, so the
+     * two were shares of different things and this box existed to admit it.
+     *
+     * The community denominator is the whole cycle's now, so the figures ARE comparable
+     * and that admission is no longer true. This test kept passing on the old wording for
+     * exactly as long as nobody read it — which is the failure mode the box exists to
+     * prevent, reproduced in the test that guards it.
+     *
+     * What has to be on the screen now is the caveat that REMAINS, and it is a different
+     * one: the figures compare, and beating one rival is still not beating five. So the
+     * field size stays, and the per-row denominator column — identical down the page once
+     * the scale is the edition's — is gone in favour of the count that still varies.
      */
     public function test_the_overall_winner_draws_with_its_comparability_caveat(): void
     {
@@ -181,12 +204,22 @@ final class ResultReleaseScreenRenderTest extends TestCase
 
         $this->assertStringContainsString('Overall winner', $html);
         $this->assertStringContainsString('Yetunde Adeyemi', $html);
-        $this->assertStringContainsString('only half compares', $html,
-            'the overall award is published with no word about comparing across categories');
-        $this->assertStringContainsString('Cohort max', $html,
-            'the denominator behind each contender is not on the screen');
+        $this->assertStringContainsString('comparable', $html,
+            'the overall award is published with no word about how the figures compare');
+        $this->assertStringNotContainsString('only half compares', $html,
+            'the screen still admits a bias that the edition-wide denominator removed, '
+            . 'directly above a table of figures produced by the rule that removed it');
+        // The lede's own description of the rule, which was wrong on BOTH terms: it said
+        // the community half is measured against the largest ORGANIC vote count in the
+        // CATEGORY, long after organic stopped deciding anything and after the denominator
+        // became the edition's.
+        $this->assertStringNotContainsString('largest organic vote count', $html,
+            'the one paragraph that tells an operator how to read these numbers still '
+            . 'describes a rule the scorer stopped following');
         $this->assertStringContainsString('Field', $html,
             'the size of the field each winner beat is not on the screen');
+        $this->assertStringContainsString('had to beat', $html,
+            'nothing says what is still uneven between these figures');
     }
 
     // ══ it draws at all ══════════════════════════════════════════════════════
@@ -459,8 +492,52 @@ final class ResultReleaseScreenRenderTest extends TestCase
         }
 
         // And the leader is not told they have 100% of their own votes.
-        $this->assertStringContainsString('sets the scale', $html);
+        //
+        // TWO scales are named, not one. The community half has two denominators — the
+        // largest tally in the cycle and the largest number of backers in it — and they are
+        // held by different people as often as not. A row that said "sets the scale" twice,
+        // once under each, would be two sentences that read identically and mean different
+        // things on the one screen an award is signed off from.
+        $this->assertStringContainsString('sets the tally scale', $html);
         $this->assertStringNotContainsString('100% of Grace Abiodun&rsquo;s 400', $html);
+
+        // AND NO REACH SCALE IS INVENTED. These nominees have tallies and no ballot rows,
+        // so there are no people to count anywhere in the cycle and the tally takes the
+        // whole community half. A page that named a reach denominator here would be naming
+        // a number nothing measured.
+        $this->assertStringNotContainsString('backer', $html,
+            'the screen is reporting backers for a cycle whose ballot holds no rows at all');
+    }
+
+    /**
+     * AND WHERE THERE ARE BALLOT ROWS, THE BIGGER TERM OF THE TWO IS ON THE PAGE.
+     *
+     * Seventy per cent of the community half is people, counted from `gates_votes` and
+     * measured against the most any nominee in the cycle has. The scorer computed that
+     * denominator and named who held it, and no screen printed either — so the working
+     * under each nominee explained 135 of the 450 while reading like the whole of it, and
+     * the term that actually decides the half was invisible on the screen an award is
+     * signed off from.
+     */
+    public function test_the_reach_term_is_drawn_beside_the_tally_term(): void
+    {
+        $j1 = $this->judge('Ada Obi');
+        $j2 = $this->judge('Tunde Cole');
+
+        $lead = $this->nominee('Grace Abiodun', 4);
+        $half = $this->nominee('Fatima Bello', 2);
+        $this->scoreAll($j1, $lead, 9); $this->scoreAll($j2, $lead, 9);
+        $this->scoreAll($j1, $half, 8); $this->scoreAll($j2, $half, 8);
+        $this->backers($lead, 4, 'lead');
+        $this->backers($half, 2, 'half');
+
+        $html = $this->render();
+
+        $this->assertStringContainsString('sets the reach scale', $html,
+            'nothing on the page says whose backers the 70% is measured against');
+        $this->assertStringContainsString('2 backers of 4', $html,
+            'a nominee is shown a tally share and not the count that decides most of '
+            . 'their community half');
     }
 
     /**

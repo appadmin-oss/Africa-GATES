@@ -75,6 +75,32 @@ final class EditionScaleTest extends TestCase
         ]);
     }
 
+    /** Two judges, so a complete card at quorum is possible. */
+    private function rubric(): void
+    {
+        foreach ([1, 2] as $j) {
+            DB::table('gates_judges')->insertOrIgnore([
+                'id' => $j, 'name' => 'Judge ' . $j, 'email' => 'j' . $j . '@x.test',
+                'is_active' => 1,
+            ]);
+        }
+    }
+
+    /** A COMPLETE scorecard from each named judge — every active criterion, or it counts for nothing. */
+    private function marks(int $nominee, int $cat, array $judges, int $score = 8): void
+    {
+        $crit = array_map('intval',
+            DB::table('gates_judge_criteria')->where('is_active', 1)->pluck('id')->all());
+        foreach ($judges as $j) {
+            foreach ($crit as $cid) {
+                DB::table('gates_judge_criteria_scores')->insert([
+                    'judge_id' => $j, 'nominee_id' => $nominee, 'category_id' => $cat,
+                    'criterion_id' => $cid, 'score' => $score,
+                ]);
+            }
+        }
+    }
+
     /** $n real, distinct, verified voters — vote ROWS, which is what reach is counted from. */
     private function backers(int $nominee, int $cat, int $n, string $tag): void
     {
@@ -281,7 +307,109 @@ final class EditionScaleTest extends TestCase
         $this->assertSame(5,   $thin['community_points']);
     }
 
-    // ══ what the wider scale costs to compute ════════════════════════════════
+    /**
+     * THE "DENOMINATOR CAN STILL MOVE" WARNING FOLLOWS THE SETTER ACROSS CATEGORIES.
+     *
+     * A nominee below the judge quorum still sets the scale — below quorum is pending, not
+     * out. The release screen names that, because when their panel finishes the denominator
+     * moves and every community half moves with it.
+     *
+     * That check used to scan the drawn category's OWN rows for the setter, which was right
+     * while the denominator was the category's and became a warning covering a strictly
+     * smaller set of cases than the risk it describes the moment the scale went
+     * edition-wide: the setter is normally in another category, so the scan found nobody
+     * and the box stayed quiet while every figure in the cycle was provisional. The
+     * existing test for it kept passing because its fixture has one category — which is
+     * exactly how this kind of narrowing survives a green suite.
+     */
+    public function test_the_scale_warning_fires_when_the_setter_is_in_another_category(): void
+    {
+        $this->rubric();
+        $this->nominee(9001, self::DEEP, 'Unfinished leader', 4000);
+        $this->nominee(9002, self::THIN, 'Thin leader',         40);
+        $this->marks(9001, self::DEEP, [1]);            // ONE judge — below quorum
+        $this->marks(9002, self::THIN, [1, 2]);         // at quorum, so there is a ranking
+
+        $thin = ResultRelease::category(self::THIN);
+
+        $this->assertSame('Unfinished leader', $thin['scale_set_by']);
+        $this->assertFalse($thin['scale_in_category']);
+        $this->assertTrue($thin['scale_is_out'],
+            'the whole cycle is being measured against somebody the panel has not '
+            . 'finished, and the category being released says nothing about it');
+    }
+
+    /** And it stays silent for a setter the panel HAS finished with. */
+    public function test_the_scale_warning_is_silent_once_that_panel_finishes(): void
+    {
+        $this->rubric();
+        $this->nominee(9001, self::DEEP, 'Finished leader', 4000);
+        $this->nominee(9002, self::THIN, 'Thin leader',       40);
+        $this->marks(9001, self::DEEP, [1, 2]);
+        $this->marks(9002, self::THIN, [1, 2]);
+
+        $this->assertFalse(ResultRelease::category(self::THIN)['scale_is_out'],
+            'the warning fires for a denominator that cannot move, which teaches an '
+            . 'operator to skip the box on the pages where it means something');
+    }
+
+    /**
+     * AND "NOBODY ASKED" IS NOT "THE PANEL HAS NOT FINISHED".
+     *
+     * The scale-setter's standing is only resolved when there is a quorum to resolve it
+     * against, so it comes back NULL where there is none — and a programme may legitimately
+     * run without one ({@see \AfricaGates\Services\RuleEngine} `min_judges_per_nominee`),
+     * in which case every nominee is winner-eligible the moment they are scored.
+     *
+     * Treating that null as `false` would put "the panel has not finished, every community
+     * half in this cycle can still move" on every category of such a programme, permanently
+     * and about nobody. A red box that is always there is a red box nobody reads, which
+     * costs more than the warning is worth on the pages where it means something.
+     */
+    public function test_no_quorum_is_not_reported_as_an_unfinished_panel(): void
+    {
+        (new \AfricaGates\Services\RuleEngine())->set('global', null,
+            ['min_judges_per_nominee' => 0]);
+
+        $this->rubric();
+        $this->nominee(9001, self::DEEP, 'Never judged', 4000);
+        $this->nominee(9002, self::THIN, 'Thin leader',    40);
+        $this->marks(9002, self::THIN, [1]);
+
+        $scale = (new NomineeScoringService())->editionScale(self::CYCLE);
+        $this->assertNull($scale['votes_by']['eligible'],
+            'a standing was asserted for a nominee nobody was asked to check');
+
+        $this->assertFalse(ResultRelease::category(self::THIN)['scale_is_out'],
+            'a programme with no judge quorum is being told on every category that its '
+            . 'panels have not finished');
+    }
+
+    /**
+     * AND A CATEGORY WHOSE ROWS ARE MISSING REACHES THE ROW AN OPERATOR READS FIRST.
+     *
+     * `reach_unmeasured` is the one finding on the release screen where nothing else looks
+     * wrong — every other figure on the line is ordinary — so a caveat further down the
+     * page is not enough. It has to be in the count of categories that need a person.
+     */
+    public function test_a_category_with_missing_rows_is_counted_as_needing_a_person(): void
+    {
+        $this->rubric();
+        $this->nominee(9001, self::DEEP, 'Deep leader', 10);
+        $this->backers(9001, self::DEEP, 10, 'deep');
+        $this->nominee(9002, self::THIN, 'Imported tally', 8);
+        $this->marks(9001, self::DEEP, [1, 2]);
+        $this->marks(9002, self::THIN, [1, 2]);
+
+        $n = ResultRelease::attention(ResultRelease::forCycle(self::CYCLE));
+
+        $this->assertSame(1, $n['reach_unmeasured']);
+        $this->assertGreaterThanOrEqual(1, $n['needs_person'],
+            'a category holding a tally with no ballot rows behind it is not counted '
+            . 'among the categories that need somebody to look at them');
+    }
+
+    // ══ what the wider scale costs to compute ════════════════════════════════    // ══ what the wider scale costs to compute ════════════════════════════════
 
     /**
      * THE EDITION IS READ ONCE PER CYCLE, NOT ONCE PER CATEGORY.
@@ -417,6 +545,85 @@ final class EditionScaleTest extends TestCase
         $this->assertSame([], $bad,
             "a loop draws one category at a time without sharing a scorer, so each pass "
             . "re-reads the whole cycle:\n  " . implode("\n  ", $bad));
+    }
+
+    // ══ and the promises made about it in public ═════════════════════════════
+
+    /**
+     * NOTHING THIS PLATFORM PUBLISHES MAY STILL PROMISE THE PER-CATEGORY RULE.
+     *
+     * ══════════════════════════════════════════════════════════════════════════
+     * THE ARTICLE WAS TITLED "WHY A SMALL CATEGORY IS NOT A DISADVANTAGE"
+     * ══════════════════════════════════════════════════════════════════════════
+     *
+     * Its body said the community half is "normalised inside each category" and that
+     * "being the clearest choice in a small field scores exactly as well as being the
+     * clearest choice in a large one". Both were true, and the platform stopped doing
+     * them — so the article became a published promise of the opposite of what the scorer
+     * does, linked from /integrity, quoted inside how-cpi-works, and pasted into support
+     * tickets by the assistant.
+     *
+     * The same article's sibling said "Paid votes are excluded entirely" while
+     * `what-paid-votes-do`, four hundred lines away in the same file, said they count
+     * exactly like a free vote. One help centre, two opposite answers, and the wrong one is
+     * the one somebody reads before they decide whether to trust a result.
+     *
+     * ── AND WHY THIS IS A SWEEP RATHER THAN AN ASSERTION ABOUT ONE ARTICLE ──
+     *
+     * Because the fault is not "this article is wrong", it is "prose outlives the rule it
+     * describes". Naming the article would pass forever after one edit while the next
+     * person writes the same sentence somewhere else. The phrases below are the retired
+     * rule stated in the words it was actually stated in, and the sweep is over every
+     * article the platform will serve.
+     */
+    public function test_no_published_help_article_still_promises_the_per_category_scale(): void
+    {
+        $retired = [
+            'normalised inside each category',
+            'normalized inside each category',
+            'strongest vote count in their own category',
+            'Paid votes are excluded entirely',
+            'paid votes are excluded from the score',
+            'in a small field scores exactly as well',
+        ];
+
+        $bad = [];
+        foreach (\AfricaGates\Services\HelpCentre::all() as $a) {
+            $text = \AfricaGates\Services\HelpCentre::plainText($a)
+                  . ' ' . (string) ($a['title'] ?? '') . ' ' . (string) ($a['summary'] ?? '');
+            foreach ($retired as $claim) {
+                if (stripos($text, $claim) !== false) {
+                    $bad[] = ($a['slug'] ?? '?') . ' — "' . $claim . '"';
+                }
+            }
+        }
+
+        $this->assertSame([], $bad,
+            "the help centre still publishes a rule this platform retired:\n  "
+            . implode("\n  ", $bad));
+    }
+
+    /**
+     * AND THE ARTICLE SOMEBODY IS SENT TO STILL ANSWERS THE QUESTION.
+     *
+     * The slug is a published URL — it is on /integrity, inside how-cpi-works, and it is
+     * what support pastes into a ticket. Retiring the promise is not a reason to break the
+     * link: the answer at the end of it has to be the true one, and it has to still be
+     * about small categories or the person who followed it has been sent nowhere.
+     */
+    public function test_the_small_category_article_still_answers_and_tells_the_truth(): void
+    {
+        $a = \AfricaGates\Services\HelpCentre::bySlug('why-a-small-category-is-not-a-disadvantage');
+
+        $this->assertNotNull($a, 'a URL this platform publishes now resolves to nothing');
+
+        $text = \AfricaGates\Services\HelpCentre::plainText($a);
+        $this->assertStringContainsStringIgnoringCase('small category', $text);
+        $this->assertStringContainsStringIgnoringCase('whole cycle', $text,
+            'the article no longer says what the community half is measured against');
+        $this->assertStringContainsStringIgnoringCase('panel decides the award', $text,
+            'the article does not admit what the wider scale costs a small category, '
+            . 'which is the one thing the person who followed this link needs');
     }
 
     // ══ where the scale stops ════════════════════════════════════════════════

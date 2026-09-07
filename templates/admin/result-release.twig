@@ -130,12 +130,23 @@
   <p>Nothing on this screen changes anything. A nominee out of the running is still
     listed, with the reason: an exclusion nobody can see is the part of a result that is
     hardest to defend later.</p>
+  {#
+    THIS PARAGRAPH DESCRIBED A RULE THE SCORER HAD ALREADY STOPPED FOLLOWING — TWICE.
+
+    It said the community half is measured against "the largest ORGANIC vote count in the
+    CATEGORY". Organic stopped deciding anything when the index started counting every
+    vote, and the denominator stopped being the category when it became the edition's. So
+    the one paragraph on this screen that tells an operator how to read the numbers was
+    wrong about both terms of the thing it was explaining, on the page an award is signed
+    off from.
+  #}
   <p><b>Reading the index.</b> Each nominee&rsquo;s score out of 1000 is a community half
-    plus a judge half, printed under it so it can be added up. The community half is
-    measured against the <em>largest organic vote count in the category</em> rather than
-    against the votes cast &mdash; so the leader on votes earns the whole community
-    weight, and somebody on half their votes earns half of it. The judge half is the
-    panel&rsquo;s weighted average out of ten.</p>
+    plus a judge half, printed under it so it can be added up. The community half is two
+    counts: <em>how many verified people</em> backed them (the larger part of it) and their
+    <em>total votes</em>. Both are measured against the highest figure any nominee reached
+    <em>anywhere in this cycle</em> &mdash; not in their own category &mdash; so a community
+    figure means the same thing on every category below and the cycle standing can be drawn
+    from them. The judge half is the panel&rsquo;s weighted average out of ten, straight.</p>
 </div>
 
 <form method="get" action="/admin/result-release" class="ja-row">
@@ -251,17 +262,32 @@
           lower nominee id, which is deterministic and is not a result. This one needs a person.</p>
       {% endif %}
 
-      <p class="ja-caveat">A CPI compares cleanly <b>inside</b> a category and only half compares
-        across them. The judge half is absolute &mdash; six out of ten is six out of ten anywhere.
-        The community half is a share of that category&rsquo;s own leader &mdash; but it is
-        also scaled by how deep that category&rsquo;s support actually was, so leading a
-        field of one on a hundred votes no longer pays what leading a busy one pays.
+      {#
+        AND THIS ONE DESCRIBED THE DEPTH DISCOUNT, WHICH NO LONGER EXISTS.
+
+        It said the community half "is a share of that category's own leader" and "is also
+        scaled by how deep that category's support actually was". Both were true of the old
+        curve. The half is now two plain shares of the cycle's best, with no depth term at
+        all — so this box was explaining an arithmetic that had been removed, immediately
+        above a table of numbers produced by its replacement.
+
+        What it says now is the caveat that actually remains, which is about the SIZE OF A
+        FIELD rather than the depth of its support: the figures are comparable, and beating
+        one rival is still not the same as beating five.
+      #}
+      <p class="ja-caveat">These figures are <b>comparable</b>. The judge half is absolute
+        &mdash; six out of ten is six out of ten anywhere &mdash; and the community half is
+        a share of the highest figure in this whole cycle, not of each category&rsquo;s own
+        leader, so a community score means the same thing in every row below.
         {% if overall.thinnest_field is not null and overall.thinnest_field <= 3 %}
-          The smallest field here is <b>{{ overall.thinnest_field }}</b>.
-        {% endif %}
-        What remains uneven is the SHAPE of a field rather than its size: two nominees a
-        long way apart and two nominees neck and neck can produce the same winning share.
-        The field size and denominator for every nominee are below.</p>
+          What is still uneven is <b>how many people somebody had to beat</b>: the smallest
+          field here is <b>{{ overall.thinnest_field }}</b>, and winning a field of that
+          size is not the same achievement as winning a crowded one. The field size for
+          every nominee is below.
+        {% else %}
+          What is still uneven is how many people somebody had to beat &mdash; the field
+          size for every nominee is below.
+        {% endif %}</p>
 
       {#- The list ranks EVERY nominee who finished, so a deep category may hold several
           places. Said out loud, because a table with two rows from one category reads
@@ -275,12 +301,33 @@
 
       <div class="ja-scroll">
         <table class="ja-t">
+          {#- One denominator for the whole cycle, so it is stated once rather than
+              repeated identically on every row. `overall_reach` is zero when no nominee
+              anywhere has a countable ballot row, which is the case where the tally takes
+              the whole community half and there is no reach column to fill. -#}
+          {% set overall_scale = 0 %}{% set overall_reach = 0 %}
+          {% for cat in categories %}
+            {% if loop.first %}{% set overall_scale = cat.cohort_max %}
+              {% set overall_reach = cat.cohort_max_unique %}{% endif %}
+          {% endfor %}
           <thead><tr>
             <th>Nominee</th><th>Category</th><th class="ja-num">CPI</th>
             <th class="ja-num">Field</th>
             <th class="ja-num">{{ paid_only ? 'Free' : 'Organic' }}
               {%- if paid_only %}<span class="ja-den">not offered</span>{% endif %}</th>
-            <th class="ja-num">Cohort max</th>
+            {#
+              THIS COLUMN WAS THE COHORT MAX, AND IT IS THE SAME NUMBER ON EVERY ROW NOW.
+
+              It existed to show that the comparison was uneven: each nominee was measured
+              against their own category's leader, so the CPIs in this table were shares of
+              different things and the column was the evidence. The denominator is the
+              edition's now, so it is a constant down the page — the very fact that made
+              the column worth printing is what removed the need for it.
+
+              Backers is the figure that varies and that decides 70% of each community
+              half, and it appeared in this table nowhere.
+            #}
+            <th class="ja-num">Backers</th>
           </tr></thead>
           <tbody>
             {% for c in overall.contenders %}
@@ -296,7 +343,10 @@
                 {# An em dash, not a zero. "0" in a column headed Free reads as a fact
                    about this winner's support; there was no free vote to have. #}
                 <td class="ja-num">{% if paid_only %}&mdash;{% else %}{{ c.organic|number_format }}{% endif %}</td>
-                <td class="ja-num">{{ c.cohort_max|number_format }}</td>
+                <td class="ja-num">
+                  {%- if c.reach_unmeasured %}<span class="ja-den">not counted</span>
+                  {%- elseif overall_reach > 0 %}{{ c.unique_voters|number_format }}
+                  {%- else %}&mdash;{% endif %}</td>
               </tr>
             {% endfor %}
           </tbody>
@@ -373,12 +423,13 @@
 
       {% if c.scale_is_out %}
         <p class="ja-caveat">The community half here is measured against
-          <b>{{ c.cohort_max|number_format }}</b> votes &mdash; {{ c.scale_set_by }}&rsquo;s,
-          and {{ c.scale_set_by }}&rsquo;s panel has <b>not finished</b>. They are in the
-          field, so their votes set the scale for it; they are not yet winner-eligible, so
-          they are not in the ranking below. Nothing here is wrong &mdash; but if their
-          scorecards land before you release, every community half on this page changes,
-          and the order can change with it. Finish that panel first.</p>
+          <b>{{ c.cohort_max|number_format }}</b> votes &mdash; {{ c.scale_set_by }}&rsquo;s{% if not c.scale_in_category %},
+          in {{ c.scale_category ?: 'another category' }}{% endif %} &mdash; and
+          {{ c.scale_set_by }}&rsquo;s panel has <b>not finished</b>. They are in the field,
+          so their votes set the scale for it; they are not yet winner-eligible, so they are
+          not in a ranking. Nothing here is wrong &mdash; but if their scorecards land before
+          you release, every community half <b>in this cycle</b> changes, and the order can
+          change with it. Finish that panel first.</p>
       {% endif %}
 
       {#
@@ -390,13 +441,47 @@
         Without this line an operator reading "5% of 1,955" in a category whose own leader
         has 89 votes has no way to find the 1,955.
       #}
-      {% if c.scale_set_by and not c.scale_in_category %}
-        <p class="ja-caveat">Every community half in this cycle is a share of
-          <b>{{ c.cohort_max|number_format }}</b> votes &mdash; {{ c.scale_set_by }}&rsquo;s,
-          in {{ c.scale_category ?: 'another category' }}. That is deliberate: a share of a
-          category&rsquo;s own leader means something different in every category, and the
-          cycle standing adds them all together. It does mean a category with little
-          support of its own is decided very largely by its panel.</p>
+      {#
+        ── AND WHAT THAT LEAVES THIS CATEGORY TO WIN ─────────────────────────
+
+        Stated as a number rather than as a caveat about every category at once. The first
+        version of this box fired on nearly every category — the scale-setter is normally
+        somewhere else — and said something vague about panels deciding. A warning that
+        appears everywhere and quantifies nothing is one an operator learns to scroll past,
+        which is how the findings that matter stop being read.
+
+        `community_dark` does not cover this: these nominees have votes. They just have very
+        few against the edition, and every figure on the page looks entirely ordinary.
+      #}
+      {% if c.scale_set_by and c.local_max > 0 and c.cohort_max > 0 %}
+        {% set localpct = (c.local_max / c.cohort_max * 100)|round %}
+        {% if localpct < 25 %}
+          <p class="ja-caveat">The best-supported nominee here has
+            <b>{{ c.local_max|number_format }}</b> votes against a cycle scale of
+            <b>{{ c.cohort_max|number_format }}</b> &mdash; {{ localpct }}% of it. So the
+            most community credit anybody in this category can earn is roughly
+            <b>{{ (c.weights.community * 1000 * c.local_max / c.cohort_max)|round }}</b> of
+            {{ (c.weights.community * 1000)|round }} points, and the panel&rsquo;s
+            {{ (c.weights.judge * 1000)|round }} decides this award very largely on its own.
+            That is the rule working, not a fault: a share of the cycle means the same thing
+            in every category, which is what makes the standing below addable. It is here so
+            you know before you release, not after.</p>
+        {% endif %}
+      {% endif %}
+
+      {#
+        THE LEGACY SCOPE, SAID OUT LOUD. `community_scope = category` changes every number
+        on this page, and without this line a cycle running under it looks identical to one
+        that is not — which is the whole reason a setting nobody can see is dangerous.
+      #}
+      {% if c.cohort_scope == 'category' %}
+        <p class="ja-caveat"><b>This cycle is scored on the old per-category scale.</b>
+          Every category is normalised to its own leader, so each category&rsquo;s leader
+          takes the full {{ (c.weights.community * 1000)|round }} community points however
+          small their field &mdash; and the cycle standing then ranks those figures against
+          each other, which is not a comparison that means anything. The setting exists to
+          reproduce a standing that has already been announced. If this cycle has not been
+          announced, this is not the scale you want.</p>
       {% endif %}
 
       {#
@@ -504,12 +589,33 @@
                      a broken sentence where the explanation should be. #}
                   <span class="ja-den">no votes to weigh</span>
                 {% elseif r.nominee_id == c.scale_set_by_id %}
-                  <span class="ja-den">most votes in the cycle &mdash; sets the scale</span>
+                  <span class="ja-den">most votes in the cycle &mdash; sets the tally scale</span>
                 {% else %}
                   <span class="ja-den">{{ r.community_share }}% of
                     {{ c.scale_set_by }}&rsquo;s {{ c.cohort_max|number_format }}
                     {%- if not c.scale_in_category %} in
                       {{ c.scale_category ?: 'another category' }}{% endif %}</span>
+                {% endif %}
+                {#
+                  ── THE BIGGER TERM OF THE TWO, WHICH HAD NO READER AT ALL ──
+
+                  Seventy per cent of the community half is people, measured against the
+                  most any nominee in the cycle has. The scorer computed that denominator
+                  and named who holds it, and no screen printed either — so the line above
+                  explained 135 of the 450 while reading like the whole of it, and the term
+                  that actually decides the half was invisible.
+                #}
+                {% if c.community_basis == 'reach' and c.cohort_max_unique > 0 and not r.reach_unmeasured %}
+                  <span class="ja-den">{{ r.unique_voters|number_format }} backer{{ r.unique_voters == 1 ? '' : 's' }}
+                    {%- if c.cohort_max_unique_by and r.nominee_id == c.cohort_max_unique_by.id %}
+                      &mdash; most in the cycle, sets the reach scale
+                    {%- else %} of {{ c.cohort_max_unique|number_format }}
+                      {#- the holder, because 70% of the half is measured against them -#}
+                      &mdash; {{ c.cohort_max_unique_by.name|default('') }}&rsquo;s
+                      {%- if c.cohort_max_unique_by and c.cohort_max_unique_by.category_id != c.category.id %},
+                        in {{ c.cohort_max_unique_by.category_title|default('another category') }}
+                      {%- endif %}
+                    {%- endif %}</span>
                 {% endif %}
                 {# The reach term is 70% of the half and it is counted from vote rows.
                    Said on the row it applies to as well as in the caveat above, because

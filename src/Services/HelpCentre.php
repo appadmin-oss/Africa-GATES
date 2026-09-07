@@ -266,8 +266,8 @@ final class HelpCentre
             'slug' => 'what-paid-votes-do',
             'cat'  => 'payments',
             'title' => 'What do paid votes actually do?',
-            'summary' => 'They count toward the ranking, exactly like a free vote — and every '
-                       . 'result publishes how much of a tally was bought.',
+            'summary' => 'They count toward the tally exactly like a free vote, and cannot buy the '
+                       . 'larger part of the community half — every result shows both.',
             'keywords' => ['buy votes', 'paid votes', 'price', 'cost', 'how much', 'bulk votes',
                            'do paid votes count', 'is it fair'],
             'body' => [
@@ -275,8 +275,11 @@ final class HelpCentre
                       . 'what the community share of the Cultural Power Index is built from. So yes: a '
                       . 'paid vote counts toward the ranking, exactly as much as a free one.'],
                 ['p' => 'There is no ceiling on how many a campaign may buy, so a well-funded nominee can '
-                      . 'hold the largest community share in their category. We would rather say that '
-                      . 'here than have you work it out from the numbers.'],
+                      . 'hold the largest tally in the cycle. We would rather say that here than have '
+                      . 'you work it out from the numbers. What buying cannot do is move the seventy '
+                      . 'per cent of the community half that counts PEOPLE: one buyer is one supporter '
+                      . 'however many orders they place, and a vote awarded as a bonus is nobody\'s '
+                      . 'backing at all.'],
                 ['p' => 'What money does not reach is the other half of the index. An independent panel '
                       . 'scores each nominee against a published rubric and never sees a vote count, a '
                       . 'contribution, or who paid for what — see '
@@ -476,16 +479,20 @@ final class HelpCentre
             'body' => [
                 ['p' => 'The CPI blends verified community votes, independent jury scoring and documented '
                       . 'impact into a single score, recomputed on a fixed schedule each cycle.'],
-                ['p' => 'The community component is <strong>cohort-normalised</strong>, which is a dry way '
-                      . 'of saying a nominee in a small category is not punished for being in a small '
-                      . 'category. Raw vote counts across categories of very different sizes would '
-                      . 'otherwise measure audience size rather than merit.'],
-                ['p' => 'Paid votes are excluded entirely. So are jury members\' own votes in categories '
-                      . 'they judge.'],
+                ['p' => 'The community component is itself two counts. Seventy per cent of it is '
+                      . '<strong>how many verified people</strong> backed a nominee; thirty per cent is '
+                      . 'their total votes. Both are measured against the highest figure any nominee in '
+                      . 'the same cycle reached — across every category, not within one — so a community '
+                      . 'score means the same thing wherever it appears.'],
+                ['p' => 'Paid votes <strong>count</strong>, at full weight, toward the thirty per cent '
+                      . 'that is the total tally. What they cannot buy is the seventy per cent: one '
+                      . 'supporter is one supporter however many separate orders they place, so the same '
+                      . 'money split into a thousand small payments buys no extra reach. Jury members\' '
+                      . 'own votes are excluded in categories they judge.'],
                 ['p' => 'The split is <strong>{community_pct}% community, {judge_pct}% judges</strong>, '
                       . 'and it is set per cycle rather than fixed forever. Going deeper: '
-                      . '<a href="/help/why-a-small-category-is-not-a-disadvantage">why a small category '
-                      . 'is not a disadvantage</a>, '
+                      . '<a href="/help/why-a-small-category-is-not-a-disadvantage">how a small category '
+                      . 'is scored</a>, '
                       . '<a href="/help/what-the-judges-actually-score">what the judges actually score</a>, '
                       . 'and <a href="/help/why-the-leader-may-not-be-eligible-to-win">why the vote leader '
                       . 'may not be eligible to win</a>.'],
@@ -511,8 +518,9 @@ final class HelpCentre
                     'A total can go <strong>down</strong>. Votes found to be fraudulent are removed, and '
                         . 'a refunded paid vote is taken back with the money. A falling number is usually '
                         . 'the integrity system working.',
-                    'Visible support and ranking are different numbers. A nominee can have more visible '
-                        . 'support and rank lower, because paid votes are excluded from the score.',
+                    'Visible support and ranking are different numbers. A nominee can hold the larger '
+                        . 'tally and rank lower, because most of the community half counts PEOPLE rather '
+                        . 'than votes — and because the judges carry the larger share of the index.',
                 ]],
                 ['note' => 'Raise it through <a href="/support">Support &amp; appeals</a> with the nominee '
                          . 'and category. Appeals go to someone independent of the original decision.'],
@@ -560,28 +568,55 @@ final class HelpCentre
         [
             'slug' => 'why-a-small-category-is-not-a-disadvantage',
             'cat'  => 'results',
-            'title' => 'Why a small category is not a disadvantage',
-            'summary' => 'Vote counts are compared inside a category, never across them.',
+            // ══ THIS ARTICLE USED TO PROMISE THE OPPOSITE ══════════════════════
+            //
+            // Its title was "Why a small category is not a disadvantage" and its body said
+            // the community half is "normalised inside each category" and that "being the
+            // clearest choice in a small field scores exactly as well as being the clearest
+            // choice in a large one".
+            //
+            // That was true, and the platform stopped doing it: the denominator is the
+            // whole edition's now, because per category every category's leader collected
+            // the full community half whatever their support was — 1,955 votes and 89
+            // paid identically — and the cycle standing then ranked those figures against
+            // each other. See NomineeScoringService::editionScale().
+            //
+            // The SLUG is kept although the claim is gone. It is a published URL: it is on
+            // /integrity, inside how-cpi-works, and it is what support pastes into a
+            // ticket. Retiring the promise is not a reason to break the link somebody was
+            // sent — the answer at the end of it simply has to be the true one now.
+            'title' => 'How a small category is scored',
+            'summary' => 'The panel counts the same everywhere. Public backing is measured against '
+                       . 'the whole cycle.',
             'keywords' => ['normalised', 'normalized', 'small category', 'fewer votes', 'category size',
                            'compared to other categories', 'cohort', 'unfair category', 'big category',
-                           'my category has fewer people'],
+                           'my category has fewer people', 'is a small category a disadvantage'],
             'body' => [
-                ['p' => 'A nominee in a category with two hundred voters is not competing with a nominee '
-                      . 'in a category with twenty thousand. The community part of the score is '
-                      . '<strong>normalised inside each category</strong>: a nominee is measured against '
-                      . 'the strongest vote count in their own category, and that ratio — not the raw '
-                      . 'number — is what enters the Cultural Power Index.'],
-                ['p' => 'Without that step the index would be measuring audience size. A musician will '
-                      . 'always out-poll a rural school administrator, and a raw comparison would say the '
-                      . 'musician is more culturally significant purely because more people are online in '
-                      . 'their direction. That is a fact about the internet, not about the work.'],
-                ['p' => 'So the community component asks a narrower and more answerable question: '
-                      . '<em>of the people who came to this category, how many chose you?</em> Being the '
-                      . 'clearest choice in a small field scores exactly as well as being the clearest '
-                      . 'choice in a large one.'],
-                ['note' => 'This is also why a nominee\'s rank can move without their own total changing. '
-                         . 'If somebody else in the category surges, the top of the category moves and '
-                         . 'everybody\'s ratio is recomputed against it.'],
+                ['p' => 'Half the answer is that it makes no difference at all, and half is that it '
+                      . 'does — so it is worth separating them, because they are different halves of '
+                      . 'the score.'],
+                ['p' => 'The <strong>judges\' {judge_pct}%</strong> is absolute. Six out of ten is six '
+                      . 'out of ten in any category. A panel scores a nominee against a published rubric '
+                      . 'and never sees a vote count, so the larger share of the index is untouched by '
+                      . 'how many people happened to be voting in your category.'],
+                ['p' => 'The <strong>community {community_pct}%</strong> is a measure of public backing, '
+                      . 'and it is measured against the whole cycle rather than against your own '
+                      . 'category. So a category where few people voted earns less community credit than '
+                      . 'one where many did.'],
+                ['p' => 'That is deliberate, and it replaced the opposite rule. Measuring inside each '
+                      . 'category meant every category\'s leader collected the full community share '
+                      . 'whatever their support was — a nominee with 1,955 votes and a nominee with 89 '
+                      . 'were paid exactly the same — and the overall standing for the cycle then ranked '
+                      . 'those two figures against each other as though they meant the same thing. They '
+                      . 'did not.'],
+                ['p' => 'What that costs is real and we would rather say it here: in a category with '
+                      . 'little public participation, the panel decides the award very largely on its '
+                      . 'own. You can still win your category. What a small category cannot do is carry '
+                      . 'community credit it did not earn into the cycle-wide standing.'],
+                ['note' => 'This is also why a nominee\'s score can move without their own total '
+                         . 'changing. If somebody anywhere in the cycle surges, the scale moves and '
+                         . 'every community share is recomputed against it. Every result page publishes '
+                         . 'the denominator and who holds it, so the arithmetic can be checked.'],
             ],
             'related' => ['how-cpi-works', 'why-the-leader-may-not-be-eligible-to-win', 'dispute-a-result'],
         ],

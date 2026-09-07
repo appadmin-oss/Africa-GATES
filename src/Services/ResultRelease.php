@@ -123,7 +123,7 @@ final class ResultRelease
                   'margin' => null, 'dead_heat' => false, 'tie_broken_by_votes' => false,
                   'blocked' => null,
                   'cohort_max' => 0, 'scale_set_by' => null, 'scale_set_by_id' => 0,
-                  'scale_in_category' => false, 'scale_category_id' => 0,
+                  'scale_in_category' => false, 'local_max' => 0,
                   'scale_category' => '', 'cohort_scope' => 'edition',
                   'cohort_max_unique' => 0, 'cohort_max_unique_by' => null,
                   'community_basis' => $cBasis, 'reach_unmeasured' => 0,
@@ -282,12 +282,6 @@ final class ResultRelease
         // So the holder is named by the pass that computed the number, and matched here
         // only to find out whether they happen to be on this page.
         $scaleHere = $setter !== null && (int) $setter['category_id'] === $categoryId;
-        $scaleRow  = null;
-        if ($scaleHere) {
-            foreach ($rows as $r) {
-                if ($r['nominee_id'] === (int) $setter['id']) { $scaleRow = $r; break; }
-            }
-        }
 
         // ── A NOMINEE WHOSE SUPPORT COULD NOT BE COUNTED IN PEOPLE ───────────
         //
@@ -298,6 +292,23 @@ final class ResultRelease
         // The scorer raises the flag; this is the count an operator needs to see it.
         $unmeasured = 0;
         foreach ($scores as $s) if (!empty($s['reach_unmeasured'])) $unmeasured++;
+
+        // ── HOW MUCH COMMUNITY CREDIT THERE IS TO WIN IN THIS CATEGORY ───────
+        //
+        // The denominator is the edition's, so a category whose own best tally is a small
+        // fraction of it has a community half worth a small fraction of its points — and
+        // the panel decides the award very largely on its own. That is intended, and it is
+        // invisible: every figure on the page looks ordinary, and `community_dark` does not
+        // fire because these nominees do have votes.
+        //
+        // The category's own best, so a screen can state the consequence as a number rather
+        // than as a caveat about every category at once. Taken over the FIELD, matching the
+        // scorer: somebody off the published shortlist is not what this category is worth.
+        $localMax = 0;
+        foreach ($rows as $r) {
+            if ($r['on_shortlist'] === false) continue;
+            $localMax = max($localMax, (int) $r['votes']);
+        }
 
         // ── THE COMMUNITY HALF IS SWITCHED OFF FOR THIS WHOLE CATEGORY ───────
         //
@@ -344,7 +355,6 @@ final class ResultRelease
             // once the scale is the edition, and a screen that does not distinguish the two
             // will point at a nominee who is not there.
             'scale_in_category' => $scaleHere,
-            'scale_category_id' => (int) ($setter['category_id'] ?? 0),
             'scale_category'    => (string) ($setter['category_title'] ?? ''),
             // 'edition' normally; 'category' only where the cycle could not be resolved.
             'cohort_scope'      => $scope,
@@ -361,6 +371,9 @@ final class ResultRelease
             'community_basis'   => $cBasis,
             // How many nominees here have a tally with no vote rows behind it.
             'reach_unmeasured'  => $unmeasured,
+            // The biggest tally in THIS category's field, against `cohort_max` which is the
+            // edition's. The ratio is how much of the community half this category can win.
+            'local_max'         => $localMax,
             // Out of the running AND holding somebody else down. A category whose only
             // nominee is below the quorum has a scale-setter who is technically "out",
             // and warning about it there is a warning about nobody — which teaches an
@@ -371,7 +384,26 @@ final class ResultRelease
             // what remains is the case the quorum leaves open on purpose — a nominee who
             // is in the field and whose panel has not finished. Below quorum is pending
             // rather than out, so they keep the scale, and the screen says whose it is.
-            'scale_is_out'   => $scaleRow !== null && !$scaleRow['in_running'] && $running !== [],
+            // ── THE DENOMINATOR CAN STILL MOVE ───────────────────────────────
+            //
+            // The nominee holding it has not been judged to quorum, so when they are, every
+            // community half in the CYCLE changes and the order can change with it.
+            //
+            // Asked of the setter wherever they are, not of this page's rows. It used to
+            // scan `$rows` for them, which was right while the denominator was this
+            // category's own and became a warning that fired for a strictly SMALLER set of
+            // cases than the risk it describes the moment the scale went edition-wide: the
+            // setter is normally in another category, so the scan found nobody and the box
+            // stayed quiet while every figure on the page was provisional. The existing
+            // test kept passing because its fixture has one category.
+            //
+            // `=== false` and not `!`: null means nobody asked, and a screen that says the
+            // panel has not finished when nobody looked is worse than one that says nothing.
+            //
+            // Still silent where there is nobody in the running here — a category that
+            // crowns nobody is not a category being held down, and firing there teaches an
+            // operator to skip the box on the pages where it means something.
+            'scale_is_out'   => ($setter['eligible'] ?? null) === false && $running !== [],
             // ── WAS THERE A FREE VOTE TO HAVE? ───────────────────────────────
             //
             // Every surface that prints an organic count frames it as the part of a tally
@@ -506,7 +538,12 @@ final class ResultRelease
     public static function attention(array $categories): array
     {
         $n = ['categories' => count($categories), 'needs_person' => 0, 'blocked' => 0,
-              'dead_heats' => 0, 'thin_margins' => 0, 'excluded' => 0, 'provisional' => 0];
+              'dead_heats' => 0, 'thin_margins' => 0, 'excluded' => 0, 'provisional' => 0,
+              // Categories holding a nominee whose tally has no ballot rows behind it. The
+              // one fault on this screen where nothing else looks wrong — every other
+              // figure on the line is ordinary — so it is the one that most needs counting
+              // in the row an operator reads first.
+              'reach_unmeasured' => 0];
 
         foreach ($categories as $c) {
             $dead = (bool) $c['dead_heat'];
@@ -529,7 +566,10 @@ final class ResultRelease
             // to work out how many CATEGORIES were involved, which is not the same
             // addition — a category can be blocked and nothing else, or blocked with a
             // dead heat behind the block.
-            if ($c['blocked'] !== null || $dead || $thin) $n['needs_person']++;
+            $rowsMissing = (int) ($c['reach_unmeasured'] ?? 0) > 0;
+            if ($rowsMissing) $n['reach_unmeasured']++;
+
+            if ($c['blocked'] !== null || $dead || $thin || $rowsMissing) $n['needs_person']++;
 
             foreach ($c['rows'] as $r) {
                 if ($r['out_reason'] !== null) $n['excluded']++;

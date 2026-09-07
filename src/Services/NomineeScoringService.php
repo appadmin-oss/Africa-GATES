@@ -129,7 +129,12 @@ class NomineeScoringService
         // which is the original fault with a longer reach.
         //
         // Deliberately NOT narrowed by the judge quorum, for the reason set out below.
-        $scale = $this->editionScale((int) ($ctx->cycle_id ?? 0), $categoryId, $cScope);
+        // Resolved before the scale, which needs it to say whether the nominee holding the
+        // denominator has been judged to quorum — see editionScale().
+        $quorum = (int) ($eff['min_judges_per_nominee']
+                         ?? RuleEngine::DEFAULTS['min_judges_per_nominee']);
+
+        $scale = $this->editionScale((int) ($ctx->cycle_id ?? 0), $categoryId, $cScope, $quorum);
 
         // ── AND WHY THE QUORUM IS NOT APPLIED TO IT ──────────────────────────
         //
@@ -163,8 +168,6 @@ class NomineeScoringService
         // to nobody; see `reach_unmeasured` below.
         $reach = VoterReach::detailFor(array_map(
             static fn (object $n): int => (int) $n->id, $nominees));
-        $quorum = (int) ($this->rules->effective($ctx->programme_id ?? null, $ctx->cycle_id ?? null)['min_judges_per_nominee']
-            ?? RuleEngine::DEFAULTS['min_judges_per_nominee']);
         $stats = $this->judgeStatsFor(array_map(
             static fn (object $n): int => (int) $n->id, $nominees));
 
@@ -379,12 +382,13 @@ class NomineeScoringService
      * @param  int    $forCategoryId the fallback scale, and the whole scale under
      *                               `community_scope = category`.
      * @param  string $scope         {@see CpiService::scope()}.
-     * @return array{max_votes:int, max_unique:int, scope:string, categories:int,
-     *               votes_by:?array{id:int,name:string,category_id:int,category_title:string},
-     *               unique_by:?array{id:int,name:string,category_id:int,category_title:string}}
+     * @return array{max_votes:int, max_unique:int, scope:string,
+     *               votes_by:?array{id:int,name:string,category_id:int,category_title:string,eligible:?bool},
+     *               unique_by:?array{id:int,name:string,category_id:int,category_title:string,eligible:?bool}}
      */
     public function editionScale(int $cycleId, int $forCategoryId = 0,
-                                 string $scope = CpiService::SCOPE_EDITION): array
+                                 string $scope = CpiService::SCOPE_EDITION,
+                                 int $quorum = 0): array
     {
         $wide = CpiService::scope($scope) === CpiService::SCOPE_EDITION && $cycleId > 0;
 
@@ -426,6 +430,29 @@ class NomineeScoringService
             if ($u > $maxUnique) { $maxUnique = $u; $uniqueBy = $n; }
         }
 
+        // ── AND WHETHER THE PANEL HAS FINISHED WITH THEM ─────────────────────
+        //
+        // A nominee below the judge quorum still sets the scale — below quorum is PENDING,
+        // not out, and dropping them would move every published score the moment their
+        // panel finished and then hand it all back. The release screen names that case, so
+        // an operator knows the denominator can still move before they release.
+        //
+        // Resolved HERE and not on the drawn category, because the setter is usually in a
+        // DIFFERENT category and a screen can only see its own rows. That is exactly how
+        // this warning came to fire for a strictly smaller set of cases than the risk it
+        // describes: edition-wide the denominator moving changes every community half in
+        // the CYCLE, and the check was still asking about one category's rows.
+        $standing = [];
+        $ask = array_values(array_unique(array_filter([
+            (int) ($votesBy->id ?? 0), (int) ($uniqueBy->id ?? 0),
+        ])));
+        if ($ask !== [] && $quorum > 0) {
+            foreach ($this->judgeStatsFor($ask) as $nid => $st) {
+                $standing[(int) $nid] = (int) ($st['judges'] ?? 0) >= $quorum;
+            }
+            foreach ($ask as $nid) $standing[$nid] ??= false;   // no marks at all is below it
+        }
+
         // The scale-setter's CATEGORY, named. They are usually not in the category being
         // drawn, so "measured against 1,955 votes — Ajayi's" leaves an operator hunting
         // through the cycle for whose those are. One query for the two of them.
@@ -449,6 +476,11 @@ class NomineeScoringService
             'name'           => (string) ($n->name ?? ''),
             'category_id'    => (int) ($n->category_id ?? 0),
             'category_title' => $titles[(int) ($n->category_id ?? 0)] ?? '',
+            // NULL where it was not asked — a caller with no quorum to hand over gets
+            // "unknown" rather than a confident `false`, because a screen that says the
+            // panel has not finished when nobody looked is worse than one that says
+            // nothing.
+            'eligible'       => $standing[(int) $n->id] ?? null,
         ];
 
         return $this->scaleByEdition[$key] = [
@@ -460,7 +492,6 @@ class NomineeScoringService
             // and where the cycle could not be resolved at all. The second is a broken row
             // rather than a configuration, and the left join above is what makes it rare.
             'scope'      => $wide ? CpiService::SCOPE_EDITION : CpiService::SCOPE_CATEGORY,
-            'categories' => count($catIds),
         ];
     }
 

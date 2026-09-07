@@ -244,9 +244,18 @@
                  {#- BOTH TERMS OF THE COMMUNITY HALF, because 70% of it is the first one
                      and this page showed only the second. A nominee is owed the working of
                      their own score, and "share of the highest tally" describes 135 of the
-                     450 while reading like all of it. -#}
-                 {% if r.community_basis == 'reach' and r.cohort_max_unique > 0 %}{{ row.unique_voters|number_format }}
-                 backer{{ row.unique_voters == 1 ? '' : 's' }} ·
+                     450 while reading like all of it.
+
+                     AND `reach_unmeasured` IS NOT A ZERO. Where a nominee's tally has no
+                     ballot rows behind it — an import, a restore — nobody counted their
+                     supporters, and printing "0 backers" on a public page states as a fact
+                     about a real person something this platform simply does not know. It
+                     is the one number here that would be read as an accusation. -#}
+                 {% if r.community_basis == 'reach' and r.cohort_max_unique > 0 %}
+                   {%- if row.reach_unmeasured %}backers not counted &mdash; this tally
+                   predates our ballot records ·
+                   {% else %}{{ row.unique_voters|number_format }} backer{{ row.unique_voters == 1 ? '' : 's' }} ·
+                   {% endif %}
                  {% endif %}{{ row.community_share }}% of the cycle’s highest tally{% if row.judge_score is not null %} ·
                  panel {{ row.judge_score|number_format(1) }}/10 from {{ row.judges }}
                  judge{{ row.judges == 1 ? '' : 's' }}{% endif %}{% if row.provisional %} · provisional{% endif %}</p>
@@ -403,6 +412,12 @@
           orders they placed, and a vote the platform granted counts toward the total and
           toward nobody’s backing. The judges’ half is the mark itself: {{ jpct }}% × the
           panel average out of ten, with no floor and no curve.
+          {% if r.reach_unmeasured > 0 %}<br><strong>One caveat on this award.</strong>
+          {{ r.reach_unmeasured }} nominee{{ r.reach_unmeasured > 1 ? 's here have' : ' here has' }}
+          a vote total carried over from before this platform kept individual ballot
+          records, so their supporters could not be counted and the seventy per cent scored
+          zero for them. Their totals still count. That is a gap in our records, not a
+          finding about their support.{% endif %}
           {% if r.shortlisted is not null %}The field is each category’s published
           shortlist.{% endif %}</p>
       {% else %}

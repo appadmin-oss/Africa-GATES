@@ -972,4 +972,55 @@ final class PublicResultsTest extends TestCase
             'items' => $i['items'], 'held' => $i['held'],
         ]);
     }
+    /**
+     * A NOMINEE WHOSE BALLOT ROWS ARE MISSING IS NOT PUBLISHED AS HAVING NO SUPPORTERS.
+     *
+     * Seventy per cent of the community half counts PEOPLE, from `gates_votes`. Where a
+     * nominee's tally was carried over from before this platform kept individual ballot
+     * records, nobody counted their supporters — so the term scores zero for them, which is
+     * the strict and correct direction for the score.
+     *
+     * Printing "0 backers" on a public page is a different act entirely. It states as a
+     * fact about a named person something this platform does not know, on the one page
+     * built to be checked, beside rivals showing real counts. It is the single number here
+     * that reads as an accusation, and it would be ours rather than the data's.
+     */
+    public function test_a_nominee_with_no_ballot_rows_is_not_shown_as_having_no_backers(): void
+    {
+        // A rival with real, countable supporters, so reach IS measurable in this cycle and
+        // the fallback that hands the tally the whole half does not fire.
+        $rival = $this->nominee('Ngozi Umeh', 40);
+        for ($i = 0; $i < 40; $i++) {
+            DB::table('gates_votes')->insert([
+                'nominee_id' => $rival, 'category_id' => $this->categoryId,
+                'vote_type' => 'standard', 'weight' => 1,
+                'voter_email_hash' => \AfricaGates\Services\VoteService::voterHash('r' . $i . '@x.test'),
+            ]);
+        }
+        $imported = $this->nominee('Bala Yusuf', 30);          // a tally, and no rows at all
+
+        foreach ([$rival, $imported] as $n) $this->panel($n, 8.0);
+
+        $r = PublicResults::category($this->categoryId);
+        $by = [];
+        foreach ($r['rows'] as $row) $by[$row['name']] = $row;
+
+        $this->assertTrue($by['Bala Yusuf']['reach_unmeasured'],
+            'the fixture no longer produces the state this test is about');
+        $this->assertSame(40, $by['Ngozi Umeh']['unique_voters']);
+
+        $html = $this->renderShow($r);
+
+        $this->assertStringContainsString('40 backers', $html,
+            'the count that decides most of the community half is not published');
+        // A BARE zero, not any number ending in one — "40 backers" contains "0 backers",
+        // and an assertion that cannot tell them apart passes on the fixture it was
+        // written to catch.
+        $this->assertDoesNotMatchRegularExpression('~(?<![\d,])0 backers~', $html,
+            'a nominee whose ballot rows this platform never kept is published as having '
+            . 'no supporters at all');
+        $this->assertStringContainsString('predates our ballot records', $html,
+            'nothing on the page says why that nominee has no count beside their name');
+    }
+
 }

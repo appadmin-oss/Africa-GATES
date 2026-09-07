@@ -200,10 +200,23 @@ final class JudgeScorecard
     /**
      * The judge half of this nominee's index, from the scorer that produces it.
      *
-     * One extra scoring pass on a per-nominee screen, which is not a hot path, against the
-     * certainty that this figure and the release's are the same figure. A panel decision is
-     * appealed from this page; two numbers for one thing here is the worst place on the
-     * platform to have them.
+     * One extra scoring pass on a per-nominee screen against the certainty that this figure
+     * and the release's are the same figure. A panel decision is appealed from this page;
+     * two numbers for one thing here is the worst place on the platform to have them.
+     *
+     * ── AND THAT PASS IS NOT AS CHEAP AS THIS NOTE USED TO CLAIM ────────────
+     *
+     * It said "not a hot path" and left it there. Scoring a category now resolves the whole
+     * EDITION's denominator, so opening one scorecard reads every category in the cycle and
+     * every vote row behind them ({@see NomineeScoringService::editionScale()}).
+     *
+     * It is still the right trade and it is deliberately not optimised away: `judge_points`
+     * is `cpi − community`, so it genuinely depends on the community half — the rounding is
+     * carried by the judge half on purpose, so that the two printed halves add up to the
+     * index printed beside them. A cheaper path here would be a second opinion about a
+     * number somebody is appealing. But anyone adding a LOOP over this method should know
+     * they are looping over a full-cycle scan, and should pass a shared scorer the way
+     * every other list on the platform does.
      */
     private static function judgePoints(int $nomineeId, int $categoryId): ?int
     {

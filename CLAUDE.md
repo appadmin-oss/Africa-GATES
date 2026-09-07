@@ -319,6 +319,13 @@ Full account in `docs/CODEBASE-INDEX.md` §16.
   that gets slower as the cycle grows. `PublicResults::index()`, `PulseFeedService` and
   `ResultRelease::forCycle()` all pass one through; `EditionScaleTest` counts the queries
   and sweeps `src/` for a loop that does not.
+  **A screen's question about the scale-setter has to follow them.** `scale_is_out` warns
+  that the denominator can still move because the nominee holding it is below quorum. It
+  found them by scanning the drawn category's own rows — correct per category, and
+  edition-wide a warning covering a strictly *smaller* set than the risk, which had just
+  grown to the whole cycle. Its own test kept passing: the fixture has one category. The
+  standing now travels on the setter, from `editionScale()`, and `null` (nobody asked —
+  a programme may run with no quorum) is **not** `false`.
   **And the scale-setter is usually on another page.** Every screen that explained a
   community half used to find the denominator by scanning its own rows for whoever held it;
   edition-wide that scan finds nobody and reports the scale as unset beside percentages that
@@ -326,6 +333,22 @@ Full account in `docs/CODEBASE-INDEX.md` §16.
   pass that computed the number. `ResultRelease` used to take its own `max()` for the same
   figure; the two agreed only while both meant "everybody who scored". `ResultReleaseTest`
   holds the identity rather than the value.
+- **A retired rule outlives its code in the prose, and the help centre is where it hides.**
+  Moving the denominator left four published promises of the *old* rule standing: an article
+  titled "Why a small category is not a disadvantage" whose body said the half is
+  "normalised inside each category" — linked from `/integrity`, quoted inside
+  `how-cpi-works`, and what support pastes into a ticket; `how-cpi-works` itself asserting
+  "Paid votes are excluded entirely" while `what-paid-votes-do`, in the same file, said they
+  count exactly like a free vote; and the release screen's own lede describing "the largest
+  **organic** vote count **in the category**" — wrong about both terms of the thing it was
+  explaining, on the page an award is signed off from. **The slug is kept when the promise
+  is retired** — it is a published URL somebody was sent — and the answer at the end of it is
+  rewritten. `EditionScaleTest` sweeps every article for the retired phrasings, because the
+  fault is not "this article is wrong", it is that prose outlives the rule it describes.
+- **A number that is now constant is not evidence any more.** The overall table printed
+  `cohort_max` per row to show the comparison was uneven. Edition-wide it is the same figure
+  down the page — the very fact that made it worth printing is what removed the need for it.
+  Same shape as the caveat above it, which went on admitting a bias the change had removed.
 - **The sandbox must never reach the public.** `DemoSeeder` creates real rows with real
   flags, because the sandbox exists to be walked through for real. Every public reader has
   to exclude them — `JudgeService::realJudges()` is the pattern.
