@@ -40,7 +40,9 @@ use Tests\TestCase;
  * So `reach` is the default. The older bases remain settings, and
  * {@see test_the_old_settings_still_reproduce_the_published_index_exactly} still pins the
  * announced figures — not because they may not move, but because a platform that cannot
- * reproduce what it published cannot show its working for it either.
+ * reproduce what it published cannot show its working for it either. Reproducing one
+ * through the scorer now takes THREE settings rather than two: the denominator's scope
+ * moved to the whole edition and `community_scope = category` is what puts it back.
  *
  * ── WHAT SWITCHING COSTS, STATED RATHER THAN DISCOVERED ─────────────────────
  *
@@ -62,10 +64,20 @@ final class CommunityBasisTest extends TestCase
      *
      * These are the community halves and indexes of real nominees in two released cycles.
      * They are no longer what the DEFAULT produces — the operator moved it deliberately —
-     * but `relative` + `curved` must go on producing them exactly, because the working
-     * behind an announced result has to stay checkable after the rule changes. A platform
-     * whose whole claim is that a ranking can be verified cannot lose the ability to
-     * verify the ones it already published.
+     * but the old settings must go on producing them exactly, because the working behind an
+     * announced result has to stay checkable after the rule changes. A platform whose whole
+     * claim is that a ranking can be verified cannot lose the ability to verify the ones it
+     * already published.
+     *
+     * ── AND IT IS THREE SETTINGS, NOT TWO ───────────────────────────────────
+     *
+     * `relative` + `curved` is the arithmetic, and this test drives it directly with each
+     * nominee's own cohort maximum, so that is all it needs. Reproducing a cycle THROUGH
+     * THE SCORER needs `community_scope = category` as well: the denominator is the whole
+     * edition's maximum now, and every cohort figure in the table below is a per-CATEGORY
+     * one. Two of the three would reproduce the shape of an announced cycle and not its
+     * numbers, which is the worst of the three outcomes — it looks like a reproduction.
+     * {@see \Tests\Unit\EditionScaleTest::test_the_category_scope_setting_reproduces_the_old_denominator}.
      */
     public function test_the_old_settings_still_reproduce_the_published_index_exactly(): void
     {

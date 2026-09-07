@@ -1016,7 +1016,7 @@
       </div>
 
       <p style="margin:12px 0 0;font-size:12px;color:var(--ad-text-mute,#5a6d6f)">A bulk buyer purchasing {{ paid_max_qty|default(1000)|number_format }} votes in one order is <strong>one database row</strong>, so a large order costs the site no more work than a small one. The effective maximum is currently <strong>{{ paid_max_qty|default(1000)|number_format }}</strong> — the lower of this field and the quantity whose price stays under ₦{{ (paid_max_order_naira|default(100000000))|number_format }} per transaction. Your payment gateway and the buyer's bank impose their own, usually lower, per-transaction limits.</p>
-      <p style="margin:6px 0 0;font-size:12px;color:var(--ad-text-mute,#5a6d6f)">Every total is computed server-side from this ladder — the browser never decides a price. Discounts are capped at 90% (a 100% discount is a ₦0 order no gateway will accept) and every charge is floored at ₦100. A paid vote counts toward the Cultural Power Index <strong>exactly as a free one does</strong>, with no ceiling: the community half is a nominee's share of the largest tally in their category, and a tally is a tally. What money cannot reach is the judging half — judges never see a vote count. Every result publishes the full tally beside how much of it was bought, so the composition is visible without being penalised.</p>
+      <p style="margin:6px 0 0;font-size:12px;color:var(--ad-text-mute,#5a6d6f)">Every total is computed server-side from this ladder — the browser never decides a price. Discounts are capped at 90% (a 100% discount is a ₦0 order no gateway will accept) and every charge is floored at ₦100. A paid vote counts toward the Cultural Power Index <strong>exactly as a free one does</strong> in the 30% of the community half that is the total tally, with no ceiling &mdash; measured against the largest tally in the cycle. The other 70% counts PEOPLE, and a buyer is one person however many orders they place. What money cannot reach is the judging half — judges never see a vote count. Every result publishes the full tally beside how much of it was bought, so the composition is visible without being penalised.</p>
       <p style="margin:6px 0 0;font-size:12px;color:var(--ad-text-mute,#5a6d6f)">Buyers appear on the nominee's public <strong>supporters list</strong> when they fill in the optional name field; leaving it blank gives anonymously. Free OTP votes are never listed (that path requires a name, so giving one is not a choice). Orders placed before the field said this are treated as not consented and stay private. See <a href="/privacy#supporters" style="color:var(--ad-accent,#237b22)">the supporter-names policy</a>.</p>
     </div>
   </div></div>
@@ -1037,7 +1037,7 @@
           <label for="f-community_basis">What the community half measures</label>
           <select name="community_basis" id="f-community_basis">
             <option value="reach" {% if scoring.community_basis|default('reach') not in ['relative','absolute'] %}selected{% endif %}>How many people backed them (70%) + total votes (30%)</option>
-            <option value="relative" {% if scoring.community_basis|default('reach') == 'relative' %}selected{% endif %}>Share of their own category&rsquo;s leader</option>
+            <option value="relative" {% if scoring.community_basis|default('reach') == 'relative' %}selected{% endif %}>Share of the leader, curved</option>
             <option value="absolute" {% if scoring.community_basis|default('reach') == 'absolute' %}selected{% endif %}>Their own turnout, on one scale</option>
           </select>
         </div>
@@ -1046,6 +1046,19 @@
           <input type="number" name="community_full_credit_votes" id="f-community_full_credit_votes" min="1" step="1" value="{{ scoring.community_full_credit_votes|default(1000) }}">
         </div>
       </div>
+
+      <div class="row" style="margin-top:12px">
+        <div>
+          <label for="f-community_scope">What that share is a share of</label>
+          <select name="community_scope" id="f-community_scope">
+            <option value="edition" {% if scoring.community_scope|default('edition') != 'category' %}selected{% endif %}>The highest in the whole cycle</option>
+            <option value="category" {% if scoring.community_scope|default('edition') == 'category' %}selected{% endif %}>The highest in each category</option>
+          </select>
+        </div>
+        <div></div>
+      </div>
+
+      <p style="margin:10px 0 0;font-size:12px;line-height:1.6;color:var(--ad-text-mute,#5a6d6f)"><strong>The highest in the whole cycle</strong> is the default, and it applies to every basis above. Per <em>category</em>, each category is normalised to its own leader &mdash; so every category&rsquo;s leader takes the full {{ (scoring.community_weight|default(0.45) * 1000)|round }} community points however small their field, and a leader on 1,955 votes and a leader on 89 are paid identically. Both figures are right inside their own categories; the overall standing puts them in one column, and there the second is being paid for a field rather than for support. Per <em>cycle</em> the number means the same thing everywhere &mdash; and a category with little public participation is then decided very largely by its panel. That is the trade, and only you can price it. The category scope is kept so a cycle that has already announced its standings can reproduce them to the digit; reproducing an old cycle means setting this, the basis and the panel scale together.</p>
 
       <div class="row" style="margin-top:12px">
         <div>
@@ -1058,9 +1071,9 @@
         <div></div>
       </div>
 
-      <p style="margin:10px 0 0;font-size:12px;line-height:1.6;color:var(--ad-text-mute,#5a6d6f)"><strong>How many people backed them</strong> is the default and the only one money cannot move in bulk. Seventy per cent of the community half &mdash; 315 of 450 &mdash; is this nominee&rsquo;s unique verified voters over the most any nominee in the category has; the other 135 is their total votes over the largest total in the category. A supporter who buys ten separate orders is <em>one</em> person; a granted bonus vote is nobody. Two nominees on 2,000 votes each, one from a thousand people and one from two, score 450 and 136.</p>
+      <p style="margin:10px 0 0;font-size:12px;line-height:1.6;color:var(--ad-text-mute,#5a6d6f)"><strong>How many people backed them</strong> is the default and the only one money cannot move in bulk. Seventy per cent of the community half &mdash; 315 of 450 &mdash; is this nominee&rsquo;s unique verified voters over the most any nominee <em>in the cycle</em> has; the other 135 is their total votes over the largest total in the cycle. A supporter who buys ten separate orders is <em>one</em> person; a granted bonus vote is nobody. Two nominees on 2,000 votes each, one from a thousand people and one from two, score 450 and 136.</p>
       <p style="margin:6px 0 0;font-size:12px;line-height:1.6;color:var(--ad-text-mute,#5a6d6f)"><strong>The mark, straight</strong> is the default for the panel: 550 &times; the average out of ten, with no floor and no exponent. It is the rule a judge already thinks they are applying when they write 8, and it is the only version a nominee can check without being walked through an exponent. The curved form is kept so an already-announced cycle can be reproduced digit for digit.</p>
-      <p style="margin:6px 0 0;font-size:12px;line-height:1.6;color:var(--ad-text-mute,#5a6d6f)"><strong>Share of their own leader</strong> is what decides a category &mdash; being top of your field is what wins one &mdash; and it means nothing outside that field. On a real cycle it put a 19-vote nominee who <em>led</em> a 19-vote category above a nominee with 691 votes who was a third of a large one. Both figures were right; neither was comparable to the other, and the overall winner across categories is drawn from exactly that comparison.</p>
+      <p style="margin:6px 0 0;font-size:12px;line-height:1.6;color:var(--ad-text-mute,#5a6d6f)"><strong>Share of the leader, curved</strong> is the older tally-only form, kept so an announced cycle can be reproduced from the settings that produced it. Note that its denominator follows the setting below, not the category: with the scope left at the cycle it is a curved share of the cycle&rsquo;s largest tally, which is <em>not</em> what an older cycle was scored on.</p>
       <p style="margin:6px 0 0;font-size:12px;line-height:1.6;color:var(--ad-text-mute,#5a6d6f)"><strong>Their own turnout</strong> puts every nominee on one scale, so the index can be compared across categories. It never changes the order <em>within</em> a category. It does change the balance between the two halves &mdash; set the full-credit mark above your largest realistic tally, or every nominee past it ties on the community half and the panel decides between them.</p>
 
       <div class="row">

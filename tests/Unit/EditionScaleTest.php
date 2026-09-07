@@ -1,0 +1,589 @@
+<?php
+declare(strict_types=1);
+
+namespace Tests\Unit;
+
+use AfricaGates\Services\{NomineeScoringService, PublicResults, ResultRelease, VoteService};
+use Illuminate\Support\Carbon;
+use Illuminate\Database\Capsule\Manager as DB;
+use Tests\TestCase;
+
+/**
+ * THE COMMUNITY HALF IS A SHARE OF THE EDITION, NOT OF THE CATEGORY.
+ *
+ * ══════════════════════════════════════════════════════════════════════════════
+ * THE FAULT
+ * ══════════════════════════════════════════════════════════════════════════════
+ *
+ * Both community terms are shares of a maximum, and the maximum used to be the biggest
+ * number in the nominee's OWN category. Every category was therefore normalised to its own
+ * leader, and every category's leader collected the whole community half:
+ *
+ *     Leader of a 1,955-vote category   community 450
+ *     Leader of an 89-vote category     community 450
+ *
+ * Inside their own categories neither figure is wrong. {@see ResultRelease::overall()} then
+ * puts them in one column — an overall standing is the whole cycle ranked — and the second
+ * one is being paid for a field rather than for support. The operator's word for it was
+ * "cheating", which is the right word for a number that does not move when the thing it
+ * measures changes by a factor of twenty-two.
+ *
+ * ══════════════════════════════════════════════════════════════════════════════
+ * AND THE TWO THINGS THE WIDER SCALE BREAKS IF NOBODY IS WATCHING
+ * ══════════════════════════════════════════════════════════════════════════════
+ *
+ * 1 · THE SCALE-SETTER LEAVES THE PAGE. Every screen that explained a community half found
+ *     the denominator by scanning its own rows for a nominee holding it. Edition-wide they
+ *     are usually in another category, so the scan finds nobody and the screen reports the
+ *     scale as unset — beside percentages that plainly came from somewhere.
+ *
+ * 2 · A CATEGORY WITH NO VOTE ROWS IS SILENTLY CRUSHED. Seventy per cent of the half counts
+ *     PEOPLE, from `gates_votes`. Per category, a category with no rows had a maximum of
+ *     zero and {@see \AfricaGates\Services\CpiService::reachPart()} fell back to the tally
+ *     for the whole field at once. Per edition, one category with rows keeps the maximum
+ *     above zero and every rowless category scores zero people — 315 of 450 points, gone,
+ *     for a data-migration reason, with every other figure on the line looking normal.
+ *
+ * Both are asserted here rather than trusted, because neither produces an error, a log line
+ * or a screen that looks wrong.
+ */
+final class EditionScaleTest extends TestCase
+{
+    private const CYCLE = 90;
+    private const DEEP  = 900;          // a category with real support
+    private const THIN  = 901;          // a category with very little
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+        DB::table('gates_award_cycles')->insertOrIgnore([
+            'id' => self::CYCLE, 'programme_id' => 0, 'year' => 2026, 'status' => 'judging',
+        ]);
+        foreach ([self::DEEP => 'Deep', self::THIN => 'Thin'] as $id => $title) {
+            DB::table('gates_award_categories')->insertOrIgnore([
+                'id' => $id, 'cycle_id' => self::CYCLE,
+                'slug' => strtolower($title), 'title' => $title . ' category',
+            ]);
+        }
+    }
+
+    private function nominee(int $id, int $cat, string $name, int $votes): void
+    {
+        DB::table('gates_nominees')->insert([
+            'id' => $id, 'category_id' => $cat, 'name' => $name, 'country_code' => 'NG',
+            'status' => 'approved', 'vote_count' => $votes, 'organic_vote_count' => $votes,
+        ]);
+    }
+
+    /** $n real, distinct, verified voters — vote ROWS, which is what reach is counted from. */
+    private function backers(int $nominee, int $cat, int $n, string $tag): void
+    {
+        for ($i = 0; $i < $n; $i++) {
+            DB::table('gates_votes')->insert([
+                'nominee_id' => $nominee, 'category_id' => $cat, 'vote_type' => 'standard',
+                'weight' => 1, 'voter_email_hash' => VoteService::voterHash($tag . $i . '@x.test'),
+            ]);
+        }
+    }
+
+    // ══ the tally term ═══════════════════════════════════════════════════════
+
+    /**
+     * ONE DENOMINATOR, AND IT IS THE EDITION'S.
+     *
+     * The thin category's leader has 40 votes and is scored against 4,000 — not against
+     * their own 40. That single line is the whole change.
+     */
+    public function test_the_tally_denominator_is_the_largest_in_the_edition(): void
+    {
+        $this->nominee(9001, self::DEEP, 'Deep leader', 4000);
+        $this->nominee(9002, self::THIN, 'Thin leader',   40);
+
+        $scoring = new NomineeScoringService();
+
+        $this->assertSame(4000, $scoring->scoreCategory(self::DEEP)[9001]['cohort_max']);
+        $this->assertSame(4000, $scoring->scoreCategory(self::THIN)[9002]['cohort_max'],
+            'the thin category is being normalised to its own leader again');
+    }
+
+    /**
+     * AND THE REACH DENOMINATOR TOO — the 70% that decides most of the half.
+     *
+     * Asserted separately from the tally because they are two different maxima drawn from
+     * two different sources: one from a counter on the nominee row, one counted from vote
+     * rows. A change that widened one and left the other per-category would be invisible in
+     * every figure except the score itself.
+     */
+    public function test_the_reach_denominator_is_the_largest_in_the_edition(): void
+    {
+        $this->nominee(9001, self::DEEP, 'Deep leader', 10);
+        $this->nominee(9002, self::THIN, 'Thin leader',  2);
+        $this->backers(9001, self::DEEP, 10, 'deep');
+        $this->backers(9002, self::THIN,  2, 'thin');
+
+        $scoring = new NomineeScoringService();
+        $thin    = $scoring->scoreCategory(self::THIN)[9002];
+
+        $this->assertSame(2,  $thin['unique_voters']);
+        $this->assertSame(10, $thin['cohort_max_unique'],
+            'the thin category is counting people against its own best, so two supporters '
+            . 'are being paid as though two were the most anybody in the cycle had');
+
+        // 315 x 2/10 + 135 x 2/10 = 90. The whole community half, worked by hand, so a
+        // change to either term has to be argued rather than absorbed.
+        $this->assertSame(90, $thin['community_points']);
+    }
+
+    /**
+     * THE SCALE-SETTER IS NAMED, AND SO IS THEIR CATEGORY.
+     *
+     * They are in a different category from the one being drawn, which is the normal case
+     * now and the case every screen used to get wrong.
+     */
+    public function test_the_scale_setter_is_named_across_categories(): void
+    {
+        $this->nominee(9001, self::DEEP, 'Deep leader', 4000);
+        $this->nominee(9002, self::THIN, 'Thin leader',   40);
+
+        $drawn = ResultRelease::category(self::THIN);
+
+        $this->assertSame(4000, $drawn['cohort_max']);
+        $this->assertSame('Deep leader', $drawn['scale_set_by'],
+            'the release screen cannot say whose votes the denominator is');
+        $this->assertSame('Deep category', $drawn['scale_category']);
+        $this->assertFalse($drawn['scale_in_category'],
+            'the screen thinks the scale-setter is one of the rows it is about to draw');
+
+        $here = ResultRelease::category(self::DEEP);
+        $this->assertTrue($here['scale_in_category']);
+        $this->assertSame(9001, $here['scale_set_by_id']);
+    }
+
+    // ══ the hazard the wider scale opens ═════════════════════════════════════
+
+    /**
+     * A TALLY WITH NO VOTE ROWS IS FLAGGED, NOT SILENTLY SCORED AT ZERO PEOPLE.
+     *
+     * The deep category has real rows; the thin one has a tally and none. Per category the
+     * thin one's maximum would be zero and reachPart() would fall back to the tally for the
+     * whole field. Per edition the maximum is the deep category's, the fallback does not
+     * fire, and the thin nominee loses 70% of the community half to a missing import.
+     *
+     * The score is still the strict one — understate rather than overstate, the same choice
+     * the judge half makes for a panel that has not finished — and this flag is what stops
+     * the understatement being mistaken for a measurement.
+     */
+    public function test_a_tally_with_no_vote_rows_is_flagged(): void
+    {
+        $this->nominee(9001, self::DEEP, 'Deep leader', 10);
+        $this->backers(9001, self::DEEP, 10, 'deep');
+        $this->nominee(9002, self::THIN, 'Imported tally', 8);   // no rows at all
+
+        $row = (new NomineeScoringService())->scoreCategory(self::THIN)[9002];
+
+        $this->assertSame(0, $row['unique_voters']);
+        $this->assertTrue($row['reach_unmeasured'],
+            'a nominee whose 8 votes have no ballot rows behind them is being scored at '
+            . 'zero reach with nothing anywhere to say the rows are missing');
+
+        $drawn = ResultRelease::category(self::THIN);
+        $this->assertSame(1, $drawn['reach_unmeasured']);
+        $this->assertTrue($drawn['rows'][0]['reach_unmeasured']);
+    }
+
+    /**
+     * AND THE THREE THINGS THAT ARE NOT THAT.
+     *
+     * The flag has to be narrow or it is noise on every release screen, and noise is how an
+     * operator learns to scroll past the box that matters.
+     */
+    public function test_the_flag_does_not_fire_for_a_nominee_who_simply_has_no_support(): void
+    {
+        $this->nominee(9001, self::DEEP, 'Deep leader', 10);
+        $this->backers(9001, self::DEEP, 10, 'deep');
+        $this->nominee(9002, self::THIN, 'Nobody voted for them', 0);
+
+        $row = (new NomineeScoringService())->scoreCategory(self::THIN)[9002];
+
+        $this->assertFalse($row['reach_unmeasured'],
+            'no votes and no rows is a measurement — they have no support — and flagging '
+            . 'it puts a data warning on every unbacked nominee on the platform');
+    }
+
+    /** Rows that all belong to nobody is the intended answer, not a gap. */
+    public function test_the_flag_does_not_fire_for_a_tally_made_entirely_of_grants(): void
+    {
+        $this->nominee(9001, self::DEEP, 'Deep leader', 10);
+        $this->backers(9001, self::DEEP, 10, 'deep');
+        $this->nominee(9002, self::THIN, 'All granted', 5);
+        DB::table('gates_votes')->insert([
+            'nominee_id' => 9002, 'category_id' => self::THIN, 'vote_type' => 'bonus',
+            'weight' => 5, 'voter_email_hash' => 'bonus:1:' . bin2hex(random_bytes(4)),
+        ]);
+
+        $row = (new NomineeScoringService())->scoreCategory(self::THIN)[9002];
+
+        $this->assertSame(0, $row['unique_voters'], 'a grant is not a supporter');
+        $this->assertFalse($row['reach_unmeasured'],
+            'the rows are there and they belong to nobody, which is a verdict rather than '
+            . 'a missing import');
+    }
+
+    /**
+     * AND NOT FOR A NOMINEE WHOSE ROWS WERE ALL FLAGGED AS FRAUD.
+     *
+     * The rows are there and the platform looked at them and refused them. Zero reach is
+     * the verdict, not the absence of one — and flagging it would put "the ballot rows are
+     * missing" on the one nominee whose rows are the reason anybody is reading the screen.
+     */
+    public function test_the_flag_does_not_fire_for_a_tally_whose_rows_were_all_flagged(): void
+    {
+        $this->nominee(9001, self::DEEP, 'Deep leader', 10);
+        $this->backers(9001, self::DEEP, 10, 'deep');
+        $this->nominee(9002, self::THIN, 'All flagged', 3);
+        for ($i = 0; $i < 3; $i++) {
+            DB::table('gates_votes')->insert([
+                'nominee_id' => 9002, 'category_id' => self::THIN, 'vote_type' => 'standard',
+                'weight' => 1, 'fraud_flag' => 1,
+                'voter_email_hash' => VoteService::voterHash('ring' . $i . '@x.test'),
+            ]);
+        }
+
+        $row = (new NomineeScoringService())->scoreCategory(self::THIN)[9002];
+
+        $this->assertSame(0, $row['unique_voters'], 'a flagged vote is not a supporter');
+        $this->assertFalse($row['reach_unmeasured'],
+            'the rows exist and were refused, which is a measurement — saying they are '
+            . 'missing points an operator at an import that never happened');
+    }
+
+    /**
+     * AND NOT WHEN NOBODY IN THE EDITION HAS ROWS, which is the old whole-field fallback
+     * and must keep working: there the tally takes the entire community half.
+     */
+    public function test_an_edition_with_no_vote_rows_at_all_falls_back_to_the_tally(): void
+    {
+        $this->nominee(9001, self::DEEP, 'Deep leader', 4000);
+        $this->nominee(9002, self::THIN, 'Thin leader',   40);
+
+        $scoring = new NomineeScoringService();
+        $deep    = $scoring->scoreCategory(self::DEEP)[9001];
+        $thin    = $scoring->scoreCategory(self::THIN)[9002];
+
+        $this->assertSame(0, $deep['cohort_max_unique']);
+        $this->assertFalse($deep['reach_unmeasured']);
+        $this->assertFalse($thin['reach_unmeasured'],
+            'the whole edition has no rows, so nothing has been lost and there is nothing '
+            . 'to warn about — the tally is taking the whole half by design');
+
+        // 450 x 4000/4000 and 450 x 40/4000.
+        $this->assertSame(450, $deep['community_points']);
+        $this->assertSame(5,   $thin['community_points']);
+    }
+
+    // ══ what the wider scale costs to compute ════════════════════════════════
+
+    /**
+     * THE EDITION IS READ ONCE PER CYCLE, NOT ONCE PER CATEGORY.
+     *
+     * Scoring ONE category now reads every category in its cycle, because that is where the
+     * denominator comes from. Done naively that is quadratic in the size of an edition — a
+     * full pass over `gates_votes` for every award drawn — and it lands on the public
+     * results index and the Pulse, which draw up to sixty in a row. Nothing about that
+     * failure is visible except a page that gets slower as a cycle grows, which is the
+     * hardest kind of regression to attribute.
+     *
+     * So the scale is memoised on the SCORER and every loop over categories shares one.
+     * Counted here rather than trusted, because the memo is invisible from the outside and
+     * the next person to add a caller will construct their own scorer without thinking
+     * about it.
+     */
+    public function test_the_edition_is_scanned_once_however_many_categories_are_drawn(): void
+    {
+        $this->nominee(9001, self::DEEP, 'Deep leader', 10);
+        $this->backers(9001, self::DEEP, 10, 'deep');
+        $this->nominee(9002, self::THIN, 'Thin leader', 2);
+        $this->backers(9002, self::THIN, 2, 'thin');
+
+        $conn = DB::connection();
+        $conn->flushQueryLog();
+        $conn->enableQueryLog();
+        ResultRelease::forCycle(self::CYCLE);
+        $votes = 0;
+        foreach ($conn->getQueryLog() as $q) {
+            if (str_contains((string) $q['query'], 'gates_votes')) $votes++;
+        }
+        $conn->disableQueryLog();
+
+        // One edition-wide pass, plus one per category for the nominees' own reach. Three
+        // for a two-category cycle; six is the memo gone and the pass repeated per category.
+        $this->assertLessThanOrEqual(3, $votes,
+            'the edition scale is being recomputed per category, so drawing a cycle is '
+            . 'quadratic in its own size — pass one scorer through the loop');
+    }
+
+    /**
+     * AND THE SAME ON THE TWO PUBLIC LISTS, WHICH IS WHERE IT WOULD ACTUALLY HURT.
+     *
+     * `ResultRelease::forCycle()` already shared a scorer before any of this; the public
+     * results index and the Pulse feed did not, because until the scale went edition-wide
+     * there was nothing to share. They draw up to sixty awards in a row.
+     */
+    public function test_the_public_results_index_shares_one_scorer(): void
+    {
+        $prog = (int) DB::table('gates_award_programmes')->insertGetId([
+            'slug' => 'edition-scale-' . bin2hex(random_bytes(3)),
+            'title' => 'Edition scale', 'is_active' => 1,
+        ]);
+        DB::table('gates_award_cycles')->where('id', self::CYCLE)->update([
+            'programme_id' => $prog, 'status' => 'results',
+            'results_date' => Carbon::now()->subDay()->toDateTimeString(),
+        ]);
+
+        $this->nominee(9001, self::DEEP, 'Deep leader', 10);
+        $this->backers(9001, self::DEEP, 10, 'deep');
+        $this->nominee(9002, self::THIN, 'Thin leader', 2);
+        $this->backers(9002, self::THIN, 2, 'thin');
+
+        $conn = DB::connection();
+        $conn->flushQueryLog();
+        $conn->enableQueryLog();
+        $listed = PublicResults::index();
+        $votes  = 0;
+        foreach ($conn->getQueryLog() as $q) {
+            if (str_contains((string) $q['query'], 'gates_votes')) $votes++;
+        }
+        $conn->disableQueryLog();
+
+        $this->assertGreaterThan(0, count($listed['items']) + $listed['held'],
+            'the fixture is not being listed at all, so this counts the queries of nothing');
+        $this->assertLessThanOrEqual(3, $votes,
+            'the public results index builds a scorer per award, so every card it draws '
+            . 'scans the whole cycle again');
+    }
+
+    /**
+     * AND THE SWEEP, BECAUSE THE NEXT CALLER WILL NOT KNOW ANY OF THIS.
+     *
+     * Two behavioural tests above cover the two loops that exist today. The cost is
+     * structural, though, and invisible at the call site: `ResultRelease::category()` looks
+     * like it draws one category, and drawing one category now reads a whole cycle. Anybody
+     * adding a third list — a programme page, an export, a digest — will write the obvious
+     * loop and make it quadratic without a single failing test.
+     *
+     * So this is the rule rather than the instances: a call to either drawing method from
+     * inside a loop must pass a scorer. Cheap, static, and it fires on the line that would
+     * cause the regression.
+     */
+    public function test_no_loop_draws_a_category_without_passing_a_scorer(): void
+    {
+        $root = dirname(__DIR__, 2) . '/src';
+        $bad  = [];
+
+        $it = new \RecursiveIteratorIterator(new \RecursiveDirectoryIterator($root));
+        foreach ($it as $file) {
+            if (!$file->isFile() || $file->getExtension() !== 'php') continue;
+            $lines = explode("\n", (string) file_get_contents($file->getPathname()));
+
+            $fnAt = -1;                       // where the enclosing function began
+            $loop = false;                    // has a loop opened since then
+            foreach ($lines as $i => $line) {
+                if (preg_match('/\bfunction\s+\w+\s*\(/', $line)) { $fnAt = $i; $loop = false; }
+                if (preg_match('/\b(foreach|for|while)\s*\(/', $line)) $loop = true;
+
+                if (!preg_match('/\b(PublicResults|ResultRelease)::category\s*\(/',
+                                $line, $m, PREG_OFFSET_CAPTURE)) continue;
+                // `{@see …::category()}` in a docblock is not a call.
+                if (str_contains($line, '@see') || str_contains($line, '*')) continue;
+                if (!$loop || $fnAt < 0) continue;
+
+                // The argument list, with balanced parens — `(int) $catId` is one argument
+                // and a naive `[^)]*` reads it as the whole list and finds no comma, which
+                // makes this sweep fail on every correct call site.
+                $open  = strpos($line, '(', $m[0][1]);
+                $depth = 0; $args = '';
+                for ($k = $open; $k < strlen($line); $k++) {
+                    $ch = $line[$k];
+                    if ($ch === '(') { $depth++; if ($depth === 1) continue; }
+                    if ($ch === ')') { $depth--; if ($depth === 0) break; }
+                    $args .= $ch;
+                }
+                if (str_contains($args, ',')) continue;      // a scorer is being passed
+
+                $bad[] = basename($file->getPathname()) . ':' . ($i + 1) . '  ' . trim($line);
+            }
+        }
+
+        $this->assertSame([], $bad,
+            "a loop draws one category at a time without sharing a scorer, so each pass "
+            . "re-reads the whole cycle:\n  " . implode("\n  ", $bad));
+    }
+
+    // ══ where the scale stops ════════════════════════════════════════════════
+
+    /**
+     * A CYCLE IS THE SCALE. A PROGRAMME'S WHOLE HISTORY IS NOT.
+     *
+     * Taking the maximum across every cycle a programme has held would re-scale a published
+     * standing whenever a later edition drew a bigger tally, and would rank two different
+     * electorates against each other. Last year's 9,000 votes must not touch this year's
+     * arithmetic.
+     */
+    public function test_another_cycle_of_the_same_programme_does_not_set_this_scale(): void
+    {
+        DB::table('gates_award_cycles')->insertOrIgnore([
+            'id' => 91, 'programme_id' => 0, 'year' => 2025, 'status' => 'closed',
+        ]);
+        DB::table('gates_award_categories')->insertOrIgnore([
+            'id' => 910, 'cycle_id' => 91, 'slug' => 'last-year', 'title' => 'Last year',
+        ]);
+        $this->nominee(9100, 910, 'Last year\'s phenomenon', 9000);
+
+        $this->nominee(9001, self::DEEP, 'Deep leader', 4000);
+
+        $this->assertSame(4000,
+            (new NomineeScoringService())->scoreCategory(self::DEEP)[9001]['cohort_max'],
+            'a previous edition is setting this one\'s denominator, so a published '
+            . 'standing moves every time a later cycle draws a bigger tally');
+    }
+
+    /**
+     * AND A MISSING `gates_award_cycles` ROW DOES NOT COLLAPSE THE SCALE.
+     *
+     * The scorer used to reach the cycle through an INNER join on that table, so a category
+     * whose cycle row is absent resolved to no cycle at all — and would now silently fall
+     * back to being scored against itself, which is the exact fault this whole change is
+     * about, reappearing for a reason nothing on any screen would name.
+     *
+     * The row is absent more often than it looks: an import that carried categories and
+     * nominees, a fixture, a cycle deleted after release. The category has always known
+     * which edition it belongs to; the join was only ever there for the programme id.
+     */
+    public function test_a_category_whose_cycle_row_is_missing_is_still_scaled_across_it(): void
+    {
+        // Cycle 92 is never created. Both categories name it.
+        DB::table('gates_award_categories')->insert([
+            ['id' => 920, 'cycle_id' => 92, 'slug' => 'orphan-a', 'title' => 'Orphan A'],
+            ['id' => 921, 'cycle_id' => 92, 'slug' => 'orphan-b', 'title' => 'Orphan B'],
+        ]);
+        $this->nominee(9200, 920, 'Orphan leader', 2000);
+        $this->nominee(9201, 921, 'Orphan minnow',   20);
+
+        $scoring = new NomineeScoringService();
+
+        $this->assertSame(2000, $scoring->scoreCategory(921)[9201]['cohort_max'],
+            'a category with no cycle row is being scored against itself again');
+        $this->assertSame('edition', $scoring->scoreCategory(921)[9201]['cohort_scope']);
+    }
+
+    // ══ the one setting that puts it back ════════════════════════════════════
+
+    /**
+     * `community_scope = category` REPRODUCES WHAT WAS ANNOUNCED, AND NOTHING ELSE DOES.
+     *
+     * Results on this platform are published and printed onto physical awards, so a cycle
+     * that has announced its standings has to be able to reproduce them to the digit. The
+     * older bases and the older judge scale are kept for that reason; the denominator's
+     * scope is the third leg, and without it setting the other two reproduces the shape of
+     * an old cycle and not its numbers.
+     *
+     * It is deliberately not offered as an alternative rule. On this scope every category's
+     * leader takes the whole community half however small their field — which is the fault
+     * the edition scale exists to close, asserted here as the difference between 450 and 5.
+     */
+    public function test_the_category_scope_setting_reproduces_the_old_denominator(): void
+    {
+        $this->nominee(9001, self::DEEP, 'Deep leader', 4000);
+        $this->nominee(9002, self::THIN, 'Thin leader',   40);
+
+        $wide = (new NomineeScoringService())->scoreCategory(self::THIN)[9002];
+        $this->assertSame(4000, $wide['cohort_max']);
+        $this->assertSame(5,    $wide['community_points']);
+
+        (new \AfricaGates\Services\RuleEngine())->set('global', null,
+            ['community_scope' => 'category']);
+
+        $narrow = (new NomineeScoringService())->scoreCategory(self::THIN)[9002];
+        $this->assertSame(40,  $narrow['cohort_max'],
+            'the setting kept for reproducing an announced standing does not reproduce it');
+        $this->assertSame('category', $narrow['cohort_scope']);
+        $this->assertSame(450, $narrow['community_points'],
+            'the old scope is meant to hand a category leader the whole community half — '
+            . 'that is the fault it reproduces, and reproducing it is its only purpose');
+    }
+
+    /**
+     * AND IT CAN BE SET FROM A SCREEN, WHICH IS THE ONLY WAY IT CAN BE SET AT ALL.
+     *
+     * There is no shell on production. A rule reachable only by hand-editing a JSON column
+     * is a rule nobody can apply, and the reason it would ever be applied — reproducing a
+     * standing that has already been announced — arrives as an emergency, on the day, from
+     * somebody who cannot open a file. `community_basis` was very nearly shipped in exactly
+     * that state; a declared setting with no writer is the most expensive shape of bug in
+     * this codebase.
+     */
+    public function test_the_scope_has_a_field_and_a_writer(): void
+    {
+        $root = dirname(__DIR__, 2);
+        $tpl  = (string) file_get_contents($root . '/templates/admin/settings.twig');
+        $ctl  = (string) file_get_contents($root . '/src/Admin/Controllers/SettingsController.php');
+
+        $this->assertStringContainsString('name="community_scope"', $tpl,
+            'there is no field for the denominator scope, so it can only be set by editing '
+            . 'a file on a host with no shell');
+        $this->assertStringContainsString("'community_scope'", $ctl,
+            'the field posts a value the controller will not save');
+
+        // And the screen says what choosing it does, in awards rather than in jargon: the
+        // whole consequence is that one option pays a small field a full community half.
+        $this->assertStringContainsString('The highest in the whole cycle', $tpl);
+        $this->assertStringContainsString('The highest in each category', $tpl);
+    }
+
+    /**
+     * AND A STRAY STRING FALLS BACK TO THE EDITION, NEVER TO THE CATEGORY.
+     *
+     * A settings form or a template is one typo away from writing an unrecognised value,
+     * and the value it lands on decides how every award in the system is scaled. It has to
+     * be the one that keeps the categories comparable.
+     */
+    public function test_an_unrecognised_scope_falls_back_to_the_edition(): void
+    {
+        $this->nominee(9001, self::DEEP, 'Deep leader', 4000);
+        $this->nominee(9002, self::THIN, 'Thin leader',   40);
+
+        (new \AfricaGates\Services\RuleEngine())->set('global', null,
+            ['community_scope' => 'Category ']);
+
+        $row = (new NomineeScoringService())->scoreCategory(self::THIN)[9002];
+        $this->assertSame(4000, $row['cohort_max']);
+        $this->assertSame('edition', $row['cohort_scope']);
+    }
+
+    /**
+     * THE SCALE IS THE FIELD, AND THE FIELD IS THE SHORTLIST WHERE THERE IS ONE.
+     *
+     * A popular nominee left off the published shortlist could not decide what the
+     * finalists in their own category were worth. Now they must not decide it for the
+     * finalists of every OTHER category either.
+     */
+    public function test_a_nominee_left_off_a_shortlist_sets_the_scale_for_nobody(): void
+    {
+        $this->nominee(9001, self::DEEP, 'Shortlisted', 300);
+        $this->nominee(9003, self::DEEP, 'Left off',   5000);
+        $this->nominee(9002, self::THIN, 'Thin leader',   40);
+
+        $sid = (int) DB::table('gates_shortlists')->insertGetId([
+            'cycle_id' => self::CYCLE, 'category_id' => self::DEEP,
+            'status' => 'published', 'entry_count' => 1, 'considered' => 2,
+        ]);
+        DB::table('gates_shortlist_entries')->insert([
+            'shortlist_id' => $sid, 'nominee_id' => 9001,
+        ]);
+
+        $this->assertSame(300,
+            (new NomineeScoringService())->scoreCategory(self::THIN)[9002]['cohort_max'],
+            'somebody who cannot win their own category is setting the denominator for a '
+            . 'different one');
+    }
+}

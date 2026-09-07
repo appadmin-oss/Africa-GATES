@@ -63,24 +63,65 @@ final class VoterReach
     /**
      * Unique verified people behind each nominee. Missing ids come back as 0.
      *
-     * One query for the votes and one for the buyers, whatever the number of nominees —
-     * this runs once per category recompute and a per-nominee query would make it N+1
-     * against the largest table on the platform.
-     *
      * @param  list<int> $nomineeIds
      * @return array<int,int>
      */
     public static function forNominees(array $nomineeIds): array
     {
+        $out = [];
+        foreach (self::detailFor($nomineeIds) as $id => $d) $out[$id] = $d['people'];
+
+        return $out;
+    }
+
+    /**
+     * People AND the rows they were counted from, per nominee.
+     *
+     * ══ WHY THE ROW COUNT IS PUBLISHED ALONGSIDE THE PEOPLE COUNT ═══════════
+     *
+     * Because `people = 0` has two completely different meanings and the scorer has to be
+     * able to tell them apart:
+     *
+     *   · THE ROWS ARE THERE AND THEY BELONG TO NOBODY. Every vote was an operator's
+     *     grant. Zero reach is the correct, intended answer — {@see personKey()}.
+     *   · THERE ARE NO ROWS AT ALL, while `gates_nominees.vote_count` says there is
+     *     support. The tally was imported, restored or seeded from before this platform
+     *     held rows. Nothing about this nominee has been measured; zero is not an answer,
+     *     it is the absence of one.
+     *
+     * That distinction used to be invisible and it did not matter, because the scale was
+     * one category: if a category had no rows, NOBODY in it had rows, the cohort maximum
+     * came out zero and {@see CpiService::reachPart()} fell back to the tally for the whole
+     * field at once. Once the scale is the whole edition, one category with rows keeps the
+     * maximum above zero and every rowless category is silently scored at zero people —
+     * seventy per cent of the community half, gone, for a data-migration reason, with
+     * nothing on any screen. Precisely the shape of fault this codebase keeps shipping.
+     *
+     * So the row count travels with the people count, and
+     * {@see \AfricaGates\Services\NomineeScoringService::scoreCategory()} raises
+     * `reach_unmeasured` on the nominees it applies to.
+     *
+     * Fraud-flagged rows are excluded from `people` and INCLUDED in `rows`: a nominee whose
+     * votes were all flagged has been measured and found to have nobody, which is a
+     * verdict rather than a gap.
+     *
+     * One query for the votes and one for the buyers, whatever the number of nominees —
+     * this runs once per edition recompute and a per-nominee query would make it N+1
+     * against the largest table on the platform.
+     *
+     * @param  list<int> $nomineeIds
+     * @return array<int, array{people:int, rows:int}>
+     */
+    public static function detailFor(array $nomineeIds): array
+    {
         $ids = array_values(array_unique(array_map('intval', $nomineeIds)));
-        $out = array_fill_keys($ids, 0);
+        $out = array_fill_keys($ids, ['people' => 0, 'rows' => 0]);
         if (!$ids) return $out;
 
         try {
             $rows = DB::table('gates_votes')
                 ->whereIn('nominee_id', $ids)
-                ->where('fraud_flag', 0)
-                ->get(['nominee_id', 'voter_email_hash', 'vote_type', 'donation_id']);
+                ->get(['nominee_id', 'voter_email_hash', 'vote_type', 'donation_id', 'fraud_flag']);
         } catch (\Throwable) {
             // Reach is a scoring input, not a safety one. A schema this cannot read must
             // leave the caller with zeroes it can see rather than an exception mid-release.
@@ -92,12 +133,17 @@ final class VoterReach
         /** @var array<int,array<string,true>> $seen */
         $seen = [];
         foreach ($rows as $r) {
+            $nid = (int) $r->nominee_id;
+            $out[$nid]['rows'] = ($out[$nid]['rows'] ?? 0) + 1;
+
+            if ((int) ($r->fraud_flag ?? 0) !== 0) continue;
+
             $person = self::personKey($r, $buyers);
             if ($person === null) continue;
-            $seen[(int) $r->nominee_id][$person] = true;
+            $seen[$nid][$person] = true;
         }
 
-        foreach ($seen as $nomineeId => $people) $out[$nomineeId] = count($people);
+        foreach ($seen as $nomineeId => $people) $out[$nomineeId]['people'] = count($people);
 
         return $out;
     }

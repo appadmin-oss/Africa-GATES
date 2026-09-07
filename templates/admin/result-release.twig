@@ -381,6 +381,44 @@
           and the order can change with it. Finish that panel first.</p>
       {% endif %}
 
+      {#
+        ── WHERE THE DENOMINATOR CAME FROM, WHEN IT CAME FROM SOMEWHERE ELSE ──
+
+        The community half is a share of the largest tally in the whole EDITION, not in this
+        category, so the nominee holding it is usually in a different category and the
+        percentages below refer to a number that appears nowhere on this part of the page.
+        Without this line an operator reading "5% of 1,955" in a category whose own leader
+        has 89 votes has no way to find the 1,955.
+      #}
+      {% if c.scale_set_by and not c.scale_in_category %}
+        <p class="ja-caveat">Every community half in this cycle is a share of
+          <b>{{ c.cohort_max|number_format }}</b> votes &mdash; {{ c.scale_set_by }}&rsquo;s,
+          in {{ c.scale_category ?: 'another category' }}. That is deliberate: a share of a
+          category&rsquo;s own leader means something different in every category, and the
+          cycle standing adds them all together. It does mean a category with little
+          support of its own is decided very largely by its panel.</p>
+      {% endif %}
+
+      {#
+        ── A TALLY WITH NO VOTE ROWS BEHIND IT ───────────────────────────────
+
+        Seventy per cent of the community half is REACH — how many people, counted from
+        `gates_votes`. A nominee whose tally says there is support while the ledger holds no
+        row for them scores zero on that term, and every other figure on their line looks
+        entirely normal. The fix is a data one and nothing else on this screen would ever
+        point at it.
+      #}
+      {% if c.reach_unmeasured > 0 %}
+        <p class="ja-caveat"><b>{{ c.reach_unmeasured }} nominee{{ c.reach_unmeasured > 1 ? 's' : '' }}
+          here {{ c.reach_unmeasured > 1 ? 'have' : 'has' }} a vote total with no votes
+          behind it.</b> The tally is on the nominee record and the ballot holds no row for
+          it &mdash; an import, a restore, or a cycle whose rows were cleared. Seventy per
+          cent of the community half counts PEOPLE, and there are no people to count, so
+          that part scores zero for them. Their totals still count toward the other thirty
+          per cent. Nothing here is fraud and nothing here is wrong with their support; the
+          rows are missing.</p>
+      {% endif %}
+
       {# ── THE THINGS THAT NEEDED A HUMAN AND WENT INTO A LOG ─────────────
          "no nominee meets the judge quorum" and "DEAD HEAT ... this one needs a human"
          were written into the maintenance log by the promotion. There is no shell on this
@@ -466,21 +504,36 @@
                      a broken sentence where the explanation should be. #}
                   <span class="ja-den">no votes to weigh</span>
                 {% elseif r.nominee_id == c.scale_set_by_id %}
-                  <span class="ja-den">most votes here &mdash; sets the scale</span>
+                  <span class="ja-den">most votes in the cycle &mdash; sets the scale</span>
                 {% else %}
                   <span class="ja-den">{{ r.community_share }}% of
-                    {{ c.scale_set_by }}&rsquo;s {{ c.cohort_max|number_format }}</span>
+                    {{ c.scale_set_by }}&rsquo;s {{ c.cohort_max|number_format }}
+                    {%- if not c.scale_in_category %} in
+                      {{ c.scale_category ?: 'another category' }}{% endif %}</span>
+                {% endif %}
+                {# The reach term is 70% of the half and it is counted from vote rows.
+                   Said on the row it applies to as well as in the caveat above, because
+                   the caveat is a count and this is the person it happened to. #}
+                {% if r.reach_unmeasured %}
+                  <span class="ja-den ja-den--warn">no vote rows &mdash; the 70% that counts
+                    people scores zero</span>
                 {% endif %}
                 {#
                   AND WHY THE LEADER'S 450 IS NOT ALWAYS 450.
 
-                  The half is relative to the category leader AND scaled by how deep the
-                  support in that category actually was, so the leader of a category with
-                  89 votes no longer collects exactly what the leader of one with 1,955
-                  collects. Without this line the discount is invisible and the screen
-                  looks like it has miscounted.
+                  Under the `relative` basis the half is scaled by how deep the support in
+                  the cohort actually was, so its leader does not collect the whole 450.
+                  Without this line the discount is invisible and the screen looks like it
+                  has miscounted.
+
+                  GATED ON THE BASIS, because under the default there is no depth term at
+                  all — the full-credit mark decides nothing, and printing "category
+                  discounted" beside a number nothing discounted is a screen inventing an
+                  explanation. `community_basis` is resolved once, by the drawn result,
+                  from the same effective ruleset the scorer read.
                 #}
-                {% if not c.community_dark and c.cohort_max < c.community_full_credit %}
+                {% if c.community_basis == 'relative'
+                      and not c.community_dark and c.cohort_max < c.community_full_credit %}
                   <span class="ja-den ja-den--warn">category discounted &mdash;
                     {{ c.cohort_max|number_format }} votes against a full-credit mark of
                     {{ c.community_full_credit|number_format }}</span>

@@ -68,11 +68,11 @@
 {% set faq = [
   {
     q: 'How is the Cultural Power Index calculated?',
-    a: 'The CPI is ' ~ community_pct|default(45) ~ '% verified community votes and ' ~ judge_pct|default(55) ~ '% independent judge panel. The community share is normalised within each category, so a nominee in a small category is measured against their own field rather than against the whole platform.'
+    a: 'The CPI is ' ~ community_pct|default(45) ~ '% verified community votes and ' ~ judge_pct|default(55) ~ '% independent judge panel. The community half is itself split: 70% of it is how many verified people backed a nominee, and 30% is their total votes. Both are measured against the highest figure any nominee in the same cycle reached — across every category, not within one — so a score means the same thing wherever it appears and the overall standing can be drawn from them. It does mean a category with little public participation is decided very largely by its panel. The judging half is the panel average out of ten, straight, with no floor and no curve.'
   },
   {
     q: 'Can you buy votes to win an Africa GATES award?',
-    a: 'Yes. Every vote counts toward the Cultural Power Index the same amount, whether it was free or bought — and there is no ceiling, so a nominee whose supporters buy more votes than anybody else will hold the largest community share in their category. The index also carries a judging half (' ~ judge_pct|default(55) ~ '%) that no purchase reaches: judges never see a nominee’s vote count. Both figures are published on every result — the full tally, and how much of it was bought — so anybody can see what a nominee’s support was made of.'
+    a: 'Money buys part of it and cannot buy the rest. Every vote counts toward the 30% of the community half that is the total tally, whether it was free or bought, with no ceiling. The other 70% counts PEOPLE: one supporter is one supporter however many separate orders they place, so buying the same votes through a thousand small payments buys no extra reach, and a vote the platform granted counts toward nobody’s backing at all. The index also carries a judging half (' ~ judge_pct|default(55) ~ '%) that no purchase reaches: judges never see a nominee’s vote count. Both figures are published on every result — the full tally, and how much of it was bought — so anybody can see what a nominee’s support was made of.'
   },
   {
     q: 'Why might the nominee with the most votes not win?',

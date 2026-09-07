@@ -9,24 +9,42 @@ use Illuminate\Support\Carbon;
 use Tests\TestCase;
 
 /**
- * ONE AWARD FOR THE WHOLE CYCLE, AND THE THING IT CANNOT FIX.
+ * ONE AWARD FOR THE WHOLE CYCLE, AND WHAT IT COSTS TO MAKE IT COMPARABLE.
  *
  * Every award here was decided inside a category. An overall winner has to be drawn ACROSS
- * them, and that is where a CPI stops being straightforwardly comparable:
+ * them, and a CPI is only comparable across categories if both halves are:
  *
  *   · the judge half is absolute — six out of ten is six out of ten in any field;
- *   · the community half is a share of THAT CATEGORY'S own leader.
+ *   · the community half USED TO BE a share of that category's own leader.
  *
- * So leading a three-person category on fifty votes is a full community half, and coming a
- * close second in a fifty-thousand-vote category is not. There is no neutral denominator
- * available: normalising across the cycle instead simply inverts the bias and hands the
- * award to whoever stands in the most popular category, where a niche field could never win
- * it. Every option is a position rather than a calculation.
+ * So leading a three-person category on fifty votes was a full community half, and coming a
+ * close second in a fifty-thousand-vote category was not — and the overall standing added
+ * the two together as though they meant the same thing. The operator's word for that was
+ * "cheating", and it is the right word for a number that does not move when the thing it
+ * measures changes by a factor of a thousand.
  *
- * The position taken is the conservative one — the same CPI, the same comparator, nothing
- * recomputed and no second score invented — with the figures that make the bias visible
- * handed back beside it. What this file holds is that those figures are actually there, and
- * that the overall award can never disagree with the category awards it is drawn from.
+ * ── SO THE DENOMINATOR IS THE EDITION, AND THE OBJECTION TO THAT IS REAL ───
+ *
+ * This file used to argue that normalising across the cycle "simply inverts the bias and
+ * hands the award to whoever stands in the most popular category, where a niche field could
+ * never win it". That objection has not gone away and it is not answered — it is ACCEPTED,
+ * with its eyes open. A niche category with little public backing now contributes very
+ * little community credit to anybody in it, so its nominees reach the overall standing on
+ * their panel mark and almost nothing else.
+ *
+ * That is the trade: the old rule let a small field buy a full community half, the new one
+ * pays a small field a small community half. Only one of them can be true at once, and the
+ * one that survives is the one under which a share means the same thing wherever it is
+ * printed. {@see \AfricaGates\Services\NomineeScoringService::editionScale()}.
+ *
+ * `field` and `thinnest_field` still travel with every contender, because HOW MANY PEOPLE
+ * somebody beat is a separate fact from how much support they had, and that one is still
+ * uneven: a winner from a two-person field beat one rival. The screen has to be able to say
+ * so.
+ *
+ * What this file holds is that those figures are actually there, that every category is
+ * scored against one denominator, and that the overall award can never disagree with the
+ * category awards it is drawn from.
  */
 final class OverallWinnerTest extends TestCase
 {
@@ -202,14 +220,20 @@ final class OverallWinnerTest extends TestCase
     // ══ the caveat it must not hide ═══════════════════════════════════════════
 
     /**
-     * THE BIAS IS REPORTED, BECAUSE IT CANNOT BE REMOVED.
+     * ONE DENOMINATOR FOR THE WHOLE CYCLE — AND THE FIELD SIZE STILL REPORTED.
      *
-     * A winner from a two-person field and a winner from a large one arrive at this
-     * comparison with different denominators behind their community halves. The screen has
-     * to be able to say so, which means the field size and the cohort maximum have to travel
+     * Two winners on the same panel mark, one from a two-person field on 50 votes and one
+     * from a five-person field on 50,000. They used to arrive here with 450 community
+     * points each, because each had been measured against their own category's leader, and
+     * this test asserted that equality as the bias the screen had to warn about.
+     *
+     * It is not a warning any more, it is the arithmetic: both are shares of 50,000, so the
+     * thin winner's community half is 0 and the wide winner's is 450. The caveat that
+     * remains is the one about the FIELD — beating one rival is not beating four — and that
+     * is a different fact from how much support somebody had, so it still has to travel
      * with each contender rather than be worked out again by the template.
      */
-    public function test_every_contender_carries_the_figures_that_show_the_comparison_is_uneven(): void
+    public function test_every_contender_is_scored_against_one_denominator(): void
     {
         $thin = $this->category('Thin field', 1);
         $wide = $this->category('Wide field', 2);
@@ -250,19 +274,23 @@ final class OverallWinnerTest extends TestCase
             'the size of the field a winner actually beat is not reported — and an '
             . 'unjudged entrant must not pad it, because they could not have won');
         $this->assertSame(5, $by['Wide field']['field']);
-        $this->assertSame(50, $by['Thin field']['cohort_max'],
-            'the denominator behind this winner\'s community half is not reported');
+        // THE SAME NUMBER IN BOTH CATEGORIES. This used to be 50 and 50,000 — each
+        // category normalised to its own leader — which is what made the two community
+        // halves below incomparable and the standing that adds them meaningless.
+        $this->assertSame(50000, $by['Thin field']['cohort_max'],
+            'the thin category is being normalised to its own leader again, so fifty '
+            . 'votes and fifty thousand are about to be paid the same');
         $this->assertSame(50000, $by['Wide field']['cohort_max']);
 
         $this->assertSame(2, $o['thinnest_field'],
             'nothing tells an operator the smallest field in the running');
 
-        // And the bias is real rather than theoretical: both won on the same judge mark,
-        // and fifty votes in a two-person field buys the same community half as fifty
-        // thousand in a five-person one.
-        $this->assertSame($by['Thin field']['community_points'],
-                          $by['Wide field']['community_points'],
-            'the fixture no longer demonstrates the thing the caveat warns about');
+        // And the consequence, stated as a number rather than as a caveat: on the same
+        // panel mark, fifty votes buys nothing and fifty thousand buys the whole half.
+        $this->assertSame(0,   $by['Thin field']['community_points']);
+        $this->assertSame(450, $by['Wide field']['community_points']);
+        $this->assertSame(440, $by['Thin field']['cpi']);
+        $this->assertSame(890, $by['Wide field']['cpi']);
     }
 
     /**

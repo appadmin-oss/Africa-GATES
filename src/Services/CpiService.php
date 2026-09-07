@@ -24,9 +24,9 @@ class CpiService
      * Final 0..1000 nominee score.
      *
      * @param int        $voteCount      this nominee's votes
-     * @param int        $cohortMaxVotes the max votes in this nominee's COHORT
-     *                                   (per-category) used to normalise the
-     *                                   community component to 0..1
+     * @param int        $cohortMaxVotes the max votes in this nominee's COHORT — the whole
+     *                                   edition's field, see editionScale() — used to
+     *                                   normalise the community component to 0..1
      * @param float|null $judgeAvg0to10  weighted judge average (0..10), or NULL when the
      *                                   panel has not reached quorum. Null contributes
      *                                   ZERO, not a renormalised community-only score:
@@ -82,9 +82,9 @@ class CpiService
      * named. {@see NomineeScoringService} is where a field-size term would go.
      *
      * @param int        $voteCount      this nominee's votes
-     * @param int        $cohortMaxVotes the max votes in this nominee's COHORT
-     *                                   (per-category) used to normalise the
-     *                                   community component to 0..1
+     * @param int        $cohortMaxVotes the max votes in this nominee's COHORT — the whole
+     *                                   edition's field, see editionScale() — used to
+     *                                   normalise the community component to 0..1
      * @param float|null $judgeAvg0to10  weighted judge average (0..10), or NULL when the
      *                                   panel has not reached quorum. Null contributes
      *                                   ZERO, not a renormalised community-only score:
@@ -300,7 +300,7 @@ class CpiService
     {
         $volume = min(1.0, max(0, $voteCount) / max(1, $cohortMaxVotes));
 
-        // ══ NOBODY IN THE FIELD HAS A RECORDED VOTER: MEASURE WHAT THERE IS ══
+        // ══ NOBODY IN THE EDITION HAS A RECORDED VOTER: MEASURE WHAT THERE IS ══
         //
         // `cohortMaxUnique` of zero does not mean "everybody has no support". It means the
         // question cannot be asked here — vote ROWS are missing while the tallies are not.
@@ -308,16 +308,27 @@ class CpiService
         // seeded fixture, a cycle whose rows were purged after release.
         //
         // Flooring the denominator to one instead would hand every nominee people = 0/1
-        // and quietly pay the whole field 30% of the community half. Within the category
-        // the ORDER survives, which is exactly what makes it dangerous: nothing looks
-        // wrong, no screen says anything, and a category scored out of 135 is then ranked
-        // against categories scored out of 450 to pick an OVERALL winner. This platform
-        // has shipped that shape of fault twice — a percentage of `organic_vote_count`
-        // where free voting is off, and a bonus cap read off the same column — and both
-        // times the tell was a number that stayed plausible while measuring nothing.
+        // and quietly pay the whole field 30% of the community half. The ORDER survives,
+        // which is exactly what makes it dangerous: nothing looks wrong, no screen says
+        // anything, and a cycle scored out of 135 still reads like a cycle scored out of
+        // 450. This platform has shipped that shape of fault twice — a percentage of
+        // `organic_vote_count` where free voting is off, and a bonus cap read off the same
+        // column — and both times the tell was a number that stayed plausible while
+        // measuring nothing.
         //
         // So where reach is unmeasurable the tally takes the whole half. That is the older
         // basis's answer, which is the honest fallback: it is what we could measure.
+        //
+        // ── AND WHY THIS IS NOW ALL-OR-NOTHING FOR THE WHOLE EDITION ─────────
+        //
+        // The denominator is the largest reach in the CYCLE, not in the category
+        // ({@see \AfricaGates\Services\NomineeScoringService::editionScale()}), so this
+        // fires only when not one nominee anywhere in the edition has a countable vote row.
+        // A single category missing its rows no longer reaches this line — the maximum
+        // stays above zero and its nominees score people = 0, which is a real loss for a
+        // data reason. That case is caught where it can be told apart from a genuine zero,
+        // on the nominee, as `reach_unmeasured`; it cannot be told apart from here, because
+        // by the time it arrives it is two integers.
         if ($cohortMaxUnique <= 0) return $volume;
 
         $people = min(1.0, max(0, $uniqueVoters) / $cohortMaxUnique);
@@ -421,10 +432,37 @@ class CpiService
      * `curved` remains available per programme and per cycle, so an already-announced
      * standing can still be reproduced exactly from the settings that produced it.
      */
+    /**
+     * WHAT THE COMMUNITY DENOMINATOR IS A MAXIMUM OF.
+     *
+     * `edition` — the largest figure held by any nominee in the CYCLE. The default, and the
+     * only scope on which a community half means the same thing in every category, which is
+     * what an overall standing requires.
+     *
+     * `category` — the largest in the nominee's own category. What this platform did until
+     * the edition scale landed, so an already-announced standing can still be reproduced
+     * exactly from the settings that produced it. It is not a variant of the rule: on this
+     * scope every category's leader takes the full community half whatever their support
+     * was, and a 1,955-vote leader and an 89-vote leader are paid identically.
+     */
+    public const SCOPE_EDITION  = 'edition';
+    public const SCOPE_CATEGORY = 'category';
+
     public const SCALE_LINEAR = 'linear';
     public const SCALE_CURVED = 'curved';
 
     /** The judge scale, normalised. Unrecognised is the default, never a guess. */
+    /**
+     * The community denominator's scope, normalised. Anything unrecognised is the edition:
+     * a settings form or a template is one typo away from writing a stray string, and the
+     * value it falls back to must be the one that keeps the categories comparable.
+     */
+    public static function scope(?string $raw): string
+    {
+        return trim((string) $raw) === self::SCOPE_CATEGORY
+            ? self::SCOPE_CATEGORY : self::SCOPE_EDITION;
+    }
+
     public static function judgeScale(?string $raw): string
     {
         return trim((string) $raw) === self::SCALE_CURVED

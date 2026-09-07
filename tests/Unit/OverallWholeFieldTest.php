@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 namespace Tests\Unit;
 
+use AfricaGates\Services\NomineeScoringService;
 use AfricaGates\Services\ResultRelease;
 use Illuminate\Database\Capsule\Manager as DB;
 use Tests\TestCase;
@@ -115,31 +116,37 @@ final class OverallWholeFieldTest extends TestCase
     // ══ the whole field ══════════════════════════════════════════════════════
 
     /**
-     * EVERY NOMINEE IS RANKED — AND THE THIN FIELD'S LEADER NOW TIES THE DEEP ONE'S.
+     * EVERY NOMINEE IS RANKED, AND A THIN FIELD'S LEADER NO LONGER TIES A DEEP ONE'S.
      *
      * The first half of that is the property this file was written for and it holds: the
      * cycle-wide standing contains a nominee who did not win their own category.
      *
-     * ── THE SECOND HALF IS A COST OF THE REACH BASIS AND IS RECORDED, NOT HIDDEN ──
+     * ── AND THE SECOND HALF IS THE WHOLE POINT OF THE EDITION-WIDE SCALE ─────
      *
-     * Both of reach's terms are shares of the FIELD'S OWN best — that is what makes them
-     * checkable, and it is exactly what the operator specified — so leading a field is
-     * worth the whole community half however deep that field was:
+     * Both community terms are shares of a maximum, and that maximum is the largest held by
+     * any nominee in the EDITION — not in the nominee's own category
+     * ({@see \AfricaGates\Services\NomineeScoringService::editionScale()}). So a share means
+     * the same thing wherever it appears, and this column is an addition of like with like:
      *
-     *     Leader of the deep field   1,955 votes, panel 8.0   →  890
-     *     Leader of the thin field      89 votes, panel 8.0   →  890
-     *     Strong second              1,536 votes, panel 8.0   →  794
+     *     Leader of the deep field   1,955 votes, panel 8.0   →  890   (1955/1955)
+     *     Strong second              1,536 votes, panel 8.0   →  794   (1536/1955)
+     *     Leader of the thin field      89 votes, panel 8.0   →  460   (  89/1955)
      *
-     * The old basis multiplied the half by `sqrt(cohortMax / fullCredit)`, which is what
-     * used to separate these (706 / 390 / 533) and what put the strong second above the
-     * thin leader. Reach has no such term, so within a category it is fair and across
-     * categories it is silent — and the OVERALL award is decided across categories.
+     * Under the per-category scale the last two were 794 and 890: eighty-nine votes
+     * out-ranking fifteen hundred, because each had been measured against a different
+     * denominator and the overall standing then added the two together. The operator's word
+     * for that was "cheating".
      *
-     * That is a real trade and only the operator can price it. It is asserted here so
-     * that whoever revisits it is looking at the actual numbers rather than rediscovering
-     * the fault from a nominee's complaint.
+     * ── WHAT IT COSTS, RECORDED RATHER THAN DISCOVERED ──────────────────────
+     *
+     * Leading a small category is no longer worth the full community half. In a category
+     * whose whole field is small against the edition, every community half is small and the
+     * differences between its nominees are smaller still — so the 550 the panel carries
+     * decides that category very nearly on its own. That is intended: the community half
+     * measures public backing, and where there was little public backing it should pay
+     * little. It is asserted here so whoever revisits it is looking at the actual numbers.
      */
-    public function test_every_nominee_is_ranked_and_a_thin_field_leader_is_not_discounted(): void
+    public function test_a_thin_field_leader_is_measured_against_the_whole_edition(): void
     {
         $this->seedCycle();
 
@@ -152,13 +159,42 @@ final class OverallWholeFieldTest extends TestCase
             . 'category, so its second-strongest nominee is simply absent');
 
         $this->assertSame(
-            ['Leader of the deep field', 'Leader of the thin field', 'Strong second'],
+            ['Leader of the deep field', 'Strong second', 'Leader of the thin field'],
             $names);
 
-        $this->assertSame(
-            $byName['Leader of the deep field'], $byName['Leader of the thin field'],
-            'the depth of a field has come back into the index by some other door — if '
-            . 'that is deliberate, this test is the place it should be argued');
+        $this->assertSame(890, $byName['Leader of the deep field']);
+        $this->assertSame(794, $byName['Strong second']);
+        $this->assertSame(460, $byName['Leader of the thin field'],
+            'an 89-vote category leader is being paid as though 89 were the most anybody '
+            . 'in the edition managed — which is the per-category denominator back');
+    }
+
+    /**
+     * AND THE DENOMINATOR IS THE SAME NUMBER IN EVERY CATEGORY OF THE EDITION.
+     *
+     * The property, asserted directly rather than inferred from the scores above, because
+     * it is the one thing the change consists of. A category whose own leader has 89 votes
+     * is scored against 1,955, and the scorer says whose 1,955 it is — the scale-setter is
+     * in another category now, so a screen scanning its own rows for the number would find
+     * nobody and report the scale as unset.
+     */
+    public function test_every_category_is_scored_against_one_denominator(): void
+    {
+        $this->seedCycle();
+
+        $scoring = new NomineeScoringService();
+        $deep = $scoring->scoreCategory(10);
+        $thin = $scoring->scoreCategory(11);
+
+        $this->assertSame(1955, $deep[1]['cohort_max']);
+        $this->assertSame(1955, $thin[4]['cohort_max'],
+            'the thin category is still being normalised to its own leader');
+
+        $this->assertSame('edition', $thin[4]['cohort_scope']);
+        $this->assertSame('Leader of the deep field', $thin[4]['cohort_max_by']['name']);
+        $this->assertSame(10, $thin[4]['cohort_max_by']['category_id'],
+            'the scale-setter has to carry their own category, or the release screen '
+            . 'cannot say where the denominator came from');
     }
 
     /** Two rows from one category is the point, not an accident. */
@@ -218,11 +254,11 @@ final class OverallWholeFieldTest extends TestCase
     /**
      * The winner is unchanged by widening the list — only the places below it move.
      *
-     * The runner-up is the thin field's leader, on a margin of nothing: see
-     * {@see test_every_nominee_is_ranked_and_a_thin_field_leader_is_not_discounted} for
-     * why reach ties them, and why that is a decision rather than a defect. A zero margin
-     * at the top of a cycle is exactly the sort of thing an operator needs to see before
-     * an announcement, so it is asserted rather than tolerated.
+     * The runner-up is the deep field's SECOND, on 1,536 votes, ahead of the thin field's
+     * leader on 89. Under the per-category denominator it was the other way round, and the
+     * margin at the top of the cycle was nothing at all. A real margin between first and
+     * second is the thing an operator most needs before an announcement, so both the order
+     * and the size of the gap are asserted rather than tolerated.
      */
     public function test_the_top_of_the_cycle_is_not_disturbed(): void
     {
@@ -230,11 +266,10 @@ final class OverallWholeFieldTest extends TestCase
 
         $o = ResultRelease::overall(self::CYCLE);
         $this->assertSame('Leader of the deep field', $o['winner']['name']);
-        $this->assertSame('Leader of the thin field', $o['runner_up']['name']);
+        $this->assertSame('Strong second', $o['runner_up']['name'],
+            'an 89-vote category leader is second in the cycle again');
         $this->assertSame($o['winner']['cpi'] - $o['runner_up']['cpi'], $o['margin']);
-        $this->assertSame(0, $o['margin'],
-            'the two field leaders no longer tie — the depth of a field is being priced '
-            . 'again somewhere, and this test should say where');
+        $this->assertSame(96, $o['margin']);
     }
 
     /** Nothing scored, nothing to rank — and it says so rather than erroring. */

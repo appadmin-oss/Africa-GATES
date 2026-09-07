@@ -21,23 +21,45 @@ class NomineeScoringService
     private array $criteriaByProgramme = [];
 
     /**
-     * Per-nominee scores for one category (cohort-normalised community + judges,
-     * with the effective per-cycle CPI weights from the rule engine).
-     * @return array<int, array{vote_count:int, cohort_max:int, judge_score:float|null, cpi_score:int}>
+     * Per-call cache of resolved edition scales, keyed 'cycle:<id>'.
+     *
+     * The scale reads every category in the cycle, so a fresh one per category would make
+     * drawing a release screen quadratic in the size of the edition — and every caller that
+     * scores more than one category already shares a scorer instance for exactly this
+     * reason ({@see ResultRelease::forCycle()}).
+     */
+    private array $scaleByEdition = [];
+
+    /**
+     * Per-nominee scores for one category: the community half normalised against the whole
+     * EDITION's field ({@see editionScale()}), the judge half from the panel, and the
+     * effective per-cycle CPI weights from the rule engine.
+     *
+     * @return array<int, array{vote_count:int, unique_voters:int, cohort_max:int,
+     *   cohort_max_unique:int, cohort_max_by:?array{id:int,name:string,category_id:int,category_title:string},
+     *   cohort_max_unique_by:?array{id:int,name:string,category_id:int,category_title:string},
+     *   cohort_scope:string,
+     *   reach_unmeasured:bool, judge_score:float|null, judges:int, eligible:bool,
+     *   provisional:bool, cpi_score:int, community_points:int, judge_points:int}>
      */
     public function scoreCategory(int $categoryId): array
     {
-        $nq = DB::table('gates_nominees')->where('category_id', $categoryId)
-            ->whereIn('status', ['approved', 'winner', 'runner_up']);
-        \AfricaGates\Services\MergeService::notMerged($nq);          // merge tombstones never score
-        $nominees = $nq->get();
-        if ($nominees->isEmpty()) return [];
+        $nominees = $this->scoredIn($categoryId);
+        if ($nominees === []) return [];
 
         // Effective CPI weights for this category's cycle (config over defaults).
+        // ── THE CYCLE COMES FROM THE CATEGORY, NOT FROM THE JOIN ─────────────
+        //
+        // A LEFT join, and `c.cycle_id` rather than `cy.id`, because the edition is now the
+        // scale every community half is measured against and a missing `gates_award_cycles`
+        // row must not silently collapse it back to this one category. That row is absent
+        // more often than it looks: an import that carried categories and nominees, a
+        // fixture, a cycle deleted after release. The category has always known which
+        // edition it belongs to — the join was only ever there for the programme id.
         $ctx = DB::table('gates_award_categories as c')
-            ->join('gates_award_cycles as cy', 'cy.id', '=', 'c.cycle_id')
+            ->leftJoin('gates_award_cycles as cy', 'cy.id', '=', 'c.cycle_id')
             ->where('c.id', $categoryId)
-            ->select('cy.id as cycle_id', 'cy.programme_id')->first();
+            ->select('c.cycle_id as cycle_id', 'cy.programme_id')->first();
         $w = $this->rules->weights($ctx->programme_id ?? null, $ctx->cycle_id ?? null);
         // How steep the index is. Defaults live in RuleEngine::DEFAULTS with the reasoning;
         // an operator tunes them per programme or per cycle.
@@ -51,6 +73,10 @@ class NomineeScoringService
         // typo away from writing one. A silent switch of scoring basis is the worst
         // possible thing for a stray string to do.
         $cBasis = CpiService::basis($eff['community_basis'] ?? null);
+        // And the same for the denominator's SCOPE. Normalised for the same reason, and
+        // read from the same effective ruleset as the basis so a cycle-level override
+        // cannot move one and not the other while both are reported as this cycle's rules.
+        $cScope = CpiService::scope($eff['community_scope'] ?? null);
         $full   = (int)   ($eff['community_full_credit_votes']
                            ?? RuleEngine::DEFAULTS['community_full_credit_votes']);
 
@@ -79,25 +105,36 @@ class NomineeScoringService
         // the total on every public surface, so a reader can always see how much of a
         // tally was bought. It simply no longer decides anything.
         //
-        // ══ THE DENOMINATOR IS THE FIELD, NOT THE ENTRY LIST ══════════════════
+        // ══ THE DENOMINATOR IS THE WHOLE EDITION, NOT THE CATEGORY ═══════════
         //
-        // This used to be every scored nominee in the category, with the shortlist applied
-        // afterwards — so somebody who could not win still decided what everybody else's
-        // support was worth, and the more popular they were the less everybody else's
-        // votes counted.
+        // Both community terms are shares of a maximum, and the maximum is now the largest
+        // held by ANY nominee in this cycle of this programme — not the largest in this
+        // category. {@see editionScale()} is where it is worked out, once per edition, and
+        // the reasoning for the change is written there rather than repeated here.
         //
-        // The damage is not marginal, it is the community half of a whole final. Ten
-        // entrants, the popular one on 5,000 votes is not shortlisted, the three
-        // finalists hold 500, 400 and 300. Their community shares came out at 0.10, 0.08
-        // and 0.06 — a span of four points on a thousand-point index — so the judges
-        // decided the final on their own, silently, and only because of who had been left
-        // off the list. Against the actual field it is 1.00, 0.80 and 0.60, and the votes
-        // mean what the rules say they mean.
+        // The short version, because it decides every number below: a per-category
+        // denominator normalises each category to its own leader, so leading a field is
+        // worth the full community half however small that field was — 89 votes and 1,955
+        // voting identically — and the overall award is then decided between figures that
+        // are not comparable. Per edition, a share means the same thing in every category,
+        // and the overall ranking is an addition of like with like.
         //
-        // ── AND WHY THE QUORUM IS NOT APPLIED HERE ───────────────────────────
+        // ── WHAT IS IN THE SCALE, AND WHY IT IS NOT SIMPLY EVERY NOMINEE ─────
+        //
+        // The FIELD of each category — the published shortlist where there is one, every
+        // scored nominee where there is not. Unchanged in kind from what this used to do
+        // per category, and for the same reason: a nominee who cannot win must not decide
+        // what the people who can are worth. Widening the scale to the whole entry list
+        // would let a popular non-finalist in ANOTHER category hold down a finalist here,
+        // which is the original fault with a longer reach.
+        //
+        // Deliberately NOT narrowed by the judge quorum, for the reason set out below.
+        $scale = $this->editionScale((int) ($ctx->cycle_id ?? 0), $categoryId, $cScope);
+
+        // ── AND WHY THE QUORUM IS NOT APPLIED TO IT ──────────────────────────
         //
         // Being below quorum is PENDING, not out: a panel may still finish. Shrinking the
-        // denominator for it would move every published score in the category each time a
+        // denominator for it would move every published score in the edition each time a
         // scorecard was completed — more movement, not less — and it runs perversely: an
         // unjudged popular nominee would be dropped from the scale, inflating everybody's
         // community share, and then rejoin it when they were judged and take it all back.
@@ -106,54 +143,30 @@ class NomineeScoringService
         //
         // A published shortlist is the opposite: an explicit, dated, final decision that
         // these are the people in contention. That is a scale worth measuring against.
-        //
-        // Same resolver as the ballot, the audit and the release screen — `null` means
-        // this category does not shortlist, which changes nothing.
-        $listed = ResultRelease::shortlistedIn($categoryId);
-        $field  = $listed === null
-            ? $nominees
-            : $nominees->filter(static fn ($n): bool => in_array((int) $n->id, $listed, true));
-
-        // A published list naming nobody who still scores — every entry withdrawn, rejected
-        // or merged away since — must not be allowed to empty the cohort. An empty
-        // collection's max() is null, so the floor below would make the denominator ONE and
-        // hand every nominee in the category a full community half: not a category scored
-        // to zero, which somebody would notice, but a whole field scored identically at the
-        // top of the range, which reads like a close contest.
-        //
-        // Falling back to the entry list is the pre-shortlist behaviour. It is wrong in
-        // exactly the way this fix is about, and it is wrong in a way that stays visible on
-        // the release screen rather than one that flatters everybody.
-        if ($field->isEmpty()) $field = $nominees;
 
         // The denominator moves with the numerator. Scaling a total against an organic
         // maximum would let a nominee exceed 100% of the cohort and hand them more than
         // the whole community weight — the two have to be the same measure or the share
         // is not a share.
-        $cohortMax = max(1, (int) $field->max('vote_count'));
+        $cohortMax = max(1, (int) $scale['max_votes']);
 
-        // ── THE SECOND DENOMINATOR, AND IT IS THE SAME FIELD ─────────────────
-        //
-        // Reach measures a nominee against the most PEOPLE any nominee in this field has,
-        // exactly as the tally term measures against the most votes. Drawn from `$field`
-        // and not from `$nominees` for the reason set out above: a nominee who cannot win
-        // must not decide what the finalists' support is worth.
-        //
+        // NOT floored to one. Zero is a meaningful answer here — "no vote rows anywhere in
+        // this edition to count people from" — and CpiService::reachPart() needs to be able
+        // to tell it apart from "everybody has nobody". Flooring it here would erase that
+        // distinction before the scorer ever saw it.
+        $cohortMaxUnique = (int) $scale['max_unique'];
+
         // Counted from the vote rows themselves rather than read off a column — see
         // {@see VoterReach} for why a stored counter and a DISTINCT count are both wrong
-        // here, and why one buyer's ten orders are one person.
-        $reach     = VoterReach::forNominees($nominees->pluck('id')->map('intval')->all());
-        $fieldIds  = $field->pluck('id')->map('intval')->all();
-        $maxUnique = 0;
-        foreach ($fieldIds as $fid) $maxUnique = max($maxUnique, $reach[$fid] ?? 0);
-        // NOT floored to one. Zero is a meaningful answer here — "this field has no vote
-        // rows to count people from" — and CpiService::reachPart() needs to be able to
-        // tell it apart from "everybody has nobody". Flooring it here would erase that
-        // distinction before the scorer ever saw it.
-        $cohortMaxUnique = $maxUnique;
+        // here, and why one buyer's ten orders are one person. `rows` travels with
+        // `people` so a tally with nothing behind it can be told from a tally that belongs
+        // to nobody; see `reach_unmeasured` below.
+        $reach = VoterReach::detailFor(array_map(
+            static fn (object $n): int => (int) $n->id, $nominees));
         $quorum = (int) ($this->rules->effective($ctx->programme_id ?? null, $ctx->cycle_id ?? null)['min_judges_per_nominee']
             ?? RuleEngine::DEFAULTS['min_judges_per_nominee']);
-        $stats = $this->judgeStatsFor($nominees->pluck('id')->all());
+        $stats = $this->judgeStatsFor(array_map(
+            static fn (object $n): int => (int) $n->id, $nominees));
 
         $out = [];
         foreach ($nominees as $n) {
@@ -162,7 +175,35 @@ class NomineeScoringService
             $judges   = $st['judges'] ?? 0;
             $eligible = $judges >= $quorum;                        // winner-eligible only at quorum
 
-            $unique = $reach[(int) $n->id] ?? 0;
+            $d      = $reach[(int) $n->id] ?? ['people' => 0, 'rows' => 0];
+            $unique = (int) $d['people'];
+
+            // ── A TALLY WITH NOTHING BEHIND IT IS NOT A REACH OF ZERO ────────
+            //
+            // The scale is the whole edition now, so `cohortMaxUnique` stays above zero as
+            // long as ONE category anywhere in the cycle has vote rows — and
+            // CpiService::reachPart()'s fallback, which used to catch a rowless category
+            // whole, no longer fires for it. Every nominee in that category would be scored
+            // at people = 0 and lose seventy per cent of the community half for a
+            // data-migration reason, with nothing on any screen to say so.
+            //
+            // This is the flag that stops it being silent. It is raised for a nominee whose
+            // tally says there is support while `gates_votes` holds not one row for them:
+            // an import from before this platform kept rows, a restore, a seeded fixture.
+            // Zero rows and zero votes is not it — that nominee has no support and no
+            // reach, which is a measurement. Rows that all belong to nobody is not it
+            // either — every vote was an operator's grant, and zero reach is the intended
+            // answer there ({@see VoterReach::detailFor()}).
+            //
+            // The nominee is still scored at zero people, deliberately, which is the same
+            // choice the judge half makes for a panel that has not finished: understate
+            // rather than overstate, and flag it. Paying the whole community half on the
+            // tally instead would hand an unbacked number the edition — exactly the thing
+            // the edition-wide scale exists to prevent — and it would do it to the benefit
+            // of the one nominee nobody can check.
+            $unmeasured = $cohortMaxUnique > 0
+                          && (int) $d['rows'] === 0
+                          && (int) $n->vote_count > 0;
 
             $split = CpiService::split(
                 CpiService::communityPart((int) $n->vote_count, $cohortMax, $cCurve, $full,
@@ -179,6 +220,10 @@ class NomineeScoringService
                 // nominee is owed both terms of their own score.
                 'unique_voters'     => $unique,
                 'cohort_max_unique' => $cohortMaxUnique,
+                // TRUE where this nominee's support could not be counted in people at all
+                // — see the note above the flag. An operator has to be able to find these,
+                // because the fix is a data one and nothing else on the screen looks wrong.
+                'reach_unmeasured'  => $unmeasured,
                 // ── THE DENOMINATOR THE COMMUNITY HALF IS MEASURED AGAINST ───
                 //
                 // Returned rather than kept local, because without it NOBODY can check a
@@ -187,12 +232,26 @@ class NomineeScoringService
                 // a number that appeared on no screen — and `ResultRelease` recomputing it
                 // would be a second reader of the one fact that decides the award.
                 //
-                // The cohort is the FIELD — the published shortlist where there is one,
-                // every scored nominee where there is not. It is deliberately not narrowed
-                // by the quorum: below quorum is pending, not out, and see the note above
-                // for why letting a judging fact move a voting denominator is worse than
-                // the thing it would fix.
+                // The cohort is the whole EDITION's field: the published shortlist of each
+                // category in this cycle where there is one, every scored nominee where
+                // there is not. It is deliberately not narrowed by the quorum — below
+                // quorum is pending, not out, and see the note above for why letting a
+                // judging fact move a voting denominator is worse than the thing it would
+                // fix.
                 'cohort_max'  => $cohortMax,
+                // ── AND WHO HOLDS IT, BECAUSE THEY ARE USUALLY SOMEBODY ELSE ─
+                //
+                // The scale-setter used to be findable on the screen: the denominator was
+                // this category's own maximum, so a row on the page held it. Edition-wide
+                // they are most often in ANOTHER category, and a release screen that
+                // scanned its own rows for the number would simply fail to find it and
+                // report the scale as nobody's. Named here, once, by the same pass that
+                // computed the number.
+                'cohort_max_by'        => $scale['votes_by'],
+                'cohort_max_unique_by' => $scale['unique_by'],
+                // 'edition' normally; 'category' only where the cycle could not be
+                // resolved at all, which is a broken row rather than a configuration.
+                'cohort_scope'         => (string) $scale['scope'],
                 'judge_score' => $ja,
                 'judges'      => $judges,                          // COMPLETE scorecards only
                 'eligible'    => $eligible,
@@ -243,6 +302,230 @@ class NomineeScoringService
             ];
         }
         return $out;
+    }
+
+    /**
+     * THE SCALE EVERY NOMINEE IN ONE EDITION IS MEASURED AGAINST.
+     *
+     * ══════════════════════════════════════════════════════════════════════════
+     * WHY IT IS THE EDITION AND NOT THE CATEGORY
+     * ══════════════════════════════════════════════════════════════════════════
+     *
+     * Both terms of the community half are shares of a maximum, and that maximum used to be
+     * the biggest number in the nominee's OWN category. So every category was normalised to
+     * its own leader and every category's leader collected the whole community half — which
+     * is the right answer to "who won this category" and a wrong answer to anything else.
+     *
+     * Two real rows from one released cycle, side by side, both correct under the old rule:
+     *
+     *     Leader of Academic Excellence   1,955 votes   community 450
+     *     Leader of a thin category          89 votes   community 450
+     *
+     * Identical figures for support differing by a factor of twenty-two. Inside their own
+     * categories neither is wrong. Put them in one column — which {@see ResultRelease::overall()}
+     * must do, because an overall standing is the whole cycle ranked — and the second one is
+     * being paid for a field, not for support. The operator's word for it was "cheating",
+     * and that is the right word for a number that does not move when the thing it measures
+     * changes by twenty-two times.
+     *
+     * Per edition, 1,955 is 1.00 and 89 is 0.046, everywhere they appear, and a CPI carries
+     * the same meaning in every category of the cycle. That is the whole change.
+     *
+     * ══════════════════════════════════════════════════════════════════════════
+     * WHY THE EDITION AND NOT THE PROGRAMME'S WHOLE HISTORY
+     * ══════════════════════════════════════════════════════════════════════════
+     *
+     * A programme spans years; a cycle is one running of it, and it belongs to exactly one
+     * programme. Taking the maximum across every cycle a programme has ever held would do
+     * two things that cannot be defended:
+     *
+     *   · IT WOULD MOVE PUBLISHED RESULTS. 2024's standings were announced against 2024's
+     *     numbers. A big tally arriving in 2026 would re-scale 2024 the next time anything
+     *     recomputed it, and a nominee's published score would change years after the fact.
+     *   · IT WOULD COMPARE DIFFERENT ELECTORATES. A cycle with ten thousand voters and a
+     *     cycle with two hundred are not one scale; ranking the second against the first
+     *     measures how much the platform grew, not who was backed.
+     *
+     * The overall award is decided per cycle ({@see ResultRelease::overall()}), so the cycle
+     * is the widest scale on which every number being compared was collected under the same
+     * conditions. That is the scale.
+     *
+     * ══════════════════════════════════════════════════════════════════════════
+     * WHAT IT COSTS, MEASURED, BECAUSE IT IS NOT FREE
+     * ══════════════════════════════════════════════════════════════════════════
+     *
+     * In a category whose whole field is small against the edition, every community half is
+     * small — so the differences between its nominees are small too, and the 550 the panel
+     * carries decides that category almost on its own. On the fixture in
+     * `OverallWholeFieldTest`: the thin category's leader falls from 890 to 460, and the gap
+     * to the nominee below them narrows to a few points of community credit.
+     *
+     * That is a real change to what winning a small category means and it is the intended
+     * one: the community half measures public backing, and where there was little public
+     * backing it should pay little. A category with genuine depth is unaffected — it is
+     * measured against the edition's best, which is what "unaffected" has to mean once the
+     * figures are comparable at all.
+     *
+     * ── AND THE ONE REASON IT IS STILL A SETTING ────────────────────────────
+     *
+     * `community_scope = category` puts the denominator back where it was, for the same
+     * reason `community_basis` and `judge_scale` keep their older forms: results on this
+     * platform are published and printed onto physical awards, and a cycle that announced
+     * its standings has to be able to reproduce them to the digit. It is not offered as an
+     * alternative rule — the note above says why it is not one — and reproducing an old
+     * cycle means setting all three.
+     *
+     * @param  int    $cycleId       the edition. Zero where it cannot be resolved.
+     * @param  int    $forCategoryId the fallback scale, and the whole scale under
+     *                               `community_scope = category`.
+     * @param  string $scope         {@see CpiService::scope()}.
+     * @return array{max_votes:int, max_unique:int, scope:string, categories:int,
+     *               votes_by:?array{id:int,name:string,category_id:int,category_title:string},
+     *               unique_by:?array{id:int,name:string,category_id:int,category_title:string}}
+     */
+    public function editionScale(int $cycleId, int $forCategoryId = 0,
+                                 string $scope = CpiService::SCOPE_EDITION): array
+    {
+        $wide = CpiService::scope($scope) === CpiService::SCOPE_EDITION && $cycleId > 0;
+
+        $key = $wide ? 'cycle:' . $cycleId : 'category:' . $forCategoryId;
+        if (isset($this->scaleByEdition[$key])) return $this->scaleByEdition[$key];
+
+        $catIds = [];
+        if ($wide) {
+            try {
+                $catIds = array_map('intval', DB::table('gates_award_categories')
+                    ->where('cycle_id', $cycleId)->pluck('id')->all());
+            } catch (\Throwable $e) {
+                // A scale this cannot read must not stop a release. Falling back to the one
+                // category is the old behaviour, which is wrong in the way this method
+                // exists to fix and is not wrong in a way that crowns nobody.
+                error_log('[scoring] could not list the edition: ' . $e->getMessage());
+            }
+        }
+        if ($catIds === []) $catIds = array_values(array_filter([$forCategoryId]));
+
+        /** @var array<int,object> $field every nominee whose votes set the scale */
+        $field = [];
+        foreach ($catIds as $cid) {
+            foreach ($this->fieldIn($cid) as $n) $field[(int) $n->id] = $n;
+        }
+
+        $maxVotes = 0; $votesBy = null;
+        foreach ($field as $n) {
+            $v = (int) $n->vote_count;
+            // Strictly greater, so a tie leaves the FIRST holder named rather than the last.
+            // Arbitrary either way; stable is what makes the screen reproducible.
+            if ($v > $maxVotes) { $maxVotes = $v; $votesBy = $n; }
+        }
+
+        $reach     = VoterReach::forNominees(array_keys($field));
+        $maxUnique = 0; $uniqueBy = null;
+        foreach ($field as $id => $n) {
+            $u = (int) ($reach[$id] ?? 0);
+            if ($u > $maxUnique) { $maxUnique = $u; $uniqueBy = $n; }
+        }
+
+        // The scale-setter's CATEGORY, named. They are usually not in the category being
+        // drawn, so "measured against 1,955 votes — Ajayi's" leaves an operator hunting
+        // through the cycle for whose those are. One query for the two of them.
+        $titles = [];
+        $need = array_values(array_unique(array_filter([
+            (int) ($votesBy->category_id ?? 0), (int) ($uniqueBy->category_id ?? 0),
+        ])));
+        if ($need !== []) {
+            try {
+                foreach (DB::table('gates_award_categories')->whereIn('id', $need)
+                            ->get(['id', 'title']) as $c) {
+                    $titles[(int) $c->id] = (string) ($c->title ?? '');
+                }
+            } catch (\Throwable) {
+                // A missing title costs a sentence on one screen. It must not cost a score.
+            }
+        }
+
+        $who = static fn (?object $n): ?array => $n === null ? null : [
+            'id'             => (int) $n->id,
+            'name'           => (string) ($n->name ?? ''),
+            'category_id'    => (int) ($n->category_id ?? 0),
+            'category_title' => $titles[(int) ($n->category_id ?? 0)] ?? '',
+        ];
+
+        return $this->scaleByEdition[$key] = [
+            'max_votes'  => $maxVotes,
+            'max_unique' => $maxUnique,
+            'votes_by'   => $who($votesBy),
+            'unique_by'  => $who($uniqueBy),
+            // The scope in force, which is 'category' both where an operator asked for it
+            // and where the cycle could not be resolved at all. The second is a broken row
+            // rather than a configuration, and the left join above is what makes it rare.
+            'scope'      => $wide ? CpiService::SCOPE_EDITION : CpiService::SCOPE_CATEGORY,
+            'categories' => count($catIds),
+        ];
+    }
+
+    /**
+     * Every nominee in a category whose score counts. One definition, because the scorer
+     * and the scale both have to mean the same thing by it: a merge tombstone never scores,
+     * and a withdrawn or rejected entry is not in the cycle.
+     *
+     * @return list<object>
+     */
+    private function scoredIn(int $categoryId): array
+    {
+        $q = DB::table('gates_nominees')->where('category_id', $categoryId)
+            ->whereIn('status', ['approved', 'winner', 'runner_up']);
+        MergeService::notMerged($q);                       // merge tombstones never score
+
+        return $q->get()->all();
+    }
+
+    /**
+     * THE FIELD OF ONE CATEGORY — the people whose support sets the scale.
+     *
+     * The published shortlist where there is one, every scored nominee where there is not.
+     *
+     * ── WHY NOT THE ENTRY LIST ───────────────────────────────────────────────
+     *
+     * This used to be every scored nominee, with the shortlist applied afterwards — so
+     * somebody who could not win still decided what everybody else's support was worth, and
+     * the more popular they were the less everybody else's votes counted.
+     *
+     * The damage is not marginal, it is the community half of a whole final. Ten entrants,
+     * the popular one on 5,000 votes is not shortlisted, the three finalists hold 500, 400
+     * and 300. Their community shares came out at 0.10, 0.08 and 0.06 — a span of four
+     * points on a thousand-point index — so the judges decided the final on their own,
+     * silently, and only because of who had been left off the list.
+     *
+     * ── THE EMPTY-LIST FALLBACK, WHICH IS LOAD-BEARING ───────────────────────
+     *
+     * A published list naming nobody who still scores — every entry withdrawn, rejected or
+     * merged away since — must not be allowed to empty the cohort. An empty set contributes
+     * no maximum, and where it is the ONLY category the denominator floors to one and hands
+     * every nominee a full community half: not a category scored to zero, which somebody
+     * would notice, but a whole field scored identically at the top of the range, which
+     * reads like a close contest.
+     *
+     * Falling back to the entry list is the pre-shortlist behaviour. It is wrong in exactly
+     * the way this method is about, and it is wrong in a way that stays visible on the
+     * release screen rather than one that flatters everybody.
+     *
+     * @return list<object>
+     */
+    private function fieldIn(int $categoryId): array
+    {
+        $scored = $this->scoredIn($categoryId);
+        if ($scored === []) return [];
+
+        // Same resolver as the ballot, the audit and the release screen — `null` means this
+        // category does not shortlist, which changes nothing.
+        $listed = ResultRelease::shortlistedIn($categoryId);
+        if ($listed === null) return $scored;
+
+        $field = array_values(array_filter($scored,
+            static fn (object $n): bool => in_array((int) $n->id, $listed, true)));
+
+        return $field === [] ? $scored : $field;
     }
 
     /**

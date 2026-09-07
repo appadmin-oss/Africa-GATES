@@ -942,6 +942,15 @@ class SettingsController
                 // switch how every award in the system is decided.
                 'community_basis' => \AfricaGates\Services\CpiService::basis(
                     (string) ($b['community_basis'] ?? '')),
+                // The denominator's SCOPE, and it decides more than the basis does: per
+                // category, every category's leader takes the whole community half however
+                // small their field, and the overall standing then ranks those against each
+                // other. Normalised for the same reason — a stray string here would switch
+                // how every award in the system is scaled — and written here rather than
+                // left to a hand-edited JSON column, which on a host with no shell means
+                // not written at all.
+                'community_scope' => \AfricaGates\Services\CpiService::scope(
+                    (string) ($b['community_scope'] ?? '')),
                 // Clamped to the same range CpiService clamps to, so the form cannot show
                 // an operator a number the scorer will quietly refuse to use.
                 'community_curve' => max(0.1, min(6.0, (float) ($b['community_curve'] ?? 2.0))),

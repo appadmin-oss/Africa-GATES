@@ -73,12 +73,24 @@ final class PublicResults
      *   `held` (a HELD_* reason or null), `programme`, `cycle_year`, `edition`,
      *   `slug`, `url`, `released_at`.
      */
-    public static function category(int $categoryId): ?array
+    public static function category(int $categoryId, ?NomineeScoringService $scoring = null): ?array
     {
         $ctx = self::context($categoryId);
         if ($ctx === null) return null;
 
-        $drawn = ResultRelease::category($categoryId);
+        // ── PASS THE SCORER WHEN YOU ARE DRAWING MORE THAN ONE ───────────────
+        //
+        // The community denominator is the whole EDITION's maximum, so scoring one category
+        // reads every category in its cycle ({@see NomineeScoringService::editionScale()}).
+        // That work is memoised per cycle ON THE SCORER, and a caller that builds a fresh
+        // one per category therefore repeats a full-cycle pass for every card it draws —
+        // quadratic in the size of an edition, on a public page, with nothing to see but
+        // the page getting slower as a cycle grows.
+        //
+        // One scorer per LIST, not per row. Every loop over categories in this codebase
+        // shares one for that reason: {@see index()}, {@see ResultRelease::forCycle()},
+        // {@see \AfricaGates\Services\PulseFeedService::resultPayloads()}.
+        $drawn = ResultRelease::category($categoryId, $scoring);
         if ($drawn['category'] === null) return null;
 
         return $drawn + [
@@ -177,10 +189,15 @@ final class PublicResults
             return ['items' => [], 'held' => 0];
         }
 
+        // One scorer across the whole list — see the note on category(). It caches the
+        // edition scale per cycle, so a page listing sixty results reads each cycle once
+        // rather than once per award.
+        $scoring = new NomineeScoringService();
+
         $items = [];
         $held  = 0;
         foreach ($rows as $id) {
-            $c = self::category((int) $id);
+            $c = self::category((int) $id, $scoring);
             if ($c === null) continue;
             if ($c['held'] !== null) { $held++; continue; }
             $items[] = $c;

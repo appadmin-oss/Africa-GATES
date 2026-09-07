@@ -230,8 +230,10 @@ Full account in `docs/CODEBASE-INDEX.md` §16.
   already been published. See `src/Services/JudgeRubric.php` for the worked example.
 - **Money buys the tally, never the reach.** The community half is 450 points and it is
   split: **70% (315) is how many verified PEOPLE backed a nominee**, 30% (135) is the total
-  tally — bought, free and granted votes added together. Two nominees on 2,000 votes each,
-  one from a thousand supporters and one from two, score 450 and 136.
+  tally — bought, free and granted votes added together. Both are shares of the biggest
+  figure in the whole **edition**, never of the nominee's own category — see the denominator
+  bullet below, which is the half of this rule that decides the overall award. Two nominees
+  on 2,000 votes each, one from a thousand supporters and one from two, score 450 and 136.
   The 70% is counted by `VoterReach`, and the obvious implementation destroys it:
   `COUNT(DISTINCT voter_email_hash)` counts **rows**, and three of the five services that
   mint a vote write a *randomised synthetic* hash — `paidvote:<order>:<rand>`,
@@ -249,9 +251,20 @@ Full account in `docs/CODEBASE-INDEX.md` §16.
   cohort maximum of *zero* unique voters does not mean "nobody has support" — it means the
   vote **rows** are missing while the tallies are not (an import from before this platform
   held rows, a fixture, a purged cycle). Flooring that denominator to one instead pays the
-  whole field 30% of the community half; the order *within* a category survives, which is
-  what makes it dangerous, and the category is then ranked against full-scored ones to pick
-  an **overall** winner. Same shape as the two faults below it in this list.
+  whole field 30% of the community half; the order survives, which is what makes it
+  dangerous, and a cycle scored out of 135 still reads like one scored out of 450. Same
+  shape as the two faults below it in this list.
+  **That fallback is all-or-nothing for the whole edition now, and the gap it leaves is the
+  expensive half.** The denominator is the largest reach in the *cycle*, so it only fires
+  when not one nominee anywhere has a countable row. One category missing its rows keeps
+  the maximum above zero and its nominees score people = 0 — 315 of 450 gone, for a
+  data-migration reason, with every other figure on the line looking normal. Told apart
+  where it still can be, on the nominee: a tally above zero with **no rows at all** raises
+  `reach_unmeasured`, which the release screen states and `EditionScaleTest` pins. Zero
+  votes *and* zero rows is not it (that is a measurement), and rows that all belong to
+  nobody is not it either (a grant is nobody, a flagged row is nobody — both are verdicts).
+  The nominee is still scored strictly, the same way an unfinished panel is: understate,
+  and flag it.
 - **The judge half is the mark, and nothing else:** `550 × avg/10`. It was
   `((avg−5)/5)^1.5` — a floor at five and an exponent — which moved the number the judge
   wrote (8.0 paid 256 of 550, not 440), paid 5.0 and 4.0 identically, and could not be
@@ -260,26 +273,59 @@ Full account in `docs/CODEBASE-INDEX.md` §16.
 - **Both older forms survive as settings** (`community_basis` = `relative` | `absolute`,
   `judge_scale` = `curved`), per programme and per cycle through `RuleEngine`, so an
   announced standing stays reproducible to the digit. `CommunityBasisTest` pins that.
-  **Reach removed the depth discount, and that is a real cost across categories:** a
-  1,955-vote field leader and an 89-vote field leader both take the full 450, so the
-  *overall* award no longer prices how deep a field was. Recorded in
-  `OverallWholeFieldTest`, not hidden.
-- **The CPI's denominator is the FIELD, and exactly one thing computes it.** The community
-  half is `votes / cohortMax`, and `cohortMax` used to be the most-voted nominee in the
-  whole *entry list* — with the shortlist applied afterwards. So a popular nominee who had
-  been left off the list still decided what the finalists' votes were worth: three
-  finalists on 500, 400 and 300 behind a 5,000-vote non-finalist came out at 0.10, 0.08 and
-  0.06, four points apart on a thousand-point index, and the panel decided the final alone.
-  It is the published shortlist now, where a category shortlists. The **quorum deliberately
-  does not narrow it** — below quorum is pending, not out, and dropping an unjudged nominee
-  would move every published score in the category the moment their panel finished, then
-  hand it all back. And a published list naming nobody who still scores falls back to the
-  entry list, because an empty collection's `max()` is null and the floor would make the
-  denominator **one**, handing the whole field a full community half — a flattened field
-  reads like a close contest, where a zeroed one gets noticed. `ResultRelease` used to take
-  its own `max()` over the rows for the same figure; the two agreed only while both meant
-  "everybody who scored", and it is read from the scorer now. `ResultReleaseTest` holds the
-  identity rather than the value.
+  **Reproducing one now takes three settings, not two** — the denominator's scope moved
+  with them, and `community_scope` = `category` is what puts it back. Two of the three
+  reproduce the *shape* of an announced cycle and not its numbers, which is the worst of
+  the three outcomes: it looks like a reproduction. The scope applies to **every** basis
+  that has a denominator, and it is not offered as an alternative rule — a per-category
+  denominator is not a variant of the rule, it is the fault. `EditionScaleTest` holds it.
+- **The CPI's denominator is the whole EDITION's field, and exactly one thing computes it.**
+  `NomineeScoringService::editionScale()`, once per cycle, memoised. Both community terms —
+  the 315 and the 135 — are shares of the largest figure held by any nominee in the *cycle*,
+  not in the nominee's own category.
+  **Per category it was cheating, and the word is the operator's.** Every category was
+  normalised to its own leader, so *every* category's leader took the full 450: a 1,955-vote
+  leader and an 89-vote leader, paid identically. Inside a category neither figure is wrong;
+  `ResultRelease::overall()` then adds them into one column to rank the cycle, and the
+  second is being paid for a field rather than for support.
+  **The objection to the wider scale is real and is accepted, not answered.** A category
+  with little public backing now contributes little community credit to anybody in it, so
+  its nominees reach the overall standing on their 550 and not much else. The two rules
+  cannot both hold; this is the one under which a share means the same thing wherever it is
+  printed. `OverallWholeFieldTest` and `OverallWinnerTest` assert the numbers on both sides.
+  **The scale is the cycle, never the programme's whole history** — a programme spans years,
+  and a max across them would re-scale an announced standing whenever a later edition drew a
+  bigger tally, and would rank two different electorates against each other.
+  **And it is the FIELD of each category, not the entry list.** `cohortMax` used to be the
+  most-voted nominee in the whole entry list, with the shortlist applied afterwards, so a
+  popular nominee left off the list still decided what the finalists' votes were worth:
+  three finalists on 500, 400 and 300 behind a 5,000-vote non-finalist came out at 0.10,
+  0.08 and 0.06, four points apart on a thousand-point index, and the panel decided the
+  final alone. It is the published shortlist now, where a category shortlists — and a
+  non-finalist must not set the scale for the *other* categories either. The **quorum
+  deliberately does not narrow it** — below quorum is pending, not out, and dropping an
+  unjudged nominee would move every published score the moment their panel finished, then
+  hand it all back. A published list naming nobody who still scores falls back to the entry
+  list, because an empty field contributes no maximum and the floor would make the
+  denominator **one**, handing everybody a full community half — a flattened field reads
+  like a close contest, where a zeroed one gets noticed.
+  **Resolve the cycle from the CATEGORY, not through a join.** `gates_award_cycles` is
+  missing more often than it looks (an import, a fixture, a cycle deleted after release),
+  and an inner join there silently collapses the scale back to the one category — the fault
+  itself, reappearing with nothing on any screen to name it. `EditionScaleTest` pins it.
+  **Drawing one category now reads a whole cycle**, so any loop over categories must share
+  one `NomineeScoringService` — the memo lives on the instance, and a fresh one per row
+  makes a public list quadratic in the size of its edition with nothing to see but a page
+  that gets slower as the cycle grows. `PublicResults::index()`, `PulseFeedService` and
+  `ResultRelease::forCycle()` all pass one through; `EditionScaleTest` counts the queries
+  and sweeps `src/` for a loop that does not.
+  **And the scale-setter is usually on another page.** Every screen that explained a
+  community half used to find the denominator by scanning its own rows for whoever held it;
+  edition-wide that scan finds nobody and reports the scale as unset beside percentages that
+  plainly came from somewhere. `cohort_max_by` names them, with their category, from the one
+  pass that computed the number. `ResultRelease` used to take its own `max()` for the same
+  figure; the two agreed only while both meant "everybody who scored". `ResultReleaseTest`
+  holds the identity rather than the value.
 - **The sandbox must never reach the public.** `DemoSeeder` creates real rows with real
   flags, because the sandbox exists to be walked through for real. Every public reader has
   to exclude them — `JudgeService::realJudges()` is the pattern.

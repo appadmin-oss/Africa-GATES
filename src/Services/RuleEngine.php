@@ -73,7 +73,17 @@ class RuleEngine
         // `judge_scale` is LINEAR: the panel's mark, straight, out of ten. `curved` is the
         // old rebased-and-raised form, kept for the same reason. `judge_floor` and
         // `judge_curve` below are read ONLY by `curved` and are inert under `linear`.
+        //
+        // `community_scope` is EDITION: both community terms are shares of the largest
+        // figure in the CYCLE, not in the nominee's own category. Per category, every
+        // category's leader took the whole community half however small their field —
+        // 1,955 votes and 89 votes paid identically — and `ResultRelease::overall()` then
+        // ranked those figures against each other. `category` is that older scope, kept
+        // for the same reason the older bases are: an announced standing has to stay
+        // reproducible to the digit. It applies to EVERY basis that has a denominator, so
+        // reproducing an old cycle means setting the basis, the judge scale AND this.
         'community_basis' => CpiService::BASIS_REACH,
+        'community_scope' => CpiService::SCOPE_EDITION,
         'judge_scale'     => CpiService::SCALE_LINEAR,
         'judge_floor'     => 5.0,
         'judge_curve'     => 1.5,

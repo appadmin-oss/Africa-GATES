@@ -241,7 +241,13 @@
                   whole field and singles out nobody. Said once, in the method note. -#}
               <p class="rs-why">{{ row.vote_count|number_format }} vote{{ row.vote_count == 1 ? '' : 's' }} cast{% if not r.paid_only and row.vote_count != row.organic %},
                  {{ row.organic|number_format }} of them organic{% endif %} ·
-                 {{ row.community_share }}% of this category’s highest{% if row.judge_score is not null %} ·
+                 {#- BOTH TERMS OF THE COMMUNITY HALF, because 70% of it is the first one
+                     and this page showed only the second. A nominee is owed the working of
+                     their own score, and "share of the highest tally" describes 135 of the
+                     450 while reading like all of it. -#}
+                 {% if r.community_basis == 'reach' and r.cohort_max_unique > 0 %}{{ row.unique_voters|number_format }}
+                 backer{{ row.unique_voters == 1 ? '' : 's' }} ·
+                 {% endif %}{{ row.community_share }}% of the cycle’s highest tally{% if row.judge_score is not null %} ·
                  panel {{ row.judge_score|number_format(1) }}/10 from {{ row.judges }}
                  judge{{ row.judges == 1 ? '' : 's' }}{% endif %}{% if row.provisional %} · provisional{% endif %}</p>
             {% endif %}
@@ -285,10 +291,16 @@
           <div class="rs-cell"><dt>Of those, organic</dt>
             <dd>{{ r.votes.organic|number_format }}</dd></div>
         {% endif %}
+        {# The denominator is the largest tally in the whole EDITION, so a reader checking
+           this figure against the nominees listed on this page will not find it there
+           unless the scale-setter happens to be in this category. Saying "in <category>"
+           is the difference between a number somebody can verify and a number that looks
+           invented. #}
         <div class="rs-cell"><dt>Community denominator</dt>
           <dd>{% if r.cohort_max > 0 %}{{ r.cohort_max|number_format }} votes{% else %}—{% endif %}</dd></div>
         <div class="rs-cell"><dt>Scale set by</dt>
-          <dd>{{ r.scale_set_by ?: '—' }}</dd></div>
+          <dd>{% if r.scale_set_by %}{{ r.scale_set_by }}{% if r.scale_category and not r.scale_in_category %},
+            {{ r.scale_category }}{% endif %}{% else %}—{% endif %}</dd></div>
       </dl>
 
       {#
@@ -356,7 +368,7 @@
       #}
       <p class="rs-note"><strong>Buying votes does help.</strong> There is no ceiling on how
         many a campaign may buy, and no discount on what they are worth, so a well-funded
-        nominee can hold the largest community share in their category. What money does not
+        nominee can hold the largest community share in the cycle. What money does not
         reach is the judging {{ jpct }}%: the panel scores against a published rubric and
         never sees a vote count, a contribution, or who paid for what. And it does not hide
         — this page prints every nominee’s tally beside how much of it was bought.
@@ -368,15 +380,40 @@
         points on its own. Stating the figure without saying what it does leaves a reader
         exactly where they started.
       #}
-      <p class="rs-note">A nominee’s community half is their votes as a share of the
-        most-supported nominee in this category — so the leader’s share is the full
-        {{ cpct }}%, and everybody else is measured against them rather than against the
-        total cast. <strong>That share is curved, not proportional</strong>: half the
-        leader’s support is worth a quarter of the weight, not half of it. The judges’ half
-        is curved the same way and starts from the mark below which a panel awards nothing.
-        Both are deliberate — an index everybody clears measures nothing, and a score near
-        the top of this scale should be rare.
-        {% if r.shortlisted is not null %}The field is this category’s published shortlist.{% endif %}</p>
+      {#
+        AND THIS PARAGRAPH HAS TO MATCH THE RULE THAT PRODUCED THE NUMBERS ABOVE IT.
+
+        It described a curved share of the category leader and a curved judge half starting
+        from a floor — the rules as they were, on a page printing figures produced by rules
+        as they are. A public methodology note that a reader cannot reconcile with the
+        numbers beside it is worse than none: it is the page somebody screenshots.
+
+        Branched on the basis rather than rewritten, because the older forms are still
+        reachable per cycle and an announced cycle has to keep explaining itself correctly.
+      #}
+      {% if r.community_basis == 'reach' %}
+        <p class="rs-note">A nominee’s community half is <strong>two counts, not one</strong>.
+          Seventy per cent of it is <strong>how many verified people</strong> backed them,
+          measured against the most any nominee in this cycle has; the other thirty per cent
+          is their <strong>total votes</strong>, against the largest total in the cycle. Both
+          are shares of the whole cycle rather than of this category, so a number here means
+          the same thing in every category — which is what makes the overall standing an
+          addition of like with like, and what stops leading a small field paying the same
+          as leading a large one. One supporter is one supporter however many separate
+          orders they placed, and a vote the platform granted counts toward the total and
+          toward nobody’s backing. The judges’ half is the mark itself: {{ jpct }}% × the
+          panel average out of ten, with no floor and no curve.
+          {% if r.shortlisted is not null %}The field is each category’s published
+          shortlist.{% endif %}</p>
+      {% else %}
+        <p class="rs-note">A nominee’s community half is their votes as a share of the
+          most-supported nominee in the cycle — so the leader’s share is the full
+          {{ cpct }}%, and everybody else is measured against them rather than against the
+          total cast. <strong>That share is curved, not proportional</strong>: half the
+          leader’s support is worth a quarter of the weight, not half of it.
+          {% if r.shortlisted is not null %}The field is each category’s published
+          shortlist.{% endif %}</p>
+      {% endif %}
     </section>
 
     {# ── share ────────────────────────────────────────────────────────── #}

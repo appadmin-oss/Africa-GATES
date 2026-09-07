@@ -213,6 +213,11 @@ final class PulseFeedService
     {
         $out = [];
 
+        // One scorer across the whole feed. Drawing a result now reads every category in
+        // its cycle — the community denominator is the edition's maximum — and that pass is
+        // memoised on the scorer, so a fresh one per card would repeat it per card.
+        $scoring = new NomineeScoringService();
+
         foreach ($rows as $r) {
             $slug = (string) ($r['slug'] ?? '');
             if (!str_starts_with($slug, ResultThread::SLUG)) continue;
@@ -221,7 +226,7 @@ final class PulseFeedService
             if ($catId < 1) continue;
 
             try {
-                $res = PublicResults::category($catId);
+                $res = PublicResults::category($catId, $scoring);
             } catch (\Throwable) {
                 continue;
             }

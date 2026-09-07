@@ -80,10 +80,18 @@ final class ResultRelease
     {
         $cat = DB::table('gates_award_categories')->where('id', $categoryId)->first();
 
+        // ── THE CYCLE COMES FROM THE CATEGORY, NOT FROM THE JOIN ─────────────
+        //
+        // A LEFT join, and `c.cycle_id` rather than `cy.id`, because the edition is now the
+        // scale every community half is measured against and a missing `gates_award_cycles`
+        // row must not silently collapse it back to this one category. That row is absent
+        // more often than it looks: an import that carried categories and nominees, a
+        // fixture, a cycle deleted after release. The category has always known which
+        // edition it belongs to — the join was only ever there for the programme id.
         $ctx = DB::table('gates_award_categories as c')
-            ->join('gates_award_cycles as cy', 'cy.id', '=', 'c.cycle_id')
+            ->leftJoin('gates_award_cycles as cy', 'cy.id', '=', 'c.cycle_id')
             ->where('c.id', $categoryId)
-            ->select('cy.id as cycle_id', 'cy.programme_id')->first();
+            ->select('c.cycle_id as cycle_id', 'cy.programme_id')->first();
 
         $rules   = new RuleEngine();
         $weights = $rules->weights($ctx->programme_id ?? null, $ctx->cycle_id ?? null);
@@ -103,6 +111,10 @@ final class ResultRelease
         // discount is invisible and the page looks like it has miscounted.
         $fullCredit = (int) ($eff['community_full_credit_votes']
                              ?? RuleEngine::DEFAULTS['community_full_credit_votes']);
+        // Normalised through CpiService for the same reason the scorer does it: an
+        // unrecognised value has to fall back to the same behaviour in both places, or the
+        // screen explains a number the scorer did not produce.
+        $cBasis = CpiService::basis($eff['community_basis'] ?? null);
 
         $empty = ['category' => $cat, 'quorum' => $quorum, 'weights' => $weights,
                   'paid_only' => PaidVoteService::freeVotingDisabled(),
@@ -111,6 +123,10 @@ final class ResultRelease
                   'margin' => null, 'dead_heat' => false, 'tie_broken_by_votes' => false,
                   'blocked' => null,
                   'cohort_max' => 0, 'scale_set_by' => null, 'scale_set_by_id' => 0,
+                  'scale_in_category' => false, 'scale_category_id' => 0,
+                  'scale_category' => '', 'cohort_scope' => 'edition',
+                  'cohort_max_unique' => 0, 'cohort_max_unique_by' => null,
+                  'community_basis' => $cBasis, 'reach_unmeasured' => 0,
                   'scale_is_out' => false, 'community_dark' => false];
 
         $scores = ($scoring ?? new NomineeScoringService())->scoreCategory($categoryId);
@@ -196,6 +212,13 @@ final class ResultRelease
                 'judges'      => (int) ($s['judges'] ?? 0),
                 'eligible'    => !empty($s['eligible']),
                 'provisional' => !empty($s['provisional']),
+                // TRUE where this nominee's tally has no vote rows behind it, so the 70%
+                // of the community half that counts PEOPLE scored zero for them. Carried
+                // onto the row and not only counted per category, because the caveat says
+                // how many and this says which — and during an appeal it is the second
+                // question that gets asked.
+                'reach_unmeasured' => !empty($s['reach_unmeasured']),
+                'unique_voters'    => (int) ($s['unique_voters'] ?? 0),
                 'on_shortlist' => $shortlisted === null ? null : in_array((int) $nid, $shortlisted, true),
                 'out_reason'  => $out,
                 'in_running'  => $out === null,
@@ -235,13 +258,46 @@ final class ResultRelease
         // The scale-setter is then simply whoever HOLDS that denominator. Null where nobody
         // does, which is the all-zero category: the scorer floors the denominator at 1 so
         // nothing divides by nought, and no nominee has one vote.
-        $cohortMax = 0;
-        foreach ($scores as $s) { $cohortMax = max(1, (int) ($s['cohort_max'] ?? 1)); break; }
-
-        $scale = null;
-        foreach ($rows as $r) {
-            if ($r['votes'] === $cohortMax) { $scale = $r; break; }
+        $cohortMax = 0; $setter = null; $scope = 'edition'; $maxUnique = 0; $uniqueBy = null;
+        foreach ($scores as $s) {
+            $cohortMax = max(1, (int) ($s['cohort_max'] ?? 1));
+            $setter    = $s['cohort_max_by'] ?? null;
+            $scope     = (string) ($s['cohort_scope'] ?? 'edition');
+            // The REACH denominator, which decides 70% of the community half and had no
+            // reader outside the scorer at all. A page that publishes the working of a
+            // score has to publish the bigger of its two terms.
+            $maxUnique = (int) ($s['cohort_max_unique'] ?? 0);
+            $uniqueBy  = $s['cohort_max_unique_by'] ?? null;
+            break;
         }
+
+        // ── AND THEY ARE USUALLY NOT ON THIS PAGE ────────────────────────────
+        //
+        // The denominator is the whole edition's maximum now, so the nominee who holds it
+        // is in some OTHER category more often than not. This block used to scan this
+        // category's own rows for a nominee whose tally equalled the denominator — which,
+        // once the scale left the category, finds nobody and reports the scale as unset:
+        // "Scale set by —" beside a number that plainly came from somewhere.
+        //
+        // So the holder is named by the pass that computed the number, and matched here
+        // only to find out whether they happen to be on this page.
+        $scaleHere = $setter !== null && (int) $setter['category_id'] === $categoryId;
+        $scaleRow  = null;
+        if ($scaleHere) {
+            foreach ($rows as $r) {
+                if ($r['nominee_id'] === (int) $setter['id']) { $scaleRow = $r; break; }
+            }
+        }
+
+        // ── A NOMINEE WHOSE SUPPORT COULD NOT BE COUNTED IN PEOPLE ───────────
+        //
+        // Seventy per cent of the community half is reach, and reach is counted from vote
+        // ROWS. A nominee whose tally says there is support while `gates_votes` holds no
+        // row for them scores zero on that term — correctly, because nothing has been
+        // measured, and invisibly, because every other number on their line looks normal.
+        // The scorer raises the flag; this is the count an operator needs to see it.
+        $unmeasured = 0;
+        foreach ($scores as $s) if (!empty($s['reach_unmeasured'])) $unmeasured++;
 
         // ── THE COMMUNITY HALF IS SWITCHED OFF FOR THIS WHOLE CATEGORY ───────
         //
@@ -281,9 +337,30 @@ final class ResultRelease
             'community_dark' => $dark,
             'shortlisted' => $shortlisted,
             'rows'        => $rows,
-            'cohort_max'     => $scale !== null ? $cohortMax : 0,
-            'scale_set_by'   => $scale['name'] ?? null,
-            'scale_set_by_id' => (int) ($scale['nominee_id'] ?? 0),
+            'cohort_max'     => $setter !== null ? $cohortMax : 0,
+            'scale_set_by'   => $setter['name'] ?? null,
+            'scale_set_by_id' => (int) ($setter['id'] ?? 0),
+            // Whether the scale-setter is one of the rows below. False is the normal case
+            // once the scale is the edition, and a screen that does not distinguish the two
+            // will point at a nominee who is not there.
+            'scale_in_category' => $scaleHere,
+            'scale_category_id' => (int) ($setter['category_id'] ?? 0),
+            'scale_category'    => (string) ($setter['category_title'] ?? ''),
+            // 'edition' normally; 'category' only where the cycle could not be resolved.
+            'cohort_scope'      => $scope,
+            // Zero means reach could not be measured ANYWHERE in the edition, in which
+            // case the tally took the whole community half — a different statement from
+            // "nobody has any backers", and one the screen has to be able to make.
+            'cohort_max_unique'    => $maxUnique,
+            'cohort_max_unique_by' => $uniqueBy,
+            // Which basis produced these numbers. On the drawn result because the screen
+            // has to explain a figure differently depending on it — the depth discount
+            // exists under `relative` and does not exist at all under the default — and a
+            // template working it out from a setting would be a second reader of the one
+            // fact that decides how the community half is computed.
+            'community_basis'   => $cBasis,
+            // How many nominees here have a tally with no vote rows behind it.
+            'reach_unmeasured'  => $unmeasured,
             // Out of the running AND holding somebody else down. A category whose only
             // nominee is below the quorum has a scale-setter who is technically "out",
             // and warning about it there is a warning about nobody — which teaches an
@@ -294,7 +371,7 @@ final class ResultRelease
             // what remains is the case the quorum leaves open on purpose — a nominee who
             // is in the field and whose panel has not finished. Below quorum is pending
             // rather than out, so they keep the scale, and the screen says whose it is.
-            'scale_is_out'   => $scale !== null && !$scale['in_running'] && $running !== [],
+            'scale_is_out'   => $scaleRow !== null && !$scaleRow['in_running'] && $running !== [],
             // ── WAS THERE A FREE VOTE TO HAVE? ───────────────────────────────
             //
             // Every surface that prints an organic count frames it as the part of a tally
@@ -502,34 +579,36 @@ final class ResultRelease
      * this method must never make.
      *
      * ══════════════════════════════════════════════════════════════════════════
-     * AND THE THING THIS CANNOT FIX, WHICH IS WHY IT REPORTS IT
+     * WHY THE FIGURES IN THIS COLUMN ARE COMPARABLE AT ALL
      * ══════════════════════════════════════════════════════════════════════════
      *
-     * A CPI is only half comparable across categories, and this list is the one place that
-     * matters. The judge half is absolute — six out of ten is six out of ten in any field.
-     * The community half under the default basis is a SHARE OF A NOMINEE'S OWN COHORT, so
-     * leading a three-person category on fifty votes is a full community half and coming a
-     * close second in a fifty-thousand-vote category is not.
+     * They were not, and this note used to explain at length why they could not be. The
+     * judge half is absolute — six out of ten is six out of ten in any field — but the
+     * community half was a SHARE OF A NOMINEE'S OWN CATEGORY, so leading a three-person
+     * category on fifty votes was a full community half and coming a close second in a
+     * fifty-thousand-vote category was not. Ranking the whole field made that bias more
+     * visible rather than less: a 19-vote category leader in the same column as a 161-vote
+     * nominee who was eight per cent of a large field, the first out-scoring the second.
      *
-     * Ranking the whole field makes that bias MORE visible, not less: it puts a 19-vote
-     * category leader in the same column as a 161-vote nominee who was eight per cent of a
-     * large field, and the first out-scores the second. {@see CpiService::basis()} is the
-     * setting that closes it, defaulted off because results are published and printed.
+     * The community denominator is the whole EDITION now
+     * ({@see NomineeScoringService::editionScale()}), so a share means the same thing
+     * wherever it is printed and this list is an addition of like with like.
      *
-     * There is no neutral denominator available. Normalising across the whole cycle just
-     * inverts the bias — the award goes to whoever stands in the most popular category and
-     * a niche field could never win it. Ranking on the judge half alone throws away the
-     * community half entirely, on a platform whose thesis is that both count. Every option
-     * here is a position, not a calculation.
+     * ── AND THE OBJECTION TO THAT, WHICH IS ACCEPTED RATHER THAN ANSWERED ────
      *
-     * So this uses the same CPI and the same comparator — no second score invented,
-     * nothing recomputed — and hands back the figures that make the bias visible rather
-     * than leaving it to be found during a challenge: how big each contender's field was,
-     * and how many votes their cohort's leader had. An operator who can see that the top
-     * CPI came out of a three-person category can decide what to do about it. One who
-     * cannot see it will publish it and find out afterwards.
+     * This note used to argue that normalising across the cycle "just inverts the bias —
+     * the award goes to whoever stands in the most popular category and a niche field could
+     * never win it". That is still true and it is now the deliberate position: a category
+     * with little public backing contributes little community credit, so its nominees reach
+     * this column on their panel mark and not much else. The alternative was letting a
+     * small field buy a full community half, and only one of the two can hold at once.
      *
-     * `field` is the number of nominees who were in the running in that category.
+     * So this uses the same CPI and the same comparator — no second score invented, nothing
+     * recomputed — and still hands back the figures for the bias that REMAINS, which is
+     * about how many people somebody beat rather than how much support they had: `field` is
+     * the number of nominees who were in the running in that category, and `cohort_max` is
+     * the edition's denominator. An operator who can see that the top CPI came out of a
+     * three-person category can decide what to do about it.
      *
      * @return array{
      *   winner: ?array<string,mixed>, runner_up: ?array<string,mixed>,
