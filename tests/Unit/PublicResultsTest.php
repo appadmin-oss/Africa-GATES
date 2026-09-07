@@ -1023,4 +1023,55 @@ final class PublicResultsTest extends TestCase
             'nothing on the page says why that nominee has no count beside their name');
     }
 
+    /**
+     * THE PUBLIC PAGE SHOWS THE MARK AT THE PRECISION THAT DECIDES IT.
+     *
+     * The scorer keeps a panel average to two places and pays the judge half from that.
+     * This page printed one, so a nominee scored on 7.92 was published as "7.9" beside
+     * points derived from 7.92 — and two nominees a hundredth apart read as identical marks
+     * with different halves. This is the page a nominee is sent to when they ask how their
+     * score was reached, so an input that cannot explain the output beside it is the one
+     * thing it must not print.
+     */
+    public function test_the_public_page_shows_the_panel_mark_precisely(): void
+    {
+        $crit = [];
+        foreach (JudgeRubric::effective($this->programmeId) as $c) {
+            if ((int) $c->is_active === 1) $crit[] = (int) $c->id;
+        }
+        $this->assertGreaterThanOrEqual(2, count($crit));
+
+        $n = $this->nominee('Ifeoma Chukwu', 400);
+        // One judge marks everything 8; the other drops a single criterion to 7, which puts
+        // the panel average off a tenth on any rubric — the case one decimal collapses.
+        foreach ([false, true] as $k => $drop) {
+            $j = (int) DB::table('gates_judges')->insertGetId([
+                'name' => 'Precision judge ' . $k, 'is_active' => 1,
+                'email' => 'pj' . $k . '@example.test',
+                'programme_ids' => json_encode([$this->programmeId]),
+            ]);
+            foreach ($crit as $i => $cid) {
+                DB::table('gates_judge_criteria_scores')->insert([
+                    'judge_id' => $j, 'nominee_id' => $n, 'category_id' => $this->categoryId,
+                    'criterion_id' => $cid, 'score' => ($drop && $i === 0) ? 7 : 8,
+                    'created_at' => '2026-11-01 09:00:00', 'updated_at' => '2026-11-01 09:00:00',
+                ]);
+            }
+        }
+
+        $r   = PublicResults::category($this->categoryId);
+        $row = null;
+        foreach ($r['rows'] as $x) if ($x['name'] === 'Ifeoma Chukwu') $row = $x;
+        $this->assertNotNull($row);
+        $this->assertSame(2, (int) $row['judges'],
+            'a scorecard was dropped, so this is no longer a two-judge panel');
+
+        $mark = (float) $row['judge_score'];
+        $this->assertNotSame(round($mark, 1), $mark,
+            'the fixture no longer produces a mark whose second decimal one place hides');
+
+        $this->assertStringContainsString(round($mark, 2) . '/10', $this->renderShow($r),
+            'the public page prints a panel mark that cannot explain the points beside it');
+    }
+
 }

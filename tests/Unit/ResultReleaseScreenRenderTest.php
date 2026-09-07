@@ -541,6 +541,100 @@ final class ResultReleaseScreenRenderTest extends TestCase
     }
 
     /**
+     * THE PANEL MARK IS SHOWN AT THE PRECISION THAT DECIDES IT.
+     *
+     * ══════════════════════════════════════════════════════════════════════════
+     * TWO NOMINEES, THE SAME MARK ON SCREEN, DIFFERENT JUDGE HALVES
+     * ══════════════════════════════════════════════════════════════════════════
+     *
+     *     419   7.6/10 from 2 judges
+     *     420   7.6/10 from 2 judges
+     *
+     * The scorer keeps the panel average to TWO places and pays the judge half from that;
+     * this screen printed ONE. A panel that averages 7.625 is stored as 7.63 and paid as
+     * 7.63, and was drawn as "7.6" — an input that cannot explain the output beside it, on
+     * the page whose whole job is showing how a number was reached.
+     *
+     * One judge marking every criterion 8 and another dropping a single criterion to 7 is
+     * the smallest way to land the panel average off a tenth on any rubric — which is the
+     * one case a single decimal collapses.
+     */
+    public function test_the_panel_mark_is_drawn_precisely_enough_to_explain_its_points(): void
+    {
+        // The EFFECTIVE rubric, exactly as scoreAll() and the scorer resolve it. Reading
+        // `gates_judge_criteria` directly returns rows the programme's set does not use, so
+        // a card written against those ids is INCOMPLETE and dropped whole — the panel comes
+        // out as one judge and the fixture silently stops being about two.
+        $ids = [];
+        foreach (JudgeRubric::effective($this->programmeId) as $c) {
+            if ((int) $c->is_active === 1) $ids[] = (int) $c->id;
+        }
+        $this->assertGreaterThanOrEqual(2, count($ids), 'the rubric is too small to differ');
+
+        // One judge marks every criterion 8; the other drops a single criterion to 7. On
+        // any rubric of two or more that lands the panel average off a tenth, which is the
+        // whole case one decimal collapses. Derived rather than hardcoded so a change to
+        // the shipped rubric moves the number instead of breaking the test's premise.
+        $n  = $this->nominee('Grace Abiodun', 400);
+        $j1 = $this->judge('Ada Obi');
+        $j2 = $this->judge('Tunde Cole');
+        foreach ([[$j1, false], [$j2, true]] as [$j, $drop]) {
+            foreach ($ids as $i => $cid) {
+                DB::table('gates_judge_criteria_scores')->insert([
+                    'judge_id' => $j, 'nominee_id' => $n, 'category_id' => $this->categoryId,
+                    'criterion_id' => $cid, 'score' => ($drop && $i === 0) ? 7 : 8,
+                    'created_at' => '2026-11-01 09:00:00', 'updated_at' => '2026-11-01 09:00:00',
+                ]);
+            }
+        }
+
+        $row  = ResultRelease::category($this->categoryId)['rows'][0];
+        $mark = (float) $row['judge_score'];
+
+        $this->assertSame(2, (int) $row['judges'],
+            'one of the two scorecards was dropped, so this is no longer a two-judge panel');
+
+        $this->assertNotSame(round($mark, 1), $mark,
+            'the fixture no longer produces a mark whose second decimal a single place '
+            . 'would hide, so this test measures nothing');
+
+        $html = (string) preg_replace('~\s+~', ' ', $this->render());
+
+        $this->assertStringContainsString(round($mark, 2) . '/10', $html,
+            'the panel mark is drawn at a precision that cannot explain the judge half '
+            . 'printed beside it, so two nominees can read as the same mark and be paid '
+            . 'differently');
+    }
+
+    /**
+     * AND THE ±1 THAT SURVIVES SHOWING THE MARK PRECISELY IS EXPLAINED ON THE PAGE.
+     *
+     * Even at full precision, two nominees on the SAME panel mark can show judge halves a
+     * point apart: {@see \AfricaGates\Services\CpiService::split()} rounds the index once
+     * and the community half separately, and prints the judge half as the remainder — so
+     * the judge column absorbs the difference. That is deliberate, because the alternative
+     * is two halves that do not add up to the figure beside them, which defeats the only
+     * reason to publish the working.
+     *
+     * Deliberate and invisible is how a correct number comes to look like a miscount on the
+     * screen an award is signed off from. So the page says it.
+     */
+    public function test_the_page_says_the_judge_half_carries_the_rounding(): void
+    {
+        $j1 = $this->judge('Ada Obi');
+        $j2 = $this->judge('Tunde Cole');
+        $n  = $this->nominee('Grace Abiodun', 400);
+        $this->scoreAll($j1, $n, 8); $this->scoreAll($j2, $n, 8);
+
+        $html = (string) preg_replace('~\s+~', ' ', $this->render());
+
+        $this->assertStringContainsString('judge</em> half carries the rounding', $html,
+            'two nominees on one panel mark can show judge halves a point apart and the '
+            . 'screen offers no reason, which reads as arithmetic nobody can trust');
+        $this->assertStringContainsString('add to the index exactly', $html);
+    }
+
+    /**
      * The rule marks WHERE THE AWARD FALLS, so it may only be drawn with a row below it.
      *
      * Applied to rank 2 unconditionally, it put a heavy line under the last row of every

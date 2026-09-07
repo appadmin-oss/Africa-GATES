@@ -257,7 +257,10 @@
                    {% else %}{{ row.unique_voters|number_format }} backer{{ row.unique_voters == 1 ? '' : 's' }} ·
                    {% endif %}
                  {% endif %}{{ row.community_share }}% of the cycle’s highest tally{% if row.judge_score is not null %} ·
-                 panel {{ row.judge_score|number_format(1) }}/10 from {{ row.judges }}
+                 {#- Two decimals: the scorer keeps the average to two places and pays the
+                     judge half from that, so one decimal shows a mark that cannot explain
+                     the points printed beside it. -#}
+                 panel {{ row.judge_score|round(2) }}/10 from {{ row.judges }}
                  judge{{ row.judges == 1 ? '' : 's' }}{% endif %}{% if row.provisional %} · provisional{% endif %}</p>
             {% endif %}
           </div>

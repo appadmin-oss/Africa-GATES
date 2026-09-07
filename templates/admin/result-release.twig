@@ -652,7 +652,18 @@
                 {%- if r.provisional %}
                   <span class="ja-den">judge half not counted</span>
                 {%- elseif r.judge_score is not null %}
-                  <span class="ja-den">{{ r.judge_score|round(1) }}/10 from
+                  {#
+                    TWO DECIMALS, BECAUSE ONE CANNOT EXPLAIN THE NUMBER ABOVE IT.
+
+                    The scorer keeps the panel average to two places and computes the judge
+                    half from that. This printed ONE — so 7.62 and 7.63 both read "7.6"
+                    while paying 419 and 420, and the screen showed two nominees with
+                    apparently identical marks and different judge halves, on the page whose
+                    whole job is showing how a number was reached. `round(2)` rather than a
+                    fixed format so a clean 7.5 still reads 7.5 and only a mark that needs
+                    the second place carries one.
+                  #}
+                  <span class="ja-den">{{ r.judge_score|round(2) }}/10 from
                     {{ r.judges }} judge{{ r.judges == 1 ? '' : 's' }}</span>
                 {%- endif %}
                 {%- if r.judges < c.quorum %}
@@ -730,7 +741,22 @@
 
   <p class="ja-den" style="margin-top:16px">&ldquo;Index&rdquo; is the Cultural Power
     Index: the community half and the judge half, weighted as shown on each category and
-    scaled to 1000.</p>
+    scaled to 1000.<br>
+    {#
+      AND THE ±1 THAT SURVIVES SHOWING THE MARK PRECISELY.
+
+      The index rounds the SUM once and the community half rounds separately, so the judge
+      half — printed as the remainder — absorbs the difference. Two nominees on the same
+      panel mark can therefore show judge halves a point apart. That is deliberate: the
+      alternative is two independently rounded halves that do not add up to the figure
+      printed beside them, which defeats the only reason to publish the working. Said here
+      because otherwise it reads as a miscalculation on the screen an award is signed off
+      from. {@see CpiService::split()}
+    #}
+    The two halves always add to the index exactly, so the <em>judge</em> half carries the
+    rounding &mdash; which is why two nominees on the same panel mark can show judge halves
+    one point apart. Nothing has been miscounted; the alternative is halves that do not add
+    up to the number beside them.</p>
   <p class="ja-caveat">A provisional figure is not a Cultural Power Index. Where the judge
     quorum has not been met the judge half is scored as absent rather than renormalised
     away &mdash; the conservative direction, because renormalising would put an unjudged
