@@ -158,7 +158,7 @@ final class RecurringGiving
             'subscription_code' => trim($subscriptionCode),
             'email_token'       => trim($emailToken),
             'customer_code'     => trim($customerCode),
-            'next_charge_at'    => $nextChargeAt !== '' ? $nextChargeAt : null,
+            'next_charge_at'    => self::stamp($nextChargeAt),
         ]);
 
         return true;
@@ -208,7 +208,10 @@ final class RecurringGiving
         // Already recorded — a retry, or the same delivery twice.
         if (DB::table('gates_donations')->where('payment_ref', $ref)->exists()) return 0;
 
-        $now = $when !== '' ? $when : Carbon::now()->toDateTimeString();
+        // NORMALISED, never the gateway's own string — see stamp(). This value lands in
+        // three TIMESTAMP columns on the donation row below, so a format MySQL refuses does
+        // not merely lose a date: it loses the whole record of the money.
+        $now = self::stamp($when) ?? Carbon::now()->toDateTimeString();
 
         $id = (int) DB::table('gates_donations')->insertGetId([
             'donor_name'   => (string) ($sub->donor_name ?? ''),
@@ -238,6 +241,57 @@ final class RecurringGiving
         ]);
 
         return $id;
+    }
+
+    /**
+     * A GATEWAY'S DATETIME, IN A FORM A TIMESTAMP COLUMN WILL ACTUALLY ACCEPT.
+     *
+     * ══════════════════════════════════════════════════════════════════════════
+     * WITHOUT THIS, EVERY RECURRING GIFT ON PRODUCTION WAS BROKEN AND SILENT
+     * ══════════════════════════════════════════════════════════════════════════
+     *
+     * Paystack sends ISO-8601 with milliseconds and a zone: `2026-10-04T09:00:00.000Z`.
+     * That went straight into `next_charge_at`, `last_charge_at`, `confirmed_at` and
+     * `created_at`. SQLite stores the string verbatim and everything worked. MySQL — the
+     * production database, in strict mode — REFUSES it: `Incorrect datetime value`. The
+     * statement throws, `PaymentController`'s webhook handler catches `Throwable` and still
+     * answers `200` (deliberately, so the gateway does not retry for three days), and
+     * nothing anywhere records that the write did not happen.
+     *
+     * So on the real database:
+     *
+     *   · `subscription.create` never activated anything. The row stayed `pending` for
+     *     ever and `email_token` was never stored — and the email token is the donor's
+     *     stop button. Somebody who wanted to end a standing order could not.
+     *   · `charge.success` never minted the donation. The second month's money arrived in
+     *     the bank and NOWHERE ELSE, which is the exact failure {@see chargeArrived()}
+     *     was written to prevent, described in its own docblock.
+     *
+     * Both returned 200. Both were invisible in the suite, because the suite is SQLite.
+     * Found by the MySQL parity run and by nothing else.
+     *
+     * ── WHY IT RETURNS NULL RATHER THAN THROWING ────────────────────────────
+     *
+     * A date the gateway sent must never be able to stop a subscription being activated.
+     * An unparseable value costs one nullable column; refusing the whole write costs the
+     * donor their stop button, which is how this got here in the first place.
+     *
+     * Rendered in the PROCESS timezone rather than UTC-as-parsed, so it matches every
+     * `Carbon::now()->toDateTimeString()` written beside it. {@see \AfricaGates\Support\Clock}
+     * pins that, and the convention is UTC — but an installation that pins something else
+     * must not end up with two conventions in one table.
+     */
+    private static function stamp(string $raw): ?string
+    {
+        $raw = trim($raw);
+        if ($raw === '') return null;
+
+        try {
+            return Carbon::parse($raw)->setTimezone(date_default_timezone_get())
+                ->format('Y-m-d H:i:s');
+        } catch (\Throwable) {
+            return null;
+        }
     }
 
     /** We asked the gateway to stop. Not `cancelled` — the gateway has not said so yet. */

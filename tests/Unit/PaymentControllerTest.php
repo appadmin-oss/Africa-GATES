@@ -336,6 +336,103 @@ class PaymentControllerTest extends TestCase
         $this->assertSame('SUB_live', (string) $row->subscription_code);
         $this->assertSame('tok_live', (string) $row->email_token,
             'without the email token the donor cannot be given a working stop button');
+
+        // ── AND THE DATE IS STORED IN A FORM THE PRODUCTION DATABASE ACCEPTS ──
+        //
+        // Paystack sends `2026-10-04T09:00:00.000Z`. SQLite stores that verbatim and every
+        // assertion above passes with the raw string in the column; MySQL, in strict mode,
+        // REFUSES it — so on production this whole UPDATE threw, the webhook still answered
+        // 200 because it catches Throwable, and the subscription stayed `pending` with no
+        // email token. The donor's stop button never worked and nothing said so.
+        //
+        // Asserted on the SHAPE rather than on the status, because the status is what looks
+        // fine on SQLite. This is the assertion that fails on both engines when the
+        // normalisation goes away.
+        $this->assertMatchesRegularExpression('~^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$~',
+            (string) $row->next_charge_at,
+            'the gateway\'s own ISO-8601 reached a TIMESTAMP column, which MySQL refuses '
+            . 'outright — see RecurringGiving::stamp()');
+    }
+
+    /**
+     * A DATE THE GATEWAY SENT MUST NEVER COST THE DONOR THEIR STOP BUTTON.
+     *
+     * `next_charge_at` is a convenience: it says when the next instalment is due.
+     * `email_token` is not — it is what the donor's cancel link is built from. Letting an
+     * unparseable date abort the write trades the second for the first, which is the exact
+     * trade that produced the fault this whole normalisation exists to fix: on MySQL a date
+     * the column refused took the activation down with it, silently, behind a 200.
+     *
+     * So the date is dropped and the subscription is activated. One nullable column against
+     * somebody being unable to stop giving us money.
+     */
+    public function test_an_unusable_date_does_not_stop_the_subscription_activating(): void
+    {
+        \AfricaGates\Services\RecurringGiving::start('amara@example.test', 'Amara Okonkwo',
+                                                      5000, 'PLN_x', 'AFG-sub3');
+
+        $res = $this->controller($this->stubPayments())->webhook($this->signed([
+            'event' => 'subscription.create',
+            'data'  => [
+                'subscription_code' => 'SUB_live',
+                'email_token'       => 'tok_live',
+                'next_payment_date' => 'whenever the gateway feels like it',
+                'plan'     => ['plan_code' => 'PLN_x', 'amount' => 500000],
+                'customer' => ['email' => 'amara@example.test', 'customer_code' => 'CUS_1'],
+                'metadata' => ['reference' => 'AFG-sub3'],
+            ],
+        ]), new Response());
+
+        $this->assertSame(200, $res->getStatusCode());
+
+        $row = DB::table('gates_donation_subscriptions')->where('first_ref', 'AFG-sub3')->first();
+        $this->assertSame('active', (string) $row->status,
+            'a date nobody can parse stopped the subscription being activated at all');
+        $this->assertSame('tok_live', (string) $row->email_token,
+            'the donor has no stop button because the gateway sent a date we could not read');
+        $this->assertNull($row->next_charge_at,
+            'an unreadable date was stored anyway, which is what the column refuses');
+    }
+
+    /**
+     * AND THE SECOND MONTH'S MONEY IS RECORDED, WHICH IS THE WHOLE POINT OF THE CLASS.
+     *
+     * `charge.success` for an instalment carries `paid_at` in the same ISO-8601, and it
+     * lands in THREE timestamp columns on the donation row. On MySQL the insert threw, so
+     * the money arrived in the bank and nowhere else — the exact failure
+     * `RecurringGiving::chargeArrived()` says in its own docblock that it exists to
+     * prevent. The webhook answered 200 throughout.
+     */
+    public function test_a_recurring_charge_is_recorded_with_a_storable_date(): void
+    {
+        \AfricaGates\Services\RecurringGiving::start('amara@example.test', 'Amara Okonkwo',
+                                                      5000, 'PLN_x', 'AFG-sub2');
+        \AfricaGates\Services\RecurringGiving::activate('amara@example.test', 5000,
+            'SUB_live', 'tok_live', 'CUS_1', '2026-10-04T09:00:00.000Z', 'AFG-sub2');
+
+        $res = $this->controller($this->stubPayments())->webhook($this->signed([
+            'event' => 'charge.success',
+            'data'  => [
+                'reference' => 'PSK_instalment_1',
+                'amount'    => 500000,
+                'paid_at'   => '2026-10-04T09:00:00.000Z',
+                'plan'      => ['plan_code' => 'PLN_x'],
+                'customer'  => ['email' => 'amara@example.test'],
+            ],
+        ]), new Response());
+
+        $this->assertSame(200, $res->getStatusCode());
+
+        $don = DB::table('gates_donations')->where('payment_ref', 'PSK_instalment_1')->first();
+        $this->assertNotNull($don,
+            'a recurring instalment left no donation row — the money is in the bank and '
+            . 'nowhere else, which is what this handler exists to prevent');
+
+        foreach (['confirmed_at', 'created_at'] as $col) {
+            $this->assertMatchesRegularExpression('~^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$~',
+                (string) $don->$col,
+                "{$col} holds the gateway's own ISO-8601, which MySQL refuses outright");
+        }
     }
 
     /**

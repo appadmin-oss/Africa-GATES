@@ -38,6 +38,27 @@ enforces:
 - MySQL normalises a `T`-separated datetime when it lands in a `TIMESTAMP` column. SQLite
   stores the string verbatim, so `2026-01-01T09:00` compares wrong and a comparison that
   passes every test silently rejects real input.
+- **And with milliseconds and a zone it is not normalised, it is REFUSED** — and that broke
+  every recurring gift on production. Paystack sends `2026-10-04T09:00:00.000Z`; it went
+  straight into `next_charge_at`, and into `confirmed_at`/`created_at`/`last_charge_at` on
+  the donation row. Strict-mode MySQL answers `Incorrect datetime value`, the statement
+  throws, and `PaymentController`'s webhook catches `Throwable` and still returns **200** —
+  deliberately, so the gateway does not retry for three days. So `subscription.create`
+  never activated anything (the row stayed `pending` and `email_token`, which is the
+  donor's stop button, was never stored) and `charge.success` never minted the donation
+  row: the second month's money arrived in the bank and nowhere else, which is the exact
+  failure `RecurringGiving::chargeArrived()`'s own docblock says it exists to prevent. All
+  of it green in the suite. One normaliser now — `RecurringGiving::stamp()` — and it
+  returns **null** rather than throwing, because a date the gateway sent must never cost
+  somebody the ability to stop giving us money.
+- **A float written into a `TINYINT` is rounded on MySQL and stored verbatim on SQLite**,
+  which makes a fixture assert on data the platform cannot hold. `gates_judge_criteria_scores.score`
+  is `TINYINT`; `CommunityHalfDarkTest` wrote panel marks of `7.9` and `8.0`, so on SQLite
+  two nominees were a tenth of a mark apart and on the production database they were
+  IDENTICAL — while the test asserted the difference decided the award. A judge writes whole
+  numbers, so with four equally weighted criteria the reachable averages are quarters. The
+  helper now builds the mark from whole scorecards and fails loudly when asked for one they
+  cannot produce.
 - **SQLite does not enforce a foreign key here at all, and the harness turns them off.**
   `gates_audit_log.admin_id` has an FK to `gates_admins`, and 71 call sites write
   `(int) ($_SESSION['admin_id'] ?? 0)`. There is no admin 0, so MySQL refused every row

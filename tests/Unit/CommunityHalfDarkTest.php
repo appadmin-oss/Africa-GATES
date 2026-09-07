@@ -71,8 +71,65 @@ final class CommunityHalfDarkTest extends TestCase
         ]);
     }
 
+    /**
+     * A COMPLETE PANEL, BUILT FROM MARKS A JUDGE COULD ACTUALLY WRITE.
+     *
+     * ══════════════════════════════════════════════════════════════════════════
+     * THIS HELPER USED TO WRITE A FRACTION INTO AN INTEGER COLUMN
+     * ══════════════════════════════════════════════════════════════════════════
+     *
+     * It took a float and put it straight into `gates_judge_criteria_scores.score`,
+     * which is **TINYINT**. SQLite stores 7.9 verbatim, so the panel average came out
+     * 7.9 and every assertion in this file about a tenth of a mark held. MySQL — the
+     * production database — ROUNDS IT TO 8 at insert, before a line of scoring code
+     * runs. So the two nominees this file is about, a tenth of a mark apart, were the
+     * SAME mark on the real database, and
+     * {@see test_the_most_voted_nominee_now_takes_the_award} asserted a difference
+     * that could not exist there.
+     *
+     * It passed for as long as nobody ran the parity suite, which is exactly the
+     * failure this codebase keeps recording: the divergence is invisible where the
+     * suite runs and total where the platform does.
+     *
+     * ── SO THE MARKS HERE ARE QUARTERS, NOT TENTHS ──────────────────────────
+     *
+     * A judge scores each criterion 0–10 as a whole number. With four equally
+     * weighted criteria the panel average can only land on a quarter, so 7.9 is not a
+     * mark this platform can hold and 7.75 is. The real cycle's screens showed 7.9;
+     * that was a rounded display of a reachable average, and the fixture uses the
+     * reachable one.
+     *
+     * The assertion below is the guard that keeps it that way: ask for an average
+     * whole marks cannot produce and the test says so, rather than the database
+     * quietly rounding it into a different number on one engine only.
+     */
     private function panel(int $nominee, float $mark): void
     {
+        /** @var array<int,int> $weights criterionId => weight */
+        $weights = [];
+        foreach (JudgeRubric::effective($this->programmeId) as $c) {
+            if ((int) $c->is_active !== 1) continue;
+            $weights[(int) $c->id] = ((int) $c->weight) ?: 25;
+        }
+        self::assertNotSame([], $weights, 'the rubric is empty, so no scorecard can be complete');
+
+        // Whole marks only: the base to every criterion, and one more to as many as it
+        // takes to reach the average asked for.
+        $count = count($weights);
+        $base  = (int) floor($mark);
+        $extra = (int) round(($mark - $base) * $count);
+
+        $marks = [];
+        $i = 0;
+        foreach (array_keys($weights) as $cid) $marks[$cid] = $base + ($i++ < $extra ? 1 : 0);
+
+        $ws = 0; $wt = 0;
+        foreach ($marks as $cid => $m) { $ws += $m * $weights[$cid]; $wt += $weights[$cid]; }
+        self::assertEqualsWithDelta($mark, $ws / $wt, 1e-9,
+            "a panel average of {$mark} cannot be built from whole marks over {$count} "
+            . 'criteria — and `score` is TINYINT, so writing the fraction lands on a '
+            . 'different number in MySQL than in SQLite and nothing says so');
+
         static $n = 0;
         for ($k = 0; $k < 2; $k++) {
             $j = (int) DB::table('gates_judges')->insertGetId([
@@ -80,11 +137,10 @@ final class CommunityHalfDarkTest extends TestCase
                 'email' => 'j' . $n . '@example.test',
                 'programme_ids' => json_encode([$this->programmeId]),
             ]);
-            foreach (JudgeRubric::effective($this->programmeId) as $c) {
-                if ((int) $c->is_active !== 1) continue;
+            foreach ($marks as $cid => $m) {
                 DB::table('gates_judge_criteria_scores')->insert([
                     'judge_id' => $j, 'nominee_id' => $nominee, 'category_id' => $this->categoryId,
-                    'criterion_id' => (int) $c->id, 'score' => $mark,
+                    'criterion_id' => $cid, 'score' => $m,
                     'created_at' => '2026-11-01 09:00:00', 'updated_at' => '2026-11-01 09:00:00',
                 ]);
             }
@@ -99,9 +155,9 @@ final class CommunityHalfDarkTest extends TestCase
         $c = $this->nominee('Mrs Makinde Adejumoke', 126);
         $d = $this->nominee('Lawal Sade Olukemi', 398);
         $this->panel($a, 8.0);
-        $this->panel($b, 7.9);
-        $this->panel($c, 7.6);
-        $this->panel($d, 7.6);
+        $this->panel($b, 7.75);
+        $this->panel($c, 7.5);
+        $this->panel($d, 7.5);
     }
 
     // ══ the finding ══════════════════════════════════════════════════════════
@@ -158,9 +214,14 @@ final class CommunityHalfDarkTest extends TestCase
      * AND THE MOST-VOTED NOMINEE TAKES IT.
      *
      * This is the assertion the operator was owed. On the same numbers, the platform used
-     * to crown the best-JUDGED nominee — 8.0 against 7.9 — over the one with 419 more
-     * votes, because every community half was zero and the panel was deciding the whole
-     * index alone at a weight nobody had agreed to. It reversed on a tenth of a mark.
+     * to crown the best-JUDGED nominee — 8.0 against the 7.9 its screens showed — over
+     * the one with 419 more votes, because every community half was zero and the panel
+     * was deciding the whole index alone at a weight nobody had agreed to. It reversed
+     * on a fraction of a mark.
+     *
+     * The fixture marks that 7.75 rather than 7.9: `score` is TINYINT and a judge writes
+     * whole numbers, so 7.9 is not an average this platform can hold — see {@see panel()}
+     * for what writing it anyway did on the production engine.
      */
     public function test_the_most_voted_nominee_now_takes_the_award(): void
     {
@@ -187,7 +248,7 @@ final class CommunityHalfDarkTest extends TestCase
         $a = $this->nominee('Dr. Adegboyega Aborode', 1536, 1536);
         $b = $this->nominee('Ajayi Temitope Oluwarotimi', 1955, 1955);
         $this->panel($a, 8.0);
-        $this->panel($b, 7.9);
+        $this->panel($b, 7.75);
 
         $c = ResultRelease::category($this->categoryId);
 
@@ -217,7 +278,7 @@ final class CommunityHalfDarkTest extends TestCase
         $a = $this->nominee('Dr. Adegboyega Aborode', 0, 0);
         $b = $this->nominee('Ajayi Temitope Oluwarotimi', 0, 0);
         $this->panel($a, 8.0);
-        $this->panel($b, 7.9);
+        $this->panel($b, 7.75);
 
         (new \ReflectionMethod(\AfricaGates\Services\CycleMaterialiser::class, 'promoteWinners'))
             ->invoke(new \AfricaGates\Services\CycleMaterialiser(), $this->cycleId, false);
@@ -263,7 +324,7 @@ final class CommunityHalfDarkTest extends TestCase
         $a = $this->nominee('Dr. Adegboyega Aborode', 1536, 1536);
         $b = $this->nominee('Ajayi Temitope Oluwarotimi', 1955, 1955);
         $this->panel($a, 8.0);
-        $this->panel($b, 7.9);
+        $this->panel($b, 7.75);
 
         (new \ReflectionMethod(\AfricaGates\Services\CycleMaterialiser::class, 'promoteWinners'))
             ->invoke(new \AfricaGates\Services\CycleMaterialiser(), $this->cycleId, false);
