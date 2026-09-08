@@ -93,7 +93,26 @@ final class PublicResults
         $drawn = ResultRelease::category($categoryId, $scoring);
         if ($drawn['category'] === null) return null;
 
+        // ── A PUBLISHED RESULT IS THE ONE THAT WAS ANNOUNCED ─────────────────
+        //
+        // Everything above recomputes from today's rules. That is right for a cycle still
+        // being judged and wrong for one already released: it published what the CURRENT
+        // arithmetic gives a nominee rather than what they were awarded, and named
+        // whichever nominee the current arithmetic ranks first rather than the one who was
+        // crowned. One real released nominee moved from 693 to 885 across a week of
+        // scoring changes, with no record edited and the hash chain intact throughout.
+        //
+        // So a released cycle is laid over with its sealed standing. Where none was ever
+        // recorded — a release from before sealing existed — `sealed_at` is empty and the
+        // page says the figures are a live computation rather than the announcement.
+        // {@see ReleasedStanding} for why no attempt is made to guess one from the
+        // routine captures.
+        $sealed = ReleasedStanding::forCycle((int) $ctx->cycle_id);
+        if ($sealed !== null) $drawn = ReleasedStanding::apply($drawn, $sealed);
+
         return $drawn + [
+            // Empty where the standing was never sealed, which the page must state.
+            'sealed_at'   => (string) ($drawn['sealed_at'] ?? ''),
             'held'        => self::heldReason($drawn),
             // ── BOTH VOTE FIGURES, FOR THE WHOLE CATEGORY ────────────────────
             //

@@ -310,6 +310,22 @@
            invented. #}
         <div class="rs-cell"><dt>Community denominator</dt>
           <dd>{% if r.cohort_max > 0 %}{{ r.cohort_max|number_format }} votes{% else %}—{% endif %}</dd></div>
+        {#
+          ── WHICH FIGURES THESE ARE ────────────────────────────────────────
+
+          A released result used to be recomputed on every view, so the page showed what
+          today's rules give a nominee rather than what they were awarded — one real
+          nominee moved from 693 to 885 across a week of scoring changes, with nothing
+          edited and the record intact. It reads the standing sealed at the announcement
+          now.
+
+          Where a cycle was released before sealing existed there is nothing to read, and
+          the page says so rather than presenting a live computation as the announcement.
+          That distinction is the whole point: a figure labelled as announced when nobody
+          knows whether it was is worse than one labelled as recomputed.
+        #}
+        <div class="rs-cell"><dt>These figures</dt>
+          <dd>{% if r.sealed_at %}As announced{% else %}Recomputed under current rules{% endif %}</dd></div>
         <div class="rs-cell"><dt>Scale set by</dt>
           <dd>{% if r.scale_set_by %}{{ r.scale_set_by }}{% if r.scale_category and not r.scale_in_category %},
             {{ r.scale_category }}{% endif %}{% else %}—{% endif %}</dd></div>
@@ -403,6 +419,16 @@
         Branched on the basis rather than rewritten, because the older forms are still
         reachable per cycle and an announced cycle has to keep explaining itself correctly.
       #}
+      {% if not r.sealed_at %}
+        <p class="rs-note"><strong>These numbers are being worked out now, not read back
+          from the announcement.</strong> This award was released before this platform
+          started sealing a standing at the moment it is announced, so what you see is
+          today&rsquo;s method applied to the votes and marks on record. The method has
+          changed since some results were published, so a figure here may differ from the
+          one a nominee was given. Results announced from now on are read back from a
+          sealed record instead.</p>
+      {% endif %}
+
       {% if r.community_basis == 'reach' %}
         <p class="rs-note">A nominee’s community half is <strong>two counts, not one</strong>.
           Seventy per cent of it is <strong>how many verified people</strong> backed them,

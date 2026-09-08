@@ -164,6 +164,36 @@ final class CycleMaterialiser
                 // Durable derived data (winner promotion) is ALWAYS replayed —
                 // it is correctness. Only the outbound notification is withheld.
                 $promoted += $this->promoteWinners((int) $c->id, $announce);
+
+                // ── AND THE STANDING IS SEALED AT THIS MOMENT ────────────────
+                //
+                // This line is where the platform decides who won. Until it existed the
+                // published result page re-ran the whole calculation on every view, so a
+                // nominee's announced score changed whenever the rules did — 693 became
+                // 885 for one real released nominee across a single week of scoring
+                // changes — and the page named whoever the CURRENT rules put first, not
+                // the person the award was given to.
+                //
+                // Sealed here rather than left to the routine sweep because a cycle in
+                // `results` keeps being captured, so the archive holds many standings for
+                // a released cycle and every one was computed under whatever the rules
+                // were that day. Which of them is the announced one cannot be recovered
+                // from timestamps; it has to be marked as it happens.
+                //
+                // AFTER the promotion, so the sealed row is the standing that crowned the
+                // winner rather than the one just before it. Idempotent per cycle, and it
+                // must never be able to stop a release: a seal is evidence about a result,
+                // not a precondition for having one.
+                if (!$this->dryRun) {
+                    try {
+                        $sealed = (new SnapshotService())->captureRelease((int) $c->id);
+                        if ($sealed > 0) {
+                            $this->log(sprintf('    · sealed the standing as announced (%d rows)', $sealed));
+                        }
+                    } catch (\Throwable $e) {
+                        $this->log('    ! could not seal the standing: ' . $e->getMessage());
+                    }
+                }
             }
 
             $changed++;

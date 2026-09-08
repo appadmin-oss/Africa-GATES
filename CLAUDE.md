@@ -380,6 +380,23 @@ Full account in `docs/CODEBASE-INDEX.md` §16.
   `cohort_max` per row to show the comparison was uneven. Edition-wide it is the same figure
   down the page — the very fact that made it worth printing is what removed the need for it.
   Same shape as the caveat above it, which went on admitting a bias the change had removed.
+- **A published result is the one that was ANNOUNCED, not the one today's rules give.**
+  `PublicResults::category()` re-ran the whole calculation on every page view, so a released
+  page showed current arithmetic under a nominee's name and `r.winner` named the RECOMPUTED
+  top rather than the person crowned. One real released nominee went 693 → 885 across a week
+  of scoring changes, with nothing edited and the hash chain intact — while the help centre
+  promised "no quiet edit available", about an archive whose only readers were a console
+  command and the maintenance sweep, on a host with no shell. `CycleMaterialiser` seals the
+  drawn standing at promotion (`SnapshotService::captureRelease()`, idempotent per cycle) and
+  `ReleasedStanding` lays it back over the page. It seals the **drawn result**, not the raw
+  scorer: below quorum, off the shortlist and no support are all live facts that move after a
+  release, so `in_running` and the rank are sealed too — otherwise a panel finishing a week
+  late sweeps somebody into a published award. The new columns sit **outside the hash
+  payload** (`cycleId|nomineeId|votes|cpi|at`), so every existing link still verifies; and it
+  is `standing_rank`, never `rank`, which is a reserved word in MySQL 8 and bare-legal in
+  SQLite. Where a cycle was released before sealing existed there is **no guess** — the page
+  recomputes and says so. `ReleasedStandingTest` proves it by moving the rules between the
+  seal and the read, which is the only way to tell a sealed figure from a recomputed one.
 - **The sandbox must never reach the public.** `DemoSeeder` creates real rows with real
   flags, because the sandbox exists to be walked through for real. Every public reader has
   to exclude them — `JudgeService::realJudges()` is the pattern.
