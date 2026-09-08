@@ -452,6 +452,23 @@ Full account in `docs/CODEBASE-INDEX.md` §16.
   "order reconstructed" rather than presenting it as the announcement. Same for
   `cohort_max_unique`: read out of the seal, never applied, so a sealed page asked
   **today's** rows whether to print a sealed number of supporters.
+  **And the operator's screen has to hold BOTH figures, or the support call cannot be
+  answered.** `/admin/result-release` draws live and must keep doing so — asking the
+  promotion's own comparator is what makes it an audit of a release rather than a report
+  about one — so once sealing shipped it stopped agreeing with the public page for a
+  released cycle, with nothing anywhere to say why. Its own lede still promised "what is
+  drawn here is what will be published", which is the §19 shape on the page an award is
+  signed off from. So the person taking the call that begins *"my score has changed"* had
+  the recomputed figure in front of them, the nominee had the sealed one, and no screen
+  held the pair: the honest answer — the result has not changed, the method has, and yours
+  is still the one you were given — was not available to the only person who needed it.
+  `ReleasedStanding::divergence()` compares the drawn cycle against its seal and the screen
+  states which it is showing. It compares the **index, the placing and whether they were in
+  the running** and nothing else: a community half that reaches the same 693 by a different
+  route has moved nothing anybody was told, and reporting it buries the rows that matter.
+  A nominee entered after the announcement is counted apart and never called a discrepancy,
+  or the panel shows a number beside "these have moved" on every cycle that has taken an
+  entry since — which teaches an operator to stop reading it.
 - **The sandbox must never reach the public.** `DemoSeeder` creates real rows with real
   flags, because the sandbox exists to be walked through for real. Every public reader has
   to exclude them — `JudgeService::realJudges()` is the pattern.
@@ -478,6 +495,25 @@ Full account in `docs/CODEBASE-INDEX.md` §16.
   status page could say "something broke on the 14th" and not which thing). With no shell on
   production the symptom always looks like something else. **Grep for a reader before you
   believe a declaration.** Full account in `docs/CODEBASE-INDEX.md` §17.
+  **And a column can be unread while a screen appears to be showing it**, which is the
+  variant no sweep asked about. `gates_name_says.source` records whether a respelling came
+  from a model, the offline rule, or a person. Three paths wrote it. `NameSays::all()` —
+  the one method that selected it, whose docblock says "for the settings screen" — had no
+  caller anywhere, and there was no delete-by-source path at all, so both halves of what
+  its migration promised ("the admin screen can show where an answer came from", "a bad
+  batch can be cleared without touching anything a person wrote") were false. Meanwhile
+  the settings screen **did** show a source, and it was not this one:
+  `DoorWelcome::nameSheet()` labelled every row it found in the table "worked out",
+  derived from WHERE IT LOOKED rather than from what was stored — so a respelling a model
+  invented and one derived from letters were presented as the same kind of answer, on the
+  screen whose job is deciding which to trust. A column is read when the value a screen
+  prints comes **out of it**, not when the screen prints something about the same subject.
+  The clearing matters as much: a name is asked about **once, ever** (`remember()` keeps
+  the first answer, because it may already have been read aloud), so a bad model run was
+  permanent — forty names mispronounced at every door with no way to ask again. Forgetting
+  is safe where editing would not be, since a name with no row is simply asked again and
+  the offline rule answers until then; `hand` is refused, because nothing can ask a model
+  to guess again at what somebody decided after hearing the clip.
 - **A whole-schema sweep found three more, and they are the worst kind.** Each was a
   behaviour the documentation already *promised*: `gates_interviews.bot_disclosed_at` (the
   index described a consent stamp nothing wrote), `gates_nominee_submissions.skipped_json`

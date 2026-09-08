@@ -121,6 +121,107 @@ final class ReleasedStanding
     }
 
     /**
+     * WHERE TODAY'S ARITHMETIC HAS MOVED AWAY FROM WHAT WAS ANNOUNCED.
+     *
+     * ══════════════════════════════════════════════════════════════════════════
+     * WHY THE RELEASE SCREEN NEEDS THIS AND THE PUBLIC PAGE DOES NOT
+     * ══════════════════════════════════════════════════════════════════════════
+     *
+     * The public page publishes the seal and says nothing about the live figure, which is
+     * right: a nominee is owed the result they were given, not a running commentary on it.
+     *
+     * The release screen is the opposite job. It draws {@see ResultRelease::forCycle()}
+     * live and by design — "it asks the promotion's own comparator rather than a copy of
+     * it", which is what makes it an audit of a release rather than a report about one —
+     * and after sealing shipped, that stopped being what the public page shows for a
+     * released cycle. So the two screens disagreed with nothing anywhere to say why: an
+     * operator taking the call that starts "my score has changed" had the recomputed
+     * number in front of them, the nominee had the sealed one, and the screen's own lede
+     * still promised it draws "the promotion's own ranking".
+     *
+     * Which is the same fault the seal was built to fix, moved one desk over. A figure a
+     * nominee can see and an operator cannot is not an audit trail.
+     *
+     * ── WHAT COUNTS AS MOVED ────────────────────────────────────────────────
+     *
+     * The index, the placing, and whether they were in the running at all — the three
+     * things a person asks about their own result. Not the working: a community half that
+     * arrives at the same 693 by a different route has not moved anything anybody was
+     * told, and reporting it would bury the cases that matter.
+     *
+     * `added` and `gone` are counted separately because they are not disagreements, they
+     * are different fields: a nominee entered after the announcement, or one the live draw
+     * no longer scores. Both are ordinary and neither is a discrepancy in a sealed figure.
+     *
+     * @param list<array<string,mixed>> $categories a drawn cycle, as this screen has it
+     * @return array{sealed_at:string, checked:int, moved:list<array<string,mixed>>,
+     *               added:int, gone:int}|null  null when the cycle was never sealed
+     */
+    public static function divergence(array $categories, int $cycleId): ?array
+    {
+        $sealed = self::forCycle($cycleId);
+        if ($sealed === null) return null;
+
+        $seal    = $sealed['rows'];
+        $moved   = [];
+        $checked = 0;
+        $added   = 0;
+        $present = [];
+
+        foreach ($categories as $c) {
+            $title = (string) ($c['category']->title ?? '');
+
+            foreach (($c['rows'] ?? []) as $r) {
+                $id = (int) ($r['nominee_id'] ?? 0);
+                $s  = $seal[$id] ?? null;
+
+                if ($s === null) { $added++; continue; }
+
+                $present[$id] = true;
+                $checked++;
+
+                // The sealed placing, not a re-derivation of it — see apply(). Null means
+                // the seal recorded no rank for them, which is not a disagreement about
+                // one.
+                $wasIn  = $s['in_running'] ?? ($s['rank'] !== null);
+                $nowIn  = !empty($r['in_running']);
+                $cpiNow = (int) ($r['cpi'] ?? 0);
+                $rankNow = $r['rank'] === null ? null : (int) $r['rank'];
+
+                if ($cpiNow === $s['cpi'] && $rankNow === $s['rank'] && $nowIn === $wasIn) {
+                    continue;
+                }
+
+                $moved[] = [
+                    'category'    => $title,
+                    'nominee_id'  => $id,
+                    'name'        => (string) ($r['name'] ?? ('Nominee #' . $id)),
+                    'cpi_sealed'  => $s['cpi'],
+                    'cpi_now'     => $cpiNow,
+                    'rank_sealed' => $s['rank'],
+                    'rank_now'    => $rankNow,
+                    'in_sealed'   => (bool) $wasIn,
+                    'in_now'      => $nowIn,
+                ];
+            }
+        }
+
+        // Sealed nominees the live draw no longer scores — withdrawn, moved to another
+        // cycle, deleted. The published page still shows them, from the seal.
+        $gone = 0;
+        foreach ($seal as $id => $_) if (!isset($present[$id])) $gone++;
+
+        // Worst first: an award that would now go to somebody else, then the biggest move
+        // in the index. An operator reads two rows of this and stops.
+        usort($moved, static fn (array $a, array $b): int
+            => [$a['in_sealed'] === $a['in_now'], abs($b['cpi_now'] - $b['cpi_sealed'])]
+           <=> [$b['in_sealed'] === $b['in_now'], abs($a['cpi_now'] - $a['cpi_sealed'])]);
+
+        return ['sealed_at' => $sealed['at'], 'checked' => $checked,
+                'moved' => $moved, 'added' => $added, 'gone' => $gone];
+    }
+
+    /**
      * Drop the cached seal for a cycle — for the one process that can change the answer.
      *
      * Called by {@see SnapshotService::captureRelease()} after it writes, so a promotion

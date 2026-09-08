@@ -760,6 +760,38 @@ final class DoorWelcomeTest extends TestCase
         $this->assertSame('worked out',     $by['Chidinma']['source']);
     }
 
+    /**
+     * AND "WHO DECIDED" IS THE STORED SOURCE, NOT WHERE THE LOOKUP LANDED.
+     *
+     * This said "worked out" for every row it found in `gates_name_says`, derived from the
+     * table it came out of rather than from `source` — the column that exists to tell a
+     * model's answer from the offline rule's, written by both paths and read by neither.
+     * So on the one screen whose job is deciding which respellings to trust, a respelling
+     * a model invented and one derived from letters were shown as the same kind of answer.
+     *
+     * A kept rule answer reads as `rule` because that IS its provenance: it is the same
+     * derivation the live rule would do, already done. The distinction that matters to an
+     * operator is model / rule / person, and it is drawn from what was recorded.
+     */
+    public function test_a_kept_answer_reports_the_source_that_was_recorded(): void
+    {
+        $this->needsRespelling();
+        $this->soonEventWithGuests(['Obiageli Nwosu', 'Chidinma Okonkwo']);
+
+        // Distinctive values, so `said` proves the stored row was read rather than the
+        // live rule agreeing with it by coincidence.
+        NameSays::remember('Obiageli', 'KEPT-BY-RULE', 'rule');
+        NameSays::remember('Chidinma', 'KEPT-BY-MODEL', 'ai');
+
+        $by = array_column(DoorWelcome::nameSheet(), null, 'name');
+
+        $this->assertSame('KEPT-BY-RULE',  $by['Obiageli']['said']);
+        $this->assertSame('rule',          $by['Obiageli']['source'],
+            'a respelling the offline rule derived is being presented as a model\'s');
+        $this->assertSame('KEPT-BY-MODEL', $by['Chidinma']['said']);
+        $this->assertSame('worked out',    $by['Chidinma']['source']);
+    }
+
     /** Only the events about to be rendered — a list of every name ever is not a job. */
     public function test_the_sheet_ignores_events_that_are_not_close(): void
     {

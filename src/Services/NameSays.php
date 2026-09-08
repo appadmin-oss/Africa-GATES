@@ -65,27 +65,74 @@ final class NameSays
      */
     public static function known(string $key): ?string
     {
+        return self::knownWithSource($key)['said'] ?? null;
+    }
+
+    /**
+     * The same lookup, and WHO WORKED IT OUT — the whole reason `source` is a column.
+     *
+     * ══════════════════════════════════════════════════════════════════════════
+     * THE COLUMN WAS WRITTEN BY THREE PATHS AND READ BY NOTHING
+     * ══════════════════════════════════════════════════════════════════════════
+     *
+     * `source` distinguishes a model's answer from the offline rule's from a person's, and
+     * its own migration says why it is kept apart: "so the admin screen can show where an
+     * answer came from, and so a bad batch can be cleared without touching anything a
+     * person wrote". Neither was true. `all()` — the one method that selected the column,
+     * whose docblock says "for the settings screen" — had no caller anywhere, and there
+     * was no delete-by-source path at all.
+     *
+     * Worse than unread: the settings screen was showing a source and it was not this one.
+     * {@see DoorWelcome::nameSheet()} labelled every row it found in this table "worked
+     * out", derived from WHERE IT LOOKED rather than from what was stored — so a
+     * respelling a model invented and one the rule derived by letters were presented to an
+     * operator as the same kind of answer, on the screen whose job is deciding which of
+     * them to trust.
+     *
+     * One query, both facts, so a caller that needs the provenance does not pay for a
+     * second lookup on a screen that is already per-name.
+     *
+     * @return array{said:string, source:string}|null
+     */
+    public static function knownWithSource(string $key): ?array
+    {
         if ($key === '') return null;
 
         try {
-            $v = DB::table('gates_name_says')->where('name_key', $key)->value('said');
+            $row = DB::table('gates_name_says')->where('name_key', $key)
+                ->first(['said', 'source']);
         } catch (\Throwable) {
             // No table on this deployment — the rule still answers.
             return null;
         }
 
-        $v = is_string($v) ? trim($v) : '';
+        $said = trim((string) ($row->said ?? ''));
+        if ($said === '') return null;
 
-        return $v !== '' ? $v : null;
+        return ['said' => $said, 'source' => self::source((string) ($row->source ?? ''))];
     }
 
-    /** Everything on record, newest first. For the settings screen. */
+    /**
+     * Everything on record, newest first. For the settings screen.
+     *
+     * `name_key` travels with the row because it is the identity — `written` is whichever
+     * spelling arrived first and two spellings of one name fold to one key, so a screen
+     * keyed on the written form would offer to act on a row it cannot name.
+     *
+     * @return list<array{name_key:string, written:string, said:string, source:string}>
+     */
     public static function all(int $limit = 200): array
     {
         try {
             return DB::table('gates_name_says')->orderByDesc('id')
                 ->limit(max(1, min(1000, $limit)))
-                ->get(['written', 'said', 'source'])->map(fn ($r) => (array) $r)->all();
+                ->get(['name_key', 'written', 'said', 'source'])
+                ->map(static fn (object $r): array => [
+                    'name_key' => (string) $r->name_key,
+                    'written'  => (string) $r->written,
+                    'said'     => (string) $r->said,
+                    'source'   => self::source((string) ($r->source ?? '')),
+                ])->all();
         } catch (\Throwable) { return []; }
     }
 
@@ -93,6 +140,97 @@ final class NameSays
     {
         try { return (int) DB::table('gates_name_says')->count(); }
         catch (\Throwable) { return 0; }
+    }
+
+    /**
+     * How many answers each source has on record.
+     *
+     * So the button that clears a batch can say what it will clear before it is pressed,
+     * and read zero rather than being offered when there is nothing to remove.
+     *
+     * @return array<string,int> keyed by source, every source present
+     */
+    public static function bySource(): array
+    {
+        $out = array_fill_keys(self::SOURCES, 0);
+
+        try {
+            foreach (DB::table('gates_name_says')
+                ->select('source', DB::raw('COUNT(*) as n'))
+                ->groupBy('source')->get() as $r) {
+                $out[self::source((string) ($r->source ?? ''))] += (int) $r->n;
+            }
+        } catch (\Throwable) { return $out; }
+
+        return $out;
+    }
+
+    /** Every value `source` may hold. `hand` outranks the others and is never cleared. */
+    public const SOURCES = ['rule', 'ai', 'hand'];
+
+    /**
+     * One phrase per source, in the operator's words rather than the column's.
+     *
+     * ONE resolver. The pending-names table and the record below it are two screens
+     * describing the same three values, and two lists of labels is how they come to
+     * disagree about what `rule` means — the fault this codebase has shipped with an
+     * interview status and with a vote's `vote_type` already.
+     */
+    public static function sourceLabel(string $source): string
+    {
+        return match (self::source($source)) {
+            'ai'   => 'worked out',
+            'hand' => 'a person',
+            default => 'rule',
+        };
+    }
+
+    /**
+     * FORGET EVERY ANSWER FROM ONE SOURCE, so a bad batch can be taken back.
+     *
+     * ══════════════════════════════════════════════════════════════════════════
+     * WHY THIS IS NEEDED AND WHY IT REFUSES `hand`
+     * ══════════════════════════════════════════════════════════════════════════
+     *
+     * A name is asked about ONCE, ever — {@see remember()} keeps the first answer, because
+     * a respelling may already have been read aloud to somebody. That is right, and it
+     * means a bad run is permanent: a model answering badly for a batch of forty, a prompt
+     * change, a provider swapped for a worse one, and every one of those names is said
+     * wrongly at every door from then on with no way to ask again. The migration promised
+     * this button; there was no delete path in the codebase at all.
+     *
+     * Clearing is safe in a way editing would not be: a name with no row is simply asked
+     * again on the next ahead-of-time sweep, and until then the offline rule answers. So
+     * the worst case of pressing this is a name read by rule for an evening.
+     *
+     * `hand` is refused outright. If a person's answer ever reaches this table it is the
+     * one thing here that cannot be reproduced — nothing can ask a model to guess again at
+     * what somebody who heard the clip decided — and a button that could sweep it away
+     * would be a quiet override of the rule at the top of this class: what a person said
+     * always wins.
+     *
+     * @return int rows forgotten; 0 for an unknown source, and for `hand`
+     */
+    public static function forget(string $source): int
+    {
+        $source = trim(strtolower($source));
+        if ($source === 'hand' || !in_array($source, self::SOURCES, true)) return 0;
+
+        try {
+            return (int) DB::table('gates_name_says')->where('source', $source)->delete();
+        } catch (\Throwable) {
+            return 0;
+        }
+    }
+
+    /** A stored source, narrowed to a value this class knows. */
+    private static function source(string $raw): string
+    {
+        $s = trim(strtolower($raw));
+
+        // A row written before the column had a default, or by a deployment whose ENUM
+        // took something else. Read as the rule, which is the answer that claims least.
+        return in_array($s, self::SOURCES, true) ? $s : 'rule';
     }
 
     // ══ writing ══════════════════════════════════════════════════════════════
@@ -113,7 +251,7 @@ final class NameSays
         $write = trim($written);
 
         if ($key === '' || $said === '' || $write === '') return false;
-        if (!in_array($source, ['rule', 'ai', 'hand'], true)) $source = 'rule';
+        $source = self::source($source);
 
         try {
             $exists = DB::table('gates_name_says')->where('name_key', $key)->exists();

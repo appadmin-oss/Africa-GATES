@@ -464,6 +464,98 @@ final class ReleasedStandingTest extends TestCase
             . 'purged, so the page stopped printing supporters it had counted');
     }
 
+    // ══ and what the operator's screen can see ═══════════════════════════════
+
+    /**
+     * THE NOMINEE TODAY'S RULES WOULD RANK INTO A PUBLISHED AWARD IS NAMED.
+     *
+     * The public page keeps them out, which is exactly what sealing `in_running` is for.
+     * But an operator has to be able to SEE that this is what happened rather than
+     * discover it from a complaint — and until `divergence()` existed no screen anywhere
+     * held the announced figure and the live one at once, so the person taking the call
+     * that begins "my score has changed" had only the recomputed number in front of them.
+     */
+    public function test_a_nominee_the_live_draw_would_rank_in_is_reported_to_the_operator(): void
+    {
+        $won     = $this->nominee('Announced winner', 500);
+        $pending = $this->nominee('Panel unfinished', 5000);
+        $this->panel($won, 8);
+        $this->panel($pending, 10, judges: 1);          // below quorum at the announcement
+
+        (new SnapshotService())->captureRelease($this->cycleId);
+        $this->panel($pending, 10, judges: 1);          // and finished a week later
+
+        $d = ReleasedStanding::divergence(ResultRelease::forCycle($this->cycleId), $this->cycleId);
+
+        $this->assertNotNull($d, 'a sealed cycle is being reported as never announced');
+        $this->assertNotSame('', $d['sealed_at']);
+        $this->assertSame(2, $d['checked']);
+        $this->assertSame(0, $d['added']);
+        $this->assertSame(0, $d['gone']);
+
+        $by = [];
+        foreach ($d['moved'] as $m) $by[$m['name']] = $m;
+
+        $this->assertArrayHasKey('Panel unfinished', $by,
+            'a nominee today\'s rules would rank into a published award is not reported');
+        $this->assertFalse($by['Panel unfinished']['in_sealed']);
+        $this->assertTrue($by['Panel unfinished']['in_now']);
+        $this->assertSame('Panel unfinished', $d['moved'][0]['name'],
+            'the row that would rewrite a published award is not the first one an '
+            . 'operator reads');
+    }
+
+    /**
+     * AND A CYCLE TODAY'S RULES STILL AGREE WITH REPORTS NOTHING MOVED.
+     *
+     * The common case. An empty `moved` and a null return mean opposite things — "checked,
+     * and they agree" against "never announced, nothing to check" — and a screen that
+     * cannot tell them apart says nothing in both.
+     */
+    public function test_a_seal_the_rules_still_agree_with_reports_no_movement(): void
+    {
+        $a = $this->nominee('Ajayi Temitope', 1955);
+        $this->panel($a, 8);
+
+        $unsealed = ReleasedStanding::divergence(
+            ResultRelease::forCycle($this->cycleId), $this->cycleId);
+        $this->assertNull($unsealed, 'an unsealed cycle is being reported as an announcement');
+
+        (new SnapshotService())->captureRelease($this->cycleId);
+
+        $d = ReleasedStanding::divergence(ResultRelease::forCycle($this->cycleId), $this->cycleId);
+        $this->assertSame([], $d['moved']);
+        $this->assertSame(1, $d['checked']);
+    }
+
+    /**
+     * A NOMINEE ADDED AFTER THE ANNOUNCEMENT IS NOT A DISCREPANCY.
+     *
+     * They are a different field, not a disagreement about a sealed figure, and counting
+     * them as one would put a number beside "these have moved" on every cycle that has
+     * taken an entry since — which teaches an operator to stop reading the panel.
+     */
+    public function test_a_nominee_entered_after_the_announcement_is_counted_apart(): void
+    {
+        $a = $this->nominee('Announced', 500);
+        $this->panel($a, 8);
+
+        (new SnapshotService())->captureRelease($this->cycleId);
+
+        $late = $this->nominee('Arrived afterwards', 5000);
+        $this->panel($late, 9);
+
+        $d = ReleasedStanding::divergence(ResultRelease::forCycle($this->cycleId), $this->cycleId);
+
+        $this->assertSame(1, $d['added'], 'the late entry is not counted as an entry');
+        $this->assertSame(0, $d['gone']);
+        foreach ($d['moved'] as $m) {
+            $this->assertNotSame('Arrived afterwards', $m['name'],
+                'a nominee who was never in the announced standing is being reported as '
+                . 'having moved within it');
+        }
+    }
+
     /**
      * A PAGE LISTING SIXTY AWARDS READS EACH CYCLE'S SEAL ONCE, NOT ONCE AN AWARD.
      *

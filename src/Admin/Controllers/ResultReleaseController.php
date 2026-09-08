@@ -98,6 +98,18 @@ final class ResultReleaseController
             'overall'    => $wanted > 0 && !$failed
                             ? ResultRelease::overall($wanted, $categories)
                             : null,
+            // ── AND WHETHER THIS TABLE IS WHAT THE PUBLIC PAGE PUBLISHES ─────
+            //
+            // It draws live, deliberately — that is what makes it an audit of the release
+            // rather than a report about one. Since sealing shipped, that is no longer
+            // what a RELEASED cycle's public page shows, and the two screens disagreed
+            // with nothing anywhere to say why: an operator taking the call that begins
+            // "my score has changed" had the recomputed figure in front of them while the
+            // nominee had the sealed one. Null for a cycle that was never sealed, which is
+            // most of them and every cycle before its release.
+            'sealed'     => $wanted > 0 && !$failed
+                            ? \AfricaGates\Services\ReleasedStanding::divergence($categories, $wanted)
+                            : null,
             // Said out loud rather than rendered as an empty table. "Nothing scored yet"
             // and "the query failed" look identical on a screen and mean opposite things.
             'failed'     => $failed,

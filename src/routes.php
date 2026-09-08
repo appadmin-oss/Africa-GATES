@@ -3833,6 +3833,13 @@ return function(App $app) {
             // numbers verified in its console. All three read as working everywhere else.
             // A number typed by hand, capped per admin per hour, opt-out honoured.
             $s->post('/providers/send-test', AdminSettingsController::class.':providersSendTest');
+            // ── TAKE BACK A BATCH OF WORKED-OUT PRONUNCIATIONS ───────────────
+            //
+            // A name is asked about once, ever, so a bad run of answers is otherwise
+            // permanent — and `gates_name_says.source` was added to make this possible,
+            // with its migration promising the button, while no delete path existed
+            // anywhere. Answers a person gave are refused by the service.
+            $s->post('/voice/forget', AdminSettingsController::class.':voiceForget');
             $s->post('/smtp-test', AdminSettingsController::class.':smtpTest');
             $s->post('/test-ai',   AdminSettingsController::class.':testAi');
             $s->post('/probe-ai',  AdminSettingsController::class.':probeAi');

@@ -743,6 +743,102 @@
           <span class="hint" style="margin-left:8px">Only needed if you want to change one &mdash; edit it here first.</span>
         </div>
         {% endif %}
+
+        {#
+          ── EVERY NAME ON RECORD, AND WHO DECIDED IT ──────────────────────────
+
+          The table above is the guest lists for the next few days: a review list, and
+          the right one for the afternoon of a gala. It cannot answer the other question
+          an operator has, because a name worked out for last month's event is not on it:
+          WHAT has this platform decided about names, and who decided it.
+
+          `NameSays::all()` exists for exactly that and says so in its own docblock, and
+          it had no caller anywhere — so `gates_name_says.source` was written by three
+          paths and read by nothing, while the migration that added it promised "the
+          admin screen can show where an answer came from". A column nothing has claimed
+          for is a vestige; one the docs already promised is a lie with a schema behind it.
+
+          In a <details> because it grows for the life of the platform and the review list
+          is what somebody came here for. The counts are in the summary, so the size of
+          the record is legible without opening it.
+        #}
+        {% if voice_record is not empty %}
+        <div style="margin-top:14px;padding-top:12px;border-top:1px solid rgba(16,41,44,.12)">
+          <details>
+            <summary style="cursor:pointer;font-weight:600;font-size:13px">
+              Every name worked out so far &mdash; {{ voice_known }}
+              on record
+              <span class="hint" style="font-weight:400">
+                ({{ voice_sources.ai }} by a model, {{ voice_sources.rule }} by the offline
+                rule{% if voice_sources.hand %}, {{ voice_sources.hand }} by a person{% endif %})
+              </span>
+            </summary>
+            <p class="hint" style="margin:10px 0">
+              Each name is asked about <strong>once, ever</strong> &mdash; the first answer
+              is kept, because it may already have been read aloud to somebody. That is
+              also why a bad run matters: if a model answered badly for a batch, those
+              names stay wrong at every door until they are forgotten here.
+              <strong>Forgetting is safe.</strong> A name with no answer is simply worked
+              out again before the next event it appears at, and until then the offline
+              rule reads it &mdash; so the worst that can happen is one evening of names
+              read by rule.
+            </p>
+            <div style="max-height:320px;overflow:auto;border:1px solid rgba(16,41,44,.12);border-radius:9px">
+              <table style="width:100%;border-collapse:collapse;font-size:12.5px">
+                <thead><tr>
+                  <th style="text-align:left;padding:7px 10px;font-weight:600;border-bottom:1px solid rgba(16,41,44,.12)">Name</th>
+                  <th style="text-align:left;padding:7px 10px;font-weight:600;border-bottom:1px solid rgba(16,41,44,.12)">How it is said</th>
+                  <th style="text-align:left;padding:7px 10px;font-weight:600;border-bottom:1px solid rgba(16,41,44,.12)">Worked out by</th>
+                </tr></thead>
+                <tbody>
+                  {% for r in voice_record %}
+                    <tr>
+                      <td style="padding:5px 10px;border-bottom:1px solid rgba(16,41,44,.07);white-space:nowrap">{{ r.written }}</td>
+                      <td style="padding:5px 10px;border-bottom:1px solid rgba(16,41,44,.07);font-family:var(--ag-font-mono,monospace)">{{ r.said }}</td>
+                      {#
+                        The STORED source, through the one resolver the pending table
+                        above uses. It used to say "worked out" for every row in this
+                        table regardless — derived from where the answer was found rather
+                        than from what was recorded — so a respelling a model invented and
+                        one the rule derived from letters were shown as the same kind of
+                        answer, on the screen whose job is deciding which to trust.
+                      #}
+                      <td style="padding:5px 10px;border-bottom:1px solid rgba(16,41,44,.07);color:#8a9a9c;white-space:nowrap">
+                        {% if r.source == 'ai' %}a model{% elseif r.source == 'hand' %}a person{% else %}the offline rule{% endif %}
+                      </td>
+                    </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+            {#
+              `formaction` on the button and NOT a nested <form>. This whole page is one
+              <form>, and an HTML parser DISCARDS a <form> start tag opened inside an open
+              one: the button would keep its markup, lose its action and save the settings
+              instead. Three of those have shipped here, one of them a Delete that ran an
+              update. `name`/`value` on the submit button carries which batch to forget,
+              which is also why there is no nested form to want.
+
+              Answers a PERSON gave are not offered, and the service refuses them even if
+              this markup asked: what somebody typed always wins, and nothing can ask a
+              model to guess again at what they decided after hearing the clip.
+            #}
+            {% if voice_sources.ai > 0 %}
+              <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:12px">
+                <button class="ad-btn" type="submit" name="source" value="ai" formnovalidate
+                        formaction="/admin/settings/voice/forget"
+                        data-confirm="Forget the {{ voice_sources.ai }} pronunciation{{ voice_sources.ai == 1 ? '' : 's' }} a model worked out? Each of those names will be worked out again before the next event it appears at. Nothing a person typed is touched.">
+                  Forget what the model worked out
+                </button>
+                <small class="hint">Use this after changing the AI provider, or if a batch
+                  came back wrong. The {{ voice_sources.rule }} the offline rule worked out
+                  {{ voice_sources.rule == 1 ? 'is' : 'are' }} left alone &mdash; they are
+                  derived from the letters and do not change.</small>
+              </div>
+            {% endif %}
+          </details>
+        </div>
+        {% endif %}
       </div>
   </div></div>
 
