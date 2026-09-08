@@ -166,13 +166,33 @@
     wrong about both terms of the thing it was explaining, on the page an award is signed
     off from.
   #}
-  <p><b>Reading the index.</b> Each nominee&rsquo;s score out of 1000 is a community half
-    plus a judge half, printed under it so it can be added up. The community half is two
-    counts: <em>how many verified people</em> backed them (the larger part of it) and their
-    <em>total votes</em>. Both are measured against the highest figure any nominee reached
-    <em>anywhere in this cycle</em> &mdash; not in their own category &mdash; so a community
-    figure means the same thing on every category below and the cycle standing can be drawn
-    from them. The judge half is the panel&rsquo;s weighted average out of ten, straight.</p>
+  {#
+    THIS PARAGRAPH HAS BEEN WRONG ABOUT THE DENOMINATOR TWICE ALREADY — it said "the
+    largest ORGANIC vote count IN THE CATEGORY" while the scorer had moved on from both
+    words. It is now driven off the cycle's OWN basis rather than describing whichever rule
+    was current when somebody last edited the template, because this is the page an award
+    is signed off from and a lede that describes a different arithmetic is worse than none.
+  #}
+  {% if categories is not empty and categories[0].community_basis == 'ideal' %}
+    <p><b>Reading the index.</b> Each nominee&rsquo;s score out of 1000 is a community half
+      plus a judge half, printed under it so it can be added up. The community half is two
+      counts against <em>one</em> yardstick: the <em>largest vote total anyone in this cycle
+      reached</em>, counted as if every one of those votes had come from a different person.
+      Seventy per cent of the half is <em>how many verified people</em> backed a nominee as a
+      share of that; thirty per cent is their <em>total votes</em> as a share of the same
+      figure. So a full community half means as many separate supporters as the biggest
+      total anybody managed. Because both counts divide by one number, the gap between a
+      nominee&rsquo;s backer count and their vote total is readable straight off the row.
+      The judge half is the panel&rsquo;s weighted average out of ten, straight.</p>
+  {% else %}
+    <p><b>Reading the index.</b> Each nominee&rsquo;s score out of 1000 is a community half
+      plus a judge half, printed under it so it can be added up. The community half is two
+      counts: <em>how many verified people</em> backed them (the larger part of it) and their
+      <em>total votes</em>. Both are measured against the highest figure any nominee reached
+      <em>anywhere in this cycle</em> &mdash; not in their own category &mdash; so a community
+      figure means the same thing on every category below and the cycle standing can be drawn
+      from them. The judge half is the panel&rsquo;s weighted average out of ten, straight.</p>
+  {% endif %}
 </div>
 
 <form method="get" action="/admin/result-release" class="ja-row">
@@ -721,7 +741,30 @@
                   explained 135 of the 450 while reading like the whole of it, and the term
                   that actually decides the half was invisible.
                 #}
-                {% if c.community_basis == 'reach' and c.cohort_max_unique > 0 and not r.reach_unmeasured %}
+                {#
+                  ── AND UNDER `ideal` NOBODY "SETS THE REACH SCALE" ─────────
+
+                  On `reach` the denominator of the 70% is the most PEOPLE anybody had, so
+                  naming its holder is the whole point of this cell. On `ideal` there is no
+                  such denominator: both terms divide by the largest TALLY. Printing "most
+                  in the cycle, sets the reach scale" there would name a scale that does not
+                  exist, on the screen an award is signed off from — the same shape of fault
+                  as the four help-centre promises this rule change has already retired
+                  once. So the two bases get two cells.
+                #}
+                {% if c.community_basis == 'ideal' and c.cohort_max_unique > 0 and not r.reach_unmeasured %}
+                  <span class="ja-den">{{ r.unique_voters|number_format }} backer{{ r.unique_voters == 1 ? '' : 's' }}
+                    {#- Of the IDEAL, which is the tally denominator — the same figure the
+                        community share above is measured against, so an operator can check
+                        the 70% and the 30% against one number. -#}
+                    {%- if c.cohort_max > 0 %} of {{ c.cohort_max|number_format }} possible
+                      {%- if c.scale_set_by %} &mdash; {{ c.scale_set_by }}&rsquo;s tally
+                        {%- if c.scale_category and not c.scale_in_category %},
+                          in {{ c.scale_category }}
+                        {%- endif %}
+                      {%- endif %}
+                    {%- endif %}</span>
+                {% elseif c.community_basis == 'reach' and c.cohort_max_unique > 0 and not r.reach_unmeasured %}
                   <span class="ja-den">{{ r.unique_voters|number_format }} backer{{ r.unique_voters == 1 ? '' : 's' }}
                     {%- if c.cohort_max_unique_by and r.nominee_id == c.cohort_max_unique_by.id %}
                       &mdash; most in the cycle, sets the reach scale

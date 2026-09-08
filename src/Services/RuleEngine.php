@@ -65,10 +65,24 @@ class RuleEngine
         // without moving a released one. See CpiService::basis().
         // ── THE TWO THAT DECIDE AN AWARD ─────────────────────────────────
         //
-        // `community_basis` is REACH: 70% of the community half is how many verified
-        // people backed a nominee, 30% is the total tally. `relative` and `absolute` are
-        // the older tally-only bases, kept so an already-announced standing can still be
-        // reproduced exactly from the settings that produced it.
+        // `community_basis` is IDEAL: both community terms are shares of ONE ceiling —
+        // the largest tally in the edition, read as a number of people, because in the
+        // perfect case those votes were one each from that many separate human beings.
+        // 315 × (your unique voters ÷ that ideal) + 135 × (your total votes ÷ that ideal).
+        // So 450 means your supporters number as many as the biggest tally anybody
+        // managed, and nothing softer.
+        //
+        // `reach` divided the people term by the most PEOPLE anybody had, which sags: in
+        // an edition where nobody has broad support the least narrow nominee still took
+        // the whole 315, because the denominator fell to meet them. It is kept, and it is
+        // not a curiosity — cycles have been ANNOUNCED under it. `relative` and `absolute`
+        // are the older tally-only bases, kept for the same reason: an already-announced
+        // standing has to be reproducible exactly from the settings that produced it.
+        //
+        // The known cost of `ideal`, accepted deliberately and written up in full at
+        // {@see CpiService::idealPart()}: the ideal is a TOTAL tally, so it is purchasable,
+        // and a large enough purchase can invert the community ranking. The alternative
+        // considered was the highest organic tally.
         //
         // `judge_scale` is LINEAR: the panel's mark, straight, out of ten. `curved` is the
         // old rebased-and-raised form, kept for the same reason. `judge_floor` and
@@ -82,7 +96,7 @@ class RuleEngine
         // for the same reason the older bases are: an announced standing has to stay
         // reproducible to the digit. It applies to EVERY basis that has a denominator, so
         // reproducing an old cycle means setting the basis, the judge scale AND this.
-        'community_basis' => CpiService::BASIS_REACH,
+        'community_basis' => CpiService::BASIS_IDEAL,
         'community_scope' => CpiService::SCOPE_EDITION,
         'judge_scale'     => CpiService::SCALE_LINEAR,
         'judge_floor'     => 5.0,

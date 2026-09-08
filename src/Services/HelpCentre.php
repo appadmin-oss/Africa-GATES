@@ -479,15 +479,35 @@ final class HelpCentre
             'body' => [
                 ['p' => 'The CPI blends verified community votes, independent jury scoring and documented '
                       . 'impact into a single score, recomputed on a fixed schedule each cycle.'],
-                ['p' => 'The community component is itself two counts. Seventy per cent of it is '
-                      . '<strong>how many verified people</strong> backed a nominee; thirty per cent is '
-                      . 'their total votes. Both are measured against the highest figure any nominee in '
-                      . 'the same cycle reached — across every category, not within one — so a community '
-                      . 'score means the same thing wherever it appears.'],
+                ['p' => 'The community component is itself two counts, measured against one '
+                      . 'yardstick: the <strong>largest vote total any nominee in the cycle reached</strong>, '
+                      . 'counted as though every one of those votes had come from a different person — '
+                      . 'the most support there could have been. Seventy per cent of the component is '
+                      . '<strong>how many verified people</strong> backed a nominee, as a share of that; '
+                      . 'thirty per cent is their total votes, as a share of the same figure. It is the '
+                      . 'whole cycle across every category, not one category, so a community score means '
+                      . 'the same thing wherever it appears.'],
+                // ── THIS PARAGRAPH IS THE ONE THAT HAD TO CHANGE ─────────────
+                //
+                // It read: "What they cannot buy is the seventy per cent." Under the older
+                // `reach` rule that was exactly true — the seventy per cent divided by a
+                // count of PEOPLE, which no cheque can move. Under the current rule both
+                // counts divide by the same total, so the total is what money moves and a
+                // large enough purchase does change a standing.
+                //
+                // The narrow claim survives (splitting one payment into a thousand still
+                // buys nothing), and publishing only the narrow claim would be the worse
+                // kind of true: a reader takes "cannot buy the seventy per cent" to mean
+                // money cannot outrank supporters, and it can. This is the article support
+                // pastes into a ticket about a contested result, so it says the rate.
                 ['p' => 'Paid votes <strong>count</strong>, at full weight, toward the thirty per cent '
-                      . 'that is the total tally. What they cannot buy is the seventy per cent: one '
-                      . 'supporter is one supporter however many separate orders they place, so the same '
-                      . 'money split into a thousand small payments buys no extra reach. Jury members\' '
+                      . 'that is the total tally — and because both counts are measured against that '
+                      . 'same total, buying votes does move a nominee\'s community score. What money '
+                      . 'cannot do is multiply <em>one</em> supporter: one supporter is one supporter '
+                      . 'however many separate orders they place, so the same amount split into a '
+                      . 'thousand small payments buys nothing extra. In the community component a '
+                      . 'verified supporter counts for roughly <strong>two and a third votes</strong>. '
+                      . 'The judges\' {judge_pct}% cannot be bought at any price, and jury members\' '
                       . 'own votes are excluded in categories they judge.'],
                 ['p' => 'The split is <strong>{community_pct}% community, {judge_pct}% judges</strong>, '
                       . 'and it is set per cycle rather than fixed forever. Going deeper: '

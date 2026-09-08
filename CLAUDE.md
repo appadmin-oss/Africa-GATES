@@ -310,6 +310,43 @@ Full account in `docs/CODEBASE-INDEX.md` §16.
   The test that was meant to hold it wrote `vote_type = 'standard'` beside a `points:`
   hash: **a row no service here can produce**, which is the same shape of fixture as the
   7.9 panel mark, and it passes while the platform is wrong.
+- **The community half is now `ideal`: BOTH counts against ONE yardstick.** The yardstick
+  is the largest vote total any nominee in the *edition* reached, read as a number of
+  people — in the perfect case those votes were one each from that many separate human
+  beings. `315 × (unique voters ÷ ideal) + 135 × (total votes ÷ ideal)`. So a full 450
+  means exactly one thing: as many separate supporters as the biggest total anybody
+  managed, and nothing softer. `reach` divided the people term by the most PEOPLE anybody
+  had, which **sags**: in an edition where nobody has broad support, the least narrow
+  nominee still collected the whole 315 because the denominator fell to meet them.
+  Where every vote in an edition IS one person one vote the two bases are arithmetically
+  identical, so they differ exactly to the extent that votes are not.
+  **The cost is a FIXED EXCHANGE RATE, and it is the whole of the cost.** One denominator
+  cancels out of every comparison, so the half is proportional to `0.7 × people + 0.3 ×
+  votes` — the ORDER never depends on the ideal, and one supporter is worth exactly
+  `0.7/0.3 = 2.33` votes in every edition whatever the figures. On `reach` the same
+  supporter is worth `(maxVotes ÷ maxPeople) × 2.33` — 23.8, then 233, then 4,667 as
+  tallies grow — so buying past genuine support got *harder* there and does not here. On
+  the suite's own fixture (A: 10 supporters/10 votes, B: 3 supporters) **twenty-five bought
+  votes**, one donation, puts B above A. This was specified, and confirmed with these
+  numbers in view; `PaidVoteCpiSeparationTest` asserts BOTH outcomes — the guarantee under
+  `reach`, the inversion under `ideal` — so the trade-off is recorded rather than
+  discovered later as a bug. The repair if it is ever seen on a real cycle is the highest
+  ORGANIC tally as the ideal, which no purchase moves; that is a NEW basis, named and
+  settable, never an edit to this one, because an announced standing must stay reproducible.
+  **And the help centre had to change with it.** "What they cannot buy is the seventy per
+  cent" was true while that seventy per cent divided by a count of people. The narrow claim
+  survives (splitting one payment into a thousand buys nothing) and publishing only the
+  narrow claim is the worse kind of true — a reader takes it to mean money cannot outrank
+  supporters. `how-cpi-works` and `/integrity` state the rate now, and `EditionScaleTest`
+  sweeps for the retired wording.
+  **The measurement cliff is the surprising edge.** An edition with imported tallies and no
+  ballot rows is in the all-or-nothing fallback and the tally takes the whole half. The
+  FIRST countable row anywhere switches the people term on for every nominee at once,
+  against a tally denominator — so a nominee on 80 of a 100-vote maximum goes from 360 to
+  122 by gaining three counted supporters. `VoteRecoveryTest` found it by failing.  Not
+  smoothed, because every smoothing available is a lie about a measurement; the rule stays
+  "understate, and flag it", and the case nothing flags is the PARTIALLY measured one — three
+  real rows behind an imported eighty-vote tally is scored as eighty votes from three people.
 - **And where reach is unmeasurable the tally takes the whole half, deliberately.** A
   cohort maximum of *zero* unique voters does not mean "nobody has support" — it means the
   vote **rows** are missing while the tallies are not (an import from before this platform

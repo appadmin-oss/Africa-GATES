@@ -1131,10 +1131,17 @@
       <div class="row">
         <div>
           <label for="f-community_basis">What the community half measures</label>
+          {#- FOUR options, and the default is the one with no `value` test of its own:
+              `CpiService::basis()` maps anything unrecognised to `ideal`, so the picker
+              has to select `ideal` for a deployment that has never saved this field. The
+              older three are named by what they MEASURE rather than by their key, because
+              an operator reproducing an announced cycle is matching a description, not a
+              string. -#}
           <select name="community_basis" id="f-community_basis">
-            <option value="reach" {% if scoring.community_basis|default('reach') not in ['relative','absolute'] %}selected{% endif %}>How many people backed them (70%) + total votes (30%)</option>
-            <option value="relative" {% if scoring.community_basis|default('reach') == 'relative' %}selected{% endif %}>Share of the leader, curved</option>
-            <option value="absolute" {% if scoring.community_basis|default('reach') == 'absolute' %}selected{% endif %}>Their own turnout, on one scale</option>
+            <option value="ideal" {% if scoring.community_basis|default('ideal') not in ['relative','absolute','reach'] %}selected{% endif %}>People (70%) + votes (30%), both against the edition&rsquo;s biggest tally</option>
+            <option value="reach" {% if scoring.community_basis|default('ideal') == 'reach' %}selected{% endif %}>People (70%) against the most people + votes (30%) against the most votes</option>
+            <option value="relative" {% if scoring.community_basis|default('ideal') == 'relative' %}selected{% endif %}>Share of the leader, curved</option>
+            <option value="absolute" {% if scoring.community_basis|default('ideal') == 'absolute' %}selected{% endif %}>Their own turnout, on one scale</option>
           </select>
         </div>
         <div>

@@ -482,6 +482,7 @@ final class ResultReleaseScreenRenderTest extends TestCase
      */
     public function test_the_working_is_drawn_beside_the_index(): void
     {
+        $this->useBasis(\AfricaGates\Services\CpiService::BASIS_REACH);
         $j1 = $this->judge('Ada Obi');
         $j2 = $this->judge('Tunde Cole');
 
@@ -504,11 +505,15 @@ final class ResultReleaseScreenRenderTest extends TestCase
 
         // And the leader is not told they have 100% of their own votes.
         //
-        // TWO scales are named, not one. The community half has two denominators — the
-        // largest tally in the cycle and the largest number of backers in it — and they are
-        // held by different people as often as not. A row that said "sets the scale" twice,
-        // once under each, would be two sentences that read identically and mean different
-        // things on the one screen an award is signed off from.
+        // TWO scales are named, not one — on `reach`, which this test pins explicitly
+        // because it is no longer the default. The community half has two denominators
+        // there, the largest tally in the cycle and the largest number of backers in it,
+        // and they are held by different people as often as not. A row that said "sets
+        // the scale" twice, once under each, would be two sentences that read identically
+        // and mean different things on the one screen an award is signed off from.
+        //
+        // `ideal` has ONE denominator and so names one scale; its own cell is tested
+        // below.
         $this->assertStringContainsString('sets the tally scale', $html);
         $this->assertStringNotContainsString('100% of Grace Abiodun&rsquo;s 400', $html);
 
@@ -532,6 +537,7 @@ final class ResultReleaseScreenRenderTest extends TestCase
      */
     public function test_the_reach_term_is_drawn_beside_the_tally_term(): void
     {
+        $this->useBasis(\AfricaGates\Services\CpiService::BASIS_REACH);
         $j1 = $this->judge('Ada Obi');
         $j2 = $this->judge('Tunde Cole');
 
@@ -671,6 +677,47 @@ final class ResultReleaseScreenRenderTest extends TestCase
             'a two-nominee category drew the award line under its own last row');
     }
 
+    /**
+     * AND UNDER `ideal` THE SCREEN NAMES ONE YARDSTICK, NOT A REACH SCALE.
+     *
+     * `ideal` divides both community terms by the largest TALLY, so there is no
+     * "most people anybody had" denominator at all. The reach cell's own words — "most in
+     * the cycle, sets the reach scale" — would name a scale that does not exist, on the
+     * page an award is signed off from. That is the same shape as the four help-centre
+     * promises this rule change has already retired once, and it is why the two bases get
+     * two cells rather than one cell with a tweak.
+     */
+    public function test_the_ideal_basis_names_one_yardstick_and_no_reach_scale(): void
+    {
+        $lead = $this->nominee('Grace Abiodun', 400);
+        $half = $this->nominee('Fatima Bello', 200);
+        $this->panel($lead, 9);
+        $this->panel($half, 8);
+        $this->backers($lead, 4, 'lead');
+        $this->backers($half, 2, 'half');
+
+        $body = (string) preg_replace('~\s+~', ' ',
+            (string) preg_replace('~<style\b.*?</style>~s', '', $this->render()));
+
+        $this->assertStringNotContainsString('sets the reach scale', $body,
+            'the screen names a reach denominator that this basis does not have');
+        // Both terms share the ideal, so the row states the one figure they divide by —
+        // and this assertion is also the proof that the PEOPLE maximum is not the
+        // denominator any more. The most backers anybody here has is 4; the yardstick
+        // printed is 400, the tally. A loose `not contains "backers of 4"` would have
+        // matched "backers of 400" and passed on either rule, which is worse than no
+        // assertion because it reads like one.
+        $this->assertStringContainsString('2 backers of 400 possible', $body,
+            'a nominee is not shown the yardstick both halves of their community score '
+            . 'are measured against');
+        $this->assertSame(4, (int) DB::table('gates_votes')
+            ->where('nominee_id', $lead)->count(),
+            'the fixture no longer has a people maximum distinct from the tally, so this '
+            . 'test cannot tell the two denominators apart');
+        $this->assertStringContainsString('largest vote total anyone in this cycle reached', $body,
+            'the lede still describes the two-denominator rule');
+    }
+
     // ══ the announcement, beside today's arithmetic ══════════════════════════
 
     /**
@@ -688,12 +735,38 @@ final class ResultReleaseScreenRenderTest extends TestCase
             (string) preg_replace('~<style\b.*?</style>~s', '', $this->render()));
     }
 
-    /** A complete panel at quorum, so the judge half is actually paid. */
+    /**
+     * Score this cycle on a named basis.
+     *
+     * The default is `ideal` and several of these tests are about what the `reach` screen
+     * says, which is a different cell with a different denominator. Naming the basis in
+     * the test that depends on it beats a fixture that silently follows whatever the
+     * default happens to be this month.
+     */
+    private function useBasis(string $basis): void
+    {
+        (new \AfricaGates\Services\RuleEngine())->set('global', null,
+            ['community_basis' => $basis]);
+    }
+
+    /**
+     * A complete panel at quorum, so the judge half is actually paid.
+     *
+     * The SAME two judges each time. `gates_judges.email` is unique, so building a fresh
+     * pair per nominee threw on the second call — and a panel of two judges scoring every
+     * nominee is also what a real cycle looks like, where a quorum is a standing panel
+     * rather than two people hired per row.
+     */
     private function panel(int $nominee, int $mark): void
     {
-        foreach (['Ada Obi', 'Tunde Cole'] as $name) {
-            $this->scoreAll($this->judge($name), $nominee, $mark);
+        static $panel = [];
+        $key = $this->programmeId;
+
+        if (!isset($panel[$key])) {
+            $panel[$key] = [$this->judge('Ada Obi'), $this->judge('Tunde Cole')];
         }
+
+        foreach ($panel[$key] as $judgeId) $this->scoreAll($judgeId, $nominee, $mark);
     }
 
     /**

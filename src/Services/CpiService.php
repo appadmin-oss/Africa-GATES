@@ -161,6 +161,10 @@ class CpiService
                                          ?string $basis = null,
                                          int $uniqueVoters = 0, int $cohortMaxUnique = 0): float
     {
+        if (self::basis($basis) === self::BASIS_IDEAL) {
+            return self::idealPart($uniqueVoters, $voteCount, $cohortMaxVotes, $cohortMaxUnique);
+        }
+
         if (self::basis($basis) === self::BASIS_REACH) {
             return self::reachPart($uniqueVoters, $cohortMaxUnique, $voteCount, $cohortMaxVotes);
         }
@@ -227,18 +231,24 @@ class CpiService
     public const BASIS_RELATIVE = 'relative';
     public const BASIS_ABSOLUTE = 'absolute';
     public const BASIS_REACH    = 'reach';
+    public const BASIS_IDEAL    = 'ideal';
 
     /**
      * The basis, normalised. Anything unrecognised is the DEFAULT, never a guess — and the
-     * default is `reach`, so a deployment that has never opened the settings screen is
-     * scored on how many people backed a nominee rather than on how much was spent.
+     * default is `ideal`, so a deployment that has never opened the settings screen scores
+     * both community terms against the same ceiling: the largest tally in the edition,
+     * counted as though every one of those votes had come from a different person.
+     *
+     * `reach` is kept, and is not a legacy curiosity: cycles have been ANNOUNCED under it,
+     * and reproducing an announced standing to the digit is what these settings are for.
      */
     public static function basis(?string $raw): string
     {
         return match (trim((string) $raw)) {
             self::BASIS_ABSOLUTE => self::BASIS_ABSOLUTE,
             self::BASIS_RELATIVE => self::BASIS_RELATIVE,
-            default              => self::BASIS_REACH,
+            self::BASIS_REACH    => self::BASIS_REACH,
+            default              => self::BASIS_IDEAL,
         };
     }
 
@@ -294,6 +304,119 @@ class CpiService
      * @param int $cohortMaxVotes  the most any nominee in the field has
      */
     public const REACH_PEOPLE_SHARE = 0.70;
+
+    /**
+     * ══════════════════════════════════════════════════════════════════════════
+     * IDEAL: BOTH TERMS AGAINST ONE CEILING — THE BEST SUPPORT ANYBODY PROVED
+     * ══════════════════════════════════════════════════════════════════════════
+     *
+     * The IDEAL is the largest vote tally any nominee reached in the edition, read as a
+     * number of PEOPLE: in the perfect case those votes were one each from that many
+     * separate human beings. Both community terms are shares of it.
+     *
+     *     315 × (your unique voters ÷ highest total votes in the edition)
+     *     135 × (your total votes   ÷ highest total votes in the edition)
+     *
+     * ── WHAT IT MEASURES THAT `reach` DOES NOT ──────────────────────────────
+     *
+     * {@see reachPart()} divides people by the most PEOPLE anybody had. That yardstick
+     * sags: in an edition where nobody has broad support, the nominee with the least
+     * narrow support still collects the whole 315, because the denominator fell to meet
+     * them. A share of the best turnout that happened is not a measure of turnout.
+     *
+     * The ideal does not sag. The ceiling is what the biggest tally on the platform would
+     * have been worth if it had been one person one vote, so 450 means exactly that: your
+     * supporters number as many as the largest tally anybody managed. Nothing softer.
+     *
+     * And because the two terms now share a denominator, the GAP between them is readable
+     * as a fact about a nominee rather than as an artefact of two scales. Votes all from
+     * distinct people and the two ratios are equal; two thousand votes from two people and
+     * the volume ratio is 1 while the people ratio is 0.001. That difference is the
+     * platform's own measure of how genuine a tally is, and it is now visible in the
+     * arithmetic instead of being buried between two unrelated maxima.
+     *
+     * A useful sanity property: where every vote in an edition IS one person one vote, the
+     * highest-unique and highest-total figures are the same number and this basis is
+     * arithmetically identical to `reach`. The two differ exactly to the extent that the
+     * platform's votes are not one person one vote — repeat voting and purchases.
+     *
+     * ══════════════════════════════════════════════════════════════════════════
+     * THE COST, WHICH IS REAL AND WAS ACCEPTED WITH THE NUMBERS IN VIEW
+     * ══════════════════════════════════════════════════════════════════════════
+     *
+     * ONE DENOMINATOR MEANS ONE FIXED EXCHANGE RATE BETWEEN A PERSON AND A VOTE, and that
+     * — not the denominator being purchasable — is the whole of the cost.
+     *
+     * Because both terms divide by the same `$ideal`, it cancels out of any comparison
+     * between two nominees: the community half is proportional to
+     *
+     *     0.7 × people  +  0.3 × votes
+     *
+     * So the ORDER never depends on the ideal at all, and one supporter is worth exactly
+     * 0.7/0.3 = **2.33 votes**, in every edition, whatever the figures. Buy 2.34 votes and
+     * you have outbid one real human being, at a price that can be looked up.
+     *
+     * `reach` has no fixed rate, because its two terms divide by two different maxima. A
+     * supporter there is worth (maxVotes ÷ maxPeople) × 2.33 votes — measured through
+     * these two methods:
+     *
+     *     maxPeople 10, maxVotes    102  │  ideal 2.33 votes  │  reach    23.8 votes
+     *     maxPeople 10, maxVotes  1,000  │  ideal 2.33 votes  │  reach   233.3 votes
+     *     maxPeople 10, maxVotes 20,000  │  ideal 2.33 votes  │  reach 4,666.7 votes
+     *
+     * That is the property being given up: on `reach`, every vote anybody buys makes a
+     * genuine supporter worth MORE, so buying past real support gets harder the more of it
+     * is attempted. On `ideal` the rate is flat, so it does not.
+     *
+     * What it costs on the suite's own fixture — A with 10 separate supporters and 10
+     * votes, B with 3 supporters, against B's purchase:
+     *
+     *      0 bought  A 450.0   B 121.5
+     *     25 bought  ── B overtakes A ──
+     *    100 bought  A  44.1   B 144.3
+     *
+     * Twenty-five bought votes, one donation, and a nominee with three supporters places
+     * above one with ten. This is the outcome of the rule as specified, confirmed after
+     * being shown; the alternative on the table was the highest ORGANIC tally as the
+     * ideal, which leaves A ahead at 292.5 and makes the rate (maxOrganic ÷ ideal)-elastic
+     * again. If this inversion is ever seen on a real cycle, that is the change to make —
+     * `BASIS_IDEAL_ORGANIC` is a few lines here — and not a re-derivation of what the
+     * 70/30 split is for.
+     *
+     * DO NOT "fix" this by quietly swapping the denominator: an announced standing must
+     * stay reproducible, so a different ideal is a different basis, named and settable.
+     *
+     * @param int $uniqueVoters    verified people behind this nominee, from {@see VoterReach}
+     * @param int $voteCount       this nominee's total votes, bought and free together
+     * @param int $cohortMaxVotes  THE IDEAL: the largest tally in the edition
+     * @param int $cohortMaxUnique the most people behind anyone — not a denominator here,
+     *                             and still the only way to know reach was measurable
+     */
+    public static function idealPart(int $uniqueVoters, int $voteCount,
+                                     int $cohortMaxVotes, int $cohortMaxUnique): float
+    {
+        $ideal  = max(1, $cohortMaxVotes);
+        $volume = min(1.0, max(0, $voteCount) / $ideal);
+
+        // ══ NOBODY IN THE EDITION HAS A RECORDED VOTER: MEASURE WHAT THERE IS ══
+        //
+        // Carried over from reachPart() deliberately, and it is NOT redundant just because
+        // `cohortMaxUnique` no longer divides anything. Where vote ROWS are missing while
+        // the tallies are not — an import from before this platform held rows, a seeded
+        // fixture, a purged cycle — every nominee's people term would be 0/ideal, and the
+        // whole field would be quietly paid 30% of the community half. The ORDER survives,
+        // which is what makes that shape of fault survive too: nothing looks wrong and a
+        // cycle scored out of 135 still reads like one scored out of 450.
+        //
+        // So where reach cannot be measured anywhere, the tally takes the whole half —
+        // which is what we could actually measure, stated as the whole of it.
+        if ($cohortMaxUnique <= 0) return $volume;
+
+        $people = min(1.0, max(0, $uniqueVoters) / $ideal);
+
+        return self::REACH_PEOPLE_SHARE * $people
+             + (1.0 - self::REACH_PEOPLE_SHARE) * $volume;
+    }
 
     public static function reachPart(int $uniqueVoters, int $cohortMaxUnique,
                                      int $voteCount, int $cohortMaxVotes): float
