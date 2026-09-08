@@ -1,0 +1,120 @@
+{% extends "layout/gates.twig" %}
+
+{#
+  ONE AWARD, PROMISED AND NOT YET ANNOUNCED.
+
+  ── WHY THIS PAGE EXISTS AT ALL ─────────────────────────────────────────────
+
+  `PublicResults` used to serve a result page as soon as the cycle's results date passed,
+  announced or not. So a cycle still in `judging` published a full standing with a named
+  winner and an index — from a panel that was still open, and with no sealed record behind
+  it, which is why the page also printed "Recomputed under current rules". The gate is the
+  announcement now: `results` or `archived`, written by `CycleMaterialiser` in the same
+  transaction that crowns the winners and seals the standing.
+
+  Which leaves the link. A result's URL is in front of people days before the date — in the
+  congratulations mail, in the Pulse, in something forwarded — and whoever follows one on
+  the day it was promised is exactly the person owed an explanation. A 404 there, on that
+  day, reads as the result having been taken down.
+
+  ── AND WHY IT DOES NOT LOOK LIKE AN ERROR ──────────────────────────────────
+
+  Because nothing has gone wrong for the reader. The address is right, the award is real,
+  and there is a true answer about it. It answers 200 with `noindex` — a crawler must not
+  cache a holding page as this award's content, since the real result takes this same URL
+  the moment it is announced.
+
+  No countdown, no "check back soon", no invented date. The last date this platform named
+  is the one it did not keep; naming a second one it has not earned is how a delay becomes
+  the thing people remember about an award.
+#}
+
+{% block head_styles %}
+<style nonce="{{ csp_nonce }}">
+  body[data-page="results"]{ background:#f0f2f2; color:var(--ag-ink); }
+
+  .rl{ max-width:640px; margin:0 auto;
+       padding:clamp(2.5rem,7vw,4.5rem) var(--ag-gutter,32px) clamp(3rem,8vw,5.5rem); }
+  .rl-eyebrow{ margin:0 0 12px; font:600 var(--ag-fs-label) / 1 var(--ag-font-mono);
+               letter-spacing:var(--ag-tracking-label); text-transform:uppercase;
+               color:var(--ag-ink-soft); }
+  .rl h1{ margin:0; font-family:var(--ag-font-display); font-weight:700;
+          font-size:clamp(1.7rem,4.2vw,2.35rem); letter-spacing:-.02em; line-height:1.15; }
+  .rl-lede{ margin:16px 0 0; font-size:16px; line-height:1.65; color:#3f484c; }
+  .rl-rule{ height:1px; background:var(--ag-line-strong); margin:clamp(1.6rem,4vw,2.2rem) 0; }
+
+  /* The promised date, given the weight of a fact rather than of an apology. It is the
+     thing a reader is holding this platform to. */
+  .rl-date{ display:flex; flex-wrap:wrap; gap:4px 14px; align-items:baseline;
+            padding:14px 16px; border-left:3px solid var(--ag-pulse);
+            background:rgba(224,36,94,.05); }
+  .rl-date dt{ margin:0; font:600 10.5px/1.4 var(--ag-font-mono); letter-spacing:.07em;
+               text-transform:uppercase; color:var(--ag-ink-soft); }
+  .rl-date dd{ margin:0; font-weight:600; font-size:15px; color:var(--ag-ink); }
+
+  /* The operator's own words, set visibly apart from the platform's. A reader is entitled
+     to know which sentences a person wrote for them and which the site derived. */
+  .rl-note{ margin:20px 0 0; padding:16px 18px; border:1px solid var(--ag-line-strong);
+            border-radius:var(--ag-r-lg); background:var(--ag-surface);
+            font-size:15px; line-height:1.65; color:var(--ag-ink); white-space:pre-line; }
+  .rl-note__k{ display:block; margin:0 0 8px; font:600 10.5px/1 var(--ag-font-mono);
+               letter-spacing:.07em; text-transform:uppercase; color:var(--ag-ink-soft); }
+
+  .rl-body p{ margin:14px 0 0; font-size:15px; line-height:1.68; color:#4a5256; }
+  .rl-acts{ display:flex; flex-wrap:wrap; gap:12px; margin:26px 0 0; }
+  .rl-btn{ display:inline-flex; align-items:center; min-height:44px; padding:0 22px;
+           border-radius:var(--ag-r-pill); font-weight:600; font-size:14.5px;
+           text-decoration:none; }
+  .rl-btn--p{ background:var(--ag-green); color:#fff; }
+  .rl-btn--g{ border:1px solid var(--ag-line-strong); color:var(--ag-ink); background:var(--ag-surface); }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="rl">
+  <p class="rl-eyebrow">{{ late.programme }}{% if late.edition %} &middot; {{ late.edition }}{% endif %}</p>
+
+  {# The award's own name, so somebody who followed a link is told which one they reached
+     rather than only which edition it belongs to. #}
+  <h1>{% if late.award %}{{ late.award }}{% else %}This award{% endif %} has not been
+    announced yet</h1>
+
+  <p class="rl-lede">The result for this award is <strong>late</strong>. Nothing has been
+    decided, nothing has been withheld, and there is no winner to name yet.</p>
+
+  <div class="rl-rule"></div>
+
+  {# NAMED, not softened. A delay notice that will not repeat the date it broke is asking
+     to be trusted twice. #}
+  <dl class="rl-date">
+    <dt>Was expected</dt>
+    <dd>{{ late.promised|date('j F Y') }}</dd>
+  </dl>
+
+  {% if late.note %}
+    <div class="rl-note">
+      <span class="rl-note__k">From the organisers</span>{{ late.note }}
+    </div>
+  {% endif %}
+
+  <div class="rl-body">
+    {# WHY the platform would rather be late, in the terms the rest of the site uses. A
+       nominee reading this is owed the reasoning and not a reassurance. #}
+    <p>An award here is published as one thing: every nominee who scored, the community
+      support behind each of them, the panel&rsquo;s marks, and the denominator each share
+      was measured against. It is announced once, and the standing is <strong>sealed</strong>
+      at that moment so the figures a nominee is given are the figures this page shows for
+      ever afterwards.</p>
+    <p>That is why a part-finished result is not put up in the meantime. A figure that could
+      still move is not a result, and announcing one twice would be worse for everybody
+      named in it than announcing it late.</p>
+    <p>This page becomes the result the moment it is announced &mdash; the address does not
+      change, so a link already shared stays good.</p>
+  </div>
+
+  <div class="rl-acts">
+    <a class="rl-btn rl-btn--p" href="/results">Awards already decided</a>
+    <a class="rl-btn rl-btn--g" href="/awards">Awards running now</a>
+  </div>
+</div>
+{% endblock %}

@@ -47,6 +47,23 @@
   .rx-held{ margin:26px 0 0; padding:16px 18px; border-left:3px solid var(--ag-gold);
             background:rgba(201,162,75,.07); font-size:14px; line-height:1.6; color:#4a5256; }
 
+  /* A result that is LATE, not withheld — a different piece of news from .rx-held, and
+     above the list rather than under it, because somebody who came for this cycle must not
+     have to read past last year's awards to find out why theirs is not here. */
+  .rx-late{ margin:0 0 26px; padding:18px 20px; border:1px solid var(--ag-line-strong);
+            border-left:3px solid var(--ag-pulse); border-radius:var(--ag-r-lg);
+            background:var(--ag-surface); }
+  .rx-late h2{ margin:0 0 .4rem; font-family:var(--ag-font-display); font-weight:700;
+               font-size:1.15rem; color:var(--ag-ink); }
+  .rx-late p{ margin:.5rem 0 0; font-size:14px; line-height:1.65; color:#4a5256; max-width:64ch; }
+  .rx-late__meta{ margin:0; font:600 10.5px/1.4 var(--ag-font-mono); letter-spacing:.07em;
+                  text-transform:uppercase; color:var(--ag-ink-soft); }
+  /* The operator's own words, set apart from the platform's — a reader is entitled to know
+     which sentences a person wrote and which the site derived. */
+  .rx-late__note{ margin:.7rem 0 0; padding:.7rem .9rem; border-radius:var(--ag-r-sm,8px);
+                  background:rgba(16,41,44,.04); font-size:14px; line-height:1.62;
+                  color:var(--ag-ink); white-space:pre-line; }
+
   .rx-empty{ margin-top:30px; padding:clamp(2rem,5vw,3rem) 1.5rem; text-align:center;
              border:1px solid var(--ag-line-strong); border-radius:var(--ag-r-lg); background:var(--ag-surface); }
   .rx-empty h2{ margin:0 0 .5rem; font-family:var(--ag-font-display); font-weight:700; font-size:1.4rem; }
@@ -78,6 +95,52 @@
   </header>
 
   <div class="rx-rule"></div>
+
+  {#
+    ── A RESULT THAT IS LATE, SAID BEFORE THE LIST AND NOT AFTER IT ──────────
+
+    A results date is a promise made in public. This page used to serve the current
+    standing once that date passed, whether or not the cycle had been announced — a named
+    winner nobody had crowned, from a panel still open, unsealed. Gating that off leaves
+    the other failure: the page a nominee's family refreshes on the day would go from a
+    wrong answer to NO answer, which reads as the result being hidden.
+
+    So the fact is stated. Above the list, because somebody who came for this cycle must
+    not have to read past three years of other people's awards to find out why theirs is
+    not here — and `.rx-held` below is a different piece of news (decided, not published)
+    that would be actively misleading if the two were merged.
+
+    Derived, so nobody has to remember to take it down: it appears when a release slips
+    and disappears when the cycle is announced, which is the same moment the real result
+    replaces it.
+  #}
+  {% for d in delayed|default([]) %}
+    <div class="rx-late">
+      <p class="rx-late__meta">{{ d.programme }}{% if d.edition %} &middot; {{ d.edition }}{% endif %}</p>
+      <h2>{% if d.awards == 1 %}This award has not been decided yet{% else %}These results have not been decided yet{% endif %}</h2>
+      {#
+        The promised date is NAMED. It is the thing a reader is holding this platform to,
+        and a delay notice that will not repeat the date it broke is asking to be trusted
+        twice.
+      #}
+      <p>Results for {{ d.edition ?: d.programme }} were expected on
+        <strong>{{ d.promised|date('j F Y') }}</strong> and are late.
+        {% if d.awards > 1 %}{{ d.awards }} awards are waiting.{% endif %}
+        Nothing is published here until every part of the index can be shown and the
+        standing has been sealed &mdash; a figure that could still move is not a result,
+        and we would rather be late than announce one twice.</p>
+      {#
+        The operator's own words, where somebody has written them. Escaped like every
+        other operator string on a public page, and `white-space:pre-line` so a
+        paragraph they typed stays a paragraph. Absent, the page says what it knows and
+        does not invent a reason or a new date: a made-up date is a second broken
+        promise, and the first one is why anybody is reading this.
+      #}
+      {% if d.note %}
+        <p class="rx-late__note">{{ d.note }}</p>
+      {% endif %}
+    </div>
+  {% endfor %}
 
   {% if rows %}
     <ul class="rx-list">

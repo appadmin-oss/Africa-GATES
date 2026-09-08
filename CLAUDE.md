@@ -469,6 +469,34 @@ Full account in `docs/CODEBASE-INDEX.md` §16.
   A nominee entered after the announcement is counted apart and never called a discrepancy,
   or the panel shows a number beside "these have moved" on every cycle that has taken an
   entry since — which teaches an operator to stop reading it.
+  **And a RESULTS DATE IS A PROMISE, NOT AN ANNOUNCEMENT.** `PublicResults` gated its pages
+  on `status IN ('results','archived')` **or a `results_date` that has passed**, two lines
+  under its own docblock saying "a judged-but-unreleased category is a decided award nobody
+  has announced, and serving it publicly is announcing it". So a cycle still in `judging`
+  three days past its date published a full standing with a named winner and an index — from
+  a panel that was still open, with no seal, so the page also printed "Recomputed under
+  current rules": the platform admitting on a result page that this was not the
+  announcement. It named as winner somebody the promotion had not yet told. The gate is the
+  status alone now, because that status is written by `CycleMaterialiser` in the same
+  transaction that crowns and seals. The test asserting the old rule reasoned "the cron is
+  moved by a scheduler on a host with no shell and it has been dead for weeks before" —
+  right about the risk, wrong instrument, and answered since by the webcron tick, which
+  engages itself when `CronHealth` shows the schedule has PROVABLY missed work. Publishing
+  an unannounced result was a second fault covering for the first.
+  **Gating alone then fails the other way, which is why the two shipped together.** The page
+  a nominee's family refreshes on the results date would go from a wrong answer to NO
+  answer, and this class already holds the rule ("silence is how a withheld award becomes a
+  rumour"). `PublicResults::delayed()` states the delay: the date that was promised, that
+  the award is not decided, and the operator's own note where one is written.
+  **Derived, so it cannot be left up** — the condition is a past date plus a status that is
+  not released, so it appears when a release slips and goes when the cycle is announced,
+  which is the same moment the real result replaces it. A banner an operator has to remember
+  to take down is a banner that is still up in March. And `/results/{id}` for a late award
+  answers **200 with a holding page**, not 404: a result's URL is in front of people before
+  the date (the congratulations mail, the Pulse, a forward), whoever follows one on the day
+  is exactly the person owed the explanation, and a 404 there reads as the result having
+  been taken down. `noindex`, because the real result takes that same URL.
+  **No invented second date.** The last date this platform named is the one it did not keep.
 - **The sandbox must never reach the public.** `DemoSeeder` creates real rows with real
   flags, because the sandbox exists to be walked through for real. Every public reader has
   to exclude them — `JudgeService::realJudges()` is the pattern.

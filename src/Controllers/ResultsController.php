@@ -58,14 +58,52 @@ final class ResultsController
             'has_hero'         => false,
             'items'            => $r['items'],
             'held'             => $r['held'],
+            // ── AND THE AWARDS THAT ARE LATE ─────────────────────────────────
+            //
+            // A results date is a promise made in public. `PublicResults` used to serve
+            // the live standing once it passed, announced or not; it publishes only an
+            // announced cycle now, which would leave this page silent on the one day the
+            // most people look at it. A delay is stated instead — derived, so it appears
+            // when a release slips and goes when the cycle is announced.
+            'delayed'          => PublicResults::delayed(),
         ]);
     }
 
     /** GET /results/{slug} */
     public function show(Request $req, Response $res, array $args): Response
     {
-        $r = PublicResults::category(PublicResults::idFrom((string) ($args['slug'] ?? '')));
-        if ($r === null) throw new \Slim\Exception\HttpNotFoundException($req);
+        $categoryId = PublicResults::idFrom((string) ($args['slug'] ?? ''));
+        $r = PublicResults::category($categoryId);
+
+        if ($r === null) {
+            // ── A LATE AWARD EXPLAINS ITSELF RATHER THAN 404ing ──────────────
+            //
+            // A result's URL is in front of people before the date: in the congratulations
+            // mail, in the Pulse, in a message somebody forwarded. On the day it was
+            // promised, whoever follows one is exactly the person owed an explanation —
+            // and a 404 on that link, on that day, reads as the result being taken down.
+            //
+            // 200, not 404, and deliberately: the address is right, the award is real,
+            // and there is a true answer to give about it. `noindex` because a crawler
+            // must not cache a holding page as the award's content — the real result
+            // takes this URL when it is announced.
+            $late = PublicResults::delayForCategory($categoryId);
+            if ($late !== null) {
+                return $this->view->render($res, 'pages/results/late.twig', [
+                    'page_title'       => ($late['award'] !== '' ? $late['award'] . ' — ' : '')
+                                          . 'result not announced yet — Africa GATES',
+                    'meta_description' => 'This award has not been decided yet. Results for '
+                        . ($late['edition'] ?: $late['programme']) . ' were expected on '
+                        . date('j F Y', strtotime($late['promised'])) . ' and are late.',
+                    'gates_page'       => 'results',
+                    'current_section'  => 'projects',
+                    'has_hero'         => false,
+                    'late'             => $late,
+                ])->withHeader('X-Robots-Tag', 'noindex, follow');
+            }
+
+            throw new \Slim\Exception\HttpNotFoundException($req);
+        }
 
         // ── THE CANONICAL URL, AND WHY THIS REDIRECTS ────────────────────────
         //
