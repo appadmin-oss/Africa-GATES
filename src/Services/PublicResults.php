@@ -113,6 +113,10 @@ final class PublicResults
         return $drawn + [
             // Empty where the standing was never sealed, which the page must state.
             'sealed_at'   => (string) ($drawn['sealed_at'] ?? ''),
+            // Sealed figures whose PLACINGS had to be reconstructed — see
+            // {@see ReleasedStanding::apply()}. Defaulted here because an unsealed
+            // release never sets it and the template reads it under strict_variables.
+            'rank_recomputed' => (bool) ($drawn['rank_recomputed'] ?? false),
             'held'        => self::heldReason($drawn),
             // ── BOTH VOTE FIGURES, FOR THE WHOLE CATEGORY ────────────────────
             //

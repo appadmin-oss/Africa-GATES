@@ -377,4 +377,55 @@ final class RecurringGiving
     {
         return rtrim($base, '/') . '/donate/giving/' . rawurlencode($token);
     }
+
+    /**
+     * THE STOP LINK FOR THE GIFT A GIVEN PAYMENT SET UP, OR '' IF IT SET UP NONE.
+     *
+     * ══════════════════════════════════════════════════════════════════════════
+     * WHY THIS EXISTS: THE STOP BUTTON HAD NO WAY OF REACHING ANYBODY
+     * ══════════════════════════════════════════════════════════════════════════
+     *
+     * Every piece of the cancellation was built and correct. {@see start()} mints
+     * `manage_token` at checkout and says in its own comment that it is minted "so it can
+     * travel in the receipt". {@see byToken()} resolves it, including for an already
+     * stopped gift. `/donate/giving/{token}` renders the page and its stop button, and
+     * {@see \AfricaGates\Controllers\DonationController::giving()} explains at length why
+     * the cancellation is a link in a receipt rather than a login: "a donor who cannot
+     * easily stop is not a supporter, they are a dispute waiting for a quiet month."
+     *
+     * And {@see manageUrl()} — the one function that builds that link — had NO CALLER.
+     * No receipt, no mail template and no page ever contained the URL, so the only way to
+     * reach the stop button was to already know a 32-character token that was never sent
+     * anywhere. The whole mechanism was reachable exclusively by whoever could read the
+     * database. Same shape as the Chrome extension whose install note named a folder
+     * nothing served: every part complete in isolation, and no route in.
+     *
+     * ── MATCHED ON THE FIRST REFERENCE, NOT THE EMAIL ───────────────────────
+     *
+     * `first_ref` is written at checkout start, before the donor leaves for the gateway,
+     * so it is already there when the confirmation is being written — no dependence on
+     * whether `subscription.create` has arrived yet. Matching on the email instead would
+     * hand somebody the stop link for whichever arrangement they set up first, which for a
+     * donor with two standing gifts is the wrong one and cannot be told apart.
+     *
+     * Returns '' for an ordinary one-off gift, which is most of them.
+     */
+    public static function stopLink(string $firstRef, string $base): string
+    {
+        $ref = trim($firstRef);
+        if ($ref === '') return '';
+
+        try {
+            $token = DB::table('gates_donation_subscriptions')
+                ->where('first_ref', $ref)->orderByDesc('id')->value('manage_token');
+        } catch (\Throwable) {
+            // No table on this deployment. A receipt that cannot carry the link is still
+            // a receipt; one that fails to send costs the donor their confirmation.
+            return '';
+        }
+
+        $token = is_string($token) ? trim($token) : '';
+
+        return $token !== '' ? self::manageUrl($base, $token) : '';
+    }
 }

@@ -346,6 +346,186 @@ final class ReleasedStandingTest extends TestCase
             ->distinct()->count('snapshot_at'));
     }
 
+    // ══ the order, which is a rule like any other ════════════════════════════
+
+    /**
+     * THE PUBLISHED ORDER IS THE SEALED ORDER, NOT TODAY'S TIEBREAK.
+     *
+     * `apply()` used to throw `standing_rank` away and re-sort the sealed figures through
+     * {@see ResultRelease::order()}, on the reasoning that it is "the same comparator the
+     * award was decided with". It is — until somebody changes it, and a tiebreak is a rule
+     * exactly like the two the seal already protects. `order()` settles a dead heat on the
+     * tally and then on the nominee id, neither of which is an announcement.
+     *
+     * Simulated the only way it can be: the seal records the placings announced on the day,
+     * and here they are the OPPOSITE of what today's comparator produces from the same
+     * numbers. A page that re-derives the order cannot publish an announcement it is unable
+     * to reconstruct, which is the whole reason the placings are sealed and not the figures
+     * alone.
+     */
+    public function test_a_released_page_publishes_the_sealed_placings(): void
+    {
+        $first  = $this->nominee('Announced first', 900);
+        $second = $this->nominee('Announced second', 900);
+        $this->panel($first, 8);
+        $this->panel($second, 8);
+
+        (new SnapshotService())->captureRelease($this->cycleId);
+
+        // A dead heat on both terms, so today's comparator falls through to the nominee
+        // id — and the announcement went the other way.
+        $this->assertSame(
+            [900, 900],
+            DB::table('gates_vote_snapshots')->where('cycle_id', $this->cycleId)
+                ->where('capture_kind', SnapshotService::KIND_RELEASE)
+                ->orderBy('nominee_id')->pluck('vote_count')
+                ->map(static fn ($v): int => (int) $v)->all(),
+            'the fixture is not a dead heat, so the comparator has a real tiebreak to '
+            . 'use and this test is not about what it says it is about');
+
+        $this->seal($second, standingRank: 1);
+        $this->seal($first,  standingRank: 2);
+
+        $r = PublicResults::category($this->categoryId);
+
+        $this->assertSame('Announced second', $r['winner']['name'],
+            'the page re-decided a dead heat under today\'s tiebreak instead of '
+            . 'publishing the placing that was announced');
+        $this->assertSame(['Announced second', 'Announced first'],
+            array_map(static fn (array $row): string => $row['name'], $r['rows']));
+        $this->assertSame([1, 2],
+            array_map(static fn (array $row): ?int => $row['rank'], $r['rows']));
+        $this->assertFalse($r['rank_recomputed'],
+            'the order came straight off the seal, so nothing was reconstructed');
+    }
+
+    /**
+     * AND WHERE THE SEAL DID NOT RANK EVERYBODY, THE PAGE SAYS SO.
+     *
+     * The fallback the old reasoning was actually about: a placing that failed to write.
+     * The figures are still the announced ones and the list still has to be printed in
+     * SOME order, so it is reconstructed from them — and a reader is told, because the two
+     * cases are indistinguishable by looking and one of them is a reconstruction.
+     */
+    public function test_a_seal_missing_a_placing_is_reconstructed_and_labelled(): void
+    {
+        $big   = $this->nominee('Clear leader', 4000);
+        $small = $this->nominee('Second', 400);
+        $this->panel($big, 9);
+        $this->panel($small, 8);
+
+        (new SnapshotService())->captureRelease($this->cycleId);
+        $this->seal($small, standingRank: null);
+
+        $r = PublicResults::category($this->categoryId);
+
+        $this->assertTrue($r['rank_recomputed'],
+            'a reconstructed order is being published as the announced one');
+        $this->assertSame('Clear leader', $r['winner']['name']);
+        $this->assertSame([1, 2],
+            array_map(static fn (array $row): ?int => $row['rank'], $r['rows']),
+            'the list still has to carry placings, reconstructed or not');
+
+        $this->assertStringContainsString('order reconstructed',
+            $this->renderShow($r),
+            'the page presents a reconstructed order as the announcement');
+    }
+
+    /**
+     * THE REACH DENOMINATOR IS SEALED, AND THE PAGE STOPS ASKING TODAY'S ROWS.
+     *
+     * `cohort_max_unique` was read out of the seal and then never applied, so the public
+     * page gated its backer count on the LIVE figure: where the leader's ballot rows have
+     * since gone — an import, a purged cycle — the number of supporters vanishes from an
+     * announcement that counted them, beside a percentage that plainly came from
+     * somewhere.
+     */
+    public function test_the_sealed_reach_denominator_survives_the_rows_being_purged(): void
+    {
+        $a = $this->nominee('Ajayi Temitope', 1200);
+        $this->panel($a, 8);
+        DB::table('gates_votes')->insert([
+            'nominee_id' => $a, 'category_id' => $this->categoryId, 'vote_type' => 'standard',
+            'weight' => 1, 'voter_email_hash' => hash('sha256', 'backer@example.test'),
+            'voted_at' => '2026-11-01 09:00:00',
+        ]);
+
+        (new SnapshotService())->captureRelease($this->cycleId);
+        $announced = (int) PublicResults::category($this->categoryId)['cohort_max_unique'];
+        $this->assertSame(1, $announced, 'the fixture sealed no reach to lose');
+
+        // The ballot rows go; the tally on the nominee does not. This is what an import
+        // from before this platform held rows looks like from the page's side.
+        DB::table('gates_votes')->where('category_id', $this->categoryId)->delete();
+
+        $this->assertSame($announced,
+            (int) PublicResults::category($this->categoryId)['cohort_max_unique'],
+            'the published denominator moved when rows behind an announced result were '
+            . 'purged, so the page stopped printing supporters it had counted');
+    }
+
+    /**
+     * A PAGE LISTING SIXTY AWARDS READS EACH CYCLE'S SEAL ONCE, NOT ONCE AN AWARD.
+     *
+     * The seal is per CYCLE and it is read per CATEGORY, so the results index re-read the
+     * whole of a cycle's archive for every award on the page. Exactly the shape the
+     * edition scale had one commit earlier, in exactly the same loop — the scorer is
+     * threaded through it so that sixty results read each cycle once, and the seal lookup
+     * went straight back to once per award.
+     *
+     * Counted rather than reasoned about, because the cost is invisible at the call site:
+     * `PublicResults::category()` looks like it draws one award.
+     */
+    public function test_the_results_index_reads_a_cycles_seal_once(): void
+    {
+        $a = $this->nominee('First award', 900);
+        $this->panel($a, 8);
+
+        $second = (int) DB::table('gates_award_categories')->insertGetId([
+            'cycle_id' => $this->cycleId, 'slug' => 'secondary',
+            'title' => 'Secondary School Principal', 'sort_order' => 2,
+        ]);
+        $b = (int) DB::table('gates_nominees')->insertGetId([
+            'category_id' => $second, 'name' => 'Second award', 'status' => 'approved',
+            'organic_vote_count' => 700, 'vote_count' => 700,
+        ]);
+        $this->panel($b, 8);
+
+        (new SnapshotService())->captureRelease($this->cycleId);
+        ReleasedStanding::forget();
+
+        $conn = DB::connection();
+        $conn->flushQueryLog();
+        $conn->enableQueryLog();
+        $listed = PublicResults::index();
+        $seals  = 0;
+        foreach ($conn->getQueryLog() as $q) {
+            if (str_contains((string) $q['query'], 'gates_vote_snapshots')) $seals++;
+        }
+        $conn->disableQueryLog();
+
+        $this->assertGreaterThanOrEqual(2, count($listed['items']) + $listed['held'],
+            'the fixture is not listing two awards, so this counts the queries of nothing');
+        $this->assertSame(1, $seals,
+            'the results index reads the sealed standing once per award rather than once '
+            . 'per cycle, so every card it draws pulls the whole archive again');
+    }
+
+    /**
+     * Rewrite one sealed row's placing, standing in for an announcement made under a
+     * comparator this code no longer has. Touches `standing_rank` ONLY: it sits outside
+     * the hash payload (`cycleId|nomineeId|votes|cpi|at`) by design, so the chain stays
+     * verifiable and the test is not quietly asserting that tampering is undetectable.
+     */
+    private function seal(int $nomineeId, ?int $standingRank): void
+    {
+        DB::table('gates_vote_snapshots')
+            ->where('cycle_id', $this->cycleId)
+            ->where('capture_kind', SnapshotService::KIND_RELEASE)
+            ->where('nominee_id', $nomineeId)
+            ->update(['standing_rank' => $standingRank]);
+    }
+
     /**
      * AND SEALING NEVER BREAKS THE CHAIN IT IS WRITTEN INTO.
      *

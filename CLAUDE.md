@@ -74,6 +74,27 @@ enforces:
   filter that was never broken where it runs. Spell the clause out, and not with a
   backslash: `ESCAPE '\\'` is one character to MySQL and two to SQLite, `ESCAPE '\'` is an
   unterminated literal to MySQL. `!` is safe in both. See `AuditService::like()`.
+- **And `CREATE INDEX IF NOT EXISTS` is SQLite syntax MySQL answers with a 1064** — a
+  fault whose cost is nothing like one missing index. `MigrateCommand` aborts the run on a
+  throw and does **not** record the file, so the migration re-runs on the next deploy, and
+  by then the guard above the statement ("table already present", "column already added")
+  is true: either the file is skipped for ever with its index never created, or — where
+  nothing above it can become true — it throws again on every deploy and **every migration
+  dated after it never applies**. Three shipped together, and each had already committed
+  its `CREATE TABLE` before throwing: `gates_name_says` lost the UNIQUE key on `name_key`
+  that is the whole point of the migration, `gates_donation_subscriptions` lost all five of
+  its indexes including the UNIQUE on `manage_token` (the donor's stop button) and the
+  webhook lookup on the hot path of every recurring charge, and
+  `gates_vote_snapshots.idx_snap_cycle_kind` is read by a public result page on every view.
+  `SchemaIndex::ensure()`/`drop()` exist for this; never write the raw form outside a
+  branch only SQLite reaches.
+  **The lesson is the guard, not the syntax.** `SchemaIndexTest` was already watching for
+  exactly this and passed all three, because it asked *does this FILE mention the driver*
+  (`str_contains($body, '$sqlite')`) rather than *is this STATEMENT in a driver branch* —
+  and nearly every migration declares `$sqlite` to pick its column types, so the test
+  excused the files most able to offend. It reads the tokens now, per statement, and knows
+  the polarity: `if (!$sqlite) { CREATE INDEX IF NOT EXISTS … }` mentions the driver and is
+  the offence in its purest form.
 - Anything with a `NOT NULL` column and no default will pass in a test that omits it only
   if you got lucky; check the schema, not the fixture.
 
@@ -209,6 +230,15 @@ TEST_DB_DRIVER=mysql DB_HOST=127.0.0.1 DB_NAME=africa_gates_test \
 Real ENUMs, real integer widths, strict mode, `ONLY_FULL_GROUP_BY`. Everything in the
 MySQL/SQLite list at the top of this file is invisible without it.
 
+**It has to be MySQL. MariaDB is not a stand-in, and it is the easy one to reach for**
+(`apt install mariadb-server`, `mysqld` on the path, the same client, the same connection
+string). MariaDB has supported `CREATE INDEX IF NOT EXISTS` since 10.1.4, so a full green
+parity run on MariaDB says nothing whatever about the three migrations that were throwing a
+1064 on production — it creates the indexes and reports success. Where only MariaDB is
+available, run it and say which engine it was: it still catches the ENUMs, the integer
+widths, the datetime formats and `ONLY_FULL_GROUP_BY`, and it is blind by construction to
+anything MariaDB accepts that MySQL rejects.
+
 **Read the count, not the exit code.** Piping to `tail` or `grep` gives you the pipe's
 status, not PHPUnit's, and a run with two hundred errors exits 0 through a pipe.
 
@@ -268,6 +298,18 @@ Full account in `docs/CODEBASE-INDEX.md` §16.
   and published beside the total; it decides nothing. It used to decide the whole half,
   which was structurally zero wherever `paid_voting_disable_free` is set, because
   `VoteService::castVote()` is the only path that increments it.
+  **And where the ENUM has no room for a kind of vote, the HASH PREFIX is the only signal
+  there is — so read it first.** `gates_votes.vote_type` is
+  `ENUM('standard','bonus','paid')` with no `points` in it, so a member spending their own
+  loyalty points is written as `bonus`, and only `points:<userId>:<rand>` distinguishes
+  their choice from an operator's grant. `VoterReach::personKey()` tested
+  `$type === 'bonus'` **before** the prefix, so its whole `points:` branch was unreachable
+  for every row the platform has ever written and every redemption counted as nobody — 70%
+  of the community half, denied to the one supporter who had paid for it out of a balance
+  we credited them. Its own docblock said in as many words that a redemption is its member.
+  The test that was meant to hold it wrote `vote_type = 'standard'` beside a `points:`
+  hash: **a row no service here can produce**, which is the same shape of fixture as the
+  7.9 panel mark, and it passes while the platform is wrong.
 - **And where reach is unmeasurable the tally takes the whole half, deliberately.** A
   cohort maximum of *zero* unique voters does not mean "nobody has support" — it means the
   vote **rows** are missing while the tallies are not (an import from before this platform
@@ -397,6 +439,19 @@ Full account in `docs/CODEBASE-INDEX.md` §16.
   SQLite. Where a cycle was released before sealing existed there is **no guess** — the page
   recomputes and says so. `ReleasedStandingTest` proves it by moving the rules between the
   seal and the read, which is the only way to tell a sealed figure from a recomputed one.
+  **And the ORDER is part of the announcement, so it comes off the seal too.** `apply()`
+  sealed `standing_rank`, read it out of the database, threw it away and re-sorted the
+  sealed figures through `ResultRelease::order()` — reasoning that it is "the same
+  comparator the award was decided with". It is, until somebody changes it, and a tiebreak
+  is a rule exactly like the two the seal already protects: `order()` settles a dead heat
+  on the tally and then on the nominee id, neither of which anybody announced. The column
+  was written at every release and read by nothing, while its docblock claimed it was
+  "carried for display and as the check that the two agree" — and it was neither. The
+  sealed placings decide the list now; the comparator is the fallback for the case the old
+  reasoning was actually about (a rank that failed to write), and the page then says
+  "order reconstructed" rather than presenting it as the announcement. Same for
+  `cohort_max_unique`: read out of the seal, never applied, so a sealed page asked
+  **today's** rows whether to print a sealed number of supporters.
 - **The sandbox must never reach the public.** `DemoSeeder` creates real rows with real
   flags, because the sandbox exists to be walked through for real. Every public reader has
   to exclude them — `JudgeService::realJudges()` is the pattern.
@@ -450,6 +505,19 @@ Full account in `docs/CODEBASE-INDEX.md` §16.
   script returned on line one for anybody who reached a Meet call by clicking it rather than
   opening its URL. Each part was complete and correct in isolation. `docs/CODEBASE-INDEX.md`
   §18.
+  **And it happened again, over money.** A donor's link for stopping a monthly gift was
+  complete on every side: `RecurringGiving::start()` mints `manage_token` at checkout with
+  a comment saying it is minted "so it can travel in the receipt", `byToken()` resolves it
+  (including for an already-stopped gift, deliberately), `/donate/giving/{token}` renders
+  the page and its button, and `DonationController::giving()` explains at length why the
+  cancellation is a link in a receipt rather than a login — "a donor who cannot easily stop
+  is not a supporter, they are a dispute waiting for a quiet month". And `manageUrl()`, the
+  one function that builds the link, **had no caller**: no receipt, no template, no page
+  ever contained the URL, so the stop button was reachable only by somebody who could read
+  the database. The distinguishing question is not "does this work?" — every piece did —
+  but **who is ever handed this?** `RecurringGivingTest` now asserts the receipt's own body
+  calls `stopLink()`, because a link builder with a passing test and no caller is precisely
+  the state this shipped in.
 
 ## Two things about the events page's tier list
 

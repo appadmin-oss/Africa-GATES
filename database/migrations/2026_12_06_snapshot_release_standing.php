@@ -56,6 +56,10 @@
  * anybody notices.
  */
 
+require __DIR__ . '/../bootstrap.php';
+\AfricaGates\Support\Clock::boot();
+
+use AfricaGates\Support\SchemaIndex;
 use Illuminate\Database\Capsule\Manager as DB;
 
 $sqlite = DB::connection()->getDriverName() === 'sqlite';
@@ -106,6 +110,13 @@ foreach ($add as $col => $type) {
 // A published result page reads it on every view. Without this the lookup is a scan of
 // the whole archive — which grows by a row per nominee per active cycle every six hours,
 // for the life of the platform — on the one page an award is read from.
-DB::statement('CREATE INDEX IF NOT EXISTS idx_snap_cycle_kind
-               ON gates_vote_snapshots (cycle_id, capture_kind, id)');
-echo "  + idx_snap_cycle_kind ensured\n";
+//
+// Through SchemaIndex and NOT `CREATE INDEX IF NOT EXISTS`, which is SQLite syntax that
+// MySQL answers with a 1064. This file declares `$sqlite` for its column types, and that
+// was enough to make SchemaIndexTest's guard read this statement as driver-branched
+// when it was not — so on the production database this migration threw at the last line,
+// every deploy, for ever: the runner aborts on a throw and does not record the file, the
+// columns above are already present so the re-run reaches this same statement again, and
+// every migration dated after it never runs at all.
+echo SchemaIndex::ensure('gates_vote_snapshots', 'idx_snap_cycle_kind',
+                         ['cycle_id', 'capture_kind', 'id']) . "\n";

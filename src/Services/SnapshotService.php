@@ -174,7 +174,16 @@ class SnapshotService
             }
         }
 
-        return $rows === [] ? 0 : $this->append($rows, self::KIND_RELEASE);
+        if ($rows === []) return 0;
+
+        $written = $this->append($rows, self::KIND_RELEASE);
+        // A seal is immutable, so {@see ReleasedStanding::forCycle()} caches it for the
+        // life of the process — including the answer "there is no seal", which this call
+        // has just made wrong. The promotion sweep is the one process that can see both
+        // sides of that, and it draws the cycle before it seals it.
+        ReleasedStanding::forget($cycleId);
+
+        return $written;
     }
 
     /**

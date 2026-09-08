@@ -52,13 +52,38 @@ use Illuminate\Database\Capsule\Manager as DB;
 final class ReleasedStanding
 {
     /**
+     * Sealed standings already read in this process, keyed by cycle. Null is a cached
+     * answer too — "this cycle has no seal" is the commonest one on a page listing
+     * results from before sealing existed.
+     *
+     * @var array<int, array{at:string, rows:array<int,array<string,mixed>>}|null>
+     */
+    private static array $memo = [];
+
+    /**
      * The sealed standing for a cycle, or null when none was ever recorded.
+     *
+     * ── WHY THIS IS MEMOISED WHERE THE EDITION SCALE IS NOT ─────────────────
+     *
+     * The seal is per CYCLE and this is called per CATEGORY, from
+     * {@see PublicResults::category()} — so the results index, which draws up to sixty
+     * awards in a row, read the whole of each cycle's archive once per award on it. That
+     * is the same shape as the fault the edition scale had one commit earlier, and the
+     * same loop: the scorer was threaded through it precisely so a page listing sixty
+     * results reads each cycle once, and this went straight back to once per award.
+     *
+     * A memo is safe here in a way it would not be for the scale, and for one reason: a
+     * seal is written once per cycle and never rewritten — {@see SnapshotService::captureRelease()}
+     * refuses a second. Immutable data can be cached for the life of a request without a
+     * staleness question. The one process that can invalidate it is the one that writes
+     * it, and that calls {@see forget()}.
      *
      * @return array{at:string, rows:array<int,array<string,mixed>>}|null
      */
     public static function forCycle(int $cycleId): ?array
     {
         if ($cycleId < 1) return null;
+        if (array_key_exists($cycleId, self::$memo)) return self::$memo[$cycleId];
         if (!OptionalColumn::on('gates_vote_snapshots', 'capture_kind')) return null;
 
         try {
@@ -72,7 +97,7 @@ final class ReleasedStanding
             return null;
         }
 
-        if ($rows->isEmpty()) return null;
+        if ($rows->isEmpty()) return self::$memo[$cycleId] = null;
 
         $out = [];
         $at  = '';
@@ -92,21 +117,45 @@ final class ReleasedStanding
             ];
         }
 
-        return ['at' => $at, 'rows' => $out];
+        return self::$memo[$cycleId] = ['at' => $at, 'rows' => $out];
+    }
+
+    /**
+     * Drop the cached seal for a cycle — for the one process that can change the answer.
+     *
+     * Called by {@see SnapshotService::captureRelease()} after it writes, so a promotion
+     * run that has already looked at a cycle (or a test that reads before sealing) does
+     * not go on serving "no seal" to everything after it.
+     */
+    public static function forget(?int $cycleId = null): void
+    {
+        if ($cycleId === null) { self::$memo = []; return; }
+        unset(self::$memo[$cycleId]);
     }
 
     /**
      * Lay a sealed standing over a drawn category, so the page publishes the announcement.
      *
-     * ── WHY THE ORDER IS RE-SORTED AND NOT TAKEN FROM `standing_rank` ────────
+     * ── THE ORDER COMES FROM `standing_rank`, AND FALLS BACK TO THE COMPARATOR ──
      *
-     * Because the rank is sealed per nominee and this has to produce a LIST, and a list
-     * built by trusting a stored index breaks the moment one is missing — a nominee added
-     * to the category after the release, a row that failed to write. Sorting the sealed
-     * figures through {@see ResultRelease::order()} — the same comparator the award was
-     * decided with, and the only one on the platform — puts them in the announced order
-     * because they are the announced numbers. `standing_rank` is carried for display and
-     * as the check that the two agree.
+     * This used to sort the sealed figures through {@see ResultRelease::order()} and throw
+     * the sealed rank away, on the reasoning that the comparator "is the same one the
+     * award was decided with". It is the same one only until somebody changes it — and a
+     * tiebreak is a rule like any other. `order()` breaks a tie on the tally and then on
+     * the nominee id; move it to unique voters, or to the panel mark, and every released
+     * dead heat on the platform silently reorders, which is the exact fault this class
+     * exists to prevent, one level down from the arithmetic it fixed. The seal held the
+     * announced order the whole time, in a column nothing read.
+     *
+     * So where the seal ranks every nominee still in the running, and ranks them
+     * distinctly, THAT is the published order — it is what was announced. The comparator
+     * is the fallback for the case the old reasoning was actually about: a rank missing
+     * because a row failed to write. Then the page says the order was recomputed rather
+     * than presenting it as the announcement, because a reader cannot tell the two apart
+     * by looking.
+     *
+     * Ties are left exactly as sealed. Two nominees who were announced level stay level;
+     * re-deciding a dead heat under today's tiebreak is the thing this refuses to do.
      *
      * ── AND A NOMINEE THE SEAL DOES NOT MENTION ─────────────────────────────
      *
@@ -167,11 +216,25 @@ final class ReleasedStanding
         }
 
         $running = array_values(array_filter($rows, static fn (array $r): bool => (bool) $r['in_running']));
-        usort($running, ResultRelease::order(...));
 
-        $rank = [];
-        foreach ($running as $i => $r) $rank[$r['nominee_id']] = $i + 1;
-        foreach ($rows as $i => $r) $rows[$i]['rank'] = $rank[$r['nominee_id']] ?? null;
+        // Complete means every nominee still in the running carries a rank, and no two
+        // carry the same one. Anything less and the sealed ranking cannot order the list
+        // on its own — see the docblock for why that is the only case the comparator is
+        // allowed to decide.
+        $sealedRanks  = array_map(static fn (array $r): ?int => $r['rank'], $running);
+        $sealedOrders = $running !== []
+            && !in_array(null, $sealedRanks, true)
+            && count(array_unique($sealedRanks)) === count($sealedRanks);
+
+        if ($sealedOrders) {
+            usort($running, static fn (array $a, array $b): int => $a['rank'] <=> $b['rank']);
+        } else {
+            usort($running, ResultRelease::order(...));
+            $rank = [];
+            foreach ($running as $i => $r) $rank[$r['nominee_id']] = $i + 1;
+            foreach ($rows as $i => $r) $rows[$i]['rank'] = $rank[$r['nominee_id']] ?? null;
+            foreach ($running as $i => $r) $running[$i]['rank'] = $rank[$r['nominee_id']] ?? null;
+        }
 
         usort($rows, static function (array $a, array $b): int {
             if ($a['in_running'] !== $b['in_running']) return $a['in_running'] ? -1 : 1;
@@ -182,8 +245,16 @@ final class ReleasedStanding
         $winner   = $running[0] ?? null;
         $runnerUp = $running[1] ?? null;
 
+        // The denominators, off the seal. Both are edition-wide figures, identical on every
+        // row, so the first row that recorded one is the one — and a null means the seal
+        // predates the columns, where the live figure is all there is.
         $firstMax = 0;
-        foreach ($seal as $s) { $firstMax = (int) ($s['cohort_max'] ?? 0); break; }
+        $firstMaxUnique = 0;
+        foreach ($seal as $s) {
+            if ($firstMax === 0)       $firstMax       = (int) ($s['cohort_max'] ?? 0);
+            if ($firstMaxUnique === 0) $firstMaxUnique = (int) ($s['cohort_max_unique'] ?? 0);
+            if ($firstMax > 0 && $firstMaxUnique > 0) break;
+        }
 
         return array_merge($drawn, [
             'rows'      => $rows,
@@ -197,6 +268,17 @@ final class ReleasedStanding
                                    && $winner['cpi'] === $runnerUp['cpi']
                                    && $winner['votes'] !== $runnerUp['votes']),
             'cohort_max' => $firstMax > 0 ? $firstMax : ($drawn['cohort_max'] ?? 0),
+            // ── THE REACH DENOMINATOR IS SEALED TOO ─────────────────────────
+            //
+            // Read out of the seal and then never applied, this was a column written at
+            // every announcement and used by nothing. It is what the public page gates
+            // the backer count on, so a sealed page was deciding whether to print a
+            // sealed number of supporters by asking today's rows how many the leader has
+            // — and where those rows have since gone (an import, a purge) the whole
+            // count disappears from an announcement that counted it.
+            'cohort_max_unique' => $firstMaxUnique > 0
+                ? $firstMaxUnique
+                : ($drawn['cohort_max_unique'] ?? 0),
             // ── WHAT THE PAGE HAS TO BE ABLE TO SAY ─────────────────────────
             //
             // `sealed_at` is the announcement this page is showing. Its absence is the
@@ -204,6 +286,15 @@ final class ReleasedStanding
             // computation under today's rules, and a reader must be told that rather than
             // left to assume the figures are the ones that were announced.
             'sealed_at'  => (string) $sealed['at'],
+            // ── AND WHETHER THE ORDER IS THE SEALED ONE ─────────────────────
+            //
+            // True when the seal did not rank everybody still in the running, so the list
+            // had to be ordered by today's comparator over the sealed figures. The
+            // figures are still the announced ones; their ORDER is a reconstruction, and
+            // the page says which — {@see pages/results/show.twig}. Without this the two
+            // cases look identical to a reader, which is the whole complaint this class
+            // was written about.
+            'rank_recomputed' => $running !== [] && !$sealedOrders,
             'blocked'    => $running === []
                 ? 'The standing sealed at the announcement names nobody in the running.'
                 : null,

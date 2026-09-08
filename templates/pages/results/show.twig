@@ -323,9 +323,17 @@
           the page says so rather than presenting a live computation as the announcement.
           That distinction is the whole point: a figure labelled as announced when nobody
           knows whether it was is worse than one labelled as recomputed.
+
+          THREE STATES, NOT TWO. A seal can hold the figures and not the placings — a
+          rank that failed to write, a nominee moved between categories afterwards — and
+          the order then has to be reconstructed from the sealed numbers by today's
+          comparator. The numbers on the page are still the announced ones; the sequence
+          they are printed in is a reconstruction, and a reader has no way to tell that by
+          looking, which is the same complaint that produced the seal in the first place.
         #}
         <div class="rs-cell"><dt>These figures</dt>
-          <dd>{% if r.sealed_at %}As announced{% else %}Recomputed under current rules{% endif %}</dd></div>
+          <dd>{% if r.sealed_at %}As announced{% if r.rank_recomputed %} · order
+            reconstructed{% endif %}{% else %}Recomputed under current rules{% endif %}</dd></div>
         <div class="rs-cell"><dt>Scale set by</dt>
           <dd>{% if r.scale_set_by %}{{ r.scale_set_by }}{% if r.scale_category and not r.scale_in_category %},
             {{ r.scale_category }}{% endif %}{% else %}—{% endif %}</dd></div>
