@@ -33,7 +33,7 @@
   --reg-note:   rgba(35,123,34,.5);   /* --ag-green at 50% — dashed note border */
   --reg-halo:   rgba(35,123,34,.12);  /* --ag-green at 12% — node halo */
   --reg-shade:  rgba(16,41,44,.5);    /* --ag-ink at 50% — card lift */
-  --reg-shade-2:rgba(16,41,44,.6);    /* --ag-ink at 60% — voted marker lift */
+  --reg-shade-2:rgba(16,41,44,.6);    /* --ag-ink at 60% — ringed marker lift */
   --reg-cols-bg:#fcfcfc;              /* one step off --ag-surface, no token */
   --reg-lb-bg:  rgba(251,251,250,.82);/* marker label ground */
 
@@ -95,11 +95,17 @@
 
 /* ── nation markers (positioned by JS from each country's own centroid) ──
 
-   TWO SHAPES, AND THE DIFFERENCE IS A FACT. `node--h` — the outlined marker
-   carrying the check — is a nation whose nominees have recorded ballots;
-   `node--v`, the plain dot, is a nation standing in a live award and still
-   waiting for its first vote. The handoff used the two for "verification hub"
-   and "ballot origin", neither of which this platform has.
+   TWO SHAPES, AND THE RARE ONE HAS TO STAY RARE. `node--h` — the ringed marker
+   carrying the check — is a nation where an award has been DECIDED; `node--v`,
+   the plain dot, is a nation still competing. The design reference carries four
+   dots and two rings, and the ring is what the eye lands on.
+
+   The handoff used the two shapes for "verification hub" and "ballot origin",
+   neither of which this platform has. The first attempt to re-map them put the
+   ring on "has any votes" — true of nearly every nation the moment an award
+   opens — and the band came out with five rings and one dot: the hierarchy
+   inverted, and it read as noise. A highlight almost everything qualifies for
+   is a background.
    ── */
 .node{
   position:absolute; transform:translate(-50%,-50%);

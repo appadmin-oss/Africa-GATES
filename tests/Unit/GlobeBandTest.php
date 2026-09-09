@@ -190,7 +190,8 @@ final class GlobeBandTest extends TestCase
         $this->assertSame('Nigeria', $out[0]['geo']);
         $this->assertSame(1, $out[0]['nominees']);
         $this->assertSame(40, $out[0]['votes']);
-        $this->assertTrue($out[0]['voted']);
+        // Still competing, so the plain dot — see the marker-grammar test below.
+        $this->assertFalse($out[0]['decided']);
     }
 
     /**
@@ -224,19 +225,39 @@ final class GlobeBandTest extends TestCase
     }
 
     /**
-     * The marker's SHAPE is a fact, not decoration: the outlined check marks a nation
-     * whose nominees have recorded ballots, the plain dot a nation still waiting for its
-     * first vote. The handoff used the two shapes for "verification hub" and "ballot
-     * origin", neither of which this platform has.
+     * THE RING IS RARE, AND THE TEST IS WHAT KEEPS IT RARE.
+     *
+     * The design carries four plain dots and two ringed markers; the ring is what the eye
+     * lands on. The first cut here mapped it onto "this nation has any votes" — true of
+     * nearly every nation the moment an award opens — so the band rendered five rings and
+     * one dot, the hierarchy exactly inverted, and it read as noise rather than as a map
+     * with a point of interest. A highlight almost everything qualifies for is a
+     * background.
+     *
+     * So the ring means an award has been DECIDED here, which is rare by nature.
      */
-    public function test_a_nation_with_no_votes_yet_gets_the_plain_marker(): void
+    public function test_only_a_nation_with_a_decided_award_gets_the_ringed_marker(): void
     {
-        $this->nominee('Standing, unvoted', 'ZM', 0);
+        $this->nominee('Busy but undecided', 'ZM', 9_000);
+        $this->nominee('Also standing',      'GH', 4_000);
+        $this->nominee('Crowned',            'NG', 12, 'winner');
 
-        $out = GlobeBand::countries();
-        $this->assertCount(1, $out);
-        $this->assertSame(0, $out[0]['votes']);
-        $this->assertFalse($out[0]['voted']);
+        $by = [];
+        foreach (GlobeBand::countries() as $c) $by[$c['code']] = $c['decided'];
+
+        $this->assertSame(['ZM' => false, 'GH' => false, 'NG' => true],
+            ['ZM' => $by['ZM'], 'GH' => $by['GH'], 'NG' => $by['NG']]);
+        // The busiest nation by a wide margin is NOT the ringed one — votes decide the
+        // ORDER of the markers and nothing about their shape.
+        $this->assertSame('ZM', GlobeBand::countries()[0]['code']);
+    }
+
+    /** A runner-up is not a decided award: the category still has a standing to publish. */
+    public function test_a_runner_up_alone_does_not_ring_a_nation(): void
+    {
+        $this->nominee('Second place', 'KE', 500, 'runner_up');
+
+        $this->assertFalse(GlobeBand::countries()[0]['decided']);
     }
 
     /** Busiest first, so the script appends it last and it stacks above a neighbour. */
@@ -386,6 +407,32 @@ final class GlobeBandTest extends TestCase
         }
         // And the honest source is wired: the stage's own attribute, nothing else.
         $this->assertStringContainsString('stage.dataset.countries', $js);
+    }
+
+    /**
+     * THE LAND DOTS ARE THE DRAWING, AND FIFTY-FOUR OUTLINES OVER THEM ARE NOT.
+     *
+     * The handoff's production script added a per-frame stroke over every African nation
+     * — 0.85px at 16% ink for the field, 1.15px of green for any nation with activity —
+     * which is in neither the design reference nor its own screenshots. It turned a quiet
+     * map into a diagram competing with itself, and made the dots look sparse when they
+     * are identical to the reference's (15,000 samples, `#8fa39b`, alpha 0.10–0.40).
+     *
+     * The reference outlines exactly one country: the selected one, while its card is
+     * open. Pinned by the two values it uses, because "looks calmer" is not a test.
+     */
+    public function test_only_the_selected_country_is_outlined(): void
+    {
+        $js = (string) file_get_contents(self::JS_FILE);
+
+        // The reference's selected-country treatment, to the value.
+        $this->assertStringContainsString("rgba(35,123,34,.10)", $js);
+        $this->assertStringContainsString("rgba(35,123,34,.55)", $js);
+        // The retired field stroke and its "any activity" companion.
+        $this->assertStringNotContainsString("rgba(16,41,44,.16)", $js);
+        $this->assertStringNotContainsString("rgba(35,123,34,.62)", $js);
+        // A country is still clickable: the hit test reads the features, not the paint.
+        $this->assertStringContainsString('d3.geoContains', $js);
     }
 
     /**

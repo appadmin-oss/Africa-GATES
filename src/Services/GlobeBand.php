@@ -87,15 +87,25 @@ final class GlobeBand
      * shown, and they differ for `CD` — the card says "DR Congo" because that is what the
      * rest of the site calls it, while the outline it highlights is Natural Earth's.
      *
-     * `voted` decides the marker's shape, and it is a fact rather than a flourish: a
-     * nation whose nominees have recorded ballots gets the verified marker, one still
-     * waiting for its first vote gets the plain dot. A reader hovering either is told
-     * which in the label.
+     * ── THE MARKER GRAMMAR, AND WHY IT IS THIS WAY ROUND ───────────────────
      *
-     * ORDERED by votes, descending, then by name — so the busiest markers are appended
-     * first and sit under nothing when two centroids land close together.
+     * `decided` is a nation where an award has been **decided** — a nominee crowned. It
+     * draws the design's ringed marker with the check inside; a nation still competing
+     * draws the plain dot. That is rare by nature, which is the point: the reference
+     * design carries FOUR dots and TWO rings, and the ring is what the eye goes to.
      *
-     * @return list<array{code:string,name:string,geo:string,nominees:int,votes:int,voted:bool}>
+     * The first cut of this mapped the ring onto "has recorded any votes", which is true
+     * of nearly every nation the moment an award opens — so the band came out with five
+     * rings and one dot, the hierarchy exactly inverted, and read as noise. A marker that
+     * almost everything qualifies for is not a highlight, it is a background.
+     *
+     * `votes` still orders them, and `busiest` (below) is what carries a label when
+     * nothing has been decided yet, so a new edition is not a globe of unlabelled dots.
+     *
+     * ORDERED by votes, descending, then by name.
+     *
+     * @return list<array{code:string,name:string,geo:string,nominees:int,votes:int,
+     *                    decided:bool}>
      */
     public static function countries(): array
     {
@@ -116,8 +126,11 @@ final class GlobeBand
             // already been reassigned to the survivor — counting both double-counts them.
             MergeService::notMerged($q, 'n.merged_into');
 
+            // CASE rather than a second query: one grouped pass, and `SUM(CASE …)` is the
+            // form both drivers agree on. Bound, never interpolated.
             $rows = $q->selectRaw('n.country_code AS cc, COUNT(*) AS nominees, '
-                    . 'COALESCE(SUM(n.vote_count), 0) AS votes')
+                    . 'COALESCE(SUM(n.vote_count), 0) AS votes, '
+                    . 'SUM(CASE WHEN n.status = ? THEN 1 ELSE 0 END) AS decided', ['winner'])
                 ->groupBy('n.country_code')
                 ->get();
         } catch (\Throwable) {
@@ -135,14 +148,13 @@ final class GlobeBand
             // what was dropped travels in `unplaced()` so a screen can say so.
             if ($cc === '' || !isset(self::GEOMETRY[$cc])) continue;
 
-            $votes = (int) $r->votes;
             $out[] = [
                 'code'     => $cc,
                 'name'     => NationsLive::name($cc),
                 'geo'      => self::GEOMETRY[$cc],
                 'nominees' => (int) $r->nominees,
-                'votes'    => $votes,
-                'voted'    => $votes > 0,
+                'votes'    => (int) $r->votes,
+                'decided'  => ((int) $r->decided) > 0,
             ];
         }
 

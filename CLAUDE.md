@@ -679,6 +679,23 @@ throw, no console line — the card simply never appears, and the globe reads as
 press that starts on a marker starts no drag now; there is nothing to rotate by grabbing an
 11px button.
 
+**A HIGHLIGHT ALMOST EVERYTHING QUALIFIES FOR IS A BACKGROUND.** The reference design
+carries four plain dots and two ringed markers, and the ring is what the eye lands on. The
+first cut here re-mapped the ring onto "this nation has recorded any votes" — true of nearly
+every nation the moment an award opens — so the band rendered five rings and one dot, the
+hierarchy exactly inverted. Every marker was defensible and the picture was noise. The ring
+means an award has been DECIDED there now, which is rare by nature, and `GlobeBandTest` pins
+that rather than the look.
+
+**And the handoff's PRODUCTION file is not always its design.** That script stroked all 54
+African nations every frame (0.85px at 16% ink, 1.15px of green for any nation with
+activity); the reference `Homepage.html` outlines exactly one country — the selected one,
+while its card is open. The land dots ARE the drawing, and fifty-four outlines over them
+turn a quiet map into a diagram competing with itself. The dots were identical to the
+reference's all along (15,000 samples, `#8fa39b`, alpha 0.10–0.40 by longitude) and looked
+sparse only because the outlines shouted. Render the reference beside the build before
+trusting a "production-ready" folder.
+
 **A z-index cannot climb out of a lower stacking context, and both rules read correctly
 alone.** The country card sits inside `.reg__body` (`z-index:1`); the stat card is a sibling
 at `z-index:3` that deliberately rises `-11vw` **into** the stage. So the two figures a

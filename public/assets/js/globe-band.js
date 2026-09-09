@@ -71,12 +71,11 @@
   /* Keyed by the geometry name, which is what the hit-test and the card look up. */
   var byGeo = {};
   live.forEach(function(c){ if (c && c.geo) byGeo[c.geo] = c; });
-  var ACTIVE = new Set(Object.keys(byGeo));
 
   var projection = d3.geoOrthographic().rotate([-19,-4,0]).precision(0.5),
       path = d3.geoPath(projection, ctx),
       fmt  = d3.format(','),
-      W=0,H=0,dots=[],afr=[],marks=[],busiest=null,ready=false,t0=performance.now(),
+      W=0,H=0,dots=[],afr=[],marks=[],busiest=null,anyDecided=false,ready=false,t0=performance.now(),
       spin=!reduced, base=1, drag=null, sel=null, onScreen=true,
       ROT = d3.geoRotation(projection.rotate());
 
@@ -127,14 +126,23 @@
       if (!c) return;
       var el = document.createElement('button');
       el.type = 'button';
-      el.className = 'node ' + (c.voted ? 'node--h' : 'node--v');
+      /* ── THE RING IS RARE, AND THAT IS THE WHOLE OF ITS JOB ──────────
+         The reference design carries four plain dots and two ringed markers,
+         and the ring is what the eye lands on. Mapping it onto "this nation
+         has any votes" — true of nearly every nation the moment an award
+         opens — produced five rings and one dot: the hierarchy inverted, and
+         a band that read as noise rather than as a map with a point of
+         interest. A marker almost everything qualifies for is a background.
+         So the ring means an award has been DECIDED here. */
+      el.className = 'node ' + (c.decided ? 'node--h' : 'node--v');
       el.style.opacity = '0';
       /* The whole fact, in the accessible name: a screen reader gets the same
          two figures the card shows, without having to open it. */
       el.setAttribute('aria-label', c.name + ' — ' + fmt(c.nominees || 0)
         + (c.nominees === 1 ? ' nominee' : ' nominees') + ' standing, '
-        + fmt(c.votes || 0) + (c.votes === 1 ? ' vote' : ' votes') + ' cast');
-      el.innerHTML = (c.voted ? CHECK : '') + '<span class="node__lb">' + c.name + '</span>';
+        + fmt(c.votes || 0) + (c.votes === 1 ? ' vote' : ' votes') + ' cast'
+        + (c.decided ? ', award decided' : ''));
+      el.innerHTML = (c.decided ? CHECK : '') + '<span class="node__lb">' + c.name + '</span>';
       el.addEventListener('click', function(e){ e.stopPropagation(); openCountry(f.properties.name); });
       out.push({ el: el, ll: d3.geoCentroid(f), c: c });
     });
@@ -142,6 +150,7 @@
     out.sort(function(a,b){ return (a.c.votes||0) - (b.c.votes||0); });
     out.forEach(function(m){ layer.appendChild(m.el); });
     busiest = out.length ? out[out.length - 1] : null;
+    anyDecided = out.some(function(m){ return !!m.c.decided; });
     return out;
   }
 
@@ -244,14 +253,28 @@
     }
     ctx.globalAlpha = 1;
 
-    afr.forEach(function(f){
-      var on = ACTIVE.has(f.properties.name), hi = sel === f.properties.name;
-      ctx.beginPath(); path(f);
-      ctx.lineWidth   = hi ? 1.6 : (on ? 1.15 : 0.85);
-      ctx.strokeStyle = hi ? '#1a6118' : (on ? 'rgba(35,123,34,.62)' : 'rgba(16,41,44,.16)');
-      ctx.stroke();
-      if (hi){ ctx.fillStyle = 'rgba(35,123,34,.07)'; ctx.fill(); }
-    });
+    /* ── ONLY THE SELECTED COUNTRY IS OUTLINED ────────────────────────────
+       This used to stroke all 54 nations every frame — 0.85px at 16% ink for
+       the field and 1.15px of green for any nation with activity — which is
+       not in the design at all, and it is what made the band look rough: the
+       land dots ARE the drawing, and fifty-four outlines over them turn a
+       quiet map into a diagram competing with itself. The dots are unchanged
+       from the reference (15,000 samples, `#8fa39b`, alpha 0.10–0.40 by
+       longitude); they only looked sparse because the outlines shouted.
+
+       Africa is still fully clickable — the hit test is `d3.geoContains` over
+       the same features, not over anything drawn. */
+    if (sel){
+      var hit = null;
+      for (var k = 0; k < afr.length; k++){
+        if (afr[k].properties.name === sel){ hit = afr[k]; break; }
+      }
+      if (hit){
+        ctx.beginPath(); path(hit);
+        ctx.fillStyle = 'rgba(35,123,34,.10)'; ctx.fill();
+        ctx.lineWidth = 1.2; ctx.strokeStyle = 'rgba(35,123,34,.55)'; ctx.stroke();
+      }
+    }
 
     ctx.strokeStyle = 'rgba(16,41,44,.07)'; ctx.lineWidth = 1;
     ctx.beginPath(); ctx.arc(cx,cy,R,0,Math.PI*2); ctx.stroke();
@@ -262,18 +285,18 @@
       if (!p){ m.el.style.opacity = '0'; m.el.style.pointerEvents = 'none'; return; }
       m.el.style.opacity = String(build);
       m.el.style.pointerEvents = 'auto';
-      /* ── HOW MANY LABELS FIT IS A FUNCTION OF THE SPHERE, NOT OF TASTE ──
-         Voted nations carry their label without being hovered. That is legible
-         on a wide stage and illegible on a phone: the radius is bound by WIDTH,
-         so at 390px the sphere is ~230px across and West Africa's labels land
-         on top of each other — on the mobile render, Ghana's was completely
-         behind Nigeria's. Overlapping type is worse than no type.
+      /* ── TWO LABELS, LIKE THE REFERENCE, AND FOR THE SAME REASON ────────
+         The design labels exactly two markers and leaves the rest to hover.
+         Standing labels went on every voted nation here, which at 390px — the
+         radius is bound by WIDTH, so the sphere is ~230px across — put Ghana's
+         label completely behind Nigeria's. Overlapping type is worse than none.
 
-         So below a stage narrow enough for that, only the busiest nation keeps
-         a standing label; every other marker still names itself when tapped,
-         which opens the card. Keyed off the STAGE's width rather than the
-         viewport's, because that is what actually sets the radius. */
-      m.el.classList.toggle('show-lb', !!m.c.voted && (W > 560 || m === busiest));
+         A decided award carries its label; where nothing is decided yet the
+         busiest nation carries one, so a new edition is not a globe of
+         unlabelled dots. Narrow stages keep only that one. Keyed off the
+         STAGE's width, because that is what sets the radius. */
+      var labelled = m.c.decided || (!anyDecided && m === busiest);
+      m.el.classList.toggle('show-lb', labelled && (W > 560 || m === busiest));
       /* Label side derived from where the marker actually IS, not from a table
          keyed by name: a hardcoded side is wrong the moment the globe turns, and
          wrong for every nation nobody thought to add to it. */
