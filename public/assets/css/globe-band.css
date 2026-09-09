@@ -1,0 +1,151 @@
+/* ════════════════════════════════════════════════════════════════
+   Africa GATES — "We are Africa" globe band (component)
+   Pairs with templates/partials/globe-band.twig and js/globe-band.js.
+   Tokens come from base/tokens.css (--ag-*). See docs/GLOBE-BAND.md.
+
+   ── WHAT CHANGED FROM THE HANDOFF COPY, AND WHY ──────────────────
+
+   Every colour literal in the delivered file is resolved to a token here, per
+   the handoff's own README §4a ("reference the variable, never the literal").
+   Four values had no token; rather than inline them at eight call sites they
+   are declared ONCE below, named for what they derive from, so there is one
+   place to change and no literal in a rule.
+
+   Two are accessibility fixes rather than translations, and both were AA
+   failures in the delivered file:
+
+     · `#8b9698` is 3.04:1 on white. It set the country card's city line —
+       which is content — and the ✕ button's colour. Both are now
+       `--ag-ink-soft` (#626a6e, 5.52:1), the token the rest of this file
+       already uses. Measured, not estimated.
+     · The ✕ was `padding:0; font-size:13px` — about a 13px target, against
+       the handoff's own 44px floor. It gets the same `::after` hit-area
+       treatment this file already uses for `.node`, so the visual size is
+       unchanged.
+   ════════════════════════════════════════════════════════════════ */
+.reg{
+  /* ── The four values with no token in base/tokens.css ──
+     Declared on the component, derived from tokens, never inlined. --ag-line
+     is rgba(16,41,44,.07) and --ag-line-strong is .12; the band's guides sit
+     at .09 and its hairlines at .055, between the two. */
+  --reg-guide:  rgba(16,41,44,.09);   /* --ag-ink at 9% — dashed quarter guides */
+  --reg-hair:   rgba(16,41,44,.055);  /* --ag-ink at 5.5% — inner hairlines */
+  --reg-note:   rgba(35,123,34,.5);   /* --ag-green at 50% — dashed note border */
+  --reg-halo:   rgba(35,123,34,.12);  /* --ag-green at 12% — node halo */
+  --reg-shade:  rgba(16,41,44,.5);    /* --ag-ink at 50% — card lift */
+  --reg-shade-2:rgba(16,41,44,.6);    /* --ag-ink at 60% — hub marker lift */
+  --reg-cols-bg:#fcfcfc;              /* one step off --ag-surface, no token */
+  --reg-lb-bg:  rgba(251,251,250,.82);/* marker label ground */
+
+  position:relative; background:var(--ag-surface);
+  border-top:1px solid var(--ag-line); border-bottom:1px solid var(--ag-line);
+  padding:clamp(2.75rem,4.5vw,4rem) 0 clamp(2rem,3vw,2.75rem); overflow:hidden; }
+
+/* dashed background guides on the container's quarter lines */
+.reg__guides{ position:absolute; inset:0; pointer-events:none; display:flex; justify-content:center; }
+.reg__guides i{ width:calc(var(--ag-maxw,1240px) / 4); border-left:1px dashed var(--reg-guide); }
+.reg__guides i:last-child{ border-right:1px dashed var(--reg-guide); }
+
+.reg__in{ position:relative; }
+.reg__hd{ text-align:center; max-width:46ch; margin:0 auto; }
+.reg__h{ font-family:var(--ag-font-display); font-weight:700;
+  font-size:clamp(1.9rem,3.4vw,2.6rem); line-height:1.05; letter-spacing:-.02em; }
+.reg__sub{ margin:14px auto 0; font-size:14.5px; line-height:1.6; color:var(--ag-ink-soft); }
+.reg__sub-em{ color:var(--ag-green); }
+
+.reg__body{ position:relative; z-index:1; margin-top:clamp(.5rem,1.5vw,1rem); }
+/* stage height and width set the sphere's radius — see the geometry note in the docs */
+.reg__stage{ position:relative; height:clamp(560px,58vw,720px); width:min(900px,100%);
+  margin:0 auto; touch-action:none; cursor:grab; }
+.reg__stage.is-drag{ cursor:grabbing; }
+.reg__stage canvas{ position:absolute; inset:0; width:100%; height:100%; }
+.reg__layer{ position:absolute; inset:0; pointer-events:none; }
+
+/* dashed annotation card, kept clear of the sphere */
+.reg__note{ position:absolute; right:0; top:1%; width:186px; z-index:2; padding:14px 16px;
+  border:1px dashed var(--reg-note); border-radius:4px; background:color-mix(in srgb, var(--ag-surface) 70%, transparent);
+  font-size:12.5px; line-height:1.55; color:var(--ag-ink-soft); text-wrap:pretty; }
+
+/* stat card, overlapping the sphere's lower edge */
+.reg__cols{ position:relative; z-index:3; display:grid; grid-template-columns:repeat(4,1fr);
+  border:1px solid var(--ag-line); border-radius:var(--ag-r,14px); background:var(--reg-cols-bg); overflow:hidden;
+  margin-top:clamp(-9rem,-11vw,-6rem); }
+.reg__col{ padding:22px 24px; border-right:1px solid var(--ag-line); }
+.reg__col:last-child{ border-right:0; }
+.reg__n{ font-family:var(--ag-font-mono); font-variant-numeric:tabular-nums;
+  font-weight:700; font-size:26px; letter-spacing:-.02em; }
+.reg__n small{ font-size:.58em; }
+.reg__l{ font-size:12px; color:var(--ag-ink-soft); margin-top:7px; }
+
+@media (max-width:860px){
+  .reg__note{ position:static; width:auto; max-width:420px; margin:16px auto 0; }
+}
+@media (max-width:760px){
+  .reg__guides{ display:none; }
+  .reg__cols{ grid-template-columns:1fr 1fr; margin-top:0; }
+  .reg__col{ padding:18px; }
+  .reg__col:nth-child(2){ border-right:0; }
+  .reg__col:nth-child(-n+2){ border-bottom:1px solid var(--reg-hair); }
+}
+
+/* ── city / node markers (positioned by JS) ── */
+.node{
+  position:absolute; transform:translate(-50%,-50%);
+  pointer-events:auto; cursor:pointer; border:0; padding:0;
+  display:grid; place-items:center; border-radius:50%; transition:opacity .2s ease;
+}
+/* 44px minimum touch target without changing the marker's visual size */
+.node::after{ content:''; position:absolute; left:50%; top:50%; width:44px; height:44px;
+  transform:translate(-50%,-50%); border-radius:50%; }
+.node:focus-visible{ outline:2px solid var(--gold-500,#d49a0e); outline-offset:3px; }
+.node--v{ width:11px; height:11px; background:var(--ag-green); box-shadow:0 0 0 4px var(--reg-halo); }
+.node--h{ width:26px; height:26px; background:var(--ag-surface); border:1.5px solid var(--ag-green);
+  box-shadow:0 6px 18px -10px var(--reg-shade-2); }
+.node--h svg{ width:12px; height:12px; }
+.node__lb{
+  position:absolute; top:calc(100% + 7px); left:50%; transform:translateX(-50%); white-space:nowrap;
+  font:600 10px/1 var(--ag-font-mono); letter-spacing:.08em; text-transform:uppercase; color:var(--neutral-600);
+  background:var(--reg-lb-bg); padding:3px 6px; border-radius:5px; z-index:2;
+  opacity:0; transition:opacity .16s ease; pointer-events:none;
+}
+.node:hover .node__lb,
+.node.show-lb .node__lb{ opacity:1; }
+.node:hover{ z-index:3; }
+.node--lb-above .node__lb{ top:auto; bottom:calc(100% + 7px); }
+.node--lb-left .node__lb{ left:auto; right:calc(100% + 7px); top:50%; transform:translateY(-50%); }
+.node--lb-right .node__lb{ left:calc(100% + 7px); top:50%; transform:translateY(-50%); }
+
+/* ── country card ── */
+.ccard{
+  position:absolute; left:clamp(20px,4vw,56px); bottom:clamp(24px,4vw,56px); width:250px;
+  background:var(--ag-surface); border:1px solid var(--ag-line); border-radius:14px;
+  box-shadow:0 26px 60px -40px var(--reg-shade);
+  pointer-events:auto; opacity:0; transform:translateY(8px); visibility:hidden; transition:.2s ease;
+}
+.ccard.is-in{ opacity:1; transform:none; visibility:visible; }
+.ccard__hd{ display:flex; align-items:flex-start; justify-content:space-between; gap:10px;
+  padding:14px 16px 11px; border-bottom:1px solid var(--reg-hair); }
+.ccard__nm{ margin:0; font-family:var(--ag-font-display); font-weight:700; font-size:17px; line-height:1.15; }
+.ccard__rg{ margin:4px 0 0; font:700 9.5px/1 var(--ag-font-mono); letter-spacing:.1em; text-transform:uppercase; color:var(--ag-ink-soft); }
+.ccard__x{ position:relative; background:none; border:0; color:var(--ag-ink-soft);
+  cursor:pointer; font-size:13px; padding:0; line-height:1; }
+/* 44px target without moving the glyph — same technique as .node above. */
+.ccard__x::after{ content:''; position:absolute; left:50%; top:50%; width:44px; height:44px;
+  transform:translate(-50%,-50%); border-radius:50%; }
+.ccard__x:focus-visible{ outline:2px solid var(--gold-500,#d49a0e); outline-offset:3px; border-radius:2px; }
+.ccard__x:hover{ color:var(--ag-ink); }
+.ccard__rows{ padding:4px 16px 14px; }
+.crow{ display:flex; justify-content:space-between; align-items:baseline; gap:12px;
+  padding:7px 0; border-bottom:1px solid var(--reg-hair); }
+.crow:last-child{ border-bottom:0; }
+.crow span{ font-size:12.5px; color:var(--ag-ink-soft); }
+.crow b{ font-family:var(--ag-font-mono); font-variant-numeric:tabular-nums; font-weight:700; font-size:12.5px; }
+
+@media (max-width:900px){
+  .ccard{ position:static; width:auto; margin:0 20px 20px; }
+  .ccard:not(.is-in){ display:none; }
+}
+@media (prefers-reduced-motion:reduce){
+  /* the script also stops its idle rotation under this query */
+  .node{ transition:none; }
+}

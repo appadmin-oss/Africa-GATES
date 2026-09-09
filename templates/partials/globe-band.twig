@@ -1,0 +1,71 @@
+{# ═══════════════════════════════════════════════════════════════
+   Africa GATES — "We are Africa" band (globe)
+   Sits directly after the hero on the homepage. Light band, dashed
+   background guides, centred globe, dashed annotation card at its right,
+   and the stat card overlapping the sphere's lower edge.
+
+   Requires (see docs/GLOBE-BAND.md):
+     <link rel="stylesheet" href="/assets/css/globe-band.css">
+     <script src="/assets/js/vendor/d3-7.9.0.min.js"></script>
+     <script src="/assets/js/vendor/topojson-client-3.1.0.min.js"></script>
+     <script src="/assets/js/globe-band.js" defer></script>
+   ═══════════════════════════════════════════════════════════════ #}
+<section class="reg" id="agGlobeBand">
+  <div class="reg__guides" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
+
+  <div class="hw reg__in">
+    <div class="reg__hd">
+      <h2 class="reg__h">{{ globe_heading|default('We are Africa') }}</h2>
+      <p class="reg__sub">One verified index for the continent — <span class="reg__sub-em">close to voters, close to the record.</span></p>
+    </div>
+
+    <div class="reg__body">
+      <div class="reg__stage" id="agGlobeStage"
+           {% if globe_cities is defined %}data-cities="{{ globe_cities|json_encode|e('html_attr') }}"{% endif %}
+           data-topojson="{{ globe_topojson|default('/assets/geo/countries-110m.json') }}">
+        <canvas id="agGlobe"></canvas>
+        <div class="reg__layer" id="agGlobeNodes"></div>
+
+        <div class="ccard" id="agGlobeCard" role="dialog" aria-label="Country detail">
+          <div class="ccard__hd">
+            <div>
+              <p class="ccard__nm" data-globe-name>—</p>
+              <p class="ccard__rg" data-globe-cities>—</p>
+            </div>
+            <button class="ccard__x" type="button" data-globe-close aria-label="Close">✕</button>
+          </div>
+          <div class="ccard__rows">
+            <div class="crow"><span>Ballots this cycle</span><b data-globe-ballots>—</b></div>
+            <div class="crow"><span>Verification node</span><b data-globe-node>—</b></div>
+            <div class="crow"><span>Median verification</span><b data-globe-verify>—</b></div>
+          </div>
+        </div>
+      </div>
+
+      <aside class="reg__note">{{ globe_note|default('Every ballot is confirmed at the verification node nearest the voter — median 1.3 seconds, before it reaches the Cultural Power Index.') }}</aside>
+    </div>
+
+    {#
+      ── THE FOUR FIGURES, AND WHY THREE OF THEM ARE NOT LITERALS ──────────
+
+      The handoff hard-codes `45% + 55%` and `4`. Both are RULES this platform
+      reads from `RuleEngine`, per cycle — `community_pct`/`judge_pct` come from
+      `weights()` and the criteria count from the active rubric. CLAUDE.md is
+      explicit that the split "is set per cycle rather than fixed forever", and
+      this repo has already shipped four published promises that outlived the
+      rule they described, on pages that stated a weighting as a constant.
+
+      So they are passed in, with the design's values as the fallback for a
+      deployment that has not configured a rubric yet. `/integrity` resolves
+      `community_pct` exactly this way — one resolver, not two.
+
+      `0–1,000` stays a literal: the index range is structural, not a setting.
+    #}
+    <div class="reg__cols">
+      <div class="reg__col"><div class="reg__n">{{ nations_count|default(54) }}</div><div class="reg__l">Nations in scope</div></div>
+      <div class="reg__col"><div class="reg__n">0–1,000</div><div class="reg__l">CPI score scale</div></div>
+      <div class="reg__col"><div class="reg__n">{{ community_pct|default(45) }}<small>%</small> + {{ judge_pct|default(55) }}<small>%</small></div><div class="reg__l">Public votes + jury</div></div>
+      <div class="reg__col"><div class="reg__n">{{ jury_criteria|default(4) }}</div><div class="reg__l">Jury criteri{{ jury_criteria|default(4) == 1 ? 'on' : 'a' }}</div></div>
+    </div>
+  </div>
+</section>
