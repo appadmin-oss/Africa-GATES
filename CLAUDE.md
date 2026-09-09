@@ -652,6 +652,56 @@ A design handoff asked for `loop.index0` here; it would have made the cheapest t
 hardest for any organiser who puts their premium row first, and nothing about that failure
 is visible from the template.
 
+## The homepage globe band, and three faults nothing on the page could show
+
+The band arrived as a design handoff over **sixteen invented cities** — Lagos on 41,280
+ballots "confirmed at the verification node nearest the voter, median 1.3 seconds",
+Nairobi on 33,940, arcs drawn between them. This platform has no verification nodes and
+records no per-ballot latency; there has never been a column for either. It is
+`StatsService`'s original fault ("1,247 profiles", "24 categories", "seven editions") with
+better typography, and worse, because those numbers arrived with an air of instrumentation.
+`GlobeBand` drives it from the one geographic fact here — WHERE THE NOMINEES ARE — by the
+same joins `NationsLive` uses, so the globe and the footer's "live in …" sentence cannot
+disagree, and the sandbox is excluded by reaching only for active programmes rather than by
+a filter somebody remembers. A marker's position is the **centroid of the country's own
+polygon**, so nothing is typed and a marker cannot drift from its outline; the price is that
+the join is by Natural Earth's own name (`CD` is "Dem. Rep. Congo" there), which matches or
+silently does not, so `GlobeBandTest` pins every name against the shipped geometry file and
+against the script's Africa set.
+
+**`setPointerCapture` on a container EATS a child button's click.** The stage captured the
+pointer on `pointerdown` to drive the drag-to-rotate, and the browser then dispatches the
+following `click` to the **capturing element** — so every marker's own listener never ran.
+Markers were unclickable with a mouse or a finger while `Enter` on a focused one opened its
+card perfectly, which is the worst possible split: keyboard and screen-reader paths work, so
+an accessibility pass says yes, and the interaction the design is built around is dead. No
+throw, no console line — the card simply never appears, and the globe reads as decorative. A
+press that starts on a marker starts no drag now; there is nothing to rotate by grabbing an
+11px button.
+
+**A z-index cannot climb out of a lower stacking context, and both rules read correctly
+alone.** The country card sits inside `.reg__body` (`z-index:1`); the stat card is a sibling
+at `z-index:3` that deliberately rises `-11vw` **into** the stage. So the two figures a
+reader clicked a country *for* were underneath it: the card's header showed and its rows did
+not. Nothing about that is visible from either declaration, and raising the card is not
+available — the fix is where it is anchored (`bottom:max(7rem,12.5vw)`, clearing the rise at
+every width the rule applies to).
+
+**A prose sweep must read what a READER sees, not the file.** This repo already shipped the
+lesson that a comment explaining a removal must *describe* the retired label rather than
+quote it, or it trips the sweep documenting it — which is a rule about how to write comments,
+enforced by making comments unwritable. `GlobeBandTest` strips `{# … #}` before sweeping
+instead: a Twig comment reaches nobody, so it was never in scope, and the comment above the
+change may now name exactly what it removed.
+
+**And the band inherited a second "nations live".** `StatsService` counted distinct
+`country_code` over approved **profiles**, while the footer, the meta description and the
+JSON-LD all print `NationsLive::phrase()` — which counts nations with a nominee standing in a
+live award and says in as many words why a registered profile is not the platform operating
+in a country. The homepage could print "12 nations live" beside a footer reading "live in
+Nigeria" on one page load, and the directory figure was both the larger one and the wrong
+one. `StatsServiceTest` asserted the wrong definition by name.
+
 ## Generated images are GD, server-side, and share one set of hands
 
 There is no headless browser on this host and there cannot be. Every generated graphic —

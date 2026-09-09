@@ -85,6 +85,9 @@ abstract class TestCase extends BaseTestCase
         // then saw a route order it had never set up. The breaker keeps an in-process
         // memo as well as a cache row, so clearing the table alone is not enough.
         \AfricaGates\Support\ProviderBreaker::clearAll();
+        // The globe band's markers are memoised per process; the awards behind them are
+        // rebuilt per test, so the second test would plot the first one's nations.
+        \AfricaGates\Services\GlobeBand::forget();
     }
 
     /**

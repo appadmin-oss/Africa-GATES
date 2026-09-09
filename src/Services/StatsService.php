@@ -31,8 +31,18 @@ class StatsService
             //
             // `?? 0` because SUM over an empty table is NULL and a new site must show 0.
             'total_votes'    => (int) (DB::table('gates_votes')->sum('weight') ?? 0),
-            'nations_live'   => (int) DB::table('gates_profiles')->where('status', 'approved')
-                                        ->whereNotNull('country_code')->distinct()->count('country_code'),
+            // ── ONE RESOLVER, AND THIS WAS THE SECOND ONE ────────────────────
+            //
+            // This counted distinct `country_code` over approved PROFILES, while the
+            // footer, the meta description and the JSON-LD all print
+            // `NationsLive::phrase()` — which counts nations with an approved nominee
+            // standing in a LIVE award, and says in as many words why a registered
+            // profile is not the platform operating in a country.
+            //
+            // So the homepage could print "12 nations live" beside a footer reading
+            // "live in Nigeria", from the same page load. Anybody may register from
+            // anywhere; the directory figure was the larger one and the wrong one.
+            'nations_live'   => \AfricaGates\Support\NationsLive::count(),
             'legacy_events'  => (int) DB::table('gates_legacy_events')->where('is_published', 1)->count(),
             'categories'     => (int) DB::table('gates_award_categories')->count(),
         ];
