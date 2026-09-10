@@ -819,6 +819,31 @@
                         in {{ c.cohort_max_unique_by.category_title|default('another category') }}
                       {%- endif %}
                     {%- endif %}</span>
+                {% elseif c.community_basis in ['ideal', 'reach'] and c.cohort_max_unique == 0 %}
+                  {#
+                    ── THE CASE BOTH BRANCHES ABOVE SILENTLY SKIPPED ────────────
+
+                    `cohort_max_unique == 0` means NOT ONE nominee anywhere in this cycle
+                    has a countable ballot row, so `CpiService` fell back to paying the
+                    community half on the tally alone. Both branches above are guarded on
+                    `> 0`, and there was no `{% else %}` — so the cell rendered EMPTY and
+                    the screen said nothing at all.
+
+                    Which is the exact shape this rule change keeps paying for: the order
+                    survives, every other figure on the line looks normal, and a cycle
+                    scored on votes alone reads identically to one scored on people. It is
+                    how a nominee comes to show 450 beside three backers with no
+                    explanation available to the operator being asked about it.
+
+                    `reach_unmeasured` does NOT cover this and must not: that flag needs
+                    `cohort_max_unique > 0`, because it exists for the nominee whose rows
+                    are missing while the REST of the edition has them — the one who
+                    silently loses 315 points. Here nobody lost anything; the whole half
+                    changed measure. Two different facts, and the one with no flag was the
+                    one that inflates a score rather than deflating it.
+                  #}
+                  <span class="ja-den ja-flag ja-flag--warn">tally only &mdash; no ballot
+                    rows in this cycle</span>
                 {% endif %}
                 {# The reach term is 70% of the half and it is counted from vote rows.
                    Said on the row it applies to as well as in the caveat above, because

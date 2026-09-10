@@ -455,6 +455,32 @@
         cycle does not use, on the page a nominee checks their own score against — which
         is the fault the help centre already shipped four times over the same rule.
       #}
+      {#
+        ── THE CYCLE WHERE THE SEVENTY PER CENT NEVER RAN ────────────────
+
+        A cohort maximum of zero unique voters is not "nobody has any backers". It means
+        not ONE nominee anywhere in the edition has a countable ballot row — an import
+        from before this platform held rows, a restore, a purged cycle — so the scorer
+        falls back to the tally alone and the tally takes the whole community half.
+
+        Every branch on this page that explains the community half was gated on
+        `cohort_max_unique > 0` with nothing on the other side of the gate, so in exactly
+        the case that INFLATES a score the page said nothing at all: the leader on the
+        biggest tally was paid the full {{ cpct }}% with two backers, under a paragraph
+        describing a seventy per cent that had not been computed. `reach_unmeasured`
+        deliberately cannot cover this — it requires the maximum to be above zero, because
+        it exists for the nominee who LOSES the 315 while the rest of the edition has rows.
+        So the case that costs a nominee points was flagged and the case that hands them
+        points was not.
+
+        Hoisted rather than written twice: the two bases below already repeat the
+        `reach_unmeasured` caveat verbatim, and two copies of a sentence about the
+        arithmetic is how the two come to disagree. Set at block scope, not inside a
+        nested block — a `{% set %}` in one block renders as null in every other one, in
+        silence, which has taken out a nav and a share link here already.
+      #}
+      {% set tally_only = r.community_basis in ['ideal', 'reach'] and r.cohort_max_unique == 0 %}
+
       {% if r.community_basis == 'ideal' %}
         <p class="rs-note">A nominee’s community half is <strong>two counts against one
           yardstick</strong>. The yardstick is the <strong>largest vote total anyone in this
@@ -475,6 +501,14 @@
           records, so their supporters could not be counted and the seventy per cent scored
           zero for them. Their totals still count. That is a gap in our records, not a
           finding about their support.{% endif %}
+          {% if tally_only %}<br><strong>One caveat on this award, and it applies to
+          everybody in the cycle.</strong> No nominee in this edition has individual ballot
+          records behind their total, so nobody’s supporters could be counted and the
+          seventy per cent could not be worked out for anyone. Every community half here
+          was worked out from <strong>total votes alone</strong>, which means the leading
+          total took the full {{ cpct }}% however many people it came from. That is a gap
+          in our records rather than a finding about anyone’s support, and it applies
+          equally to every nominee listed.{% endif %}
           {% if r.shortlisted is not null %}The field is each category’s published
           shortlist.{% endif %}</p>
       {% elseif r.community_basis == 'reach' %}
@@ -495,6 +529,14 @@
           records, so their supporters could not be counted and the seventy per cent scored
           zero for them. Their totals still count. That is a gap in our records, not a
           finding about their support.{% endif %}
+          {% if tally_only %}<br><strong>One caveat on this award, and it applies to
+          everybody in the cycle.</strong> No nominee in this edition has individual ballot
+          records behind their total, so nobody’s supporters could be counted and the
+          seventy per cent could not be worked out for anyone. Every community half here
+          was worked out from <strong>total votes alone</strong>, which means the leading
+          total took the full {{ cpct }}% however many people it came from. That is a gap
+          in our records rather than a finding about anyone’s support, and it applies
+          equally to every nominee listed.{% endif %}
           {% if r.shortlisted is not null %}The field is each category’s published
           shortlist.{% endif %}</p>
       {% else %}
