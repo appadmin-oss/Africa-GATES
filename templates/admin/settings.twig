@@ -147,6 +147,30 @@
     <p class="st-hint" x-show="q.trim()" x-cloak
        x-text="matches() === 1 ? '1 card matches “' + q.trim() + '” — clear the box to browse by group.' : matches() + ' cards match “' + q.trim() + '” — clear the box to browse by group.'"></p>
     <p class="st-hint" x-show="!q.trim()">Every group is saved together — switching tabs never discards a change.</p>
+    {# ── THE LINK THAT DID NOT EXIST ────────────────────────────────────────
+       `/admin/settings/providers` is a full admin page — it declares
+       `admin_page: 'settings'`, so the rail highlights Settings while you are on it —
+       and NOTHING linked to it. Not this page, not the nav, and therefore not the
+       Cmd+K palette either, which `AdminNav` generates from the same tree. It was
+       reachable only by typing the URL.
+
+       Which is §18's shape, on the worst possible page for it: its own docblock calls
+       it "the page that asks every provider a real question", and it exists because
+       `AiCapability::$timeout` was never read, every summary ran on a 6s default, and
+       the status page read "0% answering" for weeks with nothing to say why. The one
+       screen built to catch that could not be found by the person looking for it.
+
+       A sub-page of Settings rather than a tenth entry in the System rail: that is how
+       every other sub-page in this IA works (`/admin/shop/codes` from shop orders,
+       `/admin/nominees/duplicate-scan` from nominees), it needs no new page key or
+       sprite icon, and it keeps `admin_page: 'settings'` honest — the rail says
+       Settings and Settings now says where to go. `AdminIaTest` sweeps for the next
+       one. #}
+    <p class="st-hint" style="margin-top:6px">
+      <a href="/admin/settings/providers"><strong>Integrations &amp; provider health</strong></a>
+      — ask every provider configured below whether it actually answers: email, the AI
+      models, the payment gateways and the voices. Nothing is called until you press Run.
+    </p>
   </div>
 <form id="st-form" x-ref="form" class="ad-form" method="post" action="/admin/settings">
   {# Comes back as the redirect fragment so a save returns to the group you saved

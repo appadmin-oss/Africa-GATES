@@ -78,7 +78,7 @@ final class AdminNav
                 'tip' => 'Dashboard and key platform metrics.',
                 'items' => [
                     ['page' => 'dashboard', 'label' => 'Dashboard',    'href' => '/admin/dashboard'],
-                    ['page' => 'assistant', 'label' => 'AI Assistant', 'href' => '/admin/assistant'],
+                    ['page' => 'assistant', 'label' => 'AI assistant', 'href' => '/admin/assistant'],
                 ],
             ],
             [
@@ -88,21 +88,21 @@ final class AdminNav
                     ['page' => 'profiles',       'label' => 'Profiles',         'href' => '/admin/profiles'],
                     ['page' => 'nominations',    'label' => 'Nominations',      'href' => '/admin/nominations'],
                     ['page' => 'nominees',       'label' => 'Nominees',         'href' => '/admin/nominees'],
-                    ['page' => 'moderation',     'label' => 'Moderation Queue', 'href' => '/admin/moderation'],
+                    ['page' => 'moderation',     'label' => 'Moderation queue', 'href' => '/admin/moderation'],
                     ['page' => 'interviews',     'label' => 'Interviews',       'href' => '/admin/interviews'],
                     ['page' => 'questionnaires', 'label' => 'Questionnaires',   'href' => '/admin/questionnaires'],
                     ['page' => 'invitations',    'label' => 'Invitations',     'href' => '/admin/questionnaires/invitations'],
                     ['page' => 'campaigns',      'label' => 'Campaigns',        'href' => '/admin/campaigns'],
-                    ['page' => 'support',        'label' => 'Support Tickets',  'href' => '/admin/support'],
+                    ['page' => 'support',        'label' => 'Support tickets',  'href' => '/admin/support'],
                 ],
             ],
             [
                 'key' => 'programmes', 'label' => 'Programmes', 'gate' => 'programmes',
                 'tip' => 'Award programmes, cycles, categories and the judging panel.',
                 'items' => [
-                    ['page' => 'programmes',  'label' => 'Awards & Cycles', 'href' => '/admin/programmes'],
+                    ['page' => 'programmes',  'label' => 'Awards & cycles', 'href' => '/admin/programmes'],
                     ['page' => 'shortlists',  'label' => 'Shortlists',      'href' => '/admin/shortlists'],
-                    ['page' => 'awards_page', 'label' => 'Awards Page',     'href' => '/admin/awards-page'],
+                    ['page' => 'awards_page', 'label' => 'Awards page',     'href' => '/admin/awards-page'],
                 ],
             ],
             [
@@ -111,14 +111,14 @@ final class AdminNav
                 'items' => [
                     ['page' => 'events',        'label' => 'Events',            'href' => '/admin/events'],
                     ['page' => 'stand_presets', 'label' => 'Stand presets',   'href' => '/admin/stand-presets'],
-                    ['page' => 'posts',         'label' => 'Blog Posts',        'href' => '/admin/posts'],
-                    ['page' => 'legacy',        'label' => 'Legacy Events',     'href' => '/admin/legacy'],
+                    ['page' => 'posts',         'label' => 'Blog posts',        'href' => '/admin/posts'],
+                    ['page' => 'legacy',        'label' => 'Legacy events',     'href' => '/admin/legacy'],
                     ['page' => 'opportunities', 'label' => 'Opportunities',     'href' => '/admin/opportunities'],
                     ['page' => 'media',         'label' => 'Media',             'href' => '/admin/media'],
-                    ['page' => 'products',      'label' => 'Shop Products',     'href' => '/admin/products'],
-                    ['page' => 'shop_orders',   'label' => 'Shop Orders',       'href' => '/admin/shop/orders'],
+                    ['page' => 'products',      'label' => 'Shop products',     'href' => '/admin/products'],
+                    ['page' => 'shop_orders',   'label' => 'Shop orders',       'href' => '/admin/shop/orders'],
                     ['page' => 'forms',         'label' => 'Forms',             'href' => '/admin/forms'],
-                    ['page' => 'partners',      'label' => 'Partner Enquiries', 'href' => '/admin/partners'],
+                    ['page' => 'partners',      'label' => 'Partner enquiries', 'href' => '/admin/partners'],
                     ['page' => 'legal',         'label' => 'Legal & policies',  'href' => '/admin/legal'],
                 ],
             ],
@@ -128,18 +128,18 @@ final class AdminNav
                 'items' => [
                     ['page' => 'finance',           'label' => 'Revenue',           'href' => '/admin/finance'],
                     ['page' => 'payouts',           'label' => 'Referral payouts',  'href' => '/admin/payouts'],
-                    ['page' => 'partner-orgs',      'label' => 'Partner Orgs',      'href' => '/admin/partner-orgs'],
+                    ['page' => 'partner-orgs',      'label' => 'Partner organisations',      'href' => '/admin/partner-orgs'],
                     ['page' => 'vendor-policy',     'label' => 'Vendor rules',      'href' => '/admin/vendor-policy'],
-                    ['page' => 'payments',          'label' => 'Payment Triage',    'href' => '/admin/payments'],
-                    ['page' => 'payments-ledger',   'label' => 'Gateway Ledger',    'href' => '/admin/payments/ledger'],
+                    ['page' => 'payments',          'label' => 'Payment triage',    'href' => '/admin/payments'],
+                    ['page' => 'payments-ledger',   'label' => 'Gateway ledger',    'href' => '/admin/payments/ledger'],
                     ['page' => 'payments-disputes', 'label' => 'Disputes',          'href' => '/admin/payments/disputes'],
                     ['page' => 'refunds',           'label' => 'Refunds',           'href' => '/admin/refunds'],
-                    ['page' => 'vote-delivery',     'label' => 'Vote Delivery',     'href' => '/admin/vote-delivery'],
+                    ['page' => 'vote-delivery',     'label' => 'Vote delivery',     'href' => '/admin/vote-delivery'],
                     // Beside Vote Delivery because they are the two halves of one
                     // failure: that one re-sends a code while it can still be used,
                     // this one repairs the tally after the ballot has closed and
                     // re-sending can no longer help anybody.
-                    ['page' => 'vote-recovery',     'label' => 'Vote Recovery',     'href' => '/admin/vote-recovery'],
+                    ['page' => 'vote-recovery',     'label' => 'Vote recovery',     'href' => '/admin/vote-recovery'],
                 ],
             ],
             [
@@ -151,7 +151,7 @@ final class AdminNav
                     // different altitudes: that one asks whether a cycle's result is
                     // sound, this one whether an award's judging can be defended across
                     // every cycle it has run.
-                    ['page' => 'judging-audit', 'label' => 'Judging Audit',       'href' => '/admin/judging-audit'],
+                    ['page' => 'judging-audit', 'label' => 'Judging audit',       'href' => '/admin/judging-audit'],
                     // The scores that crown every winner. They had no screen at all —
                     // scoreCategory() was read by the promotion, a snapshot writer and a
                     // console command on a host with no shell.
@@ -164,7 +164,7 @@ final class AdminNav
                     ['page' => 'audit',        'label' => 'Audit log',           'href' => '/admin/audit'],
                     ['page' => 'data',          'label' => 'All data',            'href' => '/admin/data'],
                     ['page' => 'analytics',     'label' => 'Analytics',           'href' => '/admin/analytics'],
-                    ['page' => 'registrations', 'label' => 'Event Registrations', 'href' => '/admin/registrations'],
+                    ['page' => 'registrations', 'label' => 'Event registrations', 'href' => '/admin/registrations'],
                 ],
             ],
             [
@@ -177,7 +177,7 @@ final class AdminNav
                     ['page' => 'ai',          'label' => 'AI instructions', 'href' => '/admin/ai-prompts'],
                     ['page' => 'attendee',    'label' => 'Interview bot',   'href' => '/admin/attendee'],
                     ['page' => 'sandbox',     'label' => 'Test data',       'href' => '/admin/sandbox'],
-                    ['page' => 'judges',   'label' => 'Judges Panel', 'href' => '/admin/judges'],
+                    ['page' => 'judges',   'label' => 'Judges panel', 'href' => '/admin/judges'],
                     // Directly under the panel, because the two are one job: who judges,
                     // and what they are asked. The rubric had no entry anywhere — no
                     // screen, no route, no link — so the table the entire scoring system
