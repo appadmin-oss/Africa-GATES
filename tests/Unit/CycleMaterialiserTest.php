@@ -299,4 +299,102 @@ class CycleMaterialiserTest extends TestCase
         $this->assertSame(2, DB::table('gates_jobs')->where('type', 'plain.job')->count(),
             'many NULL dedupe_keys must coexist');
     }
+
+    // ══ a seal claims an announcement, so it needs one ═══════════════════════
+
+    /**
+     * Give a cycle something to seal: one category, one nominee with support, a complete
+     * panel at quorum. Without this the seal is skipped for having no rows and every
+     * assertion below passes for the wrong reason.
+     */
+    private function scorable(int $cycleId): void
+    {
+        $cat = (int) DB::table('gates_award_categories')->insertGetId([
+            'cycle_id' => $cycleId, 'slug' => 'seal-cat-' . $cycleId, 'title' => 'Sealable',
+        ]);
+        $nom = (int) DB::table('gates_nominees')->insertGetId([
+            'category_id' => $cat, 'name' => 'Sealable nominee', 'country_code' => 'NG',
+            'status' => 'approved', 'vote_count' => 40, 'organic_vote_count' => 40,
+        ]);
+        $crit = array_map('intval',
+            DB::table('gates_judge_criteria')->where('is_active', 1)->pluck('id')->all());
+        foreach ([81, 82] as $j) {
+            DB::table('gates_judges')->insertOrIgnore([
+                'id' => $j, 'name' => 'Seal judge ' . $j, 'email' => 'sealj' . $j . '@x.test',
+                'is_active' => 1,
+            ]);
+            foreach ($crit as $cid) {
+                DB::table('gates_judge_criteria_scores')->insert([
+                    'judge_id' => $j, 'nominee_id' => $nom, 'category_id' => $cat,
+                    'criterion_id' => $cid, 'score' => 8,
+                ]);
+            }
+        }
+    }
+
+    private function sealedRows(int $cycleId): int
+    {
+        return DB::table('gates_vote_snapshots')
+            ->where('cycle_id', $cycleId)->where('capture_kind', 'release')->count();
+    }
+
+    /**
+     * A SUPPRESSED ANNOUNCEMENT SEALS NOTHING.
+     *
+     * ══ THE FAULT ═══════════════════════════════════════════════════════════
+     *
+     * Entering `results` fired two side effects that never referred to each other: the
+     * staleness rule withheld every announcement — correctly — and the seal recorded the
+     * standing "as announced" anyway. So on a late cycle the platform told nobody and
+     * froze the figures as the announcement in the same pass.
+     *
+     * What that cost is invisible on every screen. A programme whose results run late
+     * passes `results_date` unattended with panels unfinished; the sweep seals whatever
+     * the arithmetic gives at that minute, and {@see \AfricaGates\Services\PublicResults::category()}
+     * lays it over every view afterwards. The published figures stop moving while scoring
+     * continues, so a judge completing a scorecard changes nothing anybody can see. The
+     * symptom reported is "the score is not changing", which names the scorer — the one
+     * part of it that was working.
+     */
+    public function test_a_suppressed_announcement_seals_no_standing(): void
+    {
+        // Six years overdue, exactly as the suppression test above.
+        $this->seedCycle(41, 'judging', [
+            'voting_open'  => '2020-01-01 00:00:00',
+            'voting_close' => '2020-02-01 00:00:00',
+            'results_date' => '2020-03-01 00:00:00',
+        ]);
+        $this->scorable(41);
+
+        $r = (new CycleMaterialiser())->run();
+
+        $this->assertSame('results', $this->storedStatus(41), 'the state is still corrected');
+        $this->assertSame(1, $r['suppressed'], 'and the announcement is still withheld');
+        $this->assertSame(0, $this->sealedRows(41),
+            'so there is no announced standing, and nothing may be sealed as one');
+    }
+
+    /**
+     * AND A TIMELY RELEASE STILL SEALS, WHICH IS THE HALF THAT MUST NOT REGRESS.
+     *
+     * The paired assertion. Without it the fix above is satisfiable by never sealing at
+     * all, which would put back the fault sealing exists to prevent — a released page
+     * recomputing its figures on every view, so an announced 693 becomes 885 across a
+     * week of scoring changes with nothing edited.
+     */
+    public function test_a_timely_release_still_seals_the_standing(): void
+    {
+        $this->seedCycle(42, 'judging', [
+            'voting_open'  => date('Y-m-d H:i:s', strtotime('-30 days')),
+            'voting_close' => date('Y-m-d H:i:s', strtotime('-3 days')),
+            'results_date' => date('Y-m-d H:i:s', strtotime('-1 day')),
+        ]);
+        $this->scorable(42);
+
+        $r = (new CycleMaterialiser())->run();
+
+        $this->assertSame(0, $r['suppressed'], 'a result one day old is announced');
+        $this->assertGreaterThan(0, $this->sealedRows(42),
+            'and what was announced is sealed, as it always was');
+    }
 }

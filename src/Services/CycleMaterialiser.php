@@ -184,7 +184,36 @@ final class CycleMaterialiser
                 // winner rather than the one just before it. Idempotent per cycle, and it
                 // must never be able to stop a release: a seal is evidence about a result,
                 // not a precondition for having one.
-                if (!$this->dryRun) {
+                //
+                // ── AND ONLY WHERE SOMETHING WAS ACTUALLY ANNOUNCED ──────────
+                //
+                // A seal claims one specific thing: THIS IS THE STANDING THAT WAS
+                // ANNOUNCED. `$announce` is false exactly when this platform decided the
+                // opposite — the boundary passed more than ANNOUNCE_GRACE_DAYS ago, the
+                // state is being corrected long after the fact, and every outbound
+                // notification is deliberately withheld because "a months-old result must
+                // not email congratulations now". Sealing on that path put the two
+                // halves of one decision in direct contradiction: nobody was told, and
+                // the standing was frozen and published as the announcement anyway.
+                //
+                // WHAT THAT COST, because it is not obvious from either line on its own.
+                // A programme whose results run late passes `results_date` unattended.
+                // The sweep advances it, suppresses the announcements — correctly — and
+                // used to seal whatever the arithmetic gave at that minute: panels still
+                // unfinished, votes still reconciling. The public result page then
+                // laid that seal over every view from then on, so the published figures
+                // stopped moving while the scoring behind them carried on. A panel
+                // completing a scorecard changed nothing anybody could see, and the
+                // symptom — "the score is not changing" — names the scorer, which is the
+                // one part of it that was working.
+                //
+                // The seal is not lost, only deferred: the cycle keeps being captured
+                // routinely, and a release that IS announced sails through here. Where an
+                // operator releases a cycle whose window went stale, the seal is theirs
+                // to take, and it has to be an act rather than a date — see the repair in
+                // 2027_01_12_unannounced_seal_repair.php, which demotes the seals this
+                // already took.
+                if (!$this->dryRun && $announce) {
                     try {
                         $sealed = (new SnapshotService())->captureRelease((int) $c->id);
                         if ($sealed > 0) {
@@ -193,6 +222,11 @@ final class CycleMaterialiser
                     } catch (\Throwable $e) {
                         $this->log('    ! could not seal the standing: ' . $e->getMessage());
                     }
+                } elseif (!$announce) {
+                    // Said out loud, because the whole fault above was two correct
+                    // decisions that never mentioned each other.
+                    $this->log('    · standing NOT sealed — nothing was announced, so there is '
+                               . 'no announced standing to seal');
                 }
             }
 
