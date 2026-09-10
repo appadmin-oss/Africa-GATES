@@ -89,11 +89,12 @@ class PaidVoteService
      */
     public const DEFAULT_CUTOFF_MINUTES = 10;
 
-    /**
-     * @deprecated Read {@see maxQty()} instead — this is only the default.
-     *             Kept as an alias so nothing that referenced the old constant breaks.
-     */
-    public const MAX_QTY = self::DEFAULT_MAX_QTY;
+    // `MAX_QTY` used to alias DEFAULT_MAX_QTY here, "so nothing that referenced the old
+    // constant breaks". Nothing referenced it: every mention left in the tree is prose
+    // describing the clamp it was retired for. An alias with no reader is the docblock's
+    // own claim about the running system being false — and this one invited a reader back
+    // to the bare constant whose two clamps silently reduced a supporter's order for 5,000
+    // votes to 1,000. Read maxQty(), which asks the setting.
 
     private static function setting(string $key): ?string
     {

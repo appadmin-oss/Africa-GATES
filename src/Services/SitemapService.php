@@ -5,6 +5,7 @@ namespace AfricaGates\Services;
 
 use AfricaGates\Support\Slug;
 use Illuminate\Database\Capsule\Manager as DB;
+use AfricaGates\Support\SchemaHas;
 
 /**
  * The sitemap, built from the content that actually exists.
@@ -566,9 +567,12 @@ final class SitemapService
 
     // ── Helpers ─────────────────────────────────────────────────────────────
 
+    // The fourth copy of one four-line probe, found by the sweep that keeps the other
+    // three from coming back. {@see SchemaHas} — and here the memo earns its keep on a
+    // page that asks about every table it might publish, on every crawl.
     private static function has(string $table): bool
     {
-        try { return DB::schema()->hasTable($table); } catch (\Throwable) { return false; }
+        return SchemaHas::table($table);
     }
 
     /** A date column as W3C `YYYY-MM-DD`, or null when it is missing or unparseable. */

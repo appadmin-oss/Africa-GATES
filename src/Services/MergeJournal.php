@@ -4,6 +4,7 @@ declare(strict_types=1);
 namespace AfricaGates\Services;
 
 use Illuminate\Database\Capsule\Manager as DB;
+use AfricaGates\Support\SchemaHas;
 
 /**
  * Generic, reversible reassign-and-journal engine shared by merge services.
@@ -199,19 +200,20 @@ final class MergeJournal
         return implode('|', array_map(static fn($c) => (string) ($row[$c] ?? ''), $cols));
     }
 
-    /** @var array<string,bool> per-process memo — schema is stable within a request. */
-    private static array $colMemo = [];
+    // ── THE SCHEMA PROBE LIVES IN ONE PLACE ─────────────────────────────────
+    //
+    // This was a private memo and four lines, repeated verbatim in MergeService and again
+    // in AnalyticsService — where it did NOT memoise, so one admin page asked the database
+    // twenty-four column questions per render. {@see SchemaHas}. Kept as named forwards
+    // because both merge services call them.
 
     public static function hasCol(string $table, string $col): bool
     {
-        $k = $table . '.' . $col;
-        if (isset(self::$colMemo[$k])) return self::$colMemo[$k];
-        try { return self::$colMemo[$k] = DB::schema()->hasColumn($table, $col); }
-        catch (\Throwable) { return false; }
+        return SchemaHas::column($table, $col);
     }
 
     public static function hasTable(string $table): bool
     {
-        try { return DB::schema()->hasTable($table); } catch (\Throwable) { return false; }
+        return SchemaHas::table($table);
     }
 }

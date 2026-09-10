@@ -135,11 +135,35 @@ final class TurnstileServiceTest extends TestCase
         $this->assertStringNotContainsString('bot', strtolower($r['message']), 'do not blame the voter for our network');
     }
 
-    /** The old boolean API still works for anything that has not moved to check(). */
-    public function test_the_deprecated_boolean_wrapper_still_agrees(): void
+    /**
+     * THERE IS ONE ENTRY POINT, AND IT RETURNS A REASON.
+     *
+     * This file used to end with `test_the_deprecated_boolean_wrapper_still_agrees`, over a
+     * `verify(): bool` whose docblock said it was kept "for anything that has not moved to
+     * check()". Nothing had not moved: the wrapper's only reference in the whole repository
+     * was that test, so the deprecation was being kept alive by the test documenting it.
+     *
+     * Held structurally, because the cost of the wrapper coming back is not a duplicate
+     * method — it is a caller with a bool in hand having to guess which of the three
+     * outcomes it has, and writing "you look like a bot" over our own missing key.
+     */
+    public function test_the_service_offers_no_bare_boolean_check(): void
     {
-        $this->assertTrue($this->svc('', '')->verify(null));
-        $this->assertFalse($this->svc('sk', '0x4AAA')->verify(''));
-        $this->assertTrue($this->svc('sk', '0x4AAA', ['success' => true])->verify('t'));
+        $this->assertFalse(method_exists(TurnstileService::class, 'verify'),
+            'a bool cannot distinguish MISCONFIGURED (fail open, ours to fix) from a real '
+            . 'failure (fail closed, do not blame the visitor) from UNREACHABLE (fail '
+            . 'closed, blame us) — and the caller then invents the message');
+
+        // And the one that remains carries the reason, which is the whole argument for
+        // removing the other. Asserted on the shape rather than by enumerating this
+        // class's public surface: `enabled()`, `misconfigured()` and `decorative()` are
+        // legitimate questions about configuration, and a test that lists today's methods
+        // fails on the next honest addition instead of on the fault.
+        $r = $this->svc('sk', '0x4AAA')->check('');
+
+        $this->assertArrayHasKey('ok', $r);
+        $this->assertArrayHasKey('code', $r, 'a verdict with no code cannot be branched on');
+        $this->assertArrayHasKey('message', $r,
+            'without a message the caller writes one, and it is wrong three times in four');
     }
 }

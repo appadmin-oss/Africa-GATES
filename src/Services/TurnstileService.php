@@ -138,12 +138,16 @@ final class TurnstileService {
         }
     }
 
-    /**
-     * @deprecated Use {@see check()} — a bare bool cannot say why, and the caller
-     *             then has to invent a message that is wrong three times in four.
-     */
-    public function verify(?string $token, string $ip = ''): bool
-    {
-        return $this->check($token, $ip)['ok'];
-    }
+    // ── THE BOOLEAN WRAPPER IS GONE ──────────────────────────────────────────
+    //
+    // `verify(): bool` was kept "for anything that has not moved to check()". Nothing had
+    // not: its only reference anywhere was the test asserting the two agreed, so the
+    // deprecation was being satisfied by the test that documented it and by nothing else.
+    //
+    // Leaving it is not free. A bare bool cannot say WHY a challenge failed, and the three
+    // outcomes here need different words: a misconfigured widget must fail OPEN (ours to
+    // fix, and refusing every visitor over our own missing key locks the site), a genuine
+    // failure must fail closed and say so without blaming the visitor, and an unreachable
+    // Cloudflare must fail closed and blame us. Collapsed to true/false, a caller has to
+    // invent that message, and it is wrong three times in four.
 }

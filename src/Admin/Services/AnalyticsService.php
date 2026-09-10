@@ -4,6 +4,7 @@ declare(strict_types=1);
 namespace AfricaGates\Admin\Services;
 
 use Illuminate\Database\Capsule\Manager as DB;
+use AfricaGates\Support\SchemaHas;
 
 /**
  * What the platform is doing, as opposed to what it has been paid.
@@ -54,14 +55,23 @@ final class AnalyticsService
     /** Longest window any single call will look back over. */
     public const MAX_DAYS = 365;
 
+    // ── THESE TWO WERE THE UNMEMOISED COPY ──────────────────────────────────
+    //
+    // Twenty-four call sites in this class, and `DB::schema()->hasColumn()` fetches the
+    // table's whole column listing every time — `information_schema.columns` on MySQL. So
+    // one dashboard render cost twenty-four extra round trips, invisibly: the page draws,
+    // the figures are right, and it is simply slower than it looks. The two merge services
+    // carried the same four lines WITH a memo, which is how a duplicated helper comes to
+    // be three helpers. {@see SchemaHas}.
+
     private static function has(string $table): bool
     {
-        try { return DB::schema()->hasTable($table); } catch (\Throwable) { return false; }
+        return SchemaHas::table($table);
     }
 
     private static function hasCol(string $table, string $col): bool
     {
-        try { return DB::schema()->hasColumn($table, $col); } catch (\Throwable) { return false; }
+        return SchemaHas::column($table, $col);
     }
 
     private static function clampDays(int $days): int

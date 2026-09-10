@@ -4,6 +4,7 @@ declare(strict_types=1);
 namespace AfricaGates\Services;
 
 use Illuminate\Database\Capsule\Manager as DB;
+use AfricaGates\Support\SchemaHas;
 
 /**
  * Merge duplicate nominees into one — the fix for vote-splitting when the same
@@ -458,19 +459,16 @@ final class MergeService
         return implode('|', array_map(static fn($c) => (string) ($row[$c] ?? ''), $cols));
     }
 
-    /** @var array<string,bool> per-process memo — the schema is stable within a request. */
-    private static array $colMemo = [];
+    // The third copy of one four-line probe, and the memo it carried was the half that
+    // had drifted. {@see SchemaHas}.
 
     private static function hasCol(string $table, string $col): bool
     {
-        $k = $table . '.' . $col;
-        if (isset(self::$colMemo[$k])) return self::$colMemo[$k];
-        try { return self::$colMemo[$k] = DB::schema()->hasColumn($table, $col); }
-        catch (\Throwable) { return false; }   // don't memo a transient failure
+        return SchemaHas::column($table, $col);
     }
 
     private static function hasTable(string $table): bool
     {
-        try { return DB::schema()->hasTable($table); } catch (\Throwable) { return false; }
+        return SchemaHas::table($table);
     }
 }
