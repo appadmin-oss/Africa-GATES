@@ -156,17 +156,60 @@ final class VoterReachTest extends TestCase
      *
      * `points:<userId>:<random>` — the suffix exists only to clear the one-vote-per-
      * category unique key, so redeeming twice must not read as two supporters.
+     *
+     * ── WRITTEN AS PointsService WRITES IT, WHICH IS THE WHOLE POINT ─────────
+     *
+     * `vote_type = 'bonus'`, because `gates_votes.vote_type` is
+     * ENUM('standard','bonus','paid') and there is no 'points' in it, so a redemption
+     * has nowhere else to go. This fixture used to say `'standard'` — a row no service
+     * on this platform can produce — and under it the assertion passed while every real
+     * redemption was counted as NOBODY: {@see VoterReach::personKey()} tested the grant
+     * type before the hash prefix, so the `points:` branch was unreachable and a member
+     * who spent their own points added nothing to the 70% that counts people.
+     *
+     * The same shape as the TINYINT panel mark the parity run found: a fixture asserting
+     * on data the platform cannot hold proves only that the code handles data it will
+     * never see.
      */
     public function test_a_member_redeeming_points_twice_is_one_supporter(): void
     {
         foreach ([1, 2] as $_) {
             DB::table('gates_votes')->insert([
-                'nominee_id' => 700, 'category_id' => self::CAT, 'vote_type' => 'standard',
+                'nominee_id' => 700, 'category_id' => self::CAT, 'vote_type' => 'bonus',
                 'weight' => 1, 'voter_email_hash' => 'points:42:' . bin2hex(random_bytes(6)),
             ]);
         }
 
         $this->assertSame(1, VoterReach::forNominee(700));
+    }
+
+    /**
+     * AND A REDEMPTION IS TOLD APART FROM A GRANT BY ITS PREFIX, NOT ITS TYPE.
+     *
+     * Both rows carry `vote_type = 'bonus'` — the ENUM leaves the redemption no other
+     * value — so the prefix is the only thing that distinguishes a member's own choice
+     * from an award an operator made on their behalf. One person, from two rows that are
+     * identical in every column a naive reader would look at.
+     *
+     * The asymmetry is deliberate and is stated in {@see VoterReach}: a grant adds no
+     * reach because nobody chose to cast it, while a redemption is a choice made by a
+     * named account and paid for out of that account's balance.
+     */
+    public function test_a_redemption_counts_and_a_grant_beside_it_does_not(): void
+    {
+        DB::table('gates_votes')->insert([
+            'nominee_id' => 700, 'category_id' => self::CAT, 'vote_type' => 'bonus',
+            'weight' => 1, 'voter_email_hash' => 'points:77:' . bin2hex(random_bytes(6)),
+        ]);
+        DB::table('gates_votes')->insert([
+            'nominee_id' => 700, 'category_id' => self::CAT, 'vote_type' => 'bonus',
+            'weight' => 1, 'voter_email_hash' => 'bonus:9001:' . bin2hex(random_bytes(6)),
+        ]);
+
+        $this->assertSame(1, VoterReach::forNominee(700),
+            'a member who redeemed their own points counts as nobody, or an operator '
+            . 'grant bought reach — and both rows say `bonus`, so only the prefix can '
+            . 'tell them apart');
     }
 
     /**

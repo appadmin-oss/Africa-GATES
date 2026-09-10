@@ -3,7 +3,7 @@ declare(strict_types=1);
 
 namespace Tests\Unit;
 
-use AfricaGates\Services\{JudgeRubric, ResultRelease};
+use AfricaGates\Services\{JudgeRubric, ReleasedStanding, ResultRelease, SnapshotService};
 use Illuminate\Database\Capsule\Manager as DB;
 use Illuminate\Support\Carbon;
 use Tests\TestCase;
@@ -163,6 +163,13 @@ final class ResultReleaseScreenRenderTest extends TestCase
             // produce. Passed the categories already drawn, exactly as the controller
             // does, so the cycle is not scored twice to reach the same answer.
             'overall'    => ResultRelease::overall($this->cycleId, $categories),
+            // Whether this cycle has been announced, and where today's arithmetic has
+            // moved away from what it was announced as. The service's own output again:
+            // this screen draws LIVE by design, which stopped being what a released
+            // cycle's public page shows, and the panel it feeds is the only place both
+            // figures appear at once.
+            'sealed'     => \AfricaGates\Services\ReleasedStanding::divergence(
+                                $categories, $this->cycleId),
             // What the last recount said, or nothing. Passed here because the controller
             // always passes it and `strict_variables` is on — an undefined key is a failure
             // in this file rather than a blank space in production.
@@ -357,6 +364,10 @@ final class ResultReleaseScreenRenderTest extends TestCase
             'page_title' => 'Result release', 'admin_page' => 'result-release',
             'cycles' => [], 'cycle_id' => 0, 'cycle' => null,
             'categories' => [], 'attention' => ResultRelease::attention([]),
+            // No cycle selected, so nothing to have been sealed. The controller passes
+            // null here for the same reason and `strict_variables` would fail on neither
+            // of these two pages being about the seal.
+            'sealed' => null,
         ];
 
         $empty  = $twig->render('admin/result-release.twig', $base + ['failed' => false]);
@@ -471,6 +482,7 @@ final class ResultReleaseScreenRenderTest extends TestCase
      */
     public function test_the_working_is_drawn_beside_the_index(): void
     {
+        $this->useBasis(\AfricaGates\Services\CpiService::BASIS_REACH);
         $j1 = $this->judge('Ada Obi');
         $j2 = $this->judge('Tunde Cole');
 
@@ -493,11 +505,15 @@ final class ResultReleaseScreenRenderTest extends TestCase
 
         // And the leader is not told they have 100% of their own votes.
         //
-        // TWO scales are named, not one. The community half has two denominators — the
-        // largest tally in the cycle and the largest number of backers in it — and they are
-        // held by different people as often as not. A row that said "sets the scale" twice,
-        // once under each, would be two sentences that read identically and mean different
-        // things on the one screen an award is signed off from.
+        // TWO scales are named, not one — on `reach`, which this test pins explicitly
+        // because it is no longer the default. The community half has two denominators
+        // there, the largest tally in the cycle and the largest number of backers in it,
+        // and they are held by different people as often as not. A row that said "sets
+        // the scale" twice, once under each, would be two sentences that read identically
+        // and mean different things on the one screen an award is signed off from.
+        //
+        // `ideal` has ONE denominator and so names one scale; its own cell is tested
+        // below.
         $this->assertStringContainsString('sets the tally scale', $html);
         $this->assertStringNotContainsString('100% of Grace Abiodun&rsquo;s 400', $html);
 
@@ -521,6 +537,7 @@ final class ResultReleaseScreenRenderTest extends TestCase
      */
     public function test_the_reach_term_is_drawn_beside_the_tally_term(): void
     {
+        $this->useBasis(\AfricaGates\Services\CpiService::BASIS_REACH);
         $j1 = $this->judge('Ada Obi');
         $j2 = $this->judge('Tunde Cole');
 
@@ -658,5 +675,197 @@ final class ResultReleaseScreenRenderTest extends TestCase
 
         $this->assertStringNotContainsString('rr--cut', $body,
             'a two-nominee category drew the award line under its own last row');
+    }
+
+    /**
+     * AND UNDER `ideal` THE SCREEN NAMES ONE YARDSTICK, NOT A REACH SCALE.
+     *
+     * `ideal` divides both community terms by the largest TALLY, so there is no
+     * "most people anybody had" denominator at all. The reach cell's own words — "most in
+     * the cycle, sets the reach scale" — would name a scale that does not exist, on the
+     * page an award is signed off from. That is the same shape as the four help-centre
+     * promises this rule change has already retired once, and it is why the two bases get
+     * two cells rather than one cell with a tweak.
+     */
+    public function test_the_ideal_basis_names_one_yardstick_and_no_reach_scale(): void
+    {
+        $lead = $this->nominee('Grace Abiodun', 400);
+        $half = $this->nominee('Fatima Bello', 200);
+        $this->panel($lead, 9);
+        $this->panel($half, 8);
+        $this->backers($lead, 4, 'lead');
+        $this->backers($half, 2, 'half');
+
+        $body = (string) preg_replace('~\s+~', ' ',
+            (string) preg_replace('~<style\b.*?</style>~s', '', $this->render()));
+
+        $this->assertStringNotContainsString('sets the reach scale', $body,
+            'the screen names a reach denominator that this basis does not have');
+        // Both terms share the ideal, so the row states the one figure they divide by —
+        // and this assertion is also the proof that the PEOPLE maximum is not the
+        // denominator any more. The most backers anybody here has is 4; the yardstick
+        // printed is 400, the tally. A loose `not contains "backers of 4"` would have
+        // matched "backers of 400" and passed on either rule, which is worse than no
+        // assertion because it reads like one.
+        $this->assertStringContainsString('2 backers of 400 possible', $body,
+            'a nominee is not shown the yardstick both halves of their community score '
+            . 'are measured against');
+        $this->assertSame(4, (int) DB::table('gates_votes')
+            ->where('nominee_id', $lead)->count(),
+            'the fixture no longer has a people maximum distinct from the tally, so this '
+            . 'test cannot tell the two denominators apart');
+        $this->assertStringContainsString('largest vote total anyone in this cycle reached', $body,
+            'the lede still describes the two-denominator rule');
+    }
+
+    // ══ the announcement, beside today's arithmetic ══════════════════════════
+
+    /**
+     * The page's prose, whitespace-normalised and with the stylesheet gone.
+     *
+     * Both halves matter. The `<style>` block names every class this page can draw, so a
+     * scan of the whole document finds `rr--out` whether or not a row carries it — this
+     * codebase has shipped that mistake four times. And the template wraps its sentences,
+     * so a claim about what the screen SAYS must not turn into a claim about where Twig
+     * happened to break the line.
+     */
+    private function prose(): string
+    {
+        return (string) preg_replace('~\s+~', ' ',
+            (string) preg_replace('~<style\b.*?</style>~s', '', $this->render()));
+    }
+
+    /**
+     * Score this cycle on a named basis.
+     *
+     * The default is `ideal` and several of these tests are about what the `reach` screen
+     * says, which is a different cell with a different denominator. Naming the basis in
+     * the test that depends on it beats a fixture that silently follows whatever the
+     * default happens to be this month.
+     */
+    private function useBasis(string $basis): void
+    {
+        (new \AfricaGates\Services\RuleEngine())->set('global', null,
+            ['community_basis' => $basis]);
+    }
+
+    /**
+     * A complete panel at quorum, so the judge half is actually paid.
+     *
+     * The SAME two judges each time. `gates_judges.email` is unique, so building a fresh
+     * pair per nominee threw on the second call — and a panel of two judges scoring every
+     * nominee is also what a real cycle looks like, where a quorum is a standing panel
+     * rather than two people hired per row.
+     */
+    private function panel(int $nominee, int $mark): void
+    {
+        static $panel = [];
+        $key = $this->programmeId;
+
+        if (!isset($panel[$key])) {
+            $panel[$key] = [$this->judge('Ada Obi'), $this->judge('Tunde Cole')];
+        }
+
+        foreach ($panel[$key] as $judgeId) $this->scoreAll($judgeId, $nominee, $mark);
+    }
+
+    /**
+     * A SEALED CYCLE SAYS SO, AND STOPS PROMISING THAT THIS TABLE IS WHAT PUBLISHES.
+     *
+     * The lede's opening claim — "it is the same ranking the promotion itself uses, so what
+     * is drawn here is what will be published" — was exactly right while every published
+     * page recomputed on view, and became a false promise the moment a released cycle began
+     * publishing its sealed standing instead. On the page an award is signed off from.
+     *
+     * This screen still draws live, deliberately: asking the promotion's own comparator is
+     * what makes it an audit of a release rather than a report about one. So it has to say
+     * which of the two it is showing, and a cycle sitting in `results` with nothing sealed
+     * is a third state rather than the second.
+     */
+    public function test_a_sealed_cycle_is_not_told_that_this_table_is_what_publishes(): void
+    {
+        $n = $this->nominee('Grace Abiodun', 400);
+        $this->backers($n, 4, 'g');
+        $this->panel($n, 9);
+
+        $live = $this->prose();
+        $this->assertStringContainsString('what is drawn here is what will be published', $live,
+            'the fixture is not rendering the unsealed lede, so this test proves nothing');
+        $this->assertStringNotContainsString('not what the public pages are showing', $live);
+
+        DB::table('gates_award_cycles')->where('id', $this->cycleId)->update(['status' => 'results']);
+        $this->assertGreaterThan(0, (new SnapshotService())->captureRelease($this->cycleId),
+            'nothing was sealed, so there is no announcement for the screen to name');
+
+        $sealed = $this->prose();
+        $this->assertStringContainsString('not what the public pages are showing', $sealed,
+            'the screen still promises that its own live table is what the public sees');
+        $this->assertStringContainsString('standing is sealed', $sealed);
+        $this->assertStringNotContainsString('what is drawn here is what will be published', $sealed,
+            'the false promise is still on the page beside the correction');
+    }
+
+    /**
+     * AND WHERE TODAY'S RULES MOVE A NOMINEE, BOTH FIGURES ARE ON ONE SCREEN.
+     *
+     * The support call this exists for begins "my score has changed". The operator taking
+     * it had the recomputed figure here and the nominee had the sealed one on their own
+     * page, and no screen anywhere held both — so the honest answer, that the result has
+     * not changed and the method has, was not available to the person who had to give it.
+     */
+    public function test_a_rules_change_after_the_seal_shows_both_figures(): void
+    {
+        $n = $this->nominee('Grace Abiodun', 400);
+        $this->backers($n, 4, 'g');
+        $this->panel($n, 8);
+
+        DB::table('gates_award_cycles')->where('id', $this->cycleId)->update(['status' => 'results']);
+        $announced = ResultRelease::category($this->categoryId)['rows'][0]['cpi'];
+        (new SnapshotService())->captureRelease($this->cycleId);
+
+        // The judge half goes back to the curve, which pays an 8.0 far less than straight.
+        (new \AfricaGates\Services\RuleEngine())->set('global', null,
+            ['judge_scale' => \AfricaGates\Services\CpiService::SCALE_CURVED]);
+
+        $now = ResultRelease::category($this->categoryId)['rows'][0]['cpi'];
+        $this->assertNotSame($announced, $now,
+            'the rules did not actually move, so the panel has nothing to report and this '
+            . 'test is not about what it says it is about');
+
+        $body = $this->prose();
+
+        // 'differently now' rather than the whole clause: the count agrees its own verb
+        // ("1 of them scores", "2 of them score"), and an assertion carrying the plural is
+        // one that passes or fails on the size of the fixture.
+        $this->assertStringContainsString('differently now', $body,
+            'the screen does not say that its figures have parted from the announcement');
+        $this->assertStringContainsString('Grace Abiodun', $body);
+        $this->assertStringContainsString('>' . $announced . '<', $body,
+            'the announced index is nowhere on the screen an operator answers from');
+        $this->assertStringContainsString('The published pages are unaffected', $body,
+            'an operator cannot tell whether the public result has moved too');
+    }
+
+    /**
+     * AND A SEAL TODAY'S RULES STILL AGREE WITH SAYS THAT, RATHER THAN NOTHING.
+     *
+     * The common case, and the one worth stating: silence here would be indistinguishable
+     * from a screen that does not check. "These agree" is the answer to the support call
+     * as often as "they have moved", and it is the answer nobody can give from a blank.
+     */
+    public function test_a_seal_that_still_agrees_is_said_out_loud(): void
+    {
+        $n = $this->nominee('Grace Abiodun', 400);
+        $this->backers($n, 4, 'g');
+        $this->panel($n, 9);
+
+        DB::table('gates_award_cycles')->where('id', $this->cycleId)->update(['status' => 'results']);
+        (new SnapshotService())->captureRelease($this->cycleId);
+
+        $body = $this->prose();
+
+        $this->assertStringContainsString('exactly as announced', $body);
+        $this->assertStringNotContainsString('differently now', $body,
+            'a cycle nothing has moved is being reported as having moved');
     }
 }

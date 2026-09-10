@@ -193,36 +193,229 @@ class SchemaIndexTest extends TestCase
     public function test_no_migration_still_uses_the_mysql_invalid_syntax(): void
     {
         // The regression that matters. `IF NOT EXISTS` on an index is valid SQLite
-        // and invalid MySQL, so it may only appear inside an explicit sqlite-only
-        // branch. Anywhere else it silently does nothing on production.
+        // and invalid MySQL, so it may only appear where the statement itself is
+        // reached on SQLite alone. Anywhere else it throws a 1064 on production.
+        //
+        // ── WHY THIS IS CHECKED PER STATEMENT AND NOT PER FILE ───────────────
+        //
+        // It used to pass a whole file as guarded if the text `$sqlite` appeared
+        // ANYWHERE in it. Nearly every migration declares
+        // `$sqlite = …getDriverName() === 'sqlite'` to pick its column types, so
+        // that test excused the very files most likely to offend — and three did,
+        // all of them shipped green:
+        //
+        //   · 2026_12_03_name_pronunciations   the UNIQUE key on `name_key`, the
+        //                                      one guarantee that migration exists
+        //                                      for, on the engine that enforces it
+        //   · 2026_12_05_recurring_donations   five indexes including the UNIQUE on
+        //                                      `manage_token`, the donor's stop
+        //                                      button
+        //   · 2026_12_06_snapshot_release_…    the lookup a published result page
+        //                                      makes on every view
+        //
+        // And the failure is not one missing index. The runner aborts on a throw
+        // WITHOUT recording the file, so the run stops there and every migration
+        // dated after it never applies; on the next deploy the guard above the
+        // statement ("table already present", "column already added") is now true,
+        // so either the file is skipped entirely with its index never created, or
+        // — where nothing above it can become true — it throws again on every
+        // deploy for ever.
+        //
+        // So the question asked here is the narrow one: is THIS statement inside a
+        // branch that only SQLite reaches?
         $offenders = [];
         foreach (glob(dirname(__DIR__, 2) . '/database/migrations/*.php') ?: [] as $file) {
-            $raw = (string) file_get_contents($file);
-
-            // Comments stripped before scanning. The fixed migrations EXPLAIN the
-            // trap in prose, so scanning raw text flags the very files that
-            // document it — the same false positive the read-only SQL audit's verb
-            // scan hit. Only executable code can be an offence.
-            $body = (string) preg_replace(
-                ['~/\*.*?\*/~s', '~//[^\n]*~', '~^\s*#[^\n]*~m'],
-                '',
-                $raw
-            );
-
-            // A file that branches on the driver is using the syntax legitimately:
-            // it only reaches the statement on SQLite, where it is valid, and MySQL
-            // gets the index from schema.sql's inline KEY.
-            $guarded = str_contains($body, "getDriverName() === 'sqlite'")
-                || str_contains($body, '$sqlite')
-                || str_contains($body, "\$driver === 'sqlite'")
-                || str_contains(basename($file), 'sqlite');
-
-            if (!$guarded && preg_match('/(CREATE (UNIQUE )?INDEX|DROP INDEX) IF (NOT )?EXISTS/i', $body)) {
-                $offenders[] = basename($file);
+            foreach (self::unguardedIndexDdl((string) file_get_contents($file), basename($file)) as $line) {
+                $offenders[] = basename($file) . ':' . $line;
             }
         }
 
         $this->assertSame([], $offenders,
-            'these run on MySQL and silently do nothing — use SchemaIndex::ensure()/drop() instead');
+            'these reach MySQL, where the syntax is a 1064 that aborts the whole '
+            . 'migration run — use SchemaIndex::ensure()/drop() instead');
+    }
+
+    /**
+     * Every line of $raw carrying index DDL that MySQL will both REJECT and REACH.
+     *
+     * Read with PHP's own tokeniser rather than by regex over the text, because the
+     * shapes this has to tell apart are invisible to a text scan:
+     *
+     *   · `{$idx}` inside an interpolated index name is not a block;
+     *   · a `;` inside a string literal does not end a statement;
+     *   · and the prose in these files DESCRIBES the broken syntax, so a raw scan
+     *     flags the very migrations that document the trap — the same false
+     *     positive the read-only SQL audit's verb scan hit.
+     *
+     * A statement is guarded when SQLite is the only driver that can reach it:
+     *
+     *   · the file is SQLite-only — `sqlite` in its name, or a non-sqlite branch
+     *     that RETURNS, after which nothing in the file runs on MySQL at all;
+     *   · an enclosing block is the sqlite side of a driver branch, INCLUDING the
+     *     `} else {` of `if (!$sqlite)`, which is where most of this directory's
+     *     legitimate uses live;
+     *   · the statement itself branches — `$sqlite ? 'CREATE INDEX IF NOT …' : …`.
+     *
+     * Polarity is read, never just the word: `if (!$sqlite) { CREATE INDEX IF NOT
+     * EXISTS … }` mentions the driver and is the offence in its purest form, and a
+     * scanner that matched on the mention alone would call it guarded.
+     *
+     * @return list<int> 1-based line numbers of the offending statements
+     */
+    private static function unguardedIndexDdl(string $raw, string $filename): array
+    {
+        // The codebase's own marker for a file MySQL never executes.
+        if (str_contains(strtolower($filename), 'sqlite')) return [];
+
+        $ddl = '~(CREATE\s+(UNIQUE\s+)?INDEX|DROP\s+INDEX)\s+IF\s+(NOT\s+)?EXISTS~i';
+
+        $string = [T_CONSTANT_ENCAPSED_STRING, T_ENCAPSED_AND_WHITESPACE];
+        $skip   = [T_COMMENT, T_DOC_COMMENT, T_WHITESPACE, T_OPEN_TAG, T_CLOSE_TAG];
+
+        // Code text since the last statement or block boundary, with string contents
+        // blanked. A ternary's condition lands here, which is what lets
+        // `$sqlite ? '…IF NOT EXISTS…' : '…'` read as guarded.
+        $since = '';
+        /** @var list<array{sqlite:bool|null, returned:bool}> $stack */
+        $stack = [];
+        // Polarity of the block that closed most recently, so `} else {` can invert it.
+        $closed = null;
+        $sqliteOnlyFromHere = false;
+        $out = [];
+
+        foreach (token_get_all($raw) as $token) {
+            if (is_array($token) && in_array($token[0], $skip, true)) continue;
+
+            $text = is_array($token) ? (string) $token[1] : (string) $token;
+
+            if (is_array($token) && in_array($token[0], $string, true)) {
+                if (!$sqliteOnlyFromHere && preg_match($ddl, $text) === 1
+                    && !self::reachedOnSqliteOnly($since, $stack)) {
+                    $out[] = (int) $token[2];
+                }
+                // A string literal that IS a driver name is part of a condition —
+                // `$driver === 'sqlite'` — so it stays. Anything longer is prose (these
+                // files describe the trap at length) and is blanked, or the scanner
+                // reads a docblock as a branch.
+                $since .= preg_match('~^[\'"](sqlite|mysql|mariadb|pgsql)[\'"]$~i', trim($text)) === 1
+                    ? $text : "''";
+                continue;
+            }
+
+            if (is_array($token) && $token[0] === T_RETURN && $stack !== []) {
+                $stack[array_key_last($stack)]['returned'] = true;
+            }
+
+            if ($text === '{' || (is_array($token) && $token[0] === T_CURLY_OPEN)) {
+                $pol = self::branchPolarity($since);
+                // `} else {` carries no condition of its own; it is the other side of
+                // the branch that just closed.
+                if ($pol === null && $closed !== null && preg_match('~\belse\b~i', $since) === 1) {
+                    $pol = !$closed;
+                }
+                $stack[] = ['sqlite' => $pol, 'returned' => false];
+                $since = '';
+                continue;
+            }
+
+            if ($text === '}') {
+                $frame  = array_pop($stack) ?? ['sqlite' => null, 'returned' => false];
+                $closed = $frame['sqlite'];
+                // A non-sqlite branch that RETURNS ends MySQL's involvement in the
+                // file: what follows is the SQLite rebuild path, which is where
+                // several of these migrations legitimately keep their DDL.
+                if ($frame['returned'] && $frame['sqlite'] === false) $sqliteOnlyFromHere = true;
+                $since = '';
+                continue;
+            }
+
+            if ($text === ';') { $since = ''; $closed = null; continue; }
+
+            $since .= $text;
+        }
+
+        return $out;
+    }
+
+    /**
+     * Is this position reached on SQLite alone?
+     *
+     * @param list<array{sqlite:bool|null, returned:bool}> $stack
+     */
+    private static function reachedOnSqliteOnly(string $since, array $stack): bool
+    {
+        $guarded = false;
+        foreach ($stack as $frame) {
+            // An inner branch decides: a non-sqlite branch nested inside a sqlite one
+            // is not reached on SQLite, and false is the safe direction to be wrong in.
+            if ($frame['sqlite'] !== null) $guarded = $frame['sqlite'];
+        }
+        if ($guarded) return true;
+
+        $pol = self::branchPolarity($since);
+        if ($pol === null) return false;
+
+        // Which side of `cond ? a : b` this is. The DDL normally sits on the true
+        // side, but the condition is as often written `$sqlite` as `!$sqlite`.
+        //
+        // `::` is masked first. Every one of these branches calls `DB::statement()`,
+        // so a naive search for the ternary's colon finds the scope resolution
+        // operator instead and reports the sqlite branch as the mysql one.
+        $code = str_replace('::', '__', $since);
+        $q = strrpos($code, '?');
+        $afterColon = $q !== false && strpos($code, ':', $q) !== false;
+
+        return $afterColon ? !$pol : $pol;
+    }
+
+    /**
+     * TRUE if $code tests for sqlite, FALSE if it tests for anything but, null if it
+     * is not a driver test at all.
+     */
+    private static function branchPolarity(string $code): ?bool
+    {
+        if (stripos($code, 'sqlite') === false && stripos($code, 'driver') === false) return null;
+
+        if (preg_match('~!\s*\$sqlite|!==?\s*[\'"]sqlite~i', $code) === 1) return false;
+        if (preg_match('~\$sqlite|===?\s*[\'"]sqlite~i', $code) === 1) return true;
+
+        return null;
+    }
+
+    /**
+     * The scanner must actually catch the shape that shipped three times, or it is
+     * the same test as before with more code in it.
+     *
+     * Both fixtures declare `$sqlite` the way a real migration does and then issue
+     * the statement OUTSIDE any branch on it — which is precisely what the old
+     * whole-file `str_contains($body, '$sqlite')` guard waved through.
+     */
+    public function test_the_scanner_catches_a_statement_that_only_mentions_the_driver(): void
+    {
+        $offender = <<<'PHP'
+            <?php
+            $sqlite = DB::connection()->getDriverName() === 'sqlite';
+            $type = $sqlite ? 'INTEGER' : 'INT UNSIGNED NULL';
+            DB::statement("ALTER TABLE t ADD COLUMN c {$type}");
+            DB::statement('CREATE INDEX IF NOT EXISTS idx_c ON t (c)');
+            PHP;
+
+        $this->assertSame([5], self::unguardedIndexDdl($offender, '2026_12_06_thing.php'),
+            'the guard is back to excusing any file that merely mentions the driver');
+
+        $guarded = <<<'PHP'
+            <?php
+            $sqlite = DB::connection()->getDriverName() === 'sqlite';
+            DB::statement($sqlite
+                ? 'CREATE INDEX IF NOT EXISTS idx_c ON t (c)'
+                : 'ALTER TABLE t ADD INDEX idx_c (c)');
+            if ($sqlite) {
+                DB::statement('CREATE INDEX IF NOT EXISTS idx_d ON t (d)');
+            }
+            PHP;
+
+        $this->assertSame([], self::unguardedIndexDdl($guarded, '2026_12_06_thing.php'),
+            'a statement MySQL never reaches is not an offence, and flagging it would '
+            . 'push the next author to silence the scanner rather than use it');
     }
 }

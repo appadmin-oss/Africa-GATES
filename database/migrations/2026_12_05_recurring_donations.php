@@ -37,6 +37,7 @@
 require __DIR__ . '/../bootstrap.php';
 \AfricaGates\Support\Clock::boot();
 
+use AfricaGates\Support\SchemaIndex;
 use Illuminate\Database\Capsule\Manager as DB;
 
 $sqlite = DB::connection()->getDriverName() === 'sqlite';
@@ -66,8 +67,9 @@ SQL);
 
     // One plan per provider/amount/interval, enforced rather than hoped for. This is the
     // index that stops a month of checkouts minting a spread of duplicate plans.
-    DB::statement('CREATE UNIQUE INDEX IF NOT EXISTS uq_donation_plan
-                   ON gates_donation_plans (provider, amount_naira, interval_name)');
+    echo SchemaIndex::ensure('gates_donation_plans', 'uq_donation_plan',
+                             ['provider', 'amount_naira', 'interval_name'],
+                             unique: true) . "\n";
     echo "  + gates_donation_plans created\n";
 } else {
     echo "  = gates_donation_plans present\n";
@@ -126,16 +128,28 @@ SQL : <<<'SQL'
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
 SQL);
 
-    // The webhook arrives knowing the subscription code and nothing else of ours, so this
-    // is the lookup on the hot path of every recurring charge.
-    DB::statement('CREATE INDEX IF NOT EXISTS idx_donsub_code
-                   ON gates_donation_subscriptions (subscription_code)');
-    DB::statement('CREATE INDEX IF NOT EXISTS idx_donsub_email
-                   ON gates_donation_subscriptions (donor_email)');
-    DB::statement('CREATE INDEX IF NOT EXISTS idx_donsub_ref
-                   ON gates_donation_subscriptions (first_ref)');
-    DB::statement('CREATE UNIQUE INDEX IF NOT EXISTS uq_donsub_manage
-                   ON gates_donation_subscriptions (manage_token)');
+    // ── THE INDEXES GO THROUGH SchemaIndex, NOT `IF NOT EXISTS` ─────────────
+    //
+    // `CREATE INDEX IF NOT EXISTS` is SQLite syntax and MySQL answers it with a 1064.
+    // Written raw, the first of these threw on the production database — mid-block,
+    // AFTER the CREATE TABLE above had already committed — so the runner aborted, the
+    // file was never recorded, and on the next deploy `hasTable()` was true and this
+    // whole branch was skipped. The table would carry NO index at all, permanently:
+    // the webhook lookup below would be a full scan on the hot path of every recurring
+    // charge, and `manage_token` — the donor's stop button — would have no uniqueness
+    // behind it.
+    //
+    // The trap was invisible because this file declares `$sqlite` for its column types,
+    // and SchemaIndexTest's guard treated a file that MENTIONS the driver as one that
+    // BRANCHES on it.
+    echo SchemaIndex::ensure('gates_donation_subscriptions', 'idx_donsub_code',
+                             ['subscription_code']) . "\n";
+    echo SchemaIndex::ensure('gates_donation_subscriptions', 'idx_donsub_email',
+                             ['donor_email']) . "\n";
+    echo SchemaIndex::ensure('gates_donation_subscriptions', 'idx_donsub_ref',
+                             ['first_ref']) . "\n";
+    echo SchemaIndex::ensure('gates_donation_subscriptions', 'uq_donsub_manage',
+                             ['manage_token'], unique: true) . "\n";
     echo "  + gates_donation_subscriptions created\n";
 } else {
     echo "  = gates_donation_subscriptions present\n";
@@ -146,8 +160,8 @@ if (DB::schema()->hasTable('gates_donations')
     DB::statement($sqlite
         ? 'ALTER TABLE gates_donations ADD COLUMN subscription_id INTEGER NULL DEFAULT NULL'
         : 'ALTER TABLE gates_donations ADD COLUMN subscription_id INT UNSIGNED NULL DEFAULT NULL');
-    DB::statement('CREATE INDEX IF NOT EXISTS idx_donations_subscription
-                   ON gates_donations (subscription_id)');
+    echo SchemaIndex::ensure('gates_donations', 'idx_donations_subscription',
+                             ['subscription_id']) . "\n";
     echo "  + gates_donations.subscription_id added\n";
 } else {
     echo "  = gates_donations.subscription_id present or table absent\n";

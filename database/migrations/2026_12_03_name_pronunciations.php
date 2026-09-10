@@ -31,6 +31,7 @@
 require __DIR__ . '/../bootstrap.php';
 \AfricaGates\Support\Clock::boot();
 
+use AfricaGates\Support\SchemaIndex;
 use Illuminate\Database\Capsule\Manager as DB;
 
 $sqlite = DB::connection()->getDriverName() === 'sqlite';
@@ -70,6 +71,15 @@ SQL);
 
 // UNIQUE, because the whole point is asking once. Two rows for one name would make the
 // answer depend on which the reader happened to find first.
-DB::statement('CREATE UNIQUE INDEX IF NOT EXISTS uq_name_says ON gates_name_says (name_key)');
+//
+// Through SchemaIndex, because `CREATE UNIQUE INDEX IF NOT EXISTS` is SQLite syntax that
+// MySQL answers with a 1064 — and the throw lands AFTER the CREATE TABLE above has
+// committed. So on the production database this file aborted the migration run without
+// being recorded, and the next deploy found the table already present, returned early at
+// the top, and recorded the file as done. The table would exist for ever with no unique
+// key on `name_key`: the one guarantee this migration is about, absent, on the engine
+// that needed it. The guard in SchemaIndexTest missed it because this file MENTIONS
+// `$sqlite` for its column types without branching on it here.
+echo SchemaIndex::ensure('gates_name_says', 'uq_name_says', ['name_key'], unique: true) . "\n";
 
 echo "  + gates_name_says created\n";

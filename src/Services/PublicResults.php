@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 namespace AfricaGates\Services;
 
+use AfricaGates\Support\OptionalColumn;
 use AfricaGates\Support\Slug;
 use Illuminate\Database\Capsule\Manager as DB;
 use Illuminate\Support\Carbon;
@@ -29,9 +30,23 @@ use Illuminate\Support\Carbon;
  * THE THREE GATES, AND WHY EACH ONE
  * ══════════════════════════════════════════════════════════════════════════════
  *
- * 1. THE CYCLE HAS RELEASED. `results` or `archived`, or a `results_date` that has passed.
- *    A judged-but-unreleased category is a decided award nobody has announced, and serving
+ * 1. THE CYCLE HAS BEEN ANNOUNCED. `results` or `archived`, and nothing else. A
+ *    judged-but-unreleased category is a decided award nobody has announced, and serving
  *    it publicly is announcing it.
+ *
+ *    THIS GATE USED TO ALSO ACCEPT A `results_date` THAT HAD PASSED, which is the sentence
+ *    above being contradicted two lines under it. A cycle is announced by
+ *    {@see \AfricaGates\Services\CycleMaterialiser}, in one transaction that sets the
+ *    status, promotes the winners and seals the standing; until it runs, nobody has been
+ *    crowned. So a cycle still in `judging` three days past its date published a full
+ *    standing with a named winner and an index — and no seal, so the page also printed
+ *    "Recomputed under current rules", the platform admitting on a result page that this
+ *    was not the announcement. Every figure on it could still move: the panel was open.
+ *
+ *    The date is a PROMISE, not a release. Where it has passed and the cycle has not been
+ *    announced, {@see delayed()} says so instead — because the other way this fails is
+ *    silence, and the page a nominee's family refreshes on the results date must not go
+ *    from a wrong answer to no answer at all.
  *
  * 2. THE SANDBOX CANNOT REACH IT. Not by name prefix — {@see DemoSeeder::notSandbox()},
  *    through the programme, the same door every other public reader takes. A rehearsal
@@ -54,7 +69,13 @@ use Illuminate\Support\Carbon;
  */
 final class PublicResults
 {
-    /** A released cycle is one of these, whatever its dates say. */
+    /**
+     * An ANNOUNCED cycle is one of these, whatever its dates say.
+     *
+     * The name is the point. These two statuses are what `CycleMaterialiser` writes in the
+     * same transaction that crowns the winners and seals the standing, so they mean "this
+     * was announced" and a date never does.
+     */
     public const RELEASED = ['results', 'archived'];
 
     /**
@@ -113,6 +134,10 @@ final class PublicResults
         return $drawn + [
             // Empty where the standing was never sealed, which the page must state.
             'sealed_at'   => (string) ($drawn['sealed_at'] ?? ''),
+            // Sealed figures whose PLACINGS had to be reconstructed — see
+            // {@see ReleasedStanding::apply()}. Defaulted here because an unsealed
+            // release never sets it and the template reads it under strict_variables.
+            'rank_recomputed' => (bool) ($drawn['rank_recomputed'] ?? false),
             'held'        => self::heldReason($drawn),
             // ── BOTH VOTE FIGURES, FOR THE WHOLE CATEGORY ────────────────────
             //
@@ -192,13 +217,7 @@ final class PublicResults
                 DB::table('gates_award_categories as c')
                     ->join('gates_award_cycles as cy', 'cy.id', '=', 'c.cycle_id')
                     ->join('gates_award_programmes as p', 'p.id', '=', 'cy.programme_id')
-                    ->where(function ($w) {
-                        $w->whereIn('cy.status', self::RELEASED)
-                          ->orWhere(function ($x) {
-                              $x->whereNotNull('cy.results_date')
-                                ->where('cy.results_date', '<=', Carbon::now()->toDateTimeString());
-                          });
-                    }),
+                    ->whereIn('cy.status', self::RELEASED),
                 'cy.programme_id')
                 ->orderByDesc('cy.year')->orderByDesc('cy.id')
                 ->orderBy('c.sort_order')->orderBy('c.id')
@@ -223,6 +242,165 @@ final class PublicResults
         }
 
         return ['items' => $items, 'held' => $held];
+    }
+
+    /**
+     * CYCLES WHOSE RESULTS DATE HAS PASSED AND WHICH HAVE NOT BEEN ANNOUNCED.
+     *
+     * ══════════════════════════════════════════════════════════════════════════
+     * WHY THE SITE HAS TO SAY THIS OUT LOUD
+     * ══════════════════════════════════════════════════════════════════════════
+     *
+     * A results date is a promise made in public. When it passes and the announcement has
+     * not happened — the promotion errored, a category is still being checked, a panel is
+     * short — the people refreshing that page are the nominee, their family, and whoever
+     * has been asked to write about it. Three things can be on the page for them, and only
+     * one of them is honest:
+     *
+     *   · THE STANDING AS IT CURRENTLY COMPUTES. What this class used to serve, because
+     *     the gate accepted a passed date. A named winner nobody crowned, unsealed, from a
+     *     panel that is still open. The worst of the three by a distance.
+     *   · NOTHING. What gating alone would give. A page that was going to carry a result
+     *     and now 404s, on the day it was promised, reads as the result being hidden —
+     *     and "silence is how a withheld award becomes a rumour" is already this class's
+     *     rule about withheld categories.
+     *   · THE FACT. The date that was promised, that the award has not been decided yet,
+     *     and — where an operator has written one — why.
+     *
+     * ── DERIVED, SO IT CANNOT BE LEFT UP ────────────────────────────────────
+     *
+     * There is no flag anybody has to set or clear. The condition IS the two facts: a date
+     * in the past, and a status that is not one of {@see RELEASED}. So the notice appears
+     * by itself when a release slips, and disappears by itself the moment
+     * `CycleMaterialiser` announces the cycle — which is also the moment the real result
+     * takes its place. A banner an operator has to remember to take down is a banner that
+     * is still up in March.
+     *
+     * `note` is the only part that waits on a person, and the notice does not: the platform
+     * admitting a result is late is not something to hold until somebody is at a desk. An
+     * empty note means the page states what it knows rather than inventing a reason or a
+     * new date — a made-up date is a second broken promise, and the first one is why anybody
+     * is reading this.
+     *
+     * The sandbox is excluded through the programme, the same door every other public
+     * reader takes, or a rehearsal cycle left in `judging` would announce a delay on the
+     * live site.
+     *
+     * @return list<array{cycle_id:int, programme:string, edition:string, promised:string,
+     *                    note:string, awards:int}>
+     */
+    public static function delayed(int $limit = 12): array
+    {
+        try {
+            $rows = DemoSeeder::notSandbox(
+                DB::table('gates_award_cycles as cy')
+                    ->join('gates_award_programmes as p', 'p.id', '=', 'cy.programme_id')
+                    ->whereNotNull('cy.results_date')
+                    ->where('cy.results_date', '<=', Carbon::now()->toDateTimeString())
+                    ->whereNotIn('cy.status', self::RELEASED),
+                'cy.programme_id')
+                ->orderByDesc('cy.results_date')
+                ->limit(max(1, min(60, $limit)))
+                ->get(['cy.id', 'cy.year', 'cy.edition_label', 'cy.results_date',
+                       'p.title as programme']);
+        } catch (\Throwable) {
+            // A deployment whose column is not there yet, or no cycles table at all. A
+            // missing notice is a quiet page; an exception here is a 500 on /results.
+            return [];
+        }
+
+        $out = [];
+        foreach ($rows as $r) {
+            $out[] = [
+                'cycle_id'  => (int) $r->id,
+                'programme' => (string) ($r->programme ?? ''),
+                'edition'   => self::edition($r),
+                'promised'  => (string) ($r->results_date ?? ''),
+                'note'      => self::delayNote((int) $r->id),
+                // How many awards are waiting, so the sentence can be about the right
+                // number of people. Counted rather than described: "an award" and
+                // "fourteen awards" are different pieces of news.
+                'awards'    => self::awardsIn((int) $r->id),
+            ];
+        }
+
+        return $out;
+    }
+
+    /**
+     * The delay for ONE cycle, or null when that cycle is not late.
+     *
+     * For a category page reached by a shared link. A result's URL is put in front of
+     * people days before the date — in the congratulations mail, in the Pulse, in a message
+     * somebody forwarded — so on the day it must explain itself rather than 404. Anybody
+     * following such a link is precisely the person owed the explanation.
+     *
+     * @return array{cycle_id:int, programme:string, edition:string, promised:string,
+     *                note:string, awards:int}|null
+     */
+    public static function delayFor(int $cycleId): ?array
+    {
+        if ($cycleId < 1) return null;
+
+        foreach (self::delayed(60) as $d) {
+            if ($d['cycle_id'] === $cycleId) return $d;
+        }
+
+        return null;
+    }
+
+    /**
+     * The category page's own delay, resolved from a category id.
+     *
+     * Deliberately NOT gated on {@see RELEASED} — it is the one lookup on this class that
+     * has to see an unannounced cycle, which is what it exists to describe.
+     *
+     * @return array{cycle_id:int, programme:string, edition:string, promised:string,
+     *                note:string, awards:int, award:string}|null
+     */
+    public static function delayForCategory(int $categoryId): ?array
+    {
+        if ($categoryId < 1) return null;
+
+        try {
+            $row = DB::table('gates_award_categories as c')
+                ->where('c.id', $categoryId)->first(['c.cycle_id', 'c.title']);
+        } catch (\Throwable) {
+            return null;
+        }
+        if ($row === null) return null;
+
+        $d = self::delayFor((int) ($row->cycle_id ?? 0));
+        if ($d === null) return null;
+
+        // The award's own name, so the page says which one somebody was sent to rather
+        // than only which edition it belongs to.
+        return $d + ['award' => (string) ($row->title ?? '')];
+    }
+
+    /** The operator's own sentence for a cycle, or '' — see the migration for why it is nullable. */
+    private static function delayNote(int $cycleId): string
+    {
+        if (!OptionalColumn::on('gates_award_cycles', 'results_delay_note')) return '';
+
+        try {
+            $v = DB::table('gates_award_cycles')->where('id', $cycleId)
+                ->value('results_delay_note');
+        } catch (\Throwable) {
+            return '';
+        }
+
+        return trim((string) ($v ?? ''));
+    }
+
+    /** How many awards this cycle is holding — the number of people waiting, roughly. */
+    private static function awardsIn(int $cycleId): int
+    {
+        try {
+            return (int) DB::table('gates_award_categories')->where('cycle_id', $cycleId)->count();
+        } catch (\Throwable) {
+            return 0;
+        }
     }
 
     /**
@@ -257,13 +435,7 @@ final class PublicResults
                     ->join('gates_award_cycles as cy', 'cy.id', '=', 'c.cycle_id')
                     ->join('gates_award_programmes as p', 'p.id', '=', 'cy.programme_id')
                     ->where('c.id', $categoryId)
-                    ->where(function ($w) {
-                        $w->whereIn('cy.status', self::RELEASED)
-                          ->orWhere(function ($x) {
-                              $x->whereNotNull('cy.results_date')
-                                ->where('cy.results_date', '<=', Carbon::now()->toDateTimeString());
-                          });
-                    }),
+                    ->whereIn('cy.status', self::RELEASED),
                 'cy.programme_id')
                 ->select('c.id', 'c.title', 'cy.id as cycle_id', 'cy.year', 'cy.edition_label',
                          'cy.results_date', 'p.title as programme', 'p.slug as programme_slug')

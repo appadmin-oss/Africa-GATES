@@ -440,10 +440,21 @@ final class DoorWelcome
 
                 // Asked in the same order the door asks, so the screen shows what will
                 // actually be said rather than a second opinion about it.
-                if (isset($hand[$key]))                     $src = 'you';
-                elseif (NameSays::known($key) !== null)      $src = 'worked out';
-                elseif (self::suggest($first) !== '')        $src = 'rule';
-                else                                        $src = 'as written';
+                //
+                // ── AND FOR A KEPT ANSWER, WHO WORKED IT OUT ────────────────
+                //
+                // This said "worked out" for anything found in `gates_name_says`, which is
+                // where the row was rather than what it says: `source` records whether a
+                // model answered or the offline rule did, and an operator deciding which
+                // respellings to trust was shown the same phrase for both. The stored
+                // value now, through the one resolver, so this table and the record below
+                // it cannot come to mean different things by `rule`.
+                $kept = NameSays::knownWithSource($key);
+
+                if (isset($hand[$key]))               $src = 'you';
+                elseif ($kept !== null)               $src = NameSays::sourceLabel($kept['source']);
+                elseif (self::suggest($first) !== '') $src = 'rule';
+                else                                  $src = 'as written';
 
                 $seen[$key] = ['name' => $first, 'said' => self::saidAs($first),
                                'source' => $src, 'count' => 1];

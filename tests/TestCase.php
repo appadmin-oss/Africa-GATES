@@ -73,12 +73,21 @@ abstract class TestCase extends BaseTestCase
         // passing null also clears the "already booted" flag, so the next test either
         // injects its own fake or gets a freshly-built one.
         \AfricaGates\Services\CheckoutMailer::using(null);
+        // A SEALED STANDING is cached per cycle for the life of the process, because a
+        // seal is written once and never rewritten — which stops being true across tests.
+        // The harness rebuilds the schema and REWINDS the auto-increment counters, so two
+        // tests routinely hold different cycles under the same id, and without this the
+        // second reads the first one's announcement.
+        \AfricaGates\Services\ReleasedStanding::forget();
         // A provider tripped unreachable by one test must not be skipped in the next.
         // Found the hard way: AiFailureReportingTest scripts an `HTTP 0` from Groq and
         // Gemini, which legitimately opens their breakers, and AiModelDelegationTest
         // then saw a route order it had never set up. The breaker keeps an in-process
         // memo as well as a cache row, so clearing the table alone is not enough.
         \AfricaGates\Support\ProviderBreaker::clearAll();
+        // The globe band's markers are memoised per process; the awards behind them are
+        // rebuilt per test, so the second test would plot the first one's nations.
+        \AfricaGates\Services\GlobeBand::forget();
     }
 
     /**

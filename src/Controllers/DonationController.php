@@ -701,10 +701,29 @@ final class DonationController
         return $changed > 0 ? 'confirmed' : 'already';
     }
 
-    /** One-time receipt + admin alert on a freshly-confirmed gift. */
+    /**
+     * One-time receipt + admin alert on a freshly-confirmed gift.
+     *
+     * ── AND, FOR A STANDING GIFT, THE LINK THAT STOPS IT ────────────────────
+     *
+     * {@see giving()} above explains why the cancellation is a link in the receipt rather
+     * than a login, and {@see \AfricaGates\Services\RecurringGiving::start()} mints the
+     * token at checkout "so it can travel in the receipt". It never travelled: this was
+     * the only receipt a recurring donor received and it said nothing about a monthly
+     * charge and carried no way to stop one, while
+     * {@see \AfricaGates\Services\RecurringGiving::manageUrl()} — the function that
+     * builds the link — had no caller anywhere. The stop page worked perfectly and could
+     * be reached only by somebody who already knew a token nothing had ever sent.
+     *
+     * A donor who cannot find the stop button goes to their bank, and a chargeback costs
+     * more than the gift was worth.
+     */
     private function receipt(object $don): void
     {
         $total = '₦' . number_format((int)$don->amount_naira);
+        $stop  = \AfricaGates\Services\RecurringGiving::stopLink(
+            (string) $don->payment_ref, $this->base());
+
         if ($this->mailer) {
             try {
                 $this->mailer->sendBranded(
@@ -712,6 +731,15 @@ final class DonationController
                     'Thank you for your gift to Africa GATES',
                     '<p>Thank you, ' . htmlspecialchars((string)$don->donor_name) . ' — your gift of <strong>' . $total . '</strong> is confirmed.</p>'
                     . '<p style="font-family:monospace">Receipt ' . htmlspecialchars((string)$don->payment_ref) . '</p>'
+                    // Said plainly and in the same breath as the amount, because the one
+                    // thing a monthly donor must not have to hunt for is the fact that it
+                    // is monthly and where the off switch is.
+                    . ($stop === '' ? ''
+                        : '<p>This is a <strong>monthly</strong> gift of ' . $total . ', and you can '
+                        . 'stop it at any time — no sign-in, no email to anybody: '
+                        . '<a href="' . htmlspecialchars($stop, ENT_QUOTES, 'UTF-8') . '">'
+                        . htmlspecialchars($stop, ENT_QUOTES, 'UTF-8') . '</a>. '
+                        . 'Keep this email; the link stays valid.</p>')
                     . '<p>Your gift funds child leadership programmes across the continent — mentorship, scholarships and grassroots education. With gratitude.</p>',
                     'Donations'
                 );

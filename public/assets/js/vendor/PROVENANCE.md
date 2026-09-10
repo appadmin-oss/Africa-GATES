@@ -30,6 +30,8 @@ two can never drift apart silently.
 | Local file | Package | Path inside the package |
 |---|---|---|
 | `alpine-3.13.5.min.js` | `alpinejs@3.13.5` | `dist/cdn.min.js` |
+| `d3-7.9.0.min.js` | `d3@7.9.0` | `dist/d3.min.js` — bundles `d3-geo`, for the homepage globe band |
+| `topojson-client-3.1.0.min.js` | `topojson-client@3.1.0` | `dist/topojson-client.min.js` |
 | `gsap-3.12.5.min.js` | `gsap@3.12.5` | `dist/gsap.min.js` |
 | `gsap-scrolltrigger-3.12.5.min.js` | `gsap@3.12.5` | `dist/ScrollTrigger.min.js` |
 | `lottie-web-5.12.2.light.min.js` | `lottie-web@5.12.2` | `build/player/lottie_light.min.js` |
@@ -41,6 +43,21 @@ two can never drift apart silently.
 | `split-type-0.3.4.min.js` | `split-type@0.3.4` | `umd/index.min.js` |
 | `swiper-8.4.7.bundle.min.js` | `swiper@8.4.7` | `swiper-bundle.min.js` |
 | `tippy-6.3.7.umd.min.js` | `tippy.js@6.3.7` | `dist/tippy.umd.min.js` |
+
+## Geometry
+
+`public/assets/geo/countries-110m.json` is Natural Earth 110m countries, taken from
+`world-atlas@2.0.2` (`countries-110m.json` at the package root) by the same `npm pack`
+route as everything above. Public domain.
+
+It lives outside this directory because it is data rather than script, and it is fetched
+by `globe-band.js` at runtime rather than loaded as a `<script>` — so it rides
+`connect-src 'self'`, not `script-src`.
+
+**The handoff's own install note says to `curl` it from `cdn.jsdelivr.net`.** That is the
+one instruction in `docs/GLOBE-BAND.md` deliberately not followed: this directory exists
+because CDN-fetched assets were the supply-chain exposure it was created to close, and
+`ThirdPartyScriptIntegrityTest` enforces it. Same bytes, published source, pinned version.
 
 **`nprogress-0.2.0.js` is the unminified file**, because the package does not ship a
 minified one. The old URL asked jsDelivr for `nprogress.min.js`, which the package has

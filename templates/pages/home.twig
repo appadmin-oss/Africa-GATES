@@ -1,6 +1,8 @@
 {% extends "layout/gates.twig" %}
 
 {% block head_styles %}
+{# The band is a component with its own file — see docs/GLOBE-BAND.md. #}
+<link rel="stylesheet" href="/assets/css/globe-band.css">
 <style nonce="{{ csp_nonce }}">
   /* ── Home (v3, matching the desktop design: light centered hero, alternating
         feature sections, leaderboard + how rail, dark legacy + final CTA) ── */
@@ -44,13 +46,6 @@
   .hm-marq__row{ display:flex; gap:14px; width:max-content; animation:agdMarquee 42s linear infinite; }
   @keyframes agdMarquee{ from{transform:translateX(0)} to{transform:translateX(-50%)} }
   .hm-chip{ flex:none; display:inline-flex; align-items:center; gap:8px; font-size:13px; font-weight:500; color:#4a5256; background:#fff; border:1px solid rgba(16,41,44,.08); padding:8px 15px; border-radius:999px; }
-
-  /* stat strip */
-  .hm-stats{ display:grid; grid-template-columns:repeat(4,1fr); border:1px solid rgba(16,41,44,.08); border-radius:20px; overflow:hidden; background:#fff; margin-top:clamp(2rem,4vw,2.4rem); }
-  .hm-stat{ padding:clamp(22px,3vw,30px) 24px; border-right:1px solid rgba(16,41,44,.07); }
-  .hm-stat:last-child{ border-right:0; }
-  .hm-stat__n{ font-family:var(--ag-font-mono); font-weight:700; font-size:clamp(24px,3.4vw,34px); color:var(--ag-ink); letter-spacing:-.01em; }
-  .hm-stat__l{ font-size:13px; font-weight:500; color:#5a6d6f; margin-top:6px; }
 
   /* feature sections */
   .hm-feat{ display:grid; grid-template-columns:1fr 1fr; gap:clamp(2.5rem,5vw,4.5rem); align-items:center; padding:clamp(3.5rem,7vw,6.5rem) 0 0; }
@@ -235,8 +230,6 @@
 
   @media (prefers-reduced-motion:reduce){ .hm-marq__row{ animation:none; } .hm-live__dot{ animation:none; } }
   @media (max-width:900px){
-    .hm-stats{ grid-template-columns:1fr 1fr; }
-    .hm-stat:nth-child(2){ border-right:0; }
     .hm-feat{ grid-template-columns:1fr; gap:2rem; }
     .hm-feat__vis{ order:2; }
     .hm-lbsec{ grid-template-columns:1fr; }
@@ -254,7 +247,6 @@
   @media (max-width:560px){
     .hm-hero h1{ line-height:1.02; }
     .hm-hero__cta{ gap:10px; }
-    .hm-stat{ padding:20px 16px; }
     /* nominate orb — was a big near-empty circle on phones */
     .hm-vis{ min-height:288px; }
     .hm-vis__orb{ width:228px; } .hm-vis__ring{ width:194px; }
@@ -275,11 +267,8 @@
     .hm-leg__mono{ font-size:84px; }
     .hm-leg__txt{ padding:1.8rem; }
   }
-  /* ── small phones: drop the side reels, single-column stats ── */
+  /* ── small phones: drop the side reels ── */
   @media (max-width:430px){
-    .hm-stats{ grid-template-columns:1fr; }
-    .hm-stat{ border-right:0; border-bottom:1px solid rgba(16,41,44,.07); }
-    .hm-stat:last-child{ border-bottom:0; }
     /* tiny screens: side cards fade back but stay in the deck so the
        rotation keeps bringing each card to the front */
     .hm-reel.is-left,.hm-reel.is-right{ opacity:0; pointer-events:none; }
@@ -352,8 +341,6 @@
   .hm-lb__empty--rich{ text-align:center; padding-bottom:18px; }
   .hm-lb__empty--rich p{ margin:4px 0 12px; font-size:13.5px; color:#5f7273; }
 
-  /* Stat count-up gets a mono feel while ticking */
-  .hm-stat__n.is-ticking{ font-variant-numeric:tabular-nums; }
 </style>
 {% endblock %}
 
@@ -403,23 +390,23 @@
   </div>
 </section>
 
-{# ── STAT STRIP — live numbers once activity exists; before that, the
-     platform's REAL constants (never a strip of dead zeros, never fake data) ── #}
-{% set _activity = site_stats.total_profiles|default(0) + site_stats.total_votes|default(0) %}
+{#
+  ── "WE ARE AFRICA" BAND, AND THE STAT STRIP THAT USED TO BE HERE ───────────
+
+  A `.hm-stats` strip stood on these lines with the same four cells the band's
+  stat card now carries, live/constant logic and all. Two strips one scroll
+  apart, saying the same thing, is what the design handoff's page inventory
+  asked to be resolved; the one that goes is the one with no globe attached to
+  it, and its logic moved into the partial whole rather than being rewritten.
+
+  The band's markers are nations with an approved nominee standing in a live
+  award — counted, not typed. `HomeController` resolves them.
+
+  It is OUTSIDE `.hw`: the band is full-bleed and carries its own `.hw` inside.
+#}
+{% include 'partials/globe-band.twig' %}
+
 <div class="hw">
-  <div class="hm-stats">
-    {% if _activity > 0 %}
-    <div class="hm-stat"><div class="hm-stat__n" data-countup="{{ site_stats.total_profiles|default(0) }}">{{ site_stats.total_profiles|default(0)|number_format }}</div><div class="hm-stat__l">Verified profiles</div></div>
-    <div class="hm-stat"><div class="hm-stat__n" data-countup="{{ site_stats.total_votes|default(0) }}">{{ site_stats.total_votes|default(0)|number_format }}</div><div class="hm-stat__l">Votes cast</div></div>
-    <div class="hm-stat"><div class="hm-stat__n" data-countup="{{ site_stats.nations_live|default(0) }}">{{ site_stats.nations_live|default(0)|number_format }}</div><div class="hm-stat__l">Nation{{ site_stats.nations_live|default(0) == 1 ? '' : 's' }} live</div></div>
-    <div class="hm-stat"><div class="hm-stat__n" data-countup="{{ site_stats.categories|default(0) }}">{{ site_stats.categories|default(0)|number_format }}</div><div class="hm-stat__l">Award categories</div></div>
-    {% else %}
-    <div class="hm-stat"><div class="hm-stat__n" data-countup="{{ nations_count }}">{{ nations_count }}</div><div class="hm-stat__l">Nations in scope</div></div>
-    <div class="hm-stat"><div class="hm-stat__n" data-countup="1000">0–1,000</div><div class="hm-stat__l">CPI score scale</div></div>
-    <div class="hm-stat"><div class="hm-stat__n">45<span style="font-size:.6em">%</span> + 55<span style="font-size:.6em">%</span></div><div class="hm-stat__l">Public votes + jury</div></div>
-    <div class="hm-stat"><div class="hm-stat__n" data-countup="4">4</div><div class="hm-stat__l">Jury criteria</div></div>
-    {% endif %}
-  </div>
 
   {# ── FEATURE · NOMINATE ── #}
   <section class="hm-feat">
@@ -738,7 +725,7 @@
     // dependence on observer timing), and a safety timer reveals the whole
     // page after 3s no matter what — content can never be stranded invisible
     // in a throttled tab, prerender, or any browser where IO misbehaves.
-    var toReveal = document.querySelectorAll('.hm-feat, .hm-lbsec, .hm-stats, .hm-leg__in, .hm-final__in');
+    var toReveal = document.querySelectorAll('.hm-feat, .hm-lbsec, .reg__cols, .hm-leg__in, .hm-final__in');
     var ro = new IntersectionObserver(function(entries){
       entries.forEach(function(en){
         if (en.isIntersecting){ en.target.classList.add('is-in'); ro.unobserve(en.target); }
@@ -881,4 +868,20 @@
     tick();
   })();
 </script>
+
+{#
+  ── THE BAND'S SCRIPTS, LAST AND SELF-HOSTED ────────────────────────────────
+
+  Version-pinned filenames, vendored via `npm pack` and recorded in
+  public/assets/js/vendor/PROVENANCE.md. d3 and topojson-client MUST load before
+  globe-band.js, which no-ops if either is missing — so a blocked or failed
+  vendor file leaves the band's heading, note and stat card intact and the
+  sphere simply unpainted, rather than throwing on a homepage.
+
+  `defer` on all three: nothing above the fold depends on them, and the globe's
+  geometry is a 100KB fetch this page must not wait on.
+#}
+<script src="/assets/js/vendor/d3-7.9.0.min.js" defer></script>
+<script src="/assets/js/vendor/topojson-client-3.1.0.min.js" defer></script>
+<script src="/assets/js/globe-band.js" defer></script>
 {% endblock %}

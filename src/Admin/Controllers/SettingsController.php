@@ -149,6 +149,21 @@ class SettingsController
             })(),
             'voice_pending'       => \AfricaGates\Services\DoorWelcome::nameSheet(),
             'voice_known'         => \AfricaGates\Services\NameSays::count(),
+            // ── THE WHOLE RECORD, NOT ONLY THE NAMES COMING UP ───────────────
+            //
+            // `voice_pending` above is the guest lists for the next few days, and it is a
+            // review list: listen, fix the wrong ones. It cannot answer the other question
+            // an operator has — "what has this platform decided about names, and who
+            // decided it" — because a name worked out for last month's gala is not on it.
+            //
+            // `NameSays::all()` exists for exactly this, says so in its docblock, and had
+            // no caller anywhere, so `source` was written by three paths and read by none:
+            // the migration's promise that "the admin screen can show where an answer came
+            // from" was a lie with a schema behind it.
+            'voice_record'        => \AfricaGates\Services\NameSays::all(),
+            // Per source, so the button that clears a batch can say what it will clear
+            // before it is pressed rather than after.
+            'voice_sources'       => \AfricaGates\Services\NameSays::bySource(),
             'voice_lead'          => \AfricaGates\Services\DoorWelcome::LEAD_DAYS,
             'azure_rates'       => \AfricaGates\Services\AzureVoice::RATES,
             'azure_pitches'     => \AfricaGates\Services\AzureVoice::PITCHES,
@@ -408,6 +423,59 @@ class SettingsController
 
         $res->getBody()->write((string) json_encode($out, JSON_UNESCAPED_SLASHES));
         return $res->withHeader('Content-Type', 'application/json');
+    }
+
+    /**
+     * POST /admin/settings/voice/forget — take back a batch of worked-out pronunciations.
+     *
+     * ══════════════════════════════════════════════════════════════════════════
+     * WHY A DELETE BUTTON IS THE RIGHT SHAPE HERE
+     * ══════════════════════════════════════════════════════════════════════════
+     *
+     * A name is asked about ONCE, ever: {@see \AfricaGates\Services\NameSays::remember()}
+     * keeps the first answer, because a respelling may already have been read aloud to
+     * somebody. Which is right, and which makes a bad run permanent — a model answering
+     * badly for a batch of forty, a prompt changed, a provider swapped for a worse one, and
+     * every one of those names is mispronounced at every door from then on with no way to
+     * ask again. `gates_name_says.source` was added to make this possible and its migration
+     * promised it; there was no delete path anywhere in the codebase.
+     *
+     * Safe in a way editing would not be. A name with no row is simply asked again on the
+     * next ahead-of-time sweep, and until then the offline rule answers, so the worst case
+     * of pressing this is a name read by rule for one evening. `hand` is refused by the
+     * service: what a person said always wins, and a button that could sweep that away
+     * would be a quiet override of the rule at the top of NameSays.
+     *
+     * Audited, because it deletes: this is a run of work being taken back, and "the voice
+     * changed and nobody knows why" is the support call it would otherwise produce.
+     */
+    public function voiceForget(Request $req, Response $res): Response
+    {
+        $b       = (array) $req->getParsedBody();
+        $source  = trim((string) ($b['source'] ?? ''));
+        $adminId = (int) ($_SESSION['admin_id'] ?? 0);
+
+        $gone = \AfricaGates\Services\NameSays::forget($source);
+
+        if ($gone > 0) {
+            try {
+                $this->audit->record($adminId, 'settings.name_says_forget', null, null,
+                                     ['source' => $source, 'rows' => $gone]);
+            } catch (\Throwable) {}
+            $_SESSION['flash_ok'] = sprintf(
+                '%d pronunciation%s forgotten. Each of those names will be worked out '
+                . 'again before the next event it appears at; until then the offline rule '
+                . 'answers for them.', $gone, $gone === 1 ? '' : 's');
+        } else {
+            // Told apart, because they are different situations and a single "nothing
+            // happened" would send an operator looking for a fault in the wrong place.
+            $_SESSION['flash_error'] = \AfricaGates\Services\NameSays::sourceLabel($source) === 'a person'
+                ? 'Answers a person gave are never cleared from here — what somebody '
+                . 'typed always wins over anything the platform works out.'
+                : 'Nothing to forget: there are no pronunciations on record from that source.';
+        }
+
+        return $res->withHeader('Location', '/admin/settings#door')->withStatus(302);
     }
 
     /** @return array{sent_24h:int, failed_24h:int, dev_24h:int, recent:array, last_error:?string} */

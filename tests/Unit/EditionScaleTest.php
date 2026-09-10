@@ -585,6 +585,22 @@ final class EditionScaleTest extends TestCase
             'Paid votes are excluded entirely',
             'paid votes are excluded from the score',
             'in a small field scores exactly as well',
+            // ── AND THE PROMISE THE `ideal` BASIS RETIRED ────────────────────
+            //
+            // "What they cannot buy is the seventy per cent" was exactly true while that
+            // seventy per cent divided by a count of PEOPLE: no cheque moves a number of
+            // human beings. Both community counts now divide by the largest TOTAL, so the
+            // total is what money moves, and a supporter is worth about 2.33 votes.
+            //
+            // The narrow claim still holds — splitting one payment into a thousand buys
+            // nothing — and publishing ONLY the narrow claim is the worse kind of true:
+            // a reader takes it to mean money cannot outrank supporters. This is the
+            // article support pastes into a ticket about a contested result.
+            'cannot buy the seventy per cent',
+            'cannot buy the 70%',
+            'What they cannot buy is the seventy',
+            'buys no extra reach',
+            'cannot buy the rest',
         ];
 
         $bad = [];

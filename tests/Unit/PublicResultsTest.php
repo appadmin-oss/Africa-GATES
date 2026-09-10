@@ -141,18 +141,123 @@ final class PublicResultsTest extends TestCase
     }
 
     /**
-     * A results DATE that has passed releases it even where the status has not caught up.
+     * A RESULTS DATE THAT HAS PASSED IS A PROMISE, NOT AN ANNOUNCEMENT.
      *
-     * The status is moved by a cron on a host with no shell. If the cron is late — and it
-     * has been dead for weeks on this platform before — the public page must follow the
-     * date the cycle declared rather than the column the scheduler has not written yet.
+     * ══════════════════════════════════════════════════════════════════════════
+     * THIS TEST USED TO ASSERT THE OPPOSITE, AND THE REASONING IS WORTH KEEPING
+     * ══════════════════════════════════════════════════════════════════════════
+     *
+     * It read: "The status is moved by a cron on a host with no shell. If the cron is late
+     * — and it has been dead for weeks on this platform before — the public page must
+     * follow the date the cycle declared rather than the column the scheduler has not
+     * written yet." Which was right about the risk and reached the wrong instrument, and
+     * it put this file in contradiction with the test directly above it: a judged and
+     * unreleased category is not public, except when a date says it is.
+     *
+     * Two things have changed since it was written, and both point the other way.
+     *
+     * `status = 'results'` is no longer a column a scheduler gets round to. It is written
+     * by {@see \AfricaGates\Services\CycleMaterialiser} in ONE transaction that also
+     * promotes the winners and SEALS the standing. So serving a page on the date alone
+     * publishes a standing that was never sealed — the page itself then says "Recomputed
+     * under current rules", the platform admitting on a result page that this is not the
+     * announcement — from a panel that is still open, naming as winner somebody who has
+     * not been told, which is precisely the harm the test above this one describes.
+     *
+     * And the dead-cron risk has its own answer now, built for it: the webcron tick
+     * engages itself when {@see \AfricaGates\Support\CronHealth} shows the schedule has
+     * PROVABLY missed work, so a deployment with no cron at all promotes from ordinary
+     * page traffic. Publishing an unannounced result was never the right compensation for
+     * a scheduler being late; it was a second fault covering for the first.
+     *
+     * What the reader gets instead is the truth — see {@see PublicResults::delayed()}.
      */
-    public function test_a_passed_results_date_releases_it_even_before_the_status_moves(): void
+    public function test_a_passed_results_date_does_not_publish_an_unannounced_result(): void
     {
         $this->decided();
         DB::table('gates_award_cycles')->where('id', $this->cycleId)->update(['status' => 'judging']);
 
+        $this->assertNull(PublicResults::category($this->categoryId),
+            'a cycle nobody has announced is publishing a standing, with a named winner, '
+            . 'from a panel that is still open');
+        $this->assertSame([], PublicResults::index()['items']);
+    }
+
+    /**
+     * AND THE PAGE SAYS SO, BECAUSE THE OTHER WAY THIS FAILS IS SILENCE.
+     *
+     * The gate above, on its own, turns the page a nominee's family refreshes on the
+     * results date from a wrong answer into no answer — which reads as the result being
+     * hidden. This class already holds that rule for withheld categories ("silence is how
+     * a withheld award becomes a rumour"); a late cycle is owed the same.
+     */
+    public function test_a_late_cycle_is_stated_rather_than_left_silent(): void
+    {
+        $this->decided();
+        DB::table('gates_award_cycles')->where('id', $this->cycleId)->update(['status' => 'judging']);
+
+        $late = PublicResults::delayed();
+
+        $this->assertCount(1, $late, 'a cycle past its results date is not being declared late');
+        $this->assertSame($this->cycleId, $late[0]['cycle_id']);
+        $this->assertNotSame('', $late[0]['promised'],
+            'the date the platform promised is not named, and a delay notice that will '
+            . 'not repeat the date it broke is asking to be trusted twice');
+        $this->assertGreaterThan(0, $late[0]['awards']);
+
+        // Derived, so it cannot be left up: announcing the cycle takes it down, which is
+        // the same moment the real result replaces it.
+        DB::table('gates_award_cycles')->where('id', $this->cycleId)->update(['status' => 'results']);
+        $this->assertSame([], PublicResults::delayed(),
+            'an announced cycle is still telling people its results are late');
         $this->assertNotNull(PublicResults::category($this->categoryId));
+    }
+
+    /**
+     * THE OPERATOR'S OWN REASON TRAVELS WITH IT, AND ITS ABSENCE IS NOT A BLANK PAGE.
+     *
+     * The delay is the platform's to admit and does not wait on somebody being at a desk;
+     * the reason is the part only a person can write. So the notice stands without a note,
+     * and a note appears where one has been written — never an invented cause or a second
+     * date the platform has not earned.
+     */
+    public function test_the_delay_carries_an_operators_note_when_there_is_one(): void
+    {
+        $this->decided();
+        DB::table('gates_award_cycles')->where('id', $this->cycleId)->update(['status' => 'judging']);
+
+        $this->assertSame('', PublicResults::delayed()[0]['note'],
+            'a delay with no note is inventing one');
+
+        DB::table('gates_award_cycles')->where('id', $this->cycleId)
+            ->update(['results_delay_note' => 'Two categories are being re-counted.']);
+
+        $this->assertSame('Two categories are being re-counted.',
+            PublicResults::delayed()[0]['note']);
+    }
+
+    /**
+     * AND A SHARED LINK TO A LATE AWARD EXPLAINS ITSELF RATHER THAN 404ing.
+     *
+     * A result's URL is in front of people before the date — the congratulations mail, the
+     * Pulse, something forwarded. Whoever follows one on the day it was promised is exactly
+     * the person owed the explanation, and a 404 there reads as the result being taken down.
+     */
+    public function test_a_late_award_resolves_from_its_own_category_link(): void
+    {
+        $this->decided();
+        DB::table('gates_award_cycles')->where('id', $this->cycleId)->update(['status' => 'judging']);
+
+        $d = PublicResults::delayForCategory($this->categoryId);
+
+        $this->assertNotNull($d, 'a link to a late award has nothing to answer with');
+        $this->assertSame($this->cycleId, $d['cycle_id']);
+        $this->assertNotSame('', $d['award'],
+            'the page cannot say WHICH award the reader was sent to');
+
+        // And it is scoped to the cycle that is actually late.
+        DB::table('gates_award_cycles')->where('id', $this->cycleId)->update(['status' => 'results']);
+        $this->assertNull(PublicResults::delayForCategory($this->categoryId));
     }
 
     public function test_a_results_date_still_in_the_future_does_not(): void
@@ -970,7 +1075,103 @@ final class PublicResultsTest extends TestCase
         return $this->twig()->render('pages/results/index.twig', [
             'page_title' => 'Results', 'gates_page' => 'results',
             'items' => $i['items'], 'held' => $i['held'],
+            // The service's own output, exactly as the controller passes it: a payload
+            // this test invented could render a notice the site would never produce.
+            'delayed' => PublicResults::delayed(),
         ]);
+    }
+
+    /** The late award's own holding page, whitespace-normalised — the template wraps. */
+    private function renderLate(array $late): string
+    {
+        return (string) preg_replace('~\s+~', ' ',
+            $this->twig()->render('pages/results/late.twig', [
+                'page_title' => 'Not announced yet', 'gates_page' => 'results',
+                'late' => $late,
+            ]));
+    }
+
+    /**
+     * THE RESULTS PAGE SAYS A CYCLE IS LATE, ABOVE THE LIST AND NOT UNDER IT.
+     *
+     * Somebody who came for this cycle must not have to read past three years of other
+     * people's awards to find out why theirs is not there. And it must not be merged with
+     * the withheld-category notice below the list: "decided but not published" and "not
+     * decided yet" are different pieces of news, and telling somebody the first when the
+     * second is true is a worse answer than silence.
+     */
+    public function test_the_results_page_states_a_late_cycle_above_the_list(): void
+    {
+        $this->decided();
+        DB::table('gates_award_cycles')->where('id', $this->cycleId)->update([
+            'status' => 'judging',
+            'results_delay_note' => 'A counting fault is being re-checked.',
+        ]);
+
+        $html = (string) preg_replace('~\s+~', ' ',
+            (string) preg_replace('~<style\b.*?</style>~s', '', $this->renderIndex(PublicResults::index())));
+
+        // 'not been decided yet' rather than the whole clause: the heading agrees with the
+        // number of awards waiting ("This award has", "These results have"), and an
+        // assertion carrying one of them passes or fails on the size of the fixture.
+        $this->assertStringContainsString('not been decided yet', $html,
+            'the results page is silent about a cycle whose promised date has passed');
+        $this->assertStringContainsString('A counting fault is being re-checked.', $html,
+            'the operator wrote a reason and the page is not showing it');
+        $this->assertStringContainsString('and are late', $html);
+
+        // Above the list: the notice's own markup comes before the empty-state or the
+        // rows, whichever this fixture produced.
+        $notice = strpos($html, 'rx-late');
+        $rule   = strpos($html, 'No award has been decided yet');
+        $this->assertNotFalse($notice);
+        if ($rule !== false) {
+            $this->assertLessThan($rule, $notice,
+                'the delay is printed under the list, so a reader meets "no award has been '
+                . 'decided" before the sentence that explains their own');
+        }
+    }
+
+    /**
+     * AND THE AWARD'S OWN LINK ANSWERS, NAMING THE AWARD AND THE DATE.
+     *
+     * 200 and not 404: the address is right, the award is real, and there is a true answer
+     * about it. A 404 on a link somebody was sent for a result, on the day it was promised,
+     * reads as the result having been taken down.
+     */
+    public function test_the_late_page_names_the_award_and_the_date_it_missed(): void
+    {
+        $this->decided();
+        DB::table('gates_award_cycles')->where('id', $this->cycleId)->update([
+            'status' => 'judging',
+            'results_delay_note' => 'Two categories are being re-counted.',
+        ]);
+
+        $late = PublicResults::delayForCategory($this->categoryId);
+        $html = $this->renderLate($late);
+
+        $this->assertStringContainsString('has not been announced yet', $html);
+        $this->assertStringContainsString($late['award'], $html,
+            'the page does not say which award the reader was sent to');
+        $this->assertStringContainsString(date('j F Y', strtotime($late['promised'])), $html,
+            'the promised date is not named, which is the fact a reader is holding this '
+            . 'platform to');
+        $this->assertStringContainsString('Two categories are being re-counted.', $html);
+        // No invented second date, and no winner named anywhere on it.
+        $this->assertStringNotContainsString('check back', strtolower($html));
+    }
+
+    /** And with no note the page still stands, without inventing a cause. */
+    public function test_the_late_page_stands_without_an_operators_note(): void
+    {
+        $this->decided();
+        DB::table('gates_award_cycles')->where('id', $this->cycleId)->update(['status' => 'judging']);
+
+        $html = $this->renderLate(PublicResults::delayForCategory($this->categoryId));
+
+        $this->assertStringContainsString('has not been announced yet', $html);
+        $this->assertStringNotContainsString('From the organisers', $html,
+            'an empty note is rendering a heading with nothing under it');
     }
     /**
      * A NOMINEE WHOSE BALLOT ROWS ARE MISSING IS NOT PUBLISHED AS HAVING NO SUPPORTERS.

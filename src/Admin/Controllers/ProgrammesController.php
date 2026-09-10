@@ -127,6 +127,15 @@ class ProgrammesController
             // every deadline in their head, on the five fields that decide whether a
             // vote counted. Storage is still UTC; the conversion is DisplayTime's job.
             'timezone'   => \AfricaGates\Support\DisplayTime::abbr(),
+            // ── IS THE PUBLIC SITE SAYING THIS RESULT IS LATE, RIGHT NOW? ────
+            //
+            // The notice is derived — a results date that has passed, a cycle not yet
+            // announced — so no screen owns it and an operator could otherwise not tell
+            // whether the sentence they are typing is live or filed for later. This is
+            // the same call the public page makes, so the two cannot disagree.
+            'late'       => $cycle
+                            ? \AfricaGates\Services\PublicResults::delayFor((int) $cycle->id)
+                            : null,
             // Statuses the transition guard will actually accept, so the
             // dropdown stops offering options that always fail.
             'selectable' => \AfricaGates\Services\CycleService::selectableFrom($cycle->status ?? null),
@@ -189,6 +198,23 @@ class ProgrammesController
             'voting_close'      => $b['voting_close']      ?: null,
             'results_date'      => $b['results_date']      ?: null,
         ];
+        // ── AND WHY A RESULT IS LATE, IF IT IS ───────────────────────────────
+        //
+        // A results date is a promise made in public, and when it passes without the
+        // announcement the site says so by itself — the condition is derived, so there is
+        // no flag to set or to remember to clear. This is the one part only a person can
+        // write: the reason. Left empty, the page states the date it missed and that the
+        // award is not decided, and invents neither a cause nor a new date.
+        //
+        // Through OptionalColumn so a deployment whose migration has not run yet still
+        // saves a cycle: an unwritable note must never cost an operator their dates.
+        if (\AfricaGates\Support\OptionalColumn::on('gates_award_cycles', 'results_delay_note')) {
+            $note = trim((string) ($b['results_delay_note'] ?? ''));
+            // Bounded where it is written, not where it renders. This is prose typed under
+            // pressure onto a public page, and 1,000 characters is several paragraphs more
+            // than a delay needs.
+            $data['results_delay_note'] = $note === '' ? null : mb_substr($note, 0, 1000);
+        }
         // Guard manual status transitions so the editor can't produce a cycle
         // state the automated, quorum-checked lifecycle machine never would:
         // no hand-jump to 'results' (winners promote through the date-driven

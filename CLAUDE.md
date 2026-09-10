@@ -74,6 +74,27 @@ enforces:
   filter that was never broken where it runs. Spell the clause out, and not with a
   backslash: `ESCAPE '\\'` is one character to MySQL and two to SQLite, `ESCAPE '\'` is an
   unterminated literal to MySQL. `!` is safe in both. See `AuditService::like()`.
+- **And `CREATE INDEX IF NOT EXISTS` is SQLite syntax MySQL answers with a 1064** — a
+  fault whose cost is nothing like one missing index. `MigrateCommand` aborts the run on a
+  throw and does **not** record the file, so the migration re-runs on the next deploy, and
+  by then the guard above the statement ("table already present", "column already added")
+  is true: either the file is skipped for ever with its index never created, or — where
+  nothing above it can become true — it throws again on every deploy and **every migration
+  dated after it never applies**. Three shipped together, and each had already committed
+  its `CREATE TABLE` before throwing: `gates_name_says` lost the UNIQUE key on `name_key`
+  that is the whole point of the migration, `gates_donation_subscriptions` lost all five of
+  its indexes including the UNIQUE on `manage_token` (the donor's stop button) and the
+  webhook lookup on the hot path of every recurring charge, and
+  `gates_vote_snapshots.idx_snap_cycle_kind` is read by a public result page on every view.
+  `SchemaIndex::ensure()`/`drop()` exist for this; never write the raw form outside a
+  branch only SQLite reaches.
+  **The lesson is the guard, not the syntax.** `SchemaIndexTest` was already watching for
+  exactly this and passed all three, because it asked *does this FILE mention the driver*
+  (`str_contains($body, '$sqlite')`) rather than *is this STATEMENT in a driver branch* —
+  and nearly every migration declares `$sqlite` to pick its column types, so the test
+  excused the files most able to offend. It reads the tokens now, per statement, and knows
+  the polarity: `if (!$sqlite) { CREATE INDEX IF NOT EXISTS … }` mentions the driver and is
+  the offence in its purest form.
 - Anything with a `NOT NULL` column and no default will pass in a test that omits it only
   if you got lucky; check the schema, not the fixture.
 
@@ -209,6 +230,15 @@ TEST_DB_DRIVER=mysql DB_HOST=127.0.0.1 DB_NAME=africa_gates_test \
 Real ENUMs, real integer widths, strict mode, `ONLY_FULL_GROUP_BY`. Everything in the
 MySQL/SQLite list at the top of this file is invisible without it.
 
+**It has to be MySQL. MariaDB is not a stand-in, and it is the easy one to reach for**
+(`apt install mariadb-server`, `mysqld` on the path, the same client, the same connection
+string). MariaDB has supported `CREATE INDEX IF NOT EXISTS` since 10.1.4, so a full green
+parity run on MariaDB says nothing whatever about the three migrations that were throwing a
+1064 on production — it creates the indexes and reports success. Where only MariaDB is
+available, run it and say which engine it was: it still catches the ENUMs, the integer
+widths, the datetime formats and `ONLY_FULL_GROUP_BY`, and it is blind by construction to
+anything MariaDB accepts that MySQL rejects.
+
 **Read the count, not the exit code.** Piping to `tail` or `grep` gives you the pipe's
 status, not PHPUnit's, and a run with two hundred errors exits 0 through a pipe.
 
@@ -268,6 +298,55 @@ Full account in `docs/CODEBASE-INDEX.md` §16.
   and published beside the total; it decides nothing. It used to decide the whole half,
   which was structurally zero wherever `paid_voting_disable_free` is set, because
   `VoteService::castVote()` is the only path that increments it.
+  **And where the ENUM has no room for a kind of vote, the HASH PREFIX is the only signal
+  there is — so read it first.** `gates_votes.vote_type` is
+  `ENUM('standard','bonus','paid')` with no `points` in it, so a member spending their own
+  loyalty points is written as `bonus`, and only `points:<userId>:<rand>` distinguishes
+  their choice from an operator's grant. `VoterReach::personKey()` tested
+  `$type === 'bonus'` **before** the prefix, so its whole `points:` branch was unreachable
+  for every row the platform has ever written and every redemption counted as nobody — 70%
+  of the community half, denied to the one supporter who had paid for it out of a balance
+  we credited them. Its own docblock said in as many words that a redemption is its member.
+  The test that was meant to hold it wrote `vote_type = 'standard'` beside a `points:`
+  hash: **a row no service here can produce**, which is the same shape of fixture as the
+  7.9 panel mark, and it passes while the platform is wrong.
+- **The community half is now `ideal`: BOTH counts against ONE yardstick.** The yardstick
+  is the largest vote total any nominee in the *edition* reached, read as a number of
+  people — in the perfect case those votes were one each from that many separate human
+  beings. `315 × (unique voters ÷ ideal) + 135 × (total votes ÷ ideal)`. So a full 450
+  means exactly one thing: as many separate supporters as the biggest total anybody
+  managed, and nothing softer. `reach` divided the people term by the most PEOPLE anybody
+  had, which **sags**: in an edition where nobody has broad support, the least narrow
+  nominee still collected the whole 315 because the denominator fell to meet them.
+  Where every vote in an edition IS one person one vote the two bases are arithmetically
+  identical, so they differ exactly to the extent that votes are not.
+  **The cost is a FIXED EXCHANGE RATE, and it is the whole of the cost.** One denominator
+  cancels out of every comparison, so the half is proportional to `0.7 × people + 0.3 ×
+  votes` — the ORDER never depends on the ideal, and one supporter is worth exactly
+  `0.7/0.3 = 2.33` votes in every edition whatever the figures. On `reach` the same
+  supporter is worth `(maxVotes ÷ maxPeople) × 2.33` — 23.8, then 233, then 4,667 as
+  tallies grow — so buying past genuine support got *harder* there and does not here. On
+  the suite's own fixture (A: 10 supporters/10 votes, B: 3 supporters) **twenty-five bought
+  votes**, one donation, puts B above A. This was specified, and confirmed with these
+  numbers in view; `PaidVoteCpiSeparationTest` asserts BOTH outcomes — the guarantee under
+  `reach`, the inversion under `ideal` — so the trade-off is recorded rather than
+  discovered later as a bug. The repair if it is ever seen on a real cycle is the highest
+  ORGANIC tally as the ideal, which no purchase moves; that is a NEW basis, named and
+  settable, never an edit to this one, because an announced standing must stay reproducible.
+  **And the help centre had to change with it.** "What they cannot buy is the seventy per
+  cent" was true while that seventy per cent divided by a count of people. The narrow claim
+  survives (splitting one payment into a thousand buys nothing) and publishing only the
+  narrow claim is the worse kind of true — a reader takes it to mean money cannot outrank
+  supporters. `how-cpi-works` and `/integrity` state the rate now, and `EditionScaleTest`
+  sweeps for the retired wording.
+  **The measurement cliff is the surprising edge.** An edition with imported tallies and no
+  ballot rows is in the all-or-nothing fallback and the tally takes the whole half. The
+  FIRST countable row anywhere switches the people term on for every nominee at once,
+  against a tally denominator — so a nominee on 80 of a 100-vote maximum goes from 360 to
+  122 by gaining three counted supporters. `VoteRecoveryTest` found it by failing.  Not
+  smoothed, because every smoothing available is a lie about a measurement; the rule stays
+  "understate, and flag it", and the case nothing flags is the PARTIALLY measured one — three
+  real rows behind an imported eighty-vote tally is scored as eighty votes from three people.
 - **And where reach is unmeasurable the tally takes the whole half, deliberately.** A
   cohort maximum of *zero* unique voters does not mean "nobody has support" — it means the
   vote **rows** are missing while the tallies are not (an import from before this platform
@@ -397,6 +476,64 @@ Full account in `docs/CODEBASE-INDEX.md` §16.
   SQLite. Where a cycle was released before sealing existed there is **no guess** — the page
   recomputes and says so. `ReleasedStandingTest` proves it by moving the rules between the
   seal and the read, which is the only way to tell a sealed figure from a recomputed one.
+  **And the ORDER is part of the announcement, so it comes off the seal too.** `apply()`
+  sealed `standing_rank`, read it out of the database, threw it away and re-sorted the
+  sealed figures through `ResultRelease::order()` — reasoning that it is "the same
+  comparator the award was decided with". It is, until somebody changes it, and a tiebreak
+  is a rule exactly like the two the seal already protects: `order()` settles a dead heat
+  on the tally and then on the nominee id, neither of which anybody announced. The column
+  was written at every release and read by nothing, while its docblock claimed it was
+  "carried for display and as the check that the two agree" — and it was neither. The
+  sealed placings decide the list now; the comparator is the fallback for the case the old
+  reasoning was actually about (a rank that failed to write), and the page then says
+  "order reconstructed" rather than presenting it as the announcement. Same for
+  `cohort_max_unique`: read out of the seal, never applied, so a sealed page asked
+  **today's** rows whether to print a sealed number of supporters.
+  **And the operator's screen has to hold BOTH figures, or the support call cannot be
+  answered.** `/admin/result-release` draws live and must keep doing so — asking the
+  promotion's own comparator is what makes it an audit of a release rather than a report
+  about one — so once sealing shipped it stopped agreeing with the public page for a
+  released cycle, with nothing anywhere to say why. Its own lede still promised "what is
+  drawn here is what will be published", which is the §19 shape on the page an award is
+  signed off from. So the person taking the call that begins *"my score has changed"* had
+  the recomputed figure in front of them, the nominee had the sealed one, and no screen
+  held the pair: the honest answer — the result has not changed, the method has, and yours
+  is still the one you were given — was not available to the only person who needed it.
+  `ReleasedStanding::divergence()` compares the drawn cycle against its seal and the screen
+  states which it is showing. It compares the **index, the placing and whether they were in
+  the running** and nothing else: a community half that reaches the same 693 by a different
+  route has moved nothing anybody was told, and reporting it buries the rows that matter.
+  A nominee entered after the announcement is counted apart and never called a discrepancy,
+  or the panel shows a number beside "these have moved" on every cycle that has taken an
+  entry since — which teaches an operator to stop reading it.
+  **And a RESULTS DATE IS A PROMISE, NOT AN ANNOUNCEMENT.** `PublicResults` gated its pages
+  on `status IN ('results','archived')` **or a `results_date` that has passed**, two lines
+  under its own docblock saying "a judged-but-unreleased category is a decided award nobody
+  has announced, and serving it publicly is announcing it". So a cycle still in `judging`
+  three days past its date published a full standing with a named winner and an index — from
+  a panel that was still open, with no seal, so the page also printed "Recomputed under
+  current rules": the platform admitting on a result page that this was not the
+  announcement. It named as winner somebody the promotion had not yet told. The gate is the
+  status alone now, because that status is written by `CycleMaterialiser` in the same
+  transaction that crowns and seals. The test asserting the old rule reasoned "the cron is
+  moved by a scheduler on a host with no shell and it has been dead for weeks before" —
+  right about the risk, wrong instrument, and answered since by the webcron tick, which
+  engages itself when `CronHealth` shows the schedule has PROVABLY missed work. Publishing
+  an unannounced result was a second fault covering for the first.
+  **Gating alone then fails the other way, which is why the two shipped together.** The page
+  a nominee's family refreshes on the results date would go from a wrong answer to NO
+  answer, and this class already holds the rule ("silence is how a withheld award becomes a
+  rumour"). `PublicResults::delayed()` states the delay: the date that was promised, that
+  the award is not decided, and the operator's own note where one is written.
+  **Derived, so it cannot be left up** — the condition is a past date plus a status that is
+  not released, so it appears when a release slips and goes when the cycle is announced,
+  which is the same moment the real result replaces it. A banner an operator has to remember
+  to take down is a banner that is still up in March. And `/results/{id}` for a late award
+  answers **200 with a holding page**, not 404: a result's URL is in front of people before
+  the date (the congratulations mail, the Pulse, a forward), whoever follows one on the day
+  is exactly the person owed the explanation, and a 404 there reads as the result having
+  been taken down. `noindex`, because the real result takes that same URL.
+  **No invented second date.** The last date this platform named is the one it did not keep.
 - **The sandbox must never reach the public.** `DemoSeeder` creates real rows with real
   flags, because the sandbox exists to be walked through for real. Every public reader has
   to exclude them — `JudgeService::realJudges()` is the pattern.
@@ -423,6 +560,25 @@ Full account in `docs/CODEBASE-INDEX.md` §16.
   status page could say "something broke on the 14th" and not which thing). With no shell on
   production the symptom always looks like something else. **Grep for a reader before you
   believe a declaration.** Full account in `docs/CODEBASE-INDEX.md` §17.
+  **And a column can be unread while a screen appears to be showing it**, which is the
+  variant no sweep asked about. `gates_name_says.source` records whether a respelling came
+  from a model, the offline rule, or a person. Three paths wrote it. `NameSays::all()` —
+  the one method that selected it, whose docblock says "for the settings screen" — had no
+  caller anywhere, and there was no delete-by-source path at all, so both halves of what
+  its migration promised ("the admin screen can show where an answer came from", "a bad
+  batch can be cleared without touching anything a person wrote") were false. Meanwhile
+  the settings screen **did** show a source, and it was not this one:
+  `DoorWelcome::nameSheet()` labelled every row it found in the table "worked out",
+  derived from WHERE IT LOOKED rather than from what was stored — so a respelling a model
+  invented and one derived from letters were presented as the same kind of answer, on the
+  screen whose job is deciding which to trust. A column is read when the value a screen
+  prints comes **out of it**, not when the screen prints something about the same subject.
+  The clearing matters as much: a name is asked about **once, ever** (`remember()` keeps
+  the first answer, because it may already have been read aloud), so a bad model run was
+  permanent — forty names mispronounced at every door with no way to ask again. Forgetting
+  is safe where editing would not be, since a name with no row is simply asked again and
+  the offline rule answers until then; `hand` is refused, because nothing can ask a model
+  to guess again at what somebody decided after hearing the clip.
 - **A whole-schema sweep found three more, and they are the worst kind.** Each was a
   behaviour the documentation already *promised*: `gates_interviews.bot_disclosed_at` (the
   index described a consent stamp nothing wrote), `gates_nominee_submissions.skipped_json`
@@ -450,6 +606,19 @@ Full account in `docs/CODEBASE-INDEX.md` §16.
   script returned on line one for anybody who reached a Meet call by clicking it rather than
   opening its URL. Each part was complete and correct in isolation. `docs/CODEBASE-INDEX.md`
   §18.
+  **And it happened again, over money.** A donor's link for stopping a monthly gift was
+  complete on every side: `RecurringGiving::start()` mints `manage_token` at checkout with
+  a comment saying it is minted "so it can travel in the receipt", `byToken()` resolves it
+  (including for an already-stopped gift, deliberately), `/donate/giving/{token}` renders
+  the page and its button, and `DonationController::giving()` explains at length why the
+  cancellation is a link in a receipt rather than a login — "a donor who cannot easily stop
+  is not a supporter, they are a dispute waiting for a quiet month". And `manageUrl()`, the
+  one function that builds the link, **had no caller**: no receipt, no template, no page
+  ever contained the URL, so the stop button was reachable only by somebody who could read
+  the database. The distinguishing question is not "does this work?" — every piece did —
+  but **who is ever handed this?** `RecurringGivingTest` now asserts the receipt's own body
+  calls `stopLink()`, because a link builder with a passing test and no caller is precisely
+  the state this shipped in.
 
 ## Two things about the events page's tier list
 
@@ -482,6 +651,73 @@ organiser dragged to the bottom, and rank is a price question answered in `Event
 A design handoff asked for `loop.index0` here; it would have made the cheapest tier sweep
 hardest for any organiser who puts their premium row first, and nothing about that failure
 is visible from the template.
+
+## The homepage globe band, and three faults nothing on the page could show
+
+The band arrived as a design handoff over **sixteen invented cities** — Lagos on 41,280
+ballots "confirmed at the verification node nearest the voter, median 1.3 seconds",
+Nairobi on 33,940, arcs drawn between them. This platform has no verification nodes and
+records no per-ballot latency; there has never been a column for either. It is
+`StatsService`'s original fault ("1,247 profiles", "24 categories", "seven editions") with
+better typography, and worse, because those numbers arrived with an air of instrumentation.
+`GlobeBand` drives it from the one geographic fact here — WHERE THE NOMINEES ARE — by the
+same joins `NationsLive` uses, so the globe and the footer's "live in …" sentence cannot
+disagree, and the sandbox is excluded by reaching only for active programmes rather than by
+a filter somebody remembers. A marker's position is the **centroid of the country's own
+polygon**, so nothing is typed and a marker cannot drift from its outline; the price is that
+the join is by Natural Earth's own name (`CD` is "Dem. Rep. Congo" there), which matches or
+silently does not, so `GlobeBandTest` pins every name against the shipped geometry file and
+against the script's Africa set.
+
+**`setPointerCapture` on a container EATS a child button's click.** The stage captured the
+pointer on `pointerdown` to drive the drag-to-rotate, and the browser then dispatches the
+following `click` to the **capturing element** — so every marker's own listener never ran.
+Markers were unclickable with a mouse or a finger while `Enter` on a focused one opened its
+card perfectly, which is the worst possible split: keyboard and screen-reader paths work, so
+an accessibility pass says yes, and the interaction the design is built around is dead. No
+throw, no console line — the card simply never appears, and the globe reads as decorative. A
+press that starts on a marker starts no drag now; there is nothing to rotate by grabbing an
+11px button.
+
+**A HIGHLIGHT ALMOST EVERYTHING QUALIFIES FOR IS A BACKGROUND.** The reference design
+carries four plain dots and two ringed markers, and the ring is what the eye lands on. The
+first cut here re-mapped the ring onto "this nation has recorded any votes" — true of nearly
+every nation the moment an award opens — so the band rendered five rings and one dot, the
+hierarchy exactly inverted. Every marker was defensible and the picture was noise. The ring
+means an award has been DECIDED there now, which is rare by nature, and `GlobeBandTest` pins
+that rather than the look.
+
+**And the handoff's PRODUCTION file is not always its design.** That script stroked all 54
+African nations every frame (0.85px at 16% ink, 1.15px of green for any nation with
+activity); the reference `Homepage.html` outlines exactly one country — the selected one,
+while its card is open. The land dots ARE the drawing, and fifty-four outlines over them
+turn a quiet map into a diagram competing with itself. The dots were identical to the
+reference's all along (15,000 samples, `#8fa39b`, alpha 0.10–0.40 by longitude) and looked
+sparse only because the outlines shouted. Render the reference beside the build before
+trusting a "production-ready" folder.
+
+**A z-index cannot climb out of a lower stacking context, and both rules read correctly
+alone.** The country card sits inside `.reg__body` (`z-index:1`); the stat card is a sibling
+at `z-index:3` that deliberately rises `-11vw` **into** the stage. So the two figures a
+reader clicked a country *for* were underneath it: the card's header showed and its rows did
+not. Nothing about that is visible from either declaration, and raising the card is not
+available — the fix is where it is anchored (`bottom:max(7rem,12.5vw)`, clearing the rise at
+every width the rule applies to).
+
+**A prose sweep must read what a READER sees, not the file.** This repo already shipped the
+lesson that a comment explaining a removal must *describe* the retired label rather than
+quote it, or it trips the sweep documenting it — which is a rule about how to write comments,
+enforced by making comments unwritable. `GlobeBandTest` strips `{# … #}` before sweeping
+instead: a Twig comment reaches nobody, so it was never in scope, and the comment above the
+change may now name exactly what it removed.
+
+**And the band inherited a second "nations live".** `StatsService` counted distinct
+`country_code` over approved **profiles**, while the footer, the meta description and the
+JSON-LD all print `NationsLive::phrase()` — which counts nations with a nominee standing in a
+live award and says in as many words why a registered profile is not the platform operating
+in a country. The homepage could print "12 nations live" beside a footer reading "live in
+Nigeria" on one page load, and the directory figure was both the larger one and the wrong
+one. `StatsServiceTest` asserted the wrong definition by name.
 
 ## Generated images are GD, server-side, and share one set of hands
 

@@ -251,10 +251,19 @@
                      supporters, and printing "0 backers" on a public page states as a fact
                      about a real person something this platform simply does not know. It
                      is the one number here that would be read as an accusation. -#}
-                 {% if r.community_basis == 'reach' and r.cohort_max_unique > 0 %}
+                 {#- `ideal` as well as `reach`: both count PEOPLE, and both need the
+                     backer figure printed beside the share. The gate stays on
+                     `cohort_max_unique` because that is still what says the count was
+                     measurable at all. -#}
+                 {% if r.community_basis in ['reach', 'ideal'] and r.cohort_max_unique > 0 %}
                    {%- if row.reach_unmeasured %}backers not counted &mdash; this tally
                    predates our ballot records ·
-                   {% else %}{{ row.unique_voters|number_format }} backer{{ row.unique_voters == 1 ? '' : 's' }} ·
+                   {% else %}{{ row.unique_voters|number_format }} backer{{ row.unique_voters == 1 ? '' : 's' }}
+                     {#- Under `ideal` the backer count and the vote share are shares of the
+                         SAME figure, so saying what that figure is once, here, is what lets
+                         a reader check the two against each other. -#}
+                     {%- if r.community_basis == 'ideal' and r.cohort_max > 0 %} of
+                       {{ r.cohort_max|number_format }} possible{% endif %} ·
                    {% endif %}
                  {% endif %}{{ row.community_share }}% of the cycle’s highest tally{% if row.judge_score is not null %} ·
                  {#- Two decimals: the scorer keeps the average to two places and pays the
@@ -323,9 +332,17 @@
           the page says so rather than presenting a live computation as the announcement.
           That distinction is the whole point: a figure labelled as announced when nobody
           knows whether it was is worse than one labelled as recomputed.
+
+          THREE STATES, NOT TWO. A seal can hold the figures and not the placings — a
+          rank that failed to write, a nominee moved between categories afterwards — and
+          the order then has to be reconstructed from the sealed numbers by today's
+          comparator. The numbers on the page are still the announced ones; the sequence
+          they are printed in is a reconstruction, and a reader has no way to tell that by
+          looking, which is the same complaint that produced the seal in the first place.
         #}
         <div class="rs-cell"><dt>These figures</dt>
-          <dd>{% if r.sealed_at %}As announced{% else %}Recomputed under current rules{% endif %}</dd></div>
+          <dd>{% if r.sealed_at %}As announced{% if r.rank_recomputed %} · order
+            reconstructed{% endif %}{% else %}Recomputed under current rules{% endif %}</dd></div>
         <div class="rs-cell"><dt>Scale set by</dt>
           <dd>{% if r.scale_set_by %}{{ r.scale_set_by }}{% if r.scale_category and not r.scale_in_category %},
             {{ r.scale_category }}{% endif %}{% else %}—{% endif %}</dd></div>
@@ -429,7 +446,38 @@
           sealed record instead.</p>
       {% endif %}
 
-      {% if r.community_basis == 'reach' %}
+      {#
+        ── ONE PARAGRAPH PER BASIS, AND `ideal` IS NOT `reach` WITH A TWEAK ──
+
+        Under `ideal` both counts share ONE denominator, so the sentence that explains it
+        is genuinely different: there is no "the most any nominee has" for supporters any
+        more. Writing one paragraph to cover both would mean describing a denominator this
+        cycle does not use, on the page a nominee checks their own score against — which
+        is the fault the help centre already shipped four times over the same rule.
+      #}
+      {% if r.community_basis == 'ideal' %}
+        <p class="rs-note">A nominee’s community half is <strong>two counts against one
+          yardstick</strong>. The yardstick is the <strong>largest vote total anyone in this
+          cycle reached</strong>, counted as if every one of those votes had come from a
+          different person — the most support there could have been. Seventy per cent of the
+          half is <strong>how many verified people</strong> backed a nominee, as a share of
+          that; the other thirty per cent is their <strong>total votes</strong>, as a share
+          of the same figure. So the full {{ cpct }}% means one thing exactly: as many
+          separate supporters as the biggest total anybody managed. One supporter is one
+          supporter however many separate orders they placed, and a vote the platform
+          granted counts toward the total and toward nobody’s backing. Both counts are
+          measured across the whole cycle rather than within this category, so a number
+          here means the same thing in every category. The judges’ half is the mark itself:
+          {{ jpct }}% × the panel average out of ten, with no floor and no curve.
+          {% if r.reach_unmeasured > 0 %}<br><strong>One caveat on this award.</strong>
+          {{ r.reach_unmeasured }} nominee{{ r.reach_unmeasured > 1 ? 's here have' : ' here has' }}
+          a vote total carried over from before this platform kept individual ballot
+          records, so their supporters could not be counted and the seventy per cent scored
+          zero for them. Their totals still count. That is a gap in our records, not a
+          finding about their support.{% endif %}
+          {% if r.shortlisted is not null %}The field is each category’s published
+          shortlist.{% endif %}</p>
+      {% elseif r.community_basis == 'reach' %}
         <p class="rs-note">A nominee’s community half is <strong>two counts, not one</strong>.
           Seventy per cent of it is <strong>how many verified people</strong> backed them,
           measured against the most any nominee in this cycle has; the other thirty per cent

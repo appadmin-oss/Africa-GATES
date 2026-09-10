@@ -69,6 +69,11 @@ CREATE TABLE IF NOT EXISTS gates_award_cycles (
   voting_open TEXT,
   voting_close TEXT,
   results_date TEXT,
+  -- Why a result is late, in the operator's own words, on the page people are waiting on.
+  -- The DELAY itself is derived (a results date that has passed, a cycle not yet
+  -- announced) so the site admits it with or without this; the note is the part only a
+  -- person can write, and it stops being shown the moment the cycle is announced.
+  results_delay_note TEXT,
   -- The next declared boundary this cycle is waiting on. A computed phase
   -- cannot be indexed (NOW() is non-deterministic and rejected in generated
   -- columns), so this materialises the one question an operator needs indexed:

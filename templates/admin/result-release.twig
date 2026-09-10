@@ -114,9 +114,34 @@
    was already passed to this template and nothing read it. #}
 <div class="ja-lede">
   <h2>What will be published, and when</h2>
-  <p>Every scored nominee, in the order the award is decided in. This is not a preview
-    computed for this page &mdash; it is the same ranking the promotion itself uses, so
-    what is drawn here is what will be published.</p>
+  {#
+    ── THIS CLAIM STOPPED BEING TRUE WHEN SEALING SHIPPED ─────────────────
+
+    "What is drawn here is what will be published" was exactly right while every
+    published page recomputed on view. A released cycle now publishes the standing
+    SEALED at its announcement, and this screen still draws live — deliberately, because
+    asking the promotion's own comparator is what makes it an audit of a release rather
+    than a report about one.
+
+    So for a sealed cycle the sentence is a false promise on the page an award is signed
+    off from, and the disagreement it hides is the one an operator gets called about.
+    Both halves are said now, and which one is showing is decided by the seal rather
+    than by the phase: a cycle can sit in `results` with nothing sealed (released before
+    sealing existed) and that is a third state, not the second.
+  #}
+  {% if sealed %}
+    <p>Every scored nominee, in the order the award is decided in &mdash; computed
+      <strong>now</strong>, from the same comparator the promotion uses. This cycle has
+      already been announced, so <strong>this is not what the public pages are
+      showing</strong>: they publish the standing sealed on
+      {{ sealed.sealed_at ? sealed.sealed_at|date('j F Y') : 'announcement' }}, and they
+      will go on publishing it. Read this table as today&rsquo;s arithmetic beside a
+      result that has been given, and see the panel below for wherever the two differ.</p>
+  {% else %}
+    <p>Every scored nominee, in the order the award is decided in. This is not a preview
+      computed for this page &mdash; it is the same ranking the promotion itself uses, so
+      what is drawn here is what will be published.</p>
+  {% endif %}
   {% if cycle and cycle.results_date %}
     <p><strong>Nobody presses anything.</strong> This cycle turns into a published result
       on <strong>{{ cycle.results_date|date('j F Y') }}</strong>, by itself, from the
@@ -141,13 +166,33 @@
     wrong about both terms of the thing it was explaining, on the page an award is signed
     off from.
   #}
-  <p><b>Reading the index.</b> Each nominee&rsquo;s score out of 1000 is a community half
-    plus a judge half, printed under it so it can be added up. The community half is two
-    counts: <em>how many verified people</em> backed them (the larger part of it) and their
-    <em>total votes</em>. Both are measured against the highest figure any nominee reached
-    <em>anywhere in this cycle</em> &mdash; not in their own category &mdash; so a community
-    figure means the same thing on every category below and the cycle standing can be drawn
-    from them. The judge half is the panel&rsquo;s weighted average out of ten, straight.</p>
+  {#
+    THIS PARAGRAPH HAS BEEN WRONG ABOUT THE DENOMINATOR TWICE ALREADY — it said "the
+    largest ORGANIC vote count IN THE CATEGORY" while the scorer had moved on from both
+    words. It is now driven off the cycle's OWN basis rather than describing whichever rule
+    was current when somebody last edited the template, because this is the page an award
+    is signed off from and a lede that describes a different arithmetic is worse than none.
+  #}
+  {% if categories is not empty and categories[0].community_basis == 'ideal' %}
+    <p><b>Reading the index.</b> Each nominee&rsquo;s score out of 1000 is a community half
+      plus a judge half, printed under it so it can be added up. The community half is two
+      counts against <em>one</em> yardstick: the <em>largest vote total anyone in this cycle
+      reached</em>, counted as if every one of those votes had come from a different person.
+      Seventy per cent of the half is <em>how many verified people</em> backed a nominee as a
+      share of that; thirty per cent is their <em>total votes</em> as a share of the same
+      figure. So a full community half means as many separate supporters as the biggest
+      total anybody managed. Because both counts divide by one number, the gap between a
+      nominee&rsquo;s backer count and their vote total is readable straight off the row.
+      The judge half is the panel&rsquo;s weighted average out of ten, straight.</p>
+  {% else %}
+    <p><b>Reading the index.</b> Each nominee&rsquo;s score out of 1000 is a community half
+      plus a judge half, printed under it so it can be added up. The community half is two
+      counts: <em>how many verified people</em> backed them (the larger part of it) and their
+      <em>total votes</em>. Both are measured against the highest figure any nominee reached
+      <em>anywhere in this cycle</em> &mdash; not in their own category &mdash; so a community
+      figure means the same thing on every category below and the cycle standing can be drawn
+      from them. The judge half is the panel&rsquo;s weighted average out of ten, straight.</p>
+  {% endif %}
 </div>
 
 <form method="get" action="/admin/result-release" class="ja-row">
@@ -191,6 +236,96 @@
      reasons behind it, and the nominee-level counts kept visibly apart. #}
   {% if recount_said %}
     <p class="ja-caveat" role="status">{{ recount_said }}</p>
+  {% endif %}
+
+  {#
+    ── THE ANNOUNCEMENT, BESIDE TODAY'S ARITHMETIC ─────────────────────────
+
+    The support call this exists for begins "my score has changed". Before this, the
+    operator taking it had the recomputed figure on this screen and the nominee had the
+    sealed one on theirs, and no screen anywhere held both — so the honest answer ("your
+    result has not changed; our method has, and yours is still the one you were given")
+    was not available to the person who had to give it.
+
+    Only the three things a person asks about their own result are compared: the index,
+    the placing, and whether they were in the running. A community half that reaches the
+    same 693 by a different route has moved nothing anybody was told, and listing it
+    would bury the rows that matter.
+
+    `added` and `gone` are counted apart and not called discrepancies, because they are
+    not: a nominee entered after the announcement, or one this draw no longer scores.
+  #}
+  {% if sealed %}
+    <div class="ja-fact">
+      <b>This cycle&rsquo;s standing is sealed, and the public pages publish the seal.</b>
+      <p>Sealed on
+        <strong>{{ sealed.sealed_at ? sealed.sealed_at|date('j F Y, H:i') : 'announcement' }}</strong>,
+        covering {{ sealed.checked }} scored nominee{{ sealed.checked == 1 ? '' : 's' }}.
+        {% if sealed.moved is empty %}
+          Every one of them scores, places and stands exactly as announced under
+          today&rsquo;s rules, so the table below and the published pages agree.
+        {% else %}
+          <strong>{{ sealed.moved|length }}</strong> of them
+          {{ sealed.moved|length == 1 ? 'scores' : 'score' }} differently now. The
+          published pages are unaffected &mdash; they read the seal &mdash; but the table
+          below is today&rsquo;s arithmetic, and this is where the two part company.
+        {% endif %}
+        {%- if sealed.added > 0 %} {{ sealed.added }}
+          nominee{{ sealed.added == 1 ? '' : 's' }} scored here
+          {{ sealed.added == 1 ? 'was' : 'were' }} not in the announced standing at all, so
+          {{ sealed.added == 1 ? 'it is' : 'they are' }} not published in it.{% endif %}
+        {%- if sealed.gone > 0 %} {{ sealed.gone }} nominee{{ sealed.gone == 1 ? '' : 's' }}
+          in the seal {{ sealed.gone == 1 ? 'is' : 'are' }} no longer scored here and
+          {{ sealed.gone == 1 ? 'is' : 'are' }} still published from it.{% endif %}
+      </p>
+      {% if sealed.moved is not empty %}
+        <div class="ja-scroll" style="margin-top:10px">
+          <table class="ja-t">
+            <thead><tr>
+              <th>Nominee</th><th>Category</th>
+              <th class="ja-num">Announced</th><th class="ja-num">Today</th>
+              <th>Placing</th><th>In the running</th>
+            </tr></thead>
+            <tbody>
+              {% for m in sealed.moved %}
+                <tr{% if m.in_sealed != m.in_now %} class="rr--out"{% endif %}>
+                  <td class="ja-name">{{ m.name }}</td>
+                  <td><span class="ja-den">{{ m.category }}</span></td>
+                  <td class="ja-num">{{ m.cpi_sealed }}</td>
+                  <td class="ja-num">{{ m.cpi_now }}{% if m.cpi_now != m.cpi_sealed %}
+                    <span class="ja-den">{{ m.cpi_now > m.cpi_sealed ? '+' : '' }}{{ m.cpi_now - m.cpi_sealed }}</span>
+                  {% endif %}</td>
+                  {# Set once: a null placing prints as a dash, and repeating the
+                     conditional inline three times is how the two halves of one cell come
+                     to disagree about what "no rank" looks like. #}
+                  {% set was = m.rank_sealed is null ? '—' : m.rank_sealed %}
+                  {% set now = m.rank_now is null ? '—' : m.rank_now %}
+                  <td>{% if m.rank_sealed == m.rank_now %}
+                        <span class="ja-den">{{ was }} &middot; unchanged</span>
+                      {% else %}{{ was }} &rarr; {{ now }}{% endif %}</td>
+                  <td>{% if m.in_sealed == m.in_now %}
+                        <span class="ja-den">{{ m.in_sealed ? 'yes' : 'no' }} &middot; unchanged</span>
+                      {% elseif m.in_now %}
+                        {# The case that would rewrite a published award: they were not in
+                           the standing that was announced and today's rules put them in
+                           it. The public page keeps them out, which is the whole point of
+                           sealing `in_running` — but an operator must be able to see that
+                           this is what happened rather than discover it from a complaint. #}
+                        <span class="ja-flag ja-flag--bad">in now, not announced</span>
+                      {% else %}
+                        <span class="ja-flag ja-flag--warn">announced, out now</span>
+                      {% endif %}</td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        <p style="margin:8px 0 0"><span class="ja-den">Announced is read from
+          <code>gates_vote_snapshots</code>, the sealed capture taken at promotion. Nothing
+          on this screen can change it, and neither can a rules change &mdash; that is what
+          it is for.</span></p>
+      {% endif %}
+    </div>
   {% endif %}
 
   <div class="ja-stats">
@@ -606,7 +741,30 @@
                   explained 135 of the 450 while reading like the whole of it, and the term
                   that actually decides the half was invisible.
                 #}
-                {% if c.community_basis == 'reach' and c.cohort_max_unique > 0 and not r.reach_unmeasured %}
+                {#
+                  ── AND UNDER `ideal` NOBODY "SETS THE REACH SCALE" ─────────
+
+                  On `reach` the denominator of the 70% is the most PEOPLE anybody had, so
+                  naming its holder is the whole point of this cell. On `ideal` there is no
+                  such denominator: both terms divide by the largest TALLY. Printing "most
+                  in the cycle, sets the reach scale" there would name a scale that does not
+                  exist, on the screen an award is signed off from — the same shape of fault
+                  as the four help-centre promises this rule change has already retired
+                  once. So the two bases get two cells.
+                #}
+                {% if c.community_basis == 'ideal' and c.cohort_max_unique > 0 and not r.reach_unmeasured %}
+                  <span class="ja-den">{{ r.unique_voters|number_format }} backer{{ r.unique_voters == 1 ? '' : 's' }}
+                    {#- Of the IDEAL, which is the tally denominator — the same figure the
+                        community share above is measured against, so an operator can check
+                        the 70% and the 30% against one number. -#}
+                    {%- if c.cohort_max > 0 %} of {{ c.cohort_max|number_format }} possible
+                      {%- if c.scale_set_by %} &mdash; {{ c.scale_set_by }}&rsquo;s tally
+                        {%- if c.scale_category and not c.scale_in_category %},
+                          in {{ c.scale_category }}
+                        {%- endif %}
+                      {%- endif %}
+                    {%- endif %}</span>
+                {% elseif c.community_basis == 'reach' and c.cohort_max_unique > 0 and not r.reach_unmeasured %}
                   <span class="ja-den">{{ r.unique_voters|number_format }} backer{{ r.unique_voters == 1 ? '' : 's' }}
                     {%- if c.cohort_max_unique_by and r.nominee_id == c.cohort_max_unique_by.id %}
                       &mdash; most in the cycle, sets the reach scale

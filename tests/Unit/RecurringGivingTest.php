@@ -217,6 +217,72 @@ final class RecurringGivingTest extends TestCase
     }
 
     /**
+     * THE STOP LINK HAS A WAY OF REACHING THE DONOR.
+     *
+     * {@see RG::manageUrl()} had no caller anywhere in the codebase: no receipt, no mail
+     * template and no page ever contained the URL, so the only route to the stop button
+     * was already knowing a 32-character token nothing had ever sent. Every other part of
+     * the cancellation was complete and correct — which is what made it invisible.
+     *
+     * Resolved from the FIRST REFERENCE, which is written at checkout start, so the
+     * receipt can carry it whether or not `subscription.create` has arrived yet.
+     */
+    public function test_the_first_payments_reference_yields_the_stop_link(): void
+    {
+        $id  = $this->arrangement(5000, 'AFG-DON-7');
+        $tok = (string) DB::table('gates_donation_subscriptions')->find($id)->manage_token;
+
+        $link = RG::stopLink('AFG-DON-7', 'https://example.test/');
+
+        $this->assertSame('https://example.test/donate/giving/' . $tok, $link);
+        $this->assertSame($id, (int) RG::byToken(RG::byToken($tok)['manage_token'])['id'],
+            'the link in the receipt does not resolve back to the gift it stops');
+    }
+
+    /**
+     * AND THE RECEIPT IS THE THING THAT SENDS IT.
+     *
+     * A link builder with a test and no caller is the fault this pins, not the fix for it:
+     * that is precisely the state `manageUrl()` shipped in — correct, covered, and unable
+     * to reach a donor. So the assertion is on the receipt's own body, in the idiom
+     * {@see DoorPrimesItsOwnClipsTest} uses, because the alternative is a mail transport
+     * stubbed through the DI container to prove one sentence.
+     */
+    public function test_the_donation_receipt_actually_carries_the_stop_link(): void
+    {
+        $src = (string) preg_replace(['~/\*.*?\*/~s', '~(?<!:)//[^\n]*~'], ' ',
+            (string) file_get_contents(dirname(__DIR__, 2) . '/src/Controllers/DonationController.php'));
+
+        // Bounded at the method's end, so this cannot pass on a mention somewhere else in
+        // a 900-line controller.
+        $at   = (int) strpos($src, 'function receipt(');
+        $next = (int) strpos($src, 'function ', $at + 20);
+        $body = substr($src, $at, max(0, $next - $at));
+
+        $this->assertNotSame('', $body, 'DonationController::receipt() was renamed or removed');
+        $this->assertStringContainsString('RecurringGiving::stopLink', $body,
+            'the only receipt a recurring donor gets carries no way to stop the gift, so '
+            . 'the stop page is reachable only by somebody who already has the token');
+        $this->assertStringContainsString('sendBranded', $body,
+            'the link is resolved and never sent');
+    }
+
+    /**
+     * AND AN ORDINARY ONE-OFF GIFT IS NOT TOLD IT CAN BE STOPPED.
+     *
+     * Most gifts are single payments. A receipt offering to cancel a monthly arrangement
+     * that does not exist reads as a charge the donor has not agreed to, which sends
+     * exactly the person this link exists to reassure to their bank.
+     */
+    public function test_a_one_off_gift_gets_no_stop_link(): void
+    {
+        $this->arrangement(5000, 'AFG-DON-8');
+
+        $this->assertSame('', RG::stopLink('AFG-DON-NOT-RECURRING', 'https://example.test'));
+        $this->assertSame('', RG::stopLink('', 'https://example.test'));
+    }
+
+    /**
      * A cancelled gift still resolves.
      *
      * Somebody following an old link deserves "this is already stopped" rather than a 404,

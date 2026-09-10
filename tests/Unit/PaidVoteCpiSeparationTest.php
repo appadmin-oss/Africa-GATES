@@ -108,21 +108,30 @@ class PaidVoteCpiSeparationTest extends TestCase
         ]);
     }
 
-    public function test_the_index_normalises_over_every_vote_not_the_free_ones(): void
+    /**
+     * ON `reach`, TEN SEPARATE SUPPORTERS OUTRANK ONE BUYER'S HUNDRED VOTES.
+     *
+     * Asserted against `reach` EXPLICITLY, because it is no longer the default and this is
+     * the guarantee that basis exists to give. It is also the guarantee the default gives
+     * up — see the test below, which is the same fixture and the opposite outcome.
+     */
+    public function test_on_reach_ten_supporters_outrank_one_buyers_hundred_votes(): void
     {
         $this->seedCohort();
+        (new \AfricaGates\Services\RuleEngine())->set('global', null,
+            ['community_basis' => \AfricaGates\Services\CpiService::BASIS_REACH]);
 
         $scores = (new NomineeScoringService())->scoreCategory(10);
 
-        // No judges → community-only. Two denominators now, both drawn from the field:
-        // the largest TALLY (102, B's) and the largest number of PEOPLE (10, A's).
+        // No judges → community-only. TWO denominators, both drawn from the field: the
+        // largest TALLY (102, B's) and the largest number of PEOPLE (10, A's).
         //
         //   A:  0.7 × 10/10 + 0.3 × 10/102  = 0.7294 → 328
         //   B:  0.7 ×  3/10 + 0.3 × 102/102 = 0.5100 → 230
         //
         // B's hundred bought votes still count in full toward the thirty per cent — they
         // are real votes and this platform does not pretend otherwise. What they cannot
-        // do any more is carry the other seventy, because one buyer is one person however
+        // do here is carry the other seventy, because one buyer is one person however
         // large the cheque. Under the old tally-only rule these came out 4 and 450: the
         // nominee with ten supporters scored four points, and the one with three scored
         // the maximum.
@@ -130,6 +139,62 @@ class PaidVoteCpiSeparationTest extends TestCase
         $this->assertSame(230, $scores[2]['cpi_score']);
         $this->assertGreaterThan($scores[2]['cpi_score'], $scores[1]['cpi_score'],
             'a hundred votes from one buyer still outrank ten separate supporters');
+    }
+
+    /**
+     * AND ON `ideal`, THE DEFAULT, THEY DO NOT — WHICH IS RECORDED, NOT HIDDEN.
+     *
+     * ══════════════════════════════════════════════════════════════════════════
+     * WHY THIS TEST ASSERTS SOMETHING THE PLATFORM WOULD RATHER NOT BE TRUE
+     * ══════════════════════════════════════════════════════════════════════════
+     *
+     * `ideal` divides BOTH community terms by one ceiling — the largest tally in the
+     * edition — so that ceiling cancels out of any comparison and the community half is
+     * proportional to `0.7 × people + 0.3 × votes`. One supporter is therefore worth
+     * exactly 2.33 votes, in every edition, whatever the figures; on `reach` the same
+     * supporter is worth (maxVotes ÷ maxPeople) × 2.33, which grows with every vote
+     * anybody buys.
+     *
+     * On this fixture that fixed rate costs the ordering at TWENTY-FIVE bought votes. One
+     * donation, and a nominee with three supporters places above one with ten:
+     *
+     *       0 bought   A 450.0   B 121.5
+     *      25 bought   ── B overtakes A ──
+     *     100 bought   A  44.1   B 144.3
+     *
+     * This is the specified rule, chosen with these numbers in view, so it is pinned as
+     * INTENDED rather than left for somebody to discover as a bug. The reason to pin it at
+     * all is that a future reader will find the inversion and reach for the obvious repair
+     * — swapping the ideal to the organic tally — and that repair changes an announced
+     * standing. It is a new basis, named and settable, never an edit to this one.
+     *
+     * If this assertion ever fails, `ideal` has stopped behaving as specified. That is a
+     * conversation with the operator, not a number to update.
+     */
+    public function test_on_ideal_a_buyers_hundred_votes_outrank_ten_supporters(): void
+    {
+        $this->seedCohort();
+
+        $scores = (new NomineeScoringService())->scoreCategory(10);
+
+        // ONE denominator: the ideal, 102 — B's tally, read as if it were 102 people.
+        //
+        //   A:  (0.7 × 10  + 0.3 × 10 ) / 102 = 0.0980 →  44
+        //   B:  (0.7 ×  3  + 0.3 × 102) / 102 = 0.3206 → 144
+        $this->assertSame(44,  $scores[1]['cpi_score']);
+        $this->assertSame(144, $scores[2]['cpi_score']);
+        $this->assertGreaterThan($scores[1]['cpi_score'], $scores[2]['cpi_score'],
+            'the fixed 7:3 exchange rate between a person and a vote is no longer in '
+            . 'force, so `ideal` is not doing what it was specified to do');
+    }
+
+    public function test_the_index_normalises_over_every_vote_not_the_free_ones(): void
+    {
+        $this->seedCohort();
+        (new \AfricaGates\Services\RuleEngine())->set('global', null,
+            ['community_basis' => \AfricaGates\Services\CpiService::BASIS_REACH]);
+
+        $scores = (new NomineeScoringService())->scoreCategory(10);
 
         // The denominator moved with the numerator. Scaling a total against an organic
         // maximum would let a nominee exceed 100% of the cohort and take more than the

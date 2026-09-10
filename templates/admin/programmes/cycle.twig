@@ -62,6 +62,50 @@
               <div><label for="f-voting_close">Voting close</label><input type="datetime-local" name="voting_close" id="f-voting_close" value="{{ cycle.voting_close|default('')|when_input }}" step="1"></div>
             </div>
             <div><label for="f-results_date">Results date</label><input type="datetime-local" name="results_date" id="f-results_date" value="{{ cycle.results_date|default('')|when_input }}" step="1"></div>
+
+            {#
+              ── WHY A RESULT IS LATE, IF IT IS ────────────────────────────────
+
+              A results date is a promise made in public. The public pages used to serve
+              the live standing once it passed — announced or not — so a cycle still in
+              judging published a named winner from an open panel, unsealed. They publish
+              only an announced cycle now, and state the delay instead.
+
+              The DELAY is derived: a date in the past, a status that is not `results` or
+              `archived`. Nothing here switches it on and nothing has to switch it off, so
+              it cannot be left up in March. This field is the one part only a person can
+              write — the reason — and the page says what it knows without it.
+            #}
+            <div>
+              <label for="f-results_delay_note">Why the result is late
+                <span class="hint" style="font-weight:400">shown publicly · optional</span></label>
+              <textarea name="results_delay_note" id="f-results_delay_note" rows="3"
+                        maxlength="1000"
+                        placeholder="e.g. Two categories are being re-checked after a counting fault. We will announce as soon as every award can be published in full.">{{ cycle.results_delay_note|default('') }}</textarea>
+            </div>
+            {#
+              WHETHER IT IS LIVE, said here. An operator typing into this box otherwise
+              cannot tell whether the sentence is on the site now or filed for a delay
+              that has not happened — and those are very different things to be writing.
+              Same call the public page makes, so the two cannot disagree.
+            #}
+            {% if late %}
+              <p class="hint" style="margin:0;color:#b4451f">
+                <strong>This cycle&rsquo;s results are late right now.</strong> The public
+                results page is telling people the result was expected on
+                {{ late.promised|date('j F Y') }} and has not been announced.
+                {% if late.note %}Your note is showing with it.{% else %}Nothing you have
+                written is showing &mdash; the page states the date and that the award is
+                not decided, and nothing else.{% endif %}
+                It stops by itself when the cycle is announced.
+              </p>
+            {% else %}
+              <p class="hint" style="margin:0">
+                Nothing is showing publicly: this cycle is not past its results date, or it
+                has already been announced. A note saved here appears only if the date
+                passes before the announcement does.
+              </p>
+            {% endif %}
             <p class="hint" style="margin:0">
               {# Was `Entered and stored in UTC`, with the value round-tripped by an inline
                  `|when_input` — which put a `T` separator into the

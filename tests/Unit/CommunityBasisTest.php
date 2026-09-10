@@ -103,6 +103,149 @@ final class CommunityBasisTest extends TestCase
         }
     }
 
+    // ══ ideal: both counts against one yardstick ═════════════════════════════
+
+    /**
+     * THE OPERATOR'S OWN WORKED EXAMPLES, TO THE DIGIT.
+     *
+     * `ideal` divides BOTH community terms by the largest tally in the edition, read as a
+     * number of people: in the perfect case those votes were one each from that many
+     * separate human beings. So the full 450 means exactly one thing — as many separate
+     * supporters as the biggest total anybody managed.
+     *
+     *     315 × (unique voters ÷ ideal)  +  135 × (total votes ÷ ideal)
+     *
+     * If these drift, the rule that was agreed is not the rule being applied.
+     */
+    public function test_the_ideal_basis_pays_both_counts_from_one_yardstick(): void
+    {
+        $ideal = 2000;   // the biggest tally in the edition
+        $anyone = 1000;  // somebody has countable rows, so reach is measurable
+
+        // The perfect nominee: 2,000 supporters, one vote each. Nothing softer earns 450.
+        $this->assertSame(450, (int) round(
+            CpiService::idealPart(2000, 2000, $ideal, $anyone) * 450));
+
+        // 1,000 supporters casting 2,000 votes — half the ideal in people, all of it in
+        // votes. 0.7×0.5 + 0.3×1.0 = 0.65.
+        $this->assertSame(292.5, round(
+            CpiService::idealPart(1000, 2000, $ideal, $anyone) * 450, 1));
+
+        // Two supporters, 2,000 votes. The volume term is full and the people term is
+        // almost nothing, which is the whole point of weighting people at 70%.
+        $this->assertSame(135.3, round(
+            CpiService::idealPart(2, 2000, $ideal, $anyone) * 450, 1));
+    }
+
+    /**
+     * AND THE YARDSTICK CANCELS OUT OF EVERY COMPARISON, WHICH IS THE REAL PROPERTY.
+     *
+     * Because both terms divide by the same figure, the community half is proportional to
+     * `0.7 × people + 0.3 × votes` — so the ORDER of two nominees never depends on the
+     * ideal at all, and one supporter is worth exactly 0.7/0.3 = 2.33 votes in every
+     * edition whatever the figures.
+     *
+     * That fixed exchange rate is the substance of this basis and the whole of its cost.
+     * On `reach` the same supporter is worth (maxVotes ÷ maxPeople) × 2.33, which grows
+     * with every vote anybody buys — so buying past genuine support gets harder there and
+     * does not here. Asserted rather than described, because it is the sentence the help
+     * centre and the integrity page now publish.
+     */
+    public function test_a_supporter_is_worth_exactly_two_and_a_third_votes(): void
+    {
+        foreach ([[10, 102], [10, 1000], [10, 20000]] as [$maxPeople, $maxVotes]) {
+            $perPerson = CpiService::idealPart(4, 10, $maxVotes, $maxPeople)
+                       - CpiService::idealPart(3, 10, $maxVotes, $maxPeople);
+            $perVote   = CpiService::idealPart(3, 11, $maxVotes, $maxPeople)
+                       - CpiService::idealPart(3, 10, $maxVotes, $maxPeople);
+
+            $this->assertSame(2.33, round($perPerson / $perVote, 2),
+                'the exchange rate between a supporter and a vote moved with the '
+                . 'denominators, so this is no longer the ideal basis');
+        }
+
+        // And on `reach` it is elastic — the property `ideal` gives up.
+        $rP = CpiService::reachPart(4, 10, 10, 20000) - CpiService::reachPart(3, 10, 10, 20000);
+        $rV = CpiService::reachPart(3, 10, 11, 20000) - CpiService::reachPart(3, 10, 10, 20000);
+        $this->assertGreaterThan(1000.0, $rP / $rV,
+            'reach has stopped making a supporter worth more as tallies grow, which is '
+            . 'the one thing it does that the default does not');
+    }
+
+    /**
+     * WHERE NOBODY IN THE EDITION HAS A COUNTABLE ROW, THE TALLY TAKES THE WHOLE HALF.
+     *
+     * `cohortMaxUnique` no longer divides anything under this basis, and the guard that
+     * reads it is NOT redundant. Vote rows go missing while tallies do not — an import
+     * from before this platform held rows, a fixture, a purged cycle — and without the
+     * guard every nominee's people term would be 0 ÷ ideal and the whole field would be
+     * quietly paid 30% of the community half. The order survives, which is exactly what
+     * lets that shape of fault survive: nothing looks wrong, and a cycle scored out of 135
+     * still reads like one scored out of 450.
+     */
+    public function test_an_edition_with_no_countable_rows_falls_back_to_the_tally(): void
+    {
+        // Leader of the edition on tally, no rows anywhere: the full half, not 30% of it.
+        $this->assertSame(450.0, round(CpiService::idealPart(0, 2000, 2000, 0) * 450, 1));
+        // And half the tally is half the half.
+        $this->assertSame(225.0, round(CpiService::idealPart(0, 1000, 2000, 0) * 450, 1));
+    }
+
+    /**
+     * AND THE FIRST COUNTABLE ROW IN AN UNMEASURED EDITION IS A CLIFF, NOT A RAMP.
+     *
+     * ══════════════════════════════════════════════════════════════════════════
+     * FOUND BY A TEST IN ANOTHER FILE, AND IT IS THE OPPOSITE OF INTUITION
+     * ══════════════════════════════════════════════════════════════════════════
+     *
+     * An edition holding imported tallies and no ballot rows is in the all-or-nothing
+     * fallback: `cohortMaxUnique` is zero, the people term is off for everybody, and the
+     * tally takes the whole community half. So a nominee on 80 of a 100-vote maximum has
+     * 0.8 × 450 = 360.
+     *
+     * Add ONE countable vote row anywhere in that cycle and the people term switches on
+     * for every nominee at once — against the ideal, which is a TALLY. Three counted
+     * supporters out of a possible hundred is three per cent of 315, where a moment
+     * earlier there was no people term to score at all. The nominee who gained the three
+     * votes drops from 360 to 122.
+     *
+     * `VoteRecoveryTest` found this: a test asserting that a recovered vote helps its
+     * nominee, failing because it did the opposite. That fixture now starts measured, so
+     * it tests the vote; this test is the cliff itself.
+     *
+     * ── WHY IT IS NOT BEING SMOOTHED AWAY ───────────────────────────────────
+     *
+     * Because every available smoothing is a lie about a measurement. Flooring the people
+     * term at the tally share would pay unmeasured nominees as though their supporters had
+     * been counted; phasing the term in by how many rows exist would make a nominee's score
+     * depend on OTHER nominees' record-keeping in a way no screen could explain. The
+     * platform's rule for this is already written down and it is the strict direction:
+     * understate, and flag it — a tally with no rows behind it raises `reach_unmeasured`,
+     * which the release screen and the public page both state.
+     *
+     * What that leaves, and what an operator needs to know, is the middle case this test
+     * pins: PARTIALLY measured. A nominee with three real rows behind an imported
+     * eighty-vote tally is not flagged — they have rows — and is scored as though the
+     * eighty had been measured and found to be three people.
+     */
+    public function test_the_first_countable_row_switches_the_people_term_on_for_everybody(): void
+    {
+        $ideal = 100;   // the edition's biggest tally
+
+        // Nothing counted anywhere: the tally takes the whole half.
+        $this->assertSame(360.0, round(CpiService::idealPart(0, 80, $ideal, 0) * 450, 1));
+
+        // One row exists somewhere in the cycle, so the people term is live for everybody
+        // — and it is measured against the tally, not against whoever has the most rows.
+        $this->assertSame(121.5, round(CpiService::idealPart(3, 83, $ideal, 3) * 450, 1),
+            'the people term is being scaled to whoever holds the most rows, which is '
+            . '`reach` and not this basis');
+
+        // The nominee with a tally and no rows at all is the one the platform flags, and
+        // they keep their tally share of the thirty per cent.
+        $this->assertSame(135.0, round(CpiService::idealPart(0, 100, $ideal, 3) * 450, 1));
+    }
+
     /**
      * An unrecognised value is the DEFAULT, never a guess and never the old behaviour.
      *
@@ -112,13 +255,18 @@ final class CommunityBasisTest extends TestCase
      */
     public function test_an_unknown_basis_falls_back_to_the_default(): void
     {
-        foreach (['', 'REACH', 'relatve', 'abolute', 'true', '1', 'Absolute '] as $raw) {
-            $this->assertSame(CpiService::BASIS_REACH, CpiService::basis($raw),
+        foreach (['', 'IDEAL', 'relatve', 'abolute', 'reech', 'true', '1', 'Absolute '] as $raw) {
+            $this->assertSame(CpiService::BASIS_IDEAL, CpiService::basis($raw),
                 '"' . $raw . '" was accepted as a scoring basis');
         }
         $this->assertSame(CpiService::BASIS_ABSOLUTE, CpiService::basis('absolute'));
         $this->assertSame(CpiService::BASIS_RELATIVE, CpiService::basis('relative'));
-        $this->assertSame(CpiService::BASIS_REACH,    CpiService::basis(null));
+        // `reach` is matched EXPLICITLY now that it is no longer the default. Without its
+        // own arm it would fall through to `ideal`, and every cycle announced under it
+        // would stop being reproducible from the settings that produced it — which is the
+        // one job these settings have.
+        $this->assertSame(CpiService::BASIS_REACH,    CpiService::basis('reach'));
+        $this->assertSame(CpiService::BASIS_IDEAL,    CpiService::basis(null));
 
         // And the same for the judge scale, which decides the other 550.
         foreach (['', 'CURVED', 'curvd', 'nonsense', null] as $raw) {

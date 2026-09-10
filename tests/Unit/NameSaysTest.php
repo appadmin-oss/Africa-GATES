@@ -373,4 +373,142 @@ final class NameSaysTest extends TestCase
             'the names are worked out after the lines are built, so every clip is rendered '
             . 'with the old reading and then orphaned by the new one');
     }
+
+    // ══ the record, and who decided it ═══════════════════════════════════════
+
+    /**
+     * WHO WORKED A NAME OUT IS READABLE, WHICH IS THE ONLY REASON `source` IS A COLUMN.
+     *
+     * It was written by three paths and read by nothing. `all()` — the one method that
+     * selected it, whose docblock says "for the settings screen" — had no caller anywhere,
+     * and the screen that DID show a source derived it from where it had looked rather than
+     * from what was stored: every row in this table read "worked out", so a respelling a
+     * model invented and one the offline rule derived from letters were presented to an
+     * operator as the same kind of answer, on the screen whose job is deciding which of
+     * them to trust.
+     */
+    public function test_the_record_says_who_worked_each_name_out(): void
+    {
+        NameSays::remember('Ngozi', 'en-GOH-zee', 'ai');
+        NameSays::remember('Chidinma', 'chee-DEEN-mah', 'rule');
+
+        $by = [];
+        foreach (NameSays::all() as $r) $by[$r['written']] = $r;
+
+        $this->assertSame('ai', $by['Ngozi']['source']);
+        $this->assertSame('rule', $by['Chidinma']['source']);
+        $this->assertSame('en-GOH-zee', $by['Ngozi']['said']);
+        // The identity, not the spelling that happened to arrive first: two spellings of
+        // one name fold to one key, so a screen keyed on `written` would offer to act on a
+        // row it cannot name.
+        $this->assertSame(DoorWelcome::fold('Ngozi'), $by['Ngozi']['name_key']);
+
+        $this->assertSame(['rule' => 1, 'ai' => 1, 'hand' => 0], NameSays::bySource());
+    }
+
+    /**
+     * AND THE PENDING LIST AGREES WITH IT, BECAUSE THERE IS ONE RESOLVER.
+     *
+     * Two screens describing the same three values is how they come to disagree about what
+     * `rule` means — the fault this codebase has already shipped with an interview status
+     * and with a vote's type.
+     */
+    public function test_the_upcoming_names_report_the_stored_source_too(): void
+    {
+        NameSays::remember('Ngozi', 'en-GOH-zee', 'ai');
+
+        $this->assertSame('worked out', NameSays::sourceLabel('ai'));
+        $this->assertSame('rule', NameSays::sourceLabel('rule'));
+        $this->assertSame('a person', NameSays::sourceLabel('hand'));
+        // An unknown value reads as the answer that claims least, never as a model's.
+        $this->assertSame('rule', NameSays::sourceLabel('something-else'));
+
+        $kept = NameSays::knownWithSource(DoorWelcome::fold('Ngozi'));
+        $this->assertSame('ai', $kept['source']);
+        $this->assertSame('en-GOH-zee', $kept['said']);
+    }
+
+    /**
+     * A BAD BATCH CAN BE TAKEN BACK, WHICH IS WHAT MAKES ASKING ONCE SURVIVABLE.
+     *
+     * A name is asked about once, ever — the first answer is kept, because it may already
+     * have been read aloud. So a model answering badly for a batch of forty is permanent:
+     * those names are mispronounced at every door from then on, with no way to ask again.
+     * The migration that added `source` promised this button and there was no delete path
+     * in the codebase at all.
+     */
+    public function test_a_batch_from_one_source_can_be_forgotten(): void
+    {
+        NameSays::remember('Ngozi', 'BAD-BATCH', 'ai');
+        NameSays::remember('Chidinma', 'chee-DEEN-mah', 'rule');
+
+        $this->assertSame(1, NameSays::forget('ai'));
+
+        $this->assertNull(NameSays::known(DoorWelcome::fold('Ngozi')),
+            'the bad answer is still on record');
+        $this->assertSame('chee-DEEN-mah', NameSays::known(DoorWelcome::fold('Chidinma')),
+            'forgetting one source took the other with it');
+
+        // And the name is simply asked again, which is what makes clearing safe: until it
+        // is, the offline rule reads it.
+        // First names, deduplicated on the folded key — the door greets somebody by
+        // their first name and that is the unit a pronunciation is kept for.
+        $this->assertSame(['Ngozi'], NameSays::unanswered(['Ngozi Eze', 'Chidinma Okonkwo']));
+    }
+
+    /**
+     * AND WHAT A PERSON SAID IS NEVER SWEPT AWAY BY IT.
+     *
+     * The one answer here that cannot be reproduced: nothing can ask a model to guess again
+     * at what somebody decided after hearing the clip. A button that could clear it would
+     * be a quiet override of the rule at the top of this class.
+     */
+    public function test_an_answer_a_person_gave_is_refused_by_the_forget_path(): void
+    {
+        NameSays::remember('Ngozi', 'A-PERSON-said-this', 'hand');
+
+        $this->assertSame(0, NameSays::forget('hand'),
+            'a person\'s answer can be swept away from an admin button');
+        $this->assertSame(0, NameSays::forget('everything'));
+        $this->assertSame(0, NameSays::forget(''));
+
+        $this->assertSame('A-PERSON-said-this', NameSays::known(DoorWelcome::fold('Ngozi')));
+    }
+
+    /**
+     * AND THE SETTINGS SCREEN IS THE THING THAT SHOWS IT.
+     *
+     * A reader with a passing test and no caller is the state `all()` shipped in — correct,
+     * covered, and reaching nobody. So the assertion is on the controller's own payload and
+     * on the template, in the idiom {@see DoorPrimesItsOwnClipsTest} uses.
+     */
+    public function test_the_settings_screen_reads_the_record_and_offers_the_button(): void
+    {
+        $ctrl = (string) file_get_contents(
+            dirname(__DIR__, 2) . '/src/Admin/Controllers/SettingsController.php');
+
+        $this->assertStringContainsString('NameSays::all()', $ctrl,
+            'the record has no reader again, so `source` is written by three paths and '
+            . 'shown on no screen');
+        $this->assertStringContainsString('NameSays::bySource()', $ctrl);
+        $this->assertStringContainsString('function voiceForget', $ctrl,
+            'there is no way to take a bad batch back');
+
+        $tpl = (string) file_get_contents(
+            dirname(__DIR__, 2) . '/templates/admin/settings.twig');
+
+        $this->assertStringContainsString('voice_record', $tpl, 'the screen never renders it');
+        $this->assertStringContainsString('/admin/settings/voice/forget', $tpl);
+        // `formaction`, never a nested <form>: this whole page is one form, and an HTML
+        // parser DISCARDS a <form> opened inside an open one — the button would keep its
+        // markup, lose its action and save the settings instead. Three of those have
+        // shipped here, one of them a Delete that ran an update.
+        $this->assertStringContainsString('formaction="/admin/settings/voice/forget"', $tpl,
+            'the forget button is not wired through formaction, so it posts to whichever '
+            . 'form encloses it');
+
+        $routes = (string) file_get_contents(dirname(__DIR__, 2) . '/src/routes.php');
+        $this->assertStringContainsString("'/voice/forget'", $routes,
+            'the button posts to a route that does not exist');
+    }
 }

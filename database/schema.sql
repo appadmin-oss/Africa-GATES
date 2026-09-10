@@ -55,7 +55,13 @@ CREATE TABLE IF NOT EXISTS gates_award_cycles (
   next_boundary_at DATETIME NULL DEFAULT NULL,
   nominations_open DATETIME DEFAULT NULL, nominations_close DATETIME DEFAULT NULL,
   voting_open DATETIME DEFAULT NULL, voting_close DATETIME DEFAULT NULL,
-  results_date DATETIME DEFAULT NULL, created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  results_date DATETIME DEFAULT NULL,
+  -- Why a result is late, in the operator's own words, on the page people are waiting on.
+  -- The DELAY itself is derived (a results date that has passed, a cycle not yet
+  -- announced) so the site admits it with or without this; the note is the part only a
+  -- person can write, and it stops being shown the moment the cycle is announced.
+  results_delay_note TEXT NULL DEFAULT NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY(id), KEY idx_prog_year(programme_id,year),
   CONSTRAINT fk_cycle_prog FOREIGN KEY(programme_id) REFERENCES gates_award_programmes(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

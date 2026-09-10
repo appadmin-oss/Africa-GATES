@@ -162,6 +162,28 @@ class VoteRecoveryTest extends TestCase
         // the top of the cohort she is already normalised to 1.0 and three more
         // votes move nothing — true of ordinary votes too, which is the point.)
         DB::table('gates_nominees')->where('id', 1)->update(['vote_count' => 80, 'organic_vote_count' => 80]);
+
+        // ── AND THE EDITION HAS TO BE MEASURABLE BEFORE THIS MEANS ANYTHING ──
+        //
+        // Without these rows the cycle holds tallies and NO ballot rows, which is the
+        // all-or-nothing fallback: `cohortMaxUnique` is zero, the people term is switched
+        // off for everybody and the tally takes the whole community half. Applying the
+        // first three recovered votes then flips the entire edition out of that fallback
+        // in one step — and Ada's score FELL, 360 to 122, because three counted supporters
+        // out of a possible hundred is three per cent of the people term where a moment
+        // earlier there was no people term at all.
+        //
+        // That cliff is real and is asserted on its own in CommunityBasisTest. It is not
+        // what this test is about: a recovered vote is an ordinary organic vote, and the
+        // claim here is that it counts like one. So the cycle starts already measured, and
+        // the assertion is then about the vote rather than about the edition's data state.
+        for ($i = 0; $i < 40; $i++) {
+            DB::table('gates_votes')->insert([
+                'nominee_id' => 2, 'category_id' => 1, 'vote_type' => 'standard', 'weight' => 1,
+                'voter_email_hash' => hash('sha256', "bala{$i}@x.io"),
+            ]);
+        }
+
         $this->attempt('a@x.io'); $this->attempt('b@x.io'); $this->attempt('c@x.io');
 
         $before = (new NomineeScoringService())->scoreCategory(1);
@@ -173,6 +195,13 @@ class VoteRecoveryTest extends TestCase
         $this->assertSame(83, (int) $n->vote_count);
         $this->assertSame(83, (int) $n->organic_vote_count, 'the CPI community signal, not a side bucket');
         $this->assertGreaterThan($before[1]['cpi_score'], $after[1]['cpi_score']);
+
+        // BOTH terms moved, which is what "counts exactly like a real one" means: three
+        // more votes in the tally AND three more counted PEOPLE. A recovered vote that
+        // raised the tally alone would be a bonus vote wearing an organic label.
+        $this->assertSame(3, \AfricaGates\Services\VoterReach::forNominee(1),
+            'the recovered voters are not counted as people, so the vote reached the '
+            . 'tally and not the seventy per cent that decides most of the half');
     }
 
     /** And it carries its own provenance in the ledger, not in a side table. */

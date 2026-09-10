@@ -20,7 +20,13 @@ use Illuminate\Database\Capsule\Manager as DB;
  *     VoteRecoveryService the recovered voter's own hash   a person
  *     PaidVoteService    'paidvote:<order>:<random>'      ONE PER ORDER
  *     BonusVoteService   'bonus:<order>:<random>'         an operator's grant
- *     PointsService      'points:<userId>:<random>'       a redemption
+ *     PointsService      'points:<userId>:<random>'       a redemption — and it is
+ *                                                         written with vote_type
+ *                                                         'bonus', because the ENUM
+ *                                                         has no 'points' in it. The
+ *                                                         PREFIX is what tells a
+ *                                                         member's own choice from an
+ *                                                         operator's grant.
  *
  * So a distinct count over that column answers "how many transactions", and one buyer
  * placing ten orders reads as ten supporters. The whole point of weighting reach at 70%
@@ -164,10 +170,30 @@ final class VoterReach
         $hash = (string) ($r->voter_email_hash ?? '');
         $type = (string) ($r->vote_type ?? 'standard');
 
-        // A grant is support the platform gave, not support the public gave. Checked on
-        // BOTH the type and the hash prefix because the two are written by different
-        // services and only one of them has to be wrong for a grant to buy reach.
-        if ($type === 'bonus' || str_starts_with($hash, 'bonus:')) return null;
+        // ── THE HASH PREFIX IS READ BEFORE THE TYPE, AND HAS TO BE ──────────────
+        //
+        // `gates_votes.vote_type` is ENUM('standard','bonus','paid') and there is no
+        // 'points' in it, so {@see PointsService::redeemForVote()} writes a redemption as
+        // `bonus` — the only value left that is not a lie about money. The prefix is the
+        // only thing that tells the two apart.
+        //
+        // Tested after the grant check, this whole branch was UNREACHABLE for every row
+        // the platform has ever written: `$type === 'bonus'` matched first and returned
+        // nobody, so a member who spent their own points backing a nominee added no reach
+        // — 70% of the community half — while this method's own docblock says in as many
+        // words that a redemption is its member. A grant is nobody because nobody CHOSE
+        // to cast it; a redemption is a choice, made by a named account, paid for out of
+        // that account's balance.
+        //
+        // The test that was meant to hold this wrote `vote_type = 'standard'` beside a
+        // `points:` hash, which is a row no service on this platform can produce — the
+        // same shape of fixture that hid the TINYINT panel mark.
+        if (str_starts_with($hash, 'points:')) {
+            // 'points:<userId>:<random>' → 'points:<userId>'. A member redeeming twice is
+            // one member; the suffix exists only to clear the one-vote unique key.
+            $parts = explode(':', $hash);
+            return isset($parts[1]) && $parts[1] !== '' ? 'points:' . $parts[1] : null;
+        }
 
         if (str_starts_with($hash, 'paidvote:')) {
             $don = (int) ($r->donation_id ?? 0);
@@ -177,12 +203,10 @@ final class VoterReach
             return $buyers[$don] ?? ($don > 0 ? 'order:' . $don : null);
         }
 
-        if (str_starts_with($hash, 'points:')) {
-            // 'points:<userId>:<random>' → 'points:<userId>'. A member redeeming twice is
-            // one member; the suffix exists only to clear the one-vote unique key.
-            $parts = explode(':', $hash);
-            return isset($parts[1]) && $parts[1] !== '' ? 'points:' . $parts[1] : null;
-        }
+        // A grant is support the platform gave, not support the public gave. Checked on
+        // BOTH the type and the hash prefix because the two are written by different
+        // services and only one of them has to be wrong for a grant to buy reach.
+        if ($type === 'bonus' || str_starts_with($hash, 'bonus:')) return null;
 
         return $hash !== '' ? $hash : null;
     }
