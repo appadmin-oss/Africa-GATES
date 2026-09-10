@@ -112,6 +112,8 @@ final class DonationController
                         'providers'  => [], 'stats' => $this->stats(), 'givers' => [],
                     'org_totals' => \AfricaGates\Services\PartnerOrg::platformTotals(),
                         'org' => null, 'campaign' => null, 'org_closed' => true,
+                        'brand' => null, 'brand_css' => null, 'story_paragraphs' => [],
+                        'gates_credit' => \AfricaGates\Services\OrgBrand::GATES_CREDIT,
                     'fund_goal' => null, 'recurring' => false,
                         'fund_goal' => null, 'recurring' => false,
                         'min_naira' => self::MIN_NAIRA, 'max_naira' => self::MAX_NAIRA,
@@ -128,6 +130,8 @@ final class DonationController
                     'providers'  => [], 'stats' => $this->stats(), 'givers' => [],
                     'org_totals' => \AfricaGates\Services\PartnerOrg::platformTotals(),
                     'org' => null, 'campaign' => null, 'org_closed' => true,
+                        'brand' => null, 'brand_css' => null, 'story_paragraphs' => [],
+                        'gates_credit' => \AfricaGates\Services\OrgBrand::GATES_CREDIT,
                     'min_naira' => self::MIN_NAIRA, 'max_naira' => self::MAX_NAIRA,
                     'processing_fee_pct' => $this->processingFeePct(),
                 ])->withHeader('X-Robots-Tag', 'noindex, nofollow');
@@ -143,6 +147,11 @@ final class DonationController
                 return ['raised_naira' => $p['raised'], 'gifts' => $p['count']];
             })()
             : ($org ? $this->orgStats((int) $org->id) : $this->stats());
+
+        // Once, beside the stats and for the same reason. `of()` decodes a JSON document and
+        // re-validates every URL and video id in it; two calls would be two documents that
+        // could differ if a write landed between them, on the page a gift is made from.
+        $brand = $org ? \AfricaGates\Services\OrgBrand::of($org) : null;
 
         return $this->view->render($res, 'pages/donate.twig', [
             'error'            => self::GIVE_REASONS[trim((string) ($req->getQueryParams()['give'] ?? ''))] ?? null,
@@ -172,6 +181,36 @@ final class DonationController
             // to create on their behalf.
             'recurring'        => !$org && \AfricaGates\Services\RecurringGiving::available($this->payments),
             'org'              => $org,
+            // ── THE ORGANISATION'S OWN PAGE, WHICH NOTHING USED TO READ ─────
+            //
+            // `OrgBrand` shipped complete on every side except this one: a validated
+            // writer, an accent refused for failing contrast against white with the ratio
+            // in the message, an uploader, a route, and `css()` to turn the whole thing
+            // into custom properties. `css()` had NO CALLER, this controller never
+            // mentioned the service, and `pages/org/dashboard.twig` — which was handed
+            // `brand` and `brand_sections` — contained the word "brand" zero times. So
+            // there was no form to fill it in and no page that drew it, while the
+            // migration's own docblock described it as shipped: "what the page LOOKS like
+            // belongs to whoever is doing the asking."
+            //
+            // That is §17's shape in its most expensive variant — prose promising a
+            // behaviour with a schema behind it and no reader. This is half the fix; the
+            // editor on the organisation's dashboard is the other half, and neither is
+            // worth anything on its own.
+            //
+            // NULL for the Africa GATES fund rather than `of(null)`. `of()` returns a
+            // complete default document for a missing organisation, which is right for a
+            // template rendering SOME organisation and wrong here: the house page would
+            // then be drawn through the partner-branding path and pick up an accent and a
+            // set of empty blocks belonging to nobody.
+            'brand'            => $brand,
+            'brand_css'        => $brand ? \AfricaGates\Services\OrgBrand::css($brand) : null,
+            // Split in the service, not with a Twig filter, so one definition of "a
+            // paragraph" serves this page and any later surface that prints the same
+            // organisation's own words.
+            'story_paragraphs' => $brand
+                ? \AfricaGates\Services\OrgBrand::paragraphs((string) $brand['story']) : [],
+            'gates_credit'     => \AfricaGates\Services\OrgBrand::GATES_CREDIT,
             'campaign'         => $campaign,
             // Summed from confirmed rows on every read, never cached. A fundraising figure
             // that drifts from the rows underneath it is the one number nobody forgives.

@@ -93,6 +93,137 @@
   .dn-lede{ margin:12px 0 0; max-width:60ch; font-size:15px; line-height:1.7;
     color:var(--dn-ink-2); text-wrap:pretty; }
 
+  /* ══ AN ORGANISATION'S OWN BLOCKS ═════════════════════════════════════════
+     Every value resolves to a --dn-* token or to the organisation's own accent, which
+     arrives as --ob-accent on the wrapper. Nothing here hard-codes a hex, so the page
+     cannot drift from itself and an organisation changing their accent moves all of it.
+
+     The accent is used for RULES and FIGURES and never for body text. It has been
+     checked at 4.5:1 against white by OrgBrand::readable(), which is the floor for text
+     on white — it is not a promise about the accent against the paper ground, against
+     the cream panel, or as a hairline. A figure at 2rem is large text and clears 3:1
+     comfortably; a paragraph in the same colour would not be covered by that check. */
+  .ob-sec{ padding-top:var(--dn-sec); }
+  .ob-prose p{ margin:12px 0 0; max-width:64ch; font-size:15.5px; line-height:1.75;
+    color:var(--dn-ink-2); text-wrap:pretty; }
+
+  .ob-figs{ margin:18px 0 0; display:grid; gap:1px; background:var(--dn-line);
+    grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); border:1px solid var(--dn-line);
+    border-radius:var(--dn-r); overflow:hidden; }
+  .ob-fig{ background:var(--dn-card); padding:18px 16px; }
+  .ob-fig__n{ font-family:var(--ag-font-display,Georgia,serif); font-weight:700;
+    font-size:clamp(1.6rem,3.4vw,2.1rem); line-height:1; letter-spacing:-.02em;
+    color:var(--ob-accent); font-variant-numeric:tabular-nums; }
+  .ob-fig__l{ margin-top:7px; font-size:13px; line-height:1.45; color:var(--dn-mute); }
+
+  .ob-asks{ margin:18px 0 0; padding:0; list-style:none; display:grid; gap:1px;
+    background:var(--dn-line); border:1px solid var(--dn-line);
+    border-radius:var(--dn-r); overflow:hidden; }
+  .ob-asks li{ background:var(--dn-card); padding:14px 16px; display:flex; gap:14px;
+    align-items:baseline; flex-wrap:wrap; }
+  .ob-asks__a{ flex:0 0 auto; min-width:6.5em; font-family:var(--ag-font-mono,monospace);
+    font-weight:700; font-size:14px; letter-spacing:.02em; color:var(--ob-accent);
+    font-variant-numeric:tabular-nums; }
+  .ob-asks__b{ flex:1 1 14ch; font-size:14.5px; line-height:1.55; color:var(--dn-ink-2); }
+
+  /* ── the video facade ──────────────────────────────────────────────────────
+     16:9 held by aspect-ratio so the swap for a real iframe does not move the page
+     under a reader's thumb. A layout shift at the moment of a press is how somebody
+     ends up tapping the donate button by accident. */
+  .ob-vids{ margin:18px 0 0; display:grid; gap:16px;
+    grid-template-columns:repeat(auto-fit,minmax(280px,1fr)); }
+  .ob-vid{ margin:0; }
+  .ob-vid__play{ position:relative; display:flex; gap:13px; align-items:center;
+    width:100%; aspect-ratio:16/9; padding:16px; text-align:left; cursor:pointer;
+    border:1px solid var(--dn-line-2); border-radius:var(--dn-r);
+    background:var(--dn-cream); color:var(--dn-ink); }
+  .ob-vid__play:hover{ background:var(--ob-accent-wash); border-color:var(--ob-accent); }
+  .ob-vid__icon{ flex:0 0 auto; display:grid; place-items:center; width:52px; height:52px;
+    border-radius:999px; background:var(--ob-accent); color:#fff; }
+  .ob-vid__meta{ display:block; }
+  .ob-vid__t{ display:block; font-weight:650; font-size:15px; line-height:1.35;
+    color:var(--dn-ink); }
+  .ob-vid__p{ display:block; margin-top:5px; font-size:12.5px; line-height:1.45;
+    color:var(--dn-mute); }
+  .ob-vid iframe{ display:block; width:100%; aspect-ratio:16/9; height:auto;
+    border:0; border-radius:var(--dn-r); background:var(--dn-deep); }
+  .ob-vid__alt{ margin-top:8px; font-size:12.5px; }
+  .ob-vid__alt a{ color:var(--dn-mute); }
+
+  .ob-shots{ margin:18px 0 0; display:grid; gap:10px;
+    grid-template-columns:repeat(auto-fit,minmax(160px,1fr)); }
+  .ob-shots img{ width:100%; aspect-ratio:4/3; object-fit:cover; border-radius:var(--dn-r-sm);
+    background:var(--dn-cream); }
+
+  .ob-quotes{ margin:18px 0 0; display:grid; gap:14px;
+    grid-template-columns:repeat(auto-fit,minmax(260px,1fr)); }
+  .ob-quote{ margin:0; padding:16px 18px; background:var(--dn-card);
+    border:1px solid var(--dn-line); border-left:3px solid var(--ob-accent);
+    border-radius:var(--dn-r-sm); }
+  .ob-quote p{ margin:0; font-size:15px; line-height:1.65; color:var(--dn-ink); }
+  .ob-quote cite{ display:block; margin-top:10px; font-style:normal;
+    font-family:var(--ag-font-mono,monospace); font-size:11px; font-weight:700;
+    letter-spacing:.14em; text-transform:uppercase; color:var(--dn-mute); }
+
+  .ob-people, .ob-with{ margin:18px 0 0; padding:0; list-style:none; display:grid; gap:1px;
+    background:var(--dn-line); border:1px solid var(--dn-line);
+    border-radius:var(--dn-r); overflow:hidden; }
+  .ob-people li, .ob-with li{ background:var(--dn-card); padding:13px 16px; }
+  .ob-people__n, .ob-with__n{ display:block; font-weight:650; font-size:14.5px;
+    color:var(--dn-ink); }
+  .ob-people__r, .ob-with__d{ display:block; margin-top:3px; font-size:13px; line-height:1.5;
+    color:var(--dn-mute); }
+
+  .ob-track{ margin:18px 0 0; padding:0 0 0 18px; list-style:none;
+    border-left:1px solid var(--dn-line-2); display:grid; gap:16px; }
+  .ob-track li{ position:relative; }
+  .ob-track li::before{ content:''; position:absolute; left:-23px; top:6px; width:9px;
+    height:9px; border-radius:999px; background:var(--ob-accent);
+    box-shadow:0 0 0 3px var(--dn-paper); }
+  .ob-track__w{ display:block; font-family:var(--ag-font-mono,monospace); font-size:11px;
+    font-weight:700; letter-spacing:.16em; text-transform:uppercase;
+    color:var(--dn-gold-ink); }
+  .ob-track__d{ display:block; margin-top:4px; font-size:14.5px; line-height:1.6;
+    color:var(--dn-ink-2); }
+
+  /* `<details>` rather than a scripted accordion — see the partial. The 44px floor is on
+     the summary, which is the whole hit area. */
+  .ob-faq{ margin:18px 0 0; border:1px solid var(--dn-line); border-radius:var(--dn-r);
+    overflow:hidden; background:var(--dn-card); }
+  .ob-faq__i + .ob-faq__i{ border-top:1px solid var(--dn-line); }
+  .ob-faq summary{ padding:14px 16px; min-height:44px; display:flex; align-items:center;
+    gap:10px; cursor:pointer; font-weight:650; font-size:14.5px; color:var(--dn-ink); }
+  .ob-faq summary:hover{ background:var(--ob-accent-wash); }
+  .ob-faq__a{ padding:0 16px 15px; font-size:14.5px; line-height:1.7;
+    color:var(--dn-ink-2); max-width:66ch; }
+
+  .ob-links{ margin:18px 0 0; padding:0; list-style:none; display:grid; gap:1px;
+    background:var(--dn-line); border:1px solid var(--dn-line);
+    border-radius:var(--dn-r); overflow:hidden; }
+  .ob-links a{ display:flex; gap:12px; align-items:baseline; flex-wrap:wrap;
+    padding:14px 16px; min-height:44px; background:var(--dn-card); text-decoration:none; }
+  .ob-links a:hover{ background:var(--ob-accent-wash); }
+  .ob-links__l{ flex:1 1 12ch; font-weight:650; font-size:14.5px; color:var(--ob-accent-dark);
+    text-decoration:underline; text-underline-offset:2px; }
+  .ob-links__h{ flex:0 0 auto; font-family:var(--ag-font-mono,monospace); font-size:11.5px;
+    letter-spacing:.04em; color:var(--dn-mute); }
+  .ob-sr{ position:absolute; width:1px; height:1px; overflow:hidden; clip-path:inset(50%);
+    white-space:nowrap; }
+
+  /* ── the platform underneath ───────────────────────────────────────────────
+     Quiet on purpose. See the note in the partial: a charity's page with the platform's
+     hand out beside theirs converts worse for the charity, which is the one thing this
+     platform exists to be good at. */
+  .ob-gates{ margin-top:var(--dn-sec); padding:20px 0 0; border-top:1px solid var(--dn-line); }
+  .ob-gates__c{ margin:0; font-family:var(--ag-font-mono,monospace); font-size:10.5px;
+    font-weight:700; letter-spacing:.22em; text-transform:uppercase; color:var(--dn-mute); }
+  .ob-gates__b{ margin:9px 0 0; max-width:62ch; font-size:13px; line-height:1.65;
+    color:var(--dn-mute); }
+  .ob-gates__l{ margin:11px 0 0; display:flex; gap:10px; align-items:center;
+    flex-wrap:wrap; font-size:13px; }
+  .ob-gates__l a{ display:inline-flex; align-items:center; min-height:44px;
+    color:var(--dn-green-dark); }
+
   /* ══ THE SHELL ════════════════════════════════════════════════════════════
      Two named areas so the DOM order can be masthead → form → case at every
      width. On a phone that puts the primary action second; on a desktop it puts
@@ -779,6 +910,19 @@
       </section>
       {% endif %}
 
+      {# ── THE ORGANISATION'S OWN PAGE ─────────────────────────────────────
+         Rendered here, above the share row and below their appeals: everything the
+         organisation wrote about themselves is the case, and the share row asks a favour
+         of somebody who has just been given a reason.
+
+         A partial rather than three hundred more lines in this file, and included `only`
+         so it cannot quietly read a variable this page happens to have in scope — which
+         is how a partial comes to work on one page and render blank on the next. #}
+      {% include 'partials/org-page.twig' with {
+        org: org, brand: brand, brand_css: brand_css,
+        story_paragraphs: story_paragraphs, gates_credit: gates_credit
+      } only %}
+
       {# ── PASSING IT ON ───────────────────────────────────────────────────
          The one thing a fundraising page cannot do for itself. Every other surface here
          that asks somebody to pass a link on renders the same partial, so the
@@ -887,5 +1031,47 @@
       onCustom(){ this.custom = String(this.custom).replace(/[^0-9]/g,''); }
     };
   }
+
+  /* ══ CLICK-TO-LOAD VIDEO ════════════════════════════════════════════════════
+     Nothing reaches YouTube or Vimeo until this runs, which is the point: an iframe
+     present in the markup sends the visitor's IP to a third party on page view, before
+     they have done anything. See the note at the top of partials/org-page.twig for why
+     that is a legal question and not a performance one.
+
+     Delegated from the document, so it costs nothing on the pages with no video and does
+     not care that the facade may be inside a partial included conditionally.
+
+     The src is read from the container rather than built here. It was assembled by
+     OrgBrand::embedUrl() from a fixed per-provider prefix and an id that had to match
+     `[A-Za-z0-9_-]{11}` or a run of digits — so it cannot carry a second URL, and this
+     function must not start composing one from anything else on the page. */
+  document.addEventListener('click', function (e) {
+    var btn = e.target.closest && e.target.closest('[data-ob-play]');
+    if (!btn) return;
+    var box = btn.closest('[data-ob-video]');
+    if (!box) return;
+
+    var src = box.getAttribute('data-ob-src') || '';
+    /* Our own origins, checked again at the point of use. Cheap, and it means a future
+       edit that lets some other value into the attribute cannot turn this into an
+       arbitrary-iframe injector. */
+    if (!/^https:\/\/(www\.youtube-nocookie\.com|player\.vimeo\.com)\//.test(src)) return;
+
+    var f = document.createElement('iframe');
+    /* autoplay=1 because the press WAS the gesture — without it a visitor presses play
+       and then has to press play again inside the provider's own player, which reads as
+       the first press having failed. */
+    f.src = src + (src.indexOf('?') === -1 ? '?' : '&') + 'autoplay=1&rel=0';
+    f.title = box.getAttribute('data-ob-name') || 'Video';
+    f.setAttribute('allow', 'accelerometer; autoplay; clipboard-write; encrypted-media; picture-in-picture; fullscreen');
+    f.setAttribute('referrerpolicy', 'strict-origin-when-cross-origin');
+    f.setAttribute('allowfullscreen', '');
+    f.setAttribute('loading', 'lazy');
+
+    btn.replaceWith(f);
+    /* Focus follows the swap, or a keyboard visitor who pressed Enter is left with focus
+       on an element that no longer exists and lands back at the top of the document. */
+    try { f.focus({ preventScroll: true }); } catch (_) {}
+  });
 </script>
 {% endblock %}

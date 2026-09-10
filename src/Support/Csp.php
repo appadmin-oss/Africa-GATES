@@ -150,8 +150,30 @@ final class Csp
     public const CDN_HOSTS = 'https://' . CloudinaryService::DELIVERY_HOST
         . ' https://*.' . CloudinaryService::DELIVERY_HOST;
 
+    /**
+     * ── VIMEO IS HERE FOR THE ORGANISATION BLOCKS, AND SO IS THE WARNING ────
+     *
+     * `player.vimeo.com` was added for the video block an organisation can put on their own
+     * donation page ({@see \AfricaGates\Services\OrgBrand::VIDEO_PROVIDERS}). Two things
+     * about that, because getting either wrong is silent.
+     *
+     * It must be added HERE AND IN `public/.htaccess`. On this host the static policy in
+     * that file is the one a browser actually receives — the nonce policy below has never
+     * reached one, because the host injects its own header — so an origin added only to
+     * this constant is an origin that works in no browser anywhere while looking correct in
+     * the source. `CspStaticFallbackTest` fails if the two sides diverge, and that test is
+     * the only reason this pair stays honest.
+     *
+     * And an origin in `frame-src` is permission, not a decision to load anything. The
+     * organisation blocks are CLICK-TO-LOAD: no request reaches either provider until a
+     * visitor presses play, because an iframe that loads on page view sends that visitor's
+     * IP address to a third party before they have done anything, which is what the NDPA
+     * and the GDPR joint-controller line are about. Widening this list does not widen what
+     * the page fetches unasked.
+     */
     public const FRAME_HOSTS = 'https://challenges.cloudflare.com '
         . 'https://www.youtube.com https://www.youtube-nocookie.com '
+        . 'https://player.vimeo.com '
         . 'https://my.spline.design https://prod.spline.design '
         . 'https://googleads.g.doubleclick.net https://tpc.googlesyndication.com '
         . 'https://www.google.com ' . self::PAY_HOSTS . ' ' . self::CDN_HOSTS;

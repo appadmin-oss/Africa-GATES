@@ -183,6 +183,23 @@ final class OrgDashboardController
             'lead_cat'    => \AfricaGates\Services\VendorCatalogue::leadingCategory($orgId),
             'brand'       => \AfricaGates\Services\OrgBrand::of($org),
             'brand_sections' => \AfricaGates\Services\OrgBrand::SECTIONS,
+            // ── THE EDITOR IS DRIVEN BY THE SAME TABLE THE SERVICE READS ────
+            //
+            // The form's field names are DERIVED from this spec, exactly as
+            // `OrgBrand::blockFrom()` derives the names it reads. Typing them into the
+            // template instead would be two lists claiming the same thing in the same
+            // words — the shape this codebase has already paid for twice — and the
+            // failure would be silent: a field named `impact_figures` posts happily and
+            // is simply never read, so the organisation saves, sees no error, and finds
+            // the block empty.
+            'brand_blocks'   => \AfricaGates\Services\OrgBrand::BLOCKS,
+            'brand_max_links'  => \AfricaGates\Services\OrgBrand::MAX_LINKS,
+            'brand_max_videos' => \AfricaGates\Services\OrgBrand::MAX_VIDEOS,
+            'brand_max_story'  => \AfricaGates\Services\OrgBrand::MAX_STORY,
+            'brand_max_tagline'=> \AfricaGates\Services\OrgBrand::MAX_TAGLINE,
+            'brand_video_names'=> array_map(
+                static fn (array $p): string => $p['label'],
+                \AfricaGates\Services\OrgBrand::VIDEO_PROVIDERS),
             'uploads_on'  => $this->uploads !== null,
             'decisions'   => StandApplication::DECISIONS,
             // `flash_ok`/`flash_error` are NOT passed here any more, and removing them

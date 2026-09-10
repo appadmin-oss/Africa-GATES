@@ -216,6 +216,63 @@
   .pd-sec__h{ grid-column:1 / -1; display:grid; grid-template-columns:subgrid;
     align-items:baseline; padding-bottom:14px; border-bottom:1px solid var(--pd-line-2); }
   .pd-sec__b{ grid-column:2; }
+
+  /* ══ THE PAGE EDITOR ══════════════════════════════════════════════════════
+     Every value resolves to a --pd-* token. Two rules here are requirements rather
+     than taste:
+
+     · a control is at least 44px in its smallest dimension, on a form whose whole
+       audience is somebody filling this in on a phone;
+     · `fieldset[disabled]` is the read-only state for a member who is not an account
+       owner. Disabling the fieldset rather than hiding the form is deliberate — a
+       non-owner can SEE what their organisation has published and ask for a change,
+       where a hidden form teaches them the feature does not exist. */
+  .pd-brand{ margin:16px 0 0; }
+  .pd-brand fieldset{ margin:0; padding:0; border:0; min-width:0; }
+  .pd-brand fieldset[disabled]{ opacity:.62; }
+  .pd-brand__lg{ display:block; width:100%; margin:22px 0 0; padding:0 0 7px;
+    border-bottom:1px solid var(--pd-line);
+    font:700 10.5px/1.3 var(--ag-font-mono,monospace); letter-spacing:.2em;
+    text-transform:uppercase; color:var(--pd-mute); }
+  .pd-brand__lg:first-of-type{ margin-top:0; }
+  .pd-brand__hint{ margin:8px 0 0; max-width:66ch; font-size:12.5px; line-height:1.6;
+    color:var(--pd-mute); }
+  .pd-brand label{ display:block; margin:12px 0 0; }
+  .pd-brand label > span{ display:block; margin-bottom:5px; font-size:12.5px;
+    font-weight:600; color:var(--pd-ink,#10292C); }
+  .pd-brand input[type=text], .pd-brand input[type=url], .pd-brand textarea{
+    width:100%; min-height:44px; padding:10px 12px; font-size:15px; line-height:1.5;
+    color:var(--pd-ink,#10292C); background:#fff; border:1px solid var(--pd-line-2);
+    border-radius:8px; }
+  .pd-brand textarea{ min-height:150px; resize:vertical; }
+  .pd-brand input[type=file]{ width:100%; min-height:44px; font-size:13px; }
+  .pd-brand input[type=color]{ width:100%; min-height:44px; padding:3px;
+    border:1px solid var(--pd-line-2); border-radius:8px; background:#fff; }
+  .pd-brand input:focus-visible, .pd-brand textarea:focus-visible{
+    outline:3px solid var(--pd-green); outline-offset:1px; }
+  .pd-brand__grid{ display:grid; gap:12px; grid-template-columns:repeat(auto-fit,minmax(200px,1fr)); }
+  .pd-brand__grid label{ margin:0; }
+
+  /* Two fields per row on anything wide enough, stacked on a phone. The pair is one
+     record, so they stay adjacent in the tab order at every width. */
+  .pd-brand__row{ display:grid; gap:8px; margin:8px 0 0;
+    grid-template-columns:repeat(auto-fit,minmax(210px,1fr)); }
+
+  .pd-brand__checks{ margin:10px 0 0; display:grid; gap:2px;
+    grid-template-columns:repeat(auto-fit,minmax(260px,1fr)); }
+  .pd-brand__chk{ display:flex !important; gap:10px; align-items:flex-start;
+    margin:0 !important; padding:9px 10px; min-height:44px; border-radius:8px;
+    font-size:13.5px; line-height:1.45; cursor:pointer; }
+  .pd-brand__chk:hover{ background:var(--pd-cream); }
+  .pd-brand__chk input{ flex:none; width:18px; height:18px; margin-top:2px;
+    accent-color:var(--pd-green); }
+  .pd-brand__chk span{ margin:0 !important; font-weight:400 !important; }
+
+  .pd-brand button[type=submit]{ margin:20px 0 0; min-height:48px; padding:0 22px;
+    font-size:15px; font-weight:650; color:#fff; background:var(--pd-green);
+    border:0; border-radius:10px; cursor:pointer; }
+  .pd-brand button[type=submit]:hover{ background:var(--pd-green-dark); }
+
   @media (max-width:700px){
     .pd-sec{ grid-template-columns:minmax(0,1fr); }
     .pd-sec__h{ grid-template-columns:minmax(0,1fr); }
@@ -415,6 +472,7 @@
        'todo':(counts.offers > 0),                                                             'on':(applications or is_vendor)},
       {'id':'appeals',      'label':'Appeals',      'ico':'heart',   'n':(counts.appeals ?: null),   'on':show_money},
       {'id':'donations',    'label':'Donations',    'ico':'money',   'n':(counts.donations ?: null), 'on':show_money},
+      {'id':'page',         'label':'Your page',    'ico':'spark',   'n':null,                       'on':show_money},
       {'id':'payouts',      'label':'Getting paid', 'ico':'points',  'n':null,                       'on':show_money},
       {'id':'fees',         'label':'Stand fees',   'ico':'ticket',  'n':null,                       'on':(not show_money)}
     ] %}
@@ -921,9 +979,168 @@
      In settlement mode this platform is not holding the money and must not imply it is:
      donations split at the gateway into the organisation's own subaccount and Paystack
      settles them to the organisation's own bank. The request is a request. #}
-  <section class="pd-sec" id="payouts">
+  {# ══ YOUR PAGE ═══════════════════════════════════════════════════════════
+     THE FORM THAT DID NOT EXIST. `OrgBrand` had a validated writer, a route at
+     POST /org/brand, an uploader and an accent checked for contrast against white — and
+     this template, which was handed `brand` and `brand_sections`, contained the word
+     "brand" zero times. So `saveBrand()` redirected to `#brand`, an anchor on no page,
+     and nothing could reach the form because there was none. The renderer in
+     partials/org-page.twig is the other half; neither is worth anything alone.
+
+     Works with NO JavaScript, which is why the repeating rows are plain parallel arrays
+     with three blanks on the end rather than an "add another" button. An organisation on
+     a cheap Android in a place with bad signal is exactly who this screen is for, and a
+     row that only appears after a script has run is a row they never get. Save, and
+     three more blanks appear.
+
+     Every field name is DERIVED from `brand_blocks` — the same table
+     `OrgBrand::blockFrom()` reads — so a mistyped name is impossible rather than merely
+     unlikely. #}
+  <section class="pd-sec" id="page">
     <header class="pd-sec__h">
       <span class="pd-sec__n" aria-hidden="true">{{ (applications or is_vendor) ? '05' : '04' }}</span>
+      <div>
+        <h2>Your page</h2>
+      </div>
+    </header>
+    <div class="pd-sec__b">
+      <p>Supporters who follow your link land on a page in your name. We provide the
+        checkout, the settlement into your own account, the receipt and the refund path —
+        <strong>what the page says is yours</strong>. Nothing here changes the amount field,
+        the fee disclosure or the line naming who receives the money.</p>
+      <p><a href="/gift/{{ org.slug }}" target="_blank" rel="noopener">See your page as a
+        donor sees it ↗</a></p>
+
+      {% if not can_payout %}
+        <p class="pd__note">Only an account owner can change your page. You can see
+          everything here, but the form is read-only for you.</p>
+      {% endif %}
+
+      <form class="pd-brand" method="post" action="/org/brand" enctype="multipart/form-data">
+        <input type="hidden" name="_token" value="{{ csrf_token }}">
+        <fieldset {{ can_payout ? '' : 'disabled' }}>
+          <legend class="pd-brand__lg">How it looks</legend>
+
+          <div class="pd-brand__grid">
+            <label for="obAccent">
+              <span>Your accent colour</span>
+              {# `type=color` gives a native picker where there is one and degrades to a
+                 text field elsewhere; the service accepts either, and refuses a colour
+                 that cannot be read on white with the ratio in the message. #}
+              <input id="obAccent" name="accent" type="color"
+                     value="{{ brand.accent }}">
+            </label>
+            <label for="obLogo">
+              <span>Your logo {% if brand.logo %}(one is set){% endif %}</span>
+              <input id="obLogo" name="logo" type="file" accept="image/png,image/jpeg,image/webp">
+            </label>
+          </div>
+
+          <label for="obTagline">
+            <span>One line about you (up to {{ brand_max_tagline }} characters)</span>
+            <input id="obTagline" name="tagline" type="text" maxlength="{{ brand_max_tagline }}"
+                   value="{{ brand.tagline }}" placeholder="Books in every classroom">
+          </label>
+
+          <label for="obStory">
+            <span>Your story (up to {{ brand_max_story }} characters — leave a blank line
+              between paragraphs)</span>
+            <textarea id="obStory" name="story" rows="8"
+                      maxlength="{{ brand_max_story }}">{{ brand.story }}</textarea>
+          </label>
+
+          <label for="obWebsite">
+            <span>Your website</span>
+            <input id="obWebsite" name="website" type="url" inputmode="url"
+                   value="{{ brand.website }}" placeholder="https://">
+          </label>
+
+          <legend class="pd-brand__lg">Which blocks appear</legend>
+          <p class="pd-brand__hint">A block shows only when it is ticked <em>and</em> has
+            something in it, so ticking one before you have written anything cannot leave a
+            bare heading on your live page.</p>
+          <div class="pd-brand__checks">
+            {% for key, label in brand_sections %}
+              <label class="pd-brand__chk">
+                <input type="checkbox" name="section_{{ key }}" value="1"
+                       {{ brand.sections[key] ? 'checked' : '' }}>
+                <span>{{ label }}</span>
+              </label>
+            {% endfor %}
+          </div>
+
+          {# ── LINKS ─────────────────────────────────────────────────────────#}
+          <legend class="pd-brand__lg">Links out (up to {{ brand_max_links }})</legend>
+          <p class="pd-brand__hint">Your annual report, your press coverage, your socials.
+            Each needs a full https:// address and a few words saying what it is — a donor
+            will not press a bare web address.</p>
+          {% set lrows = brand.links %}
+          {% for i in 0..(lrows|length + 2) %}
+            {% set r = i < lrows|length ? lrows[i] : null %}
+            <div class="pd-brand__row">
+              <input name="link_label[]" type="text" maxlength="90"
+                     aria-label="Link {{ i + 1 }} — what it is"
+                     placeholder="What it is" value="{{ r ? r.label : '' }}">
+              <input name="link_url[]" type="url" inputmode="url"
+                     aria-label="Link {{ i + 1 }} — address"
+                     placeholder="https://" value="{{ r ? r.url : '' }}">
+            </div>
+          {% endfor %}
+
+          {# ── VIDEO ─────────────────────────────────────────────────────────#}
+          <legend class="pd-brand__lg">Video (up to {{ brand_max_videos }})</legend>
+          <p class="pd-brand__hint">Paste the address from
+            {{ brand_video_names|join(' or ') }} — those are the two we can show. We keep
+            only the video's id and build the player ourselves, so nothing on your donation
+            page runs anybody else's code. Your video loads only when a visitor presses
+            play, which also means we do not send their details to
+            {{ brand_video_names|first }} before they ask us to.</p>
+          {% set vrows = brand.videos %}
+          {% for i in 0..(vrows|length + 2) %}
+            {% set r = i < vrows|length ? vrows[i] : null %}
+            <div class="pd-brand__row">
+              <input name="video_title[]" type="text" maxlength="90"
+                     aria-label="Video {{ i + 1 }} — title"
+                     placeholder="What it shows" value="{{ r ? r.title : '' }}">
+              <input name="video_url[]" type="text" inputmode="url"
+                     aria-label="Video {{ i + 1 }} — address"
+                     placeholder="https://www.youtube.com/watch?v=…"
+                     value="{{ r ? r.watch : '' }}">
+            </div>
+          {% endfor %}
+
+          {# ── EVERY TWO-FIELD BLOCK, FROM THE SPEC ──────────────────────────
+             One loop for all seven. Adding a block to `OrgBrand::BLOCKS` puts its fields
+             on this screen with no edit here, which is the whole reason the spec is a
+             table rather than seven functions. #}
+          {% for name, spec in brand_blocks %}
+            {% set rows = brand.blocks[name] %}
+            <legend class="pd-brand__lg">{{ brand_sections[name] }} (up to {{ spec.max }})</legend>
+            {% for i in 0..(rows|length + 2) %}
+              {% set r = i < rows|length ? rows[i] : null %}
+              <div class="pd-brand__row">
+                <input name="{{ name }}_{{ spec.a }}[]" type="text" maxlength="{{ spec.a_max }}"
+                       aria-label="{{ brand_sections[name] }} {{ i + 1 }} — {{ spec.a_label }}"
+                       placeholder="{{ spec.a_hint }}" value="{{ r ? r[spec.a] : '' }}">
+                <input name="{{ name }}_{{ spec.b }}[]" type="text" maxlength="{{ spec.b_max }}"
+                       aria-label="{{ brand_sections[name] }} {{ i + 1 }} — {{ spec.b_label }}"
+                       placeholder="{{ spec.b_hint }}" value="{{ r ? r[spec.b] : '' }}">
+              </div>
+            {% endfor %}
+          {% endfor %}
+
+          <button type="submit">Save your page</button>
+          <p class="pd-brand__hint">Nothing is saved unless every link and video address
+            reads correctly — if one does not, we tell you which and leave the rest of what
+            you typed alone.</p>
+        </fieldset>
+      </form>
+    </div>
+  </section>
+
+  <section class="pd-sec" id="payouts">
+    <header class="pd-sec__h">
+      <span class="pd-sec__n" aria-hidden="true">{{ (applications or is_vendor) ? '06' : '05' }}</span>
       <div>
         <h2>Getting paid</h2>
       </div>
