@@ -364,9 +364,10 @@ final class MergeService
         $hasId = self::hasCol($table, 'id');
         try {
             $q = DB::table($table)->where($col, $from);
-            if ($scope) {
-                is_array($scope[1]) ? $q->whereIn($scope[0], $scope[1]) : $q->where($scope[0], $scope[1]);
-            }
+            // The list branch used to live here alone. Every merge query narrows through
+            // one clause now: the other three sites kept a bare `where()`, which binds an
+            // array as a scalar and silently matches only its first element.
+            MergeJournal::applyScope($q, $scope);
 
             if ($hasId) {
                 foreach ($q->pluck('id') as $pk) {
@@ -390,12 +391,12 @@ final class MergeService
         foreach ($otherKeyCols as $c) { if (!self::hasCol($table, $c)) return; }
         try {
             $keepQ = DB::table($table)->where($col, $to);
-            if ($scope) $keepQ->where($scope[0], $scope[1]);
+            MergeJournal::applyScope($keepQ, $scope);
             $taken = [];
             foreach ($keepQ->get($otherKeyCols) as $r) { $taken[self::keyOf((array) $r, $otherKeyCols)] = true; }
 
             $fromQ = DB::table($table)->where($col, $from);
-            if ($scope) $fromQ->where($scope[0], $scope[1]);
+            MergeJournal::applyScope($fromQ, $scope);
             foreach ($fromQ->get() as $r) {                                    // full rows — we may need to snapshot
                 $row = (array) $r;
                 $k   = self::keyOf($row, $otherKeyCols);

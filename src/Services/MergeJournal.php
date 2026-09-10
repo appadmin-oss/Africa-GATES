@@ -21,11 +21,60 @@ use Illuminate\Database\Capsule\Manager as DB;
  * Each merge service owns its entity-specific bits (which tables to reassign,
  * the tombstone column, and how to rebuild denormalised counters/rollups) and
  * passes its own journal table name here. ProfileMergeService uses it directly;
- * MergeService (nominees) keeps its own equivalent for now, so this engine can
- * evolve without touching the shipped, well-tested nominee path.
+ * MergeService (nominees) still owns its own reassign/journal bodies, so this
+ * engine can evolve without rewriting the shipped, well-tested — and destructive
+ * — nominee path.
+ *
+ * ── BUT THE QUERY NARROWING IS SHARED, BECAUSE IT HAD DIVERGED ──────────────
+ * Two independent copies of "reassign and journal" is a tolerable cost while one
+ * of them is a destructive path nobody wants to rewrite. Two independent copies
+ * of a WHERE clause is not: three of the four sites bound a list scope as a
+ * scalar and matched only its first element, in silence. {@see applyScope()} is
+ * the one clause, and both services call it.
  */
 final class MergeJournal
 {
+    /**
+     * NARROW A MERGE QUERY TO ONE POLYMORPHIC SUBJECT — THE ONE PLACE THAT DOES IT.
+     *
+     * ══════════════════════════════════════════════════════════════════════════
+     * FOUR SPELLINGS OF ONE CLAUSE, AND ONE OF THEM UNDER-SELECTED IN SILENCE
+     * ══════════════════════════════════════════════════════════════════════════
+     *
+     * A scope is `[column, value]`, and the value may legitimately be a LIST: the nominee
+     * merge scopes `gates_otp_tokens` to an allowlist of purposes, because rewriting every
+     * token's `nominee_id` corrupted the merge journal itself — the record used to review
+     * and undo a merge.
+     *
+     * `MergeService::reassignPlain()` grew a `whereIn` branch for that. The other three
+     * sites — its own `reassignDedup()`, and BOTH of this class's — kept a bare
+     * `where($col, $value)`. That is not an error and it does not throw. Passed an array,
+     * Laravel's two-argument `where()` treats it as the value of an `=` comparison, PDO
+     * binds it, and the driver takes the FIRST element:
+     *
+     *     where('purpose', ['a','b'])  →  where "purpose" = ?   (bound to 'a')
+     *
+     * Verified: three rows, two of them allowlisted, and the update moves ONE. So the
+     * rows for every purpose after the first stay pointed at a nominee that no longer
+     * exists, the journal records only what moved, and `restore()` then reports a clean
+     * unmerge of a merge that was never clean. No exception anywhere.
+     *
+     * It is one call site away from being live: this class's own docblock invites the
+     * nominee path onto this engine, and that path is the one that passes a list.
+     *
+     * So the clause has one implementation, and every merge query goes through it.
+     *
+     * @param array{0:string,1:mixed}|null $scope
+     */
+    public static function applyScope(object $query, ?array $scope): void
+    {
+        if ($scope === null || $scope === []) return;
+
+        is_array($scope[1] ?? null)
+            ? $query->whereIn($scope[0], $scope[1])
+            : $query->where($scope[0], $scope[1]);
+    }
+
     /** UPDATE $col $from→$to (optionally scoped to a polymorphic [typeCol,typeVal]), journaling each moved row's id + old value. */
     public static function reassignPlain(string $logTable, string $table, string $col, int $from, int $to, string $batch, array &$log, ?array $scope = null): void
     {
@@ -33,7 +82,7 @@ final class MergeJournal
         $hasId = self::hasCol($table, 'id');
         try {
             $q = DB::table($table)->where($col, $from);
-            if ($scope) $q->where($scope[0], $scope[1]);
+            self::applyScope($q, $scope);
             if ($hasId) {
                 foreach ($q->pluck('id') as $pk) {
                     $log[] = self::entry($batch, $to, $from, 'reassign', $table, (int) $pk, $col, (string) $from);
@@ -55,12 +104,12 @@ final class MergeJournal
         foreach ($otherKeyCols as $c) { if (!self::hasCol($table, $c)) return; }
         try {
             $keepQ = DB::table($table)->where($col, $to);
-            if ($scope) $keepQ->where($scope[0], $scope[1]);
+            self::applyScope($keepQ, $scope);
             $taken = [];
             foreach ($keepQ->get($otherKeyCols) as $r) { $taken[self::keyOf((array) $r, $otherKeyCols)] = true; }
 
             $fromQ = DB::table($table)->where($col, $from);
-            if ($scope) $fromQ->where($scope[0], $scope[1]);
+            self::applyScope($fromQ, $scope);
             foreach ($fromQ->get() as $r) {
                 $row = (array) $r;
                 $k   = self::keyOf($row, $otherKeyCols);
