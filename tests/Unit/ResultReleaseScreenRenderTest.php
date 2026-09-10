@@ -140,6 +140,13 @@ final class ResultReleaseScreenRenderTest extends TestCase
             new FilesystemLoader(dirname(__DIR__, 2) . '/templates'),
         ]), ['strict_variables' => true]);
         $twig->addGlobal('csp_nonce', 'test-nonce');
+        // `csrf_token` is a Twig GLOBAL in the running app (config/container.php), not
+        // something a controller passes. Mirrored here rather than added to a render
+        // context: under `strict_variables` the first form on this screen would otherwise
+        // fail for a reason unrelated to the screen, and the next person would "fix" it by
+        // defaulting the token in the template — which posts an empty one and has the
+        // write rejected in production.
+        $twig->addGlobal('csrf_token', 'test-csrf');
 
         return $twig->render('admin/result-release.twig', [
             'page_title' => 'Result release',
@@ -359,6 +366,13 @@ final class ResultReleaseScreenRenderTest extends TestCase
             new FilesystemLoader(dirname(__DIR__, 2) . '/templates'),
         ]), ['strict_variables' => true]);
         $twig->addGlobal('csp_nonce', 'test-nonce');
+        // `csrf_token` is a Twig GLOBAL in the running app (config/container.php), not
+        // something a controller passes. Mirrored here rather than added to a render
+        // context: under `strict_variables` the first form on this screen would otherwise
+        // fail for a reason unrelated to the screen, and the next person would "fix" it by
+        // defaulting the token in the template — which posts an empty one and has the
+        // write rejected in production.
+        $twig->addGlobal('csrf_token', 'test-csrf');
 
         $base = [
             'page_title' => 'Result release', 'admin_page' => 'result-release',

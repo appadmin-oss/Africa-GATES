@@ -326,6 +326,50 @@
           it is for.</span></p>
       {% endif %}
     </div>
+  {% elseif cycle %}
+    {#
+      ── NOT SEALED, WHICH IS TWO DIFFERENT SITUATIONS ──────────────────────────
+
+      `sealed` is null both for an edition nobody has released and for one that reached
+      `results` with its announcements suppressed — a boundary crossed more than
+      ANNOUNCE_GRACE_DAYS late, where withholding the seal was correct because nothing was
+      announced. The second is the expensive one: the public page publishes live figures
+      labelled as recomputed, every figure moves whenever the panel or the rules do, and
+      the date-driven sweep will never revisit the cycle because the transitions ledger's
+      unique key is already claimed.
+
+      So the copy has to distinguish them, and the action is the same either way: one
+      audited release that promotes through the quorum-checked path and seals what it
+      crowned. `CycleService::manualTransitionError()` still refuses a hand-set status —
+      nobody writes `results` here, they ask for a release.
+    #}
+    <div class="ja-fact">
+      {% if cycle.status == 'results' or cycle.status == 'archived' %}
+        <b>This edition is published, and its standing is NOT sealed.</b>
+        <p>The public pages are recomputing every figure on every view, so a nominee&rsquo;s
+          score moves whenever the panel finishes a card or the scoring settings change —
+          and the page says so, which is honest and is not a result anybody can be held to.
+          Sealing it publishes today&rsquo;s standing as the announced one and freezes it
+          there. Do this once you are satisfied the figures below are the ones you mean to
+          stand behind.</p>
+      {% else %}
+        <b>This edition has not been released.</b>
+        <p>Releasing it promotes the winners through the same quorum-checked path the
+          scheduled run uses, seals the standing below as the announced one, and starts
+          publishing it. The seal is what stops a later rules change moving a published
+          score &mdash; one real released nominee went from 693 to 885 across a week of
+          scoring changes before sealing existed.</p>
+      {% endif %}
+      <form method="post" action="/admin/result-release/release"
+            data-confirm="Release this edition? Winners are promoted and the standing below is sealed as the announcement. This is what tells a nominee they won.">
+        <input type="hidden" name="_token" value="{{ csrf_token }}">
+        <input type="hidden" name="cycle" value="{{ cycle.id }}">
+        <button type="submit" class="ad-btn ad-btn--primary">
+          {{ (cycle.status == 'results' or cycle.status == 'archived')
+             ? 'Seal this standing as announced' : 'Release this edition' }}
+        </button>
+      </form>
+    </div>
   {% endif %}
 
   <div class="ja-stats">

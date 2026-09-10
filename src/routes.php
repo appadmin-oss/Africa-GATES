@@ -3187,6 +3187,21 @@ return function(App $app) {
         // because as a link it could be fired by a prefetch or a reload, on the numbers an
         // award is decided by. See the method's own note.
         $a->post('/result-release/recount', \AfricaGates\Admin\Controllers\ResultReleaseController::class.':recount');
+        // ── AND THE ONE THAT PUBLISHES AN EDITION ───────────────────────────
+        //
+        // Until this existed, the only route into `results` was the date-driven sweep, and
+        // the sweep never revisits a cycle — the transitions ledger's unique key is its
+        // claim. So an edition that crossed its boundary late reached `results` with its
+        // announcements suppressed and its standing unsealed, correctly, and then had no
+        // route to ever be sealed: the public page published live figures labelled as
+        // recomputed for ever.
+        //
+        // A POST, and superadmin only, because it crowns people. It does NOT relax
+        // `CycleService::manualTransitionError()`, which still refuses a hand-set status —
+        // the operator asks for a release and the same quorum-checked promotion and seal
+        // run as on the scheduled path.
+        $a->post('/result-release/release', \AfricaGates\Admin\Controllers\ResultReleaseController::class.':release')
+          ->add(new RoleMiddleware('superadmin'));
 
         // ── AND THE MARKS UNDER IT ──────────────────────────────────────────
         //

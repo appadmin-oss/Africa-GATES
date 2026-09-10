@@ -353,6 +353,157 @@ final class CycleMaterialiser
     // with it: "does not shortlist" and "shortlisted nobody" are different states, and
     // collapsing them stops a non-shortlisting programme crowning anybody.
 
+    /**
+     * RELEASE AN EDITION, DELIBERATELY, AS AN ACT RATHER THAN A DATE.
+     *
+     * ══════════════════════════════════════════════════════════════════════════
+     * THE GAP THIS CLOSES
+     * ══════════════════════════════════════════════════════════════════════════
+     *
+     * Every route into `results` used to be this class's own date sweep, and that left two
+     * holes with nothing between them.
+     *
+     * `CycleService::manualTransitionError()` refuses a hand-set `results` on purpose —
+     * "winners promote through the date-driven path, so the standings stay tamper-evident"
+     * — which is the right instinct and the reason this method exists instead of relaxing
+     * it. An operator does not get to WRITE the status here either; they ask for a
+     * release, and the same quorum-checked promotion and the same seal run as on the
+     * scheduled path.
+     *
+     * And the sweep will not revisit a cycle: the transitions ledger's
+     * UNIQUE (cycle_id, to_status) is the claim, so once `results` is claimed the side
+     * effects never fire again. Combined with the staleness rule — which correctly
+     * withholds the seal when a boundary passed more than ANNOUNCE_GRACE_DAYS ago,
+     * because nothing was announced — a programme whose results ran late reached
+     * `results`, published live figures labelled as recomputed, and had NO route to ever
+     * be sealed. That is the state this repairs, and it is why the method accepts a cycle
+     * that is already in `results`.
+     *
+     * ══════════════════════════════════════════════════════════════════════════
+     * WHAT IT REFUSES
+     * ══════════════════════════════════════════════════════════════════════════
+     *
+     * A cycle earlier than judging. Releasing out of `voting` would crown a field the
+     * panel has not finished marking, and the promotion would then quietly decide the
+     * award on whoever happened to be judged. The phase is COMPUTED
+     * ({@see CyclePolicy::phaseFor()}) rather than read off the status column, because
+     * that column is a materialised cache and this is an authorisation question.
+     *
+     * It does NOT refuse a release before the promised date. An operator whose panel
+     * finished early is entitled to publish early, and a platform that made them wait for
+     * a date they set themselves would be enforcing a promise nobody made to anybody.
+     *
+     * Idempotent. Called twice — a double press, a retried request — the second call
+     * seals nothing new ({@see SnapshotService::captureRelease()} refuses a second seal
+     * per cycle) and promotes the same winners to the same statuses.
+     *
+     * @param  int  $cycleId
+     * @param  ?int $adminId  who asked, for the ledger and the audit trail
+     * @return array{ok:bool, message:string, promoted:int, sealed:int}
+     */
+    public function release(int $cycleId, ?int $adminId = null): array
+    {
+        $fail = static fn (string $m): array
+            => ['ok' => false, 'message' => $m, 'promoted' => 0, 'sealed' => 0];
+
+        if ($cycleId < 1) return $fail('That edition does not exist.');
+
+        try {
+            $cycle = DB::table('gates_award_cycles')->where('id', $cycleId)->first();
+        } catch (\Throwable $e) {
+            return $fail('The edition could not be read just now.');
+        }
+        if (!$cycle) return $fail('That edition does not exist.');
+
+        $stored = CyclePhase::fromStored($cycle->status ?? null);
+        if ($stored === CyclePhase::Archived) {
+            return $fail('That edition is archived. Its result was published when it closed.');
+        }
+
+        // The COMPUTED phase, not the stored one — see the note above.
+        $phase = CyclePolicy::phaseFor($cycle, Carbon::now());
+        if ($stored->ordinal() < CyclePhase::Judging->ordinal()
+            && $phase->ordinal() < CyclePhase::Judging->ordinal()) {
+            return $fail('This edition has not reached judging yet. Releasing now would crown a '
+                       . 'field the panel has not marked.');
+        }
+
+        // ── THE CLAIM, ON THE SAME LEDGER THE SWEEP USES ─────────────────────
+        //
+        // Written only when `results` has not already been claimed, so releasing a cycle
+        // the sweep already advanced (the stale case this exists to repair) does not fail
+        // on the unique key — and two operators pressing at once still produce one row.
+        // `notify = 1`: a person deliberately releasing IS the announcement, which is
+        // exactly the distinction the staleness rule could not make on its own.
+        $already = false;
+        try {
+            $already = DB::table('gates_cycle_transitions')
+                ->where('cycle_id', $cycleId)->where('to_status', 'results')->exists();
+        } catch (\Throwable) { /* no ledger on this deployment; carry on and seal */ }
+
+        if (!$already) {
+            try {
+                DB::table('gates_cycle_transitions')->insert([
+                    'cycle_id'    => $cycleId,
+                    'from_status' => $stored->value,
+                    'to_status'   => CyclePhase::Results->value,
+                    'reason'      => 'manual: released by an administrator',
+                    'actor'       => 'admin:' . (int) $adminId,
+                    'boundary_at' => $cycle->results_date ?? null,
+                    'observed_at' => Carbon::now()->toDateTimeString(),
+                    'notify'      => 1,
+                    'created_at'  => Carbon::now()->toDateTimeString(),
+                ]);
+            } catch (\Throwable) {
+                // A concurrent release won the key. Theirs did the work; ours must not
+                // report a failure for a release that happened.
+                $already = true;
+            }
+        }
+
+        if ($stored !== CyclePhase::Results) {
+            try {
+                DB::table('gates_award_cycles')->where('id', $cycleId)
+                    ->update(['status' => CyclePhase::Results->storedValue()]);
+            } catch (\Throwable $e) {
+                return $fail('The edition could not be moved to results: ' . $e->getMessage());
+            }
+
+            WebhookService::dispatch('cycle.status_changed', [
+                'cycle_id'     => $cycleId,
+                'programme_id' => (int) ($cycle->programme_id ?? 0),
+                'year'         => (int) ($cycle->year ?? 0),
+                'from'         => $stored->value,
+                'to'           => CyclePhase::Results->value,
+            ]);
+        }
+
+        // Always replayed, exactly as on the scheduled path: the promotion is durable
+        // derived data and re-running it is how a cycle that half-promoted is repaired.
+        $promoted = $this->promoteWinners($cycleId, true);
+
+        // AFTER the promotion, so the sealed standing is the one that crowned the winner
+        // rather than the one just before it. A seal is evidence about a result and never
+        // a precondition for having one, so a failure here is logged and not fatal.
+        $sealed = 0;
+        try {
+            $sealed = (new SnapshotService())->captureRelease($cycleId);
+        } catch (\Throwable $e) {
+            $this->log('    ! could not seal the standing: ' . $e->getMessage());
+        }
+
+        $this->bustAwardViews();
+
+        return [
+            'ok' => true, 'promoted' => $promoted, 'sealed' => $sealed,
+            'message' => $sealed > 0
+                ? sprintf('Released. %d winner%s promoted and the standing is sealed as '
+                        . 'announced (%d rows).', $promoted, $promoted === 1 ? '' : 's', $sealed)
+                : sprintf('Released. %d winner%s promoted. The standing was already sealed, so '
+                        . 'the published figures are unchanged.', $promoted, $promoted === 1 ? '' : 's'),
+        ];
+    }
+
     private function promoteWinners(int $cycleId, bool $announce = true): int
     {
         $scoring  = new NomineeScoringService();

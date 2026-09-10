@@ -28,10 +28,14 @@ use Slim\Views\Twig;
  *
  * ── IT DECIDES NOTHING ───────────────────────────────────────────────────────
  *
- * No promotion, no demotion, no announcement, no writes. A screen that could crown
- * somebody by being looked at is not an audit of a release, and the promotion has to stay
- * where the phase engine can keep it idempotent. What it shows is what the promotion will
- * do, because it asks the promotion's own comparator rather than a copy of it.
+ * READ-ONLY TO LOOK AT. A screen that could crown somebody by being looked at is not an
+ * audit of a release, so `index()` writes nothing and what it shows is what the promotion
+ * will do — it asks the promotion's own comparator rather than a copy of it.
+ *
+ * Two POSTs, and both are deliberate exceptions rather than drift: {@see recount()}
+ * rebuilds a category's counters from the ballots, and {@see release()} publishes an
+ * edition. Neither can be reached by a GET, because as links they could be fired by a
+ * prefetch or a reload on the numbers an award is decided by.
  */
 final class ResultReleaseController
 {
@@ -202,6 +206,56 @@ final class ResultReleaseController
             (new \AfricaGates\Admin\Services\AuditService())->record(
                 (int) ($_SESSION['admin_id'] ?? 0), 'results.recount', 'category', $catId,
                 ['checked' => $r['checked'], 'changed' => $r['changed']]);
+        } catch (\Throwable) {}
+
+        return $res->withHeader('Location', $back)->withStatus(302);
+    }
+
+    /**
+     * PUBLISH AN EDITION, AS AN ACT.
+     *
+     * ── WHY THIS BUTTON HAS TO EXIST ────────────────────────────────────────
+     *
+     * Nothing could release a cycle except the date-driven sweep, and the sweep will not
+     * revisit one: the transitions ledger's UNIQUE (cycle_id, to_status) is its claim, so
+     * once `results` is claimed the side effects never fire again. A programme whose
+     * results ran late therefore reached `results` with its announcements deliberately
+     * suppressed and its standing deliberately unsealed — the honest state, since nothing
+     * had been announced — and there was then no way for anybody to seal it. The public
+     * page went on publishing live figures labelled as recomputed, for ever.
+     *
+     * `CycleService::manualTransitionError()` still refuses a hand-set `results`, and this
+     * does not relax it. An operator does not write the status: they ask
+     * {@see \AfricaGates\Services\CycleMaterialiser::release()} for a release, and the
+     * same quorum-checked promotion and the same seal run as on the scheduled path. That
+     * is what keeps the standing tamper-evident while making the release a decision
+     * somebody made.
+     *
+     * Confirmed in the browser through `data-confirm`, because it is the one action here
+     * that tells a nominee they won.
+     */
+    public function release(Request $req, Response $res): Response
+    {
+        $b     = (array) $req->getParsedBody();
+        $cycle = (int) ($b['cycle'] ?? 0);
+        $back  = '/admin/result-release' . ($cycle > 0 ? '?cycle=' . $cycle : '');
+        $admin = (int) ($_SESSION['admin_id'] ?? 0);
+
+        if ($cycle < 1) {
+            $_SESSION['flash_error'] = 'No edition was named, so nothing was released.';
+            return $res->withHeader('Location', $back)->withStatus(302);
+        }
+
+        $r = (new \AfricaGates\Services\CycleMaterialiser())->release($cycle, $admin);
+        $_SESSION[$r['ok'] ? 'flash_ok' : 'flash_error'] = (string) $r['message'];
+
+        // Recorded whatever the outcome. A refused release is the more interesting row:
+        // it is somebody trying to publish an edition the platform would not stand behind.
+        try {
+            (new \AfricaGates\Admin\Services\AuditService())->record(
+                $admin, 'results.release', 'cycle', $cycle,
+                ['ok' => $r['ok'], 'promoted' => $r['promoted'], 'sealed' => $r['sealed'],
+                 'message' => $r['message']]);
         } catch (\Throwable) {}
 
         return $res->withHeader('Location', $back)->withStatus(302);

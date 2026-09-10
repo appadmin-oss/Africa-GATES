@@ -397,4 +397,157 @@ class CycleMaterialiserTest extends TestCase
         $this->assertGreaterThan(0, $this->sealedRows(42),
             'and what was announced is sealed, as it always was');
     }
+
+    // ══ releasing an edition as an act, not a date ═══════════════════════════
+
+    /**
+     * AN OPERATOR CAN RELEASE, AND THAT SEALS.
+     *
+     * ══ THE GAP THIS CLOSES ═════════════════════════════════════════════════
+     *
+     * Every route into `results` was this class's date sweep, and the sweep never
+     * revisits a cycle: the ledger's UNIQUE (cycle_id, to_status) is its claim. Combined
+     * with the staleness rule — which correctly withholds the seal when nothing was
+     * announced — an edition that crossed its boundary late reached `results`, published
+     * live figures labelled as recomputed, and had NO route to ever be sealed.
+     *
+     * `CycleService::manualTransitionError()` refuses a hand-set `results` on purpose, and
+     * `release()` does not relax it: the operator asks for a release and the same
+     * quorum-checked promotion and the same seal run as on the scheduled path.
+     */
+    public function test_an_operator_can_release_an_edition_and_it_seals(): void
+    {
+        $this->seedCycle(51, 'judging', [
+            'voting_open'  => date('Y-m-d H:i:s', strtotime('-30 days')),
+            'voting_close' => date('Y-m-d H:i:s', strtotime('-2 days')),
+            'results_date' => date('Y-m-d H:i:s', strtotime('+2 days')),
+        ]);
+        $this->scorable(51);
+
+        $r = (new CycleMaterialiser())->release(51, 7);
+
+        $this->assertTrue($r['ok'], (string) $r['message']);
+        $this->assertSame('results', $this->storedStatus(51));
+        $this->assertGreaterThan(0, $this->sealedRows(51), 'the standing is sealed as announced');
+
+        // On the same ledger the sweep writes to, and marked as announced — which is the
+        // distinction the staleness rule could not make on its own.
+        $row = DB::table('gates_cycle_transitions')->where('cycle_id', 51)
+            ->where('to_status', 'results')->first();
+        $this->assertNotNull($row);
+        $this->assertSame(1, (int) $row->notify, 'a person releasing IS the announcement');
+        $this->assertStringContainsString('admin:7', (string) $row->actor,
+            'and who did it, because this is the act that crowns somebody');
+    }
+
+    /**
+     * AND IT REPAIRS THE CYCLE THE SWEEP LEFT UNSEALED.
+     *
+     * The reason `release()` accepts a cycle already in `results`. Without this the
+     * suppressed-announcement fix would be a one-way door: honest, and permanent.
+     */
+    public function test_releasing_seals_an_edition_the_sweep_left_unsealed(): void
+    {
+        // Six years overdue, so the sweep suppresses and does not seal.
+        $this->seedCycle(52, 'judging', [
+            'voting_open'  => '2020-01-01 00:00:00',
+            'voting_close' => '2020-02-01 00:00:00',
+            'results_date' => '2020-03-01 00:00:00',
+        ]);
+        $this->scorable(52);
+
+        (new CycleMaterialiser())->run();
+        $this->assertSame('results', $this->storedStatus(52), 'the sweep advanced it');
+        $this->assertSame(0, $this->sealedRows(52), 'and correctly sealed nothing');
+
+        $r = (new CycleMaterialiser())->release(52, 7);
+
+        $this->assertTrue($r['ok'], (string) $r['message']);
+        $this->assertGreaterThan(0, $this->sealedRows(52),
+            'an operator can now publish what the sweep would not claim to have announced');
+    }
+
+    /**
+     * RELEASING TWICE SEALS ONCE.
+     *
+     * A double press, a retried POST, two operators at the same moment. The second call
+     * must not write a second standing — a cycle with two seals has no announced result,
+     * it has two.
+     */
+    public function test_releasing_twice_seals_once(): void
+    {
+        $this->seedCycle(53, 'judging', [
+            'voting_open'  => date('Y-m-d H:i:s', strtotime('-30 days')),
+            'voting_close' => date('Y-m-d H:i:s', strtotime('-2 days')),
+            'results_date' => date('Y-m-d H:i:s', strtotime('-1 day')),
+        ]);
+        $this->scorable(53);
+
+        $a = (new CycleMaterialiser())->release(53, 7);
+        $rows = $this->sealedRows(53);
+        $b = (new CycleMaterialiser())->release(53, 9);
+
+        $this->assertTrue($a['ok']);
+        $this->assertTrue($b['ok'], 'the second press is not an error — the release happened');
+        $this->assertSame(0, $b['sealed'], 'but it seals nothing new');
+        $this->assertSame($rows, $this->sealedRows(53));
+        $this->assertSame(1, DB::table('gates_cycle_transitions')->where('cycle_id', 53)
+            ->where('to_status', 'results')->count(), 'and claims the phase once');
+    }
+
+    /**
+     * AND IT REFUSES AN EDITION THE PANEL HAS NOT REACHED.
+     *
+     * Releasing out of `voting` would crown a field nobody has marked, and the promotion
+     * would then decide the award on whoever happened to be judged. The phase is COMPUTED
+     * rather than read off the status column, because that column is a materialised cache
+     * and this is an authorisation question.
+     */
+    public function test_an_edition_before_judging_cannot_be_released(): void
+    {
+        $this->seedCycle(54, 'voting', [
+            'voting_open'  => date('Y-m-d H:i:s', strtotime('-1 day')),
+            'voting_close' => date('Y-m-d H:i:s', strtotime('+20 days')),
+            'results_date' => date('Y-m-d H:i:s', strtotime('+30 days')),
+        ]);
+        $this->scorable(54);
+
+        $r = (new CycleMaterialiser())->release(54, 7);
+
+        $this->assertFalse($r['ok']);
+        $this->assertStringContainsString('has not marked', (string) $r['message']);
+        $this->assertSame('voting', $this->storedStatus(54), 'and nothing moved');
+        $this->assertSame(0, $this->sealedRows(54));
+    }
+
+    /** An edition that does not exist is a refusal, not a crash. */
+    public function test_releasing_a_missing_edition_is_refused(): void
+    {
+        $r = (new CycleMaterialiser())->release(99999, 7);
+        $this->assertFalse($r['ok']);
+        $this->assertStringContainsString('does not exist', (string) $r['message']);
+    }
+
+    /**
+     * THE BUTTON EXISTS, AND IT IS THE ONLY WAY IN.
+     *
+     * `release()` with no route and no control is the shape this repo keeps paying for —
+     * `manageUrl()` built a donor's stop link that no template ever contained. The
+     * question is not "does it work?" but **who is ever handed this?**
+     */
+    public function test_the_release_screen_offers_the_action(): void
+    {
+        $tpl = (string) file_get_contents(dirname(__DIR__, 2) . '/templates/admin/result-release.twig');
+        $this->assertStringContainsString('action="/admin/result-release/release"', $tpl);
+        $this->assertStringContainsString('name="_token"', $tpl, 'the CSRF middleware reads _token');
+        $this->assertStringContainsString('data-confirm', $tpl,
+            'the admin CSP has no unsafe-inline, so confirmation goes through agConfirm');
+
+        $routes = (string) file_get_contents(dirname(__DIR__, 2) . '/src/routes.php');
+        $this->assertStringContainsString("'/result-release/release'", $routes);
+
+        $ctl = (string) file_get_contents(
+            dirname(__DIR__, 2) . '/src/Admin/Controllers/ResultReleaseController.php');
+        $this->assertStringContainsString('results.release', $ctl, 'and it is audited');
+    }
 }
