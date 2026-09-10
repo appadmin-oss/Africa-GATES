@@ -79,6 +79,8 @@ final class AdminNav
                 'items' => [
                     ['page' => 'dashboard', 'label' => 'Dashboard',    'href' => '/admin/dashboard'],
                     ['page' => 'assistant', 'label' => 'AI assistant', 'href' => '/admin/assistant'],
+                    ['page' => 'handbook',  'label' => 'Handbook',
+                     'href' => '/admin/handbook'],
                 ],
             ],
             [

@@ -3157,6 +3157,15 @@ return function(App $app) {
         // look at. The question they answer is asked at one moment — a result has been
         // challenged, or is about to be published — and at that moment four screens is the
         // same as none.
+        // ── THE HANDBOOK ────────────────────────────────────────────────────
+        //
+        // Documentation for whoever is RUNNING the award, in the console they are already
+        // signed in to. There is no SSH on production, so a Markdown file in `docs/` is a
+        // file an administrator cannot open — and `docs/` is for whoever changes the code.
+        //
+        // No gate: every role may read it, and a role that cannot reach an area still
+        // needs to know the area exists and why their rail is shorter than a colleague's.
+        $a->get('/handbook', \AfricaGates\Admin\Controllers\HandbookController::class.':index');
         $a->get('/integrity', \AfricaGates\Admin\Controllers\IntegrityController::class.':index');
         // Marking a flagged attempt as looked at. `gates_fraud_scores.reviewed` was read by
         // the summary and written by nothing, so the queue could only ever grow.
