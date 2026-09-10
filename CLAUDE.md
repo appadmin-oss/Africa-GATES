@@ -97,6 +97,17 @@ enforces:
   the offence in its purest form.
 - Anything with a `NOT NULL` column and no default will pass in a test that omits it only
   if you got lucky; check the schema, not the fixture.
+- **And one trap is the BUILDER rather than either driver, and it is silent on both.**
+  `where($col, $value)` with two arguments means `where($col, '=', $value)`, so an array
+  value is bound as a scalar and the driver reads its **first element** — no exception, no
+  warning, a query that runs and under-selects. Verified: three rows, two of them named in
+  the array, and the update touches one. It is the shape that costs most inside a
+  destructive operation: the nominee merge scopes `gates_otp_tokens` to an allowlist of
+  purposes, and three of the four reassign sites spelled the clause without a `whereIn`, so
+  rows for every purpose after the first would have stayed pointed at a merged-away nominee
+  while the journal — the record used to review and undo a merge — recorded only what
+  moved, and `restore()` then reported a clean unmerge. `MergeJournal::applyScope()` is the
+  one clause; never write a second.
 
 Both schemas live in `database/`: `admin-schema.sql` / `community-schema.sql` and their
 `sqlite-*` counterparts. **Migrations run in filename order, not date order.**
@@ -255,6 +266,40 @@ service — `AiService::boot()`, `GoogleMeetService::gasUrl()`. One resolver per
 two: `GoogleSheetsService` shares the calendar's, because two readers of one setting is how
 the halves of an integration come to disagree about whether it is configured.
 
+Fifty-two hand-rolled reads across thirty-five files is fine — that IS one static per
+service. **Two readers of one KEY is the fault, and the pair most likely to disagree is the
+one that PUBLISHES the value and the one that ACTS on it.** `review_sla_hours` had three
+readers: `config/container.php` cast it into a Twig global with no floor (printed on
+`/nominate-success` as "usually within N hours" and on `/integrity` as "Acknowledge the
+complaint within N hours"), `GuideService` cast it with no floor into the site-state block
+the assistant may quote to the public, and `Maintenance` floored it at one before deciding
+when the acknowledgement mail goes. The only reader that acted on the number was the only
+one that guarded it. **A number a screen prints as a promise needs its floor at the read,
+and the form must not offer the value that breaks the sentence** — this one was `min="0"`
+with a `max(0, …)` writer, so nought was savable and reads like switching the promise off.
+It switched nothing off; it promised two public pages' worth of instant review while the
+mailer carried on at one. `NominationFeedbackService::slaHours()` is the resolver, and it
+takes an already-loaded row so a caller holding the settings array queries nothing twice.
+`OneResolverPerSettingTest` sweeps for the shape.
+
+Two things that sweep had to learn, both of which had it lying. It must resolve a key
+reached through a class **constant**, or it goes blind exactly when a fault is fixed — the
+owner stops spelling the literal. And that constant map must be scoped **per file**: keyed
+by bare name across the tree, the last `LAST_ERROR` parsed wins and `AzureVoice` is
+reported as a second reader of ElevenLabs' key; `SETTING` does the same to `DoorVoice` and
+`DisplayTime`. Two invented findings, both plausible enough to send somebody refactoring
+correct code.
+
+**And one probe, not one per service.** "Does this database have that column?" has to be
+asked here — migrations are applied by an operator opening a URL and the admin layout
+counts unapplied steps in the dozens. The four lines that ask it existed **four** times and
+had drifted on the only thing with a cost: two memoised, `AnalyticsService` did not, and it
+asks twenty-four per dashboard render, each fetching the table's whole column listing.
+Twenty-four round trips per page, invisibly — the page draws and the figures are right.
+`Support\SchemaHas` is it; it never memoises a `false` that came from a throw, because a
+dropped connection recorded as "no such column" makes a merge skip a table, journal nothing
+for it, and report success.
+
 ## Running the tests
 
 ```bash
@@ -287,6 +332,14 @@ name while the door's scanner was dead, `scale_is_out`'s own test kept passing b
 fixture has one category. A sweep is only evidence once you have broken the code and
 watched it name the break. Do that before committing it, and say so.
 
+**A memo can only be tested by counting queries.** It has no other observable behaviour —
+same answers, fewer questions — so "it returns true" passes on the unmemoised version it
+replaced. `SchemaHasTest` counts, and so does `EditionScaleTest` for the scorer's per-cycle
+memo. Assert the first call reaches the database too, or a broken probe that answers from
+nowhere also passes. And reset the memo in `setUp()`: it is per PROCESS and the suite is
+one process, so the first test to run otherwise seeds every later one's answers and the
+counting proves nothing.
+
 **An enumeration of past failures is never a fix for the next one.** `TestCase` used to
 purge six named tables and that list only grew; a sweep for the literal figures of a
 retired worked example would fail on the paragraph legitimately documenting the retirement.
@@ -307,6 +360,25 @@ Three things that made a sweep of my own lie, all of them about reading `src/rou
   Several templates legitimately declare the same key so the rail highlights the right
   section from a sub-page — `scorecard.twig` declares `result-release`. Follow the route's
   own handler instead.
+- **And past a certain point, stop parsing and ASK SLIM.** Even with the group span
+  located, the API routes are a **closure mounted twice** (`/api/v1` and `/api`), so a
+  parser found 563 routes where the router has 755 verb-path pairs — a hundred and
+  ninety-two invisible, every versioned endpoint among them, each appearing under a bare
+  prefix where it could collide with a public page of the same name. Boot the container and
+  the route file the way `public/index.php` does and read `getRouteCollector()->getRoutes()`:
+  no prefix arithmetic, and no declaration shape it can fail to understand.
+  `RouteTableIntegrityTest` does that, and holds the two silent faults — a verb-and-pattern
+  registered twice (the second handler is dead code that reads as live, and **its middleware
+  never runs**, which is how a route is permissioned in the source and open in production)
+  and a literal registered after a placeholder that matches it (`/results/late` served by
+  `/results/{id}` answers **200 with the wrong page**, so it reads as a bug in the handler).
+- **A constrained placeholder is not `[^/]+`.** `{id:[0-9]+}` matches digits only, and
+  treating it loosely condemns `/admin/shop/codes` and nearly every admin sub-page here.
+  Honour the constraint, group it (`(?:…)`, or an alternation swallows the tail), and
+  decline an optional segment (`[/{page}]`) rather than approximate it. **And the test for
+  that optional segment must ignore brackets INSIDE a placeholder** — a plain
+  `str_contains($path, '[')` also matches the constraint, which had the sweep skipping
+  almost the whole table while reporting a clean pass.
 
 And one about the harness: **`csrf_token` is a Twig GLOBAL** (`config/container.php`), not
 something a controller passes. A render test that builds its own `Environment` under
@@ -468,6 +540,23 @@ Full account in `docs/CODEBASE-INDEX.md` §16.
   nobody is not it either (a grant is nobody, a flagged row is nobody — both are verdicts).
   The nominee is still scored strictly, the same way an unfinished panel is: understate,
   and flag it.
+  **AND THE FALLBACK ITSELF HAD NO FLAG, WHICH IS THE WRONG WAY ROUND.** Every branch on
+  every screen that explains a community half was gated on `cohort_max_unique > 0` with
+  nothing on the other side of the gate — no `{% else %}` — so in the one case that
+  *inflates* a score the release screen's denominator cell rendered EMPTY and the public
+  page's method note went on describing a seventy per cent that had not been computed. It
+  is how a nominee comes to show the full 450 beside a handful of backers with no
+  explanation available to the operator being asked about it. `reach_unmeasured` cannot
+  cover it and must not: that flag *requires* the cycle maximum above zero, because it
+  exists for the nominee who LOSES 315 while the rest of the edition has rows. **Two
+  different facts, and the one with no flag anywhere was the one that hands a nominee
+  points rather than taking them away — because nobody complains about that one.** Say it
+  once per cycle rather than per nominee (a caveat that reads as a finding about a person
+  is an accusation), and only under a basis that has a reach term: `relative` and
+  `absolute` have none, and a sentence about a seventy per cent that could not be worked
+  out would describe a rule the cycle never ran under. `TallyOnlyCommunityHalfTest` renders
+  both screens on a fixture that IS the fallback, because a source sweep passes with the
+  sentence inside a branch that never fires.
 - **The judge half is the mark, and nothing else:** `550 × avg/10`. It was
   `((avg−5)/5)^1.5` — a floor at five and an exponent — which moved the number the judge
   wrote (8.0 paid 256 of 550, not 440), paid 5.0 and 4.0 identically, and could not be
