@@ -209,7 +209,7 @@ final class OrgCampaign
                 'campaign' => $r,
                 'progress' => self::progress((int) $r->id),
                 'days_left'=> self::daysLeft($r),
-                'url'      => '/donate/' . (string) $r->org_slug . '/' . (string) $r->slug,
+                'url'      => \AfricaGates\Support\GivingUrl::org((string) $r->org_slug, (string) $r->slug),
                 'org'      => (string) $r->org_name,
             ];
         }

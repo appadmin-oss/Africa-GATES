@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 namespace Tests\Unit;
 
+use AfricaGates\Support\GivingUrl;
 use Tests\TestCase;
 use AfricaGates\Services\{OrgCampaign, PartnerOrg};
 use Illuminate\Database\Capsule\Manager as DB;
@@ -373,6 +374,7 @@ class OrgCampaignTest extends TestCase
             fn() => $this->renderDonate(['slug' => $this->orgSlug($o)]));
 
         $this->assertSame(200, $code);
-        $this->assertStringContainsString('/donate/' . $this->orgSlug($o) . '/school-roof', $html);
+        $this->assertStringContainsString(
+            GivingUrl::org($this->orgSlug($o), 'school-roof'), $html);
     }
 }

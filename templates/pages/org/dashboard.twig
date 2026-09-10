@@ -887,7 +887,7 @@
             <tr data-find="{{ c.row.title }} appeal {{ st }}">
               <td>
                 <strong>{{ c.row.title }}</strong>
-                {% if c.open %}<div class="pd__who"><a href="/donate/{{ org.slug }}/{{ c.row.slug }}">/donate/{{ org.slug }}/{{ c.row.slug }}</a></div>{% endif %}
+                {% if c.open %}<div class="pd__who"><a href="/giving/{{ org.slug }}/{{ c.row.slug }}">/giving/{{ org.slug }}/{{ c.row.slug }}</a></div>{% endif %}
                 {% if c.days is not null and c.open %}<div class="pd__who">{{ c.days }} day{{ c.days == 1 ? '' : 's' }} left</div>{% endif %}
               </td>
               <td class="pd__num">
@@ -1008,7 +1008,7 @@
         checkout, the settlement into your own account, the receipt and the refund path —
         <strong>what the page says is yours</strong>. Nothing here changes the amount field,
         the fee disclosure or the line naming who receives the money.</p>
-      <p><a href="/gift/{{ org.slug }}" target="_blank" rel="noopener">See your page as a
+      <p><a href="/giving/{{ org.slug }}" target="_blank" rel="noopener">See your page as a
         donor sees it ↗</a></p>
 
       {% if not can_payout %}

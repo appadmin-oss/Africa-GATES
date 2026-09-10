@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 namespace Tests\Unit;
 
+use AfricaGates\Support\GivingUrl;
 use AfricaGates\Services\SitemapService;
 use Illuminate\Database\Capsule\Manager as DB;
 use Tests\TestCase;
@@ -328,10 +329,10 @@ final class SeoSitemapTest extends TestCase
     {
         $paths = $this->paths('donate');
 
-        $this->assertContains('/donate', $paths);
+        $this->assertContains(GivingUrl::BASE, $paths);
         // The one page aimed at a charity searching "how do we take donations online", and
         // it was reachable only from a panel at the foot of /donate.
-        $this->assertContains('/gift/apply', $paths);
+        $this->assertContains(GivingUrl::apply(), $paths);
     }
 
     public function test_a_receivable_organisation_and_its_live_appeal_are_listed(): void
@@ -339,8 +340,8 @@ final class SeoSitemapTest extends TestCase
         $this->receivableOrg();
         $paths = $this->paths('donate');
 
-        $this->assertContains('/donate/borehole-trust', $paths);
-        $this->assertContains('/donate/borehole-trust/clean-water', $paths);
+        $this->assertContains(GivingUrl::org('borehole-trust'), $paths);
+        $this->assertContains(GivingUrl::org('borehole-trust', 'clean-water'), $paths);
     }
 
     /**
@@ -370,8 +371,8 @@ final class SeoSitemapTest extends TestCase
           ->update(['status' => \AfricaGates\Services\OrgCampaign::STATUS_CLOSED]);
 
         $paths = $this->paths('donate');
-        $this->assertContains('/donate/closed-trust', $paths, 'the organisation itself is still open');
-        $this->assertNotContains('/donate/closed-trust/clean-water', $paths,
+        $this->assertContains(GivingUrl::org('closed-trust'), $paths, 'the organisation itself is still open');
+        $this->assertNotContains(GivingUrl::org('closed-trust', 'clean-water'), $paths,
             'a closed appeal answers 404 and must not be advertised');
     }
 

@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 namespace Tests\Unit;
 
+use AfricaGates\Support\GivingUrl;
 use AfricaGates\Services\RecurringGiving as RG;
 use Illuminate\Database\Capsule\Manager as DB;
 use Tests\TestCase;
@@ -234,7 +235,7 @@ final class RecurringGivingTest extends TestCase
 
         $link = RG::stopLink('AFG-DON-7', 'https://example.test/');
 
-        $this->assertSame('https://example.test/donate/giving/' . $tok, $link);
+        $this->assertSame('https://example.test' . GivingUrl::manage($tok), $link);
         $this->assertSame($id, (int) RG::byToken(RG::byToken($tok)['manage_token'])['id'],
             'the link in the receipt does not resolve back to the gift it stops');
     }

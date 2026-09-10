@@ -123,7 +123,7 @@ final class EventFundraisingTest extends TestCase
         $this->assertSame(500_000, $found[0]['progress']['target']);
         $this->assertSame(30, $found[0]['progress']['pct']);
         $this->assertSame(2, $found[0]['progress']['count']);
-        $this->assertStringContainsString('/donate/', $found[0]['url']);
+        $this->assertStringContainsString(\AfricaGates\Support\GivingUrl::BASE . '/', $found[0]['url']);
     }
 
     public function test_an_unconfirmed_gift_is_not_counted(): void

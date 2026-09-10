@@ -368,7 +368,7 @@ class CheckoutMailerTest extends TestCase
 
         $this->assertStringNotContainsString('Ada Obi', $m['html'], 'a gift is not a vote for anybody');
         $this->assertStringContainsString('₦7,500', $m['html']);
-        $this->assertStringContainsString('/donate', $m['html']);
+        $this->assertStringContainsString(\AfricaGates\Support\GivingUrl::BASE, $m['html']);
     }
 
     public function test_the_batch_limit_is_respected(): void

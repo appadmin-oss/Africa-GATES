@@ -1851,8 +1851,15 @@ return function(App $app) {
             '/shops'           => '/shop',
             '/leaderboards'    => '/leaderboard',
             '/registries'      => '/registry',
-            '/donation'        => '/donate',
-            '/donations'       => '/donate',
+            // Straight to the canonical path, not to /donate — which is itself a 301
+            // now, and a redirect chain costs a round trip and loses ranking signal.
+            // Spelled literally, unlike everywhere else, because this table is a flat
+            // auditable list by design and AliasRedirectTest parses the pairs out of it;
+            // GivingUrlTest pins these four against GivingUrl::BASE so the two agree.
+            '/donation'        => '/giving',
+            '/donations'       => '/giving',
+            '/donate-now'      => '/giving',
+            '/give'            => '/giving',
             '/votes'           => '/vote',
             '/cookie'          => '/cookies',
             // the thing they want, not the section it lives in
@@ -2208,36 +2215,52 @@ return function(App $app) {
         $g->get('/pay/success',   PaymentController::class.':success');
         $g->post('/pay/webhook',  PaymentController::class.':webhook');
 
-        // ── Donations (free-amount giving via PaymentService) ────────────────
-        //   GET  /donate           the giving page
-        //   POST /donate           first-party form post (CSRF) → hosted checkout
-        //   GET  /donate/callback  browser return; verified server-side
-        //   GET  /donate/success   read-only thank-you
-        // ── GIFTS ─────────────────────────────────────────────────────
+        // ── GIVING ───────────────────────────────────────────────────────────
         //
-        // "Gift" is the word on every surface now; /donate stays registered because links to
-        // it are printed on receipts, in emails and on other people's websites, and breaking
-        // those to win a noun is a bad trade. /gift is the canonical path from here.
+        //   GET  /giving                the giving page (ours, or a partner's appeal)
+        //   POST /giving                first-party form post (CSRF) → hosted checkout
+        //   GET  /giving/redirect       the interstitial that performs the hand-off
+        //   GET  /giving/callback       browser return; verified server-side
+        //   GET  /giving/success        read-only thank-you
+        //   GET  /giving/manage/{token} one standing gift, and the button that stops it
+        //   GET  /giving/{slug}[/{campaign}]  a partner organisation's appeal
         //
-        // /gift/apply comes BEFORE the {slug} pattern: FastRoute matches in declaration order
-        // for patterns of the same shape, so a wildcard registered first would swallow it.
-        $g->get ('/gift/apply', \AfricaGates\Controllers\OrgApplyController::class.':form');
-        $g->post('/gift/apply', \AfricaGates\Controllers\OrgApplyController::class.':submit');
-        $g->get('/gift',            DonationController::class.':page');
-        $g->post('/gift',           DonationController::class.':start');
-        $g->get('/donate',          DonationController::class.':page');
-        $g->post('/donate',         DonationController::class.':start');
-        $g->get('/donate/redirect', DonationController::class.':handoff');  // see GatewayHandoff
-        $g->get('/donate/callback', DonationController::class.':callback');
-        $g->get('/donate/success',  DonationController::class.':success');
+        // ── ONE NOUN, AFTER THREE ────────────────────────────────────────────
+        //
+        // `/donate` was the original and is what twenty-two files linked to. `/gift` was
+        // added later and declared canonical in a comment right here — and reached six
+        // files, so the rename was announced and never finished: both answered 200 with
+        // identical content, which is two canonical URLs for one page and receipts that
+        // disagree about where the giving page lives. And `giving` was ALREADY a noun
+        // inside the flow (`/donate/giving/{token}` is a donor's standing gift), so the
+        // word meant two things.
+        //
+        // Everything older 301s, below, and those redirects are permanent rather than a
+        // tidy-up: the manage link is printed in receipts already sent.
+        //
+        // Every path here is built by {@see \AfricaGates\Support\GivingUrl}, which is
+        // also where the reserved-word list lives. Nothing else may spell `/giving`.
+        //
+        // FIXED SEGMENTS COME FIRST. FastRoute matches in declaration order for patterns of
+        // the same shape, so `/giving/{slug}` registered earlier would swallow `apply`,
+        // `manage` and the rest — and a partner whose name slugs to one of those words is
+        // shadowed permanently in the other direction, which is why PartnerOrg refuses
+        // those slugs at mint time rather than leaving an approved partner with no page.
+        $g->get('/giving/apply', \AfricaGates\Controllers\OrgApplyController::class.':form');
+        $g->post('/giving/apply', \AfricaGates\Controllers\OrgApplyController::class.':submit');
+        $g->get('/giving',          DonationController::class.':page');
+        $g->post('/giving',          DonationController::class.':start');
+        $g->get('/giving/redirect', DonationController::class.':handoff');  // see GatewayHandoff
+        $g->get('/giving/callback', DonationController::class.':callback');
+        $g->get('/giving/success',  DonationController::class.':success');
         // ── A DONOR MUST BE ABLE TO STOP GIVING ──────────────────────────────
         //
         // Reached from the receipt, not from an account: most donors here have none, and a
         // cancellation behind a sign-up is the pattern people take to their bank instead.
         // The token identifies ONE gift, so a forwarded receipt cannot list somebody's
         // others. Public by design — holding the link is the authorisation.
-        $g->get('/donate/giving/{token:[a-f0-9]{32}}',      DonationController::class.':giving');
-        $g->post('/donate/giving/{token:[a-f0-9]{32}}/stop', DonationController::class.':givingStop');
+        $g->get('/giving/manage/{token:[a-f0-9]{32}}',      DonationController::class.':giving');
+        $g->post('/giving/manage/{token:[a-f0-9]{32}}/stop', DonationController::class.':givingStop');
         // ── PARTNER ORGANISATION DASHBOARD ───────────────────────────────
         //
         // No organisation id appears in any of these paths. The organisation is whichever
@@ -2291,22 +2314,84 @@ return function(App $app) {
         // belongs to whoever is doing the asking.
         $g->post('/org/brand',                   \AfricaGates\Controllers\OrgDashboardController::class.':saveBrand');
 
-        // A partner organisation's own appeal. Registered LAST so the three fixed paths
-        // above always win — and the pattern additionally excludes them by name, because
-        // route order is the kind of invariant that survives until somebody tidies the file
-        // and a partner called "success" silently takes over the thank-you page.
-        $g->get('/gift/{slug:(?!apply$|redirect$|callback$|success$)[a-z0-9][a-z0-9-]{1,118}}',
-                DonationController::class.':page');
-        $g->get('/gift/{slug:(?!apply$)[a-z0-9][a-z0-9-]{1,118}}/{campaign:[a-z0-9][a-z0-9-]{1,118}}',
-                DonationController::class.':page');
-        $g->get('/donate/{slug:(?!redirect$|callback$|success$)[a-z0-9][a-z0-9-]{1,118}}',
+        // ── A PARTNER ORGANISATION'S OWN APPEAL ──────────────────────────────
+        //
+        // Registered LAST so every fixed path above wins — and the pattern additionally
+        // excludes those words by name, because route order is the kind of invariant that
+        // survives until somebody tidies the file and a partner called "success" silently
+        // takes over the thank-you page.
+        //
+        // The exclusion list is BUILT from GivingUrl::RESERVED rather than typed, so it
+        // cannot drift from the list PartnerOrg refuses at slug-minting time. Two lists of
+        // reserved words is how one of them comes to be missing the word that matters.
+        $reservedGiving = implode('$|', \AfricaGates\Support\GivingUrl::RESERVED) . '$';
+
+        $g->get('/giving/{slug:(?!' . $reservedGiving . ')[a-z0-9][a-z0-9-]{1,118}}',
                 DonationController::class.':page');
         // A specific appeal inside that organisation. Two segments, because a campaign slug
         // is only unique WITHIN an organisation — one flat namespace would make two charities
         // running a "school-roof" appeal collide, and a collision here sends money to the
         // wrong charity.
-        $g->get('/donate/{slug:[a-z0-9][a-z0-9-]{1,118}}/{campaign:[a-z0-9][a-z0-9-]{1,118}}',
+        $g->get('/giving/{slug:(?!' . $reservedGiving . ')[a-z0-9][a-z0-9-]{1,118}}/{campaign:[a-z0-9][a-z0-9-]{1,118}}',
                 DonationController::class.':page');
+
+        // ── AND EVERY OLDER PATH, PERMANENTLY ────────────────────────────────
+        //
+        // Not a tidy-up. `/donate` is on receipts, in sent email, in other people's
+        // websites and in search results; `/donate/giving/{token}` is a donor's link for
+        // STOPPING a monthly gift, printed in receipts that have already gone out. A donor
+        // who cannot easily stop is not a supporter, they are a dispute waiting for a quiet
+        // month — so that one has to answer for as long as those receipts exist.
+        //
+        // 301 for a GET so browsers and search engines stop asking. 308 for a POST, not
+        // 301 or 302: those are downgraded to GET by every browser, which would silently
+        // drop a donor's amount and land them on the giving page with an empty form and no
+        // idea why. 308 preserves the method and the body, so a stale page still checks
+        // out. The CSRF token rides along in that body and is still valid.
+        //
+        // The query string is carried on every one of these — losing it drops the `?ref=`
+        // a gateway appends to a callback, and the `?give=` that explains a refusal.
+        $bounce = static function (callable $to, int $code) {
+            return static function ($req, $res, array $args = []) use ($to, $code) {
+                $qs  = $req->getUri()->getQuery();
+                $url = $to($args);
+                return $res->withHeader('Location', $url . ($qs !== '' ? '?' . $qs : ''))
+                           ->withStatus($code);
+            };
+        };
+        $GU = \AfricaGates\Support\GivingUrl::class;
+
+        foreach (['/donate', '/gift'] as $old) {
+            $g->get($old, $bounce(static fn (): string => $GU::page(), 301));
+            $g->post($old, $bounce(static fn (): string => $GU::page(), 308));
+            $g->get($old . '/apply',    $bounce(static fn (): string => $GU::apply(), 301));
+            $g->post($old . '/apply',    $bounce(static fn (): string => $GU::apply(), 308));
+            $g->get($old . '/redirect', $bounce(static fn (): string => $GU::redirect(), 301));
+            // `success` and `callback` keep their query string through $bounce, which is
+            // the whole of what they carry — a bare /giving/success has no reference to
+            // look up and says so.
+            $g->get($old . '/callback', $bounce(static fn (): string => $GU::BASE . '/callback', 301));
+            $g->get($old . '/success',  $bounce(static fn (): string => $GU::BASE . '/success', 301));
+        }
+
+        // The donor's stop button, at the path the receipts print. Registered before the
+        // `{slug}` bounce below, because a 32-character hex token also matches the slug
+        // pattern — and a donor sent to a partner appeal instead of their cancellation
+        // page is the exact failure this link exists to prevent.
+        $g->get('/donate/giving/{token:[a-f0-9]{32}}',
+                 $bounce(static fn (array $a): string => $GU::manage((string) $a['token']), 301));
+        $g->post('/donate/giving/{token:[a-f0-9]{32}}/stop',
+                 $bounce(static fn (array $a): string => $GU::stop((string) $a['token']), 308));
+
+        // A partner's appeal at either old prefix. Registered after the fixed paths above
+        // for the same reason the canonical ones are.
+        foreach (['/donate', '/gift'] as $old) {
+            $g->get($old . '/{slug:(?!' . $reservedGiving . ')[a-z0-9][a-z0-9-]{1,118}}',
+                    $bounce(static fn (array $a): string => $GU::org((string) $a['slug']), 301));
+            $g->get($old . '/{slug:(?!' . $reservedGiving . ')[a-z0-9][a-z0-9-]{1,118}}/{campaign:[a-z0-9][a-z0-9-]{1,118}}',
+                    $bounce(static fn (array $a): string
+                        => $GU::org((string) $a['slug'], (string) $a['campaign']), 301));
+        }
         // (Paid-voting routes are registered above, before /vote/{program}.)
         // Admin-editable legal/policy docs (gates_legal_docs via LegalService).
         // Content is no longer hardcoded; a missing/unpublished doc → 404.

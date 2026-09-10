@@ -239,7 +239,7 @@ class GatewayHandoffTest extends TestCase
 
         foreach ([
             '/vote/paid/redirect' => 'PaidVoteController',
-            '/donate/redirect'    => 'DonationController',
+            \AfricaGates\Support\GivingUrl::redirect() => 'DonationController',
             '/shop/redirect'      => 'ShopCheckoutController',
             '/pay/redirect'       => 'PaymentController',
         ] as $path => $controller) {

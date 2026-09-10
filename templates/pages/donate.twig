@@ -646,7 +646,7 @@
           {% endif %}
         </div>
         {% else %}
-        <form class="dn-card__in" method="post" action="/donate" @submit="submitting = true">
+        <form class="dn-card__in" method="post" action="/giving" @submit="submitting = true">
           <input type="hidden" name="_token" value="{{ csrf_token }}">
           <input type="hidden" name="amount" :value="value">
           {# Which appeal this is. Re-resolved and re-checked server-side — the slug is a
@@ -712,7 +712,7 @@
                   or to their general fund below.</p>
                 <div class="dn-appeals">
                   {% for a in appeals %}
-                    <a class="dn-appeal" href="/donate/{{ org.slug }}/{{ a.slug }}">
+                    <a class="dn-appeal" href="/giving/{{ org.slug }}/{{ a.slug }}">
                       <b>{{ a.title }}</b>
                       {% if a.summary %}<span>{{ a.summary }}</span>{% endif %}
                     </a>
@@ -973,7 +973,7 @@
           <strong>directly into your own account</strong> — Africa GATES never holds it,
           because the split happens at the payment gateway rather than in a balance we are
           looking after for you.</p>
-        <a class="dn-org__cta" href="/gift/apply">Apply to raise donations</a>
+        <a class="dn-org__cta" href="/giving/apply">Apply to raise donations</a>
         <p class="dn-org__fine">CAC and SCUML registration are both required, and the
           settlement account must be in your organisation’s own registered name. Everything
           we ask for is listed on the form.</p>

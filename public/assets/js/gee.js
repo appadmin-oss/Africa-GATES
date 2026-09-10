@@ -43,7 +43,7 @@
     '/leaderboard': 'the Leaderboard', '/awards': 'Awards', '/integrity': 'how it works',
     '/methodology': 'how it works', '/shop': 'the Shop', '/events': 'Events',
     '/partner': 'Partner with us', '/register': 'Register', '/help': 'the Help Center',
-    '/support': 'Support', '/community': 'the Community', '/donate': 'Donate'
+    '/support': 'Support', '/community': 'the Community', '/giving': 'Giving'
   };
   /* `(?![\w/-])` rather than `\b`. With \b, "/help/paid-but-no-votes" matched the
      bare "/help" prefix — because "/" is a non-word character, so \b succeeds
@@ -106,7 +106,7 @@
       ['/leaderboard', 'leaderboard'], ['/awards', 'awards'], ['/integrity', 'integrity'],
       ['/methodology', 'integrity'], ['/shop', 'shop'], ['/events', 'events'],
       ['/partner', 'partner'], ['/register', 'register'], ['/help', 'help'],
-      ['/support', 'support'], ['/community', 'community'], ['/donate', 'donate']
+      ['/support', 'support'], ['/community', 'community'], ['/giving', 'donate']
     ];
     for (var i = 0; i < map.length; i++) {
       var pre = map[i][0];

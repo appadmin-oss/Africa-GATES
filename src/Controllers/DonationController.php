@@ -4,6 +4,7 @@ declare(strict_types=1);
 namespace AfricaGates\Controllers;
 
 use AfricaGates\Support\Env;
+use AfricaGates\Support\GivingUrl;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
 use Psr\Log\LoggerInterface;
@@ -241,7 +242,7 @@ final class DonationController
                 ? \AfricaGates\Support\Schema::appeal(
                     $org, $campaign,
                     \AfricaGates\Support\SiteUrl::base($req),
-                    \AfricaGates\Support\SiteUrl::base($req) . '/donate/' . rawurlencode((string) $org->slug)
+                    \AfricaGates\Support\SiteUrl::base($req) . GivingUrl::org((string) $org->slug)
                         . ($campaign ? '/' . rawurlencode((string) $campaign->slug) : ''),
                     '',
                     // The ORGANISATION's own description. Passing the campaign summary here
@@ -466,7 +467,7 @@ final class DonationController
         if ($orgSlug !== '') {
             $org = \AfricaGates\Services\PartnerOrg::bySlug($orgSlug);
             if (!\AfricaGates\Services\PartnerOrg::canReceive($org)) {
-                return $this->redirect($res, $this->base($req) . '/donate?give=closed');
+                return $this->redirect($res, $this->base($req) . GivingUrl::refused('closed'));
             }
 
             // The appeal is re-resolved and re-checked HERE, not trusted from the form. A
@@ -478,15 +479,15 @@ final class DonationController
             if ($campSlug !== '') {
                 $campaign = \AfricaGates\Services\OrgCampaign::bySlug((int) $org->id, $campSlug);
                 if (!\AfricaGates\Services\OrgCampaign::isOpen($campaign)) {
-                    return $this->redirect($res, $this->base($req) . '/donate/'
-                        . rawurlencode($orgSlug) . '?give=appeal_closed');
+                    return $this->redirect($res, $this->base($req)
+                        . GivingUrl::org($orgSlug) . '?give=appeal_closed');
                 }
             }
         }
 
         $back = $org
-            ? ('/donate/' . rawurlencode($orgSlug) . ($campaign ? '/' . rawurlencode((string) $campaign->slug) : ''))
-            : '/donate';
+            ? GivingUrl::org($orgSlug, $campaign ? (string) $campaign->slug : null)
+            : GivingUrl::page();
         $bail = fn(string $why) => $this->redirect($res, $this->base($req) . $back . '?give=' . urlencode($why));
 
         if (!$this->payments->isEnabled($provider))                          return $bail('unavailable');
@@ -583,7 +584,7 @@ final class DonationController
             }
         }
 
-        $callbackUrl = $this->base($req) . '/donate/callback?provider=' . urlencode($provider) . '&ref=' . urlencode($reference);
+        $callbackUrl = $this->base($req) . GivingUrl::callback($provider, $reference);
         $init = $this->payments->initialize($provider, $amount, $email, $reference, $callbackUrl, [
             'reference' => $reference, 'purpose' => 'donation',
             // Onto the gateway's own record, so `subscription.create` — which does not carry
@@ -603,7 +604,7 @@ final class DonationController
         // submission, so `form-action` governs it and a policy without the gateway
         // hosts blocks the POST in the browser before any PHP runs. See GatewayHandoff.
         return $this->redirect($res, \AfricaGates\Services\GatewayHandoff::remember(
-            $reference, (string) $init['checkout_url'], $this->base($req) . '/donate/redirect', $provider
+            $reference, (string) $init['checkout_url'], $this->base($req) . GivingUrl::redirect(), $provider
         ));
     }
 
@@ -653,10 +654,10 @@ final class DonationController
     public function givingStop(Request $req, Response $res, array $args = []): Response
     {
         $token = (string) ($args['token'] ?? '');
-        $back  = '/donate/giving/' . rawurlencode($token);
+        $back  = GivingUrl::manage($token);
         $sub   = \AfricaGates\Services\RecurringGiving::byToken($token);
 
-        if (!$sub) return $this->redirect($res, '/donate');
+        if (!$sub) return $this->redirect($res, GivingUrl::page());
 
         if (in_array((string) $sub['status'], [\AfricaGates\Services\RecurringGiving::ST_CANCELLED,
                                                \AfricaGates\Services\RecurringGiving::ST_CANCELLING], true)) {
@@ -690,17 +691,17 @@ final class DonationController
         $reference = trim((string)($q['ref'] ?? $q['reference'] ?? $q['tx_ref'] ?? ''));
         $provider  = strtolower(trim((string)($q['provider'] ?? '')));
         if ($reference === '' || !$this->payments->isKnownProvider($provider)) {
-            return $this->redirect($res, $this->base($req) . '/donate?give=error');
+            return $this->redirect($res, $this->base($req) . GivingUrl::refused('error'));
         }
         $don = DB::table('gates_donations')->where('payment_ref', $reference)->first();
-        if (!$don) return $this->redirect($res, $this->base($req) . '/donate?give=error');
+        if (!$don) return $this->redirect($res, $this->base($req) . GivingUrl::refused('error'));
 
         $result = $this->confirm($provider, $reference, $don);
         if ($result === 'confirmed' || $result === 'already') {
             if ($result === 'confirmed') $this->receipt($don);
-            return $this->redirect($res, $this->base($req) . '/donate/success?ref=' . urlencode($reference));
+            return $this->redirect($res, $this->base($req) . GivingUrl::success($reference));
         }
-        return $this->redirect($res, $this->base($req) . '/donate?give=failed');
+        return $this->redirect($res, $this->base($req) . GivingUrl::refused('failed'));
     }
 
     /** GET /donate/success — read-only confirmation. */
@@ -800,7 +801,7 @@ final class DonationController
         $reference = \AfricaGates\Services\GatewayHandoff::reference($req);
         $url = \AfricaGates\Services\GatewayHandoff::take($reference);
         if ($url === null) {
-            return $this->redirect($res, $this->base($req) . '/donate?give=start');
+            return $this->redirect($res, $this->base($req) . GivingUrl::refused('start'));
         }
         return \AfricaGates\Services\GatewayHandoff::page(
             $res, $url, \AfricaGates\Services\GatewayHandoff::providerLabel(), $reference

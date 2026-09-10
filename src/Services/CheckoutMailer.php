@@ -549,7 +549,7 @@ final class CheckoutMailer
                 . '<br>Amount: <strong>' . $total . '</strong>';
             $closing = 'Nothing is reserved &mdash; a close race can move while a checkout sits unfinished.';
         } else {
-            $cta     = SiteUrl::base() . '/donate';
+            $cta     = SiteUrl::base() . \AfricaGates\Support\GivingUrl::page();
             $lead    = 'You started a payment of <strong>' . $total . '</strong> to Africa GATES and it was never completed.';
             $subject = 'Your Africa GATES payment was not completed';
             $button  = 'Finish the payment &rarr;';

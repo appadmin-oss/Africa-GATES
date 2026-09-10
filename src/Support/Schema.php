@@ -268,7 +268,7 @@ final class Schema
             '@type'       => 'NGO',
             'name'        => $name,
             'legalName'   => self::text($o['legal_name'] ?? '') ?: null,
-            'url'         => rtrim($siteUrl, '/') . '/donate/' . rawurlencode((string) ($o['slug'] ?? '')),
+            'url'         => rtrim($siteUrl, '/') . GivingUrl::org((string) ($o['slug'] ?? '')),
             'logo'        => $logo !== '' ? $logo : null,
             'description' => self::snippet($description !== '' ? $description
                                                         : (string) ($o['description'] ?? '')) ?: null,

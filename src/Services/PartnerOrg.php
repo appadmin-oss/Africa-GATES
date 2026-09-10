@@ -760,14 +760,37 @@ final class PartnerOrg
     }
 
     /** A slug nobody else holds. Suffixed rather than refused — two "Mama's Kitchen"s exist. */
+    /**
+     * A slug nobody else holds AND no fixed route already owns.
+     *
+     * ── A RESERVED WORD IS NOT A COLLISION, IT IS A PAGE THAT NEVER LOADS ───
+     *
+     * An appeal lives at `/giving/{slug}`, and the fixed paths — `/giving/apply`,
+     * `/giving/manage/…`, `/giving/success` — are registered first. Slim serves the first
+     * match, so an organisation whose name slugs to one of those words is shadowed
+     * permanently: the row is approved, the dashboard shows their page's URL, the URL
+     * opens somebody else's screen, and nothing anywhere says why. "Apply" is an ordinary
+     * enough name for a foundation.
+     *
+     * The uniqueness loop below already appends `-2`, `-3` for a name somebody else has,
+     * so a reserved word takes the same treatment: `apply` becomes `apply-2`, which is
+     * ugly and reachable. Reachable wins.
+     *
+     * The list is {@see \AfricaGates\Support\GivingUrl::RESERVED}, which is the same
+     * list the route pattern's lookahead is built from — two lists of reserved words is
+     * how one of them comes to be missing the word that matters.
+     */
     private static function uniqueSlug(string $name): string
     {
         $base = \AfricaGates\Support\Slug::make($name, 110);
         if ($base === '') return '';
 
-        $slug = $base;
+        $slug = \AfricaGates\Support\GivingUrl::isReserved($base) ? $base . '-2' : $base;
         for ($i = 2; $i < 60; $i++) {
-            if (!DB::table('gates_partner_orgs')->where('slug', $slug)->exists()) return $slug;
+            if (!DB::table('gates_partner_orgs')->where('slug', $slug)->exists()
+                && !\AfricaGates\Support\GivingUrl::isReserved($slug)) {
+                return $slug;
+            }
             $slug = $base . '-' . $i;
         }
         return $base . '-' . bin2hex(random_bytes(3));

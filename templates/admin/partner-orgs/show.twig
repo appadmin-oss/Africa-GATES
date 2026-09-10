@@ -8,7 +8,7 @@
 {% block topbar_title %}{{ org.name }}{% endblock %}
 {% block topbar_actions %}
   <a class="ad-btn ad-btn--sm" href="/admin/partner-orgs">← All partners</a>
-  {% if live %}<a class="ad-btn ad-btn--sm" href="/donate/{{ org.slug }}" target="_blank" rel="noopener">View appeal</a>{% endif %}
+  {% if live %}<a class="ad-btn ad-btn--sm" href="/giving/{{ org.slug }}" target="_blank" rel="noopener">View appeal</a>{% endif %}
 {% endblock %}
 
 {% block content %}

@@ -451,11 +451,11 @@ final class SitemapService
     private function donate(): array
     {
         $out = [
-            ['path' => '/donate',     'priority' => '0.9', 'changefreq' => 'daily'],
+            ['path' => \AfricaGates\Support\GivingUrl::BASE, 'priority' => '0.9', 'changefreq' => 'daily'],
             // Where an organisation applies to raise donations through us. The one page on
             // this platform aimed at a charity searching "how do we take donations online",
             // and it was reachable only from a panel at the foot of /donate.
-            ['path' => '/gift/apply', 'priority' => '0.6', 'changefreq' => 'monthly'],
+            ['path' => \AfricaGates\Support\GivingUrl::apply(), 'priority' => '0.6', 'changefreq' => 'monthly'],
         ];
 
         if (!self::has('gates_partner_orgs')) return $out;
@@ -471,7 +471,7 @@ final class SitemapService
             if ($slug === '') continue;
 
             $out[] = array_filter([
-                'path'        => '/donate/' . rawurlencode($slug),
+                'path'        => \AfricaGates\Support\GivingUrl::org($slug),
                 'lastmod'     => self::day($org->updated_at ?? $org->created_at ?? null),
                 'priority'    => '0.7',
                 'changefreq'  => 'weekly',
@@ -491,7 +491,7 @@ final class SitemapService
                 if ($cslug === '') continue;
 
                 $out[] = array_filter([
-                    'path'        => '/donate/' . rawurlencode($slug) . '/' . rawurlencode($cslug),
+                    'path'        => \AfricaGates\Support\GivingUrl::org($slug, $cslug),
                     'lastmod'     => self::day($c->updated_at ?? $c->created_at ?? null),
                     // The highest priority in this section. A specific appeal with a target
                     // and a deadline is the page somebody actually shares, and the one a

@@ -4,6 +4,7 @@ declare(strict_types=1);
 namespace AfricaGates\Services;
 
 use Illuminate\Database\Capsule\Manager as DB;
+use AfricaGates\Support\GivingUrl;
 use Illuminate\Support\Carbon;
 
 /**
@@ -375,7 +376,7 @@ final class RecurringGiving
     /** The donor's own stop link for one gift, absolute, for a receipt. */
     public static function manageUrl(string $base, string $token): string
     {
-        return rtrim($base, '/') . '/donate/giving/' . rawurlencode($token);
+        return rtrim($base, '/') . GivingUrl::manage($token);
     }
 
     /**

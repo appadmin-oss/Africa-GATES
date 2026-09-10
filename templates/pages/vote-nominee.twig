@@ -982,7 +982,7 @@
             {# step: email #}
             <div x-show="step === 'email'">
               <p class="vn-sub">One verified vote per category. We email a 6-digit code to confirm it’s you — your email is hashed for the one-vote check. By voting you agree to the <a href="/terms/{{ nominee.programme_slug }}" target="_blank" rel="noopener" style="color:var(--ag-green,#237b22);font-weight:600;text-decoration:underline">programme terms</a>.</p>
-              {% if donation_votes_per_1000 > 0 %}<div class="vn-note"><strong>Want more votes?</strong> <a href="/donate">Donate</a> to earn {{ donation_votes_per_1000 }} bonus votes per ₦1,000.</div>{% endif %}
+              {% if donation_votes_per_1000 > 0 %}<div class="vn-note"><strong>Want more votes?</strong> <a href="/giving">Give</a> to earn {{ donation_votes_per_1000 }} bonus votes per ₦1,000.</div>{% endif %}
               {% include 'partials/member-autofill.twig' with {
                 member: member|default(null),
                 maf_fields: [

@@ -109,7 +109,7 @@
 
       {% if not stopped %}
         <form class="gv-stop" method="post"
-              action="/donate/giving/{{ token }}/stop"
+              action="/giving/manage/{{ token }}/stop"
               data-confirm="Stop this monthly gift? You will not be charged again.">
           <input type="hidden" name="_token" value="{{ csrf_token }}">
           <button type="submit" class="gv-stop__b">Stop this monthly gift</button>

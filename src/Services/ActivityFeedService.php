@@ -660,7 +660,7 @@ final class ActivityFeedService
             ['Meet the Judges',   '/judges',            'panel jury evaluators experts scoring'],
             ['Awards',            '/awards',            'programmes categories prizes'],
             ['Legacy Vault',      '/legacy',            'archive past editions history winners previous'],
-            ['Donate',            '/donate',            'give support fund contribute money programmes'],
+            ['Giving',            \AfricaGates\Support\GivingUrl::BASE, 'give donate support fund contribute money programmes'],
             ['Shop',              '/shop',              'merch store buy t-shirt wear'],
             ['Partner with us',   '/partners',          'sponsor sponsorship partnership brands collaborate'],
             ['Opportunities',     '/opportunities',     'jobs roles calls apply grants'],

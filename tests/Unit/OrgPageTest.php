@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 namespace Tests\Unit;
 
+use AfricaGates\Support\GivingUrl;
 use AfricaGates\Services\OrgBrand;
 use AfricaGates\Support\Csp;
 use Illuminate\Database\Capsule\Manager as DB;
@@ -516,7 +517,7 @@ final class OrgPageTest extends TestCase
         $this->assertStringContainsString(OrgBrand::GATES_CREDIT, $html);
         $this->assertStringContainsString('takes no cut', $html,
             'and it says what the organisation gets for it');
-        $this->assertStringContainsString('href="/donate"', $html,
+        $this->assertStringContainsString('href="' . GivingUrl::page() . '"', $html,
             'a credit nobody can act on raises money for nobody');
 
         $this->assertArrayNotHasKey('gates', OrgBrand::SECTIONS,
