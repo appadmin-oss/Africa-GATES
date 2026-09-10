@@ -284,7 +284,16 @@ Full account in `docs/CODEBASE-INDEX.md` §16.
   tally — bought, free and granted votes added together. Both are shares of the biggest
   figure in the whole **edition**, never of the nominee's own category — see the denominator
   bullet below, which is the half of this rule that decides the overall award. Two nominees
-  on 2,000 votes each, one from a thousand supporters and one from two, score 450 and 136.
+  on 2,000 votes each — 2,000 also being the edition's largest tally — one from a thousand
+  supporters and one from two, score **293 and 135**.
+  **That pair used to read "450 and 136" here and on the settings screen, and it was the
+  wrong basis's answer.** 450/136 is what `reach` pays, where the 315 has its own
+  denominator; under `ideal`, which is the rule, both terms divide by the largest tally, so
+  a thousand supporters on the cycle's biggest tally take 293 of 450 and not the lot. The
+  number was stale on the one screen an operator picks a basis from, under a paragraph
+  calling it the default — §19's shape, on the arithmetic that decides an award. Recompute a
+  worked example when a basis changes, or delete it; a wrong one is worse than none, because
+  it is what somebody checks their understanding against.
   The 70% is counted by `VoterReach`, and the obvious implementation destroys it:
   `COUNT(DISTINCT voter_email_hash)` counts **rows**, and three of the five services that
   mint a vote write a *randomised synthetic* hash — `paidvote:<order>:<rand>`,

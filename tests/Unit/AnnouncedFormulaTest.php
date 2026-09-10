@@ -10,66 +10,48 @@ use Tests\TestCase;
 /**
  * THE PUBLISHED FORMULA, ARITHMETIC FOR ARITHMETIC.
  *
- * ══════════════════════════════════════════════════════════════════════════════
- * WHY THIS FILE EXISTS SEPARATELY FROM THE OTHER SCORING TESTS
- * ══════════════════════════════════════════════════════════════════════════════
- *
  * This is the formula Africa GATES publishes, in the operator's own words:
  *
  *     Total Possible = 1,000 Points
  *
  *     1. COMMUNITY VOTE (450 points)
- *        Unique Voters Component (315 pts): 315 × (Your Unique Voters ÷ Highest Unique Votes)
- *        Total Votes Component   (135 pts): 135 × (Your Total Votes   ÷ Highest Total Votes)
+ *        Unique Voters (315 pts): 315 × (Your Unique Voters ÷ Highest Total Votes in edition)
+ *        Total Votes   (135 pts): 135 × (Your Total Votes   ÷ Highest Total Votes in edition)
  *
  *     2. JUDGING PANEL (550 points)
- *        Panel Mark Component (550 pts): 550 × (Average Mark ÷ 10)
+ *        Panel Mark (550 pts): 550 × (Average Mark ÷ 10)
  *
  *     Final Score = Community Points (max 450) + Panel Points (max 550)
  *
+ * ONE yardstick for both community terms — the highest TOTAL VOTES in the award programme
+ * edition — and the edition, not the category. That is `CpiService::BASIS_IDEAL` with
+ * `SCOPE_EDITION`, which is what the platform defaults to, so the published formula and the
+ * running arithmetic agree term for term. Asserted here against literal point totals worked
+ * out by hand, not `assertSame($a, $b)` where both sides come from the same service.
+ *
+ * ── WHY THIS FILE EXISTS SEPARATELY FROM THE OTHER SCORING TESTS ────────────
+ *
  * Everything else in the scoring suite tests a MECHANISM — the edition scale, the reach
- * count, a basis kept for reproducing an announced cycle. Each is right about its own
- * part and none of them states the whole sum the way it is published, so "is the published
- * formula what runs?" was a question nobody could answer by reading one file. It was asked,
- * and answering it took a day of reading.
+ * count, a basis kept for reproducing an announced cycle. Each is right about its own part
+ * and none of them states the whole sum the way it is published, so "is the published
+ * formula what runs?" could not be answered by reading one file. It was asked twice, and
+ * answering it the first time took a day.
  *
- * So this asserts the arithmetic in the published shape, against literal expected point
- * totals worked out by hand from the numbers seeded below. Not `assertSame($a, $b)` where
- * both sides come from the same service — that passes whatever the service does.
+ * ── AND THE ONE PLACE THE LITERAL FORMULA IS NOT FOLLOWED ───────────────────
  *
- * ── WHERE THE PUBLISHED WORDING AND THE CODE DIVERGE ───────────────────────
+ * Where NOT ONE nominee anywhere in the edition has a countable vote row, the 315 term
+ * would be `315 × (0 ÷ max)` for everybody and the whole field would be capped at 135 —
+ * silently, with the order intact, which is what makes that shape of fault survive. So the
+ * tally takes the whole 450 instead: it is what could actually be measured, stated as the
+ * whole of it. That is an all-or-nothing fallback for the edition, not a per-nominee
+ * softening, and `test_an_edition_with_no_countable_rows_falls_back_to_the_tally` pins it
+ * below. It is the only deviation, and it is deliberate — see
+ * {@see \AfricaGates\Services\CpiService::idealPart()}.
  *
- * In TWO places, and both are decisions rather than drift. They are pinned here with
- * literal numbers so that anybody holding the announcement next to the platform finds
- * the answer in one file instead of deriving it.
- *
- * 1 · THE DENOMINATOR IS THE EDITION'S, NOT THE CATEGORY'S. The published text says
- *     "in Category"; both maxima are the largest held by any nominee in the CYCLE.
- *     Confirmed by the operator. Per category, every category's leader takes the full
- *     450 however small their field, and `ResultRelease::overall()` then ranks those
- *     figures against each other. See {@see NomineeScoringService::editionScale()}.
- *
- * 2 · THE TWO TERMS SHARE ONE DENOMINATOR UNDER THE CURRENT DEFAULT. The published text
- *     names two — "Highest Unique Votes" for the 315 and "Highest Total Votes" for the
- *     135 — which is `CpiService::BASIS_REACH`, asserted below. The default is
- *     `BASIS_IDEAL`, where BOTH terms are divided by the largest TALLY in the edition,
- *     read as though every one of those votes had come from a separate person. The two
- *     agree exactly where every vote is one person one vote, and diverge to the extent
- *     that they are not.
- *
- *     It is not a small difference and it is not hypothetical. The same field, scored
- *     both ways, on the fixture below:
- *
- *                     unique / votes / panel      reach        ideal
- *         Leader          400 / 1000 / 10      1000 (450+550)  811 (261+550)
- *         Follower        100 /  500 /  6       476 (146+330)  429  (99+330)
- *
- *     Under `ideal` a full 450 requires a nominee's whole tally to be one vote each from
- *     as many people as the biggest tally in the edition — so "Community Points (Max
- *     450)" is a ceiling almost nobody reaches, where under `reach` the edition's reach
- *     leader collects it. WHICH ONE IS PUBLISHED IS THE OPERATOR'S CALL, not a matter of
- *     arithmetic. Both are asserted; `test_the_default_basis_is_pinned` is the single
- *     line that changes when that call is made.
+ * `reach` — the older basis, where the 315 has its own denominator (the most PEOPLE any
+ * nominee has) — is kept so a cycle announced under it stays reproducible to the digit, and
+ * is asserted here too. It is NOT the published rule; on the fixture below it pays a leader
+ * 450 where the published rule pays 261.
  */
 final class AnnouncedFormulaTest extends TestCase
 {
@@ -169,21 +151,21 @@ final class AnnouncedFormulaTest extends TestCase
         return (new NomineeScoringService())->scoreCategory(self::CAT_A);
     }
 
-    // ══ the formula as published ═════════════════════════════════════════════
+    // ══ the older basis, kept for reproducing an announced cycle ════════════
 
     /**
-     * THE PUBLISHED WORDING, TERM FOR TERM, UNDER THE BASIS THAT IMPLEMENTS IT.
+     * `reach` GIVES THE 315 ITS OWN DENOMINATOR, AND IS NOT THE PUBLISHED RULE.
      *
      *   Leader   315·(400/400) + 135·(1000/1000) + 550·(10/10) = 315 + 135 + 550 = 1000
      *   Follower 315·(100/400) + 135·( 500/1000) + 550·( 6/10) = 78.75 + 67.5 + 330
      *                                                          = 476.25 → 476
      *
-     * This is `reach`, and it is NOT the current default — see the class docblock and
-     * `test_the_default_basis_is_pinned`. Asserted regardless, because it is the rule the
-     * platform publishes and a nominee who checks their own score against the
-     * announcement is doing this arithmetic.
+     * Kept as a setting so a cycle announced under it stays reproducible to the digit, and
+     * asserted so that reproduction is checked rather than assumed. Note what it pays the
+     * leader — the full 450 — where the published rule pays 261: leading on people is worth
+     * the whole half here, because the denominator is the most PEOPLE anybody has.
      */
-    public function test_the_published_formula_is_the_arithmetic_of_the_reach_basis(): void
+    public function test_the_older_reach_basis_stays_reproducible(): void
     {
         $this->useBasis(CpiService::BASIS_REACH);
         $out = $this->field();
@@ -237,10 +219,10 @@ final class AnnouncedFormulaTest extends TestCase
             'nine hundred votes from ten people is worth less than a hundred from three hundred');
     }
 
-    // ══ and the basis that actually runs ═════════════════════════════════════
+    // ══ the published formula ════════════════════════════════════════════════
 
     /**
-     * THE DEFAULT SCORES THE SAME FIELD LOWER, AND THIS IS BY HOW MUCH.
+     * THE PUBLISHED FORMULA, TERM FOR TERM, ON THE DEFAULT BASIS.
      *
      * `ideal` divides BOTH terms by the largest tally in the edition — 1,000 here — so
      * the people term is measured against a number of votes rather than a number of
@@ -249,11 +231,12 @@ final class AnnouncedFormulaTest extends TestCase
      *   Leader   0.70·(400/1000) + 0.30·(1000/1000) = 0.58   → 261 + 550 = 811
      *   Follower 0.70·(100/1000) + 0.30·( 500/1000) = 0.22   →  99 + 330 = 429
      *
-     * The leader holds every maximum in the edition and still takes 261 of 450, because
-     * six hundred of their thousand votes were not separate people. That is the intended
-     * behaviour of this basis and it is the whole difference from the published wording.
+     * The leader holds every maximum in the edition and still takes 261 of 450, because six
+     * hundred of their thousand votes were not separate people. That is the point of one
+     * yardstick: a full 450 means as many separate supporters as the biggest tally anybody
+     * managed, and nothing softer.
      */
-    public function test_the_default_basis_measures_both_terms_against_the_tally(): void
+    public function test_the_published_formula_is_the_arithmetic_that_runs(): void
     {
         $out = $this->field();      // no useBasis(): whatever the platform defaults to
 
@@ -267,15 +250,15 @@ final class AnnouncedFormulaTest extends TestCase
     /**
      * WHICH BASIS IS IN FORCE, PINNED ON ONE LINE.
      *
-     * The published formula describes `reach`; the platform runs `ideal`. Both are
-     * asserted above, so whichever the operator settles on, the arithmetic for it is
-     * already covered — this is the only assertion that moves, and it must move
-     * deliberately rather than because somebody edited a default.
+     * These three ARE the published formula: one yardstick for both community terms, that
+     * yardstick the edition's highest total votes, and the panel mark straight out of ten.
+     * A default edited without the announcement being reissued is the §19 fault on the
+     * arithmetic that decides an award, so it must move deliberately or not at all.
      */
     public function test_the_default_basis_is_pinned(): void
     {
         $this->assertSame(CpiService::BASIS_IDEAL, RuleEngine::DEFAULTS['community_basis'],
-            'the community basis in force; the published formula describes BASIS_REACH');
+            'both community terms against one yardstick, as published');
         $this->assertSame(CpiService::SCALE_LINEAR, RuleEngine::DEFAULTS['judge_scale'],
             '550 × average/10, straight — the only form a nominee can check');
         $this->assertSame(CpiService::SCOPE_EDITION, RuleEngine::DEFAULTS['community_scope'],
@@ -364,5 +347,46 @@ final class AnnouncedFormulaTest extends TestCase
         $this->assertSame(0,   $row['judge_points']);
         $this->assertSame(167, $row['cpi_score'], 'and not renormalised upward');
         $this->assertTrue($row['provisional'], 'a community-only figure is not a CPI');
+    }
+
+    /**
+     * THE ONE DEVIATION: AN EDITION WITH TALLIES AND NO BALLOT ROWS.
+     *
+     * Read literally, `315 × (unique ÷ highest total votes)` pays every nominee in such an
+     * edition zero on the 315 — an imported tally, a restored backup, a purged cycle — and
+     * caps the whole field at 135 of 450. The ORDER survives, which is precisely what makes
+     * that shape of fault last: nothing looks wrong, no screen says anything, and a cycle
+     * scored out of 135 still reads like one scored out of 450.
+     *
+     * So where reach cannot be measured ANYWHERE in the edition, the tally takes the whole
+     * community half. Two nominees on 400 and 100 of a 400-vote maximum, with no vote rows
+     * at all: 450 and 113, not 135 and 34.
+     *
+     * All-or-nothing for the edition, deliberately — one countable row anywhere switches the
+     * people term on for every nominee at once. A single category missing its rows does NOT
+     * reach this, and is flagged per nominee as `reach_unmeasured` instead.
+     */
+    public function test_an_edition_with_no_countable_rows_falls_back_to_the_tally(): void
+    {
+        // Tallies but no `gates_votes` rows — nothing for VoterReach to count.
+        $this->nominee(7041, self::CAT_A, 'Imported leader', 400);
+        $this->nominee(7042, self::CAT_A, 'Imported second', 100);
+
+        $out = (new NomineeScoringService())->scoreCategory(self::CAT_A);
+
+        $this->assertSame(0, $out[7041]['cohort_max_unique'],
+            'precondition: the question cannot be asked in this edition');
+        $this->assertSame(450, $out[7041]['community_points'],
+            'the tally takes the whole half, rather than the field being capped at 135');
+        $this->assertSame(113, $out[7042]['community_points'], '450 × 100/400');
+
+        // And NOT flagged, which is the half of this that is easy to get backwards.
+        // `reach_unmeasured` needs `cohort_max_unique > 0`: it exists for the nominee whose
+        // rows are missing while the REST of the edition has them, because that one loses
+        // 315 points silently and the fallback above never fires for them. Here the
+        // fallback did fire, the whole half was paid on the tally, and there is nothing
+        // understated to warn about.
+        $this->assertFalse($out[7041]['reach_unmeasured'],
+            'the fallback already paid the half; a warning here would name a loss nobody took');
     }
 }
