@@ -264,6 +264,7 @@ final class TallyOnlyCommunityHalfTest extends TestCase
             'paid_only'  => \AfricaGates\Services\PaidVoteService::freeVotingDisabled(),
             'categories' => $categories,
             'attention'  => ResultRelease::attention($categories),
+            'basis_default' => RuleEngine::DEFAULTS['community_basis'],
             'overall'    => ResultRelease::overall($this->cycleId, $categories),
             'sealed'     => \AfricaGates\Services\ReleasedStanding::divergence(
                                 $categories, $this->cycleId),
@@ -330,6 +331,95 @@ final class TallyOnlyCommunityHalfTest extends TestCase
 
         $this->assertStringNotContainsString('tally only', $this->releaseScreen());
         $this->assertStringNotContainsString('total votes alone', $this->publicPage());
+    }
+
+    // ══ and the screen says WHICH rule produced the numbers ═════════════════
+
+    /**
+     * A SAVED OVERRIDE IS THE COMMONEST CAUSE OF A FIGURE NOBODY CAN EXPLAIN.
+     *
+     * The default is `ideal`, under which a full community half requires as many
+     * supporters as the biggest tally in the edition — so "450 with fewer backers than the
+     * highest total" is arithmetically impossible under it once reach is measured. Under
+     * `reach` it is ordinary: the people term has its own denominator, so the nominee with
+     * the most BACKERS takes the whole 315 whatever the largest tally was.
+     *
+     * A cycle carrying an older `reach` override is scored the old way deliberately, so an
+     * announced standing stays reproducible. What was missing is any way to KNOW that:
+     * every figure on the row looks ordinary, there is no shell on this host, and the
+     * operator cannot tell a bug from a setting.
+     */
+    public function test_the_screen_names_the_layer_that_chose_the_basis(): void
+    {
+        $this->importedCycle();
+        (new RuleEngine())->set('cycle', $this->cycleId,
+            ['community_basis' => CpiService::BASIS_REACH]);
+
+        $this->assertSame('cycle', (new RuleEngine())->provenance(
+            'community_basis', $this->programmeId, $this->cycleId)['from']);
+
+        $html = $this->releaseScreen();
+
+        $this->assertStringContainsString('produced by a saved override', $html);
+        $this->assertStringContainsString('set at the <b>cycle</b> level', $html,
+            'the notice has to name the LAYER — global, programme or cycle — because that '
+            . 'is where the operator goes to change it');
+        $this->assertStringContainsString('fewer backers than the largest vote total', $html,
+            'the notice has to state the consequence, or it is a fact with no meaning '
+            . 'attached on the page an award is signed off from');
+    }
+
+    /** A programme-level override is named as the programme's, not the cycle's. */
+    public function test_it_distinguishes_a_programme_override_from_a_cycle_one(): void
+    {
+        $this->importedCycle();
+        (new RuleEngine())->set('programme', $this->programmeId,
+            ['community_basis' => CpiService::BASIS_REACH]);
+
+        $this->assertSame('programme', (new RuleEngine())->provenance(
+            'community_basis', $this->programmeId, $this->cycleId)['from']);
+        $this->assertStringContainsString('set at the <b>programme</b> level',
+            $this->releaseScreen());
+    }
+
+    /**
+     * THE CYCLE LAYER WINS, AND `provenance()` MUST AGREE WITH THE SCORER.
+     *
+     * Two walks of the same rows is how a screen comes to name a layer the scorer did not
+     * read. `provenance()` and `effective()` share one resolution path for that reason.
+     */
+    public function test_the_narrowest_layer_decides_and_matches_what_was_scored(): void
+    {
+        $this->importedCycle();
+        $rules = new RuleEngine();
+        $rules->set('global',    null,               ['community_basis' => CpiService::BASIS_RELATIVE]);
+        $rules->set('programme', $this->programmeId, ['community_basis' => CpiService::BASIS_REACH]);
+        $rules->set('cycle',     $this->cycleId,     ['community_basis' => CpiService::BASIS_IDEAL]);
+
+        $p = $rules->provenance('community_basis', $this->programmeId, $this->cycleId);
+        $this->assertSame('cycle', $p['from']);
+        $this->assertSame(CpiService::BASIS_IDEAL, $p['value']);
+        $this->assertSame($p['value'],
+            $rules->effective($this->programmeId, $this->cycleId)['community_basis'],
+            'the layer this screen names must be the layer the scorer actually used');
+
+        $this->assertSame(CpiService::BASIS_IDEAL,
+            ResultRelease::category($this->categoryId)['community_basis']);
+    }
+
+    /**
+     * AND IT SAYS NOTHING WHERE NOTHING WAS OVERRIDDEN.
+     *
+     * "This cycle uses the default" on every ordinary cycle is a line an operator learns to
+     * scroll past — and then does not read on the one cycle where it matters.
+     */
+    public function test_an_unoverridden_cycle_gets_no_notice(): void
+    {
+        $this->importedCycle();
+
+        $this->assertSame('default', (new RuleEngine())->provenance(
+            'community_basis', $this->programmeId, $this->cycleId)['from']);
+        $this->assertStringNotContainsString('saved override', $this->releaseScreen());
     }
 
     /**

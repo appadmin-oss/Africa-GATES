@@ -165,6 +165,7 @@ final class ResultReleaseScreenRenderTest extends TestCase
                              'programme' => 'Incredible Principal Awards'],
             'categories' => $categories,
             'attention'  => ResultRelease::attention($categories),
+            'basis_default' => \AfricaGates\Services\RuleEngine::DEFAULTS['community_basis'],
             // The service's own output here too, and for the same reason as `attention`:
             // a payload this test invents can render a card the controller would never
             // produce. Passed the categories already drawn, exactly as the controller
@@ -535,8 +536,17 @@ final class ResultReleaseScreenRenderTest extends TestCase
         // so there are no people to count anywhere in the cycle and the tally takes the
         // whole community half. A page that named a reach denominator here would be naming
         // a number nothing measured.
-        $this->assertStringNotContainsString('backer', $html,
-            'the screen is reporting backers for a cycle whose ballot holds no rows at all');
+        //
+        // Asserted on the two phrasings the ROW cell prints, not on the bare word
+        // "backer". This fixture sets a cycle-level `reach` override, so the screen now
+        // also carries the notice saying which layer chose the basis — a true statement
+        // about the setting, which legitimately uses the word while naming no denominator.
+        // A substring sweep for a common word condemns it, which is a sweep failing on the
+        // fix rather than on the fault.
+        $this->assertStringNotContainsString('sets the reach scale', $html,
+            'the screen named a reach denominator for a cycle whose ballot holds no rows');
+        $this->assertStringNotContainsString('backers of', $html,
+            'the screen is measuring backers against a denominator nothing measured');
     }
 
     /**

@@ -110,6 +110,17 @@ final class ResultRelease
         // unrecognised value has to fall back to the same behaviour in both places, or the
         // screen explains a number the scorer did not produce.
         $cBasis = CpiService::basis($eff['community_basis'] ?? null);
+        // ── AND WHICH LAYER CHOSE IT ────────────────────────────────────────
+        //
+        // The default is `ideal`, under which a full community half requires as many
+        // supporters as the biggest tally in the edition. A cycle carrying an older
+        // `reach` override is scored the old way — the reach leader takes the whole 450
+        // with far fewer backers than the largest tally — and every figure on this screen
+        // looks ordinary. An operator asked why somebody shows 450 beside a handful of
+        // backers cannot tell a bug from a stored setting, and there is no shell to go and
+        // look. So the screen names the layer.
+        $basisFrom = (new RuleEngine())->provenance(
+            'community_basis', $ctx->programme_id ?? null, $ctx->cycle_id ?? null)['from'];
 
         $empty = ['category' => $cat, 'quorum' => $quorum, 'weights' => $weights,
                   'paid_only' => PaidVoteService::freeVotingDisabled(),
@@ -121,7 +132,8 @@ final class ResultRelease
                   'scale_in_category' => false, 'local_max' => 0,
                   'scale_category' => '', 'cohort_scope' => 'edition',
                   'cohort_max_unique' => 0, 'cohort_max_unique_by' => null,
-                  'community_basis' => $cBasis, 'reach_unmeasured' => 0,
+                  'community_basis' => $cBasis, 'basis_from' => $basisFrom,
+                  'reach_unmeasured' => 0,
                   'scale_is_out' => false, 'community_dark' => false];
 
         $scores = ($scoring ?? new NomineeScoringService())->scoreCategory($categoryId);
@@ -363,6 +375,11 @@ final class ResultRelease
             // template working it out from a setting would be a second reader of the one
             // fact that decides how the community half is computed.
             'community_basis'   => $cBasis,
+            // 'default' | 'global' | 'programme' | 'cycle' — see above. On the drawn
+            // result rather than fetched by the template, because a second reader of the
+            // rule that decides the community half is the fault this whole file keeps
+            // paying for.
+            'basis_from'        => $basisFrom,
             // How many nominees here have a tally with no vote rows behind it.
             'reach_unmeasured'  => $unmeasured,
             // The biggest tally in THIS category's field, against `cohort_max` which is the

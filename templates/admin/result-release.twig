@@ -193,6 +193,39 @@
       figure means the same thing on every category below and the cycle standing can be drawn
       from them. The judge half is the panel&rsquo;s weighted average out of ten, straight.</p>
   {% endif %}
+
+  {#
+    ── WHICH RULE PRODUCED THESE NUMBERS, AND WHO CHOSE IT ────────────────────
+
+    The paragraph above describes the basis in force. It does not say WHERE that basis came
+    from, and the commonest cause of a figure an operator cannot explain is not a bug — it
+    is a stored override from before the default changed.
+
+    `community_basis` is the live instance. The default is `ideal`, under which a full
+    community half REQUIRES as many supporters as the biggest tally in the edition. A cycle
+    still carrying an older `reach` override is scored the old way, where the reach leader
+    takes the whole 450 with far fewer backers than the largest tally — and every other
+    figure on the row looks ordinary. There is no shell on this host, so without this line
+    the only way to tell a bug from a setting is to read the database.
+
+    Stated only when a layer actually chose it: printing "this cycle uses the default" on
+    every ordinary cycle is a line an operator learns to scroll past, and then does not read
+    on the one cycle where it matters.
+  #}
+  {% if categories is not empty and categories[0].basis_from != 'default' %}
+    <p><b>These numbers were produced by a saved override.</b>
+      The community basis for this cycle is <code>{{ categories[0].community_basis }}</code>,
+      set at the <b>{{ categories[0].basis_from }}</b> level rather than left at the
+      platform default (<code>{{ basis_default }}</code>).
+      {% if categories[0].community_basis != basis_default %}A cycle on an older basis is
+        scored by the older rule, deliberately &mdash; an announced standing has to stay
+        reproducible. It also means a figure here will not match what the current rule
+        would give, and under <code>reach</code> in particular a nominee can hold the full
+        community half with fewer backers than the largest vote total in the cycle, which
+        <code>{{ basis_default }}</code> does not allow. Change it under
+        <a href="/admin/settings">Settings &rarr; Scoring</a> if that is not intended.
+      {% endif %}</p>
+  {% endif %}
 </div>
 
 <form method="get" action="/admin/result-release" class="ja-row">

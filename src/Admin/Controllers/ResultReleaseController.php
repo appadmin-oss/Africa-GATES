@@ -94,6 +94,12 @@ final class ResultReleaseController
             // because a template deriving it would be a second opinion about what needs
             // attention.
             'attention'  => ResultRelease::attention($categories),
+            // The platform's own default basis, so the override notice can say what the
+            // cycle would be scored by if the saved setting were removed. Read from the
+            // rule engine's constant, never typed: a screen that names a default the
+            // engine stopped using is this codebase's most-repeated fault, and this is the
+            // page an award is signed off from.
+            'basis_default' => \AfricaGates\Services\RuleEngine::DEFAULTS['community_basis'],
             // ── THE ONE AWARD FOR THE WHOLE CYCLE ────────────────────────────
             //
             // Passed the categories this page already drew rather than the cycle id: it is

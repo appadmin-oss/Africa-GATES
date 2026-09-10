@@ -142,6 +142,48 @@ class RuleEngine
         return $rules;
     }
 
+    /**
+     * WHICH LAYER DECIDED ONE RULE, AND WHAT IT SAID.
+     *
+     * ══════════════════════════════════════════════════════════════════════════
+     * WHY A SCREEN NEEDS THIS AND `effective()` IS NOT ENOUGH
+     * ══════════════════════════════════════════════════════════════════════════
+     *
+     * A rule resolves through four layers — the hardcoded default, then a `global`,
+     * `programme` and `cycle` override in that order — and {@see effective()} flattens all
+     * four into one answer. That is right for the scorer and useless to the person asked
+     * why a cycle's numbers look wrong, because the commonest cause is not a bug: it is a
+     * stored override from before the default changed.
+     *
+     * `community_basis` is the live instance. The default moved to `ideal`, under which a
+     * full community half REQUIRES as many supporters as the biggest tally in the edition.
+     * A cycle carrying an older `reach` override is still scored the old way — where the
+     * reach leader takes the whole 450 with far fewer backers than the largest tally — and
+     * every figure on the screen looks ordinary. The operator sees an impossible-looking
+     * score and no screen anywhere says which rule produced it, on a host with no shell to
+     * go and look. Same shape as the settings screen that explained the default basis using
+     * a different basis's arithmetic.
+     *
+     * So: the value, and where it came from. `from` is `default` when no layer set it.
+     *
+     * @return array{value:mixed, from:'default'|'global'|'programme'|'cycle'}
+     */
+    public function provenance(string $key, ?int $programmeId = null, ?int $cycleId = null): array
+    {
+        $value = self::DEFAULTS[$key] ?? null;
+        $from  = 'default';
+
+        // Same order `effective()` merges in, so the answer cannot disagree with the one
+        // the scorer used — the last layer that names the key is the one that decided it.
+        foreach ($this->layers($programmeId, $cycleId, true) as [$scope, $override]) {
+            if (!array_key_exists($key, $override)) continue;
+            $value = $override[$key];
+            $from  = $scope;
+        }
+
+        return ['value' => $value, 'from' => $from];
+    }
+
     /** Community/judge split for a scope (normalised so the two sum to 1). */
     public function weights(?int $programmeId = null, ?int $cycleId = null): array
     {
@@ -162,8 +204,17 @@ class RuleEngine
         );
     }
 
-    /** Override layers in precedence order (global first, cycle last). */
-    private function layers(?int $programmeId, ?int $cycleId): array
+    /**
+     * Override layers in precedence order (global first, cycle last).
+     *
+     * `$labelled` returns `[scope, rules]` pairs instead of bare rule arrays, so
+     * {@see provenance()} can say WHICH layer decided a key. One resolution path for both
+     * questions: a second walk of these rows is how a screen comes to name a layer the
+     * scorer did not actually read.
+     *
+     * @return list<array<string,mixed>>|list<array{0:string,1:array<string,mixed>}>
+     */
+    private function layers(?int $programmeId, ?int $cycleId, bool $labelled = false): array
     {
         try {
             $q = DB::table('gates_rule_sets')->where(function ($w) use ($programmeId, $cycleId) {
@@ -181,7 +232,8 @@ class RuleEngine
         $out = [];
         foreach ($rows as $row) {
             $decoded = json_decode((string) $row->rules, true);
-            if (is_array($decoded)) $out[] = $decoded;
+            if (!is_array($decoded)) continue;
+            $out[] = $labelled ? [(string) $row->scope, $decoded] : $decoded;
         }
         return $out;
     }
