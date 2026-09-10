@@ -185,6 +185,64 @@ The JS half matters too: `form.submit()` drops the pressed button's `formaction`
 confirmed delete sharing a form with a save would run the save. Both `data-confirm` handlers
 use `requestSubmit(submitter)`.
 
+## The admin console's shape, and the two directions a nav can be wrong
+
+The rail is **seven headings, and seven is a floor rather than a taste call**: there are
+exactly seven `admin_sections` gates and a section can carry only one, so fewer sections
+means moving a page to a different gate. That is an access change and **must never ride
+along inside a navigation change** — `AdminNav` records `gate` per section and
+`AdminNavTest` asserts it against the original mapping. Sections are uneven by design
+(three items in Programmes, eleven in Content); one opens at a time, the tail is in the
+in-page sub-nav and the `⌘K` palette, which is the documented hybrid resolution to NN/g's
+finding that hidden navigation roughly halves discoverability.
+
+**And a nav can be wrong in two directions.** `AdminNavTest`'s fourteen tests all read
+NAV → ROUTES — every entry is a real route, no page twice, every item has a sprite icon.
+Not one read ROUTES → NAV, which is the exact direction `AdminNav`'s own docblock says the
+class was built to fix ("a new page could be built, routed and permissioned and still not
+appear in the nav"). Moving the links into a class made the tree greppable; nothing checked
+it was complete. So the fault it was built to prevent was still live, and had recurred:
+`/admin/settings/providers` — "the page that asks every provider a real question" — was
+routed, declared `admin_page: 'settings'` so the rail highlighted Settings while an
+operator stood on it, and was linked from nowhere. Not the rail, not Settings, and so not
+the palette either, which is generated from the rail.
+
+`AdminIaTest` asks the other question: **is every admin page findable without knowing its
+URL?** In the rail, or linked from a template. Its exclusions are KINDS with reasons —
+authentication, `/new` create forms, downloads, fragments — never a list of pages nobody
+linked. It also holds that the rail label and the page's own `topbar_title` AGREE (the rail
+said "Revenue" over a page headed "Finance"), one casing convention (sentence case), and a
+ceiling of twelve items per heading before a grouping becomes a list.
+
+**A sub-page is linked from the page it belongs under, not added to the rail.**
+`/admin/shop/codes` from shop orders, `/admin/nominees/duplicate-scan` from nominees. That
+is what keeps the rail scannable, and it needs no new page key or sprite icon.
+
+**Judging is spread across three gates and that is not a tidy-up.** `judges` and `rubric`
+under `configuration`, `judging-audit` and `result-release` under `data`, `interviews` and
+`questionnaires` under `moderation`. It reads as a fragmented workflow and it is
+gate-driven: consolidating it moves pages between gates, which grants or removes access for
+whole roles. Raise it as a product decision; never do it inside a navigation change.
+
+### Admin documentation lives in the console, not in `docs/`
+
+There is no SSH on production, so an administrator cannot open a Markdown file — `docs/` is
+for whoever changes the code. The handbook is `/admin/handbook`, in the always-visible
+section so every role can read it, because somebody whose permissions do not reach Money
+still needs to know Money exists and why their rail is shorter than a colleague's.
+
+**Its structural facts are LOOPED FROM THE CODE, and that rule is the whole design.** Areas
+from `AdminNav::sections()`, roles from `Permissions::MATRIX`, weights and quorum from
+`RuleEngine`, verification words from `RegistryCheck::STATES`, the grace window from
+`ANNOUNCE_GRACE_DAYS`. This repo has paid four times for prose outliving the rule it
+describes, and a handbook is that hazard with people actively told to trust it — the
+settings screen was found explaining the default scoring basis with a *different* basis's
+arithmetic, 157 points out, on the screen where an operator picks it.
+`HandbookTest::test_the_numbers_are_read_from_the_rules_and_not_typed_in` renders the page
+twice against different rulesets and requires the figures to move. **Anything typed there
+that could have been computed is a bug waiting to happen**, and a second admin-facing
+document anywhere else is a second thing to keep true: add to the handbook.
+
 ## Anything operational must be settable from `/admin/settings`
 
 There is no shell on production, so a credential read only from `.env` is a credential that
@@ -219,6 +277,42 @@ Both traps name code you did not touch, which is what makes them expensive.
 
 The harness builds an in-memory SQLite database from the three schema files and then runs
 every dated migration, with `PRAGMA foreign_keys = OFF` so unit seeds can stay minimal.
+
+### What a new test owes, and three ways one lies to you
+
+**Prove a new sweep FAILS before you trust it passing.** Every sweep in this file exists
+because something shipped, and several of them passed over the thing they were written for
+— `SchemaIndexTest` excused all three 1064s, `SecurityHeadersTest` asserted `camera=()` by
+name while the door's scanner was dead, `scale_is_out`'s own test kept passing because the
+fixture has one category. A sweep is only evidence once you have broken the code and
+watched it name the break. Do that before committing it, and say so.
+
+**An enumeration of past failures is never a fix for the next one.** `TestCase` used to
+purge six named tables and that list only grew; a sweep for the literal figures of a
+retired worked example would fail on the paragraph legitimately documenting the retirement.
+Assert the RULE (is any capability the site calls being denied?) rather than the instances.
+
+Three things that made a sweep of my own lie, all of them about reading `src/routes.php`:
+
+- **`$a` is the route-group proxy variable for the API and `/account` groups as well as
+  `/admin`.** A sweep for `$a->get(` therefore reports `/api/v1/registry` as an unreachable
+  admin page — thirteen false findings. Locate the group's span; do not assume it.
+- **A route's path can appear three ways**, because routes are declared relative to their
+  group: `/admin/legal` is `'/legal'`, `/admin/shop/orders` is `'/orders'` inside a
+  `/shop` group, and `/admin/questionnaires/invitations` is a perfectly real
+  `$s->get('/invitations', …)`. `AdminNavTest` has the three-form matcher; reuse it rather
+  than write a fourth almost-right version, because two tests disagreeing about what counts
+  as a registered route is worse than either being loose.
+- **Resolving a template by scanning for an `admin_page` declaration finds the wrong one.**
+  Several templates legitimately declare the same key so the rail highlights the right
+  section from a sub-page — `scorecard.twig` declares `result-release`. Follow the route's
+  own handler instead.
+
+And one about the harness: **`csrf_token` is a Twig GLOBAL** (`config/container.php`), not
+something a controller passes. A render test that builds its own `Environment` under
+`strict_variables` breaks the moment the screen gains a form, for a reason unrelated to the
+screen — 16 tests at once. Mirror the app's globals in the test; do not default the token in
+the template, which posts an empty one and has the write rejected in production.
 
 ### The MySQL parity run, which is the one that finds things
 
@@ -543,6 +637,34 @@ Full account in `docs/CODEBASE-INDEX.md` §16.
   is exactly the person owed the explanation, and a 404 there reads as the result having
   been taken down. `noindex`, because the real result takes that same URL.
   **No invented second date.** The last date this platform named is the one it did not keep.
+  **AND A SEAL CLAIMS AN ANNOUNCEMENT, SO IT NEEDS ONE.** Entering `results` fired two side
+  effects that never referred to each other: the staleness rule withheld every notification
+  — correctly, a months-old result must not email congratulations now — and the seal
+  recorded the standing "as announced" regardless. So a late cycle told nobody and froze its
+  figures as the announcement in the same pass, with panels still unfinished. Nothing on any
+  screen showed it: the published figures simply stopped moving while scoring carried on, so
+  a judge completing a scorecard changed nothing anybody could see, and the symptom reported
+  is "the score is not changing" — which names the scorer, the one part of it that was
+  working. `captureRelease()` is gated on the announcement actually going out now, and
+  `2027_01_12_unannounced_seal_repair.php` demotes the rows already written. It finds them
+  from `gates_cycle_transitions.notify`, the platform's own contemporaneous record of
+  whether it announced — evidence, not a heuristic — and DEMOTES rather than deletes,
+  because `gates_vote_snapshots` is a hash chain and `capture_kind` is stored beside the
+  hash rather than inside it. A cycle with no ledger row is left alone: absence of a record
+  is not a record of absence.
+  **Which made releasing an ACT rather than a date, because it had to.** The sweep never
+  revisits a cycle — the ledger's UNIQUE (cycle_id, to_status) is its claim — so a
+  withheld seal was a one-way door: honest, and permanent.
+  `CycleMaterialiser::release()` is the way in, from `/admin/result-release`. It does NOT
+  relax `CycleService::manualTransitionError()`, which still refuses a hand-set `results`:
+  an operator never writes the status, they ask for a release, and the same quorum-checked
+  promotion and the same seal run as on the scheduled path, on the same ledger, marked
+  `notify = 1` because a person deliberately releasing IS the announcement. It refuses a
+  cycle before judging (the phase is COMPUTED, not read off the status column — that column
+  is a cache and this is an authorisation question), accepts one already in `results` (that
+  is the repair), and seals once however many times it is pressed. It deliberately does not
+  refuse an early release: a panel that finished early may publish, and making them wait for
+  a date they set themselves enforces a promise nobody made to anybody.
 - **The sandbox must never reach the public.** `DemoSeeder` creates real rows with real
   flags, because the sandbox exists to be walked through for real. Every public reader has
   to exclude them — `JudgeService::realJudges()` is the pattern.
@@ -628,6 +750,62 @@ Full account in `docs/CODEBASE-INDEX.md` §16.
   but **who is ever handed this?** `RecurringGivingTest` now asserts the receipt's own body
   calls `stopLink()`, because a link builder with a passing test and no caller is precisely
   the state this shipped in.
+
+## An organisation's own donation page
+
+`OrgBrand` is what a partner organisation controls on `/gift/{slug}`: an accent, a logo, a
+tagline, a story, and nine blocks — impact figures, a gift ladder, video, quotes, an FAQ,
+the team, a short history, partners, links out. It shipped **dead on both sides** and that
+is the thing to keep in mind before extending it: there was a validated writer, a route, an
+uploader and an accent refused for failing contrast against white — and `css()` had no
+caller, `DonationController` never mentioned the service, and the organisation's own
+dashboard template contained the word "brand" zero times. No form in, no page out, while
+the migration's docblock described it as shipped. §17 and §18 in one feature.
+
+**It is ONE JSON document, and that is deliberate** — everything in it is read once per
+page for one organisation already loaded by id or slug, and nothing filters or sorts on an
+accent. So a new block needs no migration. It also means the column is the constraint:
+`brand_json` is TEXT, **65,535 bytes on MySQL**, and the per-block caps count CHARACTERS.
+Filled with four-byte characters the same caps allow ~132KB — twice what the column holds —
+so an organisation writing in a non-Latin script can overflow it while typing nothing the
+form called too long. Left to the database that is a throw in strict mode or a TRUNCATION
+on a host that overrides `sql_mode`, and a truncated JSON document does not parse, so
+`of()` falls back to the house defaults and their whole page silently reverts to unbranded.
+`save()` refuses above `MAX_JSON_BYTES` with the size instead.
+
+**The two-field blocks are a TABLE, not seven loops.** `OrgBrand::BLOCKS` drives one reader,
+one writer, and the editor's form field names — which are DERIVED, so a field the writer
+does not read is impossible rather than unlikely. That failure would be silent: a field
+named `impact_figures` posts happily, is never read, and the organisation saves with no
+error and finds the block empty.
+
+**Every value is re-validated on the way OUT, not only in.** A document survives the code
+that wrote it — an import, a restore, a retired provider — so reading a URL out of storage
+and putting it in an `href` because "it was checked when it was saved" is trusting a past
+version of the file.
+
+**Embeds are provider-allowlisted and CLICK-TO-LOAD, and the second half is a legal
+requirement rather than a performance choice.** An iframe present in the markup sends the
+visitor's IP to YouTube or Vimeo and lets them set storage on page view, before the visitor
+has done anything; under the GDPR joint-controller line and Nigeria's NDPA 2023 that needs
+a lawful basis, and "the page contained a video" is not one. `-nocookie` narrows the cookie
+question and does not touch the transmission. So nothing is fetched until somebody presses
+play, the button names the provider before they do, and there is a plain link out for a
+browser that refuses the frame. `OrgPageTest` asserts **zero iframes in the shipped HTML**,
+not an intention.
+
+An organisation pastes a URL and only the video ID is kept; `embedUrl()` builds ours from a
+fixed per-provider prefix. Nothing they typed reaches an `src`. The host is PARSED, never
+substring-matched — `str_contains($u, 'youtube.com')` is true of
+`youtube.com.attacker.example`, which is how an allowlist stops being one. Adding a provider
+is three edits and all three are required: `VIDEO_PROVIDERS`, `Csp::FRAME_HOSTS`, and
+`public/.htaccess`. **On this host the static policy in that file is the one a browser
+receives**, so an origin added only in PHP works nowhere while looking correct in the
+source; `CspStaticFallbackTest` fails if the two diverge.
+
+**And `gates_partner_orgs.contact_email` is a compliance contact, not a press office.** It
+is the address given to verify a CAC registration. The public page publishes only the
+website they typed into a field labelled as public.
 
 ## Two things about the events page's tier list
 
