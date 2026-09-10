@@ -119,6 +119,33 @@ final class TallyOnlyCommunityHalfTest extends TestCase
         }
     }
 
+    /**
+     * Publish a shortlist naming exactly these nominees.
+     *
+     * Two tables, and the resolver reads them together — {@see ResultRelease::shortlistedIn()}
+     * takes the newest PUBLISHED list for the category and then its entries. A fixture that
+     * wrote a draft would silently shortlist nobody, which is the state that changes
+     * nothing, so the test would pass by testing the unshortlisted path.
+     *
+     * @param list<int> $nomineeIds
+     */
+    private function shortlist(array $nomineeIds): void
+    {
+        // `cycle_id` is NOT NULL with no default. Omitting it throws on MySQL and on the
+        // SQLite harness alike — check the schema, not the fixture.
+        $id = (int) DB::table('gates_shortlists')->insertGetId([
+            'cycle_id'    => $this->cycleId,
+            'category_id' => $this->categoryId,
+            'status'      => 'published',
+            'entry_count' => count($nomineeIds),
+        ]);
+        foreach ($nomineeIds as $n) {
+            DB::table('gates_shortlist_entries')->insert([
+                'shortlist_id' => $id, 'nominee_id' => $n,
+            ]);
+        }
+    }
+
     private function panel(int $nominee, int $mark): void
     {
         static $n = 0;
@@ -420,6 +447,115 @@ final class TallyOnlyCommunityHalfTest extends TestCase
         $this->assertSame('default', (new RuleEngine())->provenance(
             'community_basis', $this->programmeId, $this->cycleId)['from']);
         $this->assertStringNotContainsString('saved override', $this->releaseScreen());
+    }
+
+    // ══ the yardstick that does not see every tally ══════════════════════════
+
+    /**
+     * A FULL COMMUNITY HALF WITH FEWER BACKERS THAN THE BIGGEST TALLY IN THE EDITION.
+     *
+     * ── AND IT IS THE RULE WORKING ─────────────────────────────────────────
+     *
+     * Under `ideal` the half divides by the largest vote total in the FIELD, and the field
+     * is each category's published shortlist. A nominee left off a shortlist sets nothing.
+     *
+     * So a finalist on 500 votes from 500 supporters holds the whole 450 while a
+     * non-finalist in the same edition sits on 2,000. Every figure on the row is correct,
+     * and an operator comparing against the biggest number they can see reads it as
+     * somebody holding a full community half with fewer backers than the highest total —
+     * which is precisely the report this file exists for.
+     *
+     * Nothing on any screen had ever said the yardstick could exclude a tally. This pins
+     * both halves: the arithmetic, and the sentence.
+     */
+    public function test_a_shortlist_can_hide_a_bigger_tally_from_the_yardstick(): void
+    {
+        $finalist = $this->nominee('Dr. Adegboyega Aborode', 500);
+        $outsider = $this->nominee('Ogunyemi Olusola Titilope', 2000);
+        $this->panel($finalist, 8);
+        $this->panel($outsider, 8);
+        $this->backers($finalist, 500, 'f');
+        $this->backers($outsider, 4, 'o');
+
+        $this->shortlist([$finalist]);
+
+        $r = ResultRelease::category($this->categoryId);
+
+        $this->assertSame(500, $r['cohort_max'],
+            'the yardstick is the shortlisted field, not the entry list');
+        $this->assertSame(2000, $r['cohort_outside_max'],
+            'the bigger tally outside the field is not being reported');
+        $this->assertSame('Ogunyemi Olusola Titilope', $r['cohort_outside_by']['name'] ?? null);
+
+        $row = null;
+        foreach ($r['rows'] as $x) if ((int) $x['nominee_id'] === $finalist) $row = $x;
+        $this->assertNotNull($row);
+        $this->assertSame(450, (int) $row['community_points'],
+            '500 supporters against a 500-vote yardstick is the whole half');
+        $this->assertLessThan($r['cohort_outside_max'], (int) $row['unique_voters'],
+            'this is the reported shape: a full half with fewer backers than the biggest '
+            . 'tally in the edition');
+    }
+
+    public function test_the_screen_says_the_yardstick_excludes_a_bigger_tally(): void
+    {
+        $finalist = $this->nominee('Dr. Adegboyega Aborode', 500);
+        $this->nominee('Ogunyemi Olusola Titilope', 2000);
+        $this->panel($finalist, 8);
+        $this->backers($finalist, 500, 'f');
+        $this->shortlist([$finalist]);
+
+        $html = $this->releaseScreen();
+
+        $this->assertStringContainsString('yardstick excludes a bigger tally', $html);
+        $this->assertStringContainsString('not on that category&rsquo;s shortlist', $html,
+            'the notice has to name the LEVER — the shortlist, not the scoring');
+        $this->assertStringContainsString('Ogunyemi Olusola Titilope', $html,
+            'the notice has to name who holds the excluded tally, or it cannot be checked');
+    }
+
+    /**
+     * AND IT SAYS NOTHING WHEN NOTHING IS EXCLUDED.
+     *
+     * A caveat that fires on every cycle is one an operator learns to scroll past, and
+     * then does not read on the cycle where it matters. Below the yardstick, an excluded
+     * tally has changed nothing anybody would ask about.
+     */
+    public function test_a_smaller_excluded_tally_is_not_worth_saying(): void
+    {
+        $finalist = $this->nominee('Dr. Adegboyega Aborode', 2000);
+        $this->nominee('Ogunyemi Olusola Titilope', 90);
+        $this->panel($finalist, 8);
+        $this->backers($finalist, 30, 'f');
+        $this->shortlist([$finalist]);
+
+        $this->assertStringNotContainsString('yardstick excludes', $this->releaseScreen());
+    }
+
+    /**
+     * THE WORKING IS ON THE ROW.
+     *
+     * A score an operator cannot reproduce from the row is one they have to take on trust,
+     * and the call they get is "this cannot be right". Every screen here explained the
+     * RULE and printed the inputs somewhere else, so checking one nominee meant holding
+     * three numbers from three places in your head.
+     */
+    public function test_the_row_prints_the_arithmetic_of_the_community_half(): void
+    {
+        [$a] = $this->importedCycle();
+        $this->backers($a, 400, 'a');
+
+        $r = ResultRelease::category($this->categoryId);
+        $row = null;
+        foreach ($r['rows'] as $x) if ((int) $x['nominee_id'] === $a) $row = $x;
+        $this->assertNotNull($row);
+
+        $html = $this->releaseScreen();
+
+        $this->assertStringContainsString(
+            '315 &times; 400/2,000 + 135 &times; 2,000/2,000 = <b>'
+            . $row['community_points'] . '</b>', $html,
+            'the half cannot be checked against the number printed beside it');
     }
 
     /**

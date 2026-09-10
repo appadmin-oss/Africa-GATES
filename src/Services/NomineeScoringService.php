@@ -252,6 +252,11 @@ class NomineeScoringService
                 // computed the number.
                 'cohort_max_by'        => $scale['votes_by'],
                 'cohort_max_unique_by' => $scale['unique_by'],
+                // The largest tally OUTSIDE the field, and who holds it. Decides nothing;
+                // it is what lets a screen explain why a finalist on 500 votes can hold a
+                // full community half while a bigger number exists in the same edition.
+                'cohort_outside_max'   => (int) ($scale['outside_max'] ?? 0),
+                'cohort_outside_by'    => $scale['outside_by'] ?? null,
                 // 'edition' normally; 'category' only where the cycle could not be
                 // resolved at all, which is a broken row rather than a configuration.
                 'cohort_scope'         => (string) $scale['scope'],
@@ -423,6 +428,32 @@ class NomineeScoringService
             if ($v > $maxVotes) { $maxVotes = $v; $votesBy = $n; }
         }
 
+        // ── THE TALLY THE YARDSTICK DOES NOT SEE ─────────────────────────────
+        //
+        // The field is the published SHORTLIST where a category has one, so a nominee left
+        // off it sets nothing — deliberately, and the reason is in `fieldIn()`.
+        //
+        // The consequence has never been stated anywhere, and it is the one that makes a
+        // score look wrong. Under `ideal` the yardstick is the largest tally in the FIELD,
+        // so a finalist on 500 votes from 500 supporters takes the whole 450 while a
+        // non-finalist in the same edition sits on 2,000. Every figure on the row is
+        // correct and the operator, comparing against the biggest number they can see,
+        // reads it as a nominee holding a full community half with fewer backers than the
+        // highest total — which is exactly the report that brought us here.
+        //
+        // So the excluded maximum travels with the scale. It changes no arithmetic; it is
+        // the sentence a screen needs to explain the arithmetic it already has.
+        $outside = 0; $outsideBy = null;
+        foreach ($catIds as $cid) {
+            $listed = ResultRelease::shortlistedIn($cid);
+            if ($listed === null) continue;               // no shortlist, nobody excluded
+            foreach ($this->scoredIn($cid) as $n) {
+                if (isset($field[(int) $n->id])) continue;
+                $v = (int) $n->vote_count;
+                if ($v > $outside) { $outside = $v; $outsideBy = $n; }
+            }
+        }
+
         $reach     = VoterReach::forNominees(array_keys($field));
         $maxUnique = 0; $uniqueBy = null;
         foreach ($field as $id => $n) {
@@ -459,6 +490,7 @@ class NomineeScoringService
         $titles = [];
         $need = array_values(array_unique(array_filter([
             (int) ($votesBy->category_id ?? 0), (int) ($uniqueBy->category_id ?? 0),
+            (int) ($outsideBy->category_id ?? 0),
         ])));
         if ($need !== []) {
             try {
@@ -488,6 +520,12 @@ class NomineeScoringService
             'max_unique' => $maxUnique,
             'votes_by'   => $who($votesBy),
             'unique_by'  => $who($uniqueBy),
+            // The largest tally held by a scored nominee who is NOT in the field, and who
+            // holds it. Zero when every scored nominee is in the field, which is every
+            // category that does not shortlist. See the block above: this decides nothing
+            // and explains everything.
+            'outside_max' => $outside,
+            'outside_by'  => $who($outsideBy),
             // The scope in force, which is 'category' both where an operator asked for it
             // and where the cycle could not be resolved at all. The second is a broken row
             // rather than a configuration, and the left join above is what makes it rare.
