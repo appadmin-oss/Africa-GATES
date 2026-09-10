@@ -37,9 +37,10 @@ use Illuminate\Support\Carbon;
  *    THIS GATE USED TO ALSO ACCEPT A `results_date` THAT HAD PASSED, which is the sentence
  *    above being contradicted two lines under it. A cycle is announced by
  *    {@see \AfricaGates\Services\CycleMaterialiser}, in one transaction that sets the
- *    status, promotes the winners and seals the standing; until it runs, nobody has been
- *    crowned. So a cycle still in `judging` three days past its date published a full
- *    standing with a named winner and an index — and no seal, so the page also printed
+ *    status, promotes the winners and — where the announcement actually goes out — seals
+ *    the standing; until it runs, nobody has been crowned. So a cycle still in `judging`
+ *    three days past its date published a full standing with a named winner and an index
+ *    — and no seal, so the page also printed
  *    "Recomputed under current rules", the platform admitting on a result page that this
  *    was not the announcement. Every figure on it could still move: the panel was open.
  *
@@ -75,6 +76,17 @@ final class PublicResults
      * The name is the point. These two statuses are what `CycleMaterialiser` writes in the
      * same transaction that crowns the winners and seals the standing, so they mean "this
      * was announced" and a date never does.
+     *
+     * ── WITH ONE EXCEPTION, AND IT IS THE SEAL THAT IS MISSING, NOT THE STATUS ──
+     *
+     * Where a cycle crosses its boundary more than `ANNOUNCE_GRACE_DAYS` late, the
+     * materialiser corrects the status and promotes the winners but withholds every
+     * outbound notification — and no longer seals, because a seal claims to be the
+     * standing that was announced and on that path nothing was. Such a cycle is in
+     * `results`, so it passes this gate and publishes; it simply publishes live figures
+     * labelled as recomputed until somebody releases it deliberately. That is the honest
+     * state for it, and {@see \AfricaGates\Services\ReleasedStanding} is where the
+     * labelling is decided.
      */
     public const RELEASED = ['results', 'archived'];
 

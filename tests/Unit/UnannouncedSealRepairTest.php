@@ -40,7 +40,16 @@ final class UnannouncedSealRepairTest extends TestCase
 {
     private const MIGRATION = __DIR__ . '/../../database/migrations/2027_01_12_unannounced_seal_repair.php';
 
-    /** Run the repair the way the runner does, without its output in the test log. */
+    /**
+     * Run the repair the way the runner does, without its output in the test log.
+     *
+     * `ReleasedStanding::forCycle()` memoises per process, and the migration runner is its
+     * own process — so in production nothing has read a seal by the time the repair runs,
+     * and nothing reads a stale one afterwards. In-process the two share a static, and a
+     * test that asserts a precondition before repairing would otherwise be handed its own
+     * earlier answer back. Dropping the memo here models the process boundary rather than
+     * working around it.
+     */
     private function repair(): void
     {
         ob_start();
@@ -49,6 +58,7 @@ final class UnannouncedSealRepairTest extends TestCase
         } finally {
             ob_end_clean();
         }
+        ReleasedStanding::forget();
     }
 
     /**
