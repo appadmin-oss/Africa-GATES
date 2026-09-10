@@ -8,6 +8,7 @@ use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
 use Slim\Views\Twig;
 use AfricaGates\Admin\Services\{SettingsService, AuditService};
+use AfricaGates\Services\NominationFeedbackService;
 use AfricaGates\Services\OtpService;
 
 class SettingsController
@@ -1048,7 +1049,18 @@ class SettingsController
             // what it drew before, rather than a bar against a figure nobody chose.
             foreach (['nations_count', 'cpi_recompute_hours', 'review_sla_hours',
                       'nomination_seconds', 'otp_expiry_minutes', 'donation_goal_naira'] as $k) {
-                if (array_key_exists($k, $b)) $this->settings->set($k, (string) max(0, (int) $b[$k]), $adminId);
+                if (!array_key_exists($k, $b)) continue;
+                // The SLA is normalised by the one function that resolves it, so what is
+                // STORED is what the platform will do. Nought clamps to nought for every
+                // other key on this list — a goal of nothing is "no target", which is a
+                // real answer — and for this one it does not: three public surfaces print
+                // it as "reviewed within N hours", and the mailer has always floored it at
+                // one. An operator who saves nought and then reads nought back off this
+                // form has been told something the platform is not doing.
+                $v = $k === NominationFeedbackService::SLA_KEY
+                    ? (string) NominationFeedbackService::slaHours((string) $b[$k])
+                    : (string) max(0, (int) $b[$k]);
+                $this->settings->set($k, $v, $adminId);
             }
             if (array_key_exists('processing_fee_pct', $b)) {
                 $this->settings->set('processing_fee_pct', (string) max(0, (float) $b['processing_fee_pct']), $adminId);

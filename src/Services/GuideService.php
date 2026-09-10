@@ -221,10 +221,10 @@ final class GuideService
                     ->where('event_date', '>=', date('Y-m-d H:i:s'))->orderBy('event_date')->first(['title', 'event_date', 'location']);
                 $state['next_event'] = $e ? ['title' => (string) $e->title, 'date' => (string) $e->event_date, 'location' => (string) ($e->location ?? '')] : null;
             } catch (\Throwable) { $state['next_event'] = null; }
-            try {
-                $sla = DB::table('gates_settings')->where('key_name', 'review_sla_hours')->value('value');
-                $state['review_sla_hours'] = $sla !== null ? (int) $sla : 48;
-            } catch (\Throwable) { $state['review_sla_hours'] = 48; }
+            // One resolver, shared with the mailer that acts on this number and with the
+            // Twig global the public pages print. Its own cast had no floor, so a setting
+            // of nought had the assistant telling the public we review "within 0 hours".
+            $state['review_sla_hours'] = NominationFeedbackService::slaHours();
             return $state;
         };
 

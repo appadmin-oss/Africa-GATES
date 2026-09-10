@@ -1291,7 +1291,14 @@
         <div><label for="f-cpi_recompute_hours">CPI recompute interval (hours)</label><input type="number" name="cpi_recompute_hours" id="f-cpi_recompute_hours" min="0" step="1" value="{{ values.cpi_recompute_hours|default('6') }}"></div>
       </div>
       <div class="row">
-        <div><label for="f-review_sla_hours">Nomination review SLA (hours)</label><input type="number" name="review_sla_hours" id="f-review_sla_hours" min="0" step="1" value="{{ values.review_sla_hours|default('48') }}"></div>
+        {#- `min="1"`, not 0. This number is a PROMISE printed on /nominate-success and
+            /integrity ("reviewed within N hours", "acknowledge the complaint within N
+            hours"), and nought there reads as a guarantee of instant service rather than
+            as the switch an operator meant it to be. The resolver floors it at one either
+            way ({@see \AfricaGates\Services\NominationFeedbackService::slaHours}); the
+            form stops offering the value that made three public surfaces say something
+            nobody intended. Clear the field to go back to the default. -#}
+        <div><label for="f-review_sla_hours">Nomination review SLA (hours)</label><input type="number" name="review_sla_hours" id="f-review_sla_hours" min="1" step="1" value="{{ values.review_sla_hours|default('48') }}"></div>
         <div><label for="f-nomination_seconds">Nomination time estimate (seconds)</label><input type="number" name="nomination_seconds" id="f-nomination_seconds" min="0" step="1" value="{{ values.nomination_seconds|default('90') }}"></div>
       </div>
       <div class="row">

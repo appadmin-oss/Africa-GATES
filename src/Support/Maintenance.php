@@ -1088,8 +1088,9 @@ final class Maintenance
     private function sendPendingAcknowledgements(): int
     {
         try {
-            $sla = 48;
-            try { $v = DB::table('gates_settings')->where('key_name', 'review_sla_hours')->value('value'); if ($v !== null) $sla = max(1, (int)$v); } catch (\Throwable $e) {}
+            // Was the only one of this value's three readers that floored it, which is how
+            // it came to be the only one that behaved. The floor lives in the resolver now.
+            $sla = NominationFeedbackService::slaHours();
             $pending = NominationFeedbackService::pendingNeedingAck($sla * 2, 200);
             if (!$pending) return 0;
             $mailer = $this->container?->get(OtpService::class);

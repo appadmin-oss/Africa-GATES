@@ -17,6 +17,8 @@ use Illuminate\Database\Capsule\Manager as DB;
  *   • pendingNeedingAck() / markAcked()  — power a cron that emails a "still
  *     under review" acknowledgement for nominations sitting past the review
  *     SLA, so a slow queue never reads as being ignored.
+ *   • slaHours()  — THE one reader of `review_sla_hours`. See its docblock: the
+ *     value was resolved in three places with three different answers.
  */
 class NominationFeedbackService
 {
@@ -79,5 +81,59 @@ class NominationFeedbackService
         try {
             DB::table('gates_nominations')->where('id', $nominationId)->update(['nominator_ack_at' => date('Y-m-d H:i:s')]);
         } catch (\Throwable) {}
+    }
+
+    /** The settings key, so the three former call sites cannot spell it differently. */
+    public const SLA_KEY = 'review_sla_hours';
+
+    /** Two working days, which is what the copy said before the value existed. */
+    public const SLA_DEFAULT = 48;
+
+    /**
+     * HOW LONG WE TELL SOMEBODY THEIR NOMINATION WILL TAKE.
+     *
+     * ══════════════════════════════════════════════════════════════════════════
+     * ONE VALUE, THREE RESOLVERS, AND THE PUBLIC ONES WERE THE WRONG TWO
+     * ══════════════════════════════════════════════════════════════════════════
+     *
+     * `review_sla_hours` had three readers and no owner:
+     *
+     *   · `config/container.php` cast it for a Twig global with no floor. That global is
+     *     printed on `/nominate-success` ("usually within N hours") and on `/integrity`
+     *     ("Acknowledge the complaint within N hours").
+     *   · `GuideService` cast it with no floor into the site-state block the assistant is
+     *     allowed to quote to the public.
+     *   · `Maintenance::sendPendingAcknowledgements()` floored it at one before deciding
+     *     when the "still under review" mail goes out.
+     *
+     * So the only reader that ACTED on the number was the only one that guarded it, and the
+     * three that PUBLISH it did not. The settings form offers `min="0"` and the writer
+     * clamps with `max(0, …)`, so nought is a value an operator can save — it reads like
+     * "turn the promise off". It does not turn anything off. It makes two public pages and
+     * the assistant promise a nominator their entry is reviewed "within 0 hours" and a
+     * complainant that we acknowledge "within 0 hours", on the page whose entire subject is
+     * whether this platform can be believed, while the mailer carries on at one hour.
+     *
+     * Nothing throws, nothing logs, and every screen looks ordinary — which is why the
+     * house rule is one resolver per value and never two. This is it. A caller that already
+     * has the row in hand passes it in rather than asking the database again; the
+     * NORMALISATION is the same function either way, which is the whole point.
+     */
+    public static function slaHours(?string $raw = null): int
+    {
+        if ($raw === null) {
+            try {
+                $v = DB::table('gates_settings')->where('key_name', self::SLA_KEY)->value('value');
+                $raw = is_scalar($v) ? (string) $v : null;
+            } catch (\Throwable) {
+                // No settings table yet (a deploy before db:migrate). The default stands.
+            }
+        }
+
+        // Blank counts as unset, not as nought: an operator clearing the field is removing
+        // an override, and a cleared override must not become a promise of instant review.
+        if ($raw === null || trim($raw) === '') return self::SLA_DEFAULT;
+
+        return max(1, (int) $raw);
     }
 }

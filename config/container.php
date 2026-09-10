@@ -112,7 +112,14 @@ return [
             // `nations_live()` below, which counts the ones that are actually running.
             'nations_count'       => (int)($settings['nations_count'] ?? 54),
             'cpi_recompute_hours' => (int)($settings['cpi_recompute_hours'] ?? 6),
-            'review_sla_hours'    => (int)($settings['review_sla_hours'] ?? 48),
+            // The SLA is NOT cast here. It is the one value on this list with a second
+            // reader that acts on it, and the two disagreed at nought: this global is
+            // printed as a promise on /nominate-success and /integrity while
+            // Maintenance floors it before deciding when the mail actually goes. One
+            // normaliser, handed the row already loaded above so nothing is queried twice.
+            'review_sla_hours'    => \AfricaGates\Services\NominationFeedbackService::slaHours(
+                                         isset($settings['review_sla_hours'])
+                                             ? (string) $settings['review_sla_hours'] : null),
             'nomination_seconds'  => (int)($settings['nomination_seconds'] ?? 90),
             'otp_expiry_minutes'  => (int)($settings['otp_expiry_minutes'] ?? 10),
             'processing_fee_pct'  => (string)($settings['processing_fee_pct'] ?? '1.5'),
