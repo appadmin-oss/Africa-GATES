@@ -80,6 +80,22 @@ final class OverallWholeFieldTest extends TestCase
     }
 
     /** @param int|null $judged how many of the two judges filed a complete scorecard */
+    /**
+     * A nominee WITH THE BALLOT ROWS BEHIND THEIR TALLY.
+     *
+     * ── THE FIXTURE USED TO WRITE A COUNTER AND NO ROWS ─────────────────────
+     *
+     * Which put the whole edition into the unmeasured path: no nominee anywhere had a
+     * countable row, so the people term scored zero for everybody and the community half
+     * was the tally term alone. The figures in the docblocks below — 890, 794, 460 — are
+     * the MEASURED ones, and they were right; the fixture simply was not producing them,
+     * and the assertions passed for years against a different arithmetic because the old
+     * all-or-nothing fallback happened to pay the same 450 to the leader.
+     *
+     * One person per vote, which is the perfect case the `ideal` yardstick is named for:
+     * "as if every one of those votes had come from a different person". Chunked, because
+     * four thousand single inserts is a slow test and a slow test is one somebody skips.
+     */
     private function nominee(int $id, int $categoryId, string $name, int $votes,
                              int $mark, int $judged = 2): void
     {
@@ -87,6 +103,18 @@ final class OverallWholeFieldTest extends TestCase
             'id' => $id, 'category_id' => $categoryId, 'name' => $name, 'country_code' => 'NG',
             'status' => 'approved', 'vote_count' => $votes, 'organic_vote_count' => 0,
         ]);
+
+        $rows = [];
+        for ($v = 0; $v < $votes; $v++) {
+            $rows[] = [
+                'nominee_id' => $id, 'category_id' => $categoryId,
+                'vote_type' => 'standard', 'weight' => 1,
+                'voter_email_hash' => \AfricaGates\Services\VoteService::voterHash(
+                    'n' . $id . '-' . $v . '@x.test'),
+            ];
+            if (count($rows) === 500) { DB::table('gates_votes')->insert($rows); $rows = []; }
+        }
+        if ($rows !== []) DB::table('gates_votes')->insert($rows);
         for ($j = 1; $j <= $judged; $j++) {
             foreach ($this->criteria() as $cid) {
                 DB::table('gates_judge_criteria_scores')->insert([

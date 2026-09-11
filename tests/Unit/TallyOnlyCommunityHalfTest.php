@@ -185,13 +185,18 @@ final class TallyOnlyCommunityHalfTest extends TestCase
     // ══ the arithmetic the report describes ══════════════════════════════════
 
     /**
-     * 450 WITH ALMOST NO BACKERS, AND IT IS THE RULE RATHER THAN A FAULT.
+     * AN UNMEASURED EDITION IS CAPPED AT THE TALLY TERM, NOT PAID THE WHOLE HALF.
      *
-     * Asserted on the scorer directly, at the two ends of the range, because the point is
-     * that the backer count is not consulted at all: a leader with three supporters and a
-     * leader with none are paid identically.
+     * This used to assert 450 — the all-or-nothing fallback, which handed the tally the
+     * entire community half when nobody's supporters could be counted, so the leading
+     * tally collected the lot with any number of backers at all, including none. That was
+     * one of the two mechanisms behind the report this file is named for.
+     *
+     * Asserted across the range because the point is that the backer count genuinely is
+     * not consulted here: whatever it is, only the 135 is paid, because only the tally was
+     * measured.
      */
-    public function test_the_fallback_pays_the_leading_tally_the_whole_community_half(): void
+    public function test_an_unmeasured_edition_pays_the_tally_term_only(): void
     {
         foreach ([0, 3, 1999] as $backers) {
             $part = CpiService::communityPart(
@@ -200,10 +205,9 @@ final class TallyOnlyCommunityHalfTest extends TestCase
                 uniqueVoters: $backers, cohortMaxUnique: 0,
             );
 
-            $this->assertSame(450.0, round($part * 450, 2),
-                'the fallback pays on the tally alone, so ' . $backers . ' backers behind '
-                . 'the leading tally is still the full community half — which is the '
-                . 'figure an operator gets asked about');
+            $this->assertSame(135.0, round($part * 450, 2),
+                'with ' . $backers . ' backers and nothing counted anywhere in the '
+                . 'edition, the 315 must not be paid — nothing measured it');
         }
     }
 
@@ -259,8 +263,8 @@ final class TallyOnlyCommunityHalfTest extends TestCase
         $leader = null;
         foreach ($r['rows'] as $row) if ((int) $row['nominee_id'] === $a) $leader = $row;
         $this->assertNotNull($leader, 'the leader is not in the drawn field');
-        $this->assertSame(450, (int) $leader['community_points'],
-            'the whole community half, from a tally with nobody counted behind it');
+        $this->assertSame(135, (int) $leader['community_points'],
+            'the tally term alone — the 315 is not paid where nothing counted supporters');
     }
 
     // ══ and both screens say so ══════════════════════════════════════════════
@@ -449,26 +453,31 @@ final class TallyOnlyCommunityHalfTest extends TestCase
         $this->assertStringNotContainsString('saved override', $this->releaseScreen());
     }
 
-    // ══ the yardstick that does not see every tally ══════════════════════════
+    // ══ the yardstick is the edition, shortlist or no shortlist ═════════════
 
     /**
-     * A FULL COMMUNITY HALF WITH FEWER BACKERS THAN THE BIGGEST TALLY IN THE EDITION.
+     * A SHORTLIST NO LONGER HIDES A BIGGER TALLY FROM THE YARDSTICK.
      *
-     * ── AND IT IS THE RULE WORKING ─────────────────────────────────────────
+     * ══════════════════════════════════════════════════════════════════════════
+     * THIS IS THE REPORTED FAULT, AND THIS TEST IS WHAT KEEPS IT FIXED
+     * ══════════════════════════════════════════════════════════════════════════
      *
-     * Under `ideal` the half divides by the largest vote total in the FIELD, and the field
-     * is each category's published shortlist. A nominee left off a shortlist sets nothing.
+     * The denominator used to be narrowed to each category's published shortlist. So a
+     * finalist on 500 votes from 500 supporters held the whole 450 while a non-finalist in
+     * the same edition sat on 2,000 — every figure on the row internally consistent, and a
+     * full community half beside a backer count plainly smaller than the biggest tally
+     * anybody could see.
      *
-     * So a finalist on 500 votes from 500 supporters holds the whole 450 while a
-     * non-finalist in the same edition sits on 2,000. Every figure on the row is correct,
-     * and an operator comparing against the biggest number they can see reads it as
-     * somebody holding a full community half with fewer backers than the highest total —
-     * which is precisely the report this file exists for.
+     * The published rule is "Highest Total Votes in award programme edition". A nominee off
+     * a shortlist is still in the edition, so their tally still sets the scale. 500 of
+     * 2,000 is a quarter of the half, not all of it.
      *
-     * Nothing on any screen had ever said the yardstick could exclude a tally. This pins
-     * both halves: the arithmetic, and the sentence.
+     * ── AND SETTING THE SCALE IS NOT BEING IN THE RUNNING ──────────────────
+     *
+     * The half of this that is easy to lose on a later read. The shortlist decides who can
+     * win; it does not decide what a vote is worth.
      */
-    public function test_a_shortlist_can_hide_a_bigger_tally_from_the_yardstick(): void
+    public function test_a_shortlist_no_longer_hides_a_bigger_tally_from_the_yardstick(): void
     {
         $finalist = $this->nominee('Dr. Adegboyega Aborode', 500);
         $outsider = $this->nominee('Ogunyemi Olusola Titilope', 2000);
@@ -476,60 +485,61 @@ final class TallyOnlyCommunityHalfTest extends TestCase
         $this->panel($outsider, 8);
         $this->backers($finalist, 500, 'f');
         $this->backers($outsider, 4, 'o');
-
         $this->shortlist([$finalist]);
 
         $r = ResultRelease::category($this->categoryId);
 
-        $this->assertSame(500, $r['cohort_max'],
-            'the yardstick is the shortlisted field, not the entry list');
-        $this->assertSame(2000, $r['cohort_outside_max'],
-            'the bigger tally outside the field is not being reported');
-        $this->assertSame('Ogunyemi Olusola Titilope', $r['cohort_outside_by']['name'] ?? null);
+        $this->assertSame(2000, $r['cohort_max'],
+            'the yardstick is the largest total in the EDITION, and somebody off a '
+            . 'shortlist is still in the edition');
 
-        $row = null;
-        foreach ($r['rows'] as $x) if ((int) $x['nominee_id'] === $finalist) $row = $x;
+        $row = $out = null;
+        foreach ($r['rows'] as $x) {
+            if ((int) $x['nominee_id'] === $finalist) $row = $x;
+            if ((int) $x['nominee_id'] === $outsider) $out = $x;
+        }
         $this->assertNotNull($row);
-        $this->assertSame(450, (int) $row['community_points'],
-            '500 supporters against a 500-vote yardstick is the whole half');
-        $this->assertLessThan($r['cohort_outside_max'], (int) $row['unique_voters'],
-            'this is the reported shape: a full half with fewer backers than the biggest '
-            . 'tally in the edition');
-    }
 
-    public function test_the_screen_says_the_yardstick_excludes_a_bigger_tally(): void
-    {
-        $finalist = $this->nominee('Dr. Adegboyega Aborode', 500);
-        $this->nominee('Ogunyemi Olusola Titilope', 2000);
-        $this->panel($finalist, 8);
-        $this->backers($finalist, 500, 'f');
-        $this->shortlist([$finalist]);
+        // 315 × 500/2,000 + 135 × 500/2,000 = 112.5 → 113.
+        $this->assertSame(113, (int) $row['community_points'],
+            '500 supporters and 500 votes against a 2,000-vote yardstick is a quarter of '
+            . 'the community half; it used to be all of it');
+        $this->assertLessThan(450, (int) $row['community_points'],
+            'a full community half with fewer backers than the biggest tally in the '
+            . 'edition is the exact fault that was reported');
 
-        $html = $this->releaseScreen();
-
-        $this->assertStringContainsString('yardstick excludes a bigger tally', $html);
-        $this->assertStringContainsString('not on that category&rsquo;s shortlist', $html,
-            'the notice has to name the LEVER — the shortlist, not the scoring');
-        $this->assertStringContainsString('Ogunyemi Olusola Titilope', $html,
-            'the notice has to name who holds the excluded tally, or it cannot be checked');
+        // And the shortlist still decides the running.
+        $this->assertNotNull($out);
+        $this->assertFalse($out['on_shortlist'],
+            'setting the scale must not put somebody back into the running');
     }
 
     /**
-     * AND IT SAYS NOTHING WHEN NOTHING IS EXCLUDED.
+     * AND THE FULL HALF NOW MEANS WHAT IT SAYS.
      *
-     * A caveat that fires on every cycle is one an operator learns to scroll past, and
-     * then does not read on the cycle where it matters. Below the yardstick, an excluded
-     * tally has changed nothing anybody would ask about.
+     * Under the published rule 450 requires as many separate supporters as the biggest
+     * total anybody managed. With the two mechanisms that broke that removed, this is the
+     * only way to reach it — which is the property the whole 70/30 split exists for.
      */
-    public function test_a_smaller_excluded_tally_is_not_worth_saying(): void
+    public function test_a_full_community_half_now_requires_matching_the_biggest_tally(): void
     {
-        $finalist = $this->nominee('Dr. Adegboyega Aborode', 2000);
-        $this->nominee('Ogunyemi Olusola Titilope', 90);
-        $this->panel($finalist, 8);
-        $this->backers($finalist, 30, 'f');
-        $this->shortlist([$finalist]);
+        $a = $this->nominee('Dr. Adegboyega Aborode', 800);
+        $b = $this->nominee('Ajayi Temitope Oluwarotimi', 800);
+        $this->panel($a, 8);
+        $this->panel($b, 8);
+        $this->backers($a, 800, 'a');     // one vote, one person
+        $this->backers($b, 40, 'b');      // the same tally from forty people
 
-        $this->assertStringNotContainsString('yardstick excludes', $this->releaseScreen());
+        $r = ResultRelease::category($this->categoryId);
+        $by = [];
+        foreach ($r['rows'] as $x) $by[(int) $x['nominee_id']] = $x;
+
+        $this->assertSame(800, $r['cohort_max']);
+        $this->assertSame(450, (int) $by[$a]['community_points'],
+            'as many supporters as the biggest tally IS the full half');
+        $this->assertSame(151, (int) $by[$b]['community_points'],
+            '315 × 40/800 + 135 × 800/800 = 150.75 → the same tally from forty people is '
+            . 'worth a third of what it is worth from eight hundred');
     }
 
     /**

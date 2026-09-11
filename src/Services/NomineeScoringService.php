@@ -251,12 +251,10 @@ class NomineeScoringService
                 // report the scale as nobody's. Named here, once, by the same pass that
                 // computed the number.
                 'cohort_max_by'        => $scale['votes_by'],
+                // Whether the yardstick's holder is still in the running in their own
+                // category. See `editionScale()` — distinct from the quorum warning.
+                'cohort_max_by_listed' => (bool) ($scale['votes_by_listed'] ?? true),
                 'cohort_max_unique_by' => $scale['unique_by'],
-                // The largest tally OUTSIDE the field, and who holds it. Decides nothing;
-                // it is what lets a screen explain why a finalist on 500 votes can hold a
-                // full community half while a bigger number exists in the same edition.
-                'cohort_outside_max'   => (int) ($scale['outside_max'] ?? 0),
-                'cohort_outside_by'    => $scale['outside_by'] ?? null,
                 // 'edition' normally; 'category' only where the cycle could not be
                 // resolved at all, which is a broken row rather than a configuration.
                 'cohort_scope'         => (string) $scale['scope'],
@@ -414,10 +412,37 @@ class NomineeScoringService
         }
         if ($catIds === []) $catIds = array_values(array_filter([$forCategoryId]));
 
+        // ── THE DENOMINATOR IS THE EDITION'S, AND THAT MEANS EVERY SCORED ENTRY ──
+        //
+        // The specified rule is "Highest Total Votes in award programme edition", twice —
+        // once for each term. This used to narrow to each category's published SHORTLIST,
+        // and the narrowing is what produced the fault reported against a live cycle: a
+        // finalist on 500 votes from 500 supporters took the whole 450 while a
+        // non-finalist in the same edition sat on 2,000. Every figure on the row was
+        // internally consistent, and a full community half sat beside a backer count
+        // plainly smaller than the biggest tally anybody could see.
+        //
+        // The narrowing was inherited from `relative`, where the denominator was the
+        // nominee's OWN category leader and a huge non-finalist could compress three
+        // finalists to four points apart on a thousand-point index. That argument does not
+        // survive the move to an edition-wide scale: narrowing to the shortlist
+        // reintroduces the exact fault the edition-wide scale exists to kill, one level
+        // down — every shortlisted leader collects a full 450, just as every CATEGORY
+        // leader used to.
+        //
+        // The compression it was defending against is real and is accepted. Under `ideal`
+        // one denominator cancels out of every comparison, so the ORDER never depends on
+        // it; what changes is how much community credit an edition hands out in total, and
+        // an edition with one runaway tally handing out less of it is the honest answer
+        // rather than a flattering one. `cohort_outside_max` is retired with the narrowing
+        // that made it necessary.
+        //
+        // `scoredIn()` is the same definition the scorer uses: approved, not withdrawn,
+        // not a merge tombstone. A nominee who does not score cannot set a scale.
         /** @var array<int,object> $field every nominee whose votes set the scale */
         $field = [];
         foreach ($catIds as $cid) {
-            foreach ($this->fieldIn($cid) as $n) $field[(int) $n->id] = $n;
+            foreach ($this->scoredIn($cid) as $n) $field[(int) $n->id] = $n;
         }
 
         $maxVotes = 0; $votesBy = null;
@@ -428,30 +453,23 @@ class NomineeScoringService
             if ($v > $maxVotes) { $maxVotes = $v; $votesBy = $n; }
         }
 
-        // ── THE TALLY THE YARDSTICK DOES NOT SEE ─────────────────────────────
+        // ── AND WHETHER THE YARDSTICK BELONGS TO SOMEBODY WHO CANNOT WIN ─────
         //
-        // The field is the published SHORTLIST where a category has one, so a nominee left
-        // off it sets nothing — deliberately, and the reason is in `fieldIn()`.
+        // Now that the scale is the whole edition, the largest tally may well be held by a
+        // nominee left off their own category's published shortlist. That is the rule as
+        // published — they are in the edition — but it is not obvious from any row, and an
+        // operator looking at community halves that all seem low is owed the reason.
         //
-        // The consequence has never been stated anywhere, and it is the one that makes a
-        // score look wrong. Under `ideal` the yardstick is the largest tally in the FIELD,
-        // so a finalist on 500 votes from 500 supporters takes the whole 450 while a
-        // non-finalist in the same edition sits on 2,000. Every figure on the row is
-        // correct and the operator, comparing against the biggest number they can see,
-        // reads it as a nominee holding a full community half with fewer backers than the
-        // highest total — which is exactly the report that brought us here.
-        //
-        // So the excluded maximum travels with the scale. It changes no arithmetic; it is
-        // the sentence a screen needs to explain the arithmetic it already has.
-        $outside = 0; $outsideBy = null;
-        foreach ($catIds as $cid) {
-            $listed = ResultRelease::shortlistedIn($cid);
-            if ($listed === null) continue;               // no shortlist, nobody excluded
-            foreach ($this->scoredIn($cid) as $n) {
-                if (isset($field[(int) $n->id])) continue;
-                $v = (int) $n->vote_count;
-                if ($v > $outside) { $outside = $v; $outsideBy = $n; }
-            }
+        // Distinct from `scale_is_out`, which is about the judge QUORUM: below quorum is
+        // pending and the denominator can still move, whereas this one is settled. Two
+        // different facts, and a screen that conflated them would tell an operator to wait
+        // for a panel that has nothing to do with it.
+        $votesByListed = true;
+        if ($votesBy !== null) {
+            $listed = ResultRelease::shortlistedIn((int) $votesBy->category_id);
+            $votesByListed = $listed === null
+                || $listed === []
+                || in_array((int) $votesBy->id, $listed, true);
         }
 
         $reach     = VoterReach::forNominees(array_keys($field));
@@ -490,7 +508,6 @@ class NomineeScoringService
         $titles = [];
         $need = array_values(array_unique(array_filter([
             (int) ($votesBy->category_id ?? 0), (int) ($uniqueBy->category_id ?? 0),
-            (int) ($outsideBy->category_id ?? 0),
         ])));
         if ($need !== []) {
             try {
@@ -520,12 +537,10 @@ class NomineeScoringService
             'max_unique' => $maxUnique,
             'votes_by'   => $who($votesBy),
             'unique_by'  => $who($uniqueBy),
-            // The largest tally held by a scored nominee who is NOT in the field, and who
-            // holds it. Zero when every scored nominee is in the field, which is every
-            // category that does not shortlist. See the block above: this decides nothing
-            // and explains everything.
-            'outside_max' => $outside,
-            'outside_by'  => $who($outsideBy),
+            // False when the yardstick's holder is off their own category's published
+            // shortlist: they set the scale and cannot win. True where there is no
+            // shortlist, which is the case that changes nothing.
+            'votes_by_listed' => $votesByListed,
             // The scope in force, which is 'category' both where an operator asked for it
             // and where the cycle could not be resolved at all. The second is a broken row
             // rather than a configuration, and the left join above is what makes it rare.
@@ -549,53 +564,22 @@ class NomineeScoringService
         return $q->get()->all();
     }
 
-    /**
-     * THE FIELD OF ONE CATEGORY — the people whose support sets the scale.
-     *
-     * The published shortlist where there is one, every scored nominee where there is not.
-     *
-     * ── WHY NOT THE ENTRY LIST ───────────────────────────────────────────────
-     *
-     * This used to be every scored nominee, with the shortlist applied afterwards — so
-     * somebody who could not win still decided what everybody else's support was worth, and
-     * the more popular they were the less everybody else's votes counted.
-     *
-     * The damage is not marginal, it is the community half of a whole final. Ten entrants,
-     * the popular one on 5,000 votes is not shortlisted, the three finalists hold 500, 400
-     * and 300. Their community shares came out at 0.10, 0.08 and 0.06 — a span of four
-     * points on a thousand-point index — so the judges decided the final on their own,
-     * silently, and only because of who had been left off the list.
-     *
-     * ── THE EMPTY-LIST FALLBACK, WHICH IS LOAD-BEARING ───────────────────────
-     *
-     * A published list naming nobody who still scores — every entry withdrawn, rejected or
-     * merged away since — must not be allowed to empty the cohort. An empty set contributes
-     * no maximum, and where it is the ONLY category the denominator floors to one and hands
-     * every nominee a full community half: not a category scored to zero, which somebody
-     * would notice, but a whole field scored identically at the top of the range, which
-     * reads like a close contest.
-     *
-     * Falling back to the entry list is the pre-shortlist behaviour. It is wrong in exactly
-     * the way this method is about, and it is wrong in a way that stays visible on the
-     * release screen rather than one that flatters everybody.
-     *
-     * @return list<object>
-     */
-    private function fieldIn(int $categoryId): array
-    {
-        $scored = $this->scoredIn($categoryId);
-        if ($scored === []) return [];
-
-        // Same resolver as the ballot, the audit and the release screen — `null` means this
-        // category does not shortlist, which changes nothing.
-        $listed = ResultRelease::shortlistedIn($categoryId);
-        if ($listed === null) return $scored;
-
-        $field = array_values(array_filter($scored,
-            static fn (object $n): bool => in_array((int) $n->id, $listed, true)));
-
-        return $field === [] ? $scored : $field;
-    }
+    // ── `fieldIn()` IS GONE, AND THE NARROWING WITH IT ───────────────────────
+    //
+    // It returned each category's published shortlist and was the ONLY caller-side
+    // narrowing of the scale. Its argument was inherited from `relative`, where the
+    // denominator was the nominee's own category leader: a 5,000-vote non-finalist could
+    // compress three finalists on 500, 400 and 300 to four points apart on a
+    // thousand-point index, and the panel then decided the final alone.
+    //
+    // Under an edition-wide `ideal` that argument inverts. Narrowing to the shortlist
+    // reintroduces the very fault the edition-wide scale exists to kill, one level down:
+    // every shortlisted leader takes a full 450 exactly as every CATEGORY leader used to.
+    // And it contradicts the rule as specified — "Highest Total Votes in award programme
+    // edition" — which is what a nominee is told their score means.
+    //
+    // Named here rather than deleted silently, because a future reader looking for the
+    // shortlist in the scale will find this instead of re-deriving it.
 
     /**
      * Weighted judge average (0–10) per nominee, across COMPLETE scorecards only.

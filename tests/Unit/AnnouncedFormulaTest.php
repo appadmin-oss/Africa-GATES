@@ -350,23 +350,31 @@ final class AnnouncedFormulaTest extends TestCase
     }
 
     /**
-     * THE ONE DEVIATION: AN EDITION WITH TALLIES AND NO BALLOT ROWS.
+     * AN EDITION WITH TALLIES AND NO BALLOT ROWS IS CAPPED AT 135, AND SAYS SO.
      *
-     * Read literally, `315 × (unique ÷ highest total votes)` pays every nominee in such an
-     * edition zero on the 315 — an imported tally, a restored backup, a purged cycle — and
-     * caps the whole field at 135 of 450. The ORDER survives, which is precisely what makes
-     * that shape of fault last: nothing looks wrong, no screen says anything, and a cycle
-     * scored out of 135 still reads like one scored out of 450.
+     * ── THIS USED TO BE "THE ONE DEVIATION" FROM THE FORMULA ────────────────
      *
-     * So where reach cannot be measured ANYWHERE in the edition, the tally takes the whole
-     * community half. Two nominees on 400 and 100 of a 400-vote maximum, with no vote rows
-     * at all: 450 and 113, not 135 and 34.
+     * Where not one nominee anywhere in the edition had a countable ballot row — an
+     * imported tally, a restored backup, a purged cycle — the tally used to take the WHOLE
+     * community half, so the leading tally collected 450 with any number of backers at
+     * all, including none.
      *
-     * All-or-nothing for the edition, deliberately — one countable row anywhere switches the
-     * people term on for every nominee at once. A single category missing its rows does NOT
-     * reach this, and is flagged per nominee as `reach_unmeasured` instead.
+     * The argument for it was that a field quietly capped at 135 "still reads like one
+     * scored out of 450". That is an argument for SAYING SO, not for paying the other 315
+     * out on a measurement nobody made — and it is the mechanism behind a live report of a
+     * nominee holding a full community half with fewer backers than the biggest tally in
+     * the edition.
+     *
+     * Read literally, `315 × (unique ÷ highest total votes)` is zero when the unique
+     * voters are unknown. There is no fallback clause in the rule, and there is none here
+     * now. Every other unmeasured quantity on this platform understates and flags: an
+     * unfinished panel scores the judge half as absent rather than renormalising it away.
+     *
+     * The saying-so is the other half and it shipped with this: both the release screen
+     * and the public result page state that the half was worked out on tally alone
+     * ({@see \Tests\Unit\TallyOnlyCommunityHalfTest}).
      */
-    public function test_an_edition_with_no_countable_rows_falls_back_to_the_tally(): void
+    public function test_an_edition_with_no_countable_rows_is_scored_on_the_tally_term_alone(): void
     {
         // Tallies but no `gates_votes` rows — nothing for VoterReach to count.
         $this->nominee(7041, self::CAT_A, 'Imported leader', 400);
@@ -376,17 +384,20 @@ final class AnnouncedFormulaTest extends TestCase
 
         $this->assertSame(0, $out[7041]['cohort_max_unique'],
             'precondition: the question cannot be asked in this edition');
-        $this->assertSame(450, $out[7041]['community_points'],
-            'the tally takes the whole half, rather than the field being capped at 135');
-        $this->assertSame(113, $out[7042]['community_points'], '450 × 100/400');
 
-        // And NOT flagged, which is the half of this that is easy to get backwards.
-        // `reach_unmeasured` needs `cohort_max_unique > 0`: it exists for the nominee whose
-        // rows are missing while the REST of the edition has them, because that one loses
-        // 315 points silently and the fallback above never fires for them. Here the
-        // fallback did fire, the whole half was paid on the tally, and there is nothing
-        // understated to warn about.
+        // 315 × 0/400 + 135 × 400/400 = 135. The 315 is not paid, because nothing
+        // measured it.
+        $this->assertSame(135, $out[7041]['community_points'],
+            'the leading tally must not collect the people term nobody counted');
+        $this->assertSame(34, $out[7042]['community_points'], '135 × 100/400');
+
+        // And NOT flagged per nominee, which is the half of this that is easy to get
+        // backwards. `reach_unmeasured` needs `cohort_max_unique > 0`: it exists for the
+        // nominee whose rows are missing while the REST of the edition has them, because
+        // that one loses 315 silently while every other row on the screen looks normal.
+        // Here NOBODY was measured, which is a fact about the edition and is stated once
+        // per cycle rather than repeated against every name.
         $this->assertFalse($out[7041]['reach_unmeasured'],
-            'the fallback already paid the half; a warning here would name a loss nobody took');
+            'a per-nominee flag here would read as a finding about that person');
     }
 }

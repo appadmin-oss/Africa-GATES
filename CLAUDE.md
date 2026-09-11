@@ -340,6 +340,16 @@ nowhere also passes. And reset the memo in `setUp()`: it is per PROCESS and the 
 one process, so the first test to run otherwise seeds every later one's answers and the
 counting proves nothing.
 
+**A FIXTURE THAT WRITES A COUNTER AND NO ROWS IS SCORING A DIFFERENT RULE.** `vote_count`
+is denormalised and `gates_votes` is the ledger, so a fixture that sets the first and not
+the second puts its whole edition into the unmeasured path — the people term, 70% of the
+community half, is not paid at all. Five suites were doing it while their docblocks
+described the measured arithmetic, and they passed for years because the all-or-nothing
+fallback happened to pay the leader the same 450 either way. `OverallWholeFieldTest`'s
+documented figures (890 / 794 / 460) turned out to be exactly right and exactly not what
+its fixture produced. Write one ballot row per vote — chunked, 500 at a time — unless the
+imported shape IS the subject, and say which you meant.
+
 **An enumeration of past failures is never a fix for the next one.** `TestCase` used to
 purge six named tables and that list only grew; a sweep for the literal figures of a
 retired worked example would fail on the paragraph legitimately documenting the retirement.
@@ -522,41 +532,34 @@ Full account in `docs/CODEBASE-INDEX.md` §16.
   smoothed, because every smoothing available is a lie about a measurement; the rule stays
   "understate, and flag it", and the case nothing flags is the PARTIALLY measured one — three
   real rows behind an imported eighty-vote tally is scored as eighty votes from three people.
-- **And where reach is unmeasurable the tally takes the whole half, deliberately.** A
-  cohort maximum of *zero* unique voters does not mean "nobody has support" — it means the
-  vote **rows** are missing while the tallies are not (an import from before this platform
-  held rows, a fixture, a purged cycle). Flooring that denominator to one instead pays the
-  whole field 30% of the community half; the order survives, which is what makes it
-  dangerous, and a cycle scored out of 135 still reads like one scored out of 450. Same
-  shape as the two faults below it in this list.
-  **That fallback is all-or-nothing for the whole edition now, and the gap it leaves is the
-  expensive half.** The denominator is the largest reach in the *cycle*, so it only fires
-  when not one nominee anywhere has a countable row. One category missing its rows keeps
-  the maximum above zero and its nominees score people = 0 — 315 of 450 gone, for a
-  data-migration reason, with every other figure on the line looking normal. Told apart
-  where it still can be, on the nominee: a tally above zero with **no rows at all** raises
-  `reach_unmeasured`, which the release screen states and `EditionScaleTest` pins. Zero
-  votes *and* zero rows is not it (that is a measurement), and rows that all belong to
-  nobody is not it either (a grant is nobody, a flagged row is nobody — both are verdicts).
-  The nominee is still scored strictly, the same way an unfinished panel is: understate,
-  and flag it.
-  **AND THE FALLBACK ITSELF HAD NO FLAG, WHICH IS THE WRONG WAY ROUND.** Every branch on
-  every screen that explains a community half was gated on `cohort_max_unique > 0` with
-  nothing on the other side of the gate — no `{% else %}` — so in the one case that
-  *inflates* a score the release screen's denominator cell rendered EMPTY and the public
-  page's method note went on describing a seventy per cent that had not been computed. It
-  is how a nominee comes to show the full 450 beside a handful of backers with no
-  explanation available to the operator being asked about it. `reach_unmeasured` cannot
-  cover it and must not: that flag *requires* the cycle maximum above zero, because it
-  exists for the nominee who LOSES 315 while the rest of the edition has rows. **Two
-  different facts, and the one with no flag anywhere was the one that hands a nominee
-  points rather than taking them away — because nobody complains about that one.** Say it
-  once per cycle rather than per nominee (a caveat that reads as a finding about a person
-  is an accusation), and only under a basis that has a reach term: `relative` and
-  `absolute` have none, and a sentence about a seventy per cent that could not be worked
-  out would describe a rule the cycle never ran under. `TallyOnlyCommunityHalfTest` renders
-  both screens on a fixture that IS the fallback, because a source sweep passes with the
-  sentence inside a branch that never fires.
+- **And where reach is unmeasurable, the 315 IS NOT PAID.** A cohort maximum of *zero*
+  unique voters means the vote **rows** are missing while the tallies are not (an import
+  from before this platform held rows, a fixture, a purged cycle). It used to mean the
+  tally took the **whole** community half — so the leading tally collected 450 with any
+  number of backers at all, including none. The argument was that a field capped at 135
+  "still reads like one scored out of 450", which is an argument for SAYING SO, not for
+  paying 315 points against a measurement nobody made. It also contradicts the rule as
+  published: `315 × (unique ÷ highest total votes)` is zero when the unique voters are
+  unknown, and there is no fallback clause. **It was one of the two mechanisms behind a
+  live report of a nominee holding a full community half with fewer backers than the
+  biggest tally in the edition.**
+  The people term is simply unpaid now, which is what every other unmeasured quantity here
+  does — an unfinished panel scores the judge half as absent rather than renormalising it
+  away. The saying-so shipped with it: `cohort_max_unique == 0` is stated once per cycle on
+  the release screen and on the public result page, and only once, because a caveat that
+  reads as a finding about a person is an accusation.
+  **And the measurement cliff went with it.** An edition with imported tallies and no rows
+  used to sit on the fallback, so a nominee on 80 of a 100-vote maximum had 360 — and the
+  FIRST countable row anywhere switched the people term on for everybody at once, dropping
+  that nominee to 122 by gaining three supporters. `VoteRecoveryTest` found it by failing:
+  a test asserting a recovered vote helps its nominee, failing because it did the opposite.
+  It was documented as unsmoothable, and it was — as long as there was a cliff to fall off.
+  The same three rows are now a rise (108 → 121.5). Nothing was smoothed; the
+  discontinuity was an artefact of paying a term nothing had measured.
+  `reach_unmeasured` is the *other* case and still fires only where the cycle maximum is
+  above zero: it marks the nominee whose rows are missing while the REST of the edition has
+  them, because that one silently loses 315 while every other figure on their line looks
+  normal.
 - **The judge half is the mark, and nothing else:** `550 × avg/10`. It was
   `((avg−5)/5)^1.5` — a floor at five and an exponent — which moved the number the judge
   wrote (8.0 paid 256 of 550, not 440), paid 5.0 and 4.0 identically, and could not be
@@ -588,19 +591,34 @@ Full account in `docs/CODEBASE-INDEX.md` §16.
   **The scale is the cycle, never the programme's whole history** — a programme spans years,
   and a max across them would re-scale an announced standing whenever a later edition drew a
   bigger tally, and would rank two different electorates against each other.
-  **And it is the FIELD of each category, not the entry list.** `cohortMax` used to be the
-  most-voted nominee in the whole entry list, with the shortlist applied afterwards, so a
-  popular nominee left off the list still decided what the finalists' votes were worth:
-  three finalists on 500, 400 and 300 behind a 5,000-vote non-finalist came out at 0.10,
-  0.08 and 0.06, four points apart on a thousand-point index, and the panel decided the
-  final alone. It is the published shortlist now, where a category shortlists — and a
-  non-finalist must not set the scale for the *other* categories either. The **quorum
-  deliberately does not narrow it** — below quorum is pending, not out, and dropping an
-  unjudged nominee would move every published score the moment their panel finished, then
-  hand it all back. A published list naming nobody who still scores falls back to the entry
-  list, because an empty field contributes no maximum and the floor would make the
-  denominator **one**, handing everybody a full community half — a flattened field reads
-  like a close contest, where a zeroed one gets noticed.
+  **And it is EVERY SCORED ENTRY IN THE EDITION — a shortlist does not narrow it.** This is
+  the other half of the reported fault and the reverse of what shipped first. `cohortMax`
+  was narrowed to each category's published shortlist, on the reasoning that a popular
+  nominee left off a list should not decide what the finalists' votes were worth: three
+  finalists on 500, 400 and 300 behind a 5,000-vote non-finalist came out four points apart
+  on a thousand-point index, and the panel decided the final alone.
+  **That reasoning was inherited from `relative`, and it inverts under an edition-wide
+  `ideal`.** Narrowing to the shortlist reintroduces the exact fault the edition-wide scale
+  exists to kill, one level down: every *shortlisted* leader collects a full 450 precisely
+  as every *category* leader used to. A finalist on 500 votes from 500 supporters took the
+  whole community half while a non-finalist in the same edition sat on 2,000 — every figure
+  on the row internally consistent, and a full half beside a backer count plainly smaller
+  than the biggest tally anybody could see. And it contradicted the rule as published,
+  "Highest Total Votes in award programme edition", which is what a nominee is told their
+  score means.
+  The compression objection is real and is **accepted, not answered**: one denominator
+  cancels out of every comparison under `ideal`, so the ORDER never depends on it — what
+  changes is how much community credit an edition hands out in total, and an edition where
+  one person holds most of the public support saying so is the honest answer.
+  **Setting the scale is not being in the running.** Somebody off a shortlist still cannot
+  win; that is decided separately. But the yardstick can now belong to a nominee who cannot
+  win, which is settled (unlike the quorum case, where it can still MOVE) and invisible from
+  any row — so `scale_not_in_running` says it, and is never merged with `scale_is_out`.
+  The **quorum deliberately does not narrow it** either — below quorum is pending, not out,
+  and dropping an unjudged nominee would move every published score the moment their panel
+  finished, then hand it all back. A nominee who does not score at all sets nothing:
+  `scoredIn()` is the one definition, so a withdrawn or merged-away entry contributes no
+  maximum.
   **Resolve the cycle from the CATEGORY, not through a join.** `gates_award_cycles` is
   missing more often than it looks (an import, a fixture, a cycle deleted after release),
   and an inner join there silently collapses the scale back to the one category — the fault

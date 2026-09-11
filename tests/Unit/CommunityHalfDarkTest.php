@@ -190,12 +190,26 @@ final class CommunityHalfDarkTest extends TestCase
         $this->assertFalse($c['community_dark'],
             'the field holds thousands of votes and the community half still reads as dark');
 
-        // The leader takes the full community weight and everybody else a real share of it.
+        // The leader takes the whole community weight there is to take, and everybody else
+        // a real share of it.
+        //
+        // ── WHICH IS 135 HERE, AND THAT IS THE POINT OF THE FIXTURE ─────────
+        //
+        // This is the real cycle's shape: tallies on the nominee records and not one row
+        // in `gates_votes` behind them. Nobody's supporters are countable anywhere in the
+        // edition, so the people term — 70% of the community half — is not paid. It used
+        // to be paid in full regardless, by an all-or-nothing fallback that handed the
+        // leading tally the whole 450 on a measurement nobody had made; that is one of the
+        // two faults removed, and this fixture is exactly the shape it fired on.
+        //
+        // The claim this test exists for is untouched: the votes that were always there
+        // are worth something now, where the organic-only half scored the entire field
+        // zero forever.
         $by = [];
         foreach ($c['rows'] as $r) $by[$r['name']] = $r;
 
-        $this->assertSame(450, $by['Ajayi Temitope Oluwarotimi']['community_points'],
-            'the most-voted nominee does not hold the whole community weight');
+        $this->assertSame(135, $by['Ajayi Temitope Oluwarotimi']['community_points'],
+            'the most-voted nominee does not hold the whole community weight on offer');
         $this->assertGreaterThan(0, $by['Mrs Makinde Adejumoke']['community_points'],
             'the least-voted nominee scores nothing from 126 votes');
         $this->assertSame(1955, $c['cohort_max']);

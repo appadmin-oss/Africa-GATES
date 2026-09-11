@@ -489,15 +489,19 @@ final class ResultReleaseTest extends TestCase
                 "the working printed under {$name}'s index does not add up to it");
         }
 
-        // And the halves are the halves: 45% of a full community share is 450 of 1000.
-        $this->assertSame(450, $by['Grace Abiodun']['community_points']);
+        // And the halves are the halves. These rows carry no ballot data, so nobody's
+        // supporters are countable and the people term — 70% of the community half — is
+        // not paid: a full community SHARE is 135 of 1000 here, not 450. It used to be
+        // 450, from the all-or-nothing fallback that handed the whole half to a tally
+        // nothing had measured; see CpiService::idealPart().
+        $this->assertSame(135, $by['Grace Abiodun']['community_points']);
         $this->assertSame(100, $by['Grace Abiodun']['community_share']);
         // 2,650 behind a leader on 4,820 is 55% of the leader's support, and under reach
         // it is worth 55% of the community weight — the share IS the payment now, with no
         // exponent between what a reader counts and what it is worth. (These rows carry no
         // vote data, so the people term is unmeasurable and the tally takes the whole half;
         // see CpiService::reachPart().)
-        $this->assertSame(247, $by['Fatima Bello']['community_points']);
+        $this->assertSame(74, $by['Fatima Bello']['community_points']);
         $this->assertSame(55, $by['Fatima Bello']['community_share']);
     }
 
@@ -559,7 +563,7 @@ final class ResultReleaseTest extends TestCase
      * the full 450. Samuel's votes are still counted, still shown, and still his — they
      * are simply no longer the yardstick for a contest he is not in.
      */
-    public function test_somebody_off_the_shortlist_no_longer_sets_the_scale(): void
+    public function test_somebody_off_the_shortlist_still_sets_the_edition_scale(): void
     {
         $j1 = $this->judge('Ada Obi');
         $j2 = $this->judge('Tunde Cole');
@@ -571,19 +575,40 @@ final class ResultReleaseTest extends TestCase
 
         $c = ResultRelease::category($this->categoryId);
 
-        $this->assertSame(1900, $c['cohort_max'],
-            'the denominator is still a nominee who is not in the running');
-        $this->assertSame('Yetunde Adeyemi', $c['scale_set_by']);
+        // ── THIS ASSERTION IS THE REVERSE OF WHAT IT WAS, AND THAT IS THE FIX ──
+        //
+        // The denominator used to be narrowed to the published shortlist. Under an
+        // edition-wide `ideal` that reintroduces the exact fault the edition-wide scale
+        // exists to kill, one level down: every shortlisted leader collects a full 450
+        // exactly as every CATEGORY leader used to. It produced a live report of a
+        // finalist holding the whole community half with fewer backers than the biggest
+        // tally in the edition, and it contradicted the published rule — "Highest Total
+        // Votes in award programme edition". Samuel is in the edition.
+        $this->assertSame(5100, $c['cohort_max'],
+            'the published rule is the highest total in the EDITION, and somebody off a '
+            . 'shortlist is still in it');
+        $this->assertSame('Samuel Oyelaran', $c['scale_set_by']);
+        // `scale_is_out` is about the judge QUORUM — the denominator can still MOVE — and
+        // Samuel's panel has finished, so it is false and must stay false. Telling an
+        // operator to wait for a panel that has nothing to do with it is worse than
+        // saying nothing.
         $this->assertFalse($c['scale_is_out'],
-            'the scale is set from inside the field now; the warning is about nobody');
+            'the quorum warning has been repurposed to mean something else');
+
+        // The settled fact is a different flag, and it is the one that explains why every
+        // community half in the cycle is smaller than the votes alone suggest.
+        $this->assertTrue($c['scale_not_in_running'],
+            'nothing tells an operator the yardstick belongs to a nominee who cannot win');
 
         $by = [];
         foreach ($c['rows'] as $r) $by[$r['name']] = $r;
 
-        $this->assertSame(100, $by['Yetunde Adeyemi']['community_share'],
-            'the shortlisted leader is still measured against somebody outside the final');
-        $this->assertSame(450, $by['Yetunde Adeyemi']['community_points'],
-            'the community half is still being suppressed — 450 is its full weight');
+        // 1,900 of 5,100 — the shortlisted leader is measured against the edition, and
+        // this fixture has no ballot rows so only the tally term is paid: 135 × 1900/5100.
+        $this->assertSame(37, $by['Yetunde Adeyemi']['community_share']);
+        $this->assertSame(50, $by['Yetunde Adeyemi']['community_points'],
+            'the shortlisted leader is being paid as though they held the biggest tally '
+            . 'in the edition, which is the narrowing back');
 
         // Nothing is hidden. He is still scored, still listed, still holds every vote he
         // was given; the change is what the OTHERS are divided by, not what he is worth.
@@ -625,11 +650,14 @@ final class ResultReleaseTest extends TestCase
         $by = [];
         foreach ($c['rows'] as $r) $by[$r['name']] = $r;
 
+        // 4,000 — the withdrawn nominee is `pending`, so `scoredIn()` does not return
+        // them and they set nothing. The denominator is the largest tally among nominees
+        // who actually score, which is Yetunde's 1,000.
         $this->assertSame(1000, $c['cohort_max'],
             'the cohort emptied out and the denominator fell back to the floor of one');
-        $this->assertSame(450, $by['Yetunde Adeyemi']['community_points']);
-        // A quarter of the leader's votes is a quarter of the weight: 0.25 × 450 = 113.
-        $this->assertSame(113, $by['Ngozi Eze']['community_points'],
+        // No ballot rows in this fixture, so the tally term alone: 135 and 135 × 0.25.
+        $this->assertSame(135, $by['Yetunde Adeyemi']['community_points']);
+        $this->assertSame(34, $by['Ngozi Eze']['community_points'],
             'a nominee on a quarter of the votes was handed the same community half as '
             . 'the leader — the field was flattened, not scored');
     }
@@ -677,8 +705,11 @@ final class ResultReleaseTest extends TestCase
         foreach ($c['rows'] as $r) $by[$r['name']] = $r;
 
         $this->assertSame((int) round(950 / $fromScorer * 100), $by['Ngozi Eze']['community_share']);
-        $this->assertSame(50, $by['Ngozi Eze']['community_share'],
-            '950 of 1,900 is half the field\'s best, and the page said otherwise');
+        // 950 of 5,100 — the denominator is the edition's largest tally, which belongs to
+        // the nominee off the shortlist. That is the published rule; what this test holds
+        // is that the SCREEN and the SCORER divide by the same number, whichever it is.
+        $this->assertSame(19, $by['Ngozi Eze']['community_share'],
+            'the page is dividing by something other than the scorer\'s denominator');
     }
 
     /**
@@ -843,8 +874,18 @@ final class ResultReleaseTest extends TestCase
         // Both halves are linear again, so the pair that meets is 1000/756:
         //   loud : 450×1.000 + 550×0.6 = 450.0 + 330 = 780
         //   quiet: 450×0.756 + 550×0.8 = 340.2 + 440 = 780
+        //
+        // ── AND THE BALLOT ROWS ARE WHAT MAKE THAT ARITHMETIC THE REAL ONE ──
+        //
+        // One person per vote — the perfect case the `ideal` yardstick is named for. Most
+        // fixtures in this file write a tally and no rows, which is the imported shape and
+        // caps the community half at its 30% tally term; the pair above only meets at 780
+        // when the full half is in play, so this test says so rather than relying on an
+        // all-or-nothing fallback that used to pay it either way.
         $loud  = $this->nominee('More votes, lower mark', 1000);
         $quiet = $this->nominee('Fewer votes, higher mark', 756);
+        $this->backers($loud, 1000, 'loud');
+        $this->backers($quiet, 756, 'quiet');
         $this->scoreAll($j1, $loud, 6);  $this->scoreAll($j2, $loud, 6);
         $this->scoreAll($j1, $quiet, 8); $this->scoreAll($j2, $quiet, 8);
 
@@ -859,6 +900,27 @@ final class ResultReleaseTest extends TestCase
         $this->assertTrue($c['tie_broken_by_votes'],
             'the index tied, something separated them, and the screen cannot say what');
         $this->assertSame('More votes, lower mark', $c['winner']['name']);
+    }
+
+    /**
+     * $n real, distinct, verified voters — the vote ROWS {@see VoterReach} counts.
+     *
+     * Chunked: a thousand single inserts is a slow test, and a slow test is one somebody
+     * ends up skipping.
+     */
+    private function backers(int $nominee, int $n, string $tag): void
+    {
+        $rows = [];
+        for ($i = 0; $i < $n; $i++) {
+            $rows[] = [
+                'nominee_id' => $nominee, 'category_id' => $this->categoryId,
+                'vote_type' => 'standard', 'weight' => 1,
+                'voter_email_hash' => \AfricaGates\Services\VoteService::voterHash(
+                    $tag . $i . '@x.test'),
+            ];
+            if (count($rows) === 500) { DB::table('gates_votes')->insert($rows); $rows = []; }
+        }
+        if ($rows !== []) DB::table('gates_votes')->insert($rows);
     }
 
     /** And it is not claimed on a category that is merely close. */

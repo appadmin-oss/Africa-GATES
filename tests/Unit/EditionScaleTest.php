@@ -284,10 +284,20 @@ final class EditionScaleTest extends TestCase
     }
 
     /**
-     * AND NOT WHEN NOBODY IN THE EDITION HAS ROWS, which is the old whole-field fallback
-     * and must keep working: there the tally takes the entire community half.
+     * AND NOT WHEN NOBODY IN THE EDITION HAS ROWS.
+     *
+     * `reach_unmeasured` marks the nominee who loses 315 points while the REST of the
+     * edition has rows — a per-nominee data fault, on a line where every other figure
+     * looks normal. Where NOBODY was measured there is no such asymmetry: it is a fact
+     * about the edition, stated once per cycle on both surfaces, and repeating it against
+     * every name would read as a finding about each of those people.
+     *
+     * The half itself is capped at the tally term now. This test used to assert 450 for
+     * the leader, from the all-or-nothing fallback that paid the whole community half on a
+     * tally when nothing had counted supporters at all — see `CpiService::idealPart()` for
+     * why that is gone.
      */
-    public function test_an_edition_with_no_vote_rows_at_all_falls_back_to_the_tally(): void
+    public function test_an_edition_with_no_vote_rows_at_all_pays_the_tally_term_only(): void
     {
         $this->nominee(9001, self::DEEP, 'Deep leader', 4000);
         $this->nominee(9002, self::THIN, 'Thin leader',   40);
@@ -300,11 +310,12 @@ final class EditionScaleTest extends TestCase
         $this->assertFalse($deep['reach_unmeasured']);
         $this->assertFalse($thin['reach_unmeasured'],
             'the whole edition has no rows, so nothing has been lost and there is nothing '
-            . 'to warn about — the tally is taking the whole half by design');
+            . 'to warn about, and the cap is stated once for the whole cycle');
 
-        // 450 x 4000/4000 and 450 x 40/4000.
-        $this->assertSame(450, $deep['community_points']);
-        $this->assertSame(5,   $thin['community_points']);
+        // 135 x 4000/4000 and 135 x 40/4000 — the 315 is not paid, because nothing
+        // measured it.
+        $this->assertSame(135, $deep['community_points']);
+        $this->assertSame(1,   $thin['community_points']);
     }
 
     /**
@@ -798,9 +809,12 @@ final class EditionScaleTest extends TestCase
         $this->nominee(9001, self::DEEP, 'Deep leader', 4000);
         $this->nominee(9002, self::THIN, 'Thin leader',   40);
 
+        // No vote rows in this fixture, so the people term is unpaid and both figures are
+        // the tally term alone. The point of this test is the DENOMINATOR and the ratio it
+        // produces, which is unchanged: 40/4000 against 40/40.
         $wide = (new NomineeScoringService())->scoreCategory(self::THIN)[9002];
         $this->assertSame(4000, $wide['cohort_max']);
-        $this->assertSame(5,    $wide['community_points']);
+        $this->assertSame(1,    $wide['community_points']);
 
         (new \AfricaGates\Services\RuleEngine())->set('global', null,
             ['community_scope' => 'category']);
@@ -809,9 +823,16 @@ final class EditionScaleTest extends TestCase
         $this->assertSame(40,  $narrow['cohort_max'],
             'the setting kept for reproducing an announced standing does not reproduce it');
         $this->assertSame('category', $narrow['cohort_scope']);
-        $this->assertSame(450, $narrow['community_points'],
-            'the old scope is meant to hand a category leader the whole community half — '
+        // The whole TALLY TERM — 135 × 40/40 — because this fixture has no vote rows and
+        // the people term is unpaid under either scope. What the old scope reproduces is
+        // the denominator collapsing to the nominee's own category, which here is the
+        // difference between 1 point and 135.
+        $this->assertSame(135, $narrow['community_points'],
+            'the old scope is meant to hand a category leader their whole community half — '
             . 'that is the fault it reproduces, and reproducing it is its only purpose');
+        $this->assertGreaterThan($wide['community_points'] * 100, $narrow['community_points'],
+            'a leader of a thin field must be paid enormously more under the old scope, or '
+            . 'this setting is not reproducing the fault it exists to reproduce');
     }
 
     /**
@@ -863,13 +884,48 @@ final class EditionScaleTest extends TestCase
     }
 
     /**
-     * THE SCALE IS THE FIELD, AND THE FIELD IS THE SHORTLIST WHERE THERE IS ONE.
+     * THE SCALE IS THE EDITION, AND THAT INCLUDES SOMEBODY OFF A SHORTLIST.
      *
-     * A popular nominee left off the published shortlist could not decide what the
-     * finalists in their own category were worth. Now they must not decide it for the
-     * finalists of every OTHER category either.
+     * ══════════════════════════════════════════════════════════════════════════
+     * THIS TEST USED TO ASSERT THE OPPOSITE, AND THAT WAS THE FAULT
+     * ══════════════════════════════════════════════════════════════════════════
+     *
+     * The denominator used to be narrowed to each category's published shortlist, on the
+     * reasoning that a popular nominee left off a list should not decide what the
+     * finalists were worth.
+     *
+     * That reasoning was inherited from `relative`, where the denominator was the
+     * nominee's OWN category leader: a 5,000-vote non-finalist could compress three
+     * finalists on 500, 400 and 300 to four points apart on a thousand-point index, and
+     * the panel then decided the final alone.
+     *
+     * Under an edition-wide `ideal` it inverts. Narrowing to the shortlist reintroduces
+     * the exact fault the edition-wide scale exists to kill, one level down: every
+     * shortlisted leader collects a full 450, precisely as every CATEGORY leader used to.
+     * It produced a live report — a finalist on 500 votes from 500 supporters holding the
+     * whole community half while a non-finalist in the same edition sat on 2,000 — where
+     * every figure on the row was internally consistent and the backer count was plainly
+     * smaller than the biggest tally anybody could see.
+     *
+     * And it contradicted the rule as published: "Highest Total Votes in award programme
+     * edition", which is what a nominee is told their score means.
+     *
+     * ── THE OBJECTION IS REAL AND IS ACCEPTED, NOT ANSWERED ────────────────
+     *
+     * An edition with one runaway tally does hand out less community credit to everybody
+     * else. Under `ideal` one denominator cancels out of every comparison, so the ORDER
+     * never depends on it — what changes is the total credit in play, and an edition where
+     * one person has most of the public support saying so is the honest answer rather than
+     * a flattering one. The two rules cannot both hold; this is the one under which a
+     * share means the same thing wherever it is printed.
+     *
+     * ── AND SETTING THE SCALE IS NOT BEING IN THE RUNNING ──────────────────
+     *
+     * The half of this that is easy to lose. Somebody left off a shortlist still cannot
+     * win — that is decided separately, and is asserted here so a later reader does not
+     * conclude the shortlist stopped meaning anything.
      */
-    public function test_a_nominee_left_off_a_shortlist_sets_the_scale_for_nobody(): void
+    public function test_a_nominee_left_off_a_shortlist_still_sets_the_edition_scale(): void
     {
         $this->nominee(9001, self::DEEP, 'Shortlisted', 300);
         $this->nominee(9003, self::DEEP, 'Left off',   5000);
@@ -883,9 +939,23 @@ final class EditionScaleTest extends TestCase
             'shortlist_id' => $sid, 'nominee_id' => 9001,
         ]);
 
-        $this->assertSame(300,
+        $this->assertSame(5000,
             (new NomineeScoringService())->scoreCategory(self::THIN)[9002]['cohort_max'],
-            'somebody who cannot win their own category is setting the denominator for a '
-            . 'different one');
+            'the published rule is the highest total votes in the EDITION, and a nominee '
+            . 'off a shortlist is still in the edition');
+
+        // The shortlisted nominee is measured against it too, rather than against
+        // themselves — which is the whole point: 300 of 5,000, not 300 of 300.
+        $this->assertSame(5000,
+            (new NomineeScoringService())->scoreCategory(self::DEEP)[9001]['cohort_max']);
+
+        // And they still cannot win. The shortlist decides the running; it does not
+        // decide the yardstick.
+        $drawn = \AfricaGates\Services\ResultRelease::category(self::DEEP);
+        $off = null;
+        foreach ($drawn['rows'] as $r) if ((int) $r['nominee_id'] === 9003) $off = $r;
+        $this->assertNotNull($off, 'the left-off nominee is not drawn at all');
+        $this->assertFalse($off['on_shortlist'],
+            'setting the scale must not put somebody back into the running');
     }
 }

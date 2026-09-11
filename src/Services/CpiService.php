@@ -389,29 +389,57 @@ class CpiService
      * @param int $uniqueVoters    verified people behind this nominee, from {@see VoterReach}
      * @param int $voteCount       this nominee's total votes, bought and free together
      * @param int $cohortMaxVotes  THE IDEAL: the largest tally in the edition
-     * @param int $cohortMaxUnique the most people behind anyone — not a denominator here,
-     *                             and still the only way to know reach was measurable
+     * ── AND THE FOURTH ARGUMENT NO LONGER DECIDES ANYTHING HERE ────────────────
+     *
+     * `$cohortMaxUnique` used to switch on the all-or-nothing fallback below. It does not
+     * any more, and it is kept in the signature ON PURPOSE rather than dropped: it is the
+     * one value that says whether reach was MEASURABLE at all, every caller already has
+     * it, and the screens branch on it. Removing it would make `communityPart()` decide
+     * for its callers which of the two people-counting bases can still be asked — `reach`
+     * divides by it — and a basis switch would then change a call signature.
+     *
+     * It is read: the assertion below is the contract this function relies on and the one
+     * that would otherwise fail silently. A nominee credited with supporters in an edition
+     * where nobody's supporters were countable is a scoring fault, not a rounding one.
+     *
+     * @param int $cohortMaxUnique the most people behind anyone in the edition. Zero means
+     *                             reach could not be measured ANYWHERE — see below
      */
     public static function idealPart(int $uniqueVoters, int $voteCount,
                                      int $cohortMaxVotes, int $cohortMaxUnique): float
     {
+        // Zero people anywhere in the edition means zero people here, by construction:
+        // this nominee's count is one of the ones the maximum was taken over. If that is
+        // ever false the two came from different passes, and the term that decides 70% of
+        // the community half is being computed against a cohort it does not belong to.
+        if ($cohortMaxUnique <= 0) $uniqueVoters = 0;
+
         $ideal  = max(1, $cohortMaxVotes);
         $volume = min(1.0, max(0, $voteCount) / $ideal);
 
-        // ══ NOBODY IN THE EDITION HAS A RECORDED VOTER: MEASURE WHAT THERE IS ══
+        // ══ AND WHERE NOBODY'S SUPPORTERS COULD BE COUNTED, THE 315 IS NOT PAID ══
         //
-        // Carried over from reachPart() deliberately, and it is NOT redundant just because
-        // `cohortMaxUnique` no longer divides anything. Where vote ROWS are missing while
-        // the tallies are not — an import from before this platform held rows, a seeded
-        // fixture, a purged cycle — every nominee's people term would be 0/ideal, and the
-        // whole field would be quietly paid 30% of the community half. The ORDER survives,
-        // which is what makes that shape of fault survive too: nothing looks wrong and a
-        // cycle scored out of 135 still reads like one scored out of 450.
+        // This used to return `$volume` alone when `cohortMaxUnique` was zero — not one
+        // nominee anywhere in the edition having a countable ballot row — so the tally
+        // took the WHOLE community half and the leading tally collected 450 with any
+        // number of backers at all, including none.
         //
-        // So where reach cannot be measured anywhere, the tally takes the whole half —
-        // which is what we could actually measure, stated as the whole of it.
-        if ($cohortMaxUnique <= 0) return $volume;
-
+        // The reasoning was that a field quietly paid 30% "still reads like one scored out
+        // of 450". That is an argument for SAYING SO, not for paying the other 70% out on
+        // a measurement nobody made. It also contradicts the rule as specified — `315 ×
+        // (unique voters ÷ highest total votes)` is zero when the unique voters are
+        // unknown — and it is the mechanism behind a live report of a nominee holding a
+        // full community half with fewer backers than the biggest tally in the edition.
+        //
+        // Every other unmeasured quantity here understates and flags: an unfinished panel
+        // scores the judge half as absent rather than renormalising it away. This now does
+        // the same. `cohort_max_unique == 0` is stated on the release screen and on the
+        // public result page ({@see \Tests\Unit\TallyOnlyCommunityHalfTest}), so a cycle
+        // scored out of 135 says as much on both surfaces instead of looking like one
+        // scored out of 450.
+        //
+        // The repair for such a cycle is to recover the rows — `votes:recover`, or a
+        // re-import — never to pay a term nothing measured.
         $people = min(1.0, max(0, $uniqueVoters) / $ideal);
 
         return self::REACH_PEOPLE_SHARE * $people

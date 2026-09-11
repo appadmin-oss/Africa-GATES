@@ -173,76 +173,75 @@ final class CommunityBasisTest extends TestCase
     }
 
     /**
-     * WHERE NOBODY IN THE EDITION HAS A COUNTABLE ROW, THE TALLY TAKES THE WHOLE HALF.
+     * WHERE NOBODY IN THE EDITION HAS A COUNTABLE ROW, ONLY THE TALLY TERM IS PAID.
      *
-     * `cohortMaxUnique` no longer divides anything under this basis, and the guard that
-     * reads it is NOT redundant. Vote rows go missing while tallies do not — an import
-     * from before this platform held rows, a fixture, a purged cycle — and without the
-     * guard every nominee's people term would be 0 ÷ ideal and the whole field would be
-     * quietly paid 30% of the community half. The order survives, which is exactly what
-     * lets that shape of fault survive: nothing looks wrong, and a cycle scored out of 135
-     * still reads like one scored out of 450.
+     * ── THIS USED TO PAY THE WHOLE HALF, AND THAT WAS THE BUG ───────────────
+     *
+     * A zero `cohortMaxUnique` means vote ROWS are missing while tallies are not — an
+     * import from before this platform held rows, a fixture, a purged cycle. The code used
+     * to answer that by handing the tally the WHOLE community half, so the leading tally
+     * collected 450 with no counted supporters at all.
+     *
+     * The argument was that a field capped at 135 "still reads like one scored out of
+     * 450". That is an argument for saying so on the screen, which is now done on both
+     * surfaces — not for paying out 315 points against a measurement nobody made. It also
+     * contradicts the rule as specified, which has no fallback clause: `315 × (unique ÷
+     * highest total votes)` is zero when the unique voters are unknown.
      */
-    public function test_an_edition_with_no_countable_rows_falls_back_to_the_tally(): void
+    public function test_an_edition_with_no_countable_rows_pays_the_tally_term_only(): void
     {
-        // Leader of the edition on tally, no rows anywhere: the full half, not 30% of it.
-        $this->assertSame(450.0, round(CpiService::idealPart(0, 2000, 2000, 0) * 450, 1));
-        // And half the tally is half the half.
-        $this->assertSame(225.0, round(CpiService::idealPart(0, 1000, 2000, 0) * 450, 1));
+        // Leader of the edition on tally, no rows anywhere: 30% of the half, not all of it.
+        $this->assertSame(135.0, round(CpiService::idealPart(0, 2000, 2000, 0) * 450, 1));
+        // And half the tally is half of that.
+        $this->assertSame(67.5, round(CpiService::idealPart(0, 1000, 2000, 0) * 450, 1));
     }
 
     /**
-     * AND THE FIRST COUNTABLE ROW IN AN UNMEASURED EDITION IS A CLIFF, NOT A RAMP.
+     * AND RECOVERING A ROW NOW HELPS THE NOMINEE WHO GAINED IT.
      *
      * ══════════════════════════════════════════════════════════════════════════
-     * FOUND BY A TEST IN ANOTHER FILE, AND IT IS THE OPPOSITE OF INTUITION
+     * THE MEASUREMENT CLIFF IS GONE, AND IT WENT WITH THE FALLBACK
      * ══════════════════════════════════════════════════════════════════════════
      *
-     * An edition holding imported tallies and no ballot rows is in the all-or-nothing
-     * fallback: `cohortMaxUnique` is zero, the people term is off for everybody, and the
-     * tally takes the whole community half. So a nominee on 80 of a 100-vote maximum has
-     * 0.8 × 450 = 360.
+     * While the all-or-nothing fallback existed, an edition with imported tallies and no
+     * rows paid the tally the whole half — so a nominee on 80 of a 100-vote maximum had
+     * 0.8 × 450 = 360. The FIRST countable row anywhere in the cycle switched the people
+     * term on for every nominee at once, against a tally denominator, and that same
+     * nominee dropped from 360 to 122 by gaining three counted supporters.
      *
-     * Add ONE countable vote row anywhere in that cycle and the people term switches on
-     * for every nominee at once — against the ideal, which is a TALLY. Three counted
-     * supporters out of a possible hundred is three per cent of 315, where a moment
-     * earlier there was no people term to score at all. The nominee who gained the three
-     * votes drops from 360 to 122.
+     * `VoteRecoveryTest` found it by failing: a test asserting that a recovered vote helps
+     * its nominee, failing because it did the opposite. It was documented as unsmoothable,
+     * and it was — as long as the fallback was there to fall off.
      *
-     * `VoteRecoveryTest` found this: a test asserting that a recovered vote helps its
-     * nominee, failing because it did the opposite. That fixture now starts measured, so
-     * it tests the vote; this test is the cliff itself.
+     * With the people term simply unpaid when nothing measured it, the same three rows are
+     * a RISE (108 → 121.5) rather than a fall, because there is no longer a cliff edge to
+     * be standing on. Nothing was smoothed; the discontinuity was an artefact of paying a
+     * term that had not been measured.
      *
-     * ── WHY IT IS NOT BEING SMOOTHED AWAY ───────────────────────────────────
-     *
-     * Because every available smoothing is a lie about a measurement. Flooring the people
-     * term at the tally share would pay unmeasured nominees as though their supporters had
-     * been counted; phasing the term in by how many rows exist would make a nominee's score
-     * depend on OTHER nominees' record-keeping in a way no screen could explain. The
-     * platform's rule for this is already written down and it is the strict direction:
-     * understate, and flag it — a tally with no rows behind it raises `reach_unmeasured`,
-     * which the release screen and the public page both state.
-     *
-     * What that leaves, and what an operator needs to know, is the middle case this test
-     * pins: PARTIALLY measured. A nominee with three real rows behind an imported
-     * eighty-vote tally is not flagged — they have rows — and is scored as though the
-     * eighty had been measured and found to be three people.
+     * The partially-measured case is unchanged and is still the one to know: a nominee
+     * with three real rows behind an imported eighty-vote tally is not flagged — they have
+     * rows — and is scored as though the eighty had been measured and found to be three
+     * people.
      */
-    public function test_the_first_countable_row_switches_the_people_term_on_for_everybody(): void
+    public function test_recovering_the_first_row_raises_the_nominee_who_gained_it(): void
     {
         $ideal = 100;   // the edition's biggest tally
 
-        // Nothing counted anywhere: the tally takes the whole half.
-        $this->assertSame(360.0, round(CpiService::idealPart(0, 80, $ideal, 0) * 450, 1));
+        // Nothing counted anywhere: the tally term alone.
+        $this->assertSame(108.0, round(CpiService::idealPart(0, 80, $ideal, 0) * 450, 1));
 
-        // One row exists somewhere in the cycle, so the people term is live for everybody
-        // — and it is measured against the tally, not against whoever has the most rows.
+        // Three rows recovered for that nominee. Their score RISES — under the old
+        // fallback this same step was 360 → 121.5.
         $this->assertSame(121.5, round(CpiService::idealPart(3, 83, $ideal, 3) * 450, 1),
             'the people term is being scaled to whoever holds the most rows, which is '
             . '`reach` and not this basis');
+        $this->assertGreaterThan(
+            CpiService::idealPart(0, 80, $ideal, 0),
+            CpiService::idealPart(3, 83, $ideal, 3),
+            'recovering a vote must never cost its nominee points');
 
-        // The nominee with a tally and no rows at all is the one the platform flags, and
-        // they keep their tally share of the thirty per cent.
+        // The nominee with a tally and no rows at all keeps their tally share of the
+        // thirty per cent, and is the one the platform flags.
         $this->assertSame(135.0, round(CpiService::idealPart(0, 100, $ideal, 3) * 450, 1));
     }
 

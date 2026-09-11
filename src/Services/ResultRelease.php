@@ -132,10 +132,10 @@ final class ResultRelease
                   'scale_in_category' => false, 'local_max' => 0,
                   'scale_category' => '', 'cohort_scope' => 'edition',
                   'cohort_max_unique' => 0, 'cohort_max_unique_by' => null,
-                  'cohort_outside_max' => 0, 'cohort_outside_by' => null,
                   'community_basis' => $cBasis, 'basis_from' => $basisFrom,
                   'reach_unmeasured' => 0,
-                  'scale_is_out' => false, 'community_dark' => false];
+                  'scale_is_out' => false, 'scale_not_in_running' => false,
+                  'community_dark' => false];
 
         $scores = ($scoring ?? new NomineeScoringService())->scoreCategory($categoryId);
         if ($scores === []) return $empty + [];
@@ -267,21 +267,17 @@ final class ResultRelease
         // does, which is the all-zero category: the scorer floors the denominator at 1 so
         // nothing divides by nought, and no nominee has one vote.
         $cohortMax = 0; $setter = null; $scope = 'edition'; $maxUnique = 0; $uniqueBy = null;
-        $outsideMax = 0; $outsideBy = null;
+        $setterIn = true;
         foreach ($scores as $s) {
             $cohortMax = max(1, (int) ($s['cohort_max'] ?? 1));
             $setter    = $s['cohort_max_by'] ?? null;
+            $setterIn  = (bool) ($s['cohort_max_by_listed'] ?? true);
             $scope     = (string) ($s['cohort_scope'] ?? 'edition');
             // The REACH denominator, which decides 70% of the community half and had no
             // reader outside the scorer at all. A page that publishes the working of a
             // score has to publish the bigger of its two terms.
             $maxUnique = (int) ($s['cohort_max_unique'] ?? 0);
             $uniqueBy  = $s['cohort_max_unique_by'] ?? null;
-            // The biggest tally the yardstick does NOT see, because its holder is off a
-            // published shortlist. Nothing on any screen has ever said this could happen,
-            // and it is what makes a correct 450 read as a broken one.
-            $outsideMax = (int) ($s['cohort_outside_max'] ?? 0);
-            $outsideBy  = $s['cohort_outside_by'] ?? null;
             break;
         }
 
@@ -376,12 +372,6 @@ final class ResultRelease
             // "nobody has any backers", and one the screen has to be able to make.
             'cohort_max_unique'    => $maxUnique,
             'cohort_max_unique_by' => $uniqueBy,
-            // Zero unless a shortlist actually excluded somebody who scored. Only worth
-            // saying when it EXCEEDS the yardstick — below it, it changes nothing anybody
-            // would ask about, and a caveat that fires on every cycle is one an operator
-            // learns to scroll past.
-            'cohort_outside_max'   => $outsideMax,
-            'cohort_outside_by'    => $outsideBy,
             // Which basis produced these numbers. On the drawn result because the screen
             // has to explain a figure differently depending on it — the depth discount
             // exists under `relative` and does not exist at all under the default — and a
@@ -428,6 +418,13 @@ final class ResultRelease
             // crowns nobody is not a category being held down, and firing there teaches an
             // operator to skip the box on the pages where it means something.
             'scale_is_out'   => ($setter['eligible'] ?? null) === false && $running !== [],
+            // TRUE when the yardstick belongs to somebody off their own category's
+            // published shortlist. The scale is the edition's, so that is allowed and is
+            // the published rule — but every community half in the cycle is then measured
+            // against a nominee who cannot win, and an operator looking at figures that
+            // all seem low is owed the reason. Distinct from `scale_is_out`, which is the
+            // judge quorum and means the denominator can still MOVE.
+            'scale_not_in_running' => $setter !== null && !$setterIn,
             // ── WAS THERE A FREE VOTE TO HAVE? ───────────────────────────────
             //
             // Every surface that prints an organic count frames it as the part of a tally

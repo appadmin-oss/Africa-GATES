@@ -60,12 +60,35 @@ final class ReleasedStandingTest extends TestCase
         ]);
     }
 
+    /**
+     * A nominee WITH THE BALLOT ROWS BEHIND THEIR TALLY.
+     *
+     * One person per vote, which is the perfect case the `ideal` yardstick is named for.
+     * Without rows the whole edition is unmeasured, the people term — 70% of the community
+     * half — is not paid, and every figure in this file would be measuring that rather
+     * than the thing under test. Chunked, because thousands of single inserts is a slow
+     * test and a slow test is one somebody skips.
+     */
     private function nominee(string $name, int $votes): int
     {
-        return (int) DB::table('gates_nominees')->insertGetId([
+        $id = (int) DB::table('gates_nominees')->insertGetId([
             'category_id' => $this->categoryId, 'name' => $name, 'status' => 'approved',
             'organic_vote_count' => $votes, 'vote_count' => $votes,
         ]);
+
+        $rows = [];
+        for ($v = 0; $v < $votes; $v++) {
+            $rows[] = [
+                'nominee_id' => $id, 'category_id' => $this->categoryId,
+                'vote_type' => 'standard', 'weight' => 1,
+                'voter_email_hash' => \AfricaGates\Services\VoteService::voterHash(
+                    'rs' . $id . '-' . $v . '@x.test'),
+            ];
+            if (count($rows) === 500) { DB::table('gates_votes')->insert($rows); $rows = []; }
+        }
+        if ($rows !== []) DB::table('gates_votes')->insert($rows);
+
+        return $id;
     }
 
     /** A complete panel at quorum, from whole marks. */
@@ -442,17 +465,15 @@ final class ReleasedStandingTest extends TestCase
      */
     public function test_the_sealed_reach_denominator_survives_the_rows_being_purged(): void
     {
+        // `nominee()` writes one ballot row per vote, so this nominee's reach is their
+        // whole tally — which is what makes the purge below a real loss rather than the
+        // loss of a single row.
         $a = $this->nominee('Ajayi Temitope', 1200);
         $this->panel($a, 8);
-        DB::table('gates_votes')->insert([
-            'nominee_id' => $a, 'category_id' => $this->categoryId, 'vote_type' => 'standard',
-            'weight' => 1, 'voter_email_hash' => hash('sha256', 'backer@example.test'),
-            'voted_at' => '2026-11-01 09:00:00',
-        ]);
 
         (new SnapshotService())->captureRelease($this->cycleId);
         $announced = (int) PublicResults::category($this->categoryId)['cohort_max_unique'];
-        $this->assertSame(1, $announced, 'the fixture sealed no reach to lose');
+        $this->assertSame(1200, $announced, 'the fixture sealed no reach to lose');
 
         // The ballot rows go; the tally on the nominee does not. This is what an import
         // from before this platform held rows looks like from the page's side.

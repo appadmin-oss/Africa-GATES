@@ -217,39 +217,13 @@
     on the one cycle where it matters.
   #}
   {#
-    ── THE YARDSTICK DOES NOT SEE EVERY TALLY, AND NOTHING SAID SO ────────────
-
-    Under `ideal` the community half divides by the largest vote total in the FIELD, and
-    the field is each category's published shortlist. A nominee left off a shortlist sets
-    nothing — deliberately; the reasoning is in NomineeScoringService::fieldIn().
-
-    The consequence has never appeared on any screen, and it is the one that makes a
-    correct score look broken: a finalist on 500 votes from 500 supporters takes the whole
-    450 while a non-finalist in the same edition sits on 2,000. Every figure on the row is
-    right. The operator, comparing against the biggest number they can see, reads it as
-    somebody holding a full community half with fewer backers than the highest total.
-
-    Said only when the excluded tally is actually LARGER than the yardstick. Below it,
-    nothing anybody would ask about has happened, and a caveat that fires on every cycle
-    is one people learn to scroll past.
+    The notice that used to sit here said the yardstick excluded a bigger tally, because
+    the denominator was narrowed to each category's published shortlist. It is not narrowed
+    any more — the scale is the largest total in the EDITION, which is what the published
+    rule says — so nothing is excluded and there is nothing to warn about. A caveat about a
+    narrowing that no longer happens is worse than no caveat, because somebody will act on
+    it. See NomineeScoringService::editionScale().
   #}
-  {% if categories is not empty
-        and categories[0].cohort_outside_max > categories[0].cohort_max %}
-    <p><b>The yardstick excludes a bigger tally.</b>
-      Community halves in this cycle are measured against
-      <b>{{ categories[0].cohort_max|number_format }} votes</b>{% if categories[0].scale_set_by %}
-        &mdash; {{ categories[0].scale_set_by }}&rsquo;s{% if categories[0].scale_category %},
-        in {{ categories[0].scale_category }}{% endif %}{% endif %}, which is the largest
-      total in the <b>published field</b>.
-      {{ categories[0].cohort_outside_by.name|default('A nominee') }} has
-      <b>{{ categories[0].cohort_outside_max|number_format }}</b>{% if categories[0].cohort_outside_by.category_title|default('') %}
-        in {{ categories[0].cohort_outside_by.category_title }}{% endif %} and is
-      <b>not on that category&rsquo;s shortlist</b>, so their votes set nothing.
-      That is the rule working, and it is why a finalist can hold a full community half
-      with fewer backers than the biggest tally you can see in this edition. If those votes
-      ought to count toward the scale, the lever is the shortlist, not the scoring.</p>
-  {% endif %}
-
   {% if categories is not empty and categories[0].basis_from != 'default' %}
     <p><b>These numbers were produced by a saved override.</b>
       The community basis for this cycle is <code>{{ categories[0].community_basis }}</code>,
@@ -681,6 +655,31 @@
           not in a ranking. Nothing here is wrong &mdash; but if their scorecards land before
           you release, every community half <b>in this cycle</b> changes, and the order can
           change with it. Finish that panel first.</p>
+      {% endif %}
+
+      {#
+        ── THE YARDSTICK BELONGS TO SOMEBODY WHO CANNOT WIN ───────────────────
+
+        The scale is the largest total in the EDITION, which is the published rule, and a
+        nominee left off their own category's shortlist is still in the edition. So the
+        denominator every community half in this cycle divides by can belong to somebody
+        who is out of the running — allowed, settled, and invisible from any row.
+
+        An operator looking at community halves that all seem low is owed that reason.
+        Separate from the quorum caveat above and never merged with it: that one says the
+        denominator can still MOVE and names a panel to finish, and telling somebody to
+        wait for a panel that has nothing to do with it is worse than saying nothing.
+      #}
+      {% if c.scale_not_in_running %}
+        <p class="ja-caveat">The community half here is measured against
+          <b>{{ c.cohort_max|number_format }}</b> votes &mdash; {{ c.scale_set_by }}&rsquo;s{% if not c.scale_in_category %},
+          in {{ c.scale_category ?: 'another category' }}{% endif %} &mdash; and
+          {{ c.scale_set_by }} is <b>not on their own category&rsquo;s shortlist</b>, so they
+          cannot win. Their votes still set the scale, because the yardstick is the largest
+          total anyone in this <b>edition</b> reached and they are in the edition. That is
+          the published rule and nothing here is wrong &mdash; but it is why the community
+          figures below are smaller than the votes alone would suggest. This does not move
+          again: unlike an unfinished panel, it is settled.</p>
       {% endif %}
 
       {#

@@ -286,11 +286,22 @@ final class OverallWinnerTest extends TestCase
             'nothing tells an operator the smallest field in the running');
 
         // And the consequence, stated as a number rather than as a caveat: on the same
-        // panel mark, fifty votes buys nothing and fifty thousand buys the whole half.
+        // panel mark, fifty votes buys nothing and fifty thousand buys everything the
+        // community half has to give.
+        //
+        // THAT CEILING IS 135 HERE, NOT 450, and deliberately so. This fixture writes
+        // tallies with no `gates_votes` rows behind them — fifty thousand of them would be
+        // a slow test for no gain — so nobody's supporters are countable anywhere in the
+        // edition and the people term, which is 70% of the half, is not paid. See
+        // CpiService::idealPart(): it used to hand the whole 450 to the leading tally in
+        // that situation, which is one of the two faults this change removed.
+        //
+        // The property under test is untouched by that: both categories divide by ONE
+        // denominator, so 50 against 50,000 is the same comparison whatever the ceiling.
         $this->assertSame(0,   $by['Thin field']['community_points']);
-        $this->assertSame(450, $by['Wide field']['community_points']);
+        $this->assertSame(135, $by['Wide field']['community_points']);
         $this->assertSame(440, $by['Thin field']['cpi']);
-        $this->assertSame(890, $by['Wide field']['cpi']);
+        $this->assertSame(575, $by['Wide field']['cpi']);
     }
 
     /**

@@ -46,6 +46,16 @@ class RuleEngineTest extends TestCase
         DB::table('gates_award_cycles')->insert(['id' => 1, 'programme_id' => 1, 'year' => (int) date('Y'), 'status' => 'voting']);
         DB::table('gates_award_categories')->insert(['id' => 1, 'cycle_id' => 1, 'slug' => 'c1', 'title' => 'C1']);
         DB::table('gates_nominees')->insert(['id' => 1, 'category_id' => 1, 'name' => 'A', 'status' => 'approved', 'vote_count' => 10, 'organic_vote_count' => 10]);
+        // Ten real voters behind the ten votes. This test is about WEIGHTS, and without
+        // rows the fixture lands in the unmeasured path where the people term — 70% of the
+        // community half — is not paid, so the figure below would be measuring that
+        // instead. One person per vote is the case the `ideal` yardstick is named for.
+        for ($v = 0; $v < 10; $v++) {
+            DB::table('gates_votes')->insert([
+                'nominee_id' => 1, 'category_id' => 1, 'vote_type' => 'standard', 'weight' => 1,
+                'voter_email_hash' => \AfricaGates\Services\VoteService::voterHash('rw' . $v . '@x.test'),
+            ]);
+        }
 
         $scoring = new NomineeScoringService();
         // Default 45/55, no judge scores → 0.45 * 1000 = 450.
