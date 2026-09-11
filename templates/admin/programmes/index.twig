@@ -24,6 +24,10 @@
         </td>
         <td class="col-actions">
           <a class="ad-btn ad-btn--sm" href="/admin/programmes/{{ r.id }}">Edit</a>
+          {# A sub-page is linked from the page it belongs under rather than added to the
+             rail — that is what keeps the rail scannable, and a page nothing links to is
+             a page nobody finds without knowing its URL. #}
+          <a class="ad-btn ad-btn--sm" href="/admin/programmes/{{ r.id }}/sponsors">Sponsors</a>
           <a class="ad-btn ad-btn--sm ad-btn--primary" href="/admin/programmes/{{ r.id }}/cycle">Manage Cycle</a>
         </td>
       </tr>

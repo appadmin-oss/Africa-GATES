@@ -557,17 +557,6 @@
 {% endblock %}
 
 {% block content %}
-{#
-  The allocation, as data. Numbered rather than iconed: three little tinted squares beside
-  three short lines is decoration, and a reader scanning "where does my money go" is
-  counting the things it goes to.
-#}
-{% set ALLOC = [
-  {'t':'Scholarships','b':'Direct school and training fees for promising young leaders.'},
-  {'t':'Mentorship programmes','b':'Pairing children with verified leaders across the continent.'},
-  {'t':'Community grants','b':'Seed funding for grassroots education projects.'}
-] %}
-
 <div class="dn" x-data="donate()">
   <div class="dn-shell">
 
@@ -920,16 +909,33 @@
     {# ══ THE CASE ══════════════════════════════════════════════════════════ #}
     <div class="dn-body">
 
+      {# ══ WHERE THE MONEY GOES ══════════════════════════════════════════════
+         Numbered rather than iconed: three little tinted squares beside three short lines
+         is decoration, and a reader scanning "where does my money go" is counting the
+         things it goes to.
+
+         ── TWO THINGS THIS BLOCK USED TO GET WRONG ────────────────────────
+         It was a `{% set %}` of three hardcoded destinations, so a representation about
+         the use of charitable funds was editable only by somebody who could deploy — on a
+         host with no shell. And it was UNGATED, so a partner's appeal told a donor their
+         money funded Africa GATES' scholarships while it settled into the partner's own
+         account: a false statement about somebody else's money on the page collecting it.
+
+         `FundAllocation::forOrg()` is both halves. Empty on a partner page, and empty on a
+         deployment that has never been asked — in which case the section does not draw at
+         all, because a heading over nothing is worse than no heading. A partner's own case
+         is their `OrgBrand` story, rendered further down. #}
+      {% if allocation %}
       <section class="dn-sec">
         <span class="dn-kick">The allocation</span>
         <h2 class="dn-h2">Where donations go</h2>
         <div class="dn-alloc">
-          {% for a in ALLOC %}
+          {% for a in allocation %}
             <div class="dn-alloc__r">
               <span class="dn-alloc__n" aria-hidden="true">{{ '%02d'|format(loop.index) }}</span>
               <div>
-                <h3 class="dn-alloc__t">{{ a.t }}</h3>
-                <p class="dn-alloc__b">{{ a.b }}</p>
+                <h3 class="dn-alloc__t">{{ a.title }}</h3>
+                {% if a.body %}<p class="dn-alloc__b">{{ a.body }}</p>{% endif %}
               </div>
             </div>
           {% endfor %}
@@ -940,13 +946,19 @@
             full method in the <a href="/integrity">Integrity Center</a>.</span>
         </p>
       </section>
+      {% endif %}
 
+      {# Africa GATES' own mission, so it belongs on Africa GATES' own page. On a partner's
+         appeal it displaced the thing a donor came to read with a statement about a
+         different organisation's purpose. #}
+      {% if not org %}
       <blockquote class="dn-quote">
         <p>“Recognition is only the beginning. The fund turns a spotlight into a scholarship,
           a mentor, a classroom — so the next generation of African leaders has somewhere to
           begin.”</p>
         <small>The Africa GATES mission · an Afrovanguard initiative</small>
       </blockquote>
+      {% endif %}
 
       {# Held back below three, because a ledger carrying a single anonymised row says less
          than the figure in the masthead already does.

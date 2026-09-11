@@ -309,4 +309,100 @@ class ProgrammesController
         $_SESSION['flash_ok'] = 'Category deleted.';
         return $res->withHeader('Location', '/admin/programmes')->withStatus(302);
     }
+
+    // ══ SPONSORSHIP ══════════════════════════════════════════════════════════
+    //
+    // A SUB-PAGE OF A PROGRAMME, NOT A RAIL ENTRY. The rail is seven headings and a
+    // sub-page is linked from the page it belongs under — `/admin/shop/codes` from shop
+    // orders, this from the programme it sponsors. That is what keeps the rail scannable,
+    // and it needs no new page key or sprite icon.
+
+    /** GET /admin/programmes/{id}/sponsors */
+    public function sponsors(Request $req, Response $res, array $args): Response
+    {
+        $id  = (int) ($args['id'] ?? 0);
+        $row = (array) DB::table('gates_award_programmes')->where('id', $id)->first();
+        if ($row === []) throw new \Slim\Exception\HttpNotFoundException($req);
+
+        // The cycle list, so a sponsorship can be attached to one edition rather than to
+        // the programme for ever. Newest first: an operator adding a sponsor is almost
+        // always adding one to the edition they are running now.
+        $cycles = DB::table('gates_award_cycles')->where('programme_id', $id)
+            ->orderByDesc('year')->orderByDesc('id')
+            ->get(['id', 'year', 'edition_label', 'status'])->all();
+
+        $current = null;
+        foreach ($cycles as $c) {
+            if (in_array((string) $c->status, ['nominations','shortlisting','voting','judging','results'], true)) {
+                $current = (int) $c->id; break;
+            }
+        }
+
+        return $this->view->render($res, 'admin/programmes/sponsors.twig', [
+            'page_title' => 'Sponsors — ' . ($row['title'] ?? 'Programme'),
+            'admin_page' => 'programmes',
+            'programme'  => $row,
+            'cycles'     => $cycles,
+            'sponsors'   => \AfricaGates\Services\ProgrammeSponsor::allFor($id),
+            'tiers'      => \AfricaGates\Services\ProgrammeSponsor::TIERS,
+            // ── THE CONFLICT AN OPERATOR HAS TO SEE BEFORE PUBLISHING ────────
+            //
+            // A sponsor who is also in the running. Reported, never blocked: whether it is
+            // acceptable is a judgement for a person, and a silent refusal teaches people
+            // to stop asking. Scoped to the live cycle, because a sponsor who was also a
+            // nominee three editions ago is history rather than a conflict.
+            'conflicts'  => \AfricaGates\Services\ProgrammeSponsor::conflicts($id, $current),
+        ]);
+    }
+
+    /** POST /admin/programmes/{id}/sponsors */
+    public function sponsorSave(Request $req, Response $res, array $args): Response
+    {
+        $id = (int) ($args['id'] ?? 0);
+        $b  = (array) $req->getParsedBody();
+
+        $b['programme_id'] = $id;
+        $sponsorId = \AfricaGates\Services\ProgrammeSponsor::save(
+            $b, (int) ($_SESSION['admin_id'] ?? 0) ?: null);
+
+        // Audited as a MONEY event, because it is one. Who was named beside an award, and
+        // who decided to name them, is the question this record exists to answer years
+        // later — see the migration.
+        $this->audit->record((int) ($_SESSION['admin_id'] ?? 0) ?: null,
+            'programme.sponsor.save', 'gates_programme_sponsors', $sponsorId);
+
+        $this->bustAwardsCache();
+
+        return $res->withHeader('Location', '/admin/programmes/' . $id . '/sponsors?saved=1')
+                   ->withStatus(302);
+    }
+
+    /** POST /admin/programmes/{id}/sponsors/{sponsor}/delete */
+    public function sponsorDelete(Request $req, Response $res, array $args): Response
+    {
+        $id  = (int) ($args['id'] ?? 0);
+        $sid = (int) ($args['sponsor'] ?? 0);
+
+        // A DRAFT is deleted; anything that has been PUBLISHED is ended instead. A
+        // sponsorship that appeared on a public page is a commercial fact somebody may ask
+        // about years later, and this codebase's rule is that a record which has been used
+        // is retired rather than deleted.
+        $row = (array) DB::table(\AfricaGates\Services\ProgrammeSponsor::TABLE)
+            ->where('id', $sid)->where('programme_id', $id)->first();
+
+        if ($row !== []) {
+            if (($row['status'] ?? '') === \AfricaGates\Services\ProgrammeSponsor::STATUS_DRAFT) {
+                DB::table(\AfricaGates\Services\ProgrammeSponsor::TABLE)->where('id', $sid)->delete();
+            } else {
+                DB::table(\AfricaGates\Services\ProgrammeSponsor::TABLE)->where('id', $sid)
+                    ->update(['status' => \AfricaGates\Services\ProgrammeSponsor::STATUS_ENDED]);
+            }
+            $this->audit->record((int) ($_SESSION['admin_id'] ?? 0) ?: null,
+                'programme.sponsor.remove', 'gates_programme_sponsors', $sid);
+            $this->bustAwardsCache();
+        }
+
+        return $res->withHeader('Location', '/admin/programmes/' . $id . '/sponsors')
+                   ->withStatus(302);
+    }
 }

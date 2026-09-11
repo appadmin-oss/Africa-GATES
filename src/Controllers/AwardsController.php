@@ -20,6 +20,16 @@ class AwardsController {
         if(!$data) throw new \Slim\Exception\HttpNotFoundException($req);
         $blurb=trim(strip_tags((string)($data['subtitle'] ?: $data['description'])));
         $meta=$blurb!==''?(mb_strlen($blurb)>160?rtrim(mb_substr($blurb,0,157)).'…':$blurb):($data['title'].' — an Africa GATES award programme recognising the continent\'s cultural best through community votes and expert judging.');
-        return $this->view->render($res,'pages/awards/programme.twig',['page_title'=>$data['title'].' — Africa GATES','meta_description'=>$meta,'og_title'=>$data['title'].' — Africa GATES','gates_page'=>'awards','has_hero'=>false,'current_section'=>'projects','programme'=>$data]);
+        // ── WHO BACKS THIS PROGRAMME ─────────────────────────────────────────
+        //
+        // Resolved OUTSIDE the cache above, deliberately. That entry is remembered for
+        // thirty minutes and a sponsorship that ends — or one an operator has just
+        // unpublished — must come off the page at once rather than at the top of the next
+        // half hour. It is one indexed query against a table with a handful of rows.
+        $sponsors = \AfricaGates\Services\ProgrammeSponsor::forCycle(
+            (int) ($data['id'] ?? 0),
+            isset($data['cycle']['id']) ? (int) $data['cycle']['id'] : null);
+
+        return $this->view->render($res,'pages/awards/programme.twig',['page_title'=>$data['title'].' — Africa GATES','meta_description'=>$meta,'og_title'=>$data['title'].' — Africa GATES','gates_page'=>'awards','has_hero'=>false,'current_section'=>'projects','programme'=>$data,'sponsors'=>$sponsors,'tiers'=>\AfricaGates\Services\ProgrammeSponsor::TIERS]);
     }
 }

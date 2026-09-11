@@ -281,8 +281,17 @@ final class RecurringGiving
      * `Carbon::now()->toDateTimeString()` written beside it. {@see \AfricaGates\Support\Clock}
      * pins that, and the convention is UTC — but an installation that pins something else
      * must not end up with two conventions in one table.
+     *
+     * ── PUBLIC, BECAUSE IT IS THE ONE NORMALISER ────────────────────────────
+     *
+     * Anything that takes a datetime from outside this codebase needs it — a gateway
+     * webhook, and equally a form's `datetime-local`, which produces the same `T`-separated
+     * shape that compares wrong on SQLite and lands correctly on MySQL. A second copy
+     * somewhere else is how one of them comes to be the one without the milliseconds
+     * branch, and that branch is the one that cost this platform every recurring gift.
+     * {@see ProgrammeSponsor} calls it for exactly that reason.
      */
-    private static function stamp(string $raw): ?string
+    public static function stamp(string $raw): ?string
     {
         $raw = trim($raw);
         if ($raw === '') return null;

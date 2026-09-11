@@ -195,7 +195,57 @@ class RuleEngine
         return ['community' => $cw / $sum, 'judge' => $jw / $sum];
     }
 
-    /** Persist (upsert) an override for a scope. */
+    /**
+     * CHANGE SOME KEYS AT A SCOPE AND LEAVE THE REST ALONE.
+     *
+     * ── WHY THIS IS NOT `set()` WITH A NICER NAME ───────────────────────────
+     *
+     * A scope holds ONE json document, so {@see set()} necessarily replaces it. The global
+     * document carries the weights, the fraud bands, the quorum, the community-return
+     * accrual AND `community_basis` — the rule that decides every published index — so a
+     * caller writing three keys with `set()` erases the other nine, silently, and the first
+     * anybody knows is an award scored by defaults nobody chose.
+     *
+     * Both settings-screen writers already read the document and `array_merge` before
+     * writing, in seven identical lines each. That is the correct behaviour spelled twice,
+     * which is the state a third caller gets wrong — and getting it wrong here is not a bug
+     * in a form, it is every cycle on the platform silently re-scored.
+     *
+     * So the merge has one implementation. `set()` stays for the case that really is a
+     * replacement (a test fixture declaring a whole ruleset), and this is what a screen
+     * calls.
+     *
+     * @param array<string,mixed> $rules the keys to change
+     */
+    public function merge(string $scope, ?int $scopeId, array $rules): void
+    {
+        $current = [];
+        try {
+            $row = DB::table('gates_rule_sets')
+                ->where('scope', $scope)
+                ->when($scopeId === null,
+                    static fn ($q) => $q->whereNull('scope_id'),
+                    static fn ($q) => $q->where('scope_id', $scopeId))
+                ->value('rules');
+            $decoded = json_decode((string) $row, true);
+            if (is_array($decoded)) $current = $decoded;
+        } catch (\Throwable) {
+            // No row, no table, or a document that does not parse. Writing the new keys
+            // over nothing is the same outcome as writing them over an empty document,
+            // and refusing the change would leave an operator unable to set a rule
+            // because of a row they cannot see.
+        }
+
+        $this->set($scope, $scopeId, array_merge($current, $rules));
+    }
+
+    /**
+     * Persist (upsert) an override for a scope, REPLACING whatever was there.
+     *
+     * A screen changing individual rules wants {@see merge()}: this one erases every key it
+     * does not carry, and the global document holds the weights, the quorum and the basis
+     * that decides every published index.
+     */
     public function set(string $scope, ?int $scopeId, array $rules): void
     {
         DB::table('gates_rule_sets')->updateOrInsert(

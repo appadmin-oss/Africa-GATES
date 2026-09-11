@@ -1312,6 +1312,33 @@
       <p style="margin:6px 0 0;font-size:12px;color:var(--ad-text-mute,#5a6d6f)">The target the <a href="/giving" style="color:var(--ad-accent,#237b22)">donation page</a> shows progress against. <strong>0 means no target</strong> — the page then prints the raised figure alone, exactly as it did before, because an invented target is worse than none. Progress is summed from confirmed donations on every page load, so it can never drift from the rows underneath it.</p>
     </div>
   </div></div>
+  <div class="ad-card" data-sec="site" data-keys="fund allocation where donations go destinations giving page scholarships mentorship grants" x-show="show($el)"><div class="ad-card__head"><div class="ad-card__title">Where donations go<small>The destinations printed on <a href="/giving">the giving page</a>, under &ldquo;Where donations go&rdquo;.</small></div></div><div class="ad-card__body">
+    <input type="hidden" name="fund_allocation_settings" value="1">
+    <div class="ad-form">
+      {#- These three lines used to be typed into the template. A representation about the
+          use of charitable funds was editable only by somebody who could deploy, on a host
+          with no shell — so a programme that closed, a fund that was redirected, or a
+          wording a regulator asked to change could not be altered by the people answerable
+          for it. -#}
+      {% set alloc = values.fund_allocation_rows|default([]) %}
+      {% for i in 0..(alloc|length > 5 ? alloc|length - 1 : 5) %}
+        <div class="row">
+          <div><label for="f-alloc-t{{ i }}">Destination {{ i + 1 }}</label>
+            <input type="text" name="fund_allocation_title[]" id="f-alloc-t{{ i }}" maxlength="80"
+                   value="{{ alloc[i].title|default('') }}" placeholder="e.g. Scholarships"></div>
+          <div><label for="f-alloc-b{{ i }}">What it funds</label>
+            <input type="text" name="fund_allocation_body[]" id="f-alloc-b{{ i }}" maxlength="220"
+                   value="{{ alloc[i].body|default('') }}" placeholder="One sentence."></div>
+        </div>
+      {% endfor %}
+      <p style="margin:6px 0 0;font-size:12px;color:var(--ad-text-mute,#5a6d6f)">A destination with
+        no name is dropped. <strong>Leave every row empty to publish nothing</strong> &mdash; the
+        section then does not draw at all, which is the right answer for a fund that has not
+        decided, because a heading over nothing is worse than no heading. This never appears on a
+        partner organisation&rsquo;s appeal: their donations settle into their own account and
+        this would be a statement about money we do not hold.</p>
+    </div>
+  </div></div>
   <div class="ad-card" data-sec="integrity" data-keys="moderation thresholds quarantine auto reject comments threads nominations review queue" x-show="show($el)"><div class="ad-card__head"><div class="ad-card__title">Moderation thresholds<small>Where content scores (0–1) flip to review or auto-reject. Applies to comments, threads &amp; nominations.</small></div></div><div class="ad-card__body">
     <input type="hidden" name="moderation_settings" value="1">
     <div class="ad-form">

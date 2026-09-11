@@ -1,4 +1,32 @@
 {% extends "layout/gates.twig" %}
+{% block head_styles %}
+<style nonce="{{ csp_nonce }}">
+  /* ── THE SPONSOR LIST ───────────────────────────────────────────────────────
+     Hairline rules and mono micro-labels, the house pattern. Deliberately NOT a logo
+     wall: a row of uploaded images at whatever resolution each sponsor sent is the
+     single fastest way to make an awards page look like a trade show, and it hands the
+     visual weight to whoever supplied the biggest PNG. Names set in the page's own type
+     read as the platform naming its backers, which is what this is. */
+  .spon{ list-style:none; margin:0; padding:0; border-top:1px solid rgba(16,41,44,.12) }
+  .spon__i{ padding:14px 0; border-bottom:1px solid rgba(16,41,44,.12) }
+  .spon__b{ display:flex; align-items:baseline; gap:10px; flex-wrap:wrap }
+  .spon__n{ font-weight:700; font-size:17px; color:var(--ag-ink,#10292C); text-decoration:none }
+  .spon__n[href]{ text-decoration:underline; text-underline-offset:3px;
+    text-decoration-color:rgba(16,41,44,.28) }
+  .spon__n[href]:hover{ text-decoration-color:currentColor }
+  .spon__t{ font-family:var(--ag-font-mono,monospace); font-size:10.5px; font-weight:700;
+    letter-spacing:.1em; text-transform:uppercase; color:#5a6d6f }
+  /* The headline sponsor is the one thing given weight, and it is given ONE thing —
+     a gold rule, not a size, a background and a badge. A highlight almost everything
+     qualifies for is a background. */
+  .spon__i--headline{ border-left:3px solid #f3b416; padding-left:14px }
+  .spon__i--headline .spon__n{ font-size:19px }
+  .spon__d{ margin:6px 0 0; font-size:13.5px; line-height:1.6; color:#5a6d6f; max-width:62ch }
+  .spon__rule{ margin:16px 0 0; font-size:12.5px; line-height:1.7; color:#5a6d6f;
+    max-width:72ch }
+</style>
+{% endblock %}
+
 {% block content %}
 
 {% set a = programme %}
@@ -99,5 +127,57 @@
     {% endif %}
   </div>
 </section>
+
+{#
+  ══ WHO BACKS THIS AWARD ══════════════════════════════════════════════════════
+
+  Published, and that is the point. A sponsorship nobody can see is the arrangement people
+  reasonably suspect; one printed under the award is one they can weigh. The whole claim of
+  this platform is that an award cannot be bought, and the way to hold that claim beside
+  money changing hands is disclosure rather than silence.
+
+  BELOW the categories, never above them. A sponsor band at the top of a page about an
+  award reads as the sponsor's page, and the first thing a nominee's family should see is
+  the award.
+
+  The line under the list is not decoration — it is the actual guarantee, stated where
+  somebody is looking at the thing that raises the question. The schema has no column
+  attaching a sponsor to a category, a nominee or a judge, so this is a claim the code
+  cannot quietly stop honouring.
+
+  `rel="nofollow sponsored"` because that is what these links ARE: `sponsored` is the value
+  Google defines for a paid link, and omitting it on links somebody paid for is the thing
+  that costs a site its ranking.
+#}
+{% if sponsors %}
+<section class="sec sec--tight" aria-labelledby="spon-h">
+  <div class="wrap">
+    <span class="eyebrow">Supported by</span>
+    <h2 id="spon-h" class="sec__h">Who backs this programme</h2>
+    <ul class="spon">
+      {% for s in sponsors %}
+        <li class="spon__i spon__i--{{ s.tier }}">
+          <div class="spon__b">
+            {% if s.website %}
+              <a class="spon__n" href="{{ s.website }}" target="_blank"
+                 rel="noopener noreferrer nofollow sponsored">{{ s.name }}</a>
+            {% else %}
+              <span class="spon__n">{{ s.name }}</span>
+            {% endif %}
+            <span class="spon__t">{{ tiers[s.tier]|default('Sponsor') }}</span>
+          </div>
+          {% if s.blurb %}<p class="spon__d">{{ s.blurb }}</p>{% endif %}
+        </li>
+      {% endfor %}
+    </ul>
+    <p class="spon__rule">
+      Sponsors fund the programme. They do not judge it, are never shown to the panel, and
+      cannot be attached to a category, a nominee or a judge &mdash; there is no way to
+      record that, by design. The scoring method is published in full in the
+      <a href="/integrity">Integrity Center</a>.
+    </p>
+  </div>
+</section>
+{% endif %}
 
 {% endblock %}

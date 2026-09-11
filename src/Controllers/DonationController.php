@@ -119,6 +119,10 @@ final class DonationController
                         'fund_goal' => null, 'recurring' => false,
                         'min_naira' => self::MIN_NAIRA, 'max_naira' => self::MAX_NAIRA,
                         'processing_fee_pct' => $this->processingFeePct(),
+                        // What we tell a donor their money is for — and NOTHING on a
+                        // partner's appeal, where the money settles into their account and
+                        // our allocation would be a false statement about it.
+                        'allocation' => \AfricaGates\Services\FundAllocation::forOrg($org ?? null),
                         // The voluntary gift to Africa GATES. Offered only on somebody
                         // ELSE's appeal — on our own page it is a second field for the
                         // same thing. Passed on every render path, because a page that
@@ -144,6 +148,10 @@ final class DonationController
                         'gates_credit' => \AfricaGates\Services\OrgBrand::GATES_CREDIT,
                     'min_naira' => self::MIN_NAIRA, 'max_naira' => self::MAX_NAIRA,
                     'processing_fee_pct' => $this->processingFeePct(),
+                        // What we tell a donor their money is for — and NOTHING on a
+                        // partner's appeal, where the money settles into their account and
+                        // our allocation would be a false statement about it.
+                        'allocation' => \AfricaGates\Services\FundAllocation::forOrg($org ?? null),
                         // The voluntary gift to Africa GATES. Offered only on somebody
                         // ELSE's appeal — on our own page it is a second field for the
                         // same thing. Passed on every render path, because a page that
@@ -281,6 +289,10 @@ final class DonationController
             'min_naira'        => self::MIN_NAIRA,
             'max_naira'        => self::MAX_NAIRA,
             'processing_fee_pct' => $this->processingFeePct(),
+                        // What we tell a donor their money is for — and NOTHING on a
+                        // partner's appeal, where the money settles into their account and
+                        // our allocation would be a false statement about it.
+                        'allocation' => \AfricaGates\Services\FundAllocation::forOrg($org ?? null),
                         // The voluntary gift to Africa GATES. Offered only on somebody
                         // ELSE's appeal — on our own page it is a second field for the
                         // same thing. Passed on every render path, because a page that

@@ -88,4 +88,74 @@ class RuleEngineTest extends TestCase
         $r->set('cycle', 9, ['community_weight' => 0.9, 'judge_weight' => 0.1]);
         $this->assertEqualsWithDelta(0.9, $r->weights(4, 9)['community'], 0.001);
     }
+
+    /**
+     * `merge()` CHANGES SOME KEYS AND LEAVES THE REST ALONE.
+     *
+     * ── WHY THIS IS THE MOST EXPENSIVE MISTAKE AVAILABLE IN THIS CLASS ──────
+     *
+     * A scope holds ONE json document, so `set()` necessarily replaces it — and the global
+     * document carries the weights, the fraud bands, the quorum, the community-return
+     * accrual and `community_basis`, the rule that decides every published index. A writer
+     * that calls `set()` with three keys erases the other nine with no error anywhere, and
+     * the first symptom is every cycle on the platform scored by defaults nobody chose.
+     *
+     * Both settings-screen writers did the read-and-merge by hand, in seven identical
+     * lines each. Correct, twice — which is the state a third writer gets wrong.
+     */
+    public function test_merge_keeps_the_keys_it_was_not_given(): void
+    {
+        // A VALUE THAT IS NOT THE DEFAULT. `community_return_bps` defaults to 5000, so a
+        // fixture that stores 5000 and then asserts it survived passes whether the key
+        // survived or fell back — which is what the first version of this test did, and a
+        // mutation that removed the merge entirely did not fail it.
+        $this->assertNotSame(3750, RuleEngine::DEFAULTS['community_return_bps'],
+            'this fixture has to differ from the default or it proves nothing');
+
+        $r = new RuleEngine();
+        $r->set('global', null, [
+            'community_return_bps' => 3750,
+            'community_basis'      => 'reach',
+        ]);
+
+        $r->merge('global', null, ['community_basis' => 'ideal']);
+
+        $eff = $r->effective(null, null);
+        $this->assertSame('ideal', $eff['community_basis'], 'the change did not take');
+        $this->assertSame(3750, $eff['community_return_bps'],
+            'changing one rule erased another — and the global document holds the weights, '
+            . 'the quorum and the basis that decides every published index');
+    }
+
+    /** And it works at a scope that has no row yet. */
+    public function test_merge_onto_nothing_is_the_new_keys(): void
+    {
+        $r = new RuleEngine();
+        $r->merge('cycle', 41, ['community_basis' => 'reach']);
+
+        $this->assertSame('reach', $r->effective(null, 41)['community_basis']);
+        // And it did not leak into a different scope.
+        $this->assertSame(RuleEngine::DEFAULTS['community_basis'],
+            $r->effective(null, 42)['community_basis']);
+    }
+
+    /**
+     * `set()` STILL REPLACES, AND THAT IS WHAT IT IS FOR.
+     *
+     * Pinned so nobody "fixes" it into a second merge: a test fixture declaring a whole
+     * ruleset needs the replacement, and two functions that both merge would leave no way
+     * to clear a key at all.
+     */
+    public function test_set_still_replaces_the_whole_document(): void
+    {
+        $r = new RuleEngine();
+        $r->set('global', null, ['community_return_bps' => 3750, 'community_basis' => 'reach']);
+        $r->set('global', null, ['community_basis' => 'ideal']);
+
+        // Back to the DEFAULT, not to 3750: the document was replaced, so the key is gone
+        // and `effective()` falls through to the hardcoded value.
+        $this->assertSame(RuleEngine::DEFAULTS['community_return_bps'],
+            $r->effective(null, null)['community_return_bps'],
+            'set() must replace — merge() is the one that preserves');
+    }
 }

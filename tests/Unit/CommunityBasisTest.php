@@ -407,8 +407,24 @@ final class CommunityBasisTest extends TestCase
             . 'host with no shell');
         $this->assertStringContainsString("'community_basis' => \\AfricaGates\\Services\\CpiService::basis(", $ctrl,
             'the form posts a basis that nothing saves');
-        // Merged, never replaced — the global rule set also carries the weights, the
-        // fraud bands and the quorum, and writing five keys would erase them.
-        $this->assertStringContainsString('array_merge($current, [', $ctrl);
+        // ── MERGED, NEVER REPLACED ──────────────────────────────────────────
+        //
+        // The global rule set also carries the weights, the fraud bands, the quorum and the
+        // community-return accrual, and `set()` replaces the whole document — so a writer
+        // that passes five keys erases the rest, silently, and the first symptom is every
+        // cycle scored by defaults nobody chose.
+        //
+        // Asserted on WHICH METHOD the writer calls, not on the spelling of the merge. This
+        // used to look for the literal `array_merge($current, [` — seven lines of
+        // read-and-merge that this file required to be duplicated in both writers, and
+        // which broke the moment that discipline was given one implementation. A test that
+        // pins an implementation fails on the fix rather than on the fault.
+        //
+        // The behaviour itself is held by RuleEngineTest::test_merge_keeps_the_keys_it_was_not_given.
+        $this->assertStringContainsString("\$engine->merge('global', null, [", $ctrl,
+            'the scoring settings are written with set(), which replaces the whole rule '
+            . 'document and erases the weights, the quorum and the fraud bands');
+        $this->assertStringNotContainsString("\$engine->set('global'", $ctrl,
+            'set() at the global scope replaces every rule it does not carry');
     }
 }

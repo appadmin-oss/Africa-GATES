@@ -3416,6 +3416,17 @@ return function(App $app) {
         $a->post('/programmes/new',                  AdminProgrammesController::class.':save');
         $a->get('/programmes/{id:[0-9]+}',           AdminProgrammesController::class.':form');
         $a->post('/programmes/{id:[0-9]+}',          AdminProgrammesController::class.':save');
+        // ── SPONSORSHIP ──────────────────────────────────────────────────────
+        //
+        // Superadmin on the WRITES, not on the read: naming a commercial backer beside an
+        // award is a money decision, and the list itself is something anyone running the
+        // programme needs to be able to see — including to notice a conflict.
+        $a->get('/programmes/{id:[0-9]+}/sponsors',  AdminProgrammesController::class.':sponsors');
+        $a->post('/programmes/{id:[0-9]+}/sponsors', AdminProgrammesController::class.':sponsorSave')
+            ->add(new RoleMiddleware('superadmin'));
+        $a->post('/programmes/{id:[0-9]+}/sponsors/{sponsor:[0-9]+}/delete',
+                 AdminProgrammesController::class.':sponsorDelete')
+            ->add(new RoleMiddleware('superadmin'));
         $a->get('/programmes/{id:[0-9]+}/cycle',     AdminProgrammesController::class.':cycleEdit')->add(new RoleMiddleware('superadmin'));
         $a->post('/programmes/{id:[0-9]+}/cycle',    AdminProgrammesController::class.':cycleSave')->add(new RoleMiddleware('superadmin'));
         $a->post('/programmes/{id:[0-9]+}/categories', AdminProgrammesController::class.':categorySave');

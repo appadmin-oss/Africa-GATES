@@ -33,7 +33,16 @@ class SettingsController
         return $this->view->render($res, 'admin/settings.twig', [
             'page_title'     => 'Settings — Admin',
             'admin_page'     => 'settings',
-            'values'         => $this->settings->all(),
+            // ── AND THE ONE VALUE THE FORM CANNOT READ AS A STRING ──────────
+            //
+            // `fund_allocation` is a JSON document, so the form needs it decoded into
+            // rows. Through FundAllocation rather than json_decode here, because that is
+            // where the caps and the drop-a-nameless-destination rule live and a second
+            // reader of the same column is how the form comes to show something the page
+            // will not print.
+            'values'         => $this->settings->all() + [
+                'fund_allocation_rows' => \AfricaGates\Services\FundAllocation::rows(),
+            ],
             // Display timezone: the choices, and what is in force right now.
             'tz_choices'     => \AfricaGates\Support\DisplayTime::choices(),
             'tz_current'     => \AfricaGates\Support\DisplayTime::zone(),
@@ -960,27 +969,20 @@ class SettingsController
         // revenue sharing.
         if (array_key_exists('community_return_settings', $b)) {
             $engine  = new \AfricaGates\Services\RuleEngine();
-            $current = [];
-            try {
-                $row = \Illuminate\Database\Capsule\Manager::table('gates_rule_sets')
-                    ->where('scope', 'global')->whereNull('scope_id')->value('rules');
-                $decoded = json_decode((string) $row, true);
-                if (is_array($decoded)) $current = $decoded;
-            } catch (\Throwable) {}
 
             // Percent in the form, basis points in the store. An admin thinks in
             // "30%"; the accrual needs an integer it can multiply without a float
             // ever touching money. Two decimal places, so 12.5% is expressible.
             $pct = max(0.0, min(100.0, (float) ($b['community_return_pct'] ?? 30)));
 
-            $engine->set('global', null, array_merge($current, [
+            $engine->merge('global', null, [
                 'community_return_bps'               => (int) round($pct * 100),
                 'community_return_vote_threshold'    => max(1, (int) ($b['community_return_vote_threshold'] ?? 250)),
                 // Clamped here AND in the service, because a settings row is not a
                 // trusted input just because an admin typed it: 0 would lock every
                 // nominee out of qualifying forever, and >100 would stop being a cap.
                 'community_return_supporter_cap_pct' => max(1, min(100, (int) ($b['community_return_supporter_cap_pct'] ?? 10))),
-            ]));
+            ]);
         }
 
         // ── The scoring curves ───────────────────────────────────────────────
@@ -992,20 +994,16 @@ class SettingsController
         // would have been a declared setting with no writer, which is the most expensive
         // shape of bug in this codebase.
         //
-        // Same merge discipline as the community return above: the global scope carries
-        // the weights, the fraud bands and the quorum too, and writing only these keys
-        // would erase them.
+        // Through `merge()`, not `set()`: the global scope carries the weights, the fraud
+        // bands, the quorum and the community-return accrual too, and `set()` replaces the
+        // whole document — writing only these keys would erase the rest, silently, and the
+        // first anybody would know is every cycle scored by defaults nobody chose. That
+        // read-and-merge used to be seven lines spelled twice in this file, which is the
+        // state a third writer gets wrong.
         if (array_key_exists('scoring_settings', $b)) {
             $engine  = new \AfricaGates\Services\RuleEngine();
-            $current = [];
-            try {
-                $row = \Illuminate\Database\Capsule\Manager::table('gates_rule_sets')
-                    ->where('scope', 'global')->whereNull('scope_id')->value('rules');
-                $decoded = json_decode((string) $row, true);
-                if (is_array($decoded)) $current = $decoded;
-            } catch (\Throwable) {}
 
-            $engine->set('global', null, array_merge($current, [
+            $engine->merge('global', null, [
                 // Normalised through the scorer, never trusted as typed: an unrecognised
                 // value must fall back to the published behaviour rather than silently
                 // switch how every award in the system is decided.
@@ -1032,7 +1030,19 @@ class SettingsController
                 // cycle can be switched back and reproduce its announced figures exactly.
                 'judge_floor'     => max(0.0, min(9.0, (float) ($b['judge_floor'] ?? 5.0))),
                 'judge_curve'     => max(0.1, min(6.0, (float) ($b['judge_curve'] ?? 1.5))),
-            ]));
+            ]);
+        }
+
+        // ── WHERE DONATIONS GO ───────────────────────────────────────────────
+        //
+        // Three destinations that used to be a `{% set %}` in `donate.twig`, so a
+        // representation about the use of charitable funds was editable only by somebody
+        // who could deploy — on a host with no shell. See FundAllocation for the other
+        // half of what was wrong with it.
+        if (array_key_exists('fund_allocation_settings', $b)) {
+            \AfricaGates\Services\FundAllocation::save(
+                array_map('strval', (array) ($b['fund_allocation_title'] ?? [])),
+                array_map('strval', (array) ($b['fund_allocation_body']  ?? [])));
         }
 
         // Nomination eligibility — admin-toggleable "considered" threshold + min distinct locations.
