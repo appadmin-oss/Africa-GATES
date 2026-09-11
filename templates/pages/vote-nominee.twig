@@ -589,10 +589,18 @@
          reader, one consent rule — just more of it. Nobody appears here who did
          not tick the box. #}
       {% if award_kind|default('') %}
-      <section class="vn-card vn-laurel" data-ag-reveal="lg">
+      {# `data-celebrate` keys on the NOMINEE, so somebody reading three promoted
+         nominees gets three moments and a second look at one gets a document. It sits on
+         the laurel block, which exists only for a nominee `CycleMaterialiser` actually
+         promoted — so a page with nothing to celebrate has no hook to celebrate with.
+
+         NO `data-celebrate-figure` here: the backer count below already carries
+         `data-ag-count`, and ag-motion drives it when this section reveals. Naming it
+         again would be two clocks on one number. #}
+      <section class="vn-card vn-laurel" data-ag-reveal="lg" data-celebrate="nominee-{{ n.id }}">
         <div class="vn-laurel__glow" aria-hidden="true"></div>
         <div class="vn-laurel__head">
-          <span class="vn-laurel__badge">
+          <span class="vn-laurel__badge" data-celebrate-anchor>
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 3h12v5a6 6 0 0 1-12 0z"/><path d="M6 5H4a2 2 0 0 0 2 2M18 5h2a2 2 0 0 1-2 2"/><path d="M12 14v4M9 21h6"/></svg>
             {{ award_kind == 'winner' ? 'Winner' : 'Runner-up' }} · {{ n.category }}
           </span>
@@ -1178,6 +1186,12 @@
 {% endblock %}
 
 {% block foot_scripts %}
+{# Only for a nominee the standings actually promoted — the same condition the laurel
+   block above is drawn under. `award_kind` is a CONTROLLER variable rather than a
+   `{% set %}`, so it reaches this block; a template-level set would have been visible
+   here too, but a set inside `content` would arrive as null and quietly celebrate
+   nobody on every nominee page on the site. #}
+{% if award_kind|default('') %}{% include 'partials/celebrate.twig' only %}{% endif %}
 {% if turnstile_site_key %}
 <script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
 {% endif %}

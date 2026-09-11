@@ -5,6 +5,10 @@
    they have won. Particles come from canvas-confetti (ISC, vendored); the
    timing is here.
 
+   The index tick is ag-motion.js's `agCount`, driven here on a beat rather than
+   on an observer. This file owns the choreography and the particles; it owns no
+   second copy of anything the motion system already does.
+
    ── WHAT MAKES THIS A CELEBRATION AND NOT A CONFETTI CALL ───────────────────
    A single burst on page load reads as decoration. What reads as an occasion is
    a SEQUENCE with anticipation in it: the index counts up while nothing else
@@ -58,35 +62,6 @@
     try { window.localStorage.setItem('ag-celebrated:' + key, '1'); } catch (e) { /* fine */ }
   }
 
-  /**
-   * The index ticking up to the number already printed.
-   *
-   * Reads its target OUT of the element, so the figure animated is the figure the
-   * server rendered and the two cannot disagree. It restores the exact original
-   * text at the end rather than re-formatting it — the separators, the decimal,
-   * whatever the page chose, is the page's business and not this file's.
-   */
-  function countUp(el, ms) {
-    var finalText = el.textContent;
-    var target = parseFloat(finalText.replace(/[^0-9.]/g, ''));
-    if (!isFinite(target) || target <= 0) return;
-
-    var decimals = (finalText.split('.')[1] || '').replace(/[^0-9]/g, '').length;
-    var started = null;
-
-    function frame(now) {
-      if (started === null) started = now;
-      var t = Math.min(1, (now - started) / ms);
-      // easeOutCubic: fast away, slow home. A linear tick reads like a loading bar.
-      var v = target * (1 - Math.pow(1 - t, 3));
-      el.textContent = v.toFixed(decimals);
-      if (t < 1) requestAnimationFrame(frame);
-      else el.textContent = finalText;
-    }
-    el.textContent = (0).toFixed(decimals);
-    requestAnimationFrame(frame);
-  }
-
   /** Our own canvas, so nothing is appended to <body> that outlives the moment. */
   function stage() {
     var c = document.createElement('canvas');
@@ -105,8 +80,12 @@
     var figure = opts.figure || null;
     var quiet  = reduced();
 
-    // The count-up is motion too, so it goes with the particles.
-    if (figure && !quiet) countUp(figure, 900);
+    // The count-up is motion too, so it goes with the particles — and it is
+    // ag-motion.js's counter, not a second one. That one already knows a thousands
+    // separator has to survive the animation and that a composite figure is not a
+    // quantity to animate; a copy here would be the screen that counts through
+    // "2733 / 55". It is a no-op under reduced motion on its own account.
+    if (figure && typeof window.agCount === 'function') window.agCount(figure);
     if (quiet || typeof window.confetti !== 'function') return;
 
     var canvas = stage();

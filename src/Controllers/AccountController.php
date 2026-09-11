@@ -722,6 +722,10 @@ class AccountController
         $bookmarks = $this->community ? $this->community->bookmarkedThreads((int) $user->id, 12) : [];
 
         return $this->view->render($res, 'pages/account/dashboard.twig', [
+            // Nominees this member voted for who were promoted. Only ever non-empty for a
+            // cycle CycleMaterialiser actually released, so it cannot congratulate anybody
+            // on an award nobody has been told about.
+            'backed_winners' => \AfricaGates\Services\MemberActivityService::backedWinners((string) $user->email),
             // Security section. Both halves asked separately: the library on the server,
             // and the API in the browser (asked in the page) — a server that can verify a
             // ceremony no browser here can run is still nothing to offer.

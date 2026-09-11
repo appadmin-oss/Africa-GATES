@@ -76,6 +76,72 @@ class MemberActivityService
     }
 
     /**
+     * Nominees this member voted for who went on to be promoted.
+     *
+     * ══════════════════════════════════════════════════════════════════════════
+     * WHY THIS IS SAFE TO SHOW, WHICH IS THE ONLY INTERESTING QUESTION
+     * ══════════════════════════════════════════════════════════════════════════
+     *
+     * `gates_nominees.status` becomes 'winner' or 'runner_up' inside
+     * {@see CycleMaterialiser}'s promotion — the same transaction that crowns the cycle
+     * and seals the standing. So the status cannot say "winner" about an award nobody
+     * has been told about, which is the rule this platform breaks hardest when it breaks
+     * it: "a judged-but-unreleased category is a decided award nobody has announced, and
+     * serving it publicly is announcing it."
+     *
+     * That is the same condition the public nominee page already trusts to draw its
+     * laurel block, and it is named here rather than re-derived, because two readers of
+     * "has this been announced" is how the halves of a release come to disagree.
+     *
+     * ── WHY NOT `vote_type = 'standard'` LIKE {@see votesFor} ────────────────
+     * That filter is right for a list of the votes somebody CAST. This asks a different
+     * question — whose side were they on — and a supporter who paid for a vote was on
+     * that side too. It costs nothing: three of the five services that mint a vote write
+     * a randomised synthetic `voter_email_hash` (`bonus:`, `points:`, `paidvote:`), so a
+     * grant made on somebody's behalf cannot match this address by accident.
+     *
+     * NO URL. `gates_nominees` has no slug column — the public page's path is built from
+     * the programme and a slug derived elsewhere — and the first version of this selected
+     * `n.slug` anyway. It would have thrown on every call, been swallowed by the catch
+     * below, and shown an empty panel for ever: the exact shape of failure that catch is
+     * there to avoid turning into a broken page, and the reason a swallowed error needs
+     * the query above it to be right.
+     *
+     * @return list<array{nominee:string, category:string, kind:string, id:int}>
+     */
+    public static function backedWinners(string $email, int $limit = 6): array
+    {
+        try {
+            $rows = DB::table('gates_votes as v')
+                ->join('gates_nominees as n', 'n.id', '=', 'v.nominee_id')
+                ->leftJoin('gates_award_categories as c', 'c.id', '=', 'n.category_id')
+                ->where('v.voter_email_hash', self::emailHash($email))
+                ->whereIn('n.status', ['winner', 'runner_up'])
+                // One row per nominee however many times they were backed: a member who
+                // voted in two categories has two celebrations, not two lines about one.
+                // Every selected column is grouped, because MySQL runs with
+                // ONLY_FULL_GROUP_BY and SQLite does not — a column selected and not
+                // grouped is a silent arbitrary pick in dev and a hard error in
+                // production, which is the divergence this codebase pays for most.
+                ->groupBy('n.id', 'n.name', 'n.status', 'c.title')
+                ->orderByDesc('n.id')
+                ->limit(max(1, $limit))
+                ->get(['n.id', 'n.name as nominee', 'n.status', 'c.title as category']);
+        } catch (\Throwable) {
+            // A missing column or table is "nothing to celebrate", never a broken
+            // dashboard: this is an ornament on a records screen.
+            return [];
+        }
+
+        return array_map(static fn ($r) => [
+            'nominee'  => (string) ($r->nominee ?? ''),
+            'category' => (string) ($r->category ?? ''),
+            'kind'     => (string) $r->status,
+            'id'       => (int) $r->id,
+        ], $rows->all());
+    }
+
+    /**
      * Shop orders this member has placed.
      *
      * ── WHY THIS WAS MISSING, AND WHY IT MATTERS NOW ─────────────────────────

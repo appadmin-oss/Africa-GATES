@@ -111,6 +111,23 @@
      once watched.
      So a counter with an animated ancestor is driven BY that ancestor, and only
      a standalone one is observed on its own. */
+  /* ── ONE COUNTER, FOR CALLERS WITH THEIR OWN CLOCK ─────────────────────────
+     Exposed because `celebrate.js` needs the award index to tick on a beat of its
+     own sequence rather than when an observer happens to fire — and it had its own
+     count-up to get that, which is two implementations of one thing. The one below
+     already knows two things the second did not: that a thousands separator has to
+     survive the animation, and that a COMPOSITE figure ("45 / 55") is two
+     quantities and a separator rather than a number, so it is left alone. A second
+     counter is how one screen counts to 45 and another counts through 4555.
+
+     Guarded and reduced-motion-aware here rather than at the call site, so a caller
+     cannot forget either. */
+  window.agCount = function (el) {
+    if (reduced || !el || el.dataset.agCounted) return;
+    el.dataset.agCounted = '1';
+    count(el);
+  };
+
   function runCounters(scope) {
     if (reduced) return;
     var list = scope.hasAttribute && scope.hasAttribute('data-ag-count') ? [scope] : [];

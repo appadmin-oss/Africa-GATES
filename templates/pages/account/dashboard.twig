@@ -419,6 +419,22 @@
   [hidden]{ display:none !important; }
 
   @media (prefers-reduced-motion:reduce){ .me *{ transition:none !important; animation:none !important } }
+  /* ── somebody you backed won ───────────────────────────────────────────────
+     Gold, and the only gold on this screen. It is used once so that it means
+     something; a records page where three panels are accented has no accent. */
+  .me-won{ border-color:rgba(243,180,22,.45); background:linear-gradient(180deg,#fffdf4,var(--me-panel) 62%); }
+  .me-won__list{ list-style:none; margin:14px 0 0; padding:0; border-top:1px solid var(--me-line); }
+  .me-won__row{ display:flex; align-items:center; gap:12px; flex-wrap:wrap;
+    padding:12px 0; border-bottom:1px solid var(--me-line); }
+  .me-won__b{ flex:1; min-width:160px; }
+  .me-won__n{ display:block; font-size:14.5px; font-weight:700; }
+  .me-won__c{ display:block; margin-top:2px; font-size:12.5px; color:var(--me-mute); }
+  .me-won__k{ flex:none; font:700 10.5px/1 var(--ag-font-mono,monospace); letter-spacing:.12em;
+    text-transform:uppercase; padding:6px 10px; border-radius:999px; }
+  /* #5c4100 on #fdf4dd is 7.4:1; the gold itself would be 2.1:1 and unreadable. */
+  .me-won__k--winner{ background:#fdf4dd; color:#5c4100; }
+  .me-won__k--runner_up{ background:var(--me-surface,#f1f3f1); color:var(--me-mute); }
+
   /* ── enrolled devices ─────────────────────────────────────────────────────
      A row per device, not a table: there are two facts about each and a table of
      two columns is a list wearing a grid. Wraps rather than truncating — a member
@@ -531,6 +547,40 @@
       {# ══ OVERVIEW ══════════════════════════════════════════════════════ #}
       <section class="me-sec" id="me-overview" aria-labelledby="me-overview-h">
         <div class="me-sec__h"><h2 id="me-overview-h">Overview</h2></div>
+
+        {# ── SOMEBODY YOU BACKED WON ─────────────────────────────────────────
+           First thing in the section, above the points, because it is the only panel
+           here that is about a person rather than a balance.
+
+           `backed_winners` is only ever non-empty for a nominee `CycleMaterialiser`
+           actually promoted — the same transaction that crowns the cycle and seals the
+           standing — so this cannot congratulate somebody on an award nobody has been
+           told about. {@see MemberActivityService::backedWinners} for why that is the
+           condition and not a status column somebody set by hand.
+
+           The key includes every id, so a member who backs a second winner next month
+           gets a second celebration rather than one that already counts as seen. #}
+        {% if backed_winners|default([])|length %}
+        <div class="me-panel me-won"
+             data-celebrate="backed-{{ backed_winners|map(w => w.id)|join('-') }}">
+          <p class="me-panel__h" data-celebrate-anchor>
+            {{ backed_winners|length == 1 ? 'Someone you backed was named' : 'People you backed were named' }}
+          </p>
+          <p class="me-panel__s">The community half of an index is the part the people who
+            showed up decided. These are yours.</p>
+          <ul class="me-won__list">
+            {% for w in backed_winners %}
+            <li class="me-won__row">
+              <span class="me-won__b">
+                <b class="me-won__n">{{ w.nominee }}</b>
+                {% if w.category %}<span class="me-won__c">{{ w.category }}</span>{% endif %}
+              </span>
+              <span class="me-won__k me-won__k--{{ w.kind }}">{{ w.kind == 'winner' ? 'Winner' : 'Runner-up' }}</span>
+            </li>
+            {% endfor %}
+          </ul>
+        </div>
+        {% endif %}
 
         {% if is_new|default(false) %}
         {# A first-run screen, not six empty sections. A dashboard where every panel says
@@ -1669,6 +1719,7 @@
 })();
 </script>
 
+{% if backed_winners|default([])|length %}{% include 'partials/celebrate.twig' only %}{% endif %}
 {% if passkeys_available %}
 {# ── ADDING A PASSKEY ────────────────────────────────────────────────────────
    The button is revealed only when this browser can actually run the ceremony.
