@@ -1,0 +1,57 @@
+{# ═══════════════════════════════════════════════════════════════════════════
+   SET A NEW PASSWORD — /account/reset?token=…
+
+   TWO SCREENS, AND THE DEAD-LINK ONE IS THE POINT. A reset link is the thing
+   people find in an old email, on the wrong device, an hour late. When the
+   token no longer works, this must not draw a password field: somebody types a
+   new password, presses the button, and is told the link expired — the password
+   is gone and so is the only screen that could have told them sooner.
+
+   The controller only passes `token` when it is still live, so the field cannot
+   be drawn against a dead one.
+   ═══════════════════════════════════════════════════════════════════════════ #}
+{% extends "layout/account-auth.twig" %}
+
+{% block card %}
+{% if token %}
+
+  <h1 class="ag-acct__h1">Set a new password</h1>
+  <p class="ag-acct__lede">
+    {% if email %}For <b>{{ email }}</b>. {% endif %}Pick something you have not used elsewhere — at least 8 characters.
+  </p>
+
+  {% if error %}<div class="ag-acct__alert ag-acct__alert--err" role="alert">{{ error }}</div>{% endif %}
+
+  <form method="post" action="/account/reset">
+    <input type="hidden" name="_token" value="{{ csrf_token }}">
+    <input type="hidden" name="token" value="{{ token }}">
+    {# Hidden and non-editable, but present: a password manager needs the account this
+       password belongs to in order to save it against the right entry. #}
+    {% if email %}<input type="hidden" name="email" value="{{ email }}" autocomplete="username">{% endif %}
+    <div class="ag-acct__field">
+      <label class="ag-acct__label" for="password">New password</label>
+      <input class="ag-acct__input{% if error %} ag-acct__input--err{% endif %}" id="password" type="password"
+             name="password" autocomplete="new-password" minlength="8" placeholder="At least 8 characters" required autofocus>
+    </div>
+    <div class="ag-acct__btns">
+      <button class="ag-acct__cta" type="submit">Save it and sign me in</button>
+    </div>
+  </form>
+
+{% else %}
+
+  <h1 class="ag-acct__h1">That link has expired</h1>
+  <p class="ag-acct__lede">A reset link works once and lasts an hour. Ask for a fresh one and it will be with you in a moment.</p>
+
+  {% if error %}<div class="ag-acct__alert ag-acct__alert--err" role="alert">{{ error }}</div>{% endif %}
+
+  <div class="ag-acct__btns">
+    <a class="ag-acct__ghost" href="/account/forgot">Send me a new link</a>
+  </div>
+
+{% endif %}
+{% endblock %}
+
+{% block below %}
+<p class="ag-acct__switch">Remembered it? <a class="ag-acct__quiet" href="/account/login">Sign in</a></p>
+{% endblock %}

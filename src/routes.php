@@ -3199,6 +3199,21 @@ return function(App $app) {
         $a->post('/register',     AccountController::class.':registerSubmit');
         $a->get('/verify',         AccountController::class.':verifyEmail');
         $a->post('/verify/resend', AccountController::class.':resendVerification');
+        // Forgotten password. The one-time code was always the recovery route; this is
+        // the one people go looking for, and being offered a code instead reads as the
+        // site not having what they asked for.
+        $a->get('/forgot',        AccountController::class.':forgotForm');
+        $a->post('/forgot',       AccountController::class.':forgotSubmit');
+        $a->get('/reset',         AccountController::class.':resetForm');
+        $a->post('/reset',        AccountController::class.':resetSubmit');
+        // Passkeys. POST for the options too: a GET a prefetch or a mail scanner can
+        // reach would spend the challenge, and a spent challenge is a ceremony that
+        // fails for somebody who did nothing wrong.
+        $a->post('/login/passkey/options', AccountController::class.':passkeyLoginOptions');
+        $a->post('/login/passkey',         AccountController::class.':passkeyLogin');
+        $a->post('/passkeys/options',      AccountController::class.':passkeyCreateOptions');
+        $a->post('/passkeys',              AccountController::class.':passkeyRegister');
+        $a->post('/passkeys/{id:[0-9]+}/delete', AccountController::class.':passkeyForget');
         $a->get('/logout',        AccountController::class.':logout');
         $a->post('/logout',       AccountController::class.':logout');
         // Mint this member's referral code. POST, because it creates something.

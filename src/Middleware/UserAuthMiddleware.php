@@ -17,7 +17,14 @@ class UserAuthMiddleware
     /** @param string[] $exempt absolute paths that don't require a member session */
     public function __construct(private readonly array $exempt = [
         '/account/login', '/account/login/otp', '/account/login/verify',
+        // Signing in WITH a passkey happens before there is a session, so both halves of
+        // the ceremony are exempt. Enrolling one (/account/passkeys) is deliberately not:
+        // a device is added by somebody already signed in, which is what makes the
+        // enrolment mean anything.
+        '/account/login/passkey', '/account/login/passkey/options',
         '/account/register', '/account/verify', '/account/verify/resend',
+        // Recovery is by definition reached without a session.
+        '/account/forgot', '/account/reset',
         '/account/logout', '/account/redeem',
     ]) {}
 

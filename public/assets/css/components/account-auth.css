@@ -62,6 +62,16 @@
 }
 .ag-acct *{ box-sizing:border-box; }
 
+/* ── `hidden` HAS TO WIN, AND BY DEFAULT IT DOES NOT ────────────────────────
+   `[hidden]{display:none}` comes from the USER-AGENT stylesheet, so any author
+   rule that sets `display` beats it — and `.ag-acct__row{display:flex}` does
+   exactly that. So `<button class="ag-acct__row" hidden>` rendered in full.
+   Caught in a browser: the passkey row, which exists only to be revealed once
+   the script confirms this browser can run the ceremony, was visible on every
+   browser including the ones that cannot — which is the "row that opens
+   nothing" this whole arrangement was built to avoid. */
+.ag-acct [hidden]{ display:none !important; }
+
 .ag-acct__col{
   width:100%; max-width:452px;
   padding:clamp(30px,6vw,60px) 20px 40px;
@@ -187,9 +197,16 @@ button.ag-acct__quiet{ background:none; border:0; padding:0; font:inherit; font-
 /* ── Hairline choice rows ── */
 .ag-acct__rows{ margin-top:22px; }
 .ag-acct__row{
-  display:flex; align-items:center; gap:14px;
+  display:flex; align-items:center; gap:14px; width:100%;
   padding:14px 0; border-top:1px solid var(--ac-line);
   text-decoration:none; color:var(--ac-ink);
+  /* A row is sometimes a link and sometimes a button — "use a passkey" is a POST,
+     and a GET link that mints a challenge is one a prefetch can spend. A button
+     inherits neither the page font nor its text alignment, so without these the
+     one row that is a button rendered centred, in the browser's own font, in a
+     column of left-aligned links. */
+  font:inherit; text-align:left; background:none; border-left:0; border-right:0;
+  border-bottom:0; cursor:pointer;
 }
 .ag-acct__row--tall{ padding:16px 0; }
 .ag-acct__row-body{ flex:1; min-width:0; }

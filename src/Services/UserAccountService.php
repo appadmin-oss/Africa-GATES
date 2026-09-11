@@ -194,4 +194,102 @@ final class UserAccountService
     {
         DB::table('gates_users')->where('id', $userId)->update(['email_verified' => 1]);
     }
+
+    // ── Forgotten password ──────────────────────────────────────────────────
+    //
+    // Same row shape as the verification token above, and deliberately: one table, one
+    // expiry mechanism, one "invalidate the previous one" rule. `nominee_id` again holds
+    // a gates_users id, which is safe because {@see MergeService::NOMINEE_OTP_PURPOSES}
+    // is an ALLOWLIST — a purpose whose subject really is a nominee has to be named there,
+    // so a new purpose inherits no rewrite when a nominee is merged away.
+    //
+    // ONE HOUR, not twenty-four. A reset link is a bearer credential for somebody's whole
+    // account; a verification link only proves an address. They are not the same risk and
+    // must not share a window.
+    public const RESET_PURPOSE = 'user_pwreset';
+    private const RESET_TTL_MINUTES = 60;
+
+    /**
+     * Mint a single-use reset token, invalidating any earlier unused one. Returns the RAW
+     * token for the emailed link; only its hash is stored.
+     */
+    public function issuePasswordReset(int $userId, string $email): ?string
+    {
+        $email = strtolower(trim($email));
+        if (!filter_var($email, FILTER_VALIDATE_EMAIL)) return null;
+        $eh = hash('sha256', $email);
+        DB::table('gates_otp_tokens')->where('email_hash', $eh)->where('purpose', self::RESET_PURPOSE)
+            ->where('is_used', 0)->update(['is_used' => 1]);
+        $raw = bin2hex(random_bytes(24));
+        DB::table('gates_otp_tokens')->insert([
+            'email_hash' => $eh,
+            'token_hash' => hash('sha256', $raw),
+            'purpose'    => self::RESET_PURPOSE,
+            'nominee_id' => $userId,   // reused column: the account this resets
+            'award_id'   => 0,
+            'attempts'   => 0,
+            'is_used'    => 0,
+            'expires_at' => Carbon::now()->addMinutes(self::RESET_TTL_MINUTES)->toDateTimeString(),
+            'created_at' => Carbon::now()->toDateTimeString(),
+        ]);
+        return $raw;
+    }
+
+    /**
+     * The account a live reset token belongs to, WITHOUT consuming it.
+     *
+     * Separate from {@see consumePasswordReset} because the reset page has to be drawn
+     * before the new password is typed. Burning the token on the GET would mean the form
+     * posts a token that no longer exists — so the person sets a password, is told the
+     * link has expired, and the password they typed is gone. Which is the same fault as a
+     * "check your email" screen that has already used the code it is asking for.
+     */
+    public function findByResetToken(string $token): ?object
+    {
+        $row = $this->liveResetRow($token);
+        return $row === null ? null : $this->findById((int) $row->nominee_id);
+    }
+
+    /**
+     * Consume the token and set the password. Returns the user, or null when the token is
+     * invalid, expired, already used, or the password is too short.
+     *
+     * SETTING A PASSWORD THIS WAY ALSO VERIFIES THE EMAIL. Following a link sent to that
+     * inbox proves the same thing a one-time code proves, and {@see AccountController}
+     * already treats a code that way. Leaving the account unverified would strand somebody
+     * who has just proved they own the address on a "confirm your email" screen.
+     */
+    public function consumePasswordReset(string $token, string $password): ?object
+    {
+        if (strlen($password) < 8) return null;
+        $row = $this->liveResetRow($token);
+        if ($row === null) return null;
+
+        $user = $this->findById((int) $row->nominee_id);
+        if (!$user) return null;
+
+        // Burn the token FIRST. If the update below throws, a token that has already been
+        // presented must not remain spendable.
+        DB::table('gates_otp_tokens')->where('id', $row->id)->update(['is_used' => 1]);
+        DB::table('gates_users')->where('id', $user->id)->update([
+            'password_hash'  => password_hash($password, PASSWORD_BCRYPT),
+            'email_verified' => 1,
+        ]);
+        $user->email_verified = 1;
+        return $user;
+    }
+
+    /** The unused, unexpired reset row for a raw token, or null. */
+    private function liveResetRow(string $token): ?object
+    {
+        $token = trim($token);
+        // A hash of the empty string is a perfectly valid sha256, so an empty token would
+        // otherwise go to the database and match any row somebody had managed to store.
+        if ($token === '') return null;
+        $row = DB::table('gates_otp_tokens')
+            ->where('token_hash', hash('sha256', $token))->where('purpose', self::RESET_PURPOSE)
+            ->where('is_used', 0)->where('expires_at', '>', Carbon::now()->toDateTimeString())
+            ->orderByDesc('id')->first();
+        return $row ?: null;
+    }
 }

@@ -49,6 +49,7 @@
   'activity':  ['#ffdeeb', '#bf2c5e'],
   'saved':     ['#e5dbff', '#6741d9'],
   'settings':  ['#e9ecef', '#495057'],
+  'shield':    ['#dbe9ff', '#1c4f9c'],
   'money':     ['#c5f6fa', '#0b7285'],
   'doc':       ['#ffe3e3', '#c92a2a'],
   'stand':     ['#d0ebff', '#1864ab'],
@@ -109,6 +110,12 @@
     <path d="M6.5 3.6h11a1 1 0 0 1 1 1v15.8l-6.5-3.6-6.5 3.6V4.6a1 1 0 0 1 1-1Z" fill="{{ fill }}"/>
     <path d="M6.5 3.6h11a1 1 0 0 1 1 1v15.8l-6.5-3.6-6.5 3.6V4.6a1 1 0 0 1 1-1Z" fill="none"
           stroke="{{ ink }}" stroke-width="1.8" stroke-linejoin="round"/>
+  {%- elseif name == 'shield' %}
+    <path d="M12 2.9l7.2 2.9v5.6c0 4.6-3 8.2-7.2 9.7-4.2-1.5-7.2-5.1-7.2-9.7V5.8L12 2.9Z" fill="{{ fill }}"/>
+    <path d="M12 2.9l7.2 2.9v5.6c0 4.6-3 8.2-7.2 9.7-4.2-1.5-7.2-5.1-7.2-9.7V5.8L12 2.9Z" fill="none"
+          stroke="{{ ink }}" stroke-width="1.8" stroke-linejoin="round"/>
+    <path d="M8.9 11.9l2.2 2.2 4-4.3" fill="none" stroke="{{ ink }}" stroke-width="1.8"
+          stroke-linecap="round" stroke-linejoin="round"/>
   {%- elseif name == 'settings' %}
     <circle cx="12" cy="12" r="9" fill="{{ fill }}"/>
     <g fill="none" stroke="{{ ink }}" stroke-width="1.8" stroke-linecap="round">

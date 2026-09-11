@@ -56,6 +56,7 @@ final class DoctorCommand extends Command
             'assets'   => $this->assets(),
             'csp'      => $this->csp(),
             'judging'  => $this->judging(),
+            'passkeys' => $this->passkeys(),
         ];
         $problems = $this->problems($report);
 
@@ -590,9 +591,52 @@ final class DoctorCommand extends Command
     }
 
     /** @return list<string> */
+    /**
+     * Passkeys — and specifically whether the LIBRARY arrived.
+     *
+     * `vendor/` is not in this repository, so a deployment that copies changed files
+     * rather than shipping a composed tree has the passkey code and not the package it
+     * calls. The feature then withholds itself correctly on every screen, which is the
+     * right behaviour and also the reason nobody would notice: there is no error, no log
+     * line and no shell on this host to go looking with. So it is asked here.
+     */
+    private function passkeys(): array
+    {
+        $on = \AfricaGates\Services\Passkeys::available();
+        return [
+            'library'    => $on ? 'web-auth/webauthn-lib present' : 'MISSING',
+            'rp_id'      => \AfricaGates\Services\Passkeys::rpId(),
+            'origin'     => \AfricaGates\Services\Passkeys::origin(),
+            'enrolled'   => $on ? (string) $this->countRows(\AfricaGates\Services\Passkeys::TABLE) : '—',
+        ];
+    }
+
+    private function countRows(string $table): int
+    {
+        try { return (int) \Illuminate\Database\Capsule\Manager::table($table)->count(); }
+        catch (\Throwable) { return 0; }
+    }
+
     private function problems(array $r): array
     {
         $p = [];
+        if (($r['passkeys']['library'] ?? '') === 'MISSING') {
+            $p[] = "PASSKEYS ARE OFF because web-auth/webauthn-lib is not installed. Every "
+                 . "screen says so and nothing is broken — which is exactly why this needs "
+                 . "reporting: the feature is simply absent, with no error anywhere to find. "
+                 . "vendor/ is not in the repository, so a deploy that copies changed files "
+                 . "will never bring it. Run `composer install --no-dev -o` in the tree the "
+                 . "deployment archive is built from, and ship vendor/ with it.";
+        }
+        if (($r['passkeys']['rp_id'] ?? '') !== (string) parse_url((string) ($r['passkeys']['origin'] ?? ''), PHP_URL_HOST)) {
+            $p[] = "THE PASSKEY RELYING-PARTY ID IS NOT THIS SITE'S HOST (rp_id "
+                 . "'{$r['passkeys']['rp_id']}' against origin '{$r['passkeys']['origin']}'). A "
+                 . "browser refuses a ceremony whose rp_id is not the origin's own domain or a "
+                 . "registrable parent of it, so every passkey prompt fails before it appears — "
+                 . "and an rp_id that CHANGES orphans every passkey already enrolled under the "
+                 . "old one, silently: the browser simply has nothing to offer. Clear the "
+                 . "`passkey_rp_id` setting to fall back to the site host.";
+        }
         if (str_contains((string) ($r['csp']['live_check'] ?? ''), 'MISMATCH')) {
             $p[] = "THE DEPLOYED CODE IS NOT THIS CODE. The Content-Security-Policy on the live "
                  . "response differs from the one this tree produces"

@@ -8,12 +8,11 @@
    sign-in. Those are separate trust domains on their own routes and a shared
    public entry point is the thing that makes one of them a target.
 
-   No "use a passkey" row and no "forgotten password" link: this platform has
-   neither a WebAuthn credential store nor a member password-reset route. A row
-   pointing at a page that does not exist is the fault this codebase has paid
-   for repeatedly — a mechanism complete on every side with no route in. The
-   one-time code IS the recovery path here, so it is named as one in words
-   rather than dressed as a second door.
+   Three alternate ways in, and each one exists. The passkey row is HIDDEN until
+   the script confirms this browser can run the ceremony, and is not rendered at
+   all when the server half is unavailable — a row that opens nothing reads as
+   the account being broken rather than as the feature being absent, which is
+   worse than not offering it.
 
    ── THE EMAIL IS CARRIED, NOT REMEMBERED ───────────────────────────────────
    The code screen used to show neither the address the code went to nor any
@@ -121,6 +120,20 @@
   </form>
 
   <div class="ag-acct__rows">
+    {% if passkeys_available|default(false) %}
+      {# HIDDEN until the script confirms this browser can actually do it. A passkey row
+         that opens nothing on an older browser is worse than no row: the person reads it
+         as the account being broken rather than as the feature being unavailable. #}
+      <button class="ag-acct__row" type="button" id="agPasskeyRow" hidden
+              data-passkey-signin data-passkey-note="agPasskeyNote">
+        <span class="ag-acct__row-body">
+          <b class="ag-acct__row-title">Use a passkey</b>
+          <span class="ag-acct__row-note">Face, fingerprint or device PIN — nothing to type and nothing to remember.</span>
+        </span>
+        <svg class="ag-acct__chev" width="16" height="16" viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M7.5 4.5 13 10l-5.5 5.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </button>
+      <p class="ag-acct__alert ag-acct__alert--note" id="agPasskeyNote" hidden></p>
+    {% endif %}
     <a class="ag-acct__row" href="/vote">
       <span class="ag-acct__row-body">
         <b class="ag-acct__row-title">Claim a profile someone nominated</b>
@@ -128,12 +141,14 @@
       </span>
       <svg class="ag-acct__chev" width="16" height="16" viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M7.5 4.5 13 10l-5.5 5.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
     </a>
+    <a class="ag-acct__row" href="/account/forgot">
+      <span class="ag-acct__row-body">
+        <b class="ag-acct__row-title">Forgotten your password</b>
+        <span class="ag-acct__row-note">We email a reset link, valid once.</span>
+      </span>
+      <svg class="ag-acct__chev" width="16" height="16" viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M7.5 4.5 13 10l-5.5 5.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    </a>
   </div>
-
-  <p class="ag-acct__fine">
-    Forgotten your password? The one-time code signs you in without it — you can set a new
-    one from your account afterwards.
-  </p>
 
 {% endif %}
 {% endblock %}
@@ -150,6 +165,18 @@
 {% endblock %}
 
 {% block foot_scripts %}
+{% if passkeys_available|default(false) %}
+<script nonce="{{ csp_nonce }}" src="{{ asset('/assets/js/passkeys.js') }}" defer></script>
+{# The row appears only once BOTH halves are real: the library on the server (checked
+   above) and the API in this browser. `hidden` off, not `display`, so the toggle cannot
+   be undone by a stylesheet. #}
+<script nonce="{{ csp_nonce }}">
+document.addEventListener('DOMContentLoaded', function () {
+  var row = document.getElementById('agPasskeyRow');
+  if (row && window.agPasskeys && window.agPasskeys.supported()) row.hidden = false;
+});
+</script>
+{% endif %}
 {% if sent %}
 {# Mirrors the real input's digits into the decorative boxes, and only then
    hides the input behind them. Ordered that way on purpose: if this script

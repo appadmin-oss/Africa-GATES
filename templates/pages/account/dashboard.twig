@@ -60,7 +60,7 @@
    defined once and rendered into one. AccountDashboardTest now asserts the foot script gets
    a real array, because "this is defined in one place" is a claim a test can check and a
    comment cannot. #}
-{% set me_tabs = ['overview','points','referral','purchases','vendor','activity','saved','settings'] %}
+{% set me_tabs = ['overview','points','referral','purchases','vendor','activity','saved','security','settings'] %}
 
 {% block head_styles %}
 {# Synchronous and FIRST — it decides what is painted, so it cannot be deferred. #}
@@ -112,7 +112,11 @@
     --me-line:rgba(16,41,44,.09);
     --me-line-2:rgba(16,41,44,.16);
     --me-accent:#237b22;        /* 4.6:1 on white */
-    --me-accent-wash:#f1f8f1;
+    --me-accent-wash:#eaf4ea;
+    /* For TEXT on --me-accent-wash. The accent itself is 4.6:1 on white and only 4.2:1
+       on the wash, which is the ground the selected rail item actually uses — so the one
+       label that is meant to stand out was the one below AA. 7.1:1 here. */
+    --me-accent-ink:#17591a;
     --me-warn:#8a5a00;          /* 5.4:1 — the gold, made legible on light */
     --me-warn-wash:#fdf6e6;
     --me-bad:#a8321f;
@@ -177,8 +181,11 @@
   .me-body{ display:grid; grid-template-columns:216px minmax(0,1fr); gap:30px; margin-top:24px; }
   .me-rail{ position:sticky; top:calc(var(--ag-nav-h,72px) + 14px); align-self:start;
     display:flex; flex-direction:column; gap:2px; }
-  .me-rail__i{ display:flex; align-items:center; gap:10px; min-height:40px; padding:0 12px;
-    border-radius:var(--me-r-sm); border:0; background:none; cursor:pointer; text-align:left;
+  .me-rail__i{ display:flex; align-items:center; gap:12px; min-height:44px; padding:0 14px;
+    /* A full pill, the way a modern account rail reads, rather than a soft-cornered
+       box — the selected state is then one shape rather than a highlighted rectangle
+       inside a column of rectangles. */
+    border-radius:999px; border:0; background:none; cursor:pointer; text-align:left;
     font:600 14px/1.2 inherit; color:var(--me-mute); text-decoration:none; width:100%;
     box-sizing:border-box; }
   .me-rail__i:hover{ background:rgba(16,41,44,.05); color:var(--me-ink); }
@@ -191,20 +198,20 @@
 
      CSS cannot compare two attributes, so this is one rule per tab, generated from the
      same `me_tabs` list the scripts read. It cannot drift from them, and the highlight is
-     correct in the first frame with no JavaScript involved. `aria-selected` stays for
-     assistive tech and is still maintained by paint(). */
+     correct in the first frame with no JavaScript involved. `aria-current` is written by
+     paint() for assistive tech and carries the same visual as a second selector. */
   {% for t in me_tabs %}
   [data-me="{{ t }}"] .me-rail__i[data-me-go="{{ t }}"],
   {% endfor %}
-  .me-rail__i[aria-selected="true"]{ background:var(--me-ink); color:#fff; }
-  /* The selected item is dark, and a two-tone icon drawn for a white ground loses its
-     stroke against it. Brightened rather than swapped for a monochrome copy: the hue is
-     what tells the sections apart, and dropping it on the one that is selected would make
-     the icon change meaning at the moment it is being looked at. */
+  .me-rail__i[aria-current]{ background:var(--me-accent-wash); color:var(--me-accent-ink); font-weight:700; }
+  /* The selected item used to be solid ink, which needed the two-tone icons brightening
+     to survive it — and a brightened icon is a slightly different icon on the one row
+     somebody is looking at. A tinted pill keeps the ground light, so the icons are left
+     exactly as they are everywhere else. */
   {% for t in me_tabs %}
   [data-me="{{ t }}"] .me-rail__i[data-me-go="{{ t }}"] .ico,
   {% endfor %}
-  .me-rail__i[aria-selected="true"] .ico{ filter:brightness(1.9) saturate(1.15); }
+  .me-rail__i[aria-current] .ico{ filter:none; }
   .me-rail__i svg{ flex:none; }
   .me-rail__n{ flex:1; min-width:0; }
   /* Tabular, because these sit in a vertical column and ragged digits make the
@@ -215,7 +222,7 @@
   {% for t in me_tabs %}
   [data-me="{{ t }}"] .me-rail__i[data-me-go="{{ t }}"] .me-rail__c,
   {% endfor %}
-  .me-rail__i[aria-selected="true"] .me-rail__c{ background:rgba(255,255,255,.18); color:#fff; }
+  .me-rail__i[aria-current] .me-rail__c{ background:rgba(16,41,44,.10); color:var(--me-accent-ink); }
 
   @media (max-width:900px){
     .me-body{ grid-template-columns:minmax(0,1fr); gap:18px; }
@@ -227,7 +234,7 @@
     .me-rail::-webkit-scrollbar{ display:none }
     .me-rail__i{ width:auto; flex:none; min-height:44px; padding:0 14px;
       border:1px solid var(--me-line-2); border-radius:999px; background:var(--me-panel); }
-    .me-rail__i[aria-selected="true"]{ border-color:var(--me-ink); }
+    .me-rail__i[aria-current]{ border-color:var(--me-accent); }
   }
 
   /* ── sections: shown by the attribute the head script set ────────────────── */
@@ -412,6 +419,17 @@
   [hidden]{ display:none !important; }
 
   @media (prefers-reduced-motion:reduce){ .me *{ transition:none !important; animation:none !important } }
+  /* ── enrolled devices ─────────────────────────────────────────────────────
+     A row per device, not a table: there are two facts about each and a table of
+     two columns is a list wearing a grid. Wraps rather than truncating — a member
+     names these themselves and "Mum's old iPad in the kitchen" is a good name. */
+  .me-keys{ list-style:none; margin:16px 0 0; padding:0; border-top:1px solid var(--me-line); }
+  .me-key{ display:flex; align-items:center; gap:14px; flex-wrap:wrap;
+    padding:14px 0; border-bottom:1px solid var(--me-line); }
+  .me-key__b{ flex:1; min-width:180px; }
+  .me-key__n{ display:block; font-size:14.5px; font-weight:700; }
+  .me-key__m{ display:block; margin-top:3px; font-size:12.5px; line-height:1.5; color:var(--me-mute); }
+
   @media print{ .me-rail, .me-top__act, .me-find{ display:none } [data-me] .me-sec{ display:block } }
 </style>
 {% endblock %}
@@ -484,14 +502,22 @@
          'on':(vendor is not null)},
         {'id':'activity',  'label':'Activity',  'ico':'activity', 'n':counts.activity|default(0)},
         {'id':'saved',     'label':'Saved',     'ico':'saved',    'n':counts.saved|default(0)},
+        {'id':'security',  'label':'Security',  'ico':'shield',   'n':null},
         {'id':'settings',  'label':'Settings',  'ico':'settings', 'n':null}
       ] %}
       {% for r in rail %}
         {% if (r.on is not defined or r.on) and (r.id != 'saved' or r.n > 0) %}
         <a class="me-rail__i" href="#me-{{ r.id }}" data-me-go="{{ r.id }}"
-           {# Not hardcoded to overview: the hash decides, and the server cannot see it.
+           {# `aria-current`, NOT `aria-selected`. ARIA permits aria-selected only on
+              gridcell, option, row, tab, columnheader, rowheader and treeitem — a link
+              is none of those, so screen readers were being handed an attribute they are
+              specified to ignore, and the rail announced nine identical links with no
+              indication of which one you were on. aria-current="page" is the attribute
+              for exactly this and is what the same readers already announce elsewhere.
+
+              Not hardcoded to overview: the hash decides, and the server cannot see it.
               paint() sets this on load; the CSS above carries the visual meanwhile. #}
-           aria-selected="false">
+           >
           {{ gi.sec(r.ico, 18) }}
           <span class="me-rail__n">{{ r.label }}</span>
           {% if r.n %}<span class="me-rail__c">{{ r.n }}</span>{% endif %}
@@ -1299,34 +1325,71 @@
       {% endif %}
 
       {# ══ SETTINGS ══════════════════════════════════════════════════════ #}
-      <section class="me-sec" id="me-settings" aria-labelledby="me-settings-h">
-        <div class="me-sec__h"><h2 id="me-settings-h">Settings</h2></div>
-        <p class="me-sec__lead">Your details and how you sign in.</p>
+      {# ══ SECURITY ══════════════════════════════════════════════════════
+         Split out of Settings, on the model every account screen people already use:
+         "who you are" and "how you get in" are different questions asked on different
+         days, and a password field sitting under a phone-number field is found by
+         nobody who came looking for it.
 
-        {# One form, always editable — no Edit button. The old page hid these behind a
-           toggle, which is a click and a mode for somebody who came here specifically to
-           change something. A read-only view is what the identity bar at the top is. #}
-        <form class="me-panel" method="post" action="/account/profile">
-          <input type="hidden" name="_token" value="{{ csrf_token }}">
-          <p class="me-panel__h">Your details</p>
-          <p class="me-panel__s">Used on tickets, orders and anything the team sends you.</p>
-          <div class="me-grid2">
-            <label class="me-field"><span>Full name</span>
-              <input class="me-in" name="name" type="text" value="{{ user.name }}" required
-                     autocomplete="name" enterkeyhint="done"></label>
-            <label class="me-field"><span>Phone</span>
-              <input class="me-in" name="phone" type="tel" value="{{ user.phone }}" required
-                     autocomplete="tel" inputmode="tel"></label>
-          </div>
-          <label class="me-field"><span>Email</span>
-            {# Shown and not hidden: it is the address everything is sent to, and an account
-               screen that does not show you which address that is invites people to guess. #}
-            <input class="me-in" type="email" value="{{ user.email }}" readonly
-                   aria-describedby="meEmailNote"></label>
-          <p class="me-hint" id="meEmailNote">Your email is how this account is identified, so
-            it is changed by the team rather than here — write to support and they will move it.</p>
-          <div style="margin-top:18px"><button class="me-btn me-btn--go" type="submit">Save details</button></div>
-        </form>
+         WHAT IS DELIBERATELY NOT HERE: a list of signed-in devices or sessions. This
+         platform has no session store to enumerate, so the panel would be an empty
+         promise — and "sign out everywhere" that signs nobody out anywhere is worse
+         than not offering it. #}
+      <section class="me-sec" id="me-security" aria-labelledby="me-security-h">
+        <div class="me-sec__h"><h2 id="me-security-h">Security</h2></div>
+        <p class="me-sec__lead">How you get into this account, and the devices that can.</p>
+
+        <div class="me-panel">
+          <p class="me-panel__h">Passkeys</p>
+          <p class="me-panel__s">
+            Sign in with the face, fingerprint or PIN this device already uses. The key
+            never leaves your device — there is nothing here for anyone to steal, and
+            nothing to type into a page pretending to be us.
+          </p>
+
+          {% if not passkeys_available %}
+            {# The server half is missing. Said plainly rather than drawing a button that
+               answers 503 — this codebase has shipped a dead camera, a mute door and a
+               stop-link nobody was handed, and every one of them looked available. #}
+            <p class="me-hint" style="margin-top:14px">Passkeys are not switched on for this
+              site yet. Your password and one-time codes are unaffected.</p>
+          {% else %}
+            {% if passkeys %}
+              <ul class="me-keys">
+                {% for k in passkeys %}
+                <li class="me-key">
+                  <span class="me-key__b">
+                    <b class="me-key__n">{{ k.label }}</b>
+                    <span class="me-key__m">
+                      Added {{ k.created_at ? k.created_at|when : 'recently' }}
+                      {%- if k.last_used_at %} · last used {{ k.last_used_at|when }}
+                      {%- else %} · not used yet{% endif %}
+                    </span>
+                  </span>
+                  {# Its own form. A <form> inside a <form> is DROPPED by the parser and
+                     its children adopted by the outer one, so a nested delete would post
+                     to whatever encloses it. #}
+                  <form method="post" action="/account/passkeys/{{ k.id }}/delete"
+                        data-confirm="Remove “{{ k.label }}”? That device will not be able to sign in with a passkey any more.">
+                    <input type="hidden" name="_token" value="{{ csrf_token }}">
+                    <button class="me-btn me-btn--quiet" type="submit">Remove</button>
+                  </form>
+                </li>
+                {% endfor %}
+              </ul>
+            {% else %}
+              <p class="me-hint" style="margin-top:14px">You have not added one yet.</p>
+            {% endif %}
+
+            {# Hidden until the script confirms this browser can run the ceremony. #}
+            <div style="margin-top:16px" id="meKeyAdd" hidden>
+              <button class="me-btn me-btn--go" type="button" id="meKeyBtn">Add a passkey to this device</button>
+            </div>
+            <p class="me-hint" id="meKeyNote" role="status" hidden></p>
+            <noscript><p class="me-hint" style="margin-top:14px">Adding a passkey needs
+              JavaScript — your password and one-time codes work without it.</p></noscript>
+          {% endif %}
+        </div>
 
         <form class="me-panel" method="post" action="/account/profile">
           <input type="hidden" name="_token" value="{{ csrf_token }}">
@@ -1351,6 +1414,44 @@
           <p class="me-hint" id="mePwNote">At least 8 characters. Longer beats complicated —
             three unrelated words is stronger than one word with symbols in it.</p>
           <div style="margin-top:18px"><button class="me-btn me-btn--go" type="submit">{{ user.password_hash ? 'Change password' : 'Set a password' }}</button></div>
+        </form>
+
+        <div class="me-panel">
+          <p class="me-panel__h">One-time codes</p>
+          <p class="me-panel__s">
+            A 6-digit code by email always works, whether or not you have a password. It is
+            also how you get back in if you forget one — nothing here can lock you out.
+          </p>
+        </div>
+      </section>
+
+      <section class="me-sec" id="me-settings" aria-labelledby="me-settings-h">
+        <div class="me-sec__h"><h2 id="me-settings-h">Settings</h2></div>
+        <p class="me-sec__lead">Your details, and a copy of your data whenever you want one.</p>
+
+        {# One form, always editable — no Edit button. The old page hid these behind a
+           toggle, which is a click and a mode for somebody who came here specifically to
+           change something. A read-only view is what the identity bar at the top is. #}
+        <form class="me-panel" method="post" action="/account/profile">
+          <input type="hidden" name="_token" value="{{ csrf_token }}">
+          <p class="me-panel__h">Your details</p>
+          <p class="me-panel__s">Used on tickets, orders and anything the team sends you.</p>
+          <div class="me-grid2">
+            <label class="me-field"><span>Full name</span>
+              <input class="me-in" name="name" type="text" value="{{ user.name }}" required
+                     autocomplete="name" enterkeyhint="done"></label>
+            <label class="me-field"><span>Phone</span>
+              <input class="me-in" name="phone" type="tel" value="{{ user.phone }}" required
+                     autocomplete="tel" inputmode="tel"></label>
+          </div>
+          <label class="me-field"><span>Email</span>
+            {# Shown and not hidden: it is the address everything is sent to, and an account
+               screen that does not show you which address that is invites people to guess. #}
+            <input class="me-in" type="email" value="{{ user.email }}" readonly
+                   aria-describedby="meEmailNote"></label>
+          <p class="me-hint" id="meEmailNote">Your email is how this account is identified, so
+            it is changed by the team rather than here — write to support and they will move it.</p>
+          <div style="margin-top:18px"><button class="me-btn me-btn--go" type="submit">Save details</button></div>
         </form>
 
         <div class="me-panel">
@@ -1393,7 +1494,8 @@
     if (!rail) return;
     var items = rail.querySelectorAll('[data-me-go]');
     for (var i = 0; i < items.length; i++) {
-      items[i].setAttribute('aria-selected', items[i].getAttribute('data-me-go') === id ? 'true' : 'false');
+      if (items[i].getAttribute('data-me-go') === id) items[i].setAttribute('aria-current', 'page');
+      else items[i].removeAttribute('aria-current');
     }
   }
   function fromHash() { return (location.hash || '').replace('#', '').replace(/^me-/, ''); }
@@ -1566,4 +1668,45 @@
   });
 })();
 </script>
+
+{% if passkeys_available %}
+{# ── ADDING A PASSKEY ────────────────────────────────────────────────────────
+   The button is revealed only when this browser can actually run the ceremony.
+   Every outcome is SHOWN: a cancelled prompt rejects a promise, and a page that
+   catches and drops it is a button that does nothing — the exact shape of the
+   camera and autoplay faults this codebase has already paid for. #}
+<script nonce="{{ csp_nonce }}" src="{{ asset('/assets/js/passkeys.js') }}" defer></script>
+<script nonce="{{ csp_nonce }}">
+document.addEventListener('DOMContentLoaded', function () {
+  var wrap = document.getElementById('meKeyAdd');
+  var btn  = document.getElementById('meKeyBtn');
+  var note = document.getElementById('meKeyNote');
+  if (!wrap || !btn || !window.agPasskeys || !window.agPasskeys.supported()) return;
+  wrap.hidden = false;
+
+  function say(msg, bad) {
+    note.textContent = msg;
+    note.hidden = false;
+    note.setAttribute('role', bad ? 'alert' : 'status');
+  }
+
+  btn.addEventListener('click', function () {
+    btn.disabled = true;
+    say('Follow the prompt from your device…', false);
+    // The device name is the member's, and the platform is the only thing we can
+    // honestly suggest — a browser cannot tell us it is "Ada's phone".
+    var guess = (navigator.userAgentData && navigator.userAgentData.platform)
+      || (navigator.platform || 'This device');
+    window.agPasskeys.enrol(guess).then(function () {
+      say('Added. Reloading so you can see it…', false);
+      window.location.href = '/account#me-security';
+      window.location.reload();
+    }).catch(function (err) {
+      btn.disabled = false;
+      say(window.agPasskeys.say(err), true);
+    });
+  });
+});
+</script>
+{% endif %}
 {% endblock %}

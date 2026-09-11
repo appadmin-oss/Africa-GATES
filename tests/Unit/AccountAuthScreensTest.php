@@ -56,6 +56,8 @@ final class AccountAuthScreensTest extends TestCase
         'templates/pages/account/login.twig',
         'templates/pages/account/register.twig',
         'templates/pages/account/verify-notice.twig',
+        'templates/pages/account/forgot.twig',
+        'templates/pages/account/reset.twig',
     ];
 
     private static function root(): string { return dirname(__DIR__, 2); }
@@ -306,6 +308,47 @@ final class AccountAuthScreensTest extends TestCase
             '~if \(input\.value !== v\)\s*\{[^}]*input\.value = v;~s', $src,
             'the painter draws the digits but never writes them back, so the field can '
             . 'hold characters the boxes do not show');
+    }
+
+    public function test_a_row_marked_hidden_is_actually_hidden(): void
+    {
+        // `[hidden]{display:none}` comes from the USER-AGENT stylesheet, so ANY author
+        // rule that sets `display` beats it — and `.ag-acct__row{display:flex}` does.
+        // Caught in a browser, not in review: the passkey row, which exists only to be
+        // revealed once the script confirms this browser can run the ceremony, rendered
+        // in full on every browser including the ones that cannot. Which is precisely the
+        // "a door onto nothing" this arrangement was built to avoid, produced by the
+        // mechanism meant to prevent it.
+        $css = self::src('public/assets/css/components/account-auth.css');
+        $this->assertMatchesRegularExpression(
+            '~\.ag-acct\s+\[hidden\]\s*\{[^}]*display:\s*none\s*!important~', $css,
+            'a `hidden` element inside .ag-acct is overridden by the component\u{2019}s own display rules');
+
+        // And the thing it protects: the row must SHIP hidden, or there is nothing to reveal.
+        $html = $this->render('pages/account/login.twig', ['sent' => false, 'passkeys_available' => true]);
+        $this->assertMatchesRegularExpression('~id="agPasskeyRow"[^>]*\shidden~', $html,
+            'the passkey row is offered before anything has checked this browser can use it');
+    }
+
+    public function test_the_passkey_row_is_absent_when_the_server_cannot_verify_one(): void
+    {
+        // Not merely hidden — ABSENT. The browser half being capable is irrelevant when
+        // the library is missing from the deployment, and a revealed row would then open
+        // a 503 for somebody whose device was perfectly willing.
+        $html = $this->render('pages/account/login.twig', ['sent' => false, 'passkeys_available' => false]);
+        $this->assertStringNotContainsString('agPasskeyRow', $html);
+        $this->assertStringNotContainsString('passkeys.js', $html);
+    }
+
+    public function test_recovery_is_offered_and_the_route_behind_it_exists(): void
+    {
+        $html = $this->render('pages/account/login.twig', ['sent' => false]);
+        $this->assertStringContainsString('/account/forgot', $html,
+            'a password field with no way to recover one');
+        $this->assertTrue(self::serves('GET', '/account/forgot'));
+        $this->assertTrue(self::serves('POST', '/account/forgot'));
+        $this->assertTrue(self::serves('GET', '/account/reset'));
+        $this->assertTrue(self::serves('POST', '/account/reset'));
     }
 
     // ───────────────────────────── the chooser ──────────────────────────────────

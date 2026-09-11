@@ -1,0 +1,48 @@
+{# ═══════════════════════════════════════════════════════════════════════════
+   FORGOTTEN PASSWORD — /account/forgot
+
+   Every reply here is the same sentence whether or not the address has an
+   account. Answering "no account uses that email" is a free membership check
+   for anybody who wants one, and this platform's members are named public
+   figures — so the difference between the two answers is the disclosure.
+
+   The one-time code is still offered beside it, because for most people it is
+   the faster way back in: it signs them in now, and a password can be set
+   afterwards from the account page.
+   ═══════════════════════════════════════════════════════════════════════════ #}
+{% extends "layout/account-auth.twig" %}
+
+{% block card %}
+  <a class="ag-acct__back" href="/account/login">
+    <svg width="14" height="14" viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M12.5 4.5 7 10l5.5 5.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    Back to sign in
+  </a>
+
+  <h1 class="ag-acct__h1">Reset your password</h1>
+  <p class="ag-acct__lede">Tell us the email on your account and we will send a link to set a new password. It works once and lasts an hour.</p>
+
+  {% if error %}<div class="ag-acct__alert ag-acct__alert--err" role="alert">{{ error }}</div>{% endif %}
+  {% if notice %}<div class="ag-acct__alert ag-acct__alert--note" role="status">{{ notice }}</div>{% endif %}
+
+  <form method="post" action="/account/forgot">
+    <input type="hidden" name="_token" value="{{ csrf_token }}">
+    <div class="ag-acct__field">
+      <label class="ag-acct__label" for="email">Email</label>
+      <input class="ag-acct__input{% if error %} ag-acct__input--err{% endif %}" id="email" type="email" name="email"
+             value="{{ login_email|default('') }}" autocomplete="email" placeholder="you@email.com" required autofocus>
+    </div>
+    <div class="ag-acct__btns">
+      <button class="ag-acct__cta" type="submit">Email me a reset link</button>
+      {# Same form, same address already typed — `formaction` on the submitter, never a
+         second <form>: the parser DROPS a nested form tag and adopts its children, so a
+         nested version would post this to the reset route instead. #}
+      <button class="ag-acct__ghost" type="submit" formaction="/account/login/otp" formnovalidate>Send a one-time code instead</button>
+    </div>
+  </form>
+
+  <p class="ag-acct__fine">A one-time code signs you in straight away; you can set a new password from your account afterwards.</p>
+{% endblock %}
+
+{% block below %}
+<p class="ag-acct__switch">Remembered it? <a class="ag-acct__quiet" href="/account/login">Sign in</a></p>
+{% endblock %}

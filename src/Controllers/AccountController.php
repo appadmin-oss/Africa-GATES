@@ -227,6 +227,226 @@ class AccountController
         }
     }
 
+    // ══════════════════════════════════════════════════════════════════════
+    // FORGOTTEN PASSWORD
+    //
+    // The account already had a recovery route — the one-time code — and this does not
+    // replace it. What it adds is the route somebody LOOKS for: a person who has
+    // forgotten a password goes hunting for "forgot password", and being offered a
+    // sign-in code instead reads as the site not having the thing they asked for.
+    //
+    // Every reply on this path is the same whether or not the address has an account.
+    // Answering "no account uses that email" is a free membership check for anybody who
+    // wants one, and this platform's members are named public figures.
+    // ══════════════════════════════════════════════════════════════════════
+
+    public function forgotForm(Request $req, Response $res): Response
+    {
+        if (!empty($_SESSION['user_id'])) return $res->withHeader('Location', '/account')->withStatus(302);
+        return $this->view->render($res, 'pages/account/forgot.twig', [
+            'page_title' => 'Reset your password — Africa GATES', 'gates_page' => 'account',
+            'has_hero' => false, 'hide_chrome' => true,
+            'login_email' => (string) ($_SESSION['user_login_email'] ?? ''),
+            'error' => $this->flash('flash_error'), 'notice' => $this->flash('flash_notice'),
+        ]);
+    }
+
+    public function forgotSubmit(Request $req, Response $res): Response
+    {
+        $b     = (array) $req->getParsedBody();
+        $email = strtolower(trim((string) ($b['email'] ?? '')));
+        // The same sentence for a bad address as for a good one: "that is not a valid
+        // email" is fine, but it must not become the only case that differs.
+        $sent  = 'If that email has an account, a reset link is on the way. It is valid once, for an hour.';
+
+        if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
+            $_SESSION['flash_error'] = 'Please enter a valid email.';
+            return $res->withHeader('Location', '/account/forgot')->withStatus(302);
+        }
+        $_SESSION['user_login_email'] = $email;
+
+        $ip = $this->ip($req);
+        if ($this->rateLimit && (!$this->rateLimit->check(hash('sha256', $ip), 'user_reset_ip', 6, 3600)
+            || !$this->rateLimit->check(hash('sha256', $email), 'user_reset_email', 3, 3600))) {
+            $_SESSION['flash_notice'] = $sent;
+            return $res->withHeader('Location', '/account/forgot?sent=1')->withStatus(302);
+        }
+
+        $user = $this->accounts->findByEmail($email);
+        if ($user && $this->otp) {
+            $raw = $this->accounts->issuePasswordReset((int) $user->id, $email);
+            if ($raw !== null) {
+                $base = \AfricaGates\Support\SiteUrl::base($req);
+                $link = $base . '/account/reset?token=' . urlencode($raw);
+                $nm   = htmlspecialchars((string) $user->name, ENT_QUOTES, 'UTF-8');
+                $html = "<p>Hello <strong>{$nm}</strong>,</p>"
+                    . "<p>Use the button below to set a new Africa GATES password. The link works once and expires in an hour.</p>"
+                    . "<p style=\"text-align:center;margin:26px 0\"><a href=\"{$link}\" style=\"display:inline-block;padding:13px 30px;background:#10292C;color:#fff;border-radius:999px;font-weight:700;text-decoration:none\">Set a new password &rarr;</a></p>"
+                    . "<p style=\"font-size:13px;color:#92a6a7;word-break:break-all\">If the button doesn\u{2019}t work, paste this into your browser:<br>{$link}</p>"
+                    . "<p style=\"font-size:13px;color:#92a6a7\">Didn\u{2019}t ask for this? Ignore this email — your password has not changed.</p>";
+                try {
+                    $this->otp->sendBranded($user->email, 'Set a new Africa GATES password', $html,
+                        "Set a new password:\n{$link}\n\nValid once, for one hour. Didn\u{2019}t ask for this? Ignore this email.",
+                        'Accounts');
+                } catch (\Throwable) {
+                    // Deliberately swallowed: a mailer failure must not be reportable as a
+                    // different outcome from "no such account", or the difference IS the
+                    // enumeration oracle this whole path is shaped to avoid.
+                }
+            }
+        }
+
+        $_SESSION['flash_notice'] = $sent;
+        return $res->withHeader('Location', '/account/forgot?sent=1')->withStatus(302);
+    }
+
+    /** GET /account/reset?token=… — the form, with the token still unspent. */
+    public function resetForm(Request $req, Response $res): Response
+    {
+        $token = trim((string) ($req->getQueryParams()['token'] ?? ''));
+        $user  = $token === '' ? null : $this->accounts->findByResetToken($token);
+
+        return $this->view->render($res, 'pages/account/reset.twig', [
+            'page_title' => 'Set a new password — Africa GATES', 'gates_page' => 'account',
+            'has_hero' => false, 'hide_chrome' => true,
+            // The token is only echoed back into the form when it is LIVE. A dead one is
+            // answered with the "ask for another" screen rather than a password field that
+            // cannot work — somebody typing into that field is being wasted.
+            'token' => $user ? $token : '',
+            'email' => $user ? (string) $user->email : '',
+            'error' => $this->flash('flash_error'),
+        ]);
+    }
+
+    public function resetSubmit(Request $req, Response $res): Response
+    {
+        $b     = (array) $req->getParsedBody();
+        $token = trim((string) ($b['token'] ?? ''));
+        $pw    = (string) ($b['password'] ?? '');
+
+        if (strlen($pw) < 8) {
+            $_SESSION['flash_error'] = 'Your new password must be at least 8 characters.';
+            return $res->withHeader('Location', '/account/reset?token=' . urlencode($token))->withStatus(302);
+        }
+        if ($this->rateLimit && !$this->rateLimit->check(hash('sha256', $this->ip($req)), 'user_reset_use', 10, 3600)) {
+            $_SESSION['flash_error'] = 'Too many attempts. Please try again later.';
+            return $res->withHeader('Location', '/account/forgot')->withStatus(302);
+        }
+
+        $user = $this->accounts->consumePasswordReset($token, $pw);
+        if (!$user) {
+            $_SESSION['flash_error'] = 'That link has expired or has already been used. Ask for a fresh one.';
+            return $res->withHeader('Location', '/account/forgot')->withStatus(302);
+        }
+
+        // Signed in straight away. Making somebody who has just proved they own the inbox
+        // AND chosen a password type it again is a step that protects nothing.
+        $this->accounts->startSession($user, $this->ip($req));
+        $_SESSION['flash_ok'] = 'Your password is set. You are signed in.';
+        return $res->withHeader('Location', $this->nextTarget())->withStatus(302);
+    }
+
+    // ══════════════════════════════════════════════════════════════════════
+    // PASSKEYS
+    //
+    // JSON on both sides, because the browser half is a WebAuthn ceremony rather than a
+    // form post. CSRF still applies — CsrfMiddleware reads `X-CSRF-Token` — and these
+    // routes are POST for that reason: a GET options endpoint is one a mail scanner or a
+    // prefetch can spend, and a spent challenge is a ceremony that fails for somebody who
+    // did nothing wrong.
+    // ══════════════════════════════════════════════════════════════════════
+
+    /** @param array<string,mixed> $p */
+    private function json(Response $res, array $p, int $code = 200): Response
+    {
+        $res->getBody()->write((string) json_encode($p));
+        return $res->withHeader('Content-Type', 'application/json')
+                   ->withHeader('Cache-Control', 'no-store')->withStatus($code);
+    }
+
+    /** POST /account/passkeys/options — options for enrolling this device. */
+    public function passkeyCreateOptions(Request $req, Response $res): Response
+    {
+        if (!\AfricaGates\Services\Passkeys::available()) {
+            return $this->json($res, ['error' => 'Passkeys are not available on this site yet.'], 503);
+        }
+        $user = $this->accounts->findById((int) ($_SESSION['user_id'] ?? 0));
+        if (!$user) return $this->json($res, ['error' => 'Please sign in again.'], 401);
+
+        return $this->json($res, ['options' => json_decode(
+            \AfricaGates\Services\Passkeys::creationOptions($user), true)]);
+    }
+
+    /** POST /account/passkeys — store the credential the device just made. */
+    public function passkeyRegister(Request $req, Response $res): Response
+    {
+        if (!\AfricaGates\Services\Passkeys::available()) {
+            return $this->json($res, ['error' => 'Passkeys are not available on this site yet.'], 503);
+        }
+        $user = $this->accounts->findById((int) ($_SESSION['user_id'] ?? 0));
+        if (!$user) return $this->json($res, ['error' => 'Please sign in again.'], 401);
+
+        $b = (array) $req->getParsedBody();
+        $r = \AfricaGates\Services\Passkeys::register(
+            $user,
+            (string) ($b['credential'] ?? ''),
+            (string) ($b['label'] ?? ''));
+
+        return ($r['ok'] ?? false)
+            ? $this->json($res, ['ok' => true])
+            : $this->json($res, ['error' => $r['error'] ?? 'That did not work.'], 400);
+    }
+
+    /** POST /account/passkeys/{id}/delete */
+    public function passkeyForget(Request $req, Response $res, array $args = []): Response
+    {
+        $userId = (int) ($_SESSION['user_id'] ?? 0);
+        // Scoped to the owner inside the service too — a row id in a form is a claim,
+        // not a right — but say so here as well, because this is the call site somebody
+        // reads when they add the next one.
+        $gone = \AfricaGates\Services\Passkeys::forget($userId, (int) ($args['id'] ?? 0));
+        $_SESSION[$gone ? 'flash_ok' : 'flash_error'] = $gone
+            ? 'That passkey has been removed. The device can no longer sign in.'
+            : 'That passkey is already gone.';
+        return $res->withHeader('Location', '/account#me-security')->withStatus(302);
+    }
+
+    /** POST /account/login/passkey/options — a sign-in ceremony, nothing typed. */
+    public function passkeyLoginOptions(Request $req, Response $res): Response
+    {
+        if (!\AfricaGates\Services\Passkeys::available()) {
+            return $this->json($res, ['error' => 'Passkeys are not available on this site yet.'], 503);
+        }
+        return $this->json($res, ['options' => json_decode(
+            \AfricaGates\Services\Passkeys::requestOptions(), true)]);
+    }
+
+    /** POST /account/login/passkey — verify the assertion and start the session. */
+    public function passkeyLogin(Request $req, Response $res): Response
+    {
+        if (!\AfricaGates\Services\Passkeys::available()) {
+            return $this->json($res, ['error' => 'Passkeys are not available on this site yet.'], 503);
+        }
+        $ip = $this->ip($req);
+        if ($this->rateLimit && $ip !== '' && !$this->rateLimit->check(hash('sha256', $ip), 'user_passkey_ip', 20, 3600)) {
+            return $this->json($res, ['error' => 'Too many attempts. Please try again later.'], 429);
+        }
+
+        $b    = (array) $req->getParsedBody();
+        $user = \AfricaGates\Services\Passkeys::verifyAssertion((string) ($b['credential'] ?? ''));
+        if (!$user) {
+            return $this->json($res, ['error' => 'That passkey was not recognised. Try your email instead.'], 401);
+        }
+
+        // A passkey proves possession of a device this account enrolled while signed in,
+        // which is at least as strong as clicking a link in the inbox. So it satisfies
+        // email verification for the same reason a one-time code does.
+        if (!$this->accounts->isVerified($user)) $this->accounts->markVerified((int) $user->id);
+
+        $this->accounts->startSession($user, $ip);
+        return $this->json($res, ['ok' => true, 'next' => $this->nextTarget()]);
+    }
+
     // ── Login (password) ────────────────────────────────────────────────────
     public function loginForm(Request $req, Response $res): Response
     {
@@ -246,6 +466,9 @@ class AccountController
             // not own, and the only feedback available was "invalid or expired
             // code": a message about the code, for a fault in the address.
             'login_email' => (string) ($_SESSION['user_login_email'] ?? ''),
+            // The server half. The browser half is asked in the page, because a server
+            // that can verify a ceremony no browser here can run is still nothing to offer.
+            'passkeys_available' => \AfricaGates\Services\Passkeys::available(),
             'error' => $this->flash('flash_error'), 'notice' => $this->flash('flash_notice'),
         ]);
     }
@@ -499,6 +722,11 @@ class AccountController
         $bookmarks = $this->community ? $this->community->bookmarkedThreads((int) $user->id, 12) : [];
 
         return $this->view->render($res, 'pages/account/dashboard.twig', [
+            // Security section. Both halves asked separately: the library on the server,
+            // and the API in the browser (asked in the page) — a server that can verify a
+            // ceremony no browser here can run is still nothing to offer.
+            'passkeys_available' => \AfricaGates\Services\Passkeys::available(),
+            'passkeys' => \AfricaGates\Services\Passkeys::listFor((int) ($_SESSION['user_id'] ?? 0)),
             'page_title' => 'Your account — Africa GATES', 'gates_page' => 'account', 'has_hero' => false,
             'user'           => (array) $user,
             'points'         => PointsService::balance((int) $user->id),
