@@ -383,6 +383,14 @@
     margin:16px 0 0; padding:14px 16px; border-radius:var(--dn-r-sm);
     background:var(--dn-cream); }
   .dn-recap span{ font-size:13px; color:var(--dn-ink-2); }
+  /* The total is the row a donor checks against their bank, so it is the one given
+     weight — a stack of identically-set rows makes somebody add them up themselves. */
+  .dn-recap--total{ border-top:1px solid var(--dn-line-2); }
+  .dn-recap--total b{ color:var(--dn-green-dark); }
+  /* A heading that only exists to catch focus must not draw a focus ring when a mouse
+     put it there — `:focus-visible` is the whole reason that selector exists. */
+  .dn-card h2[tabindex="-1"]:focus{ outline:none; }
+  .dn-card h2[tabindex="-1"]:focus-visible{ outline:3px solid var(--dn-green); outline-offset:3px; }
   .dn-recap b{ font-family:var(--ag-font-mono,monospace); font-weight:700; font-size:17px;
     color:var(--dn-ink); }
 
@@ -670,7 +678,10 @@
 
           {# ── STEP ONE · THE AMOUNT ─────────────────────────────────────── #}
           <div x-show="step==='choose'">
-            <h2>{% if campaign %}Donate to this appeal{% else %}Make a donation{% endif %}</h2>
+            {#- `tabindex="-1"` for the same reason as step two's: coming BACK has to land
+                somewhere, or "Change the amount" returns a keyboard user to the document
+                and they have to find the form again. -#}
+            <h2 id="dnStep1" tabindex="-1">{% if campaign %}Donate to this appeal{% else %}Make a donation{% endif %}</h2>
 
             {% if campaign %}
               {# ── PROGRESS, FROM CONFIRMED ROWS ──────────────────────────
@@ -801,7 +812,7 @@
             {# The disabled state says the minimum rather than merely refusing. A greyed
                button with no sentence is a dead end somebody leaves rather than solves. #}
             <button type="button" class="dn-cta" :disabled="value < {{ min_naira }}"
-                    @click="if(value>={{ min_naira }}) step='details'"
+                    @click="advance({{ min_naira }})"
                     x-text="value>={{ min_naira }} ? ('Continue with '+ngn(value)) : ('Minimum donation is ₦{{ min_naira|number_format }}')"></button>
             <div class="dn-secure">
               <svg aria-hidden="true" focusable="false" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
@@ -816,10 +827,34 @@
 
           {# ── STEP TWO · WHO AND HOW ────────────────────────────────────── #}
           <div x-show="step==='details'" x-cloak>
-            <button type="button" class="dn-back" @click="step='choose'">← Change the amount</button>
-            <h2>Your details</h2>
+            <button type="button" class="dn-back" @click="back()">← Change the amount</button>
+            {#- `tabindex="-1"` so `focus()` can reach it. Without the move, advancing a step
+                leaves focus on a button that is now `display:none` — the browser drops it to
+                the document and a keyboard or screen-reader user is standing at the top of
+                the page with no idea the form advanced. The whole flow works with a mouse
+                and is unusable without one, which is the split an accessibility pass is
+                least likely to catch because every individual control is fine. -#}
+            <h2 id="dnStep2" tabindex="-1">Your details</h2>
+
+            {# ── WHAT THEY ARE ABOUT TO AGREE TO, STATED CORRECTLY ──────────
+               This said "One-time donation" unconditionally — so a donor who chose "Every
+               month" one step earlier was shown the words "One-time donation" on the step
+               where they confirm what they are agreeing to. The page had listened and then
+               told them it had not, immediately before taking a standing order.
+
+               The tip is here for the same reason: the button and the recap must agree,
+               and a total that appears for the first time on the gateway's own screen is
+               the moment a donor abandons. -#}
             <div class="dn-recap">
-              <span>One-time donation</span><b x-text="ngn(value)"></b>
+              <span x-text="monthly ? 'Every month' : 'One-time donation'"></span>
+              <b x-text="ngn(value)"></b>
+            </div>
+            <div class="dn-recap" x-show="tipPct > 0" x-cloak>
+              <span>Gift to Africa GATES</span>
+              <b x-text="ngn(tipAmount)"></b>
+            </div>
+            <div class="dn-recap dn-recap--total" x-show="tipPct > 0" x-cloak>
+              <span>Total today</span><b x-text="ngn(value + tipAmount)"></b>
             </div>
             <div class="dn-field">
               <label for="dnName">Full name</label>
@@ -1108,7 +1143,31 @@
       tipPct:0,
       get value(){ return this.custom ? (parseInt(String(this.custom).replace(/[^0-9]/g,''))||0) : this.amt; },
       ngn(n){ return '₦'+Number(n||0).toLocaleString('en-NG'); },
-      onCustom(){ this.custom = String(this.custom).replace(/[^0-9]/g,''); }
+      onCustom(){ this.custom = String(this.custom).replace(/[^0-9]/g,''); },
+
+      /* The tip in naira, derived. `PlatformTip` recomputes it server-side from the
+         percentage — a total from a browser is a number the donor's bank will be shown that
+         the browser chose — so this exists only so the recap and the button can agree with
+         each other before they get there. */
+      get tipAmount(){ return this.tipPct > 0 ? Math.floor(this.value * this.tipPct / 100) : 0; },
+
+      /* ── MOVING BETWEEN STEPS MOVES FOCUS ───────────────────────────────────
+         `x-show` sets `display:none`, and a focused element that becomes display:none has
+         its focus dropped to the document — so advancing left a keyboard or screen-reader
+         user at the top of the page with no announcement that anything had happened. Every
+         individual control passes an audit; the flow is unusable without a mouse.
+
+         `$nextTick` because the target is still hidden at the moment of the click, and
+         `focus()` on a `display:none` element does nothing at all. */
+      advance(min){
+        if (this.value < min) return;
+        this.step = 'details';
+        this.$nextTick(() => { const h = document.getElementById('dnStep2'); if (h) h.focus(); });
+      },
+      back(){
+        this.step = 'choose';
+        this.$nextTick(() => { const h = document.getElementById('dnStep1'); if (h) h.focus(); });
+      }
     };
   }
 
