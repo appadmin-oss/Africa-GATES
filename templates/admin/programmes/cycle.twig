@@ -2,6 +2,36 @@
 {% block topbar_title %}{{ programme.title }} · Cycle{% endblock %}
 {% block topbar_actions %}<a class="ad-btn" href="/admin/programmes">← Back</a>{% endblock %}
 
+{% block head_styles %}
+<style nonce="{{ csp_nonce }}">
+  .ed-list{ display:grid; gap:8px }
+  .ed{ display:flex; align-items:baseline; gap:10px; flex-wrap:wrap; min-height:44px;
+    padding:10px 12px; border:1px solid rgba(16,41,44,.14); border-radius:10px;
+    text-decoration:none; color:#3d4b4d; background:#fff }
+  .ed:hover{ border-color:rgba(16,41,44,.3) }
+  .ed:focus-visible{ outline:3px solid #237b22; outline-offset:2px }
+  .ed--here{ border-color:#237b22; background:rgba(35,123,34,.05) }
+  .ed__y{ font-weight:700; color:#10292C; font-size:14px }
+  .ed__s, .ed__l, .ed__e{ font-family:var(--ag-font-mono,monospace); font-size:10px;
+    font-weight:700; letter-spacing:.08em; text-transform:uppercase }
+  .ed__s{ color:#5a6d6f }
+  .ed__l{ color:#18571a }
+  .ed__e{ color:#7a5605 }
+  .ed__c{ font-size:12px; color:#5a6d6f; margin-left:auto }
+  .ed__warn{ margin:12px 0 0; padding:11px 14px; border-left:3px solid #d49a0e;
+    background:#fffaf0; border-radius:0 8px 8px 0; font-size:12.5px; line-height:1.65;
+    color:#7a5605 }
+  .ed-new{ margin-top:14px }
+  .ed-new__f{ display:grid; grid-template-columns:repeat(auto-fit,minmax(160px,1fr));
+    gap:10px; align-items:end }
+  .ed-new label{ display:block; font-size:11px; font-weight:700; letter-spacing:.05em;
+    text-transform:uppercase; color:#5a6d6f; margin-bottom:4px }
+  .ed-new input[type=text], .ed-new input[type=number]{ width:100%; min-height:40px;
+    padding:8px 10px; font:inherit; font-size:13px; border-radius:8px;
+    border:1px solid rgba(16,41,44,.2); background:#fff; color:#10292C }
+</style>
+{% endblock %}
+
 {% block content %}
 <div class="ad-grid-2">
   <div>
@@ -146,18 +176,46 @@
       </div>
       {% endif %}
 
-      {% if all_cycles|length > 1 %}
-      {# With several cycles on one programme, make it unmistakable which one is
-         being edited — the editor used to silently pick the highest year while
-         the public site ran a different one. #}
+      {#
+        ══ EVERY EDITION OF THIS PROGRAMME ═══════════════════════════════════
+
+        These used to be CHIPS YOU COULD NOT CLICK, with a line saying "you are editing the
+        one the site is running" — true, and a dead end: last year's dates, label and
+        categories were unreachable from a console on a host with no shell.
+
+        They are links now, and each carries what is actually in it. "2025" orients nobody;
+        "2025 · 5 categories · 41 nominees · archived" tells an operator which one they
+        want before they click.
+
+        The one the PUBLIC SITE is running is marked separately from the one being edited,
+        because the whole hazard of making these clickable is somebody changing a date on
+        last year's edition believing it is this year's.
+      #}
+      {% if editions|length > 0 %}
       <div class="ad-card" style="margin-top:14px">
-        <div class="ad-card__head"><div class="ad-card__title">Other cycles<small>This programme has {{ all_cycles|length }}; you are editing the one the site is running</small></div></div>
+        <div class="ad-card__head"><div class="ad-card__title">Editions<small>{{ editions|length }} on this programme. The one you are editing is marked.</small></div></div>
         <div class="ad-card__body">
-          <div style="display:flex;gap:8px;flex-wrap:wrap">
-            {% for c in all_cycles %}
-            <span class="ad-chip ad-chip--{{ c.id == cycle.id ? 'green' : 'grey' }}">{{ c.year }} · {{ c.status }}{% if c.id == cycle.id %} (editing){% endif %}</span>
+          <div class="ed-list">
+            {% for e in editions %}
+              {% set is_here = e.row.id == cycle.id %}
+              {% set is_live = e.row.id == live_cycle_id %}
+              <a class="ed{% if is_here %} ed--here{% endif %}"
+                 href="/admin/programmes/{{ programme.id }}/cycle?cycle={{ e.row.id }}"
+                 {% if is_here %}aria-current="true"{% endif %}>
+                <span class="ed__y">{{ e.row.edition_label ?: e.row.year }}</span>
+                <span class="ed__s">{{ e.row.status }}</span>
+                <span class="ed__c">{{ e.categories }} categor{{ e.categories == 1 ? 'y' : 'ies' }}
+                  &middot; {{ e.nominees }} nominee{{ e.nominees == 1 ? '' : 's' }}</span>
+                {% if is_live %}<span class="ed__l">live on the site</span>{% endif %}
+                {% if is_here %}<span class="ed__e">editing</span>{% endif %}
+              </a>
             {% endfor %}
           </div>
+          {% if cycle and live_cycle_id and cycle.id != live_cycle_id %}
+            <p class="ed__warn"><strong>You are editing an edition the public site is not
+              running.</strong> Its dates and status still take effect when the schedule
+              reaches them &mdash; this is a real edition, not a draft.</p>
+          {% endif %}
         </div>
       </div>
       {% endif %}
@@ -165,6 +223,55 @@
         <button class="ad-btn ad-btn--primary" type="submit">Save cycle</button>
       </div>
     </form>
+
+    {#
+      ══ OPENING NEXT YEAR'S EDITION ═══════════════════════════════════════════
+
+      OUTSIDE the cycle form, and that is not a layout preference. An HTML parser DISCARDS
+      a `<form>` start tag while one is already open — not nested, not errored: dropped,
+      with its children adopted by the outer form. This button would have rendered, styled
+      and enabled, and posted to `/cycle`, which saves the current edition. It has happened
+      three times in this codebase.
+
+      A separate ACTION as well as a separate form. The cycle form posts the current
+      cycle's id, so an operator who changed the year on it did not open next year's
+      edition — they renamed this year's, taking its nominees, votes and scores with it.
+    #}
+    <div class="ad-card ed-new">
+      <div class="ad-card__head"><div class="ad-card__title">Open the next edition<small>A new cycle of this programme, with its categories carried over</small></div></div>
+      <div class="ad-card__body">
+        <form method="post" action="/admin/programmes/{{ programme.id }}/editions"
+              data-confirm="Open the {{ next_year }} edition of {{ programme.title }}? This creates a new cycle. Nothing is taken from the current one.">
+          <input type="hidden" name="_token" value="{{ csrf_token }}">
+          <div class="ed-new__f">
+            <div>
+              <label for="ed-year">Year</label>
+              <input type="number" name="year" id="ed-year" min="{{ 'now'|date('Y') - 5 }}"
+                     max="{{ 'now'|date('Y') + 5 }}" step="1" value="{{ next_year }}" required>
+            </div>
+            <div>
+              <label for="ed-label">Edition name (optional)</label>
+              <input type="text" name="edition_label" id="ed-label" maxlength="100"
+                     placeholder="e.g. {{ next_year }} edition">
+            </div>
+            <div>
+              <button class="ad-btn ad-btn--primary" type="submit">Open {{ next_year }}</button>
+            </div>
+          </div>
+          <label class="checkbox" style="display:flex;align-items:flex-start;gap:8px;margin-top:12px">
+            <input type="checkbox" name="copy_categories" value="1" checked>
+            <span><strong>Carry the categories over</strong> &mdash; slug, title, description
+              and order, from the most recent edition that has any. Nothing else comes with
+              them: no nominees, no votes, no shortlists, no scorecards.</span>
+          </label>
+          <p style="margin:10px 0 0;font-size:12px;line-height:1.65;color:var(--ad-text-mute,#5a6d6f)">
+            The new edition opens as <strong>upcoming with no dates</strong>. A results date
+            inherited from last year is a promise nobody made, arriving already passed
+            &mdash; the public site would publish a &ldquo;this award is late&rdquo; notice
+            on an edition that has not opened. Set its dates once it exists.</p>
+        </form>
+      </div>
+    </div>
   </div>
 
   <div>

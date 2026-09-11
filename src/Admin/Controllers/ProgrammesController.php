@@ -99,8 +99,25 @@ class ProgrammesController
         // Editing by `orderByDesc('year')` meant that with a future cycle seeded
         // the admin edited one cycle while the site ran another — status changes
         // appeared to do nothing.
+        // ── AND THE ONE THE OPERATOR ASKED FOR, IF THEY ASKED ────────────────
+        //
+        // Past editions used to render as CHIPS YOU CANNOT CLICK: an operator could see
+        // that a programme had a 2025 and a 2026, and could only ever edit whichever one
+        // the site was running. Last year's dates, label and categories were unreachable
+        // from a console on a host with no shell.
+        //
+        // Checked against the PROGRAMME, because an id in a query string is a claim: a
+        // cycle belonging to a different programme must not open here, or the screen would
+        // edit one award's dates under another award's heading.
+        $wanted = (int) ($req->getQueryParams()['cycle'] ?? 0);
+        $picked = $wanted > 0
+            ? DB::table('gates_award_cycles')->where('id', $wanted)
+                ->where('programme_id', $programmeId)->first()
+            : null;
+
         $cycle = \AfricaGates\Services\BallotGuard::currentCycleForProgramme($programmeId)
             ?? DB::table('gates_award_cycles')->where('programme_id', $programmeId)->orderByDesc('year')->first();
+        $cycle = $picked ?? $cycle;
         $categories = $cycle ? DB::table('gates_award_categories')->where('cycle_id', $cycle->id)->orderBy('sort_order')->get()->map(fn($r)=>(array)$r)->all() : [];
 
         $phase = $cycle ? \AfricaGates\Services\CyclePolicy::stateFor($cycle) : null;
@@ -139,6 +156,14 @@ class ProgrammesController
             // Statuses the transition guard will actually accept, so the
             // dropdown stops offering options that always fail.
             'selectable' => \AfricaGates\Services\CycleService::selectableFrom($cycle->status ?? null),
+            // Every edition with what is actually in it — "2025" orients nobody, and
+            // "2025 · 5 categories · 41 nominees · archived" tells an operator which one
+            // they want before they click it.
+            'editions'   => \AfricaGates\Services\CycleEdition::listFor($programmeId),
+            // Whether the one on screen is the one the public site is running — the
+            // question an operator editing a past edition needs answered loudly.
+            'live_cycle_id' => (int) (\AfricaGates\Services\BallotGuard::currentCycleForProgramme($programmeId)->id ?? 0),
+            'next_year'  => \AfricaGates\Services\CycleEdition::nextYearFor($programmeId),
             'all_cycles' => DB::table('gates_award_cycles')->where('programme_id', $programmeId)
                 ->orderByDesc('year')->get()->map(fn($r) => (array) $r)->all(),
         ]);
@@ -403,6 +428,43 @@ class ProgrammesController
         }
 
         return $res->withHeader('Location', '/admin/programmes/' . $id . '/sponsors')
+                   ->withStatus(302);
+    }
+
+    /**
+     * POST /admin/programmes/{id}/editions — open next year's edition.
+     *
+     * A separate action from `cycleSave`, deliberately. That form posts the CURRENT
+     * cycle's id, so an operator who changed the year on it did not create next year's
+     * edition — they RENAMED this year's, taking its nominees, votes and scores with it.
+     * Creating an edition is a different intention and gets its own button.
+     */
+    public function editionOpen(Request $req, Response $res, array $args): Response
+    {
+        $programmeId = (int) ($args['id'] ?? 0);
+        $b = (array) $req->getParsedBody();
+
+        $r = \AfricaGates\Services\CycleEdition::open(
+            $programmeId,
+            (int) ($b['year'] ?? 0),
+            (string) ($b['edition_label'] ?? ''),
+            !empty($b['copy_categories']),
+            (int) ($_SESSION['admin_id'] ?? 0) ?: null);
+
+        if ($r['ok']) {
+            $this->audit->record((int) ($_SESSION['admin_id'] ?? 0) ?: null,
+                'programme.edition.open', 'gates_award_cycles', $r['cycle_id']);
+            $this->bustAwardsCache();
+            $_SESSION['flash'] = $r['message'];
+            // Straight into the new edition, because the next thing anybody does is set
+            // its dates — and a redirect back to the live cycle would leave them editing
+            // the wrong one while being told the new one exists.
+            return $res->withHeader('Location',
+                "/admin/programmes/{$programmeId}/cycle?cycle=" . $r['cycle_id'])->withStatus(302);
+        }
+
+        $_SESSION['flash_error'] = $r['message'];
+        return $res->withHeader('Location', "/admin/programmes/{$programmeId}/cycle")
                    ->withStatus(302);
     }
 }

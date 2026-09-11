@@ -251,10 +251,28 @@ class CycleEditorTest extends TestCase
 
         $body = $this->view();
 
-        $this->assertStringContainsString('Other cycles', $body, 'the ambiguity must be surfaced');
-        $this->assertStringContainsString('2026 · voting (editing)', $body,
-            'the in-flight cycle is the one being edited');
-        $this->assertStringContainsString('2031 · upcoming', $body, 'and the other one is listed, not hidden');
+        // ── THE PROPERTY, NOT THE HEADING ───────────────────────────────────
+        //
+        // This used to pin the literal card title "Other cycles" and the chip text
+        // "2026 · voting (editing)" — the SHAPE of a panel rather than the claim it makes.
+        // Both changed when the chips became links carrying what is in each edition, and
+        // the test failed on a strictly better version of the thing it was guarding.
+        //
+        // What has to stay true is the ambiguity being surfaced: every edition listed, the
+        // one being edited marked, and — new, and the reason making them clickable is safe
+        // — the one the PUBLIC SITE is running marked separately from it. Somebody editing
+        // last year's dates believing they are this year's is the whole hazard.
+        $this->assertStringContainsString('Editions', $body, 'the ambiguity must be surfaced');
+        $this->assertStringContainsString('>editing<', $body,
+            'nothing says which edition is being edited');
+        $this->assertStringContainsString('>live on the site<', $body,
+            'nothing distinguishes the edition the public site is running from the one on '
+            . 'screen, which is what makes an editable past edition dangerous');
+        $this->assertStringContainsString('2031', $body, 'and the other one is listed, not hidden');
+
+        // Both editions are reachable now rather than being chips you cannot click.
+        $this->assertStringContainsString('cycle=' . $live, $body);
+
         $this->assertStringContainsString('value="' . $live . '"', $body,
             'the hidden cycle_id must target the live cycle, not the newest year');
     }
