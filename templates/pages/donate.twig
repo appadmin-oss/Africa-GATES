@@ -412,6 +412,27 @@
   .dn-prov label:focus-within{ outline:3px solid var(--dn-green); outline-offset:2px; }
   .dn-prov input{ accent-color:var(--dn-green); width:17px; height:17px; }
 
+  /* ── THE VOLUNTARY GIFT TO THE PLATFORM ──────────────────────────────────
+     Set apart from the amount picker rather than dressed like one: it is a different
+     question about a different recipient, and a control that looks like the donation
+     amount is a control somebody answers by accident. */
+  .dn-tip{ border:1px solid rgba(16,41,44,.12); border-radius:12px; padding:12px 14px;
+    margin:14px 0 0; }
+  .dn-tip legend{ padding:0 4px; }
+  .dn-tip__why{ margin:4px 0 10px; font-size:12.5px; line-height:1.6; color:#5a6d6f; }
+  .dn-tip__opts{ display:flex; gap:8px; flex-wrap:wrap; }
+  .dn-tip__opts label{ cursor:pointer; }
+  .dn-tip__opts input{ position:absolute; opacity:0; width:0; height:0; }
+  .dn-tip__opts span{ display:inline-block; min-height:40px; line-height:24px;
+    padding:7px 14px; border-radius:999px; border:1px solid rgba(16,41,44,.18);
+    font-size:13px; font-weight:600; color:#3d4b4d; }
+  .dn-tip__opts input:checked + span{ border-color:#237b22; background:rgba(35,123,34,.08);
+    color:#18571a; }
+  /* Focus has to survive the hidden input — without this the whole row is unreachable by
+     keyboard, which is the failure an accessibility pass catches and a mouse never does. */
+  .dn-tip__opts input:focus-visible + span{ outline:2px solid #237b22; outline-offset:2px; }
+  .dn-tip__sum{ margin:10px 0 0; font-size:12.5px; font-weight:600; color:#18571a; }
+  [x-cloak]{ display:none !important; }
   .dn-cover{ display:flex; align-items:flex-start; gap:10px; margin-top:16px;
     padding:13px 15px; border-radius:var(--dn-r-sm); background:var(--dn-cream);
     cursor:pointer; }
@@ -843,8 +864,49 @@
                 cover processing, so 100% of my donation reaches
                 {{ org ? org.name : 'the cause' }}.{% endif %}</span>
             </label>
+            {# ── A VOLUNTARY GIFT TO AFRICA GATES ──────────────────────────
+               Only on somebody ELSE's appeal. On the Africa GATES page the donor is
+               already giving to Africa GATES, and a second field asking whether they
+               would also like to reads as a trick rather than an offer.
+
+               NOT PRE-TICKED, and that is a legal position as much as a commercial one:
+               under the NDPA 2023 and the GDPR line on consent, a default the user did
+               not choose is not a choice. It is also bad for the thing it funds — a donor
+               who finds at the bank that they gave us something they did not intend
+               disputes the whole payment, and the organisation loses their gift with it.
+
+               The percentage is what posts; the naira figure beside it is rendered for
+               the reader and recomputed server-side, because a total from a browser is a
+               number the donor's bank will be shown that the donor's browser chose.
+
+               ZERO IS AN OPTION IN THE LIST rather than the absence of the control. A
+               donor who is asked and says no has declined; one who was never asked has
+               not, and only the first is a record anybody can stand behind. #}
+            {% if platform_tip.offered %}
+              <fieldset class="dn-tip">
+                <legend class="dn-lab">Add a gift to Africa GATES?</legend>
+                <p class="dn-tip__why">Africa GATES is a project of a Nigerian non-profit.
+                  We build and run the giving, voting and verification this appeal uses.
+                  <strong>Anything you add here is on top of your donation</strong> &mdash; it
+                  does not come out of what {{ org.name }} receives.</p>
+                <div class="dn-tip__opts" role="group" aria-label="Gift to Africa GATES">
+                  {% for pct in platform_tip.options %}
+                    <label>
+                      <input type="radio" name="platform_tip" value="{{ pct }}"
+                             {% if pct == platform_tip.default %}checked{% endif %}
+                             x-model="tipPct">
+                      <span>{% if pct == 0 %}No thanks{% else %}{{ pct }}%{% endif %}</span>
+                    </label>
+                  {% endfor %}
+                </div>
+                <p class="dn-tip__sum" x-show="tipPct > 0" x-cloak>
+                  <span x-text="ngn(Math.floor(value * tipPct / 100))"></span> to Africa GATES
+                  &middot; total <span x-text="ngn(value + Math.floor(value * tipPct / 100))"></span>
+                </p>
+              </fieldset>
+            {% endif %}
             <button type="submit" class="dn-cta" :disabled="submitting"
-                    x-text="submitting ? 'Redirecting…' : ('Donate '+ngn(value))"></button>
+                    x-text="submitting ? 'Redirecting…' : ('Donate '+ngn(value + (tipPct>0 ? Math.floor(value*tipPct/100) : 0)))"></button>
             <div class="dn-secure">
               <svg aria-hidden="true" focusable="false" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
               You’ll complete payment on our secure gateway.
@@ -1026,6 +1088,12 @@
       /* Defaults to a single gift. A page that arrives with "every month" already chosen is
          asking somebody to notice and undo it, which is the same fault as a pre-ticked box. */
       monthly:false,
+      /* The voluntary gift to Africa GATES, as a PERCENTAGE. Zero by default for the same
+         reason `monthly` is false: a page that arrives with a choice already made is asking
+         somebody to notice and undo it. The naira figure is derived for display only —
+         PlatformTip recomputes it server-side from this percentage, because a total from a
+         browser is a number the donor's bank will be shown that the browser chose. */
+      tipPct:0,
       get value(){ return this.custom ? (parseInt(String(this.custom).replace(/[^0-9]/g,''))||0) : this.amt; },
       ngn(n){ return '₦'+Number(n||0).toLocaleString('en-NG'); },
       onCustom(){ this.custom = String(this.custom).replace(/[^0-9]/g,''); }

@@ -179,6 +179,30 @@ final class PaymentDestination
     }
 
     /**
+     * The donor's voluntary gift to the platform on this payment, in naira.
+     *
+     * Read off the row for the same reason the org id is: it decides how somebody else's
+     * money is settled, and a figure a caller could pass in is a figure a browser could
+     * choose. Zero for everything that is not a partner gift, and zero on any deployment
+     * that has not taken the migration yet — an unrouted tip settles to the main account
+     * with the rest, which is visible, attributable and refundable.
+     */
+    public static function platformTipForReference(string $reference): int
+    {
+        $reference = trim($reference);
+        if ($reference === '' || !str_starts_with(strtoupper($reference), 'AFG-GIVE')) return 0;
+
+        try {
+            if (!DB::schema()->hasColumn('gates_donations', 'platform_tip_naira')) return 0;
+            return max(0, (int) (DB::table('gates_donations')
+                ->where('payment_ref', $reference)
+                ->value('platform_tip_naira') ?? 0));
+        } catch (\Throwable) {
+            return 0;
+        }
+    }
+
+    /**
      * Route a partner donation to the organisation's OWN subaccount.
      *
      * ── THE ORGANISATION'S ELIGIBILITY IS CHECKED HERE, NOT ONLY ON THE PAGE ──
@@ -193,7 +217,7 @@ final class PaymentDestination
      *
      * @return array<string,string>
      */
-    public static function initFieldsForPartner(int $orgId): array
+    public static function initFieldsForPartner(int $orgId, int $platformTipNaira = 0): array
     {
         if (!self::enabled() || $orgId < 1) return [];
 
@@ -207,7 +231,29 @@ final class PaymentDestination
         // No `bearer` here. Who absorbs Paystack's cut on a partner donation is set by the
         // subaccount's own percentage_charge at creation, and sending a conflicting bearer
         // is how a partner discovers their share is not what they agreed to.
-        return ['subaccount' => (string) $org->subaccount_code];
+        $out = ['subaccount' => (string) $org->subaccount_code];
+
+        // ── A DONOR'S VOLUNTARY GIFT TO THE PLATFORM RIDES AS A FLAT CHARGE ──
+        //
+        // `transaction_charge` is a FIXED amount, in kobo, that Paystack settles to the main
+        // account before the remainder goes to the subaccount. That is the only shape this
+        // may take, and the reason is the promise on the form: the tip is ADDED to what the
+        // donor gives, never taken out of it, so the organisation receives exactly the
+        // number the donor typed for them whether the tip is £0 or the largest we allow.
+        //
+        // Doing it through the subaccount's percentage instead would take the tip out of
+        // the gift — the donor would be giving the partner less in order to give us
+        // something, which is not what the form says and is not a thing anybody should have
+        // to read the code to discover.
+        //
+        // Kobo, and clamped: a value in naira here silently settles a hundredth of the
+        // intended amount, and a charge above the transaction is refused by the gateway,
+        // which would turn a generous donor into a failed checkout.
+        if ($platformTipNaira > 0) {
+            $out['transaction_charge'] = (string) ($platformTipNaira * 100);
+        }
+
+        return $out;
     }
 
     /**

@@ -604,7 +604,12 @@ class PaymentService
             // as platform donation income on the finance screen.
             $orgId = PaymentDestination::partnerOrgIdForReference($reference);
             if ($orgId > 0) {
-                $route = PaymentDestination::initFieldsForPartner($orgId);
+                // The donor's voluntary tip rides as a flat `transaction_charge`, read off
+                // the row rather than taken from the caller: the same rule that makes the
+                // org id trustworthy here. A tip a client could pass to this method is a
+                // number a browser chose for somebody else's settlement.
+                $route = PaymentDestination::initFieldsForPartner(
+                    $orgId, PaymentDestination::platformTipForReference($reference));
                 // Only claim the partner stream if the routing actually resolved. A suspended
                 // partner falls through to an empty route and the payment settles to the main
                 // account, where it is visible and refundable.

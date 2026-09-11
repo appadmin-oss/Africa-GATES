@@ -119,6 +119,15 @@ final class DonationController
                         'fund_goal' => null, 'recurring' => false,
                         'min_naira' => self::MIN_NAIRA, 'max_naira' => self::MAX_NAIRA,
                         'processing_fee_pct' => $this->processingFeePct(),
+                        // The voluntary gift to Africa GATES. Offered only on somebody
+                        // ELSE's appeal — on our own page it is a second field for the
+                        // same thing. Passed on every render path, because a page that
+                        // silently drops it is a revenue line that exists in one branch.
+                        'platform_tip' => [
+                            'offered' => \AfricaGates\Services\PlatformTip::offeredFor($org ?? null),
+                            'options' => \AfricaGates\Services\PlatformTip::options(),
+                            'default' => \AfricaGates\Services\PlatformTip::DEFAULT_PCT,
+                        ],
                     ])->withHeader('X-Robots-Tag', 'noindex, nofollow');
                 }
             }
@@ -135,6 +144,15 @@ final class DonationController
                         'gates_credit' => \AfricaGates\Services\OrgBrand::GATES_CREDIT,
                     'min_naira' => self::MIN_NAIRA, 'max_naira' => self::MAX_NAIRA,
                     'processing_fee_pct' => $this->processingFeePct(),
+                        // The voluntary gift to Africa GATES. Offered only on somebody
+                        // ELSE's appeal — on our own page it is a second field for the
+                        // same thing. Passed on every render path, because a page that
+                        // silently drops it is a revenue line that exists in one branch.
+                        'platform_tip' => [
+                            'offered' => \AfricaGates\Services\PlatformTip::offeredFor($org ?? null),
+                            'options' => \AfricaGates\Services\PlatformTip::options(),
+                            'default' => \AfricaGates\Services\PlatformTip::DEFAULT_PCT,
+                        ],
                 ])->withHeader('X-Robots-Tag', 'noindex, nofollow');
             }
         }
@@ -263,6 +281,15 @@ final class DonationController
             'min_naira'        => self::MIN_NAIRA,
             'max_naira'        => self::MAX_NAIRA,
             'processing_fee_pct' => $this->processingFeePct(),
+                        // The voluntary gift to Africa GATES. Offered only on somebody
+                        // ELSE's appeal — on our own page it is a second field for the
+                        // same thing. Passed on every render path, because a page that
+                        // silently drops it is a revenue line that exists in one branch.
+                        'platform_tip' => [
+                            'offered' => \AfricaGates\Services\PlatformTip::offeredFor($org ?? null),
+                            'options' => \AfricaGates\Services\PlatformTip::options(),
+                            'default' => \AfricaGates\Services\PlatformTip::DEFAULT_PCT,
+                        ],
         ]);
     }
 
@@ -508,6 +535,24 @@ final class DonationController
         $amount = $cover ? (int) ceil($baseAmt * (1 + $this->processingFeePct() / 100)) : $baseAmt;
         $amount = min(self::MAX_NAIRA, max(self::MIN_NAIRA, $amount));
 
+        // ── AND A VOLUNTARY GIFT TO THE PLATFORM, ON TOP ─────────────────────
+        //
+        // Computed from the posted PERCENTAGE rather than taken as a total, for the same
+        // reason the fee cover is: a naira figure from the browser is a number the donor's
+        // bank will be shown that the donor's browser chose. Offered only on somebody
+        // else's appeal — see PlatformTip.
+        //
+        // ADDED to the charge, never taken out of it. `$amount` is what the organisation is
+        // being given and does not move; the tip rides beside it, so the promise on the
+        // form ("this does not come out of their gift") is true in the arithmetic and not
+        // only in the copy.
+        $tip = \AfricaGates\Services\PlatformTip::naira($amount, $b['platform_tip'] ?? 0, $org);
+        $charge = min(self::MAX_NAIRA, $amount + $tip);
+        // Clamping the total could otherwise silently eat the tip at the ceiling, which
+        // would take the donor's money for the organisation and give them nothing for us —
+        // the one outcome worse than not offering it.
+        $tip = max(0, $charge - $amount);
+
         $reference = 'AFG-GIVE-' . bin2hex(random_bytes(6));
 
         $row = [
@@ -515,7 +560,7 @@ final class DonationController
             'donor_email'    => $email,
             'donor_phone'    => null,
             'donor_location' => null,
-            'amount_naira'   => $amount,
+            'amount_naira'   => $charge,
             'tier'           => 'donation',
             'bonus_votes'    => 0,
             'votes_used'     => 0,
@@ -536,14 +581,31 @@ final class DonationController
         if ($org) {
             $feeBps = (int) ($org->platform_fee_bps ?? 0);
             $row['recipient_org_id']   = (int) $org->id;
-            $row['platform_fee_naira'] = (int) floor($amount * $feeBps / 10000);
+            // The agreed cut is taken on the GIFT, never on the charge: a donor's tip to
+            // us must not also be charged a percentage to us, and an organisation's rate
+            // has to mean what they were told it means.
+            //
+            // The tip is then added to the same column because `amount_naira -
+            // platform_fee_naira` is what the organisation is owed and is read in five
+            // places; leaving the tip out of it would hand them the donor's gift to us.
+            // `platform_tip_naira` records how much of that was voluntary, so a partner's
+            // dashboard can say "fees" and "a donor's gift to the platform" separately
+            // rather than calling the second one a fee they paid.
+            $row['platform_fee_naira'] = (int) floor($amount * $feeBps / 10000) + $tip;
+            $row['platform_tip_naira'] = $tip;
             // NULL means the organisation's general fund. A campaign id means the donor gave
             // for the thing that appeal describes, and the money is restricted to it.
             $row['campaign_id']        = $campaign ? (int) $campaign->id : null;
         }
 
         try {
-            DB::table('gates_donations')->insert($row);
+            // `platform_tip_naira` arrives with a migration, and migrations here are applied
+            // by an operator opening a URL. A column the database has not got yet must cost
+            // the disclosure line, never the payment: {@see \AfricaGates\Support\OptionalColumn}
+            // and the paid-vote outage that rule was written after.
+            DB::table('gates_donations')->insert(
+                \AfricaGates\Support\OptionalColumn::filter(
+                    'gates_donations', $row, ['platform_tip_naira']));
         } catch (\Throwable $e) {
             $this->log?->error('[donate] could not persist pending donation', ['err' => $e->getMessage()]);
             return $bail('error');
@@ -585,7 +647,10 @@ final class DonationController
         }
 
         $callbackUrl = $this->base($req) . GivingUrl::callback($provider, $reference);
-        $init = $this->payments->initialize($provider, $amount, $email, $reference, $callbackUrl, [
+        // `$charge`, not `$amount`: the gift plus the donor's voluntary tip is what leaves
+        // their bank, and a gateway asked for the gift alone would collect the tip from
+        // nobody while the row said it had been given.
+        $init = $this->payments->initialize($provider, $charge, $email, $reference, $callbackUrl, [
             'reference' => $reference, 'purpose' => 'donation',
             // Onto the gateway's own record, so `subscription.create` — which does not carry
             // our reference anywhere else — can be tied back to the intention we wrote above.
