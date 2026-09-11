@@ -111,9 +111,16 @@ class AccountController
     public function registerForm(Request $req, Response $res): Response
     {
         if (!empty($_SESSION['user_id'])) return $res->withHeader('Location', '/account')->withStatus(302);
+        // Step one is a chooser, because four kinds of account exist here and until
+        // now exactly one of them had a door on the public site: the organisation
+        // application was linked from the ORGANISATION SIGN-IN, which you reach by
+        // already having an account. `?as=individual` is the form itself.
+        $as = ($req->getQueryParams()['as'] ?? '') === 'individual' ? 'individual' : '';
         return $this->view->render($res, 'pages/account/register.twig', [
-            'page_title' => 'Create your account — Africa GATES', 'gates_page' => 'account', 'has_hero' => false,
-            'hide_chrome' => true, 'error' => $this->flash('flash_error'), 'old' => $this->flash('reg_old') ?? [],
+            'page_title' => $as === 'individual' ? 'Create your account — Africa GATES' : 'Join Africa GATES',
+            'gates_page' => 'account', 'has_hero' => false,
+            'hide_chrome' => true, 'as' => $as,
+            'error' => $this->flash('flash_error'), 'old' => $this->flash('reg_old') ?? [],
         ]);
     }
 
@@ -124,7 +131,9 @@ class AccountController
         if (!$r['ok']) {
             $_SESSION['flash_error'] = $r['error'];
             $_SESSION['reg_old'] = ['name' => $b['name'] ?? '', 'email' => $b['email'] ?? '', 'phone' => $b['phone'] ?? ''];
-            return $res->withHeader('Location', '/account/register')->withStatus(302);
+            // Back to the FORM. Step one would show four options and no sign of the
+            // message explaining what was wrong with what they had just typed.
+            return $res->withHeader('Location', '/account/register?as=individual')->withStatus(302);
         }
         // Email verification: do NOT auto-login. Send a confirmation link and park
         // the visitor on the "check your email" notice until they verify.
@@ -229,6 +238,14 @@ class AccountController
         return $this->view->render($res, 'pages/account/login.twig', [
             'page_title' => 'Sign in — Africa GATES', 'gates_page' => 'account', 'has_hero' => false, 'hide_chrome' => true,
             'sent'  => $req->getQueryParams()['sent'] ?? null,
+            // READ, never flashed: {@see otpVerify} falls back to this same key, so
+            // consuming it here would make the screen that shows the address the
+            // thing that stops the address being usable. The code screen prints it,
+            // posts it back, and offers one click to change it — without that, a
+            // mistyped address produced a code screen for an inbox the visitor does
+            // not own, and the only feedback available was "invalid or expired
+            // code": a message about the code, for a fault in the address.
+            'login_email' => (string) ($_SESSION['user_login_email'] ?? ''),
             'error' => $this->flash('flash_error'), 'notice' => $this->flash('flash_notice'),
         ]);
     }
@@ -241,9 +258,25 @@ class AccountController
             $_SESSION['flash_error'] = 'Too many attempts. Please try again later.';
             return $res->withHeader('Location', '/account/login')->withStatus(302);
         }
-        $user = $this->accounts->attemptLogin((string) ($b['email'] ?? ''), (string) ($b['password'] ?? ''));
+        $email = strtolower(trim((string) ($b['email'] ?? '')));
+        $pw    = (string) ($b['password'] ?? '');
+        // Kept so the form comes back filled in. Whatever was typed, account or
+        // not — this reveals nothing that was not typed into this browser.
+        if ($email !== '') $_SESSION['user_login_email'] = $email;
+        // The password field is deliberately not `required`, because the one-time
+        // code beside it is a first-class route rather than a fallback. So an empty
+        // password reaches here as a normal submission, and "that email and password
+        // do not match" would be an answer to a question nobody asked — there was no
+        // password to match. Say what happened and point at the button that works.
+        if ($pw === '') {
+            $_SESSION['flash_error'] = 'Enter your password, or use “Email me a one-time code” to sign in without one.';
+            return $res->withHeader('Location', '/account/login')->withStatus(302);
+        }
+        $user = $this->accounts->attemptLogin($email, $pw);
         if (!$user) {
-            $_SESSION['flash_error'] = 'Invalid email or password — or try a sign-in code.';
+            // ONE message for a wrong password and for an address with no account.
+            // Telling them apart is an account-enumeration oracle.
+            $_SESSION['flash_error'] = 'That email and password do not match. Try again, or sign in with a one-time code instead.';
             return $res->withHeader('Location', '/account/login')->withStatus(302);
         }
         // Unverified accounts must confirm their email first. (A one-time sign-in

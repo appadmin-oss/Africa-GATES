@@ -1,0 +1,48 @@
+{# ═══════════════════════════════════════════════════════════════════════════
+   MEMBER ACCOUNT AUTH — the shell every public account screen wears.
+
+   Sign in, register and the verification notice are three screens with one
+   frame: warm ground, brand lockup, one white card, and whatever each screen
+   wants to put under it. The frame lives here once.
+
+   ── WHY A LAYOUT AND NOT THREE COPIES ──────────────────────────────────────
+   It was three copies. The brand lockup, the column and the footer credit were
+   repeated in `login.twig`, `register.twig` and `verify-notice.twig`, so the
+   copyright line and the logo mark-up existed three times and could disagree.
+   They already had: the sign-in said "Member account" over a pitch about
+   points while registration said something else entirely, and nothing on any
+   screen showed the drift.
+
+   ── NOT `layout/auth.twig`, AND NOT `components/auth.css` ──────────────────
+   The admin console, the judges' panel and the organisation sign-in are
+   separate trust domains on separate routes, deliberately without a shared
+   public entry point (see the design handoff §5). They keep the older
+   two-column `.ag-auth` shell. Nothing here may reach them.
+
+   Fill `card` with the card's contents, `below` with anything under it.
+   ═══════════════════════════════════════════════════════════════════════════ #}
+{% extends "layout/gates.twig" %}
+
+{% block head_styles %}
+<link rel="stylesheet" href="{{ asset('/assets/css/components/account-auth.css') }}">
+{% endblock %}
+
+{% block content %}
+<div class="ag-acct">
+  <div class="ag-acct__col">
+
+    <a class="ag-acct__brand" href="/" aria-label="Africa GATES — home">
+      <span class="ag-acct__mark" aria-hidden="true">G</span>
+      <span class="ag-acct__word">Africa <span>GATES</span></span>
+    </a>
+
+    <div class="ag-acct__card">
+      {% block card %}{% endblock %}
+    </div>
+
+    {% block below %}{% endblock %}
+
+    <p class="ag-acct__credit">© {{ "now"|date("Y") }} Africa GATES · An Afrovanguard initiative</p>
+  </div>
+</div>
+{% endblock %}

@@ -153,7 +153,14 @@ final class TemplateSyntaxTest extends TestCase
             $src = (string) file_get_contents(self::root() . '/' . $rel);
             if (!preg_match('/\{%-?\s*extends\s+[\'"]([^\'"]+)[\'"]/', $src, $m)) continue;
 
-            $mine  = self::blockNames($src);
+            // Only the blocks this file declares at the TOP LEVEL are the parent's to
+            // render. One NESTED inside another block is a slot for this template's own
+            // children — an intermediate layout that both extends a shell and offers its
+            // own holes — and it is rendered by the block enclosing it, not by an
+            // ancestor. Diffing every declared name against the ancestors condemns that
+            // arrangement outright: `layout/account-auth.twig` extends the site shell,
+            // fills `content`, and offers `card` and `below` inside it.
+            $mine  = self::topLevelBlockNames($src);
             $theirs = [];
             // Walk the whole inheritance chain: a block may be declared by a
             // grandparent, and a two-level layout is normal here.
@@ -180,5 +187,30 @@ final class TemplateSyntaxTest extends TestCase
     {
         preg_match_all('/\{%-?\s*block\s+([a-zA-Z0-9_]+)/', $src, $m);
         return array_values(array_unique($m[1]));
+    }
+
+    /**
+     * The blocks declared at depth zero — the ones an ancestor has to render.
+     *
+     * Tracks `{% endblock %}` to know the depth, and counts the SHORTHAND form
+     * (`{% block title 'x' %}`) as opening nothing, because it closes itself. Getting
+     * that wrong sinks the depth below zero and the whole file reads as nested.
+     *
+     * @return list<string>
+     */
+    private static function topLevelBlockNames(string $src): array
+    {
+        $src = (string) preg_replace('/\{#.*?#\}/s', '', $src);
+        preg_match_all('/\{%-?\s*(block\s+[a-zA-Z0-9_]+[^%]*|endblock[^%]*)-?%\}/', $src, $m);
+
+        $out = []; $depth = 0;
+        foreach ($m[1] as $tag) {
+            if (str_starts_with($tag, 'endblock')) { $depth = max(0, $depth - 1); continue; }
+            preg_match('/block\s+([a-zA-Z0-9_]+)(.*)$/s', $tag, $bm);
+            if ($depth === 0) $out[] = $bm[1];
+            // `{% block name expr %}` is self-closing; only the long form opens a level.
+            if (trim($bm[2]) === '') $depth++;
+        }
+        return array_values(array_unique($out));
     }
 }

@@ -1,53 +1,118 @@
-{% extends "layout/gates.twig" %}
+{# ═══════════════════════════════════════════════════════════════════════════
+   CREATE AN ACCOUNT — /account/register
 
-{% block head_styles %}
-<link rel="stylesheet" href="{{ asset('/assets/css/components/auth.css') }}">
+   Two steps on one route: a chooser, then the individual form
+   (`?as=individual`).
+
+   ── WHY A CHOOSER ──────────────────────────────────────────────────────────
+   Four kinds of account exist on this platform and until now exactly one of
+   them was reachable from the public site. Somebody nominated by a friend, a
+   non-profit that wants a Giving page, a trader after a stand: each had a
+   route, a form and a controller, and no door anybody could find. The
+   organisation application was linked from the ORGANISATION SIGN-IN — a page
+   you reach by already having an account. That is this codebase's oldest
+   shape of fault: a mechanism complete on every side with no way in.
+
+   Every row below goes somewhere that exists. No row is aspirational.
+
+   ── THE ERROR PATH RETURNS TO THE FORM, NOT TO STEP ONE ────────────────────
+   `registerSubmit` redirects back to `?as=individual` on a validation failure.
+   Dropping somebody on the chooser instead would show them four options and
+   no sign of the message explaining what was wrong with what they typed.
+   ═══════════════════════════════════════════════════════════════════════════ #}
+{% extends "layout/account-auth.twig" %}
+
+{% block card %}
+{% if as|default('') == 'individual' %}
+
+  <a class="ag-acct__back" href="/account/register">
+    <svg width="14" height="14" viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M12.5 4.5 7 10l5.5 5.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    Back
+  </a>
+
+  <h1 class="ag-acct__h1">Create your account</h1>
+  <p class="ag-acct__lede">Free, takes a minute. A password is optional — you can always sign in with an email code.</p>
+
+  {% if error %}<div class="ag-acct__alert ag-acct__alert--err" role="alert">{{ error }}</div>{% endif %}
+
+  <form method="post" action="/account/register">
+    <input type="hidden" name="_token" value="{{ csrf_token }}">
+
+    <div class="ag-acct__field">
+      <label class="ag-acct__label" for="name">Full name</label>
+      <input class="ag-acct__input" id="name" type="text" name="name" value="{{ old.name|default('') }}"
+             autocomplete="name" placeholder="First and last name" required autofocus>
+    </div>
+
+    <div class="ag-acct__field">
+      <label class="ag-acct__label" for="email">Email</label>
+      {# The one failure that has a field to blame: an address already in use. #}
+      <input class="ag-acct__input{% if error %} ag-acct__input--err{% endif %}" id="email" type="email" name="email"
+             value="{{ old.email|default('') }}" autocomplete="email" placeholder="you@email.com" required>
+    </div>
+
+    <div class="ag-acct__field">
+      {# Required, and that is current behaviour rather than an oversight —
+         vote receipts and event tickets reach people by phone. #}
+      <label class="ag-acct__label" for="phone">Phone</label>
+      <input class="ag-acct__input" id="phone" type="tel" name="phone" value="{{ old.phone|default('') }}"
+             autocomplete="tel" inputmode="tel" placeholder="+234…" required>
+    </div>
+
+    <div class="ag-acct__field">
+      <label class="ag-acct__label" for="password">Password <span>optional</span></label>
+      <input class="ag-acct__input" id="password" type="password" name="password"
+             autocomplete="new-password" placeholder="At least 8 characters">
+    </div>
+
+    <div class="ag-acct__btns">
+      <button class="ag-acct__cta" type="submit">Create account</button>
+    </div>
+  </form>
+
+  <p class="ag-acct__fine">By continuing you accept the <a href="/terms">Terms</a> and <a href="/privacy">Privacy notice</a>.</p>
+
+{% else %}
+
+  <h1 class="ag-acct__h1">Join Africa GATES</h1>
+  <p class="ag-acct__lede">Pick where to start. You can add the others later without a second account.</p>
+
+  {% if error %}<div class="ag-acct__alert ag-acct__alert--err" role="alert">{{ error }}</div>{% endif %}
+
+  <div class="ag-acct__rows">
+    <a class="ag-acct__row ag-acct__row--tall" href="/account/register?as=individual">
+      <span class="ag-acct__row-body">
+        <b class="ag-acct__row-title">Take part</b>
+        <span class="ag-acct__row-note">Earn points, vote in categories and nominate people.</span>
+      </span>
+      <svg class="ag-acct__chev" width="16" height="16" viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M7.5 4.5 13 10l-5.5 5.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    </a>
+    <a class="ag-acct__row ag-acct__row--tall" href="/vote">
+      <span class="ag-acct__row-body">
+        <b class="ag-acct__row-title">Claim your profile</b>
+        <span class="ag-acct__row-note">Someone nominated you. Open your page, verify by code, and it is yours to edit.</span>
+      </span>
+      <svg class="ag-acct__chev" width="16" height="16" viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M7.5 4.5 13 10l-5.5 5.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    </a>
+    <a class="ag-acct__row ag-acct__row--tall" href="/giving/apply">
+      <span class="ag-acct__row-body">
+        <b class="ag-acct__row-title">Register a non-profit</b>
+        <span class="ag-acct__row-note">Raise through Giving, with the money paid to your own account. CAC and SCUML registration required.</span>
+      </span>
+      <svg class="ag-acct__chev" width="16" height="16" viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M7.5 4.5 13 10l-5.5 5.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    </a>
+    <a class="ag-acct__row ag-acct__row--tall" href="/partner">
+      <span class="ag-acct__row-body">
+        <b class="ag-acct__row-title">Partner or exhibit</b>
+        <span class="ag-acct__row-note">Sponsor a programme, take a stand at an event, or list in the shop.</span>
+      </span>
+      <svg class="ag-acct__chev" width="16" height="16" viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M7.5 4.5 13 10l-5.5 5.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    </a>
+  </div>
+
+{% endif %}
 {% endblock %}
 
-{% block content %}
-<div class="ag-auth">
-  <aside class="ag-auth__brand">
-    <div class="ag-auth__orb" aria-hidden="true"></div>
-    <a class="ag-auth__logo" href="/" aria-label="Africa GATES — home">
-      <span class="ag-auth__logo-glyph" aria-hidden="true">G</span>
-      <span class="ag-auth__logo-word"><b>Africa</b><span>GATES</span></span>
-    </a>
-    <div class="ag-auth__pitch">
-      <p class="ag-auth__pitch-title">Earn points.<br>Power the vote.</p>
-      <p>Create a free account to collect voting points from your activity — shop orders, event tickets and donations — and redeem them for votes.</p>
-    </div>
-    <p class="ag-auth__copy">© {{ "now"|date("Y") }} Africa GATES · An Afrovanguard initiative</p>
-  </aside>
-
-  <div class="ag-auth__panel">
-    <div class="ag-auth__form-wrap">
-      {% include 'partials/lottie.twig' with { src: '/assets/anim/people-welcome.json', width: 220, height: 150 } only %}
-      <p class="ag-auth__eyebrow">Create your account</p>
-      <h1 class="ag-auth__h">Join Africa GATES</h1>
-      <p class="ag-auth__sub">Free, takes a minute. A password is optional — you can always sign in with an email code.</p>
-      {% if error %}<div class="ag-auth__alert ag-auth__alert--err" role="alert">{{ error }}</div>{% endif %}
-      <form method="post" action="/account/register">
-        <input type="hidden" name="_token" value="{{ csrf_token }}">
-        <div class="ag-auth__field">
-          <label class="ag-auth__label" for="name">Full name</label>
-          <input class="ag-auth__input" id="name" type="text" name="name" value="{{ old.name|default('') }}" autocomplete="name" placeholder="First and last name" required autofocus>
-        </div>
-        <div class="ag-auth__field">
-          <label class="ag-auth__label" for="email">Email</label>
-          <input class="ag-auth__input" id="email" type="email" name="email" value="{{ old.email|default('') }}" autocomplete="email" placeholder="you@email.com" required>
-        </div>
-        <div class="ag-auth__field">
-          <label class="ag-auth__label" for="phone">Phone</label>
-          <input class="ag-auth__input" id="phone" type="tel" name="phone" value="{{ old.phone|default('') }}" autocomplete="tel" inputmode="tel" placeholder="+234…" required>
-        </div>
-        <div class="ag-auth__field">
-          <label class="ag-auth__label" for="password">Password <span style="font-weight:400;color:#5f7273">(optional)</span></label>
-          <input class="ag-auth__input" id="password" type="password" name="password" autocomplete="new-password" placeholder="At least 8 characters">
-        </div>
-        <button class="ag-auth__cta" type="submit">Create account →</button>
-      </form>
-      <p class="ag-auth__fine">Already a member? <a href="/account/login">Sign in</a></p>
-    </div>
-  </div>
-</div>
+{% block below %}
+<p class="ag-acct__switch">Already a member? <a class="ag-acct__quiet" href="/account/login">Sign in</a></p>
 {% endblock %}
