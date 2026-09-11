@@ -218,42 +218,112 @@ final class PublicResults
     }
 
     /**
-     * Every published result, newest cycle first.
+     * Every published result, newest edition first, GROUPED BY EDITION.
      *
-     * @return array{items: list<array<string,mixed>>, held: int}
+     * ══════════════════════════════════════════════════════════════════════════
+     * AN EDITION IS THE UNIT, AND THE LIMIT IS WHY
+     * ══════════════════════════════════════════════════════════════════════════
+     *
+     * This used to take the newest 60 CATEGORIES. That is the wrong unit for a page that
+     * presents an edition: the cut lands wherever the sixtieth category happens to be, so
+     * an award programme with eleven categories could appear with seven of them and no
+     * indication that four were missing — a reader counting the awards would conclude
+     * this platform had decided seven.
+     *
+     * So the cap is on EDITIONS and the categories follow whole. A page showing twelve
+     * editions shows all of each of them, and an edition that is off the end is absent
+     * rather than truncated.
+     *
+     * `items` is kept flat and unchanged for callers that want the whole list — the
+     * sitemap and the tests read it — and `editions` is the same rows grouped, in the
+     * order the page renders them.
+     *
+     * @return array{items: list<array<string,mixed>>, held: int,
+     *               editions: list<array<string,mixed>>}
      */
-    public static function index(int $limit = 60): array
+    public static function index(int $maxEditions = 12): array
     {
+        $empty = ['items' => [], 'held' => 0, 'editions' => []];
+
         try {
-            $rows = DemoSeeder::notSandbox(
-                DB::table('gates_award_categories as c')
-                    ->join('gates_award_cycles as cy', 'cy.id', '=', 'c.cycle_id')
+            // Cycles first. `year DESC, id DESC` is the order the page reads in, and the
+            // categories are fetched against it rather than re-sorted afterwards.
+            $cycles = DemoSeeder::notSandbox(
+                DB::table('gates_award_cycles as cy')
                     ->join('gates_award_programmes as p', 'p.id', '=', 'cy.programme_id')
                     ->whereIn('cy.status', self::RELEASED),
                 'cy.programme_id')
                 ->orderByDesc('cy.year')->orderByDesc('cy.id')
+                ->limit(max(1, min(60, $maxEditions)))
+                // The NAME comes from the cycle, never from the first publishable award in
+                // it. An edition whose every award is withheld has no such award, and the
+                // first version of this took the label from one — so the one edition that
+                // most needs explaining would have rendered with a blank heading.
+                ->get(['cy.id', 'cy.year', 'cy.edition_label', 'p.title as programme']);
+
+            $cycleIds = array_map(static fn ($c) => (int) $c->id, $cycles->all());
+            if ($cycleIds === []) return $empty;
+
+            $rows = DB::table('gates_award_categories as c')
+                ->whereIn('c.cycle_id', $cycleIds)
                 ->orderBy('c.sort_order')->orderBy('c.id')
-                ->limit(max(1, min(200, $limit)))
-                ->pluck('c.id')->all();
+                ->get(['c.id', 'c.cycle_id']);
         } catch (\Throwable) {
-            return ['items' => [], 'held' => 0];
+            return $empty;
         }
 
-        // One scorer across the whole list — see the note on category(). It caches the
+        // One scorer across the whole page — see the note on category(). It caches the
         // edition scale per cycle, so a page listing sixty results reads each cycle once
         // rather than once per award.
         $scoring = new NomineeScoringService();
 
+        // Keyed by cycle in the cycle order above, so the groups come out newest first
+        // without a second sort. A category whose cycle vanished between the two queries
+        // is simply skipped.
+        $byCycle = array_fill_keys($cycleIds, []);
+        $heldBy  = array_fill_keys($cycleIds, 0);
+
         $items = [];
         $held  = 0;
-        foreach ($rows as $id) {
-            $c = self::category((int) $id, $scoring);
+        foreach ($rows as $row) {
+            $c = self::category((int) $row->id, $scoring);
             if ($c === null) continue;
-            if ($c['held'] !== null) { $held++; continue; }
+            $cid = (int) $row->cycle_id;
+            if ($c['held'] !== null) {
+                $held++;
+                if (isset($heldBy[$cid])) $heldBy[$cid]++;
+                continue;
+            }
             $items[] = $c;
+            if (isset($byCycle[$cid])) $byCycle[$cid][] = $c;
         }
 
-        return ['items' => $items, 'held' => $held];
+        $editions = [];
+        foreach ($cycles as $cy) {
+            $cid    = (int) $cy->id;
+            $awards = $byCycle[$cid] ?? [];
+            // An edition with every award withheld is NOT dropped: it is named with a
+            // count, because a released edition that disappears from this page reads as
+            // one that never happened. An edition with nothing at all — no categories
+            // scored, nothing held — has no news and is left out.
+            if ($awards === [] && ($heldBy[$cid] ?? 0) === 0) continue;
+            $editions[] = [
+                'cycle_id'  => $cid,
+                'programme' => (string) ($cy->programme ?? ''),
+                'edition'   => self::edition($cy),
+                'year'      => (int) ($cy->year ?? 0),
+                'awards'    => $awards,
+                'held'      => $heldBy[$cid] ?? 0,
+                // The edition's own headline: the highest index anybody reached in it.
+                'top'       => $awards === [] ? null : array_reduce(
+                    $awards,
+                    static fn ($best, $a) => ($best === null
+                        || (float) ($a['winner']['cpi'] ?? 0) > (float) ($best['winner']['cpi'] ?? 0))
+                        ? $a : $best),
+            ];
+        }
+
+        return ['items' => $items, 'held' => $held, 'editions' => $editions];
     }
 
     /**

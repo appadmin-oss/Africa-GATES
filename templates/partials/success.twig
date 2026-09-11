@@ -16,7 +16,13 @@
      sc_primary    { label, href }
      sc_secondary  { label, href }                      (omit to hide)
      sc_email_note short reassurance line                (string; omit to hide)
-     sc_confetti   celebratory flakes                    (bool)
+     sc_confetti   celebratory flakes in the art tile      (bool)
+     sc_celebrate  a stable key → the REAL celebration      (string; omit to hide)
+                   The nine flakes above are a garnish inside a 200px tile; this is
+                   the choreographed moment from partials/celebrate.twig, once per
+                   key per browser. Setting it SUPPRESSES the flakes: two confetti
+                   systems on one screen is not twice the celebration, it is a page
+                   that cannot decide what it is.
      sc_next_label heading of the steps card             (string)
      sc_steps      [ '…', '…', … ]                       (array; omit to hide card)
    ════════════════════════════════════════════════════════════════════ #}
@@ -105,7 +111,7 @@
   }
 </style>
 
-<section class="sc">
+<section class="sc"{% if sc_celebrate|default('') %} data-celebrate="{{ sc_celebrate }}"{% endif %}>
   <div class="sc-grid">
     <div class="sc-copy">
       <span class="sc-badge" style="background:{{ _ac.badgeBg }};border-color:{{ _ac.badgeBorder }}">
@@ -148,11 +154,11 @@
 
     <div class="sc-art" style="background:{{ _ar.art }}">
       <span class="sc-glow" style="background:radial-gradient(circle,{{ _ar.glow }},transparent 68%)"></span>
-      {% if sc_confetti|default(false) %}
+      {% if sc_confetti|default(false) and not sc_celebrate|default('') %}
         {% set _fc = ['#237b22','#fbc329','#e0245e','#7FC87C','#a47306'] %}
         {% for i in 0..8 %}<span class="sc-flake" style="left:{{ 6 + i*11 }}%;background:{{ _fc[i % 5] }};animation-duration:{{ (26 + (i % 4)*5)/10 }}s;animation-delay:{{ (i*32)/100 }}s"></span>{% endfor %}
       {% endif %}
-      <span class="sc-med" style="background:linear-gradient(140deg,{{ _ac.m1 }},{{ _ac.m2 }})">
+      <span class="sc-med" style="background:linear-gradient(140deg,{{ _ac.m1 }},{{ _ac.m2 }})" data-celebrate-anchor>
         <svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">{{ _gly|raw }}</svg>
       </span>
     </div>
@@ -169,3 +175,5 @@
     {% endif %}
   </div>
 </section>
+
+{% if sc_celebrate|default('') %}{% include 'partials/celebrate.twig' only %}{% endif %}

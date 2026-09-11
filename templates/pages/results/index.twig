@@ -23,6 +23,18 @@
 
   .rx-rule{ height:1px; background:var(--ag-line-strong); margin:clamp(1.6rem,4vw,2.2rem) 0 0; }
 
+  /* ── an edition ── */
+  .rx-ed{ margin-top:clamp(2rem,5vw,2.9rem); }
+  .rx-ed__h{ display:flex; align-items:flex-end; justify-content:space-between; gap:16px 24px;
+             flex-wrap:wrap; padding-bottom:12px; border-bottom:2px solid var(--ag-ink); }
+  .rx-ed__kick{ margin:0 0 6px; font:600 11px/1.4 var(--ag-font-mono); letter-spacing:.12em;
+                text-transform:uppercase; color:var(--ag-ink-soft); }
+  .rx-ed__t{ margin:0; font-family:var(--ag-font-display); font-weight:700;
+             font-size:clamp(1.5rem,3.4vw,2rem); letter-spacing:-.02em; line-height:1.1; }
+  .rx-ed__n{ margin:0; font:600 11.5px/1.4 var(--ag-font-mono); letter-spacing:.06em;
+             text-transform:uppercase; color:var(--ag-ink-soft); white-space:nowrap; }
+  .rx-ed__held{ margin:16px 0 0; font-size:14.5px; line-height:1.65; color:#4a5256; }
+
   .rx-list{ list-style:none; margin:0; padding:0; }
   .rx-item{ border-bottom:1px solid var(--ag-line); }
   .rx-a{ display:grid; grid-template-columns:minmax(0,1fr) auto; gap:8px 20px; align-items:center;
@@ -82,16 +94,20 @@
 {% endblock %}
 
 {% block content %}
+{# The outer guard is "is there a published award ANYWHERE", not "is there an edition":
+   a released edition whose every award is withheld produces an edition block with no
+   rows, and gating on that would replace "No award has been decided yet" — the honest
+   headline when nothing is published — with a heading over an apology. #}
 {% set rows = items|default([]) %}
 
 <div class="rx">
   <header class="rx-head">
     <p class="rx-eyebrow">The record</p>
     <h1>Results</h1>
-    <p>Every award decided here, with the working shown. A Cultural Power Index runs from 0
-       to 1000 and always splits two ways — support the community gave, and marks the panel
-       awarded. Open any award to see every nominee who scored, every weight, and the
-       denominator each community share was measured against.</p>
+    <p>Every award this platform has decided, edition by edition. A Cultural Power Index
+       runs from 0 to 1000 and always splits two ways — the support a community gave, and
+       the marks a panel awarded. Open any award for the full standing, and the working
+       behind it.</p>
   </header>
 
   <div class="rx-rule"></div>
@@ -143,25 +159,65 @@
   {% endfor %}
 
   {% if rows %}
-    <ul class="rx-list">
-      {% for c in rows %}
-        <li class="rx-item">
-          <a class="rx-a" href="{{ c.url }}">
-            <div>
-              <p class="rx-meta">{{ c.programme }}{% if c.edition %} · {{ c.edition }}{% endif %}</p>
-              <h2 class="rx-cat">{{ c.category.title }}</h2>
-              <p class="rx-won"><b>{{ c.winner.name }}</b>{% if c.dead_heat %} — dead heat, separated by nominee id{% endif %}</p>
-            </div>
-            <div class="rx-score">
-              <div class="rx-cpi">{{ c.winner.cpi }}<span> / 1000</span></div>
-              {# Community first — the half a reader came to check, and the half that was
-                 reading zero for whole categories on the cycle this page was built for. #}
-              <p class="rx-split"><i>{{ c.winner.community_points }} community</i> · {{ c.winner.judge_points }} judges</p>
-            </div>
-          </a>
-        </li>
-      {% endfor %}
-    </ul>
+    {#
+      ── AN EDITION AT A TIME ────────────────────────────────────────────────
+
+      This was one flat list of categories, newest first, with the programme and year
+      repeated on every row. Two things were wrong with that. An award programme is the
+      thing people come here for — "the 2026 Principal Awards", not "Teachers' Choice" —
+      and its eleven categories were scattered down a page interleaved with three other
+      programmes, so the one question a reader actually has (who won this edition?) could
+      only be answered by reading every row and sorting them in their head.
+
+      And the list was capped at sixty CATEGORIES, so the cut landed wherever the
+      sixtieth happened to be: an edition could appear with seven of its eleven awards
+      and nothing saying four were missing. {@see PublicResults::index} caps editions
+      now, and each one arrives whole.
+    #}
+    {% for e in editions|default([]) %}
+      <section class="rx-ed" aria-labelledby="ed-{{ e.cycle_id }}">
+        <header class="rx-ed__h">
+          <div>
+            <p class="rx-ed__kick">{{ e.programme }}</p>
+            <h2 class="rx-ed__t" id="ed-{{ e.cycle_id }}">{{ e.edition ?: e.year }}</h2>
+          </div>
+          <p class="rx-ed__n">
+            {{ e.awards|length }} award{{ e.awards|length == 1 ? '' : 's' }}
+            {%- if e.held %} · {{ e.held }} withheld{% endif %}
+          </p>
+        </header>
+
+        {% if e.awards|length %}
+        <ul class="rx-list">
+          {% for c in e.awards %}
+            <li class="rx-item">
+              <a class="rx-a" href="{{ c.url }}">
+                <div>
+                  {# The programme and year are the heading above, so the row carries the
+                     category alone. Repeating them on every line is what made the old
+                     list unreadable at eleven awards. #}
+                  <h3 class="rx-cat">{{ c.category.title }}</h3>
+                  <p class="rx-won"><b>{{ c.winner.name }}</b>{% if c.dead_heat %} — dead heat, separated by nominee id{% endif %}</p>
+                </div>
+                <div class="rx-score">
+                  <div class="rx-cpi">{{ c.winner.cpi }}<span> / 1000</span></div>
+                  {# The split, and nothing more. The arithmetic behind it is on the award's
+                     own page, one click away — a list of sixty decompositions is a
+                     spreadsheet, and nobody checks a spreadsheet they did not ask for. #}
+                  <p class="rx-split"><i>{{ c.winner.community_points }} community</i> · {{ c.winner.judge_points }} judges</p>
+                </div>
+              </a>
+            </li>
+          {% endfor %}
+        </ul>
+        {% else %}
+          {# Named, not dropped. A released edition that disappears reads as one that
+             never happened. #}
+          <p class="rx-ed__held">Every award in this edition is decided and not yet
+            published — see the note at the foot of this page.</p>
+        {% endif %}
+      </section>
+    {% endfor %}
   {% else %}
     <div class="rx-empty">
       <h2>No award has been decided yet</h2>

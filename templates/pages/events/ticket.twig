@@ -688,7 +688,15 @@
 #}
 {% set where = event ? [event.venue|default(''), event.location|default('')]|filter(v => v) : [] %}
 
-<div class="tk{{ dark ? ' tk--dark' : '' }}">
+{# ── THE FIRST TIME, AND ONLY THE FIRST ──────────────────────────────────────
+   A ticket is a thing somebody holds: opened on the way, opened again at the door,
+   opened once more to show a friend. Confetti on every one of those is a page that
+   will not let you read your own seat number. Keyed on the ticket code, so the
+   moment belongs to getting it — and every viewing after that is a document.
+
+   `reg` is null on the broken-link state above, which renders none of this, so a
+   ticket that could not be found cannot celebrate. #}
+<div class="tk{{ dark ? ' tk--dark' : '' }}"{% if reg and reg.ticket_code|default('') %} data-celebrate="ticket-{{ reg.ticket_code }}"{% endif %}>
 
 {% if reg is null %}
   <div class="tk__lost">
@@ -747,7 +755,7 @@
          in the stylesheet above. #}
       <span class="tk__scrim" aria-hidden="true"
             style="background:linear-gradient(to top,{{ D.accent }}F7 0%,{{ D.accent }}F2 48%,{{ D.accent }}B0 62%,{{ D.accent }}00 78%)"></span>
-      <div class="tk__title">
+      <div class="tk__title" data-celebrate-anchor>
         {# The kicker, in the compact form a ticket uses — `05.09.26 · IGANDO, LAGOS`. The
            written-out date is in the stub, where it is read rather than recognised. #}
         <p class="tk__kick">
@@ -1026,6 +1034,7 @@
 {% endblock %}
 
 {% block foot_scripts %}
+{% if reg and reg.ticket_code|default('') %}{% include 'partials/celebrate.twig' only %}{% endif %}
 {% if reg is not null %}
 {# The only script on the page, and nothing depends on it: `data-tk` attributes rather than
    inline handlers, because CspTest fails the build on an inline event handler. #}

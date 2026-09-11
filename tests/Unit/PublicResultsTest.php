@@ -1076,9 +1076,12 @@ final class PublicResultsTest extends TestCase
 
     private function renderIndex(array $i): string
     {
-        return $this->twig()->render('pages/results/index.twig', [
+        // SPREAD, not a hand-picked subset. This named `items` and `held`, so the day the
+        // page started rendering `editions` the test drew an empty list and failed on the
+        // winner's name — a failure that reads as the page being broken when the only
+        // thing missing was a key this helper had not been told about.
+        return $this->twig()->render('pages/results/index.twig', $i + [
             'page_title' => 'Results', 'gates_page' => 'results',
-            'items' => $i['items'], 'held' => $i['held'],
             // The service's own output, exactly as the controller passes it: a payload
             // this test invented could render a notice the site would never produce.
             'delayed' => PublicResults::delayed(),

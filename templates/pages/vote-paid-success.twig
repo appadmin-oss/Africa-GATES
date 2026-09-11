@@ -45,6 +45,14 @@
     sp_body: 'Start here and the reference travels with you. A person decides every refund, but the assistant opens the support ticket and makes sure it reaches them with everything attached.'
   } %}
 {% else %}
+  {# `sc_celebrate` below is gated on MINTED, not merely confirmed. The two come apart
+     when a payment initiated inside the voting window confirms after it closes, and
+     this page already exists in three states because celebrating the wrong one told a
+     buyer their votes were in a tally that had never received them. Keyed on the
+     reference, so somebody reopening the receipt gets a receipt.
+
+     The note is HERE and not beside the key: a Twig comment inside a hash literal
+     closes the brace — `#}` ends the map — and the page then fails to parse at all. #}
   {% include 'partials/success.twig' with {
     sc_accent: 'green',
     sc_art: 'green',
@@ -61,6 +69,7 @@
     sc_secondary: { label: 'See the leaderboard', href: '/leaderboard' },
     sc_email_note: minted ? 'A receipt is on its way to your email.' : null,
     sc_confetti: minted,
+    sc_celebrate: minted and reference ? 'paidvote-' ~ reference : '',
     sc_next_label: 'What happens next',
     sc_steps: minted ? [
       'The public tally updates immediately; leaderboards refresh every few minutes.',

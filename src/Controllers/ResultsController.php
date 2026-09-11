@@ -57,6 +57,9 @@ final class ResultsController
             'current_section'  => 'projects',
             'has_hero'         => false,
             'items'            => $r['items'],
+            // The page renders editions; `items` stays for anything that wants the
+            // flat list. See PublicResults::index() for why the cap is on editions.
+            'editions'         => $r['editions'],
             'held'             => $r['held'],
             // ── AND THE AWARDS THAT ARE LATE ─────────────────────────────────
             //

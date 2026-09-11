@@ -112,23 +112,44 @@ class PaidVoteReceiptTest extends TestCase
     public function test_the_unminted_state_does_not_celebrate(): void
     {
         // Confetti over a refused order would be the same lie told visually.
-        // Matched on the emitted markup, not the class name: the partial's
-        // stylesheet defines .sc-flake unconditionally, so a bare substring
-        // search would pass no matter what the page rendered.
+        // ASSERTS THE RULE, NOT THE ORNAMENT. This pinned `class="sc-flake"` — the nine
+        // CSS petals inside the partial's art tile — and so it failed the day the page
+        // started firing the real celebration instead, which suppresses those petals
+        // rather than stacking a second confetti system on one screen. The thing that
+        // must stay true is that a receipt for votes nobody counted does not celebrate,
+        // by any means at all; `celebrates()` below is every means there is.
         $this->seedCycle('-1 day');
         $this->order(votesUsed: 0);
 
-        $this->assertStringNotContainsString('class="sc-flake"', $this->receipt('AFG-PVOTE-abc123'));
+        $this->assertFalse(self::celebrates($this->receipt('AFG-PVOTE-abc123')),
+            'a payment that minted no votes was celebrated');
     }
 
     public function test_a_minted_order_does_celebrate(): void
     {
         // The positive control for the assertion above — without it, that test
-        // would still pass if confetti stopped rendering entirely.
+        // would still pass if the celebration stopped rendering entirely.
         $this->seedCycle('+7 days');
         $this->order(votesUsed: 75);
 
-        $this->assertStringContainsString('class="sc-flake"', $this->receipt('AFG-PVOTE-abc123'));
+        $html = $this->receipt('AFG-PVOTE-abc123');
+        $this->assertTrue(self::celebrates($html), 'a minted order got no celebration');
+        // And it is the choreographed one keyed to this receipt, so reopening it is a
+        // receipt rather than a party.
+        $this->assertStringContainsString('data-celebrate="paidvote-AFG-PVOTE-abc123"', $html);
+    }
+
+    /**
+     * Does this page celebrate, by any mechanism?
+     *
+     * Matched on EMITTED MARKUP, never on a class name alone: the partial's stylesheet
+     * defines `.sc-flake` unconditionally, so a bare substring search passes whatever the
+     * page rendered.
+     */
+    private static function celebrates(string $html): bool
+    {
+        return str_contains($html, 'class="sc-flake"')
+            || str_contains($html, 'data-celebrate="');
     }
 
     public function test_an_unknown_reference_still_renders_the_pending_state(): void
