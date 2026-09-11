@@ -1,0 +1,22 @@
+{# ── The winner's moment ─────────────────────────────────────────────────────
+   Include INSIDE the markup that already names the winner, so the celebration
+   cannot outlive the thing it is celebrating — a held or delayed result renders
+   no winner block, and therefore no include, and therefore no confetti.
+
+   Usage:
+     {% include 'partials/celebrate.twig' with { key: r.slug } only %}
+
+   `key` makes it once-per-result rather than once-per-browser: somebody who
+   reads three categories should see three celebrations, and somebody who
+   reopens one should see a document.
+
+   The page marks what to animate with two attributes and nothing else:
+     data-celebrate="<key>"     on the wrapper
+     data-celebrate-figure      the number to count up (optional)
+     data-celebrate-anchor      what the second burst falls from (optional)
+
+   Both scripts are DEFERRED and neither renders anything. If they never arrive
+   the page is exactly the page: the name, the index and the breakdown are the
+   server's output and nothing here reveals them. #}
+<script nonce="{{ csp_nonce }}" src="{{ asset('/assets/js/vendor/canvas-confetti-1.9.3.js') }}" defer></script>
+<script nonce="{{ csp_nonce }}" src="{{ asset('/assets/js/celebrate.js') }}" defer></script>

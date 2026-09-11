@@ -32,6 +32,7 @@ two can never drift apart silently.
 | `alpine-3.13.5.min.js` | `alpinejs@3.13.5` | `dist/cdn.min.js` |
 | `d3-7.9.0.min.js` | `d3@7.9.0` | `dist/d3.min.js` — bundles `d3-geo`, for the homepage globe band |
 | `topojson-client-3.1.0.min.js` | `topojson-client@3.1.0` | `dist/topojson-client.min.js` |
+| `canvas-confetti-1.9.3.js` | `canvas-confetti@1.9.3` | `dist/confetti.browser.js` |
 | `gsap-3.12.5.min.js` | `gsap@3.12.5` | `dist/gsap.min.js` |
 | `gsap-scrolltrigger-3.12.5.min.js` | `gsap@3.12.5` | `dist/ScrollTrigger.min.js` |
 | `lottie-web-5.12.2.light.min.js` | `lottie-web@5.12.2` | `build/player/lottie_light.min.js` |
@@ -58,6 +59,10 @@ by `globe-band.js` at runtime rather than loaded as a `<script>` — so it rides
 one instruction in `docs/GLOBE-BAND.md` deliberately not followed: this directory exists
 because CDN-fetched assets were the supply-chain exposure it was created to close, and
 `ThirdPartyScriptIntegrityTest` enforces it. Same bytes, published source, pinned version.
+
+**`canvas-confetti-1.9.3.js` is the unminified file**, because the package ships only
+`dist/confetti.browser.js` — there is no minified build to take. 25 KB, deferred, and
+loaded on one page: the award result, and only where a winner is actually named.
 
 **`nprogress-0.2.0.js` is the unminified file**, because the package does not ship a
 minified one. The old URL asked jsDelivr for `nprogress.min.js`, which the package has

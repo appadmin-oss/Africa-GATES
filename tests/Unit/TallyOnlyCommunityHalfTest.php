@@ -277,10 +277,9 @@ final class TallyOnlyCommunityHalfTest extends TestCase
             new ArrayLoader(['admin/layout.twig' => self::ADMIN_LAYOUT]),
             new FilesystemLoader(dirname(__DIR__, 2) . '/templates'),
         ]), ['strict_variables' => true]);
-        $twig->addGlobal('csp_nonce', 'test-nonce');
-        // A Twig GLOBAL in the running app, not a controller argument. See
-        // ResultReleaseScreenRenderTest, which pays for this in the same way.
-        $twig->addGlobal('csrf_token', 'test-csrf');
+        // A Twig GLOBAL in the running app, not a controller argument — and so are the
+        // FUNCTIONS a screen may start calling. See Tests\Support\AppTwig.
+        \Tests\Support\AppTwig::equip($twig, ['csp_nonce' => 'test-nonce', 'csrf_token' => 'test-csrf']);
 
         $cycle = ['id' => $this->cycleId, 'year' => 2026, 'status' => 'results',
                   'edition_label' => '2026 edition', 'results_date' => null,
@@ -313,7 +312,7 @@ final class TallyOnlyCommunityHalfTest extends TestCase
             new ArrayLoader(['layout/gates.twig' => self::SITE_LAYOUT]),
             new FilesystemLoader(dirname(__DIR__, 2) . '/templates'),
         ]), ['strict_variables' => true]);
-        $twig->addGlobal('csp_nonce', 'test-nonce');
+        \Tests\Support\AppTwig::equip($twig, ['csp_nonce' => 'test-nonce']);
 
         return (string) preg_replace('~\s+~u', ' ', $twig->render('pages/results/show.twig', [
             'page_title' => 'Result', 'gates_page' => 'results',

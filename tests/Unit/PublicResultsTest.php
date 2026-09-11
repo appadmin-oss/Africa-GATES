@@ -1054,7 +1054,11 @@ final class PublicResultsTest extends TestCase
             new ArrayLoader(['layout/gates.twig' => self::LAYOUT]),
             new FilesystemLoader(dirname(__DIR__, 2) . '/templates'),
         ]), ['strict_variables' => true]);
-        $t->addGlobal('csp_nonce', 'test-nonce');
+        // The app's own functions, filters and globals. A bare Environment has none of
+        // them, so a SHIPPED screen adopting one breaks this test for a reason that has
+        // nothing to do with what it asserts — `asset()` on the result page did exactly
+        // that to three test classes at once. See Tests\Support\AppTwig.
+        \Tests\Support\AppTwig::equip($t, ['csp_nonce' => 'test-nonce']);
 
         return $t;
     }

@@ -132,7 +132,7 @@ final class ReleasedStandingTest extends TestCase
                 new \Twig\Loader\FilesystemLoader(dirname(__DIR__, 2) . '/templates'),
             ]),
             ['strict_variables' => true]);
-        $twig->addGlobal('csp_nonce', 'test-nonce');
+        \Tests\Support\AppTwig::equip($twig, ['csp_nonce' => 'test-nonce']);
 
         // Whitespace-normalised: the page wraps its prose across lines, so a claim about
         // what it SAYS must not turn into a claim about where the template breaks.

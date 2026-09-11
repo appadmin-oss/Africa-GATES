@@ -59,7 +59,10 @@
 
   .rs-idx{ text-align:right; }
   .rs-idx__n{ font:700 clamp(2.4rem,7vw,3.4rem)/1 var(--ag-font-mono); font-variant-numeric:tabular-nums; }
-  .rs-idx__n span{ font-size:.34em; color:var(--ag-ink-soft); }
+  /* Scoped to the SUFFIX by class. It was a bare `span` descendant rule, which also matches the
+     count-up hook added inside the figure — the winning index would have rendered at
+     a third of its size in the soft ink, on the one line the page exists for. */
+  .rs-idx__n .rs-idx__u{ font-size:.34em; color:var(--ag-ink-soft); }
   .rs-idx__s{ margin:8px 0 0; font:600 11px/1.5 var(--ag-font-mono); letter-spacing:.07em;
               text-transform:uppercase; color:var(--ag-ink-soft); font-variant-numeric:tabular-nums; }
   .rs-idx__s i{ font-style:normal; color:var(--ag-green); }
@@ -181,13 +184,17 @@
       {{ held }}. Nothing is published here until every part of the index can be shown —
       the community half, the judges’ half, and the denominator each was measured against.</p>
   {% else %}
-    <div class="rs-win">
+    {# `data-celebrate` is the whole integration — see partials/celebrate.twig. It sits
+       INSIDE the not-held branch, so a result that names nobody cannot celebrate one.
+       The figure and the name are the server's output; the script animates what is
+       already here and reveals nothing. #}
+    <div class="rs-win" data-celebrate="{{ r.slug }}">
       <div>
-        <span class="rs-badge">{{ r.dead_heat ? 'Dead heat' : 'Winner' }}</span>
+        <span class="rs-badge" data-celebrate-anchor>{{ r.dead_heat ? 'Dead heat' : 'Winner' }}</span>
         <h2 class="rs-name">{{ w.name }}</h2>
       </div>
       <div class="rs-idx">
-        <div class="rs-idx__n">{{ w.cpi }}<span> / 1000</span></div>
+        <div class="rs-idx__n"><span data-celebrate-figure>{{ w.cpi }}</span><span class="rs-idx__u"> / 1000</span></div>
         <p class="rs-idx__s"><i>{{ w.community_points }} community</i> · {{ w.judge_points }} judges</p>
       </div>
     </div>
@@ -630,6 +637,10 @@
 {% endblock %}
 
 {% block foot_scripts %}
+{# Only where a winner is actually named. `held` is set at TEMPLATE scope above, which is
+   the only reason it can be read from this block at all — a `{% set %}` inside `content`
+   would arrive here as null and celebrate every held result on the site. #}
+{% if not held %}{% include 'partials/celebrate.twig' with { key: r.slug } only %}{% endif %}
 <script nonce="{{ csp_nonce }}">
 (function () {
   'use strict';
