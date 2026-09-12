@@ -199,6 +199,13 @@ final class ResultRelease
             $rows[] = [
                 'nominee_id'  => (int) $nid,
                 'name'        => (string) ($n->name ?? 'Nominee #' . $nid),
+                // THE FACE. Carried on the row rather than fetched by whichever screen
+                // wants one: a results page that looks up a portrait per winner turns an
+                // edition of eleven awards into eleven extra queries, and the nominee is
+                // already loaded here. Empty where none was uploaded — `media_url` is
+                // safe on an empty path and every surface has to handle a nominee with
+                // no photograph, because plenty have none.
+                'photo'       => (string) ($n->photo_path ?? ''),
                 'status'      => (string) ($n->status ?? ''),
                 'cpi'         => $cpi,
                 'community_points' => $cPts,

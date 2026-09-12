@@ -31,8 +31,13 @@
                 text-transform:uppercase; color:var(--ag-ink-soft); }
   .rx-ed__t{ margin:0; font-family:var(--ag-font-display); font-weight:700;
              font-size:clamp(1.5rem,3.4vw,2rem); letter-spacing:-.02em; line-height:1.1; }
+  .rx-ed__t a{ color:inherit; text-decoration:none; border-bottom:2px solid transparent; }
+  .rx-ed__t a:hover{ border-color:var(--ag-green); }
+  .rx-ed__t a:focus-visible{ outline:3px solid var(--ag-green); outline-offset:3px; }
   .rx-ed__n{ margin:0; font:600 11.5px/1.4 var(--ag-font-mono); letter-spacing:.06em;
              text-transform:uppercase; color:var(--ag-ink-soft); white-space:nowrap; }
+  .rx-ed__n a{ color:inherit; text-decoration:none; }
+  .rx-ed__n a:hover{ color:var(--ag-green); }
   .rx-ed__held{ margin:16px 0 0; font-size:14.5px; line-height:1.65; color:#4a5256; }
 
   .rx-list{ list-style:none; margin:0; padding:0; }
@@ -179,11 +184,16 @@
         <header class="rx-ed__h">
           <div>
             <p class="rx-ed__kick">{{ e.programme }}</p>
-            <h2 class="rx-ed__t" id="ed-{{ e.cycle_id }}">{{ e.edition ?: e.year }}</h2>
+            {# The heading IS the link to the edition's own page. An edition is the thing
+               people name — "the 2026 Principal Awards" — and until it had a page there
+               was nowhere for that name to point. #}
+            <h2 class="rx-ed__t" id="ed-{{ e.cycle_id }}">
+              <a href="{{ e.url }}">{{ e.edition ?: e.year }}</a>
+            </h2>
           </div>
           <p class="rx-ed__n">
-            {{ e.awards|length }} award{{ e.awards|length == 1 ? '' : 's' }}
-            {%- if e.held %} · {{ e.held }} withheld{% endif %}
+            <a href="{{ e.url }}">{{ e.awards|length }} award{{ e.awards|length == 1 ? '' : 's' }}
+            {%- if e.held %} · {{ e.held }} withheld{% endif %} &rarr;</a>
           </p>
         </header>
 

@@ -1806,6 +1806,12 @@ return function(App $app) {
         $g->get('/results',                    ResultsController::class.':index');
         $g->get('/results/{slug:[0-9]+[^/]*}/card.png', ResultsController::class.':card');
         $g->get('/results/{slug:[0-9]+[^/]*}', ResultsController::class.':show');
+        // ONE EDITION. Declared after the award route and DISJOINT from it by
+        // construction rather than by ordering: that pattern begins with a digit and this
+        // one with a letter, so neither can ever shadow the other — which is the fault
+        // RouteTableIntegrityTest exists to catch, and the reason the constraint is
+        // written out instead of a bare `{edition}`.
+        $g->get('/results/{edition:[a-z][a-z0-9-]*}', ResultsController::class.':edition');
         $g->get('/judges',        JudgesController::class.':index');
         $g->get('/judges/{slug}', JudgesController::class.':show');
         $g->get('/registry',      RegistryController::class.':index');

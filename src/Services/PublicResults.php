@@ -164,7 +164,7 @@ final class PublicResults
             'programme_slug' => (string) ($ctx->programme_slug ?? ''),
             'cycle_id'    => (int) $ctx->cycle_id,
             'cycle_year'  => (int) ($ctx->year ?? 0),
-            'edition'     => self::edition($ctx),
+            'edition'     => self::edition_($ctx),
             'slug'        => self::slug($categoryId, (string) ($ctx->title ?? '')),
             'url'         => '/results/' . self::slug($categoryId, (string) ($ctx->title ?? '')),
             'released_at' => (string) ($ctx->results_date ?? ''),
@@ -259,7 +259,7 @@ final class PublicResults
                 // it. An edition whose every award is withheld has no such award, and the
                 // first version of this took the label from one — so the one edition that
                 // most needs explaining would have rendered with a blank heading.
-                ->get(['cy.id', 'cy.year', 'cy.edition_label', 'p.title as programme']);
+                ->get(['cy.id', 'cy.year', 'cy.edition_label', 'p.title as programme', 'p.slug as programme_slug']);
 
             $cycleIds = array_map(static fn ($c) => (int) $c->id, $cycles->all());
             if ($cycleIds === []) return $empty;
@@ -310,8 +310,11 @@ final class PublicResults
             $editions[] = [
                 'cycle_id'  => $cid,
                 'programme' => (string) ($cy->programme ?? ''),
-                'edition'   => self::edition($cy),
+                'edition'   => self::edition_($cy),
                 'year'      => (int) ($cy->year ?? 0),
+                // Built by the one minter, so the link on this page and the route that
+                // serves it cannot come to disagree about the shape of an edition URL.
+                'url'       => self::editionUrl((string) ($cy->programme_slug ?? ''), (int) ($cy->year ?? 0)),
                 'awards'    => $awards,
                 'held'      => $heldBy[$cid] ?? 0,
                 // The edition's own headline: the highest index anybody reached in it.
@@ -324,6 +327,112 @@ final class PublicResults
         }
 
         return ['items' => $items, 'held' => $held, 'editions' => $editions];
+    }
+
+    /**
+     * The URL of an edition's own page, and the only place its shape is decided.
+     *
+     * `{programme-slug}-{year}` — `/results/alimosho-incredible-principal-awards-2026`.
+     * Readable, guessable, and disjoint from the award route by construction: that one is
+     * `{slug:[0-9]+[^/]*}` and begins with a digit, so a programme slug beginning with a
+     * letter can never be served by it. {@see editionSlug} is the inverse and they are
+     * written together, because a minter and a parser that drift produce a page that
+     * links to itself and 404s.
+     */
+    public static function editionUrl(string $programmeSlug, int $year): string
+    {
+        return '/results/' . self::editionSlug($programmeSlug, $year);
+    }
+
+    public static function editionSlug(string $programmeSlug, int $year): string
+    {
+        $p = strtolower(trim($programmeSlug));
+        $p = (string) preg_replace('~[^a-z0-9]+~', '-', $p);
+        $p = trim($p, '-');
+        // A programme with no usable slug still needs a URL that resolves, and `edition`
+        // is a word no programme slug can be mistaken for once the year is appended.
+        return ($p !== '' ? $p : 'edition') . '-' . $year;
+    }
+
+    /**
+     * ONE EDITION, DRAWN WHOLE — every award in it, in the order it is presented.
+     *
+     * Returns null when the slug names nothing released, which the controller turns into
+     * a 404. A released cycle whose every award is withheld is NOT null: it exists, it was
+     * announced, and a page saying so is the honest answer. `awards` is then empty and
+     * `held` says how many.
+     *
+     * @return array<string,mixed>|null
+     */
+    public static function edition(string $slug): ?array
+    {
+        // The year is the trailing four digits; everything before it is the programme.
+        if (!preg_match('~^(?<p>[a-z0-9-]*?)-(?<y>\d{4})$~', strtolower(trim($slug)), $m)) {
+            return null;
+        }
+        $programmeSlug = (string) $m['p'];
+        $year          = (int) $m['y'];
+
+        try {
+            $cy = DemoSeeder::notSandbox(
+                DB::table('gates_award_cycles as cy')
+                    ->join('gates_award_programmes as p', 'p.id', '=', 'cy.programme_id')
+                    ->whereIn('cy.status', self::RELEASED)
+                    ->where('cy.year', $year),
+                'cy.programme_id')
+                // Matched on the SLUG the URL was built from, not on the title: a
+                // programme renamed after an announcement keeps the URL it was announced
+                // under, which is the one in the congratulations email and the press.
+                ->where('p.slug', $programmeSlug)
+                ->orderByDesc('cy.id')
+                ->first(['cy.id', 'cy.year', 'cy.edition_label', 'cy.results_date',
+                         'p.title as programme', 'p.slug as programme_slug']);
+            if (!$cy) return null;
+
+            $catIds = DB::table('gates_award_categories')
+                ->where('cycle_id', (int) $cy->id)
+                ->orderBy('sort_order')->orderBy('id')
+                ->pluck('id')->all();
+        } catch (\Throwable) {
+            return null;
+        }
+
+        // One scorer for the whole edition — it memoises the edition scale per cycle, so
+        // eleven awards read the cycle once rather than eleven times.
+        $scoring = new NomineeScoringService();
+
+        $awards = [];
+        $held   = 0;
+        foreach ($catIds as $id) {
+            $c = self::category((int) $id, $scoring);
+            if ($c === null) continue;
+            if ($c['held'] !== null) { $held++; continue; }
+            $awards[] = $c;
+        }
+
+        // The edition's headline: the highest index anybody in it reached. Not a separate
+        // award and never presented as one — it is the answer to "who led this edition",
+        // which is the question a reader arrives with and the old list could not answer.
+        $top = null;
+        foreach ($awards as $a) {
+            if ($top === null || (float) ($a['winner']['cpi'] ?? 0) > (float) ($top['winner']['cpi'] ?? 0)) {
+                $top = $a;
+            }
+        }
+
+        return [
+            'cycle_id'   => (int) $cy->id,
+            'programme'  => (string) $cy->programme,
+            'programme_slug' => (string) $cy->programme_slug,
+            'year'       => (int) $cy->year,
+            'edition'    => self::edition_($cy),
+            'announced'  => (string) ($cy->results_date ?? ''),
+            'slug'       => self::editionSlug((string) $cy->programme_slug, (int) $cy->year),
+            'url'        => self::editionUrl((string) $cy->programme_slug, (int) $cy->year),
+            'awards'     => $awards,
+            'held'       => $held,
+            'top'        => $top,
+        ];
     }
 
     /**
@@ -396,7 +505,7 @@ final class PublicResults
             $out[] = [
                 'cycle_id'  => (int) $r->id,
                 'programme' => (string) ($r->programme ?? ''),
-                'edition'   => self::edition($r),
+                'edition'   => self::edition_($r),
                 'promised'  => (string) ($r->results_date ?? ''),
                 'note'      => self::delayNote((int) $r->id),
                 // How many awards are waiting, so the sentence can be about the right
@@ -534,7 +643,7 @@ final class PublicResults
      * printed the wall-clock year once and told a winner they had taken an edition that did
      * not exist; a page that outlives the cycle by years must not repeat it.
      */
-    private static function edition(object $ctx): string
+    private static function edition_(object $ctx): string
     {
         $label = trim((string) ($ctx->edition_label ?? ''));
         return $label !== '' ? $label : (string) ((int) ($ctx->year ?? 0) ?: '');

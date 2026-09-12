@@ -530,10 +530,31 @@ final class EditionScaleTest extends TestCase
                 if (preg_match('/\bfunction\s+\w+\s*\(/', $line)) { $fnAt = $i; $loop = false; }
                 if (preg_match('/\b(foreach|for|while)\s*\(/', $line)) $loop = true;
 
-                if (!preg_match('/\b(PublicResults|ResultRelease)::category\s*\(/',
+                // `self::` AND `static::`, NOT ONLY THE QUALIFIED NAMES. The pattern was
+                // `(PublicResults|ResultRelease)::category(`, and both of the loops that
+                // draw a whole cycle live INSIDE PublicResults and call `self::category()`
+                // — so the one class most able to commit this fault was the one class the
+                // sweep could not see. Verified by removing a `$scoring` argument from
+                // each and watching this name it.
+                //
+                // Scoped to those two files, because `self::category()` in any other class
+                // is a different method with a different meaning.
+                $own = in_array(basename($file->getPathname()),
+                                ['PublicResults.php', 'ResultRelease.php'], true);
+                $callers = $own ? 'PublicResults|ResultRelease|self|static' : 'PublicResults|ResultRelease';
+                if (!preg_match('/\b(' . $callers . ')::category\s*\(/',
                                 $line, $m, PREG_OFFSET_CAPTURE)) continue;
                 // `{@see …::category()}` in a docblock is not a call.
                 if (str_contains($line, '@see') || str_contains($line, '*')) continue;
+                // NEITHER IS A LINE COMMENT. Docblocks were excused and `//` was not, so
+                // any comment that NAMED this method was reported as an unshared call —
+                // and the comments most likely to name it are the ones explaining why a
+                // particular call site shares a scorer, i.e. exactly the code this sweep
+                // is trying to protect. A sweep that punishes its own documentation
+                // teaches people to stop writing it. Position-checked rather than
+                // line-skipped, so `$x = Foo::category($id); // note` is still an offence.
+                $slash = strpos($line, '//');
+                if ($slash !== false && $slash < $m[0][1]) continue;
                 if (!$loop || $fnAt < 0) continue;
 
                 // The argument list, with balanced parens — `(int) $catId` is one argument

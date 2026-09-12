@@ -72,6 +72,46 @@ final class ResultsController
         ]);
     }
 
+    /**
+     * GET /results/{edition} — one edition, drawn whole.
+     *
+     * The page an award programme is actually known by: "the 2026 Principal Awards", not
+     * "Teachers' Choice". It is the shareable URL for an announcement, the thing press
+     * link to, and the only page that answers "who won this year" without a reader
+     * assembling it from a list.
+     */
+    public function edition(Request $req, Response $res, array $args = []): Response
+    {
+        $e = PublicResults::edition((string) ($args['edition'] ?? ''));
+        if ($e === null) throw new \Slim\Exception\HttpNotFoundException($req);
+
+        $base  = \AfricaGates\Support\SiteUrl::base($req);
+        $names = array_slice(array_map(
+            static fn (array $a) => (string) ($a['winner']['name'] ?? ''), $e['awards']), 0, 3);
+
+        return $this->view->render($res, 'pages/results/edition.twig', [
+            'page_title' => $e['programme'] . ' ' . ($e['edition'] ?: $e['year']) . ' — winners',
+            // A REAL sentence with REAL names. A description assembled from the page's own
+            // headings is what every untended site emits, and it is why they all look the
+            // same in a result list; the names are the reason somebody clicks.
+            'meta_description' => $e['awards'] === []
+                ? 'Results for ' . $e['programme'] . ' ' . ($e['edition'] ?: $e['year']) . '.'
+                : count($e['awards']) . ' award' . (count($e['awards']) === 1 ? '' : 's')
+                    . ' decided at ' . $e['programme'] . ' ' . ($e['edition'] ?: $e['year'])
+                    . ($names ? ', including ' . implode(', ', array_filter($names)) : '')
+                    . '. Every winner, every index, and the working behind it.',
+            'gates_page'      => 'results',
+            'current_section' => 'projects',
+            'has_hero'        => false,
+            'canonical_url'   => $base . $e['url'],
+            'e'               => $e,
+            'breadcrumbs'     => [
+                ['label' => 'Results', 'url' => '/results'],
+                ['label' => $e['programme'] . ' ' . ($e['edition'] ?: $e['year'])],
+            ],
+        ]);
+    }
+
     /** GET /results/{slug} */
     public function show(Request $req, Response $res, array $args): Response
     {

@@ -61,6 +61,11 @@ final class SitemapService
     private const SECTIONS = [
         'core'     => ['daily',   '1.0'],
         'awards'   => ['weekly',  '0.9'],
+        // A decided award is the highest-value page this platform publishes: a named
+        // person, a permanent fact, and the query somebody actually types. Priority
+        // above the ballots because it never goes stale — a result from 2024 is as
+        // true today as it was then, which is the opposite of a live vote page.
+        'results'  => ['weekly',  '0.9'],
         'nominees' => ['daily',   '0.8'],
         'registry' => ['weekly',  '0.7'],
         'events'   => ['weekly',  '0.7'],
@@ -200,6 +205,7 @@ final class SitemapService
                 'core'     => self::core(),
                 'help'     => self::help(),
                 'awards'   => $this->awards(),
+                'results'  => $this->results(),
                 'nominees' => $this->nominees(),
                 'registry' => $this->registry(),
                 'events'   => $this->events(),
@@ -311,6 +317,80 @@ final class SitemapService
                 'lastmod' => self::day($r->created_at ?? null),
             ], static fn($v) => $v !== null);
         }
+        return $out;
+    }
+
+    /**
+     * EVERY DECIDED AWARD, AND EVERY EDITION.
+     *
+     * ══════════════════════════════════════════════════════════════════════════
+     * THIS SECTION DID NOT EXIST
+     * ══════════════════════════════════════════════════════════════════════════
+     *
+     * Not one `/results` URL was in the sitemap — not the index, not an award, not an
+     * edition. The most linkable, most permanent, most searched content on this platform
+     * ("who won the 2026 principal awards") was discoverable only by a crawler that
+     * happened to follow an internal link and keep following.
+     *
+     * That is worse than it sounds for THIS content specifically. A ballot page is
+     * transient and rightly re-crawled; a result is permanent, and a permanent page that
+     * is never submitted is one that takes months to be found and is dropped the moment
+     * the internal link that reached it moves.
+     *
+     * ── THE STATUS FILTER IS THE WHOLE CORRECTNESS QUESTION ─────────────────
+     * Only `PublicResults::RELEASED` cycles. A judged-but-unannounced category is a
+     * decided award nobody has been told about, and submitting its URL to a search engine
+     * is announcing it — by a route nobody would think to check.
+     */
+    private function results(): array
+    {
+        if (!self::has('gates_award_cycles') || !self::has('gates_award_categories')) return [];
+
+        $released = \AfricaGates\Services\PublicResults::RELEASED;
+
+        $cycles = DB::table('gates_award_cycles as cy')
+            ->join('gates_award_programmes as p', 'p.id', '=', 'cy.programme_id')
+            ->whereIn('cy.status', $released)
+            ->orderByDesc('cy.year')
+            ->get(['cy.id', 'cy.year', 'cy.results_date', 'p.slug as programme_slug']);
+
+        $out = [];
+        foreach ($cycles as $cy) {
+            $slug = (string) ($cy->programme_slug ?? '');
+            if ($slug === '') continue;
+            // Through the one minter, so a URL submitted to a crawler and the route that
+            // serves it cannot come to disagree — a 404 in a sitemap is a penalty, not a
+            // gap.
+            $out[] = array_filter([
+                'path'    => \AfricaGates\Services\PublicResults::editionUrl($slug, (int) $cy->year),
+                'lastmod' => self::day($cy->results_date ?? null),
+            ], static fn ($v) => $v !== null);
+        }
+
+        // The awards themselves. `PublicResults::category()` decides what is publishable
+        // and it is far too expensive to run per URL here — it draws a whole standing —
+        // so the cheap structural filter is used and a category that turns out to be
+        // WITHHELD still answers 200 with its own holding page. A held URL in a sitemap
+        // is a real page saying a true thing, which is the correct trade: the alternative
+        // is scoring every award in the archive on every sitemap fetch.
+        $cats = DB::table('gates_award_categories as c')
+            ->join('gates_award_cycles as cy', 'cy.id', '=', 'c.cycle_id')
+            ->whereIn('cy.status', $released)
+            ->orderByDesc('cy.year')->orderBy('c.sort_order')
+            ->get(['c.id', 'c.title', 'cy.results_date']);
+
+        foreach ($cats as $c) {
+            $out[] = array_filter([
+                // The REAL minter, not a copy of it. A second slug function here would be
+                // the shape of fault this codebase keeps paying for: it would agree with
+                // the route today and drift the first time either changed, and the symptom
+                // is a sitemap full of 404s, which is a penalty rather than a gap.
+                'path'    => '/results/' . \AfricaGates\Services\PublicResults::slug(
+                                 (int) $c->id, (string) ($c->title ?? '')),
+                'lastmod' => self::day($c->results_date ?? null),
+            ], static fn ($v) => $v !== null);
+        }
+
         return $out;
     }
 

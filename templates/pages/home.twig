@@ -202,6 +202,43 @@
   .hm-how__btn{ position:relative; width:100%; margin-top:20px; cursor:pointer; text-decoration:none; border:0; background:#fff; color:#10292C; font-family:inherit; font-weight:600; font-size:15px; padding:14px; border-radius:999px; display:flex; align-items:center; justify-content:center; gap:7px; }
 
   /* legacy (dark) */
+  /* ── who we are celebrating ───────────────────────────────────────────────
+     Paper ground and ink, like the rest of this page. The gold is spent on the
+     EDITION page, where one winner leads; a homepage band of five equal faces is a
+     row of people, and tinting all five would make it a row of badges. */
+  .hm-win{ margin-top:clamp(4rem,8vw,7rem); }
+  .hm-win__h{ display:flex; align-items:flex-end; justify-content:space-between; gap:16px 24px;
+              flex-wrap:wrap; padding-bottom:14px; border-bottom:2px solid var(--ag-ink); }
+  .hm-win__k{ margin:0 0 6px; font:600 11px/1.4 var(--ag-font-mono); letter-spacing:.12em;
+              text-transform:uppercase; color:var(--ag-ink-soft); }
+  .hm-win__t{ margin:0; font-family:var(--ag-font-display); font-weight:700;
+              font-size:clamp(1.5rem,3.4vw,2.1rem); letter-spacing:-.02em; line-height:1.1; }
+  .hm-win__all{ font:600 12.5px/1 var(--ag-font-mono); letter-spacing:.05em; text-transform:uppercase;
+                color:var(--ag-green); text-decoration:none; display:inline-flex; align-items:center;
+                gap:6px; white-space:nowrap; }
+  .hm-win__all:hover{ color:var(--ag-green-dark); }
+  .hm-win__grid{ list-style:none; margin:22px 0 0; padding:0; display:grid;
+                 grid-template-columns:repeat(auto-fill,minmax(170px,1fr)); gap:clamp(14px,2vw,22px); }
+  .hm-win__c{ display:block; text-decoration:none; color:inherit; }
+  /* `display:block` on the box, not inline — aspect-ratio does not apply to an inline
+     span, and the winner with no photograph is the case that exposes it. */
+  .hm-win__ph{ display:block; position:relative; aspect-ratio:4/5; border-radius:12px;
+               overflow:hidden; background:var(--ag-surface-2,#f6f7f6); }
+  .hm-win__ph img{ width:100%; height:100%; object-fit:cover; display:block;
+                   transition:transform var(--ag-dur,.4s) var(--ag-ease,ease); }
+  .hm-win__c:hover .hm-win__ph img{ transform:scale(1.04); }
+  .hm-win__mono{ position:absolute; inset:0; display:flex; align-items:center; justify-content:center;
+                 font-family:var(--ag-font-display); font-weight:700; font-size:2.1rem;
+                 color:rgba(16,41,44,.22); background:linear-gradient(160deg,#eef1ef,#e4e9e6); }
+  .hm-win__cat{ display:block; margin:11px 0 3px; font:600 10px/1.4 var(--ag-font-mono);
+                letter-spacing:.1em; text-transform:uppercase; color:var(--ag-ink-soft); }
+  .hm-win__n{ display:block; font-family:var(--ag-font-display); font-weight:700;
+              font-size:1.02rem; line-height:1.25; }
+  .hm-win__c:hover .hm-win__n{ color:var(--ag-green); }
+  .hm-win__c:focus-visible .hm-win__ph{ outline:3px solid var(--ag-green); outline-offset:3px; }
+  .hm-win__past{ margin:22px 0 0; font-size:14px; color:var(--ag-ink-soft); }
+  .hm-win__past a{ color:var(--ag-green); }
+
   .hm-leg{ margin-top:clamp(4rem,8vw,7rem); }
   .hm-leg__in{ background:#10292C; border-radius:32px; overflow:hidden; display:grid; grid-template-columns:1fr 1fr; align-items:center; }
   .hm-leg__vis{ position:relative; min-height:420px; display:flex; align-items:center; justify-content:center; }
@@ -653,6 +690,50 @@
 </div>
 
 {# ── LEGACY (dark) ── #}
+{# ── WHO WE ARE CELEBRATING ──────────────────────────────────────────────────
+   The most recent edition's winners, with their faces, above the Legacy Vault band that
+   talks about recognition in the abstract. This platform spent its whole homepage saying
+   what it does and never once showed somebody it had recognised.
+
+   Absent entirely when nothing has been decided — an empty "winners" band on a platform
+   with no winners is worse than no band, and `latest_winners` is null until a cycle is
+   actually announced. #}
+{% if latest_winners and latest_winners.awards|length %}
+{% set lw = latest_winners %}
+<section class="hm-win">
+  <div class="hw">
+    <header class="hm-win__h">
+      <div>
+        <p class="hm-win__k">{{ lw.programme }}</p>
+        <h2 class="hm-win__t">{{ lw.edition ?: lw.year }} winners</h2>
+      </div>
+      <a class="hm-win__all" href="{{ lw.url }}">See the whole edition
+        <svg aria-hidden="true" width="15" height="15" viewBox="0 0 20 20" fill="none"><path d="M7.5 4.5 13 10 7.5 15.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></a>
+    </header>
+    <ul class="hm-win__grid">
+      {% for a in lw.awards|slice(0, 5) %}
+        <li>
+          <a class="hm-win__c" href="{{ a.url }}">
+            <span class="hm-win__ph">
+              {% if a.winner.photo %}
+                <img src="{{ a.winner.photo|media_url('portrait') }}" alt="{{ a.winner.name }}"
+                     width="320" height="400" loading="lazy" decoding="async">
+              {% else %}
+                <span class="hm-win__mono" aria-hidden="true">{{ a.winner.name|slice(0,1)|upper }}</span>
+              {% endif %}
+            </span>
+            <span class="hm-win__cat">{{ a.category.title }}</span>
+            <span class="hm-win__n">{{ a.winner.name }}</span>
+          </a>
+        </li>
+      {% endfor %}
+    </ul>
+    <p class="hm-win__past">Every edition this platform has decided is in
+      <a href="/results">the results archive</a>.</p>
+  </div>
+</section>
+{% endif %}
+
 <section class="hm-leg">
   <div class="hw">
     <div class="hm-leg__in">
