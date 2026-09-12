@@ -1,42 +1,90 @@
 {% extends "admin/layout.twig" %}
 {% block topbar_title %}Nominees{% endblock %}
 {% block content %}
-<form class="ad-filters" method="get" action="/admin/nominees">
-  <input type="search" name="q" value="{{ filters.q }}" placeholder="Search nominee name…">
-  <select name="cycle">
+<form class="ad-filters" method="get" action="/admin/nominees" style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap">
+  <input type="search" name="q" value="{{ filters.q }}" placeholder="Search nominee name…" aria-label="Search nominee name">
+  <select name="cycle" aria-label="Filter by cycle">
     <option value="">All cycles</option>
     {% for c in cycles %}<option value="{{ c.id }}" {% if filters.cycle == c.id %}selected{% endif %}>{{ c.title }} · {{ c.year }}</option>{% endfor %}
   </select>
-  <select name="status">
+  <select name="status" aria-label="Filter by status">
     <option value="">All statuses</option>
     {% for s in ['pending','approved','winner','runner_up'] %}<option value="{{ s }}" {% if filters.status == s %}selected{% endif %}>{{ s|capitalize|replace({'_':' '}) }}</option>{% endfor %}
   </select>
+  {% include 'admin/partials/datefields.twig' with {range: filters.range, from: filters.from, to: filters.to} only %}
   <button class="ad-btn ad-btn--primary" type="submit">Filter</button>
+  {% if filters.q or filters.cycle or filters.status or (filters.range not in ['','all']) or filters.from or filters.to %}<a class="ad-btn" href="/admin/nominees">Clear</a>{% endif %}
 </form>
+
+{% if total is defined %}
+<p style="margin:0 0 12px;font-size:13px;color:var(--ad-text-soft)">
+  {{ total|number_format }} nominee{{ total == 1 ? '' : 's' }}{% if pages > 1 %} · page {{ page }} of {{ pages }}{% endif %}
+</p>
+{% endif %}
+
+{% if admin_role in ['superadmin','admin'] %}
+{# Merge duplicates: tick the rows that are the same person, choose which one to
+   KEEP, then merge — votes + judge scores fold together. The inputs live in the
+   rows but belong to this form via form="mergeForm" (so they don't nest inside
+   the per-row action forms). All merged nominees must be in one category. #}
+<form id="mergeForm" method="post" action="/admin/nominees/merge"
+      style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin:0 0 12px;padding:10px 14px;background:var(--ad-bg,#f7faf9);border:1px solid var(--ad-line,#dfe4e3);border-radius:10px">
+  <input type="hidden" name="_token" value="{{ csrf_token }}">
+  <strong style="font-size:13px">Merge duplicates</strong>
+  <span style="font-size:12px;color:var(--ad-text-soft)">Tick the duplicate rows, pick one to <em>keep</em>, then:</span>
+  <button class="ad-btn ad-btn--sm ad-btn--primary" type="submit"
+          data-confirm="Merge the ticked nominees into the one marked “keep”? Their votes and judge scores will be combined and the duplicates removed. This can't be undone.">⤵ Merge selected</button>
+  <button class="ad-btn ad-btn--sm" type="button" id="dupScanBtn" style="margin-left:auto">⚡ Scan for duplicates</button>
+</form>
+<div id="dupScanPanel" aria-live="polite" style="margin:0 0 12px"></div>
+{% endif %}
 
 <div class="ad-card"><div class="ad-table-wrap">
   <table class="ad-table">
-    <thead><tr><th>Nominee</th><th>Programme · Category</th><th>Country</th><th>Votes</th><th>Profile (CPI link)</th><th>Status</th><th class="col-actions">Actions</th></tr></thead>
+    <thead><tr>{% if admin_role in ['superadmin','admin'] %}<th scope="col">Merge</th>{% endif %}<th scope="col">Nominee</th><th scope="col">Programme · Category</th><th scope="col">Country</th><th scope="col">Votes</th><th scope="col">Profile (CPI link)</th><th scope="col">Status</th><th scope="col" class="col-actions">Actions</th></tr></thead>
     <tbody>
       {% for r in rows %}
       <tr>
-        <td><strong>{{ r.name }}</strong><div style="font-size:12px;color:var(--ad-text-soft)">{{ r.tagline }}</div></td>
+        {% if admin_role in ['superadmin','admin'] %}
+        <td style="white-space:nowrap">
+          <label style="display:inline-flex;align-items:center;gap:4px;font-size:11px;color:var(--ad-text-soft)" title="Include in a merge">
+            <input type="checkbox" name="merge_ids[]" value="{{ r.id }}" form="mergeForm" aria-label="Select {{ r.name }} for merge">
+          </label>
+          <label style="display:inline-flex;align-items:center;gap:4px;font-size:11px;color:var(--ad-text-soft)" title="Keep this one as the survivor">
+            <input type="radio" name="keep_id" value="{{ r.id }}" form="mergeForm" aria-label="Keep {{ r.name }} as the merge survivor"> keep
+          </label>
+        </td>
+        {% endif %}
+        <td>
+          <div style="display:flex;gap:10px;align-items:center">
+            {% if r.photo_path %}
+              <img src="{{ r.photo_path|media_url('avatar') }}" alt="Photo of {{ r.name }}" width="40" height="40" loading="lazy" style="width:40px;height:40px;border-radius:8px;object-fit:cover;border:1px solid var(--ad-line,#dfe4e3);flex:none">
+            {% else %}
+              <span aria-hidden="true" style="width:40px;height:40px;border-radius:8px;background:var(--ad-bg,#eef2f1);border:1px solid var(--ad-line,#dfe4e3);display:flex;align-items:center;justify-content:center;font-weight:700;color:var(--ad-text-mute,#61728e);flex:none">{{ r.name|first|upper }}</span>
+            {% endif %}
+            <div><strong>{{ r.name }}</strong><div style="font-size:12px;color:var(--ad-text-soft)">{{ r.tagline }}</div></div>
+          </div>
+        </td>
         <td>{{ r.programme }} · {{ r.category }}<div style="font-size:11px;color:var(--ad-text-mute)">Cycle {{ r.year }}</div></td>
         <td><span style="font-family:'Space Mono',monospace">{{ r.country_code|default('—') }}</span></td>
         <td><strong style="font-family:'Space Mono',monospace">{{ r.vote_count|number_format }}</strong></td>
         <td>
           {% if r.profile_id %}
-            <a href="/registry/{{ r.profile_slug }}" target="_blank" style="font-size:12px">{{ r.profile_name }}</a>
+            <a href="/registry/{{ r.profile_slug }}" target="_blank" rel="noopener noreferrer" style="font-size:12px">{{ r.profile_name }}<span class="sr-only"> (opens in a new tab)</span></a>
+            {% if admin_role in ['superadmin','admin'] %}
             <form method="post" action="/admin/nominees/{{ r.id }}/link" style="display:inline">
               <input type="hidden" name="_token" value="{{ csrf_token }}"><input type="hidden" name="profile_slug" value="">
               <button class="ad-btn ad-btn--xs ad-btn--danger" type="submit" title="Unlink">unlink</button>
             </form>
-          {% else %}
+            {% endif %}
+          {% elseif admin_role in ['superadmin','admin'] %}
             <form method="post" action="/admin/nominees/{{ r.id }}/link" style="display:flex;gap:4px">
               <input type="hidden" name="_token" value="{{ csrf_token }}">
-              <input type="text" name="profile_slug" placeholder="profile slug" style="width:110px;font-size:12px;padding:2px 6px">
+              <input type="text" name="profile_slug" placeholder="profile slug" aria-label="Profile slug" style="width:110px;font-size:12px;padding:2px 6px">
               <button class="ad-btn ad-btn--xs" type="submit">Link</button>
             </form>
+          {% else %}
+            <span style="font-size:12px;color:var(--ad-text-mute)">—</span>
           {% endif %}
         </td>
         <td>
@@ -44,13 +92,196 @@
           <span class="ad-chip ad-chip--{{ chip }}">{{ r.status|replace({'_':' '})|capitalize }}</span>
         </td>
         <td class="col-actions">
+          {% set photo_count = r.photos|default([])|length %}
+          <details class="ad-photo-edit" style="display:inline-block;margin-bottom:4px">
+            <summary class="ad-btn ad-btn--xs" style="list-style:none;cursor:pointer">{{ photo_count > 0 ? '🖼 Photos (' ~ photo_count ~ ')' : '＋ Photo' }}</summary>
+            <div style="margin-top:6px;padding:8px;border:1px solid var(--ad-line,#dfe4e3);border-radius:8px;background:var(--ad-bg,#f7faf9);width:230px">
+              {% if photo_count > 0 %}
+              <div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:8px">
+                {% for ph in r.photos %}
+                {% set is_primary = (ph == r.photo_path) %}
+                <div style="width:64px;text-align:center">
+                  <img src="{{ ph }}" alt="Photo {{ loop.index }} of {{ r.name }}" width="64" height="64" loading="lazy"
+                       style="width:64px;height:64px;object-fit:cover;border-radius:7px;border:2px solid {{ is_primary ? 'var(--ad-accent,#237b22)' : 'var(--ad-line,#dfe4e3)' }}">
+                  {% if is_primary %}
+                    <div style="font-size:9.5px;font-weight:700;color:var(--ad-accent,#237b22);margin-top:2px">★ Primary</div>
+                  {% else %}
+                    <form method="post" action="/admin/nominees/{{ r.id }}/photo/primary" style="margin-top:2px">
+                      <input type="hidden" name="_token" value="{{ csrf_token }}"><input type="hidden" name="path" value="{{ ph }}">
+                      <button class="ad-btn ad-btn--xs" type="submit" style="font-size:9.5px;padding:1px 5px" title="Make primary">Set ★</button>
+                    </form>
+                  {% endif %}
+                  <form method="post" action="/admin/nominees/{{ r.id }}/photo/delete" style="margin-top:2px">
+                    <input type="hidden" name="_token" value="{{ csrf_token }}"><input type="hidden" name="path" value="{{ ph }}">
+                    <button class="ad-btn ad-btn--xs ad-btn--danger" type="submit" style="font-size:9.5px;padding:1px 5px" data-confirm="Remove this photo from {{ r.name }}? It comes off their public profile immediately and would have to be uploaded again." title="Remove">×</button>
+                  </form>
+                </div>
+                {% endfor %}
+              </div>
+              {% endif %}
+              <form method="post" action="/admin/nominees/{{ r.id }}/photo" enctype="multipart/form-data" style="display:flex;flex-direction:column;gap:6px">
+                <input type="hidden" name="_token" value="{{ csrf_token }}">
+                <label for="photo-{{ r.id }}" style="font-size:11px;font-weight:600;color:var(--ad-text-soft)">Add {{ photo_count > 0 ? 'another ' : '' }}photo <span style="font-weight:400">(JPEG/PNG/WebP, min 200px)</span></label>
+                <input id="photo-{{ r.id }}" type="file" name="photo" accept="image/jpeg,image/png,image/webp,image/gif" required style="font-size:12px">
+                <button class="ad-btn ad-btn--xs ad-btn--primary" type="submit">Upload</button>
+              </form>
+            </div>
+          </details>
+          {% if admin_role in ['superadmin','admin'] %}
           {% if r.status != 'winner' %}<form method="post" action="/admin/nominees/{{ r.id }}/winner" style="display:inline"><input type="hidden" name="_token" value="{{ csrf_token }}"><button class="ad-btn ad-btn--xs ad-btn--gold" type="submit">Winner</button></form>{% endif %}
           {% if r.status != 'runner_up' %}<form method="post" action="/admin/nominees/{{ r.id }}/runner_up" style="display:inline"><input type="hidden" name="_token" value="{{ csrf_token }}"><button class="ad-btn ad-btn--xs" type="submit">Runner-up</button></form>{% endif %}
-          <form method="post" action="/admin/nominees/{{ r.id }}/delete" style="display:inline"><input type="hidden" name="_token" value="{{ csrf_token }}"><button class="ad-btn ad-btn--xs ad-btn--danger" type="submit" data-confirm="Delete nominee?">×</button></form>
+          <form method="post" action="/admin/nominees/{{ r.id }}/delete" style="display:inline"><input type="hidden" name="_token" value="{{ csrf_token }}"><button class="ad-btn ad-btn--xs ad-btn--danger" type="submit" data-confirm="Delete {{ r.name }}? Their votes and judge scores are deleted with them. This cannot be undone — use Merge instead if this is a duplicate.">×</button></form>
+          {% endif %}
         </td>
       </tr>
-      {% else %}<tr><td colspan="7" style="text-align:center;color:var(--ad-text-mute);padding:30px">No nominees.</td></tr>{% endfor %}
+      {% else %}<tr><td colspan="8" style="text-align:center;color:var(--ad-text-mute);padding:30px">No nominees.</td></tr>{% endfor %}
     </tbody>
   </table>
 </div></div>
+
+{% if pages is defined and pages > 1 %}
+{% set qs = (filters.q ? '&q=' ~ filters.q : '') ~ (filters.cycle ? '&cycle=' ~ filters.cycle : '') ~ (filters.status ? '&status=' ~ filters.status : '') %}
+<div class="ad-pager">
+  {% if page > 1 %}<a href="?page={{ page - 1 }}{{ qs }}" rel="prev">← Prev</a>{% endif %}
+  {% for p in 1..pages %}
+    {% if p == page %}<span class="is-current">{{ p }}</span>
+    {% elseif p == 1 or p == pages or (p >= page - 2 and p <= page + 2) %}<a href="?page={{ p }}{{ qs }}">{{ p }}</a>
+    {% elseif p == page - 3 or p == page + 3 %}<span class="ad-pager__gap">…</span>
+    {% endif %}
+  {% endfor %}
+  {% if page < pages %}<a href="?page={{ page + 1 }}{{ qs }}" rel="next">Next →</a>{% endif %}
+</div>
+{% endif %}
+
+{# Recently merged nominees — tombstones an admin can restore. A merge is now
+   reversible: undoing moves the votes + judge scores back and relists the row. #}
+{% if admin_role in ['superadmin','admin'] and merged is defined and merged|length %}
+<details class="ad-card" style="margin-top:18px">
+  <summary style="cursor:pointer;font-weight:600;font-size:13px">↩ Recently merged ({{ merged|length }}) — undo a merge</summary>
+  <p style="font-size:11.5px;color:var(--ad-text-mute,#61728e);margin:6px 0 10px">
+    These nominees were folded into a survivor and hidden from voting, judging and the leaderboard.
+    Undoing restores the nominee and moves its votes + judge scores back off the survivor.
+  </p>
+  <ul style="list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:6px">
+    {% for m in merged %}
+    <li style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;font-size:13px">
+      <span><strong>{{ m.name }}</strong> → kept as <strong>{{ m.keep_name ?? ('#' ~ m.keep_id) }}</strong>
+        {% if m.merged_at %}<small style="color:var(--ad-text-mute,#61728e)"> · {{ m.merged_at }}</small>{% endif %}</span>
+      <form method="post" action="/admin/nominees/unmerge" style="margin-left:auto">
+        <input type="hidden" name="_token" value="{{ csrf_token }}">
+        <input type="hidden" name="merged_id" value="{{ m.id }}">
+        <button class="ad-btn ad-btn--xs" type="submit" data-confirm="Undo this merge? {{ m.name }} becomes live again and its votes + judge scores move back off the survivor.">Undo merge</button>
+      </form>
+    </li>
+    {% endfor %}
+  </ul>
+</details>
+{% endif %}
+
+{% if admin_role in ['superadmin','admin'] %}
+<script nonce="{{ csp_nonce }}">
+/* AI-assisted duplicate scan: fetch likely-same-person nominee groups for the
+   selected cycle and render each as a one-click merge form. Deterministic
+   groups always appear; AI-refined ones too when a provider is configured. */
+(function () {
+  var btn = document.getElementById('dupScanBtn');
+  var panel = document.getElementById('dupScanPanel');
+  if (!btn || !panel) return;
+  var csrf = (document.querySelector('meta[name="csrf-token"]') || {}).content || '';
+  var cycle = {{ (filters.cycle|default(0)) ?: 0 }};
+
+  function esc(s) { var d = document.createElement('div'); d.textContent = (s == null ? '' : String(s)); return d.innerHTML; }
+
+  /* WHICH nominee survives is now the admin's choice, on the evidence.
+     It used to be nominee_ids[0] — after sorting, the LOWEST ID, i.e. the oldest
+     row, picked for no reason connected to its quality. A merge keeps the
+     survivor's name, photo and profile link, so that silently discarded the better
+     record whenever the good entry happened to be the newer one. The server
+     recommends (keep_id) and a radio per member lets it be changed. */
+  function groupForm(g, gi) {
+    var members = g.members || (g.nominee_ids || []).map(function (id, i) {
+      return { id: id, name: (g.names || [])[i] || '', votes: 0, country: '', has_photo: false, linked: false, status: '' };
+    });
+    var keep = g.keep_id || members[0].id;
+    var name = 'keep_' + gi;
+
+    var rows = members.map(function (m) {
+      var facts = [];
+      if (m.votes)     facts.push(m.votes.toLocaleString() + ' vote' + (m.votes === 1 ? '' : 's'));
+      if (m.country)   facts.push(m.country);
+      if (m.has_photo) facts.push('photo');
+      if (m.linked)    facts.push('linked profile');
+      if (m.status && m.status !== 'approved') facts.push(m.status.replace('_', ' '));
+      var id = name + '_' + m.id;
+      return '<label for="' + id + '" style="display:flex;gap:8px;align-items:baseline;padding:4px 0;cursor:pointer">'
+        + '<input type="radio" id="' + id + '" name="' + name + '" value="' + parseInt(m.id, 10) + '"'
+        + (m.id === keep ? ' checked' : '') + ' style="flex:none;margin-top:3px">'
+        + '<span style="font-size:13px">' + esc(m.name)
+        + (facts.length ? '<br><small style="color:var(--ad-text-mute,#61728e)">' + esc(facts.join(' · ')) + '</small>' : '')
+        + '</span></label>';
+    }).join('');
+
+    var hidden = '<input type="hidden" name="_token" value="' + esc(csrf) + '">'
+               + '<input type="hidden" name="keep_id" value="' + parseInt(keep, 10) + '">';
+    members.forEach(function (m) { hidden += '<input type="hidden" name="merge_ids[]" value="' + parseInt(m.id, 10) + '">'; });
+
+    var conf = Math.round((g.confidence || 0) * 100);
+    var meta = [g.category, conf + '% match', g.source === 'ai' ? 'AI' : 'rule'].filter(Boolean).map(esc).join(' · ');
+
+    return '<form method="post" action="/admin/nominees/merge" data-dup-group style="padding:10px 12px;border:1px solid var(--ad-line,#dfe4e3);border-radius:8px;background:#fff;margin-bottom:8px">'
+      + hidden
+      + '<fieldset style="border:0;padding:0;margin:0 0 6px">'
+      + '<legend style="font-size:11.5px;color:var(--ad-text-mute,#61728e);padding:0">Keep which record? Votes and judge scores combine either way.</legend>'
+      + rows
+      + '</fieldset>'
+      + '<div style="display:flex;gap:10px;align-items:center;justify-content:space-between">'
+      + '<small style="color:var(--ad-text-mute,#61728e)">' + meta + (g.reason ? ' — ' + esc(g.reason) : '') + '</small>'
+      + '<button class="ad-btn ad-btn--xs ad-btn--primary" type="submit" style="flex:none" data-confirm="Merge these into one nominee? Their votes and judge scores combine; the duplicates are hidden but can be restored with Undo merge.">Merge</button>'
+      + '</div></form>';
+  }
+
+  /* Keep the hidden keep_id in step with the radio. The form posts keep_id, so a
+     changed radio that did not update it would merge into the recommendation the
+     admin just rejected — silently, and in the direction that loses a record. */
+  panel.addEventListener('change', function (e) {
+    var r = e.target;
+    if (!r || r.type !== 'radio' || r.name.indexOf('keep_') !== 0) return;
+    var form = r.closest('form[data-dup-group]');
+    if (form) form.querySelector('input[name="keep_id"]').value = r.value;
+  });
+
+  btn.addEventListener('click', function () {
+    var orig = btn.textContent; btn.disabled = true; btn.textContent = '⏳ Scanning…'; panel.innerHTML = '';
+    fetch('/admin/nominees/duplicate-scan' + (cycle ? ('?cycle=' + cycle) : ''), { headers: { 'X-Requested-With': 'fetch' }, credentials: 'same-origin' })
+      .then(function (r) { return r.json(); })
+      .then(function (j) {
+        btn.disabled = false; btn.textContent = orig;
+        if (!j.ok) { panel.innerHTML = '<p style="color:#b42318;font-size:13px">' + esc(j.error || 'Scan failed.') + '</p>'; return; }
+        /* "No duplicates" must not quietly mean "did not look". The scan reports
+           how many nominees it could not reach (skipped, over the per-category cap)
+           and how many name groups were too generic to compare (crowded), and both
+           are stated here — a clean result over a partial scan is not a clean
+           result. */
+        var caveats = [];
+        if (j.skipped) caveats.push(j.skipped.toLocaleString() + ' nominee' + (j.skipped === 1 ? '' : 's') + ' beyond the per-category scan limit were not checked');
+        if (j.crowded) caveats.push(j.crowded + ' name group' + (j.crowded === 1 ? '' : 's') + ' were too generic to compare');
+        var caveatHtml = caveats.length
+          ? '<p style="font-size:11.5px;color:#8a6d00;margin:6px 0 0">Partial scan: ' + esc(caveats.join('; ')) + '.</p>' : '';
+
+        if (!j.groups || !j.groups.length) {
+          panel.innerHTML = '<p style="color:var(--ad-text-soft);font-size:13px">No likely duplicates found'
+            + (j.ai ? ' (AI-assisted)' : '') + ' across ' + (j.scanned || 0).toLocaleString() + ' nominees.</p>' + caveatHtml;
+          return;
+        }
+        var head = '<div style="padding:10px 14px;border-left:4px solid var(--ad-accent,#237b22);background:var(--ad-bg,#f7faf9);border-radius:8px">'
+          + '<strong style="font-size:13px">' + j.groups.length + ' possible duplicate group' + (j.groups.length === 1 ? '' : 's') + '</strong>'
+          + (j.ai ? ' <span style="font-size:11px;color:var(--ad-text-mute,#61728e)">· AI-assisted</span>' : '')
+          + '<p style="font-size:11.5px;color:var(--ad-text-mute,#61728e);margin:2px 0 10px">Review each. The recommended record to keep is preselected — change it if the other entry is the better one.</p>';
+        panel.innerHTML = head + j.groups.map(groupForm).join('') + caveatHtml + '</div>';
+      })
+      .catch(function () { btn.disabled = false; btn.textContent = orig; panel.innerHTML = '<p style="color:#b42318;font-size:13px">Network error — try again.</p>'; });
+  });
+})();
+</script>
+{% endif %}
 {% endblock %}

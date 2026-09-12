@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,600;0,700;0,800;1,600&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&family=JetBrains+Mono:wght@500;600;700&display=swap" rel="stylesheet">
+<style>
+  *{box-sizing:border-box}
+  body{margin:0;font-family:'DM Sans',system-ui,sans-serif;-webkit-font-smoothing:antialiased;background:#eef0ec}
+</style>
+</helmet>
+
+<div style="min-height:100vh;background:#eef0ec">
+  <!-- NAV -->
+  <header style="position:sticky;top:0;z-index:50;background:rgba(251,251,250,.82);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);border-bottom:1px solid rgba(16,41,44,.07)">
+    <div style="max-width:1100px;margin:0 auto;padding:0 32px;height:72px;display:flex;align-items:center;justify-content:space-between;gap:28px">
+      <a href="#" style="text-decoration:none;display:flex;align-items:center;gap:11px"><span style="width:38px;height:38px;border-radius:11px;background:#10292C;display:flex;align-items:center;justify-content:center;font-family:'Playfair Display',serif;font-weight:700;font-size:21px;color:#7FC87C">G</span><span style="display:flex;flex-direction:column;line-height:1"><span style="font-family:'Playfair Display',serif;font-weight:700;font-size:17px;color:#10292C">Africa</span><span style="font-size:10px;font-weight:700;letter-spacing:.26em;color:#237b22">GATES</span></span></a>
+      <nav style="display:flex;align-items:center;gap:4px">
+        <a href="#" style="text-decoration:none;font-size:14.5px;font-weight:600;color:#3a4448;padding:9px 14px;border-radius:10px;display:flex;align-items:center;gap:7px"><span style="width:7px;height:7px;border-radius:50%;background:#e0245e"></span>Pulse</a>
+        <a href="#" style="text-decoration:none;font-size:14.5px;font-weight:500;color:#3a4448;padding:9px 14px;border-radius:10px;display:flex;align-items:center;gap:6px">Participate <svg width="11" height="11" viewBox="0 0 20 20" fill="currentColor"><path d="M13.8 7.2 10 11 6.2 7.2 5 8.3l5 5 5-5z"/></svg></a>
+        <a href="#" style="text-decoration:none;font-size:14.5px;font-weight:500;color:#3a4448;padding:9px 14px;border-radius:10px;display:flex;align-items:center;gap:6px">Explore <svg width="11" height="11" viewBox="0 0 20 20" fill="currentColor"><path d="M13.8 7.2 10 11 6.2 7.2 5 8.3l5 5 5-5z"/></svg></a>
+        <a href="#" style="text-decoration:none;font-size:14.5px;font-weight:500;color:#3a4448;padding:9px 14px;border-radius:10px">Leaderboard</a>
+      </nav>
+      <div style="display:flex;align-items:center;gap:10px">
+        <a href="#" style="text-decoration:none;font-size:14px;font-weight:600;color:#10292C;padding:9px 12px;border-radius:10px">Vote</a>
+        <a href="#" style="text-decoration:none;background:#237b22;color:#fff;font-size:14px;font-weight:600;padding:10px 20px;border-radius:999px;display:flex;align-items:center;gap:7px;box-shadow:0 8px 18px -8px rgba(35,123,34,.6)">Register <svg width="14" height="14" viewBox="0 0 20 20" fill="none"><path d="M7.5 4.5 13 10 7.5 15.5" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/></svg></a>
+      </div>
+    </div>
+  </header>
+
+  <!-- HERO -->
+  <div style="max-width:1100px;margin:24px auto 0;padding:0 32px">
+    <div style="position:relative;border-radius:26px;overflow:hidden;background:radial-gradient(130% 130% at 78% 0%,#1d5b2a,#10292C 60%);padding:54px 48px">
+      <div style="position:absolute;right:-60px;bottom:-80px;width:360px;height:360px;border-radius:50%;background:radial-gradient(circle,rgba(212,154,14,.3),transparent 68%)"></div>
+      <div style="position:relative;max-width:620px">
+        <span style="display:inline-flex;align-items:center;gap:7px;font-size:11px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:#fbc329;background:rgba(212,154,14,.16);padding:7px 14px;border-radius:999px">🏆 Inaugural edition · 2026</span>
+        <h1 style="margin:18px 0 0;font-family:'Playfair Display',serif;font-weight:800;font-size:54px;line-height:1.02;letter-spacing:-.02em;color:#fff">The Africa GATES<br>Awards Gala</h1>
+        <p style="margin:18px 0 0;font-size:16px;line-height:1.6;color:rgba(255,255,255,.82);max-width:520px">One night where the continent's most recognised are honoured in person. The CPI made physical — trophy, stage, and standing ovation.</p>
+        <div style="display:flex;align-items:center;gap:24px;margin-top:26px">
+          <div><div style="font-family:'JetBrains Mono',monospace;font-weight:700;font-size:20px;color:#7FC87C">15 Sep</div><div style="font-size:11px;color:rgba(255,255,255,.6);margin-top:2px">2026 · 18:00 WAT</div></div>
+          <div style="width:1px;height:36px;background:rgba(255,255,255,.18)"></div>
+          <div><div style="font-family:'JetBrains Mono',monospace;font-weight:700;font-size:20px;color:#fff">Eko Hotel</div><div style="font-size:11px;color:rgba(255,255,255,.6);margin-top:2px">Lagos, Nigeria</div></div>
+          <div style="width:1px;height:36px;background:rgba(255,255,255,.18)"></div>
+          <div><div style="font-family:'JetBrains Mono',monospace;font-weight:700;font-size:20px;color:#fbc329">8 awards</div><div style="font-size:11px;color:rgba(255,255,255,.6);margin-top:2px">across programmes</div></div>
+        </div>
+        <div style="display:flex;gap:12px;margin-top:30px">
+          <button onClick="{{ getTickets }}" style="cursor:pointer;border:none;background:#fff;color:#10292C;font-family:inherit;font-weight:600;font-size:15px;padding:14px 30px;border-radius:999px">Get tickets · from ₦15,000</button>
+          <button style="cursor:pointer;border:1px solid rgba(255,255,255,.28);background:none;color:#fff;font-family:inherit;font-weight:600;font-size:15px;padding:14px 26px;border-radius:999px">Watch 2025 recap</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- AWARD CATEGORIES -->
+  <div style="max-width:1100px;margin:36px auto 0;padding:0 32px">
+    <h2 style="margin:0 0 4px;font-family:'Playfair Display',serif;font-weight:700;font-size:26px;color:#10292C">The eight honours</h2>
+    <p style="margin:0 0 20px;font-size:14px;color:#717a7e">Each winner is decided by the final CPI at the close of voting.</p>
+    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:16px">
+      <div style="background:#fff;border:1px solid rgba(16,41,44,.08);border-radius:18px;padding:22px">
+        <span style="width:42px;height:42px;border-radius:12px;background:#eef7ee;color:#1a6118;display:flex;align-items:center;justify-content:center"><svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M22 10 12 5 2 10l10 5 10-5Z"/><path d="M6 12v5c0 1 2.7 2.5 6 2.5s6-1.5 6-2.5v-5"/></svg></span>
+        <div style="font-weight:600;font-size:15px;color:#10292C;margin-top:14px">Lifetime Educator</div>
+        <div style="font-size:12.5px;color:#717a7e;margin-top:5px;line-height:1.5">For decades shaping how Africa learns.</div>
+      </div>
+      <div style="background:#fff;border:1px solid rgba(16,41,44,.08);border-radius:18px;padding:22px">
+        <span style="width:42px;height:42px;border-radius:12px;background:#fff8df;color:#a47306;display:flex;align-items:center;justify-content:center"><svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg></span>
+        <div style="font-weight:600;font-size:15px;color:#10292C;margin-top:14px">Cultural Icon</div>
+        <div style="font-size:12.5px;color:#717a7e;margin-top:5px;line-height:1.5">The sound and story of a nation.</div>
+      </div>
+      <div style="background:#fff;border:1px solid rgba(16,41,44,.08);border-radius:18px;padding:22px">
+        <span style="width:42px;height:42px;border-radius:12px;background:#e9efef;color:#2b373d;display:flex;align-items:center;justify-content:center"><svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v18M5 7l-3 6a3 3 0 0 0 6 0L5 7Zm14 0-3 6a3 3 0 0 0 6 0l-3-6ZM4 7h16"/></svg></span>
+        <div style="font-weight:600;font-size:15px;color:#10292C;margin-top:14px">Integrity in Service</div>
+        <div style="font-size:12.5px;color:#717a7e;margin-top:5px;line-height:1.5">Public service when no one is watching.</div>
+      </div>
+      <div style="background:#fff;border:1px solid rgba(16,41,44,.08);border-radius:18px;padding:22px">
+        <span style="width:42px;height:42px;border-radius:12px;background:#eef7ee;color:#1a6118;display:flex;align-items:center;justify-content:center"><svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="m7 14 4-4 3 3 5-6"/></svg></span>
+        <div style="font-weight:600;font-size:15px;color:#10292C;margin-top:14px">Business Excellence</div>
+        <div style="font-size:12.5px;color:#717a7e;margin-top:5px;line-height:1.5">Building enterprise across borders.</div>
+      </div>
+      <div style="background:#fff;border:1px solid rgba(16,41,44,.08);border-radius:18px;padding:22px">
+        <span style="width:42px;height:42px;border-radius:12px;background:#fff8df;color:#a47306;display:flex;align-items:center;justify-content:center"><svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3h6M10 3v6l-5 9a2 2 0 0 0 1.8 3h10.4A2 2 0 0 0 19 18l-5-9V3"/><path d="M7.5 15h9"/></svg></span>
+        <div style="font-weight:600;font-size:15px;color:#10292C;margin-top:14px">Science &amp; Innovation</div>
+        <div style="font-size:12.5px;color:#717a7e;margin-top:5px;line-height:1.5">Discovery that moves the continent.</div>
+      </div>
+      <div style="background:#fff;border:1px solid rgba(16,41,44,.08);border-radius:18px;padding:22px">
+        <span style="width:42px;height:42px;border-radius:12px;background:#fdeaf0;color:#b03a5b;display:flex;align-items:center;justify-content:center"><svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m15 5 4 4M12 19l7-7-4-4-7 7-1 5 5-1Z"/></svg></span>
+        <div style="font-weight:600;font-size:15px;color:#10292C;margin-top:14px">Arts &amp; Heritage</div>
+        <div style="font-size:12.5px;color:#717a7e;margin-top:5px;line-height:1.5">Guardians of African expression.</div>
+      </div>
+      <div style="background:#fff;border:1px solid rgba(16,41,44,.08);border-radius:18px;padding:22px">
+        <span style="width:42px;height:42px;border-radius:12px;background:#e9efef;color:#2b373d;display:flex;align-items:center;justify-content:center"><svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="9" r="6"/><path d="M9 14.5 7.5 22l4.5-2.7L16.5 22 15 14.5"/></svg></span>
+        <div style="font-weight:600;font-size:15px;color:#10292C;margin-top:14px">Sporting Greatness</div>
+        <div style="font-size:12.5px;color:#717a7e;margin-top:5px;line-height:1.5">Champions who carried the flag.</div>
+      </div>
+      <div style="background:#fff;border:1px solid rgba(16,41,44,.08);border-radius:18px;padding:22px">
+        <span style="width:42px;height:42px;border-radius:12px;background:#eef7ee;color:#1a6118;display:flex;align-items:center;justify-content:center"><svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a15 15 0 0 1 0 18 15 15 0 0 1 0-18Z"/></svg></span>
+        <div style="font-weight:600;font-size:15px;color:#10292C;margin-top:14px">Continental Legacy</div>
+        <div style="font-size:12.5px;color:#717a7e;margin-top:5px;line-height:1.5">The single most recognised of 2026.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- SCHEDULE -->
+  <div style="max-width:1100px;margin:40px auto 0;padding:0 32px">
+    <div style="display:grid;grid-template-columns:1fr 360px;gap:28px;align-items:start">
+      <div style="background:#fff;border:1px solid rgba(16,41,44,.08);border-radius:20px;padding:28px">
+        <h2 style="margin:0 0 18px;font-family:'Playfair Display',serif;font-weight:700;font-size:22px;color:#10292C">Evening schedule</h2>
+        <div style="display:flex;flex-direction:column">
+          <sc-for list="{{ schedule }}" as="s" hint-placeholder-count="5">
+            <div style="display:flex;gap:18px;padding:14px 0;border-bottom:1px solid rgba(16,41,44,.06)">
+              <span style="flex:none;width:74px;font-family:'JetBrains Mono',monospace;font-weight:700;font-size:13px;color:#a47306">{{ s.time }}</span>
+              <div><div style="font-weight:600;font-size:14.5px;color:#10292C">{{ s.title }}</div><div style="font-size:13px;color:#717a7e;margin-top:2px">{{ s.body }}</div></div>
+            </div>
+          </sc-for>
+        </div>
+      </div>
+
+      <!-- ticket tiers preview -->
+      <div style="background:#10292C;border-radius:20px;padding:26px;position:sticky;top:88px;position:relative;overflow:hidden">
+        <div style="position:absolute;right:-40px;top:-40px;width:160px;height:160px;border-radius:50%;background:radial-gradient(circle,rgba(127,200,124,.2),transparent 68%)"></div>
+        <h3 style="margin:0;font-family:'Playfair Display',serif;font-weight:700;font-size:19px;color:#fff;position:relative">Tickets</h3>
+        <div style="display:flex;flex-direction:column;gap:11px;margin-top:16px;position:relative">
+          <sc-for list="{{ tiers }}" as="t" hint-placeholder-count="3">
+            <div style="display:flex;align-items:center;justify-content:space-between;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12);border-radius:13px;padding:13px 15px">
+              <div><div style="font-weight:600;font-size:14px;color:#fff">{{ t.name }}</div><div style="font-size:11.5px;color:rgba(255,255,255,.6);margin-top:2px">{{ t.perk }}</div></div>
+              <span style="font-family:'JetBrains Mono',monospace;font-weight:700;font-size:14px;color:#7FC87C">{{ t.price }}</span>
+            </div>
+          </sc-for>
+        </div>
+        <button onClick="{{ getTickets }}" style="width:100%;margin-top:16px;cursor:pointer;border:none;background:#7FC87C;color:#10292C;font-family:inherit;font-weight:600;font-size:15px;padding:14px;border-radius:999px;position:relative">Get tickets</button>
+        <button onClick="{{ donate }}" style="width:100%;margin-top:9px;cursor:pointer;border:1px solid rgba(255,255,255,.22);background:none;color:#fff;font-family:inherit;font-weight:600;font-size:14px;padding:12px;border-radius:999px;position:relative">Sponsor a table</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- toast -->
+  <sc-if value="{{ toastOpen }}" hint-placeholder-val="{{ false }}">
+    <div style="position:fixed;left:50%;bottom:32px;transform:translateX(-50%);z-index:90;background:#10292C;color:#fff;font-size:13.5px;font-weight:500;padding:13px 22px;border-radius:999px;box-shadow:0 16px 40px -12px rgba(0,0,0,.5)">{{ toastMsg }}</div>
+  </sc-if>
+
+  <footer style="background:#0c2225"><div style="max-width:1100px;margin:0 auto;padding:52px 32px 30px;display:grid;grid-template-columns:1.6fr 1fr 1fr 1fr;gap:40px">
+      <div>
+        <div style="display:flex;align-items:center;gap:11px;margin-bottom:16px"><span style="width:34px;height:34px;border-radius:10px;background:rgba(127,200,124,.16);display:flex;align-items:center;justify-content:center;font-family:'Playfair Display',serif;font-weight:700;font-size:18px;color:#7FC87C">G</span><span style="display:flex;flex-direction:column;line-height:1"><span style="font-family:'Playfair Display',serif;font-weight:700;font-size:16px;color:#fff">Africa</span><span style="font-size:9px;font-weight:700;letter-spacing:.26em;color:#7FC87C">GATES</span></span></div>
+        <p style="margin:0 0 18px;font-size:13.5px;line-height:1.65;color:rgba(255,255,255,.6);max-width:280px">The continental Cultural Power Index. An Afrovanguard initiative — live in Nigeria, building toward 54 nations.</p>
+        <div style="display:flex;gap:9px"><a href="#" aria-label="X" style="width:36px;height:36px;border-radius:50%;border:1px solid rgba(255,255,255,.16);display:flex;align-items:center;justify-content:center;color:rgba(255,255,255,.8);text-decoration:none" style-hover="background:#fff;color:#10292C"><svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><path d="M18.24 2.25h3.31l-7.23 8.26L22.5 21.75h-6.34l-4.97-6.5-5.68 6.5H2.2l7.73-8.84L1.5 2.25h6.5l4.49 5.94 5.75-5.94Z"/></svg></a><a href="#" aria-label="Instagram" style="width:36px;height:36px;border-radius:50%;border:1px solid rgba(255,255,255,.16);display:flex;align-items:center;justify-content:center;color:rgba(255,255,255,.8);text-decoration:none" style-hover="background:#fff;color:#10292C"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><rect x="3" y="3" width="18" height="18" rx="5"/><circle cx="12" cy="12" r="4"/><circle cx="17.5" cy="6.5" r="1" fill="currentColor" stroke="none"/></svg></a><a href="#" aria-label="LinkedIn" style="width:36px;height:36px;border-radius:50%;border:1px solid rgba(255,255,255,.16);display:flex;align-items:center;justify-content:center;color:rgba(255,255,255,.8);text-decoration:none" style-hover="background:#fff;color:#10292C"><svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><path d="M20.45 20.45h-3.55v-5.57c0-1.33-.02-3.04-1.85-3.04-1.86 0-2.14 1.45-2.14 2.94v5.67H9.36V9h3.41v1.56h.05c.48-.9 1.64-1.85 3.37-1.85 3.6 0 4.27 2.37 4.27 5.46v6.28zM5.34 7.43a2.06 2.06 0 1 1 0-4.12 2.06 2.06 0 0 1 0 4.12zM7.12 20.45H3.56V9h3.56v11.45z"/></svg></a><a href="#" aria-label="YouTube" style="width:36px;height:36px;border-radius:50%;border:1px solid rgba(255,255,255,.16);display:flex;align-items:center;justify-content:center;color:rgba(255,255,255,.8);text-decoration:none" style-hover="background:#fff;color:#10292C"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M23 12s0-3.4-.43-5.03a2.6 2.6 0 0 0-1.83-1.84C19.1 4.7 12 4.7 12 4.7s-7.1 0-8.74.43a2.6 2.6 0 0 0-1.83 1.84C1 8.6 1 12 1 12s0 3.4.43 5.03a2.6 2.6 0 0 0 1.83 1.84C4.9 19.3 12 19.3 12 19.3s7.1 0 8.74-.43a2.6 2.6 0 0 0 1.83-1.84C23 15.4 23 12 23 12ZM9.75 15.02V8.98L15 12l-5.25 3.02Z"/></svg></a></div>
+      </div>
+      <div>
+        <p style="margin:0 0 14px;font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:#7FC87C">Participate</p>
+        <div style="display:flex;flex-direction:column;gap:11px">
+          <a href="#" style="text-decoration:none;font-size:13.5px;color:rgba(255,255,255,.7)" style-hover="color:#fff">Nominate</a>
+          <a href="#" style="text-decoration:none;font-size:13.5px;color:rgba(255,255,255,.7)" style-hover="color:#fff">Vote</a>
+          <a href="#" style="text-decoration:none;font-size:13.5px;color:rgba(255,255,255,.7)" style-hover="color:#fff">Register</a>
+          <a href="#" style="text-decoration:none;font-size:13.5px;color:rgba(255,255,255,.7)" style-hover="color:#fff">Awards Gala</a>
+          <a href="#" style="text-decoration:none;font-size:13.5px;color:rgba(255,255,255,.7)" style-hover="color:#fff">Donate</a>
+        </div>
+      </div>
+      <div>
+        <p style="margin:0 0 14px;font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:#7FC87C">Explore</p>
+        <div style="display:flex;flex-direction:column;gap:11px">
+          <a href="#" style="text-decoration:none;font-size:13.5px;color:rgba(255,255,255,.7)" style-hover="color:#fff">Leaderboard</a>
+          <a href="#" style="text-decoration:none;font-size:13.5px;color:rgba(255,255,255,.7)" style-hover="color:#fff">Registry</a>
+          <a href="#" style="text-decoration:none;font-size:13.5px;color:rgba(255,255,255,.7)" style-hover="color:#fff">Pulse</a>
+          <a href="#" style="text-decoration:none;font-size:13.5px;color:rgba(255,255,255,.7)" style-hover="color:#fff">How it works</a>
+          <a href="#" style="text-decoration:none;font-size:13.5px;color:rgba(255,255,255,.7)" style-hover="color:#fff">Status</a>
+        </div>
+      </div>
+      <div>
+        <p style="margin:0 0 14px;font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:#7FC87C">Company</p>
+        <div style="display:flex;flex-direction:column;gap:11px">
+          <a href="#" style="text-decoration:none;font-size:13.5px;color:rgba(255,255,255,.7)" style-hover="color:#fff">About Afrovanguard</a>
+          <a href="#" style="text-decoration:none;font-size:13.5px;color:rgba(255,255,255,.7)" style-hover="color:#fff">Help Center</a>
+          <a href="#" style="text-decoration:none;font-size:13.5px;color:rgba(255,255,255,.7)" style-hover="color:#fff">Support &amp; appeals</a>
+          <a href="#" style="text-decoration:none;font-size:13.5px;color:rgba(255,255,255,.7)" style-hover="color:#fff">Contact</a>
+        </div>
+      </div>
+    </div>
+    <div style="max-width:1100px;margin:0 auto;padding:20px 32px 40px;border-top:1px solid rgba(255,255,255,.1);display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap">
+      <span style="font-size:12.5px;color:rgba(255,255,255,.5)">© 2026 Africa GATES · An Afrovanguard initiative · RC 1234567 · Lagos, Nigeria</span>
+      <div style="display:flex;align-items:center;gap:18px"><a href="#" style="text-decoration:none;font-size:12.5px;color:rgba(255,255,255,.6)" style-hover="color:#fff">Privacy</a><a href="#" style="text-decoration:none;font-size:12.5px;color:rgba(255,255,255,.6)" style-hover="color:#fff">Terms</a><a href="#" style="text-decoration:none;font-size:12.5px;color:rgba(255,255,255,.6)" style-hover="color:#fff">Integrity Center</a></div>
+    </div>
+  </footer>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:1100,&quot;height&quot;:900}}">
+class Component extends DCLogic {
+  state = { toast:null };
+  ping(m){ this.setState({toast:m}); clearTimeout(this._t); this._t=setTimeout(()=>this.setState({toast:null}),2300); }
+  renderVals(){
+    const s=this.state;
+    const awards=[
+      { icon:'🎓', title:'Lifetime Educator', desc:'For decades shaping how Africa learns.', tint:'#eef7ee' },
+      { icon:'🎶', title:'Cultural Icon', desc:'The sound and story of a nation.', tint:'#fff8df' },
+      { icon:'⚖️', title:'Integrity in Service', desc:'Public service when no one is watching.', tint:'#e9efef' },
+      { icon:'📈', title:'Business Excellence', desc:'Building enterprise across borders.', tint:'#f4f5f5' },
+      { icon:'🔬', title:'Science & Innovation', desc:'Discovery that moves the continent.', tint:'#eef7ee' },
+      { icon:'🎨', title:'Arts & Heritage', desc:'Guardians of African expression.', tint:'#fdeaf0' },
+      { icon:'🏅', title:'Sporting Greatness', desc:'Champions who carried the flag.', tint:'#fff8df' },
+      { icon:'🌍', title:'Continental Legacy', desc:'The single most recognised of 2026.', tint:'#e9efef' }
+    ];
+    const schedule=[
+      { time:'18:00', title:'Red carpet & arrivals', body:'Press line and the continental welcome.' },
+      { time:'19:00', title:'Opening & first honours', body:'Education, Science and Arts awards.' },
+      { time:'20:00', title:'Gala dinner', body:'Three-course seated service.' },
+      { time:'21:00', title:'Headline honours', body:'Cultural Icon and Continental Legacy.' },
+      { time:'22:00', title:'After-party', body:'Live performance and dancing.' }
+    ];
+    const tiers=[
+      { name:'General Admission', perk:'Entry · welcome pack', price:'₦15,000' },
+      { name:'VIP', perk:'Front rows · dinner · after-party', price:'₦45,000' },
+      { name:'Patron Table (10)', perk:'Named programme credit', price:'₦400,000' }
+    ];
+    return { awards, schedule, tiers,
+      getTickets:()=>this.ping('Opening ticket checkout…'),
+      donate:()=>this.ping('Opening table sponsorship…'),
+      toastOpen:!!s.toast, toastMsg:s.toast||'' };
+  }
+}
+</script>
+</body>
+</html>

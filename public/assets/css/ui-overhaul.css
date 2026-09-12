@@ -134,7 +134,7 @@
   top: 50%;
   transform: translateY(-50%);
   font-size: 1rem;
-  color: var(--neutral-400, #9ca3af);
+  color: var(--neutral-500, #626a6e);   /* legible at rest (AA); floats to green when active */
   pointer-events: none;
   transform-origin: left top;
   transition: top 0.2s ease, transform 0.2s ease, font-size 0.2s ease, color 0.2s ease;
@@ -566,3 +566,44 @@
 .fraud-stat__label { font-size: 0.8125rem; color: var(--neutral-500); margin-top: 4px; }
 .fraud-stat--warn .fraud-stat__num { color: #d97706; }
 .fraud-stat--danger .fraud-stat__num { color: #dc2626; }
+
+/* ─────────────────────────────────────────────────────────────────────────
+   Public data legibility — mirrors the admin console. No old-style figures
+   anywhere (a display-serif "1" never reads as an "I"), plus tabular
+   alignment for numbers that stack or compare: CPI scores, ranks, vote
+   tallies, live counts, countdowns.
+   ───────────────────────────────────────────────────────────────────────── */
+body { font-variant-numeric: lining-nums; }
+.lb-c-cpi, .lbp__cpi, .lb-c-rank,
+.vh-stat__n, .vn-stat__n, .vn-tally, .vn-rankpill,
+.vh-count, .vh-card__votes, .vp-card__votes,
+.fraud-stat__num, .ag-mono,
+[data-countup], [data-countdown] {
+  font-variant-numeric: lining-nums tabular-nums;
+  font-feature-settings: "lnum" 1, "tnum" 1;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────
+   Public forms — carry the admin console's form discipline into the shared
+   .form-* controls (nominate, register, partner, subscribe, …): one
+   consistent select chevron across browsers, hover feedback, an honest
+   disabled state, a muted placeholder, and brand-tinted checkboxes/radios.
+   ───────────────────────────────────────────────────────────────────────── */
+.form-input:hover:not(:focus),
+.form-select:hover:not(:focus),
+.form-textarea:hover:not(:focus) { border-color: rgba(16, 41, 44, 0.30); }
+
+.form-input::placeholder, .form-textarea::placeholder { color: rgba(16, 41, 44, 0.42); }
+
+.form-input:disabled, .form-select:disabled, .form-textarea:disabled {
+  background: #f2f5f2; color: rgba(16, 41, 44, 0.5); cursor: not-allowed;
+}
+
+input[type=checkbox], input[type=radio] { accent-color: var(--emerald-500, #237b22); }
+
+.form-select {
+  appearance: none; -webkit-appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath fill='none' stroke='%235a6d6f' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round' d='M1 1.5 6 6.5 11 1.5'/%3E%3C/svg%3E");
+  background-repeat: no-repeat; background-position: right 1rem center;
+  padding-right: 2.75rem;
+}

@@ -1,0 +1,331 @@
+{#
+  ══════════════════════════════════════════════════════════════════════════════
+  AN ORGANISATION'S OWN PAGE — THE READER THAT DID NOT EXIST
+  ══════════════════════════════════════════════════════════════════════════════
+
+  `OrgBrand` shipped complete on every side except a renderer. There was a validated
+  writer, an accent refused for failing contrast against white with the ratio in the
+  message, an uploader, a route, and `css()` to turn the whole document into custom
+  properties — and `css()` had no caller, `DonationController` never mentioned the
+  service, and the organisation's own dashboard template contained the word "brand"
+  zero times. No form in, no page out, while the migration's docblock described the
+  feature as shipped. This file and the editor on the dashboard are the two halves of
+  the fix; neither is worth anything alone.
+
+  ── WHAT IS RENDERED, AND ON WHAT CONDITION ─────────────────────────────────
+
+  A block appears when it is SWITCHED ON *and* has content. Both, deliberately: a bare
+  "Questions donors ask you" heading over nothing reads as a page somebody abandoned
+  halfway, which on a donation page costs the organisation real money. So the section
+  flag alone is not enough to publish a heading.
+
+  ── EVERYTHING HERE IS UNTRUSTED ────────────────────────────────────────────
+
+  Every string below was typed by a partner organisation. Twig's autoescaping is what
+  makes that safe, so nothing here may gain `|raw`. The two places that could not rely
+  on escaping alone are handled in the service instead: a link's URL is re-validated on
+  every read by `OrgBrand::url()`, and a video is stored as a provider plus an id and
+  never as a URL, so `v.embed` below is built by `OrgBrand::embedUrl()` from our own
+  constant and a pattern-matched id. Nothing an organisation typed ever reaches an
+  `src`.
+
+  The accent values in the `style` attribute are safe for the same kind of reason
+  rather than by escaping: `normaliseHex()` returns either an empty string or `#` and
+  six hex digits, and the wash is assembled with `%d` from integers. A `style`
+  attribute is HTML-escaped by Twig, not CSS-escaped, so a value that could carry a
+  brace or a semicolon would matter here — none of these can.
+
+  ── VIDEO IS CLICK-TO-LOAD, AND THAT IS A LEGAL REQUIREMENT ─────────────────
+
+  An iframe that loads on page view sends the visitor's IP address to YouTube or Vimeo
+  and lets them set storage, before the visitor has done anything at all. Under the
+  GDPR's joint-controller line and Nigeria's NDPA 2023 that needs a lawful basis, and
+  "the page happened to contain a video" is not one. `youtube-nocookie.com` narrows the
+  cookie question and does not touch the transmission.
+
+  So nothing reaches either provider until somebody presses play, the button says which
+  provider it will contact before they do, and there is a plain link out for anybody
+  whose browser refuses the frame. The handler is in donate.twig's nonce'd script
+  block. This is also why the accent is on the facade and not on a poster image we
+  would have to fetch from the provider to display.
+#}
+
+{% if org and brand %}
+<div class="ob"
+     style="--ob-accent:{{ brand_css.accent }};--ob-accent-dark:{{ brand_css.accent_dark }};--ob-accent-wash:{{ brand_css.accent_wash }}">
+
+  {# ── THE STORY ─────────────────────────────────────────────────────────────
+     Paragraphs come from `OrgBrand::paragraphs()` rather than a filter here, so one
+     definition of "a paragraph" serves this page and every later surface. The story
+     used to arrive with every newline collapsed, so five paragraphs about somebody's
+     work rendered as one block that read like a notice. #}
+  {% if brand.sections.story and story_paragraphs is not empty %}
+    <section class="dn-sec ob-sec">
+      <span class="dn-kick">Our story</span>
+      <h2 class="dn-h2">About {{ org.name }}</h2>
+      <div class="ob-prose">
+        {% for p in story_paragraphs %}<p>{{ p }}</p>{% endfor %}
+      </div>
+    </section>
+  {% endif %}
+
+  {# ── THE FIGURES ───────────────────────────────────────────────────────────
+     A figure is the organisation's own claim and is presented as one — the kicker says
+     "in their words", because this platform verifies a registration and a settlement
+     account and does not audit an impact number. Printing an unverified figure in the
+     same voice as a verified one is how a page stops being evidence of anything. #}
+  {% if brand.sections.impact and brand.blocks.impact is not empty %}
+    <section class="dn-sec ob-sec">
+      <span class="dn-kick">The work, in their words</span>
+      <h2 class="dn-h2">What {{ org.name }} has done</h2>
+      <div class="ob-figs">
+        {% for row in brand.blocks.impact %}
+          <div class="ob-fig">
+            <div class="ob-fig__n">{{ row.figure }}</div>
+            <div class="ob-fig__l">{{ row.label }}</div>
+          </div>
+        {% endfor %}
+      </div>
+    </section>
+  {% endif %}
+
+  {# ── WHAT A GIFT BUYS ──────────────────────────────────────────────────────
+     A ladder, and the highest-earning block on a donation page: "₦25,000" means
+     nothing and "₦25,000 sends one student for a term" means something.
+
+     DISPLAY ONLY, and it says so nowhere on the page because a reader does not need to
+     know — but the next person editing this does. These rows do not preset the amount
+     field. Wiring them to it is worth doing and is a change to the form's own state, so
+     it is deliberately not smuggled in here: a row that looks pressable and does
+     nothing is worse than a row that is plainly a list. #}
+  {% if brand.sections.asks and brand.blocks.asks is not empty %}
+    <section class="dn-sec ob-sec">
+      <span class="dn-kick">What a gift buys</span>
+      <h2 class="dn-h2">Where your money goes</h2>
+      <ul class="ob-asks">
+        {% for row in brand.blocks.asks %}
+          <li><span class="ob-asks__a">{{ row.amount }}</span>
+              <span class="ob-asks__b">{{ row.buys }}</span></li>
+        {% endfor %}
+      </ul>
+    </section>
+  {% endif %}
+
+  {# ── VIDEO ─────────────────────────────────────────────────────────────────
+     See the note at the top of this file for why this is a facade and not an iframe. #}
+  {% if brand.sections.video and brand.videos is not empty %}
+    <section class="dn-sec ob-sec">
+      <span class="dn-kick">Watch</span>
+      <h2 class="dn-h2">{{ org.name }} on film</h2>
+      <div class="ob-vids">
+        {% for v in brand.videos %}
+          {% set provider = v.provider == 'vimeo' ? 'Vimeo' : 'YouTube' %}
+          <figure class="ob-vid" data-ob-video data-ob-src="{{ v.embed }}"
+                  data-ob-name="{{ v.title ?: (org.name ~ ' — video') }}">
+            <button type="button" class="ob-vid__play" data-ob-play
+                    aria-label="Play {{ v.title ?: 'the video' }} — loads from {{ provider }}">
+              <span class="ob-vid__icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" width="26" height="26" fill="currentColor"
+                     focusable="false"><path d="M8 5v14l11-7z"/></svg>
+              </span>
+              <span class="ob-vid__meta">
+                {% if v.title %}<span class="ob-vid__t">{{ v.title }}</span>{% endif %}
+                {# Named BEFORE the press, not after it. A visitor deciding whether to
+                   contact a third party is owed the name of the third party. #}
+                <span class="ob-vid__p">Loads from {{ provider }} when you press play</span>
+              </span>
+            </button>
+            {# For a browser that refuses the frame — an extension, a strict policy, a
+               provider outage. The alternative is a dead rectangle, which is the shape of
+               fault this codebase keeps paying for: no error, nothing to grep, the
+               feature simply not there. #}
+            <figcaption class="ob-vid__alt">
+              <a href="{{ v.watch }}" target="_blank"
+                 rel="noopener noreferrer nofollow ugc">Watch on {{ provider }}</a>
+            </figcaption>
+          </figure>
+        {% endfor %}
+      </div>
+    </section>
+  {% endif %}
+
+  {# ── PHOTOGRAPHS ───────────────────────────────────────────────────────────
+     Paths are re-checked by `OrgBrand::safePath()` on every read, which refuses
+     anything that is not a relative path beneath `uploads/`. So this cannot address a
+     file outside it however the row was written. #}
+  {% if brand.sections.gallery and brand.gallery is not empty %}
+    <section class="dn-sec ob-sec">
+      <span class="dn-kick">The work</span>
+      <h2 class="dn-h2">Photographs</h2>
+      <div class="ob-shots">
+        {% for path in brand.gallery %}
+          <img src="{{ asset('/' ~ path) }}" alt="" loading="lazy" decoding="async">
+        {% endfor %}
+      </div>
+    </section>
+  {% endif %}
+
+  {# ── WHAT PEOPLE SAY ───────────────────────────────────────────────────────#}
+  {% if brand.sections.quotes and brand.blocks.quotes is not empty %}
+    <section class="dn-sec ob-sec">
+      <span class="dn-kick">In their words</span>
+      <h2 class="dn-h2">What people say</h2>
+      <div class="ob-quotes">
+        {% for row in brand.blocks.quotes %}
+          <blockquote class="ob-quote">
+            <p>{{ row.text }}</p>
+            <cite>{{ row.who }}</cite>
+          </blockquote>
+        {% endfor %}
+      </div>
+    </section>
+  {% endif %}
+
+  {# ── WHO RUNS IT ───────────────────────────────────────────────────────────
+     Names and roles only, no photographs. A donor asking "who are these people" is
+     answered by a name they can search; a headshot is the expensive half and the half
+     that goes stale. Kept text-only rather than adding a second upload surface. #}
+  {% if brand.sections.team and brand.blocks.team is not empty %}
+    <section class="dn-sec ob-sec">
+      <span class="dn-kick">The people</span>
+      <h2 class="dn-h2">Who runs {{ org.name }}</h2>
+      <ul class="ob-people">
+        {% for row in brand.blocks.team %}
+          <li><span class="ob-people__n">{{ row.name }}</span>
+              <span class="ob-people__r">{{ row.role }}</span></li>
+        {% endfor %}
+      </ul>
+    </section>
+  {% endif %}
+
+  {# ── HOW THEY GOT HERE ─────────────────────────────────────────────────────
+     `when` is free text, not a date column, and deliberately: an organisation writing
+     "2019", "March 2021" and "the first term of 2023" is describing their own history
+     at the precision they actually have it, and a date picker would force them to
+     invent a day. Nothing sorts on it — the order is the order they typed. #}
+  {% if brand.sections.milestones and brand.blocks.milestones is not empty %}
+    <section class="dn-sec ob-sec">
+      <span class="dn-kick">How we got here</span>
+      <h2 class="dn-h2">A short history</h2>
+      <ol class="ob-track">
+        {% for row in brand.blocks.milestones %}
+          <li><span class="ob-track__w">{{ row.when }}</span>
+              <span class="ob-track__d">{{ row.what }}</span></li>
+        {% endfor %}
+      </ol>
+    </section>
+  {% endif %}
+
+  {# ── WHO THEY WORK WITH ────────────────────────────────────────────────────
+     Names, not logos. A wall of logos an organisation uploaded is a wall of trademarks
+     this platform would be republishing on their word, and the permission for that is
+     between them and the trademark holder. A name and a sentence carries the same
+     information and makes no claim we cannot stand behind. #}
+  {% if brand.sections.partners and brand.blocks.partners is not empty %}
+    <section class="dn-sec ob-sec">
+      <span class="dn-kick">Together with</span>
+      <h2 class="dn-h2">Who {{ org.name }} works with</h2>
+      <ul class="ob-with">
+        {% for row in brand.blocks.partners %}
+          <li><span class="ob-with__n">{{ row.name }}</span>
+              <span class="ob-with__d">{{ row.note }}</span></li>
+        {% endfor %}
+      </ul>
+    </section>
+  {% endif %}
+
+  {# ── QUESTIONS ─────────────────────────────────────────────────────────────
+     `<details>` rather than a scripted accordion: it is keyboard-operable and
+     screen-reader-correct with no JavaScript, it prints open, and it is findable by the
+     browser's own in-page search in every current engine. A scripted accordion is a
+     worse version of this with a bug in it. #}
+  {% if brand.sections.faq and brand.blocks.faq is not empty %}
+    <section class="dn-sec ob-sec">
+      <span class="dn-kick">Questions</span>
+      <h2 class="dn-h2">What donors ask {{ org.name }}</h2>
+      <div class="ob-faq">
+        {% for row in brand.blocks.faq %}
+          <details class="ob-faq__i">
+            <summary>{{ row.q }}</summary>
+            <div class="ob-faq__a">{{ row.a }}</div>
+          </details>
+        {% endfor %}
+      </div>
+    </section>
+  {% endif %}
+
+  {# ── LINKS OUT ─────────────────────────────────────────────────────────────
+     `nofollow ugc` because these are links a partner typed and this platform does not
+     vouch for them or pass it ranking; `noopener noreferrer` because a new tab that can
+     reach back into this one is a tab that can rewrite the donation form. The host is
+     printed beside the label so a reader knows where a press will take them before they
+     make it — on a page asking for money, that is information they are owed. #}
+  {% if brand.sections.links and brand.links is not empty %}
+    <section class="dn-sec ob-sec">
+      <span class="dn-kick">Read more</span>
+      <h2 class="dn-h2">Reports, press and elsewhere</h2>
+      <ul class="ob-links">
+        {% for l in brand.links %}
+          <li>
+            <a href="{{ l.url }}" target="_blank" rel="noopener noreferrer nofollow ugc">
+              <span class="ob-links__l">{{ l.label }}</span>
+              <span class="ob-links__h">{{ l.host }}<span aria-hidden="true"> ↗</span></span>
+              <span class="ob-sr">opens in a new tab</span>
+            </a>
+          </li>
+        {% endfor %}
+      </ul>
+    </section>
+  {% endif %}
+
+  {# ── HOW TO REACH THEM ─────────────────────────────────────────────────────#}
+  {# Only `brand.website`, which they typed into a field labelled as public. NOT
+     `org.contact_email`: that is the address given to verify their CAC registration, and
+     publishing a compliance contact because it happens to be on the row is the kind of
+     disclosure nobody notices until it is on a spam list. If an organisation wants a
+     public address they can add one as a link. #}
+  {% if brand.sections.contact and brand.website %}
+    <section class="dn-sec ob-sec">
+      <span class="dn-kick">Get in touch</span>
+      <h2 class="dn-h2">Contact {{ org.name }}</h2>
+      <ul class="ob-links ob-links--plain">
+        {% if brand.website %}
+          <li><a href="{{ brand.website }}" target="_blank"
+                 rel="noopener noreferrer nofollow ugc">
+            <span class="ob-links__l">Their website</span>
+            <span class="ob-links__h">{{ brand.website|replace({'https://': '', 'http://': ''}) }}<span aria-hidden="true"> ↗</span></span>
+          </a></li>
+        {% endif %}
+      </ul>
+    </section>
+  {% endif %}
+
+  {# ══ AND THE PLATFORM UNDERNEATH IT ═══════════════════════════════════════
+     Africa GATES provides this page, the checkout, the settlement into the
+     organisation's own account, the receipting and the refund path, and takes no cut of
+     any gift. Something has to pay for that, and the honest place to say so is the page
+     the money moves through.
+
+     BELOW the organisation's ask and never beside it. A charity's donation page with the
+     platform's hand out next to theirs converts worse for the charity — the one thing
+     this platform exists to be good at — and reads to a donor as two organisations
+     arguing over one gift. So: a credit, one sentence of what that buys, and a quiet
+     route for somebody who wants to back the awards themselves. No amount field, nothing
+     preselected, and the organisation cannot switch it off. See OrgBrand::GATES_CREDIT. #}
+  <section class="ob-gates">
+    <p class="ob-gates__c">{{ gates_credit }}</p>
+    <p class="ob-gates__b">{{ org.name }} keeps every naira of your gift — this platform
+      takes no cut, charges them nothing, and settles straight into their own account.
+      Africa GATES is a project of Afrovanguard, a registered non-profit, and it runs on
+      optional support rather than on a fee.</p>
+    {# `/philosophy` and `/donate` are both registered; `/giving` is NOT built yet and a
+       credit line pointing at a 404 is worse than no credit at all. When /giving lands,
+       this is the line that moves. #}
+    <p class="ob-gates__l">
+      <a href="/philosophy">What Africa GATES is</a>
+      <span aria-hidden="true">·</span>
+      <a href="/giving">Support the awards programme</a>
+    </p>
+  </section>
+</div>
+{% endif %}

@@ -4,7 +4,7 @@
 {% block content %}
 <div class="ad-card"><div class="ad-table-wrap">
   <table class="ad-table">
-    <thead><tr><th>Post</th><th>Tag</th><th>Published</th><th>Status</th><th class="col-actions">Actions</th></tr></thead>
+    <thead><tr><th scope="col">Post</th><th scope="col">Tag</th><th scope="col">Published</th><th scope="col">Status</th><th scope="col" class="col-actions">Actions</th></tr></thead>
     <tbody>
       {% for r in rows %}
       <tr>
@@ -17,7 +17,7 @@
         </td>
         <td class="col-actions">
           <a class="ad-btn ad-btn--sm" href="/admin/posts/{{ r.id }}">Edit</a>
-          <form method="post" action="/admin/posts/{{ r.id }}/delete" style="display:inline"><input type="hidden" name="_token" value="{{ csrf_token }}"><button class="ad-btn ad-btn--sm ad-btn--danger" type="submit" data-confirm="Delete this post?">×</button></form>
+          <form method="post" action="/admin/posts/{{ r.id }}/delete" style="display:inline"><input type="hidden" name="_token" value="{{ csrf_token }}"><button class="ad-btn ad-btn--sm ad-btn--danger" type="submit" data-confirm="Delete “{{ r.title }}” permanently? This cannot be undone.">×</button></form>
         </td>
       </tr>
       {% else %}<tr><td colspan="5" style="text-align:center;color:var(--ad-text-mute);padding:30px">No posts yet.</td></tr>{% endfor %}

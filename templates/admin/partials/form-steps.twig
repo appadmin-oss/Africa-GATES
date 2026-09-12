@@ -1,0 +1,227 @@
+{# ── A LONG ADMIN FORM, MADE FILLABLE ─────────────────────────────────────────
+
+   Included by the event and product editors. It is styles and one Alpine component, no
+   markup of its own, so each form keeps its own fields and only borrows the structure.
+
+   ══ THE PROBLEM IT SOLVES ══════════════════════════════════════════════════
+
+   The event editor is 49 inputs and the product editor 25, each in a single undifferentiated
+   column with repeaters buried in the middle and one Save button at the very bottom. Measured,
+   not guessed. That shape fails in four specific ways, and all four were reported as "confusing":
+
+     • THERE IS NO SENSE OF WHAT IS REQUIRED. Title and slug are mandatory; twenty-nine other
+       fields are not. Nothing on screen said so, so the honest way to create an event was to
+       read all forty and decide for yourself.
+     • THERE IS NO SENSE OF WHERE YOU ARE. Somebody who has typed the name and the price cannot
+       tell whether they are nearly done or a third of the way, so they keep scrolling to check.
+     • THE ORDER IS THE DATABASE'S, NOT THE JOB'S. Cover image sits between capacity and status
+       because that is the column order, and "what am I selling" is interleaved with "how does it
+       sell" and "what happens after".
+     • AND SAVE IS AT THE BOTTOM OF A LONG SCROLL, so correcting one field means finding it,
+       changing it, then scrolling past everything else to commit it.
+
+   ══ WHY STEPS AND NOT PAGES ════════════════════════════════════════════════
+
+   Splitting into separate pages would mean separate saves, and a half-created event in the
+   database is worse than a long form: the tier repeater, the agenda and the ticket design all
+   write in one transaction from one POST, and the existing controllers read marker fields to
+   know which sections were on screen. Breaking that would risk silently dropping somebody's
+   work — which is the failure mode this whole codebase keeps finding.
+
+   So EVERY FIELD STAYS IN ONE FORM AND IN THE DOM. The steps only change what is VISIBLE. One
+   Save still posts everything, the controllers are untouched, and nothing can be lost by
+   navigating between steps because navigating does not submit anything.
+
+   ══ AND IT WORKS WITHOUT JAVASCRIPT ════════════════════════════════════════
+
+   `.af` starts with every step visible; the component adds `is-live` on boot and only then does
+   the CSS hide the inactive ones. If Alpine never loads, an admin gets exactly the long form
+   they have today — which is worse than the stepped version and infinitely better than a page
+   with one visible field and no way to reach the rest. #}
+
+<style nonce="{{ csp_nonce }}">
+  .af{ display:block }
+
+  /* ── the rail ────────────────────────────────────────────────────────────
+     Numbered, named, and carrying a count of what is still required — so "where am I" and
+     "what is left" are answered without scrolling. On a phone it becomes a horizontal strip,
+     because a vertical rail would take the whole screen before the form began. */
+  .af__rail{ display:flex; gap:8px; overflow-x:auto; scrollbar-width:none;
+    padding:2px 0 14px; margin-bottom:4px; border-bottom:1px solid var(--ad-line,#e2e8e6) }
+  .af__rail::-webkit-scrollbar{ display:none }
+  .af__tab{ flex:none; cursor:pointer; display:flex; align-items:center; gap:9px;
+    border:1px solid var(--ad-line,#e2e8e6); background:var(--ad-surface,#fff);
+    border-radius:999px; padding:8px 15px 8px 10px; font-family:inherit; font-size:13px;
+    font-weight:600; color:var(--ad-text-mute,#5a6d6f) }
+  .af__tab:hover{ border-color:rgba(16,41,44,.28); color:var(--ad-text,#10292C) }
+  .af__tab.is-on{ background:#10292C; border-color:#10292C; color:#fff }
+  .af__n{ flex:none; width:21px; height:21px; border-radius:50%; display:flex;
+    align-items:center; justify-content:center; font-size:11px; font-weight:700;
+    background:#eef2f1; color:#5a6d6f }
+  .af__tab.is-on .af__n{ background:rgba(255,255,255,.2); color:#fff }
+  /* A count of REQUIRED fields still empty on that step. Not a validity tick: a green tick on
+     a step whose optional fields are untouched would say "done" about something nobody has
+     looked at, and that is a worse lie than saying nothing. */
+  .af__todo{ flex:none; min-width:18px; height:18px; padding:0 5px; border-radius:999px;
+    display:flex; align-items:center; justify-content:center; font-size:10.5px; font-weight:700;
+    background:#fdeaea; color:#a4243a }
+  .af__tab.is-on .af__todo{ background:#fff; color:#a4243a }
+  .af__done{ flex:none; width:16px; height:16px; color:#1a6118 }
+  .af__tab.is-on .af__done{ color:#7FC87C }
+
+  /* ── the steps ───────────────────────────────────────────────────────────
+     Every step is in the DOM always; only display changes, and only once the component has
+     booted (`.af.is-live`). Without script every step stays visible — see the note above. */
+  .af.is-live .af__step{ display:none }
+  .af.is-live .af__step.is-on{ display:block }
+  .af__step{ animation:afIn .16s ease-out }
+  @keyframes afIn{ from{ opacity:0; transform:translateY(3px) } to{ opacity:1; transform:none } }
+  @media (prefers-reduced-motion: reduce){ .af__step{ animation:none } }
+
+  .af__head{ margin:4px 0 14px }
+  .af__head h2{ margin:0; font-size:17px; font-weight:700; color:var(--ad-text,#10292C) }
+  .af__head p{ margin:5px 0 0; font-size:13px; line-height:1.6; color:var(--ad-text-mute,#5a6d6f) }
+
+  /* Required fields marked, once, consistently. The absence of this was most of the confusion:
+     an admin cannot tell a mandatory field from an optional one by looking at it. */
+  .af-req{ color:#a4243a; font-weight:700; margin-left:2px }
+  .af-opt{ font-weight:400; color:var(--ad-text-mute,#61728e); font-size:11.5px; margin-left:4px }
+
+  /* ── the bar ─────────────────────────────────────────────────────────────
+     Sticky, so Save is never a scroll away, and it SAYS whether there is anything unsaved.
+     A Save button that looks identical whether or not you have changed something is a button
+     you press again just in case. */
+  .af__bar{ position:sticky; bottom:0; z-index:5; display:flex; align-items:center; gap:12px;
+    flex-wrap:wrap; margin-top:18px; padding:13px 0;
+    background:linear-gradient(to top, var(--ad-bg,#f4f7f4) 62%, rgba(244,247,244,0));
+    border-top:1px solid var(--ad-line,#e2e8e6);
+    /* Room for the assistant button, which is `position:fixed` at right:20px / bottom:20px on
+       every admin page (admin/partials/copilot.twig). Without this it sits directly on top of
+       Save — seen in a screenshot, with the word "changes" disappearing under it. A sticky bar
+       and a fixed button both anchored to the bottom-right WILL collide; the bar is the one
+       that can move. */
+    padding-right:88px }
+  .af__state{ flex:1; min-width:150px; font-size:12.5px; color:var(--ad-text-mute,#5a6d6f) }
+  .af__state.is-dirty{ color:#8a5a00; font-weight:600 }
+  .af__state.is-blocked{ color:#a4243a; font-weight:600 }
+  .af__steps{ display:flex; gap:8px }
+  .af__ghost{ cursor:pointer; border:1px solid var(--ad-line,#e2e8e6);
+    background:var(--ad-surface,#fff); color:var(--ad-text,#10292C); font-family:inherit;
+    font-size:13px; font-weight:600; padding:10px 16px; border-radius:999px }
+  .af__ghost:disabled{ opacity:.4; cursor:not-allowed }
+
+  @media (max-width:620px){
+    .af__bar{ padding:11px 0 }
+    .af__state{ order:3; flex-basis:100% }
+    .af__steps{ flex:1 }
+    .af__ghost{ flex:1; text-align:center }
+  }
+</style>
+
+<script nonce="{{ csp_nonce }}">
+/* ── afSteps ──────────────────────────────────────────────────────────────────
+   `titles` names the steps. Everything else is read from the DOM rather than declared twice:
+   the component counts its own `.af__step` children and finds required fields inside them, so
+   adding a field to a form never means editing a parallel list here. A parallel list is how a
+   step ends up claiming a field it does not contain.
+
+   NOTHING HERE VALIDATES. The browser already does it with `required`, and the server does it
+   properly. This only COUNTS what the browser reports, so the rail can say "2 left" — a second
+   opinion about validity is a second thing to disagree with the first. */
+function afSteps(titles){
+  return {
+    titles: titles || [],
+    at: 0,
+    dirty: false,
+    /* Recomputed on input rather than watched per field: one listener on the form beats one
+       per input, and there are forty of them. */
+    todo: [],
+
+    init(){
+      /* `is-live` is what lets the CSS hide anything. Added HERE, so a page whose script never
+         ran shows every step — the long form, which is what an admin has today, rather than a
+         page with one section and no way to reach the others. */
+      this.$el.classList.add('is-live');
+      this.count();
+
+      /* Reopen on the step somebody was on, per form, so a save that bounces back — or a
+         mis-click — does not throw them to the beginning of a forty-field form. sessionStorage
+         rather than a cookie: it is per tab and it expires by itself. */
+      try{
+        var k = this.key();
+        var was = parseInt(sessionStorage.getItem(k) || '0', 10);
+        if(!isNaN(was) && was > 0 && was < this.titles.length) this.at = was;
+      }catch(e){}
+
+      /* One delegated listener for the whole form. `input` for typing, `change` for selects and
+         checkboxes — a select fires only `change`, and without it the rail's count goes stale
+         the moment somebody picks a category. */
+      var self = this;
+      ['input','change'].forEach(function(ev){
+        self.$el.addEventListener(ev, function(){ self.dirty = true; self.count(); });
+      });
+
+      /* Leaving with unsaved work is the one thing worth interrupting for. Only when dirty, and
+         removed on submit so saving never triggers it. */
+      window.addEventListener('beforeunload', function(e){
+        if(!self.dirty) return;
+        e.preventDefault(); e.returnValue = '';
+      });
+      var form = this.$el.closest('form') || this.$el.querySelector('form');
+      if(form) form.addEventListener('submit', function(){ self.dirty = false; });
+    },
+
+    key(){ return 'afStep:' + (location.pathname || 'form'); },
+
+    steps(){ return Array.from(this.$el.querySelectorAll('.af__step')); },
+
+    /* How many REQUIRED fields are still empty, per step. Uses the browser's own view of
+       validity, so a pattern or a type the markup declares is honoured without restating it. */
+    count(){
+      this.todo = this.steps().map(function(step){
+        var need = step.querySelectorAll('[required]');
+        var n = 0;
+        for(var i = 0; i < need.length; i++){
+          var el = need[i];
+          if(el.disabled) continue;
+          /* offsetParent is null for a field inside a collapsed section — a step that is not
+             showing still counts, because its fields are real; but a field hidden by its own
+             form logic (an axis nobody chose) is not something to demand. */
+          if(el.type !== 'hidden' && el.closest('[hidden]')) continue;
+          if(!el.checkValidity()) n++;
+        }
+        return n;
+      });
+    },
+
+    go(i){
+      if(i < 0 || i >= this.titles.length) return;
+      this.at = i;
+      try{ sessionStorage.setItem(this.key(), String(i)); }catch(e){}
+      /* Back to the top of the step, because arriving halfway down a section reads as a broken
+         page. `instant` rather than smooth: this is a jump, not a journey. */
+      var top = this.$el.getBoundingClientRect().top + window.scrollY - 90;
+      window.scrollTo({ top: top > 0 ? top : 0, behavior: 'instant' });
+    },
+    next(){ this.go(this.at + 1); },
+    back(){ this.go(this.at - 1); },
+    isOn(i){ return this.at === i; },
+
+    /* The total still outstanding, for the bar. */
+    left(){ return this.todo.reduce(function(a, b){ return a + b; }, 0); },
+
+    /* What the bar says. Three states, because they mean different things: nothing to do,
+       something to save, and something missing that will stop the save being accepted. */
+    state(){
+      var n = this.left();
+      if(n > 0) return n === 1 ? '1 required field still empty' : n + ' required fields still empty';
+      if(this.dirty) return 'Unsaved changes';
+      return 'Everything saved';
+    },
+    stateClass(){
+      if(this.left() > 0) return 'is-blocked';
+      return this.dirty ? 'is-dirty' : '';
+    }
+  };
+}
+</script>

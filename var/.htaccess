@@ -1,0 +1,24 @@
+# ═══════════════════════════════════════════════════════════════════════════════
+#  DENY ALL — var/ is application code, never web content.
+#
+#  Layer 3 of the protection described in the project-root .htaccess, and the only
+#  layer that does not depend on any other file. It exists because the root
+#  .htaccess is what an operator edits when the site returns 403 for every URL —
+#  which is exactly what happened here — and emptying that file must not silently
+#  publish the source tree, the .env, the migrations and the logs.
+#
+#  Correct hosting makes this redundant: with DocumentRoot at ./public, nothing
+#  outside public/ is reachable at all and this file is never even read. It is
+#  here for the deployment where that is not true.
+#
+#  mod_authz_core (Apache 2.4 / LiteSpeed) with a 2.2 fallback, and nothing else.
+#  A directive the server does not understand in .htaccess is a 500 for the whole
+#  site, and this file is copied into eleven directories.
+# ═══════════════════════════════════════════════════════════════════════════════
+<IfModule mod_authz_core.c>
+  Require all denied
+</IfModule>
+<IfModule !mod_authz_core.c>
+  Order allow,deny
+  Deny from all
+</IfModule>

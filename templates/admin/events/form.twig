@@ -1,37 +1,1341 @@
 {% extends "admin/layout.twig" %}
 {% block topbar_title %}{{ is_new ? 'New Event' : 'Edit Event' }}{% endblock %}
+
+{% block head_styles %}
+<style nonce="{{ csp_nonce }}">
+  /* ── the ticket preview ──────────────────────────────────────────────────
+     A sketch of templates/pages/events/ticket.twig, not a copy of it. It exists so a
+     colour can be judged before saving; the real ticket is rendered server-side from
+     validated values. Everything the accent touches is bound in Alpine, so no rule here
+     may set a `style` on the same tags — AlpineStyleClobberTest fails the build on a tag
+     carrying both a static `style` and a bound `:style`. */
+  .tkp{ --tkp-card:#fff; --tkp-line:rgba(16,41,44,.10); --tkp-text:#10292C; --tkp-mute:#5a6d6f;
+    background:var(--tkp-card); border:1px solid var(--tkp-line); border-radius:14px;
+    overflow:hidden; box-shadow:0 12px 30px -22px rgba(16,41,44,.5) }
+  .tkp--dark{ --tkp-card:#0f1c1e; --tkp-line:rgba(255,255,255,.14); --tkp-text:#eef5f0;
+    --tkp-mute:#9fb3ad }
+  .tkp__head{ position:relative; padding:12px 13px 13px; overflow:hidden }
+  .tkp__shot{ position:absolute; inset:0; width:100%; height:100%; object-fit:cover }
+  /* The cropped artwork, at 3:2 — the shape the server bakes. The head is ~236×90, i.e.
+     always wider than 3:2, so a full-width 3:2 box overflows vertically and is clipped by
+     the head's `overflow:hidden`: that IS `cover`, done in a way that lets the identical
+     percentage offsets from artStage() be reused here and in the editor. */
+  .tkp__art{ position:absolute; left:0; right:0; top:50%; transform:translateY(-50%);
+    aspect-ratio:3/2; overflow:hidden }
+  .tkp__stage{ position:absolute }
+  .tkp__scrim{ position:absolute; inset:0 }
+  .tkp__headin{ position:relative }
+  .tkp__eyebrow{ display:block; font-size:8px; font-weight:700; letter-spacing:.14em;
+    text-transform:uppercase; opacity:.85 }
+  .tkp__title{ display:block; margin-top:5px; font-size:13px; font-weight:800; line-height:1.25 }
+  .tkp__when{ display:block; margin-top:4px; font-size:9.5px; opacity:.9 }
+  .tkp__tear{ position:relative; height:14px; background:var(--tkp-card) }
+  .tkp__tear::before, .tkp__tear::after{ content:""; position:absolute; top:50%; width:13px;
+    height:13px; border-radius:50%; transform:translateY(-50%); background:#f4f7f4;
+    border:1px solid var(--tkp-line) }
+  .tkp--dark .tkp__tear::before, .tkp--dark .tkp__tear::after{ background:#0a1315 }
+  .tkp__tear::before{ left:-7px } .tkp__tear::after{ right:-7px }
+  .tkp__tear i{ position:absolute; left:9px; right:9px; top:50%; height:0;
+    border-top:1.5px dashed var(--tkp-line) }
+  .tkp__stub{ padding:2px 13px 12px; text-align:center }
+  /* A placeholder grid, not a real symbol: generating one per keystroke would be a request
+     per keystroke, and what is being judged here is the colour rather than the code. */
+  .tkp__qr{ display:block; width:52px; height:52px; margin:4px auto 7px; border-radius:6px;
+    background:
+      repeating-linear-gradient(90deg,#10292C 0 4px,#fff 4px 8px),
+      repeating-linear-gradient(0deg,#10292C 0 4px,#fff 4px 8px);
+    background-blend-mode:difference; background-color:#fff;
+    box-shadow:0 0 0 4px #fff, 0 1px 6px -2px rgba(16,41,44,.4) }
+  .tkp__code{ display:inline-block; font-family:var(--ag-font-mono,monospace); font-size:15px;
+    font-weight:700; letter-spacing:.05em; color:var(--tkp-text) }
+  .tkp__note{ display:block; margin-top:6px; font-size:9px; font-weight:600; color:var(--tkp-text) }
+  .tkp__rows{ display:flex; gap:1px; background:var(--tkp-line); border-top:1px solid var(--tkp-line) }
+  .tkp__rows span{ flex:1; background:var(--tkp-card); padding:7px 9px; font-size:9.5px;
+    font-weight:700; color:var(--tkp-text) }
+  /* The panel's two columns. `min-width:0` is also set on each child inline — a grid item's
+     default `min-width:auto` is its content's minimum, and the form's inputs are width:100%
+     of that, so without it the left column grew past its track and slid under the preview. */
+  .tk-des{ display:grid; grid-template-columns:minmax(0,1fr) minmax(0,236px); gap:18px;
+    align-items:start }
+  /* `box-sizing:border-box` on the fields, because the admin stylesheet's inputs are
+     content-box: a `width:100%` input came out exactly 30px wider than its column (measured
+     — 472px track, 502px input), which is its 14px padding and 1px border on each side. In
+     the single-column forms elsewhere that overflow is invisible; beside a preview it puts
+     the field under the card. Scoped here rather than fixed globally, because every other
+     admin form is laid out against the current widths. */
+  .tk-des input, .tk-des select, .tk-des textarea{ box-sizing:border-box; max-width:100% }
+  @media (max-width:720px){
+    /* One column, preview first: on a phone the point of the preview is to be seen at all. */
+    .tk-des{ grid-template-columns:minmax(0,1fr) }
+    .tkp{ max-width:236px }
+  }
+  /* ── the artwork editor ──────────────────────────────────────────────────
+     A 3:2 window with the picture moving behind it, which is the same thing the ticket's
+     hero band does — so what is framed here is literally what prints. The wash and the
+     title sitting over it are the ticket's own, at the ticket's own gradient stops: the
+     one mistake this editor exists to prevent is somebody centring a face in the bottom
+     third, where the type block will cover it.
+
+     Nothing here may set `style` on a tag that also carries a bound `:style` —
+     AlpineStyleClobberTest fails the build over it, and every dynamic value in this
+     editor (the stage offset, the filter, the wash) is bound. */
+  .tka{ margin:2px 0 14px }
+  .tka__frame{ position:relative; width:100%; aspect-ratio:3/2; overflow:hidden;
+    border-radius:12px; border:1px solid var(--ad-line,#e2e8e6); background:#0f1c1e;
+    /* `touch-action:none` or a drag on a phone scrolls the page instead of moving the
+       picture, and the frame becomes decoration on the device most organisers use. */
+    cursor:grab; touch-action:none; user-select:none; -webkit-user-select:none }
+  .tka__frame:active{ cursor:grabbing }
+  .tka__frame:focus-visible{ outline:3px solid #237b22; outline-offset:2px }
+  .tka__stage{ position:absolute }
+  /* `max-width:none` because the admin stylesheet caps images at 100% of their box, which
+     is exactly the opposite of what a zoomed crop needs. */
+  .tka__img{ position:absolute; left:50%; top:50%; max-width:none; pointer-events:none;
+    -webkit-user-drag:none }
+  .tka__wash{ position:absolute; inset:0; pointer-events:none }
+  .tka__over{ position:absolute; left:0; right:0; bottom:0; padding:10px 12px 11px;
+    pointer-events:none }
+  .tka__overk{ display:block; font-family:var(--ag-font-mono,monospace); font-size:8.5px;
+    font-weight:700; letter-spacing:.2em; text-transform:uppercase; opacity:.88 }
+  .tka__overt{ display:block; margin-top:3px; font-size:15px; font-weight:800; line-height:1.2;
+    overflow:hidden; text-overflow:ellipsis; white-space:nowrap }
+  /* Thirds, on hover and on focus only. Permanent guides read as part of the picture and
+     get cropped around; guides that appear while you are dragging read as a tool. */
+  .tka__guide{ position:absolute; inset:0; pointer-events:none; opacity:0; transition:opacity .12s }
+  .tka__frame:hover .tka__guide, .tka__frame:focus-within .tka__guide{ opacity:1 }
+  .tka__guide::before{ content:""; position:absolute; inset:0 33.333%;
+    border-left:1px solid rgba(255,255,255,.32); border-right:1px solid rgba(255,255,255,.32) }
+  .tka__guide::after{ content:""; position:absolute; inset:33.333% 0;
+    border-top:1px solid rgba(255,255,255,.32); border-bottom:1px solid rgba(255,255,255,.32) }
+  .tka__drop{ display:flex; flex-direction:column; align-items:center; justify-content:center;
+    gap:6px; width:100%; aspect-ratio:3/2; box-sizing:border-box; padding:16px; text-align:center;
+    border:2px dashed var(--ad-line,#cbd8d4); border-radius:12px; background:#f7faf9;
+    color:#5a6d6f; font-size:13px; cursor:pointer }
+  .tka__drop:hover, .tka__drop.is-over{ border-color:#237b22; background:#f1f8f1; color:#10292C }
+  .tka__drop strong{ font-size:13.5px; color:#10292C }
+  /* Visually hidden rather than `display:none`: a hidden input cannot be focused, and the
+     label above it is the only way to reach the picker from a keyboard. */
+  .tka__file{ position:absolute; width:1px; height:1px; opacity:0 }
+  .tka__tools{ display:flex; flex-wrap:wrap; align-items:center; gap:8px; margin-top:10px }
+  /* 38px, not the 24px SC 2.5.8 floor. These are pressed repeatedly while judging a crop,
+     and a target you hit four times in a row wants more room than a target you hit once. */
+  .tka__btn{ display:inline-flex; align-items:center; justify-content:center; gap:6px;
+    min-width:38px; height:38px; padding:0 11px; box-sizing:border-box; cursor:pointer;
+    border:1px solid var(--ad-line,#e2e8e6); border-radius:9px; background:#fff;
+    color:#10292C; font-size:12.5px; font-weight:600; line-height:1 }
+  .tka__btn:hover{ border-color:#10292C }
+  .tka__btn:focus-visible{ outline:3px solid #237b22; outline-offset:2px }
+  .tka__btn[aria-pressed="true"]{ background:#10292C; border-color:#10292C; color:#fff }
+  .tka__btn--warn{ color:#8a2b18 }
+  .tka__btn--warn:hover{ border-color:#8a2b18 }
+  .tka__grid{ display:grid; grid-template-columns:repeat(auto-fit,minmax(180px,1fr));
+    gap:8px 16px; margin-top:12px }
+  .tka__slide{ display:flex; align-items:center; gap:9px; font-size:12px; color:#5a6d6f }
+  .tka__slide span:first-child{ flex:0 0 66px }
+  .tka__slide input[type=range]{ flex:1 1 auto; min-width:0; width:auto; margin:0; padding:0 }
+  .tka__val{ flex:0 0 38px; text-align:right; font-family:var(--ag-font-mono,monospace);
+    font-size:11px; color:#10292C }
+  .tka__defs{ position:absolute; width:0; height:0; overflow:hidden }
+
+  /* ── the tier reorder arrows ─────────────────────────────────────────────
+     A class, and specifically NOT a bound `:style`. These buttons have one piece of
+     state — whether the row is already at the end of the ladder — and the obvious way
+     to draw it is `:style="i === 0 ? 'opacity:.3' : ''"`. That is the fault
+     AlpineStyleClobberTest exists for: `:style` with a string assigns `el.style`, which
+     REPLACES the whole attribute, so the arrows would keep working while silently
+     losing their border, background, radius and size the instant Alpine booted. The
+     buttons still click, which is exactly why a functional check does not catch it.
+
+     So the state is the native `disabled` attribute and the look is `[disabled]` —
+     nothing to bind, nothing to clobber, and the control is correctly inert for a
+     keyboard and a screen reader rather than merely faded. */
+  .ev-move{ border:1px solid var(--ad-line,#e2e8e6); background:#fff; color:#3d4b4d;
+    font-size:11px; line-height:1; width:26px; height:34px; cursor:pointer }
+  .ev-move:first-child{ border-radius:8px 0 0 8px }
+  .ev-move:last-child{ border-radius:0 8px 8px 0 }
+  .ev-move + .ev-move{ margin-left:-1px }
+  .ev-move:hover:not([disabled]){ background:#f0f2f2 }
+  .ev-move:focus-visible{ outline:2px solid #f3b416; outline-offset:1px; z-index:1 }
+  .ev-move[disabled]{ opacity:.3; cursor:default }
+  .ev-move__n{ font-size:11px; font-weight:700; color:#8a9a9c;
+    font-variant-numeric:tabular-nums; width:16px; text-align:right }
+</style>
+{% endblock %}
+
 {% block content %}
-<div class="ad-card" style="max-width:760px">
-  <form method="post" action="{{ is_new ? '/admin/events/new' : '/admin/events/' ~ row.id }}" class="ad-form">
+{# The shared stepped-form structure. See the partial for why the fields all stay in one POST. #}
+{% include 'admin/partials/form-steps.twig' %}
+
+<div class="ad-card" style="max-width:820px">
+  {# `enctype`: the ticket artwork is the first real file on this form. Without it the
+     browser posts the FILENAME as a string and the upload silently never arrives. #}
+  <form method="post" enctype="multipart/form-data"
+        action="{{ is_new ? '/admin/events/new' : '/admin/events/' ~ row.id }}" class="ad-form af"
+        x-data="afSteps(['The event','Tickets','The day','The ticket'])">
     <input type="hidden" name="_token" value="{{ csrf_token }}">
-    <div class="ad-form__row">
-      <label>Title *<input type="text" name="title" value="{{ row.title|default('') }}" required></label>
-      <label>Slug <small>(blank = from title)</small><input type="text" name="slug" value="{{ row.slug|default('') }}" placeholder="auto"></label>
+
+    {# ── THE RAIL ─────────────────────────────────────────────────────────────
+       Four steps, grouped by the JOB rather than by the table's column order: what the event
+       is, how it sells, what happens on the day, and what an attendee is handed. Cover image
+       used to sit between capacity and status purely because that is the order of the columns. #}
+    <nav class="af__rail" aria-label="Sections of this form">
+      <template x-for="(t, i) in titles" :key="i">
+        <button type="button" class="af__tab" :class="isOn(i) ? 'is-on' : ''"
+                @click="go(i)" :aria-current="isOn(i) ? 'step' : 'false'">
+          <span class="af__n" x-text="i + 1"></span>
+          <span x-text="t"></span>
+          <template x-if="todo[i] > 0">
+            <span class="af__todo" x-text="todo[i]"
+                  :aria-label="todo[i] + ' required fields still empty'"></span>
+          </template>
+        </button>
+      </template>
+    </nav>
+
+    {# ══ STEP 1 · THE EVENT ══════════════════════════════════════════════════ #}
+    <section class="af__step" :class="isOn(0) ? 'is-on' : ''">
+      <div class="af__head">
+        <h2>What the event is</h2>
+        <p>The name, when it happens and where. Only the title and the start are required —
+          everything else can wait, and an event saved as a draft is not visible to anybody.</p>
+      </div>
+
+      <div class="row">
+        <label>Title <span class="af-req" title="Required">*</span>
+          <input type="text" name="title" value="{{ row.title|default('') }}" required></label>
+        <label>Slug <span class="af-opt">blank = made from the title</span>
+          <input type="text" name="slug" value="{{ row.slug|default('') }}" placeholder="auto"></label>
+
+        {# ── WHEN THE MIGRATION HAS NOT RUN ────────────────────────────────
+           The house convention on this form is to HIDE a field whose column does not
+           exist yet — an operator uploads the zip and runs /__setup/migrate as two
+           separate acts, and a form that posts an unknown column 500s in between.
+
+           Hiding it silently is the wrong half of that convention here. Every other
+           hidden field on this page is a refinement of something already visible; this
+           one is the ONLY way to link an award to a ceremony, and the whole invitation
+           run reads from it. Gone with no explanation, it does not read as "not migrated
+           yet", it reads as "that feature does not exist" — which is what it read as.
+           So the control goes, and the reason stays. #}
+        {# The DIAGNOSIS, not a fixed sentence. This block used to say "run the migration
+           once — /__setup/migrate" whatever the actual state was, which is the exact
+           instruction that cannot work when the step is recorded as applied and the table
+           is absent: the endpoint skips it forever. It went on saying it after the
+           operator had run it, repeatedly, so the feature read as one that had never been
+           built. EventInvites::linkBlocker() decides which of the two faults it is. #}
+        {% if programme_link %}
+        <div style="grid-column:1/-1;background:#fdf6e3;border:1px solid #f3b416;border-radius:11px;padding:12px 14px;font-size:12.5px;line-height:1.7;color:#10292C">
+          <strong style="display:block;margin-bottom:2px">Awards cannot be linked to this event yet.</strong>
+          {{ programme_link.what }} {{ programme_link.fix }}
+          {% if programme_link.rerun and row.id is defined %}
+            {# formaction, NOT a nested <form>. A <form> inside a <form> is DELETED by the
+               parser — not nested, dropped — and this button would then have run the event
+               save instead. Three of those have shipped here; the house convention is a
+               formaction on the submit button and this is it.
+
+               `?back=form` so the redirect lands where the button was pressed. Without it
+               an operator on the event form is thrown to the invitation screen, which is
+               not where they were and not what they were doing. #}
+            <div style="margin-top:10px">
+              <button class="ad-btn" type="submit"
+                      formaction="/admin/events/{{ row.id }}/invites/repair?back=form"
+                      formnovalidate>Create the awards link now</button>
+              <span style="margin-left:8px;color:var(--ad-text-soft)">Applies
+                <code>{{ programme_link.rerun }}</code> again. Safe to press twice.</span>
+            </div>
+          {% endif %}
+        </div>
+        {% endif %}
+        {% if programme_link_ready %}
+        {# CHECKBOXES, not a multi-select. A <select multiple> on a phone is a scrolling
+           list where ctrl-click is the only way to add a second item, and this is the
+           control that decides whose shortlist gets invited — so it is four visible
+           checkboxes an operator can read and tick.
+
+           A hidden empty field first, so CLEARING every box actually clears the set:
+           unchecked boxes send nothing at all, and a save with none ticked would otherwise
+           look identical to a save from a form that never had the field. #}
+        {# A fieldset with a legend, not a label over a div: these are several controls
+           answering one question, which is exactly what a group label is for — a screen
+           reader reading the fourth checkbox otherwise has no idea what the four are. #}
+        <fieldset style="grid-column:1/-1;border:0;padding:0;margin:0;min-width:0">
+          <legend style="display:block;font-weight:600;font-size:12.5px;color:var(--ad-text);margin-bottom:6px;padding:0">
+            Awards presented at this event
+            <small style="display:block;font-weight:400;color:var(--ad-text-soft)">the invitation run draws its guests of honour from these — leave all unticked when the event is not a ceremony</small>
+          </legend>
+          {# An empty value first, so CLEARING every box actually clears the set: unchecked
+             boxes send nothing at all, and a save with none ticked would otherwise be
+             indistinguishable from a save posted by a form that never had the field. #}
+          <input type="hidden" name="programme_ids[]" value="">
+          <div style="display:flex;flex-wrap:wrap;gap:10px 18px">
+            {% for p in programmes %}
+              <label style="display:inline-flex;align-items:center;gap:8px;font-weight:400;font-size:13.5px;min-height:44px;margin:0">
+                <input type="checkbox" name="programme_ids[]" value="{{ p.id }}"
+                       {% if p.id in programme_ids %}checked{% endif %}>
+                {{ p.title }}
+              </label>
+            {% endfor %}
+          </div>
+        </fieldset>
+        {% endif %}
+      </div>
+      {# ── THE EVENT'S OWN CLOCK ─────────────────────────────────────────────
+         The zone sits WITH the times rather than in a settings screen, and it is read
+         back into the two fields beside it: an event is a room in a city at a wall-clock
+         time, and the only hour that matters is the one on the clock in that room.
+
+         `|event_input` rather than `|when_input`, so a Nairobi gala is shown and typed
+         in Nairobi. Blank means the platform's own zone, which is what every event
+         before this field had — so nothing an organiser has already saved moves. #}
+      <div class="row">
+        <label>Starts <span class="af-req" title="Required">*</span>
+          <input type="datetime-local" name="event_date" value="{{ event_input(row, row.event_date|default('')) }}" required step="1"></label>
+        <label>Ends <span class="af-opt">optional</span>
+          <input type="datetime-local" name="end_date" value="{{ event_input(row, row.end_date|default('')) }}" step="1"></label>
+      </div>
+      <label for="evTz">Timezone <span class="af-opt">the clock at the venue — leave as the default unless the event is somewhere else</span>
+        <select name="timezone" id="evTz">
+          <option value="">Platform default — {{ tz_abbr() }}</option>
+          {% for z in tz_choices %}
+            <option value="{{ z }}"{{ (row.timezone|default('')) == z ? ' selected' : '' }}>{{ z }}</option>
+          {% endfor %}
+        </select>
+      </label>
+      <div class="row">
+        <label>Town or city <span class="af-opt">optional</span>
+          <input type="text" name="location" value="{{ row.location|default('') }}" placeholder="Lagos · Nigeria"></label>
+        <label>Venue <span class="af-opt">optional</span>
+          <input type="text" name="venue" value="{{ row.venue|default('') }}" placeholder="Eko Hotel"></label>
+      </div>
+      <label>Tagline <span class="af-opt">one line, shown under the title</span>
+        <input type="text" name="tagline" value="{{ row.tagline|default('') }}" maxlength="255"></label>
+      <label>Description <span class="af-opt">optional</span>
+        <textarea name="description" rows="5">{{ row.description|default('') }}</textarea></label>
+
+      <div class="row">
+        <label>Status
+          <select name="status">
+            <option value="published" {% if row.status|default('draft') == 'published' %}selected{% endif %}>Published — visible to everybody</option>
+            <option value="draft" {% if row.status|default('draft') == 'draft' %}selected{% endif %}>Draft — only you can see it</option>
+          </select>
+        </label>
+        {# `type="text"`, not `type="url"`, and that is a fix rather than a loosening.
+           This column legitimately holds EITHER a hosted URL or a path on this disk —
+           EventTicketDesign::image() has resolved both since it was written, and the
+           invitation can only ATTACH the local form. A url-typed input refuses to submit
+           a bare `uploads/x.jpg`, so the one value the mailer can use was the one value
+           the form would not accept, and no invitation has ever carried a picture.
+           Upload one at Events → the event → Invitations to get a local path without
+           typing it. #}
+        <label>Cover image <span class="af-opt">also used on the ticket and the invitation</span>
+          <input type="text" name="cover_image" value="{{ row.cover_image|default('') }}"
+                 placeholder="https://… or uploads/events/…"></label>
+      </div>
+      <div class="row">
+        <label>Map link <span class="af-opt">optional</span>
+          <input type="url" name="map_embed" value="{{ row.map_embed|default('') }}" placeholder="https://maps.google.com/…"></label>
+        <label>External details page <span class="af-opt">optional</span>
+          <input type="text" name="rsvp_url" value="{{ row.rsvp_url|default('') }}" placeholder="/partner or https://…"></label>
+      </div>
+    </section>
+
+    {# ══ STEP 2 · TICKETS ════════════════════════════════════════════════════ #}
+    <section class="af__step" :class="isOn(1) ? 'is-on' : ''">
+      <div class="af__head">
+        <h2>How it sells</h2>
+        <p>Leave the tiers empty for one simple free RSVP. Add rows and each gets its own price
+          and its own limit — <strong>a price of 0 is a free ticket</strong>, and a blank limit
+          means as many as the room allows.</p>
+      </div>
+
+      <div class="row">
+        <label>Total capacity <span class="af-opt">blank = unlimited</span>
+          <input type="number" name="capacity" min="0" step="1" value="{{ row.capacity|default('') }}" placeholder="Unlimited"></label>
+        <div></div>
+      </div>
+
+    {# ── WHAT HAPPENS AROUND THE TICKET ────────────────────────────────────────
+       These columns have been saved by the controller since ticketing shipped and have
+       never had a field on this form — so every save silently blanked them. The marker
+       below is what makes the panel's absence mean "not shown" rather than "cleared";
+       see the note beside `event_extras_posted` in the controller. #}
+    {% if refund_missing|default([]) is empty %}
+    <input type="hidden" name="event_extras_posted" value="1">
+
+    <div class="af__head" style="margin-top:26px">
+      <h2>Cancellations and refunds</h2>
+      <p>What an attendee can do for themselves once they have paid. Off by default: it is your
+        event and your money, so nothing here changes unless you set it.</p>
     </div>
-    <label>Tagline<input type="text" name="tagline" value="{{ row.tagline|default('') }}" maxlength="255"></label>
-    <label>Description<textarea name="description" rows="5">{{ row.description|default('') }}</textarea></label>
-    <div class="ad-form__row">
-      <label>Location<input type="text" name="location" value="{{ row.location|default('') }}" placeholder="Lagos · Nigeria"></label>
-      <label>Venue<input type="text" name="venue" value="{{ row.venue|default('') }}"></label>
+
+      <label class="af-check">
+        <input type="checkbox" name="self_cancel" value="1"
+               {% if row.self_cancel|default(0) %}checked{% endif %}>
+        Let attendees cancel their own place
+      </label>
+      <p class="af-note">With this off, the ticket page shows your contact details instead of a
+        cancel button — which is what it does today. With it on, giving a seat up frees it for
+        the waiting list immediately.</p>
+
+      <div class="row">
+        <label>What comes back
+          <select name="refund_mode">
+            {% for key, label in refund_modes|default({}) %}
+              <option value="{{ key }}" {% if (row.refund_mode|default('none')) == key %}selected{% endif %}>{{ label }}</option>
+            {% endfor %}
+          </select></label>
+        <label>If partial, how much <span class="af-opt">percent</span>
+          <input type="number" name="refund_percent" min="1" max="100" step="1"
+                 value="{{ row.refund_percent|default(50) }}"></label>
+      </div>
+
+      <div class="row">
+        <label>Refunds close this long before the event <span class="af-opt">hours · 0 = right up to it</span>
+          <input type="number" name="refund_cutoff_hours" min="0" max="8760" step="1"
+                 value="{{ row.refund_cutoff_hours|default(0) }}" placeholder="48"></label>
+        <div></div>
+      </div>
+      <p class="af-note">After the cutoff an attendee can still give the seat up so somebody on
+        the waiting list can have it — they just get nothing back. Those are two different
+        things and this keeps them separate.</p>
+
+      <label>Refund policy, in your own words
+        <textarea name="refund_policy" rows="3" maxlength="1000"
+                  placeholder="Shown before anybody buys.">{{ row.refund_policy|default('') }}</textarea></label>
+      <p class="af-note">The rule above is what the platform DOES automatically. This is what you
+        MEAN, and it is shown on the event page before anybody pays.</p>
+
+    <div class="af__head" style="margin-top:26px">
+      <h2>Before they come</h2>
+      <p>Who to contact, when registration shuts, and anything they need to know on the day.</p>
     </div>
-    <div class="ad-form__row">
-      <label>Starts *<input type="datetime-local" name="event_date" value="{{ row.event_date|default('')|replace({' ':'T'})|slice(0,16) }}" required></label>
-      <label>Ends<input type="datetime-local" name="end_date" value="{{ row.end_date|default('')|replace({' ':'T'})|slice(0,16) }}"></label>
+      <div class="row">
+        <label>Organiser email <span class="af-opt">for questions</span>
+          <input type="email" name="organiser_email" maxlength="190"
+                 value="{{ row.organiser_email|default('') }}"></label>
+        <label>Organiser phone <span class="af-opt">optional</span>
+          <input type="text" name="organiser_phone" maxlength="40"
+                 value="{{ row.organiser_phone|default('') }}"></label>
+      </div>
+      <div class="row">
+        <label>Registration closes <span class="af-opt">blank = when the event starts</span>
+          <input type="datetime-local" name="sales_close_at" value="{{ sales_close_input|default('') }}" step="1"></label>
+        <label class="af-check" style="align-self:end">
+          <input type="checkbox" name="waitlist_open" value="1"
+                 {% if row.waitlist_open|default(0) %}checked{% endif %}>
+          Offer a waiting list when a tier sells out
+        </label>
+      </div>
+      <label>Note to attendees <span class="af-opt">joining links, parking, dress code</span>
+        <textarea name="attendee_note" rows="3">{{ row.attendee_note|default('') }}</textarea></label>
+
+      {# Referral sharing, per event. Not every event can afford to give away a share of
+         the gate — a free community night, a partner-funded evening, or one whose margin
+         is already committed. Ticked by default, because that is what every event did
+         before this box existed. Unticking it stops NEW commission on this event only;
+         balances already earned stay owed. #}
+      <label class="af-check">
+        <input type="checkbox" name="referrals_enabled" value="1"
+               {% if row.referrals_enabled|default(1) %}checked{% endif %}>
+        Pay referral commission on tickets for this event
+        <span class="af-opt">members who share their link earn {{ referral_rate_pct|default(10) }}% of what a referred buyer pays</span>
+      </label>
+    {% endif %}
+
+    {# ── TICKET TIERS ─────────────────────────────────────────────────────────
+       These are real rows now, not a JSON blob the public page printed as prose. Each
+       carries its OWN attendee limit, which is what makes "40 early-bird, 40 standard, in
+       a hall of 60" expressible — the event's capacity above is still the ceiling for the
+       whole room and is checked on top of every tier's.
+
+       A tier with a price is CHARGED: the registration goes to the gateway and no ticket
+       exists until Paystack confirms it. Leave the price at 0 for a free RSVP, which is
+       confirmed on the spot. #}
+    <div style="border:1px solid var(--ad-line,#e2e8e6);border-radius:12px;padding:14px 16px;margin-top:6px;background:#fafcfa" x-data="evRepeater({{ tier_seed|json_encode|e('html_attr') }}, {name:'',price:0,perk:'',cap:'',code:'',colour:'',active:true,sold:0})">
+      <strong style="font-size:14px">Ticket tiers <small style="font-weight:400;color:#8a9a9c">(a price of 0 is a free RSVP — leave the list empty for one simple free ticket)</small></strong>
+      {% if tier_colour_missing is empty %}
+      {# ── WHAT THE COLOURS ARE, ONCE ────────────────────────────────────────
+         The six slots resolved against THIS event's accent, so "Warm" is a colour an
+         organiser can recognise before choosing it rather than a word they have to guess
+         at. Change the ticket accent below and this strip moves with it on the next load —
+         which is the whole reason the column stores a slot and not a hex. #}
+      <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-top:10px;
+                  padding:8px 10px;background:#fff;border:1px solid var(--ad-line,#e2e8e6);border-radius:9px">
+        <span style="font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:#8a9a9c">Your colours</span>
+        {% for key, sw in tier_palette %}
+          <span style="display:inline-flex;align-items:center;gap:5px;font-size:12px;color:#3d4b4d">
+            <span aria-hidden="true" style="width:12px;height:12px;border-radius:50%;
+                     background:{{ sw.fill }};border:1px solid {{ sw.edge }}"></span>{{ sw.label }}
+          </span>
+        {% endfor %}
+      </div>
+      {% endif %}
+      <template x-for="(r, i) in rows" :key="r.id">
+        <div style="border-top:1px solid var(--ad-line,#e2e8e6);margin-top:10px;padding-top:10px">
+          <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+            <input type="hidden" name="tier_id[]" :value="r.tid || ''">
+            <input type="hidden" name="tier_active[]" :value="r.active ? '1' : '0'">
+            {# ── THE LADDER, MOVED ────────────────────────────────────────────
+               `sort_order` is written from the POSITION OF THESE FIELDS on save, so these
+               two buttons are the entire reordering mechanism — no route, no endpoint, no
+               schema change. The row number is shown because "third on the page" is the
+               thing being changed, and a pair of arrows with nothing between them gives an
+               organiser no way to confirm the move landed where they meant.
+
+               `type="button"` on both, and this is not a style preference: the tier list
+               sits INSIDE the event's own <form>, and a <button> with no type defaults to
+               `submit`. Without it, nudging a tier down would save and redirect the whole
+               event — the same family of fault as the nested <form> that used to eat the
+               questionnaire's outcome list, and just as invisible, because saving the form
+               is exactly what the page looks like it should do. #}
+            <span aria-hidden="true" class="ev-move__n" x-text="i + 1"></span>
+            <span style="display:inline-flex">
+              <button type="button" class="ev-move" @click="move(r.id, -1)" :disabled="i === 0"
+                      :aria-label="'Move ' + (r.name || 'this tier') + ' up'">▲</button>
+              <button type="button" class="ev-move" @click="move(r.id, 1)"
+                      :disabled="i === rows.length - 1"
+                      :aria-label="'Move ' + (r.name || 'this tier') + ' down'">▼</button>
+            </span>
+            <input name="tier_name[]" aria-label="Ticket tier name" x-model="r.name" maxlength="120" placeholder="Tier (e.g. VIP)" style="width:150px">
+            <input name="tier_price[]" aria-label="Ticket tier price in naira" type="number" min="0" step="1" x-model.number="r.price" placeholder="₦ 0" style="width:110px">
+            {# THE point of this change. Blank = as many as the room allows. #}
+            <input name="tier_capacity[]" aria-label="Seats available at this tier" type="number" min="0" step="1" x-model="r.cap" placeholder="Seats (blank = no limit)" style="width:170px">
+            <input name="tier_perk[]" aria-label="What this tier includes" x-model="r.perk" maxlength="500" placeholder="What's included" style="flex:1;min-width:140px">
+            <button type="button" @click="rm(r.id)" aria-label="Remove row" style="border:none;background:#fbeaea;color:#a4243a;font-weight:700;border-radius:8px;width:34px;height:34px;cursor:pointer">×</button>
+          </div>
+          <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:6px">
+            <input name="tier_from[]" aria-label="Sales open at" type="datetime-local" x-model="r.from" style="width:200px" step="1">
+            <input name="tier_until[]" aria-label="Sales close at" type="datetime-local" x-model="r.until" style="width:200px" step="1">
+            {# A code-gated tier is hidden from the public list and refused without the
+               code, which is how a sponsor or speaker allocation stays out of sight
+               without needing a second, secret event. #}
+            <input name="tier_code[]" aria-label="Access code" x-model="r.code" maxlength="60" placeholder="Access code (optional — hides the tier)" style="flex:1;min-width:180px">
+            {% if tier_colour_missing is empty %}
+            {# ── THE TIER'S COLOUR ──────────────────────────────────────────
+               New field, old mechanism. EventTierPalette has shipped six named slots, a
+               separation pass and a WCAG edge guarantee for months, and nothing in the
+               admin could write the column — so every tier on the platform was NULL and
+               every surface that reads a tier colour fell back to a default. The palette
+               was complete, correct, and unreachable.
+
+               It is what colours the dot on the printed ticket AND the selection light on
+               the registration card, because both read the same resolver. So this one
+               choice is the colour the buyer sees on the page and again on the door.
+
+               A select, not a swatch grid: this sits in a row an organiser fills in while
+               thinking about prices, and six coloured targets per tier is a place people
+               stop and deliberate. The live dot beside it is drawn by a delegated listener
+               in admin.js — the admin CSP has no 'unsafe-inline', so there is no onchange
+               here and there must not be. #}
+            <label style="display:flex;align-items:center;gap:6px;font-size:12px;white-space:nowrap">
+              <span class="sr-only">Tier colour</span>
+              <span aria-hidden="true" data-tier-dot
+                    style="width:13px;height:13px;border-radius:50%;flex:none;
+                           border:1px solid rgba(16,41,44,.25);background:transparent"></span>
+              <select name="tier_colour[]" aria-label="Tier colour" x-model="r.colour"
+                      data-ag-do="tier-colour" style="width:150px">
+                <option value="">No colour</option>
+                {% for key, sw in tier_palette %}
+                  <option value="{{ key }}" data-fill="{{ sw.fill }}" data-edge="{{ sw.edge }}">{{ sw.label }}</option>
+                {% endfor %}
+              </select>
+            </label>
+            {% endif %}
+            <label style="display:flex;align-items:center;gap:5px;font-size:12px;white-space:nowrap"><input type="checkbox" x-model="r.active"> On sale</label>
+            <span x-show="r.sold > 0" x-cloak style="font-size:12px;color:#1a6118;font-weight:700"
+                  x-text="r.sold + ' sold'"></span>
+          </div>
+        </div>
+      </template>
+      <button type="button" @click="add()" style="margin-top:10px;border:none;background:#eef7ee;color:#1a6118;font-weight:600;border-radius:999px;padding:8px 14px;cursor:pointer;font-size:13px">+ Add tier</button>
+      <p style="font-size:12px;color:#8a9a9c;margin:8px 0 0">
+        Prices in ₦. {# Said out loud because the list is NOT sorted by price and looks as
+        though it might be: an organiser who puts their premium row first is making a
+        deliberate choice, and nothing else on this screen would tell them it had taken. #}
+        <b style="color:#3d4b4d;font-weight:600">The order here is the order buyers see</b> — use
+        ▲▼ to arrange it. Colour and prominence still follow the price, not the position.
+        A tier is never deleted once anything has been sold against it — clearing
+        "On sale" takes it off the page and keeps the record straight for the people who bought one.
+        {% if row.id is defined %}<a href="/admin/events/{{ row.id }}/tickets" style="font-weight:600">See who is coming →</a>{% endif %}
+      </p>
     </div>
-    <div class="ad-form__row">
-      <label>Cover image URL<input type="url" name="cover_image" value="{{ row.cover_image|default('') }}" placeholder="https://…"></label>
-      <label>RSVP / details URL<input type="text" name="rsvp_url" value="{{ row.rsvp_url|default('') }}" placeholder="/partner or https://…"></label>
+
+    {# Early-bird banner (the promo strip across the top of the event page) #}
+    <div style="border:1px solid var(--ad-line,#e2e8e6);border-radius:12px;padding:14px 16px;margin-top:6px;background:#fafcfa">
+      <strong style="font-size:14px">Early-bird banner <small style="font-weight:400;color:#8a9a9c">(optional — auto-hides after the deadline)</small></strong>
+      <label style="margin-top:8px">Banner text<input type="text" name="early_bird_text" value="{{ row.early_bird_text|default('') }}" maxlength="255" placeholder="Save ₦8,000 with Early Bird tickets"></label>
+      <div class="row">
+        <label>Deadline<input type="datetime-local" name="early_bird_deadline" value="{{ row.early_bird_deadline|when_input }}" step="1"></label>
+        <label>Link URL<input type="text" name="early_bird_url" value="{{ row.early_bird_url|default('') }}" placeholder="#tickets or https://…"></label>
+      </div>
     </div>
-    <label>Status
-      <select name="status">
-        <option value="published" {% if row.status|default('draft') == 'published' %}selected{% endif %}>Published</option>
-        <option value="draft" {% if row.status|default('draft') == 'draft' %}selected{% endif %}>Draft</option>
-      </select>
-    </label>
-    <div class="ad-form__actions">
+
+    </section>
+
+    {# ══ STEP 3 · THE DAY ════════════════════════════════════════════════════ #}
+    <section class="af__step" :class="isOn(2) ? 'is-on' : ''">
+      <div class="af__head">
+        <h2>What happens on the day</h2>
+        <p>The agenda and the rules the event runs by. All optional — an event with none of this
+          still sells tickets and still works at the door.</p>
+      </div>
+
+    {# ── AGENDA (sessions as rows) ────────────────────────────────────────────
+       The run-of-show blob above still works and is still read by the public page when
+       there are no sessions. Sessions exist for the day an event has two rooms: a blob
+       cannot be grouped by day, filtered by track, or attached to — two parallel items at
+       14:00 read as a contradiction rather than a choice. #}
+    <div style="border:1px solid var(--ad-line,#e2e8e6);border-radius:12px;padding:14px 16px;margin-top:6px;background:#fafcfa" x-data="evRepeater({{ session_seed|default([])|json_encode|e('html_attr') }}, {sid:0,title:'',body:'',from:'',until:'',room:'',track:'',who:'',live:true})">
+      <strong style="font-size:14px">Agenda <small style="font-weight:400;color:#8a9a9c">(sessions — use this instead of the run of show for anything with tracks or more than one room)</small></strong>
+      <template x-for="(r, i) in rows" :key="r.id">
+        <div style="border-top:1px solid var(--ad-line,#e2e8e6);margin-top:10px;padding-top:10px">
+          <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+            <input type="hidden" name="ses_id[]" :value="r.sid || ''">
+            <input type="hidden" name="ses_live[]" :value="r.live ? '1' : '0'">
+            {# EventAgenda reads `sort_order` BEFORE `starts_at`, so this is the order the
+               agenda is published in even when the times disagree with it — which is the
+               case these arrows exist for. Two sessions in different rooms at the same
+               hour have no natural order, and a keynote that has not been timed yet must
+               still be able to sit at the top. #}
+            <span aria-hidden="true" class="ev-move__n" x-text="i + 1"></span>
+            <span style="display:inline-flex;flex:none">
+              <button type="button" class="ev-move" @click="move(r.id, -1)" :disabled="i === 0"
+                      :aria-label="'Move ' + (r.title || 'this session') + ' up'">▲</button>
+              <button type="button" class="ev-move" @click="move(r.id, 1)"
+                      :disabled="i === rows.length - 1"
+                      :aria-label="'Move ' + (r.title || 'this session') + ' down'">▼</button>
+            </span>
+            <input name="ses_title[]" aria-label="Session title" x-model="r.title" maxlength="200" placeholder="Session title" style="flex:1;min-width:180px">
+            <button type="button" @click="rm(r.id)" aria-label="Remove session" style="border:none;background:#fbeaea;color:#a4243a;font-weight:700;border-radius:8px;width:34px;height:34px;cursor:pointer;flex:none">×</button>
+          </div>
+          <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:6px">
+            <input name="ses_from[]" aria-label="Session starts" type="datetime-local" x-model="r.from" style="width:200px" step="1">
+            <input name="ses_until[]" aria-label="Session ends" type="datetime-local" x-model="r.until" style="width:200px" step="1">
+            <input name="ses_room[]" aria-label="Room" x-model="r.room" maxlength="120" placeholder="Room" style="width:130px">
+            <input name="ses_track[]" aria-label="Track" x-model="r.track" maxlength="80" placeholder="Track" style="width:130px">
+            <label style="display:flex;align-items:center;gap:5px;font-size:12px;white-space:nowrap"><input type="checkbox" x-model="r.live"> Published</label>
+          </div>
+          <div style="display:flex;gap:8px;margin-top:6px">
+            <input name="ses_who[]" aria-label="Speakers" x-model="r.who" maxlength="500" placeholder="Speakers, comma separated" style="width:260px">
+            <input name="ses_body[]" aria-label="Session detail" x-model="r.body" maxlength="1000" placeholder="What happens in this session (optional)" style="flex:1;min-width:160px">
+          </div>
+        </div>
+      </template>
+      <button type="button" @click="add()" style="margin-top:10px;border:none;background:#eef7ee;color:#1a6118;font-weight:600;border-radius:999px;padding:8px 14px;cursor:pointer;font-size:13px">+ Add session</button>
+      <p style="font-size:12px;color:#8a9a9c;margin:8px 0 0">
+        Sessions with no time are kept and shown under “timings to be confirmed”, so you can
+        type the titles now and the times later. Leave this list empty to keep using the run of show above.
+      </p>
+    </div>
+
+    {# Run-of-show repeater #}
+    <div style="border:1px solid var(--ad-line,#e2e8e6);border-radius:12px;padding:14px 16px;margin-top:6px;background:#fafcfa" x-data="evRepeater({{ sched_seed|json_encode|e('html_attr') }}, {time:'',title:'',body:''})">
+      <strong style="font-size:14px">Run of show <small style="font-weight:400;color:#8a9a9c">(optional — renders as a timeline)</small></strong>
+      <template x-for="(r, i) in rows" :key="r.id">
+        <div style="display:flex;gap:8px;align-items:flex-start;margin-top:8px">
+          {# The run of show is stored as a JSON array in exactly this order — there is no
+             time field to fall back on, because "18:00" here is a free-text label and
+             "Doors" sorts before "9:00" as a string. The row order IS the timeline. #}
+          <span style="display:inline-flex;flex:none">
+            <button type="button" class="ev-move" @click="move(r.id, -1)" :disabled="i === 0"
+                    :aria-label="'Move ' + (r.title || 'this item') + ' up'">▲</button>
+            <button type="button" class="ev-move" @click="move(r.id, 1)"
+                    :disabled="i === rows.length - 1"
+                    :aria-label="'Move ' + (r.title || 'this item') + ' down'">▼</button>
+          </span>
+          <input name="sched_time[]" aria-label="Schedule time" x-model="r.time" maxlength="40" placeholder="18:00" style="width:88px;flex:none">
+          <div style="flex:1;display:flex;flex-direction:column;gap:6px;min-width:0">
+            <input name="sched_title[]" aria-label="Schedule item title" x-model="r.title" maxlength="160" placeholder="Item title">
+            <input name="sched_body[]" aria-label="Schedule item detail" x-model="r.body" maxlength="300" placeholder="Short detail (optional)">
+          </div>
+          <button type="button" @click="rm(r.id)" aria-label="Remove row" style="border:none;background:#fbeaea;color:#a4243a;font-weight:700;border-radius:8px;width:34px;height:34px;cursor:pointer;flex:none">×</button>
+        </div>
+      </template>
+      <button type="button" @click="add()" style="margin-top:10px;border:none;background:#eef7ee;color:#1a6118;font-weight:600;border-radius:999px;padding:8px 14px;cursor:pointer;font-size:13px">+ Add item</button>
+    </div>
+
+    </section>
+
+    {# ══ STEP 4 · THE TICKET ═════════════════════════════════════════════════ #}
+    <section class="af__step" :class="isOn(3) ? 'is-on' : ''">
+      <div class="af__head">
+        <h2>What the attendee is handed</h2>
+        <p>Leave this alone and tickets look exactly as they do now. Change anything and only
+          this event's tickets change.</p>
+      </div>
+
+    {# ── THE TICKET'S APPEARANCE ─────────────────────────────────────────────
+       Per event, not per site: this platform runs an awards ceremony, a summit and a
+       training day in the same year, and they do not share a look. A site-wide ticket
+       theme would mean every event after the first wears somebody else's clothes.
+
+       The preview is live but it is a PREVIEW — the real ticket is rendered by
+       templates/pages/events/ticket.twig from values EventTicketDesign has validated. The
+       colour is the one field here whose value ends up inside a `style` attribute, so it is
+       refused rather than escaped on save AND again on render.
+
+       `x-data` sits on a wrapper with no static `style`, and every bound style below is on
+       a tag that has none of its own — AlpineStyleClobberTest fails the build otherwise. #}
+    {% if design_missing is not empty %}
+      <div style="border:1px solid #ecd9a0;border-radius:12px;padding:14px 16px;margin-top:6px;background:#fffdf5">
+        <strong style="font-size:14px">Ticket design needs one more step</strong>
+        <p style="font-size:12.5px;color:#6b5312;margin:6px 0 0;line-height:1.7">
+          These columns are not in the database yet:
+          <code>{{ design_missing|join('</code>, <code>')|raw }}</code>. Run
+          <strong>/__setup/migrate</strong> and this section appears. Until then tickets use
+          the standard design, which is exactly what they did before.
+        </p>
+      </div>
+    {% else %}
+    <div style="border:1px solid var(--ad-line,#e2e8e6);border-radius:12px;padding:14px 16px;margin-top:6px;background:#fafcfa"
+         {# `imageField` is the RAW column and `image` is the resolved one. The address box is
+            bound to the raw value on purpose: seeded with the resolved one, opening any event
+            with a cover photo and pressing Save copied the cover into `ticket_image` — after
+            which changing the cover no longer changed the ticket, and nothing said why. #}
+         x-data="tkDesign({{ {
+            accent: design.accent,
+            theme: design.theme,
+            note: design.note,
+            image: design.image,
+            imageField: row.ticket_image|default(''),
+            title: row.title|default('Your event'),
+            when: row.event_date|default(''),
+            venue: row.venue|default(''),
+            showQr: design.show_qr,
+            art: { src: artwork_src|default(''), edit: artwork_edit|default({}),
+                   ratio: artwork_ratio|default(1.5), on: artwork_missing is empty }
+         }|json_encode }})">
+      <input type="hidden" name="ticket_design_posted" value="1">
+      <strong style="font-size:14px">The ticket <small style="font-weight:400;color:#8a9a9c">(what an attendee shows at the door)</small></strong>
+      <p style="font-size:12px;color:#8a9a9c;margin:6px 0 12px">
+        {% if design.customised %}This event has its own ticket design.{% else %}Using the
+        standard design. Change anything below and only this event's tickets change.{% endif %}
+      </p>
+
+      {# `min-width:0` on the CHILD, not only `minmax(0,…)` on the track. A grid item's
+         default `min-width:auto` is its content's minimum, and the form's inputs are
+         `width:100%` of that — so the left column grew past its track and slid under the
+         preview. The track sizing alone does not prevent it. #}
+      <div class="tk-des">
+        <div style="min-width:0">
+          <div class="row">
+            <label>Accent colour
+              {# Two inputs, one value: the picker is unusable for typing a brand hex and the
+                 text box is unusable for choosing one by eye. They are kept in step in
+                 Alpine, and only `ticket_accent` is submitted. #}
+              <span style="display:flex;gap:8px;align-items:center">
+                <input type="color" x-model="accent" aria-label="Accent colour picker"
+                       style="width:44px;height:38px;padding:2px;flex:none;cursor:pointer">
+                <input type="text" name="ticket_accent" x-model="accent" maxlength="7"
+                       placeholder="#10292C" spellcheck="false"
+                       style="font-family:var(--ag-font-mono,monospace)">
+              </span>
+            </label>
+            <label>Card
+              <select name="ticket_theme" x-model="theme">
+                <option value="dark">Dark card</option>
+                <option value="light">Light card</option>
+              </select>
+            </label>
+          </div>
+
+          {# ── THE ARTWORK ──────────────────────────────────────────────────
+             This used to be a text box you typed a path into, and whatever was at that path
+             got dropped into the ticket's band by CSS with one hard-coded focal point —
+             `object-position:50% 32%`, chosen once against the average poster. On the events
+             it was wrong for it cut somebody's face in half, and there was nothing an
+             organiser could do about it from here.
+
+             Now the frame is the band. What is inside it is what prints, at the ticket's own
+             gradient and with the ticket's own title over it, so the one mistake this thing
+             exists to prevent — putting the subject in the bottom third, where the type block
+             lands — is visible before saving rather than after printing.
+
+             The browser posts NUMBERS. The crop, the turn and the three adjustments go to the
+             server as a small JSON recipe and AfricaGates\Services\TicketArtwork does the
+             actual cutting with Intervention. A canvas export would be fewer moving parts and
+             it is deliberately not what happens: it would walk around the upload hardening,
+             and it would throw away the original, so the second edit would be cropping a crop. #}
+          {% if artwork_missing is not empty %}
+            <label>Ticket image <small>(blank = the event's cover image)</small>
+              <input type="text" name="ticket_image" x-model="imageField"
+                     placeholder="/uploads/ticket-art.jpg or https://…"></label>
+            <p style="font-size:12px;color:#8a9a9c;margin:-2px 0 12px">
+              The crop editor needs one more migration —
+              <code>{{ artwork_missing|join('</code>, <code>')|raw }}</code>. Run
+              <strong>/__setup/migrate</strong> and it appears here. Until then this is an
+              address box, exactly as before.
+            </p>
+          {% else %}
+          <span style="display:block;font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:#8a9a9c;margin:2px 0 7px">The band at the top of the ticket</span>
+          <div class="tka">
+            {# The values the server reads. `ticket_image_edit` is rebuilt on every change, so
+               whatever the frame is showing when Save is pressed is what gets cut. #}
+            <input type="hidden" name="ticket_image_edit" :value="artJson()">
+            <input type="hidden" name="ticket_artwork_clear" :value="art.gone ? '1' : ''">
+
+            <template x-if="art.src">
+              <div class="tka__frame" x-ref="tkaFrame" tabindex="0" role="group"
+                   aria-label="Ticket artwork — drag to move, arrow keys to nudge, scroll to zoom"
+                   @pointerdown="artGrab($event)" @keydown="artKey($event)"
+                   @wheel.prevent="artZoom($event.deltaY < 0 ? 0.12 : -0.12)">
+                <div class="tka__stage" :style="artStage()">
+                  <img class="tka__img" :src="art.src" :style="artImg()" alt=""
+                       aria-hidden="true" draggable="false" @load="artLoaded($event)">
+                </div>
+                {# The ticket's own wash, at the ticket's own stops — see the note on
+                   .tk__scrim in templates/pages/events/ticket.twig for where each comes from. #}
+                <span class="tka__wash" aria-hidden="true"
+                      :style="'background:linear-gradient(to top,' + accent + 'F7 0%,' + accent + 'F2 48%,' + accent + 'B0 62%,' + accent + '00 78%)'"></span>
+                <div class="tka__over" aria-hidden="true" :style="'color:' + ink()">
+                  <span class="tka__overk" x-text="[artDay(), venue].filter(Boolean).join(' · ') || 'Admit one'"></span>
+                  <span class="tka__overt" x-text="title || 'Your event'"></span>
+                </div>
+                <span class="tka__guide" aria-hidden="true"></span>
+              </div>
+            </template>
+
+            {# ── ONE FILE INPUT, AND IT NEVER MOVES ───────────────────────
+               It sits outside both branches below and is reached by `for=`. Inside an
+               `x-if` it would be the same control on screen and a different element in the
+               DOM: choosing a picture sets `art.src`, which flips the branch, which destroys
+               the input — taking the chosen file with it. The form then posted no file at
+               all, the save looked like it worked, and nothing arrived. #}
+            <input class="tka__file" type="file" id="tka-file" name="ticket_artwork"
+                   accept="image/jpeg,image/png,image/webp,image/gif" x-ref="tkaFile"
+                   @change="artFile($event.target.files[0])">
+
+            <template x-if="!art.src">
+              <label class="tka__drop" for="tka-file" :class="art.over ? 'is-over' : ''"
+                     @dragover.prevent="art.over = true" @dragleave="art.over = false"
+                     @drop.prevent="art.over = false; artDrop($event)">
+                <strong>Add the ticket artwork</strong>
+                <span>Drop a picture here, or choose one. JPEG, PNG or WebP, at least 300px on
+                      the short side.</span>
+              </label>
+            </template>
+
+            <template x-if="art.src">
+              <div class="tka__tools">
+                {# The same input as the drop zone — see the note above it. A `label for=` is
+                   also the one way to open a file picker from the keyboard. #}
+                <label class="tka__btn" for="tka-file">Replace</label>
+                <button type="button" class="tka__btn" @click="artTurn(-90)"
+                        aria-label="Turn a quarter turn anticlockwise" title="Turn anticlockwise">↺</button>
+                <button type="button" class="tka__btn" @click="artTurn(90)"
+                        aria-label="Turn a quarter turn clockwise" title="Turn clockwise">↻</button>
+                <button type="button" class="tka__btn" @click="artFlip('h')"
+                        :aria-pressed="art.flip === 'h' ? 'true' : 'false'"
+                        aria-label="Mirror left to right" title="Mirror left to right">⇋</button>
+                <button type="button" class="tka__btn" @click="artFlip('v')"
+                        :aria-pressed="art.flip === 'v' ? 'true' : 'false'"
+                        aria-label="Mirror top to bottom" title="Mirror top to bottom">⇅</button>
+                <button type="button" class="tka__btn" @click="art.greyscale = !art.greyscale"
+                        :aria-pressed="art.greyscale ? 'true' : 'false'">Black &amp; white</button>
+                <button type="button" class="tka__btn" @click="artReset()"
+                        :disabled="artUntouched()">Reset</button>
+                <button type="button" class="tka__btn tka__btn--warn" @click="artRemove()">Remove</button>
+              </div>
+            </template>
+
+            <template x-if="art.src">
+              <div class="tka__grid">
+                <label class="tka__slide"><span>Zoom</span>
+                  <input type="range" min="1" max="4" step="0.02" x-model.number="art.zoom"
+                         @input="artClamp()">
+                  <span class="tka__val" x-text="art.zoom.toFixed(2) + '×'"></span></label>
+                <label class="tka__slide"><span>Brightness</span>
+                  <input type="range" min="-100" max="100" step="1" x-model.number="art.brightness">
+                  <span class="tka__val" x-text="artSigned(art.brightness)"></span></label>
+                <label class="tka__slide"><span>Contrast</span>
+                  <input type="range" min="-100" max="100" step="1" x-model.number="art.contrast">
+                  <span class="tka__val" x-text="artSigned(art.contrast)"></span></label>
+              </div>
+            </template>
+
+            {# The filter the frame is looking through, and the one the server will apply.
+               feComponentTransfer's `linear` is ADDITIVE, which is what GD's brightness is;
+               CSS `brightness()` is multiplicative and would preview a different picture from
+               the one that prints. The matrix uses GD's own greyscale weights (.299 .587 .114)
+               rather than CSS `grayscale()`'s Rec.709 ones, for the same reason. Contrast is
+               the one that maps cleanly — CSS `contrast(k)` is exactly GD's
+               `(c - .5) * k + .5`, so it is applied as a plain CSS function in artFilter(). #}
+            <svg class="tka__defs" aria-hidden="true" focusable="false">
+              <filter id="tka-adj" color-interpolation-filters="sRGB">
+                <feColorMatrix type="matrix" :values="artMatrix()"></feColorMatrix>
+                <feComponentTransfer>
+                  <feFuncR type="linear" slope="1" :intercept="art.brightness / 100"></feFuncR>
+                  <feFuncG type="linear" slope="1" :intercept="art.brightness / 100"></feFuncG>
+                  <feFuncB type="linear" slope="1" :intercept="art.brightness / 100"></feFuncB>
+                </feComponentTransfer>
+              </filter>
+            </svg>
+
+            <p style="font-size:12px;color:#8a9a9c;margin:10px 0 0">
+              Drag the picture to move it, scroll or use Zoom to fill the frame. The original
+              is kept, so every change is cut from it fresh — you can come back and re-frame
+              this next year without the picture getting any softer.
+            </p>
+
+            {# Folded away. An address is the escape hatch for artwork that lives somewhere
+               else, and it is the wrong first thing to offer somebody holding a JPEG. #}
+            <details style="margin-top:10px">
+              <summary style="font-size:12.5px;font-weight:600;cursor:pointer;color:#5a6d6f">Use a picture that is already online</summary>
+              <label style="margin-top:8px">Address of the image
+                <input type="text" name="ticket_image" x-model="imageField"
+                       placeholder="/uploads/ticket-art.jpg or https://…"></label>
+              <p style="font-size:12px;color:#8a9a9c;margin:-2px 0 4px">
+                Shown as-is: a picture we did not receive as a file cannot be cropped here, so
+                it is fitted to the band the old way. Typing an address replaces any artwork
+                above — leave this alone if you are using the frame.
+              </p>
+            </details>
+          </div>
+          {% endif %}
+
+          <label>Line on the stub <small>(printed — “Doors 5pm · Black tie”)</small>
+            <input type="text" name="ticket_note" x-model="note" maxlength="160"></label>
+
+          <fieldset style="border:1px solid var(--ad-line,#e2e8e6);border-radius:10px;padding:10px 12px;margin:10px 0 0">
+            <legend style="font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:#8a9a9c;padding:0 4px">Show on the ticket</legend>
+            <div style="display:flex;flex-wrap:wrap;gap:10px 16px;margin-top:4px">
+              {% for key, label in design_rows %}
+                <label style="display:flex;align-items:center;gap:7px;font-size:13px;margin:0">
+                  <input type="checkbox" name="ticket_rows[]" value="{{ key }}"
+                         {% if key in design.rows %}checked{% endif %}
+                         style="width:auto;flex:none;margin:0">
+                  <span>{{ label }}</span>
+                </label>
+              {% endfor %}
+            </div>
+            <p style="font-size:12px;color:#8a9a9c;margin:10px 0 0">
+              The holder's name, the ticket type and the reference always show — a ticket
+              without them is not a ticket. A row with nothing in it is skipped, so ticking
+              “Seat” costs nothing on events that do not use one.
+            </p>
+          </fieldset>
+
+          <label style="display:flex;align-items:center;gap:8px;margin-top:12px">
+            <input type="checkbox" name="ticket_show_qr" value="1" x-model="showQr"
+                   style="width:auto;flex:none;margin:0">
+            <span>Print a QR code on the ticket</span>
+          </label>
+          <p style="font-size:12px;color:#8a9a9c;margin:4px 0 0">
+            Leave this on unless your door checks names against a printed list. Typing nine
+            characters per attendee is what makes a queue stationary — at three hundred people
+            it is about twenty minutes of queue that need not exist. The code is printed
+            either way, so a phone with a dead battery is never locked out.
+          </p>
+        </div>
+
+        {# ── the preview ────────────────────────────────────────────────────
+           Not the real template — it is a sketch at a quarter of the detail, and it exists
+           so a colour choice can be judged before saving. The QR is a placeholder grid
+           rather than a real symbol: generating one per keystroke would be a request per
+           keystroke, and what is being judged here is the colour, not the code. #}
+        <div style="min-width:0">
+          <span style="display:block;font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:#8a9a9c;margin-bottom:7px">Preview</span>
+          <div :class="theme === 'dark' ? 'tkp tkp--dark' : 'tkp'">
+            <div class="tkp__head" :style="'background:' + accent + ';color:' + ink()">
+              {# Cropped artwork wins over a pasted address, because that is the order the
+                 server resolves them in — a preview that disagreed would be worse than none. #}
+              <template x-if="art.src">
+                <span class="tkp__art" aria-hidden="true">
+                  <span class="tkp__stage" :style="artStage()">
+                    <img class="tka__img" :src="art.src" :style="artImg()" alt="" draggable="false">
+                  </span>
+                </span>
+              </template>
+              <template x-if="!art.src && shot()">
+                <img class="tkp__shot" :src="shot()" alt="" aria-hidden="true">
+              </template>
+              <template x-if="art.src || shot()">
+                <span class="tkp__scrim" :style="'background:linear-gradient(180deg,' + accent + 'F0,' + accent + 'FC)'"></span>
+              </template>
+              <div class="tkp__headin">
+                <span class="tkp__eyebrow">Admit one</span>
+                <strong class="tkp__title" x-text="title || 'Your event'"></strong>
+                <span class="tkp__when" x-text="[when, venue].filter(Boolean).join(' · ')"></span>
+              </div>
+            </div>
+            <div class="tkp__tear"><i></i></div>
+            <div class="tkp__stub">
+              <template x-if="showQr"><span class="tkp__qr" aria-hidden="true"></span></template>
+              <span class="tkp__code">ABCD-2468</span>
+              <template x-if="note"><span class="tkp__note" x-text="note"></span></template>
+            </div>
+            <div class="tkp__rows">
+              <span>Ada Obi</span><span>Ceremony</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    {% endif %}
+
+    </section>
+
+    {# ── THE BAR ──────────────────────────────────────────────────────────────
+       Sticky, so Save is never a scroll away — correcting one field used to mean finding it,
+       changing it, then scrolling past everything else to commit it. And it SAYS what state the
+       form is in: a Save button that looks identical whether or not anything has changed is a
+       button somebody presses again just in case.
+
+       Back/Next move between steps and submit NOTHING; only Save posts, and it posts every
+       field on every step at once. #}
+    <div class="af__bar">
+      <span class="af__state" :class="stateClass()" x-text="state()">Everything saved</span>
+      <div class="af__steps">
+        <button type="button" class="af__ghost" @click="back()" :disabled="at === 0">← Back</button>
+        <button type="button" class="af__ghost" @click="next()"
+                :disabled="at === titles.length - 1">Next →</button>
+      </div>
       <button class="ad-btn ad-btn--primary" type="submit">Save event</button>
       <a class="ad-btn" href="/admin/events">Cancel</a>
     </div>
+
+    {# The sibling screens, out of the save bar. They are navigation, not actions on this form,
+       and sitting beside Save is how somebody loses an edit by pressing one of them. #}
+    {% if row.id is defined %}
+    <p style="margin:12px 0 0;font-size:12.5px;color:var(--ad-text-mute,#5a6d6f)">
+      Also for this event:
+      <a href="/admin/events/{{ row.id }}/tickets" style="font-weight:600">Who is coming</a> ·
+      <a href="/admin/events/{{ row.id }}/codes" style="font-weight:600">Discount codes</a> ·
+      <a href="/admin/events/{{ row.id }}/stands" style="font-weight:600">Vendor stands</a> ·
+      <a href="/admin/events/{{ row.id }}/invites" style="font-weight:600">Invitations</a>
+    </p>
+    {% endif %}
   </form>
 </div>
+<script nonce="{{ csp_nonce }}">
+function evRepeater(seed, blank){
+  let nextId = 1000;
+  const rows = (seed && seed.length) ? seed.map(r => Object.assign({}, r)) : [Object.assign({id:1}, blank)];
+  return {
+    rows,
+    add(){ this.rows.push(Object.assign({id: nextId++}, blank)); },
+    rm(id){ this.rows = this.rows.filter(r => r.id !== id); if(!this.rows.length) this.add(); },
+
+    /* ── MOVING A ROW IS THE WHOLE ORDERING FEATURE ───────────────────────────
+       There is no reorder route and there does not need to be one: saveTiers() walks the
+       submitted rows and writes `sort_order = $order++`, so the ORDER OF THE FIELDS IN
+       THIS FORM is the order the ladder is stored in. Every reader — the public event
+       page, the registration card, the admin list, the ticket service and the support
+       context — selects `orderBy('sort_order')->orderBy('id')`. So moving the inputs
+       moves the tier everywhere, and a row that never moves keeps the id tiebreak it
+       already had.
+
+       Splice rather than swap: a swap is only correct for a step of one, and writing the
+       general form here means a future "move to top" cannot silently corrupt the ladder
+       by reusing a helper that was never that. */
+    move(id, delta){
+      const i = this.rows.findIndex(r => r.id === id);
+      const j = i + delta;
+      if (i < 0 || j < 0 || j >= this.rows.length) return;
+      this.rows.splice(j, 0, this.rows.splice(i, 1)[0]);
+    }
+  };
+}
+
+/* ── the ticket preview ─────────────────────────────────────────────────────
+   Presentation only. Nothing here validates anything: the server refuses a non-colour on
+   save and again on render (EventTicketDesign::colour), so a malformed value typed here
+   shows as a broken preview and is then simply not stored. Doing the validation twice in
+   two languages would mean two places to disagree.
+
+   `ink()` mirrors EventTicketDesign::contrastInk so the preview picks the same readable
+   text colour the real ticket will. Same relative-luminance formula and the same 0.36
+   threshold — a naive channel average hands white text to a bright green header. */
+function tkDesign(seed){
+  return {
+    accent: seed.accent || '#10292C',
+    theme:  seed.theme  || 'dark',
+    note:   seed.note   || '',
+    image:  seed.image  || '',
+    imageField: seed.imageField || '',
+    title:  seed.title  || '',
+    when:   (seed.when || '').slice(0, 16).replace('T', ' '),
+    venue:  seed.venue  || '',
+    showQr: seed.showQr !== false,
+
+    /* ── THE ARTWORK EDITOR ──────────────────────────────────────────────────
+       State is THREE numbers — a zoom and the centre of the frame, as fractions of the
+       picture — and not a rectangle in pixels. Fractions survive the things pixels do not:
+       the panel being narrower on a phone, the upload being scaled down to 2400px on the
+       way to disk, and the picture being turned a quarter turn after the frame was set.
+
+       Everything below derives from them, in percentages of a 3:2 box. That is why nothing
+       here measures anything: the editor frame and the small preview are both 3:2, so the
+       same offsets place the picture identically in both, at any width, with no resize
+       observer to go stale. */
+    art: {
+      on:   (seed.art || {}).on !== false,
+      src:  (seed.art || {}).src || '',
+      ratio: (seed.art || {}).ratio || 1.5,
+      nw: 0, nh: 0, ready: false, over: false, gone: false,
+      zoom: 1, cx: 0.5, cy: 0.5,
+      rotate: 0, flip: 'none', brightness: 0, contrast: 0, greyscale: false
+    },
+
+    init(){
+      const e = (seed.art || {}).edit || {};
+      const a = this.art;
+      a.rotate     = [0, 90, 180, 270].indexOf(e.rotate | 0) >= 0 ? (e.rotate | 0) : 0;
+      a.flip       = ['none', 'h', 'v'].indexOf(e.flip) >= 0 ? e.flip : 'none';
+      a.brightness = this.artNum(e.brightness);
+      a.contrast   = this.artNum(e.contrast);
+      a.greyscale  = !!e.greyscale;
+      /* The rectangle is turned back into a zoom and a centre once the picture's natural
+         size is known — see artLoaded(). Until then the frame shows it centred, which is
+         also what the whole-picture recipe means. */
+      this.artSeedCrop = (e.crop && typeof e.crop === 'object') ? e.crop : null;
+    },
+
+    artNum(v){ v = Number(v); return isFinite(v) ? Math.max(-100, Math.min(100, Math.round(v))) : 0; },
+
+    /* `05.09.26`, which is the form the real .tk__kick prints. The written-out date belongs
+       on the stub, where it is read rather than recognised — and a preview that showed
+       `2026-09-05` would be teaching the wrong line length for the space above the title. */
+    artDay(){
+      const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(this.when || '');
+      return m ? m[3] + '.' + m[2] + '.' + m[1].slice(2) : '';
+    },
+    artSigned(v){ return (v > 0 ? '+' : '') + v; },
+
+    /* What the small preview should show when there is no artwork: the address somebody
+       typed, else the event's cover. Never the RESOLVED value in the address box itself —
+       see the seed comment above the markup for the save-time bug that caused. */
+    shot(){ return this.imageField || this.image || ''; },
+
+    /* The picture as the frame sees it: a quarter turn swaps its sides. Every fraction
+       below — and every one the server reads — is against THIS, not the file on disk. */
+    artW(){ return this.art.rotate % 180 === 0 ? this.art.nw : this.art.nh; },
+    artH(){ return this.art.rotate % 180 === 0 ? this.art.nh : this.art.nw; },
+
+    /* The widest 3:2 rectangle that fits, as a fraction of each side. Zoom 1 is exactly
+       this — i.e. `cover`, the thing the ticket did before — and everything above 1 is a
+       tighter frame inside it. There is deliberately no way to zoom below 1: it would mean
+       letting the band show something that is not the picture. */
+    artBase(){
+      const A = this.artW() / this.artH(), R = this.art.ratio;
+      return A >= R ? { w: R / A, h: 1 } : { w: 1, h: A / R };
+    },
+
+    /* The crop, as the server will read it. Clamped here rather than trusted there — but
+       TicketArtwork::recipe() clamps it again anyway, because this is a browser. */
+    artCrop(){
+      const a = this.art;
+      if (!a.ready) return { x: 0, y: 0, w: 1, h: 1 };
+      const b = this.artBase();
+      const w = b.w / a.zoom, h = b.h / a.zoom;
+      return {
+        x: Math.min(Math.max(a.cx - w / 2, 0), 1 - w),
+        y: Math.min(Math.max(a.cy - h / 2, 0), 1 - h),
+        w: w, h: h
+      };
+    },
+
+    artRecipe(){
+      const a = this.art;
+      return { crop: this.artCrop(), rotate: a.rotate, flip: a.flip,
+               brightness: a.brightness, contrast: a.contrast, greyscale: a.greyscale };
+    },
+    /* The hidden field. Empty when there is nothing to cut, so a form with no artwork does
+       not post a recipe the server would have to decide what to do with. */
+    artJson(){ return (this.art.on && this.art.src && this.art.ready) ? JSON.stringify(this.artRecipe()) : ''; },
+
+    /* Percentages, not pixels — see the state comment. A crop covering `w` of the picture
+       is shown at 100/w per cent of a frame that is showing exactly that crop. */
+    artStage(){
+      if (!this.art.ready) return 'display:none';
+      const c = this.artCrop();
+      return 'left:' + (-c.x / c.w * 100) + '%;top:' + (-c.y / c.h * 100) + '%;'
+           + 'width:' + (100 / c.w) + '%;height:' + (100 / c.h) + '%';
+    },
+
+    artImg(){
+      const a = this.art;
+      if (!a.ready) return 'display:none';
+      /* Sized against the ROTATED box and then turned about its own centre: a rectangle
+         rotated a quarter turn about its centre occupies exactly the transposed box, so the
+         picture lands filling the stage without a single offset being worked out. */
+      const t = ['translate(-50%,-50%)', 'rotate(' + a.rotate + 'deg)'];
+      if (a.flip === 'h') t.push('scaleX(-1)');
+      if (a.flip === 'v') t.push('scaleY(-1)');
+      return 'width:' + (a.nw / this.artW() * 100) + '%;'
+           + 'height:' + (a.nh / this.artH() * 100) + '%;'
+           + 'transform:' + t.join(' ') + ';' + this.artFilter();
+    },
+
+    /* The preview filter, built to match what Intervention will do rather than to look
+       roughly similar. Brightness and greyscale go through the SVG filter in the markup —
+       GD adds a constant and CSS `brightness()` multiplies, which are not the same picture.
+       Contrast is the one that maps exactly: GD computes (c − ½)·k + ½ with k = ((100+n)/100)²,
+       and that is the definition of CSS `contrast(k)`. */
+    artFilter(){
+      const a = this.art, f = [];
+      if (a.greyscale || a.brightness !== 0) f.push('url(#tka-adj)');
+      if (a.contrast !== 0) f.push('contrast(' + Math.pow((100 + a.contrast) / 100, 2).toFixed(4) + ')');
+      return f.length ? 'filter:' + f.join(' ') + ';' : '';
+    },
+
+    /* GD's greyscale weights, not CSS's. `grayscale()` uses Rec.709 (.2126 .7152 .0722) and
+       imagefilter(IMG_FILTER_GRAYSCALE) uses luma (.299 .587 .114) — close, but visibly
+       different on saturated reds, which is most of a stage-lit event photograph. */
+    artMatrix(){
+      return this.art.greyscale
+        ? '0.299 0.587 0.114 0 0 0.299 0.587 0.114 0 0 0.299 0.587 0.114 0 0 0 0 0 1 0'
+        : '1 0 0 0 0 0 1 0 0 0 0 0 1 0 0 0 0 0 1 0';
+    },
+
+    artLoaded(ev){
+      const a = this.art;
+      a.nw = ev.target.naturalWidth || 0;
+      a.nh = ev.target.naturalHeight || 0;
+      if (!a.nw || !a.nh) return;
+      a.ready = true;
+      /* Put the handles back where they were left. A stored recipe is a rectangle; the frame
+         works in zoom-and-centre, so it is inverted here — and only here, once the picture's
+         real proportions are known. The identity recipe (the whole picture) is not 3:2 and
+         inverts to a zoom below 1, which clamps to 1: centred `cover`, which is what it means. */
+      const c = this.artSeedCrop;
+      this.artSeedCrop = null;
+      if (c && c.w > 0 && c.h > 0) {
+        a.zoom = Math.min(4, Math.max(1, this.artBase().w / Number(c.w)));
+        a.cx = Number(c.x) + Number(c.w) / 2;
+        a.cy = Number(c.y) + Number(c.h) / 2;
+      }
+      this.artClamp();
+    },
+
+    /* Keep the frame inside the picture. Called after everything that can move an edge —
+       a zoom, a turn, a drag — because a crop that has slipped outside is a crop the server
+       will quietly slide back, and then the saved ticket is not the one on screen. */
+    artClamp(){
+      const a = this.art;
+      a.zoom = Math.min(4, Math.max(1, Number(a.zoom) || 1));
+      if (!a.ready) return;
+      const b = this.artBase(), w = b.w / a.zoom, h = b.h / a.zoom;
+      a.cx = Math.min(Math.max(a.cx, w / 2), 1 - w / 2);
+      a.cy = Math.min(Math.max(a.cy, h / 2), 1 - h / 2);
+    },
+
+    artZoom(by){ this.art.zoom = this.art.zoom + by; this.artClamp(); },
+
+    artTurn(deg){
+      const a = this.art;
+      a.rotate = ((a.rotate + deg) % 360 + 360) % 360;
+      /* The centre travels with the picture. Without this a quarter turn appears to throw
+         the frame somewhere else, and the organiser re-drags it every single time. */
+      const cx = a.cx, cy = a.cy;
+      if (deg > 0) { a.cx = 1 - cy; a.cy = cx; } else { a.cx = cy; a.cy = 1 - cx; }
+      this.artClamp();
+    },
+
+    artFlip(axis){
+      const a = this.art;
+      a.flip = (a.flip === axis) ? 'none' : axis;
+      if (axis === 'h') a.cx = 1 - a.cx; else a.cy = 1 - a.cy;
+      this.artClamp();
+    },
+
+    artUntouched(){
+      const a = this.art;
+      return a.zoom === 1 && Math.abs(a.cx - 0.5) < 1e-6 && Math.abs(a.cy - 0.5) < 1e-6
+          && a.rotate === 0 && a.flip === 'none'
+          && a.brightness === 0 && a.contrast === 0 && !a.greyscale;
+    },
+
+    artReset(){
+      Object.assign(this.art, { zoom: 1, cx: 0.5, cy: 0.5, rotate: 0, flip: 'none',
+                                brightness: 0, contrast: 0, greyscale: false });
+    },
+
+    /* Removing is a REQUEST, not a local tidy-up: `gone` is posted, and it is what makes the
+       server clear all three columns. Without it the row would keep a source the form is no
+       longer showing, and the picture would come back on the next save. */
+    artRemove(){
+      this.artReset();
+      Object.assign(this.art, { src: '', nw: 0, nh: 0, ready: false, gone: true });
+      this.imageField = '';
+      /* Emptied, not just hidden. The input is outside the branch that just went away, so a
+         file chosen and then removed would still be posted and quietly re-appear. */
+      if (this.$refs.tkaFile) this.$refs.tkaFile.value = '';
+    },
+
+    artDrop(ev){
+      const f = ev.dataTransfer && ev.dataTransfer.files ? ev.dataTransfer.files[0] : null;
+      if (!f) return;
+      /* A dropped file is not in the input, and the input is what gets posted. Assigning the
+         FileList across is the one supported way to put it there. */
+      try { this.$refs.tkaFile.files = ev.dataTransfer.files; } catch (e) { /* older browsers */ }
+      this.artFile(f);
+    },
+
+    /* Shown from the file itself, not from a round trip. The server has not seen this
+       picture yet and will scale it down to 2400px when it does — which changes nothing
+       here, because the frame is expressed in fractions of the picture rather than pixels. */
+    artFile(file){
+      if (!file || !/^image\//.test(file.type)) return;
+      const r = new FileReader();
+      r.onload = () => {
+        this.artReset();
+        Object.assign(this.art, { src: r.result, ready: false, gone: false, nw: 0, nh: 0 });
+      };
+      r.readAsDataURL(file);
+    },
+
+    artGrab(ev){
+      if (!this.art.ready || ev.button > 0) return;
+      const box = ev.currentTarget.getBoundingClientRect();
+      const c = this.artCrop();
+      let px = ev.clientX, py = ev.clientY;
+      const move = (e) => {
+        /* One pixel of the frame is `crop width / frame width` of the picture, and the
+           picture moves the opposite way to the frame. */
+        this.art.cx -= (e.clientX - px) * c.w / box.width;
+        this.art.cy -= (e.clientY - py) * c.h / box.height;
+        px = e.clientX; py = e.clientY;
+        this.artClamp();
+      };
+      const up = () => {
+        window.removeEventListener('pointermove', move);
+        window.removeEventListener('pointerup', up);
+        window.removeEventListener('pointercancel', up);
+      };
+      window.addEventListener('pointermove', move);
+      window.addEventListener('pointerup', up);
+      window.addEventListener('pointercancel', up);
+    },
+
+    /* Arrows nudge, +/− zoom. Not decoration: a pointer drag is the only way to set this
+       frame otherwise, which would put the feature out of reach of anybody who does not use
+       one — on the single control that decides what the printed ticket looks like. */
+    artKey(ev){
+      if (!this.art.ready) return;
+      const step = ev.shiftKey ? 0.05 : 0.01, a = this.art;
+      const at = {
+        ArrowLeft:  () => a.cx -= step, ArrowRight: () => a.cx += step,
+        ArrowUp:    () => a.cy -= step, ArrowDown:  () => a.cy += step,
+        '+': () => this.artZoom(0.1), '=': () => this.artZoom(0.1),
+        '-': () => this.artZoom(-0.1), '_': () => this.artZoom(-0.1)
+      }[ev.key];
+      if (!at) return;
+      ev.preventDefault();
+      at();
+      this.artClamp();
+    },
+
+    ink(){
+      const h = String(this.accent || '').trim().replace(/^#/, '');
+      if (!/^[0-9a-f]{6}$/i.test(h)) return '#FFFFFF';
+      const lin = c => { c /= 255; return c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4); };
+      const l = 0.2126 * lin(parseInt(h.slice(0, 2), 16))
+              + 0.7152 * lin(parseInt(h.slice(2, 4), 16))
+              + 0.0722 * lin(parseInt(h.slice(4, 6), 16));
+      return l > 0.36 ? '#10292C' : '#FFFFFF';
+    }
+  };
+}
+</script>
 {% endblock %}

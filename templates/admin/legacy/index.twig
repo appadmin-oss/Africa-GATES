@@ -4,7 +4,7 @@
 {% block content %}
 <div class="ad-card"><div class="ad-table-wrap">
   <table class="ad-table">
-    <thead><tr><th>Event</th><th>Date</th><th>Location</th><th>Stats</th><th>Status</th><th class="col-actions">Actions</th></tr></thead>
+    <thead><tr><th scope="col">Event</th><th scope="col">Date</th><th scope="col">Location</th><th scope="col">Stats</th><th scope="col">Status</th><th scope="col" class="col-actions">Actions</th></tr></thead>
     <tbody>
       {% for r in rows %}
       <tr>
@@ -19,8 +19,8 @@
         <td>{% if r.is_published %}<span class="ad-chip ad-chip--green">Published</span>{% else %}<span class="ad-chip ad-chip--grey">Draft</span>{% endif %}</td>
         <td class="col-actions">
           <a class="ad-btn ad-btn--sm" href="/admin/legacy/{{ r.id }}">Edit</a>
-          <a class="ad-btn ad-btn--sm" href="/legacy/{{ r.slug }}" target="_blank">View</a>
-          <form method="post" action="/admin/legacy/{{ r.id }}/delete" style="display:inline"><input type="hidden" name="_token" value="{{ csrf_token }}"><button class="ad-btn ad-btn--sm ad-btn--danger" type="submit" data-confirm="Delete event?">×</button></form>
+          <a class="ad-btn ad-btn--sm" href="/legacy/{{ r.slug }}" target="_blank" rel="noopener noreferrer">View<span class="sr-only"> (opens in a new tab)</span></a>
+          <form method="post" action="/admin/legacy/{{ r.id }}/delete" style="display:inline"><input type="hidden" name="_token" value="{{ csrf_token }}"><button class="ad-btn ad-btn--sm ad-btn--danger" type="submit" data-confirm="Delete “{{ r.title }}” for good? The page at /legacy/{{ r.slug }} stops existing, and anyone who has linked to it gets a 404. There is no undo.">×</button></form>
         </td>
       </tr>
       {% else %}<tr><td colspan="6" style="text-align:center;color:var(--ad-text-mute);padding:30px">No events yet. <a href="/admin/legacy/new" style="color:var(--ad-primary)">Add the first one.</a></td></tr>{% endfor %}

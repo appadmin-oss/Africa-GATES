@@ -4,7 +4,7 @@
 {% set e = event %}
 
 <section class="r26-hero" style="padding-block:clamp(2.5rem,6vw,4.25rem) clamp(1.5rem,3vw,2.5rem);text-align:center">
-  <img class="r26-hero__wm" src="/assets/img/africa-watermark.svg?v={{ asset_version }}" alt="" aria-hidden="true">
+  <img class="r26-hero__wm" src="{{ asset('/assets/img/africa-watermark.svg') }}" alt="" aria-hidden="true">
   <div class="wrap">
     <div class="r26-hero__inner">
       <p class="r26-eyebrow r26-reveal r26-d1" style="justify-content:center;display:inline-flex">Legacy vault · {{ e.event_date|date('Y') }}</p>

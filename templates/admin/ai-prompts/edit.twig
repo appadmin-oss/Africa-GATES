@@ -1,0 +1,186 @@
+{% extends 'admin/layout.twig' %}
+
+{#
+  One capability's instruction: what is in force, what ships with the platform, the diff
+  between them, and every version somebody here has saved.
+
+  The box opens with the wording IN FORCE rather than empty. An editor that starts blank
+  invites a replacement written from scratch for a prompt that was ninety per cent right —
+  and the parts that get lost first are the ones the parser depends on.
+#}
+
+{% block head_styles %}
+<style nonce="{{ csp_nonce }}">
+  .pr-sec{ background:#fff; border:1px solid rgba(16,41,44,.1); border-radius:14px;
+    padding:18px 20px; margin-bottom:14px }
+  .pr-sec h2{ margin:0 0 3px; font-size:14.5px; color:#10292C }
+  .pr-sec p{ margin:8px 0 0; font-size:12.5px; line-height:1.7; color:#5a6d6f; max-width:74ch }
+  .pr-meta{ display:flex; flex-wrap:wrap; gap:9px; align-items:center; margin-bottom:14px }
+  .pr-tag{ font-size:10.5px; font-weight:700; letter-spacing:.05em; text-transform:uppercase;
+    padding:3px 8px; border-radius:999px; background:rgba(16,41,44,.07); color:#3d4b4d }
+  .pr-tag--on{ background:#eaf7ea; color:#1c5f1b }
+  .pr-ta{ width:100%; box-sizing:border-box; margin-top:10px;
+    font-family:var(--ag-font-mono,ui-monospace,monospace); font-size:12.5px; line-height:1.65;
+    padding:12px 13px; border:1px solid rgba(16,41,44,.18); border-radius:9px;
+    background:#fbfdfb; color:#10292C; resize:vertical }
+  .pr-in{ width:100%; box-sizing:border-box; font-family:inherit; font-size:13.5px;
+    padding:9px 11px; border:1px solid rgba(16,41,44,.18); border-radius:9px; background:#fff }
+  .pr-row{ display:flex; gap:9px; flex-wrap:wrap; align-items:center; margin-top:14px }
+  /* The diff. Colour is never the only signal — every line carries + or − as a real
+     character, so it survives a screenshot, a printout and colour-blindness alike. */
+  .pr-diff{ margin-top:12px; border:1px solid rgba(16,41,44,.12); border-radius:9px;
+    overflow:auto; max-height:420px; background:#fbfdfb }
+  .pr-diff pre{ margin:0; padding:12px 0; font-family:var(--ag-font-mono,ui-monospace,monospace);
+    font-size:12px; line-height:1.7 }
+  .pr-diff span{ display:block; padding:0 13px; white-space:pre-wrap; word-break:break-word }
+  .pr-diff .is-add{ background:#eaf7ea; color:#12481d }
+  .pr-diff .is-del{ background:#fdecea; color:#8a2b18 }
+  .pr-ver{ border-top:1px solid rgba(16,41,44,.08); padding:13px 0 }
+  .pr-ver:first-of-type{ border-top:none }
+  .pr-mut{ font-size:12px; color:#5a6d6f; line-height:1.6 }
+  .pr-body{ margin-top:8px; font-family:var(--ag-font-mono,ui-monospace,monospace);
+    font-size:11.5px; line-height:1.65; color:#3d5254; white-space:pre-wrap;
+    max-height:180px; overflow:auto; background:#f6f9f6; border-radius:8px; padding:10px 12px }
+</style>
+{% endblock %}
+
+{% block topbar_title %}{{ cap.name }}{% endblock %}
+
+{% block content %}
+<p style="font-size:13px;color:#5a6d6f;margin:2px 0 18px">
+  <a href="/admin/ai-prompts">back to all AI features</a>
+</p>
+
+<div class="pr-meta">
+  {% if active %}
+    <span class="pr-tag pr-tag--on">Your wording · version {{ active.version }}</span>
+  {% else %}
+    <span class="pr-tag">Using the wording that ships with the platform</span>
+  {% endif %}
+  <span class="pr-tag">{{ cap.model }}</span>
+  {% if cap.advisory %}<span class="pr-tag">Advisory</span>{% endif %}
+  {% if cap.publicContent %}<span class="pr-tag">Reads public text</span>{% endif %}
+</div>
+
+{# ── WHAT AN EDIT HERE CANNOT REACH ───────────────────────────────────────────
+   Worth stating on the page where somebody is about to write "you may reject a
+   nomination that looks fraudulent" and expect it to have that effect. It will not,
+   and finding that out from a rejected nomination would be much worse than reading
+   it here. #}
+<div class="pr-sec">
+  <h2>What this instruction can and cannot change</h2>
+  <p><strong>It can change</strong> what the feature looks for, what it ignores, how it
+     writes, and the words it uses. That is most of what you notice.</p>
+  <p><strong>It cannot</strong> let this feature approve, reject or rank anybody
+     {%- if cap.advisory %} — it is declared advisory and that is enforced in the code,
+     so an instruction saying otherwise simply produces text that still decides nothing
+     {%- endif %}. It cannot remove the barrier that stops submitted text from being read
+     as an order to the model. And it cannot change the model, the budget or the timeout.</p>
+  <p>Every save is kept as a numbered version, so a change that turns out badly is one
+     press to put back.</p>
+</div>
+
+{# ── THE EDITOR ────────────────────────────────────────────────────────────── #}
+<div class="pr-sec">
+  <h2>The instruction</h2>
+  <p>Sent with <em>every</em> request to this feature, so its length is a cost on every
+     request — {{ min_body }}–{{ max_body|number_format }} characters.</p>
+
+  {% if not shipped and not active %}
+    {# Honest about an empty baseline rather than showing a blank box that reads as
+       "the prompt is empty". The wording is learned from what the code actually sends,
+       so a feature nobody has used yet genuinely has nothing recorded. #}
+    <p><strong>This feature has not run since the editor was installed</strong>, so we have
+       not yet seen the wording it ships with and there is nothing to show you here. Use the
+       feature once and come back — or write your own instruction below, which replaces it
+       either way.</p>
+  {% endif %}
+
+  <form method="post" action="/admin/ai-prompts/{{ cap.name|url_encode }}">
+    <input type="hidden" name="_token" value="{{ csrf_token }}">
+    <label class="sr-only" for="prBody">The instruction</label>
+    <textarea class="pr-ta" id="prBody" name="body" rows="18" required
+              minlength="{{ min_body }}" maxlength="{{ max_body }}">{{ kept.body|default(current) }}</textarea>
+
+    <div style="margin-top:12px">
+      <label for="prNote" style="display:block;font-size:12.5px;font-weight:600;color:#10292C">
+        Why are you changing it?</label>
+      {# Required, and worth defending: in three months this note is the only record of
+         what somebody was trying to fix. #}
+      <input class="pr-in" id="prNote" name="note" type="text" maxlength="400" required
+             style="margin-top:6px" value="{{ kept.note|default('') }}"
+             placeholder="e.g. It kept flagging Nigerian phone formats as spam">
+    </div>
+
+    <div class="pr-row">
+      <button class="ad-btn ad-btn--primary" type="submit">Save and use this</button>
+      {% if active %}
+        <span class="pr-mut">Saving creates version {{ active.version + 1 }}.</span>
+      {% endif %}
+    </div>
+  </form>
+
+  {% if active %}
+    <form method="post" action="/admin/ai-prompts/{{ cap.name|url_encode }}/revert"
+          class="pr-row"
+          data-confirm="Go back to the wording that ships with the platform? Your versions are kept and you can put one back.">
+      <input type="hidden" name="_token" value="{{ csrf_token }}">
+      <button class="ad-btn" type="submit">Revert to the shipped wording</button>
+    </form>
+  {% endif %}
+</div>
+
+{# ── WHAT CHANGED ─────────────────────────────────────────────────────────── #}
+{% if diff|length %}
+<div class="pr-sec">
+  <h2>What you changed</h2>
+  <p>Your wording against the one that ships with the platform. Lines you removed are
+     marked <code>−</code>, lines you added <code>+</code>.</p>
+  <div class="pr-diff">
+    <pre>{% for d in diff -%}
+<span class="{{ d.op == 'add' ? 'is-add' : (d.op == 'del' ? 'is-del' : '') }}">{{ d.op == 'add' ? '+ ' : (d.op == 'del' ? '- ' : '  ') }}{{ d.text }}</span>
+{%- endfor %}</pre>
+  </div>
+</div>
+{% endif %}
+
+{# ── THE SHIPPED WORDING, FOR REFERENCE ──────────────────────────────────── #}
+{% if shipped %}
+<div class="pr-sec">
+  <h2>The wording that ships with the platform</h2>
+  <p>Recorded from what the code actually sent, so it is never out of date. This is what
+     “revert” goes back to.</p>
+  <div class="pr-body">{{ shipped }}</div>
+</div>
+{% endif %}
+
+{# ── HISTORY ──────────────────────────────────────────────────────────────── #}
+{% if history|length %}
+<div class="pr-sec">
+  <h2>Your versions</h2>
+  <p>Kept rather than overwritten, because a wording change shows its consequences days
+     later and “what did it say before” is the only question worth asking then.</p>
+
+  {% for v in history %}
+    <div class="pr-ver">
+      <div style="display:flex;gap:10px;align-items:baseline;flex-wrap:wrap">
+        <strong style="font-size:13px;color:#10292C">Version {{ v.version }}</strong>
+        {% if v.is_active %}<span class="pr-tag pr-tag--on">In use</span>{% endif %}
+        <span class="pr-mut">{{ v.created_at|slice(0,16) }}</span>
+      </div>
+      {% if v.note %}<div class="pr-mut" style="margin-top:4px">“{{ v.note }}”</div>{% endif %}
+      <div class="pr-body">{{ v.body }}</div>
+      {% if not v.is_active %}
+        <form method="post" action="/admin/ai-prompts/{{ cap.name|url_encode }}/activate"
+              style="margin-top:9px"
+              data-confirm="Put version {{ v.version }} back into use? Every AI feature on this prompt starts using it on the next call. The version you are replacing is kept, so you can put that one back the same way.">
+          <input type="hidden" name="_token" value="{{ csrf_token }}">
+          <input type="hidden" name="version_id" value="{{ v.id }}">
+          <button class="ad-btn ad-btn--sm" type="submit">Use this one again</button>
+        </form>
+      {% endif %}
+    </div>
+  {% endfor %}
+</div>
+{% endif %}
+{% endblock %}

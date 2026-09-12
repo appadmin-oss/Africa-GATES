@@ -1,0 +1,279 @@
+{% extends 'admin/layout.twig' %}
+
+{#
+  SHOP DISCOUNT CODES.
+
+  Every limit on this form exists because its absence is a known failure, and the note beside
+  each field says which one. They are not decoration: an unbounded code shared in a group chat
+  is the most expensive mistake available on this screen.
+
+  The rules about a code — active, in window, not exhausted, what it takes off — are shared with
+  event tickets in AfricaGates\Support\PromoCode, so the two cannot drift. What is different
+  here is the target: products and categories rather than ticket tiers, plus a minimum spend and
+  free delivery, which an event has no use for.
+#}
+
+{% block head_styles %}
+<style nonce="{{ csp_nonce }}">
+  .sc-sub{ font-size:13px; color:#5a6d6f; margin:2px 0 18px }
+  .sc-sec{ background:#fff; border:1px solid rgba(16,41,44,.1); border-radius:14px; padding:18px 20px; margin-bottom:14px }
+  .sc-sec h2{ margin:0 0 3px; font-size:14.5px; color:#10292C }
+  .sc-sec p{ margin:8px 0 0; font-size:12.5px; line-height:1.7; color:#5a6d6f }
+
+  .sc-grid{ display:grid; gap:12px; grid-template-columns:repeat(auto-fit,minmax(min(100%,190px),1fr)); margin-top:14px }
+  .sc-f{ display:flex; flex-direction:column; gap:5px; min-width:0 }
+  .sc-f label{ font:700 10px/1.3 inherit; letter-spacing:.08em; text-transform:uppercase; color:#5a6d6f }
+  .sc-f small{ font-weight:400; letter-spacing:0; text-transform:none; color:#8a9a9c; font-size:11px }
+  .sc-f input, .sc-f select{ border:1px solid rgba(16,41,44,.18); border-radius:10px; padding:9px 11px; font-family:inherit; font-size:13px; color:#10292C; width:100%; box-sizing:border-box }
+  .sc-f input:focus, .sc-f select:focus{ outline:none; border-color:#237b22 }
+  .sc-f input[name="code"]{ font-family:var(--ag-font-mono,monospace); font-weight:700; text-transform:uppercase; letter-spacing:.06em }
+  .sc-pills{ display:flex; flex-wrap:wrap; gap:8px; margin-top:6px }
+  .sc-pills label{ display:inline-flex; align-items:center; gap:7px; white-space:nowrap; font:500 12.5px/1 inherit; letter-spacing:0; text-transform:none; color:#3d4b4d; border:1px solid rgba(16,41,44,.14); border-radius:999px; padding:8px 14px; cursor:pointer }
+  .sc-pills label:hover{ border-color:rgba(16,41,44,.3) }
+  .sc-pills input{ width:auto }
+  .sc-check{ display:flex; align-items:center; gap:8px; font-size:13px; color:#3d4b4d; margin-top:14px }
+  .sc-check input{ width:auto }
+  .sc-btn{ cursor:pointer; font:650 13px/1 inherit; border:none; padding:11px 20px; border-radius:999px; background:#10292C; color:#fff }
+  .sc-btn--ghost{ background:none; border:1px solid rgba(16,41,44,.2); color:#10292C }
+  .sc-btn--kill{ background:none; border:1px solid rgba(138,32,32,.3); color:#8a2020; padding:7px 13px; font-size:12px; cursor:pointer; border-radius:999px; font-family:inherit; font-weight:600 }
+
+  .sc-list{ width:100%; border-collapse:collapse; margin-top:12px; font-size:12.5px }
+  .sc-list th{ text-align:left; font:700 10px/1.3 inherit; letter-spacing:.08em; text-transform:uppercase; color:#5a6d6f; padding:0 8px 8px 0 }
+  .sc-list td{ padding:10px 8px 10px 0; border-top:1px solid rgba(16,41,44,.07); vertical-align:top }
+  .sc-code{ font-family:var(--ag-font-mono,monospace); font-weight:700; font-size:13.5px; color:#10292C }
+  .sc-tag{ font-size:10px; font-weight:700; letter-spacing:.05em; text-transform:uppercase; padding:3px 8px; border-radius:999px; background:rgba(16,41,44,.07); color:#3d4b4d }
+  .sc-tag--ok{ background:#eaf7ea; color:#1c5f1b }
+  .sc-tag--no{ background:#fdeaea; color:#8a2020 }
+  .sc-tag--ship{ background:#eef2fb; color:#2a4a86 }
+  .sc-bar{ height:6px; border-radius:99px; background:rgba(16,41,44,.1); overflow:hidden; min-width:70px; margin-top:5px }
+  .sc-bar i{ display:block; height:100%; background:#237b22; border-radius:99px }
+  .sc-bar i.is-done{ background:#b3261e }
+</style>
+{% endblock %}
+
+{% block topbar_title %}Shop discount codes{% endblock %}
+{% block topbar_actions %}
+  <a class="ad-btn" href="/admin/shop/orders">Shop orders</a>
+  <a class="ad-btn" href="/admin/shop/shipping">Delivery charges</a>
+{% endblock %}
+
+{% block content %}
+<p class="sc-sub">A code reduces a price, pays for delivery, or both.</p>
+
+{% if not ready %}
+<div class="sc-sec" style="border-color:#f3d38a;background:#fffbeb">
+  <h2>One step outstanding on the server</h2>
+  <p style="color:#7a5a1a">
+    <code>gates_shop_codes</code> does not exist yet. Run <strong>/__setup/migrate</strong> and
+    this screen works.
+  </p>
+</div>
+{% else %}
+
+{% if missing|default([])|length %}
+<div class="sc-sec" style="border-color:#f3d38a;background:#fffbeb">
+  <h2>Codes will work, but nothing will remember them</h2>
+  <p style="color:#7a5a1a">
+    <code>gates_orders.{{ missing|join('</code>, <code>')|raw }}</code> is missing, so an order
+    cannot record which code it used — the per-person limit will have nothing to count and
+    receipts will not name the discount. Run <strong>/__setup/migrate</strong> before you
+    advertise a code.
+  </p>
+</div>
+{% endif %}
+
+<div class="sc-sec" x-data="scForm()">
+  <h2 x-text="editing ? 'Editing ' + form.code : 'Add a code'">Add a code</h2>
+  <p>
+    The discount comes off the ELIGIBLE part of a basket, not the whole of it — a code for
+    Apparel in a basket of a shirt and a mug takes its percentage off the shirt. Anything else
+    gives away money on items the promotion never mentioned.
+  </p>
+
+  <form method="post" action="/admin/shop/codes">
+    <input type="hidden" name="_token" value="{{ csrf_token }}">
+    <input type="hidden" name="code_id" :value="form.id || ''">
+
+    <div class="sc-grid">
+      <div class="sc-f">
+        <label for="scCode">Code</label>
+        <input id="scCode" name="code" x-model="form.code" maxlength="40" placeholder="GATES10" autocomplete="off" required>
+      </div>
+      <div class="sc-f">
+        <label for="scLabel">Label <small>(shown to the buyer)</small></label>
+        <input id="scLabel" name="label" x-model="form.label" maxlength="120" placeholder="Community rate">
+      </div>
+      <div class="sc-f">
+        <label for="scKind">Kind</label>
+        <select id="scKind" name="kind" x-model="form.kind">
+          <option value="percent">Percentage off</option>
+          <option value="fixed">Naira off</option>
+        </select>
+      </div>
+      <div class="sc-f">
+        <label for="scAmount" x-text="form.kind === 'fixed' ? 'Naira off' : 'Percent off'">Percent off</label>
+        <input id="scAmount" name="amount" type="number" min="0" step="1"
+               :max="form.kind === 'fixed' ? 10000000 : 100" x-model.number="form.amount">
+      </div>
+    </div>
+
+    <div class="sc-grid">
+      <div class="sc-f">
+        {# 'Spend ₦20,000 and get 10% off' is the most common promotion there is, and without
+           this it cannot be expressed at all. #}
+        <label for="scMin">Minimum spend <small>(optional)</small></label>
+        <input id="scMin" name="min_spend_naira" type="number" min="0" step="500" x-model="form.min_spend_naira" placeholder="Any">
+      </div>
+      <div class="sc-f">
+        {# Without this, a code shared in a group chat is a code used four hundred times. #}
+        <label for="scMax">Total uses <small>(blank = unlimited — think hard)</small></label>
+        <input id="scMax" name="max_uses" type="number" min="1" step="1" x-model="form.max_uses" placeholder="Unlimited">
+      </div>
+      <div class="sc-f">
+        {# Without this, one person orders ten discounted shirts. #}
+        <label for="scPer">Uses per person</label>
+        <input id="scPer" name="max_per_email" type="number" min="1" step="1" x-model.number="form.max_per_email">
+      </div>
+      <div class="sc-f">
+        <label for="scFrom">Usable from <small>(optional)</small></label>
+        <input id="scFrom" name="starts_at" type="datetime-local" x-model="form.starts_at" step="1">
+      </div>
+      <div class="sc-f">
+        {# An early-bird code that still works in December. #}
+        <label for="scUntil">Stops working <small>(optional)</small></label>
+        <input id="scUntil" name="ends_at" type="datetime-local" x-model="form.ends_at" step="1">
+      </div>
+    </div>
+
+    {% if categories %}
+    <div class="sc-f" style="margin-top:14px">
+      <label>Categories <small>(none ticked = everything)</small></label>
+      <div class="sc-pills">
+        {% for c in categories %}
+        <label><input type="checkbox" name="categories[]" value="{{ c }}"
+                      :checked="form.categories.indexOf({{ c|json_encode }}) !== -1"
+                      @change="toggle('categories', {{ c|json_encode }})"> {{ c }}</label>
+        {% endfor %}
+      </div>
+    </div>
+    {% endif %}
+
+    {% if products %}
+    <div class="sc-f" style="margin-top:14px">
+      <label>Or name individual products <small>(a category and a product are OR-ed, not both)</small></label>
+      <div class="sc-pills">
+        {% for p in products %}
+        <label><input type="checkbox" name="product_ids[]" value="{{ p.id }}"
+                      :checked="form.product_ids.indexOf({{ p.id }}) !== -1"
+                      @change="toggle('product_ids', {{ p.id }})">
+          {{ p.name }} · ₦{{ p.price|number_format }}</label>
+        {% endfor %}
+      </div>
+    </div>
+    {% endif %}
+
+    {# Buyers understand free delivery better than a percentage, and it costs the seller a
+       known amount rather than a share of every order. #}
+    <label class="sc-check"><input type="checkbox" name="free_shipping" value="1" x-model="form.free_shipping"> Also pays for delivery</label>
+    <label class="sc-check"><input type="checkbox" name="is_active" value="1" x-model="form.is_active"> Active</label>
+
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:16px">
+      <button class="sc-btn" type="submit" x-text="editing ? 'Save changes' : 'Create code'">Create code</button>
+      <button class="sc-btn sc-btn--ghost" type="button" x-show="editing" x-cloak @click="reset()">Cancel edit</button>
+    </div>
+  </form>
+
+  <table class="sc-list">
+    <thead><tr><th>Code</th><th>Takes off</th><th>Applies to</th><th>Used</th><th>Window</th><th></th></tr></thead>
+    <tbody>
+      {% for c in codes %}
+      {% set pct = c.max_uses ? (100 * c.used_count / c.max_uses)|round : 0 %}
+      <tr>
+        <td>
+          <span class="sc-code">{{ c.code }}</span>
+          {% if c.label %}<br><span style="color:#67797b">{{ c.label }}</span>{% endif %}
+        </td>
+        <td>
+          {% if c.amount > 0 %}{{ c.kind == 'fixed' ? '₦' ~ c.amount|number_format : c.amount ~ '%' }}{% endif %}
+          {% if c.free_shipping %}{% if c.amount > 0 %}<br>{% endif %}<span class="sc-tag sc-tag--ship">free delivery</span>{% endif %}
+          {% if c.min_spend_naira %}<br><span style="color:#8a9a9c;font-size:11.5px">over ₦{{ c.min_spend_naira|number_format }}</span>{% endif %}
+        </td>
+        <td>
+          {% if c.category_list|default([]) %}{% for cat in c.category_list %}<span class="sc-tag">{{ cat }}</span> {% endfor %}{% endif %}
+          {% if c.product_list|default([]) %}
+            {% for p in products %}{% if p.id in c.product_list %}<span class="sc-tag">{{ p.name }}</span> {% endif %}{% endfor %}
+          {% endif %}
+          {% if not c.category_list|default([]) and not c.product_list|default([]) %}
+            <span style="color:#8a9a9c">everything</span>
+          {% endif %}
+        </td>
+        <td>
+          {{ c.used_count }}{% if c.max_uses %} / {{ c.max_uses }}{% endif %}
+          {% if c.max_uses %}
+          <div class="sc-bar"><i class="{{ pct >= 100 ? 'is-done' : '' }}" style="width:{{ pct > 100 ? 100 : pct }}%"></i></div>
+          {% endif %}
+          <br><span style="color:#8a9a9c;font-size:11.5px">{{ c.max_per_email }} per person</span>
+        </td>
+        <td style="color:#67797b">
+          {{ c.starts_at ?: 'now' }}<br>→ {{ c.ends_at ?: 'no end' }}
+          <br>{% if c.is_active %}<span class="sc-tag sc-tag--ok">active</span>{% else %}<span class="sc-tag sc-tag--no">off</span>{% endif %}
+        </td>
+        <td>
+          <button class="sc-btn sc-btn--ghost" type="button" style="padding:7px 13px;font-size:12px"
+                  @click="edit({{ {
+                    id: c.id, code: c.code, label: c.label|default(''), kind: c.kind,
+                    amount: c.amount, min_spend_naira: c.min_spend_naira,
+                    max_uses: c.max_uses, max_per_email: c.max_per_email,
+                    starts_at: c.starts_at|default(''), ends_at: c.ends_at|default(''),
+                    free_shipping: c.free_shipping == 1, is_active: c.is_active == 1,
+                    product_ids: c.product_list|default([]), categories: c.category_list|default([])
+                  }|json_encode|e('html_attr') }})">Edit</button>
+          <form method="post" action="/admin/shop/codes/{{ c.id }}/delete" style="display:inline;margin-left:5px">
+            <input type="hidden" name="_token" value="{{ csrf_token }}">
+            {# Same two outcomes as the event codes, same reason — see that template. #}
+            <button class="sc-btn--kill" type="submit"
+              data-confirm="{% if c.used_count %}Switch off {{ c.code }}? It stays on record because {{ c.used_count }} order(s) were placed with it and their receipts name it — it just stops working for new ones.{% else %}Delete {{ c.code }} for good? Nothing has been ordered with it, so it is removed outright and cannot be brought back.{% endif %}">Remove</button>
+          </form>
+        </td>
+      </tr>
+      {% else %}
+      <tr><td colspan="6" style="padding:20px 0;text-align:center;color:#8a9a9c">No codes yet.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block foot_scripts %}
+<script nonce="{{ csp_nonce }}">
+function scForm(){
+  var blank = { id: 0, code: '', label: '', kind: 'percent', amount: 10, min_spend_naira: '',
+                max_uses: '', max_per_email: 1, starts_at: '', ends_at: '',
+                free_shipping: false, is_active: true, product_ids: [], categories: [] };
+  return {
+    form: Object.assign({}, blank),
+    get editing(){ return this.form.id > 0; },
+    reset(){ this.form = Object.assign({}, blank, { product_ids: [], categories: [] }); },
+    edit(row){
+      var f = Object.assign({}, blank, row);
+      /* Trimmed to what datetime-local accepts. A raw "2026-01-31 19:00:00" in one of those
+         boxes renders as EMPTY, which reads as "no window set" — and the next save would
+         quietly remove one. */
+      f.starts_at = (f.starts_at || '').replace(' ', 'T').slice(0, 16);
+      f.ends_at   = (f.ends_at   || '').replace(' ', 'T').slice(0, 16);
+      f.max_uses  = f.max_uses === null ? '' : f.max_uses;
+      f.min_spend_naira = f.min_spend_naira === null ? '' : f.min_spend_naira;
+      f.product_ids = Array.isArray(f.product_ids) ? f.product_ids.map(Number) : [];
+      f.categories  = Array.isArray(f.categories) ? f.categories.slice() : [];
+      this.form = f;
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    },
+    toggle(key, value){
+      var i = this.form[key].indexOf(value);
+      if (i === -1) this.form[key].push(value); else this.form[key].splice(i, 1);
+    }
+  };
+}
+</script>
+{% endblock %}

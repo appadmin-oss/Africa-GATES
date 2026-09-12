@@ -1,0 +1,138 @@
+{% extends 'admin/layout.twig' %}
+
+{#
+  Two things that were constants in PHP on a host with no SSH, which meant they could not
+  be changed at all: what a vendor must upload, and what they are allowed to sell.
+#}
+
+{% block head_styles %}
+<style nonce="{{ csp_nonce }}">
+  .vp-sec{ background:#fff; border:1px solid rgba(16,41,44,.1); border-radius:14px;
+    padding:18px 20px; margin-bottom:16px }
+  .vp-sec h2{ margin:0 0 4px; font-size:14.5px; color:#10292C }
+  .vp-sec p{ margin:8px 0 0; font-size:12.5px; line-height:1.7; color:#5a6d6f; max-width:74ch }
+  .vp-opt{ display:flex; gap:11px; align-items:flex-start; padding:13px 0;
+    border-top:1px solid rgba(16,41,44,.08) }
+  .vp-opt:first-of-type{ border-top:none }
+  .vp-opt b{ display:block; font-size:13.5px; color:#10292C }
+  .vp-opt small{ display:block; margin-top:4px; font-size:12.5px; line-height:1.65; color:#5a6d6f;
+    max-width:66ch }
+  .vp-prev{ margin-top:14px; padding:13px 15px; border-radius:10px; background:#f6f9f6;
+    border:1px solid rgba(35,123,34,.16); font-size:12.5px; line-height:1.7; color:#3d5254 }
+  .vp-prev strong{ color:#10292C }
+  .vp-row{ display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1.4fr) auto;
+    gap:10px; align-items:center; padding:8px 0 }
+  .vp-in{ width:100%; box-sizing:border-box; font-family:inherit; font-size:13.5px;
+    padding:8px 10px; border:1px solid rgba(16,41,44,.18); border-radius:8px; background:#fff }
+  .vp-slug{ font-family:var(--ag-font-mono,monospace); font-size:12px; color:#5a6d6f }
+  .vp-acts{ display:flex; gap:9px; flex-wrap:wrap; align-items:center; margin-top:14px }
+</style>
+{% endblock %}
+
+{% block topbar_title %}Vendor requirements{% endblock %}
+
+{% block content %}
+
+{# ── CERTIFICATES ─────────────────────────────────────────────────────────── #}
+<div class="vp-sec">
+  <h2>What a vendor has to upload</h2>
+  <p>These decide whether an application counts as <strong>complete</strong>, and completeness
+     is the published tiebreak when two applications are otherwise equal. Changing them
+     applies to applications from now on.
+     <strong>Vendors you have already accepted are not re-checked</strong>, and their
+     stands are not at risk.</p>
+
+  <form method="post" action="/admin/vendor-policy/requirements">
+    <input type="hidden" name="_token" value="{{ csrf_token }}">
+
+    <label class="vp-opt">
+      <input type="checkbox" name="cac" value="1" {% if require_cac %}checked{% endif %}>
+      <span><b>CAC registration certificate</b>
+        <small>Asked of registered businesses only — never of an individual, who does not
+          have one. Turn this off for a market of traders rather than companies: demanding
+          a certificate somebody cannot get is how they end up borrowing somebody else's
+          number, which puts the wrong name on the paperwork and on the money.</small></span>
+    </label>
+
+    <label class="vp-opt">
+      <input type="checkbox" name="scuml" value="1" {% if require_scuml %}checked{% endif %}>
+      <span><b>SCUML certificate</b>
+        <small>Off by default, because vendors have never been asked for one. Turn it on
+          where a vendor will be handling large cash sums, which is what it exists for.</small></span>
+    </label>
+
+    <label class="vp-opt">
+      <input type="checkbox" name="insurance" value="1" {% if require_insurance %}checked{% endif %}>
+      <span><b>Public liability insurance</b>
+        <small>Cover for somebody being hurt at their stand. Worth thinking hard about before
+          switching off — if it is not required, the event is carrying that risk.</small></span>
+    </label>
+
+    {# Shown rather than described. "CAC off" and "so a business uploads photo ID instead"
+       are different sentences, and only the second answers the question being asked. #}
+    <div class="vp-prev">
+      <strong>As it stands, a vendor is asked for:</strong><br>
+      An individual — {{ preview.individual|join(', ') }}.<br>
+      A registered business — {{ preview.business|join(', ') }}.
+      <br><br>
+      There is always something that identifies them. Turning off CAC falls back to photo ID
+      rather than to nothing: an event that takes money from the public on behalf of traders
+      it cannot name is not a lighter-touch event, it is an unattributable one.
+    </div>
+
+    <div class="vp-acts"><button class="ad-btn ad-btn--primary" type="submit">Save requirements</button></div>
+  </form>
+</div>
+
+{# ── CATEGORIES ───────────────────────────────────────────────────────────── #}
+<div class="vp-sec">
+  <h2>What they are allowed to sell</h2>
+  <p>The trades a vendor picks from, and the categories a <strong>quota</strong> is set
+     against — which is the whole fairness mechanism for stands, so this list is what stops
+     twelve jewellery stalls and nothing to eat.</p>
+  <p>The short name on the left is what is stored.
+     <strong>Editing a name is safe; changing a short name is not</strong> — every stand
+     already filed under the old one would be orphaned, so leave those alone and add a new
+     row instead.</p>
+
+  <form method="post" action="/admin/vendor-policy/categories">
+    <input type="hidden" name="_token" value="{{ csrf_token }}">
+
+    {% for slug, label in categories %}
+      <div class="vp-row">
+        <div>
+          <label class="sr-only" for="s{{ loop.index }}">Short name</label>
+          <input class="vp-in vp-slug" id="s{{ loop.index }}" name="slug[]" type="text"
+                 value="{{ slug }}" maxlength="40" readonly>
+        </div>
+        <div>
+          <label class="sr-only" for="l{{ loop.index }}">What vendors see</label>
+          <input class="vp-in" id="l{{ loop.index }}" name="label[]" type="text"
+                 value="{{ label }}" maxlength="60">
+        </div>
+        <span class="vp-slug">
+          {# Clearing the name removes the row. A delete button per row would need
+             JavaScript to be useful, and this screen works without any. #}
+          clear the name to remove</span>
+      </div>
+    {% endfor %}
+
+    {% for i in 1..3 %}
+      <div class="vp-row">
+        <div><input class="vp-in vp-slug" name="slug[]" type="text" value=""
+                    placeholder="(new)" maxlength="40" readonly></div>
+        <div>
+          <label class="sr-only" for="n{{ i }}">A new category</label>
+          <input class="vp-in" id="n{{ i }}" name="label[]" type="text" maxlength="60"
+                 placeholder="Add a category — e.g. Publishing"></div>
+        <span class="vp-slug">new</span>
+      </div>
+    {% endfor %}
+
+    <div class="vp-acts">
+      <button class="ad-btn ad-btn--primary" type="submit">Save categories</button>
+      <span class="vp-slug">{{ categories|length }} in use</span>
+    </div>
+  </form>
+</div>
+{% endblock %}

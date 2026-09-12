@@ -1,0 +1,237 @@
+{% extends "admin/layout.twig" %}
+{% block topbar_title %}Judging schedule{% endblock %}
+{% block topbar_actions %}<a class="ad-btn" href="/admin/judges">All judges</a>{% endblock %}
+
+{#
+  ── THE ROUND, IN ONE PLACE ───────────────────────────────────────────────────
+
+  Every other screen that reads a sitting reads ONE of them. So an operator running
+  a panel of ten across forty entries had the whole round in the database and no way
+  to answer "what is Tuesday", "does Dr Achebe know about Thursday", or "did the
+  calendar actually take it".
+
+  Three things this screen is careful about:
+
+    · The Google check is a BUTTON. Forty sittings is forty round trips to an Apps
+      Script deployment, and a screen that spends the script's quota every time
+      somebody glances at it stops working during the round it exists for.
+
+    · A sitting with no meeting link is called out rather than left blank. A blank
+      cell reads as a rendering fault; "no link yet" is a job.
+
+    · The reminder is sent by a person pressing a button, and the button says how
+      many people it reaches before it is pressed. There is no undo on an email.
+#}
+
+{% block content %}
+
+{# ── CAN THE GOOGLE SIDE BE ASKED AT ALL? ────────────────────────────────────
+   Said once, at the top, rather than as forty identical failures further down.
+   Every part of this integration can be configured correctly and still do nothing,
+   and from the .env file the five ways it fails look identical. #}
+{% if not meet %}
+<div class="ad-card" style="margin-bottom:16px;border-left:4px solid var(--ad-gold,#c79a3a)">
+  <div class="ad-card__body">
+    <p style="margin:0;font-size:13px"><strong>The calendar cannot be checked from here.</strong>
+      {{ meet_why }}</p>
+    <p style="margin:7px 0 0;font-size:12.5px;color:var(--ad-text-mute,#61728e)">
+      The schedule below is still what this platform holds — it just cannot be compared
+      against Google until the Apps Script side answers. The reminders do not need it.</p>
+  </div>
+</div>
+{% endif %}
+
+{# ── WHO TO REMIND ───────────────────────────────────────────────────────────
+   First, because it is why somebody opened this screen mid-round.
+
+   Three scopes, and each button states its own blast radius. "Remind everyone" on a
+   panel of ten is ten emails and there is no undo, so the count is on the button
+   rather than in a confirmation nobody reads. #}
+<div class="ad-card" style="margin-bottom:16px">
+  <div class="ad-card__head"><div class="ad-card__title">Send a reminder<small>
+    Each judge gets their own sittings, the joining links, and one calendar file that
+    adds all of them at once.</small></div></div>
+  <div class="ad-card__body">
+
+    {% if judges is empty %}
+      {# Not an error state and not an empty table: nothing is scheduled, which is a
+         different fact and has a different next step. #}
+      <p style="margin:0;font-size:13px;color:var(--ad-text-mute,#5a6d6f)">
+        Nobody has a sitting in the next few days, so there is nothing to remind anybody
+        about. Schedule the interviews first —
+        <a href="/admin/interviews">the interview queue</a> is where that happens.</p>
+    {% else %}
+
+      {% if programmes|length > 1 %}
+      {# `.ad-form` styles its own labels and controls by descendant selector — there is
+         no `ad-label` or `ad-input` class in the admin sheet, and inventing one produces
+         an unstyled field that looks deliberate. `AdminClassCoverageTest` exists because
+         two forms once wrote `ad-form__row`, which was never a selector either. #}
+      <form method="get" action="/admin/judges/schedule" class="ad-form" style="margin:0 0 14px">
+        <div style="max-width:22rem">
+          <label for="jsProg">Programme</label>
+          <select id="jsProg" name="programme">
+            <option value="">Every programme</option>
+            {% for p in programmes %}
+              <option value="{{ p.id }}"{{ programme == p.id ? ' selected' : '' }}>{{ p.title }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <button class="ad-btn" type="submit" style="margin-top:9px">Show</button>
+      </form>
+      {% endif %}
+
+      <div style="display:flex;gap:9px;flex-wrap:wrap;align-items:center">
+        {# `data-confirm` routes the submit through agConfirm — the admin CSP has no
+           'unsafe-inline', so there is no onsubmit here and there must not be. #}
+        <form method="post" action="/admin/judges/schedule/remind"
+              data-confirm="Send every judge their schedule and joining links now? This reaches {{ judges|length }} inbox{{ judges|length == 1 ? '' : 'es' }} immediately and an email cannot be unsent.">
+          <input type="hidden" name="_token" value="{{ csrf_token }}">
+          <input type="hidden" name="scope" value="all">
+          <button class="ad-btn ad-btn--primary" type="submit">
+            Remind all {{ judges|length }} judge{{ judges|length == 1 ? '' : 's' }}</button>
+        </form>
+
+        {% if programme %}
+        <form method="post" action="/admin/judges/schedule/remind"
+              data-confirm="Send this programme's panel their sittings for it? Judges on other programmes hear nothing, and an email cannot be unsent.">
+          <input type="hidden" name="_token" value="{{ csrf_token }}">
+          <input type="hidden" name="scope" value="programme">
+          <input type="hidden" name="programme" value="{{ programme }}">
+          <button class="ad-btn" type="submit">Remind this programme only</button>
+        </form>
+        {% endif %}
+      </div>
+
+      <p style="margin:11px 0 0;font-size:12px;color:var(--ad-text-mute,#61728e)">
+        A judge with nothing scheduled is never mailed, even by “remind all” — a reminder
+        about no meetings is the fastest way to teach a panel to ignore us.
+      </p>
+
+      {# ── AND ONE AT A TIME ─────────────────────────────────────────────────
+         The commonest real request is "she says she never got it", which is one
+         person and not a broadcast. #}
+      <div class="ad-table-wrap" style="margin-top:14px">
+        <table class="ad-table">
+          <thead><tr>
+            <th scope="col">Judge</th><th scope="col">Sittings</th>
+            <th scope="col">Next</th><th scope="col"></th>
+          </tr></thead>
+          <tbody>
+            {% for j in judges %}
+            <tr>
+              <td><strong style="font-size:13px">{{ j.name }}</strong>
+                <div style="font-size:11.5px;color:var(--ad-text-mute,#61728e)">{{ j.email }}</div></td>
+              <td style="font-family:'Space Mono',monospace">{{ j.sittings }}</td>
+              <td style="font-family:'Space Mono',monospace;white-space:nowrap">
+                {{ j.next ? j.next|when_zoned('D j M, H:i') : '—' }}</td>
+              <td>
+                <form method="post" action="/admin/judges/schedule/remind"
+                      data-confirm="Send this judge their sittings and joining links now? Nobody else is written to, and an email cannot be unsent. ({{ j.name }} — {{ j.sittings }} sitting{{ j.sittings == 1 ? '' : 's' }}.)">
+                  <input type="hidden" name="_token" value="{{ csrf_token }}">
+                  <input type="hidden" name="scope" value="judge">
+                  <input type="hidden" name="judge_id" value="{{ j.id }}">
+                  <button class="ad-btn" type="submit" style="min-height:34px;padding:0 12px">Remind</button>
+                </form>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    {% endif %}
+  </div>
+</div>
+
+{# ── THE CALENDAR ITSELF ─────────────────────────────────────────────────────
+   Grouped by day, which is how an operator thinks about a round. The day heading
+   is computed in PHP: a template that derives it per row gets the boundary wrong
+   at midnight in the display zone. #}
+{% if by_day is empty %}
+<div class="ad-card"><div class="ad-card__body">
+  <p style="margin:0;font-size:13px">Nothing is scheduled in the window
+    (from three days ago onward). Sittings appear here as soon as they have a date —
+    see <a href="/admin/interviews">the interview queue</a>.</p>
+</div></div>
+{% else %}
+{% for day, rows in by_day %}
+<div class="ad-card" style="margin-bottom:14px">
+  <div class="ad-card__head"><div class="ad-card__title">
+    {{ day|when('l j F Y') }}<small>{{ rows|length }} sitting{{ rows|length == 1 ? '' : 's' }}</small>
+  </div></div>
+  <div class="ad-table-wrap">
+    <table class="ad-table">
+      <thead><tr>
+        <th scope="col">Time</th><th scope="col">Nominee</th>
+        <th scope="col">Panel</th><th scope="col">Meeting</th>
+        <th scope="col">Calendar</th>
+      </tr></thead>
+      <tbody>
+        {% for s in rows %}
+        <tr>
+          <td style="font-family:'Space Mono',monospace;white-space:nowrap">
+            {{ s.when|when('H:i') }} {{ tz_abbr() }}
+            <div style="font-size:11px;color:var(--ad-text-mute,#61728e)">{{ s.minutes }} min</div></td>
+          <td>
+            <a href="{{ s.admin_url }}" style="font-weight:600;font-size:13px">{{ s.nominee }}</a>
+            {% if s.category %}<div style="font-size:11.5px;color:var(--ad-text-mute,#61728e)">{{ s.category }}</div>{% endif %}
+          </td>
+          <td>
+            {% if s.panel is empty %}
+              {# Named rather than blank. A sitting with no panel is a room with a nominee
+                 in it and nobody to judge them, and it is silent until the day. #}
+              <span class="ad-chip ad-chip--red">No panel yet</span>
+            {% else %}
+              <div style="display:flex;flex-wrap:wrap;gap:5px">
+                {% for j in s.panel %}<span class="ad-chip ad-chip--grey">{{ j.name }}</span>{% endfor %}
+              </div>
+            {% endif %}
+          </td>
+          <td>
+            {% if s.meet_url %}
+              <a href="{{ s.meet_url }}" rel="noopener" style="font-size:12px">Join link</a>
+            {% else %}
+              <span class="ad-chip ad-chip--gold">No link yet</span>
+            {% endif %}
+          </td>
+          <td>
+            {% if not s.has_event %}
+              <span class="ad-chip ad-chip--gold">Never synced</span>
+            {% elseif meet %}
+              {# On demand, per sitting. The answer is a fact about right now, so it is
+                 flashed rather than stored — a stored verdict is stale the moment
+                 somebody drags the event in Google, which is the case this catches. #}
+              <form method="post" action="/admin/judges/schedule/{{ s.id }}/verify">
+                <input type="hidden" name="_token" value="{{ csrf_token }}">
+                <button class="ad-btn" type="submit" style="min-height:32px;padding:0 11px;font-size:12px">
+                  Check Google</button>
+              </form>
+            {% else %}
+              {# NOT "Synced". All we know is that an event id was stored when the sitting
+                 was created; whether Google still holds it is exactly what we cannot ask
+                 right now. Claiming the stronger thing here would be the same fault as a
+                 status page reporting health it has not checked. #}
+              <span class="ad-chip ad-chip--grey"
+                    title="An event was created for this sitting. It cannot be verified until the Apps Script side answers.">Event on file</span>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endfor %}
+{% endif %}
+
+<div class="ad-card"><div class="ad-card__body">
+  <p style="margin:0;font-size:12.5px;color:var(--ad-text-mute,#5a6d6f)">
+    <strong>“Check Google” answers three different things.</strong> That the calendar agrees;
+    that it holds the sitting at a <em>different</em> time, which means somebody moved it
+    there and every invitation we have already sent carries ours; or that the event is gone.
+    A fourth answer — that the script could not be reached — is reported as itself and never
+    as “missing”, because recreating forty events that already exist is the expensive mistake.
+  </p>
+</div></div>
+
+{% endblock %}

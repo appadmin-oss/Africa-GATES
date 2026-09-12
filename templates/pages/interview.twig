@@ -1,0 +1,212 @@
+{% extends "layout/gates.twig" %}
+
+{# ── THE NOMINEE'S INTERVIEW PAGE ─────────────────────────────────────────────
+
+   Reached only from the link in an invitation. The person reading it is, most likely,
+   somebody who has never used this site, on a phone, who has just learned that a panel
+   of strangers wants to interview them. Everything here is written for that person.
+
+   THE CONSENT BOX IS THE POINT OF THE PAGE. It is the only place a nominee can give
+   permission for their words to be recorded, transcribed by a machine, and read by the
+   people deciding their award — and InterviewService::publish() refuses to show the panel
+   anything without it. So it is not a checkbox at the bottom of a form: it says what is
+   recorded, who reads it, that a machine writes it down, and that saying no is allowed and
+   costs them nothing.
+
+   Two decisions worth stating:
+
+     • CONFIRM AND CONSENT ARE SEPARATE ANSWERS. "I will come but I would rather you did
+       not keep a recording" is a legitimate position and the form must be able to express
+       it. One combined button would turn it into a refusal to attend.
+
+     • THE THEMES, NOT THE QUESTIONS. Handing over the panel's wording produces an
+       interview about a rehearsal. Telling them nothing produces an ambush that measures
+       composure. The themes are the published rubric, so they cost nothing to share.
+
+   And nowhere on this page is there anything to pay, because "you have reached the
+   interview round, pay a fee" is the commonest way an awards scheme is impersonated. #}
+
+{% block head_styles %}
+<style nonce="{{ csp_nonce }}">
+  .ivp{ max-width:640px; margin:0 auto; padding:40px 20px 76px }
+  .ivp__kick{ display:inline-flex; align-items:center; gap:7px; font-size:11.5px; font-weight:700;
+    letter-spacing:.09em; text-transform:uppercase; color:#1c5f1b; background:#eaf7ea;
+    border-radius:999px; padding:6px 13px }
+  .ivp__card{ margin-top:16px; background:#fff; border:1px solid rgba(16,41,44,.1); border-radius:20px;
+    padding:28px 26px; box-shadow:0 1px 2px rgba(16,41,44,.04), 0 14px 40px -28px rgba(16,41,44,.3) }
+  .ivp h1{ margin:0; font-size:clamp(1.3rem, 1.1rem + 1vw, 1.75rem); letter-spacing:-.015em; color:#10292C }
+  .ivp h2{ margin:26px 0 0; font-size:15px; letter-spacing:.01em; color:#10292C }
+  .ivp p{ margin:13px 0 0; font-size:15px; line-height:1.75; color:#3d5254 }
+  .ivp small{ display:block; margin-top:10px; font-size:12.5px; line-height:1.7; color:#67797b }
+
+  /* The appointment, as a block you can read in one look on a phone. */
+  .ivp__when{ margin-top:18px; display:grid; gap:1px; background:rgba(16,41,44,.09);
+    border:1px solid rgba(16,41,44,.09); border-radius:14px; overflow:hidden }
+  .ivp__row{ display:flex; justify-content:space-between; gap:14px; background:#f8fbf8;
+    padding:12px 15px; font-size:14px; color:#3d5254 }
+  .ivp__row b{ color:#10292c; font-weight:650; text-align:right }
+  .ivp__join{ display:block; margin-top:16px; text-align:center; background:#10292C; color:#fff;
+    text-decoration:none; border-radius:999px; padding:15px 24px; font:700 15px/1 inherit; min-height:48px;
+    box-sizing:border-box }
+  .ivp__join:hover{ background:#1d4145 }
+
+  .ivp__themes{ margin:12px 0 0; padding:0; list-style:none; display:flex; flex-wrap:wrap; gap:8px }
+  .ivp__themes li{ background:#f1f6f1; border:1px solid rgba(16,41,44,.09); border-radius:999px;
+    padding:6px 13px; font-size:13px; color:#2f4446; font-weight:600 }
+
+  /* Consent. Deliberately the most prominent thing on the page after the time. */
+  .ivp__consent{ margin-top:22px; background:#fffdf5; border:1px solid #ecdca0; border-radius:16px;
+    padding:20px 20px 22px }
+  .ivp__consent h2{ margin:0 }
+  .ivp__consent ul{ margin:12px 0 0; padding-left:20px; font-size:14px; line-height:1.8; color:#4a5256 }
+  .ivp__check{ display:flex; gap:11px; align-items:flex-start; margin-top:16px; font-size:14.5px;
+    line-height:1.65; color:#10292C; cursor:pointer }
+  .ivp__check input{ margin-top:3px; width:19px; height:19px; flex:0 0 auto; accent-color:#237b22 }
+  .ivp__name{ width:100%; box-sizing:border-box; margin-top:14px; font:inherit; font-size:15px;
+    border:1px solid rgba(16,41,44,.2); border-radius:12px; padding:12px 13px; color:#10292C }
+  .ivp__name:focus{ outline:none; border-color:#237b22; box-shadow:0 0 0 3px rgba(35,123,34,.12) }
+  .ivp__lab{ display:block; margin-top:16px; font-size:13px; font-weight:650; color:#3d5254 }
+  .ivp__go{ margin-top:16px; width:100%; background:#237b22; color:#fff; border:none; border-radius:999px;
+    padding:15px 24px; font:700 15px/1 inherit; cursor:pointer; min-height:48px }
+  .ivp__go:hover{ background:#1c631b }
+  .ivp__ghost{ margin-top:10px; width:100%; background:none; color:#3d5254; border:1px solid rgba(16,41,44,.2);
+    border-radius:999px; padding:13px 24px; font:600 14px/1 inherit; cursor:pointer; min-height:44px }
+
+  .ivp__ok{ background:#f0fdf4; border:1px solid #b6e3b6; border-left:4px solid #237b22;
+    border-radius:0 14px 14px 0; padding:16px 18px; margin-top:16px; font-size:14.5px;
+    line-height:1.7; color:#22551f }
+  .ivp__bad{ background:#fdf3f3; border:1px solid #f0c9c9; border-left:4px solid #b3261e;
+    border-radius:0 14px 14px 0; padding:16px 18px; margin-top:16px; font-size:14.5px;
+    line-height:1.7; color:#8a2020 }
+  .ivp__free{ margin-top:24px; font-size:13px; line-height:1.75; color:#5a6d6f;
+    border-top:1px solid rgba(16,41,44,.09); padding-top:18px }
+  .ivp__free b{ color:#10292c }
+  @media (max-width:520px){
+    .ivp__row{ flex-direction:column; gap:3px }
+    .ivp__row b{ text-align:left }
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="ivp">
+
+{% if iv is null %}
+  {# Unknown or spent token. Never says which, because the difference between "no such
+     interview" and "that one is closed" is a way to test tokens. #}
+  <div class="ivp__card">
+    <h1>This link is not working</h1>
+    <p>It may have been replaced by a newer invitation, or the interview may already have
+      happened. Nothing has gone wrong with your nomination.</p>
+    <p>Write to <a href="mailto:{{ support_email|default('support@africagates.org') }}">{{ support_email|default('support@africagates.org') }}</a>
+      with your name and the award you were nominated for, and a person will send you a fresh link.</p>
+    <p class="ivp__free"><b>Nothing about being interviewed costs money.</b> If anybody asks
+      you to pay a fee for an interview, a nomination or a result, it is not us.</p>
+  </div>
+
+{% else %}
+  <span class="ivp__kick">🎥 Judging interview</span>
+
+  <div class="ivp__card">
+    <h1>{{ iv.nominee }}, the panel would like to speak with you</h1>
+    <p>This is a conversation, not a test. It exists so the judges hear about your work from
+      you rather than only from the person who nominated you. There are no trick questions,
+      and nothing you say here can lose you the nomination.</p>
+
+    {% if notice %}<div class="ivp__ok">{{ notice }}</div>{% endif %}
+    {% if error %}<div class="ivp__bad">{{ error }}</div>{% endif %}
+
+    <div class="ivp__when">
+      <div class="ivp__row"><span>When</span><b>{{ iv.when_text }}</b></div>
+      <div class="ivp__row"><span>How long</span><b>about {{ iv.duration }} minutes</b></div>
+      <div class="ivp__row"><span>Where</span><b>Google Meet{{ iv.meet_url ? '' : ' — link to follow' }}</b></div>
+      <div class="ivp__row"><span>You have</span>
+        <b>{{ iv.confirmed ? 'confirmed' : (iv.declined ? 'asked to move it' : 'not replied yet') }}{{ iv.consented ? ' · permission given' : '' }}</b></div>
+    </div>
+
+    {% if iv.meet_url and iv.open %}
+      <a class="ivp__join" href="{{ iv.meet_url }}" target="_blank" rel="noopener">Join the meeting →</a>
+      <small>The link only opens at the time above. Joining early is fine — you may be waiting
+        alone for a few minutes.</small>
+    {% endif %}
+
+    {% if not iv.open %}
+      <div class="ivp__ok" style="margin-top:18px">
+        This interview is marked <b>{{ iv.status }}</b>, so there is nothing to do here.
+        If that looks wrong, write to us and a person will check.
+      </div>
+    {% endif %}
+
+    {% if iv.themes|length %}
+      <h2>What we will talk about</h2>
+      <p>These are the things the panel scores on. We are not sending the exact questions —
+        the point is to hear how you actually work, not a prepared speech — but nothing will
+        come from outside this list.</p>
+      <ul class="ivp__themes">
+        {% for t in iv.themes %}<li>{{ t }}</li>{% endfor %}
+      </ul>
+      <small>Useful preparation: one specific example for each of those, with a number or a
+        name in it, and anything written down that somebody outside your organisation could
+        confirm.</small>
+    {% endif %}
+  </div>
+
+  {% if iv.open and not iv.past %}
+    <form class="ivp__card" method="post" action="/interview/{{ token }}">
+      <input type="hidden" name="_token" value="{{ csrf_token }}">
+
+      <h2>Confirm you are coming</h2>
+      <p>Press the button below. If the time does not work, use the second button and we will
+        find another — telling us is always better than missing it.</p>
+
+      <div class="ivp__consent">
+        <h2>Permission to record and write it down</h2>
+        <p style="margin-top:10px">We would like to record the conversation and keep a written
+          transcript. Please read this before you agree:</p>
+        <ul>
+          <li>The recording is transcribed <b>by a computer</b>, which sometimes mishears names
+            and numbers. The judges are told the transcript was machine-written.</li>
+          <li>A computer program also sorts what you said by which criterion it relates to,
+            quoting you. <b>No computer scores you</b> — the judges do that, and they read your
+            own words.</li>
+          <li>The transcript is read by the <b>judging panel for your award</b>. It is not
+            published, not shown to other nominees, and not used for anything else.</li>
+          <li>You can change your mind afterwards and we will take it out of the panel's file.</li>
+        </ul>
+
+        <label class="ivp__check">
+          <input type="checkbox" name="consent" value="1" {{ iv.consented ? 'checked' : '' }}>
+          <span>I agree to the conversation being recorded and transcribed, and to the judging
+            panel reading the transcript.</span>
+        </label>
+
+        <label class="ivp__lab" for="ivname">Your name, to record that this was you</label>
+        <input class="ivp__name" id="ivname" name="name" type="text" maxlength="160"
+               autocomplete="name" placeholder="Type your full name"
+               value="{{ iv.consent_name }}">
+
+        <small><b>Saying no is allowed and costs you nothing in the judging.</b> The interview
+          still happens; the panel simply works from the notes a judge takes by hand instead
+          of a transcript. Leave the box unticked to attend without being recorded.</small>
+      </div>
+
+      <button class="ivp__go" type="submit" name="action" value="confirm">
+        {{ iv.confirmed ? 'Update my answer' : 'Yes, I will be there' }}
+      </button>
+
+      <label class="ivp__lab" for="ivnote">Cannot make that time? Tell us when suits you (optional)</label>
+      <input class="ivp__name" id="ivnote" name="note" type="text" maxlength="500"
+             placeholder="e.g. any afternoon next week, or after the 20th">
+      <button class="ivp__ghost" type="submit" name="action" value="decline">
+        I cannot make this time — please move it
+      </button>
+
+      <p class="ivp__free"><b>Nothing about this costs money.</b> We will never ask you to pay
+        for an interview, a nomination, a result or an award. If anybody does, it is not us —
+        tell us and we will look into it.</p>
+    </form>
+  {% endif %}
+{% endif %}
+
+</div>
+{% endblock %}

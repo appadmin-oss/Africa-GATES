@@ -1,0 +1,502 @@
+{% extends "admin/layout.twig" %}
+
+{# ── THE PRODUCT EDITOR, IN FOUR STEPS ────────────────────────────────────────
+   Same structure as the event editor and for the same reported reason: this was twenty-five
+   inputs in one column, with two of them required and nothing on screen saying which two, and
+   Save at the bottom of a scroll that included a photo gallery.
+
+   The steps follow the job, not the table: what it IS, what it COSTS, what there is to CHOOSE,
+   and what it LOOKS LIKE. Cover image moved out of the first block to sit with the gallery,
+   because "the pictures" is one task and splitting it across two screens is why people upload
+   a cover and never notice the gallery exists.
+
+   EVERY FIELD IS STILL IN ONE FORM AND IN THE DOM — see templates/admin/partials/form-steps.twig
+   for why that is not negotiable. One Save posts everything; the controller is untouched. #}
+
+{% set variants_on = variants_ready|default(false) %}
+{% set images_on   = images_ready|default(true) %}
+
+{# The rail's labels, built to match the sections that actually render. A step that exists in the
+   rail but not in the form is a step somebody clicks into and finds empty. #}
+{% set af_titles = ['The product', 'Price and stock'] %}
+{% if variants_on %}{% set af_titles = af_titles|merge(['Options']) %}{% endif %}
+{% set af_titles = af_titles|merge(['Photographs']) %}
+
+{% block head_styles %}
+<style nonce="{{ csp_nonce }}">
+  .pv-shot{ width:160px; height:120px; object-fit:cover; border-radius:10px;
+    border:1px solid var(--ad-line,rgba(16,41,44,.12)); transition:opacity .15s; }
+  .pv-shot.is-dropped{ opacity:.3; filter:grayscale(1); }
+
+  /* ── an option row ────────────────────────────────────────────────────────
+     It was a flex line of eight inputs identified only by placeholder — so the moment somebody
+     typed "M" they could no longer tell which box held the SKU and which held the stock, and on
+     a phone the whole thing wrapped into an unlabelled stack.
+
+     Now each input carries its own caption and the row is a wrapping grid, so a field stays
+     identified after it is filled in and the layout degrades to two columns rather than to
+     guesswork. The captions repeat per row; that is the cost of a repeater whose columns come
+     and go with the axis, and it is cheaper than an unlabelled box. */
+  .pv-row{ display:flex; flex-wrap:wrap; gap:10px 12px; align-items:flex-end;
+    border:1px solid var(--ad-line,rgba(16,41,44,.12)); border-radius:12px;
+    padding:12px 48px 12px 13px; background:var(--ad-surface,#fff); position:relative }
+  .pv-row + .pv-row{ margin-top:-4px }
+  /* `.ad-form label` gives every label a 6px bottom margin, which on a flex-end row lifts the
+     captioned fields 6px above the plain ones. Zeroed here rather than there, because that
+     margin is correct everywhere else in the admin. */
+  .pv-f{ display:block; margin-bottom:0 }
+  .pv-f > span{ display:block; font-size:10px; font-weight:700; letter-spacing:.05em;
+    text-transform:uppercase; color:var(--ad-text-mute,#61728e); margin-bottom:4px }
+  .pv-row input, .pv-row select{ margin:0 }
+  .pv-w-sm{ width:104px } .pv-w-md{ width:132px } .pv-w-lg{ width:196px }
+  .pv-swatch{ display:inline-flex; align-items:flex-end; gap:6px }
+  .pv-swatch input[type=color]{ width:38px; height:38px; padding:2px; flex:none; cursor:pointer }
+  .pv-hex{ width:118px; font-family:var(--ag-font-mono,monospace); font-size:12px }
+  .pv-wait{ font-size:11.5px; font-weight:700; color:#8a5a00; white-space:nowrap;
+    align-self:center; padding-bottom:8px }
+  /* Pinned to the row's corner at every width. Left in the flex flow it landed wherever the
+     wrap put it — in the screenshot, in the middle of the second line, beside Stock — which
+     reads as "remove the stock" rather than "remove the row". */
+  .pv-rm{ position:absolute; top:8px; right:8px; border:none; background:#fbeaea; color:#a4243a;
+    font-weight:700; border-radius:9px; width:32px; height:32px; cursor:pointer; font-size:15px;
+    line-height:1; font-family:inherit }
+  .pv-rm:hover{ background:#f6d8d8 }
+  .pv-add{ border:none; background:#eef7ee; color:#1a6118; font-weight:600; border-radius:999px;
+    padding:9px 16px; cursor:pointer; font-size:13px; font-family:inherit }
+
+  @media (max-width:560px){
+    .pv-row{ gap:10px }
+    .pv-w-sm, .pv-w-md, .pv-w-lg, .pv-hex{ width:100% }
+    .pv-f{ flex:1 1 100% }
+    .pv-swatch{ flex:1 1 100% }
+    .pv-swatch .pv-hex{ flex:1 }
+  }
+</style>
+{% endblock %}
+
+{% block topbar_title %}{{ is_new ? 'New product' : 'Edit · ' ~ row.name }}{% endblock %}
+{% block topbar_actions %}
+  {% if not is_new and row.slug|default('') %}<a class="ad-btn" href="/shop/{{ row.slug }}" target="_blank" rel="noopener">View in the shop ↗</a>{% endif %}
+  <a class="ad-btn" href="/admin/products">← Back</a>
+{% endblock %}
+
+{% block content %}
+{# The shared stepped-form structure. See the partial for why the fields all stay in one POST. #}
+{% include 'admin/partials/form-steps.twig' %}
+
+{# Single-quoted attribute on purpose. `|json_encode` leaves its string delimiters as real double
+   quotes — Twig marks the filter's output safe for HTML, so it is NOT re-escaped — and inside a
+   double-quoted attribute that ends the attribute at the first title. #}
+<form class="ad-form af" method="post" x-data='afSteps({{ af_titles|json_encode }})'
+      action="{{ is_new ? '/admin/products/new' : '/admin/products/' ~ row.id }}"
+      enctype="multipart/form-data">
+  <input type="hidden" name="_token" value="{{ csrf_token }}">
+
+  {# ── the rail ──────────────────────────────────────────────────────────────
+     Numbered, named, and carrying a count of required fields still empty. Rendered from the
+     component's own titles so it cannot drift from the steps below — and the titles themselves
+     are built above from the sections that actually render, so a deployment mid-migration does
+     not get a step it can click into and find empty. #}
+  <nav class="af__rail" aria-label="Sections of this form">
+    <template x-for="(t, i) in titles" :key="i">
+      <button type="button" class="af__tab" :class="isOn(i) ? 'is-on' : ''"
+              @click="go(i)" :aria-current="isOn(i) ? 'step' : 'false'">
+        <span class="af__n" x-text="i + 1"></span>
+        <span x-text="t"></span>
+        <template x-if="todo[i] > 0">
+          <span class="af__todo" x-text="todo[i]"
+                :aria-label="todo[i] + ' required fields still empty'"></span>
+        </template>
+      </button>
+    </template>
+  </nav>
+
+  {% set S = 0 %}
+
+  {# ══ 1 · THE PRODUCT ═══════════════════════════════════════════════════════ #}
+  <section class="af__step" :class="isOn({{ S }}) ? 'is-on' : ''">
+    <div class="af__head">
+      <h2>What is it?</h2>
+      <p>The name and the words a buyer reads. Only the name is required — everything else here
+        can be filled in later without taking the product off sale.</p>
+    </div>
+    <div class="ad-card"><div class="ad-card__body">
+      <div class="ad-form">
+        <div class="row">
+          <div>
+            <label for="f-name">Name<span class="af-req" aria-hidden="true">*</span></label>
+            <input type="text" name="name" id="f-name" value="{{ row.name|default('') }}" required>
+          </div>
+          <div>
+            <label for="f-slug">Slug<span class="af-opt">auto from the name if blank</span></label>
+            <input type="text" name="slug" id="f-slug" value="{{ row.slug|default('') }}">
+          </div>
+        </div>
+        <div class="row">
+          <div>
+            <label for="f-category">Category</label>
+            <select name="category" id="f-category">{% for c in categories %}<option value="{{ c }}" {% if row.category == c %}selected{% endif %}>{{ c }}</option>{% endfor %}</select>
+          </div>
+          <div>
+            <label for="f-tag">Tag<span class="af-opt">optional badge on the card</span></label>
+            <select name="tag" id="f-tag"><option value="">None</option>{% for t in tags %}<option value="{{ t }}" {% if row.tag == t %}selected{% endif %}>{{ t }}</option>{% endfor %}</select>
+          </div>
+        </div>
+
+        {% if shop_missing|default([])|length %}
+          <div style="border:1px solid #f3d38a;border-radius:12px;padding:13px 15px;background:#fffbeb">
+            <strong style="font-size:13.5px">Subtitle, details and featured need one more step</strong>
+            <div style="font-size:12.5px;color:#7a5a1a;margin-top:5px">
+              The database is missing <code>{{ shop_missing|join('</code>, <code>')|raw }}</code>.
+              Run <strong>/__setup/migrate</strong> and these fields appear. They are hidden rather
+              than shown-and-dropped, so nothing you type can vanish on save.
+            </div>
+          </div>
+        {% else %}
+          <div>
+            <label for="f-subtitle">Subtitle<span class="af-opt">one line under the name, on the card and the page</span></label>
+            <input type="text" name="subtitle" id="f-subtitle" maxlength="200" value="{{ row.subtitle|default('') }}" placeholder="Heavyweight cotton, embroidered gate mark.">
+          </div>
+        {% endif %}
+
+        <div>
+          <label for="f-description">Description</label>
+          <textarea name="description" id="f-description" rows="4" placeholder="Materials, fit, what the purchase funds…">{{ row.description|default('') }}</textarea>
+        </div>
+
+        {% if not shop_missing|default([])|length %}
+        {# Materials, sizing, washing. The three questions a support inbox answers about apparel
+           forever — shown on the product page in a fold-out rather than in the description,
+           because somebody deciding whether to buy is not reading a care label yet. #}
+        <div>
+          <label for="f-details">Materials, sizing &amp; care<span class="af-opt">folded away on the product page</span></label>
+          <textarea name="details" id="f-details" rows="4" placeholder="100% combed cotton, 240gsm.&#10;Runs true to size.&#10;Cold wash inside out.">{{ row.details|default('') }}</textarea>
+        </div>
+        {% endif %}
+      </div>
+    </div></div>
+  </section>
+  {% set S = S + 1 %}
+
+  {# ══ 2 · PRICE AND STOCK ═══════════════════════════════════════════════════ #}
+  <section class="af__step" :class="isOn({{ S }}) ? 'is-on' : ''">
+    <div class="af__head">
+      <h2>What does it cost, and how many are there?</h2>
+      <p>The price is required. Stock left blank means <strong>untracked</strong> — the shop will
+        keep selling it. Stock set to <strong>0</strong> means sold out. They are two different
+        statements and this form never flattens them into one.</p>
+    </div>
+    <div class="ad-card"><div class="ad-card__body">
+      <div class="ad-form">
+        <div class="row">
+          <div>
+            <label for="f-price_naira">Price (₦)<span class="af-req" aria-hidden="true">*</span></label>
+            <input type="number" name="price_naira" id="f-price_naira" min="0" step="1" value="{{ row.price_naira|default(0) }}" required>
+          </div>
+          <div>
+            <label for="f-stock">Stock<span class="af-opt">blank = untracked</span></label>
+            <input type="number" name="stock" id="f-stock" min="0" step="1" value="{{ row.stock|default('') }}">
+            {% if waiting_here|default(0) %}
+            {# Said where the decision is made. Raising this above zero and saving emails all of
+               them, once — the save is the one moment "it is back" becomes true. #}
+            <div style="font-size:12px;color:#8a5a00;font-weight:600;margin-top:5px">
+              {{ waiting_here }} {{ waiting_here == 1 ? 'person is' : 'people are' }} waiting to be told
+              this is back. Save with a stock above 0 and they are emailed.
+            </div>
+            {% endif %}
+          </div>
+        </div>
+        <div class="row">
+          <div>
+            <label for="f-sort_order">Sort order<span class="af-opt">lower comes first</span></label>
+            <input type="number" name="sort_order" id="f-sort_order" step="1" value="{{ row.sort_order|default(0) }}">
+          </div>
+          <div>
+            <label>Where it can go<span class="af-opt">nothing ticked = nationwide</span></label>
+            <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:6px">
+              {% for r in regions %}
+              <label class="checkbox" style="display:inline-flex;align-items:center;gap:7px;border:1px solid var(--ad-line,rgba(16,41,44,.12));border-radius:9px;padding:8px 12px;font-weight:500"><input type="checkbox" name="delivery_regions[]" value="{{ r }}" {% if r in sel_regions %}checked{% endif %}> {{ r }}</label>
+              {% endfor %}
+            </div>
+          </div>
+        </div>
+
+        <div style="display:flex;gap:18px;flex-wrap:wrap;padding-top:4px;border-top:1px solid var(--ad-line,rgba(16,41,44,.1))">
+          <label class="checkbox"><input type="checkbox" name="is_active" {% if is_new or row.is_active %}checked{% endif %}> <strong>Active</strong> — visible in the shop</label>
+          {% if not shop_missing|default([])|length %}
+          <label class="checkbox"><input type="checkbox" name="is_featured" {% if row.is_featured|default(0) %}checked{% endif %}> Feature at the front of the shop</label>
+          {# Distinct from a delivery region: this says the PRICE includes postage, which is what
+             makes charging ₦3,500 to send a ₦1,800 sticker set avoidable. #}
+          <label class="checkbox"><input type="checkbox" name="ships_free" {% if row.ships_free|default(0) %}checked{% endif %}> Delivery included in the price</label>
+          {% endif %}
+        </div>
+      </div>
+    </div></div>
+  </section>
+  {% set S = S + 1 %}
+
+  {# ══ 3 · OPTIONS ═══════════════════════════════════════════════════════════
+     The reason this section exists: the shop's first category is Apparel, and you cannot sell
+     apparel without a size. Before this, a buyer picked a shirt, paid, and somebody had to
+     email them to ask what size they were — so the order was not actually complete when the
+     money arrived, and a "sold out" number counted shirts rather than shirts-in-a-size.
+
+     The price is a DELTA. An XXL costs ₦1,500 more; when the base price changes for a sale the
+     delta still holds, whereas eight absolute prices would silently keep the old ones. #}
+  {% if variants_on %}
+  <section class="af__step" :class="isOn({{ S }}) ? 'is-on' : ''">
+    <div class="af__head">
+      <h2>Is there anything to choose?</h2>
+      <p>Leave this empty for a product with nothing to pick. Add rows and the shop asks the buyer
+        to choose before it will let them add anything to a basket.</p>
+    </div>
+    <div class="ad-card"><div class="ad-card__body">
+      <div class="ad-form" x-data="pvRepeater({{ variant_seed|default([])|json_encode|e('html_attr') }}, {vid:0,label:'',label2:'',sku:'',delta:0,stock:'',waiting:0,swatch:'',image:''})">
+        <div class="row">
+          <div><label for="f-axis">What are they choosing?</label>
+            <select name="variant_axis" id="f-axis">
+              <option value="">— no options —</option>
+              {% for a in axes %}<option value="{{ a }}" {% if row.variant_axis|default('') == a %}selected{% endif %}>{{ a }}</option>{% endfor %}
+            </select>
+          </div>
+          {# ── THE SECOND QUESTION ──────────────────────────────────────────────
+             You could always express a combination by naming a row "M · Navy". It falls apart
+             the moment you want it shown properly: twelve buttons instead of three colours and
+             four sizes, a colour that cannot be a swatch because the label is not a colour any
+             more, and no way to say "Navy is sold out in M" — every combination is an unrelated
+             string, so the page cannot grey out a size once a colour is picked.
+
+             Each ROW is still one sellable combination, which is right: stock, price and SKU
+             all belong to the combination and not to the colour. #}
+          {% if swatches_ready|default(false) %}
+          <div><label for="f-axis2">And a second thing?<span class="af-opt">optional</span></label>
+            <select name="variant_axis2" id="f-axis2">
+              <option value="">— just the one —</option>
+              {% for a in axes %}<option value="{{ a }}" {% if row.variant_axis2|default('') == a %}selected{% endif %}>{{ a }}</option>{% endfor %}
+            </select>
+          </div>
+          {% endif %}
+        </div>
+        {% if swatches_ready|default(false) %}
+        <div style="font-size:12.5px;color:var(--ad-text-mute)">
+          With two questions, <strong>every row is one combination</strong> — a row for “M, Navy”
+          and another for “M, Cream” — because the stock, the price and the SKU belong to the
+          pair. The shop shows two sets of buttons and works out which pairs are still available.
+        </div>
+        {% endif %}
+
+        <template x-for="r in rows" :key="r.id">
+          <div class="pv-row">
+            <input type="hidden" name="var_id[]" :value="r.vid || ''">
+            <label class="pv-f"><span x-text="axisName(1)"></span>
+              <input name="var_label[]" x-model="r.label" maxlength="80" placeholder="M" class="pv-w-sm">
+            </label>
+            {% if swatches_ready|default(false) %}
+            <label class="pv-f" x-show="hasSecond()" x-cloak><span x-text="axisName(2)"></span>
+              <input name="var_label2[]" x-model="r.label2" maxlength="80" placeholder="Navy" class="pv-w-sm">
+            </label>
+            {# ── THE SWATCH ─────────────────────────────────────────────────────
+               A colour picker beside the word, not instead of it. The word is what a screen
+               reader announces, what anybody who cannot tell two of these greens apart relies
+               on, and what the packing list and the receipt say — "you bought the ■" is not a
+               receipt. The swatch is an accelerator on top of the name.
+
+               Two boxes for one value, same as the ticket's accent: the picker is unusable for
+               typing a brand hex and the text box is unusable for choosing one by eye. Only
+               `var_swatch[]` is submitted. Type two hex values separated by a slash for a
+               two-tone item — striped and panelled goods are common, and one flat square
+               misrepresents them, which is a return. #}
+            <span class="pv-swatch" x-show="wantsSwatch()" x-cloak>
+              <input type="color" :value="r.swatch.split('/')[0] || '#10292C'"
+                     @input="r.swatch = $event.target.value"
+                     :aria-label="'Colour for ' + (r.label || 'this option')">
+              <label class="pv-f"><span>Hex<span style="text-transform:none;font-weight:400"> — or two, slash-separated</span></span>
+                <input name="var_swatch[]" x-model="r.swatch" maxlength="20" placeholder="#1B2A4A"
+                       :aria-label="'Colour value for ' + (r.label || 'this option')"
+                       spellcheck="false" class="pv-hex">
+              </label>
+            </span>
+            {# A photograph of THIS colour. Choosing it switches the gallery, which is the only
+               honest way to show a fabric — a hex square cannot tell somebody what a wax print
+               looks like. #}
+            <label class="pv-f" x-show="wantsSwatch()" x-cloak><span>Photo for this one</span>
+              <input name="var_image[]" x-model="r.image" maxlength="500"
+                     :aria-label="'Photo for ' + (r.label || 'this option')"
+                     placeholder="/uploads/shop/navy.jpg" class="pv-w-lg">
+            </label>
+            {% endif %}
+            <label class="pv-f"><span>SKU</span>
+              <input name="var_sku[]" x-model="r.sku" maxlength="60" placeholder="optional" class="pv-w-md">
+            </label>
+            <label class="pv-f"><span>₦ more / less</span>
+              <input name="var_delta[]" type="number" step="1" x-model.number="r.delta" class="pv-w-md"
+                     :aria-label="'Price difference in naira for ' + (r.label || 'this option')">
+            </label>
+            {# '' is UNTRACKED and 0 is SOLD OUT. Two different statements, and flattening them
+               would turn every uncounted size into one nobody can buy. #}
+            <label class="pv-f"><span>Stock<span style="text-transform:none;font-weight:400"> — blank = untracked</span></span>
+              <input name="var_stock[]" type="number" min="0" step="1" x-model="r.stock" class="pv-w-md"
+                     placeholder="blank = untracked"
+                     :aria-label="'Stock for ' + (r.label || 'this option')">
+            </label>
+            {# The demand for THIS size, beside the box where somebody decides what to type.
+               Raising it above zero and saving emails every one of them, once. #}
+            <span class="pv-wait" x-show="r.waiting > 0" x-cloak x-text="r.waiting + ' waiting'"></span>
+            <button type="button" class="pv-rm" @click="rm(r.id)"
+                    :aria-label="'Remove ' + (r.label || 'this option')">×</button>
+          </div>
+        </template>
+
+        <div>
+          <button type="button" class="pv-add" @click="add()">+ Add an option</button>
+          <div style="font-size:12px;color:var(--ad-text-mute);margin-top:8px">
+            An option is never deleted once somebody has bought one — it is taken off sale instead,
+            because an order line points at it for its name and the packing list would otherwise
+            show a shirt with no size. The stock number on the previous step is ignored for a
+            product with options: every unit lives in one of these rows.
+          </div>
+        </div>
+      </div>
+    </div></div>
+  </section>
+  {% set S = S + 1 %}
+  {% endif %}
+
+  {# ══ 4 · PHOTOGRAPHS ═══════════════════════════════════════════════════════
+     The cover stays authoritative for the first image, so the grid — which reads only the
+     cover — can never disagree with the first thumbnail on the product page. #}
+  <section class="af__step" :class="isOn({{ S }}) ? 'is-on' : ''">
+    <div class="af__head">
+      <h2>What does it look like?</h2>
+      <p>The cover is the one image the shop grid shows, and it is always first on the product
+        page. Everything else comes after it, in the order below.</p>
+    </div>
+    <div class="ad-card"><div class="ad-card__body">
+      <div class="ad-form">
+        <div>
+          <label for="f-cover">Cover image</label>
+          {% if row.cover_path %}<div style="margin-bottom:8px"><img src="{{ row.cover_path }}" alt="Current cover for {{ row.name|default('this product') }}" style="width:90px;height:90px;object-fit:cover;border-radius:10px;border:1px solid var(--ad-line,rgba(16,41,44,.12))"></div>{% endif %}
+          <input type="file" name="cover" id="f-cover" accept="image/png,image/jpeg,image/webp">
+          <div class="hint">PNG / JPG / WebP, min 300×300px. Leave blank to keep the current image.</div>
+        </div>
+
+        {% if images_on %}
+        {% if image_seed|default([]) %}
+        <div style="border-top:1px solid var(--ad-line,rgba(16,41,44,.1));padding-top:14px">
+          <label>The rest of the gallery</label>
+          <div style="display:flex;flex-wrap:wrap;gap:14px;margin-top:8px">
+            {% for im in image_seed %}
+            <div x-data="{ keep:true }" style="width:160px">
+              {# :class, not :style. An Alpine :style REPLACES the style attribute when it runs, so
+                 the sizing here would vanish the moment the component initialised —
+                 AlpineStyleClobberTest fails the build on exactly that. #}
+              <img src="{{ im.path }}" alt="" class="pv-shot" :class="keep ? '' : 'is-dropped'">
+              <input type="hidden" name="img_id[]" :value="keep ? '{{ im.iid }}' : ''">
+              <input name="img_alt[]" value="{{ im.alt }}" maxlength="300" placeholder="Describe this photo"
+                     aria-label="Alt text for image {{ loop.index }}" style="margin-top:6px;font-size:12px">
+              <label class="checkbox" style="font-size:12px;margin-top:5px"><input type="checkbox" x-model="keep"> Keep</label>
+            </div>
+            {% endfor %}
+          </div>
+          <div class="hint" style="margin-top:10px">
+            Untick “keep” and the photo is removed when you save. Alt text describes THIS photo —
+            a gallery where every image is called the product name tells a screen-reader user
+            nothing about which one they are on.
+          </div>
+        </div>
+        {% endif %}
+        <div>
+          <label for="f-gallery">Add photographs</label>
+          <input type="file" name="gallery[]" id="f-gallery" accept="image/png,image/jpeg,image/webp" multiple>
+          <div class="hint">PNG / JPG / WebP, min 300×300px. Validated and re-encoded exactly like the cover.</div>
+        </div>
+        {% endif %}
+      </div>
+    </div></div>
+  </section>
+
+  {# ── the bar ────────────────────────────────────────────────────────────────
+     Sticky, so Save is never a scroll away, and it says whether there is anything unsaved. #}
+  <div class="af__bar">
+    <div class="af__state" :class="stateClass()" x-text="state()">Everything saved</div>
+    <div class="af__steps">
+      <button type="button" class="af__ghost" @click="back()" :disabled="at === 0">← Back</button>
+      <button type="button" class="af__ghost" @click="next()" :disabled="at === titles.length - 1">Next →</button>
+    </div>
+    <button class="ad-btn ad-btn--primary" type="submit">{{ is_new ? 'Create product' : 'Save changes' }}</button>
+  </div>
+  <div style="margin-top:10px">
+    <a class="ad-btn" href="/admin/products">Cancel</a>
+  </div>
+</form>
+{% endblock %}
+
+{% block foot_scripts %}
+<script nonce="{{ csp_nonce }}">
+/* The same stable-id repeater the event forms use: a row keyed by its index loses focus on
+   every keystroke, because re-rendering the list replaces the input being typed into. `vid`
+   is the DATABASE id, carried separately so a save upserts rather than reissuing — the ids are
+   what an order line points at. */
+function pvRepeater(seed, blank){
+  let nextId = 1000;
+  const rows = (seed && seed.length) ? seed.map(r => Object.assign({}, r)) : [];
+  return {
+    rows,
+
+    /* ── the two axis values, MIRRORED ────────────────────────────────────
+       These used to be read straight from the DOM inside hasSecond()/wantsSwatch(), on the
+       reasoning that the selects are the single source of truth. The reasoning was right and
+       the implementation was broken: Alpine only re-evaluates an expression when something
+       REACTIVE it touched changes, and `document.getElementById(…).value` is not reactive. So
+       picking "Colour" did nothing — the swatch inputs stayed hidden until you happened to add
+       or remove a row, at which point they appeared out of nowhere.
+
+       Found by changing the axis in a browser and watching the captions not change. Reading it
+       in the source, it looks correct.
+
+       So the selects still SUBMIT their own values and the form still works with no script;
+       these two are a display mirror, written only by the change listener below and never read
+       back into the form. */
+    a1: '',
+    a2: '',
+
+    init(){
+      const sync = () => {
+        this.a1 = (document.getElementById('f-axis')?.value || '').trim();
+        this.a2 = (document.getElementById('f-axis2')?.value || '').trim();
+      };
+      sync();
+      ['f-axis', 'f-axis2'].forEach(id => {
+        document.getElementById(id)?.addEventListener('change', sync);
+      });
+    },
+
+    add(){ this.rows.push(Object.assign({id: nextId++}, blank)); },
+    rm(id){ this.rows = this.rows.filter(r => r.id !== id); },
+
+    /* Whether the second question is being asked at all. */
+    hasSecond(){ return this.a2 !== ''; },
+
+    /* What to caption the label columns with. The chosen axis IS the caption — a column headed
+       "Option name" beside one headed "Second option name" tells an editor nothing, whereas
+       "Size" and "Colour" say what to type. Falls back only when nothing is chosen yet. */
+    axisName(which){
+      const v = which === 2 ? this.a2 : this.a1;
+      return v !== '' ? v : (which === 2 ? 'Second option' : 'Option name');
+    },
+
+    /* Show the colour inputs when EITHER question is about colour. Not "the first axis is
+       Colour": a shirt is commonly Size + Colour, where the colour is the SECOND question, and
+       a check that only looked at the first would hide the swatches on the most ordinary
+       product in the shop.
+
+       Substring match on purpose — an organiser typing "Colour / Shade" or "Color" gets the
+       swatches rather than silently not getting them. */
+    wantsSwatch(){
+      const looksColour = s => s.toLowerCase().includes('colour') || s.toLowerCase().includes('color');
+      return looksColour(this.a1) || looksColour(this.a2);
+    }
+  };
+}
+</script>
+{% endblock %}

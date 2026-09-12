@@ -1,0 +1,245 @@
+{% extends "layout/gates.twig" %}
+
+{#
+  THE RECEIPT A SUPPORTER CAN SHOW SOMEBODY ELSE.
+
+  ── WHY THIS PAGE, AND WHY IT LOOKS LIKE THIS ───────────────────────────────
+
+  Supporters were told the unminted-vote incident was resolved and asked for
+  proof. An aggregate cannot answer that — "99.8% of orders are fine" is not a
+  reply to "where are MY votes". This answers exactly one order.
+
+  Three design rules follow from it being EVIDENCE rather than a status page:
+
+  1. IT SHOWS THE VOTE ROWS. Not a total we assert — the actual entries, each with
+     its own timestamp. A number we print is a claim; a list of the entries behind
+     the number is something a reader can weigh. Where they disagree, that is
+     shown too, in red, rather than smoothed into a total.
+
+  2. THE FAILING STATES ARE AS LOUD AS THE GOOD ONE. A verification page that
+     renders reassurance for a broken order is worse than no page: it converts an
+     angry supporter into a supporter who has been lied to in writing. So
+     `awaiting_delivery` and `claimed_but_missing` get red treatment and a route
+     to a fix, not a soft grey chip.
+
+  3. NO PII. A reference is unguessable but it is still a BEARER token — anyone
+     holding it opens this. So it shows what the holder already knows (their own
+     order) and nothing about the payer: no name, no email, no phone.
+#}
+
+{% block head_styles %}
+<style nonce="{{ csp_nonce }}">
+  body[data-page="verify"]{ background:#eef0ec; color:var(--ag-ink); }
+  .vv{ max-width:660px; margin:0 auto; padding:clamp(1.4rem,4vw,2.4rem) var(--ag-gutter,32px) clamp(3rem,6vw,4rem); }
+
+  .vv-h{ text-align:center; margin-bottom:22px; }
+  .vv-h p{ margin:0 0 8px; font:600 12px/1 var(--ag-font-body); letter-spacing:.14em; text-transform:uppercase; color:var(--ag-green); }
+  .vv-h h1{ margin:0; font-family:var(--ag-font-display); font-weight:700; font-size:clamp(1.6rem,4vw,2.1rem); letter-spacing:-.02em; }
+  .vv-h span{ display:block; margin-top:11px; font-size:14.5px; line-height:1.6; color:#4a5256; }
+
+  .vv-card{ background:var(--ag-surface); border:1px solid rgba(16,41,44,.08); border-radius:20px; padding:clamp(1.3rem,3vw,1.8rem); }
+
+  /* look-up form */
+  .vv-form{ display:flex; gap:9px; }
+  .vv-form input{ flex:1; min-width:0; border:1px solid rgba(16,41,44,.16); border-radius:12px; padding:13px 15px;
+    font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-size:14.5px; color:var(--ag-ink); outline:none; background:var(--ag-surface); }
+  .vv-form input:focus{ border-color:var(--ag-green); box-shadow:0 0 0 3px rgba(127,200,124,.18); }
+  .vv-form button{ flex:none; cursor:pointer; border:none; background:var(--ag-ink); color:#fff; font-family:inherit;
+    font-weight:600; font-size:14.5px; padding:13px 22px; border-radius:12px; }
+
+  /* verdict */
+  .vv-verdict{ display:flex; align-items:flex-start; gap:13px; border-radius:16px; padding:16px 18px; margin-bottom:20px; }
+  .vv-verdict h2{ margin:0; font-family:var(--ag-font-display); font-weight:700; font-size:17px; }
+  .vv-verdict p{ margin:6px 0 0; font-size:14px; line-height:1.6; }
+  .vv-verdict svg{ flex:none; margin-top:2px }
+  .vv--ok{   background:#eef7ee; border:1px solid #bfe0bd; color:#1a4d18; }
+  .vv--bad{  background:#fdf3f3; border:1px solid #f0c9c9; color:#8a2020; }
+  .vv--wait{ background:#fff8df; border:1px solid #ecd9a0; color:#6b4a00; }
+
+  .vv-rows{ list-style:none; margin:0; padding:0; }
+  .vv-row{ display:flex; align-items:baseline; justify-content:space-between; gap:16px; padding:11px 0; }
+  .vv-row + .vv-row{ border-top:1px solid rgba(16,41,44,.07); }
+  .vv-row__k{ font-size:13px; color:#5a6d6f; }
+  .vv-row__v{ font-size:14.5px; font-weight:600; color:var(--ag-ink); text-align:right; }
+  .vv-row__v code{ font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-size:.9em; word-break:break-all; }
+
+  /* the actual entries — the part that makes this evidence */
+  .vv-votes{ margin-top:20px; padding-top:18px; border-top:1px solid rgba(16,41,44,.09); }
+  .vv-votes h3{ margin:0 0 4px; font:600 11.5px/1.4 var(--ag-font-body); letter-spacing:.09em; text-transform:uppercase; color:#5a6d6f; }
+  .vv-votes__n{ margin:0 0 13px; font-size:12.5px; line-height:1.55; color:#5a6d6f; }
+  .vv-vote{ display:flex; align-items:center; gap:11px; background:#f4f7f4; border:1px solid #d6e8d3;
+    border-radius:12px; padding:11px 14px; }
+  .vv-vote + .vv-vote{ margin-top:8px; }
+  .vv-vote__w{ flex:none; min-width:38px; height:38px; padding:0 8px; border-radius:11px; background:#177015; color:#fff;
+    font-weight:700; font-size:14px; display:flex; align-items:center; justify-content:center; }
+  .vv-vote__t{ font-size:14px; font-weight:600; color:#1a4d18; }
+  .vv-vote__d{ font-size:12px; color:#4a6a48; margin-top:2px; }
+
+  .vv-mismatch{ margin-top:14px; background:#fdf3f3; border:1px solid #f0c9c9; border-radius:12px;
+    padding:13px 15px; font-size:13.5px; line-height:1.6; color:#8a2020; }
+
+  .vv-do{ display:flex; gap:10px; flex-wrap:wrap; margin-top:20px; }
+  .vv-btn{ cursor:pointer; border:none; font-family:inherit; font-weight:600; font-size:14px; padding:12px 20px;
+    border-radius:999px; text-decoration:none; display:inline-block; }
+  .vv-btn--p{ background:var(--ag-green); color:#fff; }
+  .vv-btn--g{ border:1px solid rgba(16,41,44,.16); background:var(--ag-surface); color:var(--ag-ink); }
+
+  .vv-fine{ margin:18px 0 0; font-size:12px; line-height:1.6; color:#5a6d6f; text-align:center; }
+
+  @media (max-width:520px){ .vv-form{ flex-direction:column; } .vv-form button{ width:100% } }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="vv">
+
+  <header class="vv-h">
+    <p>Verify a payment</p>
+    <h1>What happened to your votes</h1>
+    <span>Paste your reference and see exactly what was paid, what was delivered, and when. This page reads the
+      live record — it is not a copy of an email.</span>
+  </header>
+
+  <div class="vv-card">
+    <form class="vv-form" method="get" action="/vote/verify">
+      <input type="text" name="ref" value="{{ ref }}" placeholder="AFG-PVOTE-…" aria-label="Payment reference"
+             autocapitalize="characters" spellcheck="false">
+      <button type="submit">Verify</button>
+    </form>
+
+    {% if ref and not proof.found %}
+      <div class="vv-verdict vv--wait" style="margin-top:20px;margin-bottom:0">
+        <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 8v5M12 16h.01"/></svg>
+        <div>
+          <h2>Nothing on record for that reference</h2>
+          <p>{{ proof.say }}</p>
+        </div>
+      </div>
+    {% endif %}
+  </div>
+
+  {% if proof.found %}
+    {% set st = proof.state %}
+    <div class="vv-card" style="margin-top:16px">
+
+      {# The verdict. Failing states are as loud as the good one — a page that
+         renders reassurance for a broken order turns an angry supporter into one
+         who has been lied to in writing. #}
+      {% if st == 'delivered' %}
+        <div class="vv-verdict vv--ok">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg>
+          <div>
+            <h2>Delivered — {{ proof.delivered }} vote{{ proof.delivered == 1 ? '' : 's' }} are on the tally</h2>
+            <p>Your payment was confirmed and the votes were added. The entries below are the actual records,
+               each with the time it was written.</p>
+          </div>
+        </div>
+      {% elseif st == 'refunded' %}
+        <div class="vv-verdict vv--wait">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 1 0 9-9"/><path d="M3 4v5h5"/></svg>
+          <div>
+            <h2>Refunded</h2>
+            <p>The votes could not be counted, so the money went back on {{ proof.refunded_at }}. Banks usually
+               take 5–10 working days to show it.</p>
+          </div>
+        </div>
+      {% elseif st == 'pending' %}
+        <div class="vv-verdict vv--wait">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
+          <div>
+            <h2>Not confirmed yet</h2>
+            <p>We have the order but no confirmation from the bank. If you have been debited, use the button
+               below — it re-asks the bank directly and credits the votes if the money arrived.</p>
+          </div>
+        </div>
+      {% elseif st == 'not_paid' %}
+        <div class="vv-verdict vv--wait">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 8v5M12 16h.01"/></svg>
+          <div>
+            <h2>This payment did not complete</h2>
+            <p>No money reached us on this reference, so nothing was charged and no votes were added. If your
+               bank shows a debit it is usually a pending authorisation that reverses itself — check anyway
+               with the button below.</p>
+          </div>
+        </div>
+      {% else %}
+        {# awaiting_delivery, claimed_but_missing, partial — all genuinely wrong. #}
+        <div class="vv-verdict vv--bad">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 9v4M12 17h.01"/><path d="M10.3 3.9 2.4 18a2 2 0 0 0 1.7 3h15.8a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"/></svg>
+          <div>
+            <h2>Paid, and the votes are not there</h2>
+            <p>This is our fault, not yours, and it is fixable. Use the button below — it re-checks the payment
+               with the bank and adds the votes on the spot. If they cannot be added, the money goes back
+               automatically; we do not keep payment for votes we did not count.</p>
+          </div>
+        </div>
+      {% endif %}
+
+      <ul class="vv-rows">
+        <li class="vv-row"><span class="vv-row__k">Reference</span><span class="vv-row__v"><code>{{ proof.reference }}</code></span></li>
+        {% if proof.nominee %}
+          <li class="vv-row"><span class="vv-row__k">For</span><span class="vv-row__v">{{ proof.nominee }}</span></li>
+        {% endif %}
+        <li class="vv-row"><span class="vv-row__k">Votes ordered</span><span class="vv-row__v">{{ proof.ordered }}</span></li>
+        <li class="vv-row"><span class="vv-row__k">Votes on the tally</span><span class="vv-row__v">{{ proof.delivered }}</span></li>
+        <li class="vv-row"><span class="vv-row__k">Amount</span><span class="vv-row__v">₦{{ proof.amount|number_format }}</span></li>
+        {% if proof.paid_at %}
+          <li class="vv-row"><span class="vv-row__k">Checkout started</span><span class="vv-row__v">{{ proof.paid_at }}</span></li>
+        {% endif %}
+        {% if proof.confirmed_at %}
+          <li class="vv-row"><span class="vv-row__k">Payment confirmed</span><span class="vv-row__v">{{ proof.confirmed_at }}</span></li>
+        {% endif %}
+      </ul>
+
+      {# The entries themselves. A number we print is a claim; the rows behind it
+         are something the reader can weigh. #}
+      {% if proof.votes %}
+        <div class="vv-votes">
+          <h3>The vote records</h3>
+          <p class="vv-votes__n">These are the actual entries on the tally, read live. Not a summary of an email.</p>
+          {% for v in proof.votes %}
+            <div class="vv-vote">
+              <span class="vv-vote__w">{{ v.weight }}</span>
+              <div>
+                <div class="vv-vote__t">{{ v.nominee ?: 'Nominee' }}</div>
+                <div class="vv-vote__d">{{ v.weight }} vote{{ v.weight == 1 ? '' : 's' }}{% if v.at %} · recorded {{ v.at }}{% endif %}</div>
+              </div>
+            </div>
+          {% endfor %}
+        </div>
+      {% endif %}
+
+      {# Shown, never smoothed away. A counter that disagrees with the rows is a
+         mint that died half-way, and hiding it is how it stays hidden. #}
+      {% if proof.mismatch %}
+        <div class="vv-mismatch">
+          <strong>Our counter and the tally disagree on this order.</strong>
+          The counter says {{ proof.claimed }}; the tally holds {{ proof.delivered }}. We would rather show you
+          that than quietly report the larger number. The team has a report that catches exactly this — please
+          use the repair button, and if it does not resolve it, open a support ticket and quote this reference.
+        </div>
+      {% endif %}
+
+      <div class="vv-do">
+        {% if st != 'delivered' and st != 'refunded' %}
+          {# `ref=` + `ask=1`, not `q=`. This button's whole job is to RUN the
+             repair, and the assistant's ref path builds the sentence and sends it
+             so fix_payment actually executes. It previously passed `?q=<reference>`,
+             which the assistant does not act on — so the one action on the proof
+             page did nothing but move the reader to an empty chat box. #}
+          <a class="vv-btn vv-btn--p" href="/support/assistant?ref={{ proof.reference|url_encode }}&amp;ask=1">Re-check &amp; fix this payment →</a>
+        {% endif %}
+        {% if proof.nominee %}
+          <a class="vv-btn vv-btn--g" href="/vote">See the ballot</a>
+        {% endif %}
+        <a class="vv-btn vv-btn--g" href="/help/paid-but-no-votes">Why does this happen?</a>
+      </div>
+    </div>
+  {% endif %}
+
+  <p class="vv-fine">
+    This page shows no payer details — anyone with the reference can open it, so it deliberately contains only
+    the order. Questions: <a href="/support" style="color:var(--ag-green-dark,#177015)">Support &amp; appeals</a>.
+  </p>
+</div>
+{% endblock %}

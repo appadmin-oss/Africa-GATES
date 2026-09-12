@@ -21,6 +21,11 @@ $cap->addConnection(require __DIR__ . '/../config/database.php');
 $cap->setAsGlobal();
 $cap->bootEloquent();
 
+if (!\AfricaGates\Support\CronGuard::acquire('recalculate-cpi', __DIR__ . '/../var/data')) {
+    fwrite(STDERR, "[cpi] another run is still in progress — exiting.\n");
+    exit(0);
+}
+
 $t0  = microtime(true);
 $log = fn(string $m) => print('[' . date('Y-m-d H:i:s') . '] ' . $m . PHP_EOL);
 $log('CPI recompute (delegating to bin/console cpi:recompute)…');

@@ -1,0 +1,403 @@
+{% extends "admin/layout.twig" %}
+
+{#
+  THE ADMINISTRATOR'S HANDBOOK.
+
+  ── WHO THIS IS FOR ─────────────────────────────────────────────────────────
+
+  Whoever is running the award, not whoever is changing the code. It says what each
+  area is for, what the words mean, which buttons cannot be undone, and what to do
+  when a screen says something alarming. It does not describe the database.
+
+  ── WHY SO MUCH OF IT IS A LOOP ─────────────────────────────────────────────
+
+  Every structural fact here is read from the code that implements it — the areas from
+  `AdminNav::sections()`, the roles from `Permissions::MATRIX`, the weights and the
+  quorum from `RuleEngine`, the verification words from `RegistryCheck::STATES`. See
+  the controller for why: this repo's most expensive documented fault is prose
+  outliving the rule it describes, and a handbook is that hazard with people told to
+  trust it.
+
+  So the rule is: if a fact lives somewhere in the code, it is looped in here. What is
+  typed is judgement — why something is dangerous, what to do next — because that is
+  the part no constant holds.
+
+  Anything typed below that COULD have been computed is a bug waiting to happen.
+#}
+
+{% block topbar_title %}Handbook{% endblock %}
+
+{% block head_styles %}
+<style nonce="{{ csp_nonce }}">
+  /* Reading measure first: this is the one admin page somebody reads rather than
+     scans, and a 90ch line of body copy is why documentation goes unread. */
+  .hb{ max-width:78ch; }
+  .hb__lede{ margin:0 0 22px; font-size:14.5px; line-height:1.7; color:var(--ad-text,#10292C); }
+  .hb h2{ margin:34px 0 0; padding-bottom:7px; border-bottom:1px solid var(--ad-line,#e5eae8);
+    font-size:16px; font-weight:700; letter-spacing:-.01em; }
+  .hb h3{ margin:22px 0 0; font-size:14px; font-weight:650; }
+  .hb p{ margin:9px 0 0; font-size:13.5px; line-height:1.72; color:var(--ad-text,#10292C); }
+  .hb ul, .hb ol{ margin:9px 0 0; padding-left:20px; }
+  .hb li{ margin:5px 0; font-size:13.5px; line-height:1.65; }
+  .hb code{ font-family:var(--ag-font-mono,monospace); font-size:12.5px;
+    background:var(--ad-bg,#f4f6f5); padding:1px 5px; border-radius:4px; }
+
+  /* A jump list, because thirteen sections is more than anybody scrolls. */
+  .hb__toc{ margin:0 0 26px; padding:14px 16px; background:var(--ad-bg,#f4f6f5);
+    border:1px solid var(--ad-line,#e5eae8); border-radius:12px; }
+  .hb__toc ol{ margin:8px 0 0; padding-left:18px; columns:2; column-gap:26px; }
+  .hb__toc li{ margin:3px 0; break-inside:avoid; }
+
+  .hb__t{ width:100%; margin:12px 0 0; border-collapse:collapse; font-size:12.5px; }
+  .hb__t th, .hb__t td{ padding:7px 9px; text-align:left; vertical-align:top;
+    border-bottom:1px solid var(--ad-line,#e5eae8); }
+  .hb__t th{ font-weight:650; background:var(--ad-bg,#f4f6f5); }
+  .hb__t td:first-child{ white-space:nowrap; font-weight:600; }
+  .hb__scroll{ overflow-x:auto; }
+
+  /* Three weights of notice, and they are not decoration. `--stop` is for something
+     that cannot be undone; `--warn` for something that surprises people; `--note` for
+     a fact worth carrying. An operator learns the colours in one read. */
+  .hb__n{ margin:14px 0 0; padding:11px 13px; border-radius:9px; border-left:3px solid;
+    font-size:13px; line-height:1.65; }
+  .hb__n--stop{ background:#fdecec; border-color:#b42318; }
+  .hb__n--warn{ background:#fff8df; border-color:#d49a0e; }
+  .hb__n--note{ background:#eef7ee; border-color:#237b22; }
+  .hb__n b{ display:block; margin-bottom:2px; }
+
+  .hb__you{ margin:0 0 22px; padding:12px 14px; border-radius:10px;
+    background:var(--ad-ink,#10292C); color:#fff; font-size:13px; line-height:1.6; }
+  .hb__you b{ color:#f3b416; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="hb">
+
+  <p class="hb__lede">This is the console for the Africa GATES awards, events, shop and
+    donations. Everything below describes what an area is <em>for</em> and what happens
+    when you press something in it. Where a figure or a permission appears, it is read
+    from the running platform rather than typed here — so if this page and a screen ever
+    disagree, the screen is right and this is a bug worth reporting.</p>
+
+  {# What YOU can do, before anything about what exists. An administrator's first
+     question is not "what is there" but "why can I not see it". #}
+  {% if your_role %}
+    <p class="hb__you">You are signed in as <b>{{ your_label }}</b>.
+      {{ roles[your_role].blurb|default('') }}
+      Areas your role cannot reach are not hidden to be unhelpful — they are not in your
+      rail at all, so if somebody describes a screen you cannot find, check this against
+      the permissions table below before assuming it is missing.</p>
+  {% endif %}
+
+  <nav class="hb__toc" aria-label="Contents">
+    <strong style="font-size:12.5px">On this page</strong>
+    <ol>
+      <li><a href="#hb-nav">Getting around</a></li>
+      <li><a href="#hb-areas">The areas</a></li>
+      <li><a href="#hb-perms">Permissions</a></li>
+      <li><a href="#hb-prog">Programmes and editions</a></li>
+      <li><a href="#hb-score">How a score is worked out</a></li>
+      <li><a href="#hb-release">Releasing a result</a></li>
+      <li><a href="#hb-events">Events and the door</a></li>
+      <li><a href="#hb-verify">Verification</a></li>
+      <li><a href="#hb-find">Search and filtering</a></li>
+      <li><a href="#hb-bulk">Bulk actions</a></li>
+      <li><a href="#hb-single">Individual actions</a></li>
+      <li><a href="#hb-trouble">When something looks wrong</a></li>
+      <li><a href="#hb-never">Things to never do</a></li>
+    </ol>
+  </nav>
+
+  {# ══ 1 ═══════════════════════════════════════════════════════════════════ #}
+  <h2 id="hb-nav">1 · Getting around</h2>
+  <p>Three ways in, and they reach the same pages:</p>
+  <ul>
+    <li><strong>The rail</strong> on the left holds {{ areas|length }} headings. One opens
+      at a time. Its items reappear as a row under the page title, so once you are inside
+      an area you can move between its screens without going back to the rail.</li>
+    <li><strong>Press <code>⌘K</code></strong> (or <code>Ctrl+K</code>) for the command
+      palette and type any page name. This is the fastest route and the one worth
+      learning — it reaches every page your role can open, in one keystroke.</li>
+    <li><strong>The address bar.</strong> Every screen has a real URL you can bookmark and
+      share with another administrator. Nothing here is behind a tab that only exists
+      after a click.</li>
+  </ul>
+  <div class="hb__n hb__n--note"><b>The rail shows only what you may use.</b>
+    Headings are gated by role, so two administrators can see different rails. That is
+    working correctly.</div>
+
+  {# ══ 2 ═══════════════════════════════════════════════════════════════════ #}
+  <h2 id="hb-areas">2 · The areas</h2>
+  <p>Read from the rail itself, so this cannot drift from what you see on the left.</p>
+  {% for a in areas %}
+    <h3>{{ a.label }}</h3>
+    <p>{{ a.tip }}
+      {%- if a.gate %} Requires the <code>{{ a.gate }}</code> permission.
+      {%- else %} Open to every role.{% endif %}</p>
+    <ul>
+      {% for i in a.items %}<li><a href="{{ i.href }}">{{ i.label }}</a></li>{% endfor %}
+    </ul>
+  {% endfor %}
+
+  {# ══ 3 ═══════════════════════════════════════════════════════════════════ #}
+  <h2 id="hb-perms">3 · Permissions</h2>
+  <p>Five roles. A role is set per administrator under <a href="/admin/admins">Admins</a>,
+    and it decides which headings appear at all — not merely which buttons are greyed
+    out.</p>
+  <div class="hb__scroll">
+    <table class="hb__t">
+      <caption class="sr-only">What each role may reach</caption>
+      <thead><tr><th scope="col">Role</th><th scope="col">What it is for</th>
+        <th scope="col">Areas it may reach</th></tr></thead>
+      <tbody>
+        {% for key, r in roles %}
+          <tr>
+            <td>{{ r.label }}</td>
+            <td>{{ r.blurb }}</td>
+            <td>{% for section, allowed in matrix %}{% if key in allowed %}<code>{{ section }}</code>{% if not loop.last %} {% endif %}{% endif %}{% endfor %}</td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  <div class="hb__n hb__n--warn"><b>Only a superadmin can change configuration.</b>
+    That covers settings, other administrators, webhooks, the judging rubric and the judge
+    list. It is deliberately the narrowest permission on the platform, because those
+    screens can change how a result is calculated.</div>
+
+  {# ══ 4 ═══════════════════════════════════════════════════════════════════ #}
+  <h2 id="hb-prog">4 · Programmes and editions</h2>
+  <p>The shape is the same every year:</p>
+  <ol>
+    <li>A <strong>programme</strong> is the award itself and runs for years — one row that
+      outlives every cycle inside it.</li>
+    <li>An <strong>edition</strong> (a cycle) is one year of it. It carries the dates, and
+      an edition label if you want one printed instead of the year.</li>
+    <li><strong>Categories</strong> belong to an edition, never to the programme. A new
+      edition starts with no categories, which is why last year's do not appear.</li>
+    <li><strong>Nominees</strong> belong to a category.</li>
+  </ol>
+  <p>An edition moves through its phases <em>on its dates</em>, one step at a time:
+    upcoming → nominations → shortlisting → voting → judging → results → archived. You set
+    the dates on <a href="/admin/programmes">Awards &amp; cycles</a>; the platform moves
+    the phase.</p>
+  <div class="hb__n hb__n--warn"><b>A phase only ever moves forward.</b>
+    You cannot set it back, and you cannot set an edition to <em>results</em> by hand —
+    that is what the release action is for (§6). If a phase is wrong, fix the
+    <em>dates</em>, not the status.</div>
+  <div class="hb__n hb__n--note"><b>Every phase change is recorded.</b>
+    Whether the platform made it or you did, with the date it was due and the date it was
+    noticed. If an edition changed phase late, the gap is on the record rather than
+    hidden.</div>
+
+  {# ══ 5 ═══════════════════════════════════════════════════════════════════ #}
+  <h2 id="hb-score">5 · How a score is worked out</h2>
+  <p>Out of 1,000, and read here from the settings actually in force:</p>
+  <ul>
+    <li><strong>Community vote —
+      {{ (rules.community_weight * 1000)|round }} points.</strong>
+      Split two ways. Seventy per cent of it is <em>how many separate verified people</em>
+      backed the nominee; thirty per cent is their total votes. Both are measured against
+      the largest vote total anybody reached <em>in the whole edition</em> — not in their
+      own category.</li>
+    <li><strong>Judging panel —
+      {{ (rules.judge_weight * 1000)|round }} points.</strong>
+      The panel's average mark out of ten, straight. No floor, no curve.</li>
+  </ul>
+  <p>A nominee needs <strong>{{ rules.min_judges_per_nominee }} complete
+    scorecard{{ rules.min_judges_per_nominee == 1 ? '' : 's' }}</strong> before they can win
+    anything. Below that they still appear, marked as provisional, and their judging half
+    counts as zero — understated on purpose rather than guessed at.</p>
+  <div class="hb__n hb__n--note"><b>Why a leader can score well under 450.</b>
+    Because both community components divide by the biggest <em>vote total</em>, a full
+    community score means as many separate supporters as the biggest tally anybody managed.
+    Two nominees on 2,000 votes each, where 2,000 is also the edition's largest tally:
+    one backed by a thousand people scores 293, one backed by two scores 135. This is the
+    question you will be asked most often.</div>
+  <div class="hb__n hb__n--warn"><b>Changing a scoring setting changes published standings.</b>
+    An edition whose results are announced keeps the numbers it was announced with only
+    because they were sealed at release (§6). Change these for the <em>next</em> edition,
+    not the one on the wall.</div>
+
+  {# ══ 6 ═══════════════════════════════════════════════════════════════════ #}
+  <h2 id="hb-release">6 · Releasing a result</h2>
+  <p>Go to <a href="/admin/result-release">Result release</a>, choose the edition, and read
+    the table. It shows every scored nominee in the order the award is decided, computed
+    now, with both halves of each score and who is excluded and why.</p>
+  <p>When you are satisfied, press <strong>Release this edition</strong>. That does three
+    things together: it moves the edition to results, promotes the winners, and
+    <strong>seals</strong> the standing.</p>
+  <div class="hb__n hb__n--note"><b>What sealing means, and why it matters.</b>
+    The sealed figures are what the public pages publish from then on. Without it, a
+    published page recalculates on every view — so a nominee's score would move whenever
+    the panel finished a card or a setting changed. One real nominee went from 693 to 885
+    across a week with nothing edited. Sealing is what makes an announced result an
+    announced result.</div>
+  <p>If an edition is already published but shows as not sealed, the same button reads
+    <strong>Seal this standing as announced</strong>. That happens when an edition crossed
+    its results date more than {{ grace_days }} days late: the platform corrected the
+    phase but deliberately announced nothing, so there was nothing to seal. Sealing it is
+    yours to do once the figures are right.</p>
+  <div class="hb__n hb__n--warn"><b>Release tells people they won.</b>
+    Promotion is what notifies a winner. Read the table first — the release screen exists
+    so you never have to find out what it would do by doing it.</div>
+
+  {# ══ 7 ═══════════════════════════════════════════════════════════════════ #}
+  <h2 id="hb-events">7 · Events and the door</h2>
+  <p><a href="/admin/events">Events</a> holds each event, its ticket tiers, its registrations
+    and its check-in. Tiers are ordered by the order you drag them into, not by price. A
+    tier's colour comes from the event's own accent — change the accent and the whole
+    ladder moves, including the dot on the printed ticket.</p>
+  <p>On the night, the door screen scans tickets. It needs a camera and it works on a
+    phone.</p>
+  <div class="hb__n hb__n--warn"><b>Test the door on the actual device, in advance.</b>
+    A blocked camera looks exactly like a broken scanner, and the fallback message tells
+    the steward to type the code instead — so a device that cannot scan will get through
+    the evening without anybody realising why it was slow. There is a manual code entry on
+    the same screen; know where it is before the queue arrives.</div>
+
+  {# ══ 8 ═══════════════════════════════════════════════════════════════════ #}
+  <h2 id="hb-verify">8 · Verification</h2>
+  <p>Three different things get verified, and they are unrelated:</p>
+  <ul>
+    <li><strong>A voter</strong> confirms their email or phone with a code before their vote
+      counts toward the people half of a score.</li>
+    <li><strong>A person claiming a nominee profile</strong> proves they are that nominee
+      before they can edit it.</li>
+    <li><strong>An organisation</strong> raising donations has its registration checked
+      before it can receive money — CAC, and SCUML where it applies.</li>
+  </ul>
+  <p>On <a href="/admin/partner-orgs">Partner organisations</a>, each registration carries
+    one of these states:</p>
+  <div class="hb__scroll">
+    <table class="hb__t">
+      <caption class="sr-only">Registration check states</caption>
+      <thead><tr><th scope="col">State</th><th scope="col">On screen</th>
+        <th scope="col">What it means</th></tr></thead>
+      <tbody>
+        {% for key, label in check_states %}
+          <tr><td><code>{{ key }}</code></td><td>{{ label }}</td>
+              <td>{{ check_sense[key]|default('') }}</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  <p>The public register is at <a href="{{ cac_search }}" target="_blank"
+     rel="noopener noreferrer">search.cac.gov.ng</a>. If you confirm a registration by
+    hand, your name goes on that confirmation.</p>
+  <div class="hb__n hb__n--stop"><b>Rejected is a reason to stop.</b>
+    It means a register or a person said the details do <em>not</em> match. It is not a
+    formatting complaint, and approving an organisation over it means money settling into
+    an account nobody has verified.</div>
+
+  {# ══ 9 ═══════════════════════════════════════════════════════════════════ #}
+  <h2 id="hb-find">9 · Search and filtering</h2>
+  <ul>
+    <li><strong><code>⌘K</code></strong> finds a <em>page</em>. It does not search your
+      data.</li>
+    <li><strong>Settings has its own search box</strong> at the top. There are more
+      settings than fit on a screen; type what you are looking for rather than scrolling
+      for it. Pressing <code>/</code> puts the cursor in it.</li>
+    <li><strong>Most lists filter through the URL.</strong> Which means a filtered list is
+      a link — you can bookmark "nominations still awaiting review" and send it to
+      somebody.</li>
+    <li><strong><a href="/admin/data">All data</a></strong> is the last resort: a table
+      browser across the platform's own records, filtered by what your role may see.
+      Reach for a purpose-built screen first; it will explain what a column means and this
+      will not.</li>
+  </ul>
+
+  {# ══ 10 ══════════════════════════════════════════════════════════════════ #}
+  <h2 id="hb-bulk">10 · Bulk actions</h2>
+  <p>Deliberately few. Each one exists because doing it one row at a time is how a stage
+    gets skipped:</p>
+  <ul>
+    <li><strong>Questionnaires — send in bulk.</strong> The real case is "we have just
+      approved sixty nominees". Opening sixty questionnaires individually is how ten never
+      get opened.</li>
+    <li><strong>Profiles and nominees — merge selected.</strong> Tick the rows that are the
+      same person and merge them. There is an unmerge for both.</li>
+    <li><strong>Integrity — mark flags reviewed.</strong> Tick the fraud flags you have
+      looked at, so the queue reflects what is actually outstanding.</li>
+  </ul>
+  <div class="hb__n hb__n--warn"><b>Read the count above the button before you press it.</b>
+    A bulk send sitting on a list of three hundred rows is one somebody presses by
+    accident. The screens show you the number they are about to act on; that number is
+    the check.</div>
+  <div class="hb__n hb__n--note"><b>Nothing here deletes in bulk.</b>
+    Anything that has been used — a criterion, a vote code, a released record — is retired
+    rather than deleted, because receipts and published results point at it. If you want
+    something gone from a screen, you are looking for retire, hide or unpublish.</div>
+
+  {# ══ 11 ══════════════════════════════════════════════════════════════════ #}
+  <h2 id="hb-single">11 · Individual actions</h2>
+  <p>Two conventions worth knowing, because they are consistent everywhere:</p>
+  <ul>
+    <li><strong>A destructive button asks first.</strong> If a confirmation did not appear,
+      the action did not run.</li>
+    <li><strong>Every action that changes a record is written to
+      <a href="/admin/audit">the audit log</a></strong> with who did it and when — including
+      the ones that were refused. A refused action is often the more interesting row.</li>
+  </ul>
+  <p>Where a screen offers <em>retire</em> rather than <em>delete</em>, use it. Retiring
+    stops something being offered in future without changing anything already published.</p>
+
+  {# ══ 12 ══════════════════════════════════════════════════════════════════ #}
+  <h2 id="hb-trouble">12 · When something looks wrong</h2>
+
+  <h3>Email or SMS is not arriving</h3>
+  <p>Open <a href="/admin/settings/providers">Integrations &amp; provider health</a> and
+    press Run. It asks every provider a real question and reports what each one actually
+    said. A provider that is misconfigured says so there; nothing else on the platform will
+    tell you.</p>
+  <div class="hb__n hb__n--warn"><b>A sandbox account looks like success.</b>
+    Some gateways issue test credentials that authenticate, return a message id and deliver
+    to a web simulator. Every screen reads as working and no phone rings. The Integrations
+    page names which environment answered — read that word.</div>
+
+  <h3>A nominee's score is not changing</h3>
+  <p>If the edition has been released, that is correct: the published figures are the
+    sealed ones and will not move. Check <a href="/admin/result-release">Result release</a>
+    — it shows today's arithmetic beside the announced result and lists anywhere the two
+    differ, which is the answer to a support call that starts "my score has changed".</p>
+
+  <h3>A results date has passed and nothing happened</h3>
+  <p>The date is a promise, not the release. Until an edition is actually released, the
+    public page for it says the date was missed and that the award is not decided — it does
+    not publish a standing. Release it from <a href="/admin/result-release">Result
+    release</a> when the figures are right.</p>
+
+  <h3>Scheduled work has not run</h3>
+  <p>Reminders, sweeps and phase changes run on a schedule driven from outside the
+    platform. If several things are late at once, that is the thing to check rather than
+    each feature separately.</p>
+
+  <h3>Something is on the public site that should not be</h3>
+  <p>The sandbox creates <em>real</em> records with test flags, so that a rehearsal is a
+    real rehearsal. Public pages exclude them. If test content is visible publicly, that is
+    a bug worth reporting rather than something to clean up by hand.</p>
+
+  {# ══ 13 ══════════════════════════════════════════════════════════════════ #}
+  <h2 id="hb-never">13 · Things to never do</h2>
+  <div class="hb__n hb__n--stop"><b>Do not change scoring settings on a released edition.</b>
+    The sealed figures protect what was announced, but the release screen and every export
+    will then disagree with the settings in force, and you will be explaining the
+    difference for the rest of the programme. Change them for the next edition.</div>
+  <div class="hb__n hb__n--stop"><b>Do not delete a category, criterion or code that has
+    been used.</b> Ballots, receipts and published results point at them. Retire it.</div>
+  <div class="hb__n hb__n--stop"><b>Do not approve an organisation whose registration check
+    was rejected.</b> Ask them for corrected details and check again.</div>
+  <div class="hb__n hb__n--stop"><b>Do not release an edition you have not read the table
+    for.</b> It notifies the winners.</div>
+  <div class="hb__n hb__n--note"><b>And one that is safe:</b> pressing <em>Run</em> on the
+    Integrations page changes nothing. It only asks. Use it freely.</div>
+
+  <h2>Something missing here?</h2>
+  <p>If this handbook does not answer a question you actually had, that is worth saying —
+    the gap is more useful than the guess. The
+    <a href="/admin/assistant">AI assistant</a> can answer questions about the platform in
+    conversation, and <a href="/admin/support">Support tickets</a> is where a member's own
+    question arrives.</p>
+</div>
+{% endblock %}

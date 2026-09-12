@@ -78,6 +78,28 @@ class FraudServiceTest extends TestCase
         $this->assertSame('block', $r['decision']);
     }
 
+    public function test_missing_device_does_not_evade_detection_for_single_ip_ring(): void
+    {
+        // Dropping the device hash must NOT erase detection. 5 prior device-less
+        // votes from one IP in this category → IP-fallback concentration signals
+        // fire (50 + 25) on top of missing_device (25) → block.
+        for ($i = 0; $i < 5; $i++) $this->seedVote('e' . $i, '', 'I', 10);
+
+        $r = (new FraudService())->scoreVoteAttempt('E', 'I', null, 1, 10);
+
+        $this->assertSame('block', $r['decision'], 'a device-less single-IP ring must still be blockable');
+    }
+
+    public function test_single_device_less_vote_is_not_blocked(): void
+    {
+        // CGNAT guard: a lone vote from a privacy/device-less client (no IP
+        // concentration) must never be blocked — legitimate mobile voters behind
+        // a shared carrier IP have to get through (missing_device alone = 25).
+        $r = (new FraudService())->scoreVoteAttempt('E', 'I', null, 1, 10);
+
+        $this->assertNotSame('block', $r['decision']);
+    }
+
     public function test_record_stamps_fraud_flag_at_60_boundary(): void
     {
         DB::table('gates_votes')->insert(['id' => 1, 'nominee_id' => 1, 'category_id' => 10, 'voter_email_hash' => 'z', 'voted_at' => Carbon::now()->toDateTimeString()]);

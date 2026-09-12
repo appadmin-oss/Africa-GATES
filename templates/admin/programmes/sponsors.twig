@@ -1,0 +1,205 @@
+{% extends 'admin/layout.twig' %}
+
+{#
+  WHO BACKS THIS PROGRAMME, AND WHO DECIDED TO SAY SO.
+
+  A sub-page of a programme rather than a rail entry: the rail is seven headings and a
+  sub-page is linked from the page it belongs under. It needs no page key and no sprite.
+#}
+
+{% block head_styles %}
+<style nonce="{{ csp_nonce }}">
+  .sp-lede{ background:#fff; border:1px solid rgba(16,41,44,.1); border-radius:14px;
+    padding:18px 20px; margin-bottom:16px }
+  .sp-lede h2{ margin:0 0 6px; font-size:14.5px; color:#10292C }
+  .sp-lede p{ margin:8px 0 0; font-size:12.5px; line-height:1.7; color:#5a6d6f; max-width:76ch }
+  .sp-card{ background:#fff; border:1px solid rgba(16,41,44,.1); border-radius:14px;
+    padding:18px 20px; margin-bottom:16px }
+  .sp-card h3{ margin:0 0 4px; font-size:13.5px; color:#10292C }
+  .sp-t{ width:100%; border-collapse:collapse; font-size:12.5px }
+  .sp-t th{ text-align:left; font-family:var(--ag-font-mono,monospace); font-size:10px;
+    font-weight:700; letter-spacing:.09em; text-transform:uppercase; color:#5a6d6f;
+    padding:0 10px 8px 0; border-bottom:1px solid rgba(16,41,44,.12) }
+  .sp-t td{ padding:10px 10px 10px 0; border-bottom:1px solid rgba(16,41,44,.06);
+    color:#3d4b4d; vertical-align:top }
+  .sp-name{ font-weight:600; color:#10292C }
+  .sp-den{ display:block; margin-top:3px; font-size:11px; color:#5a6d6f }
+  .sp-flag{ font-family:var(--ag-font-mono,monospace); font-size:10px; font-weight:700;
+    letter-spacing:.05em; text-transform:uppercase; padding:3px 8px; border-radius:999px;
+    background:rgba(16,41,44,.07); color:#3d4b4d; white-space:nowrap }
+  .sp-flag--live{ background:rgba(35,123,34,.1); color:#18571a }
+  .sp-flag--warn{ background:#fffaf0; color:#7a5605 }
+  .sp-fact{ border-left:3px solid #8a2b18; background:#fdf6f5; border-radius:0 10px 10px 0;
+    padding:13px 16px; margin-bottom:16px }
+  .sp-fact b{ color:#8a2b18 }
+  .sp-fact p{ margin:6px 0 0; font-size:12.5px; line-height:1.65; color:#5a4442 }
+  .sp-form{ display:grid; grid-template-columns:repeat(auto-fit,minmax(190px,1fr));
+    gap:12px; margin-top:12px }
+  .sp-form label{ display:block; font-size:11px; font-weight:700; letter-spacing:.05em;
+    text-transform:uppercase; color:#5a6d6f; margin-bottom:4px }
+  .sp-form input, .sp-form select, .sp-form textarea{ width:100%; min-height:40px;
+    padding:8px 10px; font:inherit; font-size:13px; border-radius:8px;
+    border:1px solid rgba(16,41,44,.2); background:#fff; color:#10292C }
+  .sp-form textarea{ min-height:64px; resize:vertical }
+  .sp-wide{ grid-column:1/-1 }
+  .sp-scroll{ overflow-x:auto }
+</style>
+{% endblock %}
+
+{% block topbar_title %}Sponsors{% endblock %}
+
+{% block content %}
+
+<div class="sp-lede">
+  <h2>{{ programme.title }} &mdash; who backs it</h2>
+  <p>Sponsors fund the programme and are named on its public page. <strong>Nothing here can
+    reach the judging.</strong> There is no field attaching a sponsor to a category, a
+    nominee or a judge, and the scorer never reads this table &mdash; that is enforced by a
+    test rather than by anybody remembering. What makes a sponsorship defensible is that it
+    is published, so a reader can weigh it.</p>
+  <p><strong>What a sponsor paid is recorded and never published.</strong> The sum is
+    commercially confidential; that they sponsored is the disclosure. Only rows set to
+    <em>published</em> appear anywhere public, and a sponsorship past its end date comes off
+    the page by itself.</p>
+</div>
+
+{% if conflicts %}
+  {# The conflict that actually happens: sponsorship by somebody who is also in the running.
+     Ordinary, innocent, and indefensible if nobody noticed. Reported and never blocked —
+     whether it is acceptable is a judgement for a person. #}
+  <div class="sp-fact">
+    <b>{{ conflicts|length }} sponsor{{ conflicts|length == 1 ? ' is' : 's are' }} also in the running.</b>
+    <p>Matched on the name, so some of these will be coincidences &mdash; a false positive
+      costs you one glance and a false negative costs the award. Nothing is blocked: a
+      sponsor with somebody nominated may be entirely fine, and it needs to be a decision
+      somebody made rather than one nobody saw.</p>
+    <p>
+      {% for c in conflicts %}
+        <strong>{{ c.sponsor }}</strong> &middot; {{ c.nominee }}{% if c.category %} in
+        {{ c.category }}{% endif %}{% if not loop.last %}<br>{% endif %}
+      {% endfor %}
+    </p>
+  </div>
+{% endif %}
+
+<div class="sp-card">
+  <h3>Sponsors on this programme</h3>
+  {% if sponsors %}
+    <div class="sp-scroll">
+      <table class="sp-t">
+        <thead><tr>
+          <th>Sponsor</th><th>Tier</th><th>Applies to</th><th>Status</th>
+          <th>Recorded</th><th></th>
+        </tr></thead>
+        <tbody>
+          {% for s in sponsors %}
+            <tr>
+              <td>
+                <span class="sp-name">{{ s.name }}</span>
+                {% if s.website %}<span class="sp-den">{{ s.website }}</span>{% endif %}
+                {% if s.blurb %}<span class="sp-den">{{ s.blurb }}</span>{% endif %}
+              </td>
+              <td>{{ tiers[s.tier]|default(s.tier) }}</td>
+              <td>
+                {% if s.cycle_id %}One edition{% else %}Every edition{% endif %}
+                {% if s.starts_at or s.ends_at %}
+                  <span class="sp-den">{{ s.starts_at|default('—')|slice(0,10) }}
+                    &rarr; {{ s.ends_at|default('open')|slice(0,10) }}</span>
+                {% endif %}
+              </td>
+              <td>
+                <span class="sp-flag {% if s.status == 'published' %}sp-flag--live{% elseif s.status == 'draft' %}sp-flag--warn{% endif %}">{{ s.status }}</span>
+              </td>
+              {# The sum, on the one screen entitled to it. #}
+              <td class="sp-den">{% if s.amount_naira %}&#8358;{{ s.amount_naira|number_format }}{% else %}&mdash;{% endif %}</td>
+              <td>
+                {# `formaction` on the button, never a nested <form>: the parser DROPS a
+                   form start tag while one is open and adopts its children into the outer
+                   one, so the button would post to the save action instead. #}
+                <form method="post" action="/admin/programmes/{{ programme.id }}/sponsors/{{ s.id }}/delete"
+                      data-confirm="{% if s.status == 'draft' %}Delete this draft sponsor?{% else %}End this sponsorship? It has been published, so it is marked ended rather than deleted — a sponsorship somebody saw is a commercial fact.{% endif %}">
+                  <input type="hidden" name="_token" value="{{ csrf_token }}">
+                  <button type="submit" class="ad-btn ad-btn--sm">
+                    {% if s.status == 'draft' %}Delete{% else %}End{% endif %}
+                  </button>
+                </form>
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  {% else %}
+    <p style="font-size:12.5px;color:#5a6d6f;margin:0">No sponsors recorded. Nothing is
+      published on the programme page until one is.</p>
+  {% endif %}
+</div>
+
+<div class="sp-card">
+  <h3>Add a sponsor</h3>
+  <form method="post" action="/admin/programmes/{{ programme.id }}/sponsors">
+    <input type="hidden" name="_token" value="{{ csrf_token }}">
+    <div class="sp-form">
+      <div class="sp-wide">
+        <label for="sp-name">Name</label>
+        <input type="text" name="name" id="sp-name" maxlength="160" required
+               placeholder="As it should appear on the page">
+      </div>
+      <div>
+        <label for="sp-tier">Tier</label>
+        <select name="tier" id="sp-tier">
+          {% for k, label in tiers %}
+            <option value="{{ k }}"{% if k == 'supporting' %} selected{% endif %}>{{ label }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div>
+        <label for="sp-cycle">Applies to</label>
+        <select name="cycle_id" id="sp-cycle">
+          <option value="0">Every edition of this programme</option>
+          {% for c in cycles %}
+            <option value="{{ c.id }}">{{ c.edition_label ?: c.year }} ({{ c.status }})</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div>
+        <label for="sp-status">Status</label>
+        <select name="status" id="sp-status">
+          <option value="draft" selected>Draft — not published</option>
+          <option value="published">Published — visible on the programme page</option>
+        </select>
+      </div>
+      <div>
+        <label for="sp-amount">Amount recorded (&#8358;)</label>
+        <input type="number" name="amount_naira" id="sp-amount" min="0" step="1"
+               placeholder="Never published">
+      </div>
+      <div>
+        <label for="sp-web">Website</label>
+        <input type="url" name="website" id="sp-web" maxlength="255" placeholder="https://">
+      </div>
+      <div>
+        <label for="sp-order">Order</label>
+        <input type="number" name="sort_order" id="sp-order" min="0" max="9999" value="0">
+      </div>
+      <div>
+        <label for="sp-from">Starts</label>
+        <input type="date" name="starts_at" id="sp-from">
+      </div>
+      <div>
+        <label for="sp-to">Ends</label>
+        <input type="date" name="ends_at" id="sp-to">
+      </div>
+      <div class="sp-wide">
+        <label for="sp-blurb">One line about them (optional)</label>
+        <textarea name="blurb" id="sp-blurb" maxlength="400"
+                  placeholder="Shown under their name on the public page."></textarea>
+      </div>
+    </div>
+    <p style="margin:12px 0 0">
+      <button type="submit" class="ad-btn ad-btn--primary">Save sponsor</button>
+    </p>
+  </form>
+</div>
+
+{% endblock %}

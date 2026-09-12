@@ -1,0 +1,55 @@
+{% extends "admin/layout.twig" %}
+{% block topbar_title %}Webhooks{% endblock %}
+{% block topbar_actions %}<a class="ad-btn ad-btn--primary" href="/admin/webhooks/new">+ New webhook</a>{% endblock %}
+{% block content %}
+<div class="ad-card"><div class="ad-card__body">
+  <p style="margin:0;color:var(--ad-text-mute,#5a6d6f);font-size:13.5px;line-height:1.6">Outbound webhooks notify external platforms &amp; AI agents the moment something happens. Each delivery is a signed JSON <code>POST</code> carrying <code>X-AG-Event</code>, <code>X-AG-Delivery</code> and <code>X-AG-Signature: sha256=&lt;hmac&gt;</code> — verify it on your endpoint using that webhook's secret.</p>
+</div></div>
+
+<div class="ad-card" style="margin-top:16px"><div class="ad-table-wrap">
+  {% if rows is empty %}
+    <div style="padding:26px;text-align:center;color:var(--ad-text-mute,#5a6d6f)">No webhooks yet. <a href="/admin/webhooks/new">Add your first endpoint →</a></div>
+  {% else %}
+  <table class="ad-table">
+    <thead><tr><th scope="col">Endpoint</th><th scope="col">Events</th><th scope="col">Signing secret</th><th scope="col">Status</th><th scope="col">Last</th><th scope="col" class="col-actions">Actions</th></tr></thead>
+    <tbody>
+      {% for w in rows %}
+      <tr>
+        <td style="max-width:260px;word-break:break-all"><strong>{{ w.url }}</strong>{% if w.description %}<div style="color:var(--ad-text-mute,#5a6d6f);font-size:12px">{{ w.description }}</div>{% endif %}</td>
+        <td>{% if w.events == '*' %}<span class="ad-chip ad-chip--green">All events</span>{% else %}<span class="ad-chip ad-chip--grey">Selected</span>{% endif %}</td>
+        <td><code style="font-size:11px;word-break:break-all">{{ w.secret }}</code></td>
+        <td>{% if w.is_active %}<span class="ad-chip ad-chip--green">Active</span>{% else %}<span class="ad-chip ad-chip--red">Off</span>{% endif %}</td>
+        <td style="font-family:monospace;font-size:12px;color:var(--ad-text-soft,#5a6d6f)">{% if w.last_status %}HTTP {{ w.last_status }}{% else %}—{% endif %}</td>
+        <td class="col-actions" style="white-space:nowrap">
+          <form method="post" action="/admin/webhooks/{{ w.id }}/test" style="display:inline"><input type="hidden" name="_token" value="{{ csrf_token }}"><button class="ad-btn ad-btn--sm" type="submit">Test</button></form>
+          <a class="ad-btn ad-btn--sm" href="/admin/webhooks/{{ w.id }}">Edit</a>
+          <form method="post" action="/admin/webhooks/{{ w.id }}/delete" style="display:inline"><input type="hidden" name="_token" value="{{ csrf_token }}"><button class="ad-btn ad-btn--sm ad-btn--danger" type="submit" data-confirm="Delete this webhook? Events stop being delivered to it immediately.">Delete</button></form>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% endif %}
+</div></div>
+
+{% if deliveries is not empty %}
+<div class="ad-card" style="margin-top:16px"><div class="ad-card__body">
+  <h3 style="margin:0 0 12px;font-size:15px;color:var(--ad-ink,#10292C)">Recent deliveries</h3>
+  <div class="ad-table-wrap">
+  <table class="ad-table">
+    <thead><tr><th scope="col">When</th><th scope="col">Event</th><th scope="col">Endpoint</th><th scope="col">Result</th></tr></thead>
+    <tbody>
+      {% for d in deliveries %}
+      <tr>
+        <td style="white-space:nowrap;font-size:12px">{{ d.created_at }}</td>
+        <td><code style="font-size:11px">{{ d.event }}</code></td>
+        <td style="max-width:220px;word-break:break-all;color:var(--ad-text-mute,#5a6d6f);font-size:12px">{{ d.hook_url }}</td>
+        <td>{% if d.ok %}<span class="ad-chip ad-chip--green">&check; {{ d.status_code }}</span>{% else %}<span class="ad-chip ad-chip--red">&times; {{ d.status_code|default('') }} {{ d.error }}</span>{% endif %}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  </div>
+</div></div>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,129 @@
+{#
+  ══════════════════════════════════════════════════════════════════════════════
+  THE CHOICE — the switch that /cookies promised and did not have
+  ══════════════════════════════════════════════════════════════════════════════
+
+  For years the only way to refuse arrival counting on this site was to send `DNT`
+  or `Sec-GPC`. Chrome removed the Do Not Track setting and Safari removed it before
+  that, so for most of this platform's visitors — Chrome on an Android phone — there
+  was no way to say no at all, while the same page promised "you will be asked
+  before it runs".
+
+  So this is the part that has to work with nothing else: no JavaScript, no
+  Alpine, no fetch. It is a plain form with two submit buttons and it posts. A
+  privacy control that needs scripts to run is a privacy control that is missing
+  for exactly the people most likely to have switched scripts off.
+
+  ── WHY TWO BUTTONS AND NOT A TOGGLE ────────────────────────────────────────
+
+  Because a toggle has to be read before it can be used — you have to work out
+  which way is on — and because the accessible name of a switch changes meaning
+  depending on its state, which is the one control type screen-reader users most
+  often report having to test by flipping. Two buttons each say what pressing them
+  does. The current state is stated above them in words, once, and the button for
+  the state you are already in is not drawn: pressing it would do nothing, and a
+  dead control is worse than an absent one.
+
+  ── THE STATE IS SERVER-RENDERED ────────────────────────────────────────────
+
+  `ag_privacy` is HttpOnly, so nothing here could read it even if it wanted to.
+  That is deliberate: handing every page's scripts a privacy preference to read
+  adds a fingerprinting surface to save a round trip we are not making.
+#}
+{% set c = cookie_control %}
+
+<style nonce="{{ csp_nonce }}">
+  /* ── ONE ROLE ON THIS PAGE, AND IT IS `action` ──────────────────────────────
+     A privacy control that is loud reads as one that is selling something. The
+     state is stated in words and set in the house ink; the single accent is on
+     the button, because pressing it is the only thing this card asks for.
+     Support\Accent, and AccentTest's ceiling of two roles per screen — this one
+     spends one. The gold belongs on the hall of fame, not here. */
+  .ck{ border:1px solid var(--ag-line-strong,rgba(16,41,44,.12)); background:#fff;
+       border-radius:16px; padding:clamp(1.15rem,3vw,1.6rem); margin:0 0 clamp(1.8rem,4vw,2.4rem); }
+  .ck__kicker{ margin:0 0 .85rem; font:600 10.5px/1 var(--ag-font-mono,monospace);
+               letter-spacing:.16em; text-transform:uppercase; color:var(--ag-ink-soft,#626a6e); }
+
+  .ck__state{ display:flex; align-items:baseline; gap:.55rem .8rem; flex-wrap:wrap; margin:0 0 .5rem; }
+  .ck__now{ margin:0; font-family:var(--ag-font-display,Georgia,serif); font-weight:700;
+            font-size:clamp(1.12rem,2.6vw,1.32rem); line-height:1.25; letter-spacing:-.015em;
+            color:var(--ag-ink,#10292c); }
+  /* Neutral, both ways. "We are counting your visits" is a state and not a warning; a
+     red or amber chip here would dress an ordinary fact as a fault, and a green one
+     would congratulate somebody for a choice they did not make. */
+  .ck__chip{ flex:none; padding:.34rem .6rem; border-radius:999px;
+             font:600 10px/1.3 var(--ag-font-mono,monospace); letter-spacing:.11em;
+             text-transform:uppercase; white-space:nowrap;
+             border:1px solid var(--ag-line-strong,rgba(16,41,44,.12));
+             background:#f3f5f5; color:#3d4a4c; }
+  .ck__chip--on{ background:var(--ag-ink,#10292c); border-color:var(--ag-ink,#10292c); color:#fff; }
+
+  .ck__why{ margin:0 0 1.15rem; font-size:15px; line-height:1.62; color:#42504f; max-width:58ch; }
+
+  .ck__act{ display:flex; gap:.65rem; flex-wrap:wrap; align-items:center;
+            padding-top:1.1rem; border-top:1px solid var(--ag-line,rgba(16,41,44,.07)); }
+  .ck__btn{ font:600 .94rem/1 inherit; padding:.7rem 1.15rem; border-radius:10px; cursor:pointer;
+            border:1px solid var(--ag-action-edge); background:var(--ag-action-fill); color:#fff; }
+  .ck__btn:hover{ filter:brightness(.92); }
+  .ck__btn--quiet{ background:#fff; color:var(--ag-ink,#10292c);
+                   border-color:var(--ag-line-strong,rgba(16,41,44,.12)); text-decoration:none;
+                   display:inline-flex; align-items:center; }
+  .ck__btn--quiet:hover{ background:#f3f5f5; filter:none; }
+  /* 3:1 against both the white card and the green button it may sit on. */
+  .ck__btn:focus-visible{ outline:3px solid var(--ag-ink,#10292c); outline-offset:3px; }
+
+  .ck__note{ margin:1.05rem 0 0; font-size:13.5px; line-height:1.6;
+             color:var(--ag-ink-soft,#626a6e); max-width:62ch; }
+  .ck__note code{ font-size:.94em; }
+  .ck__saved{ margin:0 0 .85rem; padding:.6rem .8rem; border-radius:10px;
+              background:var(--ag-action-wash); border:1px solid var(--ag-action-edge);
+              font:600 .9rem/1.45 inherit; color:#14331a; }
+
+  @media (max-width:520px){
+    .ck__act{ flex-direction:column; align-items:stretch; }
+    .ck__btn{ text-align:center; justify-content:center; }
+  }
+</style>
+
+<section class="ck" id="your-choice" aria-labelledby="ck-h">
+  <p class="ck__kicker">Your choice</p>
+
+  {% if c.saved %}
+    {# Shown once, on the redirect after a press. A control that changes nothing you
+       can see is a control people press twice. #}
+    <p class="ck__saved" role="status">Saved. {{ c.saved_word }}</p>
+  {% endif %}
+
+  <div class="ck__state">
+    <h2 class="ck__now" id="ck-h">{{ c.headline }}</h2>
+    <span class="ck__chip ck__chip--{{ c.counting ? 'on' : 'off' }}">
+      {{ c.counting ? 'Counting this visit' : 'Not counting' }}
+    </span>
+  </div>
+
+  <p class="ck__why">{{ c.explanation }}</p>
+
+  {% if c.locked %}
+    {# Their browser said no. Drawing a "yes" button here would be offering to
+       overrule them, and we have decided not to — so we say so instead of
+       pretending the choice is open. #}
+    <p class="ck__note">{{ c.locked_note }}</p>
+  {% else %}
+    <form method="post" action="/cookies/choice" class="ck__act">
+      <input type="hidden" name="_token" value="{{ csrf_token }}">
+      {% if c.counting %}
+        <button type="submit" name="choice" value="no" class="ck__btn">Do not count my visits</button>
+        <a class="ck__btn ck__btn--quiet" href="#counting-arrivals" style="text-decoration:none">What is counted?</a>
+      {% else %}
+        <button type="submit" name="choice" value="yes" class="ck__btn">Count my visits</button>
+        <a class="ck__btn ck__btn--quiet" href="#counting-arrivals" style="text-decoration:none">What would be counted?</a>
+      {% endif %}
+    </form>
+  {% endif %}
+
+  <p class="ck__note">
+    Remembering your answer needs one cookie of its own, <code>{{ c.cookie_name }}</code>. It holds a
+    single character &mdash; a yes or a no &mdash; and no identifier of any kind. It is the record of
+    your decision, so it is the one thing here we cannot offer to remove.
+  </p>
+</section>

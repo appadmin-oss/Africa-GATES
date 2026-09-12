@@ -1,0 +1,280 @@
+/* ════════════════════════════════════════════════════════════════════════════
+   Africa GATES — member account auth (component)
+
+   The three PUBLIC account screens: /account/login, /account/register and the
+   email-verification notice. One centred column on a warm ground, one white
+   card, no split-screen brand panel.
+
+   ── WHY THIS IS NOT `auth.css` ──────────────────────────────────────────────
+   `components/auth.css` is the older two-column shell (`.ag-auth__brand` +
+   `.ag-auth__panel`) and it is still worn by THREE OTHER DOORS: the admin
+   console, the judges' panel and — through its own page CSS — the organisation
+   sign-in. Those are separate trust domains on separate routes, deliberately
+   without a shared public entry point, and a member-facing restyle must not
+   reach them. Rewriting `auth.css` in place would have restyled the admin
+   console's front door as a side effect of a member change, which is exactly
+   the kind of edit nobody reviews because it touched no admin file.
+
+   ── WHY NOT `gv-` ───────────────────────────────────────────────────────────
+   `templates/pages/donate-giving.twig` already defines `.gv-card`, `.gv-lede`
+   and friends with different geometry. A second definition of a class the
+   giving page paints would be invisible from either file and wrong on
+   whichever page loaded both. The prefix here is `ag-acct`.
+
+   Every colour below is a custom property on `.ag-acct`, so a screen that
+   wants a variation changes one value rather than hunting hexes.
+   ════════════════════════════════════════════════════════════════════════════ */
+
+.ag-acct{
+  /* Warm palette — the auth ground is warmer than the site's cool paper, which
+     is what makes the white card read as raised rather than as a panel. */
+  --ac-50:  #fdfbf7;   /* card surround */
+  --ac-100: #f8efdb;   /* gold-tinted top of the gradient */
+  --ac-150: #f6f7f3;   /* cool foot of the gradient */
+  --ac-200: #f4f4f1;   /* field fill at rest */
+
+  --ac-ink:      #1c1a14;   /* 14.8:1 on --ac-50 */
+  --ac-ink-soft: #6b6e64;   /* 4.9:1 on white — AA for body copy */
+  /* SUB-AA at 2.7:1, and deliberately so. Allowed ONLY for placeholder text
+     and for the chevron, neither of which carries meaning a reader needs.
+     Never a label, never a stat caption: a 11.5px caption at 2.7:1 is the
+     shape of "accessible in the design file, unreadable on a phone in sun". */
+  --ac-ink-faint:#a2a69c;
+
+  --ac-line:      rgba(28,26,20,.08);
+  --ac-line-firm: rgba(28,26,20,.14);
+  --ac-green:      var(--ag-green,#237b22);
+  --ac-green-dark: var(--ag-green-dark,#1a6118);
+  --ac-err:      #b42318;
+  --ac-err-line: rgba(180,35,24,.42);
+  --ac-err-fill: #fdf7f6;
+
+  --ac-r:    var(--ag-r-md,14px);
+  --ac-r-xl: 24px;
+
+  min-height:100vh;
+  display:flex; flex-direction:column; align-items:center;
+  font-family:var(--ag-font-body,system-ui,sans-serif);
+  color:var(--ac-ink);
+  background:radial-gradient(115% 80% at 50% -6%,
+    var(--ac-100) 0%, var(--ac-50) 44%, var(--ac-150) 100%);
+  -webkit-font-smoothing:antialiased;
+}
+.ag-acct *{ box-sizing:border-box; }
+
+/* ── `hidden` HAS TO WIN, AND BY DEFAULT IT DOES NOT ────────────────────────
+   `[hidden]{display:none}` comes from the USER-AGENT stylesheet, so any author
+   rule that sets `display` beats it — and `.ag-acct__row{display:flex}` does
+   exactly that. So `<button class="ag-acct__row" hidden>` rendered in full.
+   Caught in a browser: the passkey row, which exists only to be revealed once
+   the script confirms this browser can run the ceremony, was visible on every
+   browser including the ones that cannot — which is the "row that opens
+   nothing" this whole arrangement was built to avoid. */
+.ag-acct [hidden]{ display:none !important; }
+
+.ag-acct__col{
+  width:100%; max-width:452px;
+  padding:clamp(30px,6vw,60px) 20px 40px;
+}
+
+/* ── Brand lockup ── */
+.ag-acct__brand{
+  display:inline-flex; align-items:center; gap:10px;
+  margin-bottom:clamp(20px,3vw,30px); text-decoration:none; color:inherit;
+}
+.ag-acct__mark{
+  width:34px; height:34px; border-radius:9px; flex:none;
+  display:flex; align-items:center; justify-content:center;
+  background:var(--ag-green-wash,rgba(127,200,124,.16));
+  font-family:var(--ag-font-display,Georgia,serif); font-weight:700; font-size:18px;
+  color:var(--ac-green-dark);
+}
+.ag-acct__word{ font-family:var(--ag-font-display,Georgia,serif); font-weight:700; font-size:16px; }
+.ag-acct__word span{
+  font-family:var(--ag-font-body,sans-serif); font-size:9.5px; font-weight:700;
+  letter-spacing:.24em; color:var(--ac-green);
+}
+
+/* ── Card ── */
+.ag-acct__card{
+  width:100%; background:#fff; border-radius:var(--ac-r-xl);
+  padding:clamp(30px,4vw,40px);
+  box-shadow:0 34px 74px -34px rgba(74,58,22,.26), 0 2px 5px rgba(74,58,22,.05);
+  animation:agAcctUp .3s ease both;
+}
+@media (prefers-reduced-motion:reduce){
+  .ag-acct__card{ animation:none; }
+}
+@keyframes agAcctUp{ from{opacity:0;transform:translateY(10px)} to{opacity:1;transform:none} }
+
+.ag-acct__h1{
+  margin:0; font-family:var(--ag-font-display,Georgia,serif); font-weight:700;
+  font-size:40px; line-height:1.06; letter-spacing:-.024em; color:var(--ac-ink);
+}
+.ag-acct__lede{ margin:12px 0 0; font-size:16px; line-height:1.55; color:var(--ac-ink-soft); }
+.ag-acct__lede b, .ag-acct__lede strong{ font-weight:600; color:var(--ac-ink); }
+
+/* ── Back link ── */
+.ag-acct__back{
+  display:inline-flex; align-items:center; gap:6px; margin:0 0 14px;
+  font-size:13.5px; font-weight:500; color:var(--ac-ink-soft); text-decoration:none;
+}
+.ag-acct__back:hover{ color:var(--ac-ink); }
+
+/* ── Fields ── */
+.ag-acct__field{ margin-top:18px; }
+.ag-acct__label{
+  display:block; margin-bottom:8px;
+  font-size:13px; font-weight:500; color:var(--ac-ink);
+}
+/* The suffix — "or use a code instead", "optional" — is a hint about the field
+   rather than a second label, so it has to read as quieter than the name beside
+   it. The design separated the two with a sub-AA grey; this separates them with
+   weight and a still-AA tone instead, because a hint saying a field is OPTIONAL
+   is exactly the text somebody needs to be able to read. */
+.ag-acct__label span{ font-size:12.5px; font-weight:400; color:var(--ac-ink-soft); }
+
+/* Breathing room under an illustration. `partials/lottie.twig` sets its own box
+   and centres it, so the gap belongs to whatever wraps it — without this the
+   headline sits on the artwork. */
+.ag-acct__art{ margin-bottom:18px; }
+.ag-acct__input{
+  width:100%; padding:15px 16px;
+  border:1px solid transparent; border-radius:var(--ac-r);
+  background:var(--ac-200); color:var(--ac-ink);
+  /* 16px, or iOS zooms the page the moment this takes focus. */
+  font-family:inherit; font-size:16px; outline:none;
+  transition:background .14s, border-color .14s, box-shadow .14s;
+}
+.ag-acct__input::placeholder{ color:var(--ac-ink-faint); }
+.ag-acct__input:focus{
+  background:#fff; border-color:var(--ac-green);
+  box-shadow:0 0 0 3px rgba(35,123,34,.12);
+}
+.ag-acct__input--err{ border-color:var(--ac-err-line); background:var(--ac-err-fill); }
+.ag-acct__input--mono{ font-family:var(--ag-font-mono,monospace); }
+
+/* ── Buttons ── */
+.ag-acct__btns{ margin-top:22px; display:grid; gap:10px; }
+.ag-acct__cta{
+  width:100%; padding:16px; border:1px solid transparent; border-radius:var(--ac-r);
+  background:var(--ac-green); color:#fff; cursor:pointer;
+  font-family:inherit; font-size:15.5px; font-weight:600; line-height:1;
+  transition:background .14s;
+}
+.ag-acct__cta:hover{ background:var(--ac-green-dark); }
+.ag-acct__cta:disabled{ background:#9aa6a8; cursor:not-allowed; }
+.ag-acct__ghost{
+  width:100%; padding:16px; border-radius:var(--ac-r); cursor:pointer;
+  background:transparent; border:1px solid var(--ac-line-firm); color:var(--ac-ink);
+  font-family:inherit; font-size:15.5px; font-weight:600; line-height:1;
+  text-align:center; text-decoration:none; display:block;
+  transition:background .14s;
+}
+.ag-acct__ghost:hover{ background:#faf9f6; }
+.ag-acct__cta:focus-visible,
+.ag-acct__ghost:focus-visible,
+.ag-acct__row:focus-visible,
+.ag-acct__brand:focus-visible,
+.ag-acct__back:focus-visible,
+.ag-acct__quiet:focus-visible{ outline:3px solid var(--ac-green); outline-offset:3px; }
+
+.ag-acct__quiet{ color:var(--ac-green); font-weight:600; text-decoration:none; }
+/* A submit button that must read as a link — "send a new code" is a POST, and a
+   GET link for it would let a mail scanner request a fresh code on somebody's
+   behalf. So it is a real button wearing the link's clothes. */
+button.ag-acct__quiet{ background:none; border:0; padding:0; font:inherit; font-weight:600; cursor:pointer; }
+.ag-acct__quiet:hover{ color:var(--ac-green-dark); text-decoration:underline; }
+
+/* ── Alerts ── */
+.ag-acct__alert{
+  margin-top:18px; padding:12px 14px; border-radius:var(--ac-r);
+  font-size:13.5px; line-height:1.5;
+}
+.ag-acct__alert--err{ background:var(--ac-err-fill); border:1px solid var(--ac-err-line); color:var(--ac-err); }
+.ag-acct__alert--note{ background:#eef7ee; border:1px solid rgba(35,123,34,.2); color:#1a6118; }
+
+/* ── Hairline choice rows ── */
+.ag-acct__rows{ margin-top:22px; }
+.ag-acct__row{
+  display:flex; align-items:center; gap:14px; width:100%;
+  padding:14px 0; border-top:1px solid var(--ac-line);
+  text-decoration:none; color:var(--ac-ink);
+  /* A row is sometimes a link and sometimes a button — "use a passkey" is a POST,
+     and a GET link that mints a challenge is one a prefetch can spend. A button
+     inherits neither the page font nor its text alignment, so without these the
+     one row that is a button rendered centred, in the browser's own font, in a
+     column of left-aligned links. */
+  font:inherit; text-align:left; background:none; border-left:0; border-right:0;
+  border-bottom:0; cursor:pointer;
+}
+.ag-acct__row--tall{ padding:16px 0; }
+.ag-acct__row-body{ flex:1; min-width:0; }
+.ag-acct__row-title{ display:block; font-size:14.5px; font-weight:600; line-height:1.35; }
+.ag-acct__row--tall .ag-acct__row-title{ font-size:15.5px; }
+.ag-acct__row:hover .ag-acct__row-title{ color:var(--ac-green); }
+.ag-acct__row-note{ display:block; margin-top:3px; font-size:13px; line-height:1.5; color:var(--ac-ink-soft); }
+.ag-acct__chev{ flex:none; color:var(--ac-ink-faint); }
+
+/* ── One-time code ──────────────────────────────────────────────────────────
+   Six boxes, one real input.
+
+   `autocomplete="one-time-code"` autofills into ONE input — six separate
+   fields kill the iOS/Android code suggestion entirely, which is the whole
+   reason the attribute exists. So the boxes are decorative and a single real
+   input takes the entry.
+
+   The real input starts VISIBLE and is only hidden behind the boxes once the
+   painter has run (`.is-boxed`). Without that, a browser with the script
+   blocked shows six empty boxes and an invisible field: the person types and
+   nothing appears anywhere on screen, and there is no error to see because
+   nothing failed. A sign-in screen may not depend on JavaScript to show what
+   was typed. */
+.ag-acct__otp{ display:none; gap:8px; }
+.is-boxed .ag-acct__otp{ display:flex; }
+.ag-acct__box{
+  flex:1; height:58px; display:flex; align-items:center; justify-content:center;
+  border:1px solid rgba(28,26,20,.1); border-radius:var(--ac-r);
+  background:var(--ac-200);
+  font-family:var(--ag-font-mono,monospace); font-weight:700; font-size:24px;
+  color:var(--ac-ink);
+}
+.ag-acct__box--active{ border-color:var(--ac-green); background:#fff; }
+.ag-acct__box--err{ border-color:var(--ac-err-line); background:var(--ac-err-fill); }
+.ag-acct__code{
+  text-align:center; font-family:var(--ag-font-mono,monospace);
+  font-size:26px; font-weight:700; letter-spacing:.34em; padding:16px;
+}
+/* Behind the boxes, still focusable and still the element autofill targets —
+   `display:none` would take it out of the accessibility tree and out of
+   autofill's reach, which is the opposite of the point. */
+.is-boxed .ag-acct__code{
+  position:absolute; width:1px; height:1px; padding:0; margin:-1px;
+  overflow:hidden; clip:rect(0 0 0 0); clip-path:inset(50%); white-space:nowrap;
+}
+.ag-acct__otp-wrap{ position:relative; }
+
+/* ── Below the card ── */
+.ag-acct__switch{ margin:22px 0 0; text-align:center; font-size:14.5px; color:var(--ac-ink-soft); }
+.ag-acct__stats{
+  display:flex; align-items:flex-start; justify-content:center; gap:26px; flex-wrap:wrap;
+  margin-top:26px; padding-top:22px; border-top:1px solid rgba(28,26,20,.09);
+}
+.ag-acct__stat{ text-align:center; }
+.ag-acct__stat-n{ display:block; font-family:var(--ag-font-mono,monospace); font-weight:700; font-size:17px; }
+.ag-acct__stat-n--accent{ color:var(--ac-green); }
+.ag-acct__stat-l{ display:block; margin-top:2px; font-size:11.5px; color:var(--ac-ink-soft); }
+.ag-acct__note{
+  margin:20px auto 0; max-width:38ch; text-align:center;
+  font-size:12.5px; line-height:1.6; color:var(--ac-ink-soft);
+}
+.ag-acct__credit{ margin:26px 0 0; text-align:center; font-size:12px; color:var(--ac-ink-soft); }
+.ag-acct__fine{ margin:16px 0 0; text-align:center; font-size:12.5px; line-height:1.6; color:var(--ac-ink-soft); }
+.ag-acct__fine a{ color:var(--ac-green); }
+
+@media (max-width:560px){
+  .ag-acct__card{ padding:28px 22px; border-radius:20px; }
+  .ag-acct__h1{ font-size:31px; }
+  .ag-acct__box{ height:52px; font-size:21px; }
+  .ag-acct__stats{ gap:18px; }
+}

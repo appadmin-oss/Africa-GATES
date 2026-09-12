@@ -1,0 +1,303 @@
+/* ════════════════════════════════════════════════════════════════════
+   Gee — the Africa GATES guide
+   A page-aware assistant: a circular launcher (FAB) + a resizable panel
+   that becomes a draggable bottom-sheet on mobile. Sitewide chrome.
+   Everything is scoped under .gee / .gee-*; the two cross-file rules that
+   re-stack the legacy floats are marked.
+   ════════════════════════════════════════════════════════════════════ */
+
+/* ── FAB ladder ──────────────────────────────────────────────────────
+   Right edge, bottom → top: Gee · Community · Back-to-top. gee.css loads
+   after main.css, so equal-specificity rules win; !important guards the
+   two cross-file overrides against any late page stylesheet. The shop
+   cart float is moved to the LEFT edge (templates/partials/shop-cart.twig)
+   so it never lands in this stack. */
+.community-fab{ right:1.5rem !important; bottom:5.5rem !important; width:50px !important; height:50px !important; z-index:68 !important; }
+#backToTop{ right:1.65rem !important; bottom:9.4rem !important; z-index:68 !important; }
+
+/* ── Root + launcher ─────────────────────────────────────────────── */
+.gee{ position:fixed; right:1.5rem; bottom:1.5rem; z-index:70;
+  font-family:var(--ag-font-body,system-ui,sans-serif); }
+.gee *{ box-sizing:border-box; }
+
+.gee-fab{ position:relative; width:60px; height:60px; border:0; cursor:pointer;
+  border-radius:50%; padding:0; display:grid; place-items:center;
+  background:radial-gradient(120% 120% at 30% 20%, #2f9a2c 0%, var(--ag-green,#237b22) 55%, var(--ag-green-dark,#1a6118) 100%);
+  color:#fff; box-shadow:0 16px 30px -10px rgba(16,41,44,.5), 0 0 0 1px rgba(255,255,255,.06) inset;
+  transition:transform var(--ag-dur-fast,.15s) ease, box-shadow var(--ag-dur,.25s) ease; }
+.gee-fab:hover{ transform:translateY(-3px) scale(1.03); box-shadow:0 22px 40px -10px rgba(16,41,44,.6); }
+.gee-fab:focus-visible{ outline:3px solid var(--ag-green-light,#7fc87c); outline-offset:3px; }
+.gee-fab__orb{ position:relative; display:grid; place-items:center; width:100%; height:100%; }
+.gee-fab__orb svg{ width:27px; height:27px; filter:drop-shadow(0 2px 4px rgba(0,0,0,.25)); }
+/* breathing ring */
+.gee-fab::before{ content:""; position:absolute; inset:-4px; border-radius:50%;
+  border:2px solid var(--ag-green-light,#7fc87c); opacity:.0; }
+.gee-fab[data-attention="1"]::before{ animation:geePulse 2.6s ease-out infinite; }
+@keyframes geePulse{ 0%{ opacity:.5; transform:scale(1); } 70%{ opacity:0; transform:scale(1.35); } 100%{ opacity:0; } }
+/* online dot */
+.gee-fab__dot{ position:absolute; top:3px; right:3px; width:13px; height:13px; border-radius:50%;
+  background:#36d05f; border:2.5px solid #fff; box-shadow:0 0 0 1px rgba(16,41,44,.08); }
+/* hover tooltip (desktop) */
+.gee-fab__tip{ position:absolute; right:calc(100% + 12px); top:50%; transform:translateY(-50%) translateX(6px);
+  background:var(--ag-ink,#10292c); color:#fff; font:600 12.5px/1 var(--ag-font-body,sans-serif);
+  white-space:nowrap; padding:8px 12px; border-radius:9px; opacity:0; pointer-events:none;
+  transition:opacity var(--ag-dur-fast,.15s) ease, transform var(--ag-dur-fast,.15s) ease;
+  box-shadow:0 10px 24px -10px rgba(16,41,44,.5); }
+.gee-fab__tip::after{ content:""; position:absolute; left:100%; top:50%; transform:translateY(-50%);
+  border:5px solid transparent; border-left-color:var(--ag-ink,#10292c); }
+.gee-fab:hover .gee-fab__tip, .gee-fab:focus-visible .gee-fab__tip{ opacity:1; transform:translateY(-50%) translateX(0); }
+/* hide the launcher while the panel is open */
+.gee[data-open="1"] .gee-fab{ opacity:0; pointer-events:none; transform:scale(.7); }
+
+/* ── Panel ───────────────────────────────────────────────────────── */
+.gee-panel{ position:absolute; right:0; bottom:0;
+  width:var(--gee-w,380px); height:var(--gee-h,540px);
+  max-width:calc(100vw - 3rem); max-height:calc(100vh - 3rem);
+  background:var(--ag-surface,#fff); color:var(--ag-ink,#10292c);
+  border:1px solid var(--ag-line-strong,rgba(16,41,44,.12)); border-radius:20px;
+  box-shadow:0 40px 80px -30px rgba(16,41,44,.5), 0 12px 28px -12px rgba(16,41,44,.22);
+  display:flex; flex-direction:column; overflow:hidden;
+  transform-origin:bottom right; }
+.gee-panel[hidden]{ display:none !important; }
+.gee[data-open="1"] .gee-panel{ animation:geeIn .28s cubic-bezier(.22,1,.36,1); }
+@keyframes geeIn{ from{ transform:translateY(14px) scale(.96); opacity:0; } }
+
+/* desktop resize grip (top-left corner — panel is anchored bottom-right) */
+.gee-resize{ position:absolute; top:0; left:0; width:22px; height:22px; cursor:nwse-resize; z-index:5;
+  touch-action:none; }
+.gee-resize::before{ content:""; position:absolute; top:7px; left:7px; width:8px; height:8px;
+  border-top:2px solid var(--ag-ink-soft,#717a7e); border-left:2px solid var(--ag-ink-soft,#717a7e);
+  border-radius:2px 0 0 0; opacity:.5; }
+
+/* header */
+.gee-head{ display:flex; align-items:center; justify-content:space-between; gap:10px;
+  padding:13px 14px; color:#fff; flex:none;
+  background:linear-gradient(135deg, var(--ag-green-dark,#1a6118) 0%, var(--ag-green,#237b22) 100%); }
+.gee-head__id{ display:flex; align-items:center; gap:11px; min-width:0; }
+.gee-avatar{ position:relative; flex:none; width:38px; height:38px; border-radius:12px;
+  background:rgba(255,255,255,.14); display:grid; place-items:center; color:#fff; }
+.gee-avatar svg{ width:21px; height:21px; }
+.gee-avatar::after{ content:""; position:absolute; bottom:-1px; right:-1px; width:11px; height:11px;
+  border-radius:50%; background:#36d05f; border:2px solid var(--ag-green,#237b22); }
+.gee-head__txt{ display:flex; flex-direction:column; min-width:0; }
+.gee-head__txt strong{ font:600 15px/1.1 var(--ag-font-body,sans-serif); }
+.gee-head__txt small{ font:500 11.5px/1.3 var(--ag-font-body,sans-serif); color:rgba(255,255,255,.94);
+  overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.gee-head__actions{ display:flex; align-items:center; gap:4px; flex:none; }
+.gee-icon{ width:34px; height:34px; border-radius:10px; border:0; cursor:pointer;
+  background:rgba(255,255,255,.10); color:#fff; display:grid; place-items:center;
+  transition:background var(--ag-dur-fast,.15s) ease; }
+.gee-icon:hover{ background:rgba(255,255,255,.22); }
+.gee-icon:focus-visible{ outline:2px solid #fff; outline-offset:1px; }
+.gee-icon svg{ width:17px; height:17px; }
+
+/* message log */
+.gee-log{ flex:1 1 auto; min-height:0; overflow-y:auto; overscroll-behavior:contain;
+  padding:16px 14px 6px; display:flex; flex-direction:column; gap:12px;
+  background:var(--ag-surface,#fff);
+  scrollbar-width:thin; scrollbar-color:var(--ag-line-strong,rgba(16,41,44,.12)) transparent; }
+.gee-log::-webkit-scrollbar{ width:8px; }
+.gee-log::-webkit-scrollbar-thumb{ background:var(--ag-line-strong,rgba(16,41,44,.12)); border-radius:8px; }
+
+.gee-msg{ display:flex; gap:9px; max-width:100%; align-items:flex-end; animation:geeMsgIn .22s ease-out both; }
+@keyframes geeMsgIn{ from{ opacity:0; transform:translateY(5px); } }
+.gee-msg__av{ flex:none; width:26px; height:26px; border-radius:8px; display:grid; place-items:center;
+  background:var(--ag-green-wash,rgba(127,200,124,.16)); color:var(--ag-green,#237b22); margin-bottom:2px; }
+.gee-msg__av svg{ width:15px; height:15px; }
+.gee-bubble{ padding:10px 13px; border-radius:14px; font:400 14px/1.5 var(--ag-font-body,sans-serif);
+  max-width:84%; word-wrap:break-word; overflow-wrap:anywhere; }
+.gee-msg--bot .gee-bubble{ background:var(--ag-surface-2,#f6f7f6); color:var(--ag-ink,#10292c);
+  border-bottom-left-radius:5px; }
+.gee-msg--me{ flex-direction:row-reverse; }
+.gee-msg--me .gee-bubble{ background:var(--ag-green,#237b22); color:#fff; border-bottom-right-radius:5px; max-width:88%; }
+/* inherit the bubble's colour — beats the global `p{color:neutral-500}` so user
+   text is white on green and bot text is full-ink, not muted grey. */
+.gee-bubble p{ margin:0 0 7px; color:inherit; }
+.gee-bubble p:last-child{ margin-bottom:0; }
+/* page links inside bot replies — branded + high-contrast (~6.9:1 on the bubble) */
+.gee-bubble--bot a.gee-link{ color:var(--ag-green-dark,#1a6118); font-weight:600;
+  text-decoration:underline; text-decoration-thickness:1.5px; text-underline-offset:2px;
+  text-decoration-color:rgba(26,97,24,.45); border-radius:3px;
+  transition:color var(--ag-dur-fast,.15s) ease, text-decoration-color var(--ag-dur-fast,.15s) ease; }
+.gee-bubble--bot a.gee-link:hover{ color:var(--ag-green,#237b22); text-decoration-color:currentColor; }
+.gee-bubble--bot a.gee-link:focus-visible{ outline:2px solid var(--ag-green,#237b22); outline-offset:2px; }
+/* keep a link legible if one ever lands in a user (green) bubble */
+.gee-msg--me .gee-bubble a.gee-link{ color:#fff; text-decoration-color:rgba(255,255,255,.6); }
+
+/* ── Gee also supports ───────────────────────────────────────────────
+   A support answer carries more than prose: what it was built from, the
+   articles worth reading, and the way out to a person. Those attach to the
+   MESSAGE ROW rather than the bubble so they run the full width — a card
+   squeezed into an 84%-wide bubble is unreadable on a 360px phone — and the
+   row wraps so they stack under it, indented past the avatar so the whole
+   turn still reads as one thing said by one assistant. */
+.gee-msg--bot{ flex-wrap:wrap; }
+/* min-width:0 is load-bearing, not tidying. A flex item's default min-width is
+   auto — its MIN-CONTENT width — and .gee-art__s is `white-space:nowrap`, so
+   without this the strip refuses to shrink below the widest unbroken summary and
+   the whole log scrolls sideways. Measured: 531px of content in a 378px log. */
+.gee-used, .gee-arts, .gee-hand{ flex:1 1 100%; min-width:0; margin-left:35px; } /* 26 avatar + 9 gap */
+
+/* provenance — quiet by design. It is a receipt, not a headline. */
+.gee-used{ display:flex; flex-wrap:wrap; gap:5px; margin-top:1px; }
+.gee-used--empty{ display:none; }
+.gee-used__c{ font:600 10.5px/1 var(--ag-font-body,sans-serif); letter-spacing:.02em;
+  color:var(--ag-green-dark,#1a6118); background:var(--ag-green-wash,rgba(127,200,124,.16));
+  border-radius:999px; padding:5px 9px; }
+
+/* article preview cards */
+.gee-arts{ display:flex; flex-direction:column; gap:6px; margin-top:3px; }
+.gee-arts__h{ margin:0; font:700 10.5px/1 var(--ag-font-body,sans-serif); letter-spacing:.07em;
+  text-transform:uppercase; color:var(--ag-ink-soft,#717a7e); }
+/* Deliberately compact. Measured: at the first draft's sizing three cards were
+   300px tall inside a 540px panel, so the answer scrolled out of sight and the
+   handoff button was off-screen entirely. The card only has to be enough to
+   decide by — the category, the title, and one clamped line of summary. */
+.gee-art{ display:block; text-decoration:none; border-radius:11px; padding:7px 10px 8px;
+  background:var(--ag-surface,#fff); border:1px solid var(--ag-line-strong,rgba(16,41,44,.12));
+  transition:border-color var(--ag-dur-fast,.15s) ease, transform var(--ag-dur-fast,.15s) ease; }
+.gee-art:hover{ border-color:var(--ag-green,#237b22); transform:translateY(-1px); }
+.gee-art:focus-visible{ outline:2px solid var(--ag-green,#237b22); outline-offset:2px; }
+/* colour comes from the category, set inline — see articleStrip() */
+.gee-art__tag{ display:block; font:700 9px/1 var(--ag-font-body,sans-serif); letter-spacing:.07em;
+  text-transform:uppercase; margin-bottom:3px; color:var(--ag-ink-soft,#717a7e); }
+.gee-art__t{ display:block; font:600 12.5px/1.3 var(--ag-font-body,sans-serif); color:var(--ag-ink,#10292c); }
+/* one line, ellipsised: the title carries the decision, the summary only
+   confirms it, and a wrapping summary is what made these cards tall */
+.gee-art__s{ display:block; margin-top:2px; font:400 11px/1.4 var(--ag-font-body,sans-serif);
+  color:var(--ag-ink-soft,#717a7e); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+
+/* the escape hatch — offered, never hidden behind a failed conversation */
+.gee-hand{ display:flex; flex-wrap:wrap; align-items:center; gap:8px; margin-top:4px; }
+.gee-hand__b{ cursor:pointer; border:1px solid var(--ag-green,#237b22); background:var(--ag-surface,#fff);
+  color:var(--ag-green-dark,#1a6118); border-radius:999px; padding:7px 13px;
+  font:600 12px/1 var(--ag-font-body,sans-serif);
+  transition:background var(--ag-dur-fast,.15s) ease, color var(--ag-dur-fast,.15s) ease; }
+.gee-hand__b:hover:not(:disabled){ background:var(--ag-green,#237b22); color:#fff; }
+.gee-hand__b:disabled{ opacity:.6; cursor:default; }
+.gee-hand__b:focus-visible{ outline:2px solid var(--ag-green,#237b22); outline-offset:2px; }
+.gee-hand__n{ font:400 11px/1.4 var(--ag-font-body,sans-serif); color:var(--ag-ink-soft,#717a7e); }
+
+/* the launcher dot goes amber at the support desk: the same assistant, but it is
+   now doing something consequential, and the reader should be able to tell */
+.gee[data-mode="support"] .gee-fab__dot{ background:#f0a92c; border-color:#c4831a; }
+
+/* typing indicator */
+.gee-typing{ display:inline-flex; gap:4px; align-items:center; padding:12px 14px; }
+.gee-typing span{ width:7px; height:7px; border-radius:50%; background:var(--ag-ink-soft,#717a7e);
+  animation:geeDot 1.2s infinite ease-in-out; }
+.gee-typing span:nth-child(2){ animation-delay:.18s; }
+.gee-typing span:nth-child(3){ animation-delay:.36s; }
+@keyframes geeDot{ 0%,60%,100%{ transform:translateY(0); opacity:.45; } 30%{ transform:translateY(-4px); opacity:1; } }
+
+/* suggested-question chips */
+.gee-suggest{ flex:none; display:flex; flex-wrap:wrap; gap:7px; padding:6px 14px 10px;
+  background:var(--ag-surface,#fff); }
+.gee-suggest:empty{ display:none; }
+.gee-chip{ border:1px solid var(--ag-line-strong,rgba(16,41,44,.12)); background:var(--ag-surface,#fff);
+  color:var(--ag-ink,#10292c); cursor:pointer; border-radius:999px; padding:7px 13px;
+  font:500 12.5px/1.2 var(--ag-font-body,sans-serif); text-align:left;
+  transition:border-color var(--ag-dur-fast,.15s) ease, background var(--ag-dur-fast,.15s) ease; }
+.gee-chip:hover{ border-color:var(--ag-green,#237b22); background:var(--ag-green-wash,rgba(127,200,124,.16)); }
+.gee-chip:focus-visible{ outline:2px solid var(--ag-green,#237b22); outline-offset:1px; }
+
+/* composer */
+.gee-form{ flex:none; display:flex; align-items:flex-end; gap:8px; padding:11px 12px;
+  border-top:1px solid var(--ag-line,rgba(16,41,44,.07)); background:var(--ag-surface,#fff); }
+.gee-input{ flex:1; resize:none; max-height:120px; min-height:42px; padding:11px 14px;
+  border:1px solid var(--ag-line-strong,rgba(16,41,44,.12)); border-radius:14px;
+  font:400 14px/1.45 var(--ag-font-body,sans-serif); color:var(--ag-ink,#10292c);
+  background:var(--ag-surface-2,#f6f7f6); outline:none;
+  transition:border-color var(--ag-dur-fast,.15s) ease, background var(--ag-dur-fast,.15s) ease; }
+.gee-input::placeholder{ color:#62696e; opacity:1; }
+.gee-input:focus{ border-color:var(--ag-green,#237b22); background:var(--ag-surface,#fff);
+  box-shadow:0 0 0 3px var(--ag-green-wash,rgba(127,200,124,.16)); }
+.gee-send{ flex:none; width:42px; height:42px; border-radius:13px; border:0; cursor:pointer;
+  background:var(--ag-green,#237b22); color:#fff; display:grid; place-items:center;
+  transition:background var(--ag-dur-fast,.15s) ease, transform var(--ag-dur-fast,.15s) ease; }
+.gee-send:hover:not(:disabled){ background:var(--ag-green-dark,#1a6118); transform:translateY(-1px); }
+.gee-send:disabled{ opacity:.45; cursor:not-allowed; }
+.gee-send:focus-visible{ outline:2px solid var(--ag-green,#237b22); outline-offset:2px; }
+.gee-send svg{ width:18px; height:18px; }
+
+/* footer line */
+.gee-foot{ flex:none; margin:0; padding:0 14px 11px; text-align:center;
+  font:500 11px/1.4 var(--ag-font-mono,monospace); letter-spacing:.01em;
+  color:#5b6469; background:var(--ag-surface,#fff); }
+.gee-foot a{ color:var(--ag-green,#237b22); text-decoration:none; }
+
+/* scrim (mobile only; hidden on desktop) */
+.gee-scrim{ display:none; }
+
+/* ── Tablet + mobile: lift the float stack clear of the bottom nav ──
+   The mobile bottom nav (.ag-mobnav) shows at ≤899px, so the whole
+   right-edge stack rises above it here. At ≤560px the panel additionally
+   becomes a bottom-sheet (below). */
+@media (max-width:899px){
+  .gee{ right:16px; bottom:calc(84px + env(safe-area-inset-bottom,0px)); }
+  .community-fab{ right:16px !important; bottom:calc(148px + env(safe-area-inset-bottom,0px)) !important; }
+  #backToTop{ right:20px !important; bottom:calc(206px + env(safe-area-inset-bottom,0px)) !important; }
+  .gee-panel{ max-height:calc(100vh - 84px - 18px); }
+}
+
+/* ── Mobile: bottom-sheet ────────────────────────────────────────── */
+@media (max-width:560px){
+  .gee-fab{ width:54px; height:54px; }
+  .gee-fab__orb svg{ width:24px; height:24px; }
+  .gee-fab__tip{ display:none; }
+
+  /* scrim */
+  .gee-scrim{ position:fixed; inset:0; z-index:90; background:rgba(5,12,13,.5);
+    -webkit-backdrop-filter:blur(2px); backdrop-filter:blur(2px); border:0; padding:0; cursor:pointer;
+    opacity:0; transition:opacity var(--ag-dur,.25s) ease; }
+  .gee[data-open="1"] .gee-scrim{ display:block; opacity:1; }
+
+  /* sheet: pinned to the bottom of the viewport, full width */
+  .gee-panel{ position:fixed; left:0; right:0; bottom:0; top:auto; z-index:91;
+    width:100%; max-width:100%;
+    height:var(--gee-sheet-h,62vh); max-height:92vh; min-height:42vh;
+    border-radius:20px 20px 0 0;
+    padding-bottom:env(safe-area-inset-bottom,0px); }
+  .gee[data-open="1"] .gee-panel{ animation:geeSheetIn .3s cubic-bezier(.22,1,.36,1); }
+  @keyframes geeSheetIn{ from{ transform:translateY(100%); } }
+
+  /* the desktop corner grip becomes a centered drag-grabber at the top */
+  .gee-resize{ top:0; left:0; right:0; width:100%; height:26px; cursor:row-resize; display:grid; place-items:center; }
+  .gee-resize::before{ position:static; top:auto; left:auto; width:42px; height:5px; border:0; border-radius:999px;
+    background:rgba(255,255,255,.5); opacity:1; }
+
+  .gee-head{ padding-top:8px; }
+  .gee-log{ padding-top:12px; }
+}
+
+/* lock background scroll while the bottom-sheet is open (phones only) */
+@media (max-width:560px){ html.gee-locked{ overflow:hidden; } }
+
+/* very small / landscape phones */
+@media (max-width:560px) and (max-height:520px){
+  .gee-panel{ height:var(--gee-sheet-h,82vh); }
+}
+
+/* ── Motion / a11y ───────────────────────────────────────────────── */
+@media (prefers-reduced-motion:reduce){
+  .gee-fab[data-attention="1"]::before{ animation:none; }
+  .gee-typing span{ animation:none; }
+  .gee-msg{ animation:none; }
+  .gee[data-open="1"] .gee-panel{ animation:none; }
+  .gee-fab, .gee-send, .gee-chip{ transition:none; }
+}
+
+/* ── Pulse, on a phone: the launcher and the action rail want the same pixels ──
+   The feed card's action rail (heart, reply, repost, share, save — each with a
+   count) runs down the RIGHT edge of every card, and the launcher is fixed to the
+   bottom right. Measured on a 390px screen: the fab sat directly on top of a
+   card's repost count.
+
+   The rail cannot move — it is the card's primary interaction and its position is
+   the convention every feed uses. So the launcher steps aside, on phones only,
+   exactly as it already does for members on the community pages. Nothing is lost:
+   the feed is a browsing surface, and /help and /support are one tap away in the
+   bottom nav's Menu. Desktop keeps it — there is a whole margin of room there. */
+@media (max-width:560px){
+  body[data-page="pulse"] .gee{ display:none; }
+}

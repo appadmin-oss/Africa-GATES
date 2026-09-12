@@ -1,35 +1,111 @@
 {% extends "admin/layout.twig" %}
+{% import "admin/partials/ui.twig" as ui %}
 {% block topbar_eyebrow %}<small>Moderation</small>{% endblock %}
 {% block topbar_title %}Nominations{% endblock %}
+{% block topbar_actions %}
+  {% if counts.pending > 0 %}<a class="ad-btn ad-btn--primary" href="/admin/nominations/review" title="Work through pending nominations one by one, oldest first, with keyboard shortcuts">▶ Review desk <span style="opacity:.85">({{ counts.pending }})</span></a>{% endif %}
+{% endblock %}
 
 {% block content %}
-<form class="ad-filters" method="get" action="/admin/nominations">
-  <input type="search" name="q" value="{{ filters.q }}" placeholder="Search nominee or nominator…">
-  <button class="ad-btn ad-btn--primary" type="submit">Filter</button>
-  <div style="margin-left:auto;display:flex;gap:6px">
-    <a class="ad-tab {% if filters.status == 'pending' %}is-active{% endif %}" href="/admin/nominations?status=pending">Pending <span class="n">{{ counts.pending }}</span></a>
-    <a class="ad-tab {% if filters.status == 'approved' %}is-active{% endif %}" href="/admin/nominations?status=approved">Approved <span class="n">{{ counts.approved }}</span></a>
-    <a class="ad-tab {% if filters.status == 'rejected' %}is-active{% endif %}" href="/admin/nominations?status=rejected">Rejected <span class="n">{{ counts.rejected }}</span></a>
+{% set qp = qs_base ? '&' ~ qs_base : '' %}
+<div class="ad-card" style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:12px;padding:12px 14px">
+  <span style="font-size:12px;font-weight:600;color:var(--ad-text-mute,#5a6d6f)">Quick filters <span class="ad-info" data-tip="One-click presets to triage nominations. Start with the review queue (oldest pending first) to work through fairly in order." tabindex="0" aria-label="Filter presets">i</span></span>
+  <a class="ad-tab {% if filters.status == 'pending' and filters.sort == 'oldest' %}is-active{% endif %}" href="/admin/nominations?status=pending&sort=oldest{{ qp }}">📋 Review queue <span class="n">{{ counts.pending }}</span></a>
+  <a class="ad-tab {% if filters.status == 'pending' and filters.sort != 'oldest' %}is-active{% endif %}" href="/admin/nominations?status=pending&sort=newest{{ qp }}">🕘 Latest pending</a>
+  <a class="ad-tab {% if filters.status == 'approved' %}is-active{% endif %}" href="/admin/nominations?status=approved{{ qp }}">✓ Approved <span class="n">{{ counts.approved }}</span></a>
+  <a class="ad-tab {% if filters.status == 'rejected' %}is-active{% endif %}" href="/admin/nominations?status=rejected{{ qp }}">✕ Rejected <span class="n">{{ counts.rejected }}</span></a>
+  <a class="ad-tab {% if filters.status == 'all' %}is-active{% endif %}" href="/admin/nominations?status=all{{ qp }}">All</a>
+</div>
+{% if ai_enabled|default(false) %}
+{# Plain-English filtering: the phrase is parsed into the SAME whitelisted GET
+   filters below (status/country/range/sort/search) and applied via redirect. #}
+<form method="post" action="/admin/nominations/ai-filter" class="ad-card" style="display:flex;gap:8px;align-items:center;margin-bottom:12px;padding:10px 14px">
+  <input type="hidden" name="_token" value="{{ csrf_token }}">
+  <span aria-hidden="true" style="font-size:15px">✦</span>
+  <label for="aiQuery" class="sr-only">Filter nominations in plain English</label>
+  <input id="aiQuery" type="text" name="ai_query" maxlength="200"
+         placeholder="Ask in plain English — e.g. “pending nominations from Kenya this month, oldest first”"
+         style="flex:1;min-width:220px;border:1px solid var(--ad-line,#dfe4e3);border-radius:9px;padding:8px 11px;font:inherit;font-size:13px">
+  <button class="ad-btn ad-btn--sm ad-btn--primary" type="submit">Filter with AI</button>
+</form>
+{% endif %}
+<form class="ad-filters" method="get" action="/admin/nominations" style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap">
+  <input type="hidden" name="status" value="{{ filters.status }}">
+  <input type="hidden" name="sort" value="{{ filters.sort }}">
+  <div style="flex:1;min-width:180px">
+    <label style="display:block;font-size:12px;font-weight:600;color:var(--ad-text-mute,#5a6d6f);margin-bottom:4px">Search</label>
+    <input type="search" name="q" value="{{ filters.q }}" placeholder="Search nominee or nominator…" aria-label="Search nominee or nominator" style="width:100%">
   </div>
+  <div>
+    <label style="display:block;font-size:12px;font-weight:600;color:var(--ad-text-mute,#5a6d6f);margin-bottom:4px">Programme</label>
+    <select name="programme" aria-label="Filter by programme" style="padding:9px 12px;border:1px solid var(--ad-line,#dfe4e3);border-radius:9px">
+      <option value="">All programmes</option>
+      {% for pr in programmes %}<option value="{{ pr.id }}" {% if filters.programme == pr.id %}selected{% endif %}>{{ pr.title }}</option>{% endfor %}
+    </select>
+  </div>
+  <div>
+    <label style="display:block;font-size:12px;font-weight:600;color:var(--ad-text-mute,#5a6d6f);margin-bottom:4px">Cycle</label>
+    <select name="cycle" aria-label="Filter by cycle" style="padding:9px 12px;border:1px solid var(--ad-line,#dfe4e3);border-radius:9px">
+      <option value="">All cycles</option>
+      {% for c in cycles %}<option value="{{ c.id }}" {% if filters.cycle == c.id %}selected{% endif %}>{{ c.title }} · {{ c.year }}</option>{% endfor %}
+    </select>
+  </div>
+  <div>
+    <label style="display:block;font-size:12px;font-weight:600;color:var(--ad-text-mute,#5a6d6f);margin-bottom:4px">Country</label>
+    <select name="country" aria-label="Filter by country" style="padding:9px 12px;border:1px solid var(--ad-line,#dfe4e3);border-radius:9px">
+      <option value="">All countries</option>
+      {% for cc in countries %}<option value="{{ cc }}" {% if filters.country == cc %}selected{% endif %}>{{ cc }}</option>{% endfor %}
+    </select>
+  </div>
+  {% include 'admin/partials/datefields.twig' with {range: filters.range, from: filters.from, to: filters.to} only %}
+  <button class="ad-btn ad-btn--primary" type="submit">Filter</button>
+  {% if filters.q or filters.programme or filters.cycle or filters.country or (filters.range not in ['','all']) or filters.from or filters.to %}<a class="ad-btn" href="/admin/nominations?status={{ filters.status }}&sort={{ filters.sort }}">Clear</a>{% endif %}
 </form>
 
 <div class="ad-card"><div class="ad-table-wrap">
+  <div style="display:flex;justify-content:space-between;align-items:center;padding:4px 4px 12px">
+    <strong style="font-size:14px">{{ total|number_format }} nomination{{ total == 1 ? '' : 's' }}</strong>
+    {% if pages > 1 %}<span style="font-size:12px;color:var(--ad-text-mute,#5a6d6f)">Page {{ page }} of {{ pages }}</span>{% endif %}
+  </div>
   <table class="ad-table">
-    <thead><tr><th>Nominee</th><th>Programme</th><th>Submitted by</th><th>When</th><th>Status</th><th class="col-actions">Actions</th></tr></thead>
+    <thead><tr>
+      <th scope="col">Nominee</th>
+      <th scope="col">Contact</th>
+      <th scope="col">Programme</th>
+      <th scope="col">Nominated by</th>
+      <th scope="col">Reason</th>
+      <th scope="col">When</th>
+      <th scope="col">Status</th>
+      <th scope="col" class="col-actions">Actions</th>
+    </tr></thead>
     <tbody>
       {% for r in rows %}
-      <tr x-data="{open:false}">
+      <tr>
         <td>
-          <strong>{{ r.nominee_name }}</strong>
-          <div style="font-size:12px;color:var(--ad-text-soft)">{{ r.country_code|default('—') }} · {{ r.nominee_email|default('No email') }}</div>
-          <button class="ad-btn ad-btn--xs ad-btn--ghost" type="button" @click="open=!open" style="margin-top:4px">
-            <span x-text="open?'Hide reason':'Show reason'"></span>
-          </button>
-          <div x-show="open" x-cloak style="margin-top:8px;padding:10px;background:var(--ad-bg);border-radius:6px;font-size:12.5px;color:var(--ad-text-soft);max-width:520px">{{ r.reason }}</div>
+          <div style="display:flex;align-items:center;gap:9px">
+            {% if r.nominee_photo_path %}
+            <button type="button" class="ad-avatar-btn" data-view-media="{{ r.nominee_photo_path }}" data-view-title="{{ r.nominee_name }}" aria-label="View photo of {{ r.nominee_name }}"
+                    style="flex:none;width:34px;height:34px;border-radius:8px;border:1px solid var(--ad-line,#dfe4e3);background-image:url('{{ r.nominee_photo_path }}');background-size:cover;background-position:center;cursor:zoom-in"></button>
+            {% endif %}
+            <div style="min-width:0">
+              <strong>{{ r.nominee_name }}</strong>
+              <div style="font-size:11px;color:var(--ad-text-mute);font-family:'Space Mono',monospace">{{ r.reference|default('—') }}</div>
+            </div>
+          </div>
+        </td>
+        <td style="font-size:12.5px;color:var(--ad-text-soft)">
+          {% if r.nominee_email %}<div>✉ {{ ui.cell(r.nominee_email, 26, 'Nominee email') }}</div>{% endif %}
+          {% if r.nominee_phone %}<div>☎ {{ r.nominee_phone }}</div>{% endif %}
+          {% if not r.nominee_email and not r.nominee_phone %}<span class="ad-dim">—</span>{% endif %}
+          <div style="color:var(--ad-text-mute)">{{ r.country_code|default('—') }}{% if r.nominee_state %} · {{ r.nominee_state }}{% endif %}</div>
         </td>
         <td>{{ r.programme_title|default('—') }}<div style="font-size:11px;color:var(--ad-text-mute)">{{ r.cycle_year }}</div></td>
-        <td>{{ r.nominator_name }}<div style="font-size:12px;color:var(--ad-text-soft)">{{ r.nominator_email }}</div></td>
-        <td style="font-size:12px;color:var(--ad-text-soft);font-family:'Space Mono',monospace">{{ r.created_at|slice(0, 16) }}</td>
+        <td style="font-size:12.5px">
+          {{ ui.cell(r.nominator_name, 22, 'Nominator') }}
+          <div style="font-size:11.5px;color:var(--ad-text-soft)">{{ ui.cell(r.nominator_email, 24, 'Nominator email') }}</div>
+        </td>
+        <td style="max-width:240px">{{ ui.cell(r.reason, 60, 'Reason for nominating ' ~ r.nominee_name) }}</td>
+        <td style="font-size:12px;color:var(--ad-text-soft);font-family:'Space Mono',monospace;white-space:nowrap">{{ r.created_at|slice(0, 16) }}</td>
         <td>
           {% set chip = {'approved':'green','pending':'gold','rejected':'red'}[r.status]|default('grey') %}
           <span class="ad-chip ad-chip--{{ chip }}">{{ r.status|capitalize }}</span>
@@ -37,14 +113,15 @@
         <td class="col-actions">
           <a class="ad-btn ad-btn--sm" href="/admin/nominations/{{ r.id }}">Review</a>
           {% if r.status != 'rejected' %}
-          <form method="post" action="/admin/nominations/{{ r.id }}/reject" style="display:inline"><input type="hidden" name="_token" value="{{ csrf_token }}"><button class="ad-btn ad-btn--sm ad-btn--danger" type="submit" data-confirm="Reject this nomination?">Reject</button></form>
+          <form method="post" action="/admin/nominations/{{ r.id }}/reject" style="display:inline"><input type="hidden" name="_token" value="{{ csrf_token }}"><button class="ad-btn ad-btn--sm ad-btn--danger" type="submit" data-confirm="Reject the nomination of {{ r.nominee_name }}? The nominator is EMAILED the decision straight away and a webhook fires — neither can be recalled. Add a reason first if you have not; without one they get the generic wording.">Reject</button></form>
           {% endif %}
         </td>
       </tr>
       {% else %}
-      <tr><td colspan="6" style="text-align:center;color:var(--ad-text-mute);padding:30px">Nothing here.</td></tr>
+      <tr><td colspan="8" style="text-align:center;color:var(--ad-text-mute);padding:30px">Nothing here.</td></tr>
       {% endfor %}
     </tbody>
   </table>
+  {% include 'admin/partials/pager.twig' with {base: '/admin/nominations', qs: qs, page: page, pages: pages, window: window} only %}
 </div></div>
 {% endblock %}

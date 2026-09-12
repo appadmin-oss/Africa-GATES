@@ -32,11 +32,21 @@ class JudgeDashboardTest extends TestCase
                 'id' => $nid, 'category_id' => $catId, 'name' => 'Nom ' . $nid, 'status' => 'approved', 'vote_count' => 0,
             ]);
         }
+
+        // The panel judges the SHORTLIST, not the whole field, so a fixture without one
+        // produces a locked ballot with nobody on it — and every count on this dashboard
+        // would read zero for a reason unrelated to what is being tested.
+        $this->publishShortlist($cycleId, $catId, $nomineeIds);
     }
 
     /** @param array<int,int> $weights criterionId => weight */
     private function seedCriteria(array $weights): void
     {
+        // Once, BEFORE the loop. The shipped rubric is installed by a migration, so the
+        // harness carries it exactly as a migrated production database does, and this test
+        // declares the rubric under test — with pinned ids that would otherwise collide.
+        DB::table('gates_judge_criteria')->delete();
+
         foreach ($weights as $id => $w) {
             DB::table('gates_judge_criteria')->insert([
                 'id' => $id, 'programme_id' => null, 'slug' => 'cr' . $id, 'label' => 'Crit ' . $id,

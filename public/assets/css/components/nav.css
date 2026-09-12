@@ -1,0 +1,173 @@
+/* ════════════════════════════════════════════════════════════════
+   Africa GATES — Navigation (desktop sticky nav + megas, mobile
+   bottom bar, full-screen overlay menu). Built to the approved design.
+   Desktop ≥900px: top nav. <900px: no top nav, bottom bar + menu.
+   ════════════════════════════════════════════════════════════════ */
+
+/* ── Announcement bar ── */
+.ag-announce{ background:var(--ag-ink); color:#eef3ef; font-size:13px; line-height:1.3;
+  display:flex; align-items:center; justify-content:center; gap:10px; padding:9px 50px 9px 16px; position:relative; text-align:center; }
+.ag-announce__dot{ width:7px; height:7px; border-radius:50%; background:var(--ag-green-light); flex:none; }
+.ag-announce a{ color:#fff; font-weight:600; text-decoration:underline; }
+/* full-height, ~46px-wide hit area so the dismiss control is comfortably tappable on mobile */
+.ag-announce__x{ position:absolute; right:0; top:0; bottom:0; width:46px; display:flex; align-items:center; justify-content:center;
+  background:none; border:0; color:rgba(255,255,255,.7); font-size:18px; line-height:1; cursor:pointer; }
+.ag-announce__x:hover{ color:#fff; }
+
+/* ════ DESKTOP NAV ════ */
+.ag-nav{ position:sticky; top:0; z-index:var(--ag-z-nav); background:rgba(251,251,250,.82);
+  backdrop-filter:blur(16px); -webkit-backdrop-filter:blur(16px); border-bottom:1px solid var(--ag-line); }
+.ag-nav__row{ max-width:var(--ag-maxw); margin:0 auto; padding:0 40px; height:var(--ag-nav-h);
+  display:flex; align-items:center; justify-content:space-between; gap:28px; }
+.ag-brand{ display:flex; align-items:center; gap:11px; text-decoration:none; }
+/* The real mark, not the letter "G" this used to centre in a dark tile. It is
+   green-on-white, so the dark ground had to go with the letter — and the font and
+   colour declarations that styled that letter are dead weight on an <img>. */
+.ag-brand__mark{ width:38px; height:38px; border-radius:11px; background:#fff;
+  border:1px solid var(--ag-line,rgba(16,41,44,.10)); object-fit:contain; padding:3px;
+  box-sizing:border-box; display:block; flex:none; }
+.ag-brand__words{ display:flex; flex-direction:column; line-height:1; }
+.ag-brand__name{ font-family:var(--ag-font-display); font-weight:700; font-size:17px; color:var(--ag-ink); }
+.ag-brand__tag{ font-size:10px; font-weight:700; letter-spacing:.26em; color:var(--ag-green); }
+
+.ag-nav__links{ display:flex; align-items:center; gap:4px; }
+.ag-link{ font:600 14.5px/1 var(--ag-font-body); color:#3a4448; background:none; border:0; cursor:pointer;
+  padding:9px 14px; border-radius:10px; display:flex; align-items:center; gap:6px; text-decoration:none; transition:background var(--ag-dur-fast),color var(--ag-dur-fast); }
+.ag-link:hover{ background:rgba(16,41,44,.05); color:var(--ag-ink); }
+.ag-link.is-active,.ag-link[aria-expanded="true"]{ background:rgba(16,41,44,.05); color:var(--ag-ink); }
+.ag-link--pulse{ color:#3a4448; }
+.ag-link__dot{ width:7px; height:7px; border-radius:50%; background:var(--ag-pulse); animation:agPulseDot 2s infinite; }
+@keyframes agPulseDot{ 0%{box-shadow:0 0 0 0 rgba(224,36,94,.45)} 70%{box-shadow:0 0 0 6px rgba(224,36,94,0)} 100%{box-shadow:0 0 0 0 rgba(224,36,94,0)} }
+.ag-link__chev{ width:11px; height:11px; transition:transform var(--ag-dur); }
+.ag-link[aria-expanded="true"] .ag-link__chev{ transform:rotate(180deg); }
+
+.ag-nav__cta{ display:flex; align-items:center; gap:10px; }
+.ag-vote{ font:600 14px/1 var(--ag-font-body); color:var(--ag-ink); text-decoration:none; padding:9px 12px; border-radius:10px; }
+.ag-vote:hover{ background:rgba(16,41,44,.05); }
+.ag-register{ display:inline-flex; align-items:center; gap:7px; font:600 14px/1 var(--ag-font-body); color:#fff; text-decoration:none;
+  background:var(--ag-green); padding:11px 20px; border-radius:var(--ag-r-pill); box-shadow:var(--ag-shadow-cta); transition:background var(--ag-dur-fast),transform var(--ag-dur-fast); }
+.ag-register:hover{ background:var(--ag-green-dark); transform:translateY(-1px); }
+.ag-register svg{ width:14px; height:14px; }
+.ag-signin{ font:600 14px/1 var(--ag-font-body); color:var(--ag-ink); text-decoration:none; padding:10px 14px; border-radius:var(--ag-r-pill);
+  border:1px solid rgba(16,41,44,.16); transition:border-color var(--ag-dur-fast),background var(--ag-dur-fast); }
+.ag-signin:hover{ border-color:rgba(16,41,44,.34); background:rgba(16,41,44,.04); }
+.ag-signin.is-active{ border-color:var(--ag-green); color:var(--ag-green-dark); }
+
+/* ── Mega menu ── */
+.ag-mega-wrap{ position:relative; }
+.ag-mega{ position:absolute; left:50%; transform:translateX(-50%) translateY(8px); top:calc(100% + 14px); width:min(760px,86vw);
+  background:#fff; border:1px solid var(--ag-line); border-radius:18px; box-shadow:var(--ag-shadow-pop);
+  padding:18px; display:grid; grid-template-columns:repeat(2,1fr); gap:8px;
+  opacity:0; visibility:hidden; pointer-events:none; transition:opacity var(--ag-dur),transform var(--ag-dur),visibility var(--ag-dur); z-index:var(--ag-z-mega); }
+.ag-mega-wrap.is-open .ag-mega{ opacity:1; visibility:visible; pointer-events:auto; transform:translateX(-50%) translateY(0); }
+.ag-mega__item{ display:flex; gap:13px; align-items:flex-start; padding:13px 14px; border-radius:14px; border:1px solid transparent; text-decoration:none; transition:background var(--ag-dur-fast); }
+.ag-mega__item:hover{ background:var(--ag-surface-2); }
+.ag-mega__ico{ flex:none; width:38px; height:38px; border-radius:11px; display:flex; align-items:center; justify-content:center; font-size:18px; }
+.ag-mega__txt{ display:flex; flex-direction:column; gap:3px; }
+.ag-mega__txt strong{ font-weight:600; font-size:14.5px; color:var(--ag-ink); }
+.ag-mega__txt small{ font-size:12.5px; line-height:1.4; color:var(--ag-ink-soft); }
+
+/* ════ MOBILE BOTTOM BAR ════ */
+.ag-mobnav{ display:none; position:fixed; left:0; right:0; bottom:0; z-index:var(--ag-z-mobile-nav);
+  background:rgba(255,255,255,.92); backdrop-filter:blur(14px); -webkit-backdrop-filter:blur(14px);
+  border-top:1px solid var(--ag-line); padding:9px 12px calc(10px + env(safe-area-inset-bottom,14px));
+  display:none; align-items:flex-end; justify-content:space-between; }
+.ag-tab{ flex:1; background:none; border:0; cursor:pointer; text-decoration:none; display:flex; flex-direction:column; align-items:center; gap:4px; color:var(--ag-ink); }
+.ag-tab svg{ width:23px; height:23px; }
+/* 11.5px, not 10: this is the only persistent navigation on mobile and it carried the
+   smallest type in the product. Contrast was never the problem here (15.27:1) — size was. */
+.ag-tab span{ font:600 11.5px/1.1 var(--ag-font-body); }
+.ag-tab.is-active{ color:var(--ag-green); }
+.ag-tab--cta{ gap:5px; }
+.ag-tab--cta .ag-tab__fab{ width:50px; height:38px; margin-top:-14px; border-radius:16px; background:var(--ag-green);
+  display:flex; align-items:center; justify-content:center; box-shadow:0 10px 20px -8px rgba(35,123,34,.7); }
+.ag-tab--cta .ag-tab__fab svg{ width:22px; height:22px; stroke:#fff; }
+
+/* ════ FULL-SCREEN OVERLAY MENU ════ */
+.ag-menu{ position:fixed; inset:0; z-index:var(--ag-z-overlay); background:var(--ag-bg);
+  display:flex; flex-direction:column; opacity:0; visibility:hidden; transform:translateY(8px);
+  transition:opacity var(--ag-dur),transform var(--ag-dur),visibility var(--ag-dur); overflow-y:auto; }
+.ag-menu.is-open{ opacity:1; visibility:visible; transform:none; }
+.ag-menu__top{ display:flex; align-items:center; justify-content:space-between; padding:16px 20px; border-bottom:1px solid var(--ag-line); position:sticky; top:0; background:var(--ag-bg); }
+.ag-menu__x{ width:42px; height:42px; border-radius:12px; border:1px solid var(--ag-line); background:#fff; display:flex; align-items:center; justify-content:center; cursor:pointer; color:var(--ag-ink); }
+.ag-menu__x svg{ width:20px; height:20px; }
+.ag-menu__body{ padding:18px 20px 40px; flex:1; }
+.ag-menu__group + .ag-menu__group{ margin-top:22px; }
+.ag-menu__label{ font:700 11px/1 var(--ag-font-mono); letter-spacing:.18em; text-transform:uppercase; color:var(--ag-ink-soft); margin:0 0 10px; }
+.ag-menu__link{ display:flex; gap:13px; align-items:center; padding:13px 12px; border-radius:14px; text-decoration:none; transition:background var(--ag-dur-fast); }
+.ag-menu__link:hover,.ag-menu__link.is-active{ background:var(--ag-surface-2); }
+.ag-menu__ico{ flex:none; width:38px; height:38px; border-radius:11px; display:flex; align-items:center; justify-content:center; font-size:18px; }
+.ag-menu__txt{ display:flex; flex-direction:column; gap:2px; }
+.ag-menu__txt strong{ font-weight:600; font-size:15px; color:var(--ag-ink); }
+.ag-menu__txt small{ font-size:12.5px; color:var(--ag-ink-soft); }
+.ag-menu__ctas{ display:flex; flex-direction:column; gap:10px; margin-top:26px; }
+
+/* ════ RESPONSIVE SWITCH ════ */
+@media (max-width:899px){
+  .ag-nav{ display:none; }
+  .ag-mobnav{ display:flex; }
+  body[data-page] .main-wrapper{ padding-bottom:84px; }   /* clear the fixed bar */
+}
+@media (min-width:900px){
+  .ag-mobnav,.ag-menu{ display:none!important; }
+}
+html.ag-menu-open{ overflow:hidden; }
+
+/* ── LIVE VOTE COUNTDOWN (partials/vote-countdown.twig) ──────────────────────
+   Two states from one block: a quiet line while the deadline is far off, and a
+   live panel inside the 48h `closing_soon` window. Deliberately reuses the
+   existing brand tokens rather than introducing a countdown palette — this sits
+   on pages that already have a visual language. */
+.vc{ border:1px solid var(--ag-line,rgba(16,41,44,.12)); border-radius:16px;
+     padding:16px 18px; background:var(--ag-surface,#fff); }
+.vc__k{ margin:0; font:700 11px/1 var(--ag-font-mono,monospace); letter-spacing:.16em;
+        text-transform:uppercase; color:var(--ag-ink-soft,#626a6e);
+        display:flex; align-items:center; gap:8px; }
+.vc__abs{ margin:10px 0 0; font-size:14px; line-height:1.5; color:var(--ag-ink,#10292c); }
+
+/* Closing soon: the accent moves to the panel itself, so it reads as urgent
+   without a second colour or a red that says "error" rather than "hurry". */
+.vc--soon{ border-color:rgba(35,123,34,.34); background:#f2f8f2; }
+.vc--soon .vc__k{ color:#1a6118; }
+.vc__dot{ width:8px; height:8px; border-radius:50%; background:#237b22; flex:none;
+          animation:vcPulse 1.8s ease-in-out infinite; }
+@keyframes vcPulse{ 0%,100%{ opacity:1 } 50%{ opacity:.35 } }
+
+.vc__clock{ display:flex; gap:10px; margin-top:12px; }
+.vc__cell{ flex:1 1 0; min-width:0; text-align:center; background:#fff;
+           border:1px solid rgba(35,123,34,.16); border-radius:12px; padding:9px 4px; }
+.vc__cell b{ display:block; font:700 26px/1 var(--ag-font-mono,monospace);
+             color:var(--ag-ink,#10292c); font-variant-numeric:tabular-nums; }
+.vc__cell i{ display:block; margin-top:4px; font-style:normal; font-size:11px;
+             letter-spacing:.06em; text-transform:uppercase; color:var(--ag-ink-soft,#626a6e); }
+/* Seconds carry the accent — it is the digit that proves the clock is live. */
+.vc__cell--s b{ color:#237b22; }
+
+@media (max-width:420px){
+  .vc__cell b{ font-size:22px; }
+  .vc__clock{ gap:7px; }
+}
+/* ── ON A DARK GROUND (the nominee ballot's header) ──────────────────────────
+   Chrome removed rather than recoloured: inside a panel that is already a card,
+   a second bordered box reads as a nested widget. `position:relative` because
+   that header has an absolutely-positioned orb behind its content.
+
+   Urgency is GOLD here, not the green the light variant uses. Green is already
+   the resting accent on this panel (`.vn-ballot__k`), so it cannot also be the
+   signal that something is about to end — and gold is the brand's one accent,
+   which is what the static line this replaced already used. */
+.vc--dark{ position:relative; border:0; padding:0; background:transparent; margin-top:8px; }
+.vc--dark .vc__k{ color:#7FC87C; }
+.vc--dark .vc__abs{ margin-top:8px; font-size:12.5px; color:rgba(255,255,255,.72); }
+.vc--dark.vc--soon .vc__k{ color:#fbc329; }
+.vc--dark .vc__dot{ background:#7FC87C; }
+.vc--dark.vc--soon .vc__dot{ background:#fbc329; }
+.vc--dark .vc__cell{ background:rgba(255,255,255,.07); border-color:rgba(255,255,255,.15); }
+.vc--dark .vc__cell b{ color:#fff; }
+.vc--dark .vc__cell i{ color:rgba(255,255,255,.6); }
+.vc--dark .vc__cell--s b{ color:#fbc329; }
+
+/* The pulse is decoration; the numbers are the information. */
+@media (prefers-reduced-motion: reduce){
+  .vc__dot{ animation:none; }
+}

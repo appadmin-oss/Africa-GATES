@@ -1,0 +1,93 @@
+{% extends 'admin/layout.twig' %}
+
+{#
+  WHAT DELIVERY COSTS.
+
+  Every order used to charge exactly the goods total. Delivery across Nigeria is not free, so
+  one of two things was happening on every order: the seller absorbed a courier bill nobody had
+  budgeted for, or the price had delivery baked in — which means somebody collecting in Lagos
+  paid to ship to Maiduguri.
+
+  On its own screen rather than buried in Settings, because it is a rate card an operator
+  revisits when a courier changes their prices, and because the free-delivery threshold beside
+  it is a marketing decision rather than a configuration flag.
+#}
+
+{% block head_styles %}
+<style nonce="{{ csp_nonce }}">
+  .sd-sub{ font-size:13px; color:#5a6d6f; margin:2px 0 18px }
+  .sd-sec{ background:#fff; border:1px solid rgba(16,41,44,.1); border-radius:14px; padding:18px 20px; margin-bottom:14px }
+  .sd-sec h2{ margin:0 0 3px; font-size:14.5px; color:#10292C }
+  .sd-sec p{ margin:8px 0 0; font-size:12.5px; line-height:1.7; color:#5a6d6f }
+  .sd-grid{ display:grid; gap:12px; grid-template-columns:repeat(auto-fit,minmax(min(100%,220px),1fr)); margin-top:16px }
+  .sd-f{ display:flex; flex-direction:column; gap:5px }
+  .sd-f label{ font:700 10px/1.3 inherit; letter-spacing:.08em; text-transform:uppercase; color:#5a6d6f }
+  .sd-f small{ font-weight:400; letter-spacing:0; text-transform:none; color:#8a9a9c; font-size:11px }
+  .sd-in{ display:flex; align-items:center; gap:0; border:1px solid rgba(16,41,44,.18); border-radius:10px; overflow:hidden }
+  .sd-in span{ padding:0 10px; font-family:var(--ag-font-mono,monospace); font-weight:700; color:#5a6d6f; background:#f4f7f4; align-self:stretch; display:flex; align-items:center }
+  .sd-in input{ flex:1; min-width:0; border:none; outline:none; padding:10px 12px; font-family:inherit; font-size:14px; color:#10292C }
+  .sd-mult{ font-size:11.5px; color:#8a9a9c; margin-top:3px }
+  .sd-btn{ cursor:pointer; font:650 13px/1 inherit; border:none; padding:12px 22px; border-radius:999px; background:#10292C; color:#fff }
+</style>
+{% endblock %}
+
+{% block topbar_title %}Delivery charges{% endblock %}
+{% block topbar_actions %}
+  <a class="ad-btn" href="/admin/shop/orders">Shop orders</a>
+  <a class="ad-btn" href="/admin/products">Catalogue</a>
+{% endblock %}
+
+{% block content %}
+<p class="sd-sub">What it costs to send an order to each region, and when it stops costing anything.</p>
+
+<form method="post" action="/admin/shop/shipping">
+  <input type="hidden" name="_token" value="{{ csrf_token }}">
+
+  <div class="sd-sec">
+    <h2>Free delivery over</h2>
+    <p>
+      The most effective thing a small shop can say, and also the honest one: at a large basket
+      size the courier is a small fraction of the order. Leave it blank for no threshold —
+      blank means “no threshold”, not “everything is free”.
+    </p>
+    <div class="sd-grid" style="grid-template-columns:minmax(0,260px)">
+      <div class="sd-f">
+        <label for="sdOver">Basket total <small>(blank = never free)</small></label>
+        <div class="sd-in"><span>₦</span><input id="sdOver" name="free_over" type="number" min="0" step="500"
+               value="{{ free_over|default('') }}" placeholder="No threshold"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="sd-sec">
+    <h2>Per region</h2>
+    <p>
+      Charged once per order, not per item. A product marked “delivery included” never adds a
+      charge, and an order made entirely of those items ships free wherever it is going.
+      Leave a region at 0 to deliver there free.
+    </p>
+    <div class="sd-grid">
+      {% for r in regions %}
+      <div class="sd-f">
+        <label for="sd-{{ loop.index }}">{{ r }}</label>
+        <div class="sd-in">
+          <span>₦</span>
+          <input id="sd-{{ loop.index }}" name="rate[{{ r }}]" type="number" min="0" step="100"
+                 value="{{ rates[r]|default('') }}" placeholder="0">
+        </div>
+        {% if multipliers[r] is defined %}
+        {# Shown beside the charge because the two are read together: a multiplier and a
+           delivery fee both change what somebody in this region pays. #}
+        <div class="sd-mult">Prices here are also × {{ multipliers[r] }}</div>
+        {% endif %}
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+
+  <div style="display:flex;justify-content:flex-end;gap:10px">
+    <a class="ad-btn" href="/admin/shop/orders">Cancel</a>
+    <button class="sd-btn" type="submit">Save delivery charges</button>
+  </div>
+</form>
+{% endblock %}

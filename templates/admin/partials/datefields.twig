@@ -1,0 +1,19 @@
+{# Date-range controls to drop INSIDE an existing GET filter form.
+   Expects: range, from, to in context (from the controller). A "Custom range"
+   preset plus explicit From/To dates; From/To override the preset server-side. #}
+<div>
+  <label style="display:block;font-size:12px;font-weight:600;color:var(--ad-text-mute,#5a6d6f);margin-bottom:4px">Period</label>
+  <select name="range" aria-label="Date period" style="padding:9px 12px;border:1px solid var(--ad-line,#dfe4e3);border-radius:9px">
+    {% for key, label in {'all':'All time','today':'Today','yesterday':'Yesterday','7d':'Last 7 days','week':'This week','30d':'Last 30 days','month':'This month','year':'This year','custom':'Custom range'} %}
+      <option value="{{ key }}" {{ (range == key or (key == 'all' and range in ['','all'])) ? 'selected' : '' }}>{{ label }}</option>
+    {% endfor %}
+  </select>
+</div>
+<div>
+  <label style="display:block;font-size:12px;font-weight:600;color:var(--ad-text-mute,#5a6d6f);margin-bottom:4px">From</label>
+  <input type="date" name="from" value="{{ from }}" aria-label="From date" style="padding:8px 10px;border:1px solid var(--ad-line,#dfe4e3);border-radius:9px">
+</div>
+<div>
+  <label style="display:block;font-size:12px;font-weight:600;color:var(--ad-text-mute,#5a6d6f);margin-bottom:4px">To</label>
+  <input type="date" name="to" value="{{ to }}" aria-label="To date" style="padding:8px 10px;border:1px solid var(--ad-line,#dfe4e3);border-radius:9px">
+</div>

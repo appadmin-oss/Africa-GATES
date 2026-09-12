@@ -11,8 +11,24 @@ use Illuminate\Support\Carbon;
  * Events are cheap writes — analytics and notifications consume them asynchronously.
  *
  * Event names follow <domain>.<action> convention:
- *   vote.submitted  nominee.approved  nomination.received  milestone.reached
- *   registration.completed  share.clicked  otp.requested  fraud.flagged
+ *   vote.submitted  milestone.reached  otp.requested  fraud.flagged
+ *
+ * ── WHY THAT LIST IS SHORTER THAN IT WAS ─────────────────────────────────────
+ *
+ * It also carried nomination.received, nominee.approved, registration.completed and
+ * share.clicked, and not one of them was ever dispatched — four emitters written against
+ * the intent above and never wired to anything. They are gone rather than wired, because
+ * their content is not missing: registrations and nominations are counted straight off the
+ * domain tables by {@see \AfricaGates\Admin\Services\AnalyticsService::audience()} and
+ * `nominationFunnel()`, which is a better count than a parallel log that can be forgotten
+ * at a call site.
+ *
+ * What is left is the four that DO fire and that nothing else records with an actor, an IP
+ * and a device hash beside them — which is the only reason this table earns its writes.
+ *
+ * `funnelReport()` went the same way: it read `gates_funnel_events`, which
+ * `AnalyticsService::ballotFunnel()` already reads and renders. Two readers of one table
+ * is how the two come to disagree about what a funnel step means.
  */
 class EventService
 {
@@ -20,11 +36,16 @@ class EventService
 
     public function __construct()
     {
-        // Silently disable if the events table doesn't exist yet
+        // The RETURN VALUE, which this discarded. The comment said "silently disable if
+        // the events table doesn't exist yet" and the code set $enabled = true whenever
+        // hasTable() failed to throw — so on a database without the table, every dispatch
+        // went ahead and fell into its own silent catch. A guard describing behaviour it
+        // did not have, in front of writes nobody could see failing.
         try {
-            DB::getSchemaBuilder()->hasTable('gates_events');
-            $this->enabled = true;
-        } catch (\Throwable) {}
+            $this->enabled = DB::getSchemaBuilder()->hasTable('gates_events');
+        } catch (\Throwable) {
+            $this->enabled = false;
+        }
     }
 
     public function dispatch(
@@ -59,22 +80,8 @@ class EventService
             ['category_id' => $categoryId], $ipHash, $deviceHash);
     }
 
-    public function nominationReceived(int $nominationId, int $programmeId, string $nominatorHash): void
-    {
-        $this->dispatch('nomination.received', 'nominator', $nominatorHash, 'nomination', $nominationId,
-            ['programme_id' => $programmeId]);
-    }
 
-    public function nomineeApproved(int $nomineeId, int $adminId): void
-    {
-        $this->dispatch('nominee.approved', 'admin', hash('sha256', (string)$adminId), 'nominee', $nomineeId);
-    }
 
-    public function registrationCompleted(int $profileId, string $country): void
-    {
-        $this->dispatch('registration.completed', 'voter', null, 'profile', $profileId,
-            ['country' => $country]);
-    }
 
     public function milestoneReached(int $nomineeId, int $milestone): void
     {
@@ -93,11 +100,6 @@ class EventService
         $this->dispatch('otp.requested', 'voter', $emailHash, 'nominee', $nomineeId, [], $ipHash);
     }
 
-    public function shareClicked(string $platform, int $nomineeId, ?string $deviceHash): void
-    {
-        $this->dispatch('share.clicked', 'voter', null, 'nominee', $nomineeId,
-            ['platform' => $platform], null, $deviceHash);
-    }
 
     /** Funnel analytics — track conversion steps */
     public function funnelStep(
@@ -124,25 +126,4 @@ class EventService
         } catch (\Throwable) {}
     }
 
-    /** Funnel drop-off report for admin analytics */
-    public function funnelReport(int $days = 7): array
-    {
-        if (!$this->enabled) return [];
-        try {
-            $since = Carbon::now()->subDays($days)->toDateTimeString();
-            $steps = [
-                'nominee_view', 'vote_button_click', 'otp_requested',
-                'otp_delivered', 'otp_verified', 'vote_cast', 'vote_shared',
-            ];
-            $result = [];
-            foreach ($steps as $step) {
-                $result[$step] = DB::table('gates_funnel_events')
-                    ->where('step', $step)->where('created_at', '>=', $since)
-                    ->distinct('session_id')->count('session_id');
-            }
-            return $result;
-        } catch (\Throwable) {
-            return [];
-        }
-    }
 }

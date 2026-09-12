@@ -1,0 +1,139 @@
+{% extends "admin/layout.twig" %}
+{% block topbar_eyebrow %}<small>Programmes</small>{% endblock %}
+{% block topbar_title %}Shortlists{% endblock %}
+{% block topbar_actions %}
+  {% if cycles|length > 1 %}
+  <form method="get" action="/admin/shortlists" style="display:flex;gap:8px;align-items:center">
+    <label for="f-cycle" class="sr-only">Cycle</label>
+    {# `data-ag-do`, not `onchange`: the admin CSP has no 'unsafe-inline' in script-src, so
+       an inline handler does not run at all. The Go button is NOT wrapped in <noscript> —
+       it is the mechanism, and the change listener in admin.js is the convenience on top
+       of it. A switcher that only works with JS is a switcher that stops working the day a
+       script 404s after a deploy. #}
+    <select name="cycle" id="f-cycle" data-ag-do="submit-form" style="min-width:200px">
+      {% for c in cycles %}<option value="{{ c.id }}" {% if c.id == cycle_id %}selected{% endif %}>{{ c.programme|default('Awards') }} — {{ c.year }}{% if c.edition_label %} · {{ c.edition_label }}{% endif %}</option>{% endfor %}
+    </select>
+    <button class="ad-btn ad-btn--sm" type="submit">Go</button>
+  </form>
+  {% endif %}
+{% endblock %}
+
+{% block content %}
+
+{% if cycle_id == 0 %}
+  <div class="ad-card"><div class="ad-card__body">
+    <p style="margin:0">There are no award cycles yet. <a href="/admin/programmes" style="color:var(--ad-accent,#237b22);font-weight:600">Create a programme and a cycle</a> first — a shortlist is drawn from a cycle's categories.</p>
+  </div></div>
+{% else %}
+
+{#
+  The rule first, then what it does. An organiser arrives here to answer one question —
+  "who advances" — and the honest order is: the policy, then the consequence of it in
+  every category, then the button that makes one of them real.
+#}
+<form class="ad-form" method="post" action="/admin/shortlists/rule">
+  <input type="hidden" name="_token" value="{{ csrf_token }}">
+  <input type="hidden" name="cycle_id" value="{{ cycle_id }}">
+  <div class="ad-card">
+    <div class="ad-card__head"><div class="ad-card__title">Rule for this cycle
+      <small>Applies to every category with no rule of its own. Saving it changes what the previews below show — it publishes nothing.</small>
+    </div></div>
+    <div class="ad-card__body"><div class="ad-form">
+      <div class="row">
+        <div>
+          <label for="f-mode">How the line is drawn</label>
+          <select name="mode" id="f-mode">
+            {% for k, label in modes %}<option value="{{ k }}" {% if cycle_rule.mode == k %}selected{% endif %}>{{ label }}</option>{% endfor %}
+          </select>
+        </div>
+        <div>
+          <label for="f-threshold">Number, percentage or vote floor</label>
+          <input type="number" name="threshold" id="f-threshold" min="0" max="10000" value="{{ cycle_rule.threshold }}" required>
+        </div>
+      </div>
+      <div class="row">
+        <div>
+          <label for="f-min">Minimum votes to qualify at all</label>
+          <input type="number" name="min_votes" id="f-min" min="0" max="1000000" value="{{ cycle_rule.minVotes }}">
+          <p class="hint">A floor under the line. Stops a thin category shortlisting somebody nobody voted for.</p>
+        </div>
+        <div>
+          <label for="f-tie">At the cut line</label>
+          <select name="tie_mode" id="f-tie">
+            {% for k, label in ties %}<option value="{{ k }}" {% if cycle_rule.tieMode == k %}selected{% endif %}>{{ label }}</option>{% endfor %}
+          </select>
+        </div>
+      </div>
+      <div>
+        <label class="checkbox"><input type="checkbox" name="organic_only" value="1" {% if cycle_rule.organicOnly %}checked{% endif %}> Count organic votes only — exclude purchased bonus votes</label>
+      </div>
+      {% if cycle_rule.warnings %}
+        <div class="ad-callout ad-callout--warn">
+          <strong>Worth knowing</strong>
+          <ul>{% for w in cycle_rule.warnings %}<li>{{ w }}</li>{% endfor %}</ul>
+        </div>
+      {% endif %}
+      <p style="margin:0;font-size:13px;color:var(--ad-text-soft)"><strong>Currently:</strong> {{ cycle_rule.describe }}</p>
+    </div></div>
+    <div class="ad-card__body" style="padding-top:0"><div class="ad-form__actions" style="justify-content:flex-end">
+      <button class="ad-btn ad-btn--primary" type="submit">Save rule</button>
+    </div></div>
+  </div>
+</form>
+
+<div class="ad-card"><div class="ad-card__head"><div class="ad-card__title">Categories
+  <small>“Would take” is live — it moves as votes arrive. A published shortlist does not.</small>
+</div></div><div class="ad-table-wrap">
+  <table class="ad-table">
+    <thead><tr>
+      <th scope="col">Category</th>
+      <th scope="col">Rule</th>
+      <th scope="col" style="text-align:right">Field</th>
+      <th scope="col" style="text-align:right">Would take</th>
+      <th scope="col">Published</th>
+      <th scope="col" class="col-actions">Actions</th>
+    </tr></thead>
+    <tbody>
+      {% for r in rows %}
+      <tr>
+        <td><strong>{{ r.title }}</strong>
+          {% if r.warnings %}<br><span style="font-size:11.5px;color:var(--ad-warn,#a5610c)">{{ r.warnings|first }}</span>{% endif %}
+        </td>
+        <td style="font-size:12.5px;color:var(--ad-text-soft)">
+          {{ r.rule.describe }}
+          {% if r.scope == 'category' %}<span class="ad-chip ad-chip--blue" style="margin-left:4px">own rule</span>{% endif %}
+        </td>
+        <td style="text-align:right;font-variant-numeric:tabular-nums">{{ r.considered }}</td>
+        <td style="text-align:right;font-variant-numeric:tabular-nums">
+          {% if r.would_take == 0 and r.considered > 0 %}<span style="color:var(--ad-danger,#a4243d);font-weight:600">0</span>
+          {% else %}<strong>{{ r.would_take }}</strong>{% endif %}
+          {% if r.ties > 1 %}<br><span style="font-size:11px;color:var(--ad-text-mute)">{{ r.ties }} level at the cut</span>{% endif %}
+        </td>
+        <td>
+          {% if r.published %}
+            <span class="ad-chip ad-chip--green">{{ r.published.entry_count }} published</span>
+            {% if r.drifted %}<br><span style="font-size:11px;color:var(--ad-text-mute)" title="Votes have arrived since publication. The published list is unchanged, which is the point.">rule now says {{ r.would_take }}</span>{% endif %}
+          {% else %}
+            <span class="ad-chip ad-chip--grey">not published</span>
+          {% endif %}
+        </td>
+        <td class="col-actions">
+          <a class="ad-btn ad-btn--sm" href="/admin/shortlists/category/{{ r.id }}">Open</a>
+          {% if r.published and may_publish %}
+            <a class="ad-btn ad-btn--sm" href="/admin/shortlists/category/{{ r.id }}.pdf" target="_blank" rel="noopener">PDF</a>
+          {% endif %}
+        </td>
+      </tr>
+      {% else %}
+      <tr><td colspan="6" style="text-align:center;color:var(--ad-text-mute);padding:30px">This cycle has no categories yet. <a href="/admin/programmes" style="color:var(--ad-accent,#237b22)">Add some</a>.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div></div>
+
+{% if not may_publish %}
+  <p style="margin:14px 0 0;font-size:12.5px;color:var(--ad-text-mute,#5a6d6f)">You can set rules and read every preview. Publishing a shortlist is restricted to admins and superadmins.</p>
+{% endif %}
+
+{% endif %}
+{% endblock %}

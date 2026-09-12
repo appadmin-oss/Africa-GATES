@@ -1,0 +1,278 @@
+{% extends "admin/layout.twig" %}
+{% block topbar_title %}{{ batch.reference ?: 'Recovery #' ~ batch.id }}{% endblock %}
+
+{#
+  ONE BATCH, AND EVERY REASON TO SAY NO.
+
+  The screen is re-run on every view rather than stored from the last one: the
+  findings are claims about live data — a nominee's cap moves as their real votes do
+  — and an approver reading a screen from three days ago is reading fiction.
+
+  Each step is its own form posting to its own route. A single form with a mode would
+  invite one person to walk the whole workflow and discover only at the last press
+  that a second person is required. Note also that no `<form>` here is nested inside
+  another: the HTML parser drops the inner start tag silently and the button would
+  post to the outer action, which on this page means pressing "reject" and applying.
+#}
+
+{% block head_styles %}
+<style nonce="{{ csp_nonce }}">
+  .vb-card{ background:#fff; border:1px solid rgba(16,41,44,.09); border-radius:14px; padding:20px 22px; }
+  .vb-card + .vb-card{ margin-top:16px }
+  .vb-card h3{ margin:0 0 6px; font-family:var(--ag-font-display,inherit); font-weight:700; font-size:16px; color:#10292C; }
+  .vb-sub{ margin:0 0 16px; font-size:13px; line-height:1.6; color:#5a6d6f; max-width:76ch }
+
+  .vb-state{ border-radius:16px; padding:20px 22px; margin-bottom:18px;
+    background:#f7f9f7; border:1px solid rgba(16,41,44,.12) }
+  .vb-state--go{ background:#eef7ee; border-color:#bfe0bd }
+  .vb-state--no{ background:#fdf3f3; border-color:#f0c9c9 }
+  .vb-state h2{ margin:0; font-family:var(--ag-font-display,inherit); font-weight:700; font-size:19px; line-height:1.35; color:#10292C }
+  .vb-state--no h2{ color:#8a2020 }
+  .vb-state p{ margin:9px 0 0; font-size:13.5px; line-height:1.65; color:#39464a; max-width:76ch }
+
+  .vb-facts{ display:grid; grid-template-columns:repeat(auto-fit,minmax(160px,1fr)); gap:12px; margin-bottom:16px }
+  .vb-fact{ background:#fff; border:1px solid rgba(16,41,44,.09); border-radius:12px; padding:14px 16px }
+  .vb-fact__n{ font-family:var(--ag-font-display,inherit); font-weight:700; font-size:22px; line-height:1; color:#10292C }
+  .vb-fact__k{ margin-top:6px; font-size:11.5px; font-weight:650; letter-spacing:.05em; text-transform:uppercase; color:#5a6d6f }
+
+  .vb-find{ border-radius:12px; padding:13px 16px; margin-bottom:10px; font-size:13.5px; line-height:1.65 }
+  .vb-find--block{ background:#fdf3f3; border:1px solid #f0c9c9; color:#8a2020 }
+  .vb-find--warn{ background:#fdf6e4; border:1px solid #ecd9a5; color:#6d4f0c }
+
+  .vb-tbl{ width:100%; border-collapse:collapse; font-size:13.5px }
+  .vb-tbl th{ text-align:left; font-size:11.5px; font-weight:650; letter-spacing:.05em; text-transform:uppercase;
+    color:#5a6d6f; padding:0 10px 8px 0; border-bottom:1px solid rgba(16,41,44,.1) }
+  .vb-tbl td{ padding:9px 10px 9px 0; border-bottom:1px solid rgba(16,41,44,.06); color:#39464a }
+  .vb-tbl td:last-child, .vb-tbl th:last-child{ text-align:right; padding-right:0 }
+
+  .vb-in{ width:100%; box-sizing:border-box; border:1px solid rgba(16,41,44,.16); border-radius:10px;
+    padding:10px 13px; font-family:inherit; font-size:13.5px; outline:none; background:#fff }
+  .vb-in:focus-visible{ border-color:#3f9c3c; outline:2px solid #3f9c3c; outline-offset:1px }
+  .vb-btn{ cursor:pointer; border:none; font-family:inherit; font-weight:650; font-size:13.5px;
+    padding:11px 20px; border-radius:999px; background:#10292C; color:#fff; margin-top:12px }
+  .vb-btn--go{ background:#1a6118 } .vb-btn--no{ background:#a32020 }
+  .vb-btn:focus-visible{ outline:2px solid #3f9c3c; outline-offset:2px }
+  .vb-split{ display:grid; grid-template-columns:repeat(auto-fit,minmax(280px,1fr)); gap:16px }
+</style>
+{% endblock %}
+
+{% block content %}
+
+{# ── WHERE THIS BATCH IS, AND WHAT HAPPENS NEXT ─────────────────────────────── #}
+<div class="vb-state{{ batch.status == 'applied' ? ' vb-state--go' : (batch.status in ['rejected','voided'] ? ' vb-state--no' : '') }}">
+  <h2>
+    {%- if batch.status == 'draft' %}Draft — nothing has been asked of anybody yet
+    {%- elseif batch.status == 'submitted' %}Waiting for a second superadmin to agree
+    {%- elseif batch.status == 'approved' %}Approved, and still not on the tally
+    {%- elseif batch.status == 'applied' %}{{ batch.applied_count|number_format }} vote{{ batch.applied_count == 1 ? '' : 's' }} written to the public tally
+    {%- elseif batch.status == 'rejected' %}Refused
+    {%- else %}Taken back off the tally{% endif -%}
+  </h2>
+  <p>
+    <strong>{{ batch.incident_note }}</strong><br>
+    Window {{ batch.window_from }} → {{ batch.window_to }}.
+    {% if batch.status == 'approved' %}Applying is a separate press, deliberately: an approval is a
+    decision about a list, not a licence to write it.{% endif %}
+    {% if batch.status == 'applied' %}Every one of these is now named publicly on the nominee's own
+    page, under this reference. Using this mechanism cannot be quiet, and that is the strongest
+    control on it.{% endif %}
+    {% if batch.decision_note %}<br><em>{{ batch.decision_note }}</em>{% endif %}
+    {% if batch.void_reason %}<br><strong>Reversed:</strong> {{ batch.void_reason }}{% endif %}
+  </p>
+</div>
+
+<div class="vb-facts">
+  <div class="vb-fact"><div class="vb-fact__n">{{ batch.candidate_count|number_format }}</div>
+    <div class="vb-fact__k">Dropped attempts</div></div>
+  <div class="vb-fact"><div class="vb-fact__n">{{ screen.stats.nominees|default(0) }}</div>
+    <div class="vb-fact__k">Nominees affected</div></div>
+  <div class="vb-fact"><div class="vb-fact__n">{{ screen.stats.already_voted|default(0) }}</div>
+    <div class="vb-fact__k">Voted later anyway</div></div>
+  <div class="vb-fact"><div class="vb-fact__n">{{ batch.applied_count|number_format }}</div>
+    <div class="vb-fact__k">Written</div></div>
+</div>
+
+{# ── WHAT AN APPROVER NEEDS IN ORDER TO SAY NO ─────────────────────────────── #}
+<div class="vb-card">
+  <h3>The screen</h3>
+  <p class="vb-sub">
+    Re-run every time this page is opened, because a nominee's cap moves as their real votes do.
+    A blocking finding cannot be approved past — not by a note, not by a second press.
+  </p>
+  {% for f in screen.findings|default([]) %}
+    <div class="vb-find vb-find--{{ f.level }}">{{ f.text }}</div>
+  {% else %}
+    <p class="vb-sub" style="margin:0">
+      Nothing was flagged: no single network fingerprint dominates the window, no nominee is near
+      their cap, and the spread across nominees looks like an outage rather than a campaign.
+    </p>
+  {% endfor %}
+</div>
+
+{# ── WHAT ACTUALLY WENT WRONG ────────────────────────────────────────────────
+   The reason each delivery failed, grouped. It has been recorded on every token since
+   this feature shipped and shown on no screen — so a reviewer approving a batch under
+   the two-person rule could see that 412 codes failed and never what failed.
+
+   Those are not the same decision. A full mailbox is somebody who has an address and
+   could be re-sent to; an address the provider rejected is a typo nobody can vote
+   through; a four-minute provider outage is OUR fault in a way neither of the others
+   is, and the case that most obviously justifies recovering the votes.
+
+   Grouped and counted, never listed, for the same reason the nominee table below gives. #}
+{% if why_failed %}
+<div class="vb-card">
+  <h3>Why the codes did not arrive</h3>
+  <p class="vb-sub">What our own delivery log recorded at the time, grouped by reason.</p>
+  <table class="vb-tbl">
+    <thead><tr><th scope="col">Reason</th><th scope="col">Codes</th></tr></thead>
+    <tbody>
+      {% for w in why_failed %}
+        <tr><td>{{ w.reason }}</td><td>{{ w.n|number_format }}</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
+
+{% if why_rejected %}
+<div class="vb-card">
+  <h3>Why rows were refused</h3>
+  <p class="vb-sub">Written down by whoever refused them, so the batch is not re-argued from scratch.</p>
+  <table class="vb-tbl">
+    <thead><tr><th scope="col">Reason</th><th scope="col">Rows</th></tr></thead>
+    <tbody>
+      {% for w in why_rejected %}
+        <tr><td>{{ w.reason }}</td><td>{{ w.n|number_format }}</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
+
+{# ── WHO THESE VOTES ARE FOR ─────────────────────────────────────────────────
+   Grouped by nominee, never listed one row per person. A list of six hundred email
+   hashes is not reviewable and publishing it would be worse; "these 41 people were
+   voting for X" is the shape of the question actually being asked. #}
+<div class="vb-card">
+  <h3>Who they were voting for</h3>
+  <p class="vb-sub">Grouped, because the individual addresses are nobody's business — including ours, past the hash.</p>
+  <table class="vb-tbl">
+    <thead><tr><th scope="col">Nominee</th><th scope="col">Category</th><th scope="col">State</th><th scope="col">Attempts</th></tr></thead>
+    <tbody>
+      {% for r in rows %}
+        <tr>
+          <td>{{ r.nominee ?: 'Nominee #' ~ r.nominee_id }}</td>
+          <td>{{ r.category }}</td>
+          <td>{{ r.status }}</td>
+          <td>{{ r.votes|number_format }}</td>
+        </tr>
+      {% else %}
+        <tr><td colspan="4">No rows are attached to this batch.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+{# ══ WHAT CAN BE DONE NOW ══════════════════════════════════════════════════ #}
+
+{% if batch.status == 'draft' %}
+<div class="vb-card">
+  <h3>Send it for approval</h3>
+  <p class="vb-sub">
+    You cannot approve this yourself. Putting votes on a tally is the most consequential thing this
+    system does, and it does not happen on one person's judgement.
+  </p>
+  <form method="post" action="/admin/vote-recovery/{{ batch.id }}/submit">
+    <input type="hidden" name="_token" value="{{ csrf_token }}">
+    <button class="vb-btn" type="submit">Send for approval</button>
+  </form>
+</div>
+{% endif %}
+
+{% if batch.status in ['draft', 'submitted'] %}
+<div class="vb-split">
+  {% if batch.status == 'submitted' %}
+  <div class="vb-card">
+    <h3>Approve</h3>
+    {% if may_approve %}
+      <p class="vb-sub">
+        You are agreeing that this platform failed these people, and that putting their votes on the
+        tally is the right repair. Nothing is written by this press.
+      </p>
+      <form method="post" action="/admin/vote-recovery/{{ batch.id }}/approve">
+        <input type="hidden" name="_token" value="{{ csrf_token }}">
+        <label class="vb-sub" for="vb-approve-note" style="display:block;margin-bottom:6px">Anything worth recording (optional)</label>
+        <input class="vb-in" type="text" name="reason" id="vb-approve-note" maxlength="300">
+        <button class="vb-btn vb-btn--go" type="submit"
+          data-confirm="Approve {{ batch.candidate_count }} recovered vote(s)? Applying is still a separate press.">Approve</button>
+      </form>
+    {% elseif is_preparer %}
+      {# Explained rather than hidden. A button that simply vanishes teaches nobody
+         that a second person is required, and the operator concludes the page is broken. #}
+      <p class="vb-sub" style="margin:0">
+        You prepared this batch, so you cannot also approve it. Somebody else with superadmin access
+        has to open this page and agree — that is the whole two-person rule, and it is not a setting.
+      </p>
+    {% else %}
+      <p class="vb-sub" style="margin:0">This batch is not waiting on an approval.</p>
+    {% endif %}
+  </div>
+  {% endif %}
+
+  <div class="vb-card">
+    <h3>Refuse it</h3>
+    <p class="vb-sub">Say why. A refusal with no stated reason is indistinguishable from losing the paperwork.</p>
+    <form method="post" action="/admin/vote-recovery/{{ batch.id }}/reject">
+      <input type="hidden" name="_token" value="{{ csrf_token }}">
+      <input class="vb-in" type="text" name="reason" maxlength="300" required
+             aria-label="Why this batch is being refused" placeholder="Why this is not a repair we should make">
+      <button class="vb-btn vb-btn--no" type="submit"
+        data-confirm="Refuse this batch? It stays on the record with your reason.">Refuse</button>
+    </form>
+  </div>
+</div>
+{% endif %}
+
+{% if batch.status == 'approved' %}
+<div class="vb-card">
+  <h3>Write the votes</h3>
+  <p class="vb-sub">
+    This puts {{ batch.candidate_count|number_format }} vote{{ batch.candidate_count == 1 ? '' : 's' }} on a live
+    public tally. Each row is re-checked as it is written — anybody who got through later, or whose
+    token is no longer marked failed, is rejected at that moment rather than counted twice.
+    Every applied batch is then named publicly on each nominee's own page.
+  </p>
+  <form method="post" action="/admin/vote-recovery/{{ batch.id }}/apply">
+    <input type="hidden" name="_token" value="{{ csrf_token }}">
+    <label class="vb-sub" for="vb-confirm" style="display:block;margin-bottom:6px">Type APPLY to confirm</label>
+    <input class="vb-in" type="text" name="confirm" id="vb-confirm" autocomplete="off" required
+           pattern="APPLY" title="Type APPLY in capitals">
+    <button class="vb-btn vb-btn--no" type="submit">Write them to the tally</button>
+  </form>
+</div>
+{% endif %}
+
+{% if batch.status == 'applied' %}
+<div class="vb-card">
+  <h3>Take it back</h3>
+  <p class="vb-sub">
+    Removes every vote this batch wrote and keeps the record of it — including the reversal, which is
+    disclosed alongside the batch. Say why: removing votes with no stated reason is indistinguishable
+    from removing them quietly.
+  </p>
+  <form method="post" action="/admin/vote-recovery/{{ batch.id }}/void">
+    <input type="hidden" name="_token" value="{{ csrf_token }}">
+    <input class="vb-in" type="text" name="reason" maxlength="300" required
+           aria-label="Why these votes are being reversed" placeholder="Why these votes are coming back off">
+    <button class="vb-btn vb-btn--no" type="submit"
+      data-confirm="Reverse {{ batch.applied_count }} vote(s)? They come off the public tally and the reversal is disclosed.">Reverse this batch</button>
+  </form>
+</div>
+{% endif %}
+
+<p class="vb-sub" style="margin-top:18px">
+  <a href="/admin/vote-recovery">← Every batch</a>
+</p>
+
+{% endblock %}

@@ -1,0 +1,88 @@
+{% extends "layout/gates.twig" %}
+
+{# The stop page for bulk email. Three states, and each one has to be unambiguous —
+   somebody arrives here wanting exactly one thing to be true afterwards. #}
+
+{% block content %}
+<section class="eu-wrap">
+  <style nonce="{{ csp_nonce }}">
+    .eu-wrap{ max-width:560px; margin:0 auto; padding:64px 22px 96px; }
+    .eu-card{ background:var(--ag-surface,#fff); border:1px solid var(--ag-line,rgba(16,41,44,.1));
+              border-radius:20px; padding:34px 30px; }
+    .eu-eyebrow{ margin:0 0 12px; font:700 11px/1 var(--ag-font-mono,monospace); letter-spacing:.16em;
+                 text-transform:uppercase; color:var(--ag-ink-soft,#626a6e); }
+    .eu-h{ margin:0 0 10px; font-family:var(--ag-font-display,serif); font-weight:700;
+           font-size:26px; line-height:1.2; color:var(--ag-ink,#10292c); }
+    .eu-p{ margin:0 0 16px; font-size:16px; line-height:1.6; color:var(--ag-ink,#10292c); }
+    .eu-mail{ font-weight:700; word-break:break-all; }
+    .eu-note{ margin:16px 0 0; font-size:14px; line-height:1.6; color:var(--ag-ink-soft,#626a6e); }
+    .eu-btn{ display:inline-flex; align-items:center; justify-content:center; min-height:48px;
+             padding:0 24px; border:0; border-radius:999px; background:var(--ag-ink,#10292c);
+             color:#fff; font-family:inherit; font-size:16px; font-weight:600; cursor:pointer; }
+    .eu-btn:hover{ background:#1b3d41; }
+    .eu-alt{ display:inline-block; margin-top:16px; font-size:15px; font-weight:600;
+             color:var(--ag-green,#237b22); }
+    .eu-ok{ display:inline-flex; align-items:center; gap:9px; margin:0 0 14px;
+            font-size:14px; font-weight:700; color:#1a6118; }
+    .eu-ok span{ display:grid; place-items:center; width:22px; height:22px; border-radius:50%;
+                 background:#e6f4e6; }
+  </style>
+
+  <div class="eu-card">
+    {% if done and valid %}
+      {# ── Stopped ─────────────────────────────────────────────────────────── #}
+      <p class="eu-ok"><span aria-hidden="true">✓</span> Done</p>
+      <h1 class="eu-h">You’ve been unsubscribed</h1>
+      <p class="eu-p">
+        We won’t send <span class="eu-mail">{{ email }}</span> any more announcement emails.
+      </p>
+      {# Said explicitly, because it is the question somebody in a live award cycle will
+         actually have, and "you're unsubscribed" on its own reads as "you have been cut
+         out of the programme". #}
+      <p class="eu-note">
+        This only stops bulk announcements. Anything you specifically asked for still
+        reaches you — a receipt, a one-time sign-in code, or a reply to a support ticket.
+        Your nomination and any votes for you are completely unaffected.
+      </p>
+      <a class="eu-alt" href="{{ site_url }}/support">Changed your mind, or need a hand? →</a>
+
+    {% elseif valid %}
+      {# ── Confirm ─────────────────────────────────────────────────────────── #}
+      <p class="eu-eyebrow">Email preferences</p>
+      <h1 class="eu-h">Stop these emails?</h1>
+      <p class="eu-p">
+        Confirm and we’ll stop sending announcement emails to
+        <span class="eu-mail">{{ email }}</span>.
+      </p>
+      {# A POST, not a link — see EmailPrefsController: mail scanners fetch every URL in
+         a message, and on a GET that would unsubscribe people who never clicked. #}
+      <form method="post" action="{{ site_url }}/email/unsubscribe">
+        <input type="hidden" name="e" value="{{ e }}">
+        <input type="hidden" name="t" value="{{ t }}">
+        <button type="submit" class="eu-btn">Yes, unsubscribe me</button>
+      </form>
+      <p class="eu-note">
+        Receipts, sign-in codes and support replies aren’t affected, and neither is your
+        nomination or any votes for you.
+      </p>
+      <a class="eu-alt" href="{{ site_url }}/">No thanks, take me back →</a>
+
+    {% else %}
+      {# ── Unrecognised link ───────────────────────────────────────────────── #}
+      <p class="eu-eyebrow">Email preferences</p>
+      <h1 class="eu-h">This link didn’t work</h1>
+      <p class="eu-p">
+        It may have been broken across two lines by your email app, or it belongs to a
+        much older message.
+      </p>
+      {# Never a dead end: the whole point of an unsubscribe is that somebody can stop,
+         so a bad token has to lead somewhere a human can act. #}
+      <p class="eu-note">
+        Open the most recent email from us and use the Unsubscribe link at the bottom —
+        or write to us and we’ll take you off the list by hand.
+      </p>
+      <a class="eu-alt" href="{{ site_url }}/support">Contact support →</a>
+    {% endif %}
+  </div>
+</section>
+{% endblock %}

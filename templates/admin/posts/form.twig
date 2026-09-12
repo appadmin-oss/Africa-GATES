@@ -4,19 +4,20 @@
 <div class="ad-card" style="max-width:820px">
   <form method="post" action="{{ is_new ? '/admin/posts/new' : '/admin/posts/' ~ row.id }}" class="ad-form">
     <input type="hidden" name="_token" value="{{ csrf_token }}">
-    <div class="ad-form__row">
+    <div class="row">
       <label>Title *<input type="text" name="title" value="{{ row.title|default('') }}" required></label>
       <label>Slug <small>(blank = from title)</small><input type="text" name="slug" value="{{ row.slug|default('') }}" placeholder="auto"></label>
     </div>
     <label>Excerpt <small>(card + meta description)</small><textarea name="excerpt" rows="2" maxlength="400">{{ row.excerpt|default('') }}</textarea></label>
-    <label>Body <small>(HTML — &lt;p&gt;, &lt;h2&gt;, &lt;a&gt;)</small><textarea name="body" rows="14" style="font-family:'Space Mono',monospace;font-size:12.5px">{{ row.body|default('') }}</textarea></label>
-    <div class="ad-form__row">
+    <label>Body<textarea name="body" rows="14" data-richtext placeholder="Write the post…">{{ row.body|default('') }}</textarea></label>
+    <div class="row">
       <label>Cover image URL<input type="url" name="cover_image" value="{{ row.cover_image|default('') }}" placeholder="https://…"></label>
       <label>Tag<input type="text" name="tag" value="{{ row.tag|default('') }}" placeholder="Announcements"></label>
     </div>
-    <div class="ad-form__row">
+    <label>Audio URL <small>(optional — narration / podcast; mp3, m4a, ogg)</small><input type="url" name="audio_path" value="{{ row.audio_path|default('') }}" placeholder="https://… .mp3"></label>
+    <div class="row">
       <label>Author<input type="text" name="author" value="{{ row.author|default('Africa GATES Editorial') }}"></label>
-      <label>Published at<input type="datetime-local" name="published_at" value="{{ row.published_at|default('')|replace({' ':'T'})|slice(0,16) }}"></label>
+      <label>Published at<input type="datetime-local" name="published_at" value="{{ row.published_at|when_input }}" step="1"></label>
     </div>
     <label>Status
       <select name="status">
@@ -24,10 +25,35 @@
         <option value="draft" {% if row.status|default('draft') == 'draft' %}selected{% endif %}>Draft</option>
       </select>
     </label>
+    <div x-data="postPoll({{ poll_seed|json_encode|e('html_attr') }})" style="border:1px solid var(--ad-line,#e2e8e6);border-radius:12px;padding:14px 16px;margin-top:6px;background:#fafcfa">
+      <strong style="font-size:14px;color:var(--ad-text,#10292C)">Poll <small style="font-weight:400;color:#8a9a9c">(optional — leave the question blank to remove)</small></strong>
+      <input name="poll_question" aria-label="Poll question" x-model="q" type="text" maxlength="200" placeholder="Poll question" style="margin-top:8px">
+      <template x-for="(o,idx) in opts" :key="o.id">
+        <div style="display:flex;gap:8px;align-items:center;margin-top:8px">
+          <input name="poll_options[]" aria-label="Poll option" x-model="o.v" type="text" maxlength="120" :placeholder="'Option '+(idx+1)" style="flex:1">
+          <button type="button" @click="rm(o.id)" x-show="opts.length>2" aria-label="Remove option" style="border:none;background:#fbeaea;color:#a4243a;font-weight:700;border-radius:8px;width:34px;height:34px;cursor:pointer">×</button>
+        </div>
+      </template>
+      <div style="display:flex;gap:10px;align-items:center;margin-top:10px;flex-wrap:wrap">
+        <button type="button" @click="add()" x-show="opts.length<6" style="border:none;background:#eef7ee;color:#1a6118;font-weight:600;border-radius:999px;padding:8px 14px;cursor:pointer;font-size:13px">+ Add option</button>
+        <label style="display:flex;align-items:center;gap:7px;font-size:13px;cursor:pointer"><input type="checkbox" name="poll_multi" value="1" x-model="multi"> Allow multiple answers</label>
+      </div>
+    </div>
     <div class="ad-form__actions">
       <button class="ad-btn ad-btn--primary" type="submit">Save post</button>
       <a class="ad-btn" href="/admin/posts">Cancel</a>
     </div>
   </form>
 </div>
+<script nonce="{{ csp_nonce }}">
+function postPoll(seed){
+  let nextId = 100;
+  const opts = (seed.opts && seed.opts.length >= 2) ? seed.opts.map(o => ({id:o.id, v:o.v})) : [{id:1,v:''},{id:2,v:''}];
+  return {
+    q: seed.q || '', multi: !!seed.multi, opts,
+    add(){ if(this.opts.length < 6) this.opts.push({id: nextId++, v:''}); },
+    rm(id){ if(this.opts.length > 2) this.opts = this.opts.filter(o => o.id !== id); }
+  };
+}
+</script>
 {% endblock %}

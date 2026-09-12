@@ -1,0 +1,77 @@
+{% extends "admin/layout.twig" %}
+{% block topbar_title %}Campaigns{% endblock %}
+
+{#
+  The list. Deliberately small: a campaign is opened, edited and sent from its own
+  page, and everything that can mail eight hundred people lives behind that page
+  rather than as a button on a list somebody is scrolling.
+#}
+{% block content %}
+<style nonce="{{ csp_nonce }}">
+  .cp-tbl{width:100%;border-collapse:collapse;font-size:13px}
+  .cp-tbl th{text-align:left;font:700 10px/1 var(--ag-font-body,inherit);letter-spacing:.08em;text-transform:uppercase;
+    color:#5a6d6f;padding:8px 10px;border-bottom:1px solid rgba(16,41,44,.12)}
+  .cp-tbl td{padding:10px;border-bottom:1px solid rgba(16,41,44,.06);vertical-align:top}
+  .cp-pill{display:inline-block;border-radius:999px;padding:2px 10px;font-size:11px;font-weight:700}
+  .cp-draft{background:#eef1f0;color:#5a6d6f}
+  .cp-approved{background:#fff3d6;color:#8a6100}
+  .cp-sent{background:#e4f5e3;color:#177015}
+  .cp-note{margin:0 0 14px;font-size:12.5px;line-height:1.6;color:#5a6d6f;max-width:86ch}
+</style>
+
+<p class="cp-note">
+  Email to nominees. The copy lives here rather than in a template file, so changing it
+  does not need a deploy. Recipients, unsubscribes and the send log are shared with the
+  console command and <code>/__setup/broadcast</code> — one definition of who gets mail,
+  so nobody is mailed twice.
+</p>
+
+<form method="post" action="/admin/campaigns/new" class="ad-card ad-form" style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;margin-bottom:16px">
+  <input type="hidden" name="_token" value="{{ csrf_token }}">
+  <label style="flex:1 1 220px">
+    <span style="display:block;font-size:11.5px;font-weight:700;color:#5a6d6f;margin-bottom:4px">Name</span>
+    <input type="text" name="name" required maxlength="160" placeholder="Final hours — August 2026" style="width:100%">
+  </label>
+  <label style="flex:2 1 320px">
+    <span style="display:block;font-size:11.5px;font-weight:700;color:#5a6d6f;margin-bottom:4px">Subject line</span>
+    <input type="text" name="subject" required maxlength="200" placeholder="Finish strong — voting closes soon" style="width:100%">
+  </label>
+  <button class="ad-btn ad-btn--primary" type="submit">Start a campaign</button>
+  <p class="cp-note" style="flex:1 1 100%;margin:2px 0 0">
+    The name becomes the send key, which has to stay unique and cannot be changed later —
+    renaming one mid-send would re-mail everybody already done.
+  </p>
+</form>
+
+{% if campaigns %}
+  <table class="cp-tbl">
+    <thead>
+      <tr>
+        <th scope="col">Campaign</th>
+        <th scope="col">Subject</th>
+        <th scope="col">Status</th>
+        <th scope="col">Sent</th>
+        <th scope="col">Updated</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for c in campaigns %}
+        <tr>
+          <td>
+            <a href="/admin/campaigns/{{ c.id }}" style="font-weight:700">{{ c.name }}</a><br>
+            <span style="color:#5a6d6f;font-size:11.5px"><code>{{ c.slug }}</code></span>
+          </td>
+          <td>{{ c.subject }}</td>
+          <td><span class="cp-pill cp-{{ c.status }}">{{ statuses[c.status]|default(c.status) }}</span></td>
+          <td>{{ c.sent_count ? (c.sent_count|number_format) : '—' }}</td>
+          <td style="color:#5a6d6f;font-size:12px">{{ c.updated_at ? (c.updated_at|slice(0,16)) : '—' }}</td>
+        </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+{% else %}
+  <p style="color:#5a6d6f">No campaigns yet. The one currently in the codebase is
+  <code>templates/emails/final-hours.twig</code>; starting a campaign here copies its
+  copy in as a draft you can edit.</p>
+{% endif %}
+{% endblock %}

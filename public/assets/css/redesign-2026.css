@@ -9,7 +9,7 @@
   --r26-cream:#ffffff;            /* canvas: Apple white */
   --r26-gray:#f5f5f7;             /* Apple alternate surface */
   --r26-ink:#1a2b2e;              /* near-black with a breath of kale */
-  --r26-mute:#6e7673;             /* Apple #6e6e73, kale-warmed */
+  --r26-mute:#5e6663;             /* kale-warmed grey, darkened to clear WCAG AA (≥4.5:1 on light) */
   --r26-hair:rgba(16,41,44,.08);  /* hairline borders */
   --r26-em:var(--emerald-600,#237b22);
   --r26-em-2:var(--emerald-700,#1a6118);
@@ -207,12 +207,10 @@ body[data-page]{background:#fff}
    FLOATING BUTTONS — one clean stack (was 3 overlapping in one corner)
 ═══════════════════════════════════════════════════════════════ */
 .community-fab{display:none}                 /* redundant with the nav → remove clutter */
-.ai-assistant{right:clamp(1rem,3.2vw,1.5rem);bottom:clamp(1rem,3.2vw,1.5rem)}
-.ai-assistant__fab-glow{animation:none;opacity:0}   /* calm the spinning conic glow */
-.ai-assistant__fab{padding:.7rem 1.15rem;box-shadow:0 14px 28px -12px rgba(16,41,44,.5)}
+/* Gee (the guide) and #backToTop are positioned in components/gee.css,
+   which loads after this file and owns the right-edge float stack. */
 #backToTop{right:clamp(1rem,3.2vw,1.5rem);bottom:calc(clamp(1rem,3.2vw,1.5rem) + 60px);z-index:var(--z-fab)}
 @media(max-width:860px){
-  .ai-assistant{bottom:calc(env(safe-area-inset-bottom,0px) + 80px)}   /* clear the bottom tab bar */
   #backToTop{bottom:calc(env(safe-area-inset-bottom,0px) + 142px)}
 }
 

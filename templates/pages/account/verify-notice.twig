@@ -1,0 +1,57 @@
+{# ═══════════════════════════════════════════════════════════════════════════
+   CONFIRM YOUR EMAIL — /account/verify
+
+   A different screen from the sign-in code, and the difference matters: this
+   one is a verification LINK sent after registration, not a 6-digit code. The
+   two used to look alike enough that people typed a code into a page with no
+   code field.
+
+   The one-time sign-in code also verifies an address (see
+   AccountController::otpVerify), so the fastest way out of this screen is
+   often the sign-in page — said plainly at the foot rather than left for
+   somebody to work out.
+   ═══════════════════════════════════════════════════════════════════════════ #}
+{% extends "layout/account-auth.twig" %}
+
+{% block card %}
+  <div class="ag-acct__art">{% include 'partials/lottie.twig' with { src: '/assets/anim/otp-verify.json', width: 170, height: 112 } only %}</div>
+
+  <h1 class="ag-acct__h1">Confirm your email</h1>
+  <p class="ag-acct__lede">
+    {% if email %}We sent a verification link to <b>{{ email }}</b>. Open it to activate your account.
+    {% else %}We sent you a verification link. Open it to activate your account.{% endif %}
+  </p>
+
+  {% if error %}<div class="ag-acct__alert ag-acct__alert--err" role="alert">{{ error }}</div>{% endif %}
+  {% if notice %}<div class="ag-acct__alert ag-acct__alert--note" role="status">{{ notice }}</div>{% endif %}
+
+  <form method="post" action="/account/verify/resend">
+    <input type="hidden" name="_token" value="{{ csrf_token }}">
+    {% if email %}
+      <input type="hidden" name="email" value="{{ email }}">
+    {% else %}
+      <div class="ag-acct__field">
+        <label class="ag-acct__label" for="email">Your email</label>
+        <input class="ag-acct__input" id="email" type="email" name="email"
+               autocomplete="email" placeholder="you@email.com" required autofocus>
+      </div>
+    {% endif %}
+    <div class="ag-acct__btns">
+      <button class="ag-acct__cta" type="submit">Resend the link</button>
+    </div>
+  </form>
+
+  <div class="ag-acct__rows">
+    <a class="ag-acct__row" href="/account/login">
+      <span class="ag-acct__row-body">
+        <b class="ag-acct__row-title">Or sign in with a one-time code</b>
+        <span class="ag-acct__row-note">A 6-digit code proves the address is yours, so it confirms your email and signs you in at once.</span>
+      </span>
+      <svg class="ag-acct__chev" width="16" height="16" viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M7.5 4.5 13 10l-5.5 5.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    </a>
+  </div>
+{% endblock %}
+
+{% block below %}
+<p class="ag-acct__switch">Already confirmed? <a class="ag-acct__quiet" href="/account/login">Sign in</a></p>
+{% endblock %}

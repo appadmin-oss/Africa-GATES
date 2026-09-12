@@ -1,108 +1,144 @@
 {% extends "layout/gates.twig" %}
+
+{% block head_styles %}
+<style nonce="{{ csp_nonce }}">
+  body[data-page="awards"]{ background:#eef0ec; color:var(--ag-ink); }
+  .aw{ max-width:1100px; margin:0 auto; padding:clamp(1.5rem,4vw,1.6rem) var(--ag-gutter,32px) clamp(3rem,6vw,4rem); }
+
+  /* gala hero */
+  .aw-hero{ position:relative; overflow:hidden; border-radius:26px; background:radial-gradient(130% 130% at 78% 0%,#1d5b2a,#10292C 60%); padding:clamp(2.4rem,5vw,3.4rem) clamp(1.6rem,4vw,3rem); color:#fff; }
+  .aw-hero__orb{ position:absolute; right:-60px; bottom:-80px; width:360px; height:360px; border-radius:50%; background:radial-gradient(circle,rgba(212,154,14,.3),transparent 68%); }
+  .aw-hero__in{ position:relative; max-width:640px; }
+  .aw-hero__badge{ display:inline-flex; align-items:center; gap:7px; font-size:11px; font-weight:700; letter-spacing:.1em; text-transform:uppercase; color:#ffd24a; background:rgba(8,26,16,.55); box-shadow:inset 0 0 0 1px rgba(212,154,14,.32); padding:7px 14px; border-radius:999px; }
+  .aw-hero__in h1{ margin:18px 0 0; color:#fff; font-family:var(--ag-font-display); font-weight:800; font-size:clamp(2.2rem,5vw,3.3rem); line-height:1.03; letter-spacing:-.02em; }
+  .aw-hero__in p{ margin:16px 0 0; font-size:16px; line-height:1.6; color:rgba(255,255,255,.86); max-width:520px; }
+  .aw-stats{ display:flex; align-items:center; gap:22px; margin-top:24px; flex-wrap:wrap; }
+  .aw-stat__n{ font-family:var(--ag-font-mono); font-weight:700; font-size:20px; }
+  .aw-stat__n.g{ color:#9ad698; }
+  .aw-stat__l{ font-size:11px; color:rgba(255,255,255,.76); margin-top:2px; }
+  .aw-stat__div{ width:1px; height:34px; background:rgba(255,255,255,.22); }
+  .aw-hero__cta{ display:flex; gap:12px; margin-top:28px; flex-wrap:wrap; }
+  .aw-btn{ cursor:pointer; text-decoration:none; font-family:inherit; font-weight:600; font-size:15px; padding:14px 28px; border-radius:999px; display:inline-flex; align-items:center; gap:8px; border:1px solid transparent; }
+  .aw-btn--light{ background:#fff; color:#10292C; }
+  .aw-btn--ghost{ background:none; border-color:rgba(255,255,255,.5); color:#fff; }
+  .aw-btn--ghost:hover{ background:rgba(255,255,255,.1); }
+  .aw-hero__gala{ margin:18px 0 0; font-size:13px; color:rgba(255,255,255,.82); }
+  .aw-hero__gala a{ color:#9ad698; font-weight:600; text-decoration:underline; text-underline-offset:2px; }
+
+  /* honours / programmes */
+  .aw-sec{ margin-top:clamp(2.2rem,5vw,2.6rem); }
+  .aw-sec__h{ margin:0 0 4px; font-family:var(--ag-font-display); font-weight:700; font-size:clamp(1.5rem,3vw,1.65rem); color:var(--ag-ink); }
+  .aw-sec__sub{ margin:0 0 20px; font-size:14px; color:#4f585c; max-width:680px; line-height:1.55; }
+  .aw-grid{ display:grid; grid-template-columns:repeat(2,1fr); gap:16px; }
+  .aw-card{ background:var(--ag-surface); border:1px solid rgba(16,41,44,.1); border-radius:18px; padding:24px; display:flex; flex-direction:column; }
+  .aw-card__top{ display:flex; align-items:flex-start; justify-content:space-between; gap:12px; }
+  .aw-card__ico{ width:46px; height:46px; border-radius:13px; display:flex; align-items:center; justify-content:center; font-size:22px; flex:none; }
+  .aw-card__badge{ font-size:10.5px; font-weight:700; letter-spacing:.04em; padding:5px 11px; border-radius:999px; }
+  .aw-badge--voting{ background:#e3f2e2; color:#155a13; }
+  .aw-badge--nominations{ background:#fbf1cf; color:#8a6005; }
+  .aw-badge--judging{ background:#e2e8e9; color:#243034; }
+  .aw-badge--results{ background:#efe7f6; color:#523080; }
+  .aw-badge--upcoming{ background:#e4e8e8; color:#525b5f; }
+  .aw-card__title{ margin:16px 0 0; font-family:var(--ag-font-display); font-weight:700; font-size:1.2rem; color:var(--ag-ink); }
+  .aw-card__desc{ margin:7px 0 0; font-size:13.5px; line-height:1.6; color:#4f585c; flex:1; }
+  .aw-card__foot{ margin-top:18px; }
+  .aw-act{ display:inline-flex; align-items:center; gap:7px; text-decoration:none; font-weight:600; font-size:13.5px; padding:10px 18px; border-radius:999px; }
+  .aw-act--p{ background:var(--ag-green-dark); color:#fff; }
+  .aw-act--p:hover{ background:#155014; }
+  .aw-act--g{ background:var(--ag-surface); border:1px solid rgba(16,41,44,.2); color:var(--ag-ink); }
+  .aw-act--g:hover{ border-color:rgba(16,41,44,.35); }
+
+  /* how it works */
+  .aw-steps{ display:grid; grid-template-columns:repeat(3,1fr); gap:16px; }
+  .aw-step{ background:var(--ag-surface); border:1px solid rgba(16,41,44,.1); border-radius:16px; padding:22px; }
+  .aw-step__n{ font:700 12px/1 var(--ag-font-mono); color:var(--ag-green-dark); letter-spacing:.04em; }
+  .aw-step h3{ margin:10px 0 .35rem; font-family:var(--ag-font-display); font-weight:700; font-size:1.1rem; color:var(--ag-ink); }
+  .aw-step p{ margin:0; font-size:13.5px; line-height:1.6; color:#4f585c; }
+
+  .aw-empty{ background:var(--ag-surface); border:1px solid rgba(16,41,44,.1); border-radius:20px; padding:clamp(2rem,5vw,2.5rem); text-align:center; }
+  .aw-empty h3{ margin:0 0 .4rem; font-family:var(--ag-font-display); font-weight:700; font-size:1.4rem; }
+  .aw-empty p{ margin:0; color:#4a5256; }
+  .aw-empty a{ color:var(--ag-green-dark); font-weight:600; }
+
+  @media (max-width:760px){ .aw-grid{ grid-template-columns:1fr; } .aw-steps{ grid-template-columns:1fr; } .aw-stat__div{ display:none; } }
+</style>
+{% endblock %}
+
 {% block content %}
-
 {% set awards = awards_data|default([]) %}
+{% set TINT = [['#e3f1e3','#155a13'],['#fbf1cf','#8a6005'],['#e2e8e9','#243034'],['#efe7f6','#523080'],['#fbe6ec','#9c2b48'],['#e0eef1','#225a67']] %}
 
-{# ════ HERO ════ #}
-<section class="r26-hero" style="padding-block:clamp(2.5rem,6vw,4.25rem) clamp(1.5rem,3vw,2.5rem);text-align:center">
-  <div class="aurora aurora--soft" aria-hidden="true"></div>
-  <img class="r26-hero__wm" src="/assets/img/africa-watermark.svg?v={{ asset_version }}" alt="" aria-hidden="true">
-  <div class="wrap">
-    <div class="r26-hero__inner">
-      <p class="r26-eyebrow r26-reveal r26-d1" style="justify-content:center;display:inline-flex">Recognition engine · 2026 Cycle</p>
-      <h1 class="r26-hl r26-reveal r26-d2" style="font-size:clamp(2.2rem,5.2vw,3.9rem)">Two programmes. One mission. <em style="color:var(--emerald-600)">One stage.</em></h1>
-      <p class="r26-sub r26-reveal r26-d3" style="margin-left:auto;margin-right:auto">Each programme is independent — its own door, its own jury, its own calendar. Nominate, vote, or join a panel.</p>
-      <div class="r26-cta r26-reveal r26-d4">
-        <a href="/nominate" class="btn btn--emerald">
-          Submit a nomination
-          <svg class="btn__arrow" viewBox="0 0 20 20" fill="none"><path d="M7.5 4.5 13 10 7.5 15.5" stroke="currentColor" stroke-width="1.75" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
-        </a>
-        <a href="/vote" class="btn btn--white">
-          Cast your vote
-          <svg class="btn__arrow" viewBox="0 0 20 20" fill="none"><path d="M7.5 4.5 13 10 7.5 15.5" stroke="currentColor" stroke-width="1.75" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
-        </a>
+<div class="aw">
+  {# ── Gala hero ── #}
+  <div class="aw-hero">
+    <div class="aw-hero__orb" aria-hidden="true"></div>
+    <div class="aw-hero__in">
+      <span class="aw-hero__badge">{{ page.hero_badge }}</span>
+      <h1>{{ page.hero_title }}</h1>
+      <p>{{ page.hero_subtitle }}</p>
+      <div class="aw-stats">
+        <div><div class="aw-stat__n g">{{ awards|length }}</div><div class="aw-stat__l">programme{{ awards|length == 1 ? '' : 's' }}</div></div>
+        <div class="aw-stat__div" aria-hidden="true"></div>
+        <div><div class="aw-stat__n">{{ page.stat2_value }}</div><div class="aw-stat__l">{{ page.stat2_label }}</div></div>
+        <div class="aw-stat__div" aria-hidden="true"></div>
+        <div><div class="aw-stat__n">{{ page.stat3_value }}</div><div class="aw-stat__l">{{ page.stat3_label }}</div></div>
       </div>
+      <div class="aw-hero__cta">
+        <a class="aw-btn aw-btn--light" href="/nominate">{{ page.cta_nominate }}</a>
+        <a class="aw-btn aw-btn--ghost" href="/vote">{{ page.cta_vote }}</a>
+      </div>
+      <p class="aw-hero__gala">{{ page.gala_text }} <a href="{{ page.gala_link_url }}">{{ page.gala_link_label }}</a></p>
     </div>
   </div>
-</section>
 
-{# ════ PROGRAMMES ════ #}
-<section class="section" style="padding-top:1rem">
-  <div class="wrap">
-    <div class="r26-head r26-head--center">
-      <p class="r26-eyebrow">All programmes</p>
-      <h2 class="r26-h2">Pick a track. <em>Tell us</em> who belongs there.</h2>
-    </div>
+  {# ── Honours / programmes (real data) ── #}
+  <section class="aw-sec">
+    <h2 class="aw-sec__h">{{ page.tracks_heading }}</h2>
+    <p class="aw-sec__sub">{{ page.tracks_sub }}</p>
 
     {% if awards is not empty %}
-    <div class="r26-mediagrid">
+    <div class="aw-grid">
       {% for a in awards %}
         {% set status = a.cycle_status|default('upcoming') %}
-        <article class="r26-mcard" data-anim data-anim-delay="{{ loop.index0 % 4 }}">
-          <div class="r26-mcard__media {% if not a.cover|default('') %}r26-mcard__media--empty{% endif %}">
-            {% if a.cover|default('') %}<img src="{{ a.cover }}" alt="{{ a.title }}" loading="lazy" decoding="async">{% endif %}
-            <span class="r26-mcard__badge">
-              {% if status == 'voting' %}Voting open
-              {% elseif status == 'nominations' %}Nominations open
-              {% elseif status == 'judging' %}Judging
-              {% elseif status == 'results' %}Results
-              {% else %}{{ status|capitalize }}{% endif %}
+        {% set tc = TINT[loop.index0 % TINT|length] %}
+        <article class="aw-card">
+          <div class="aw-card__top">
+            <span class="aw-card__ico" style="background:{{ tc[0] }};color:{{ tc[1] }}">{{ a.icon_emoji|default('🏆') }}</span>
+            <span class="aw-card__badge aw-badge--{{ status }}">
+              {% if status == 'voting' %}Voting open{% elseif status == 'nominations' %}Nominations open{% elseif status == 'judging' %}Judging{% elseif status == 'results' %}Results{% else %}Opens soon{% endif %}
             </span>
           </div>
-          <div class="r26-mcard__body">
-            <p class="r26-mcard__meta">{{ a.icon_emoji|default('🏆') }} No. {{ '%02d'|format(loop.index) }} / {{ '%02d'|format(loop.length) }}{% if a.voting_close %} · Closes {{ a.voting_close|date('d M Y') }}{% endif %}</p>
-            <h3 class="r26-mcard__title">{{ a.title }}</h3>
-            <p class="r26-mcard__desc">{{ a.description }}</p>
-            <div class="r26-mcard__foot">
-              {% if status == 'voting' %}
-                <a href="/vote" class="btn btn--emerald btn--sm">Vote now <svg class="btn__arrow" viewBox="0 0 20 20" fill="none"><path d="M7.5 4.5 13 10 7.5 15.5" stroke="currentColor" stroke-width="1.75" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></a>
-              {% elseif status == 'nominations' %}
-                <a href="/nominate" class="btn btn--emerald btn--sm">Nominate <svg class="btn__arrow" viewBox="0 0 20 20" fill="none"><path d="M7.5 4.5 13 10 7.5 15.5" stroke="currentColor" stroke-width="1.75" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></a>
-              {% else %}
-                <a href="/awards/{{ a.slug }}" class="btn btn--white btn--sm">View details <svg class="btn__arrow" viewBox="0 0 20 20" fill="none"><path d="M7.5 4.5 13 10 7.5 15.5" stroke="currentColor" stroke-width="1.75" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></a>
-              {% endif %}
-            </div>
+          <h3 class="aw-card__title">{{ a.title }}</h3>
+          <p class="aw-card__desc">{{ a.description }}</p>
+          <div class="aw-card__foot">
+            {% if status == 'voting' %}
+              <a class="aw-act aw-act--p" href="/vote">Vote now →</a>
+            {% elseif status == 'nominations' %}
+              <a class="aw-act aw-act--p" href="/nominate">Nominate →</a>
+            {% else %}
+              <a class="aw-act aw-act--g" href="/awards/{{ a.slug }}">View details →</a>
+            {% endif %}
           </div>
         </article>
       {% endfor %}
     </div>
     {% else %}
-    <div class="r26-empty">
-      <img class="r26-empty__icon" src="/assets/img/africa-mark.svg?v={{ asset_version }}" alt="" aria-hidden="true">
+    <div class="aw-empty">
       <h3>Programmes open soon</h3>
-      <p>The 2026 cycle is being finalised. In the meantime, you can <a href="/nominate" style="color:var(--emerald-600);font-weight:600">submit a nomination →</a>.</p>
+      <p>The 2026 cycle is being finalised. In the meantime, you can <a href="/nominate">submit a nomination →</a></p>
     </div>
     {% endif %}
-  </div>
-</section>
+  </section>
 
-{# ════ HOW IT WORKS — 3 steps ════ #}
-<section class="section" style="padding-top:0">
-  <div class="wrap">
-    <div class="r26-surface">
-      <div class="r26-head r26-head--center">
-        <p class="r26-eyebrow">Every cycle, in three steps</p>
-        <h2 class="r26-h2">From nomination to <em>recognition</em></h2>
-      </div>
-      <div class="r26-cards">
-        <article class="r26-card" data-anim>
-          <span class="r26-card__step">Step 01</span>
-          <h3 class="r26-card__title">Open nominations</h3>
-          <p style="font-size:.93rem;color:var(--neutral-600,#4a5256);line-height:1.55;margin:0">Anyone can nominate. Submissions are OTP-verified to keep the pipeline clean and the credit fair.</p>
-        </article>
-        <article class="r26-card" data-anim data-anim-delay="1">
-          <span class="r26-card__step">Step 02</span>
-          <h3 class="r26-card__title">Community vote + judge panel</h3>
-          <p style="font-size:.93rem;color:var(--neutral-600,#4a5256);line-height:1.55;margin:0">Verified voters weigh in publicly while a curated panel of African experts scores each shortlist privately.</p>
-        </article>
-        <article class="r26-card" data-anim data-anim-delay="2">
-          <span class="r26-card__step">Step 03</span>
-          <h3 class="r26-card__title">Permanent attribution</h3>
-          <p style="font-size:.93rem;color:var(--neutral-600,#4a5256);line-height:1.55;margin:0">Every winner lands in the legacy vault — searchable, dated, and forever credited on the continental record.</p>
-        </article>
-      </div>
+  {# ── How it works ── #}
+  <section class="aw-sec">
+    <h2 class="aw-sec__h">{{ page.steps_heading }}</h2>
+    <p class="aw-sec__sub">{{ page.steps_sub }}</p>
+    <div class="aw-steps">
+      <div class="aw-step"><div class="aw-step__n">STEP 01</div><h3>{{ page.step1_title }}</h3><p>{{ page.step1_body }}</p></div>
+      <div class="aw-step"><div class="aw-step__n">STEP 02</div><h3>{{ page.step2_title }}</h3><p>{{ page.step2_body }}</p></div>
+      <div class="aw-step"><div class="aw-step__n">STEP 03</div><h3>{{ page.step3_title }}</h3><p>{{ page.step3_body }}</p></div>
     </div>
-  </div>
-</section>
-
+  </section>
+</div>
 {% endblock %}

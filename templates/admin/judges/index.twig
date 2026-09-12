@@ -1,15 +1,58 @@
 {% extends "admin/layout.twig" %}
 {% block topbar_title %}Judges Panel{% endblock %}
-{% block topbar_actions %}<a class="ad-btn ad-btn--primary" href="/admin/judges/new">+ Invite Judge</a>{% endblock %}
+{% block topbar_actions %}<a class="ad-btn" href="/admin/judges/schedule">Schedule &amp; reminders</a>
+<a class="ad-btn ad-btn--primary" href="/admin/judges/new">+ Invite Judge</a>{% endblock %}
 {% block content %}
+
+{# Advisory judge-score anomaly scan — outliers vs. the panel. Never changes a
+   score or result; a prompt for a human to review possible bias/lobbying. #}
+{% if anomalies is defined and anomalies.flags|length %}
+<details class="ad-card" style="margin-bottom:16px;border-left:4px solid var(--ad-gold,#c79a3a)">
+  <summary style="cursor:pointer;font-weight:600;font-size:13px">
+    ⚖ Score anomalies — {{ anomalies.flags|length }} flag{{ anomalies.flags|length == 1 ? '' : 's' }}
+    across {{ anomalies.judges|length }} judge{{ anomalies.judges|length == 1 ? '' : 's' }}
+    <span style="font-weight:400;color:var(--ad-text-mute,#61728e)">· advisory, nothing is changed automatically</span>
+  </summary>
+  <p style="font-size:11.5px;color:var(--ad-text-mute,#61728e);margin:6px 0 10px">
+    A judge whose complete scorecard is a statistical outlier vs. the rest of the panel for a nominee
+    (far harsher or more generous than consensus). Review for possible bias, lobbying, or a scoring error.
+  </p>
+  {% if anomalies.judges|length %}
+  <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px">
+    {% for j in anomalies.judges %}
+    <span class="ad-chip ad-chip--grey" title="{{ j.harsh }} harsh · {{ j.generous }} generous">{{ j.judge }} — {{ j.flags }} flag{{ j.flags == 1 ? '' : 's' }}</span>
+    {% endfor %}
+  </div>
+  {% endif %}
+  <div class="ad-table-wrap">
+    <table class="ad-table">
+      <thead><tr><th scope="col">Judge</th><th scope="col">Nominee</th><th scope="col">Score</th><th scope="col">Panel median</th><th scope="col">Gap</th><th scope="col">σ (z)</th><th scope="col">Panel</th></tr></thead>
+      <tbody>
+        {% for f in anomalies.flags %}
+        <tr>
+          <td>{{ f.judge }}</td>
+          <td>{{ f.nominee }}</td>
+          <td style="font-family:'Space Mono',monospace">{{ f.score }}</td>
+          <td style="font-family:'Space Mono',monospace">{{ f.panel_centre }}</td>
+          <td><span class="ad-chip ad-chip--{{ f.direction == 'harsh' ? 'red' : 'gold' }}">{{ f.deviation > 0 ? '+' : '' }}{{ f.deviation }} {{ f.direction }}</span></td>
+          <td style="font-family:'Space Mono',monospace">{{ f.z }}</td>
+          <td>{{ f.panel }} judges</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</details>
+{% endif %}
+
 <div class="ad-card"><div class="ad-table-wrap">
   <table class="ad-table">
-    <thead><tr><th>Judge</th><th>Affiliation</th><th>Country</th><th>Programmes</th><th>Status</th><th class="col-actions">Actions</th></tr></thead>
+    <thead><tr><th scope="col">Judge</th><th scope="col">Affiliation</th><th scope="col">Country</th><th scope="col">Programmes</th><th scope="col">Status</th><th scope="col" class="col-actions">Actions</th></tr></thead>
     <tbody>
       {% for r in rows %}
       <tr>
         <td>
-          {% if r.avatar_path %}<span class="ad-avatar" style="background-image:url('{{ r.avatar_path }}')"></span>{% endif %}
+          {% if r.avatar_path %}<span class="ad-avatar" style="background-image:url('{{ r.avatar_path|media_url('avatar') }}')"></span>{% endif %}
           <strong>{{ r.name }}</strong>
           <div style="font-size:12px;color:var(--ad-text-soft)">{{ r.email }}</div>
         </td>
@@ -23,7 +66,8 @@
         <td>{% if r.is_active %}<span class="ad-chip ad-chip--green">Active</span>{% else %}<span class="ad-chip ad-chip--grey">Inactive</span>{% endif %}</td>
         <td class="col-actions">
           <a class="ad-btn ad-btn--sm" href="/admin/judges/{{ r.id }}">Edit</a>
-          <form method="post" action="/admin/judges/{{ r.id }}/delete" style="display:inline"><input type="hidden" name="_token" value="{{ csrf_token }}"><button class="ad-btn ad-btn--sm ad-btn--danger" type="submit" data-confirm="Remove judge?">×</button></form>
+          <form method="post" action="/admin/judges/{{ r.id }}/regenerate-form" style="display:inline"><input type="hidden" name="_token" value="{{ csrf_token }}"><button class="ad-btn ad-btn--sm" type="submit" data-confirm="Email this judge a fresh single-use onboarding form link? Any previous link will stop working." title="Resend / regenerate onboarding form link">✉</button></form>
+          <form method="post" action="/admin/judges/{{ r.id }}/delete" style="display:inline"><input type="hidden" name="_token" value="{{ csrf_token }}"><button class="ad-btn ad-btn--sm ad-btn--danger" type="submit" data-confirm="Remove {{ r.name }} from the panel? Scores they have already submitted stay on the nominees. They lose access immediately.">×</button></form>
         </td>
       </tr>
       {% else %}<tr><td colspan="6" style="text-align:center;color:var(--ad-text-mute);padding:30px">No judges yet.</td></tr>{% endfor %}

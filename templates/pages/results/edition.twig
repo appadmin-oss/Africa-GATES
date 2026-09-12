@@ -1,0 +1,263 @@
+{% extends "layout/gates.twig" %}
+
+{#
+  ONE EDITION, AS AN ANNOUNCEMENT.
+
+  ── WHAT THIS REPLACES, AND WHY ─────────────────────────────────────────────
+
+  Results lived in one flat list of categories with the programme and year repeated on
+  every row, and each row led with a number. Three things were wrong with it, and they
+  are the three this page is built against:
+
+    · THERE WERE NO FACES. An awards platform for African excellence showed its winners
+      as text. `gates_nominees.photo_path` has always existed and no result surface ever
+      selected it. A person is the story; the index is the evidence for it.
+
+    · THE NUMBER WAS LOUDER THAN THE NAME. `780` was set larger than the human being it
+      described, on every row. The order here is portrait, name, category, then index.
+
+    · NOTHING WAS THE HEADLINE. Six rows of identical weight give the eye nowhere to
+      land. The highest index in the edition leads, at a different size — not a separate
+      award and never presented as one, just the answer to "who led this year".
+
+  The arithmetic is NOT here. It is on each award's own page, one click away, and
+  collapsed even there. A reader who wants to check a community half can; a family
+  looking for a name should not have to read a denominator first.
+#}
+
+{% set top = e.top %}
+{% set rest = e.awards|filter(a => top is null or a.url != top.url) %}
+
+{% block head_styles %}
+<style nonce="{{ csp_nonce }}">
+  body[data-page="results"]{ background:#f0f2f2; color:var(--ag-ink); }
+
+  .ed{ max-width:1120px; margin:0 auto; padding:clamp(1.6rem,4vw,2.4rem) var(--ag-gutter,32px) clamp(3rem,6vw,4.5rem); }
+
+  .ed-crumb{ margin:0 0 20px; font:600 11px/1 var(--ag-font-mono); letter-spacing:.1em; text-transform:uppercase; }
+  .ed-crumb a{ color:var(--ag-ink-soft); text-decoration:none; }
+  .ed-crumb a:hover{ color:var(--ag-green); }
+
+  /* ── the masthead ── */
+  .ed-head{ border-top:2px solid var(--ag-ink); padding-top:18px; }
+  .ed-kick{ margin:0 0 10px; font:600 11px/1.5 var(--ag-font-mono); letter-spacing:.12em;
+            text-transform:uppercase; color:var(--ag-ink-soft); }
+  .ed-h1{ margin:0; font-family:var(--ag-font-display); font-weight:700;
+          font-size:clamp(2rem,5.4vw,3.1rem); letter-spacing:-.025em; line-height:1.05; }
+  .ed-sub{ margin:14px 0 0; font-size:15.5px; line-height:1.65; color:#4a5256; max-width:60ch; }
+
+  /* ── the leader, and the ONE place this page spends colour ────────────────
+     The site is deliberately monochrome — paper ground, hairline rules, ink type — and
+     that restraint is the whole budget. Spend it in one place and it reads as an
+     occasion; spread it over six cards and the page is just busy, and nothing on it is
+     the news.
+
+     So the leader sits on a gold-washed surface and everything else stays paper. The
+     accent is a SURFACE here rather than a chip, because a 100px pill of gold on a grey
+     page is a label, and the thing being labelled is somebody winning an award.
+
+     The caveat below used to be the most colourful element on a winners page — an amber
+     box about a WITHHELD award, louder than the award that was given. It is grey now. */
+  .ed-lead{ margin-top:clamp(1.8rem,4vw,2.6rem); display:grid;
+            grid-template-columns:minmax(0,270px) minmax(0,1fr); gap:clamp(20px,3.4vw,38px);
+            align-items:center; padding:clamp(20px,3.4vw,32px);
+            border-radius:20px; position:relative; overflow:hidden;
+            background:linear-gradient(152deg,#fdf3d6 0%,#fbf7ec 46%,#f7f8f5 100%);
+            box-shadow:inset 0 0 0 1px rgba(196,150,20,.24); }
+  .ed-board{ padding-top:clamp(1.6rem,3.4vw,2.2rem); }
+  /* A soft bloom behind the portrait, so the gold reads as light rather than as a fill. */
+  .ed-lead::before{ content:''; position:absolute; inset:auto auto -40% -12%; width:52%;
+                    aspect-ratio:1; border-radius:50%; pointer-events:none;
+                    background:radial-gradient(circle,rgba(243,180,22,.26),transparent 68%); }
+  .ed-lead > *{ position:relative; }
+  .ed-lead__ph{ display:block; position:relative; aspect-ratio:4/5; border-radius:16px;
+                overflow:hidden; background:var(--ag-surface-2,#f6f7f6);
+                box-shadow:0 18px 40px -22px rgba(74,58,22,.55); }
+  .ed-lead__ph img{ width:100%; height:100%; object-fit:cover; display:block; }
+  .ed-badge{ display:inline-block; margin:0 0 12px; padding:6px 13px; border-radius:var(--ag-r-pill);
+             background:#1a1204; color:#ffd97a; font:700 10.5px/1 var(--ag-font-mono);
+             letter-spacing:.14em; text-transform:uppercase; }
+  .ed-lead__cat{ margin:0 0 6px; font:600 11.5px/1.4 var(--ag-font-mono); letter-spacing:.1em;
+                 text-transform:uppercase; color:var(--ag-ink-soft); }
+  .ed-lead__n{ margin:0; font-family:var(--ag-font-display); font-weight:700;
+               font-size:clamp(1.6rem,3.8vw,2.3rem); letter-spacing:-.015em; line-height:1.12; }
+  .ed-lead__n a{ color:inherit; text-decoration:none; border-bottom:2px solid transparent; }
+  .ed-lead__n a:hover{ border-color:var(--ag-green); }
+  /* The index is EVIDENCE, so it stays smaller than the name — but on the leader it is
+     also the achievement, so it is not a grey chip either. Gold rule, ink figure. */
+  .ed-idx{ display:inline-flex; align-items:baseline; gap:8px; margin-top:16px;
+           padding:8px 0 0; border-top:2px solid var(--ag-gold); }
+  .ed-idx b{ font:700 24px/1 var(--ag-font-mono); font-variant-numeric:tabular-nums;
+             letter-spacing:-.01em; }
+  /* #6b5200 on the gold wash is 6.3:1. The gold itself would be 2.0:1 and unreadable. */
+  .ed-idx span{ font:600 11.5px/1 var(--ag-font-mono); letter-spacing:.08em; color:#6b5200; }
+
+  .ed-split{ display:flex; gap:clamp(20px,3vw,38px); margin:22px 0 0; flex-wrap:wrap; }
+  .ed-split div{ min-width:0; }
+  .ed-split dt{ margin:0; font:600 10.5px/1.4 var(--ag-font-mono); letter-spacing:.1em;
+                text-transform:uppercase; color:#6b5200; }
+  .ed-split dd{ margin:5px 0 0; font:700 19px/1 var(--ag-font-mono);
+                font-variant-numeric:tabular-nums; color:var(--ag-ink); }
+
+  /* ── the board ── */
+  .ed-board{ margin-top:clamp(1.8rem,4vw,2.4rem); }
+  .ed-board__h{ margin:0 0 18px; font:600 11px/1 var(--ag-font-mono); letter-spacing:.14em;
+                text-transform:uppercase; color:var(--ag-ink-soft); }
+  .ed-grid{ list-style:none; margin:0; padding:0; display:grid;
+            grid-template-columns:repeat(auto-fill,minmax(210px,1fr)); gap:clamp(16px,2.4vw,26px); }
+  .ed-card{ display:block; text-decoration:none; color:inherit; }
+  /* `display:block` is not cosmetic. `.ed-card__ph` is a <span>, and an inline box
+     ignores aspect-ratio and gives position:relative nothing to size against — so a
+     winner with NO PHOTOGRAPH rendered as a collapsed sliver with their initial spilling
+     over the card beside it. Cards with an <img> looked fine because the image forced
+     the box, which is exactly why it survived review: the broken case is the one a
+     fixture with six photographs never produces. */
+  .ed-card__ph{ display:block; position:relative; aspect-ratio:4/5; border-radius:14px;
+                overflow:hidden; background:var(--ag-surface-2,#f6f7f6); }
+  .ed-card__ph img{ width:100%; height:100%; object-fit:cover; display:block;
+                    transition:transform var(--ag-dur,.4s) var(--ag-ease,ease); }
+  .ed-card:hover .ed-card__ph img{ transform:scale(1.03); }
+  .ed-card__cat{ margin:12px 0 4px; font:600 10.5px/1.4 var(--ag-font-mono); letter-spacing:.1em;
+                 text-transform:uppercase; color:var(--ag-ink-soft); }
+  .ed-card__n{ margin:0; font-family:var(--ag-font-display); font-weight:700;
+               font-size:1.12rem; line-height:1.25; letter-spacing:-.01em; }
+  .ed-card:hover .ed-card__n{ color:var(--ag-green); }
+  .ed-card__i{ margin:6px 0 0; font:600 11.5px/1 var(--ag-font-mono);
+               font-variant-numeric:tabular-nums; color:var(--ag-ink-soft); }
+  .ed-card:focus-visible .ed-card__ph{ outline:3px solid var(--ag-green); outline-offset:3px; }
+
+  /* No photograph is a COMMON case, not an error: plenty of nominees never upload one.
+     Initials on the house ground, never a silhouette — a generic person-icon is the same
+     picture on every card, which reads as a page that failed to load. */
+  .ed-mono{ position:absolute; inset:0; display:flex; align-items:center; justify-content:center;
+            font-family:var(--ag-font-display); font-weight:700; font-size:2.6rem;
+            color:rgba(16,41,44,.22); background:linear-gradient(160deg,#eef1ef,#e4e9e6); }
+
+  .ed-note{ margin:clamp(2rem,5vw,2.8rem) 0 0; padding-top:clamp(1.4rem,3vw,1.8rem);
+            border-top:1px solid var(--ag-line); font-size:14.5px; line-height:1.7; color:#4a5256; max-width:68ch; }
+  .ed-note a{ color:var(--ag-green); }
+  /* GREY, not amber. A note about an award nobody has been given must not be the most
+     saturated thing on a page about awards that were. */
+  .ed-held{ margin:clamp(1.6rem,3.4vw,2rem) 0 0; padding:14px 16px; border-radius:10px;
+            background:rgba(16,41,44,.04); border:1px solid var(--ag-line-strong);
+            font-size:14px; line-height:1.65; color:#4a5256; max-width:68ch; }
+
+  @media (max-width:720px){
+    .ed-lead{ grid-template-columns:minmax(0,1fr); }
+    .ed-lead__ph{ max-width:230px; }
+  }
+</style>
+{% endblock %}
+
+{% block structured_data %}
+{# WHY THIS IS HERE. An award result is the most linkable thing this platform produces and
+   the most searched — "who won the 2026 principal awards" is a real query with a real
+   answer — and until now none of it was described to a crawler at all. `ItemList` of
+   `Person` is the honest shape: the page is a list, each entry is a human being, and the
+   award they hold is the thing being asserted.
+
+   Every value goes through `|json_encode`, which escapes `</script>` — a winner's name is
+   operator-entered text and `layout/gates.twig` renders this block with
+   JSON_UNESCAPED_SLASHES, which is precisely how a campaign title once closed a script
+   element on this site. #}
+<script nonce="{{ csp_nonce }}" type="application/ld+json">
+{"@context":"https://schema.org","@type":"ItemList",
+ "name":{{ (e.programme ~ ' ' ~ (e.edition ?: e.year) ~ ' winners')|json_encode|raw }},
+ "numberOfItems":{{ e.awards|length }},
+ "itemListElement":[{% for a in e.awards %}{"@type":"ListItem","position":{{ loop.index }},
+   "item":{"@type":"Person","name":{{ a.winner.name|json_encode|raw }},
+     "url":{{ (_site_url ~ a.url)|json_encode|raw }},
+     "award":{{ (a.category.title ~ ' — ' ~ e.programme ~ ' ' ~ (e.edition ?: e.year))|json_encode|raw }}}}{% if not loop.last %},{% endif %}{% endfor %}]}
+</script>
+{% endblock %}
+
+{% block content %}
+<div class="ed">
+  <p class="ed-crumb"><a href="/results">&larr; All results</a></p>
+
+  <header class="ed-head">
+    <p class="ed-kick">{{ e.programme }}</p>
+    <h1 class="ed-h1">{{ e.edition ?: e.year }} winners</h1>
+    <p class="ed-sub">
+      {% if e.awards|length %}
+        {{ e.awards|length }} award{{ e.awards|length == 1 ? '' : 's' }} decided{% if e.announced %},
+        announced {{ e.announced|date('j F Y') }}{% endif %}. Each index runs from 0 to 1000 and
+        splits two ways — the support a community gave, and the marks a panel awarded.
+      {% else %}
+        Every award in this edition is decided and not yet published.
+      {% endif %}
+    </p>
+  </header>
+
+  {% if top %}
+    {# The highest index in the edition. Named as exactly that and nothing more — it is
+       not a prize, and calling it one would invent an award this platform does not give. #}
+    <div class="ed-lead" data-celebrate="edition-{{ e.slug }}">
+      <div class="ed-lead__ph">
+        {% if top.winner.photo %}
+          <img src="{{ top.winner.photo|media_url('portrait') }}" alt="{{ top.winner.name }}"
+               width="520" height="650" loading="eager" decoding="async">
+        {% else %}
+          <span class="ed-mono" aria-hidden="true">{{ top.winner.name|slice(0,1)|upper }}</span>
+        {% endif %}
+      </div>
+      <div>
+        <span class="ed-badge" data-celebrate-anchor>Highest index this edition</span>
+        <p class="ed-lead__cat">{{ top.category.title }}</p>
+        <h2 class="ed-lead__n"><a href="{{ top.url }}">{{ top.winner.name }}</a></h2>
+        <span class="ed-idx"><b>{{ top.winner.cpi }}</b><span>/ 1000</span></span>
+        {# THE SPLIT, AND NOTHING ELSE. This is the one piece of arithmetic that belongs
+           in public on a page like this: it is not a step in a calculation, it is the
+           claim itself — this much came from people, this much from the panel. Everything
+           that produced those two figures is on the award's own page, folded away. #}
+        <dl class="ed-split">
+          <div><dt>From the community</dt><dd>{{ top.winner.community_points }}</dd></div>
+          <div><dt>From the panel</dt><dd>{{ top.winner.judge_points }}</dd></div>
+        </dl>
+      </div>
+    </div>
+  {% endif %}
+
+  {% if rest|length %}
+    <section class="ed-board">
+      <h2 class="ed-board__h">{{ top ? 'The other awards' : 'The winners' }}</h2>
+      <ul class="ed-grid">
+        {% for a in rest %}
+          <li>
+            <a class="ed-card" href="{{ a.url }}">
+              <span class="ed-card__ph">
+                {% if a.winner.photo %}
+                  <img src="{{ a.winner.photo|media_url('portrait') }}" alt="{{ a.winner.name }}"
+                       width="420" height="525" loading="lazy" decoding="async">
+                {% else %}
+                  <span class="ed-mono" aria-hidden="true">{{ a.winner.name|slice(0,1)|upper }}</span>
+                {% endif %}
+              </span>
+              <p class="ed-card__cat">{{ a.category.title }}</p>
+              <p class="ed-card__n">{{ a.winner.name }}</p>
+              <p class="ed-card__i">{{ a.winner.cpi }} / 1000</p>
+            </a>
+          </li>
+        {% endfor %}
+      </ul>
+    </section>
+  {% endif %}
+
+  {% if e.held %}
+    <p class="ed-held">{{ e.held }} further award{{ e.held == 1 ? ' is' : 's are' }} decided and not
+      yet published — {{ e.held == 1 ? 'its' : 'their' }} community half has not been counted into the
+      index yet, or no nominee met the judging quorum. Nothing is announced until the whole index
+      can be shown.</p>
+  {% endif %}
+
+  <p class="ed-note">
+    Open any award for the full standing — every nominee who scored, in the order the award was
+    decided — and the working behind it. How an index is built, and what money can and cannot
+    move, is set out in full on <a href="/integrity">integrity</a>.
+  </p>
+</div>
+{% endblock %}
+
+{% block foot_scripts %}
+{% if top %}{% include 'partials/celebrate.twig' only %}{% endif %}
+{% endblock %}

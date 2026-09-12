@@ -9,13 +9,58 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@600;700&family=Montserrat:wght@500;600;700;800&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/nprogress@0.2.0/nprogress.css">
-<link rel="stylesheet" href="/assets/css/admin.css?v={{ asset_version }}">
+<link rel="stylesheet" href="{{ asset('/assets/css/vendor/tippy.css') }}">
+<link rel="stylesheet" href="{{ asset('/assets/css/admin.css') }}">
+{# Accessibility layer — loaded LAST so its corrections win (WCAG 2.2 AA), the same
+   order gates.twig uses. It was reaching only the public site: the admin got none of
+   the 44px coarse-pointer target minimums, the forced-colors (Windows High Contrast)
+   handling, the prefers-contrast strengthening, or the aria-invalid field styling —
+   on the surface staff use every day, and the one where a misread number moves money.
+   admin.css defines its own .sr-only; this sheet's copy is identical, so the duplicate
+   is harmless and the two cannot drift apart into a broken visually-hidden class. #}
+<link rel="stylesheet" href="{{ asset('/assets/css/a11y.css') }}">
 {% block head_styles %}{% endblock %}
 </head>
 <body data-page-admin>
 
+<a href="#adMain" class="skip-link">Skip to content</a>
+
 <div class="ad-shell">
+
+  {% include 'admin/partials/nav-icons.twig' %}
+
+  {# ── THE COMMAND PALETTE ─────────────────────────────────────────────────────
+     Cmd/Ctrl+K. The reason the rail can hold seven headings instead of thirty-seven
+     links: NN/g measured discoverability halving when navigation is hidden, and the
+     documented resolution is a hybrid — a few destinations visible, the tail reachable
+     another way. This is that other way, and for an interface somebody is in all day it
+     is the expected one (VS Code and Sublime first, now Figma, Notion and Linear).
+
+     Built as a <dialog> so focus trapping, Escape and the backdrop are the browser's job
+     rather than ours. Progressive: with no JavaScript the rail and the in-page sub-nav
+     still reach every page, and this simply never opens. #}
+  <dialog class="ad-cmd" id="adCmd" aria-label="Jump to a page">
+    <form method="dialog" class="ad-cmd__box">
+      <input class="ad-cmd__in" id="adCmdIn" type="search" autocomplete="off"
+             placeholder="Jump to…  (type a page name)" aria-label="Search admin pages"
+             aria-controls="adCmdList" aria-expanded="true">
+      <ul class="ad-cmd__list" id="adCmdList" role="listbox" aria-label="Pages">
+        {% for sec in admin_nav %}
+          {% for item in sec.items %}
+            <li role="option" aria-selected="false">
+              <a class="ad-cmd__i" href="{{ item.href }}"
+                 data-cmd="{{ (item.label ~ ' ' ~ sec.label)|lower }}">
+                <svg class="ico" aria-hidden="true" focusable="false"><use href="#ic-{{ item.page }}"/></svg>
+                <span class="ad-cmd__l">{{ item.label }}</span>
+                <span class="ad-cmd__s">{{ sec.label }}</span>
+              </a>
+            </li>
+          {% endfor %}
+        {% endfor %}
+      </ul>
+      <p class="ad-cmd__none" id="adCmdNone" hidden>Nothing matches that.</p>
+    </form>
+  </dialog>
 
   {# Sidebar #}
   <aside class="ad-side" id="adSide">
@@ -24,109 +69,159 @@
       <span class="label">Africa GATES<small>Admin Console</small></span>
     </div>
 
-    <nav class="ad-side__group">
-      <h6>Overview</h6>
-      <a class="ad-side__link {% if admin_page == 'dashboard' %}is-active{% endif %}" href="/admin/dashboard">
-        <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="9"/><rect x="14" y="3" width="7" height="5"/><rect x="14" y="12" width="7" height="9"/><rect x="3" y="16" width="7" height="5"/></svg>
-        Dashboard
-      </a>
-    </nav>
+    {# ── THE NAVIGATION ─────────────────────────────────────────────────────
+       Was thirty-six hand-written links, every group expanded at once, each repeating
+       its own active test and its own inline SVG. The tree now lives in
+       AdminNav::sections() and this loops it; the icons live in one sprite.
 
-    <nav class="ad-side__group">
-      <h6>Moderation</h6>
-      <a class="ad-side__link {% if admin_page == 'profiles' %}is-active{% endif %}" href="/admin/profiles">
-        <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
-        Profiles
-      </a>
-      <a class="ad-side__link {% if admin_page == 'nominations' %}is-active{% endif %}" href="/admin/nominations">
-        <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2 15.09 8.26 22 9.27l-5 4.87 1.18 6.88L12 17.77 5.82 21.02 7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
-        Nominations
-      </a>
-      <a class="ad-side__link {% if admin_page == 'nominees' %}is-active{% endif %}" href="/admin/nominees">
-        <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"/><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"/><path d="M4 22h16"/><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"/><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"/><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"/></svg>
-        Nominees
-      </a>
-    </nav>
-
-    <nav class="ad-side__group">
-      <h6>Programmes</h6>
-      <a class="ad-side__link {% if admin_page == 'programmes' %}is-active{% endif %}" href="/admin/programmes">
-        <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
-        Awards & Cycles
-      </a>
-      <a class="ad-side__link {% if admin_page == 'judges' %}is-active{% endif %}" href="/admin/judges">
-        <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="5"/><path d="M20 21v-2a4 4 0 0 0-3-3.87"/><path d="M4 21v-2a4 4 0 0 1 3-3.87"/></svg>
-        Judges Panel
-      </a>
-    </nav>
-
-    <nav class="ad-side__group">
-      <h6>Content</h6>
-      <a class="ad-side__link {% if admin_page == 'events' %}is-active{% endif %}" href="/admin/events">
-        <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/><path d="M8 14h.01M12 14h.01M16 14h.01M8 18h.01M12 18h.01"/></svg>
-        Events
-      </a>
-      <a class="ad-side__link {% if admin_page == 'posts' %}is-active{% endif %}" href="/admin/posts">
-        <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
-        Blog Posts
-      </a>
-      <a class="ad-side__link {% if admin_page == 'legacy' %}is-active{% endif %}" href="/admin/legacy">
-        <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/></svg>
-        Legacy Events
-      </a>
-      <a class="ad-side__link {% if admin_page == 'opportunities' %}is-active{% endif %}" href="/admin/opportunities">
-        <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M16 12l-4-4-4 4"/><path d="M12 16V8"/></svg>
-        Opportunities
-      </a>
-      <a class="ad-side__link {% if admin_page == 'partners' %}is-active{% endif %}" href="/admin/partners">
-        <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
-        Partner Enquiries
-      </a>
-    </nav>
-
-    {% if admin_role == 'superadmin' %}
-    <nav class="ad-side__group">
-      <h6>Configuration</h6>
-      <a class="ad-side__link {% if admin_page == 'admins' %}is-active{% endif %}" href="/admin/admins">
-        <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
-        Admins
-      </a>
-      <a class="ad-side__link {% if admin_page == 'settings' %}is-active{% endif %}" href="/admin/settings">
-        <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
-        Settings
-      </a>
-    </nav>
-    {% endif %}
+       <details>/<summary>, not a JS accordion. It collapses, it is keyboard operable
+       and it is announced correctly by a screen reader with no script at all — which
+       matters on the page an operator opens to find out why the site is broken. The
+       section holding the current page is `open`, so arriving anywhere shows you where
+       you are without a click. #}
+    {% for sec in admin_nav %}
+      {% set here = sec.items|filter(i => i.page == admin_page)|length > 0 %}
+      <details class="ad-side__sec" {% if here %}open{% endif %}>
+        {# The (i) badge that used to sit here is gone. Twelve of them competed with the
+           labels they were explaining; the text is on the heading itself, which a screen
+           reader reads and a pointer surfaces without adding a second target. #}
+        <summary class="ad-side__sectitle" title="{{ sec.tip }}">
+          <span>{{ sec.label }}</span>
+          <svg class="ad-side__chev" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><polyline points="6 9 12 15 18 9"/></svg>
+        </summary>
+        <nav aria-label="{{ sec.label }}">
+          {% for item in sec.items %}
+            <a class="ad-side__link {% if admin_page == item.page %}is-active{% endif %}"
+               href="{{ item.href }}"{% if admin_page == item.page %} aria-current="page"{% endif %}>
+              <svg class="ico" aria-hidden="true" focusable="false"><use href="#ic-{{ item.page }}"/></svg>
+              {{ item.label }}
+            </a>
+          {% endfor %}
+        </nav>
+      </details>
+    {% endfor %}
 
     <div class="ad-side__foot">
       <span class="avatar">{{ admin_name|default('A')|first|upper }}</span>
       <div class="who">
         <div class="n">{{ admin_name|default('Admin') }}</div>
         <div class="e">{{ admin_email|default('') }}</div>
+        {% if admin_role_label %}<div class="e" style="margin-top:3px;font-weight:700;color:#7FC87C;text-transform:uppercase;letter-spacing:.08em;font-size:10px">{{ admin_role_label }}</div>{% endif %}
       </div>
       <a href="/admin/logout" class="out" data-tip="Sign out" aria-label="Sign out">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true" focusable="false" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
       </a>
     </div>
   </aside>
 
   {# Main #}
-  <main class="ad-main">
+  <main class="ad-main" id="adMain" tabindex="-1">
 
     <div class="ad-topbar">
-      <button class="ad-mobile-toggle" id="adMobileToggle" aria-label="Open menu">
-        <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+      <button class="ad-mobile-toggle" id="adMobileToggle" aria-label="Open menu" aria-controls="adSide" aria-expanded="false">
+        <svg class="ico" aria-hidden="true" focusable="false" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
       </button>
+      {% set admin_help = {
+        'dashboard': 'Your at-a-glance overview — key metrics and recent activity.',
+        'profiles': 'Registry profiles. Review, approve, edit or remove community profiles.',
+        'nominations': 'Review submitted nominations and approve them into nominees.',
+        'nominees': 'Approved nominees — manage status, link profiles and set winners.',
+        'programmes': 'Award programmes, their cycles, categories and editable terms.',
+        'awards-page': 'Edit the content shown on the public Awards landing page.',
+        'judges': 'Invite and manage the judging panel and their programme assignments.',
+        'interviews': 'Schedule and run the judging interviews over Google Meet, then publish the transcript to the panel.',
+        'questionnaires': 'Ask each nominee about their own work and let them attach evidence, per award programme.',
+        'events': 'Create and customise events — schedule, ticket tiers and the early-bird banner.',
+        'posts': 'Write and publish blog posts (audio and polls supported).',
+        'legacy': 'Past-edition recaps shown in the Legacy Vault.',
+        'opportunities': 'Opportunities listings surfaced to the community.',
+        'partners': 'Partnership enquiries submitted from the public site.',
+        'partner-orgs': 'Organisations collecting donations through the platform — vetting, settlement accounts and dashboard logins.',
+        'media': 'Uploaded images and files used across the site.',
+        'products': 'Shop products, pricing and delivery regions.',
+        'forms': 'Build custom forms with field types, conditional logic and validation — published at /f/{key}.',
+        'data': 'Browse every dataset collected — paginated tables, full-detail pages and CSV export.',
+        'registrations': 'Event RSVP / ticket registrations — filterable and exportable.',
+        'finance': 'Every naira taken — donations, paid votes, shop orders and event tickets, with what still needs chasing.',
+        'admins': 'Manage admin accounts and their access levels.',
+        'settings': 'Site-wide configuration — branding, email, AI, points, pricing and eligibility.',
+        'webhooks': 'Outbound webhooks to integrations and AI agents.'
+      } %}
       <h1 class="ad-h1">
         {% block topbar_eyebrow %}{% endblock %}
         {% block topbar_title %}{{ page_title }}{% endblock %}
+        {% if admin_help[admin_page] is defined %}<span class="ad-info" data-tip="{{ admin_help[admin_page] }}" tabindex="0" role="img" aria-label="About this page: {{ admin_help[admin_page] }}">i</span>{% endif %}
       </h1>
-      <div class="ad-actions">{% block topbar_actions %}{% endblock %}</div>
+      <div class="ad-actions">
+        {# The hint is visible on purpose: an unlabelled shortcut is a feature only the
+           person who built it has. #}
+        <button class="ad-cmd__open" id="adCmdOpen" type="button" aria-haspopup="dialog">
+          <svg class="ico" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+          <span>Jump to…</span><kbd>⌘K</kbd>
+        </button>
+        {% block topbar_actions %}{% endblock %}
+      </div>
     </div>
 
-    {% if flash_ok %}<div class="ad-flash ad-flash--ok">✓ {{ flash_ok }}</div>{% endif %}
-    {% if flash_error %}<div class="ad-flash ad-flash--err">⚠ {{ flash_error }}</div>{% endif %}
-    {% if flash_notice %}<div class="ad-flash ad-flash--note">ℹ {{ flash_notice }}</div>{% endif %}
+    {# ── THE SECOND LEVEL ───────────────────────────────────────────────────
+       This page's siblings, as a strip under the title. The sidebar answers "where
+       else can I go"; this answers "what else is part of THIS job", which is the
+       question somebody actually has while doing it — and it survives the sidebar
+       being collapsed on a phone.
+
+       Rendered from the same AdminNav tree as the sidebar, so a page cannot appear in
+       one and not the other. Omitted for a lone page rather than drawn as a bar with a
+       single tab in it. #}
+    {% set here_sec = admin_nav|filter(s => s.items|filter(i => i.page == admin_page)|length > 0)|first %}
+    {% set siblings = here_sec ? here_sec.items : [] %}
+    {% if siblings|length > 1 %}
+      <nav class="ad-subnav" aria-label="{{ here_sec.label }}">
+        {% for item in siblings %}
+          <a class="ad-subnav__link {% if admin_page == item.page %}is-active{% endif %}"
+             href="{{ item.href }}"{% if admin_page == item.page %} aria-current="page"{% endif %}>
+            <svg class="ico" aria-hidden="true" focusable="false"><use href="#ic-{{ item.page }}"/></svg>
+            {{ item.label }}
+          </a>
+        {% endfor %}
+      </nav>
+    {% endif %}
+
+    {% if migrations_pending is defined and migrations_pending|length > 0 %}
+    <div class="ad-flash ad-flash--err" role="alert" style="align-items:flex-start">
+      <span aria-hidden="true">🗄️</span>
+      <span><strong>{{ migrations_pending|length }} database migration step{{ migrations_pending|length == 1 ? '' : 's' }} not yet recorded as applied.</strong>
+        If admin actions that write new data — <strong>approving/rejecting nominations, creating judges, building forms</strong> — are failing with errors while pages still load, this is why: the schema is behind the code.
+        Apply &amp; reconcile now: run <code>php bin/console db:migrate</code> on the server, or (no SSH) open <code>/__setup/migrate?token=YOUR_SETUP_TOKEN</code>. It is idempotent — safe to re-run, and clears this notice.
+        <span style="display:block;margin-top:4px;opacity:.85;font-size:12px">Pending: {{ migrations_pending|slice(0,6)|join(', ') }}{% if migrations_pending|length > 6 %} +{{ migrations_pending|length - 6 }} more{% endif %}</span>
+      </span>
+    </div>
+    {% endif %}
+    {% if smtp_ok is defined and not smtp_ok %}
+    <div class="ad-flash ad-flash--err" role="alert" style="align-items:flex-start">
+      <span aria-hidden="true">✉</span>
+      <span><strong>Email delivery is OFF</strong> — SMTP is not configured, so sign-in codes, verification links and notifications are <strong>not reaching anyone</strong> (they are written to <code>var/logs/outgoing-mail.log</code> instead). Set <code>SMTP_USER</code> / <code>SMTP_PASS</code> in <code>.env</code>, then confirm with <a href="/admin/settings" style="color:inherit;font-weight:700;text-decoration:underline">Settings → Send a test email</a>.</span>
+    </div>
+    {% endif %}
+    {#
+      THE SCHEDULE HAS STOPPED — and nothing else on the site would show it.
+      Reconciliation and automatic refunds only happen inside the maintenance run,
+      so when it stalls, supporters who are owed money stop being paid while every
+      page keeps serving normally. A stalled run cannot alert about itself, so the
+      check happens here, where traffic still arrives.
+    #}
+    {% set cron = cron_health() %}
+    {% if not cron.ok %}
+    <div class="ad-flash ad-flash--err" role="alert" style="align-items:flex-start">
+      <span aria-hidden="true">⏱</span>
+      <span><strong>{{ cron.never ? 'Scheduled maintenance has never run' : 'Scheduled maintenance has stopped' }}</strong>
+        — {{ cron.say }}
+        {% if cron.last %}<span style="display:block;margin-top:4px;opacity:.85;font-size:12px">Last run: {{ cron.last }}</span>{% endif %}
+      </span>
+    </div>
+    {% endif %}
+    {% if flash_ok %}<div class="ad-flash ad-flash--ok" role="status">✓ {{ flash_ok }}</div>{% endif %}
+    {% if flash_error %}<div class="ad-flash ad-flash--err" role="alert">⚠ {{ flash_error }}</div>{% endif %}
+    {% if flash_notice %}<div class="ad-flash ad-flash--note" role="status">ℹ {{ flash_notice }}</div>{% endif %}
 
     {% block content %}{% endblock %}
 
@@ -134,10 +229,30 @@
 
 </div>
 
-<script defer src="https://unpkg.com/@popperjs/core@2"></script>
-<script defer src="https://unpkg.com/tippy.js@6"></script>
-<script defer src="https://cdn.jsdelivr.net/npm/nprogress@0.2.0/nprogress.min.js"></script>
+{# Ambient console copilot — floating assistant on every admin page except the
+   dedicated full-page one (which would otherwise double it up). #}
+{% if admin_page is not defined or admin_page != 'assistant' %}{% include 'admin/partials/copilot.twig' %}{% endif %}
+
+{# Alpine.js powers the admin's rich interactivity — the AI console + AI-assist
+   drafting, the form builder, and the post/event editors all use x-data/@click.
+   Without it those surfaces silently do nothing (admin.js notes it depends on
+   Alpine). Loaded before admin.js, same pinned version as the public layout. #}
+{# ag-chat MUST load before Alpine: Alpine's build calls start() as soon as it
+   runs, and because these are deferred the document is already "interactive",
+   so Alpine walks the DOM and evaluates x-data="agChat({…})" immediately. If
+   Alpine ran first, window.agChat wouldn't exist yet and the copilot/assistant
+   would throw "agChat is not defined". #}
+<script defer src="{{ asset('/assets/js/ag-chat.js') }}"></script>
+<script defer src="{{ asset('/assets/js/vendor/alpine-3.13.5.min.js') }}"></script>
+{# Popper + Tippy vendored locally (not CDN): the production CSP is 'self'-only
+   for scripts, so a CDN load is blocked. Popper defines window.Popper, which
+   Tippy consumes; admin.js then inits tippy on [data-tip]. #}
+<script defer src="{{ asset('/assets/js/vendor/popper-2.11.8.min.js') }}"></script>
+<script defer src="{{ asset('/assets/js/vendor/tippy-6.3.7.umd.min.js') }}"></script>
 {% block foot_scripts %}{% endblock %}
-<script defer src="/assets/js/admin.js?v={{ asset_version }}"></script>
+<script defer src="{{ asset('/assets/js/admin.js') }}"></script>
+{% include 'admin/partials/cmdk.twig' %}
+{% include 'admin/partials/richtext.twig' %}
+{% include 'admin/partials/ui.twig' %}
 </body>
 </html>

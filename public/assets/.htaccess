@@ -1,0 +1,42 @@
+# ═══════════════════════════════════════════════════════════════════════════
+#  STATIC ASSETS — CSS, JS, fonts, images, Lottie JSON.
+#
+#  PHP serves NOTHING from this directory: public/.htaccess routes a request to
+#  index.php only when the file does not exist (`RewriteCond !-f`), and everything
+#  here exists. That is what makes a plain `Header set` safe in this file — there is
+#  no per-request nonce policy to overwrite, because there is no PHP response.
+#
+#  The CSP could NOT go in public/.htaccess. `Header set` there would replace the
+#  nonce-bearing policy on every HTML page and kill every inline script on the site;
+#  `Header setifempty` avoids that but is Apache 2.4.7+ and unsupported by LiteSpeed's
+#  mod_headers emulation, which many cPanel hosts run — an unsupported directive in
+#  .htaccess is a 500 for the whole site, which is what it caused. Scoping by
+#  directory needs no exotic directive at all.
+#
+#  ONLY universally-supported directives are used here: `<IfModule>` and `Header set`.
+#  No `setifempty`, no `<IfVersion>`, no `Options` (which needs `AllowOverride
+#  Options` and is commonly restricted), no `RemoveHandler`, no `php_flag`.
+# ═══════════════════════════════════════════════════════════════════════════
+
+<IfModule mod_headers.c>
+  # `default-src 'none'` is the directive that matters: script-src inherits from it, so
+  # an SVG under /assets/ navigated to directly cannot execute script. That is the real
+  # hole this closes — a browser treats a directly-opened SVG as a document, same-origin,
+  # with the site's cookies available to any script inside it.
+  #
+  # `img-src`/`font-src` allow self+data so a directly-opened image or font still
+  # renders. `style-src 'unsafe-inline'` keeps an SVG's own internal styling working;
+  # that is presentation with no script capability.
+  #
+  # Deliberately NO `sandbox` here, unlike /uploads/. Every stylesheet and script the
+  # site loads is a real file in this directory, so this header rides along on the
+  # site's own subresources. Browsers ignore CSP delivered with a subresource when
+  # deciding the embedding document's policy, so it is inert there — but `sandbox` is
+  # the one directive whose behaviour on a non-document response is not worth betting
+  # the site's CSS and JS on. Untrusted bytes live in /uploads/, and that directory
+  # does use the hard sandbox.
+  Header set Content-Security-Policy "default-src 'none'; img-src 'self' data:; style-src 'unsafe-inline'; font-src 'self' data:; base-uri 'none'; form-action 'none'; frame-ancestors 'self'"
+
+  # A stylesheet whose declared type is not believed can be sniffed as HTML.
+  Header set X-Content-Type-Options "nosniff"
+</IfModule>

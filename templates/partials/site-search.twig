@@ -1,0 +1,75 @@
+{# ══════════════════════════════════════════════════════════════════════════
+   SITE-WIDE SEARCH
+
+   One box that reaches nominees, results, posts, events, threads, profiles,
+   phase changes, award programmes, categories and the site's own pages. It is
+   the /activity engine — the same ActivityFeedService, the same AI intent pass
+   — surfaced from the header instead of only from one page.
+
+   ── THE ACCESSIBILITY IS THE FEATURE, NOT A COATING ──────────────────────────
+
+   • It is a real <dialog>-shaped modal: focus MOVES into the input on open,
+     is TRAPPED while open, and RETURNS to the button that opened it on close.
+     A search overlay that leaves focus behind it is unusable by keyboard —
+     you tab into a list you cannot see.
+   • The input is a WAI-ARIA 1.2 combobox: aria-expanded, aria-controls,
+     aria-autocomplete=list, aria-activedescendant, role=listbox/option.
+   • The active option moves with aria-activedescendant, never with focus().
+     Moving real focus into the list takes it out of the input, so the next
+     keystroke goes somewhere the user is not looking and typing "vote" after
+     arrowing down loses the "e".
+   • Results arriving is announced on a polite live region that is ALWAYS in
+     the DOM. A live region inserted at the same moment as its text is not
+     reliably announced — the observer has nothing to observe yet.
+   • Escape closes. Enter opens the active result, or submits to /activity when
+     nothing is active, so the box always has a destination.
+
+   ── AND THE AI IS BOUNDED ────────────────────────────────────────────────────
+
+   The model reads the QUERY for intent ("winners in Ghana last month" → a kind,
+   a country, a date range). It never writes a result. Everything on screen came
+   out of the database; if the model is off, over budget or wrong, the search
+   degrades to plain text matching and still answers. That is why interpretation
+   is a filter and not a generator.
+   ══════════════════════════════════════════════════════════════════════════ #}
+<div class="ags" id="agSearch" hidden data-ag-search>
+  <div class="ags__scrim" data-ag-search-close></div>
+
+  <div class="ags__panel" role="dialog" aria-modal="true" aria-labelledby="agsTitle">
+    <h2 class="sr-only" id="agsTitle">Search Africa GATES</h2>
+
+    {# A real GET form: with no JavaScript this still submits to /activity, which
+       renders the same results server-side. The overlay is an enhancement. #}
+    <form class="ags__bar" method="get" action="/activity" role="search">
+      <svg class="ags__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true" focusable="false"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.6-3.6" stroke-linecap="round"/></svg>
+      <label class="sr-only" for="agsInput">Search nominees, events, posts and pages</label>
+      <input class="ags__input" id="agsInput" name="q" type="search" autocomplete="off"
+             spellcheck="false" placeholder="Search nominees, events, pages…"
+             aria-describedby="agsHint">
+      <button type="button" class="ags__close" data-ag-search-close aria-label="Close search">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true" focusable="false"><path d="m6 6 12 12M18 6 6 18" stroke-linecap="round"/></svg>
+      </button>
+    </form>
+
+    <p class="ags__hint" id="agsHint">Try a name, a category, or a question like “how does voting work”.</p>
+
+    {# Always present, so the announcement lands. Empty until there is something
+       true to say — a status line that says "0 results" before you have typed is
+       noise read out on every open. #}
+    <p class="ags__status" id="agsStatus" role="status" aria-live="polite" aria-atomic="true"></p>
+
+    {# No role="listbox" in the markup. ag-search.js adds it, along with the
+       combobox roles on the input, because the two only make sense together: an
+       input that advertises a popup it cannot open, or a list that claims to hold
+       options when nothing will ever put any in it, is a promise to a screen
+       reader that the page cannot keep if the script fails to load. The honest
+       degraded state is a plain search field that submits to /activity.
+       ActivityPageAccessibilityTest enforces this rule for the whole page. #}
+    <ul class="ags__list" id="agsResults"></ul>
+
+    <p class="ags__foot">
+      <kbd>↑</kbd><kbd>↓</kbd> to move · <kbd>Enter</kbd> to open · <kbd>Esc</kbd> to close
+      <a href="/activity">Full search →</a>
+    </p>
+  </div>
+</div>

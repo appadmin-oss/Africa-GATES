@@ -1,0 +1,165 @@
+{% extends "admin/layout.twig" %}
+{% block topbar_title %}Vote recovery{% endblock %}
+
+{#
+  THE QUEUE, AND THE NUMBER THAT SHOULD MAKE IT UNNECESSARY.
+
+  Built because `bin/console votes:recover` was the only way in and there is no SSH
+  on this deployment — and because its own two-person rule needed an admin panel
+  that had never been written, so no batch could reach `applied` by any route at all.
+
+  The delivery-failure rate leads the page, above the repair. A screen that offered
+  only the patch would let an operator repair the same outage every month without
+  ever seeing that it is the same outage. Recovery fixes a result; it does nothing
+  about the cause.
+#}
+
+{% block head_styles %}
+<style nonce="{{ csp_nonce }}">
+  .vr-head{ border-radius:16px; padding:22px 24px; margin-bottom:18px;
+    background:#f7f9f7; border:1px solid rgba(16,41,44,.12); }
+  .vr-head--bad{ background:#fdf3f3; border-color:#f0c9c9 }
+  .vr-head h2{ margin:0; font-family:var(--ag-font-display,inherit); font-weight:700; font-size:20px; line-height:1.3; color:#10292C; }
+  .vr-head--bad h2{ color:#8a2020 }
+  .vr-head p{ margin:9px 0 0; font-size:14px; line-height:1.65; color:#39464a; max-width:74ch; }
+
+  .vr-card{ background:#fff; border:1px solid rgba(16,41,44,.09); border-radius:14px; padding:20px 22px; }
+  .vr-card + .vr-card{ margin-top:16px }
+  .vr-card h3{ margin:0 0 6px; font-family:var(--ag-font-display,inherit); font-weight:700; font-size:16px; color:#10292C; }
+  .vr-sub{ margin:0 0 16px; font-size:13px; line-height:1.6; color:#5a6d6f; max-width:74ch; }
+
+  .vr-grid{ display:grid; grid-template-columns:repeat(auto-fit,minmax(190px,1fr)); gap:12px; }
+  .vr-field label{ display:block; font-size:11.5px; font-weight:650; letter-spacing:.05em;
+    text-transform:uppercase; color:#5a6d6f; margin-bottom:6px; }
+  .vr-in{ width:100%; box-sizing:border-box; border:1px solid rgba(16,41,44,.16); border-radius:10px;
+    padding:10px 13px; font-family:inherit; font-size:13.5px; outline:none; background:#fff; }
+  .vr-in:focus-visible{ border-color:#3f9c3c; outline:2px solid #3f9c3c; outline-offset:1px }
+  .vr-btn{ cursor:pointer; border:none; font-family:inherit; font-weight:650; font-size:13.5px;
+    padding:11px 20px; border-radius:999px; background:#10292C; color:#fff; }
+  .vr-btn:focus-visible{ outline:2px solid #3f9c3c; outline-offset:2px }
+
+  .vr-list{ list-style:none; margin:0; padding:0 }
+  .vr-item{ display:block; text-decoration:none; color:inherit; padding:14px 0;
+    border-top:1px solid rgba(16,41,44,.08); }
+  .vr-item:first-child{ border-top:none }
+  .vr-item:hover .vr-ref{ text-decoration:underline }
+  .vr-ref{ font-family:var(--ag-font-mono,monospace); font-weight:700; font-size:13.5px; color:#10292C }
+  .vr-meta{ margin-top:4px; font-size:12.5px; color:#5a6d6f; line-height:1.6 }
+  .vr-note{ margin-top:5px; font-size:12.5px; color:#39464a; line-height:1.55; max-width:80ch }
+  .vr-tag{ display:inline-block; font-size:11px; font-weight:650; letter-spacing:.04em;
+    text-transform:uppercase; padding:3px 9px; border-radius:999px; margin-left:8px;
+    background:#eef1f1; color:#39464a }
+  .vr-tag--wait{ background:#fdf6e4; color:#7a5a12 }
+  .vr-tag--ok{ background:#eef7ee; color:#1a4d18 }
+  .vr-tag--no{ background:#fdf3f3; color:#8a2020 }
+  .vr-empty{ font-size:13.5px; color:#5a6d6f; line-height:1.7; max-width:74ch }
+</style>
+{% endblock %}
+
+{% block content %}
+
+{# ── THE NUMBER THIS FEATURE EXISTS TO SERVE ─────────────────────────────────
+   Above the repair, deliberately. The failure rate is the thing that should be
+   falling; a platform needing this regularly has a mail problem, not a recovery
+   problem. #}
+<div class="vr-head{{ health.pct >= 1 ? ' vr-head--bad' : '' }}">
+  <h2>
+    {%- if health.sent + health.failed == 0 %}No vote codes were sent in the last {{ days }} days
+    {%- elseif health.failed == 0 %}Every vote code sent in the last {{ days }} days was delivered
+    {%- else %}{{ health.pct }}% of vote codes failed to send in the last {{ days }} days{% endif -%}
+  </h2>
+  <p>
+    {{ health.sent|number_format }} delivered, {{ health.failed|number_format }} failed{% if health.unknown %},
+    {{ health.unknown|number_format }} with no delivery record{% endif %}.
+    {% if health.failed > 0 %}Each failure is somebody who came to the ballot, chose a nominee and never
+    got their code. Fixing the sending is the repair; everything below is what is left when it is
+    too late for that.{% else %}Nothing here needs recovering while this stays true.{% endif %}
+    {% if health.unknown %}Tokens with no delivery record are <strong>not</strong> recoverable — we do not
+    know that we failed those people, and being unable to rule it out is not evidence.{% endif %}
+  </p>
+</div>
+
+{# ── OPEN A BATCH ─────────────────────────────────────────────────────────────
+   An operator picks a window and describes the incident. They never name a person:
+   the population is derived from tokens whose delivery WE recorded as failed, so two
+   operators running the same window on the same data get the same list. #}
+<div class="vr-card">
+  <h3>Open a batch for one outage</h3>
+  <p class="vr-sub">
+    You choose the window and write down what went wrong. You do not choose people — the list
+    comes from vote codes this platform recorded as <em>failed to send</em>, and nothing else.
+    While a ballot is still open this refuses and tells you to re-send instead, because a vote
+    somebody casts themselves is better than one cast for them in every way that matters.
+  </p>
+  <form method="post" action="/admin/vote-recovery/open">
+    <input type="hidden" name="_token" value="{{ csrf_token }}">
+    <div class="vr-grid">
+      <div class="vr-field">
+        <label for="vr-cycle">Cycle</label>
+        <select class="vr-in" name="cycle_id" id="vr-cycle" required>
+          {% for c in cycles %}
+            <option value="{{ c.id }}">{{ c.programme ?: 'Programme' }} {{ c.year }} — {{ c.status }}</option>
+          {% else %}
+            <option value="">No cycles yet</option>
+          {% endfor %}
+        </select>
+      </div>
+      {# step="1" on both: the window is compared against `gates_otp_tokens.created_at`
+         to the second, and without it the control hands back a value rounded to the
+         minute — which silently moves which attempts fall inside the outage. #}
+      <div class="vr-field">
+        <label for="vr-from">Outage began</label>
+        <input class="vr-in" type="datetime-local" step="1" name="window_from" id="vr-from" required>
+      </div>
+      <div class="vr-field">
+        <label for="vr-to">Outage ended</label>
+        <input class="vr-in" type="datetime-local" step="1" name="window_to" id="vr-to" required>
+      </div>
+    </div>
+    <div class="vr-field" style="margin-top:14px">
+      <label for="vr-note">What went wrong</label>
+      <input class="vr-in" type="text" name="incident_note" id="vr-note" maxlength="300" required
+             placeholder="e.g. Relay rejected every send between 14:10 and 16:40 — provider incident #4821">
+    </div>
+    <p class="vr-sub" style="margin:10px 0 14px">
+      Required. The approver is being asked to agree that this platform let these people down, and
+      they cannot agree to that without being told what happened.
+    </p>
+    <button class="vr-btn" type="submit">Open a draft</button>
+  </form>
+</div>
+
+{# ── THE RECORD ───────────────────────────────────────────────────────────────
+   Every state, rejected and voided included. A queue showing only what is still
+   moving would hide the two outcomes that matter most to somebody asking whether
+   this mechanism has been used well. #}
+<div class="vr-card">
+  <h3>Every batch ever opened</h3>
+  <p class="vr-sub">Including the ones that were refused and the ones that were taken back.</p>
+  <ul class="vr-list">
+    {% for b in batches %}
+      <li>
+        <a class="vr-item" href="/admin/vote-recovery/{{ b.id }}">
+          <span class="vr-ref">{{ b.reference ?: '#' ~ b.id }}</span>
+          <span class="vr-tag{{ b.status == 'applied' ? ' vr-tag--ok' : (b.status in ['rejected','voided'] ? ' vr-tag--no' : (b.status == 'submitted' ? ' vr-tag--wait' : '')) }}">{{ b.status }}</span>
+          <span class="vr-meta">
+            {{ b.window_from }} → {{ b.window_to }} ·
+            {{ b.status == 'applied' ? b.applied_count|number_format ~ ' written' : b.candidate_count|number_format ~ ' dropped attempts' }}
+            {%- if b.created_by_name %} · opened by {{ b.created_by_name }}{% endif %}
+            {%- if b.decided_by_name and b.status in ['approved','applied','rejected'] %} · decided by {{ b.decided_by_name }}{% endif %}
+          </span>
+          <span class="vr-note">{{ b.incident_note }}</span>
+          {% if b.void_reason %}<span class="vr-note"><strong>Taken back:</strong> {{ b.void_reason }}</span>{% endif %}
+        </a>
+      </li>
+    {% else %}
+      <li class="vr-empty">
+        Nothing has ever been recovered on this platform. That is the state to stay in — every batch
+        here is an admission that somebody was let down badly enough that we had to put their vote
+        on the tally ourselves.
+      </li>
+    {% endfor %}
+  </ul>
+</div>
+
+{% endblock %}

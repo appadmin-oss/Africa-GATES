@@ -1,0 +1,164 @@
+{% extends "admin/layout.twig" %}
+{% block topbar_eyebrow %}<small>Content</small>{% endblock %}
+{% block topbar_title %}Stand presets{% endblock %}
+
+{% block content %}
+
+<p style="margin:0 0 14px;font-size:13.5px;color:var(--ad-text-mute,#5a6d6f)">
+  What we offer vendors, priced once. On an event's stands screen you pick a preset and say
+  how many that hall has — the size, price and terms come from here.
+  <strong>Editing a preset does not change an event that already uses it</strong>, because a
+  vendor's terms were fixed when they applied.
+</p>
+
+{# ── ADD ──────────────────────────────────────────────────────────────────── #}
+<form class="ad-form" method="post" action="/admin/stand-presets">
+  <input type="hidden" name="_token" value="{{ csrf_token }}">
+  <div class="ad-card">
+    <div class="ad-card__head"><div class="ad-card__title">Add a preset
+      <small>Enter the size in whatever unit you hire in. Prices accept <code>10k</code>, <code>₦10,000</code> or <code>10000</code>.</small>
+    </div></div>
+    <div class="ad-card__body"><div class="ad-form">
+      <div class="row">
+        <div><label for="n-name">Name</label>
+          <input type="text" name="name" id="n-name" required maxlength="160" placeholder="6 × 6 ft stand"></div>
+        <div><label for="n-cat">Category</label>
+          <select name="category" id="n-cat">
+            {% for k, label in categories %}<option value="{{ k }}" {% if k == 'general' %}selected{% endif %}>{{ label }}</option>{% endfor %}
+          </select></div>
+      </div>
+
+      <div class="row">
+        <div><label for="n-unit">Measured in</label>
+          <select name="unit" id="n-unit">
+            {% for k, label in units %}<option value="{{ k }}" {% if k == 'ft' %}selected{% endif %}>{{ label }}</option>{% endfor %}
+          </select>
+          {# Two separate pairs of boxes, one per unit, deliberately. A shared pair changes
+             meaning the moment somebody flips the unit: "6 × 6" typed as feet and then
+             switched to metres is a 36m² pitch nobody asked for. #}
+          <p class="hint">Fill in the boxes for the unit you chose. The other pair is ignored.</p>
+        </div>
+        <div><label for="n-quota">Usual number per event <small style="font-weight:500">(optional)</small></label>
+          <input type="number" name="default_quota" id="n-quota" min="0" max="10000" value="0">
+          <p class="hint">Just pre-fills the quota box. How many fit is always a fact about the room.</p>
+        </div>
+      </div>
+
+      <div class="row">
+        <div><label for="n-wft">Width (ft)</label><input type="number" name="width_ft" id="n-wft" step="0.5" min="0" placeholder="6"></div>
+        <div><label for="n-dft">Depth (ft)</label><input type="number" name="depth_ft" id="n-dft" step="0.5" min="0" placeholder="6"></div>
+      </div>
+      <div class="row">
+        <div><label for="n-wm">Width (m)</label><input type="number" name="width_m" id="n-wm" step="0.05" min="0" placeholder="3"></div>
+        <div><label for="n-dm">Depth (m)</label><input type="number" name="depth_m" id="n-dm" step="0.05" min="0" placeholder="3"></div>
+      </div>
+
+      <div class="row">
+        <div><label for="n-price">Price (₦)</label><input type="text" name="price_naira" id="n-price" placeholder="10k"></div>
+        <div><label for="n-dep">Deposit (₦) <small style="font-weight:500">(optional)</small></label><input type="text" name="deposit_naira" id="n-dep" placeholder="0"></div>
+      </div>
+
+      <div><label for="n-note">What it is</label>
+        <textarea name="note" id="n-note" rows="2" maxlength="400"
+          placeholder="One trestle or a small rail, one or two people behind it."></textarea></div>
+
+      <div class="row">
+        <div><label class="checkbox"><input type="checkbox" name="includes_power" value="1"> Power included</label></div>
+        <div><label class="checkbox"><input type="checkbox" name="step_free" value="1"> Step-free pitch</label></div>
+      </div>
+    </div></div>
+    <div class="ad-card__body" style="padding-top:0"><div class="ad-form__actions" style="justify-content:flex-end">
+      <button class="ad-btn ad-btn--primary" type="submit">Add preset</button>
+    </div></div>
+  </div>
+</form>
+
+{# ── THE CATALOGUE ────────────────────────────────────────────────────────── #}
+<div class="ad-card"><div class="ad-card__head"><div class="ad-card__title">The catalogue
+  <small>{{ live }} offerable{% if retired %}, {{ retired }} retired{% endif %}.</small>
+</div></div><div class="ad-table-wrap">
+  <table class="ad-table">
+    <thead><tr>
+      <th scope="col">Preset</th>
+      <th scope="col">Size</th>
+      <th scope="col" style="text-align:right">Floor</th>
+      <th scope="col" style="text-align:right">Price</th>
+      <th scope="col">Terms</th>
+      <th scope="col" class="col-actions">Actions</th>
+    </tr></thead>
+    <tbody>
+      {% for p in rows %}
+      {% set r = p.row %}
+      <tr{% if not r.is_active %} class="ad-out"{% endif %}>
+        <td>
+          <strong>{{ r.name }}</strong>
+          {% if not r.is_active %} <span class="ad-chip ad-chip--grey">retired</span>{% endif %}
+          {% if r.note %}<br><span style="font-size:12px;color:var(--ad-text-mute)">{{ r.note }}</span>{% endif %}
+        </td>
+        <td style="font-variant-numeric:tabular-nums">{{ p.label }}
+          <br><span style="font-size:11.5px;color:var(--ad-text-mute)">{{ categories[r.category]|default(r.category) }}</span></td>
+        <td style="text-align:right;font-variant-numeric:tabular-nums">{{ p.area }} m²</td>
+        <td style="text-align:right;font-variant-numeric:tabular-nums">
+          {% if r.price_naira %}₦{{ r.price_naira|number_format }}{% else %}<span style="color:var(--ad-text-mute)">not priced</span>{% endif %}
+          {% if r.deposit_naira %}<br><span style="font-size:11px;color:var(--ad-text-mute)">₦{{ r.deposit_naira|number_format }} deposit</span>{% endif %}
+        </td>
+        <td style="font-size:12px">
+          {% if r.includes_power %}<span class="ad-chip ad-chip--blue">power</span>{% endif %}
+          {% if r.step_free %}<span class="ad-chip ad-chip--green">step-free</span>{% endif %}
+          {% if r.default_quota %}<br><span style="color:var(--ad-text-mute)">usually {{ r.default_quota }}</span>{% endif %}
+        </td>
+        <td class="col-actions">
+          <details class="ad-photo-edit">
+            <summary class="ad-btn ad-btn--sm" style="cursor:pointer">Edit</summary>
+            <form class="ad-form" method="post" action="/admin/stand-presets/{{ r.id }}"
+                  style="margin-top:10px;min-width:280px;text-align:left">
+              <input type="hidden" name="_token" value="{{ csrf_token }}">
+              <input type="hidden" name="slug" value="{{ r.slug }}">
+              <input type="hidden" name="unit" value="{{ r.unit }}">
+              <div><label>Name</label><input type="text" name="name" value="{{ r.name }}" required></div>
+              <div class="row">
+                <div><label>Width ({{ r.unit }})</label>
+                  <input type="number" name="width_{{ r.unit }}" step="{{ p.step }}" value="{{ p.w }}"></div>
+                <div><label>Depth ({{ r.unit }})</label>
+                  <input type="number" name="depth_{{ r.unit }}" step="{{ p.step }}" value="{{ p.d }}"></div>
+              </div>
+              <div class="row">
+                <div><label>Price (₦)</label><input type="text" name="price_naira" value="{{ r.price_naira }}"></div>
+                <div><label>Deposit (₦)</label><input type="text" name="deposit_naira" value="{{ r.deposit_naira }}"></div>
+              </div>
+              <div><label>Category</label><select name="category">
+                {% for k, label in categories %}<option value="{{ k }}" {% if k == r.category %}selected{% endif %}>{{ label }}</option>{% endfor %}
+              </select></div>
+              <div><label>What it is</label><textarea name="note" rows="2" maxlength="400">{{ r.note }}</textarea></div>
+              <div class="row">
+                <div><label>Usual number</label><input type="number" name="default_quota" min="0" value="{{ r.default_quota }}"></div>
+                <div><label>Order</label><input type="number" name="sort_order" value="{{ r.sort_order }}"></div>
+              </div>
+              <div><label class="checkbox"><input type="checkbox" name="includes_power" value="1" {% if r.includes_power %}checked{% endif %}> Power included</label></div>
+              <div><label class="checkbox"><input type="checkbox" name="step_free" value="1" {% if r.step_free %}checked{% endif %}> Step-free</label></div>
+              <input type="hidden" name="is_active" value="{{ r.is_active }}">
+              <div class="ad-form__actions"><button class="ad-btn ad-btn--primary ad-btn--sm" type="submit">Save</button></div>
+            </form>
+          </details>
+          {% if r.is_active %}
+          <form method="post" action="/admin/stand-presets/{{ r.id }}/retire" style="display:inline">
+            <input type="hidden" name="_token" value="{{ csrf_token }}">
+            <button class="ad-btn ad-btn--sm" type="submit"
+              data-confirm="Retire “{{ r.name }}”? It stops being offerable on new events. Nothing already sold changes.">Retire</button>
+          </form>
+          {% else %}
+          <form method="post" action="/admin/stand-presets/{{ r.id }}/restore" style="display:inline">
+            <input type="hidden" name="_token" value="{{ csrf_token }}">
+            <button class="ad-btn ad-btn--sm" type="submit">Restore</button>
+          </form>
+          {% endif %}
+        </td>
+      </tr>
+      {% else %}
+      <tr><td colspan="6" style="text-align:center;color:var(--ad-text-mute);padding:30px">No presets yet — add the first one above.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div></div>
+
+{% endblock %}

@@ -1,322 +1,1174 @@
 {% extends "judge/layout.twig" %}
 {% block content %}
-<section class="wrap">
-  <a href="/judge/ballot" style="font-size:12px;color:var(--ink-500)">← All programmes</a>
-  <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:1rem;flex-wrap:wrap;margin-top:14px">
+
+{# The whole ballot shares one Alpine component so the progress strip stays in
+   sync with scores saved live (it used to freeze at the page-load count until
+   a full reload). The payload is parsed from the JSON island below. #}
+<script nonce="{{ csp_nonce }}" id="ballotData" type="application/json">{ "criteria": {{ ballot.criteria|json_encode(JSON_SAFE)|raw }}, "nominees": {{ ballot.categories|json_encode(JSON_SAFE)|raw }}, "judgingOpen": {{ ballot.judging_open ? 'true' : 'false' }}, "lockReason": {{ ballot.lock_reason|default('')|json_encode(JSON_SAFE)|raw }} }</script>
+
+{# The key handler is bound at the WINDOW, not on the queue: a judge reading the dossier
+   has focus somewhere in the panel, and shortcuts that only worked while the list itself
+   was focused would be shortcuts nobody could reach. `key()` does the guarding. #}
+<div x-data="ballotApp(JSON.parse(document.getElementById('ballotData').textContent))"
+     @keydown.window="key($event)">
+
+{# ── Progress strip ── #}
+<div class="jc-strip">
+  <div class="wrap jc-strip__in">
     <div>
-      <p class="jd-eyebrow">Score nominees</p>
-      <h1 class="jd-h1">{{ programme.icon_emoji }} {{ programme.title }} <em style="font-size:0.7em">·</em> <span class="tx-gradient" style="font-style:italic">{{ ballot.cycle.year }}</span></h1>
+      <div class="jc-strip__title">{{ programme.icon_emoji }} {{ programme.title }}</div>
+      <div class="jc-strip__sub">Score each nominee across {{ ballot.criteria|length }} criteria · {{ ballot.cycle.year }}</div>
     </div>
-    {# Progress ring #}
-    <div class="jd-progress-ring" title="{{ ballot.progress.scored }} of {{ ballot.progress.total }} nominees scored">
+    <div class="jc-strip__prog">
       {% set pct = ballot.progress.total > 0 ? (ballot.progress.scored / ballot.progress.total * 100)|round : 0 %}
-      <svg width="64" height="64" viewBox="0 0 64 64" aria-hidden="true">
-        <circle cx="32" cy="32" r="27" fill="none" stroke="#e5e7eb" stroke-width="5"/>
-        <circle cx="32" cy="32" r="27" fill="none" stroke="var(--emerald-500)" stroke-width="5"
-                stroke-dasharray="{{ (27 * 2 * 3.14159)|round(1) }}"
-                stroke-dashoffset="{{ ((1 - pct/100) * 27 * 2 * 3.14159)|round(1) }}"
-                stroke-linecap="round" transform="rotate(-90 32 32)"/>
-        <text x="32" y="37" text-anchor="middle" font-size="13" font-weight="700" fill="var(--kale-700)">{{ pct }}%</text>
-      </svg>
-      <div style="font-size:11px;color:var(--ink-500);text-align:center;margin-top:2px">{{ ballot.progress.scored }}/{{ ballot.progress.total }}<br>scored</div>
+      <div class="jc-strip__count"><b x-text="scoredCount + ' / ' + totalCount">{{ ballot.progress.scored }} / {{ ballot.progress.total }}</b><span>scored</span></div>
+      <div class="jc-strip__bar"><span :style="'width:'+progressPct+'%'" style="width:{{ pct }}%"></span></div>
     </div>
   </div>
+</div>
 
-  {# Programme tabs if assigned to multiple #}
+<section class="wrap" style="padding-top:18px">
   {% if programmes|length > 1 %}
-  <div class="jd-tabs" style="margin-top:20px">
+  <div class="jd-tabs" style="margin-bottom:18px">
     {% for p in programmes %}
     <a class="jd-tab {% if p.id == programme.id %}is-active{% endif %}" href="/judge/ballot/{{ p.id }}">{{ p.icon_emoji }} {{ p.title|split(' ')|first }}</a>
     {% endfor %}
   </div>
   {% endif %}
 
-  {# Conflict of interest declaration — shown once per session #}
-  <div id="conflictBar" class="jd-conflict" x-data="{declared: sessionStorage.getItem('coi_declared_{{ programme.id }}') === '1'}" x-show="!declared" x-cloak>
-    <div class="jd-conflict__body">
-      <strong>⚖️ Conflict of interest check</strong>
-      <p>Do you have a personal, financial, or professional relationship with any nominee in this programme that could affect your impartiality?</p>
-    </div>
-    <div class="jd-conflict__actions">
-      <form method="post" action="/judge/conflict/{{ programme.id }}" style="display:inline">
-        <input type="hidden" name="_token" value="{{ csrf_token }}">
-        <button class="jd-conflict__btn jd-conflict__btn--yes" type="submit">Yes — declare a conflict</button>
-      </form>
-      <button class="jd-conflict__btn jd-conflict__btn--no" type="button"
-              @click="declared=true; sessionStorage.setItem('coi_declared_{{ programme.id }}','1')">No conflict — proceed to scoring</button>
-    </div>
-  </div>
+  {# Conflict of interest declaration — per programme. Only shown when no COI is on record. #}
+  {% if not ballot.coi %}
+  <div class="jd-conflict"
+       x-data="{declared: sessionStorage.getItem('coi_declared_{{ programme.id }}') === '1', step:'ask'}"
+       x-show="!declared" x-cloak>
 
-  {# Scoring criteria legend #}
-  {% if ballot.criteria %}
-  <div class="jd-legend" style="margin-top:24px">
-    <p class="jd-legend__title">Scoring criteria (0–10 each, weighted average)</p>
-    <div class="jd-legend__grid">
-      {% for c in ballot.criteria %}
-      <div class="jd-legend__item">
-        <span class="jd-legend__label">{{ c.label }}</span>
-        <span class="jd-legend__weight">×{{ c.weight }}%</span>
-        <span class="jd-legend__desc">{{ c.description }}</span>
+    {# Step 1 — the check #}
+    <template x-if="step==='ask'">
+      <div class="jd-conflict__row">
+        <div class="jd-conflict__body">
+          <strong>⚖️ Conflict of interest check</strong>
+          <p>Do you have a personal, financial, or professional relationship with any nominee here that could affect your impartiality?</p>
+        </div>
+        <div class="jd-conflict__actions">
+          <button class="jd-conflict__btn jd-conflict__btn--yes" type="button" @click="step='confirm'">Yes — I have a conflict</button>
+          <button class="jd-conflict__btn jd-conflict__btn--no" type="button"
+                  @click="declared=true; sessionStorage.setItem('coi_declared_{{ programme.id }}','1')">No conflict — proceed</button>
+        </div>
       </div>
-      {% endfor %}
-    </div>
+    </template>
+
+    {# Step 2 — confirm the recusal (destructive & disables scoring) #}
+    <template x-if="step==='confirm'">
+      <form method="post" action="/judge/conflict/{{ programme.id }}" class="jd-conflict__form">
+        <input type="hidden" name="_token" value="{{ csrf_token }}">
+        <strong>Recuse yourself from this programme?</strong>
+        <p>This locks your ballot for <b>{{ programme.title }}</b> and removes you from its scoring. You can withdraw a recusal made in error afterwards.</p>
+        <label class="jd-conflict__lbl" for="coi_reason">Reason <span>(optional — shared with administrators only)</span></label>
+        <textarea id="coi_reason" name="reason" class="jd-conflict__ta" maxlength="500" rows="3"
+                  placeholder="e.g. I mentor one of the nominees."></textarea>
+        <div class="jd-conflict__actions">
+          <button class="jd-conflict__btn jd-conflict__btn--no" type="button" @click="step='ask'">← Back</button>
+          <button class="jd-conflict__btn jd-conflict__btn--yes" type="submit">Confirm recusal</button>
+        </div>
+      </form>
+    </template>
   </div>
   {% endif %}
 
-  {# Main ballot app #}
-  <script id="ballotData" type="application/json">{ "criteria": {{ ballot.criteria|json_encode(JSON_SAFE)|raw }}, "nominees": {{ ballot.categories|json_encode(JSON_SAFE)|raw }} }</script>
+  {% if not ballot.judging_open %}
+  <div class="jc-lock" role="status">
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+    <p>{{ ballot.lock_reason ?: 'Scoring is currently closed for this programme.' }}</p>
+    {% if ballot.coi %}
+    <form method="post" action="/judge/conflict/{{ programme.id }}/withdraw" class="jc-lock__act"
+          x-data @submit="return confirm('Withdraw your conflict-of-interest recusal for this programme and re-open scoring?')">
+      <input type="hidden" name="_token" value="{{ csrf_token }}">
+      <button type="submit" class="jc-lock__btn">Withdraw recusal</button>
+    </form>
+    {% endif %}
+  </div>
+  {% endif %}
 
-  <div x-data="ballotApp(JSON.parse(document.getElementById('ballotData').textContent))" style="margin-top:28px">
+  {# ── CATEGORIES THAT ARE NOT ON THIS BALLOT, AND WHY ────────────────────────
+     A shortlist belongs to a CATEGORY. When one category has published and another
+     has not, the ballot below is genuinely incomplete — and it used to say nothing:
+     the missing category's nominees were simply absent, the lock could not fire
+     because the published category still had people, and a judge could not tell a
+     ballot they had finished from one that was never fully handed to them.
 
-    {# View toggle #}
-    <div style="display:flex;gap:8px;margin-bottom:20px;align-items:center">
-      <span style="font-size:12px;color:var(--ink-500);margin-right:4px">View:</span>
-      <button type="button" class="jd-view-btn" :class="view==='score'?'is-active':''" @click="view='score'">📋 Score</button>
-      <button type="button" class="jd-view-btn" :class="view==='compare'?'is-active':''" @click="view='compare'">📊 Compare</button>
-    </div>
+     Said out loud, and named, because the judge cannot fix it and the organiser can. #}
+  {% set pending = ballot.categories|default({})|filter(c => c.empty_why) %}
+  {% if pending|length %}
+  <div class="jc-lock" role="status">
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M12 8v5"/><path d="M12 16h.01"/></svg>
+    <p>{{ pending|length }}
+      categor{{ pending|length == 1 ? 'y is' : 'ies are' }} not on your ballot yet.
+      {% for c in pending %}<strong>{{ c.category.title }}</strong> &mdash;
+        {{ c.empty_why }}{% if not loop.last %} {% endif %}{% endfor %}
+      Nothing here is missing because you have scored it.</p>
+  </div>
+  {% endif %}
 
-    {# ── SCORE VIEW ────────────────────────────────────────────────── #}
-    <div x-show="view==='score'">
-      <template x-for="cat in groups" :key="cat.category.id">
-        <div class="jd-cat">
-          <div class="jd-cat__head">
-            <h2 class="jd-cat__title" x-text="cat.category.title"></h2>
-            <span class="jd-cat__count">
-              <span x-text="cat.scored" style="color:var(--emerald-600);font-weight:700"></span>/<span x-text="cat.nominees.length"></span> scored
-            </span>
-          </div>
+  <div class="jc" x-cloak>
+    <div x-show="!queue.length" class="jd-empty">No nominees yet for this programme's current cycle.</div>
 
-          <template x-for="n in cat.nominees" :key="n.id">
-            <article class="jd-nom" :class="n.complete ? 'is-complete' : ''">
-              <div class="jd-nom__head">
-                <div class="jd-nom__avatar" x-text="(n.name||'?').charAt(0).toUpperCase()"></div>
-                <div style="min-width:0;flex:1">
-                  <div class="jd-nom__name" x-text="n.name"></div>
-                  <div class="jd-nom__meta">
-                    <span x-text="n.country_code"></span>
-                    <span x-show="n.tagline" x-text="' · ' + (n.tagline||'').substring(0,60)"></span>
-                  </div>
-                </div>
-                <div class="jd-nom__avg">
-                  <div class="jd-nom__avg-n" x-text="n.complete ? n.avg.toFixed(1) : '—'"></div>
-                  <div class="jd-nom__avg-l">avg <span x-show="n.complete" style="color:var(--emerald-500)">✓</span></div>
-                </div>
-              </div>
+    <div class="jc-grid" x-show="queue.length">
+      {# ── Queue ── #}
+      {#
+        ── FINDING ONE NOMINEE AMONG FORTY ─────────────────────────────────────
+        This was a flat scroll with no search, no filter and no keyboard path. A
+        panel of forty is a judge scrolling a list to find the person whose evidence
+        they were reading yesterday, and a judge resuming work has exactly one
+        question — "what have I not done?" — that the list could not answer.
 
-              {# Score inputs with live bar #}
-              <div class="jd-criteria">
-                <template x-for="c in criteria" :key="c.id">
-                  <div class="jd-crit">
-                    <div class="jd-crit__top">
-                      <label class="jd-crit__label" x-text="c.label"></label>
-                      <span class="jd-crit__val"
-                            :class="n.scores[c.id] >= 8 ? 'is-high' : (n.scores[c.id] <= 3 && n.scores[c.id] !== undefined ? 'is-low' : '')"
-                            x-text="n.scores[c.id] !== undefined ? n.scores[c.id] : '—'"></span>
-                    </div>
-                    <div class="jd-crit__track">
-                      <input class="jd-slider" type="range" min="0" max="10" step="1"
-                             :aria-label="c.label + ' score for ' + n.name"
-                             :aria-valuetext="(n.scores[c.id] !== undefined ? n.scores[c.id] : 'not scored') + ' out of 10'"
-                             :value="n.scores[c.id] !== undefined ? n.scores[c.id] : ''"
-                             @input="onScore(n, c.id, $event.target.value)">
-                      <div class="jd-crit__bar" :style="'width:' + ((n.scores[c.id]||0)/10*100) + '%'"></div>
-                    </div>
-                    <div class="jd-crit__scale"><span>0</span><span>5</span><span>10</span></div>
-                  </div>
-                </template>
-              </div>
+        Three things, in the order a judge needs them:
+          · WHAT IS LEFT. The default view, because that is the resuming question.
+          · SEARCH, matching name, category and country, so a half-remembered
+            surname or "the entry from Kenya" both land.
+          · THE KEYBOARD. This is a daily-use expert tool, not a consumer flow:
+            j/k move, n jumps to the next unscored. Bound so they never fire while
+            somebody is typing a note.
+      #}
+      <aside class="jc-queue">
+        <div class="jc-queue__card">
+          <div class="jc-queue__head">Nominees</div>
 
-              {# Notes #}
-              <div class="jd-nom__notes">
-                <label style="font-size:11px;color:var(--ink-500);display:block;margin-bottom:4px">Private notes (only you see these)</label>
-                <textarea x-model="n.notes" @input.debounce.700ms="onNotes(n)"
-                          placeholder="Observations, context, justification for your scores…" rows="2"></textarea>
-              </div>
+          <div class="jc-find">
+            <label class="sr-only" for="jcFind">Search nominees by name, category or country</label>
+            <input id="jcFind" class="jc-find__in" type="search" x-model="q"
+                   autocomplete="off" spellcheck="false"
+                   placeholder="Search name, category, country"
+                   @keydown.escape="q = ''">
 
-              {# Save row #}
-              <div class="jd-nom__row">
-                <span class="jd-save-state"
-                      :class="{'is-ok': n._state==='ok', 'is-err': n._state==='err'}"
-                      x-text="n._state==='saving' ? 'Saving…' : (n._state==='ok' ? '✓ Saved' : (n._state==='err' ? '✗ Could not save' : (n.complete ? 'Fully scored' : 'Not yet scored')))">
-                </span>
-                <button type="button" class="jd-save-btn" @click="saveAll(n)" :disabled="n._state==='saving'">
-                  <span x-text="n.complete ? 'Update scores' : 'Save scores'"></span>
-                </button>
-              </div>
-            </article>
-          </template>
-
-          <div x-show="!cat.nominees.length" class="jd-empty" style="padding:1.5rem">
-            No nominees in this category yet.
-          </div>
-        </div>
-      </template>
-    </div>
-
-    {# ── COMPARE VIEW — ranked table of all nominees with their scores ── #}
-    <div x-show="view==='compare'" x-cloak>
-      <template x-for="cat in groups" :key="cat.category.id">
-        <div class="jd-cat" x-show="cat.nominees.length">
-          <div class="jd-cat__head">
-            <h2 class="jd-cat__title" x-text="cat.category.title"></h2>
-          </div>
-          <div class="jd-compare-table">
-            <div class="jd-compare-head">
-              <span style="flex:1">Nominee</span>
-              <template x-for="c in criteria" :key="c.id">
-                <span class="jd-compare-head__crit" x-text="c.label"></span>
+            {# Segmented, not a dropdown: three options that are each one tap, and the
+               count on each is the answer to "how much is left" without opening anything.
+               `todo` first and selected by default — see the note above. #}
+            <div class="jc-seg" role="group" aria-label="Which nominees to show">
+              <template x-for="o in [{k:'todo',l:'To score'},{k:'done',l:'Scored'},{k:'all',l:'All'}]" :key="o.k">
+                <button type="button" class="jc-seg__b" :class="only===o.k && 'is-on'"
+                        :aria-pressed="only===o.k ? 'true' : 'false'"
+                        @click="only = o.k"
+                        x-text="o.l + ' (' + countOf(o.k) + ')'"></button>
               </template>
-              <span style="width:60px;text-align:right">Avg</span>
             </div>
-            <template x-for="(n, idx) in ranked(cat.nominees)" :key="n.id">
-              <div class="jd-compare-row" :class="idx===0 ? 'is-top' : ''">
-                <div style="flex:1;display:flex;align-items:center;gap:8px;min-width:0">
-                  <span class="jd-rank" x-text="n.complete ? (idx+1) : '—'"></span>
-                  <div>
-                    <div style="font-weight:600;font-size:13.5px" x-text="n.name"></div>
-                    <div style="font-size:11px;color:var(--ink-500)" x-text="n.country_code"></div>
-                  </div>
+          </div>
+
+          {# The filtered list is a live region. A list that silently empties under a
+             search is a dead end for anybody not watching it, and the count is the
+             cheapest possible fix. #}
+          <p class="jc-find__n" role="status" aria-live="polite" x-text="shownLabel"></p>
+
+          <div class="jc-scroll">
+            <template x-for="i in shown" :key="queue[i].id">
+              <button type="button" class="jc-qrow" :class="active===i && 'is-active'" @click="pick(i)">
+                <span class="jc-qrow__av" x-text="(queue[i].name||'?').charAt(0).toUpperCase()"></span>
+                <span class="jc-qrow__who">
+                  <span class="jc-qrow__name" x-text="flag(queue[i].country_code) + ' ' + queue[i].name"></span>
+                  <span class="jc-qrow__status" x-text="queue[i].complete ? ('Scored · ' + queue[i].avg.toFixed(1)) : 'Awaiting score'"></span>
+                </span>
+                <svg class="jc-qrow__tick" :style="queue[i].complete ? 'color:#237b22' : 'color:#dbe3dd'" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+              </button>
+            </template>
+
+            {# An empty RESULT is not an empty LIST, and they must not look alike: one
+               means "try another word", the other means "there is nothing here". #}
+            <p class="jc-find__none" x-show="!shown.length" x-cloak>
+              <span x-show="q">Nothing matches &ldquo;<span x-text="q"></span>&rdquo;.</span>
+              <span x-show="!q && only==='todo'">Every nominee on this panel has been scored.</span>
+              <span x-show="!q && only==='done'">Nothing scored on this panel yet.</span>
+            </p>
+          </div>
+
+          <p class="jc-find__kb">
+            <kbd>j</kbd>/<kbd>k</kbd> move · <kbd>n</kbd> next unscored
+          </p>
+        </div>
+      </aside>
+
+      {# ── Scoring panel ── #}
+      <div class="jc-panel" x-show="cur">
+        <div class="jc-card">
+          <div class="jc-hero">
+            <div class="jc-hero__orb" aria-hidden="true"></div>
+            <span class="jc-hero__av" x-text="(cur?.name||'?').charAt(0).toUpperCase()"></span>
+            <div class="jc-hero__body">
+              <h2 x-text="flag(cur?.country_code) + ' ' + (cur?.name||'')"></h2>
+              <p x-text="cur?.category + (cur?.country_code ? (' · ' + cur.country_code) : '')"></p>
+            </div>
+            <div class="jc-hero__score">
+              <div class="jc-hero__n" x-text="curScore"></div>
+              <div class="jc-hero__l">Your score · /<span x-text="maxScore"></span></div>
+            </div>
+          </div>
+
+          {#
+            THE DOSSIER. Four criteria out of ten used to be scored against a name and a
+            one-line tagline; this is the evidence the platform actually holds.
+
+            Two rules the markup has to keep, both of them EvidenceService's:
+              • every item states WHO is asserting it — a nominator's case is advocacy and
+                is usually the best-written thing here, so it must not read like a checked
+                record;
+              • what is MISSING is printed as plainly as what is present, because a thin
+                dossier reflects our reach and the nominee's access to a camera, not the
+                quality of their work.
+          #}
+          {# ── IN THE NOMINEE'S OWN SUBMISSION, AND CONFIRMED BY THEM ───────
+             First, above our own map, because it is the only thing on this screen the
+             nominee themselves read and agreed to before sending. Shown whichever way
+             they answered — the conversation had a read-back and the form had nothing,
+             so half the entries arrived with nobody having checked they were understood.
+
+             Confirmed-only. A draft summary nobody approved must never sit at the top of
+             somebody's entry. #}
+          <div class="jc-sum" x-show="cur?.summary" x-cloak>
+            <p class="jc-klabel">The entry in short &mdash; checked by the nominee</p>
+            <p class="jc-sum__t" x-text="cur?.summary?.summary"></p>
+            <template x-if="(cur?.summary?.points || []).length">
+              <ul class="jc-sum__l">
+                <template x-for="(p, i) in cur.summary.points" :key="'sp'+i">
+                  <li x-text="p"></li></template>
+              </ul>
+            </template>
+            <p class="jc-sum__f">Written from their answers and shown to them before they
+              sent it. <strong>Their own words below are the record</strong> &mdash; this is
+              where to start, not what to judge.</p>
+          </div>
+
+          {# ── A MAP OF THE DOSSIER, BEFORE THE DOSSIER ─────────────────────
+             Above the evidence because it is a map OF it, and a map read afterwards is
+             a summary — which is the version that replaces reading rather than
+             directing it.
+
+             It is generated on request and never on render: a ballot of forty must not
+             start forty model calls by scrolling, and a page that spends money when you
+             look at it spends it again on every refresh.
+
+             It states no score, makes no comparison, and has not been shown any other
+             nominee — that last one is a property of the request, not a promise in a
+             prompt. See JudgeAssist. #}
+          <div class="jc-map" x-show="cur">
+            <div class="jc-map__top">
+              <p class="jc-klabel">Before you read this</p>
+              <template x-if="!cur?.map && !mapBusy">
+                <button class="jc-map__go" type="button" @click="orient()">
+                  Map this dossier</button>
+              </template>
+              {# A map of a dossier that has since changed. The button is offered rather
+                 than the map being hidden or silently refreshed: hiding it throws away
+                 something still mostly true, and refreshing on render is the model call
+                 on scroll this panel exists not to make. #}
+              <template x-if="cur?.map?.stale && !mapBusy">
+                <button class="jc-map__go" type="button" @click="orient()">
+                  Read the dossier again</button>
+              </template>
+              <span class="jc-map__wait" x-show="mapBusy">Reading the dossier…</span>
+
+              {# ── SAYING IT IS WRONG ───────────────────────────────────────────
+                 Offered only when there is a map to be wrong about, and set quietly:
+                 this is a correction, not a rating, and a prominent thumbs-down beside
+                 a summary invites a verdict on the writing rather than a report of a
+                 misreading.
+
+                 The judge reading the map and the dossier together is the only person
+                 positioned to notice, and until this they were the only one with no way
+                 to say so. #}
+              <template x-if="cur?.map && !mapBusy">
+                <button class="jc-map__flag" type="button" @click="flagMap()"
+                        :disabled="flagBusy">
+                  This misreads the dossier</button>
+              </template>
+            </div>
+
+            {# What replaces the map once a judge has disputed it. NOT the "Map this
+               dossier" button that an unmapped nominee gets — offering to write the same
+               thing again is the objection being ignored, one page load later. #}
+            <template x-if="cur?.map_flagged">
+              <p class="jc-cover">
+                You told us this map misreads the dossier, so it is hidden here. The panel
+                administrators can see it was disputed. The dossier itself is below and is
+                unchanged.
+              </p>
+            </template>
+
+            {# ── SAID, NEVER IMPLIED ──────────────────────────────────────────
+               A map is not wrong about what it read; it is wrong about what it is a map
+               OF, and only the reader can be harmed by the difference. This entry gained
+               or changed something after the map was written, so a `gaps` line reading
+               "no third-party confirmation of the figures" may be describing paperwork
+               that has since arrived. Same principle as the truncation notice the model
+               is asked to put in `gaps` — partial coverage is stated, never silent. #}
+            <template x-if="cur?.map?.stale">
+              <p class="jc-cover">
+                This entry has changed since the map below was written, so parts of it may
+                describe an earlier version of the dossier. The dossier itself is current.
+              </p>
+            </template>
+
+            <template x-if="!cur?.map && !mapBusy && !mapErr">
+              <p class="jc-map__hint">
+                A short map of what is in this entry — what the case rests on, which claims
+                have something behind them, and what is worth checking. It never gives a
+                score and it has not seen any other nominee. Read the dossier itself either
+                way; this only tells you where to start.
+              </p>
+            </template>
+
+            <p class="jc-cover" x-show="mapErr" x-text="mapErr"></p>
+
+            <template x-if="cur?.map">
+              <div>
+                <p class="jc-map__rests" x-text="cur.map.rests_on"></p>
+
+                <div class="jc-map__cols">
+                  <template x-if="(cur.map.evidenced||[]).length">
+                    <div>
+                      <p class="jc-klabel">Has something behind it</p>
+                      <ul class="jc-map__l">
+                        <template x-for="(t,i) in cur.map.evidenced" :key="'e'+i">
+                          <li x-text="t"></li></template>
+                      </ul>
+                    </div>
+                  </template>
+                  <template x-if="(cur.map.asserted||[]).length">
+                    <div>
+                      {# Neutral wording, chosen over the obvious alternative that frames
+                         an assertion as a deficiency. An assertion is not a fault: most
+                         good work is described before it is documented, and a nominee
+                         without a filing cabinet is not a weaker nominee. A judge needs
+                         the distinction without the insinuation. #}
+                      <p class="jc-klabel">Stated, with nothing attached</p>
+                      <ul class="jc-map__l">
+                        <template x-for="(t,i) in cur.map.asserted" :key="'a'+i">
+                          <li x-text="t"></li></template>
+                      </ul>
+                    </div>
+                  </template>
                 </div>
-                <template x-for="c in criteria" :key="c.id">
-                  <div class="jd-compare-cell">
-                    <span :class="n.scores[c.id] >= 8 ? 'is-high' : (n.scores[c.id] <= 3 && n.scores[c.id] !== undefined ? 'is-low' : '')"
-                          x-text="n.scores[c.id] !== undefined ? n.scores[c.id] : '—'"></span>
+
+                <template x-if="(cur.map.gaps||[]).length">
+                  <div class="jc-map__grp">
+                    <p class="jc-klabel">Not in the paperwork</p>
+                    <ul class="jc-map__l">
+                      <template x-for="(t,i) in cur.map.gaps" :key="'g'+i">
+                        <li x-text="t"></li></template>
+                    </ul>
                   </div>
                 </template>
-                <div style="width:60px;text-align:right">
-                  <strong :class="n.complete ? 'jd-avg-num' : ''" x-text="n.complete ? n.avg.toFixed(1) : '—'"></strong>
-                </div>
+
+                <template x-if="(cur.map.check||[]).length">
+                  <div class="jc-map__grp">
+                    <p class="jc-klabel">Worth looking at yourself</p>
+                    <ul class="jc-map__l">
+                      <template x-for="(t,i) in cur.map.check" :key="'c'+i">
+                        <li x-text="t"></li></template>
+                    </ul>
+                  </div>
+                </template>
+
+                <p class="jc-map__foot">
+                  Written by a model from this entry alone. It has seen no scores, no vote
+                  counts, no scoring criteria and no other nominee.
+                  <strong>It is not a judgement, and nobody has checked it</strong> —
+                  the dossier below is the record.
+                </p>
               </div>
             </template>
           </div>
-        </div>
-      </template>
-    </div>
 
-    <div x-show="!groups.length" class="jd-empty">No nominees yet for this programme's current cycle.</div>
+          <div class="jc-dossier" x-show="cur?.tagline || cur?.evidence">
+            <p class="jc-klabel">Evidence dossier</p>
+            <p class="jc-dossier__txt" x-show="cur?.tagline" x-text="cur?.tagline"></p>
+
+            <p class="jc-cover" x-show="cur?.evidence?.coverage?.missing?.length"
+               x-text="cur?.evidence?.coverage?.note"></p>
+
+            <template x-for="(it, i) in (cur?.evidence?.items || [])" :key="'ev'+i">
+              <div class="jc-ev">
+                <div class="jc-ev__top">
+                  <span class="jc-ev__title" x-text="it.title"></span>
+                  <span class="jc-prov"
+                        :class="it.provenance === 'platform_verified' ? 'jc-prov--ok'
+                              : (it.provenance === 'nominator_claim' ? 'jc-prov--claim' : '')"
+                        x-text="it.provenance_label"></span>
+                </div>
+                <p class="jc-ev__body" x-show="it.body" x-text="it.body"></p>
+                <a class="jc-ev__src" x-show="it.source_url" :href="it.source_url"
+                   target="_blank" rel="noopener noreferrer nofollow"
+                   x-text="it.source_label || 'Source'"></a>
+                <span class="jc-ev__src" x-show="!it.source_url && !it.file_url && it.source_label"
+                      x-text="it.source_label"></span>
+
+                {# ── AN UPLOADED FILE, SHOWN RATHER THAN LINKED ──────────────────
+                   This was rendered as `<a :href="it.source_url">` against a RELATIVE
+                   stored path, so from /judge/ballot the browser asked for
+                   /judge/uploads/… and got a 404. Only Cloudinary images worked, because
+                   those are absolute — which is why it looked like "only images save".
+
+                   Now it previews in place. A judge scoring a dossier should not have to
+                   open a tab per document and lose their place on the ballot; the whole
+                   point of the panel is reading the evidence beside the criteria. The
+                   download link stays for anything the frame cannot render. #}
+                <template x-if="it.file_url">
+                  <div class="jc-ev__file">
+                    <template x-if="it.file_kind === 'image'">
+                      <a :href="it.file_url" target="_blank" rel="noopener">
+                        <img class="jc-ev__img" :src="it.file_url" :alt="it.title" loading="lazy">
+                      </a>
+                    </template>
+                    <template x-if="it.file_kind === 'pdf'">
+                      {# ── AN IFRAME, BECAUSE `object` WAS BLOCKED OUTRIGHT ──────────
+                         This was an `<object>`, chosen so it would degrade to its own
+                         children where a browser has no PDF viewer — the common case on
+                         Android — since an empty iframe there looks like a missing
+                         document. Good reasoning, and the policy made it moot: the CSP
+                         carries `object-src 'none'`, so the plugin was refused on EVERY
+                         browser and every judge saw the fallback.
+
+                         Which read "This browser cannot show the PDF inline." — a
+                         sentence the policy made true and the browser did not. On the
+                         one screen where a score is justified by the documents, every
+                         document said it could not be shown.
+
+                         `object-src 'none'` is worth keeping: framing a document and
+                         handing it to a plugin are different powers, and nothing here
+                         needs the second. So the frame is the iframe that `frame-src
+                         'self'` now permits, and the degradation the object gave for
+                         free is replaced by a line that is always visible — honest on
+                         every platform, rather than correct only where it renders. #}
+                      <iframe class="jc-ev__pdf" :src="it.file_url"
+                              :title="'Document: ' + (it.title || 'evidence')"
+                              loading="lazy"></iframe>
+                      <p class="jc-ev__fallback">
+                        Not showing?
+                        <a :href="it.file_url + '?download=1'">Download it instead</a>.
+                      </p>
+                    </template>
+                    <a class="jc-ev__src" :href="it.file_url + '?download=1'"
+                       x-text="'Download ' + (it.source_label || 'the file')"></a>
+                  </div>
+                </template>
+
+                {# ── WHAT A MODEL MADE OF THE DOCUMENT ────────────────────────────
+                   BELOW the document and never instead of it. A judge who reads a
+                   summary first has already been told what to see, and the summary is
+                   the one thing on this card that no person has checked.
+
+                   It carries its own label saying so, is collapsed by default, and
+                   states no score and no verdict — the capability is declared advisory
+                   and the registry enforces it. Present only when an administrator has
+                   already run the analysis; nothing here calls a provider. #}
+                <template x-if="it.analysis">
+                  <details class="jc-ai">
+                    <summary class="jc-ai__sum">
+                      <span class="jc-prov jc-prov--ai">Machine reading &mdash; not checked by a person</span>
+                      <span class="jc-ai__type" x-text="it.analysis.doc_type"></span>
+                    </summary>
+                    <p class="jc-ev__body" x-text="it.analysis.summary"></p>
+
+                    <template x-if="(it.analysis.claims || []).length">
+                      <div class="jc-ai__grp">
+                        <p class="jc-klabel">What the document states</p>
+                        <ul class="jc-ai__list">
+                          <template x-for="(c, ci) in it.analysis.claims" :key="'c'+ci">
+                            <li x-text="c"></li>
+                          </template>
+                        </ul>
+                      </div>
+                    </template>
+
+                    <template x-if="(it.analysis.concerns || []).length">
+                      <div class="jc-ai__grp">
+                        <p class="jc-klabel">Worth looking at yourself</p>
+                        <ul class="jc-ai__list jc-ai__list--warn">
+                          <template x-for="(c, ci) in it.analysis.concerns" :key="'w'+ci">
+                            <li x-text="c"></li>
+                          </template>
+                        </ul>
+                      </div>
+                    </template>
+
+                    <span class="jc-ev__src"
+                          x-text="'Read by ' + it.analysis.model
+                                + (it.analysis.legibility !== null
+                                    ? ' · scan ' + it.analysis.legibility + '% legible' : '')"></span>
+                  </details>
+                </template>
+              </div>
+            </template>
+
+            <template x-for="(iv, i) in (cur?.evidence?.interviews || [])" :key="'iv'+i">
+              <div class="jc-ev jc-ev--iv">
+                <div class="jc-ev__top">
+                  <span class="jc-ev__title">Interview — the nominee's own words</span>
+                  <span class="jc-prov" x-text="iv.medium + ' · ' + iv.language"></span>
+                </div>
+                {# The caveat sits ABOVE the transcript deliberately: a judge who reads the
+                   words first has already formed the impression it is meant to qualify. #}
+                <p class="jc-cover" x-text="iv.caveat"></p>
+                <p class="jc-ev__body jc-ev__tx" x-text="iv.transcript"></p>
+                <span class="jc-ev__src"
+                      x-text="(iv.interviewer ? iv.interviewer : 'Programme team')
+                            + (iv.interviewed_at ? ' · ' + iv.interviewed_at.slice(0,10) : '')"></span>
+              </div>
+            </template>
+
+            <p class="jc-ev__none"
+               x-show="!(cur?.evidence?.items||[]).length && !(cur?.evidence?.interviews||[]).length">
+              Nothing has been gathered for this nominee yet. Score only what you can see,
+              and say so in your notes.
+            </p>
+          </div>
+
+          <div class="jc-crits">
+            <p class="jc-klabel">Score the criteria · 0–10 each</p>
+            <template x-for="c in criteria" :key="c.id">
+              <div class="jc-crit">
+                <div class="jc-crit__top">
+                  <div><div class="jc-crit__label" x-text="c.label"></div><div class="jc-crit__hint" x-text="c.description || ('Weighted ' + (c.weight||25) + '%')"></div></div>
+                  <span class="jc-crit__val" x-text="cur.scores[c.id] !== undefined ? cur.scores[c.id] : '–'"></span>
+                </div>
+                {# ── WHY THIS IS ELEVEN BUTTONS AND NOT A SLIDER ──────────────────
+                   The slider had a value it could not express. `type=range` fires no
+                   input event when the value does not change, and an UNSCORED criterion
+                   rendered at 0 — so the natural gesture for "zero", dragging to the far
+                   left, did nothing at all. A judge could only record a 0 by moving to
+                   another number and back, and most would conclude the control was broken
+                   or that they had already scored it.
+
+                   The display made that worse rather than better: unscored and zero looked
+                   identical on the track, separated only by a "–" in the readout beside it.
+                   On the instrument this whole platform's result is computed from, two
+                   distinct states that render the same is not a cosmetic problem.
+
+                   Eleven radios fix all of it at once. Every value is an equal, real target;
+                   "not scored" is simply nothing selected; arrow keys move between values
+                   natively; and a screen reader announces the group, the criterion and the
+                   chosen mark without a single aria attribute of our own. #}
+                <div class="jc-scale" role="radiogroup"
+                     :aria-label="c.label + ' — score out of 10'">
+                  <template x-for="v in [0,1,2,3,4,5,6,7,8,9,10]" :key="v">
+                    <label class="jc-scale__opt"
+                           :class="cur.scores[c.id] === v ? 'is-on' : ''">
+                      <input type="radio" :name="'crit-' + c.id + '-' + cur.id"
+                             :value="v"
+                             :checked="cur.scores[c.id] === v"
+                             :disabled="locked"
+                             @change="setScore(c.id, v)">
+                      <span x-text="v"></span>
+                    </label>
+                  </template>
+                </div>
+              </div>
+            </template>
+
+            <div class="jc-note">
+              <label for="jcNote">Panel note (optional)</label>
+              {# ── THE NOTE SAVES ITSELF, LIKE THE SCORES DO ─────────────────
+                 `x-model` alone only updates the object in memory. Scores were
+                 debounce-saved on change and the note was not, so a judge who
+                 wrote a paragraph explaining a low mark and then closed the tab —
+                 or was signed out, which happens on a long sitting — lost it with
+                 no warning and no trace. Nothing on the screen had claimed it was
+                 saved, which is precisely why nobody would think to check.
+
+                 Same 800ms debounce as a score, so a sentence is one request and
+                 not one per keystroke; and again on blur, because the last words
+                 typed before somebody clicks away are the ones a debounce is most
+                 likely to still be holding. #}
+              <textarea id="jcNote" x-model="cur.notes" :disabled="locked"
+                        @input="touchNote()" @blur="flushNote()"
+                        placeholder="Why this score? Notes are shared with the panel, never public."></textarea>
+            </div>
+
+            {# ── WHO YOU ARE NOW SCORING ──────────────────────────────────────
+               Submit advances to the next unscored nominee and swaps the whole
+               panel — the name, the dossier, the scale — with no announcement and
+               no focus move. A sighted judge sees the change; a screen-reader user
+               is left on a button that now belongs to somebody else, and the next
+               score they enter is against a person they were never told about.
+
+               A visually-hidden live region is the smallest fix that carries the
+               fact. It is separate from the save status above because the two can
+               fire together, and one region holding both would read the second over
+               the first. #}
+            <p class="sr-only" role="status" aria-live="polite" x-text="whoLabel"></p>
+
+            <div class="jc-actions">
+              {# role=status, because this is the only confirmation that a score
+                 reached the server. Without it a screen-reader user gets silence
+                 on success AND on failure — on the one instrument this platform's
+                 result is computed from. Polite rather than assertive: it fires on
+                 every debounced save and an assertive region would interrupt the
+                 judge mid-sentence in the note above. #}
+              <div class="jc-save" :class="cur._state" x-text="saveLabel"
+                   role="status" aria-live="polite"></div>
+              <div style="flex:1"></div>
+              <button type="button" class="jc-btn jc-btn--ghost" @click="advance()">Skip</button>
+              <button type="button" class="jc-btn jc-btn--p" @click="submit()" :disabled="locked || cur._state==='saving'">
+                <span x-text="cur.complete ? 'Update score' : 'Submit score'"></span>
+                <svg width="15" height="15" viewBox="0 0 20 20" fill="none"><path d="M7.5 4.5 13 10 7.5 15.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div class="jc-guide">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#1a6118" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 16v-4M12 8h.01"/></svg>
+          <p>Judge on documented impact, not popularity — public votes are scored separately. Your scores are confidential and combine with other judges’ before contributing to the CPI.</p>
+        </div>
+      </div>
+    </div>
   </div>
 </section>
+</div>{# /x-data ballotApp #}
 {% endblock %}
 
 {% block foot_scripts %}
-<style>
-/* ── Judge ballot extras ─────────────────────────────────────── */
-.jd-progress-ring { display:flex;flex-direction:column;align-items:center;gap:2px; }
-.jd-conflict { background:#fffbeb;border:1.5px solid #fde68a;border-radius:16px;padding:1.125rem 1.25rem;margin-top:24px;display:flex;flex-wrap:wrap;gap:1rem;align-items:center;justify-content:space-between; }
-.jd-conflict__body { flex:1;min-width:220px; }
-.jd-conflict__body strong { font-size:0.9375rem;color:#92400e; }
-.jd-conflict__body p { font-size:0.875rem;color:#78350f;margin:4px 0 0; }
-.jd-conflict__actions { display:flex;gap:8px;flex-wrap:wrap; }
-.jd-conflict__btn { padding:0.5rem 0.875rem;border-radius:8px;font-size:0.8125rem;font-weight:600;cursor:pointer;border:1.5px solid transparent;transition:background-color .18s ease,transform .18s ease,box-shadow .18s ease; }
-.jd-conflict__btn:hover { transform:translateY(-1px);box-shadow:0 4px 12px rgba(16,41,44,0.12); }
-.jd-conflict__btn:active { transform:translateY(0); }
-.jd-conflict__btn--yes { background:#fef2f2;color:#b91c1c;border-color:#fecaca; }
-.jd-conflict__btn--no { background:var(--emerald-600);color:#fff; }
-.jd-legend { background:#f9fafb;border:1px solid #e5e7eb;border-radius:14px;padding:1rem 1.125rem; }
-.jd-legend__title { font-size:12px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--ink-500);margin:0 0 10px; }
-.jd-legend__grid { display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:8px; }
-.jd-legend__item { display:flex;flex-direction:column;gap:2px; }
-.jd-legend__label { font-size:13px;font-weight:700;color:var(--kale-700); }
-.jd-legend__weight { font-size:11px;color:var(--emerald-600);font-weight:600; }
-.jd-legend__desc { font-size:11.5px;color:var(--ink-500);line-height:1.4; }
-.jd-view-btn { padding:5px 12px;border-radius:8px;font-size:12.5px;font-weight:600;background:#f3f4f6;border:1px solid #e5e7eb;cursor:pointer;transition:background-color .2s ease,color .2s ease,border-color .2s ease; }
-.jd-view-btn.is-active { background:var(--kale-700);color:#fff;border-color:var(--kale-700); }
-.jd-crit__top { display:flex;justify-content:space-between;align-items:center;margin-bottom:4px; }
-.jd-crit__label { font-size:12.5px;font-weight:600;color:var(--kale-700); }
-.jd-crit__val { font-family:var(--font-mono);font-size:14px;font-weight:700;color:var(--ink-500);min-width:20px;text-align:right; }
-.jd-crit__val.is-high { color:var(--emerald-600); }
-.jd-crit__val.is-low  { color:#ef4444; }
-.jd-crit__track { position:relative;height:28px;display:flex;align-items:center; }
-.jd-crit__bar { position:absolute;left:0;top:50%;transform:translateY(-50%);height:4px;background:var(--emerald-500);border-radius:2px;pointer-events:none;transition:width .15s; }
-.jd-crit__scale { display:flex;justify-content:space-between;font-size:10px;color:var(--ink-400);margin-top:-2px; }
-.jd-save-state { font-size:12px;color:var(--ink-500); }
-.jd-save-state.is-ok  { color:var(--emerald-600); }
-.jd-save-state.is-err { color:#ef4444; }
-/* Compare view */
-.jd-compare-table { border:1px solid #e5e7eb;border-radius:12px;overflow:hidden;margin-bottom:12px; }
-.jd-compare-head { display:flex;align-items:center;gap:8px;padding:8px 12px;background:#f9fafb;font-size:11.5px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--ink-500); }
-.jd-compare-head__crit { width:64px;text-align:center;font-size:10.5px; }
-.jd-compare-row { display:flex;align-items:center;gap:8px;padding:10px 12px;border-top:1px solid #f3f4f6;transition:background .15s; }
-.jd-compare-row:hover { background:#fafafa; }
-.jd-compare-row.is-top { background:linear-gradient(90deg,#f0fdf4,#fff); }
-.jd-compare-cell { width:64px;text-align:center;font-size:13px;font-weight:600;color:var(--ink-500); }
-.jd-compare-cell .is-high { color:var(--emerald-600); }
-.jd-compare-cell .is-low  { color:#ef4444; }
-.jd-rank { width:22px;height:22px;border-radius:50%;background:#e5e7eb;display:inline-flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:var(--ink-500);flex-shrink:0; }
-.jd-compare-row.is-top .jd-rank { background:var(--gold-300);color:var(--kale-700); }
-.jd-avg-num { color:var(--kale-700);font-size:14px; }
-/* The criteria-column table can exceed a phone viewport — let it scroll
-   horizontally instead of crushing/overflowing the columns. */
-.jd-compare-table { overflow-x:auto; }
-.jd-compare-head, .jd-compare-row { min-width:480px; }
-</style>
-<script>
-function ballotApp(initial) {
-  return {
-    view: 'score',
-    criteria: initial.criteria || [],
-    groups: (initial.nominees || []).map(g => ({
-      category: g.category,
-      nominees: (g.nominees || []).map(n => ({ ...n, _state: '' })),
-      get scored() { return this.nominees.filter(x => x.complete).length; },
-    })),
+<style nonce="{{ csp_nonce }}">
+  .jc-strip{ background:#10292C; }
+  .jc-strip__in{ display:flex; align-items:center; justify-content:space-between; gap:20px; flex-wrap:wrap; padding-top:16px; padding-bottom:16px; }
+  .jc-strip__title{ font-family:var(--font-display,'Playfair Display',serif); font-weight:700; font-size:19px; color:#fff; }
+  .jc-strip__sub{ font-size:12.5px; color:rgba(255,255,255,.6); margin-top:2px; }
+  .jc-strip__prog{ display:flex; align-items:center; gap:16px; }
+  .jc-strip__count b{ font-family:var(--font-mono,monospace); font-weight:700; font-size:18px; color:#7FC87C; display:block; text-align:right; }
+  .jc-strip__count span{ font-size:10.5px; color:rgba(255,255,255,.5); }
+  .jc-strip__bar{ width:150px; height:8px; border-radius:5px; background:rgba(255,255,255,.14); overflow:hidden; }
+  .jc-strip__bar span{ display:block; height:100%; border-radius:5px; background:linear-gradient(90deg,#7FC87C,#fbc329); }
 
-    ranked(nominees) {
-      return [...nominees].sort((a, b) => {
-        if (a.complete && b.complete) return b.avg - a.avg;
-        if (a.complete) return -1;
-        if (b.complete) return 1;
-        return 0;
+  .jc-grid{ display:grid; grid-template-columns:300px 1fr; gap:24px; align-items:start; }
+  .jc-queue{ position:sticky; top:84px; }
+  .jc-queue__card{ background:#fff; border:1px solid rgba(16,41,44,.08); border-radius:16px; overflow:hidden; }
+  .jc-queue__head{ padding:14px 16px; border-bottom:1px solid rgba(16,41,44,.07); font:600 11px/1 var(--font-body,sans-serif); letter-spacing:.06em; text-transform:uppercase; color:#5a6d6f; }
+  .jc-scroll{ max-height:560px; overflow-y:auto; }
+  .jc-qrow{ width:100%; cursor:pointer; border:none; text-align:left; display:flex; align-items:center; gap:12px; padding:13px 16px; background:#fff; border-left:3px solid transparent; border-bottom:1px solid rgba(16,41,44,.05); }
+  .jc-qrow.is-active{ background:#f6fcf5; border-left-color:#237b22; }
+  .jc-qrow__av{ flex:none; width:38px; height:38px; border-radius:11px; background:#fff8df; color:#7a5600; display:flex; align-items:center; justify-content:center; font-family:var(--font-display,serif); font-weight:700; font-size:15px; }
+  .jc-qrow__who{ flex:1; min-width:0; display:flex; flex-direction:column; }
+  .jc-qrow__name{ font-weight:600; font-size:13.5px; color:#10292C; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .jc-qrow__status{ font-size:11.5px; color:#5a6d6f; }
+  .jc-qrow__tick{ flex:none; }
+
+  .jc-card{ background:#fff; border:1px solid rgba(16,41,44,.08); border-radius:18px; overflow:hidden; }
+  .jc-hero{ position:relative; overflow:hidden; background:radial-gradient(130% 130% at 82% 0%,#1d5b2a,#10292C 60%); padding:26px 28px; display:flex; align-items:center; gap:20px; }
+  .jc-hero__orb{ position:absolute; right:-40px; bottom:-50px; width:200px; height:200px; border-radius:50%; background:radial-gradient(circle,rgba(212,154,14,.26),transparent 68%); }
+  .jc-hero__av{ position:relative; flex:none; width:72px; height:72px; border-radius:18px; background:rgba(127,200,124,.18); color:#7FC87C; display:flex; align-items:center; justify-content:center; font-family:var(--font-display,serif); font-weight:700; font-size:30px; border:3px solid rgba(255,255,255,.2); }
+  .jc-hero__body{ position:relative; flex:1; min-width:0; }
+  .jc-hero__body h2{ margin:0; font-family:var(--font-display,serif); font-weight:700; font-size:24px; color:#fff; }
+  .jc-hero__body p{ margin:6px 0 0; font-size:13.5px; color:rgba(255,255,255,.78); }
+  .jc-hero__score{ position:relative; text-align:right; }
+  .jc-hero__n{ font-family:var(--font-mono,monospace); font-weight:700; font-size:30px; color:#7FC87C; line-height:1; }
+  .jc-hero__l{ font-size:10px; letter-spacing:.06em; text-transform:uppercase; color:rgba(255,255,255,.55); margin-top:3px; }
+
+  .jc-klabel{ margin:0; font:600 11px/1 var(--font-body,sans-serif); letter-spacing:.08em; text-transform:uppercase; color:#5a6d6f; }
+  .jc-dossier{ padding:22px 28px; border-bottom:1px solid rgba(16,41,44,.07); }
+  .jc-dossier__txt{ margin:10px 0 0; font-size:14.5px; line-height:1.65; color:#3a4448; }
+  /* Evidence dossier. Provenance is a chip rather than body text so a judge can see
+     at a glance which lines are checked and which are somebody's case. */
+  .jc-cover{ margin:12px 0 0; padding:10px 13px; border-left:3px solid #d49a0e; background:#fffaf0;
+             border-radius:0 8px 8px 0; font-size:13px; line-height:1.6; color:#7a5605; }
+  .jc-ev{ margin:14px 0 0; padding:14px 16px; border:1px solid rgba(16,41,44,.1); border-radius:12px; background:#fbfcfb; }
+  .jc-ev--iv{ background:#f6faf6; border-color:rgba(35,123,34,.22); }
+  .jc-ev__top{ display:flex; align-items:baseline; justify-content:space-between; gap:12px; flex-wrap:wrap; }
+  .jc-ev__title{ font-weight:650; font-size:14px; color:var(--ag-ink,#10292C); }
+  .jc-prov{ font-size:11px; font-weight:600; padding:3px 9px; border-radius:999px;
+            background:#eceeed; color:#5a6d6f; }
+  .jc-prov--ok{ background:#e3f1e3; color:#155a13; }
+  .jc-prov--claim{ background:#fff2d9; color:#8a6005; }
+  .jc-ev__body{ margin:9px 0 0; font-size:14px; line-height:1.7; color:#3a4448; white-space:pre-line; }
+  .jc-ev__tx{ max-height:340px; overflow:auto; padding-right:6px; }
+  .jc-ev__src{ display:inline-block; margin:9px 0 0; font-size:12px; color:#5a6d6f; }
+  a.jc-ev__src{ color:#237b22; text-decoration:underline; }
+
+  /* The nominee's own confirmed summary. Warmer than the machine-reading panels and
+     above them, because it is the one thing here a person signed off. */
+  .jc-sum{ padding:18px 28px; border-bottom:1px solid rgba(16,41,44,.07); background:#f8faf6; }
+  .jc-sum__t{ margin:10px 0 0; font-size:15.5px; line-height:1.65; color:#10292C; max-width:70ch; }
+  .jc-sum__l{ margin:12px 0 0; padding-left:19px; font-size:13.5px; line-height:1.7; color:#3a4448; }
+  .jc-sum__l li{ margin:3px 0 0; }
+  .jc-sum__f{ margin:14px 0 0; padding-top:11px; border-top:1px dashed rgba(35,123,34,.25);
+    max-width:70ch; font-size:12px; line-height:1.6; color:#5a6d6f; }
+
+  /* The dossier map. Set apart from the evidence rather than styled like it: a judge
+     must be able to tell at a glance which part of this screen is the record and which
+     part is a machine's reading of it. Cool grey against the dossier's paper. */
+  .jc-map{ padding:18px 28px; border-bottom:1px solid rgba(16,41,44,.07); background:#f7f8fa; }
+  .jc-map__top{ display:flex; align-items:center; justify-content:space-between; gap:12px;
+    flex-wrap:wrap; }
+  .jc-map__go{ cursor:pointer; font:650 12px/1 inherit; border:1px solid rgba(16,41,44,.2);
+    background:#fff; color:#10292C; border-radius:999px; padding:9px 15px; min-height:34px; }
+  .jc-map__go:hover{ border-color:#237b22; color:#237b22; }
+  .jc-map__go:focus-visible{ outline:3px solid #237b22; outline-offset:2px; }
+  /* Quiet on purpose — a correction, not a rating. Still a real target: 13px of
+     padding either side of 12.5px text clears the 24×24 floor comfortably, and the
+     underline means it is not signalled by colour alone. */
+  .jc-map__flag{ background:none; border:none; cursor:pointer; font-family:inherit;
+    font-size:12.5px; color:#fff; opacity:.72; text-decoration:underline;
+    text-underline-offset:3px; padding:9px 13px; min-height:34px; border-radius:8px; }
+  .jc-map__flag:hover{ opacity:1; }
+  .jc-map__flag:focus-visible{ outline:3px solid #fff; outline-offset:2px; opacity:1; }
+  .jc-map__flag:disabled{ opacity:.45; cursor:progress; }
+  .jc-map__wait{ font-size:12.5px; color:#5a6d6f; }
+  .jc-map__hint{ margin:10px 0 0; max-width:66ch; font-size:13px; line-height:1.65; color:#5a6d6f; }
+  .jc-map__rests{ margin:12px 0 0; font-size:15px; line-height:1.6; font-weight:600; color:#10292C; }
+  .jc-map__cols{ display:grid; gap:18px; margin-top:14px;
+    grid-template-columns:repeat(auto-fit,minmax(240px,1fr)); }
+  .jc-map__grp{ margin-top:14px; }
+  .jc-map__l{ margin:6px 0 0; padding-left:19px; font-size:13.5px; line-height:1.65; color:#3a4448; }
+  .jc-map__l li{ margin:3px 0 0; }
+  .jc-map__foot{ margin:16px 0 0; padding-top:12px; border-top:1px dashed rgba(16,41,44,.14);
+    max-width:70ch; font-size:12px; line-height:1.6; color:#5a6d6f; }
+
+  /* Machine reading. Deliberately the quietest thing on the card and deliberately
+     collapsed: it sits below the document it describes so the judge meets the
+     evidence first, and it is styled as an aside rather than as a finding because
+     nobody has checked it. */
+  .jc-ai{ margin:11px 0 0; padding:0; border-top:1px dashed rgba(16,41,44,.16); }
+  .jc-ai__sum{ display:flex; align-items:center; gap:9px; flex-wrap:wrap;
+    padding:10px 0 0; cursor:pointer; list-style:none; }
+  .jc-ai__sum::-webkit-details-marker{ display:none; }
+  .jc-ai__sum::after{ content:'show'; font-size:11.5px; color:#5a6d6f; text-decoration:underline; }
+  .jc-ai[open] .jc-ai__sum::after{ content:'hide'; }
+  .jc-prov--ai{ background:#eef1f6; color:#4a5568; }
+  .jc-ai__type{ font-size:12.5px; color:#5a6d6f; font-style:italic; }
+  .jc-ai__grp{ margin:12px 0 0; }
+  .jc-ai__list{ margin:6px 0 0; padding-left:19px; font-size:13.5px; line-height:1.65; color:#3a4448; }
+  .jc-ai__list li{ margin:3px 0 0; }
+  .jc-ai__list--warn li{ color:#7a5605; }
+
+  /* ── AN UPLOADED FILE, PREVIEWED IN PLACE ────────────────────────────────
+     Sized so the document is readable beside the criteria rather than replacing
+     them: a judge who has to open a tab per document loses their place on the
+     ballot, which is the one thing this screen exists to hold. Capped by vh so a
+     long PDF cannot push the score inputs off-screen on a laptop. */
+  .jc-ev__file{ margin:11px 0 0; }
+  .jc-ev__img{ display:block; width:100%; max-width:520px; height:auto;
+    border:1px solid rgba(16,41,44,.14); border-radius:8px; background:#fff; }
+  /* Quiet, and always there. It is not an error message — the document usually does
+     render — so it must not look like one, and it must not disappear on the platforms
+     where it is the only way through. */
+  .jc-ev__fallback{ margin:6px 0 0; font-size:12.5px; color:#5a6d6f; }
+  .jc-ev__fallback a{ color:#237b22; font-weight:600; }
+  .jc-ev__pdf{ display:block; width:100%; height:min(60vh,520px); border:0;
+    border:1px solid rgba(16,41,44,.14); border-radius:8px; background:#fff; }
+  /* On a phone the frame is too small to read a document in, so it becomes a
+     download rather than a postage stamp of page one. */
+  @media (max-width:640px){
+    .jc-ev__pdf{ height:220px; }
+  }
+  .jc-ev__none{ margin:12px 0 0; font-size:13.5px; line-height:1.6; color:#6a767a; }
+
+  .jc-crits{ padding:22px 28px; }
+  .jc-crits .jc-klabel{ margin-bottom:18px; }
+  .jc-crit{ margin-bottom:22px; }
+  .jc-crit__top{ display:flex; align-items:center; justify-content:space-between; margin-bottom:10px; }
+  .jc-crit__label{ font-weight:600; font-size:14.5px; color:#10292C; }
+  .jc-crit__hint{ font-size:12px; color:#5a6d6f; margin-top:2px; }
+  .jc-crit__val{ font-family:var(--font-mono,monospace); font-weight:700; font-size:18px; color:#237b22; min-width:34px; text-align:right; }
+  /* ── THE SCORE SCALE ──────────────────────────────────────────────────────
+     Replaces a range input whose thumb was 22px — under the 24×24 WCAG 2.2 AA
+     minimum — and which carried `outline:none` with no replacement. That style
+     block sits in `foot_scripts`, so it renders after every stylesheet including
+     a11y.css and beat the site-wide `:where(…):focus-visible` rule on source
+     order: the one control a judge operates had no focus indicator at all.
+
+     Each option is 40×40 here — comfortably past the 24px floor and past the 44px
+     touch recommendation once the gap is counted — and focus is native. */
+  .jc-scale{ display:flex; flex-wrap:wrap; gap:6px; }
+  .jc-scale__opt{
+    position:relative; flex:1 1 40px; min-width:40px; min-height:40px;
+    display:flex; align-items:center; justify-content:center;
+    border:1px solid rgba(16,41,44,.18); border-radius:9px;
+    font-family:var(--font-mono,monospace); font-weight:600; font-size:14px;
+    color:#3c4649; background:#fff; cursor:pointer;
+  }
+  .jc-scale__opt input{
+    /* Visually hidden, NOT display:none — a removed input is unfocusable, which
+       would trade one keyboard failure for another. */
+    position:absolute; opacity:0; width:100%; height:100%; margin:0; cursor:pointer;
+  }
+  .jc-scale__opt.is-on{ background:#237b22; border-color:#237b22; color:#fff; }
+  /* :has() is the modern route; the .is-on class above is the fallback that does
+     the same job everywhere, so neither is load-bearing on its own. */
+  .jc-scale__opt:hover{ border-color:#237b22; }
+  .jc-scale__opt:focus-within{ outline:3px solid #237b22; outline-offset:2px; }
+  .jc-scale__opt input:disabled{ cursor:not-allowed; }
+  .jc-scale__opt:has(input:disabled){ opacity:.55; cursor:not-allowed; }
+  .jc-note{ margin-top:24px; }
+  .jc-note label{ display:block; font-size:12px; font-weight:600; color:#4a5256; margin-bottom:8px; }
+  /* The same trap the scale above was rescued from, two rules later and still
+     live: `outline:none` in this block beats the site-wide `:focus-visible` rule
+     on source order, because this block renders after every stylesheet. What was
+     left was a 1px border tint — visible, but a different and weaker indicator
+     than every other control on the page, which is its own kind of confusing.
+     The ring is restored and the border tint kept, since it also marks focus for
+     a pointer user who never triggers :focus-visible. */
+  .jc-note textarea{ width:100%; min-height:84px; resize:vertical; border:1px solid rgba(16,41,44,.16); border-radius:12px; padding:13px 15px; font-family:inherit; font-size:16px; line-height:1.5; color:#10292C; }
+  .jc-note textarea:focus{ border-color:#237b22; }
+  .jc-note textarea:focus-visible{ outline:3px solid #237b22; outline-offset:2px; }
+  .jc-actions{ display:flex; align-items:center; gap:12px; margin-top:20px; }
+  .jc-save{ font-size:12.5px; color:#5a6d6f; }
+  .jc-save.ok{ color:#237b22; } .jc-save.err{ color:#c0392b; } .jc-save.saving{ color:#7a5600; }
+  .jc-btn{ cursor:pointer; font-family:inherit; font-size:14px; font-weight:600; padding:13px 22px; border-radius:999px; display:inline-flex; align-items:center; gap:8px; }
+  .jc-btn--ghost{ border:1px solid rgba(16,41,44,.16); background:#fff; color:#10292C; }
+  .jc-btn--p{ border:none; background:#237b22; color:#fff; }
+  .jc-btn--p:hover{ background:#1a6118; }
+  .jc-btn--p:disabled{ opacity:.6; cursor:not-allowed; }
+  .jc-guide{ background:#f4f7f4; border:1px solid #d6e8d3; border-radius:14px; padding:16px 18px; margin-top:16px; display:flex; align-items:flex-start; gap:12px; }
+  .jc-guide svg{ flex:none; margin-top:1px; }
+  .jc-guide p{ margin:0; font-size:12.5px; line-height:1.6; color:#1a6118; }
+
+  .jc-lock{ display:flex; align-items:center; gap:12px; background:#fff8e6; border:1px solid #f2d68a; color:#7a5600; border-radius:14px; padding:14px 18px; margin-bottom:18px; }
+  .jc-lock svg{ flex:none; }
+  .jc-lock p{ margin:0; font-size:13.5px; font-weight:500; line-height:1.5; }
+  .jc-lock__act{ margin-left:auto; }
+  .jc-lock__btn{ cursor:pointer; font-family:inherit; font-size:12.5px; font-weight:600; color:#7a5600; background:#fff; border:1px solid #e2c477; border-radius:999px; padding:8px 16px; white-space:nowrap; }
+  .jc-lock__btn:hover{ background:#fffdf5; border-color:#d4a90e; }
+
+  /* Conflict-of-interest declaration card */
+  .jd-conflict{ background:#fff; border:1px solid rgba(16,41,44,.1); border-left:4px solid #d49a0e; border-radius:14px; padding:18px 20px; margin-bottom:20px; }
+  .jd-conflict__row{ display:flex; align-items:center; justify-content:space-between; gap:20px; flex-wrap:wrap; }
+  .jd-conflict__body strong, .jd-conflict__form strong{ display:block; font-family:var(--font-display,serif); font-weight:700; font-size:16px; color:#10292C; }
+  .jd-conflict__body p, .jd-conflict__form p{ margin:5px 0 0; font-size:13.5px; line-height:1.55; color:#5a6d6f; max-width:52ch; }
+  .jd-conflict__actions{ display:flex; gap:10px; flex-wrap:wrap; flex:none; }
+  .jd-conflict__form .jd-conflict__actions{ margin-top:14px; }
+  .jd-conflict__btn{ cursor:pointer; font-family:inherit; font-size:13px; font-weight:600; padding:10px 18px; border-radius:999px; border:1px solid transparent; }
+  .jd-conflict__btn--yes{ background:#fff4f2; color:#c0392b; border-color:#f0c4bd; }
+  .jd-conflict__btn--yes:hover{ background:#fdeae7; border-color:#e2a79d; }
+  .jd-conflict__btn--yes[type=submit]{ background:#c0392b; color:#fff; border-color:#c0392b; }
+  .jd-conflict__btn--yes[type=submit]:hover{ background:#a5301f; }
+  .jd-conflict__btn--no{ background:#f4f7f4; color:#1a6118; border-color:#d6e8d3; }
+  .jd-conflict__btn--no:hover{ background:#ecf3ea; }
+  .jd-conflict__lbl{ display:block; margin:14px 0 6px; font-size:12.5px; font-weight:600; color:#4a5256; }
+  .jd-conflict__lbl span{ font-weight:400; color:#8a9698; }
+  .jd-conflict__ta{ width:100%; resize:vertical; border:1px solid rgba(16,41,44,.16); border-radius:10px; padding:11px 13px; font-family:inherit; font-size:13.5px; line-height:1.5; color:#10292C; }
+  .jd-conflict__ta:focus{ border-color:#d49a0e; }
+  .jd-conflict__ta:focus-visible{ outline:3px solid #d49a0e; outline-offset:2px; }
+
+  /* ── The finder ──────────────────────────────────────────────────────────
+     16px on the input, or iOS zooms the page on focus and a judge loses the panel
+     they were reading. 44px minimum on every control here: this is used on a laptop
+     but also on a tablet on a lap, and the segment buttons sit close together. */
+  .jc-find{ padding:10px 12px 0; display:flex; flex-direction:column; gap:8px }
+  .jc-find__in{ width:100%; box-sizing:border-box; min-height:44px; font:inherit; font-size:16px;
+    padding:10px 12px; border:1.5px solid #dbe3dd; border-radius:10px; background:#fff; color:#10292C }
+  .jc-find__in:focus-visible{ outline:3px solid #237b22; outline-offset:1px; border-color:#237b22 }
+
+  .jc-seg{ display:flex; gap:6px }
+  .jc-seg__b{ flex:1; min-height:44px; padding:6px 4px; cursor:pointer; font:inherit; font-size:12px;
+    font-weight:600; border:1.5px solid #dbe3dd; border-radius:9px; background:#fff; color:#5a6d6f }
+  /* The selected segment carries WEIGHT and a border as well as colour — colour alone
+     fails 1.4.1 and this is three near-identical buttons in a row. */
+  .jc-seg__b.is-on{ border-color:#237b22; color:#14531a; background:#eaf7ec; font-weight:700 }
+  .jc-seg__b:focus-visible{ outline:3px solid #237b22; outline-offset:2px }
+
+  .jc-find__n{ margin:8px 12px 0; font-size:11.5px; color:#5a6d6f }
+  .jc-find__none{ margin:14px 12px; font-size:13px; line-height:1.6; color:#5a6d6f }
+  /* #67797b, not the #7d8f90 this started as: that measured 3.39:1 on white and this
+     is text, which owes 4.5:1. Small and quiet is a size decision, not a licence to
+     drop below the floor. */
+  .jc-find__kb{ margin:0; padding:9px 12px 11px; font-size:11px; color:#67797b;
+    border-top:1px solid #eef3f2 }
+  .jc-find__kb kbd{ font:inherit; font-family:ui-monospace,monospace; background:#f0f3f2;
+    border:1px solid #dbe3dd; border-radius:4px; padding:1px 4px; color:#39464a }
+
+  @media (max-width:860px){ .jc-grid{ grid-template-columns:1fr; } .jc-queue{ position:static; } .jc-scroll{ max-height:280px; }
+    /* The keyboard hint is a lie on a phone, so it goes rather than sitting there
+       telling somebody with no keyboard what to press. */
+    .jc-find__kb{ display:none } }
+</style>
+<script nonce="{{ csp_nonce }}">
+function ballotApp(initial){
+  var crit = initial.criteria || [];
+  var queue = [];
+  (initial.nominees || []).forEach(function(g){
+    (g.nominees || []).forEach(function(n){ queue.push(Object.assign({}, n, { _state:'', category: g.category.title })); });
+  });
+  return {
+    criteria: crit,
+    queue: queue,
+    active: 0,
+
+    // ── FINDING ONE AMONG FORTY ──────────────────────────────────────────
+    // `q` is the search, `only` the segment. Both filter a VIEW; `active` stays an
+    // index into `queue` itself, deliberately. Filtering the array instead would
+    // renumber every index under a judge mid-score and save a note against the
+    // wrong person — the worst bug this screen could have.
+    q: '',
+    only: 'todo',
+    _timers: {},
+    locked: initial.judgingOpen === false,
+    lockReason: initial.lockReason || '',
+    get cur(){ return this.queue[this.active] || null; },
+
+    // Indices into `queue`, in queue order, that match the search and the segment.
+    get shown(){
+      var q = (this.q || '').trim().toLowerCase();
+      var only = this.only, out = [];
+      for (var i = 0; i < this.queue.length; i++) {
+        var n = this.queue[i];
+        if (only === 'todo' && n.complete) continue;
+        if (only === 'done' && !n.complete) continue;
+        if (q) {
+          // Name, category and country together: a judge remembers "the entry from
+          // Kenya" as readily as half a surname, and making them pick a field first
+          // is a question the screen can answer itself.
+          var hay = ((n.name || '') + ' ' + (n.category || '') + ' ' + (n.country_code || '')).toLowerCase();
+          if (hay.indexOf(q) === -1) continue;
+        }
+        out.push(i);
+      }
+      return out;
+    },
+
+    countOf(k){
+      if (k === 'all') return this.queue.length;
+      var done = k === 'done';
+      return this.queue.filter(function(n){ return !!n.complete === done; }).length;
+    },
+
+    get shownLabel(){
+      var n = this.shown.length;
+      if (!this.q && this.only === 'all') return n + (n === 1 ? ' nominee' : ' nominees');
+      return n + ' of ' + this.queue.length + ' shown';
+    },
+
+    /**
+     * The next nominee with no score, wrapping from wherever the judge is.
+     *
+     * The single most useful move on this screen: somebody coming back to a panel is
+     * asking "where was I", and scrolling a list to work it out is the friction the
+     * search was added to remove.
+     */
+    nextTodo(){
+      var n = this.queue.length;
+      for (var s = 1; s <= n; s++) {
+        var i = (this.active + s) % n;
+        if (!this.queue[i].complete) { this.pick(i); return true; }
+      }
+      return false;
+    },
+
+    /** Move within what is currently SHOWN, so the keyboard agrees with the eye. */
+    step(d){
+      var v = this.shown;
+      if (!v.length) return;
+      var at = v.indexOf(this.active);
+      // Not in the filtered view (the judge just filtered away the person they are
+      // scoring): step to the nearest end rather than jumping somewhere arbitrary.
+      if (at === -1) { this.pick(d > 0 ? v[0] : v[v.length - 1]); return; }
+      this.pick(v[Math.min(v.length - 1, Math.max(0, at + d))]);
+    },
+
+    /**
+     * Keys, and the guard that makes them safe.
+     *
+     * A judge on this screen is typing notes and conflict declarations. A bare `j`
+     * binding that fired inside a textarea would move the panel mid-sentence and lose
+     * the sentence — so anything typed into a field, and anything with a modifier
+     * held, is left alone.
+     */
+    key(e){
+      if (e.metaKey || e.ctrlKey || e.altKey) return;
+      var t = e.target || {};
+      var tag = (t.tagName || '').toLowerCase();
+      if (tag === 'input' || tag === 'textarea' || tag === 'select' || t.isContentEditable) return;
+
+      if (e.key === 'j') { e.preventDefault(); this.step(1); }
+      else if (e.key === 'k') { e.preventDefault(); this.step(-1); }
+      else if (e.key === 'n') { e.preventDefault(); this.nextTodo(); }
+    },
+    get scoredCount(){ return this.queue.filter(function(n){ return n.complete; }).length; },
+    get totalCount(){ return this.queue.length; },
+    get progressPct(){ return this.totalCount > 0 ? Math.round(this.scoredCount / this.totalCount * 100) : 0; },
+    get maxScore(){ return this.criteria.length * 10; },
+    get curScore(){ var n=this.cur; if(!n) return 0; return this.criteria.reduce(function(s,c){ return s + (n.scores[c.id]||0); },0); },
+    // What the live region announces when the panel changes underneath a judge.
+    // The position as well as the name: "Ada Obi, 12 of 40" tells somebody who cannot
+    // see the queue both who they are scoring and how much is left, which is the whole
+    // of what the sidebar shows a sighted judge at a glance.
+    get whoLabel(){
+      var n = this.cur;
+      if(!n) return '';
+      return 'Now scoring ' + (n.name || 'this nominee')
+           + ', ' + (this.active + 1) + ' of ' + this.queue.length
+           + (n.complete ? ', already scored' : '');
+    },
+
+    get saveLabel(){ var n=this.cur; if(!n) return ''; return n._state==='saving'?'Saving…':(n._state==='ok'?'✓ Saved':(n._state==='err'?('✗ '+(n._err||'Could not save')):(n.complete?'Fully scored':'Not yet scored'))); },
+
+    mapBusy: false,
+    mapErr: '',
+    flagBusy: false,
+
+    flag(cc){ cc=(cc||'').toUpperCase(); if(cc.length!==2) return '🌍'; return String.fromCodePoint.apply(null,[].map.call(cc,function(c){return 127397+c.charCodeAt(0);})); },
+    // Clearing the map error on every move, not just on a new request: the message is
+    // about the nominee that failed, and carrying it to the next one makes a working
+    // dossier look broken.
+    // Anything the previous nominee is still holding goes NOW. The queue keeps the
+    // text in memory either way, so the visible behaviour is unchanged — but a reload
+    // or an expired session between here and the next save would have taken it, and
+    // switching nominee is exactly when a judge walks away from the screen.
+    pick(i){
+      if(i !== this.active) this._flushPending();
+      this.active = i; this.mapErr = ''; this.mapBusy = false;
+    },
+
+    _flushPending(){
+      var n = this.cur;
+      if(!n || this.locked || !this._timers[n.id]) return;
+      clearTimeout(this._timers[n.id]);
+      this._timers[n.id] = null;
+      this._save(n);
+    },
+
+    // ── ONE REQUEST AT A TIME, AND ONLY WHEN ASKED ────────────────────────
+    //
+    // POST rather than GET: this may spend money, and a GET is prefetched by browsers
+    // and link scanners — a summary generated by somebody hovering is a bill with no
+    // reader. The result is cached per nominee server-side, so a second judge on the
+    // same panel gets it free and, more importantly, gets the SAME map.
+    orient(){
+      var n = this.cur;
+      if(!n || this.mapBusy) return;
+      this.mapBusy = true; this.mapErr = '';
+      var self = this, id = n.id;
+      // The same CSRF mechanism saveScore() uses — the meta tag — rather than a second
+      // one. Two ways of proving the same thing is how one of them quietly stops working.
+      fetch('/judge/orient/' + id, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded',
+          'X-CSRF-Token': (document.querySelector('meta[name=csrf-token]')||{}).content || ''
+        },
+        body: ''
+      }).then(function(r){
+        if(r.status === 401){
+          window.location = '/judge/login?next=' + encodeURIComponent(location.pathname);
+          return {};
+        }
+        return r.json().catch(function(){ return {}; });
+      }).then(function(d){
+        self.mapBusy = false;
+        if(d && d.ok && d.map){
+          // Written onto the queue entry, so switching away and back does not ask again.
+          // The new map replaces the old one whole, which clears `stale` with it: the
+          // reply is built from the dossier as it stands now, so a leftover flag would
+          // tell a judge their fresh map is out of date.
+          var q = self.queue.filter(function(x){ return x.id === id; })[0];
+          if(q) q.map = d.map;
+        } else {
+          self.mapErr = (d && d.message) || 'That could not be done just now.';
+        }
+      }).catch(function(){
+        self.mapBusy = false;
+        self.mapErr = 'That could not be done just now. The dossier below is unaffected.';
       });
     },
 
-    onScore(n, critId, val) {
-      n.scores = { ...n.scores, [critId]: parseInt(val) };
-      n.complete = this.criteria.every(c => n.scores[c.id] !== undefined);
+    // ── THE NOTE PERSISTS LIKE A SCORE ───────────────────────────────────
+    //
+    // Debounced on input so a paragraph is one request; flushed on blur because the
+    // last words typed before a judge clicks away are the ones the timer is still
+    // holding. `_debouncedSave` is the same one the scores use — a second saving path
+    // for the same row is how the two come to disagree about what was written.
+    touchNote(){ var n=this.cur; if(!n || this.locked) return; this._debouncedSave(n); },
+
+    flushNote(){
+      var n=this.cur; if(!n || this.locked) return;
+      clearTimeout(this._timers[n.id]);
+      this._save(n);
+    },
+
+    // ── THE CORRECTION PATH ──────────────────────────────────────────────
+    //
+    // Optimistic on the client and authoritative on the server: the map is cleared here
+    // the moment a judge presses, because leaving it on screen while a request is in
+    // flight is the map still framing the dossier after its reader has rejected it.
+    // A failed request puts it back and says so — silently keeping it hidden would tell
+    // a judge their objection was recorded when it was not.
+    flagMap(){
+      var n = this.cur;
+      if(!n || !n.map || this.flagBusy) return;
+
+      var self = this, id = n.id, keep = n.map;
+      this.flagBusy = true;
+      n.map = null; n.map_flagged = true;
+
+      fetch('/judge/orient/' + id + '/flag', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded',
+          'X-CSRF-Token': (document.querySelector('meta[name=csrf-token]')||{}).content || ''
+        },
+        body: ''
+      }).then(function(r){
+        if(r.status === 401){ window.location = '/judge/login?next=' + encodeURIComponent(location.pathname); return {}; }
+        return r.json().catch(function(){ return {}; });
+      }).then(function(d){
+        self.flagBusy = false;
+        if(d && d.ok) return;
+        var q = self.queue.filter(function(x){ return x.id === id; })[0];
+        if(q){ q.map = keep; q.map_flagged = false; }
+        self.mapErr = (d && d.message) || 'That could not be recorded just now.';
+      }).catch(function(){
+        self.flagBusy = false;
+        var q = self.queue.filter(function(x){ return x.id === id; })[0];
+        if(q){ q.map = keep; q.map_flagged = false; }
+        self.mapErr = 'That could not be recorded just now.';
+      });
+    },
+
+    setScore(critId, val){
+      var n=this.cur; if(!n || this.locked) return;
+      var sc = Object.assign({}, n.scores); sc[critId] = parseInt(val); n.scores = sc;
+      // `[].every()` is TRUE, so with no rubric every nominee marked itself complete on a
+      // ballot with no score inputs. Same guard as JudgeService::ballot().
+      n.complete = this.criteria.length > 0 && this.criteria.every(function(c){ return n.scores[c.id] !== undefined; });
       n.avg = this._avg(n.scores);
       this._debouncedSave(n);
     },
-    onNotes(n) { this._debouncedSave(n); },
-    saveAll(n) { this._save(n); },
 
-    _avg(scores) {
-      const weights = Object.fromEntries(this.criteria.map(c => [c.id, c.weight || 25]));
-      let ws = 0, wt = 0;
-      Object.entries(scores).forEach(([cid, s]) => { const w = weights[cid] || 25; ws += s * w; wt += w; });
-      return wt > 0 ? Math.round(ws / wt * 10) / 10 : 0;
+    _avg(scores){
+      var weights = {}; this.criteria.forEach(function(c){ weights[c.id] = c.weight || 25; });
+      var ws=0, wt=0;
+      Object.keys(scores).forEach(function(cid){ var w = weights[cid]||25; ws += scores[cid]*w; wt += w; });
+      return wt>0 ? Math.round(ws/wt*10)/10 : 0;
     },
 
-    _timers: {},
-    _debouncedSave(n) {
-      n._state = 'saving';
+    advance(){
+      this._flushPending();
+      var t=this.queue.length, nx=this.active;
+      for(var k=1;k<=t;k++){ var c=(this.active+k)%t; if(!this.queue[c].complete){ nx=c; break; } }
+      this.active = nx;
+    },
+
+    _debouncedSave(n){
+      n._state='saving';
       clearTimeout(this._timers[n.id]);
-      this._timers[n.id] = setTimeout(() => this._save(n), 800);
+      var self=this; this._timers[n.id] = setTimeout(function(){ self._save(n); }, 800);
     },
 
-    async _save(n) {
-      try {
-        n._state = 'saving';
-        const params = new URLSearchParams({ notes: n.notes || '' });
-        Object.entries(n.scores).forEach(([k, v]) => params.append(`scores[${k}]`, v));
-        const r = await fetch('/judge/score/' + n.id, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/x-www-form-urlencoded',
-            'X-CSRF-Token': document.querySelector('meta[name=csrf-token]')?.content || '',
-          },
+    submit(){ var n=this.cur; if(!n || this.locked) return; var self=this; this._save(n).then(function(ok){ if(ok) self.advance(); }); },
+
+    async _save(n){
+      if(this.locked){ n._state='err'; n._err = this.lockReason || 'Scoring is closed'; return false; }
+      try{
+        n._state='saving';
+        var params = new URLSearchParams({ notes: n.notes || '' });
+        Object.keys(n.scores).forEach(function(k){ params.append('scores['+k+']', n.scores[k]); });
+        var r = await fetch('/judge/score/' + n.id, {
+          method:'POST',
+          headers:{ 'Content-Type':'application/x-www-form-urlencoded', 'X-CSRF-Token': (document.querySelector('meta[name=csrf-token]')||{}).content || '' },
           body: params,
         });
-        const d = await r.json().catch(() => ({}));
-        if (d.ok) {
-          n._state = 'ok';
-          setTimeout(() => { if (n._state === 'ok') n._state = ''; }, 2500);
-        } else {
-          n._state = 'err';
-          console.error('Score save failed:', d.message);
-        }
-      } catch (e) {
-        n._state = 'err';
-      }
+        if(r.status===401){ n._err='Your session expired — redirecting to sign in…'; n._state='err'; window.location='/judge/login?next=' + encodeURIComponent(location.pathname); return false; }
+        var d = await r.json().catch(function(){ return {}; });
+        if(r.ok && d.ok){ n._state='ok'; n._err=''; setTimeout(function(){ if(n._state==='ok') n._state=''; },2500); return true; }
+        n._err = (d && d.message) || (r.status===403 ? 'Scoring is closed for this cycle' : ('Save failed (' + r.status + ')'));
+        n._state='err';
+        return false;
+      }catch(e){ n._err='Network error — check your connection'; n._state='err'; return false; }
     },
   };
 }

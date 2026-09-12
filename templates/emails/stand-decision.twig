@@ -1,0 +1,403 @@
+{#
+  THE OUTCOME OF A STAND APPLICATION — offered, not selected, waiting list, or expired.
+
+  ── WHY THIS FILE EXISTS AT ALL ────────────────────────────────────────────
+
+  It did not, and the consequence was the most serious defect in the vendor-stands
+  subsystem. A decision was recorded in `gates_stand_applications` and NOBODY WAS TOLD.
+  An offer carries a {{ '' }}72-hour acceptance clock (StandApplication::OFFER_HOURS) that started
+  running the moment an organiser pressed Record; the vendor could only discover it by
+  logging in unprompted, and `Maintenance::expireStandOffers()` then released the pitch to
+  the waiting list — silently, again.
+
+  Meanwhile the public application page promises, in its own words: "You hear either way,
+  with a reason." So the platform was making a specific promise and keeping none of it,
+  and the people it broke were small businesses who had gathered certificates for it.
+
+  ── ONE TEMPLATE, FOUR OUTCOMES ────────────────────────────────────────────
+
+  Not four files. The four messages differ in one headline, one paragraph, and whether
+  there is a button — everything else is identical, and four copies of an inbox-compatible
+  skeleton is four places for a rendering fix to be applied three times.
+
+  The `kind` variable drives it. `offered` is the only one with a deadline block and a
+  button, because it is the only one where the reader has something to do and a clock.
+
+  ── AND WHY THE SKELETON IS COPIED RATHER THAN INVENTED ────────────────────
+
+  Every <head> and wrapper decision here was paid for once in emails/questionnaire.twig
+  and is not worth re-deriving: fluid-hybrid width with an MSO conditional for Outlook
+  (which ignores max-width), a hosted PNG mark rather than a data: URI (Gmail, Outlook and
+  Yahoo all refuse data: in an img src), `mso-line-height-rule: exactly` so Word does not
+  collapse long paragraphs, and a styled preheader.
+
+  ── THE REASON IS QUOTED, NOT PARAPHRASED ──────────────────────────────────
+
+  A rejection is refused server-side without one, and what the organiser typed is what the
+  vendor reads. Summarising it here would put words in the panel's mouth about a decision
+  somebody will ask about.
+#}
+{#
+  The questionnaire invitation.
+
+  ── WHY IT IS NOT THE PLAIN-TEXT NOTE IT USED TO BE ────────────────────────
+
+  This went out through `OtpService::sendCustom`, which is `isHTML(false)`. So the one
+  message on the platform that asks a nominee to do real work — write about themselves,
+  gather documents, upload them — arrived looking like a system notice, next to a
+  branded voting broadcast that only asked them to share a link. The ask that needs the
+  most trust had the least of it.
+
+  ── AND WHY IT REUSES final-hours.twig's SKELETON ──────────────────────────
+
+  Every inbox-compatibility decision in the <head> and wrapper of that file was paid for
+  once and is not worth re-deriving: fluid-hybrid width with an MSO conditional for
+  Outlook (which ignores max-width), a hosted PNG mark rather than a data: URI (Gmail,
+  Outlook and Yahoo all refuse data: in an img src), an explicit dark palette rather than
+  a defensive one, `mso-line-height-rule: exactly` so Word does not collapse long
+  paragraphs, and a styled preheader. Diverging from it would mean discovering the same
+  things again in somebody's Outlook.
+
+  ── WHAT IS DIFFERENT, DELIBERATELY ────────────────────────────────────────
+
+  · No countdown GIF. A ticking clock is right for "voting closes in six hours" and
+    wrong for a task that takes an evening — it says hurry to somebody who needs to go
+    and find a letter from 2019. The deadline is a line of text.
+  · The deadline block renders ONLY when there is one, and never claims the form locks.
+    It does not: the questionnaire stays open afterwards. Saying otherwise to hurry
+    somebody along would be a lie the platform then contradicts.
+  · The two fraud/honesty lines from the old plain-text body are kept verbatim in
+    substance. They are the most important sentences in the message — "nothing here
+    costs money" is what protects a nominee from somebody impersonating us — so they are
+    set as real content, not footer small print.
+#}
+<!DOCTYPE html>
+<html lang="en" xmlns="http://www.w3.org/1999/xhtml" xmlns:v="urn:schemas-microsoft-com:vml" xmlns:o="urn:schemas-microsoft-com:office:office">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta http-equiv="X-UA-Compatible" content="IE=edge">
+<meta name="format-detection" content="telephone=no, date=no, address=no, email=no, url=no">
+<meta name="color-scheme" content="light">
+<meta name="supported-color-schemes" content="light">
+<title>{{ subject }} — Africa GATES</title>
+<!--[if mso]>
+<noscript>
+<xml>
+<o:OfficeDocumentSettings>
+<o:PixelsPerInch>96</o:PixelsPerInch>
+</o:OfficeDocumentSettings>
+</xml>
+</noscript>
+<![endif]-->
+<style>
+  body, table, td, a { -webkit-text-size-adjust: 100%; -ms-text-size-adjust: 100%; }
+  table, td { mso-table-lspace: 0pt; mso-table-rspace: 0pt; }
+  img { -ms-interpolation-mode: bicubic; border: 0; height: auto; line-height: 100%; outline: none; text-decoration: none; display: block; }
+  body { margin: 0; padding: 0; width: 100% !important; height: 100% !important; background-color: #f2f2ef; }
+  table { border-collapse: collapse !important; }
+  a[x-apple-data-detectors] { color: inherit !important; text-decoration: none !important; font-size: inherit !important; font-family: inherit !important; font-weight: inherit !important; line-height: inherit !important; }
+  u + #body a { color: inherit; text-decoration: none; }
+  #MessageViewBody a { color: inherit; text-decoration: none; }
+  span.MsoHyperlink { color: inherit; mso-style-priority: 99; }
+  [data-ogsc] .agw-bg { background-color: #ffffff !important; }
+  [data-ogsc] .agw-text { color: #14171a !important; }
+
+  /* Outlook (Word engine) ignores line-height unless told the rule is exact, and
+     collapses to single spacing on long paragraphs. */
+  p, td, a, div, h1 { mso-line-height-rule: exactly; }
+
+  /* ── DARK MODE ───────────────────────────────────────────────────────────
+     `color-scheme: light` above already stops Apple Mail and iOS inverting anything,
+     which is why the palette below is a deliberate dark counterpart rather than a
+     defensive one. Gmail's and Outlook.com's dark modes invert regardless and do it
+     badly on near-white surfaces — dark text left on a darkened background. Declaring
+     the dark values explicitly means the clients that DO honour the query render a
+     chosen design, and the ones that force-invert have less to get wrong. */
+  @media (prefers-color-scheme: dark) {
+    .agw-body   { background-color: #0d1512 !important; }
+    .agw-bg     { background-color: #14201b !important; }
+    .agw-text   { color: #f3f5f2 !important; }
+    .agw-muted  { color: #a9b4ad !important; }
+    .agw-body-t { color: #dfe4e0 !important; }
+    .agw-hero   { background-color: #16261d !important; }
+    .agw-rule   { border-color: #2c3a32 !important; }
+    /* The green CTA already clears 4.5:1 against white text, so it is left alone —
+       lightening it here would only reduce that. */
+  }
+
+  @media screen and (max-width: 600px) {
+    .agw-wrapper { width: 100% !important; }
+    .agw-px { padding-left: 28px !important; padding-right: 28px !important; }
+    .agw-headline { font-size: 26px !important; line-height: 32px !important; }
+    .agw-btn-pad { padding-left: 28px !important; padding-right: 28px !important; }
+    .agw-hero-pad { padding: 28px 20px !important; }
+  }
+</style>
+</head>
+<body id="body" class="agw-body" style="margin:0; padding:0; background-color:#f2f2ef;">
+
+{# The brand mark is a HOSTED PNG, not an inlined data: URI.
+
+   It was base64 — 20,848 bytes, over half the entire email — and Gmail, Outlook desktop,
+   Outlook.com and Yahoo all refuse data: URIs in an img src, so the majority of readers
+   paid that weight and saw the alt text anyway. It also spent half the headroom before
+   Gmail's ~102KB clipping point, and what Gmail clips off a campaign is the footer, which
+   is where the unsubscribe link lives.
+
+   Not the SVG at /assets/img/logo-africa-gates.svg either: it is 1.4MB of embedded
+   bitmap, and email clients do not render SVG at all. #}
+<!-- PREHEADER -->
+<div style="display:none; max-height:0; overflow:hidden; mso-hide:all; font-size:1px; line-height:1px; color:#f2f2ef; opacity:0;">
+  {{ preheader }}
+  &nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;
+</div>
+
+<table role="presentation" class="agw-body" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="#f2f2ef" style="background-color:#f2f2ef;">
+<tr>
+<td align="center" style="padding:32px 12px;">
+
+
+  <!--[if mso]>
+  <table role="presentation" width="560" cellpadding="0" cellspacing="0" border="0" style="width:560px;"><tr><td>
+  <![endif]-->
+  {# FLUID-HYBRID, not a fixed 560px table.
+
+     This was width="560" with the mobile override living only inside the one @media
+     block. Gmail strips <style> in several configurations (notably a non-Gmail address
+     fetched via POP/IMAP into a Gmail account), and when it does, a 560px table lands on
+     a 320px screen: the reader gets a horizontally scrolling email or a zoomed-out one.
+     A percentage width with a max-width needs no media query to work, and the MSO
+     conditional above gives Outlook — which ignores max-width — its fixed 560. #}
+  <table role="presentation" class="agw-wrapper agw-bg" width="100%" cellpadding="0" cellspacing="0" border="0" style="width:100%; max-width:560px; background-color:#ffffff; border-radius:20px; overflow:hidden;">
+
+    <!-- DARK HEADER BAR (logo left, status badge right) -->
+    <tr>
+      <td style="background-color:#131a15;">
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+          <tr>
+            <td class="agw-px" style="padding:20px 32px;">
+              <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%">
+                <tr>
+                  <td valign="middle">
+                    <table role="presentation" cellpadding="0" cellspacing="0" border="0">
+                      <tr>
+                        <td valign="middle" width="40" style="padding-right:10px;">
+                          {# THE MARK ONLY, not the full lockup. The wordmark version is
+                             illegible below about 96px, and the words "Africa GATES" are
+                             already set in live text in the cell beside this one — printing
+                             them twice, once as unreadable pixels, is worse than not
+                             printing them at all.
+
+                             Served at 2x (192px for a 40px box) so it is not soft on a
+                             retina phone, which is where most of these are opened. #}
+                          <img src="{{ site_url }}/assets/img/logo-mark.png" width="40" height="40" alt="Africa GATES" style="display:block;">
+                        </td>
+                        <td valign="middle">
+                          <p style="margin:0; font-family:Helvetica, Arial, sans-serif; font-size:15px; font-weight:700; color:#ffffff; line-height:16px;">Africa</p>
+                          <p style="margin:1px 0 0 0; font-family:Helvetica, Arial, sans-serif; font-size:10px; font-weight:700; letter-spacing:2px; color:#4fbf7f; line-height:12px;">GATES</p>
+                        </td>
+                      </tr>
+                    </table>
+                  </td>
+                  <td valign="middle" align="right">
+                    <p style="margin:0; font-family:Helvetica, Arial, sans-serif; font-size:10.5px; font-weight:700; letter-spacing:1.6px; color:#8a9089; text-transform:uppercase;">{{ eyebrow }}</p>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+
+    <!-- WHAT HAPPENED -->
+    <tr>
+      <td class="agw-px" style="padding:36px 40px 0 40px;">
+        <h1 class="agw-headline agw-text" style="margin:0; font-family:Helvetica, Arial, sans-serif; font-weight:700; font-size:28px; line-height:34px; color:#14171a; letter-spacing:-0.3px;">
+          {% if kind == 'offered' %}You have a stand at<br><span style="color:#1f9d55;">{{ event_title }}</span>
+          {%- elseif kind == 'rejected' %}About your stand<br><span style="color:#1f9d55;">application</span>
+          {%- elseif kind == 'expired' %}Your stand offer<br><span style="color:#1f9d55;">has run out</span>
+          {%- else %}You are on the<br><span style="color:#1f9d55;">waiting list</span>{% endif %}
+        </h1>
+        <p class="agw-body-t" style="margin:14px 0 0 0; font-family:Helvetica, Arial, sans-serif; font-size:14.5px; line-height:23px; color:#43473f;">
+          {% if first_name %}{{ first_name }}, {% endif %}you applied for
+          <strong style="color:#14171a;">{{ stand_name }}</strong>{% if stand_size %} ({{ stand_size }}){% endif %}
+          at {{ event_title }}{% if event_date %}, {{ event_date }}{% endif %}.
+        </p>
+        <p class="agw-body-t" style="margin:12px 0 0 0; font-family:Helvetica, Arial, sans-serif; font-size:14.5px; line-height:23px; color:#43473f;">
+          {% if kind == 'offered' %}
+            The place is <strong style="color:#14171a;">held for you</strong> and it is yours as
+            soon as you accept it. It is not yours until you do &mdash; if the time below runs
+            out, it goes to the next applicant on the waiting list.
+          {% elseif kind == 'rejected' %}
+            We are not able to offer you a pitch this time. That is a disappointing thing to
+            read and you are owed the actual reason rather than a form of words, so it is
+            below exactly as the panel wrote it.
+          {% elseif kind == 'expired' %}
+            The offer we made you was not accepted before its {{ offer_hours }} hours were up, so
+            the pitch has gone to the waiting list. Your application has not been withdrawn
+            &mdash; you are back on that list, and if a place comes free the longest-waiting
+            applicant is offered it first.
+          {% else %}
+            Every pitch of this type is currently held. You have not been turned down: if a
+            place comes free, the longest-waiting applicant on this list is offered it first,
+            and that may be you.
+          {% endif %}
+        </p>
+      </td>
+    </tr>
+
+    {# THE CLOCK AND THE BUTTON — offers only, because it is the only outcome with
+       something to do and a deadline to do it by. #}
+    {% if kind == 'offered' %}
+    <tr>
+      <td class="agw-px" style="padding:26px 40px 0 40px;">
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="#f7f9f7" style="background-color:#f7f9f7; border-radius:10px;">
+          <tr>
+            <td style="padding:14px 18px;">
+              <p style="margin:0; font-family:Helvetica, Arial, sans-serif; font-size:10.5px; font-weight:700; letter-spacing:1.2px; color:#9a9c95; text-transform:uppercase;">Accept by</p>
+              <p class="agw-text" style="margin:4px 0 0 0; font-family:Helvetica, Arial, sans-serif; font-size:16px; font-weight:700; color:#14171a;">{{ expires_at }}</p>
+              <p class="agw-muted" style="margin:6px 0 0 0; font-family:Helvetica, Arial, sans-serif; font-size:12.5px; line-height:19px; color:#5b6b60;">
+                {{ offer_hours }} hours from when the offer was made. This was one of the published
+                terms of the call.</p>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+    <tr>
+      <td class="agw-px agw-btn-pad" align="center" style="padding:24px 40px 0 40px;">
+        <!--[if mso]>
+        <v:roundrect xmlns:v="urn:schemas-microsoft-com:vml" xmlns:w="urn:schemas-microsoft-com:office:word" href="{{ link }}" style="height:48px;v-text-anchor:middle;width:300px;" arcsize="12%" strokecolor="#1f9d55" fillcolor="#1f9d55">
+        <w:anchorlock/>
+        <center style="color:#ffffff;font-family:Helvetica,Arial,sans-serif;font-size:14px;font-weight:bold;">Accept my stand</center>
+        </v:roundrect>
+        <![endif]-->
+        <!--[if !mso]><!-->
+        <a href="{{ link }}" target="_blank" style="display:inline-block; width:100%; max-width:300px; box-sizing:border-box; background-color:#1f9d55; border-radius:8px; padding:15px 24px; font-family:Helvetica, Arial, sans-serif; font-size:14px; font-weight:700; color:#ffffff; text-decoration:none; text-align:center;">
+          Accept my stand
+        </a>
+        <!--<![endif]-->
+        {# The address as text as well. A vendor reading this on a borrowed phone needs to be
+           able to move it to a laptop, and a client that mangles the button must not be the
+           thing that costs somebody a pitch. #}
+        <p class="agw-muted" style="margin:14px 0 0 0; font-family:Helvetica, Arial, sans-serif; font-size:11.5px; line-height:17px; color:#9a9c95; word-break:break-all;">
+          {{ link }}
+        </p>
+      </td>
+    </tr>
+    {% else %}
+    <tr>
+      <td class="agw-px agw-btn-pad" align="center" style="padding:26px 40px 0 40px;">
+        <!--[if !mso]><!-->
+        <a href="{{ link }}" target="_blank" style="display:inline-block; width:100%; max-width:300px; box-sizing:border-box; border:1px solid #d5d8d2; border-radius:8px; padding:14px 24px; font-family:Helvetica, Arial, sans-serif; font-size:14px; font-weight:700; color:#14171a; text-decoration:none; text-align:center;">
+          Open my dashboard
+        </a>
+        <!--<![endif]-->
+      </td>
+    </tr>
+    {% endif %}
+
+    {# WHAT THE PANEL WROTE. Quoted, never paraphrased — a rejection is refused without a
+       reason, and the reason belongs to whoever wrote it. #}
+    {% if reason %}
+    <tr>
+      <td class="agw-px" style="padding:30px 40px 0 40px;">
+        <p style="margin:0 0 10px 0; font-family:Helvetica, Arial, sans-serif; font-weight:700; font-size:11px; letter-spacing:1.2px; color:#9a9c95; text-transform:uppercase;">
+          {% if kind == 'rejected' %}Why{% else %}From the panel{% endif %}
+        </p>
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+          <tr>
+            <td style="border-left:2px solid #1f9d55; padding:2px 0 2px 16px;">
+              <p class="agw-body-t" style="margin:0; font-family:Helvetica, Arial, sans-serif; font-size:14px; line-height:22px; color:#43473f;">{{ reason }}</p>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+    {% endif %}
+
+    {# WHAT IT COSTS, on an offer only. The application was free and the page said so twice;
+       the fee arrives with the acceptance, and a vendor must meet that number here rather
+       than after committing. #}
+    {% if kind == 'offered' and price %}
+    <tr>
+      <td class="agw-px" style="padding:30px 40px 0 40px;">
+        <p style="margin:0 0 10px 0; font-family:Helvetica, Arial, sans-serif; font-weight:700; font-size:11px; letter-spacing:1.2px; color:#9a9c95; text-transform:uppercase;">What it costs</p>
+        <p class="agw-body-t" style="margin:0; font-family:Helvetica, Arial, sans-serif; font-size:14px; line-height:22px; color:#43473f;">
+          The pitch fee is <strong style="color:#14171a;">{{ price }}</strong>{% if deposit %}, of which
+          <strong style="color:#14171a;">{{ deposit }}</strong> is due on acceptance{% endif %}. This is
+          the price published with the call and it has not changed.
+        </p>
+        {# ── AND THE TERMS, BEFORE THE BUTTON RATHER THAN AFTER IT ──────────
+             A trader is about to accept a pitch and be charged for it. The questions that
+             come up at a market — who insures the stall, what happens if the event is
+             cancelled, when the fee is refundable — were answered nowhere. Linked here so
+             they can be read before deciding, and agreed to with a real checkbox on the
+             page the button opens. #}
+        <p class="agw-body-t" style="margin:12px 0 0 0; font-family:Helvetica, Arial, sans-serif; font-size:14px; line-height:22px; color:#43473f;">
+          Accepting means agreeing to the
+          <a href="{{ terms_url }}" target="_blank" style="color:#1f9d55;">trading terms</a> —
+          insurance, cancellation, what you may sell, and when the fee can be refunded. Worth
+          two minutes before you press the button.
+        </p>
+      </td>
+    </tr>
+    {% endif %}
+
+    <!-- THE ONE THING WORTH SAYING PLAINLY -->
+    <tr>
+      <td class="agw-px" style="padding:30px 40px 0 40px;">
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+          <tr>
+            <td valign="top">
+              <p class="agw-body-t" style="margin:0; font-family:Helvetica, Arial, sans-serif; font-size:14px; line-height:22px; color:#43473f;">
+                <strong style="color:#14171a;">We will never ask you to pay anybody privately for
+                a stand.</strong> Every payment goes through the platform and appears on your
+                dashboard. If somebody asks you for money to secure a pitch, it is not us.
+              </p>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+
+    <!-- CLOSING -->
+    <tr>
+      <td class="agw-px" style="padding:34px 40px 0 40px;">
+        <p class="agw-muted" style="margin:0 0 2px 0; font-family:Helvetica, Arial, sans-serif; font-size:13.5px; color:#5b6b60;">
+          {% if kind == 'offered' %}We are looking forward to having you,
+          {%- elseif kind == 'rejected' %}Thank you for applying, and please do again,
+          {%- else %}Thank you for your patience,{% endif %}</p>
+        <p class="agw-text" style="margin:0; font-family:Helvetica, Arial, sans-serif; font-weight:700; font-size:13.5px; color:#14171a;">The Africa GATES Team</p>
+      </td>
+    </tr>
+
+    <!-- FOOTER -->
+    <tr>
+      <td class="agw-px" align="center" style="padding:36px 40px 32px 40px;">
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+          <tr><td style="border-top:1px solid #f0f0ec; font-size:0; line-height:0; padding-bottom:22px;">&nbsp;</td></tr>
+        </table>
+        <p style="margin:0 0 6px 0; font-family:Helvetica, Arial, sans-serif; font-size:10.5px; letter-spacing:1.2px; color:#1f9d55; font-weight:700; text-transform:uppercase;">Africa G.A.T.E.S.</p>
+        <p style="margin:0 0 14px 0; font-family:Helvetica, Arial, sans-serif; font-size:11px; color:#9a9c95;">
+          {{ postal_address }}
+        </p>
+        <p style="margin:0; font-family:Helvetica, Arial, sans-serif; font-size:10.5px; color:#9a9c95;">
+          <a href="{{ site_url }}" style="color:#9a9c95; text-decoration:underline;">africagates.org</a>{% if unsubscribe_url %}&nbsp;&nbsp;·&nbsp;&nbsp;<a href="{{ unsubscribe_url }}" style="color:#9a9c95; text-decoration:underline;">Unsubscribe</a>{% endif %}
+        </p>
+      </td>
+    </tr>
+
+  </table>
+  <!--[if mso]>
+  </td></tr></table>
+  <![endif]-->
+
+</td>
+</tr>
+</table>
+
+</body>
+</html>

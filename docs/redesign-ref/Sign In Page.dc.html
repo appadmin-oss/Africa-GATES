@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,600;0,700;0,800;1,600&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&family=JetBrains+Mono:wght@500;600;700&display=swap" rel="stylesheet">
+<style>
+  *{box-sizing:border-box}
+  body{margin:0;font-family:'DM Sans',system-ui,sans-serif;-webkit-font-smoothing:antialiased}
+  @keyframes siUp{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}
+  @keyframes siSpin{to{transform:rotate(360deg)}}
+</style>
+</helmet>
+
+<div style="min-height:100vh;display:flex;background:#eef0ec">
+  <!-- LEFT brand panel -->
+  <div style="flex:1;position:relative;overflow:hidden;background:radial-gradient(130% 120% at 25% 10%,#1d5b2a,#10292C 62%);display:flex;flex-direction:column;justify-content:space-between;padding:44px 48px">
+    <div style="position:absolute;right:-80px;bottom:-100px;width:420px;height:420px;border-radius:50%;background:radial-gradient(circle,rgba(212,154,14,.26),transparent 68%)"></div>
+    <div style="display:flex;align-items:center;gap:11px;position:relative"><span style="width:38px;height:38px;border-radius:10px;background:rgba(127,200,124,.16);display:flex;align-items:center;justify-content:center;font-family:'Playfair Display',serif;font-weight:700;font-size:20px;color:#7FC87C">G</span><span style="display:flex;flex-direction:column;line-height:1"><span style="font-family:'Playfair Display',serif;font-weight:700;font-size:17px;color:#fff">Africa</span><span style="font-size:10px;font-weight:700;letter-spacing:.26em;color:#7FC87C">GATES</span></span></div>
+    <div style="position:relative">
+      <h1 style="margin:0;font-family:'Playfair Display',serif;font-weight:800;font-size:42px;line-height:1.05;letter-spacing:-.02em;color:#fff">Recognition,<br>counted in the open.</h1>
+      <p style="margin:18px 0 0;font-size:15.5px;line-height:1.6;color:rgba(255,255,255,.78);max-width:380px">Sign in to vote, follow nominees, and track the Cultural Power Index across the continent.</p>
+      <div style="display:flex;align-items:center;gap:20px;margin-top:30px">
+        <div><div style="font-family:'JetBrains Mono',monospace;font-weight:700;font-size:22px;color:#7FC87C">4,214</div><div style="font-size:11px;color:rgba(255,255,255,.55);margin-top:2px">verified profiles</div></div>
+        <div style="width:1px;height:32px;background:rgba(255,255,255,.18)"></div>
+        <div><div style="font-family:'JetBrains Mono',monospace;font-weight:700;font-size:22px;color:#fff">54</div><div style="font-size:11px;color:rgba(255,255,255,.55);margin-top:2px">countries</div></div>
+        <div style="width:1px;height:32px;background:rgba(255,255,255,.18)"></div>
+        <div><div style="font-family:'JetBrains Mono',monospace;font-weight:700;font-size:22px;color:#fff">1.2M</div><div style="font-size:11px;color:rgba(255,255,255,.55);margin-top:2px">votes cast</div></div>
+      </div>
+    </div>
+    <p style="position:relative;margin:0;font-size:12px;color:rgba(255,255,255,.45)">© 2026 Africa GATES · An Afrovanguard initiative</p>
+  </div>
+
+  <!-- RIGHT form -->
+  <div style="flex:none;width:520px;background:#fbfbfa;display:flex;align-items:center;justify-content:center;padding:40px">
+    <div style="width:360px">
+      <!-- step: email -->
+      <sc-if value="{{ stepEmail }}" hint-placeholder-val="{{ true }}">
+      <div style="animation:siUp .3s ease both">
+        <h2 style="margin:0;font-family:'Playfair Display',serif;font-weight:700;font-size:28px;color:#10292C">Welcome back</h2>
+        <p style="margin:9px 0 0;font-size:14px;color:#717a7e">Sign in or create an account — we'll email you a secure code, no password needed.</p>
+
+        <button onClick="{{ google }}" style="width:100%;margin-top:24px;cursor:pointer;border:1px solid rgba(16,41,44,.16);background:#fff;color:#10292C;font-family:inherit;font-weight:600;font-size:14.5px;padding:13px;border-radius:12px;display:flex;align-items:center;justify-content:center;gap:10px"><svg width="18" height="18" viewBox="0 0 24 24"><path fill="#4285F4" d="M22.5 12.2c0-.7-.1-1.4-.2-2H12v3.9h5.9a5 5 0 0 1-2.2 3.3v2.7h3.6c2.1-2 3.2-4.9 3.2-7.9Z"/><path fill="#34A853" d="M12 23c2.9 0 5.4-1 7.2-2.6l-3.6-2.7c-1 .7-2.3 1.1-3.6 1.1-2.8 0-5.1-1.9-6-4.4H2.3v2.8A11 11 0 0 0 12 23Z"/><path fill="#FBBC05" d="M6 14.4a6.6 6.6 0 0 1 0-4.2V7.4H2.3a11 11 0 0 0 0 9.8L6 14.4Z"/><path fill="#EA4335" d="M12 5.5c1.6 0 3 .5 4.1 1.6l3.1-3.1A11 11 0 0 0 2.3 7.4L6 10.2c.9-2.6 3.2-4.7 6-4.7Z"/></svg>Continue with Google</button>
+
+        <div style="display:flex;align-items:center;gap:12px;margin:20px 0"><span style="flex:1;height:1px;background:rgba(16,41,44,.1)"></span><span style="font-size:12px;color:#92a6a7">or</span><span style="flex:1;height:1px;background:rgba(16,41,44,.1)"></span></div>
+
+        <label style="display:block;font-size:12px;font-weight:600;color:#4a5256;margin-bottom:7px">Email address</label>
+        <input value="{{ email }}" onInput="{{ onEmail }}" type="email" placeholder="you@email.com" style="width:100%;border:1px solid {{ emailBorder }};border-radius:12px;padding:13px 15px;font-family:inherit;font-size:14.5px;color:#10292C;outline:none" style-focus="border-color:#237b22"/>
+        <button onClick="{{ sendCode }}" style="width:100%;margin-top:14px;cursor:pointer;border:none;background:{{ ctaBg }};color:#fff;font-family:inherit;font-weight:600;font-size:15px;padding:14px;border-radius:12px;opacity:{{ ctaOp }}">Continue with email</button>
+        <p style="margin:18px 0 0;font-size:11.5px;line-height:1.55;color:#92a6a7;text-align:center">By continuing you agree to our <span style="color:#237b22">Terms</span> and <span style="color:#237b22">Privacy Policy</span>. Your email is hashed, never stored in plain text.</p>
+      </div>
+      </sc-if>
+
+      <!-- step: otp -->
+      <sc-if value="{{ stepOtp }}" hint-placeholder-val="{{ false }}">
+      <div style="animation:siUp .3s ease both">
+        <button onClick="{{ back }}" style="cursor:pointer;border:none;background:none;font-family:inherit;font-size:13px;font-weight:600;color:#92a6a7;padding:0;margin-bottom:16px">← Back</button>
+        <h2 style="margin:0;font-family:'Playfair Display',serif;font-weight:700;font-size:28px;color:#10292C">Check your email</h2>
+        <p style="margin:9px 0 0;font-size:14px;color:#717a7e">We sent a 6-digit code to <strong style="color:#10292C">{{ email }}</strong>. It expires in 10 minutes.</p>
+        <input value="{{ otp }}" onInput="{{ onOtp }}" inputmode="numeric" maxlength="6" placeholder="······" style="width:100%;margin-top:22px;text-align:center;border:1px solid rgba(16,41,44,.16);border-radius:12px;padding:16px;font-family:'JetBrains Mono',monospace;font-size:30px;font-weight:700;letter-spacing:.34em;color:#10292C;outline:none" style-focus="border-color:#237b22"/>
+        <button onClick="{{ verify }}" style="width:100%;margin-top:16px;cursor:pointer;border:none;background:{{ otpBg }};color:#fff;font-family:inherit;font-weight:600;font-size:15px;padding:14px;border-radius:12px;opacity:{{ otpOp }}">Verify &amp; sign in</button>
+        <p style="margin:16px 0 0;text-align:center;font-size:12.5px;color:#92a6a7">Didn't get it? <span style="color:#237b22;font-weight:500">Resend code</span></p>
+      </div>
+      </sc-if>
+
+      <!-- step: loading -->
+      <sc-if value="{{ stepLoading }}" hint-placeholder-val="{{ false }}">
+      <div style="text-align:center;padding:40px 0">
+        <div style="width:48px;height:48px;margin:0 auto;border-radius:50%;border:4px solid #e8ece9;border-top-color:#237b22;animation:siSpin .8s linear infinite"></div>
+        <p style="margin:20px 0 0;font-size:14.5px;font-weight:600;color:#10292C">Signing you in…</p>
+      </div>
+      </sc-if>
+
+      <!-- step: done -->
+      <sc-if value="{{ stepDone }}" hint-placeholder-val="{{ false }}">
+      <div style="text-align:center;animation:siUp .3s ease both">
+        <div style="width:64px;height:64px;margin:0 auto;border-radius:50%;background:#effaf0;display:flex;align-items:center;justify-content:center"><svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="#237b22" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></div>
+        <h2 style="margin:16px 0 0;font-family:'Playfair Display',serif;font-weight:700;font-size:26px;color:#10292C">You're in 🎉</h2>
+        <p style="margin:10px 0 0;font-size:14.5px;color:#4a5256">Taking you to the leaderboard…</p>
+        <button onClick="{{ reset }}" style="margin-top:20px;cursor:pointer;border:1px solid rgba(16,41,44,.14);background:#fff;color:#10292C;font-family:inherit;font-weight:600;font-size:14px;padding:12px 24px;border-radius:999px">Start over</button>
+      </div>
+      </sc-if>
+    </div>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:1024,&quot;height&quot;:720}}">
+class Component extends DCLogic {
+  state = { step:'email', email:'', otp:'' };
+  renderVals(){
+    const s=this.state;
+    const validEmail=/.+@.+\..+/.test(s.email);
+    const validOtp=s.otp.replace(/\D/g,'').length===6;
+    return {
+      stepEmail:s.step==='email', stepOtp:s.step==='otp', stepLoading:s.step==='loading', stepDone:s.step==='done',
+      email:s.email, onEmail:(e)=>this.setState({email:e.target.value}),
+      emailBorder:validEmail?'#237b22':'rgba(16,41,44,.16)', ctaBg:validEmail?'#237b22':'#9aa6a8', ctaOp:validEmail?1:0.75,
+      sendCode:()=>{ if(validEmail) this.setState({step:'otp'}); },
+      google:()=>{ this.setState({step:'loading'}); clearTimeout(this._g); this._g=setTimeout(()=>this.setState({step:'done'}),1400); },
+      otp:s.otp, onOtp:(e)=>this.setState({otp:e.target.value.replace(/\D/g,'').slice(0,6)}),
+      otpBg:validOtp?'#237b22':'#9aa6a8', otpOp:validOtp?1:0.75,
+      back:()=>this.setState({step:'email'}),
+      verify:()=>{ if(validOtp){ this.setState({step:'loading'}); clearTimeout(this._v); this._v=setTimeout(()=>this.setState({step:'done'}),1400);} },
+      reset:()=>this.setState({step:'email',email:'',otp:''})
+    };
+  }
+}
+</script>
+</body>
+</html>

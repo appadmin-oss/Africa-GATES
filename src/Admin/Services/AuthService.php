@@ -65,6 +65,9 @@ class AuthService
             if ($attempts >= 5) {
                 $update['locked_until'] = Carbon::now()->addMinutes(15)->toDateTimeString();
                 $update['failed_attempts'] = 0;
+                // Distinct high-signal security event for log-based alerting (see
+                // docs/SECURITY-HARDENING-V3.md — alert on `admin.login.lockout`).
+                $this->log->warn('admin.login.lockout', ['email' => $email, 'ip' => $ip]);
             }
             DB::table('gates_admins')->where('id', $admin->id)->update($update);
             $this->log->info('admin.login.fail', ['email' => $email, 'attempts' => $attempts]);
@@ -100,18 +103,28 @@ class AuthService
             $this->audit->record((int)$_SESSION['admin_id'], 'logout', 'admin', (int)$_SESSION['admin_id']);
         }
         unset($_SESSION['admin_id'], $_SESSION['admin_name'], $_SESSION['admin_role'], $_SESSION['admin_email']);
+        // Rotate the session id on logout so the pre-logout id can't be reused
+        // (kiosk/shared-machine hardening); also cycle the CSRF token.
+        Session::rotate();
+        $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
     }
 
+    /**
+     * The live row behind the signed-in session, or null when there is none.
+     *
+     * Read on every admin request by {@see \AfricaGates\Admin\Middleware\AdminAuthMiddleware},
+     * which is what makes deactivating an account and changing a role take effect on
+     * somebody already signed in. Deliberately UNFILTERED — the middleware needs to
+     * tell a deactivated account from a deleted one, and `is_active` is its decision
+     * to make, not this reader's.
+     *
+     * ({@see findByEmail()} filters on is_active because a login is a different
+     * question: there, an inactive account must be indistinguishable from no account.)
+     */
     public function currentAdmin(): ?object
     {
         $id = (int)($_SESSION['admin_id'] ?? 0);
         return $id ? $this->findById($id) : null;
-    }
-
-    public function hasRole(string ...$roles): bool
-    {
-        $role = $_SESSION['admin_role'] ?? '';
-        return in_array($role, $roles, true);
     }
 
     /**

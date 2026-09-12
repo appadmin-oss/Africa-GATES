@@ -1,0 +1,86 @@
+/* ════════════════════════════════════════════════════════════════
+   Africa GATES — "Join our community" modal
+   Shown after a successful vote / nomination. Self-contained and
+   namespaced (.agcm*) so it is independent of the legacy .modal CSS
+   being retired in the redesign. Uses base/tokens.css variables with
+   safe fallbacks so it renders even if tokens haven't loaded.
+   ════════════════════════════════════════════════════════════════ */
+.agcm[hidden]{display:none;}
+.agcm{
+  position:fixed; inset:0;
+  z-index:2147482000;                 /* above nav/footer/Gee, below the entrance loader */
+  display:flex; align-items:center; justify-content:center;
+  padding:1.25rem;
+}
+.agcm__overlay{
+  position:absolute; inset:0;
+  background:rgba(7,20,22,.6);
+  backdrop-filter:blur(6px); -webkit-backdrop-filter:blur(6px);
+  opacity:0; transition:opacity var(--ag-dur,.25s) var(--ag-ease,ease);
+}
+.agcm__dialog{
+  position:relative; width:100%; max-width:420px;
+  background:var(--ag-surface,#fff); color:var(--ag-ink,#10292c);
+  border-radius:var(--ag-r-lg,24px);
+  box-shadow:var(--ag-shadow-pop,0 24px 48px -28px rgba(16,41,44,.4));
+  padding:2rem 1.75rem 1.75rem; text-align:center;
+  font-family:var(--ag-font-body,system-ui,-apple-system,"Segoe UI",sans-serif);
+  opacity:0; transform:translateY(12px) scale(.98);
+  transition:opacity var(--ag-dur,.25s) var(--ag-ease,ease),
+             transform var(--ag-dur,.25s) var(--ag-ease,ease);
+}
+.agcm.is-open .agcm__overlay{opacity:1;}
+.agcm.is-open .agcm__dialog{opacity:1; transform:none;}
+
+.agcm__close{
+  position:absolute; top:.75rem; right:.75rem;
+  width:38px; height:38px; display:grid; place-items:center;
+  border:0; border-radius:var(--ag-r-pill,999px);
+  background:var(--ag-surface-2,#f6f7f6); color:var(--ag-ink-soft,#626a6e);
+  cursor:pointer; transition:background var(--ag-dur-fast,.15s);
+}
+.agcm__close:hover{background:var(--ag-line-strong,rgba(16,41,44,.12)); color:var(--ag-ink,#10292c);}
+
+.agcm__badge{
+  display:inline-grid; place-items:center;
+  width:64px; height:64px; margin-bottom:1rem;
+  border-radius:var(--ag-r-pill,999px);
+  background:#25d366; color:#fff;            /* WhatsApp brand green */
+  box-shadow:0 10px 22px -10px rgba(37,211,102,.7);
+}
+.agcm__kicker{
+  margin:0 0 .35rem;
+  font-family:var(--ag-font-mono,ui-monospace,Menlo,monospace);
+  font-size:var(--ag-fs-label,.72rem); letter-spacing:var(--ag-tracking-label,.22em);
+  text-transform:uppercase; color:var(--ag-green,#237b22);
+}
+.agcm__title{
+  margin:0 0 .6rem;
+  font-family:var(--ag-font-display,Georgia,serif);
+  font-size:var(--ag-fs-h3,1.55rem); line-height:1.2;
+}
+.agcm__body{
+  margin:0 0 1.4rem;
+  font-size:var(--ag-fs-sm,.95rem); line-height:1.6;
+  color:var(--ag-ink-soft,#626a6e);
+}
+.agcm__actions{display:flex; flex-direction:column; gap:.6rem;}
+.agcm__cta{
+  display:inline-flex; align-items:center; justify-content:center; gap:.55rem;
+  padding:.85rem 1.25rem; border-radius:var(--ag-r-pill,999px);
+  background:#25d366; color:#fff; font-weight:600; font-size:1rem; text-decoration:none;
+  transition:background var(--ag-dur-fast,.15s), transform var(--ag-dur-fast,.15s);
+}
+.agcm__cta:hover{background:#1ebe5b; transform:translateY(-1px);}
+.agcm__dismiss{
+  border:0; background:none; cursor:pointer; font:inherit;
+  font-size:var(--ag-fs-sm,.9rem); color:var(--ag-ink-soft,#626a6e);
+  padding:.5rem; border-radius:var(--ag-r-sm,10px);
+}
+.agcm__dismiss:hover{color:var(--ag-ink,#10292c);}
+.agcm :focus-visible{outline:2px solid var(--ag-green,#237b22); outline-offset:2px;}
+
+@media (prefers-reduced-motion: reduce){
+  .agcm__overlay, .agcm__dialog{transition:none;}
+  .agcm__dialog{transform:none;}
+}
