@@ -1519,3 +1519,157 @@ removed.
 `name="csrf_token"` — the name of the Twig **global**, not of the field `CsrfMiddleware`
 reads, which is `_token`. A correct token in a box nothing opens: every press would have
 been rejected as a forgery, and the button would have looked broken rather than refused.
+
+---
+
+## 25. The site had one accent colour and it was invisible (2026-09-12)
+
+The house style names one gold accent, `#f3b416`. Against the house paper `#f0f2f2` it is
+**1.65:1** — below the 3:1 a border owes (WCAG 1.4.11) and far below the 4.5:1 a word owes
+(1.4.3). It was being used as a hairline and as a mono micro-label: the two places where
+1.65:1 is nothing at all.
+
+That is the whole explanation for a palette that feels absent. Not too little colour —
+**colour used as a LINE when it is only ever visible as a FIELD.**
+
+| token | on paper | verdict |
+|---|---|---|
+| `#f3b416` house gold | **1.65** | fails both floors |
+| `--ag-gold` `#c9a24b` | **2.13** | a SECOND gold the house style never mentions |
+| `--ag-green-light` `#7fc87c` | **1.79** | fails the non-text floor |
+| `--ag-pulse` `#e0245e` | **4.08** | passes for a border, fails for a word |
+| `--ag-green` `#237b22` | 4.76 | correct, untouched |
+
+And underneath: **642 distinct hex values across the templates**, among them four golds
+(`#f3b416`, `#fbc329`, `#c9a24b`, `#7a5600`) and a gold wash `#fff8df` used forty times.
+Nobody was inventing colours carelessly — they were hand-deriving the ramp below,
+separately, because there was nowhere to put it.
+
+### `Support\Accent` — four roles, four values each
+
+The same `fill`/`edge` split `EventTierTone::hues()` already draws, extended by the two the
+rest of the site needs. **Do not invent a fifth name.**
+
+- `fill` — the identity. A chip, a swatch, a filled surface. **Owes nothing**, because it is
+  neither a boundary nor a letter.
+- `edge` — the same hue at ≥3:1 on paper. Borders, rings, rules, icon strokes. *This is the
+  one that did not exist*, so every accent border on the site was under 1.4.11.
+- `ink` — the same hue at ≥4.5:1 on paper. Words.
+- `wash` — a tint holding house ink above 12:1. Where an accent is **allowed to be loud**.
+
+`honour.ink` is `#7a5600` — already in thirty-five files, hand-derived by somebody who got
+it right, so adopting it makes those correct rather than legacy. Where a role's identity
+already clears 4.5:1 (`action`, `caution`) the three values coincide; three names for one
+colour is the answer to three different questions that happen to agree.
+
+**A fill deliberately owes no floor**, and that is the load-bearing decision: demanding 3:1
+of it would force the house gold to a mustard nobody chose, which is how a palette gets
+fixed into blandness by an accessibility pass. The rule held instead is that a fill is never
+the only carrier of meaning.
+
+`AccentTest` re-derives every floor against the real ground rather than trusting the
+constants, holds each lifted value within **18° of its identity** (lift a gold far enough and
+it is a brown, and the page has complied its way out of having an accent), and enforces a
+**ceiling of two roles per public template** — restraint is the setup and colour is the
+payoff, so the payoff has to be rare, and rarity is not something a palette can hope for.
+The palette reaches the page from `Accent::css()` through one nonced style block, so the
+values a browser receives and the values the test measures cannot drift apart.
+
+### `Support\Contrast` — there were four copies of relative luminance
+
+`Swatch`, `EventTierPalette`, `OrgBrand`, `EventTicketDesign`. Three linearise at `0.03928`
+(WCAG 2.x's wording), `OrgBrand` at `0.04045` (sRGB's). Those are 10.01/255 and 10.31/255,
+**no integer channel falls between them**, and the two were verified to agree on all 256
+inputs and every ratio in the palette — so this was a maintenance fault and not a shipped
+one, and it was worth proving before claiming either way. Each delegate keeps its own
+validation and its own threshold: `Swatch`'s 0.45 tick cut and `EventTicketDesign`'s 0.36 ink
+cut travelled unchanged, because a printed ticket's contrast decision must not move
+underneath a consolidation.
+
+### Three of WCAG 2.2's four newest criteria were unmet
+
+- **2.4.11 Focus Not Obscured.** `.ag-nav` sticky at the top, `.ag-mobnav` fixed at the
+  bottom — a keyboard user tabbing down had each newly-focused control scrolled to the
+  viewport edge and covered. The guidance names sticky headers and cookie banners as the
+  usual culprits and this site has both. `scroll-padding` on the scroll container is the
+  whole fix, read from `--ag-nav-h` / `--ag-mobile-nav-h`.
+- **2.5.7 Dragging Movements.** The globe rotated by drag and nothing else. The same
+  component also failed **2.4.7**: a marker on the far side is drawn at `opacity:0` and stays
+  a `<button>` in the tab order, so tabbing walked a keyboard user through nations they could
+  not see with the focus ring at zero opacity. **Both are one fix** — focusing a marker turns
+  the globe to it, through the easing loop that already exists.
+- **2.5.8 Target Size.** 44px under `pointer: coarse` was the *only* floor; the AA minimum of
+  24×24 is not conditional on the pointer. 24 and not 44 site-wide, deliberately: 44
+  everywhere would inflate every inline control on a dense admin table.
+
+### The colour sweep took four attempts to stop lying
+
+The first cut reported **36 findings and essentially all were correct code**. Four distinct
+mechanisms defeat a general version, each proved rather than assumed:
+
+- **BEM naming does not encode containment.** `.vn-ballot__k` and `.vn-ballot__top` are both
+  elements of `.vn-ballot`; the second contains the first and is `#10292C`. Inferring
+  ancestry from the name reported a light-green label as a failure on a white card.
+- **A selector can be declared twice with different grounds.** `.jg-chip` is a translucent
+  chip on a dark hero and a white filter chip five lines later; keyed by selector the second
+  overwrote the first. A selector that disagrees with itself is now unresolvable — the
+  `OneResolverPerSettingTest` shape.
+- **A CSS comment above a rule became part of its selector**, and the guard then skipped the
+  rule. Caught by mutation: a sweep that goes quiet in exactly the files somebody has
+  documented is worse than one that never ran.
+- **The ground decides the verdict, not the hex.** `#e0245e` is 4.58:1 on white, 4.42:1 on
+  `#fbfbfa`, 4.08:1 on paper. A *candidate* fails on either house ground; a *finding* is
+  measured against the ground proved for that rule.
+
+What survives asks only what CSS itself states: the block declares its own background, or a
+descendant selector names an ancestor that declares one. One genuine failure was fixed
+(`.pl-eyebrow`, 4.42:1); two `#e0245e` words on white cards passed by eight hundredths and
+are **not claimed as failures**.
+
+### `/winners` — the hall of fame
+
+A ledger organised by edition answers "what happened in 2026"; somebody typing `/winners` is
+asking "who is in here". It was a redirect to `/results`.
+
+**It adds no query of its own.** `WHERE gates_nominees.status = 'winner'` would print an index
+nobody was ever given — `PublicResults::category()` lays a cycle's sealed standing back over
+the live computation, and a released nominee has already moved 693 → 885 across a week of
+scoring changes. `HallOfFame` regroups what `/results` already drew.
+
+**Identity is `gates_nominees.profile_id`, resolved in one query for the whole wall.** A
+nominee row belongs to one category, so somebody entered twice is two rows. **Never by name**:
+two people share a name, and a hall that merged them would attribute somebody's award to a
+stranger and print it under their face. With no profile the rows stay separate — the same
+person listed twice is a thinner claim than the wrong person honoured once.
+
+This is the page the gold exists for: one washed band, an `edge` ring at 3:1 on a repeat
+winner, the `ink` on the index, the `fill` on the chip. All four slots of **one** role. The
+ring is never the only signal — a repeat winner carries a worded chip.
+
+### Both downloads of the cookie policy were mush
+
+`DocText::BLOCKS` carried `tr` and not `td`/`th`, so cells concatenated:
+`PHPSESSIDIdentifies your session…Until you close your browser, or sign outEssential`. The
+policy has carried a table since the legal pages shipped, so **both downloadable editions of
+a published legal document have been illegible that whole time** — invisibly, because the
+HTML renders perfectly and nobody reads their own `.txt`.
+
+`.txt` renders a table as labelled records (column alignment in plain text needs a width the
+reader's terminal may not have, and one wrapped cell destroys it); `.md` renders a real
+markdown table with a pipe inside a cell escaped rather than stripped. Two traps on the way,
+both found by the output being wrong: an **opening** tag flushes the enclosing block, so an
+empty `tr` flush produced a boundary before every cell; and `if ($text === '') continue;`
+threw every table away, because a row boundary is deliberately empty. The boundary is emitted
+on the **closing** tag, the shape `ul`/`ol` already use.
+
+On the page the table stacks into records below 640px via `data-label` — four columns with a
+paragraph in one of them is a horizontal scrollbar inside a document at 380px.
+
+### Tests
+
+`AccentTest` (7), `AccessibilityFloorTest` (8), `HallOfFameTest` (11), plus four table tests
+in `LegalDocumentTest`. **Eight mutations were run and all eight caught**: the raw gold in the
+ink slot, a grey lifted into the edge slot, an undeclared accent as a word on a white card,
+`scroll-padding` removed, the 24px floor pushed back inside the media query, the globe's
+arrow keys removed, the seal overlay removed from the hall, the hall's identity key dropped
+back to the nominee row, and `DocText::BLOCKS` reverted to the shipped list.

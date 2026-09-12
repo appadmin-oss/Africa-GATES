@@ -296,6 +296,47 @@ generated section is the fact. `2027_01_23_cookie_policy_repair.php` corrects pr
 stored copy **only where `updated_by IS NULL`** — an operator's edits are theirs.
 `docs/CODEBASE-INDEX.md` §24.
 
+## A bare hex is not a colour: `fill`, `edge`, `ink`, `wash`
+
+The house style used to name **one gold accent, `#f3b416`**. On the house paper it is
+**1.65:1** — under the 3:1 a border owes and far under the 4.5:1 a word owes — and it was
+being used as a hairline and as a mono micro-label. That is the whole reason the site read
+monochrome: not too little colour, but **colour used as a LINE when it is only ever visible
+as a FIELD**. Three of five tokens failed on paper (`--ag-gold` `#c9a24b` 2.13 was a SECOND
+gold nothing mentioned; `--ag-green-light` 1.79; `--ag-pulse` 4.08 — a pass for a border and
+a fail for a word, and it WAS a word on three public screens). Underneath: **642 distinct hex
+values in the templates**, four golds among them, because people were hand-deriving this ramp
+separately.
+
+`Support\Accent` is the ramp. Same `fill`/`edge` split `EventTierTone` already draws; **never
+invent a fifth name.** A `fill` owes NO floor and that is load-bearing — demanding 3:1 of it
+forces the gold to a mustard nobody chose, which is how an accessibility pass fixes a palette
+into blandness. The rule held instead is that a fill is never the only carrier of meaning.
+`AccentTest` re-derives every floor, keeps each lifted value within 18° of its identity, and
+caps a public template at **two roles** — rarity is not something a palette can hope for.
+
+`Support\Contrast` is the one relative-luminance implementation; there were four, and the
+fifth is where the wrong threshold lands. Each caller keeps its own threshold (`Swatch`'s
+0.45, `EventTicketDesign`'s 0.36): a printed ticket's contrast decision must not move
+underneath a consolidation.
+
+**A colour sweep must know the GROUND, and four things stop it knowing.** Mine reported 36
+findings on its first run and essentially all were correct code. BEM naming does not encode
+containment (`.vn-ballot__k` is inside `.vn-ballot__top`, which is dark). A selector can be
+declared twice with different grounds (`.jg-chip`). A CSS comment above a rule becomes part
+of its selector and the guard then skips the rule — so a sweep goes quiet in exactly the
+files somebody documented. And the hex alone decides nothing: `#e0245e` is 4.58 on white,
+4.42 on `#fbfbfa`, 4.08 on paper. Ask only what CSS states: the block's own background, or a
+descendant selector naming an ancestor that declares one.
+
+**Three of WCAG 2.2's four newest criteria were unmet.** 2.4.11 (sticky nav and fixed tab bar
+covering whatever the keyboard focused — `scroll-padding` on the scroll container, read from
+the chrome's own tokens); 2.5.7 (the globe rotated by drag alone) together with 2.4.7 (a
+far-side marker is `opacity:0` and still in the tab order, so focus landed on something
+invisible — both fixed by focusing a marker turning the globe to it); 2.5.8 (44px under
+`pointer: coarse` was the only floor, and the AA 24×24 is not conditional on the pointer).
+`docs/CODEBASE-INDEX.md` §25.
+
 ## Anything operational must be settable from `/admin/settings`
 
 There is no shell on production, so a credential read only from `.env` is a credential that
@@ -1096,5 +1137,7 @@ smoke check that a symbol decodes at all; the threshold question needs a camera.
 Comments explain *why*, and name the failure the code exists to prevent — this codebase is
 maintained by people who were not in the room. Match the density of the file you are in.
 
-Design system: paper ground `#f0f2f2`, hairline rules, mono micro-labels, one gold accent
-`#f3b416`, emerald `#237b22` reserved for action.
+Design system: paper ground `#f0f2f2`, hairline rules, mono micro-labels. **Colour comes
+from `Support\Accent` and nowhere else** — four roles (`honour`, `action`, `live`,
+`caution`), four values each (`fill`, `edge`, `ink`, `wash`). See the section above for why a
+bare hex is not a colour here.
