@@ -114,15 +114,13 @@ final class Swatch
             return true;                      // no swatch: the button is the page's own light surface
         }
         // The FIRST colour, because the tick is drawn over the leading half of the gradient.
-        $h   = ltrim($c[0], '#');
-        $lin = static function (float $v): float {
-            $v /= 255;
-            return $v <= 0.03928 ? $v / 12.92 : (($v + 0.055) / 1.055) ** 2.4;
-        };
-        $l = 0.2126 * $lin((float) hexdec(substr($h, 0, 2)))
-           + 0.7152 * $lin((float) hexdec(substr($h, 2, 2)))
-           + 0.0722 * $lin((float) hexdec(substr($h, 4, 2)));
-        return $l > 0.45;
+        //
+        // The luminance arithmetic is Support\Contrast's — there were four copies of it and
+        // the fifth is where the wrong threshold eventually lands. The CUT stays 0.45 here
+        // and is deliberately not Contrast::inkOn()'s 0.36: a tick drawn over a swatch is a
+        // different judgement from a ticket header's text, and folding them together would
+        // move a decision nobody asked to move.
+        return Contrast::luminance($c[0]) > 0.45;
     }
 
     /** One hex colour, expanded and upper-cased, or '' if it is not one. */

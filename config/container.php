@@ -258,6 +258,13 @@ return [
         // made once per request by VisitTrackingMiddleware, from the real request, on the
         // same tick the tracker acts on it; a function is evaluated at RENDER time, which
         // is after that, so it reads the answer rather than recomputing one.
+        // The semantic accent palette, as custom properties. A function rather than a
+        // global only because it belongs beside the two below; the values are constants.
+        $twig->getEnvironment()->addFunction(new \Twig\TwigFunction(
+            'ag_accents',
+            [\AfricaGates\Support\Accent::class, 'css'],
+            ['is_safe' => ['html']]
+        ));
         $twig->getEnvironment()->addFunction(new \Twig\TwigFunction(
             'cookie_ask',
             static fn (): bool => \AfricaGates\Services\CookiePrefs::asking()

@@ -256,6 +256,18 @@
   <link rel="stylesheet" href="{{ asset('/assets/css/a11y.css') }}">
   {% endif %}
 
+  {# ── THE FOUR COLOURS THIS SITE MAY MEAN SOMETHING WITH ────────────────────
+     Emitted from Support\Accent rather than written into a stylesheet, so the values
+     the page receives and the values AccentTest measures cannot drift apart. That drift
+     is how FOUR golds (#f3b416, #fbc329, #c9a24b, #7a5600) came to be in circulation
+     under a house style naming one — and how the one the style names came to be used as
+     a hairline, where 1.65:1 against paper is invisible.
+
+     Before {% block head_styles %}, so a page may override a role deliberately and a
+     page that does not think about colour inherits a palette that already clears its
+     floors. #}
+  <style nonce="{{ csp_nonce }}">{{ ag_accents()|raw }}</style>
+
   {# Hide animated elements until JS prepares them (anti-FOUC) #}
   <style nonce="{{ csp_nonce }}">
     html.wf-loading [data-anim],

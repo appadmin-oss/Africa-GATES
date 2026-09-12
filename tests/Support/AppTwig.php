@@ -63,6 +63,7 @@ final class AppTwig
             // consent notice is never drawn, which is the one thing about it worth
             // testing. CookiePrefs answers from a per-request memo nothing primes here, so
             // an unprimed test render correctly gets "do not ask".
+            'ag_accents'    => [\AfricaGates\Support\Accent::class, 'css'],
             'cookie_ask'    => [\AfricaGates\Services\CookiePrefs::class, 'asking'],
             'cookie_return' => [\AfricaGates\Services\CookiePrefs::class, 'returnPath'],
         ] as $name => $callable) {

@@ -3,6 +3,8 @@ declare(strict_types=1);
 
 namespace AfricaGates\Services;
 
+use AfricaGates\Support\Contrast;
+
 /**
  * A colour for each ticket tier — drawn only from the event's own accent.
  *
@@ -312,17 +314,16 @@ final class EventTierPalette
     /** WCAG relative-luminance contrast ratio between two hexes. */
     public static function contrast(string $a, string $b): float
     {
-        $lum = static function (string $hex): float {
-            $chan = static function (int $c): float {
-                $c /= 255;
-                return $c <= 0.03928 ? $c / 12.92 : (($c + 0.055) / 1.055) ** 2.4;
-            };
-            [$r, $g, $bl] = EventTicketDesign::channels($hex);
-            return 0.2126 * $chan($r) + 0.7152 * $chan($g) + 0.0722 * $chan($bl);
-        };
-        $la = $lum($a);
-        $lb = $lum($b);
-        return ($la > $lb ? $la + 0.05 : $lb + 0.05) / ($la > $lb ? $lb + 0.05 : $la + 0.05);
+        // One copy of this arithmetic, in Support\Contrast. It kept the channel split via
+        // EventTicketDesign::channels() — which validates and falls back — so the values
+        // are normalised here before the ratio is taken, preserving that behaviour exactly.
+        [$ar, $ag, $ab] = EventTicketDesign::channels($a);
+        [$br, $bg, $bb] = EventTicketDesign::channels($b);
+
+        return Contrast::ratio(
+            sprintf('#%02x%02x%02x', $ar, $ag, $ab),
+            sprintf('#%02x%02x%02x', $br, $bg, $bb)
+        );
     }
 
     /**

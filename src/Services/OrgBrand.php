@@ -3,6 +3,8 @@ declare(strict_types=1);
 
 namespace AfricaGates\Services;
 
+use AfricaGates\Support\Contrast;
+
 use Illuminate\Database\Capsule\Manager as DB;
 
 /**
@@ -917,28 +919,20 @@ final class OrgBrand
      */
     public static function contrast(string $a, string $b): float
     {
-        $la = self::luminance($a);
-        $lb = self::luminance($b);
-        if ($la < 0 || $lb < 0) return 0.0;
+        // One copy of this arithmetic, in Support\Contrast — this was the fourth. It
+        // linearised at 0.04045 (the sRGB standard's threshold) where the other three used
+        // 0.03928 (WCAG 2.x's own wording); those are 10.01/255 and 10.31/255, no integer
+        // channel falls between them, and the two were verified to agree on all 256 inputs
+        // and on every ratio this platform computes. So this is not a behaviour change, and
+        // it was worth proving rather than assuming before making it.
+        //
+        // Normalised here first, because this class accepts an organisation's typed value
+        // and must keep answering 0.0 — never a pass — for something it cannot parse.
+        $ha = self::normaliseHex($a);
+        $hb = self::normaliseHex($b);
+        if ($ha === '' || $hb === '') return 0.0;
 
-        $hi = max($la, $lb);
-        $lo = min($la, $lb);
-        return ($hi + 0.05) / ($lo + 0.05);
-    }
-
-    private static function luminance(string $hex): float
-    {
-        $hex = self::normaliseHex($hex);
-        if ($hex === '') return -1.0;
-
-        $out = 0.0;
-        [$r, $g, $b] = self::rgb($hex);
-        foreach ([[$r, 0.2126], [$g, 0.7152], [$b, 0.0722]] as [$channel, $weight]) {
-            $c = $channel / 255;
-            $c = $c <= 0.04045 ? $c / 12.92 : (($c + 0.055) / 1.055) ** 2.4;
-            $out += $c * $weight;
-        }
-        return $out;
+        return Contrast::ratio($ha, $hb);
     }
 
     /** @return array{0:int,1:int,2:int} */

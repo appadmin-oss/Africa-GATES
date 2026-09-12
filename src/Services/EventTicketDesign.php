@@ -3,6 +3,8 @@ declare(strict_types=1);
 
 namespace AfricaGates\Services;
 
+use AfricaGates\Support\Contrast;
+
 use AfricaGates\Support\OptionalColumn;
 
 /**
@@ -246,15 +248,14 @@ final class EventTicketDesign
      */
     public static function contrastInk(string $hex): string
     {
+        // The arithmetic is Support\Contrast's — there were four copies of it — and the
+        // 0.36 cut travelled with it unchanged. A printed ticket's contrast decision must
+        // not move underneath a consolidation, so the threshold moved house rather than
+        // being re-argued: white-on-mid-tone reads better than dark-on-mid-tone at the
+        // weights used here, and the accent is a header fill rather than body text.
         [$r, $g, $b] = self::rawChannels(self::colour($hex));
-        $lin = static function (float $c): float {
-            $c /= 255;
-            return $c <= 0.03928 ? $c / 12.92 : (($c + 0.055) / 1.055) ** 2.4;
-        };
-        $l = 0.2126 * $lin((float) $r) + 0.7152 * $lin((float) $g) + 0.0722 * $lin((float) $b);
-        // 0.36 rather than 0.5: white-on-mid-tone reads better than black-on-mid-tone at the
-        // weights used on the ticket, and the accent is a header fill rather than body text.
-        return $l > 0.36 ? '#10292C' : '#FFFFFF';
+
+        return Contrast::inkOn(sprintf('#%02x%02x%02x', $r, $g, $b));
     }
 
     /**
