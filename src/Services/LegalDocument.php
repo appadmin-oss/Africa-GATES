@@ -198,10 +198,15 @@ final class LegalDocument
                 $by = ((string) ($c['set_by'] ?? '')) === 'browser'
                     ? ' It is written by the page itself, only when you use that control.'
                     : '';
-                $h[] = '<tr><td><code>' . $e((string) ($c['name'] ?? '')) . '</code></td>'
-                     . '<td>' . $e((string) ($c['purpose'] ?? '')) . $e($by) . '</td>'
-                     . '<td>' . $e((string) ($c['lifetime'] ?? '')) . '</td>'
-                     . '<td>' . $e($word) . '</td></tr>';
+                // `data-label` so the table can become a stack of records on a phone
+                // rather than a four-column scroll — the same shape the .txt edition
+                // settled on, and for the same reason: the `why` column is a paragraph,
+                // and no column layout survives one at 380px.
+                $h[] = '<tr>'
+                     . '<td data-label="Name"><code>' . $e((string) ($c['name'] ?? '')) . '</code></td>'
+                     . '<td data-label="Why">' . $e((string) ($c['purpose'] ?? '')) . $e($by) . '</td>'
+                     . '<td data-label="How long">' . $e((string) ($c['lifetime'] ?? '')) . '</td>'
+                     . '<td data-label="Kind">' . $e($word) . '</td></tr>';
             }
             $h[] = '</tbody></table>';
         }

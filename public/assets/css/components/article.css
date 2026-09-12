@@ -337,6 +337,32 @@ body[data-page="legal"]{
 .ar-rich table{ width:100%; border-collapse:collapse; margin:0 0 1.3em; font-size:15px; }
 .ar-rich th, .ar-rich td{ text-align:left; padding:.6rem .8rem; border:1px solid var(--ar-line-soft); }
 .ar-rich thead th{ background:var(--ag-surface-2,#f6f7f6); font-weight:700; }
+.ar-rich td code{ white-space:nowrap; }
+
+/* ── A POLICY TABLE ON A PHONE ────────────────────────────────────────────────
+   The cookie table's "why" column is a paragraph, so four columns at 380px is a
+   horizontal scrollbar inside a document — and a reader who does not find it
+   simply never sees the last two columns. Below 640px each row becomes a record
+   with its column name in front of the value, which is the same shape the .txt
+   edition settled on for the same reason.
+
+   The header row is hidden rather than removed, because the labels come from
+   `data-label` on the cells; a table an operator pasted without them still
+   stacks, just without the label — degraded, never broken. */
+@media (max-width:640px){
+  .ar-rich table{ display:block; }
+  .ar-rich thead{ position:absolute; width:1px; height:1px; overflow:hidden; clip:rect(0 0 0 0); }
+  .ar-rich tbody, .ar-rich tr, .ar-rich td, .ar-rich th{ display:block; width:auto; }
+  .ar-rich tbody tr{ margin:0 0 .9rem; border:1px solid var(--ar-line-soft); border-radius:12px;
+                     overflow:hidden; }
+  .ar-rich tbody td{ border:0; border-bottom:1px solid var(--ar-line-soft); padding:.55rem .8rem; }
+  .ar-rich tbody tr td:last-child{ border-bottom:0; }
+  .ar-rich tbody td[data-label]::before{
+    content:attr(data-label); display:block; margin:0 0 2px;
+    font:600 10px/1.4 var(--ag-font-mono,monospace); letter-spacing:.12em;
+    text-transform:uppercase; color:var(--ar-soft);
+  }
+}
 
 /* ── PRINT ──────────────────────────────────────────────────────────────────
    A document with a Download button will be printed, so it gets a stylesheet

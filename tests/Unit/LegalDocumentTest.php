@@ -406,4 +406,91 @@ final class LegalDocumentTest extends TestCase
         $this->assertSame('', trim(DocText::toText('')));
         $this->assertSame('', trim(DocText::toMarkdown('')));
     }
+
+    // ══ tables in the downloadable editions ══════════════════════════════════
+
+    /**
+     * THE FAULT: BOTH DOWNLOADS OF A PUBLISHED LEGAL DOCUMENT WERE MUSH.
+     *
+     * `DocText::BLOCKS` carried `tr` and not `td`/`th`, so every cell in a row concatenated
+     * into one run. `/cookies.txt` published `NameWhyHow longKind`, then
+     * `PHPSESSIDIdentifies your session, so you stay signed in…Until you close your
+     * browser, or sign outEssential`. The cookie policy has carried a table since the legal
+     * pages shipped, so both editions have been illegible that whole time — invisibly,
+     * because the HTML page renders perfectly and nobody reads their own .txt.
+     *
+     * `LegalDocument`'s own docblock says the downloads exist so somebody can KEEP the copy
+     * they were shown. A table that arrives as one unbroken sentence is not that copy.
+     */
+    public function test_a_table_survives_the_plain_text_edition(): void
+    {
+        $html = '<p>Before.</p><table><thead><tr><th>Name</th><th>How long</th></tr></thead>'
+              . '<tbody><tr><td>PHPSESSID</td><td>Seven days</td></tr>'
+              . '<tr><td>ag_region</td><td>One year</td></tr></tbody></table><p>After.</p>';
+
+        $txt = \AfricaGates\Support\DocText::toText($html, 78);
+
+        // Cells do not run together. This exact string is what shipped.
+        $this->assertStringNotContainsString('NameHow long', $txt);
+        $this->assertStringNotContainsString('PHPSESSIDSeven days', $txt);
+
+        // Rendered as records, because column alignment in plain text needs a width the
+        // reader's terminal or mail client may not have, and one wrapped cell destroys it.
+        $this->assertStringContainsString('Name: PHPSESSID', $txt);
+        $this->assertStringContainsString('How long: Seven days', $txt);
+        $this->assertStringContainsString('Name: ag_region', $txt);
+
+        // And the header row is a set of labels, not a record of its own.
+        $this->assertStringNotContainsString('Name: Name', $txt);
+
+        // The prose either side is untouched.
+        $this->assertStringContainsString('Before.', $txt);
+        $this->assertStringContainsString('After.', $txt);
+    }
+
+    public function test_a_table_survives_the_markdown_edition(): void
+    {
+        $html = '<table><tr><th>Name</th><th>Kind</th></tr>'
+              . '<tr><td>PHPSESSID</td><td>Essential</td></tr></table>';
+
+        $md = \AfricaGates\Support\DocText::toMarkdown($html);
+
+        // Markdown has a table, so this one is a table.
+        $this->assertStringContainsString('| Name | Kind |', $md);
+        $this->assertStringContainsString('| --- | --- |', $md);
+        $this->assertStringContainsString('| PHPSESSID | Essential |', $md);
+        // Exactly one header separator, not one per row.
+        $this->assertSame(1, substr_count($md, '| --- | --- |'));
+    }
+
+    public function test_a_pipe_inside_a_cell_does_not_split_the_row(): void
+    {
+        // The pipe is markdown's own cell separator, and a policy may legitimately quote
+        // one. Escaped rather than stripped: removing a character from a legal document to
+        // suit a file format is the wrong trade.
+        $md = \AfricaGates\Support\DocText::toMarkdown(
+            '<table><tr><th>A</th><th>B</th></tr><tr><td>x | y</td><td>z</td></tr></table>');
+
+        $this->assertStringContainsString('| x \\| y | z |', $md);
+    }
+
+    public function test_the_shipped_cookie_policy_reads_in_both_editions(): void
+    {
+        // The document the fault was found on, end to end, rather than a fixture — the
+        // generated section is where the table now comes from and it must survive the same
+        // walk. Runs against the real registry, so a cookie added tomorrow is covered.
+        $html = \AfricaGates\Services\LegalDocument::cookiesHtml();
+
+        $txt = \AfricaGates\Support\DocText::toText($html, 78);
+        $md  = \AfricaGates\Support\DocText::toMarkdown($html);
+
+        foreach (\AfricaGates\Support\CookieRegistry::names() as $name) {
+            $this->assertStringContainsString('Name: ' . $name, $txt,
+                "'{$name}' is unreadable in /cookies.txt");
+            $this->assertStringContainsString('| ' . $name . ' |', $md,
+                "'{$name}' is unreadable in /cookies.md");
+        }
+
+        $this->assertStringNotContainsString('NameWhy', $txt);
+    }
 }

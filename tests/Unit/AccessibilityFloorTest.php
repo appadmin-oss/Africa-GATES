@@ -368,9 +368,36 @@ final class AccessibilityFloorTest extends TestCase
         $this->assertStringContainsString('position:fixed', $twig,
             'the notice moved; check scroll-padding-bottom still matches what covers the page');
 
+        // And it clears the fixed mobile tab bar rather than sitting on top of it: a
+        // notice that hides the site's primary navigation on a phone while asking a
+        // question is obstructing the one control a reader needs to leave it. Read from
+        // the bar's own token, so the clearance follows it.
+        $this->assertStringContainsString('--ag-mobile-nav-h', $twig,
+            'the notice covers the mobile tab bar');
+
         // It must not trap or block: no overlay, nothing inert, and it is not a dialog.
         foreach (['aria-modal', 'role="dialog"', 'inert'] as $trap) {
             $this->assertStringNotContainsString($trap, $twig);
+        }
+    }
+
+    public function test_a_policy_table_becomes_readable_records_on_a_phone(): void
+    {
+        // Not a WCAG criterion by number, and the failure is the same shape as one: the
+        // cookie table is four columns and its `why` column is a paragraph, so at 380px it
+        // is a horizontal scrollbar inside a document — and a reader who does not find it
+        // never sees the last two columns at all. Below 640px each row becomes a record,
+        // which is what the .txt edition settled on for the same reason.
+        $css = (string) file_get_contents($this->root() . '/public/assets/css/components/article.css');
+
+        $this->assertStringContainsString('max-width:640px', $css);
+        $this->assertMatchesRegularExpression('/td\[data-label\]::before/', $css,
+            'the stacked rows carry no column labels, so a value has nothing naming it');
+
+        // And the labels are actually emitted, or the rule above dresses nothing.
+        $html = \AfricaGates\Services\LegalDocument::cookiesHtml();
+        foreach (['Name', 'Why', 'How long', 'Kind'] as $label) {
+            $this->assertStringContainsString('data-label="' . $label . '"', $html);
         }
     }
 }

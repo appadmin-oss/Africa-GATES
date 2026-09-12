@@ -32,7 +32,20 @@ namespace AfricaGates\Support;
 final class DocText
 {
     /** Block-level tags that force a boundary; everything else is inline. */
-    private const BLOCKS = ['h1','h2','h3','h4','h5','h6','p','ul','ol','li','blockquote','div','section','tr'];
+    /**
+     * The tags that end a block of text.
+     *
+     * ── `td` AND `th` WERE MISSING, AND THE POLICY DOWNLOADS WERE MUSH ───────
+     *
+     * `tr` was here and the cells were not, so every cell in a row concatenated into one
+     * run: `/cookies.txt` published "NameWhyHow longKind" and then "PHPSESSIDIdentifies
+     * your session, so you stay signed in…Until you close your browser, or sign outEssential".
+     * The cookie policy has carried a table since the legal pages shipped, so both
+     * downloadable editions of a published legal document have been illegible that whole
+     * time — and nothing showed it, because the HTML page renders perfectly.
+     */
+    private const BLOCKS = ['h1','h2','h3','h4','h5','h6','p','ul','ol','li','blockquote',
+                            'div','section','table','tr','th','td'];
 
     /**
      * Inline HTML to a clean single-line string.
@@ -54,11 +67,47 @@ final class DocText
      */
     public static function toText(string $html, int $width = 78): string
     {
-        $out = [];
+        $out   = [];
+        $cells = [];      // cells of the row being read
+        $head  = [];      // the table's first row, reused as the labels below
+
         foreach (self::blocks($html) as [$tag, $text, $index]) {
-            if ($text === '') continue;
+            // NOT `if ($text === '') continue;` first: a row boundary and a table boundary
+            // are deliberately empty, and skipping them threw every table away silently —
+            // the version before this one dropped the cookie table out of /cookies.txt
+            // entirely while every other section rendered perfectly.
             $wrap = static fn (string $s, int $indent = 0): string =>
                 $width > 0 ? wordwrap($s, max(20, $width - $indent), "\n", false) : $s;
+
+            // ── A TABLE IS RENDERED AS RECORDS, NOT AS COLUMNS ───────────────
+            //
+            // Column alignment in plain text needs a width the reader's terminal, mail
+            // client or screen reader may not have, and a wrapped cell destroys it
+            // silently. The cookie table's `why` column is a paragraph, so aligned columns
+            // were never going to survive anyway.
+            //
+            // So the header row is remembered and each later row is printed as
+            // `Label: value` lines — which is what somebody reading a policy actually
+            // wants, and is what a screen reader announces for a data table in any case.
+            if ($tag === 'th' || $tag === 'td') { $cells[] = $text; continue; }
+            if ($tag === 'tr') {
+                if ($cells === []) continue;
+                if ($head === []) { $head = $cells; $cells = []; continue; }
+                foreach ($cells as $i => $cell) {
+                    $label = trim((string) ($head[$i] ?? ''));
+                    $line  = ($label !== '' ? $label . ': ' : '') . $cell;
+                    $lines = explode("\n", $wrap($line, 4));
+                    $out[] = '  ' . array_shift($lines);
+                    foreach ($lines as $l) $out[] = '    ' . $l;
+                }
+                $out[]  = '';
+                $cells  = [];
+                continue;
+            }
+            // A new table forgets the last one's headings.
+            if ($tag === 'table') { $head = []; $cells = []; continue; }
+
+            if ($text === '') continue;
 
             switch ($tag) {
                 case 'h1':
@@ -102,8 +151,30 @@ final class DocText
     /** The document as Markdown. */
     public static function toMarkdown(string $html): string
     {
-        $out = [];
+        $out   = [];
+        $cells = [];
+        $head  = false;   // has this table's header separator been written?
+
         foreach (self::blocks($html) as [$tag, $text, $index]) {
+            // Markdown HAS a table, so this one is a table — but the pipe is its cell
+            // separator, so a cell containing one would split the row. Escaped, not
+            // stripped: a policy may legitimately quote a `|`.
+            if ($tag === 'th' || $tag === 'td') {
+                $cells[] = str_replace('|', '\\|', $text);
+                continue;
+            }
+            if ($tag === 'tr') {
+                if ($cells === []) continue;
+                $out[] = '| ' . implode(' | ', $cells) . ' |';
+                if (!$head) {
+                    $out[] = '|' . str_repeat(' --- |', count($cells));
+                    $head  = true;
+                }
+                $cells = [];
+                continue;
+            }
+            if ($tag === 'table') { $out[] = ''; $head = false; $cells = []; continue; }
+
             if ($text === '') continue;
             switch ($tag) {
                 case 'h1': $out[] = '# '     . $text; $out[] = ''; break;
@@ -185,6 +256,17 @@ final class DocText
                 if ($tag === 'ol' || $tag === 'ul') {
                     array_pop($ordered);
                     $out[] = [$tag, '—', 0];   // a boundary marker; text is unused
+                }
+                // ── A ROW BOUNDARY IS EMITTED ON THE CLOSE, NOT BY $flush ────
+                //
+                // The same shape as the list markers above, and for a reason found the
+                // hard way: an OPENING tag flushes whatever is already on the stack, so
+                // `<tr><th>` flushes with the tag `tr` and no text. Letting $flush emit an
+                // empty `tr` therefore produced a row boundary before every single cell,
+                // and the cookie table came out as one column of one-cell rows — a
+                // different kind of illegible from the one being fixed.
+                if ($tag === 'tr' || $tag === 'table') {
+                    $out[] = [$tag, '—', 0];
                 }
             }
         }
