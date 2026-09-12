@@ -1804,6 +1804,11 @@ return function(App $app) {
         // `{slug}` would otherwise swallow `{slug}/card.png`; the same ordering rule the
         // flier routes below are written against, for the same reason.
         $g->get('/results',                    ResultsController::class.':index');
+        // THE HALL. A real page now rather than a redirect at /results — see
+        // ResultsController::hall(). Declared here beside the ledger it is the other half
+        // of, and REMOVED from the near-miss redirect table below: a path that is both a
+        // route and a redirect is a route whose middleware never runs.
+        $g->get('/winners',                    ResultsController::class.':hall');
         $g->get('/results/{slug:[0-9]+[^/]*}/card.png', ResultsController::class.':card');
         $g->get('/results/{slug:[0-9]+[^/]*}', ResultsController::class.':show');
         // ONE EDITION. Declared after the award route and DISJOINT from it by
@@ -1872,9 +1877,13 @@ return function(App $app) {
             '/ticket'          => '/events',
             '/tickets'         => '/events',
             '/ceremony'        => '/events',
-            // /winners now has somewhere better to go than the profile ranking.
-            '/winners'         => '/results',
+            // NOT '/winners' — that is a real route now (the hall of fame), declared
+            // above. Leaving it here would have registered the same path twice, and the
+            // second registration is dead code that reads as live.
             '/result'          => '/results',
+            '/hall'            => '/winners',
+            '/hall-of-fame'    => '/winners',
+            '/past-winners'    => '/winners',
             '/rank'            => '/leaderboard',
             '/ranks'           => '/leaderboard',
             '/ranking'         => '/leaderboard',

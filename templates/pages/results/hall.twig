@@ -1,0 +1,227 @@
+{% extends "layout/gates.twig" %}
+
+{#
+  ══════════════════════════════════════════════════════════════════════════════
+  THE HALL — everybody this platform has crowned, as people rather than as rows
+  ══════════════════════════════════════════════════════════════════════════════
+
+  `/results` is the LEDGER: editions, awards, an index and the split that produced it,
+  organised by when. This is organised by WHO, and that is the whole difference. A ledger
+  answers "what happened in 2026". A hall answers "who is in here" — and it is the only
+  surface that can answer "who is in here TWICE", a fact that exists nowhere in a list
+  grouped by edition.
+
+  ── WHY THIS IS THE PAGE THAT IS ALLOWED TO BE GOLD ─────────────────────────
+
+  The house ground is paper and the house style names one gold accent, #f3b416, which is
+  1.65:1 against that paper — invisible as a hairline, which is how it was being used, and
+  the reason the site reads monochrome. A colour that pale is only ever perceived as a
+  FIELD, so this is where the field goes: one washed band, once, on the one page whose
+  subject is the honour itself. Everywhere else the restraint is the setup.
+
+  One role — `honour` — and all four of its slots, which is what the role system is for:
+  the wash is the band, the edge is the ring on somebody who has won twice (3:1, so it is
+  a boundary a person can actually see), the ink is the index, the fill is the chip.
+  See Support\Accent, and AccentTest's ceiling of two roles per screen.
+
+  ── AND THE RING IS NEVER THE ONLY SIGNAL ───────────────────────────────────
+
+  Roughly one man in twelve cannot reliably separate two of these hues, and a screen
+  reader has nothing to announce for a coloured outline. A repeat winner carries a worded
+  chip; the ring is the accelerator on top of it, never the fact itself.
+#}
+
+{% block head_styles %}
+<style nonce="{{ csp_nonce }}">
+  body[data-page="hall"]{ background:#f0f2f2; color:var(--ag-ink); }
+
+  .hf{ max-width:1180px; margin:0 auto; padding:0 var(--ag-gutter,32px) clamp(3rem,6vw,4.5rem); }
+
+  /* ── the one gold field on the site ────────────────────────────────────────
+     Full-bleed by margin rather than by vw: `100vw` includes the scrollbar and
+     overflows the body by its width on every desktop browser that reserves one,
+     which shows as a horizontal scrollbar on a page that has nothing to scroll to. */
+  .hf-band{ background:var(--ag-honour-wash); border-bottom:1px solid var(--ag-honour-edge);
+            margin:0 0 clamp(2rem,5vw,3rem); padding:clamp(2.4rem,6vw,4rem) 0 clamp(2rem,5vw,3rem); }
+  .hf-band__in{ max-width:1180px; margin:0 auto; padding:0 var(--ag-gutter,32px); }
+  .hf-kick{ margin:0 0 12px; font:600 var(--ag-fs-label)/1 var(--ag-font-mono);
+            letter-spacing:var(--ag-tracking-label); text-transform:uppercase;
+            color:var(--ag-honour-ink); }
+  .hf-h1{ margin:0; font-family:var(--ag-font-display); font-weight:700;
+          font-size:clamp(2.1rem,5.4vw,3.4rem); letter-spacing:-.025em; line-height:1.04; }
+  .hf-sub{ margin:16px 0 0; font-size:16px; line-height:1.62; color:#3f4a4c; max-width:56ch; }
+
+  .hf-figs{ display:flex; flex-wrap:wrap; gap:10px 34px; margin:clamp(1.4rem,3vw,2rem) 0 0;
+            padding:0; list-style:none; }
+  .hf-figs div{ min-width:0; }
+  .hf-figs dt{ font:600 10.5px/1.4 var(--ag-font-mono); letter-spacing:.13em;
+               text-transform:uppercase; color:#5c6466; }
+  .hf-figs dd{ margin:3px 0 0; font:700 1.55rem/1 var(--ag-font-mono);
+               font-variant-numeric:tabular-nums; color:var(--ag-ink); }
+
+  /* ── the wall ── */
+  .hf-wall{ list-style:none; margin:0; padding:0; display:grid;
+            grid-template-columns:repeat(auto-fill,minmax(178px,1fr)); gap:clamp(18px,2.4vw,28px); }
+
+  .hf-a{ display:block; text-decoration:none; color:inherit; }
+  .hf-a:focus-visible{ outline:3px solid var(--ag-honour-edge); outline-offset:4px; border-radius:16px; }
+
+  /* `display:block` on the <span>, deliberately: an inline box collapses to zero height
+     when it holds no image, and a nominee with no photograph is a COMMON case, not an
+     error. The same trap the edition page records. */
+  .hf-ph{ display:block; position:relative; aspect-ratio:4/5; border-radius:14px;
+          overflow:hidden; background:#e2e7e6; margin:0 0 12px; }
+  .hf-ph img{ width:100%; height:100%; object-fit:cover; display:block;
+              transition:transform var(--ag-dur) var(--ag-ease); }
+  .hf-a:hover .hf-ph img{ transform:scale(1.04); }
+  .hf-ph--none{ display:flex; align-items:center; justify-content:center;
+                font:700 2.2rem/1 var(--ag-font-display); color:#8b9899; }
+
+  /* The ring. `edge` and not `fill`, because this is a boundary and owes 3:1 — a #f3b416
+     outline against paper is 1.65:1 and would not be there at all. */
+  .hf-a--again .hf-ph{ box-shadow:0 0 0 3px var(--ag-honour-edge); }
+
+  .hf-chip{ display:inline-block; margin:0 0 6px; padding:3px 8px; border-radius:999px;
+            background:var(--ag-honour-fill); color:#241a00;
+            font:700 9.5px/1.5 var(--ag-font-mono); letter-spacing:.1em; text-transform:uppercase; }
+
+  .hf-n{ margin:0; font-family:var(--ag-font-display); font-weight:700; font-size:1.06rem;
+         line-height:1.25; letter-spacing:-.01em; }
+  .hf-a:hover .hf-n{ text-decoration:underline; text-underline-offset:3px; }
+  .hf-cat{ margin:4px 0 0; font-size:13.5px; line-height:1.45; color:#4a5256; }
+  .hf-yr{ margin:6px 0 0; font:600 10.5px/1 var(--ag-font-mono); letter-spacing:.09em;
+          text-transform:uppercase; color:#5c6466; }
+  .hf-yr b{ color:var(--ag-honour-ink); font-weight:700; }
+
+  .hf-note{ margin:clamp(2.2rem,5vw,3rem) 0 0; padding-top:20px;
+            border-top:1px solid var(--ag-line-strong); font-size:14.5px; line-height:1.66;
+            color:#4a5256; max-width:66ch; }
+  .hf-note a{ color:var(--ag-ink); }
+
+  .hf-empty{ margin:clamp(2rem,5vw,3rem) 0 0; font-size:16px; line-height:1.66; color:#4a5256; max-width:56ch; }
+
+  @media (max-width:560px){
+    .hf-wall{ grid-template-columns:repeat(auto-fill,minmax(140px,1fr)); }
+  }
+</style>
+{% endblock %}
+
+{% block structured_data %}
+{# An ItemList of Person, exactly as the edition page describes itself — one shape for one
+   kind of claim, rather than a second almost-identical one here.
+
+   Every value goes through `|json_encode`, which escapes a slash and therefore `</script>`.
+   A winner's name is operator-entered text and `layout/gates.twig` renders this block with
+   JSON_UNESCAPED_SLASHES, which is precisely how a campaign title once closed a script
+   element on this site.
+
+   Capped at 60: a wall of four hundred people is a wall worth having and a four-hundred-
+   entry ItemList in the head helps nobody. #}
+{% if hall.people|length %}
+<script nonce="{{ csp_nonce }}" type="application/ld+json">
+{"@context":"https://schema.org","@type":"ItemList",
+ "name":{{ 'Africa GATES hall of fame'|json_encode|raw }},
+ "numberOfItems":{{ hall.people|length }},
+ "itemListElement":[{% for p in hall.people|slice(0, 60) %}{% set w = p.wins|first %}{"@type":"ListItem","position":{{ loop.index }},
+   "item":{"@type":"Person","name":{{ p.name|json_encode|raw }},
+     "url":{{ (_site_url ~ w.url)|json_encode|raw }},
+     "award":{{ (w.category ~ ' — ' ~ w.programme ~ (w.year ? ' ' ~ w.year : ''))|json_encode|raw }}}}{% if not loop.last %},{% endif %}{% endfor %}]}
+</script>
+{% endif %}
+{% endblock %}
+
+{% block content %}
+<div class="hf-band">
+  <div class="hf-band__in">
+    <p class="hf-kick">Hall of fame</p>
+    <h1 class="hf-h1">Everyone Africa GATES has honoured</h1>
+
+    {% if hall.people|length %}
+      <p class="hf-sub">
+        Every award this platform has decided and announced, and the person it was decided for.
+        Each index runs from 0 to 1000 and splits two ways — the support a community gave, and
+        the marks a panel awarded.
+      </p>
+      {# Counted from the drawn hall, never typed: a hall whose headline figure is a number
+         in a template is a figure that is wrong the first week a new edition closes. #}
+      <dl class="hf-figs">
+        <div><dt>People honoured</dt><dd>{{ hall.people|length }}</dd></div>
+        <div><dt>Awards decided</dt><dd>{{ hall.awards }}</dd></div>
+        <div><dt>Programmes</dt><dd>{{ hall.programmes }}</dd></div>
+        {% if hall.reach.from and hall.reach.to and hall.reach.from != hall.reach.to %}
+          <div><dt>Editions</dt><dd>{{ hall.reach.from }}&ndash;{{ hall.reach.to }}</dd></div>
+        {% elseif hall.editions %}
+          <div><dt>Editions</dt><dd>{{ hall.editions }}</dd></div>
+        {% endif %}
+      </dl>
+    {% else %}
+      <p class="hf-sub">
+        No award has been announced yet. When the first one is, the person it was decided for
+        appears here and stays.
+      </p>
+    {% endif %}
+  </div>
+</div>
+
+<div class="hf">
+  {% if hall.people|length %}
+    <ul class="hf-wall">
+      {% for p in hall.people %}
+        {% set w = p.wins|first %}
+        <li>
+          <a class="hf-a{{ p.count > 1 ? ' hf-a--again' : '' }}" href="{{ w.url }}">
+            {% if p.photo %}
+              <span class="hf-ph">
+                <img src="{{ p.photo|media_url('portrait') }}" alt="{{ p.name }}"
+                     width="356" height="445" loading="lazy" decoding="async">
+              </span>
+            {% else %}
+              {# No photograph is common and is not an error. `aria-hidden` on the initial:
+                 it is a decoration standing in for a face, and announcing "A" before the
+                 person's own name reads as a stammer. #}
+              <span class="hf-ph hf-ph--none" aria-hidden="true">{{ p.name|slice(0,1)|upper }}</span>
+            {% endif %}
+
+            {% if p.count > 1 %}
+              {# Worded, because the ring alone is a colour-only signal and this is the one
+                 fact on the page a reader could not get anywhere else. #}
+              <span class="hf-chip">Won {{ p.count }} times</span>
+            {% endif %}
+
+            <p class="hf-n">{{ p.name }}</p>
+            <p class="hf-cat">{{ w.category }}</p>
+            <p class="hf-yr">{{ w.programme }}{% if w.year %} &middot; {{ w.year }}{% endif %}
+              &middot; <b>{{ w.cpi }}</b>/1000</p>
+          </a>
+        </li>
+      {% endfor %}
+    </ul>
+
+    <p class="hf-note">
+      {% if hall.repeat %}
+        {{ hall.repeat }} {{ hall.repeat == 1 ? 'person has' : 'people have' }} won more than once;
+        the card shows {{ hall.repeat == 1 ? 'their' : 'their' }} most recent award and links to it.
+      {% endif %}
+      {% if hall.held %}
+        A further {{ hall.held }} award{{ hall.held == 1 ? ' is' : 's are' }} decided and not yet
+        published, so nobody is named for {{ hall.held == 1 ? 'it' : 'them' }} here.
+      {% endif %}
+      {% if hall.truncated %}
+        {# A hall that quietly forgets is the one failure this page must not have. #}
+        This wall reaches back {{ hall.editions }} editions; the complete record of every
+        edition is in <a href="/results">the results archive</a>.
+      {% endif %}
+      Open anybody to see the full standing of the award they won &mdash; every nominee who
+      scored, in the order it was decided. How an index is built, and what money can and cannot
+      move, is set out on <a href="/integrity">integrity</a>.
+    </p>
+  {% else %}
+    {# An empty state, and it must not read as an error: a platform before its first
+       announcement is a platform working correctly. #}
+    <p class="hf-empty">
+      Awards being judged now appear in <a href="/results">the results archive</a> as soon as
+      each one is announced. Nothing is published here before it has been.
+    </p>
+  {% endif %}
+</div>
+{% endblock %}

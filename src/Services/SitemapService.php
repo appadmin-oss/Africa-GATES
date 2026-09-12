@@ -237,6 +237,11 @@ final class SitemapService
             ['/vote',          '0.9', 'daily'],
             ['/leaderboard',   '0.9', 'daily'],
             ['/awards',        '0.9', 'weekly'],
+            // The hall. Weekly rather than yearly because a new announcement adds a person
+            // to it, and the most permanent content this platform produces is the content
+            // most worth a crawler finding — the results archive was invisible for the same
+            // reason until it was added below.
+            ['/winners',       '0.9', 'weekly'],
             ['/nominate',      '0.9', 'weekly'],
             ['/registry',      '0.8', 'daily'],
             ['/events',        '0.8', 'weekly'],

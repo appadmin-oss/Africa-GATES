@@ -73,6 +73,50 @@ final class ResultsController
     }
 
     /**
+     * GET /winners — the hall of fame.
+     *
+     * ── WHY THIS URL AND NOT A NEW ONE ───────────────────────────────────────
+     *
+     * `/winners` has existed as a redirect for as long as the near-miss table has, because
+     * it is what people type. It pointed at `/results`, which was the closest thing that
+     * existed and was never the thing they meant: a ledger organised by edition answers
+     * "what happened in 2026", and somebody typing /winners is asking "who is in here".
+     *
+     * ── THE DESCRIPTION CARRIES REAL NAMES ───────────────────────────────────
+     *
+     * Assembled from the page's own headings is what every untended site emits. The three
+     * most recent people in the hall are the sentence worth putting in a search result,
+     * and they are exactly what somebody searching for one of them would recognise.
+     */
+    public function hall(Request $req, Response $res): Response
+    {
+        $hall  = \AfricaGates\Services\HallOfFame::build();
+        $names = array_slice(array_map(
+            static fn (array $p): string => (string) ($p['name'] ?? ''), $hall['people']), 0, 3);
+        $names = array_values(array_filter($names, static fn (string $n): bool => trim($n) !== ''));
+
+        $desc = $names === []
+            ? 'Every award Africa GATES has decided and announced, and the person it was '
+            . 'decided for. Nothing appears here before it has been announced.'
+            : 'Everyone Africa GATES has honoured — ' . implode(', ', $names)
+            . ' and ' . max(0, count($hall['people']) - count($names)) . ' others across '
+            . $hall['programmes'] . ' award programme' . ($hall['programmes'] === 1 ? '' : 's')
+            . '. Each with the Cultural Power Index that decided it.';
+
+        return $this->view->render($res, 'pages/results/hall.twig', [
+            'page_title'       => 'Hall of fame — Africa GATES',
+            'meta_description' => mb_substr($desc, 0, 300),
+            'gates_page'       => 'hall',
+            'current_section'  => 'projects',
+            'has_hero'         => false,
+            'breadcrumbs'      => [['label' => 'Home', 'url' => '/'],
+                                   ['label' => 'Results', 'url' => '/results'],
+                                   ['label' => 'Hall of fame']],
+            'hall'             => $hall,
+        ]);
+    }
+
+    /**
      * GET /results/{edition} — one edition, drawn whole.
      *
      * The page an award programme is actually known by: "the 2026 Principal Awards", not
