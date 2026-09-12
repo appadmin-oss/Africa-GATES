@@ -333,10 +333,85 @@ final class PublicResults
                     static fn ($best, $a) => ($best === null
                         || (float) ($a['winner']['cpi'] ?? 0) > (float) ($best['winner']['cpi'] ?? 0))
                         ? $a : $best),
+                // WHO WON THE EDITION OUTRIGHT. See overallFor().
+                'overall'   => self::overallFor($cid, $awards, (int) ($heldBy[$cid] ?? 0)),
             ];
         }
 
         return ['items' => $items, 'held' => $held, 'editions' => $editions];
+    }
+
+    /**
+     * Who won the whole edition, not just a category.
+     *
+     * ══════════════════════════════════════════════════════════════════════════
+     * IT IS COMPUTED FROM SEALED FIGURES AND STILL SAYS IT WAS RECONSTRUCTED
+     * ══════════════════════════════════════════════════════════════════════════
+     *
+     * The categories handed in here have already been through
+     * {@see ReleasedStanding::apply()}, so every `cpi` and every `in_running` below is the
+     * SEALED one — the figure that was announced, not what today's rules give. That is the
+     * half that matters, and it is why this takes the drawn categories rather than calling
+     * `ResultRelease::overall()` with a cycle id and letting it re-score: doing that would
+     * rank a released edition under current arithmetic and could name a different person
+     * than the platform announced.
+     *
+     * But `standing_rank` is the rank WITHIN A CATEGORY. There is no sealed overall rank
+     * anywhere, so the ORDER here is necessarily reconstructed by re-sorting sealed figures
+     * through `ResultRelease::order()` — which is exactly the position the category rank was
+     * in before it was sealed, and `ReleasedStanding`'s own docblock says why that is not
+     * good enough on its own: a tiebreak is a rule like any other, and moving it would
+     * silently reorder every dead heat ever announced.
+     *
+     * So `reconstructed` is always true for now and is carried rather than hidden, in the
+     * same shape as `rank_recomputed`. Sealing an overall rank is a real change to the
+     * announcement record — a new column, a backfill, and a decision about editions
+     * released before it existed — and is not something to do inside a display feature.
+     *
+     * ══════════════════════════════════════════════════════════════════════════
+     * A WITHHELD AWARD MAKES IT PROVISIONAL, AND THAT IS NOT A DETAIL
+     * ══════════════════════════════════════════════════════════════════════════
+     *
+     * Only PUBLISHED categories are ranked, because a nominee from an award nobody has
+     * announced must not appear in a public standing — that is the same rule
+     * {@see PublicResults} enforces one level up. The cost is that the true top of the
+     * edition may be sitting in the withheld category, so the answer can be overturned when
+     * that award lands.
+     *
+     * Naming somebody "overall winner of the 2026 edition" and then quietly replacing them
+     * is worse than saying it is not settled yet, so `provisional` is set and the number of
+     * withheld awards travels with it. What a screen does with that is the screen's
+     * decision; refusing to carry the fact is how a screen comes to make a claim it cannot
+     * support.
+     *
+     * @param list<array<string,mixed>> $awards the drawn, sealed, PUBLISHED categories
+     * @return array<string,mixed>|null null where nothing in the edition is in the running
+     */
+    private static function overallFor(int $cycleId, array $awards, int $held): ?array
+    {
+        if ($awards === []) return null;
+
+        try {
+            // No re-scoring: this sorts rows that are already in memory.
+            $o = ResultRelease::overall($cycleId, $awards);
+        } catch (\Throwable) {
+            return null;
+        }
+
+        if (($o['winner'] ?? null) === null) return null;
+
+        return [
+            'winner'     => $o['winner'],
+            'runner_up'  => $o['runner_up'] ?? null,
+            'margin'     => $o['margin'] ?? null,
+            // A dead heat at the top of a whole edition needs a person, and a silent
+            // tiebreak is how it stops needing one.
+            'dead_heat'  => (bool) ($o['dead_heat'] ?? false),
+            'provisional' => $held > 0,
+            'held'        => $held,
+            // Always, for now. See the docblock — there is no sealed overall rank.
+            'reconstructed' => true,
+        ];
     }
 
     /**

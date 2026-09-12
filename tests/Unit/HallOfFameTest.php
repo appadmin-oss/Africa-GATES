@@ -330,4 +330,190 @@ final class HallOfFameTest extends TestCase
             $this->assertStringContainsString('--ag-honour-' . $slot, $body);
         }
     }
+
+    // ══ the overall standing ═════════════════════════════════════════════════
+
+    /**
+     * THE ONE A NAIVE IMPLEMENTATION FAILS.
+     *
+     * `ResultRelease::overall($cycleId)` with no categories re-scores the whole cycle from
+     * today's rules, so a released edition would publish an overall winner under
+     * arithmetic nobody was given — the same fault `ReleasedStanding` exists to prevent,
+     * one level up from the category it already fixed. The categories are handed in
+     * already sealed instead, so the figures being ranked are the announced ones.
+     *
+     * Proved the only way it can be: the rules move between the seal and the read.
+     */
+    public function test_the_overall_winner_comes_from_the_sealed_figures(): void
+    {
+        $this->award('Teachers’ Choice', 'Oluwagbemiga Dorcas', 2100, 1);
+        $this->award('Community Impact', 'Amina Bello', 900, 2);
+
+        $before = \AfricaGates\Services\PublicResults::index()['editions'][0]['overall'];
+        $this->assertNotNull($before['winner'], 'nothing was ranked, so nothing is proved');
+
+        $sealed = (new \AfricaGates\Services\SnapshotService())->captureRelease($this->cycleId);
+        $this->assertGreaterThan(0, $sealed, 'nothing was sealed, so nothing is proved');
+
+        // The judge half is `550 × avg/10`; the curved form pays 8.0 as 256 of 550 rather
+        // than 440, so this moves any real index a long way.
+        (new \AfricaGates\Services\RuleEngine())->set('global', null, [
+            'community_basis' => \AfricaGates\Services\CpiService::BASIS_RELATIVE,
+            'community_scope' => \AfricaGates\Services\CpiService::SCOPE_CATEGORY,
+            'judge_scale'     => \AfricaGates\Services\CpiService::SCALE_CURVED,
+        ]);
+
+        $after = \AfricaGates\Services\PublicResults::index()['editions'][0]['overall'];
+
+        $this->assertSame($before['winner']['name'], $after['winner']['name'],
+            'the edition crowned a different person under rules nobody was given');
+        $this->assertSame((int) $before['winner']['cpi'], (int) $after['winner']['cpi'],
+            're-scored: the overall standing is being computed live, not from the seal');
+    }
+
+    public function test_the_reconstructed_order_is_admitted_and_not_hidden(): void
+    {
+        // `standing_rank` is the rank WITHIN a category; no overall rank is sealed
+        // anywhere, so this order is always re-derived through ResultRelease::order().
+        // That is the position the category rank was in before it was sealed, and
+        // ReleasedStanding's docblock says why it is not good enough on its own — so the
+        // fact travels rather than being quietly presented as the announcement.
+        $this->award('Teachers’ Choice', 'Oluwagbemiga Dorcas', 1200, 1);
+
+        $o = \AfricaGates\Services\PublicResults::index()['editions'][0]['overall'];
+        $this->assertTrue($o['reconstructed']);
+
+        $w = HallOfFame::build()['people'][0]['wins'][0];
+        $this->assertTrue($w['overall']);
+        $this->assertTrue($w['overall_reconstructed'],
+            'the card cannot tell a reader the order was reconstructed');
+    }
+
+    public function test_a_withheld_award_makes_the_edition_winner_provisional(): void
+    {
+        // A nominee from an award nobody has announced must not appear in a public
+        // standing — so only published categories are ranked, and the cost is that the
+        // true top of the edition may be sitting in the withheld one. Naming somebody and
+        // quietly replacing them later is worse than saying it is not settled.
+        $this->award('Teachers’ Choice', 'Oluwagbemiga Dorcas', 1200, 1);
+
+        $clean = \AfricaGates\Services\PublicResults::index()['editions'][0]['overall'];
+        $this->assertFalse($clean['provisional']);
+        $this->assertSame(0, $clean['held']);
+
+        // A category with votes and no panel at all: nobody meets quorum, so it is held.
+        $c = (int) DB::table('gates_award_categories')->insertGetId([
+            'cycle_id' => $this->cycleId, 'slug' => 'c-' . bin2hex(random_bytes(4)),
+            'title' => 'Unjudged', 'sort_order' => 9,
+        ]);
+        $this->nominee($c, 'Nobody Judged', 9000);
+
+        $now = \AfricaGates\Services\PublicResults::index()['editions'][0]['overall'];
+
+        $this->assertTrue($now['provisional'], 'a withheld award did not unsettle the edition');
+        $this->assertGreaterThan(0, $now['held']);
+        $this->assertSame('Oluwagbemiga Dorcas', $now['winner']['name'],
+            'a nominee from an unannounced award was named overall winner');
+
+        // And it reaches the card.
+        $this->assertTrue(HallOfFame::build()['people'][0]['wins'][0]['overall_provisional']);
+    }
+
+    public function test_an_edition_win_outranks_a_category_win_in_the_wall(): void
+    {
+        // The hall used to sort by recency alone, so the person who led an entire edition
+        // sat in the same row as somebody who won one category of it. Topping an edition
+        // is the largest thing this platform decides.
+        $this->award('Teachers’ Choice', 'Oluwagbemiga Dorcas', 2100, 1);
+        $this->award('Community Impact', 'Amina Bello', 900, 2);
+
+        // A LATER edition whose winner did not top it, so recency alone would put them
+        // first and only the overall rule can order this correctly.
+        $next = $this->cycle(2027);
+        $this->award('Design', 'Later Person', 200, 1, '', $next);
+        $this->award('Film',   'Later Leader', 1800, 2, '', $next);
+
+        $hall = HallOfFame::build();
+        $names = array_column($hall['people'], 'name');
+
+        $lead = array_slice($names, 0, 2);
+        sort($lead);
+        $this->assertSame(['Later Leader', 'Oluwagbemiga Dorcas'], $lead,
+            'a category winner is ahead of somebody who won a whole edition');
+
+        $this->assertSame(2, $hall['overall']);
+        foreach ($hall['people'] as $p) {
+            $this->assertSame($p['overall_count'] > 0, (bool) $p['wins'][0]['overall'],
+                $p['name'] . ': the card leads with the wrong win');
+        }
+    }
+
+    public function test_a_persons_own_wins_lead_with_the_biggest_one(): void
+    {
+        // `wins|first` is what a card draws. Somebody who topped one edition and took a
+        // single category in a LATER one must not have the smaller, more recent award on
+        // their card.
+        $profile = (int) DB::table('gates_profiles')->insertGetId([
+            'slug' => 'two-' . bin2hex(random_bytes(3)), 'display_name' => 'Two Wins',
+            'email' => 'two-' . bin2hex(random_bytes(4)) . '@example.test',
+        ]);
+
+        $old = $this->award('Teachers’ Choice', 'Two Wins', 2100, 1);           // 2026: topped it
+        $next = $this->cycle(2027);
+        $this->award('Film', 'Someone Bigger', 3000, 1, '', $next);             // 2027: leads
+        $new = $this->award('Design', 'Two Wins', 400, 2, '', $next);           // 2027: category only
+
+        DB::table('gates_nominees')->whereIn('id', [$old, $new])->update(['profile_id' => $profile]);
+
+        $hall = HallOfFame::build();
+        $them = null;
+        foreach ($hall['people'] as $p) if ($p['name'] === 'Two Wins') $them = $p;
+
+        $this->assertNotNull($them);
+        $this->assertSame(2, $them['count']);
+        $this->assertTrue($them['wins'][0]['overall'],
+            'the card leads with the later, smaller award');
+        $this->assertSame(2026, (int) $them['wins'][0]['year']);
+    }
+
+    public function test_the_overall_pass_re_scores_nothing(): void
+    {
+        // It sorts rows already in memory. Passing a cycle id instead of the drawn
+        // categories would make `ResultRelease::overall()` call `forCycle()` and score
+        // every category a SECOND time — on a public page, once per edition.
+        //
+        // The first cut of this test compared two `index()` calls and failed at 54 vs 57:
+        // per-process memos (SchemaHas, the sealed-standing cache) warm on the first one,
+        // so that comparison measures the memos rather than the pass. This asks the
+        // question directly instead, and proves it is not vacuous by showing what the
+        // other call shape costs.
+        $this->award('Teachers’ Choice', 'Oluwagbemiga Dorcas', 1200, 1);
+        $this->award('Community Impact', 'Amina Bello', 900, 2);
+
+        $idx     = \AfricaGates\Services\PublicResults::index();   // also warms the memos
+        $edition = $idx['editions'][0];
+        $awards  = (array) $edition['awards'];
+        $cycleId = (int) $edition['cycle_id'];
+
+        $this->assertNotSame([], $awards, 'nothing was drawn, so nothing is proved');
+
+        $count = function (callable $fn): int {
+            DB::connection()->flushQueryLog();
+            DB::connection()->enableQueryLog();
+            $fn();
+            $n = count(DB::connection()->getQueryLog());
+            DB::connection()->disableQueryLog();
+
+            return $n;
+        };
+
+        $withRows = $count(static fn () => \AfricaGates\Services\ResultRelease::overall($cycleId, $awards));
+        $this->assertSame(0, $withRows,
+            'the overall pass read the database — it is re-scoring rather than sorting');
+
+        // And the shape that WOULD re-score, so the assertion above means something.
+        $withoutRows = $count(static fn () => \AfricaGates\Services\ResultRelease::overall($cycleId));
+        $this->assertGreaterThan(0, $withoutRows,
+            'both call shapes cost nothing, so this test proves nothing about either');
+    }
 }

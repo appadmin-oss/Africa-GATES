@@ -56,6 +56,17 @@ final class HallOfFame
      */
     public const EDITIONS = 40;
 
+    /** How many of this person's wins took a whole edition. */
+    private static function overallWins(array $person): int
+    {
+        $n = 0;
+        foreach ((array) ($person['wins'] ?? []) as $w) {
+            if (!empty($w['overall'])) $n++;
+        }
+
+        return $n;
+    }
+
     /** A category's title, whether the row arrived as an object or as an array. */
     private static function title(mixed $cat): string
     {
@@ -99,6 +110,17 @@ final class HallOfFame
             if ($year > 0) $years[] = $year;
             $programmes[(string) ($ed['programme'] ?? '')] = true;
 
+            // ── WHO TOPPED THE WHOLE EDITION ─────────────────────────────────
+            //
+            // A hall that lists a category winner and the person who led the entire
+            // edition at the same weight is a hall that has thrown away the only ranking
+            // this platform actually makes. `PublicResults::overallFor()` computes it from
+            // the SEALED figures — see its docblock for why that matters and for the two
+            // caveats (provisional while an award is withheld, order reconstructed because
+            // no overall rank is sealed) which travel on the win rather than being dropped.
+            $ov    = is_array($ed['overall'] ?? null) ? $ed['overall'] : null;
+            $ovId  = (int) ($ov['winner']['nominee_id'] ?? 0);
+
             foreach ((array) ($ed['awards'] ?? []) as $a) {
                 $w = $a['winner'] ?? null;
                 // A withheld award has no winner to name, and `index()` has already kept
@@ -116,6 +138,16 @@ final class HallOfFame
                 // on the row that can take the page down rather than draw it wrong.
                 $ids[$id]  = true;
                 $rows[]    = [$id, $w, [
+                    // Did this win take the whole edition, or one category of it? Carried
+                    // per WIN: somebody can top one edition outright and take a single
+                    // category in another, and flattening that onto the person loses the
+                    // distinction on the card that needs it.
+                    'overall'         => $ovId > 0 && $id === $ovId,
+                    'overall_provisional'   => $ovId > 0 && $id === $ovId && (bool) ($ov['provisional'] ?? false),
+                    'overall_reconstructed' => $ovId > 0 && $id === $ovId && (bool) ($ov['reconstructed'] ?? false),
+                    'overall_margin'        => $ovId > 0 && $id === $ovId ? ($ov['margin'] ?? null) : null,
+                    'overall_dead_heat'     => $ovId > 0 && $id === $ovId && (bool) ($ov['dead_heat'] ?? false),
+                    'awards_in_edition'     => count((array) ($ed['awards'] ?? [])),
                     // The programme's identity colour, carried on the win rather than
                     // looked up by the template: one person can hold awards from two
                     // programmes, so the colour belongs to the AWARD and not to them.
@@ -187,11 +219,23 @@ final class HallOfFame
             $people[$key]['wins'][] = $win;
         }
 
-        // Most-recent win first, then the bigger index, then the name — so the order is
-        // total and a reload never reshuffles two people who tie. Sorting on the name last
-        // rather than on the id keeps it stable across an import that renumbers rows.
+        // ── AN EDITION WIN OUTRANKS A CATEGORY WIN ──────────────────────────
+        //
+        // Topping a whole edition is the largest thing this platform decides, and the hall
+        // used to sort by recency alone — so the person who led an entire edition sat in
+        // the same row as somebody who won one category of it, with nothing saying which
+        // was which. That is not a layout problem; it is the hall discarding the only
+        // ranking the platform makes.
+        //
+        // Then most recent, then the bigger index, then the name — so the order is TOTAL
+        // and a reload never reshuffles two people who tie. The name last rather than the
+        // id, because an import that renumbers rows must not reorder the wall.
         $people = array_values($people);
         usort($people, static function (array $a, array $b): int {
+            $ao = self::overallWins($a);
+            $bo = self::overallWins($b);
+            if ($ao !== $bo) return $bo <=> $ao;
+
             $ay = (int) ($a['wins'][0]['year'] ?? 0);
             $by = (int) ($b['wins'][0]['year'] ?? 0);
             if ($ay !== $by) return $by <=> $ay;
@@ -203,10 +247,19 @@ final class HallOfFame
             return strcmp((string) $a['name'], (string) $b['name']);
         });
 
-        $repeat = 0;
+        $repeat  = 0;
+        $overall = 0;
         foreach ($people as &$p) {
             $p['count'] = count($p['wins']);
+            // An edition win is put FIRST among a person's own wins too, so a card drawing
+            // `wins|first` shows the biggest thing they did rather than the most recent.
+            usort($p['wins'], static fn (array $x, array $y): int
+                => [(int) !empty($y['overall']), (int) $y['year'], (int) $y['cpi']]
+                <=> [(int) !empty($x['overall']), (int) $x['year'], (int) $x['cpi']]);
+
+            $p['overall_count'] = self::overallWins($p);
             if ($p['count'] > 1) $repeat++;
+            if ($p['overall_count'] > 0) $overall++;
         }
         unset($p);
 
@@ -216,6 +269,9 @@ final class HallOfFame
             'programmes' => count(array_filter(array_keys($programmes), static fn ($s) => $s !== '')),
             'awards'     => $awards,
             'repeat'     => $repeat,
+            // How many people in the hall topped an edition outright. Counted here so a
+            // screen never has to walk the wall to say it.
+            'overall'    => $overall,
             'reach'      => ['from' => $years === [] ? 0 : min($years),
                              'to'   => $years === [] ? 0 : max($years)],
             // Named on the page rather than swallowed: a withheld award is a real event and
