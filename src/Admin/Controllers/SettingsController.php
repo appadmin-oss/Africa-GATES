@@ -203,6 +203,7 @@ class SettingsController
             'invite_seq_audiences' => \AfricaGates\Services\InviteAudience::all(),
             'visits_on'         => \AfricaGates\Services\VisitTracker::enabled(),
             'visits_days_value' => \AfricaGates\Services\VisitTracker::keepDays(),
+            'visits_mode'       => \AfricaGates\Services\CookiePrefs::mode(),
             'invite_seq_tokens'  => \AfricaGates\Services\InviteSequence::TOKENS,
             'invite_seq_values_default'  => \AfricaGates\Services\InviteSequence::values(),
             'invite_seq_outcome_default' => \AfricaGates\Services\InviteSequence::DEFAULT_OUTCOME,
@@ -630,6 +631,17 @@ class SettingsController
             // arrival on the next maintenance tick, including today's.
             $this->settings->set('visits_days',
                 (string) ($days > 0 ? max(7, min(730, $days)) : \AfricaGates\Services\VisitTracker::KEEP_DAYS),
+                $adminId);
+
+            // Clamped to the two postures on the way IN as well as on the way out. An
+            // unrecognised value reads as `exempt` when CookiePrefs loads it, so a typo
+            // here would silently switch consent OFF — which is the one direction this
+            // setting must never move by accident.
+            $mode = strtolower(trim((string) ($b['visits_consent_mode'] ?? '')));
+            $this->settings->set(\AfricaGates\Services\CookiePrefs::MODE_KEY,
+                $mode === \AfricaGates\Services\CookiePrefs::MODE_CONSENT
+                    ? \AfricaGates\Services\CookiePrefs::MODE_CONSENT
+                    : \AfricaGates\Services\CookiePrefs::MODE_EXEMPT,
                 $adminId);
         }
 

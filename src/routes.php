@@ -2401,7 +2401,77 @@ return function(App $app) {
         // (Paid-voting routes are registered above, before /vote/{program}.)
         // Admin-editable legal/policy docs (gates_legal_docs via LegalService).
         // Content is no longer hardcoded; a missing/unpublished doc → 404.
-        $legalRender = function($req,$res,string $slug) use ($tv){
+        /**
+         * What /cookies shows above the policy: what is happening, and the button.
+         *
+         * ── WHY THE WORDS ARE HERE AND NOT IN THE TEMPLATE ───────────────────
+         *
+         * Because there are four states and three of them are easy to draw wrongly. Being
+         * counted under the exempt posture is not the same sentence as being counted
+         * because you said yes; not being counted because you refused is not the same as
+         * not being counted because an administrator switched the whole thing off, and a
+         * page that told somebody "you have opted out" when in fact nothing is running
+         * would be making them a promise about a mechanism rather than about us.
+         *
+         * The fourth is the one that must never be got wrong: the browser said no. We
+         * honour that even over a yes given here, so the page has to SAY that rather than
+         * quietly disagree with a button it is still offering.
+         */
+        $cookieControl = function($req): array {
+            $P        = \AfricaGates\Services\CookiePrefs::class;
+            $on       = \AfricaGates\Services\VisitTracker::enabled();
+            $locked   = $P::signalledNo($req);
+            $choice   = $P::choice($req);
+            $counting = $on && $P::analyticsAllowed($req);
+
+            $saved = (string) ($_SESSION['cookie_saved'] ?? '');
+            unset($_SESSION['cookie_saved']);
+
+            if (!$on) {
+                $headline = 'Nothing is being counted';
+                $why = 'Arrival counting is switched off across the whole site at the moment, so '
+                     . 'there is nothing here to refuse. If it is switched back on, whatever you '
+                     . 'choose below is what will apply to you.';
+            } elseif ($locked) {
+                $headline = 'Your browser has already said no';
+                $why = 'You are sending Do Not Track or Global Privacy Control, and we treat that '
+                     . 'as a refusal. Nothing about your visits is being recorded.';
+            } elseif ($counting) {
+                $headline = $choice === true ? 'You said we may count your visits' : 'We are counting your visits';
+                $why = $choice === true
+                    ? 'One row for this visit, so that whoever shared the link you followed can '
+                    . 'find out whether it worked. You can change your mind here at any time.'
+                    : 'One row for this visit — where you came from, the page you landed on, and '
+                    . 'whether it led to a vote, a nomination or a ticket. It is ours alone and '
+                    . 'reaches no one else. You have not been asked before now because it stores '
+                    . 'nothing extra on your device; you can stop it here.';
+            } else {
+                $headline = 'We are not counting your visits';
+                $why = $choice === false
+                    ? 'You told us not to, and we have not since. Nothing about your visits has '
+                    . 'been recorded, and nothing will be unless you say otherwise here.'
+                    : 'We ask before counting anything, and you have not been asked yet — or you '
+                    . 'have, and said no. Either way nothing is being recorded.';
+            }
+
+            return [
+                'counting'    => $counting,
+                'locked'      => $locked,
+                'headline'    => $headline,
+                'explanation' => $why,
+                'cookie_name' => $P::COOKIE,
+                'saved'       => $saved !== '',
+                'saved_word'  => $saved === 'yes'
+                    ? 'We will count your visits from now on.'
+                    : 'We will not count your visits.',
+                'locked_note' => 'We could offer to overrule that — the Global Privacy Control '
+                               . 'specification permits a site-specific opt-in — and we have '
+                               . 'decided not to. If you do want to be counted, turn the setting '
+                               . 'off in your browser and this page will offer you the choice.',
+            ];
+        };
+
+        $legalRender = function($req,$res,string $slug) use ($tv, $cookieControl){
             $doc = \AfricaGates\Services\LegalService::get($slug);
             if (!$doc) return $res->withStatus(404);
 
@@ -2438,6 +2508,18 @@ return function(App $app) {
                 'doc_standfirst'=>($doc['updated_label'] ?? '') !== ''
                     ? 'Last updated '.$doc['updated_label'].', and effective immediately. Written to be read — if any part of it is unclear, that is a fault worth reporting.'
                     : 'Effective immediately. Written to be read — if any part of it is unclear, that is a fault worth reporting.',
+
+                // ── THE LIVE CONTROL, ON ONE DOCUMENT ONLY ───────────────────
+                //
+                // /cookies is the one policy here that is not only a promise: it carries
+                // the switch that turns arrival counting off. The panel is built in PHP
+                // rather than in the template because the state it shows has to come from
+                // CookiePrefs — the same resolver the tracker asks — and a template
+                // deciding for itself whether somebody is being counted is how a page
+                // comes to show a person the opposite of what is happening to them.
+                //
+                // Null on every other slug, so the partial is simply not drawn.
+                'cookie_control'=>$slug === 'cookies' ? $cookieControl($req) : null,
             ]);
         };
 
@@ -2498,6 +2580,50 @@ return function(App $app) {
             ]);
         });
         $g->get('/cookies', fn($req,$res)=>$legalRender($req,$res,'cookies'));
+
+        /**
+         * POST /cookies/choice — the answer, from the page or from the notice.
+         *
+         * ── A FORM POST, WITH NO JAVASCRIPT ANYWHERE IN THE PATH ─────────────
+         *
+         * A privacy control that needs scripts to run is a privacy control that is missing
+         * for exactly the people most likely to have switched them off. So this is a plain
+         * POST that sets a cookie and redirects, and it is the ONLY writer of that cookie
+         * on the whole platform — see CookiePrefs::apply().
+         *
+         * ── WHAT AN UNRECOGNISED ANSWER MEANS ────────────────────────────────
+         *
+         * No. A malformed or missing `choice` is a request we could not understand about
+         * whether somebody agreed to be counted, and the only safe reading of that is that
+         * they did not. Storing the refusal rather than leaving it unanswered is also the
+         * kinder outcome, because leaving it unanswered would show the notice again.
+         */
+        $g->post('/cookies/choice', function($req,$res){
+            $P    = \AfricaGates\Services\CookiePrefs::class;
+            $b    = (array) ($req->getParsedBody() ?? []);
+            // The token field is `_token`, which is what CsrfMiddleware reads — the Twig
+            // GLOBAL is `csrf_token` and the two names are not interchangeable. Naming the
+            // field after the global posts a correct token in a box nothing opens, and
+            // every submission is rejected as a forgery. CsrfFieldNameTest caught exactly
+            // that on both of this feature's forms.
+            $yes  = strtolower(trim((string) ($b['choice'] ?? ''))) === 'yes';
+
+            // Re-validated here and not trusted from the field. The notice writes the path
+            // it was drawn on, but a hidden input is something anybody can edit, and this
+            // value ends up in a Location header — see CookiePrefs::safeReturn(), which
+            // refuses `//host` as well as an absolute URL.
+            $back = $P::safeReturn((string) ($b['return'] ?? '/cookies'));
+            if ($back === '/') $back = '/cookies';
+
+            // So the page can confirm it heard. A control that changes nothing you can see
+            // is a control people press twice.
+            $_SESSION['cookie_saved'] = $yes ? 'yes' : 'no';
+
+            // The fragment lands them on the panel rather than at the top of a policy.
+            return $P::apply($res, $yes)
+                ->withHeader('Location', $back . '#your-choice')
+                ->withStatus(303);
+        });
         // Its own path as well as /legal/refunds. This is the page somebody looks for while
         // deciding whether to pay, and while holding a receipt they want reversed — both
         // times by guessing the URL or following a footer link, neither of which finds a

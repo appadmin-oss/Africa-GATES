@@ -254,6 +254,48 @@ twice against different rulesets and requires the figures to move. **Anything ty
 that could have been computed is a bug waiting to happen**, and a second admin-facing
 document anywhere else is a second thing to keep true: add to the handbook.
 
+## A legal page that states a fact is a fact that will go stale
+
+`/cookies` said in bold **"We set one cookie"** — there were three; `ag_region` and
+`ag_currency` are written by `document.cookie` from the shop's selects and last a year — and
+in bold **"We run no analytics"**, while `VisitTracker` recorded every arrival's source,
+campaign, landing page, device and country by default. Both sentences were true the day they
+were typed. That is §19's shape on a document people are asked to rely on.
+
+Three things made it last, and each is a rule:
+
+- **The evidence it cited was the wrong evidence.** Its docblock said "checkable against the
+  code: see `session_set_cookie_params()`", so checking the named place *confirmed the false
+  answer* — the second writer is a `data-cookie` attribute and one delegated listener.
+- **A test asserted the false claim by name**, requiring the string `no analytics` to be
+  PRESENT — `SecurityHeadersTest` pinning `camera=()` again. And its sibling forbade the bare
+  string `google analytics`, which forbids the page from *denying* it: **a sweep that cannot
+  tell a denial from an admission pushes a page towards saying nothing.**
+- **The opt-out was `DNT`/`Sec-GPC` and nothing else.** Chrome and Safari both removed Do Not
+  Track, so most visitors had no way to say no while the page promised they would be asked.
+
+So the facts are generated: `Support\CookieRegistry` (derived — the session cookie's name and
+life come from `session_name()` and `session_get_cookie_params()`), rendered by
+`LegalDocument::cookiesHtml()` in the same place as the AI disclosure so `/cookies.txt`
+carries it. `CookieRegistryTest` sweeps the shipped templates and JS and fails by name on a
+cookie or storage key nobody declared — storage keys as PREFIXES, since several are per-item.
+
+`Services\CookiePrefs` is the one resolver for "may we count this person", and the rule is one
+sentence: **if anything said no, the answer is no** — a header beats a stored yes, which is
+stricter than the GPC specification requires and is deliberate. `VisitTracker` lost its own
+`optedOut()`. The posture is a setting (`visits_consent_mode`), because whether first-party
+audience measurement needs consent is a legal position rather than a fact, and the generated
+section states which one is running. **`consent` mode with nowhere to consent counts nobody
+for ever**, so the mode and the notice shipped together.
+
+Both controls are plain forms that post — a privacy control needing JavaScript is missing for
+exactly the people likeliest to block it — the notice's two answers carry an identical class
+string (asserted, because "accept is a button, decline is grey text" is the pattern the rules
+exist to stop), and dismissing without answering is not offered. The prose is the promise; the
+generated section is the fact. `2027_01_23_cookie_policy_repair.php` corrects production's
+stored copy **only where `updated_by IS NULL`** — an operator's edits are theirs.
+`docs/CODEBASE-INDEX.md` §24.
+
 ## Anything operational must be settable from `/admin/settings`
 
 There is no shell on production, so a credential read only from `.env` is a credential that

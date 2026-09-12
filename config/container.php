@@ -250,6 +250,22 @@ return [
             'css_bundle'        => \AfricaGates\Support\AssetBundle::url(),
         ];
         foreach ($globals as $k => $v) $twig->getEnvironment()->addGlobal($k, $v);
+        // ── THE CONSENT NOTICE, AS A FUNCTION AND NOT A GLOBAL ──────────────
+        //
+        // A global is computed here, when the view is built, and this block has no
+        // Request — so it could only answer by reading $_COOKIE and $_SERVER itself,
+        // which would be a SECOND answer to "may we count this person". The decision is
+        // made once per request by VisitTrackingMiddleware, from the real request, on the
+        // same tick the tracker acts on it; a function is evaluated at RENDER time, which
+        // is after that, so it reads the answer rather than recomputing one.
+        $twig->getEnvironment()->addFunction(new \Twig\TwigFunction(
+            'cookie_ask',
+            static fn (): bool => \AfricaGates\Services\CookiePrefs::asking()
+        ));
+        $twig->getEnvironment()->addFunction(new \Twig\TwigFunction(
+            'cookie_return',
+            static fn (): string => \AfricaGates\Services\CookiePrefs::returnPath()
+        ));
         // Allowlist-sanitise admin-authored rich text (blog/legacy bodies) at render
         // time — used instead of |raw so stored HTML can't inject script/handlers.
         $twig->getEnvironment()->addFilter(new \Twig\TwigFilter(

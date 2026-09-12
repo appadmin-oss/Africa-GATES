@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 namespace AfricaGates\Middleware;
 
+use AfricaGates\Services\CookiePrefs;
 use AfricaGates\Services\VisitTracker;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
@@ -32,6 +33,12 @@ final class VisitTrackingMiddleware implements MiddlewareInterface
     public function process(Request $request, Handler $handler): Response
     {
         VisitTracker::record($request);
+
+        // The consent notice is drawn by the site layout, which has no Request. Deciding
+        // here — from the same request, on the same tick, immediately after the tracker
+        // has acted on the same answer — is what stops a page asking somebody for
+        // permission it has already counted them without. See CookiePrefs::observe().
+        CookiePrefs::observe($request);
 
         return $handler->handle($request);
     }

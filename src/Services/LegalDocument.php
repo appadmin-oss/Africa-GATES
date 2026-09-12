@@ -4,6 +4,7 @@ declare(strict_types=1);
 namespace AfricaGates\Services;
 
 use AfricaGates\Support\Citation;
+use AfricaGates\Support\CookieRegistry;
 use AfricaGates\Support\DocText;
 use AfricaGates\Support\Html;
 use AfricaGates\Support\Slug;
@@ -56,6 +57,9 @@ final class LegalDocument
         if (($doc['slug'] ?? '') === 'privacy') {
             $html .= self::disclosureHtml();
             $html .= self::voiceHtml();
+        }
+        if (($doc['slug'] ?? '') === 'cookies') {
+            $html .= self::cookiesHtml();
         }
         return $html;
     }
@@ -134,6 +138,153 @@ final class LegalDocument
              . 'with an assurance we have not verified. If that matters to your decision to nominate, '
              . 'email <a href="mailto:privacy@afrovanguard.org.ng">privacy@afrovanguard.org.ng</a> and '
              . 'we will tell you what we know.</p>';
+
+        return implode("\n", $h);
+    }
+
+    /**
+     * What is actually set, generated from the registry rather than written down.
+     *
+     * ── THE BUG THIS EXISTS BECAUSE OF ───────────────────────────────────────
+     *
+     * The authored cookie policy said, in bold, "We set ONE cookie", and listed it in a
+     * one-row table. There were three: the session, and the shop's `ag_region` and
+     * `ag_currency`, which are written by `document.cookie` and last a year. The same
+     * document said, also in bold, "We run no analytics", while {@see VisitTracker}
+     * recorded every arrival's source, campaign, landing page, device and country into a
+     * table an operator reads every week.
+     *
+     * Neither sentence was ever a lie somebody told; both were true when they were typed
+     * and outlived the code by a release. That is this repository's most expensive shape
+     * of fault and it has no fix at the level of "correct the wording", so the factual
+     * half of this page is no longer wording. It is built from
+     * {@see \AfricaGates\Support\CookieRegistry} and {@see CookiePrefs} on every render,
+     * and a cookie added without a registry entry fails `CookieRegistryTest`.
+     *
+     * ── AND IT IS HERE, NOT IN THE TEMPLATE ──────────────────────────────────
+     *
+     * Same reason as the AI disclosure above: `/cookies.txt` and `/cookies.md` are real
+     * routes, and a downloaded policy that silently omitted the list of cookies would be
+     * missing the one section somebody downloaded it for.
+     *
+     * @param list<array<string,mixed>>|null $cookies injectable so the escaping can be
+     *        tested with a hostile value rather than with whatever the registry holds today
+     */
+    public static function cookiesHtml(?array $cookies = null, ?array $storage = null): string
+    {
+        $cookies ??= CookieRegistry::cookies();
+        $storage ??= CookieRegistry::storage();
+
+        $e = static fn (string $s): string => htmlspecialchars($s, ENT_QUOTES, 'UTF-8');
+        $h = [];
+
+        $h[] = '<h2 id="what-is-set">What is set, right now</h2>';
+        $h[] = '<p>This section is generated from the platform&rsquo;s own configuration every '
+             . 'time the page is drawn, so it describes what the code actually sets rather than '
+             . 'what somebody wrote down when it was last reviewed.</p>';
+
+        if ($cookies !== []) {
+            $h[] = '<table>';
+            $h[] = '<thead><tr><th>Name</th><th>Why</th><th>How long</th><th>Kind</th></tr></thead>';
+            $h[] = '<tbody>';
+            foreach ($cookies as $c) {
+                $kind = (string) ($c['category'] ?? '');
+                $word = $kind === CookieRegistry::ESSENTIAL
+                      ? 'Essential'
+                      : ($kind === CookieRegistry::PREFERENCE ? 'Your choice' : 'Counting');
+                // WHO writes it, because a reader who blocks scripts will genuinely not have
+                // the two shop cookies, and a table that implied otherwise would be wrong for
+                // them specifically.
+                $by = ((string) ($c['set_by'] ?? '')) === 'browser'
+                    ? ' It is written by the page itself, only when you use that control.'
+                    : '';
+                $h[] = '<tr><td><code>' . $e((string) ($c['name'] ?? '')) . '</code></td>'
+                     . '<td>' . $e((string) ($c['purpose'] ?? '')) . $e($by) . '</td>'
+                     . '<td>' . $e((string) ($c['lifetime'] ?? '')) . '</td>'
+                     . '<td>' . $e($word) . '</td></tr>';
+            }
+            $h[] = '</tbody></table>';
+        }
+
+        $h[] = '<p>All of them are marked <code>SameSite=Lax</code>, and <code>Secure</code> on '
+             . 'an encrypted connection. The two set by the server are <code>HttpOnly</code>, '
+             . 'which means scripts on the page cannot read them.</p>';
+
+        if ($storage !== []) {
+            $h[] = '<h2 id="browser-storage">Things kept in your browser, which are not cookies</h2>';
+            $h[] = '<p>Some pages remember small things using your browser&rsquo;s own storage. It '
+                 . 'never leaves your device, and it is never sent to us:</p>';
+            $h[] = '<ul>';
+            foreach ($storage as $s) {
+                $h[] = '<li><code>' . $e((string) ($s['key'] ?? '')) . '</code> &mdash; '
+                     . $e((string) ($s['purpose'] ?? '')) . '</li>';
+            }
+            $h[] = '</ul>';
+            $h[] = '<p>Clearing your browser&rsquo;s site data removes all of it. Nothing important '
+                 . 'depends on it.</p>';
+        }
+
+        $h[] = self::arrivalsHtml();
+
+        return implode("\n", $h);
+    }
+
+    /**
+     * The counting, described as it is configured — including when it is switched off.
+     *
+     * Split out of {@see cookiesHtml()} because it is the part that answers a different
+     * question. The table above says what is STORED on the device; this says what is
+     * OBSERVED about the visit, and those are not the same thing — this platform stores
+     * nothing extra to do the counting, which is precisely why there is no banner and
+     * precisely why saying "we set one cookie" was not a defence of anything.
+     */
+    private static function arrivalsHtml(): string
+    {
+        $h = [];
+        $h[] = '<h2 id="counting-arrivals">Counting arrivals</h2>';
+
+        if (!VisitTracker::enabled()) {
+            $h[] = '<p>We are <strong>not counting arrivals at all</strong> at the moment. An '
+                 . 'administrator has switched it off, and nothing on this site is recording '
+                 . 'where visitors came from. The rest of this section describes what would be '
+                 . 'recorded if it were switched back on.</p>';
+        }
+
+        $h[] = '<p>We keep <strong>one row for each visit</strong> &mdash; not one per page you '
+             . 'open &mdash; so that whoever shared a link can find out whether it worked. It '
+             . 'records where you came from (a campaign tag, or the site that linked here), the '
+             . 'page you landed on, roughly what kind of device it was, and whether the visit '
+             . 'led to a vote, a nomination or a ticket.</p>';
+        $h[] = '<p><strong>It is ours alone.</strong> There is no Google Analytics here, no '
+             . 'advertising pixel, no third-party tag of any kind: nothing on this site reports '
+             . 'your visit to another company. And it stores nothing new on your device &mdash; '
+               . 'it uses the session cookie in the table above, which is already there.</p>';
+        $h[] = '<p><strong>What is never kept:</strong> your IP address (only a hash of it, '
+             . 're-scrambled with a new secret every day, so the same visitor cannot be followed '
+             . 'from one day to the next), the full address of the page that linked here (the '
+             . 'site name only, because a full address carries search terms), the query string of '
+             . 'the page you landed on (links here carry passes and sign-in tokens), and your '
+             . 'browser&rsquo;s identification string. Your country is recorded only when the '
+             . 'network in front of us has already worked it out; we never look it up.</p>';
+        $h[] = '<p>Arrivals are deleted after ' . (int) VisitTracker::keepDays() . ' days.</p>';
+
+        if (CookiePrefs::mode() === CookiePrefs::MODE_CONSENT) {
+            $h[] = '<p><strong>We ask first.</strong> Nothing is counted until you agree, and you '
+                 . 'are asked once. You can change your mind at any time on this page.</p>';
+        } else {
+            $h[] = '<p><strong>You have not been shown a consent banner</strong>, and this is why: '
+                 . 'a banner exists to ask permission to store something on your device, and the '
+                 . 'counting stores nothing. It is first-party, it reaches no one else, it holds '
+                 . 'no identifier that survives the day, and it is reported only as totals. '
+                 . 'We would rather give you a switch that works than an overlay you have to '
+                 . 'dismiss before you can read the page.</p>';
+        }
+
+        $h[] = '<p>Either way, <strong>you can say no</strong>, and the control is at the top of '
+             . 'this page. If your browser sends <code>Do Not Track</code> or Global Privacy '
+             . 'Control we treat that as a no as well, and we honour it even over a yes you gave '
+             . 'us here &mdash; the specification would let us do the opposite, and we would '
+             . 'rather not.</p>';
 
         return implode("\n", $h);
     }

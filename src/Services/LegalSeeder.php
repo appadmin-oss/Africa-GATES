@@ -222,65 +222,51 @@ HTML;
     }
 
     /**
-     * ── WHY THIS DOCUMENT IS SHORT ───────────────────────────────────────────
+     * ── WHY THIS DOCUMENT IS NOW MOSTLY NOT A DOCUMENT ───────────────────────
      *
-     * Because the true answer is short. This platform sets ONE cookie — the PHP session —
-     * and runs no analytics, no advertising and no third-party trackers of any kind.
+     * It used to state the facts in prose, and the prose went wrong in both directions at
+     * once. It said in bold "We set ONE cookie" and listed `PHPSESSID` in a one-row table;
+     * there were three, because the shop's region and currency selects write `ag_region`
+     * and `ag_currency` with `document.cookie` and they last a year. It said in bold "We
+     * run no analytics"; {@see \AfricaGates\Services\VisitTracker} was recording every
+     * arrival's source, campaign, landing page, device and country, on by default, feeding
+     * a report an operator reads every week.
      *
-     * The temptation with a cookie policy is to paste in the standard four categories and a
-     * consent banner. Doing that here would describe a site we are not running, and the
-     * banner would be asking permission for something we do not do. A strictly necessary
-     * session cookie needs no consent under the ePrivacy rules and the NDPA, which is
-     * exactly why there is no banner — stated, because its absence otherwise looks like an
-     * oversight rather than a consequence.
+     * Both sentences were true the day they were typed. The docblock even named the
+     * evidence — "see `session_set_cookie_params()` in public/index.php" — which is why
+     * nobody caught it: checking the named place confirmed the wrong answer, because the
+     * second writer was a line of JavaScript in a template.
      *
-     * Everything in here is checkable against the code: see `session_set_cookie_params()`
-     * in public/index.php for the cookie, and the `afg_*` keys in the templates for the
-     * browser storage.
+     * So the facts are no longer written here. They are generated on every render from
+     * {@see \AfricaGates\Support\CookieRegistry} and {@see \AfricaGates\Services\CookiePrefs}
+     * by {@see \AfricaGates\Services\LegalDocument::cookiesHtml()} — the list of cookies,
+     * the browser storage, what the counting records, how long it is kept, and whether an
+     * operator has switched it off. `CookieRegistryTest` fails if a cookie is set anywhere
+     * in the shipped code without a registry entry, and `LegalCookieProseTest` fails if
+     * what is left below starts contradicting the registry again.
+     *
+     * What remains here is the part that is genuinely editorial: the promises, and the
+     * things a person needs told in words rather than counted.
      */
     private static function cookies(): string
     {
         return <<<'HTML'
 <h2>The short version</h2>
-<p>We set <strong>one cookie</strong>. It keeps you signed in and keeps your place while you
-   move around the site. We run <strong>no analytics, no advertising and no third-party
-   trackers</strong> — nothing on this site reports your visit to another company.</p>
-<p>That is why you have not been shown a consent banner. A banner would be asking your
-   permission for something we are not doing.</p>
+<p>We set a small number of cookies, all of them our own, and they are listed further down
+   this page &mdash; that list is built from the code itself rather than typed out, so it
+   cannot quietly go out of date.</p>
+<p>There is <strong>no Google Analytics here, no advertising pixel and no third-party tag of
+   any kind</strong>. Nothing on this site reports your visit to another company.</p>
+<p>We do count arrivals ourselves, so that somebody who shares a link can find out whether it
+   worked. That is described below, and <strong>you can switch it off</strong> with the
+   control at the top of this page. It takes one click and we do not ask you why.</p>
 
-<h2>The cookie we set</h2>
-<table>
-  <thead><tr><th>Name</th><th>What it does</th><th>How long it lasts</th></tr></thead>
-  <tbody>
-    <tr>
-      <td><code>PHPSESSID</code></td>
-      <td>Identifies your session so you stay signed in, so a form you are halfway through
-          is not lost, and so we can tell a real submission from a forged one. It holds a
-          reference to data kept on our own server; it does not contain your details.</td>
-      <td>Seven days, or until you sign out</td>
-    </tr>
-  </tbody>
-</table>
-<p>It is marked <code>HttpOnly</code> (scripts on the page cannot read it),
-   <code>SameSite=Lax</code> (it is not sent when another site links to us in a way that
-   could act on your behalf) and <code>Secure</code> in production (it travels only over
-   an encrypted connection).</p>
-
-<h2>Things kept in your browser, which are not cookies</h2>
-<p>Some pages remember small things using your browser's own storage.
-   It never leaves your device, and it is never sent to us:</p>
-<ul>
-  <li>Your shopping basket, so it survives a reload.</li>
-  <li>Which programmes you have already voted in, so the page can stop offering.</li>
-  <li>A message you started writing for a nominee, so a mistaken tap does not lose it.</li>
-  <li>Whether you have seen the introduction, so it is not shown twice.</li>
-</ul>
-<p>Clearing your browser's site data removes all of it. Nothing important depends on it.</p>
-
-<h2>Turning it off</h2>
+<h2>Turning cookies off</h2>
 <p>Every browser lets you block or delete cookies. If you block ours you can still read the
-   site, but you will not be able to sign in, vote, or complete a payment — the cookie is
-   what tells us one page of your visit is connected to the next.</p>
+   site, but you will not be able to sign in, vote, or complete a payment &mdash; the session
+   cookie is what tells us one page of your visit is connected to the next.</p>
+<p>Blocking cookies is not the same as switching off the counting, and neither one needs the
+   other. The counting can be refused on its own with the control at the top of this page.</p>
 
 <h2>Payments</h2>
 <p>When you pay, you are handed to a payment provider on their own page. What they set while
@@ -288,8 +274,12 @@ HTML;
    details.</p>
 
 <h2>Changes</h2>
-<p>If we ever add anything that tracks you, this page changes first and you will be asked
-   before it runs. We would rather tell you than be found out.</p>
+<p>If we ever add anything that reports your visit to another company, this page changes
+   first and you will be asked before it runs. We would rather tell you than be found out.</p>
+<p>If you think something on this page is wrong, tell us at
+   <a href="mailto:privacy@afrovanguard.org.ng">privacy@afrovanguard.org.ng</a>. The list
+   below is generated from the running code, so a disagreement between it and what your
+   browser shows you is a bug we want to hear about.</p>
 HTML;
     }
 
@@ -602,9 +592,10 @@ HTML;
 </ol>
 <p>Write to <a href="mailto:privacy@afrovanguard.org.ng">privacy@afrovanguard.org.ng</a>. One honest limitation: because a vote is stored against a hash rather than an address, we may need you to confirm the address you voted with in order to find the record at all. If you are not satisfied with how we handle a request, you can complain to the Nigeria Data Protection Commission.</p>
 
-<h2>Cookies and local storage</h2>
-<p>We use a session cookie to keep you signed in and to carry the security token that protects forms from cross-site submission. It is marked HttpOnly, and Secure over HTTPS.</p>
-<p>Local storage is used for small conveniences: remembering which ballots you have already voted in on this device, and whether you dismissed a banner. We do not use third-party advertising or cross-site tracking cookies.</p>
+<h2>Cookies, local storage and counting arrivals</h2>
+<p>We use a session cookie to keep you signed in and to carry the security token that protects forms from cross-site submission. It is marked HttpOnly, and Secure over HTTPS. We set a small number of others, and local storage is used for a few conveniences that never leave your device.</p>
+<p>We also keep one row for each visit, so that whoever shared a link can find out whether it worked. It is ours alone: we do not use third-party advertising or cross-site tracking cookies, and nothing on this site reports your visit to another company. We keep no IP address &mdash; only a hash re-scrambled every day, so one visitor cannot be followed from one day to the next.</p>
+<p><strong>The full list, and the switch that turns the counting off, are on <a href="/cookies">the cookies page</a>.</strong> That list is generated from the running code rather than written out here, so that this paragraph cannot go stale the way its previous version did: we deliberately keep the detail in one place only.</p>
 
 <h2>Children</h2>
 <p>The platform is not directed at children under 13, and we do not knowingly collect their data. A nominee may be a minor &mdash; a young person can be recognised for their work &mdash; in which case a parent or guardian should be the one to provide contact details and consent to publication. Write to us and we will remove data collected from a child in error.</p>

@@ -1372,3 +1372,150 @@ not rendered, the inert admin control left on the per-admin view, and the target
 removed from both the schema and the migration. The render test compiles the real template against a stubbed layout with
 `strict_variables` on — a route test proves a screen is *reachable*, which is a different
 claim from the screen *working*, and everything that 500s an admin page happens at render.
+
+---
+
+## 24. The policy that described a different platform (2026-09-12)
+
+`/cookies` is a published legal page with two sentences in bold, and both were false.
+
+> **"We set one cookie."**  There were three. `ag_region` and `ag_currency` are written by
+> `document.cookie` from the shop's region and currency selects and last a **year**. They
+> arrived long after the policy was written and nothing connected the two events.
+>
+> **"We run no analytics."**  `VisitTracker` records every arrival's source, campaign,
+> landing page, device and country, **on by default**, into `gates_visits` — which feeds
+> `AnalyticsService::arrivals()` and a report an operator reads every week.
+
+Neither was ever a lie somebody told. Both were true the day they were typed and outlived
+the code by a release, which is §19's shape on a document people are asked to rely on.
+
+### Three things made it durable, and each is worth naming separately
+
+**The evidence it cited was the wrong evidence.** `LegalSeeder::cookies()`'s own docblock
+said "everything in here is checkable against the code: see `session_set_cookie_params()`
+in public/index.php". Checking the named place *confirmed the false answer*, because the
+second writer is a line of JavaScript in a template, reached through a `data-cookie`
+attribute and one delegated listener. A sweep that only understood `document.cookie =
+'name='` would have found nothing either.
+
+**A test asserted the false claim by name.** `LegalCoverageTest::test_the_cookie_policy_does_not_claim_trackers_we_do_not_run`
+required the string `no analytics` to be **present**. So the claim was not merely
+unnoticed — it was enforced, exactly as `SecurityHeadersTest` pinned `camera=()` while the
+door's scanner was dead. A second test in the same class forbade the bare string
+`google analytics`, which reads as a check and is not one: the sentence worth having on
+that page is "there is **no** Google Analytics here", and forbidding the product name
+forbids saying so. A sweep that cannot tell a denial from an admission pushes a page
+towards saying nothing, which is how it got vague enough to be wrong.
+
+**The opt-out could not be exercised by most visitors.** It was `DNT` and `Sec-GPC` and
+nothing else. Chrome removed the Do Not Track setting and Safari removed it before that, so
+for the majority of this platform's audience — Chrome on an Android phone — there was **no
+way to say no**, while the same page promised "you will be asked before it runs". The
+mechanism was honest and could only hear the people whose browsers already spoke for them.
+
+### What replaced it
+
+**The facts are generated, not written.** `Support\CookieRegistry` declares every cookie and
+every browser-storage prefix, *derived* where it can be — the session cookie's name and
+lifetime come from `session_name()` and `session_get_cookie_params()`, the two shop cookies
+from the constants their services already expose. `LegalDocument::cookiesHtml()` renders it
+into the page on every draw, the same way the AI disclosure is built from `AiPrivacy`, and
+for the same reason: it is in `LegalDocument` rather than in the template so `/cookies.txt`
+and `/cookies.md` carry it too.
+
+**`CookieRegistryTest` is the part that survives forgetting.** It sweeps `templates/`,
+`public/assets/js/` and `src/` for `document.cookie`, `data-cookie="…"`, `setcookie(` and
+`(local|session)Storage.setItem`, and fails by name on anything not declared. Storage keys
+are declared as PREFIXES because several are per-item (`afg_voted_prog_12`,
+`ag-celebrated:nominee-88`), and `vendor/` is excluded by path — a library's own key inside
+a player the page never instantiates is not something a visitor is owed a policy entry for.
+**Both halves were proved by breaking the code**: renaming a `data-cookie` value and a
+`sessionStorage` key each produced the finding, by name.
+
+**`Services\CookiePrefs` is the one resolver for "may we count this person".** The rule is
+one sentence — *if anything said no, the answer is no* — so a `DNT`/`Sec-GPC` header beats
+a stored yes. That is **stricter than the Global Privacy Control specification requires**,
+which permits a site-specific opt-in to override the general signal, and the cost is real:
+somebody browsing with GPC on who deliberately presses "count my visits" is still not
+counted, and the page says so rather than silently disagreeing with its own button. The
+only thing at stake on our side is a row in a report about which flier worked.
+
+`VisitTracker` lost its private `optedOut()` and asks `CookiePrefs`. Two resolvers for one
+decision is how a page comes to show somebody a consent question it has already counted
+them without.
+
+**The posture is a setting, because it is a legal position rather than a fact.**
+`visits_consent_mode` = `exempt` (the default: count unless refused, no banner) or
+`consent` (count nobody until they agree). `exempt` is defensible because the counting
+**stores nothing new on the device** — it reuses the session cookie, so ePrivacy Art.5(3),
+which governs storage and access rather than measurement, is not engaged, and the CNIL
+exempted-audience-measurement conditions hold on every limb: first party, no cross-site
+anything, no third-party recipient, aggregate reporting, no identifier surviving the day
+(the IP hash is re-salted daily), bounded retention. The generated section states **which
+posture is running**, so a page describing the wrong one is the fault it exists to end.
+
+**A `consent` mode with nowhere to consent is a switch that counts nobody for ever** —
+never asked, so never a yes, so the report goes quiet and the screen says "nobody came".
+The mode and the notice shipped together. The notice is drawn from the layout, gated on a
+memo `VisitTrackingMiddleware` primes from the real request, because Twig has no Request
+and a template helper reading `$_COOKIE` itself would be the second resolver again.
+
+### The control, and the specifics that make it one
+
+`partials/cookie-choice.twig` on `/cookies`, `partials/cookie-notice.twig` from the layout.
+Both are **plain forms that post** — a privacy control that needs JavaScript is missing for
+exactly the people most likely to have switched it off. Neither may become a nested
+`<form>`: the notice sits at the very end of `<body>`, and inside a page form its buttons
+would post the page the visitor was reading to `/cookies/choice`, styled correctly, with no
+console warning.
+
+The notice's two answers carry an **identical class string**, asserted mechanically, because
+"accept is a button and decline is grey text" is the design the consent rules exist to
+stop. Nothing is pre-selected, the page stays readable (no modal, no overlay, no `inert`),
+and **dismissing without answering is deliberately not offered** — a close button that
+leaves the question open means the notice returns on the next page, which trains people to
+press whichever button makes it go away.
+
+`ag_privacy` holds one character and is `HttpOnly`: handing every page's scripts a privacy
+preference to read would add a fingerprinting surface to save a round trip nobody is
+making. The `return` field is re-validated server-side by `CookiePrefs::safeReturn()` —
+"begins with a slash" is not the check, because `//evil.example` is a protocol-relative URL
+a browser follows off-site.
+
+### The repair, and why the prose needed one
+
+`LegalSeeder::install()` never overwrites an existing document, so rewriting the seeder
+fixes a deployment that has never installed it and fixes **nothing** on production, which
+installed it long ago. `2027_01_23_cookie_policy_repair.php` updates the stored body **only
+where `updated_by IS NULL`** — the stamp `LegalService::save()` writes on every edit, so a
+NULL is the platform's own contemporaneous record that no person has claimed those words.
+It creates nothing (a missing policy heals itself on first request) and stamps no admin id
+(the next repair would read it as somebody's edit). Where an operator *has* edited, their
+words stand and the generated section still carries the facts under its own heading: **the
+prose is the promise, the generated section is the fact.**
+
+That migration runs against an empty table in the harness, so it would have shipped
+completely untested — the `gates_event_invites.audience` shape exactly. `CookiePolicyRepairTest`
+plants rows that look like production's and exercises both branches.
+
+### Also removed
+
+`templates/pages/privacy.twig` — unrouted, rendered by nothing, and carrying a **third**
+account of the cookies ("a remembered-locale cookie if you choose one, and a fingerprint
+hash used only for rate-limiting"), none of which matched either of the other two.
+
+### Tests
+
+`CookieRegistryTest` (6), `CookiePrefsTest` (12), `CookieChoiceScreenTest` (11),
+`CookiePolicyRepairTest` (5), `tests/Feature/CookieConsentRouteTest` (7, end-to-end through
+the real router and middleware stack), plus the rewritten cookie group in
+`LegalCoverageTest`. **Five mutations were run and all five were caught**: an undeclared
+cookie, an undeclared storage key, the precedence inverted so a stored yes beat a header,
+the notice's two buttons given different classes, and the migration's `updated_by` guard
+removed.
+
+`CsrfFieldNameTest` caught this feature's first draft shipping both forms with
+`name="csrf_token"` — the name of the Twig **global**, not of the field `CsrfMiddleware`
+reads, which is `_token`. A correct token in a box nothing opens: every press would have
+been rejected as a forgery, and the button would have looked broken rather than refused.

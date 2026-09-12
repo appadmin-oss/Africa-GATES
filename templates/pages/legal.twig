@@ -92,6 +92,12 @@
 
       {{ art.contents(groups, false) }}
 
+      {# /cookies only. The switch the page had promised for years and did not carry —
+         see partials/cookie-choice.twig. Above the body rather than below it, because
+         somebody who came here to turn something off should not have to read a policy
+         first to find out that they can. #}
+      {% if cookie_control %}{% include 'partials/cookie-choice.twig' %}{% endif %}
+
       {# The authored body. `|raw` is safe here and only here: LegalDocument has
          already put it through Html::sanitize(), and re-escaping it would print the
          markup instead of rendering it. #}

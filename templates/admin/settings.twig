@@ -919,6 +919,25 @@
 
       <div style="margin-top:10px"><label for="f-visits_days">Keep arrivals for <small>days — long enough to compare one campaign against the last</small></label>
         <input type="number" name="visits_days" id="f-visits_days" value="{{ visits_days_value }}" min="7" max="730"></div>
+
+      {# The posture, and it is a legal position rather than a preference. Both are
+         defensible and only one can be running, so the /cookies page is generated from
+         whichever this is — a page describing the wrong one is the fault the generated
+         section exists to end. See Services\CookiePrefs. #}
+      <div style="margin-top:14px"><label for="f-visits_consent_mode">Asking permission</label>
+        <select name="visits_consent_mode" id="f-visits_consent_mode">
+          <option value="exempt"{% if visits_mode != 'consent' %} selected{% endif %}>Count, unless a visitor says not to</option>
+          <option value="consent"{% if visits_mode == 'consent' %} selected{% endif %}>Ask first — count nobody until they agree</option>
+        </select>
+        <small style="display:block;margin-top:6px;color:#6b7472">
+          <strong>Count unless told not to</strong> is the default and needs no banner: the counting
+          stores nothing extra on the visitor's device, so there is nothing to ask permission to
+          store. Every visitor still gets a one-click switch on <a href="/cookies" target="_blank" rel="noopener">/cookies</a>.
+          <strong>Ask first</strong> puts a notice on every public page until each visitor answers,
+          and records nobody in the meantime — expect the arrivals report to show a fraction of the
+          traffic, because most people answer neither way.
+        </small>
+      </div>
       <p class="hint" style="margin:6px 0 0">Older rows are dropped by the maintenance run. A recorder with no pruner is a table that grows for the life of the deployment.</p>
 
       <p class="hint" style="margin:10px 0 0">Tag a link you share with <code>?utm_source=flier&amp;utm_campaign=gala26</code> and it will be counted by name in <a href="/admin/analytics">Analytics</a>.</p>

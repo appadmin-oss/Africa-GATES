@@ -3,7 +3,10 @@ declare(strict_types=1);
 
 namespace Tests\Unit;
 
+use AfricaGates\Services\LegalDocument;
 use AfricaGates\Services\LegalSeeder;
+use AfricaGates\Services\VisitTracker;
+use AfricaGates\Support\CookieRegistry;
 use AfricaGates\Services\LegalService;
 use Illuminate\Database\Capsule\Manager as DB;
 use Tests\TestCase;
@@ -81,15 +84,99 @@ final class LegalCoverageTest extends TestCase
 
     // ══ cookies: the true version, not the boilerplate one ═══════════════════
 
-    public function test_the_cookie_policy_describes_the_one_cookie_we_actually_set(): void
+    /**
+     * The page a reader is shown, not the row an operator can edit.
+     *
+     * ── WHY THESE THREE TESTS ARE NOT THE ONES THEY REPLACE ──────────────────
+     *
+     * The originals read `LegalSeeder::documents()['cookies']['body']` and asserted the
+     * facts were SPELLED there. That is why they went on passing while the document was
+     * wrong in both directions: it said "we set ONE cookie" when there were three, and
+     * "we run no analytics" while every arrival's source, campaign, landing page, device
+     * and country went into a table. One of them asserted the string `no analytics` was
+     * present — so the false claim was not merely unnoticed, it was ENFORCED, which is
+     * exactly what `SecurityHeadersTest` was doing with `camera=()` while the door's
+     * scanner was dead.
+     *
+     * The facts now come from {@see CookieRegistry} through
+     * {@see LegalDocument::cookiesHtml()}, so the question worth asking is no longer
+     * "does the body contain this sentence" but "does the PAGE describe the platform that
+     * is running" — and it is asked of the rendered document, authored half and generated
+     * half together, because that is what a reader gets.
+     */
+    private function cookiePage(): string
     {
-        $body = $this->docs()['cookies']['body'];
+        return LegalDocument::bodyHtml([
+            'slug'      => 'cookies',
+            'body_html' => $this->docs()['cookies']['body'],
+        ]);
+    }
 
-        $this->assertStringContainsString('PHPSESSID', $body);
-        $this->assertStringContainsString('HttpOnly', $body);
-        $this->assertStringContainsString('SameSite=Lax', $body);
-        // Seven days, matching session_set_cookie_params() in public/index.php.
-        $this->assertStringContainsString('Seven days', $body);
+    public function test_the_cookie_page_lists_every_cookie_the_platform_can_set(): void
+    {
+        $page = $this->cookiePage();
+
+        foreach (CookieRegistry::names() as $name) {
+            $this->assertStringContainsString($name, $page,
+                "the platform can set '{$name}' and the published policy never mentions it");
+        }
+
+        $this->assertStringContainsString('HttpOnly', $page);
+        $this->assertStringContainsString('SameSite=Lax', $page);
+    }
+
+    public function test_the_cookie_page_does_not_claim_a_smaller_number_than_the_registry(): void
+    {
+        // The exact sentence that shipped, and the shape of it: a policy that commits to a
+        // COUNT in prose is a policy that goes wrong the next time somebody adds a cookie.
+        // There are four now and the point is not the number — it is that no number is
+        // typed anywhere, so none can be outlived.
+        $this->assertGreaterThan(1, CookieRegistry::count(),
+            'if this ever drops to one, the prose below may say so — until then it must not');
+
+        $page = strtolower($this->cookiePage());
+
+        foreach (['we set <strong>one cookie</strong>', 'we set one cookie',
+                  'this platform sets one cookie', 'only one cookie'] as $claim) {
+            $this->assertStringNotContainsString($claim, $page,
+                'the policy is counting cookies in prose again — it is generated for a reason');
+        }
+    }
+
+    public function test_the_cookie_page_admits_the_counting_this_platform_actually_does(): void
+    {
+        // THE FAULT THIS EXISTS BECAUSE OF: the previous version of this test asserted the
+        // string 'no analytics' was PRESENT, while VisitTracker recorded every arrival.
+        // The claim worth protecting is the narrow one — that nothing here reports a visit
+        // to a third party — and the claim that must never return is the broad one.
+        $page = strtolower($this->cookiePage());
+
+        foreach (['we run no analytics', 'no analytics, no advertising',
+                  'runs no analytics'] as $claim) {
+            $this->assertStringNotContainsString($claim, $page,
+                'VisitTracker records every arrival; a page saying otherwise is a false '
+                . 'statement in a legal notice');
+        }
+
+        // What it must say instead, because a visitor cannot refuse what they are not told.
+        $this->assertStringContainsString('counting arrivals', $page);
+        $this->assertStringContainsString('one row for each visit', $page);
+        // The narrow claim survives, and it is the true one.
+        $this->assertStringContainsString('no google analytics', $page);
+
+        // And the switch, which is the whole point: for years the only way to refuse was a
+        // header Chrome and Safari no longer send.
+        $this->assertStringContainsString('you can say no', $page);
+    }
+
+    public function test_the_cookie_page_states_the_retention_the_code_will_actually_apply(): void
+    {
+        // A number typed into a policy beside a setting an operator can change is this
+        // repository's most-repeated fault. Rendered twice against different retentions,
+        // the figure must move.
+        $this->assertStringContainsString(
+            (string) VisitTracker::keepDays(), $this->cookiePage(),
+            'the retention on the page is not the retention the pruner will use');
     }
 
     public function test_the_cookie_policy_matches_what_the_code_configures(): void
@@ -108,17 +195,26 @@ final class LegalCoverageTest extends TestCase
         // The real failure mode for this document. The standard template describes
         // analytics, advertising and preference cookies; we have none of them, and saying
         // otherwise is a false statement in a legal notice.
-        $body = strtolower($this->docs()['cookies']['body']);
+        //
+        // MATCHED ON THE CLAIM AND NOT ON THE PRODUCT NAME. This used to forbid the bare
+        // string 'google analytics', which reads as a check and is not one: the sentence
+        // worth having on this page is "there is NO Google Analytics here", and forbidding
+        // the name forbids saying so. A sweep that cannot tell a denial from an admission
+        // pushes the page towards saying nothing, which is how it got vague enough to be
+        // wrong in the first place.
+        $body = strtolower($this->cookiePage());
 
-        foreach (['google analytics', 'advertising cookie', 'targeting cookie',
-                  'we use cookies to personalise ads'] as $boilerplate) {
-            $this->assertStringNotContainsString($boilerplate, $body);
+        foreach (['we use google analytics', 'advertising cookie', 'targeting cookie',
+                  'we use cookies to personalise ads', 'our advertising partners',
+                  'third-party analytics'] as $boilerplate) {
+            $this->assertStringNotContainsString($boilerplate, $body,
+                'the policy is claiming something this platform does not do');
         }
 
-        $this->assertStringContainsString('no analytics', $body);
-        // And it explains the ABSENCE of a banner, because otherwise that looks like an
-        // oversight rather than a consequence of not tracking anybody.
-        $this->assertStringContainsString('banner', $body);
+        // And it explains the absence of a banner, because otherwise that looks like an
+        // oversight rather than a consequence. It is generated now, from the posture the
+        // operator actually set — see LegalDocument::cookiesHtml().
+        $this->assertStringContainsString('banner', strtolower($this->cookiePage()));
     }
 
     public function test_the_platform_really_has_no_third_party_trackers(): void
@@ -141,8 +237,18 @@ final class LegalCoverageTest extends TestCase
         // over-claiming or hiding something.
         $body = $this->docs()['cookies']['body'];
 
-        $this->assertStringContainsString('which are not cookies', $body);
-        $this->assertStringContainsString('It never leaves your device', $body);
+        $page = $this->cookiePage();
+
+        $this->assertStringContainsString('which are not cookies', $page);
+        $this->assertStringContainsString('never leaves your device', $page);
+
+        // And every key the shipped code writes is on that list. A storage key added
+        // without a registry entry is caught by CookieRegistryTest; this holds the other
+        // half — that the registry reaches the page.
+        foreach (CookieRegistry::storage() as $item) {
+            $this->assertStringContainsString($item['key'], $page,
+                "browser storage key '{$item['key']}' is declared and never published");
+        }
     }
 
     // ══ refunds: what the code does, stated plainly ══════════════════════════

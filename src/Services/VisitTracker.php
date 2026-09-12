@@ -31,7 +31,9 @@ use Psr\Http\Message\ServerRequestInterface as Request;
  * tracked. The first four are noise that would drown the signal; the last is the point.
  * `Do Not Track` and `Sec-GPC` are honoured — not because they are enforceable, but
  * because this table exists to tell an organiser which flier worked, and no answer to
- * that question is worth ignoring somebody who said no.
+ * that question is worth ignoring somebody who said no. They were also, for a long time,
+ * the ONLY way to say no, which meant most visitors had none: see {@see CookiePrefs},
+ * which owns that decision now and adds a choice a person can actually make.
  */
 final class VisitTracker
 {
@@ -92,7 +94,10 @@ final class VisitTracker
                 if (str_starts_with($path, $prefix)) return '';
             }
 
-            if (self::optedOut($request) || self::looksLikeBot($request)) return '';
+            // One resolver for "may we count this person", and it is not this class:
+            // the answer now includes a choice they can make on /cookies, not only a header
+            // two of the three major browsers stopped sending. See CookiePrefs.
+            if (!CookiePrefs::analyticsAllowed($request) || self::looksLikeBot($request)) return '';
 
             $q      = $request->getQueryParams();
             $ref    = self::header($request, 'Referer');
@@ -363,12 +368,6 @@ final class VisitTracker
         if ($ip === '') return null;
 
         return hash('sha256', $ip . '|' . Carbon::now()->toDateString());
-    }
-
-    /** Do Not Track, and Global Privacy Control. */
-    private static function optedOut(Request $request): bool
-    {
-        return self::header($request, 'DNT') === '1' || self::header($request, 'Sec-GPC') === '1';
     }
 
     private static function looksLikeBot(Request $request): bool

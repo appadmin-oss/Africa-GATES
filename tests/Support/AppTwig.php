@@ -58,6 +58,13 @@ final class AppTwig
             'asset'         => [\AfricaGates\Support\Assets::class, 'url'],
             'media_url'     => [\AfricaGates\Support\Media::class, 'url'],
             'tz_abbr'       => [\AfricaGates\Support\DisplayTime::class, 'abbr'],
+            // The site layout asks these on every render. They are the REAL resolver, not
+            // a stub returning false: a stub would make every render test agree that the
+            // consent notice is never drawn, which is the one thing about it worth
+            // testing. CookiePrefs answers from a per-request memo nothing primes here, so
+            // an unprimed test render correctly gets "do not ask".
+            'cookie_ask'    => [\AfricaGates\Services\CookiePrefs::class, 'asking'],
+            'cookie_return' => [\AfricaGates\Services\CookiePrefs::class, 'returnPath'],
         ] as $name => $callable) {
             $twig->addFunction(new TwigFunction($name, $callable));
         }

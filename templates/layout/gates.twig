@@ -706,6 +706,12 @@ window.agAnnounce = function (msg) {
   });
 })();
 </script>
+{# The consent notice, when the operator has chosen to ask first and this visitor has
+   not answered. Last in the body and NOT inside any page form: the HTML parser silently
+   DELETES a <form> start tag while a form is already open, keeps its children, and posts
+   the buttons to the outer action — which here would submit whatever page the visitor
+   was reading to /cookies/choice. See tests/Unit/NestedFormTest.php. #}
+{% if cookie_ask() %}{% include 'partials/cookie-notice.twig' with { cookie_return: cookie_return() } %}{% endif %}
 {% block foot_scripts %}{% endblock %}
 </body>
 </html>

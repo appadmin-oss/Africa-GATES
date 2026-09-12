@@ -1,0 +1,105 @@
+{#
+  ══════════════════════════════════════════════════════════════════════════════
+  THE CHOICE — the switch that /cookies promised and did not have
+  ══════════════════════════════════════════════════════════════════════════════
+
+  For years the only way to refuse arrival counting on this site was to send `DNT`
+  or `Sec-GPC`. Chrome removed the Do Not Track setting and Safari removed it before
+  that, so for most of this platform's visitors — Chrome on an Android phone — there
+  was no way to say no at all, while the same page promised "you will be asked
+  before it runs".
+
+  So this is the part that has to work with nothing else: no JavaScript, no
+  Alpine, no fetch. It is a plain form with two submit buttons and it posts. A
+  privacy control that needs scripts to run is a privacy control that is missing
+  for exactly the people most likely to have switched scripts off.
+
+  ── WHY TWO BUTTONS AND NOT A TOGGLE ────────────────────────────────────────
+
+  Because a toggle has to be read before it can be used — you have to work out
+  which way is on — and because the accessible name of a switch changes meaning
+  depending on its state, which is the one control type screen-reader users most
+  often report having to test by flipping. Two buttons each say what pressing them
+  does. The current state is stated above them in words, once, and the button for
+  the state you are already in is not drawn: pressing it would do nothing, and a
+  dead control is worse than an absent one.
+
+  ── THE STATE IS SERVER-RENDERED ────────────────────────────────────────────
+
+  `ag_privacy` is HttpOnly, so nothing here could read it even if it wanted to.
+  That is deliberate: handing every page's scripts a privacy preference to read
+  adds a fingerprinting surface to save a round trip we are not making.
+#}
+{% set c = cookie_control %}
+
+<style nonce="{{ csp_nonce }}">
+  .ck{border:1px solid #d7dcdb;background:#fff;border-radius:14px;padding:1.4rem 1.5rem;margin:0 0 2rem}
+  .ck__kicker{font:600 11px/1 ui-monospace,SFMono-Regular,Menlo,monospace;letter-spacing:.14em;
+              text-transform:uppercase;color:#6b7472;margin:0 0 .75rem}
+  .ck__state{display:flex;align-items:baseline;gap:.6rem;flex-wrap:wrap;margin:0 0 .45rem}
+  .ck__now{font:700 1.22rem/1.25 Georgia,'Times New Roman',serif;color:#16211f;margin:0}
+  /* The one colour on the card, and it earns it: this chip is the whole answer.
+     Emerald is the house action colour and is reserved — counting that is running
+     is not an action, so the "on" state takes the gold accent and the refused
+     state takes a plain slate. Nothing here should read as a warning: refusing is
+     not an error and must not be dressed as one. */
+  .ck__chip{font:600 11px/1 ui-monospace,SFMono-Regular,Menlo,monospace;letter-spacing:.1em;
+            text-transform:uppercase;padding:.38rem .6rem;border-radius:999px;white-space:nowrap}
+  .ck__chip--on{background:#fdf3d6;color:#7a5a05;border:1px solid #f3b416}
+  .ck__chip--off{background:#eef1f1;color:#41504d;border:1px solid #ccd4d2}
+  .ck__why{font-size:.95rem;line-height:1.6;color:#44514f;margin:0 0 1.1rem;max-width:60ch}
+  .ck__why:last-child{margin-bottom:0}
+  .ck__act{display:flex;gap:.7rem;flex-wrap:wrap;align-items:center}
+  .ck__btn{font:600 .95rem/1 inherit;padding:.72rem 1.15rem;border-radius:10px;cursor:pointer;
+           border:1px solid #237b22;background:#237b22;color:#fff}
+  .ck__btn:hover{background:#1c661b;border-color:#1c661b}
+  .ck__btn--quiet{background:#fff;color:#16211f;border-color:#cfd6d4}
+  .ck__btn--quiet:hover{background:#f0f2f2}
+  .ck__btn:focus-visible{outline:3px solid #f3b416;outline-offset:2px}
+  .ck__note{font-size:.86rem;color:#6b7472;margin:1rem 0 0;max-width:62ch}
+  .ck__saved{font:600 .9rem/1.4 inherit;color:#1c661b;margin:0 0 .9rem}
+  @media (max-width:520px){ .ck__act{flex-direction:column;align-items:stretch} }
+</style>
+
+<section class="ck" id="your-choice" aria-labelledby="ck-h">
+  <p class="ck__kicker">Your choice</p>
+
+  {% if c.saved %}
+    {# Shown once, on the redirect after a press. A control that changes nothing you
+       can see is a control people press twice. #}
+    <p class="ck__saved" role="status">Saved. {{ c.saved_word }}</p>
+  {% endif %}
+
+  <div class="ck__state">
+    <h2 class="ck__now" id="ck-h">{{ c.headline }}</h2>
+    <span class="ck__chip ck__chip--{{ c.counting ? 'on' : 'off' }}">
+      {{ c.counting ? 'Counting this visit' : 'Not counting' }}
+    </span>
+  </div>
+
+  <p class="ck__why">{{ c.explanation }}</p>
+
+  {% if c.locked %}
+    {# Their browser said no. Drawing a "yes" button here would be offering to
+       overrule them, and we have decided not to — so we say so instead of
+       pretending the choice is open. #}
+    <p class="ck__note">{{ c.locked_note }}</p>
+  {% else %}
+    <form method="post" action="/cookies/choice" class="ck__act">
+      <input type="hidden" name="_token" value="{{ csrf_token }}">
+      {% if c.counting %}
+        <button type="submit" name="choice" value="no" class="ck__btn">Do not count my visits</button>
+        <a class="ck__btn ck__btn--quiet" href="#counting-arrivals" style="text-decoration:none">What is counted?</a>
+      {% else %}
+        <button type="submit" name="choice" value="yes" class="ck__btn">Count my visits</button>
+        <a class="ck__btn ck__btn--quiet" href="#counting-arrivals" style="text-decoration:none">What would be counted?</a>
+      {% endif %}
+    </form>
+  {% endif %}
+
+  <p class="ck__note">
+    Remembering your answer needs one cookie of its own, <code>{{ c.cookie_name }}</code>. It holds a
+    single character &mdash; a yes or a no &mdash; and no identifier of any kind. It is the record of
+    your decision, so it is the one thing here we cannot offer to remove.
+  </p>
+</section>

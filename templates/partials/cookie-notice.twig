@@ -1,0 +1,72 @@
+{#
+  ══════════════════════════════════════════════════════════════════════════════
+  THE NOTICE — shown only when the operator has chosen to ask first
+  ══════════════════════════════════════════════════════════════════════════════
+
+  Drawn only when {@see CookiePrefs::mustAsk()} is true, which means all four of:
+  the operator set `visits_consent_mode` to `consent`, the tracker is switched on,
+  the visitor has not already answered, and their browser has not answered for
+  them. That last condition matters most — asking somebody to agree to something we
+  have already decided not to do is a dark pattern, and it is one whether or not
+  anybody intended it.
+
+  ── WHY THE OPERATOR'S SETTING NEEDED A BANNER TO GO WITH IT ────────────────
+
+  Because a `consent` mode with nowhere to consent is a switch that silently
+  counts nobody for ever. The visitor is never asked, so the answer is never yes,
+  so the report goes quiet and the screen says "nobody came". The mode and the
+  question are one feature and had to ship together.
+
+  ── NO DARK PATTERNS, AND THAT IS A LIST OF SPECIFICS ───────────────────────
+
+  Both answers are one press, both are the same size, the same shape and the same
+  weight, and neither is a link dressed as text. Nothing is pre-selected. The page
+  behind stays readable and scrollable — this is not a modal and there is no
+  overlay — because holding a policy page hostage until somebody agrees to be
+  counted is the behaviour the rules exist to stop. It works with scripts off: it
+  is a form, and it posts.
+
+  Dismissing without answering is deliberately NOT offered. A close button that
+  leaves the question unanswered means the notice returns on the next page, which
+  trains people to click whichever button makes it go away — and that is the
+  consent those designs actually collect.
+#}
+<style nonce="{{ csp_nonce }}">
+  .cn{position:fixed;inset:auto 1rem 1rem 1rem;z-index:60;max-width:44rem;margin-inline:auto;
+      background:#fff;border:1px solid #cfd6d4;border-radius:14px;
+      box-shadow:0 12px 34px rgba(12,24,22,.16);padding:1.15rem 1.25rem}
+  .cn__t{font:700 1.02rem/1.35 Georgia,'Times New Roman',serif;color:#16211f;margin:0 0 .4rem}
+  .cn__p{font-size:.92rem;line-height:1.55;color:#44514f;margin:0 0 1rem;max-width:62ch}
+  .cn__p a{color:#16211f}
+  .cn__row{display:flex;gap:.6rem;flex-wrap:wrap;align-items:center}
+  /* Equal weight, and that is the requirement rather than the taste: the two
+     buttons differ only in the word on them. */
+  .cn__b{font:600 .92rem/1 inherit;padding:.68rem 1.1rem;border-radius:10px;cursor:pointer;
+         border:1px solid #237b22;background:#fff;color:#16211f;flex:0 0 auto}
+  .cn__b:hover{background:#f0f2f2}
+  .cn__b:focus-visible{outline:3px solid #f3b416;outline-offset:2px}
+  .cn__more{font-size:.86rem;color:#6b7472;margin-left:auto}
+  @media (max-width:560px){
+    .cn{inset:auto .6rem .6rem .6rem;padding:1rem}
+    .cn__row{flex-direction:column;align-items:stretch}
+    .cn__b{width:100%}
+    .cn__more{margin:.5rem 0 0;text-align:center}
+  }
+</style>
+
+<aside class="cn" role="region" aria-labelledby="cn-t">
+  <p class="cn__t" id="cn-t">May we count this visit?</p>
+  <p class="cn__p">
+    One row, so that whoever shared the link you followed can find out whether it worked.
+    It is ours alone &mdash; no Google Analytics, no advertising pixel, nothing that reports
+    your visit to another company &mdash; and we keep no IP address.
+    <a href="/cookies#counting-arrivals">What exactly is recorded</a>.
+  </p>
+  <form method="post" action="/cookies/choice" class="cn__row">
+    <input type="hidden" name="_token" value="{{ csrf_token }}">
+    <input type="hidden" name="return" value="{{ cookie_return|default('/') }}">
+    <button type="submit" name="choice" value="yes" class="cn__b">Yes, count it</button>
+    <button type="submit" name="choice" value="no" class="cn__b">No, thank you</button>
+    <span class="cn__more">Either way, the site works the same.</span>
+  </form>
+</aside>
