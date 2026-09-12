@@ -33,7 +33,11 @@
   .vp-card{ display:flex; gap:14px; align-items:center; background:var(--ag-surface,#fff); border:1px solid rgba(16,41,44,.08); border-radius:16px; padding:13px; text-decoration:none; color:inherit; transition:transform .15s, box-shadow .15s, border-color .15s; }
   .vp-card:hover{ transform:translateY(-2px); border-color:rgba(16,41,44,.16); box-shadow:0 16px 34px -24px rgba(16,41,44,.45); }
   .vp-card__av{ flex:none; width:58px; height:58px; border-radius:13px; background-size:cover; background-position:center top; background-color:#10292C; display:flex; align-items:center; justify-content:center; }
-  .vp-card__mono{ font-family:var(--ag-font-display,serif); font-weight:800; font-size:24px; color:#7FC87C; }
+  /* The initial standing in for a missing photograph. `#7FC87C` is 2.01:1 on this
+     white card — below even the 3:1 large-text floor — so a reader with low vision
+     saw a blank square where a face goes. It is aria-hidden decoration and still
+     has to be visible: the sighted reader is the only one it is for. */
+  .vp-card__mono{ font-family:var(--ag-font-display,serif); font-weight:800; font-size:24px; color:var(--ag-action-ink); }
   .vp-card__b{ flex:1; min-width:0; }
   .vp-card__name{ font-weight:700; font-size:15px; color:var(--ag-ink); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
   /* Shortlisted. Deliberately quiet: it is a fact about a nominee, not a call to

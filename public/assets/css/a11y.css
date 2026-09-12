@@ -33,6 +33,27 @@
    while keeping the muted look. Decorative SVG strokes are exempt. */
 .ac-row__d, .ac-row__bal { color: #5f7273 !important; }
 
+/* ── SC 2.5.8 TARGET SIZE (MINIMUM), AA — 24x24, ON EVERY POINTER ─────────────
+   The block below raises targets to 44px on a COARSE pointer, which is the AAA
+   figure and the right one for a phone. It left 2.5.8 unmet on every other input:
+   the AA minimum is 24x24 CSS px and it is not conditional on the pointer — a
+   head pointer, an eye tracker, a trackpad used with a tremor, and a touchscreen
+   reporting itself as fine all land here.
+
+   24 and not 44, deliberately. This is the floor, applied to everything; raising
+   the floor to 44 site-wide would inflate every inline control on a dense admin
+   table an operator uses all day, which is the other way to fail people.
+
+   2.5.8's spacing exception means an under-size target passes if a 24px circle
+   centred on it overlaps no other — real for inline link clusters in prose, which
+   is why this reaches for controls rather than for `a` in running text. */
+button, [role="button"], input[type="submit"], input[type="button"],
+input[type="reset"], select, summary, [role="tab"], [role="switch"],
+.nm-next, .nm-back, .vn-go, .ed-cta, .ag-maf__btn {
+  min-height: 24px;
+  min-width: 24px;
+}
+
 /* ── Touch-target minimums on coarse pointers (WCAG 2.5.8) ────────────── */
 @media (pointer: coarse) {
   button, [role="button"], input[type="submit"], input[type="button"],
@@ -44,10 +65,32 @@
   }
 }
 
+/* ── SC 2.4.11 FOCUS NOT OBSCURED (MINIMUM), AA ───────────────────────────────
+   THE FAULT: `.ag-nav` is `position:sticky; top:0` and `.ag-mobnav` is
+   `position:fixed; bottom:0` — so a keyboard user tabbing down the page has each
+   newly-focused control scrolled to the very edge of the viewport and then covered
+   by one of them. The focus ring is behind the chrome, and the reader cannot see
+   where they are. WCAG 2.2's own guidance names sticky headers and cookie banners
+   as the usual culprits, and this site has both.
+
+   `scroll-padding` on the scroll container is the fix, and it is the whole fix:
+   the browser honours it whenever it scrolls a focused element into view, so this
+   covers every control on every page including ones added later — which is the
+   difference between a rule and a list of fixes. `:target` inherits it, so the
+   anchor-jump margin below is now the same number said once.
+
+   The values are the chrome's own heights from base/tokens.css. A number typed
+   here would be wrong the first time a nav grew a row. */
+html {
+  scroll-padding-top: calc(var(--ag-nav-h, 72px) + 18px);
+  scroll-padding-bottom: calc(var(--ag-mobile-nav-h, 64px) + 18px);
+}
+
 /* ── :target landing highlight (skip-link / anchor jumps stay visible) ── */
 :target {
-  scroll-margin-top: 90px;
+  scroll-margin-top: calc(var(--ag-nav-h, 72px) + 18px);
 }
+
 main:target, section:target, div[id]:target {
   animation: ag-target-flash 1.2s ease 1;
 }

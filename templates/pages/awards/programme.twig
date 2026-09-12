@@ -90,7 +90,7 @@
     <div class="card-grid">
       {% for c in a.categories %}
       <div class="card">
-        {% if c.leader and loop.first %}<p class="eyebrow" style="color:#e0245e;margin:0 0 6px">Hottest race</p>{% endif %}
+        {% if c.leader and loop.first %}<p class="eyebrow" style="color:var(--ag-live-ink);margin:0 0 6px">Hottest race</p>{% endif %}
         <h3 class="card__title">{{ c.title }}</h3>
         <p class="card__deck">{{ c.description|default('Recognition for outstanding contribution in this category.') }}</p>
 

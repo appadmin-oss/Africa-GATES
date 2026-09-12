@@ -76,7 +76,7 @@
       path = d3.geoPath(projection, ctx),
       fmt  = d3.format(','),
       W=0,H=0,dots=[],afr=[],marks=[],busiest=null,anyDecided=false,ready=false,t0=performance.now(),
-      spin=!reduced, base=1, drag=null, sel=null, onScreen=true,
+      spin=!reduced, base=1, drag=null, sel=null, onScreen=true, goal=null,
       ROT = d3.geoRotation(projection.rotate());
 
   function resize(){
@@ -144,6 +144,15 @@
         + (c.decided ? ', award decided' : ''));
       el.innerHTML = (c.decided ? CHECK : '') + '<span class="node__lb">' + c.name + '</span>';
       el.addEventListener('click', function(e){ e.stopPropagation(); openCountry(f.properties.name); });
+      /* `focus`, not `focusin`: the button is the only focusable thing in it.
+         The centroid is already computed below for drawing, so turning to a
+         marker is the negation of its own longitude and latitude — nothing is
+         looked up and nothing can drift from where the marker actually is. */
+      el.addEventListener('focus', function(){
+        var ll = d3.geoCentroid(f);
+        goal = [-ll[0], Math.max(-56, Math.min(56, -ll[1]))];
+      });
+      el.addEventListener('blur', function(){ goal = null; });
       out.push({ el: el, ll: d3.geoCentroid(f), c: c });
     });
     /* Busiest last, so it paints over a neighbour when two centroids are close. */
@@ -174,6 +183,30 @@
   function closeCard(){ sel = null; card.classList.remove('is-in'); spin = !reduced; }
   q('[data-globe-close]').addEventListener('click', closeCard);
   document.addEventListener('keydown', function(e){ if (e.key === 'Escape') closeCard(); });
+
+  /* ── THE SINGLE-POINTER ALTERNATIVE TO THE DRAG (WCAG 2.5.7) ──────────────
+     The stage is focusable and the arrows turn it. Not a mouse-only affordance
+     dressed up: this is also how somebody using a head pointer, a switch, or any
+     device that cannot express a drag path reaches the far side of the sphere.
+     The step is large enough to be worth pressing and small enough to aim with. */
+  stage.setAttribute('tabindex', '0');
+  stage.setAttribute('role', 'application');
+  stage.setAttribute('aria-label', 'Globe of nations. Use the arrow keys to turn it, '
+    + 'or tab to a nation to hear its figures.');
+  stage.addEventListener('keydown', function(e){
+    var STEP = 12, r = projection.rotate(), dx = 0, dy = 0;
+    if (e.key === 'ArrowLeft')       dx = -STEP;
+    else if (e.key === 'ArrowRight') dx =  STEP;
+    else if (e.key === 'ArrowUp')    dy = -STEP;
+    else if (e.key === 'ArrowDown')  dy =  STEP;
+    else return;
+    /* Only once it is doing something: an arrow press that scrolls the page AND
+       turns the globe does neither thing the reader meant. */
+    e.preventDefault();
+    spin = false;
+    goal = null;
+    projection.rotate([r[0] + dx, Math.max(-56, Math.min(56, r[1] + dy)), 0]);
+  });
 
   canvas.addEventListener('click', function(e){
     var r = canvas.getBoundingClientRect(),
@@ -223,8 +256,33 @@
     var dt = Math.min(0.05, (now - last)/1000); last = now;
     var t = (now - t0)/1000;
 
-    /* gentle sway around the Africa-facing view — never rotates the continent out of frame */
-    if (spin && !drag){
+    /* ── A KEYBOARD USER WAS LANDING ON INVISIBLE BUTTONS ────────────────
+       A marker on the far side of the sphere is drawn at `opacity:0` with
+       `pointerEvents:none` — and it is still a <button> in the DOM, so it kept
+       its place in the tab order. Tabbing through this band therefore walked a
+       keyboard user through nations they could not see, with the focus ring at
+       zero opacity: no visible focus at all (WCAG 2.4.7), on a control that is
+       there (2.4.11).
+
+       And the same component failed 2.5.7 Dragging Movements: rotation was
+       drag-only, with no single-pointer or keyboard path to bring a different
+       part of the sphere into view.
+
+       Both are one fix. Focus a marker and the globe TURNS TO IT, easing through
+       the loop that already exists rather than a second animation path — so a
+       marker is never focused while invisible, and rotation is operable from the
+       keyboard, which is the alternative 2.5.7 asks for. Arrow keys on the stage
+       do it directly.
+
+       `goal` wins over the sway while it is set, and is cleared on blur. */
+    if (goal && !drag){
+      var g = projection.rotate(), ease = reduced ? 1 : Math.min(1, dt*4.5);
+      projection.rotate([
+        g[0] + (goal[0] - g[0]) * ease,
+        g[1] + (goal[1] - g[1]) * ease,
+        0
+      ]);
+    } else if (spin && !drag){
       var r = projection.rotate(), target = -19 + 13*Math.sin(t/13);
       projection.rotate([
         r[0] + (target - r[0]) * Math.min(1, dt*2.2),
