@@ -3,7 +3,21 @@
 **The verification design.** Companion to `NOMINEE-CLAIMING-PLAN.md`, which
 covers what claiming *is*; this covers how somebody proves they are who they say.
 
-Status: decided, not built · Date: August 2026
+Status: **mostly built** · Decided August 2026 · Last checked against the code
+September 2026
+
+> **What is built.** The claim bar and the independence test (§1–§2) are live in
+> `ClaimIndependence` and `NomineeClaimService`, and go further than this document
+> asks: plus-addressing and Gmail dot-aliases are folded before comparison, and the
+> device and IP are compared on the request that CONFIRMS rather than the one that
+> started. The hold-not-refuse rule, the assisted ticket, the cooling-off window,
+> the "this was not me" link and the fan-out notification are all live.
+>
+> **What is not.** The questionnaire (§2, "proving by knowing") is still a design.
+>
+> This line said "decided, not built" for a month after most of it shipped, which is
+> the same hazard as prose outliving code running the other way: somebody reads it and
+> rebuilds what is already there. Check it against the code when you change either.
 
 ---
 

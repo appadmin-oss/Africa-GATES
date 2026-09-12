@@ -83,10 +83,25 @@ final class NomineeClaimService
      * for the whole page. Roughly thirty requests could therefore lock a real nominee out
      * of claiming their own page until tomorrow, from anywhere, with no account.
      *
-     * The budget that stops brute force now lives PER CLIENT (below), so one attacker
-     * cannot spend another person's. This remains as the last line, and is still nowhere
-     * near walkable: a 6-digit code lives ten minutes in a space of a million, so sixty
-     * guesses is a 0.006% chance. Small enough to ignore, large enough not to be a weapon.
+     * The budget that stops one person spending another's lives PER CLIENT (below). This
+     * remains as the last line: a 6-digit code lives ten minutes in a space of a million,
+     * so sixty guesses is a 0.006% chance. Small enough to ignore, large enough not to be
+     * a weapon.
+     *
+     * ── AND WHY THE PER-CLIENT BUDGET IS NOT THE BRUTE-FORCE CONTROL ─────────
+     *
+     * This docblock used to say the per-client budget was what stopped brute force, and
+     * that was wrong in a way nothing on any screen would show. The client key is
+     * {@see \AfricaGates\Support\ClientIp::browser()}, which is a RANDOM TOKEN STORED IN
+     * THE CALLER'S OWN SESSION — so an attacker who discards a cookie is a new client,
+     * free, on every request. Those limits bind an honest person who keeps their session
+     * and nobody else.
+     *
+     * What an attacker genuinely cannot rotate is a key on the TARGET. With only the two
+     * that existed, the real ceiling for one nominee was {@see CLAIMS_PER_DAY} codes times
+     * sixty guesses each — 360 a day, 0.036%, and a sustained campaign against one
+     * well-known person gets past a tenth in a year. {@see WRONG_PER_PAGE_HOUR} is the
+     * missing dimension, and it is keyed on the page being attacked.
      */
     private const MAX_TOKEN_ATTEMPTS = 60;
 
@@ -99,6 +114,29 @@ final class NomineeClaimService
      */
     private const CONFIRMS_PER_CLAIM = 5;
     private const CONFIRMS_PER_HOUR  = 20;
+
+    /**
+     * WRONG guesses anyone at all may make against one nominee's page in an hour.
+     *
+     * Keyed on the TARGET, which is the only key an attacker cannot mint a fresh one of.
+     * It is what actually caps brute force; the per-client budgets above cap nothing for
+     * somebody willing to drop a cookie.
+     *
+     * ── AND IT CANNOT LOCK THE REAL NOMINEE OUT, WHICH IS THE WHOLE DESIGN ───
+     *
+     * A budget on the page is the shape that reintroduces the defect
+     * {@see MAX_TOKEN_ATTEMPTS} exists to prevent: a stranger burns it and the person
+     * whose page it is cannot get in. So only a WRONG guess spends it, and the check
+     * happens only after a guess turns out to be wrong — a correct code is never gated by
+     * it, however much of the budget somebody else has burned. An attacker can therefore
+     * buy silence for an hour and nothing else, while the nominee with the right code in
+     * their hand walks straight through.
+     *
+     * Forty because a real person mistyping their own code is capped at five by the
+     * per-claim budget long before this, and forty wrong guesses against one page in an
+     * hour is not something an honest hour produces.
+     */
+    private const WRONG_PER_PAGE_HOUR = 40;
 
     /**
      * Codes one browser may request per hour, and claims one PAGE may collect per day.
@@ -264,6 +302,17 @@ final class NomineeClaimService
         $nomineeId = (int) $claim->nominee_id;
         $token     = $this->consumeToken($nomineeId, $code);
         if ($token['ok'] !== true) {
+            // A WRONG guess, and only now does it cost the page's budget. Spending it
+            // before the check would let a stranger lock the real nominee out with
+            // nonsense, which is the defect MAX_TOKEN_ATTEMPTS was raised to sixty to
+            // avoid; spending it after means the budget can only ever deny an attacker
+            // the ANSWER, never deny the nominee the door.
+            if (!$this->withinPageGuessBudget($nomineeId)) {
+                return $this->no('TOO_MANY_ATTEMPTS',
+                    'Too many wrong codes have been tried against this page in the last hour. '
+                    . 'Please wait, or write to ' . Notifier::supportEmail()
+                    . ' and a person will help. There is nothing to pay.');
+            }
             return $this->no($token['code'], $token['message']);
         }
 
@@ -834,6 +883,22 @@ HTML;
             return false;
         }
         return $this->limits->check($clientKey, 'claim_confirm_any', self::CONFIRMS_PER_HOUR, 3600);
+    }
+
+    /**
+     * Has this PAGE absorbed more wrong guesses than an hour can honestly contain?
+     *
+     * Called only after a guess has already turned out to be wrong — see the note on
+     * {@see WRONG_PER_PAGE_HOUR} for why that ordering is the whole point.
+     *
+     * With no limiter configured (the CLI, and tests that inject none) this is open, and
+     * {@see MAX_TOKEN_ATTEMPTS} carries the policy exactly as it did before.
+     */
+    private function withinPageGuessBudget(int $nomineeId): bool
+    {
+        if ($this->limits === null) return true;
+        return $this->limits->check('claim-wrong:' . $nomineeId, 'claim_wrong_page',
+                                    self::WRONG_PER_PAGE_HOUR, 3600);
     }
 
     // ══ helpers ══════════════════════════════════════════════════════════════

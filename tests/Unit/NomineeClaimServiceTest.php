@@ -159,6 +159,84 @@ final class NomineeClaimServiceTest extends TestCase
         $this->fail("no {$kind} channel offered");
     }
 
+    // ══ BRUTE FORCE, AND THE KEY AN ATTACKER CANNOT ROTATE ═══════════════════
+
+    /**
+     * THE PER-CLIENT BUDGETS DO NOT BIND AN ATTACKER, AND USED TO BE RELIED ON.
+     *
+     * `MAX_TOKEN_ATTEMPTS`'s docblock said the per-client budget was what stopped brute
+     * force. The client key is a RANDOM TOKEN IN THE CALLER'S OWN SESSION, so a new
+     * cookie is a new client at no cost — those limits bind an honest person who keeps
+     * their session and nobody else. This walks the attack the old reasoning permitted.
+     */
+    public function test_a_rotating_client_key_does_not_buy_unlimited_guesses(): void
+    {
+        $this->nomination();
+        $mailer = new ClaimFlowMailer();
+        $limits = new RateLimitService();
+        $svc    = $this->service($mailer, null, $limits);
+
+        $start = $svc->start($this->nomineeId, $this->channel($svc, 'email')['key'], '', '', 'client-0');
+        $this->assertTrue($start['ok'], $start['message']);
+        $real = $mailer->lastCode();
+
+        // A FRESH CLIENT KEY EVERY GUESS — which is exactly one discarded cookie each.
+        $wrong = 0;
+        $stopped = false;
+        for ($i = 0; $i < 60; $i++) {
+            $r = $svc->confirm($start['claim_id'], self::wrongCode($real), '', '', 'client-' . $i);
+            $this->assertFalse($r['ok']);
+            if (($r['code'] ?? '') === 'TOO_MANY_ATTEMPTS') { $stopped = true; break; }
+            $wrong++;
+        }
+
+        $this->assertTrue($stopped,
+            'sixty wrong guesses from sixty fresh cookies were all answered — the only '
+            . 'ceiling left is the token attempt cap, and the page budget is not binding');
+        $this->assertLessThanOrEqual(41, $wrong, 'the page budget let far more through than it allows');
+    }
+
+    /**
+     * AND IT MUST NOT BECOME THE WEAPON THE OLD FIVE-GUESS CAP WAS.
+     *
+     * A budget keyed on the page is the shape that lets a stranger lock the real nominee
+     * out — the exact defect MAX_TOKEN_ATTEMPTS was raised to sixty to avoid. Only a
+     * WRONG guess spends it and the check runs only after a guess turns out to be wrong,
+     * so a correct code is never gated however much somebody else has burned.
+     */
+    public function test_burning_the_page_budget_cannot_lock_the_real_nominee_out(): void
+    {
+        $this->nomination();
+        $mailer = new ClaimFlowMailer();
+        $limits = new RateLimitService();
+        $svc    = $this->service($mailer, null, $limits);
+
+        // The attacker opens a claim and exhausts the page's wrong-guess budget.
+        $theirs = $svc->start($this->nomineeId, $this->channel($svc, 'email')['key'], '', '', 'attacker');
+        $decoy  = $mailer->lastCode();
+        for ($i = 0; $i < 60; $i++) {
+            $r = $svc->confirm($theirs['claim_id'], self::wrongCode($decoy), '', '', 'attacker-' . $i);
+            if (($r['code'] ?? '') === 'TOO_MANY_ATTEMPTS') break;
+        }
+
+        // The real nominee now asks for her own code and types it correctly, first time.
+        $hers = $svc->start($this->nomineeId, $this->channel($svc, 'email')['key'], '', '', 'adaeze');
+        $this->assertTrue($hers['ok'], $hers['message']);
+        $done = $svc->confirm($hers['claim_id'], $mailer->lastCode(), '', '', 'adaeze');
+
+        $this->assertTrue($done['ok'],
+            'a stranger burning the page budget locked the real nominee out of her own page — '
+            . 'which is the defect this budget was shaped to avoid');
+    }
+
+    /** A six-digit code that is definitely not the real one. */
+    private static function wrongCode(string $real): string
+    {
+        do { $c = str_pad((string) random_int(0, 999999), 6, '0', STR_PAD_LEFT); }
+        while ($c === $real);
+        return $c;
+    }
+
     // ══ §6: ADAEZE — ninety seconds, no document ═════════════════════════════
 
     public function test_adaeze_claims_her_page_with_one_code(): void
