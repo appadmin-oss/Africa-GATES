@@ -190,4 +190,145 @@ final class AccentTest extends TestCase
             default    => (($r - $g) / $d) + 4,
         };
     }
+
+    // ══ the categorical palette: identity, not meaning ═══════════════════════
+
+    public function test_every_programme_hue_clears_the_same_floors_as_a_role(): void
+    {
+        // A categorical colour is not exempt from contrast because it carries no meaning.
+        // The programme's name is printed IN its ink on both the hall and the archive.
+        foreach (Accent::allProgrammeHues() as $v) {
+            $floor = Accent::floor($v['slot']);
+            if ($floor === null) continue;
+
+            foreach ([Accent::PAPER, Accent::SURFACE] as $ground) {
+                $got = Contrast::ratio($v['hex'], $ground);
+                $this->assertGreaterThanOrEqual($floor, round($got, 2), sprintf(
+                    '%s.%s is %s — %.2f:1 on %s, and it owes %.1f:1',
+                    $v['role'], $v['slot'], $v['hex'], $got, $ground, $floor));
+            }
+        }
+    }
+
+    /**
+     * THE ORDER IS THE ACCESSIBILITY DECISION, AND THIS IS WHAT IT BUYS.
+     *
+     * You cannot have six categorical hues that stay distinct for everybody: red-green is
+     * exactly the axis a deuteranope loses, and `ochre` and `terracotta` simulate 1.7
+     * apart — the same colour. So the list is ORDERED so consecutive assignments separate,
+     * because a real deployment runs two or three programmes.
+     *
+     * Asserted on the first FOUR rather than on all six, deliberately. Demanding it of all
+     * six would be a test that can only be satisfied by a palette of four, and the fifth
+     * and sixth are real colours that are genuinely useful to most readers — the honest
+     * position is that past four the hue stops being reliable and the NAME carries it,
+     * which is true on every screen that prints one.
+     */
+    public function test_the_first_four_programmes_stay_apart_for_a_deuteranope(): void
+    {
+        $keys = array_slice(Accent::programmeHues(), 0, 4);
+        $this->assertCount(4, $keys, 'the palette has shrunk below what the order protects');
+
+        $worst = [INF, '', ''];
+        foreach ($keys as $i => $a) {
+            foreach (array_slice($keys, $i + 1) as $b) {
+                $d = $this->deuteranopeDistance(
+                    Accent::forProgrammeKey($a)['ink'], Accent::forProgrammeKey($b)['ink']);
+                if ($d < $worst[0]) $worst = [$d, $a, $b];
+            }
+        }
+
+        // 12 is comfortably above the point where two hues read as one; the shipped worst
+        // pair among the first four is 15.5.
+        $this->assertGreaterThan(12.0, $worst[0], sprintf(
+            "'%s' and '%s' are %.1f apart under deuteranopia — two programmes would wear "
+            . 'the same colour', $worst[1], $worst[2], $worst[0]));
+    }
+
+    public function test_no_programme_hue_can_be_mistaken_for_a_status(): void
+    {
+        // A programme wearing the caution red would read as a withheld award, and one
+        // wearing the action green as something to press. The seeds avoid those bands;
+        // this is what stops the next one being added into them.
+        foreach (Accent::allProgrammeHues() as $v) {
+            if ($v['slot'] !== 'fill') continue;
+
+            foreach ([Accent::CAUTION, Accent::ACTION, Accent::LIVE] as $role) {
+                $d = $this->hueGap($v['hex'], Accent::fill($role));
+                $this->assertGreaterThan(22.0, $d, sprintf(
+                    "the '%s' programme hue is %.1f° from the '%s' role — an identity that "
+                    . 'reads as a status', $v['role'], $d, $role));
+            }
+        }
+    }
+
+    public function test_a_programme_keeps_its_colour_wherever_it_is_drawn(): void
+    {
+        // Derived from the programme's own id, never from its position in a list: a
+        // colour that changed between the hall and the archive would be the opposite of
+        // an identity. Same id, same answer, every time.
+        $a = Accent::forProgramme(7);
+        $this->assertSame($a, Accent::forProgramme(7));
+        $this->assertStringContainsString($a['fill'], Accent::programmeStyle(7));
+
+        // Distinct for the ids a real deployment has.
+        $seen = [];
+        foreach ([1, 2, 3, 4] as $id) $seen[] = Accent::forProgramme($id)['key'];
+        $this->assertSame($seen, array_unique($seen), 'two early programmes share a hue');
+
+        // And it never returns a blank, whatever arrives — a missing custom property
+        // resolves to nothing and the element silently loses its identity.
+        foreach ([0, -3, PHP_INT_MAX] as $odd) {
+            $this->assertNotSame('', trim(Accent::forProgramme($odd)['fill']), (string) $odd);
+        }
+    }
+
+    public function test_the_style_attribute_can_carry_nothing_but_colour(): void
+    {
+        // It is interpolated into a `style=` attribute on every card. The values come from
+        // the constant table, so this is a guard against somebody later deriving one from
+        // a programme's own typed field.
+        foreach ([1, 2, 3, 4, 5, 6, 7] as $id) {
+            $this->assertMatchesRegularExpression(
+                '/^(--pg-[a-z]+:#[0-9a-f]{6};?)+$/', Accent::programmeStyle($id));
+        }
+    }
+
+    /** Viénot/Brettel deuteranope simulation, in linear LMS-derived RGB. */
+    private function deuteranopeDistance(string $a, string $b): float
+    {
+        $sim = static function (string $hex): array {
+            $h   = Contrast::hex($hex);
+            $lin = static fn (float $v): float =>
+                ($v /= 255) <= 0.04045 ? $v / 12.92 : (($v + 0.055) / 1.055) ** 2.4;
+
+            $r = $lin((float) hexdec(substr($h, 0, 2)));
+            $g = $lin((float) hexdec(substr($h, 2, 2)));
+            $b = $lin((float) hexdec(substr($h, 4, 2)));
+
+            $L = 17.8824 * $r + 43.5161 * $g + 4.11935 * $b;
+            $S = 0.0299566 * $r + 0.184309 * $g + 1.46709 * $b;
+            // The deuteranope's M is reconstructed from L and S — that is the whole
+            // simulation: the middle cone's own response is simply not available.
+            $M = 0.494207 * $L + 1.24827 * $S;
+
+            return [
+                0.080944 * $L - 0.130504 * $M + 0.116721 * $S,
+                -0.0102485 * $L + 0.0540194 * $M - 0.113615 * $S,
+                -0.000365294 * $L - 0.00412163 * $M + 0.693513 * $S,
+            ];
+        };
+
+        $x = $sim($a);
+        $y = $sim($b);
+
+        return sqrt(($x[0] - $y[0]) ** 2 + ($x[1] - $y[1]) ** 2 + ($x[2] - $y[2]) ** 2) * 100;
+    }
+
+    private function hueGap(string $a, string $b): float
+    {
+        $d = abs($this->hue($a) - $this->hue($b));
+
+        return min($d, 360 - $d);
+    }
 }

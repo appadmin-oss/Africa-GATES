@@ -27,8 +27,19 @@
   .rx-ed{ margin-top:clamp(2rem,5vw,2.9rem); }
   .rx-ed__h{ display:flex; align-items:flex-end; justify-content:space-between; gap:16px 24px;
              flex-wrap:wrap; padding-bottom:12px; border-bottom:2px solid var(--ag-ink); }
+  /* The programme's identity colour, set inline per edition from
+     Support\Accent::programmeStyle(). The same hue this programme wears in the hall of
+     fame, so a reader who learns it once carries it across the site — which is the only
+     thing that makes a categorical colour worth having. The programme's NAME sits in it,
+     so the hue is an accelerator on a word and never the fact. */
+  .rx-ed__h{ border-bottom-color:var(--pg-edge,var(--ag-ink)) !important; }
+  .rx-ed__kick{ color:var(--pg-ink,var(--ag-ink-soft)) !important; display:flex;
+                align-items:center; gap:7px; }
+  .rx-ed__kick i{ flex:none; width:8px; height:8px; border-radius:50%; font-style:normal;
+                  background:var(--pg-fill,currentColor); }
+  .rx-ed__t a:hover{ border-color:var(--pg-edge,var(--ag-green)) !important; }
   .rx-ed__kick{ margin:0 0 6px; font:600 11px/1.4 var(--ag-font-mono); letter-spacing:.12em;
-                text-transform:uppercase; color:var(--ag-ink-soft); }
+                text-transform:uppercase; }
   .rx-ed__t{ margin:0; font-family:var(--ag-font-display); font-weight:700;
              font-size:clamp(1.5rem,3.4vw,2rem); letter-spacing:-.02em; line-height:1.1; }
   .rx-ed__t a{ color:inherit; text-decoration:none; border-bottom:2px solid transparent; }
@@ -180,10 +191,10 @@
       now, and each one arrives whole.
     #}
     {% for e in editions|default([]) %}
-      <section class="rx-ed" aria-labelledby="ed-{{ e.cycle_id }}">
+      <section class="rx-ed" aria-labelledby="ed-{{ e.cycle_id }}" style="{{ e.programme_style }}">
         <header class="rx-ed__h">
           <div>
-            <p class="rx-ed__kick">{{ e.programme }}</p>
+            <p class="rx-ed__kick"><i aria-hidden="true"></i>{{ e.programme }}</p>
             {# The heading IS the link to the edition's own page. An edition is the thing
                people name — "the 2026 Principal Awards" — and until it had a page there
                was nowhere for that name to point. #}

@@ -124,6 +124,145 @@ final class Accent
         ],
     ];
 
+    /**
+     * ── COLOUR THAT IS AN IDENTITY RATHER THAN A MEANING ─────────────────────
+     *
+     * The four roles above say what something IS — won, do this, happening now, withheld.
+     * They are deliberately few and deliberately rare, and that restraint is why a site
+     * built from them reads as ink on paper with an occasional accent.
+     *
+     * It also left the one genuinely CATEGORICAL thing on this platform with no colour at
+     * all: which award programme something belongs to. A hall of fame, a results archive
+     * and an edition list are all lists whose rows come from two or three different
+     * programmes, and every one of them printed the programme's name in the same grey as
+     * everything else — so the one dimension a reader actually scans by was invisible.
+     *
+     * These hues carry NO meaning. `indigo` does not mean better than `ochre`; it means
+     * "the Incredible Principal Awards" and nothing more. They are not roles, they are
+     * never used for state, and `AccentTest`'s two-role ceiling does not count them —
+     * a page may carry one role and as many programme identities as it lists programmes.
+     *
+     * ── ORDERED, AND THE ORDER IS THE ACCESSIBILITY DECISION ─────────────────
+     *
+     * You cannot have seven categorical hues that stay distinct for everybody. Red-green
+     * is exactly the axis a deuteranope loses, and simulating it (Viénot) over these puts
+     * `ochre` and `terracotta` **1.7 apart** — the same colour. So the list is ordered so
+     * that consecutive assignments are as far apart as that allows, because a real
+     * deployment runs two or three programmes and those are the ones that must separate:
+     *
+     *     first 2 assigned: 64.7 apart      first 4: 15.5
+     *     first 3 assigned: 22.3            first 5: 3.0   ← the honest ceiling
+     *
+     * Past four they start to converge for some readers, and nothing here pretends
+     * otherwise: **the programme's NAME is always written beside its colour**, so the hue
+     * is an accelerator on top of a word and never the fact itself. Same rule as
+     * {@see \AfricaGates\Support\Swatch}, and for the same reason.
+     *
+     * The seeds deliberately avoid the semantic hues — no caution red near 5°, no action
+     * green near 119°, no live pink near 340° — so a programme chip can never be mistaken
+     * for a status.
+     *
+     * @var array<string,array{fill:string,edge:string,ink:string,wash:string}>
+     */
+    private const PROGRAMME_HUES = [
+        'indigo'     => ['fill' => '#5637d2', 'edge' => '#7a62da', 'ink' => '#5739d0', 'wash' => '#e7e3f7'],
+        'ochre'      => ['fill' => '#d58f16', 'edge' => '#b3760d', 'ink' => '#905f0b', 'wash' => '#faf1e1'],
+        'teal'       => ['fill' => '#1fbacb', 'edge' => '#13909e', 'ink' => '#10747f', 'wash' => '#e2f6f8'],
+        'plum'       => ['fill' => '#af3cab', 'edge' => '#c559c1', 'ink' => '#a83aa5', 'wash' => '#f5e6f4'],
+        'moss'       => ['fill' => '#7ab733', 'edge' => '#5e9125', 'ink' => '#4c741f', 'wash' => '#eef6e5'],
+        // ── AND THERE IS NO SIXTH, WHICH IS A FINDING RATHER THAN A SHORTAGE ─
+        //
+        // A terracotta sat here and `AccentTest` refused it: at 18° it is **14.6° from the
+        // caution red**, so a programme wearing it would read as a withheld award. Every
+        // other gap on the wheel is taken — moss is already 31° from the action green,
+        // ochre 34° from caution — and the remaining bands are blues that collapse into
+        // `indigo` and `teal` for a deuteranope.
+        //
+        // So five is the number this platform's own semantic colours leave room for. A
+        // sixth programme wraps to `indigo`, and its NAME — always printed — is what tells
+        // the two apart. That is a better answer than a hue nobody can trust.
+    ];
+
+    /** @return list<string> */
+    public static function programmeHues(): array
+    {
+        return array_keys(self::PROGRAMME_HUES);
+    }
+
+    /**
+     * One programme's identity colour, chosen from its own id.
+     *
+     * BY ID AND NOT BY A HASH OF THE NAME. A hash scatters, so with three programmes it
+     * would routinely hand out two hues from the converging end of the list while the
+     * well-separated ones went unused — the ordering above would buy nothing. Ids here are
+     * sequential, so the first programmes created take the first, most-separated hues,
+     * which is exactly the case the order was built for.
+     *
+     * It is also STABLE: a programme's colour does not depend on what else is on the page.
+     * Deriving it from a row's position in a list would make one programme change colour
+     * between the hall and the archive, which is the opposite of an identity.
+     *
+     * Past six programmes the hues repeat. That is a collision and not a bug: two
+     * programmes share a colour and their names, which are always printed, tell them apart.
+     *
+     * @return array{key:string,fill:string,edge:string,ink:string,wash:string}
+     */
+    public static function forProgramme(int $id): array
+    {
+        $keys = array_keys(self::PROGRAMME_HUES);
+        // max(1, …) so a row with no id — an import, a fixture — still gets a colour
+        // rather than a division by zero or a blank custom property.
+        $key  = $keys[abs($id) % count($keys)];
+
+        return ['key' => $key] + self::PROGRAMME_HUES[$key];
+    }
+
+    /**
+     * One named hue from the categorical table.
+     *
+     * For the sweep and for a caller that already knows the key; ordinary callers reach
+     * for {@see forProgramme()} and let the id choose.
+     *
+     * @return array{fill:string,edge:string,ink:string,wash:string}
+     */
+    public static function forProgrammeKey(string $key): array
+    {
+        return self::PROGRAMME_HUES[$key] ?? self::PROGRAMME_HUES[array_key_first(self::PROGRAMME_HUES)];
+    }
+
+    /**
+     * A programme's colour as inline custom properties.
+     *
+     * Inline because the value is per-row and cannot live in `:root`. Safe in a `style`
+     * attribute — `style-src-attr 'unsafe-inline'` is deliberately allowed (see
+     * `Support\Csp` for why the directive is split) — and the values are constants above,
+     * so nothing a person typed can reach a stylesheet through this.
+     */
+    public static function programmeStyle(int $id): string
+    {
+        $c = self::forProgramme($id);
+
+        return '--pg-fill:' . $c['fill'] . ';--pg-edge:' . $c['edge']
+             . ';--pg-ink:' . $c['ink'] . ';--pg-wash:' . $c['wash'];
+    }
+
+    /**
+     * Every categorical value, flat, for the sweep to measure.
+     *
+     * @return list<array{role:string,slot:string,hex:string}>
+     */
+    public static function allProgrammeHues(): array
+    {
+        $out = [];
+        foreach (self::PROGRAMME_HUES as $key => $v) {
+            foreach (['fill', 'edge', 'ink', 'wash'] as $slot) {
+                $out[] = ['role' => $key, 'slot' => $slot, 'hex' => $v[$slot]];
+            }
+        }
+
+        return $out;
+    }
+
     /** @return list<string> */
     public static function roles(): array
     {

@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 namespace AfricaGates\Services;
 
+use AfricaGates\Support\Accent;
 use Illuminate\Database\Capsule\Manager as DB;
 
 /**
@@ -115,6 +116,11 @@ final class HallOfFame
                 // on the row that can take the page down rather than draw it wrong.
                 $ids[$id]  = true;
                 $rows[]    = [$id, $w, [
+                    // The programme's identity colour, carried on the win rather than
+                    // looked up by the template: one person can hold awards from two
+                    // programmes, so the colour belongs to the AWARD and not to them.
+                    'programme_id'    => (int) ($ed['programme_id'] ?? 0),
+                    'programme_style' => Accent::programmeStyle((int) ($ed['programme_id'] ?? 0)),
                     'category'  => self::title($a['category'] ?? null),
                     'url'       => (string) ($a['url'] ?? ''),
                     'programme' => (string) ($ed['programme'] ?? ''),

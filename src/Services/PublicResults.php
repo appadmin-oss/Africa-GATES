@@ -3,6 +3,8 @@ declare(strict_types=1);
 
 namespace AfricaGates\Services;
 
+use AfricaGates\Support\Accent;
+
 use AfricaGates\Support\OptionalColumn;
 use AfricaGates\Support\Slug;
 use Illuminate\Database\Capsule\Manager as DB;
@@ -259,7 +261,8 @@ final class PublicResults
                 // it. An edition whose every award is withheld has no such award, and the
                 // first version of this took the label from one — so the one edition that
                 // most needs explaining would have rendered with a blank heading.
-                ->get(['cy.id', 'cy.year', 'cy.edition_label', 'p.title as programme', 'p.slug as programme_slug']);
+                ->get(['cy.id', 'cy.year', 'cy.edition_label', 'cy.programme_id',
+                       'p.title as programme', 'p.slug as programme_slug']);
 
             $cycleIds = array_map(static fn ($c) => (int) $c->id, $cycles->all());
             if ($cycleIds === []) return $empty;
@@ -309,6 +312,13 @@ final class PublicResults
             if ($awards === [] && ($heldBy[$cid] ?? 0) === 0) continue;
             $editions[] = [
                 'cycle_id'  => $cid,
+                // The programme's own id, for Support\Accent::forProgramme(). Without it
+                // every edition on this page resolves to the same identity colour, which
+                // is a palette that looks deliberate and says nothing.
+                'programme_id' => (int) ($cy->programme_id ?? 0),
+                // Built here rather than in the template, so the hall and the archive
+                // cannot come to disagree about what colour a programme is.
+                'programme_style' => Accent::programmeStyle((int) ($cy->programme_id ?? 0)),
                 'programme' => (string) ($cy->programme ?? ''),
                 'edition'   => self::edition_($cy),
                 'year'      => (int) ($cy->year ?? 0),
