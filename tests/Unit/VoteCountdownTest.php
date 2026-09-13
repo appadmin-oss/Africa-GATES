@@ -150,34 +150,58 @@ final class VoteCountdownTest extends TestCase
         $this->assertStringContainsString('<div class="vc__clock" aria-hidden="true">', $html);
     }
 
-    // ══ one partial, two grounds ═════════════════════════════════════════════
+    // ══ one partial, two placements ══════════════════════════════════════════
 
     /**
-     * The nominee ballot's header is dark, and a second copy of this markup was the wrong
-     * way to serve it: the reasoning behind the aria treatment above is not obvious from
+     * The ballot places this inside a card, and a second copy of the markup was the wrong
+     * way to serve that: the reasoning behind the aria treatment above is not obvious from
      * reading the markup, so a copy would lose it within one edit.
      */
-    public function test_the_dark_variant_is_the_same_markup(): void
+    public function test_the_bare_variant_is_the_same_markup(): void
     {
-        $light = $this->render($this->phase(3600));
-        $dark  = $this->render($this->phase(3600), 'dark');
+        $card = $this->render($this->phase(3600));
+        $bare = $this->render($this->phase(3600), 'bare');
 
-        $this->assertStringContainsString('vc--dark', $dark);
-        $this->assertStringNotContainsString('vc--dark', $light);
-        // Same accessible contract on both grounds.
-        $this->assertStringContainsString('aria-label="Voting closes', $dark);
-        $this->assertStringContainsString('aria-hidden="true"', $dark);
+        $this->assertStringContainsString('vc--bare', $bare);
+        $this->assertStringNotContainsString('vc--bare', $card);
+        // Same accessible contract in both placements.
+        $this->assertStringContainsString('aria-label="Voting closes', $bare);
+        $this->assertStringContainsString('aria-hidden="true"', $bare);
     }
 
-    /** And the dark palette actually exists, or the clock is white-on-white. */
-    public function test_the_dark_variant_is_styled(): void
+    /**
+     * AND IT SETS NO COLOURS, WHICH IS THE WHOLE REASON IT WAS RENAMED.
+     *
+     * It was `dark`, and it inverted the palette — a green kicker, white digits, gold for
+     * the last 48 hours — because the ballot's header was a near-black block. When that
+     * header became a `live` wash on paper, every inverted value went invisible on it,
+     * including the deadline: the one fact on that panel that decides whether somebody
+     * bothers to vote, rendered as pale text on a pale ground.
+     *
+     * A variant named for the GROUND it assumes lies the moment the ground changes. This
+     * one is named for what it removes — the card chrome, because a bordered box inside a
+     * card reads as a nested widget — and it sets no colour at all, so the clock inherits
+     * its panel's ink and cannot disagree with it again.
+     */
+    public function test_the_bare_variant_removes_chrome_and_sets_no_colour(): void
     {
         $css = (string) file_get_contents(
             dirname(__DIR__, 2) . '/public/assets/css/components/nav.css');
 
-        $this->assertStringContainsString('.vc--dark', $css);
-        $this->assertStringContainsString('.vc--dark .vc__cell b', $css,
-            'the digits need a colour of their own on a dark ground');
+        $this->assertStringContainsString('.vc--bare', $css);
+        $this->assertStringNotContainsString('.vc--dark', $css,
+            'the variant that assumed a dark ground is still in the sheet');
+
+        // Every `.vc--bare` rule, and none of them may set a text colour: inheriting is
+        // what stops it disagreeing with whatever panel it lands in next.
+        preg_match_all('/\.vc--bare[^{]*\{([^}]*)\}/', $css, $m);
+        $this->assertNotSame([], $m[1], 'the bare variant has no rules at all');
+
+        foreach ($m[1] as $rule) {
+            $this->assertDoesNotMatchRegularExpression('/(?<!-)\bcolor\s*:\s*(?!inherit)/', $rule,
+                'a bare countdown is setting its own text colour, which is how it came to '
+              . 'render invisible the last time its panel changed ground');
+        }
     }
 
     // ══ it reaches the page where the vote is cast ═══════════════════════════
@@ -195,7 +219,7 @@ final class VoteCountdownTest extends TestCase
             dirname(__DIR__, 2) . '/templates/pages/vote-nominee.twig');
 
         $this->assertStringContainsString("include 'partials/vote-countdown.twig'", $tpl);
-        $this->assertStringContainsString("variant: 'dark'", $tpl);
+        $this->assertStringContainsString("variant: 'bare'", $tpl);
     }
 
     /** And it is still on the hub. */
@@ -229,7 +253,7 @@ final class VoteCountdownTest extends TestCase
         ]);
 
         $this->assertStringContainsString('data-vc-left="18000"', $html);
-        $this->assertStringContainsString('vc--dark', $html);
+        $this->assertStringContainsString('vc--bare', $html);
         $this->assertStringContainsString('vc__clock', $html);
     }
 }

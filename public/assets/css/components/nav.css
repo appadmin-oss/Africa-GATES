@@ -155,25 +155,27 @@ html.ag-menu-open{ overflow:hidden; }
   .vc__cell b{ font-size:22px; }
   .vc__clock{ gap:7px; }
 }
-/* ── ON A DARK GROUND (the nominee ballot's header) ──────────────────────────
+/* ── INSIDE ANOTHER CARD (the nominee's ballot) ──────────────────────────────
    Chrome removed rather than recoloured: inside a panel that is already a card,
-   a second bordered box reads as a nested widget. `position:relative` because
-   that header has an absolutely-positioned orb behind its content.
+   a second bordered box reads as a nested widget. That is the whole variant, and
+   it is named for what it does.
 
-   Urgency is GOLD here, not the green the light variant uses. Green is already
-   the resting accent on this panel (`.vn-ballot__k`), so it cannot also be the
-   signal that something is about to end — and gold is the brand's one accent,
-   which is what the static line this replaced already used. */
-.vc--dark{ position:relative; border:0; padding:0; background:transparent; margin-top:8px; }
-.vc--dark .vc__k{ color:#7FC87C; }
-.vc--dark .vc__abs{ margin-top:8px; font-size:12.5px; color:rgba(255,255,255,.72); }
-.vc--dark.vc--soon .vc__k{ color:#fbc329; }
-.vc--dark .vc__dot{ background:#7FC87C; }
-.vc--dark.vc--soon .vc__dot{ background:#fbc329; }
-.vc--dark .vc__cell{ background:rgba(255,255,255,.07); border-color:rgba(255,255,255,.15); }
-.vc--dark .vc__cell b{ color:#fff; }
-.vc--dark .vc__cell i{ color:rgba(255,255,255,.6); }
-.vc--dark .vc__cell--s b{ color:#fbc329; }
+   IT USED TO BE CALLED `dark`, AND THE NAME WAS THE BUG WAITING TO HAPPEN. The
+   ballot's header was a near-black block, so this inverted the palette — a green
+   kicker, white digits, gold for the last 48 hours. The header is a `live` wash
+   on paper now, and every one of those light-on-dark values went invisible on it:
+   the deadline, which is the one fact on this panel that decides whether somebody
+   bothers to vote, rendered as pale text on a pale ground.
+
+   A variant named for the GROUND it assumed is a variant that lies the moment the
+   ground changes. This one is named for what it removes, and it sets no colours at
+   all — the countdown inherits the panel's ink, so it cannot disagree with it
+   again. Urgency is still carried, by `vc--soon`, in the same red the live dot
+   uses: it is the same fact — this is happening right now — and it has no business
+   being a second hue. */
+.vc--bare{ position:relative; border:0; padding:0; background:transparent; margin-top:10px; }
+.vc--bare .vc__abs{ margin-top:8px; font-size:12.5px; }
+.vc--bare .vc__cell{ background:var(--ag-card); border-color:var(--ag-line); }
 
 /* The pulse is decoration; the numbers are the information. */
 @media (prefers-reduced-motion: reduce){

@@ -1673,3 +1673,166 @@ ink slot, a grey lifted into the edge slot, an undeclared accent as a word on a 
 `scroll-padding` removed, the 24px floor pushed back inside the media query, the globe's
 arrow keys removed, the seal overlay removed from the hall, the hall's identity key dropped
 back to the nominee row, and `DocText::BLOCKS` reverted to the shipped list.
+
+---
+
+## 26. The colour system, four sweeps, and three surfaces rebuilt (2026-09-13)
+
+§25 measured the fault: one accent at 1.65:1 on paper, three of five tokens failing, 642
+literal hexes. This is what replaced the flat "two roles per screen" ceiling it shipped
+with — which, as the design handoff put it, was too loose for a legal page and too tight
+for a printed ticket.
+
+### The four sweeps
+
+| Test | Question it asks |
+|---|---|
+| `NoLiteralHexTest` | is a value reaching a page as a literal rather than through the palette? |
+| `SlotFloorTest` | does each ink clear its floor against **each ground** it may sit on? |
+| `ColourBudgetTest` | is this page spending more colour than its kind of page may? |
+| `ColourIsNeverAloneTest` | does anything coloured carry its meaning without a word? |
+
+**The tiers.** 0 silent (a policy, asking nothing) · 1 declarative (a result, a hall) · 2
+transactional (a ballot, a checkout) · 3 physical (a printed ticket, read in bad light).
+Admin is exempt by name, not by omission: a triage queue legitimately needs a status on
+every row.
+
+**Chrome is charged once, site-wide.** The nav's Register pill is the one event every page
+inherits. Without that rule a tier-0 page is impossible on a site that has a navigation bar,
+and the whole table collapses.
+
+### Three exemptions, all declared and all counted
+
+An exemption nobody counts is a rule with a hole in it, and this file records four separate
+occasions where a hole was what shipped. So each of these is written into the template, and
+the number of templates holding it is asserted:
+
+- **`colour_band`** — the band privilege. Only a hall of fame and a decided edition may cash
+  their single tile in for a full-bleed honour field. It raises that page's ceiling by one,
+  and the declarations are asserted to be exactly those two pages.
+- **`colour_alt`** — one role a page draws only in a state that excludes its other events.
+  A budget is a statement about one SCREEN and the sweep reads a FILE, so it cannot see that
+  a nominee's ballot shows either a winner's laurel or a vote button and never both (a
+  decided award has closed its voting). Declared rather than inferred, because a sweep that
+  guesses at exclusivity is wrong quietly.
+- **`data-ag-paid`** — where money is asked for. See below; this one is not a relaxation.
+
+### `data-ag-paid`, which is the rule the budget could not express
+
+A colour event is a bounded coloured AREA and a role is counted once per page however many
+times it appears. That is correct, and it means **filling the vote packs with the same green
+as the free vote costs a page nothing**. Verified by doing it: the packs went from an
+outlined ink pill to a filled green one and every ceiling passed.
+
+That is the exact change this platform must never make. It sells vote packs and claims a
+ranking cannot be bought; the free vote and the purchase wearing one colour says the
+opposite of that claim in the only language a reader takes in at a glance, on the one screen
+where the choice between them is made.
+
+And the sweep found it live: **the "Contribute ₦N" button carried `.vn-go` — literally the
+same class as the free vote**, so the same filled `action` green with the same lip. It is
+ink and an outline now. Not smaller, not hidden, 44px and full width like everything else on
+that card; it simply does not wear the role reserved for the thing we are actually asking
+for.
+
+The marker is REQUIRED, because deleting it made the money sweep pass in silence. Any
+template handed `pay_providers` must carry one — a kind, not a list, so a second checkout
+built next year inherits the rule by being handed the same variable.
+
+**Not yet covered, and said here rather than left to be discovered:** the shop cart, the
+donation prompt and an organisation's own gift page also ask for money and carry no marker.
+They are not converted to the palette, so marking them would assert a rule against templates
+full of literal colours and fail for a reason that is not about money.
+
+### Two ceilings, not one, and why the focus ring is in neither
+
+`AccentTest`'s flat ceiling counted TOKENS, and on that reading `/results` wears three:
+`live` on the counting chip, `caution` on the OUTLINE of a withheld award, `action` on the
+focus ring. Two of those three are not colour a reader can point at, and forbidding them
+pushes a page toward one of two bad answers — FILLING the withheld chip, which makes the
+absence of one result the loudest thing on a page of good news, or dropping the focus ring,
+which trades a WCAG 2.4.7 failure for a palette rule.
+
+So there are two: at most **two roles as FIELDS** (fill or wash), and at most **three roles
+named at all**. Focus rules are stripped before either counts.
+
+### What the sweeps found in shipped code
+
+- **The navigation was spending honour gold on a Shop link, on every page.** Twenty-four
+  38px tiles in the drop-down menus, each an emoji on a hand-derived pale ground — 48
+  literal colours, seven of them `#fff8df` on `#7a5600` behind Leaderboard, Legacy Vault,
+  Create-an-account and Shop. On this platform gold means an award has been decided for a
+  named person. `AccentTest::test_the_chrome_spends_no_role_but_the_one_call_to_action` is
+  the rule: chrome is on every page, so a role spent there is spent on the privacy policy.
+- **An emoji is colour nothing here can control** — it renders in the vendor's palette, at
+  full saturation, on every device, whatever rule this codebase writes.
+- **The active nav item was drawn exactly like the hover state** — a pale grey pill for
+  both. On a touch screen, where there is no hover, the only signal for the current page was
+  a 2.1:1 difference in text colour. It is a 2px ink underline now.
+- **Three buttons on the ballot shipped as blank coloured pills.** Their entire label came
+  from Alpine's `x-text`, so before hydration — and for ever where scripts are blocked — a
+  screen reader announced "button" and a sighted reader saw a shape. The labels are written
+  out as well as bound.
+- **A countdown variant named for the ground it assumed.** `variant: 'dark'` inverted the
+  palette for the ballot's near-black header. When that header became a `live` wash on
+  paper, every inverted value went invisible on it — including the deadline, the one fact on
+  that panel that decides whether somebody bothers to vote. It is `variant: 'bare'` now,
+  named for what it removes, and it sets no colours at all.
+
+### The surfaces
+
+`/results` answers **where each award stands** rather than listing the ones that finished —
+counting, with the panel, decided, withheld, ordered by status. `/results/{edition}` leads
+with an honour band carrying 2nd–4th in the edition, a fact that existed nowhere else on the
+site, and lists every award including the ones still being checked. `/winners` draws an
+edition winner and a category winner apart, which is the only ranking this platform makes
+and which a wall of eleven identical cards had thrown away.
+
+All four are converted: zero literal hexes on `/results`, `/results/{edition}`, `/winners`,
+the nominee ballot and `layout/nav.twig`. The literal baseline fell from 94 files to 89.
+
+### AN OPEN PRODUCT QUESTION, RECORDED RATHER THAN DECIDED
+
+`ResultStatus::publishes_standing` enforces one rule on the results pages: **no leader is
+published for an award while its voting is open**, because a running order published during
+an open window is a bandwagon, and on a platform that sells vote packs it is a sales page.
+
+**The nominee's ballot contradicts it, and deliberately.** It prints `#1 of 2 in category`,
+`Leading by 1260 votes`, a progress bar and `Every vote widens the lead` — directly above the
+vote-pack purchase. So does `/leaderboard`, which is in the top navigation and publishes live
+rankings by design.
+
+This was raised and the decision was to **change the colour and not the claim**: the ballot's
+rebuild is palette and layout only, and every figure and sentence on it is exactly what it
+was. Three surfaces would move together if it is ever revisited — the ballot, `/leaderboard`
+and the category race page — and the middle option considered was to keep the rank and the
+count while dropping the lead bar and "every vote widens the lead", which are the parts that
+read as an appeal to buy rather than as a fact.
+
+### Tests
+
+`ColourBudgetTest` (9), `ColourIsNeverAloneTest` (6), `NoLiteralHexTest` (4), `AccentTest`
+(10), `ResultStandingsTest` (10), plus additions to `HallOfFameTest`, `EditionPageTest` and
+`PublicResultsTest`.
+
+**Every sweep was watched naming a real break before it was trusted**, and three assertions
+were found VACUOUS that way and rewritten:
+
+- "the name is printed before the index" compared the winner's name against `630</b>` —
+  rewriting the band to put `/1000` inside that same `<b>` failed a test about reading order
+  for a reason unrelated to reading order.
+- "the caveat sits below the winner" compared the caveat against the winner's NAME, which is
+  in the `<title>`, the meta description and the JSON-LD — so its first occurrence is always
+  in the head. Moving the caveat to the very top of the body passed.
+- Anchoring that on `.ed-band` / `.ed-caveat` instead was no better: both are declared in the
+  page's own `<style>` block, in that order, so the comparison measured the order of two CSS
+  rules.
+
+**Anything asserting the ORDER of two things a reader sees has to read the body alone.**
+
+Two more that passed over their own subject until the fixture was fixed: a hall test that set
+`count = 2` on the payload AFTER the service returned it (the day the service began deriving
+the overall/category split from that field, the edit stopped reaching the page while the test
+went on claiming to exercise it), and a progress-bar test asserting only `pct < 100`, which
+passes on a `ceil` implementation — verified by writing one. The rounding DIRECTION is the
+guard, so the test pins 33.

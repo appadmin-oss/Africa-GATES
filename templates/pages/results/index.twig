@@ -72,7 +72,7 @@
                letter-spacing:-.02em; font-variant-numeric:tabular-nums; color:var(--ag-ink); }
 
   /* ── the sticky bar ── */
-  .rx-bar{ position:sticky; top:0; z-index:5; display:flex; flex-wrap:wrap; gap:12px 18px;
+  .rx-bar{ position:sticky; top:0; z-index:5; display:flex; flex-wrap:wrap; min-width:0; gap:12px 18px;
            align-items:center; justify-content:space-between;
            padding:12px 0; margin:0 0 clamp(1.2rem,3vw,1.7rem);
            background:var(--ag-ground); border-bottom:1px solid var(--ag-line); }
@@ -86,7 +86,14 @@
                    font:600 13px/1 inherit; cursor:pointer; }
   .rx-find button:hover{ background:var(--ag-surface-2); }
 
-  .rx-chips{ display:flex; gap:8px; flex-wrap:nowrap; overflow-x:auto; padding-bottom:2px;
+  /* ── `min-width:0` IS WHAT MAKES `overflow-x:auto` ACTUALLY SCROLL ──────────
+     A flex item's min-width defaults to `auto`, which is its MIN-CONTENT width —
+     and for a nowrap row of chips that is the whole row. So the row refused to
+     shrink, pushed its flex parent wide, pushed the page wrapper wide, and the
+     document scrolled horizontally at phone width with the right-hand end of
+     every line cut off. The `overflow-x:auto` was already there and could not
+     fire, because there was nothing to overflow: the box had grown to fit. */
+  .rx-chips{ display:flex; min-width:0; gap:8px; flex-wrap:nowrap; overflow-x:auto; padding-bottom:2px;
              scrollbar-width:thin; }
   /* 2.5.8 — the AA floor is 24px and is NOT conditional on the pointer. A coarse
      pointer gets more; nobody gets less. */

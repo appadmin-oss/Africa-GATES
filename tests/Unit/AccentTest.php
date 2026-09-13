@@ -140,8 +140,10 @@ final class AccentTest extends TestCase
             // own explanation, or a note above a change — was never in scope. Same lesson
             // GlobeBandTest records: sweep what a READER sees.
             $body = $this->withoutFocusRings($body);
+            $alt  = $this->exclusiveRole($body);
             $seen = [];
             foreach (Accent::roles() as $role) {
+                if ($role === $alt) continue;
                 if (preg_match('/var\(\s*--ag-' . $role . '-(?:fill|wash)\b/',
                                (string) preg_replace('/\{#.*?#\}/s', '', $body))) {
                     $seen[] = $role;
@@ -171,8 +173,10 @@ final class AccentTest extends TestCase
 
         foreach ($this->publicTemplates() as $path => $body) {
             $body = $this->withoutFocusRings($body);
+            $alt  = $this->exclusiveRole($body);
             $seen = [];
             foreach (Accent::roles() as $role) {
+                if ($role === $alt) continue;
                 if (preg_match('/var\(\s*--ag-' . $role . '-/',
                                (string) preg_replace('/\{#.*?#\}/s', '', $body))) {
                     $seen[] = $role;
@@ -422,5 +426,21 @@ final class AccentTest extends TestCase
         $this->assertSame([], $bad,
             "the chrome is spending a role accent, which spends it on every page of the "
           . "site including the ones that must ask nothing:\n  " . implode("\n  ", $bad));
+    }
+
+    /**
+     * A role the page draws only in a state that excludes its others.
+     *
+     * Both ceilings here read a FILE, which cannot see that two branches of a template
+     * never render together. A nominee's ballot carries a winner's laurel in gold and a
+     * vote button in green, and an award that has been decided has closed its voting — so
+     * a reader never sees both. Declared in the template and counted by
+     * {@see \Tests\Unit\ColourBudgetTest}, which is where the list of pages allowed to
+     * claim it lives.
+     */
+    private function exclusiveRole(string $body): string
+    {
+        return preg_match('/\{%-?\s*set\s+colour_alt\s*=\s*[\'"]([a-z]+)[\'"]\s*-?%\}/',
+                          $body, $m) ? $m[1] : '';
     }
 }

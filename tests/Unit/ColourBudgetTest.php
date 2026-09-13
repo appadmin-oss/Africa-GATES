@@ -197,6 +197,13 @@ final class ColourBudgetTest extends TestCase
             if ($tier === '') continue;            // undeclared — reported separately
 
             $ceiling = self::TIERS[$tier] + ($this->band($body) ? 1 : 0);
+
+            // A role the page draws only in a state that excludes its other events is
+            // subtracted rather than counted — see alt().
+            $alt    = $this->alt($body);
+            $events = $alt === '' ? $events
+                    : array_values(array_filter($events, static fn (string $r): bool => $r !== $alt));
+
             if (count($events) > $ceiling) {
                 $bad[] = sprintf('%s: tier %s allows %d event%s, spends %d (%s)',
                     $file, $tier, $ceiling, $ceiling === 1 ? '' : 's',
@@ -299,5 +306,224 @@ final class ColourBudgetTest extends TestCase
             'a third page is claiming the honour band. Only a hall of fame and a decided '
           . 'edition may replace their one tile with a full-bleed field — a band on a '
           . 'third page is a band that has stopped meaning anything.');
+    }
+
+    /**
+     * The one role a page draws only in a state that excludes its other events.
+     *
+     * A budget is a statement about what ONE SCREEN shows a reader at once, and this sweep
+     * reads a file — which cannot see that two branches of a template are mutually
+     * exclusive. The nominee's ballot is the case that forced it: an award that has been
+     * decided has closed its voting, so the winner's laurel and the ballot's two events
+     * (the free vote, the open window) can never be on one screen. Counting all three
+     * reports a page over budget that no reader can ever see over budget.
+     *
+     * Declared rather than inferred, for the same reason as the band privilege: a sweep
+     * that guesses at exclusivity will be wrong quietly, and a claim written into the
+     * template is a claim that shows up in a diff and can be argued with. Like the band,
+     * the declarations are counted — an exemption nobody counts is a rule with a hole in
+     * it, and holes are what people reach for at four in the afternoon.
+     */
+    private function alt(string $body): string
+    {
+        return preg_match('/\{%-?\s*set\s+colour_alt\s*=\s*[\'"]([a-z]+)[\'"]\s*-?%\}/',
+                          $body, $m) ? $m[1] : '';
+    }
+
+    public function test_an_exclusive_state_is_declared_and_the_declarations_are_counted(): void
+    {
+        $claimed = [];
+
+        foreach ($this->templates() as $file => $body) {
+            $alt = $this->alt($body);
+            if ($alt !== '') $claimed[$file] = $alt;
+        }
+
+        ksort($claimed);
+
+        $this->assertSame(['templates/pages/vote-nominee.twig' => 'honour'], $claimed,
+            'a page is claiming that one of its roles is drawn in a state excluding the '
+          . 'others. That is true of a ballot whose award has been decided — voting is '
+          . 'closed, so the laurel and the vote button cannot share a screen — and it is '
+          . 'the kind of claim that gets copied onto pages where it is simply false.');
+
+        // And the role named must be one Accent knows, or the subtraction silently removes
+        // nothing and the exemption reads as working while the budget is unenforced.
+        foreach ($claimed as $role) {
+            $this->assertContains($role, Accent::roles());
+        }
+    }
+
+    /**
+     * THE MONEY IS NEVER THE LOUDEST THING ON A PAGE.
+     *
+     * ══════════════════════════════════════════════════════════════════════════
+     * WHY THE BUDGET CANNOT CATCH THIS AND A SEPARATE RULE HAS TO
+     * ══════════════════════════════════════════════════════════════════════════
+     *
+     * A colour event is a bounded coloured AREA, and a role is counted once however many
+     * times it appears — which is right, and which means filling the vote packs with the
+     * same `action` green as the free vote costs a page nothing at all. Verified by doing
+     * it: the packs went from an outlined ink pill to a filled green one and every ceiling
+     * here still passed.
+     *
+     * That is the exact change this platform must never make. Africa GATES sells vote
+     * packs and claims that a ranking cannot be bought; the free vote and the purchase
+     * wearing one colour says the opposite of that claim in the only language a reader
+     * takes in at a glance, on the one screen where the decision is made.
+     *
+     * ══════════════════════════════════════════════════════════════════════════
+     * MARKED, NOT ENUMERATED
+     * ══════════════════════════════════════════════════════════════════════════
+     *
+     * `data-ag-paid` says "money is asked for inside here", so the rule is about a KIND of
+     * region rather than a list of class names somebody has to remember to extend. A new
+     * pack tier, a new provider, a second checkout: all of them inherit it by being inside
+     * the marker, and a paid region that forgets the marker is a visible omission in a
+     * diff rather than a silent exemption.
+     */
+    public function test_nothing_that_asks_for_money_wears_a_role_accent(): void
+    {
+        $bad = [];
+
+        foreach ($this->templates() as $file => $body) {
+            $body = (string) preg_replace('/\{#.*?#\}/s', '', $body);
+
+            foreach ($this->paidRegions($body) as $region) {
+                // Painted on the tag itself.
+                foreach (Accent::roles() as $role) {
+                    if (preg_match('/--ag-' . $role . '-(?:fill|wash)\b/', $region)) {
+                        $bad[] = $file . ': a paid control is painted inline in ' . $role;
+                    }
+                }
+
+                // Or painted through a class the page's own stylesheet fills. A rule can
+                // sit anywhere in the sheet, and `.vn-qty.is-on` is the shape that matters
+                // — the SELECTED pack, which is the one a buyer is looking at.
+                preg_match_all('/\bclass="([^"{}]*)"/', $region, $cm);
+                $classes = [];
+                foreach ($cm[1] as $list) {
+                    foreach (preg_split('/\s+/', trim($list)) as $c) {
+                        if ($c !== '') $classes[$c] = true;
+                    }
+                }
+
+                if (!preg_match_all('/<style\b[^>]*>(.*?)<\/style>/is', $body, $sm)) continue;
+                $css = (string) preg_replace('!/\*.*?\*/!s', ' ', implode("\n", $sm[1]));
+
+                foreach (explode('}', $css) as $chunk) {
+                    $at = strrpos($chunk, '{');
+                    if ($at === false) continue;
+
+                    $sel  = substr($chunk, 0, $at);
+                    $rule = substr($chunk, $at + 1);
+
+                    foreach (Accent::roles() as $role) {
+                        if (!preg_match('/background(?:-color)?\s*:[^;{}]*--ag-' . $role . '-(?:fill|wash)\b/', $rule)) continue;
+
+                        foreach (array_keys($classes) as $c) {
+                            if (preg_match('/\.' . preg_quote($c, '/') . '\b/', $sel)) {
+                                $bad[] = sprintf('%s: `%s` fills a paid control in %s',
+                                    $file, trim($sel), $role);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        $bad = array_values(array_unique($bad));
+
+        $this->assertSame([], $bad,
+            "money is wearing a role accent. On a platform that sells vote packs and "
+          . "claims a ranking cannot be bought, the purchase must never wear what the "
+          . "free action wears:\n  " . implode("\n  ", $bad));
+    }
+
+    /**
+     * Every region a page has marked as asking for money.
+     *
+     * @return list<string> the markup inside each marker
+     */
+    private function paidRegions(string $body): array
+    {
+        $out = [];
+        $at  = 0;
+
+        while (($i = strpos($body, 'data-ag-paid', $at)) !== false) {
+            // Back to this element's own tag, then forward to its close. The tag name is
+            // read rather than assumed: the marker belongs on whatever element wraps the
+            // checkout, and hard-coding `section` would silently skip a `<form>`.
+            $open = strrpos(substr($body, 0, $i), '<');
+            $at   = $i + 1;
+            if ($open === false) continue;
+            if (!preg_match('/^<([a-z][a-z0-9-]*)/i', substr($body, $open, 40), $m)) continue;
+
+            $tag   = $m[1];
+            $depth = 0;
+            $pos   = $open;
+
+            // A tolerant walk: count this tag's own opens and closes. An unbalanced
+            // template takes the rest of the file, which over-reports rather than under —
+            // the right way round for a rule about money.
+            while (preg_match('/<(\/?)' . $tag . '\b/i', $body, $t, PREG_OFFSET_CAPTURE, $pos)) {
+                $pos = $t[0][1] + 1;
+                $depth += $t[1][0] === '' ? 1 : -1;
+                if ($depth === 0) break;
+            }
+
+            $out[] = substr($body, $open, max(0, $pos - $open));
+        }
+
+        return $out;
+    }
+
+    /**
+     * AND THE MARKER IS REQUIRED, OR THE RULE ABOVE IS OPT-IN.
+     *
+     * Deleting `data-ag-paid` made the money sweep pass in silence — the exact shape this
+     * codebase has paid for repeatedly: an exemption nobody counts is a rule with a hole
+     * in it, and a rule you can switch off by deleting one attribute is not a rule.
+     *
+     * The signal is `pay_providers`: a template that has been handed the list of payment
+     * providers is a template that is about to ask somebody for money. That is a KIND
+     * rather than a list — a second checkout built next year inherits the requirement by
+     * being handed the same variable, and nobody has to remember to extend anything.
+     *
+     * ── WHAT IS DELIBERATELY NOT COVERED YET, AND WHY IT IS SAID HERE ────────
+     *
+     * The shop cart, the donation prompt and an organisation's own gift page also ask for
+     * money and carry no marker. They are not converted to the palette yet, so marking
+     * them would assert a rule against templates full of literal colours and fail on the
+     * first run for a reason that is not about money. They are named here rather than left
+     * for somebody to discover, because a gap nobody wrote down is indistinguishable from
+     * a decision. See docs/CODEBASE-INDEX.md.
+     */
+    public function test_a_page_that_asks_for_money_declares_where(): void
+    {
+        $bad = [];
+
+        foreach ($this->templates() as $file => $body) {
+            $body = (string) preg_replace('/\{#.*?#\}/s', '', $body);
+
+            if (!str_contains($body, 'pay_providers')) continue;
+            if (str_contains($body, 'data-ag-paid')) continue;
+
+            $bad[] = $file . ' takes payment and marks no paid region — add data-ag-paid '
+                   . 'to the element that wraps the checkout';
+        }
+
+        $this->assertSame([], $bad, implode("\n  ", $bad));
+
+        // And the marker has to reach something. A marker on an element with no controls
+        // inside it passes the sweep above by having nothing to find.
+        $vote = (string) file_get_contents(
+            dirname(__DIR__, 2) . '/templates/pages/vote-nominee.twig');
+        $regions = $this->paidRegions((string) preg_replace('/\{#.*?#\}/s', '', $vote));
+
+        $this->assertNotSame([], $regions, 'the ballot marks no paid region at all');
+        $this->assertStringContainsString('vn-qty', $regions[0],
+            'the marked region does not contain the pack controls, so the money sweep '
+          . 'is looking at the wrong part of the page');
     }
 }

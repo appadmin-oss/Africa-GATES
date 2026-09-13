@@ -20,18 +20,26 @@
    (WAT) with the abbreviation attached — a deadline with no zone on it is the
    thing people get wrong by exactly one hour.
 
-   ── ONE PARTIAL, TWO GROUNDS ──────────────────────────────────────────────
-   `variant: 'dark'` drops the card chrome and inverts the palette, for the
-   nominee ballot's dark header. A second copy of this markup was the obvious
-   alternative and the wrong one: the reason the digits are aria-hidden and the
-   group carries the absolute deadline as its label is not obvious from reading
-   it, so a copy would lose that within one edit.
+   ── ONE PARTIAL, TWO PLACEMENTS ───────────────────────────────────────────
+   `variant: 'bare'` drops the card chrome, for the nominee's ballot — inside a
+   panel that is already a card, a second bordered box reads as a nested widget.
+   It sets no colours: the countdown inherits its panel's ink.
+
+   It was called `dark` and inverted the palette, because that header used to be a
+   near-black block. When the header became a `live` wash on paper every inverted
+   value went invisible on it, including the deadline — the one fact on the panel
+   that decides whether somebody bothers to vote. A variant named for the GROUND it
+   assumes lies the moment the ground changes.
+
+   A second copy of this markup was the obvious alternative and the wrong one: the
+   reason the digits are aria-hidden and the group carries the absolute deadline as
+   its label is not obvious from reading it, so a copy would lose that in one edit.
 #}
 {% if phase is defined and phase and phase.closes_at and phase.seconds_left is not null and phase.seconds_left > 0 %}
   {% set _soon = phase.closing_soon|default(false) %}
-  {% set _dark = (variant|default('')) == 'dark' %}
+  {% set _bare = (variant|default('')) == 'bare' %}
 
-  <div class="vc {{ _soon ? 'vc--soon' : '' }} {{ _dark ? 'vc--dark' : '' }}"
+  <div class="vc {{ _soon ? 'vc--soon' : '' }} {{ _bare ? 'vc--bare' : '' }}"
        data-vc
        data-vc-left="{{ phase.seconds_left }}"
        role="group"

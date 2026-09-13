@@ -87,7 +87,7 @@
   /* ══ the sticky bar ══════════════════════════════════════════════════════ */
   .hf-bar{ position:sticky; top:0; z-index:5; background:var(--ag-ground);
            border-bottom:1px solid var(--ag-line); }
-  .hf-bar__in{ display:flex; flex-wrap:wrap; gap:12px 18px; align-items:center;
+  .hf-bar__in{ display:flex; flex-wrap:wrap; min-width:0; gap:12px 18px; align-items:center;
                justify-content:space-between; padding:12px 0; }
   .hf-find{ display:flex; gap:8px; align-items:center; }
   .hf-find input{ min-width:min(280px,60vw); min-height:40px; padding:0 14px;
@@ -100,7 +100,14 @@
   .hf-find button:hover{ background:var(--ag-surface-2); }
 
   /* overflow-x, never hidden, and never a truncated label. */
-  .hf-chips{ display:flex; gap:8px; flex-wrap:nowrap; overflow-x:auto; padding-bottom:2px; }
+  /* ── `min-width:0` IS WHAT MAKES `overflow-x:auto` ACTUALLY SCROLL ──────────
+     A flex item's min-width defaults to `auto`, which is its MIN-CONTENT width —
+     and for a nowrap row of chips that is the whole row. So the row refused to
+     shrink, pushed its flex parent wide, pushed the page wrapper wide, and the
+     document scrolled horizontally at phone width with the right-hand end of
+     every line cut off. The `overflow-x:auto` was already there and could not
+     fire, because there was nothing to overflow: the box had grown to fit. */
+  .hf-chips{ display:flex; min-width:0; gap:8px; flex-wrap:nowrap; overflow-x:auto; padding-bottom:2px; }
   /* 2.5.8 — the AA floor is 24px and is NOT conditional on the pointer. */
   .hf-chip{ flex:none; display:inline-flex; align-items:center; gap:7px; min-height:32px;
             padding:0 13px; border-radius:999px; border:1px solid var(--ag-line);
