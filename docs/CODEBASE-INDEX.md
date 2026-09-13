@@ -1809,11 +1809,42 @@ and the category race page — and the middle option considered was to keep the 
 count while dropping the lead bar and "every vote widens the lead", which are the parts that
 read as an appeal to buy rather than as a fact.
 
+### TWO THINGS THE BUDGET SWEEP CANNOT SEE, SAID BEFORE ANYBODY TRUSTS IT
+
+**The legacy aliases were a back door, and are now closed.** `--ag-green` IS action.fill,
+`--ag-pulse` IS live.fill, `--ag-gold` is a second honour nothing documents. They are still
+emitted so the ~60 unconverted templates keep working, and while the sweep did not recognise
+them a declared page could spend any amount of role colour through them and pass. They count
+as their role now, but only for a page that has DECLARED a tier: an undeclared template has
+not opted in, and charging it would demand tiers from sixty screens in one pass, which is
+guessing at most of them.
+
+**It reads TEMPLATES, and colour can arrive from a shared stylesheet.** Most colour here is
+declared in a page's own inline `<style>` block, which is why that is enough for most pages.
+`/cookies` is the live counter-example: the page and its article partial hold no literal and
+no role token, and `components/article.css` still paints its eyebrow chip and its download
+button in `--ag-green`. A tier-0 legal document is supposed to spend nothing at all, and the
+sweep reports it clean. Closing that needs a page-to-stylesheet map, which is real work and
+not a tightening of a regex.
+
+### A PRE-EXISTING FAULT FOUND WHILE CHECKING THIS WORK, AND NOT CAUSED BY IT
+
+**Every page scrolls horizontally at 430px.** The right-hand end of every line is cut, the
+top banner is clipped mid-sentence, and the mobile tab bar's fifth item is off-screen —
+on `/results` and `/winners`, which were rebuilt here, and identically on `/integrity`,
+which was not touched at all. It is site-wide and it predates this work. Nigeria is a
+mobile-first market; this deserves its own investigation.
+
+(One genuine instance of the same shape WAS introduced here and is fixed: the new chip rows
+are flex items with `overflow-x:auto`, and a flex item's min-width defaults to its
+MIN-CONTENT width — the whole nowrap row — so the overflow could never fire because the box
+had already grown to fit. `min-width:0` on both.)
+
 ### Tests
 
 `ColourBudgetTest` (9), `ColourIsNeverAloneTest` (6), `NoLiteralHexTest` (4), `AccentTest`
-(10), `ResultStandingsTest` (10), plus additions to `HallOfFameTest`, `EditionPageTest` and
-`PublicResultsTest`.
+(10), `ResultStandingsTest` (10), `VoteCountdownTest` (12), plus additions to
+`HallOfFameTest`, `EditionPageTest` and `PublicResultsTest`.
 
 **Every sweep was watched naming a real break before it was trusted**, and three assertions
 were found VACUOUS that way and rewritten:

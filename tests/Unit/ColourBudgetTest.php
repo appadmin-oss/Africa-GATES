@@ -48,10 +48,37 @@ use Tests\TestCase;
  * what it is allowed to spend. A template that spends none needs no declaration to prove
  * it spent none. The backlog of undeclared templates is reported as a shrinking count,
  * the same ratchet the literal sweep uses, so the gap is visible rather than forgotten.
+ *
+ * ══════════════════════════════════════════════════════════════════════════════
+ * AND WHAT THIS SWEEP CANNOT SEE, WHICH IS WORTH KNOWING BEFORE TRUSTING IT
+ * ══════════════════════════════════════════════════════════════════════════════
+ *
+ * It reads TEMPLATES. Most colour on this platform is declared in a page's own inline
+ * `<style>` block, which is why that is enough for most pages — but colour arriving from a
+ * shared component stylesheet is invisible to it. `/cookies` is the live example: the page
+ * and its article partial hold no literal and no role token, and `components/article.css`
+ * still paints its eyebrow chip and its download button in `--ag-green`. A tier-0 legal
+ * document is supposed to spend nothing at all, and this sweep reports it clean.
+ *
+ * Closing that needs a page-to-stylesheet map, which is real work and not a tightening of
+ * this regex. It is written here rather than left to be discovered, because a sweep whose
+ * edge nobody knows is a sweep people believe past its reach.
  */
 final class ColourBudgetTest extends TestCase
 {
     private const TIERS = ['0' => 0, '1' => 1, '2' => 2, '3' => 3];
+
+    /**
+     * The pre-palette names that are still a role underneath.
+     *
+     * Emitted by `base/tokens.css` so unconverted templates keep working. A page that has
+     * declared a tier is charged for them exactly as if it had named the role.
+     */
+    private const ALIASES = [
+        Accent::ACTION => '--ag-green',
+        Accent::LIVE   => '--ag-pulse',
+        Accent::HONOUR => '--ag-gold',
+    ];
 
     /** @return array<string,string> path => raw body */
     private function templates(): array
@@ -166,6 +193,24 @@ final class ColourBudgetTest extends TestCase
         $out  = [];
 
         foreach (Accent::roles() as $role) {
+            // ── THE LEGACY ALIASES COUNT AS THEIR ROLE ───────────────────────
+            //
+            // `--ag-green` IS action.fill, `--ag-pulse` IS live.fill, `--ag-gold` is a
+            // second honour that nothing documents. They are still emitted so the ~60
+            // templates not yet converted keep working, and while this sweep did not
+            // recognise them a declared page could spend any amount of role colour through
+            // them and pass — which is a budget with a back door, not a budget.
+            //
+            // Only for a page that has DECLARED a tier: an undeclared template has not
+            // opted into this system yet, and charging it here would demand tiers from
+            // sixty screens in one pass, which is guessing at most of them.
+            $alias = self::ALIASES[$role] ?? null;
+            if ($alias !== null && $this->tier($seen) !== ''
+                && preg_match('/var\(\s*' . preg_quote($alias, '/') . '\b/', $seen)) {
+                $out[] = $role;
+                continue;
+            }
+
             // The tile is one event whichever slots it uses, so a role is counted ONCE
             // however many times it appears — the budget counts events, not declarations.
             if (preg_match('/--ag-' . $role . '-(?:wash|fill)\b/', $seen)

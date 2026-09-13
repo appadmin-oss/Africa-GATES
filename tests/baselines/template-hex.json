@@ -77,7 +77,6 @@
   "templates/pages/vote-verify.twig": 27,
   "templates/pages/vote.twig": 64,
   "templates/partials/comments.twig": 3,
-  "templates/partials/cookie-choice.twig": 16,
   "templates/partials/cookie-notice.twig": 8,
   "templates/partials/icons.twig": 32,
   "templates/partials/member-autofill.twig": 8,
