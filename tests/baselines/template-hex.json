@@ -54,7 +54,6 @@
   "templates/pages/registry/index.twig": 32,
   "templates/pages/registry/profile.twig": 71,
   "templates/pages/registry/register.twig": 19,
-  "templates/pages/results/hall.twig": 12,
   "templates/pages/results/late.twig": 3,
   "templates/pages/results/show.twig": 9,
   "templates/pages/shop/alert-stopped.twig": 4,

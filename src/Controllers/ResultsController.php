@@ -107,7 +107,18 @@ final class ResultsController
      */
     public function hall(Request $req, Response $res): Response
     {
-        $hall  = \AfricaGates\Services\HallOfFame::build();
+        // Every filter is a link with a real address — this is a public, indexable
+        // archive, so "everybody who has won twice" is something a reader can send. Nothing
+        // is validated here: `build()` resolves each value against a known set.
+        $q     = $req->getQueryParams();
+        $hall  = \AfricaGates\Services\HallOfFame::build(
+            \AfricaGates\Services\HallOfFame::EDITIONS, [
+                'programme' => (string) ($q['programme'] ?? ''),
+                'edition'   => (string) ($q['edition'] ?? ''),
+                'repeat'    => (string) ($q['repeat'] ?? ''),
+                'q'         => (string) ($q['q'] ?? ''),
+                'letter'    => (string) ($q['letter'] ?? ''),
+            ]);
         $names = array_slice(array_map(
             static fn (array $p): string => (string) ($p['name'] ?? ''), $hall['people']), 0, 3);
         $names = array_values(array_filter($names, static fn (string $n): bool => trim($n) !== ''));

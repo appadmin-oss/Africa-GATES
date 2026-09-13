@@ -84,11 +84,14 @@ final class HallOfFame
      *   awards:int, repeat:int, reach:array{from:int,to:int}, held:int, truncated:bool
      * }
      */
-    public static function build(int $maxEditions = self::EDITIONS): array
+    public static function build(int $maxEditions = self::EDITIONS, array $view = []): array
     {
         $empty = ['people' => [], 'editions' => 0, 'programmes' => 0, 'awards' => 0,
                   'repeat' => 0, 'reach' => ['from' => 0, 'to' => 0], 'held' => 0,
-                  'truncated' => false];
+                  'truncated' => false, 'overall' => 0, 'overall_people' => [],
+                  'category_people' => [], 'letters' => [], 'shown' => 0, 'total' => 0,
+                  'programme_chips' => [], 'edition_chips' => [],
+                  'view' => self::view($view)];
 
         $index = PublicResults::index($maxEditions);
         $eds   = (array) ($index['editions'] ?? []);
@@ -281,6 +284,153 @@ final class HallOfFame
             // Whether the cap actually bit. A hall that quietly forgets is the one failure
             // this page must not have, so the page says so and points at the archive.
             'truncated'  => count($eds) >= $maxEditions,
+        ] + self::grouped($people, $view);
+    }
+
+    /**
+     * The wall, split and filtered, plus the controls that steer it.
+     *
+     * ══════════════════════════════════════════════════════════════════════════
+     * WHY THE SPLIT IS HERE AND NOT A `filter` IN THE TEMPLATE
+     * ══════════════════════════════════════════════════════════════════════════
+     *
+     * "Topped a whole edition" against "won one category of it" is the only ranking this
+     * platform actually makes, and a hall drawing both at the same weight throws it away.
+     * Which means the split is a claim about the data, not a layout convenience — and a
+     * claim a template makes is a claim no test can reach and the next template will make
+     * differently.
+     *
+     * ══════════════════════════════════════════════════════════════════════════
+     * AND THE CHIPS AND LETTERS COME OFF THE UNFILTERED WALL
+     * ══════════════════════════════════════════════════════════════════════════
+     *
+     * Two different reasons, both about lying to a reader.
+     *
+     * A chip list built from the filtered result deletes the way back out of the filter
+     * you just applied — the interaction people report as the site being broken.
+     *
+     * And an A–Z rail with fifteen dead keys is a control that lies about the size of the
+     * hall: it implies there is somebody under R. The letters are the initials somebody is
+     * actually filed under, so the rail is as long as the hall is and no longer.
+     *
+     * @param list<array<string,mixed>> $people
+     * @return array<string,mixed>
+     */
+    private static function grouped(array $people, array $raw): array
+    {
+        $view = self::view($raw);
+
+        $chips    = [];
+        $editions = [];
+        $letters  = [];
+
+        foreach ($people as $p) {
+            $letters[self::letterOf($p)] = true;
+            foreach ($p['wins'] as $w) {
+                $name = (string) ($w['programme'] ?? '');
+                if ($name !== '') {
+                    $chips[$name] ??= ['name' => $name, 'style' => (string) ($w['programme_style'] ?? ''), 'n' => 0];
+                    $chips[$name]['n']++;
+                }
+                $year = (int) ($w['year'] ?? 0);
+                if ($year > 0) $editions[$year] = ($editions[$year] ?? 0) + 1;
+            }
+        }
+
+        ksort($chips);
+        krsort($editions);
+        ksort($letters);
+
+        $shown = self::filterPeople($people, $view);
+
+        return [
+            'overall_people'  => array_values(array_filter($shown,
+                static fn (array $p): bool => (int) ($p['overall_count'] ?? 0) > 0)),
+            'category_people' => array_values(array_filter($shown,
+                static fn (array $p): bool => (int) ($p['overall_count'] ?? 0) === 0)),
+            'letters'         => array_keys($letters),
+            'programme_chips' => array_values($chips),
+            'edition_chips'   => array_map(
+                static fn (int $y, int $n): array => ['year' => $y, 'n' => $n],
+                array_keys($editions), array_values($editions)),
+            'shown'           => count($shown),
+            'total'           => count($people),
+            'view'            => $view,
         ];
+    }
+
+    /**
+     * The view state, normalised.
+     *
+     * Every value arrives from a URL and is therefore untrusted, and an unrecognised one
+     * is the default rather than an error: a stale or mistyped link is somebody trying to
+     * read a hall of fame.
+     *
+     * @return array{programme:string, edition:int, repeat:bool, q:string, letter:string}
+     */
+    private static function view(array $raw): array
+    {
+        $letter = strtoupper(trim((string) ($raw['letter'] ?? '')));
+
+        return [
+            'programme' => trim((string) ($raw['programme'] ?? '')),
+            'edition'   => (int) ($raw['edition'] ?? 0),
+            'repeat'    => (string) ($raw['repeat'] ?? '') !== '',
+            'q'         => trim((string) ($raw['q'] ?? '')),
+            'letter'    => preg_match('/^\p{Lu}$/u', $letter) === 1 ? $letter : '',
+        ];
+    }
+
+    /**
+     * The letter somebody is filed under.
+     *
+     * `mb_` throughout and uppercased once: "Aïcha" and "Ngozi" file under A and N, and a
+     * byte-wise `substr` on a multi-byte name produces half a character — which renders as
+     * a replacement glyph in a rail whose whole job is being scannable.
+     */
+    private static function letterOf(array $p): string
+    {
+        $c = mb_strtoupper(mb_substr(trim((string) ($p['name'] ?? '')), 0, 1));
+
+        // Anything that is not a letter is filed together rather than given a key of its
+        // own: a rail with a `#` beside twenty-six letters is honest, one with a key per
+        // punctuation mark is noise.
+        return preg_match('/^\p{L}$/u', $c) === 1 ? $c : '#';
+    }
+
+    /**
+     * @param  list<array<string,mixed>> $people
+     * @return list<array<string,mixed>>
+     */
+    private static function filterPeople(array $people, array $view): array
+    {
+        return array_values(array_filter($people, static function (array $p) use ($view): bool {
+            if ($view['repeat'] && (int) ($p['count'] ?? 0) < 2) return false;
+            if ($view['letter'] !== '' && self::letterOf($p) !== $view['letter']) return false;
+
+            if ($view['q'] !== '') {
+                // Matched against the name and the categories a card PRINTS, and nothing
+                // it does not: a search that finds somebody by a field the reader cannot
+                // see returns a result they have no way to explain.
+                $hay = mb_strtolower((string) ($p['name'] ?? '') . ' ' . implode(' ',
+                    array_map(static fn (array $w): string
+                        => (string) ($w['category'] ?? '') . ' ' . (string) ($w['programme'] ?? ''),
+                        (array) ($p['wins'] ?? []))));
+                if (!str_contains($hay, mb_strtolower($view['q']))) return false;
+            }
+
+            if ($view['programme'] !== '' || $view['edition'] > 0) {
+                $hit = false;
+                foreach ((array) ($p['wins'] ?? []) as $w) {
+                    if ($view['programme'] !== '' && (string) ($w['programme'] ?? '') !== $view['programme']) continue;
+                    if ($view['edition'] > 0 && (int) ($w['year'] ?? 0) !== $view['edition']) continue;
+                    $hit = true;
+                    break;
+                }
+                if (!$hit) return false;
+            }
+
+            return true;
+        }));
     }
 }
