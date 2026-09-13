@@ -182,9 +182,14 @@ final class EditionPageTest extends TestCase
 
         $html = $this->render($e);
         $this->assertStringContainsString('dorcas.jpg', $html, 'the portrait never reached the markup');
-        // The name outranks the number: a person is the story, the index is the evidence.
+
+        // The name outranks the number: a person is the story, the index is the evidence
+        // for it. Anchored on the index BLOCK rather than on the figure's own markup —
+        // the first version of this looked for `630</b>`, so rewriting the band to put a
+        // `/1000` inside that same <b> failed a test about reading order for a reason
+        // that had nothing to do with reading order.
         $this->assertLessThan(
-            strpos($html, (string) $e['top']['winner']['cpi'] . '</b>'),
+            strpos($html, 'class="ed-idx"'),
             strpos($html, 'Oluwagbemiga Dorcas'),
             'the index is printed before the name it describes');
     }
@@ -201,10 +206,134 @@ final class EditionPageTest extends TestCase
         $this->assertSame('', $e['top']['winner']['photo']);
         $this->assertStringContainsString('Ngozi Okereke', $this->render($e));
 
+        // And the stand-in is WORDED. An initial alone is a decoration that reads as a
+        // broken image; "No photograph" says which of the two it is, on a page whose whole
+        // subject is a person.
+        $this->assertStringContainsString('No photograph', $this->render($e));
+
         $css = (string) file_get_contents(dirname(__DIR__, 2) . '/templates/pages/results/edition.twig');
         $this->assertMatchesRegularExpression(
-            '~\.ed-card__ph\{\s*display:block~', $css,
-            'the card box is inline again — aspect-ratio does not apply and the no-photo card collapses');
+            '~\.ed-ph\{[^}]*display:(?:block|flex)~', $css,
+            'the portrait box is inline again — a <span> with no display collapses to '
+          . 'nothing and spills its initial over whatever sits beside it');
+    }
+
+
+    // ──────────────── what the edition page could not say before ────────────────
+
+    /**
+     * SECOND AND THIRD IN THE EDITION, WHICH EXIST NOWHERE ELSE ON THIS SITE.
+     *
+     * A category page can only ever say who won that category. "Who came second across the
+     * whole 2026 edition" had no answer anywhere — and being narrowly beaten in a deep
+     * field says more about a nominee than winning a field of one, which is exactly why
+     * `ResultRelease::overall()` ranks every nominee in the cycle rather than the category
+     * winners.
+     */
+    public function test_the_edition_names_who_came_second_and_third_in_it(): void
+    {
+        $this->award('Teachers’ Choice',       'Oluwagbemiga Dorcas',  1500, 1);
+        $this->award('Community Service',      'Awe-Olola Victoria',    900, 2);
+        $this->award('Innovation in Teaching', 'Adeyemi Bolanle',       600, 3);
+
+        $e = PublicResults::edition(PublicResults::editionSlug($this->slug, 2026));
+        $this->assertNotNull($e['overall'], 'the edition has no standing of its own');
+        $this->assertGreaterThan(1, count($e['overall']['top4']),
+            'the edition standing carries a winner and nobody behind them');
+
+        $html = $this->render($e);
+        $this->assertStringContainsString('2nd in the edition', $html);
+
+        // The figures are the SEALED ones — `overall` is computed from the categories
+        // already drawn through ReleasedStanding, never by handing a cycle id back to the
+        // scorer, which would rank a released edition under today's arithmetic and could
+        // name somebody the platform never announced.
+        $this->assertSame($e['top']['winner']['nominee_id'],
+                          $e['overall']['top4'][0]['nominee_id'],
+            'the band and the standing under it disagree about who led the edition');
+    }
+
+    /**
+     * A WITHHELD AWARD IS A ROW, NOT A NUMBER IN A SENTENCE.
+     *
+     * It used to be counted and dropped, so an award being verified appeared on this page
+     * as "1 further award is decided and not yet published" and nowhere else. A count says
+     * four awards are being checked; a row says WHICH — and which is what a nominee
+     * waiting on one of them actually needs. This class's own rule is that silence is how
+     * a withheld award becomes a rumour.
+     */
+    public function test_an_award_being_checked_is_named_on_the_page(): void
+    {
+        $this->award('Teachers’ Choice', 'Oluwagbemiga Dorcas', 1500, 1);
+
+        // A category with nominees and no panel at all: nobody meets the judging quorum,
+        // so it is decided-but-unpublishable rather than absent.
+        $dark = $this->category('Lifetime Contribution', 2);
+        $this->nominee($dark, 'Somebody Waiting', 700);
+
+        $e = PublicResults::edition(PublicResults::editionSlug($this->slug, 2026));
+        $this->assertSame(1, $e['held'], 'the fixture no longer produces a withheld award');
+
+        $titles = array_column($e['categories'], 'title');
+        $this->assertContains('Lifetime Contribution', $titles,
+            'the withheld award is missing from the page entirely');
+
+        $row = null;
+        foreach ($e['categories'] as $c) if ($c['title'] === 'Lifetime Contribution') $row = $c;
+        $this->assertSame('withheld', $row['status']['key']);
+        $this->assertFalse($row['status']['publishes_standing']);
+        $this->assertNull($row['award'], 'a withheld award is carrying a drawn standing');
+
+        $html = $this->render($e);
+        $this->assertStringContainsString('Lifetime Contribution', $html);
+        $this->assertStringNotContainsString('Somebody Waiting', $html,
+            'a nominee from an unannounced award reached a public page');
+    }
+
+    /**
+     * AND THE CAVEAT IS ABOUT OUR PROCESS, NEVER ABOUT THE PERSON UNDER IT.
+     *
+     * Naming somebody "highest in the edition" and then quietly replacing them when a
+     * withheld award lands is worse than saying it is not settled — so the caveat is
+     * stated. It is never a mark on their name or their photograph, which is the form
+     * that reads as an accusation.
+     */
+    public function test_a_withheld_award_makes_the_edition_top_provisional_and_says_why(): void
+    {
+        $this->award('Teachers’ Choice', 'Oluwagbemiga Dorcas', 1500, 1);
+        $dark = $this->category('Lifetime Contribution', 2);
+        $this->nominee($dark, 'Somebody Waiting', 700);
+
+        $e = PublicResults::edition(PublicResults::editionSlug($this->slug, 2026));
+        $this->assertTrue($e['overall']['provisional']);
+        $this->assertSame(1, $e['overall']['held']);
+
+        // Whitespace-normalised: the sentence wraps in the template, so asserting it
+        // verbatim fails on the indentation rather than on the copy.
+        $html = (string) preg_replace('~\s+~', ' ', $this->body($e));
+        $this->assertStringContainsString('Provisional', $html);
+        $this->assertStringContainsString('not about the people named here', $html,
+            'the caveat does not say whose process it is about, which is how a caveat '
+          . 'reads as an accusation');
+
+        // Cover the caveat and the winner still reads as the winner: it sits BELOW the
+        // band, never on their name.
+        //
+        // TWO WAYS THIS ASSERTION WAS VACUOUS, AND BOTH WERE FOUND BY BREAKING IT.
+        //
+        // It first compared the position of "Oluwagbemiga Dorcas" against the caveat's.
+        // The winner's name is in the <title>, the meta description and the JSON-LD, so
+        // its first occurrence is always in the head — moving the caveat to the very top
+        // of the body passed.
+        //
+        // Anchoring on the class names instead was no better: `.ed-band` and `.ed-caveat`
+        // are both DECLARED in the page's own <style> block, in that order, so the
+        // comparison was measuring the order of two CSS rules. It reads on the body, with
+        // the head and the styles stripped — see body().
+        $this->assertLessThan(strpos($html, 'ed-caveat'),
+                              strpos($html, 'ed-band'),
+            'the caveat is printed above the band it is qualifying, which puts a warning '
+          . 'over a person rather than under a result');
     }
 
     // ───────────────────────────── the sitemap ────────────────────────────────
@@ -329,5 +458,23 @@ final class EditionPageTest extends TestCase
         return $b->build()->get(Twig::class)->fetch('pages/results/edition.twig', [
             'e' => $e, 'gates_page' => 'results', 'has_hero' => false,
         ]);
+    }
+
+    /**
+     * The rendered page with its head and its style block removed.
+     *
+     * Anything asserting about the ORDER of two things a reader sees has to read the body
+     * alone. A winner's name is in the <title>, the meta description and the JSON-LD, and
+     * every class name is declared in the page's own <style> block — so a `strpos`
+     * comparison over the whole document measures the head, which is never what the
+     * assertion is about and always passes.
+     */
+    private function body(array $e): string
+    {
+        $html = $this->render($e);
+        $at   = strpos($html, '<body');
+
+        return (string) preg_replace('~<style\b.*?</style>~s', '',
+            $at === false ? $html : substr($html, $at));
     }
 }

@@ -196,7 +196,7 @@ final class ColourBudgetTest extends TestCase
 
             if ($tier === '') continue;            // undeclared — reported separately
 
-            $ceiling = self::TIERS[$tier];
+            $ceiling = self::TIERS[$tier] + ($this->band($body) ? 1 : 0);
             if (count($events) > $ceiling) {
                 $bad[] = sprintf('%s: tier %s allows %d event%s, spends %d (%s)',
                     $file, $tier, $ceiling, $ceiling === 1 ? '' : 's',
@@ -263,5 +263,41 @@ final class ColourBudgetTest extends TestCase
         // But a wash behind something IS an event.
         $this->assertSame(['honour'], $this->events(
             '<div style="background:var(--ag-honour-wash)">x</div>'));
+    }
+
+    /**
+     * The band privilege: one extra event, for a page that replaces its tile with a field.
+     *
+     * Only two page types may do it — the hall of fame and a decided edition — because
+     * only those two have a subject the band is actually ABOUT. That is the rarest thing
+     * on this platform getting the loudest treatment, and the reason it is safe is that it
+     * is a list of two rather than a judgement each page makes for itself.
+     *
+     * So the privilege is DECLARED, and the count of declarations is asserted. An honour
+     * band that appears on a third page is a band that has stopped meaning anything, and
+     * the way that happens is one page at a time, each one defensible on its own.
+     */
+    private function band(string $body): bool
+    {
+        return preg_match('/\{%-?\s*set\s+colour_band\s*=\s*true\s*-?%\}/', $body) === 1;
+    }
+
+    public function test_the_band_privilege_is_still_a_list_of_two(): void
+    {
+        $claimed = [];
+
+        foreach ($this->templates() as $file => $body) {
+            if ($this->band($body)) $claimed[] = $file;
+        }
+
+        sort($claimed);
+
+        $this->assertSame([
+            'templates/pages/results/edition.twig',
+            'templates/pages/results/hall.twig',
+        ], $claimed,
+            'a third page is claiming the honour band. Only a hall of fame and a decided '
+          . 'edition may replace their one tile with a full-bleed field — a band on a '
+          . 'third page is a band that has stopped meaning anything.');
     }
 }

@@ -414,6 +414,12 @@ final class PublicResults
             'dead_heat'  => (bool) ($o['dead_heat'] ?? false),
             'provisional' => $held > 0,
             'held'        => $held,
+            // THE TOP OF THE EDITION, which exists nowhere else on this site: a category
+            // page can only ever say who won that category, and second and third in the
+            // EDITION is a fact a reader has no other way to get. Capped at four because
+            // that is a band footer and not a standing — the full order is the release
+            // screen's, and publishing it here would make a second ranking to keep true.
+            'top4'        => array_slice($o['contenders'] ?? [], 0, 4),
             // Always, for now. See the docblock — there is no sealed overall rank.
             'reconstructed' => true,
         ];
@@ -527,6 +533,15 @@ final class PublicResults
             'awards'     => $awards,
             'held'       => $held,
             'top'        => $top,
+            // WHO LED THE WHOLE EDITION. Computed from the already-drawn, SEALED
+            // categories — never by handing `ResultRelease::overall()` a cycle id and
+            // letting it re-score, which would rank a released edition under today's
+            // arithmetic and could name a different person than the platform announced.
+            'overall'    => self::overallFor((int) $cy->id, $awards, $held),
+            // Counted for the header, so the page states its own size rather than a
+            // figure somebody typed into a template and stopped maintaining.
+            'votes'      => self::votesIn((int) $cy->id),
+            'nominees'   => self::nomineesIn((int) $cy->id),
             'status'     => ResultStatus::forEdition(CyclePolicy::phaseFor($cy), count($awards),
                                                      $awards === [] && $held > 0 ? self::HELD_DARK : null),
             // EVERY category, decided or not, in the order the edition lists them.
@@ -1302,5 +1317,25 @@ final class PublicResults
         }
 
         return $out;
+    }
+
+    /**
+     * How many nominees stand in one edition.
+     *
+     * A merged-away nominee is not a second person: the merge exists precisely because two
+     * rows were one human being, and counting both would inflate the figure a page uses to
+     * say how large its field was.
+     */
+    private static function nomineesIn(int $cycleId): int
+    {
+        try {
+            return (int) DB::table('gates_nominees as n')
+                ->join('gates_award_categories as c', 'c.id', '=', 'n.category_id')
+                ->where('c.cycle_id', $cycleId)
+                ->whereNull('n.merged_into')
+                ->count();
+        } catch (\Throwable) {
+            return 0;
+        }
     }
 }

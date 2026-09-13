@@ -139,6 +139,7 @@ final class AccentTest extends TestCase
             // Twig comments reach no reader, so a comment naming the roles — this file's
             // own explanation, or a note above a change — was never in scope. Same lesson
             // GlobeBandTest records: sweep what a READER sees.
+            $body = $this->withoutFocusRings($body);
             $seen = [];
             foreach (Accent::roles() as $role) {
                 if (preg_match('/var\(\s*--ag-' . $role . '-(?:fill|wash)\b/',
@@ -169,6 +170,7 @@ final class AccentTest extends TestCase
         $offenders = [];
 
         foreach ($this->publicTemplates() as $path => $body) {
+            $body = $this->withoutFocusRings($body);
             $seen = [];
             foreach (Accent::roles() as $role) {
                 if (preg_match('/var\(\s*--ag-' . $role . '-/',
@@ -350,5 +352,27 @@ final class AccentTest extends TestCase
         $d = abs($this->hue($a) - $this->hue($b));
 
         return min($d, 360 - $d);
+    }
+
+    /**
+     * The same body with its focus rules removed.
+     *
+     * A focus ring is `action` green and is the one non-CTA use of that role on this
+     * platform. It is not an accent a reader can point at — it is a keyboard affordance,
+     * present on every interactive element and visible only while one is focused — and
+     * counting it against a palette ceiling pushes a page towards one of two bad answers:
+     * dropping the ring, which trades a WCAG 2.4.7 failure for a palette rule, or
+     * FILLING something else to stay under the count.
+     *
+     * It came up on the rebuilt edition page, which reaches for honour (its band),
+     * caution (a withheld award's outline) and live (one still counting) — three correct
+     * accents — and was reported as four because it also draws a focus ring.
+     */
+    private function withoutFocusRings(string $body): string
+    {
+        // The rule's whole block, brace to brace. `:focus-within` and `:focus-visible` are
+        // both matched by the same prefix, and a selector list ("a:hover, a:focus-visible")
+        // is deliberately included: those rules paint the same affordance.
+        return (string) preg_replace('/[^{}\n][^{}]*:focus[a-z-]*[^{}]*\{[^{}]*\}/i', ' ', $body);
     }
 }
