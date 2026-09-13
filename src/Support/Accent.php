@@ -65,16 +65,126 @@ namespace AfricaGates\Support;
  */
 final class Accent
 {
-    /** The ground every ratio below is measured against. */
-    public const PAPER = '#f0f2f2';
+    /**
+     * ── THE GROUND, AND WHY IT MOVED ─────────────────────────────────────────
+     *
+     * `#f0f2f2` is a cool grey with a green-blue cast. The tone this platform needs is a
+     * printed ceremony programme — warm — and beside the gold honour wash the old ground
+     * turned faintly green. Same lightness; the cast moves from cyan to a low-chroma
+     * yellow.
+     *
+     * THE COST IS STATED RATHER THAN DISCOVERED: every ratio drops about 2% because the
+     * warm ground is fractionally darker. Nothing crosses a floor, and `ink-soft` lands at
+     * 4.80 against a 4.5 requirement — the tightest margin in the set, and the token that
+     * fails first if anybody ever lightens it.
+     */
+    public const PAPER = '#f1efe9';
 
-    /** Paper's lighter sibling — a card on the ground. Ratios hold on both. */
+    /** A card on the ground. */
     public const SURFACE = '#ffffff';
+
+    /**
+     * ── THE NEUTRAL RAMP: SIX STEPS, THREE OF THEM NEW ───────────────────────
+     *
+     * THE FAULT THIS FIXES. The ramp was two greys and one alpha hairline. You cannot
+     * build a weight-and-size hierarchy on two greys, so every screen that needed
+     * something to stand out reached for the gold — and the gold is 1.61:1 and did not
+     * show. The missing emphasis was never a missing hue; it was four missing neutrals.
+     *
+     * Three rules attach, and each is enforced by `SlotFloorTest`:
+     *
+     *   · `mute` IS NEVER A WORD. At 2.75:1 it is for disabled glyphs and decorative
+     *     rules. The test refuses it on anything containing text.
+     *
+     *   · THE ALPHA HAIRLINE BECOMES A SOLID `line`. `rgba(16,41,44,.12)` changes value
+     *     with whatever sits behind it, which is why one rule looked like two different
+     *     rules on a card and on the ground.
+     *
+     *   · `surface-2` INVALIDATES BORDERLINE VALUES. It is only a 1.29:1 step off the
+     *     ground, and that step eats the margin anything near 4.5 was relying on:
+     *     `ink-soft` 4.80 → 4.38 and `live` ink 4.78 → 4.36. Both fail. On `surface-2`,
+     *     secondary greys step up to `ink-2` and role inks step to `ink`. Measuring
+     *     against the ground alone is exactly what let one new neutral break two inks the
+     *     moment it was added.
+     *
+     * @var array<string,array{hex:string,text:bool,note:string}>
+     */
+    private const NEUTRALS = [
+        'ink'       => ['hex' => '#10292c', 'text' => true,
+                        'note' => 'Body and headings.'],
+        'ink-2'     => ['hex' => '#3a4a4c', 'text' => true,
+                        'note' => 'Sub-headings, active nav, secondary text on a tinted surface.'],
+        'ink-soft'  => ['hex' => '#626a6e', 'text' => true,
+                        'note' => 'Captions and metadata. On the ground and on a card only.'],
+        'mute'      => ['hex' => '#8b9295', 'text' => false,
+                        'note' => 'Never a word. Disabled glyphs and decorative rules.'],
+        'line'      => ['hex' => '#d6d4cc', 'text' => false,
+                        'note' => 'Borders and separators. Solid, never an alpha.'],
+        'surface-2' => ['hex' => '#e8e5dd', 'text' => false,
+                        'note' => 'Hover rows, zebra stripes, insets.'],
+        'card'      => ['hex' => '#ffffff', 'text' => false,
+                        'note' => 'A card on the ground.'],
+        'desk'      => ['hex' => '#dcd8cf', 'text' => false,
+                        'note' => 'The ground behind a frame: artboards, print margins, embeds.'],
+    ];
+
+    /**
+     * Every ground a value can actually be drawn on.
+     *
+     * The general rule the ramp taught: any ground a value is drawn on is a ground the
+     * test must enumerate. A neutral cleared at 4.80 on paper has no margin left for a
+     * surface 1.24× darker.
+     *
+     * @return array<string,string>
+     */
+    public static function grounds(): array
+    {
+        return [
+            'ground'    => self::PAPER,
+            'card'      => self::NEUTRALS['card']['hex'],
+            'surface-2' => self::NEUTRALS['surface-2']['hex'],
+            'desk'      => self::NEUTRALS['desk']['hex'],
+        ];
+    }
+
+    /** One neutral's hex. */
+    public static function neutral(string $name): string
+    {
+        return self::NEUTRALS[$name]['hex'] ?? self::NEUTRALS['ink']['hex'];
+    }
+
+    /** May this neutral carry a word? `mute` may not. */
+    public static function neutralTakesText(string $name): bool
+    {
+        return (bool) ($self = self::NEUTRALS[$name]['text'] ?? false);
+    }
+
+    /** @return array<string,array{hex:string,text:bool,note:string}> */
+    public static function neutrals(): array
+    {
+        return self::NEUTRALS;
+    }
 
     public const HONOUR  = 'honour';
     public const ACTION  = 'action';
     public const LIVE    = 'live';
     public const CAUTION = 'caution';
+
+    /**
+     * ── A FIFTH ROLE WITH NO HUE AT ALL ──────────────────────────────────────
+     *
+     * Reserving red for WITHHELD leaves no way to say a thing actually broke. Adding a
+     * sixth hue is the wrong answer — every remaining band on the wheel collides with
+     * something already spoken for, which is the finding that cut the programme palette.
+     *
+     * So a fault is THE GROUND INVERTED: paper type on ink, at 13.28:1. On a site that is
+     * ink on paper everywhere, an inverted block is the loudest object available. It costs
+     * no new colour, it cannot be mistaken for a withheld award, and it survives every form
+     * of colour vision deficiency because it is a lightness difference and not a hue.
+     *
+     * Form errors, declined payments, destructive confirms.
+     */
+    public const FAULT = 'fault';
 
     /**
      * The palette. Values are constants and not computed, because a fixed palette that is
@@ -96,11 +206,17 @@ final class Accent
             'means' => 'An award decided, and the person it was decided for.',
         ],
         self::ACTION => [
-            // Reserved, and untouched. It already clears 4.5:1 on paper at 4.76.
+            // Reserved, and untouched. 4.65:1 on the warm ground.
             'fill' => '#237b22',
             'edge' => '#237b22',
             'ink'  => '#237b22',
             'wash' => '#e4f6e4',
+            // The press shade. A hard offset bottom border in a solid darker shade of the
+            // button's own colour — never a blurred drop shadow, because THERE ARE NO
+            // SHADOWS ANYWHERE ON THIS SITE. The lip collapses on press, and that collapse
+            // is what makes it an affordance rather than an ornament; so the lip belongs
+            // only to things that are pressed. Not tiles, not cards, not panels.
+            'lip'  => '#145213',
             'means' => 'Do this — the one thing this screen is asking for.',
         ],
         self::LIVE => [
@@ -122,7 +238,33 @@ final class Accent
             // fault reads as an accusation about the nominee.
             'means' => 'Withheld, delayed, or not measured — not an error.',
         ],
+        self::FAULT => [
+            // No hue. The ground inverted — see the constant's docblock.
+            'fill' => '#10292c',
+            'edge' => '#10292c',
+            'ink'  => '#10292c',
+            // A fault's "wash" is the ink itself, because the block is inverted: the WORDS
+            // are paper. Named `wash` so the four-slot shape holds, and the floor test
+            // knows to measure paper-on-this rather than ink-on-this.
+            'wash' => '#10292c',
+            'means' => 'Something actually broke — a form error, a declined payment.',
+        ],
     ];
+
+    /** Roles whose block is inverted: the wash is dark and the words are paper. */
+    private const INVERTED = [self::FAULT];
+
+    /** Is this role drawn as paper-on-dark rather than ink-on-wash? */
+    public static function inverted(string $role): bool
+    {
+        return in_array(strtolower(trim($role)), self::INVERTED, true);
+    }
+
+    /** The press shade for a role that has one, or '' where it has none. */
+    public static function lip(string $role): string
+    {
+        return (string) (self::of($role)['lip'] ?? '');
+    }
 
     /**
      * ── COLOUR THAT IS AN IDENTITY RATHER THAN A MEANING ─────────────────────
@@ -166,10 +308,19 @@ final class Accent
      */
     private const PROGRAMME_HUES = [
         'indigo'     => ['fill' => '#5637d2', 'edge' => '#7a62da', 'ink' => '#5739d0', 'wash' => '#e7e3f7'],
-        'ochre'      => ['fill' => '#d58f16', 'edge' => '#b3760d', 'ink' => '#905f0b', 'wash' => '#faf1e1'],
         'teal'       => ['fill' => '#1fbacb', 'edge' => '#13909e', 'ink' => '#10747f', 'wash' => '#e2f6f8'],
         'plum'       => ['fill' => '#af3cab', 'edge' => '#c559c1', 'ink' => '#a83aa5', 'wash' => '#f5e6f4'],
-        'moss'       => ['fill' => '#7ab733', 'edge' => '#5e9125', 'ink' => '#4c741f', 'wash' => '#eef6e5'],
+        // ── FIVE WAS TWO TOO MANY, AND THE TWO THAT WENT SHARED A FAMILY ─────
+        //
+        // `ochre #d58f16` is the same hue family as the honour gold, so a programme
+        // wearing it on a results page reads as a decided award. `moss #7ab733` is 31°
+        // from the action green, so a moss spine beside a green button asks the reader to
+        // work out which green is the instruction. Neither was wrong on its own; both were
+        // wrong in a system that had already spent those families.
+        //
+        // Three separable hues remain, none sharing a family with a role. A fourth
+        // programme wraps to indigo and its printed name separates them — which is the
+        // same answer the sixth hue got, for the same reason.
         // ── AND THERE IS NO SIXTH, WHICH IS A FINDING RATHER THAN A SHORTAGE ─
         //
         // A terracotta sat here and `AccentTest` refused it: at 18° it is **14.6° from the
@@ -210,9 +361,11 @@ final class Accent
     public static function forProgramme(int $id): array
     {
         $keys = array_keys(self::PROGRAMME_HUES);
-        // max(1, …) so a row with no id — an import, a fixture — still gets a colour
-        // rather than a division by zero or a blank custom property.
-        $key  = $keys[abs($id) % count($keys)];
+        // ONE-BASED, because programme ids are. The handoff states the mapping —
+        // Incredible Principal Awards (id 1) is indigo, African Creative Honours (id 2) is
+        // teal — and a plain `% count` would hand id 1 the SECOND hue and silently
+        // contradict the specification the designs were drawn against.
+        $key  = $keys[max(0, abs($id) - 1) % count($keys)];
 
         return ['key' => $key] + self::PROGRAMME_HUES[$key];
     }
@@ -263,6 +416,84 @@ final class Accent
         return $out;
     }
 
+    /**
+     * ── ASK FOR A COLOUR BY WHAT IT MEANS, NOT BY ITS NAME ───────────────────
+     *
+     * `Accent::for('withheld')` rather than `Accent::of('caution')`. The difference is
+     * that asking for a semantic colour in a non-semantic place becomes a VISIBLE MISTAKE
+     * IN THE DIFF: `for('voting-open')` on a page with no ballot on it reads wrong to a
+     * reviewer in a way `of('live')` never does.
+     *
+     * This is GOV.UK's rule — do not copy the hex values, and a functional colour name may
+     * only be used in the context it was designed for. It is also the answer to the 642
+     * literal hexes: those are not a discipline problem, they are what happens when the
+     * correct value is harder to reach than a literal.
+     *
+     * @var array<string,string> meaning => role
+     */
+    private const MEANINGS = [
+        // honour — an award decided, and the person it was decided for
+        'award-decided'   => self::HONOUR,
+        'overall-winner'  => self::HONOUR,
+        'the-index'       => self::HONOUR,
+        // action — the one thing the screen asks for
+        'do-this'         => self::ACTION,
+        'primary-action'  => self::ACTION,
+        'focus'           => self::ACTION,
+        // live — true right now
+        'voting-open'     => self::LIVE,
+        'counting'        => self::LIVE,
+        'happening-now'   => self::LIVE,
+        // caution — withheld, never a failure
+        'withheld'        => self::CAUTION,
+        'delayed'         => self::CAUTION,
+        'not-measured'    => self::CAUTION,
+        'provisional'     => self::CAUTION,
+        // fault — something actually broke
+        'form-error'      => self::FAULT,
+        'payment-declined'=> self::FAULT,
+        'destructive'     => self::FAULT,
+    ];
+
+    /**
+     * One meaning's four slots.
+     *
+     * An unrecognised meaning throws rather than falling back, and that is the opposite of
+     * {@see of()}'s behaviour on purpose. `of()` is asked for a role that a template
+     * already named, where a blank would silently strip an element's meaning on a live
+     * page. `for()` is asked at the point somebody is CHOOSING, and a typo there should
+     * stop the build rather than quietly render the wrong state — a page that says
+     * "withheld" in caution red when it meant "form error" is worse than a page that fails.
+     *
+     * @return array{fill:string,edge:string,ink:string,wash:string,means:string}
+     */
+    public static function for(string $meaning): array
+    {
+        $key = strtolower(trim($meaning));
+
+        if (!isset(self::MEANINGS[$key])) {
+            throw new \InvalidArgumentException(sprintf(
+                'No colour means "%s". The meanings are: %s',
+                $meaning, implode(', ', array_keys(self::MEANINGS))));
+        }
+
+        return self::of(self::MEANINGS[$key]);
+    }
+
+    /** Which role a meaning resolves to, for a test or a template helper. */
+    public static function roleFor(string $meaning): string
+    {
+        $key = strtolower(trim($meaning));
+
+        return self::MEANINGS[$key] ?? '';
+    }
+
+    /** @return array<string,string> */
+    public static function meanings(): array
+    {
+        return self::MEANINGS;
+    }
+
     /** @return list<string> */
     public static function roles(): array
     {
@@ -302,9 +533,38 @@ final class Accent
     public static function css(): string
     {
         $out = [];
+
+        // The ramp first, because most of the platform never leaves it. Emitted here
+        // rather than written into base/tokens.css so that every colour on the site has
+        // ONE source — which is the only way the literal-hex sweep can be true.
+        $out[] = '--ag-ground:' . self::PAPER . ';';
+        foreach (self::NEUTRALS as $name => $v) {
+            $out[] = '--ag-' . $name . ':' . $v['hex'] . ';';
+        }
+
+        // ── THE TWO LEGACY HAIRLINES BOTH BECOME THE ONE SOLID `line` ────────
+        //
+        // base/tokens.css carried `--ag-line` at rgba(…,.07) and `--ag-line-strong` at
+        // .12, and both are read across the templates. The ramp has ONE line, and the
+        // reason it is solid applies to both: an alpha border takes its value from
+        // whatever sits behind it, which is why the same rule looked like two different
+        // rules on a card and on the ground.
+        //
+        // Emitted as aliases rather than left in the stylesheet, so there is no second
+        // source for a colour — a sheet that still declared them would win or lose by
+        // load order, which is exactly the kind of thing nobody can see in a diff.
+        $out[] = '--ag-line-strong:' . self::NEUTRALS['line']['hex'] . ';';
+        // The page ground under its old name, so a template that has not been converted
+        // yet still warms with everything else.
+        $out[] = '--ag-bg:' . self::PAPER . ';';
+        $out[] = '--ag-surface:' . self::NEUTRALS['card']['hex'] . ';';
+
         foreach (self::ROLES as $role => $v) {
             foreach (['fill', 'edge', 'ink', 'wash'] as $slot) {
                 $out[] = '--ag-' . $role . '-' . $slot . ':' . $v[$slot] . ';';
+            }
+            if (($v['lip'] ?? '') !== '') {
+                $out[] = '--ag-' . $role . '-lip:' . $v['lip'] . ';';
             }
         }
 

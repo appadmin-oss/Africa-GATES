@@ -36,40 +36,22 @@ use Tests\TestCase;
  */
 final class AccentTest extends TestCase
 {
-    public function test_every_value_that_owes_a_contrast_floor_clears_it(): void
-    {
-        foreach (Accent::all() as $v) {
-            $floor = Accent::floor($v['slot']);
-            if ($floor === null) continue;
+    /*
+     * ── WHAT MOVED OUT OF THIS FILE, AND WHY ─────────────────────────────────
+     *
+     * The floor checks, the wash checks and the emitted-sheet check now live in
+     * `SlotFloorTest`, which enumerates PAIRS — every ink against every ground it can
+     * actually be drawn on — rather than measuring each value against the ground alone.
+     * That distinction is not academic: the moment `surface-2` was added, the version in
+     * this file went on calling `ink-soft` and `live` ink passing while both had dropped
+     * to 4.38 and 4.36 on a surface the site uses for every hover row.
+     *
+     * Two tests asserting the same thing with different rigour is worse than either alone,
+     * so the weaker ones are gone rather than left to disagree. What stays is what
+     * SlotFloorTest does not ask: hue drift, the per-screen role ceiling, the deuteranope
+     * separation, and the behaviour of a role nobody defined.
+     */
 
-            foreach ([Accent::PAPER, Accent::SURFACE] as $ground) {
-                $got = Contrast::ratio($v['hex'], $ground);
-
-                $this->assertGreaterThanOrEqual($floor, round($got, 2), sprintf(
-                    "%s.%s is %s — %.2f:1 on %s, and it owes %.1f:1",
-                    $v['role'], $v['slot'], $v['hex'], $got, $ground, $floor));
-            }
-        }
-    }
-
-    public function test_the_house_ink_is_readable_on_every_wash(): void
-    {
-        // A wash is the one place an accent may be loud, and the only way that is safe is
-        // if words keep sitting on it. Asserted at the large floor and then some: a wash
-        // carries body copy, a figure and a caption, not a heading alone.
-        foreach (Accent::roles() as $role) {
-            $wash = Accent::wash($role);
-            $got  = Contrast::ratio('#10292c', $wash);
-
-            $this->assertGreaterThanOrEqual(Contrast::TEXT, $got,
-                "house ink on the {$role} wash is {$got}:1");
-
-            // And it must read as a COLOUR rather than as a smudge — a wash within a
-            // whisker of the paper is a wash nobody sees, which is the fault one level up
-            // from the one this class exists for.
-            $this->assertNotSame(strtolower(Accent::PAPER), strtolower($wash));
-        }
-    }
 
     public function test_the_ink_of_a_role_is_recognisably_the_same_colour_as_its_fill(): void
     {
@@ -77,6 +59,10 @@ final class AccentTest extends TestCase
         // a gold far enough and it is a brown, and the page has complied its way out of
         // having an accent at all. Hue is held within a narrow band of the identity.
         foreach (Accent::roles() as $role) {
+            // A fault has no hue by design — it is the ground inverted — so there is
+            // nothing for it to drift from.
+            if (Accent::inverted($role)) continue;
+
             $fillHue = $this->hue(Accent::fill($role));
             foreach (['edge', 'ink'] as $slot) {
                 $got = $this->hue(Accent::of($role)[$slot]);
@@ -87,21 +73,6 @@ final class AccentTest extends TestCase
                     $role, $slot, $d));
             }
         }
-    }
-
-    public function test_the_palette_the_page_receives_is_the_palette_the_tests_measured(): void
-    {
-        // The declaration and the assertion drifting apart is exactly how four golds got
-        // into circulation. The layout reads Accent::css(); nothing types these again.
-        $css = Accent::css();
-
-        foreach (Accent::all() as $v) {
-            $this->assertStringContainsString(
-                '--ag-' . $v['role'] . '-' . $v['slot'] . ':' . $v['hex'] . ';', $css);
-        }
-
-        // Nothing but custom properties and hex digits reaches a <style> block.
-        $this->assertMatchesRegularExpression('/^:root\{(--ag-[a-z]+-[a-z]+:#[0-9a-f]{6};)+\}$/', $css);
     }
 
     public function test_an_unknown_role_is_a_colour_and_not_a_blank(): void
@@ -191,25 +162,6 @@ final class AccentTest extends TestCase
         };
     }
 
-    // ══ the categorical palette: identity, not meaning ═══════════════════════
-
-    public function test_every_programme_hue_clears_the_same_floors_as_a_role(): void
-    {
-        // A categorical colour is not exempt from contrast because it carries no meaning.
-        // The programme's name is printed IN its ink on both the hall and the archive.
-        foreach (Accent::allProgrammeHues() as $v) {
-            $floor = Accent::floor($v['slot']);
-            if ($floor === null) continue;
-
-            foreach ([Accent::PAPER, Accent::SURFACE] as $ground) {
-                $got = Contrast::ratio($v['hex'], $ground);
-                $this->assertGreaterThanOrEqual($floor, round($got, 2), sprintf(
-                    '%s.%s is %s — %.2f:1 on %s, and it owes %.1f:1',
-                    $v['role'], $v['slot'], $v['hex'], $got, $ground, $floor));
-            }
-        }
-    }
-
     /**
      * THE ORDER IS THE ACCESSIBILITY DECISION, AND THIS IS WHAT IT BUYS.
      *
@@ -224,10 +176,15 @@ final class AccentTest extends TestCase
      * position is that past four the hue stops being reliable and the NAME carries it,
      * which is true on every screen that prints one.
      */
-    public function test_the_first_four_programmes_stay_apart_for_a_deuteranope(): void
+    public function test_every_programme_hue_stays_apart_for_a_deuteranope(): void
     {
-        $keys = array_slice(Accent::programmeHues(), 0, 4);
-        $this->assertCount(4, $keys, 'the palette has shrunk below what the order protects');
+        // All THREE now, not the first four of five. Cutting ochre and moss — which shared
+        // families with the honour gold and the action green — left a set small enough
+        // that EVERY pair can be held rather than only the leading few. That is the
+        // compensation for a shorter palette and it is worth stating: fewer hues, all of
+        // them separable.
+        $keys = Accent::programmeHues();
+        $this->assertCount(3, $keys, 'the programme palette has changed size');
 
         $worst = [INF, '', ''];
         foreach ($keys as $i => $a) {
@@ -254,6 +211,7 @@ final class AccentTest extends TestCase
             if ($v['slot'] !== 'fill') continue;
 
             foreach ([Accent::CAUTION, Accent::ACTION, Accent::LIVE] as $role) {
+                if (Accent::inverted($role)) continue;
                 $d = $this->hueGap($v['hex'], Accent::fill($role));
                 $this->assertGreaterThan(22.0, $d, sprintf(
                     "the '%s' programme hue is %.1f° from the '%s' role — an identity that "
@@ -272,9 +230,12 @@ final class AccentTest extends TestCase
         $this->assertStringContainsString($a['fill'], Accent::programmeStyle(7));
 
         // Distinct for the ids a real deployment has.
+        // Three hues, so three distinct programmes; a fourth wraps to the first and its
+        // printed name separates them — the same answer the sixth hue got.
         $seen = [];
-        foreach ([1, 2, 3, 4] as $id) $seen[] = Accent::forProgramme($id)['key'];
+        foreach ([1, 2, 3] as $id) $seen[] = Accent::forProgramme($id)['key'];
         $this->assertSame($seen, array_unique($seen), 'two early programmes share a hue');
+        $this->assertSame(Accent::forProgramme(1)['key'], Accent::forProgramme(4)['key']);
 
         // And it never returns a blank, whatever arrives — a missing custom property
         // resolves to nothing and the element silently loses its identity.

@@ -4,22 +4,28 @@
    Part of the modular system: base/ → components/ → pages/.
    ════════════════════════════════════════════════════════════════ */
 :root{
-  /* ── Color: surfaces & ink ── */
-  --ag-bg:#fbfbfa;
-  --ag-surface:#ffffff;
-  --ag-surface-2:#f6f7f6;
-  --ag-ink:#10292c;          /* dark teal — primary text */
-  --ag-ink-soft:#626a6e;     /* secondary text — WCAG AA (≥4.5:1) on light surfaces */
-  --ag-line:rgba(16,41,44,.07);
-  --ag-line-strong:rgba(16,41,44,.12);
+  /* ── Color ──────────────────────────────────────────────────────────────────
+     NOT HERE ANY MORE. Every colour on this site is emitted at runtime by
+     Support\Accent — the ground, the six-step neutral ramp, the five roles and
+     their slots, and the press shade. See Accent::css(), which the site layout
+     writes into a nonced <style> after these sheets so it wins the cascade.
 
-  /* ── Color: brand ── */
-  --ag-green:#237b22;        /* primary CTA / accent */
-  --ag-green-dark:#1a6118;   /* hover */
-  --ag-green-light:#7fc87c;  /* logo glyph / soft accents */
+     They were moved out rather than duplicated here because a colour with two
+     sources is decided by load order, and load order is the one thing nobody can
+     see in a diff. It is also what made a literal-hex sweep over the templates
+     impossible to state: you cannot forbid a literal while the correct value is
+     harder to reach than one.
+
+     The old names — --ag-bg, --ag-surface, --ag-line, --ag-line-strong — are
+     still emitted as aliases so ~60 unconverted templates keep working and warm
+     with everything else. --ag-green and friends are emitted as role slots.
+     ────────────────────────────────────────────────────────────────────────── */
+  --ag-green:#237b22;        /* legacy alias — action.fill. Do not add to this list. */
+  --ag-green-dark:#1a6118;
+  --ag-green-light:#7fc87c;
   --ag-green-wash:rgba(127,200,124,.16);
-  --ag-pulse:#e0245e;        /* Pulse / "living feed" accent */
-  --ag-gold:#c9a24b;         /* sparing warm accent */
+  --ag-pulse:#e0245e;
+  --ag-gold:#c9a24b;
 
   /* ── Typography ── */
   --ag-font-display:"Playfair Display",Georgia,"Times New Roman",serif;

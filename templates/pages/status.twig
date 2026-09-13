@@ -36,7 +36,7 @@
 
 {% block head_styles %}
 <style nonce="{{ csp_nonce }}">
-  body[data-page="status"]{ background:#f0f2f2; }
+  body[data-page="status"]{ background:var(--ag-ground); }
 
   .stx{ max-width:860px; margin:0 auto; padding:clamp(2rem,5vw,3.25rem) var(--ag-gutter,32px) clamp(3rem,6vw,4rem);
     /* A safety net, not a substitute for the rules below. One unbreakable token — a long
@@ -164,7 +164,7 @@
   .stx-scope p + p{ margin-top:11px; }
   .stx-scope strong{ font-weight:600; color:var(--ag-ink); }
   .stx-scope code{ font-family:var(--ag-font-mono); font-size:.85em;
-    background:#f0f2f2; padding:1px 5px; border-radius:4px; }
+    background:var(--ag-ground); padding:1px 5px; border-radius:4px; }
 
   .stx-broken{ margin:24px 0 0; padding:20px 22px; border:1px solid rgba(163,43,28,.28);
     border-radius:var(--ag-r-sm,10px); background:#fff; font-size:.9375rem; line-height:1.6; color:#3c4649; }

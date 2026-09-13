@@ -74,15 +74,15 @@
      hex except inside `@media print`, where the palette is deliberately forced.
      ══════════════════════════════════════════════════════════════════════════ */
   /* ── the page the ticket sits on ────────────────────────────────────────
-     · SPEC · #f0f2f2, which is the design document's own ground, and the dark frame
+     · SPEC · var(--ag-ground), which is the design document's own ground, and the dark frame
      centred on it at 390. At phone width the frame goes full bleed, so the page has
      to match it or a band of white opens up under the ticket and reads as a bug.
 
      Scoped to `body[data-page="events"]`, which is only ever emitted from a page's
      own `head_styles` — so this rule ships on the ticket page and nowhere else. */
-  body[data-page="events"]{ background:#f0f2f2; }
+  body[data-page="events"]{ background:var(--ag-ground); }
   @media (max-width:430px){
-    body[data-page="events"]{ background:{{ dark ? '#10292C' : '#f0f2f2' }}; }
+    body[data-page="events"]{ background:{{ dark ? '#10292C' : 'var(--ag-ground)' }}; }
   }
   @media print{ body[data-page="events"]{ background:#fff; } }
 
@@ -120,7 +120,7 @@
     /* The frame. Light theme: the platform's own paper. Gold steps down to
        --gold-700 on it, because #f3b416 on a light ground misses 4.5:1 and the
        kicker is 9.5px type. */
-    --tk-frame:#f0f2f2;
+    --tk-frame:var(--ag-ground);
     --tk-on-frame:#4a5256;
     --tk-on-frame-2:#626a6e;
     --tk-frame-gold:#745001;

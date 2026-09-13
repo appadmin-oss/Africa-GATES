@@ -149,7 +149,7 @@
 {% set p = profile %}
 {% set FLAGS = {'NG':'🇳🇬','GH':'🇬🇭','ZA':'🇿🇦','KE':'🇰🇪','ET':'🇪🇹','EG':'🇪🇬','MA':'🇲🇦','TZ':'🇹🇿','UG':'🇺🇬','CI':'🇨🇮','CM':'🇨🇲','SN':'🇸🇳','ML':'🇲🇱','RW':'🇷🇼','ZM':'🇿🇲','ZW':'🇿🇼','BF':'🇧🇫','NE':'🇳🇪','BW':'🇧🇼','AO':'🇦🇴','CD':'🇨🇩'} %}
 {% set CCN = {'NG':'Nigeria','GH':'Ghana','ZA':'South Africa','KE':'Kenya','ET':'Ethiopia','EG':'Egypt','MA':'Morocco','TZ':'Tanzania','UG':'Uganda','CI':"Côte d'Ivoire",'CM':'Cameroon','SN':'Senegal','ML':'Mali','RW':'Rwanda','ZM':'Zambia','ZW':'Zimbabwe','BF':'Burkina Faso','NE':'Niger','BW':'Botswana','AO':'Angola','CD':'DR Congo'} %}
-{% set TIERCOL = {'diamond':['#e6f1f4','#225a67'],'platinum':['#eef0f1','#566b72'],'gold':['#fff8df','#7a5600'],'silver':['#f0f2f2','#5d6569']} %}
+{% set TIERCOL = {'diamond':['#e6f1f4','#225a67'],'platinum':['#eef0f1','#566b72'],'gold':['#fff8df','#7a5600'],'silver':['var(--ag-ground)','#5d6569']} %}
 {% set AV = [['#e3f1e3','#155a13'],['#fff8df','#8a6005'],['#e2e8e9','#243034']] %}
 {% set flag = FLAGS[p.country_code]|default('🌍') %}
 {% set ctry = CCN[p.country_code]|default(p.country_code) %}

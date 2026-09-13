@@ -235,15 +235,22 @@ class AdminContrastTest extends TestCase
     /** The token those greys were replaced with must itself stay AA on every light ground. */
     public function test_ink_soft_token_is_aa_on_light_grounds(): void
     {
-        $tokens = self::css('public/assets/css/base/tokens.css');
-        $this->assertSame(1, preg_match('/--ag-ink-soft:\s*(#[0-9a-fA-F]{6})/', $tokens, $m),
-            'tokens.css must define --ag-ink-soft as a 6-digit hex.');
+        // READ FROM Support\Accent, NOT FROM A STYLESHEET. Colour moved out of
+        // base/tokens.css when the neutral ramp arrived, because a value with two sources
+        // is decided by load order and load order is invisible in a diff. This used to
+        // parse the sheet, and it also asserted against `#fbfbfa` and `#f6f7f6` — two
+        // grounds the platform no longer has.
+        $ink = \AfricaGates\Support\Accent::neutral('ink-soft');
 
-        foreach (['#ffffff', '#fbfbfa', '#f6f7f6'] as $ground) {
-            $r = self::ratio(strtolower($m[1]), $ground);
+        // Only the grounds it is LEGAL on. It measures 4.38 on `surface-2` and 3.88 on
+        // `desk` and is refused there by name — `SlotFloorTest` holds those, both that
+        // they fail and that the failure is deliberate.
+        foreach (['ground', 'card'] as $name) {
+            $ground = \AfricaGates\Support\Accent::grounds()[$name];
+            $r = self::ratio(strtolower($ink), $ground);
             $this->assertGreaterThanOrEqual(4.5, $r, sprintf(
-                '--ag-ink-soft (%s) is %.2f:1 on %s — it is the site-wide secondary ink and '
-                . 'roughly sixty declarations now depend on it clearing AA.', $m[1], $r, $ground
+                'ink-soft (%s) is %.2f:1 on %s — it is the site-wide secondary ink and '
+                . 'roughly sixty declarations depend on it clearing AA.', $ink, $r, $name
             ));
         }
     }

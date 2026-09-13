@@ -14,7 +14,7 @@
 
 {% block head_styles %}
 <style nonce="{{ csp_nonce }}">
-  body[data-page="stands"]{ background:#f0f2f2; }
+  body[data-page="stands"]{ background:var(--ag-ground); }
   .so{ max-width:660px; margin:0 auto; padding:clamp(1.8rem,4vw,2.6rem) var(--ag-gutter,24px) 4rem; }
 
   .so-kick{ font-family:var(--ag-font-mono); font-size:var(--ag-fs-label); letter-spacing:var(--ag-tracking-label);
