@@ -375,4 +375,52 @@ final class AccentTest extends TestCase
         // is deliberately included: those rules paint the same affordance.
         return (string) preg_replace('/[^{}\n][^{}]*:focus[a-z-]*[^{}]*\{[^{}]*\}/i', ' ', $body);
     }
+
+    /**
+     * NO ROLE ACCENT IN THE CHROME, AND `honour` LEAST OF ALL.
+     *
+     * Chrome is on every page, so a role spent there is spent on the privacy policy, the
+     * refunds page and the cookie notice — every tier-0 screen that is supposed to ask
+     * nothing. That is also why the budget excuses chrome from a page's count: the one
+     * event it is allowed is the Register pill, which is `action` and is the site's single
+     * standing call to do something.
+     *
+     * ── THE ONE THAT ACTUALLY SHIPPED ────────────────────────────────────────
+     *
+     * The two drop-down menus carried twenty-four 38px tiles, each an emoji on a pale
+     * ground with its own hand-derived ink — forty-eight literal colours, none from the
+     * palette. SEVEN of them were honour gold (`#fff8df` on `#7a5600`), behind a
+     * Leaderboard link, a Shop link and a Create-an-account link.
+     *
+     * On this platform gold means an award has been decided for a named person. Spending
+     * it on a menu row is the fastest available way to make it stop meaning that, and it
+     * was doing so on every page of the site at once. The literals are caught by
+     * `NoLiteralHexTest` now; this catches the same fault committed properly, through a
+     * token.
+     */
+    public function test_the_chrome_spends_no_role_but_the_one_call_to_action(): void
+    {
+        $root = dirname(__DIR__, 2);
+        $bad  = [];
+
+        foreach (glob($root . '/templates/layout/*.twig') as $path) {
+            $body = (string) preg_replace('/\{#.*?#\}/s', '',
+                (string) file_get_contents($path));
+            $body = $this->withoutFocusRings($body);
+
+            foreach (Accent::roles() as $role) {
+                // `action` is the Register pill, and `live` is the Pulse dot — the one
+                // thing in the chrome that is true right now rather than decorative.
+                if ($role === Accent::ACTION || $role === Accent::LIVE) continue;
+
+                if (preg_match('/var\(\s*--ag-' . $role . '-/', $body)) {
+                    $bad[] = basename($path) . ': ' . $role;
+                }
+            }
+        }
+
+        $this->assertSame([], $bad,
+            "the chrome is spending a role accent, which spends it on every page of the "
+          . "site including the ones that must ask nothing:\n  " . implode("\n  ", $bad));
+    }
 }

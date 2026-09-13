@@ -4,6 +4,26 @@
    Mobile: no top nav → bottom bar (Home · Pulse · Nominate · Ranks ·
    Menu) + full-screen overlay menu.
    ═══════════════════════════════════════════════════════════════ #}
+{#
+  ── THE MENU'S TWENTY-FOUR TINTED TILES ARE GONE, AND THE TINT IS WHY ────────
+
+  Every item in these two menus carried a 38px rounded tile: an emoji on a pale
+  ground, each ground and each ink hand-derived on the spot. Forty-eight literal
+  colours, none of them from the palette, none of them meaning anything — and
+  seven of them were HONOUR GOLD (`#fff8df` on `#7a5600`) sitting behind a
+  Leaderboard link, a Shop link and a Create-an-account link. On this platform
+  gold means an award has been decided for a named person. Spending it on a menu
+  row is the single fastest way to make it stop meaning that.
+
+  An emoji is also colour nothing here can control: it renders in the vendor's
+  own palette on every device, at full saturation, regardless of any rule this
+  codebase writes. A design system whose argument is that colour must carry
+  meaning cannot have two dozen uncontrolled colours in its navigation.
+
+  What replaces them is what the handoff calls for and what the menu already
+  had: weight and value. Each row is a title in ink and a line of description in
+  `ink-soft`, which is what a reader was scanning anyway.
+#}
 {% set _p = gates_page|default('') %}
 
 {% if announcement_text %}
@@ -30,17 +50,17 @@
         <button type="button" class="ag-link" data-ag-mega-trigger aria-haspopup="true" aria-expanded="false">Participate
           <svg class="ag-link__chev" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path d="M13.8 7.2 10 11 6.2 7.2 5 8.3l5 5 5-5z"/></svg></button>
         <div class="ag-mega" data-ag-mega-panel>
-          <a href="/nominate" class="ag-mega__item"><span class="ag-mega__ico" style="background:#eef7ee;color:#1a6118">🎓</span><span class="ag-mega__txt"><strong>Nominate</strong><small>Put someone forward for continental recognition</small></span></a>
-          <a href="/vote" class="ag-mega__item"><span class="ag-mega__ico" style="background:#effaf0;color:#237b22">✓</span><span class="ag-mega__txt"><strong>Vote</strong><small>One verified voter, one vote per category</small></span></a>
-          <a href="/account/register" class="ag-mega__item"><span class="ag-mega__ico" style="background:#fff8df;color:#7a5600">✦</span><span class="ag-mega__txt"><strong>Create an account</strong><small>Free — earn voting points and redeem them for votes</small></span></a>
-          <a href="/awards" class="ag-mega__item"><span class="ag-mega__ico" style="background:#fff8df;color:#7a5600">🏅</span><span class="ag-mega__txt"><strong>Awards</strong><small>Education, integrity, choral &amp; business</small></span></a>
-          <a href="/leaderboard" class="ag-mega__item"><span class="ag-mega__ico" style="background:#e9efef;color:#2b373d">📊</span><span class="ag-mega__txt"><strong>Leaderboard</strong><small>Live CPI rankings, refreshed every {{ cpi_recompute_hours }} hours</small></span></a>
+          <a href="/nominate" class="ag-mega__item"><span class="ag-mega__txt"><strong>Nominate</strong><small>Put someone forward for continental recognition</small></span></a>
+          <a href="/vote" class="ag-mega__item"><span class="ag-mega__txt"><strong>Vote</strong><small>One verified voter, one vote per category</small></span></a>
+          <a href="/account/register" class="ag-mega__item"><span class="ag-mega__txt"><strong>Create an account</strong><small>Free — earn voting points and redeem them for votes</small></span></a>
+          <a href="/awards" class="ag-mega__item"><span class="ag-mega__txt"><strong>Awards</strong><small>Education, integrity, choral &amp; business</small></span></a>
+          <a href="/leaderboard" class="ag-mega__item"><span class="ag-mega__txt"><strong>Leaderboard</strong><small>Live CPI rankings, refreshed every {{ cpi_recompute_hours }} hours</small></span></a>
           {# The awards themselves. Without this the only way into a decided result is a
              link somebody sent you: the page existed, the Pulse and the emails pointed at
              it, and nobody browsing the site could find it. #}
-          <a href="/results" class="ag-mega__item"><span class="ag-mega__ico" style="background:#fff8df;color:#7a5600">🏆</span><span class="ag-mega__txt"><strong>Results</strong><small>Every award decided, with the working shown</small></span></a>
-          <a href="/integrity" class="ag-mega__item"><span class="ag-mega__ico" style="background:var(--ag-ground);color:#5d7374">⚖️</span><span class="ag-mega__txt"><strong>Integrity Center</strong><small>How voting, scoring and audits work</small></span></a>
-          <a href="/giving" class="ag-mega__item"><span class="ag-mega__ico" style="background:#fdeaf0;color:#b03a5b">♥</span><span class="ag-mega__txt"><strong>Donate</strong><small>Fund child leadership programmes</small></span></a>
+          <a href="/results" class="ag-mega__item"><span class="ag-mega__txt"><strong>Results</strong><small>Every award decided, with the working shown</small></span></a>
+          <a href="/integrity" class="ag-mega__item"><span class="ag-mega__txt"><strong>Integrity Center</strong><small>How voting, scoring and audits work</small></span></a>
+          <a href="/giving" class="ag-mega__item"><span class="ag-mega__txt"><strong>Donate</strong><small>Fund child leadership programmes</small></span></a>
         </div>
       </div>
 
@@ -48,15 +68,15 @@
         <button type="button" class="ag-link" data-ag-mega-trigger aria-haspopup="true" aria-expanded="false">Explore
           <svg class="ag-link__chev" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path d="M13.8 7.2 10 11 6.2 7.2 5 8.3l5 5 5-5z"/></svg></button>
         <div class="ag-mega" data-ag-mega-panel>
-          <a href="/pulse" class="ag-mega__item"><span class="ag-mega__ico" style="background:#eef7ee;color:#237b22">📅</span><span class="ag-mega__txt"><strong>Pulse</strong><small>Reels, posts and live moments</small></span></a>
-          <a href="/activity" class="ag-mega__item"><span class="ag-mega__ico" style="background:#eef4fb;color:#1c4e80">🔎</span><span class="ag-mega__txt"><strong>Activity</strong><small>Search everything happening, live</small></span></a>
-          <a href="/registry" class="ag-mega__item"><span class="ag-mega__ico" style="background:#e9efef;color:#2b373d">👥</span><span class="ag-mega__txt"><strong>Registry</strong><small>Browse verified African profiles</small></span></a>
-          <a href="/legacy" class="ag-mega__item"><span class="ag-mega__ico" style="background:#fff8df;color:#7a5600">🏛️</span><span class="ag-mega__txt"><strong>Legacy Vault</strong><small>Every edition, permanently archived</small></span></a>
-          <a href="/community" class="ag-mega__item"><span class="ag-mega__ico" style="background:var(--ag-ground);color:#5d7374">💬</span><span class="ag-mega__txt"><strong>Community</strong><small>Programme channels, OTP-verified</small></span></a>
-          <a href="/events" class="ag-mega__item"><span class="ag-mega__ico" style="background:#eef7ee;color:#237b22">📅</span><span class="ag-mega__txt"><strong>Events</strong><small>Ceremonies, webinars &amp; sessions</small></span></a>
-          <a href="/blog" class="ag-mega__item"><span class="ag-mega__ico" style="background:#e9efef;color:#2b373d">✎</span><span class="ag-mega__txt"><strong>Blog</strong><small>Announcements and methodology notes</small></span></a>
-          <a href="/judges" class="ag-mega__item"><span class="ag-mega__ico" style="background:#fff8df;color:#7a5600">⚖️</span><span class="ag-mega__txt"><strong>Meet the Judges</strong><small>The independent evaluation panel</small></span></a>
-          <a href="/shop" class="ag-mega__item"><span class="ag-mega__ico" style="background:#eef7ee;color:#1a6118">🛍️</span><span class="ag-mega__txt"><strong>Shop</strong><small>Wear the recognition — funds programmes</small></span></a>
+          <a href="/pulse" class="ag-mega__item"><span class="ag-mega__txt"><strong>Pulse</strong><small>Reels, posts and live moments</small></span></a>
+          <a href="/activity" class="ag-mega__item"><span class="ag-mega__txt"><strong>Activity</strong><small>Search everything happening, live</small></span></a>
+          <a href="/registry" class="ag-mega__item"><span class="ag-mega__txt"><strong>Registry</strong><small>Browse verified African profiles</small></span></a>
+          <a href="/legacy" class="ag-mega__item"><span class="ag-mega__txt"><strong>Legacy Vault</strong><small>Every edition, permanently archived</small></span></a>
+          <a href="/community" class="ag-mega__item"><span class="ag-mega__txt"><strong>Community</strong><small>Programme channels, OTP-verified</small></span></a>
+          <a href="/events" class="ag-mega__item"><span class="ag-mega__txt"><strong>Events</strong><small>Ceremonies, webinars &amp; sessions</small></span></a>
+          <a href="/blog" class="ag-mega__item"><span class="ag-mega__txt"><strong>Blog</strong><small>Announcements and methodology notes</small></span></a>
+          <a href="/judges" class="ag-mega__item"><span class="ag-mega__txt"><strong>Meet the Judges</strong><small>The independent evaluation panel</small></span></a>
+          <a href="/shop" class="ag-mega__item"><span class="ag-mega__txt"><strong>Shop</strong><small>Wear the recognition — funds programmes</small></span></a>
         </div>
       </div>
 
@@ -114,26 +134,26 @@
   <div class="ag-menu__body">
     <div class="ag-menu__group">
       <p class="ag-menu__label">Participate</p>
-      <a href="/activity" class="ag-menu__link {% if _p=='activity' %}is-active{% endif %}"{% if _p=='activity' %} aria-current="page"{% endif %}><span class="ag-menu__ico" style="background:#eef4fb;color:#1c4e80">🔎</span><span class="ag-menu__txt"><strong>Activity</strong><small>Search everything happening across the platform, live</small></span></a>
-      <a href="/nominate" class="ag-menu__link {% if _p=='nominate' %}is-active{% endif %}"{% if _p=='nominate' %} aria-current="page"{% endif %}><span class="ag-menu__ico" style="background:#eef7ee;color:#1a6118">🎓</span><span class="ag-menu__txt"><strong>Nominate</strong><small>Put someone forward for continental recognition</small></span></a>
-      <a href="/vote" class="ag-menu__link {% if _p=='vote' %}is-active{% endif %}"{% if _p=='vote' %} aria-current="page"{% endif %}><span class="ag-menu__ico" style="background:#effaf0;color:#237b22">✓</span><span class="ag-menu__txt"><strong>Vote</strong><small>One verified voter, one vote per category</small></span></a>
-      <a href="/account/register" class="ag-menu__link"><span class="ag-menu__ico" style="background:#fff8df;color:#7a5600">✦</span><span class="ag-menu__txt"><strong>Create an account</strong><small>Free — earn voting points and redeem them for votes</small></span></a>
-      <a href="/awards" class="ag-menu__link {% if _p=='awards' %}is-active{% endif %}"{% if _p=='awards' %} aria-current="page"{% endif %}><span class="ag-menu__ico" style="background:#fff8df;color:#7a5600">🏅</span><span class="ag-menu__txt"><strong>Awards</strong><small>Education, integrity, choral &amp; business</small></span></a>
-      <a href="/leaderboard" class="ag-menu__link {% if _p=='leaderboard' %}is-active{% endif %}"{% if _p=='leaderboard' %} aria-current="page"{% endif %}><span class="ag-menu__ico" style="background:#e9efef;color:#2b373d">📊</span><span class="ag-menu__txt"><strong>Leaderboard</strong><small>Live CPI rankings, every {{ cpi_recompute_hours }} hours</small></span></a>
-      <a href="/results" class="ag-menu__link {% if _p=='results' %}is-active{% endif %}"{% if _p=='results' %} aria-current="page"{% endif %}><span class="ag-menu__ico" style="background:#fff8df;color:#7a5600">🏆</span><span class="ag-menu__txt"><strong>Results</strong><small>Every award decided, with the working shown</small></span></a>
-      <a href="/integrity" class="ag-menu__link"><span class="ag-menu__ico" style="background:var(--ag-ground);color:#5d7374">⚖️</span><span class="ag-menu__txt"><strong>Integrity Center</strong><small>How voting, scoring and audits work</small></span></a>
-      <a href="/giving" class="ag-menu__link {% if _p=='donate' %}is-active{% endif %}"{% if _p=='donate' %} aria-current="page"{% endif %}><span class="ag-menu__ico" style="background:#fdeaf0;color:#b03a5b">♥</span><span class="ag-menu__txt"><strong>Donate</strong><small>Fund child leadership programmes</small></span></a>
+      <a href="/activity" class="ag-menu__link {% if _p=='activity' %}is-active{% endif %}"{% if _p=='activity' %} aria-current="page"{% endif %}><span class="ag-menu__txt"><strong>Activity</strong><small>Search everything happening across the platform, live</small></span></a>
+      <a href="/nominate" class="ag-menu__link {% if _p=='nominate' %}is-active{% endif %}"{% if _p=='nominate' %} aria-current="page"{% endif %}><span class="ag-menu__txt"><strong>Nominate</strong><small>Put someone forward for continental recognition</small></span></a>
+      <a href="/vote" class="ag-menu__link {% if _p=='vote' %}is-active{% endif %}"{% if _p=='vote' %} aria-current="page"{% endif %}><span class="ag-menu__txt"><strong>Vote</strong><small>One verified voter, one vote per category</small></span></a>
+      <a href="/account/register" class="ag-menu__link"><span class="ag-menu__txt"><strong>Create an account</strong><small>Free — earn voting points and redeem them for votes</small></span></a>
+      <a href="/awards" class="ag-menu__link {% if _p=='awards' %}is-active{% endif %}"{% if _p=='awards' %} aria-current="page"{% endif %}><span class="ag-menu__txt"><strong>Awards</strong><small>Education, integrity, choral &amp; business</small></span></a>
+      <a href="/leaderboard" class="ag-menu__link {% if _p=='leaderboard' %}is-active{% endif %}"{% if _p=='leaderboard' %} aria-current="page"{% endif %}><span class="ag-menu__txt"><strong>Leaderboard</strong><small>Live CPI rankings, every {{ cpi_recompute_hours }} hours</small></span></a>
+      <a href="/results" class="ag-menu__link {% if _p=='results' %}is-active{% endif %}"{% if _p=='results' %} aria-current="page"{% endif %}><span class="ag-menu__txt"><strong>Results</strong><small>Every award decided, with the working shown</small></span></a>
+      <a href="/integrity" class="ag-menu__link"><span class="ag-menu__txt"><strong>Integrity Center</strong><small>How voting, scoring and audits work</small></span></a>
+      <a href="/giving" class="ag-menu__link {% if _p=='donate' %}is-active{% endif %}"{% if _p=='donate' %} aria-current="page"{% endif %}><span class="ag-menu__txt"><strong>Donate</strong><small>Fund child leadership programmes</small></span></a>
     </div>
     <div class="ag-menu__group">
       <p class="ag-menu__label">Explore</p>
-      <a href="/pulse" class="ag-menu__link {% if _p=='pulse' %}is-active{% endif %}"{% if _p=='pulse' %} aria-current="page"{% endif %}><span class="ag-menu__ico" style="background:#eef7ee;color:#237b22">📅</span><span class="ag-menu__txt"><strong>Pulse</strong><small>Reels, posts and live moments</small></span></a>
-      <a href="/registry" class="ag-menu__link {% if _p=='registry' %}is-active{% endif %}"{% if _p=='registry' %} aria-current="page"{% endif %}><span class="ag-menu__ico" style="background:#e9efef;color:#2b373d">👥</span><span class="ag-menu__txt"><strong>Registry</strong><small>Browse verified African profiles</small></span></a>
-      <a href="/legacy" class="ag-menu__link {% if _p=='legacy' %}is-active{% endif %}"{% if _p=='legacy' %} aria-current="page"{% endif %}><span class="ag-menu__ico" style="background:#fff8df;color:#7a5600">🏛️</span><span class="ag-menu__txt"><strong>Legacy Vault</strong><small>Every edition, permanently archived</small></span></a>
-      <a href="/community" class="ag-menu__link {% if _p=='community' %}is-active{% endif %}"{% if _p=='community' %} aria-current="page"{% endif %}><span class="ag-menu__ico" style="background:var(--ag-ground);color:#5d7374">💬</span><span class="ag-menu__txt"><strong>Community</strong><small>Programme channels, OTP-verified</small></span></a>
-      <a href="/events" class="ag-menu__link {% if _p=='events' %}is-active{% endif %}"{% if _p=='events' %} aria-current="page"{% endif %}><span class="ag-menu__ico" style="background:#eef7ee;color:#237b22">📅</span><span class="ag-menu__txt"><strong>Events</strong><small>Ceremonies, webinars &amp; sessions</small></span></a>
-      <a href="/blog" class="ag-menu__link {% if _p=='blog' %}is-active{% endif %}"{% if _p=='blog' %} aria-current="page"{% endif %}><span class="ag-menu__ico" style="background:#e9efef;color:#2b373d">✎</span><span class="ag-menu__txt"><strong>Blog</strong><small>Announcements and methodology notes</small></span></a>
-      <a href="/judges" class="ag-menu__link {% if _p=='judges' %}is-active{% endif %}"{% if _p=='judges' %} aria-current="page"{% endif %}><span class="ag-menu__ico" style="background:#fff8df;color:#7a5600">⚖️</span><span class="ag-menu__txt"><strong>Meet the Judges</strong><small>The independent evaluation panel</small></span></a>
-      <a href="/shop" class="ag-menu__link {% if _p=='shop' %}is-active{% endif %}"{% if _p=='shop' %} aria-current="page"{% endif %}><span class="ag-menu__ico" style="background:#eef7ee;color:#1a6118">🛍️</span><span class="ag-menu__txt"><strong>Shop</strong><small>Wear the recognition — funds programmes</small></span></a>
+      <a href="/pulse" class="ag-menu__link {% if _p=='pulse' %}is-active{% endif %}"{% if _p=='pulse' %} aria-current="page"{% endif %}><span class="ag-menu__txt"><strong>Pulse</strong><small>Reels, posts and live moments</small></span></a>
+      <a href="/registry" class="ag-menu__link {% if _p=='registry' %}is-active{% endif %}"{% if _p=='registry' %} aria-current="page"{% endif %}><span class="ag-menu__txt"><strong>Registry</strong><small>Browse verified African profiles</small></span></a>
+      <a href="/legacy" class="ag-menu__link {% if _p=='legacy' %}is-active{% endif %}"{% if _p=='legacy' %} aria-current="page"{% endif %}><span class="ag-menu__txt"><strong>Legacy Vault</strong><small>Every edition, permanently archived</small></span></a>
+      <a href="/community" class="ag-menu__link {% if _p=='community' %}is-active{% endif %}"{% if _p=='community' %} aria-current="page"{% endif %}><span class="ag-menu__txt"><strong>Community</strong><small>Programme channels, OTP-verified</small></span></a>
+      <a href="/events" class="ag-menu__link {% if _p=='events' %}is-active{% endif %}"{% if _p=='events' %} aria-current="page"{% endif %}><span class="ag-menu__txt"><strong>Events</strong><small>Ceremonies, webinars &amp; sessions</small></span></a>
+      <a href="/blog" class="ag-menu__link {% if _p=='blog' %}is-active{% endif %}"{% if _p=='blog' %} aria-current="page"{% endif %}><span class="ag-menu__txt"><strong>Blog</strong><small>Announcements and methodology notes</small></span></a>
+      <a href="/judges" class="ag-menu__link {% if _p=='judges' %}is-active{% endif %}"{% if _p=='judges' %} aria-current="page"{% endif %}><span class="ag-menu__txt"><strong>Meet the Judges</strong><small>The independent evaluation panel</small></span></a>
+      <a href="/shop" class="ag-menu__link {% if _p=='shop' %}is-active{% endif %}"{% if _p=='shop' %} aria-current="page"{% endif %}><span class="ag-menu__txt"><strong>Shop</strong><small>Wear the recognition — funds programmes</small></span></a>
     </div>
     <div class="ag-menu__ctas">
       {% if is_member %}

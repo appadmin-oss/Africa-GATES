@@ -9,7 +9,6 @@
   "templates/judge/dashboard.twig": 2,
   "templates/judge/login.twig": 4,
   "templates/layout/gates.twig": 6,
-  "templates/layout/nav.twig": 64,
   "templates/pages/account/dashboard.twig": 51,
   "templates/pages/activity.twig": 29,
   "templates/pages/awards/index.twig": 39,

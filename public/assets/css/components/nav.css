@@ -31,11 +31,21 @@
 .ag-brand__tag{ font-size:10px; font-weight:700; letter-spacing:.26em; color:var(--ag-green); }
 
 .ag-nav__links{ display:flex; align-items:center; gap:4px; }
-.ag-link{ font:600 14.5px/1 var(--ag-font-body); color:#3a4448; background:none; border:0; cursor:pointer;
-  padding:9px 14px; border-radius:10px; display:flex; align-items:center; gap:6px; text-decoration:none; transition:background var(--ag-dur-fast),color var(--ag-dur-fast); }
-.ag-link:hover{ background:rgba(16,41,44,.05); color:var(--ag-ink); }
-.ag-link.is-active,.ag-link[aria-expanded="true"]{ background:rgba(16,41,44,.05); color:var(--ag-ink); }
-.ag-link--pulse{ color:#3a4448; }
+/* ── WHERE YOU ARE IS WEIGHT AND VALUE, NOT A TINT ──────────────────────────
+   Inactive is `ink-2`, active is `ink` with a 2px ink underline. The active
+   item used to be a pale grey pill, which is the same device the hover state
+   uses — so "where I am" and "where my mouse is" were drawn identically, and on
+   a touch screen, where there is no hover, the only signal for the current page
+   was a 2.1:1 difference in text colour. The underline is the one that survives
+   both. `aria-current="page"` is on the markup either way; this is what a reader
+   who is not using a screen reader gets. */
+.ag-link{ font:600 14.5px/1 var(--ag-font-body); color:var(--ag-ink-2); background:none; border:0; cursor:pointer;
+  padding:9px 14px; border-radius:10px; display:flex; align-items:center; gap:6px; text-decoration:none;
+  border-bottom:2px solid transparent;
+  transition:background var(--ag-dur-fast),color var(--ag-dur-fast),border-color var(--ag-dur-fast); }
+.ag-link:hover{ background:var(--ag-surface-2); color:var(--ag-ink); }
+.ag-link.is-active,.ag-link[aria-expanded="true"]{ color:var(--ag-ink); border-bottom-color:var(--ag-ink); border-radius:10px 10px 0 0; }
+.ag-link--pulse{ color:var(--ag-ink-2); }
 .ag-link__dot{ width:7px; height:7px; border-radius:50%; background:var(--ag-pulse); animation:agPulseDot 2s infinite; }
 @keyframes agPulseDot{ 0%{box-shadow:0 0 0 0 rgba(224,36,94,.45)} 70%{box-shadow:0 0 0 6px rgba(224,36,94,0)} 100%{box-shadow:0 0 0 0 rgba(224,36,94,0)} }
 .ag-link__chev{ width:11px; height:11px; transition:transform var(--ag-dur); }
@@ -60,9 +70,8 @@
   padding:18px; display:grid; grid-template-columns:repeat(2,1fr); gap:8px;
   opacity:0; visibility:hidden; pointer-events:none; transition:opacity var(--ag-dur),transform var(--ag-dur),visibility var(--ag-dur); z-index:var(--ag-z-mega); }
 .ag-mega-wrap.is-open .ag-mega{ opacity:1; visibility:visible; pointer-events:auto; transform:translateX(-50%) translateY(0); }
-.ag-mega__item{ display:flex; gap:13px; align-items:flex-start; padding:13px 14px; border-radius:14px; border:1px solid transparent; text-decoration:none; transition:background var(--ag-dur-fast); }
+.ag-mega__item{ display:flex; align-items:flex-start; padding:13px 14px; border-radius:14px; border:1px solid transparent; text-decoration:none; transition:background var(--ag-dur-fast); }
 .ag-mega__item:hover{ background:var(--ag-surface-2); }
-.ag-mega__ico{ flex:none; width:38px; height:38px; border-radius:11px; display:flex; align-items:center; justify-content:center; font-size:18px; }
 .ag-mega__txt{ display:flex; flex-direction:column; gap:3px; }
 .ag-mega__txt strong{ font-weight:600; font-size:14.5px; color:var(--ag-ink); }
 .ag-mega__txt small{ font-size:12.5px; line-height:1.4; color:var(--ag-ink-soft); }
@@ -94,9 +103,8 @@
 .ag-menu__body{ padding:18px 20px 40px; flex:1; }
 .ag-menu__group + .ag-menu__group{ margin-top:22px; }
 .ag-menu__label{ font:700 11px/1 var(--ag-font-mono); letter-spacing:.18em; text-transform:uppercase; color:var(--ag-ink-soft); margin:0 0 10px; }
-.ag-menu__link{ display:flex; gap:13px; align-items:center; padding:13px 12px; border-radius:14px; text-decoration:none; transition:background var(--ag-dur-fast); }
+.ag-menu__link{ display:flex; align-items:center; padding:13px 12px; border-radius:14px; text-decoration:none; transition:background var(--ag-dur-fast); }
 .ag-menu__link:hover,.ag-menu__link.is-active{ background:var(--ag-surface-2); }
-.ag-menu__ico{ flex:none; width:38px; height:38px; border-radius:11px; display:flex; align-items:center; justify-content:center; font-size:18px; }
 .ag-menu__txt{ display:flex; flex-direction:column; gap:2px; }
 .ag-menu__txt strong{ font-weight:600; font-size:15px; color:var(--ag-ink); }
 .ag-menu__txt small{ font-size:12.5px; color:var(--ag-ink-soft); }
