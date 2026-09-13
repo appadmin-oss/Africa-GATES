@@ -262,6 +262,7 @@ final class PublicResults
                 // first version of this took the label from one — so the one edition that
                 // most needs explaining would have rendered with a blank heading.
                 ->get(['cy.id', 'cy.year', 'cy.edition_label', 'cy.programme_id',
+                       'cy.results_date',
                        'p.title as programme', 'p.slug as programme_slug']);
 
             $cycleIds = array_map(static fn ($c) => (int) $c->id, $cycles->all());
@@ -322,6 +323,10 @@ final class PublicResults
                 'programme' => (string) ($cy->programme ?? ''),
                 'edition'   => self::edition_($cy),
                 'year'      => (int) ($cy->year ?? 0),
+                // The date the platform said it would announce, which is also the date it
+                // did where the cycle went out on time. Printed on the row rather than
+                // derived there, so the archive and the edition page cannot disagree.
+                'announced' => (string) ($cy->results_date ?? ''),
                 // Built by the one minter, so the link on this page and the route that
                 // serves it cannot come to disagree about the shape of an edition URL.
                 'url'       => self::editionUrl((string) ($cy->programme_slug ?? ''), (int) ($cy->year ?? 0)),
@@ -471,6 +476,9 @@ final class PublicResults
                 ->where('p.slug', $programmeSlug)
                 ->orderByDesc('cy.id')
                 ->first(['cy.id', 'cy.year', 'cy.edition_label', 'cy.results_date',
+                         'cy.status', 'cy.programme_id',
+                         'cy.nominations_open', 'cy.nominations_close',
+                         'cy.voting_open', 'cy.voting_close',
                          'p.title as programme', 'p.slug as programme_slug']);
             if (!$cy) return null;
 
@@ -509,6 +517,8 @@ final class PublicResults
             'cycle_id'   => (int) $cy->id,
             'programme'  => (string) $cy->programme,
             'programme_slug' => (string) $cy->programme_slug,
+            'programme_id'    => (int) ($cy->programme_id ?? 0),
+            'programme_style' => Accent::programmeStyle((int) ($cy->programme_id ?? 0)),
             'year'       => (int) $cy->year,
             'edition'    => self::edition_($cy),
             'announced'  => (string) ($cy->results_date ?? ''),
@@ -517,6 +527,17 @@ final class PublicResults
             'awards'     => $awards,
             'held'       => $held,
             'top'        => $top,
+            'status'     => ResultStatus::forEdition(CyclePolicy::phaseFor($cy), count($awards),
+                                                     $awards === [] && $held > 0 ? self::HELD_DARK : null),
+            // EVERY category, decided or not, in the order the edition lists them.
+            //
+            // The withheld ones used to be counted and dropped, so an award being held
+            // back appeared on this page as a number in a sentence and nowhere else — and
+            // this class's own rule is that silence is how a withheld award becomes a
+            // rumour. A count says four awards are being checked; a row says WHICH, which
+            // is what a nominee waiting on one of them actually needs.
+            'categories' => self::categoryRows((int) $cy->id, $catIds, $awards,
+                                               CyclePolicy::phaseFor($cy), $scoring),
         ];
     }
 
@@ -732,5 +753,554 @@ final class PublicResults
     {
         $label = trim((string) ($ctx->edition_label ?? ''));
         return $label !== '' ? $label : (string) ((int) ($ctx->year ?? 0) ?: '');
+    }
+
+    /**
+     * EVERY AWARD THIS PLATFORM IS RUNNING OR HAS RUN, AND WHERE EACH ONE STANDS.
+     *
+     * ══════════════════════════════════════════════════════════════════════════
+     * WHY THE ARCHIVE HAD TO STOP BEING AN ARCHIVE
+     * ══════════════════════════════════════════════════════════════════════════
+     *
+     * `/results` listed announced editions, newest first, and that is an index of things
+     * that have finished. The question people actually arrive with is not "which editions
+     * exist" — it is "where does this award stand right now", and that has four answers:
+     * counting, with the panel, decided, withheld. Three of the four were invisible here,
+     * so an award in the middle of its voting window simply did not appear on the page
+     * named after its results, and the only way to find out it was running was to already
+     * know.
+     *
+     * So the list is ordered by STATUS and not by date. What is open now is what brings
+     * somebody here; what happened in 2025 is what brings them back, and a date sort is
+     * one tap away and changes nothing any row says.
+     *
+     * ══════════════════════════════════════════════════════════════════════════
+     * AND AN OPEN EDITION CARRIES NO STANDING — NOT EVEN A LEADER
+     * ══════════════════════════════════════════════════════════════════════════
+     *
+     * `overall`, `top` and `awards` are populated for a DECIDED edition and are empty for
+     * every other one. That is not an omission to be filled in later: publishing a running
+     * order while voting is open turns the window into a bandwagon, and on a platform that
+     * sells vote packs it turns this page into a sales page. The rule is carried on
+     * {@see ResultStatus} rather than remembered here, and this method's job is to have
+     * nothing to leak — an open edition's row is built without ever drawing its awards.
+     *
+     * The cheapness is a consequence rather than the reason: a cycle in `voting` is not
+     * scored at all here, so adding every open edition to this page costs two counting
+     * queries and no scorer passes.
+     *
+     * ══════════════════════════════════════════════════════════════════════════
+     * THE PHASE IS COMPUTED, AND THAT IS THE WHOLE POINT OF ASKING
+     * ══════════════════════════════════════════════════════════════════════════
+     *
+     * {@see CyclePolicy::phaseFor()} derives it from the cycle's own date windows.
+     * `gates_award_cycles.status` is a materialised cache written by a scheduler on a host
+     * with no shell, and a cycle whose voting closed last week while the cron was dead
+     * still says `voting` in that column. Reading it here would print "Counting" over an
+     * award nobody can vote in, with a countdown that has already run out.
+     *
+     * @return array{editions:list<array<string,mixed>>, stats:array<string,int>}
+     */
+    public static function standings(int $maxEditions = 24, array $view = []): array
+    {
+        $decided = self::index($maxEditions);
+
+        // The phase inputs for every cycle on the page, in one read. `phaseFor()` needs the
+        // windows and the stored column together — the column is its fallback for a cycle
+        // with no windows at all, which is what a hand-made or imported cycle looks like.
+        $cols = ['cy.id', 'cy.year', 'cy.edition_label', 'cy.status', 'cy.programme_id',
+                 'cy.nominations_open', 'cy.nominations_close', 'cy.voting_open',
+                 'cy.voting_close', 'cy.results_date',
+                 'p.title as programme', 'p.slug as programme_slug'];
+
+        try {
+            $rows = DemoSeeder::notSandbox(
+                DB::table('gates_award_cycles as cy')
+                    ->join('gates_award_programmes as p', 'p.id', '=', 'cy.programme_id'),
+                'cy.programme_id')
+                ->orderByDesc('cy.year')->orderByDesc('cy.id')
+                ->limit(max(1, min(120, $maxEditions * 4)))
+                ->get($cols);
+
+            // Categories per cycle, counted in SQL. A cycle with none is not an award
+            // anybody can stand in and is left off the page entirely.
+            $counts = DB::table('gates_award_categories')
+                ->whereIn('cycle_id', array_map(static fn ($r) => (int) $r->id, $rows->all()))
+                ->groupBy('cycle_id')
+                ->get(['cycle_id', DB::raw('COUNT(*) as n')]);
+        } catch (\Throwable) {
+            // A page that lists nothing is survivable; a 500 on /results is not.
+            return ['editions' => $decided['editions'], 'shown' => count($decided['editions']),
+                    'stats' => self::statsFor($decided['editions']), 'programmes' => [],
+                    'held' => $decided['held'], 'view' => self::view($view)];
+        }
+
+        $catCount = [];
+        foreach ($counts as $c) $catCount[(int) $c->cycle_id] = (int) $c->n;
+
+        // The decided editions, keyed so an open row cannot duplicate one of them.
+        $byCycle = [];
+        foreach ($decided['editions'] as $e) $byCycle[(int) $e['cycle_id']] = $e;
+
+        $out = [];
+        foreach ($rows as $cy) {
+            $cid   = (int) $cy->id;
+            $phase = CyclePolicy::phaseFor($cy);
+            $known = $byCycle[$cid] ?? null;
+
+            if ($known !== null) {
+                // Already drawn, with its awards and its overall winner. It only needs the
+                // word for where it stands — and a fully-withheld edition gets the withheld
+                // reason rather than "Decided", which is what its rows would otherwise say.
+                $known['status'] = ResultStatus::forEdition(
+                    $phase, count($known['awards']),
+                    $known['awards'] === [] && $known['held'] > 0 ? self::HELD_DARK : null);
+                $known['categories'] = $catCount[$cid] ?? (count($known['awards']) + $known['held']);
+                $known['decided']    = count($known['awards']);
+                $out[] = $known;
+                continue;
+            }
+
+            $n = $catCount[$cid] ?? 0;
+            if ($n === 0) continue;
+
+            $status = ResultStatus::forAward($phase);
+
+            // An edition that has not opened has no news on a results page. It is skipped
+            // here rather than filtered in the template, because a row a template hides is
+            // a row somebody re-adds by deleting one line.
+            if ($status['key'] === ResultStatus::PENDING) continue;
+
+            $out[] = [
+                'cycle_id'        => $cid,
+                'programme_id'    => (int) ($cy->programme_id ?? 0),
+                'programme_style' => Accent::programmeStyle((int) ($cy->programme_id ?? 0)),
+                'programme'       => (string) ($cy->programme ?? ''),
+                'edition'         => self::edition_($cy),
+                'year'            => (int) ($cy->year ?? 0),
+                'url'             => self::editionUrl((string) ($cy->programme_slug ?? ''),
+                                                      (int) ($cy->year ?? 0)),
+                'status'          => $status,
+                'categories'      => $n,
+                'decided'         => 0,
+                'held'            => 0,
+                // How long the window has left, for the countdown. Null once it has passed,
+                // so a dead clock is impossible rather than merely unlikely.
+                'closes'          => $status['key'] === ResultStatus::COUNTING
+                                     ? self::futureDate($cy->voting_close ?? null) : null,
+                'votes'           => $status['key'] === ResultStatus::COUNTING
+                                     ? self::votesIn($cid) : 0,
+                // DELIBERATELY EMPTY, AND NOT A GAP TO FILL. See the docblock: an open
+                // edition publishes counts and never an order.
+                'awards'          => [],
+                'top'             => null,
+                'overall'         => null,
+            ];
+        }
+
+        // ── THE CHIPS COME OFF THE WHOLE PAGE, NEVER OFF THE FILTERED ONE ────
+        //
+        // Built before the filter is applied, so choosing a programme does not delete the
+        // other programmes' chips — a filter control that removes the way back out of
+        // itself is the one interaction people report as the site being broken.
+        $programmes = [];
+        foreach ($out as $e) {
+            $key = (string) $e['programme'];
+            if ($key === '') continue;
+            $programmes[$key] ??= ['name' => $key, 'id' => (int) $e['programme_id'],
+                                   'style' => (string) $e['programme_style'], 'n' => 0];
+            $programmes[$key]['n']++;
+        }
+        ksort($programmes);
+
+        $view = self::view($view);
+        $all  = $out;
+        $out  = self::filtered($out, $view);
+
+        usort($out, match ($view['order']) {
+            // Newest first, and the status is still printed on every row — an order is a
+            // way through a list, never a claim about what is in it.
+            'date' => static fn (array $a, array $b): int
+                => [$b['year'], $b['cycle_id']] <=> [$a['year'], $a['cycle_id']],
+
+            'programme' => static fn (array $a, array $b): int
+                => [$a['programme'], -$a['year']] <=> [$b['programme'], -$b['year']],
+
+            // THE DEFAULT, and the reason this page was rebuilt. What is open now is what
+            // brings somebody here; what happened in 2025 is what brings them back.
+            // `sort` comes off ResultStatus::ORDER, so the reading order of this page is
+            // stated once, in the same place as the words.
+            default => static fn (array $a, array $b): int
+                => [$a['status']['sort'], -$a['year']] <=> [$b['status']['sort'], -$b['year']],
+        });
+
+        return ['editions' => $out, 'stats' => self::statsFor($all),
+                'shown' => count($out), 'programmes' => array_values($programmes),
+                // Carried rather than re-derived by the caller: `index()` reads and draws
+                // a whole edition, and calling it twice for one figure is a second pass
+                // over every category on the page.
+                'held' => $decided['held'], 'view' => $view];
+    }
+
+    /**
+     * The view state, normalised.
+     *
+     * Every value a reader can choose arrives from a URL, so every value is untrusted and
+     * is resolved to one of a known set rather than passed through. An unrecognised order
+     * is the default order, not an error page: a stale or mistyped link is somebody trying
+     * to read a results page, and answering them with a 404 over a sort key is absurd.
+     *
+     * @return array{order:string, programme:string, q:string}
+     */
+    private static function view(array $raw): array
+    {
+        $order = strtolower(trim((string) ($raw['order'] ?? '')));
+
+        return [
+            'order'     => in_array($order, ['date', 'programme'], true) ? $order : 'status',
+            'programme' => trim((string) ($raw['programme'] ?? '')),
+            'q'         => trim((string) ($raw['q'] ?? '')),
+        ];
+    }
+
+    /** @param list<array<string,mixed>> $rows */
+    private static function filtered(array $rows, array $view): array
+    {
+        if ($view['programme'] !== '') {
+            $rows = array_values(array_filter($rows, static fn (array $e): bool
+                => (string) $e['programme'] === $view['programme']));
+        }
+
+        if ($view['q'] !== '') {
+            // Matched against what the row PRINTS — the programme, the edition, the year —
+            // and nothing it does not. A search that finds a row by a field the reader
+            // cannot see returns a result they cannot explain.
+            $q = mb_strtolower($view['q']);
+            $rows = array_values(array_filter($rows, static function (array $e) use ($q): bool {
+                $hay = mb_strtolower(trim(($e['programme'] ?? '') . ' '
+                                        . ($e['edition'] ?? '') . ' ' . ($e['year'] ?? '')));
+                return str_contains($hay, $q);
+            }));
+        }
+
+        return $rows;
+    }
+
+    /** The three figures in the header, counted from the drawn page and never typed. */
+    private static function statsFor(array $editions): array
+    {
+        $categories = 0;
+        $decided    = 0;
+        $open       = 0;
+
+        foreach ($editions as $e) {
+            $categories += (int) ($e['categories'] ?? 0);
+            $decided    += (int) ($e['decided'] ?? 0);
+            if (($e['status']['key'] ?? '') === ResultStatus::COUNTING) $open++;
+        }
+
+        return ['editions' => count($editions), 'categories' => $categories,
+                'decided' => $decided, 'counting' => $open];
+    }
+
+    /** A datetime string only if it is still ahead of us, so a countdown cannot run dead. */
+    private static function futureDate(mixed $raw): ?string
+    {
+        $s = trim((string) ($raw ?? ''));
+        if ($s === '') return null;
+
+        try {
+            $at = Carbon::parse($s);
+        } catch (\Throwable) {
+            return null;
+        }
+
+        return $at->isFuture() ? $at->toIso8601String() : null;
+    }
+
+    /**
+     * Total votes cast in one cycle.
+     *
+     * The denormalised counter rather than the ballot ledger, deliberately: this is a
+     * participation figure on a page header, not an input to anybody's score, and it has
+     * to include imported tallies from before this platform held rows — an edition whose
+     * ballots predate the ledger would otherwise announce that nobody had voted in it.
+     * Nothing here is measured against it and no standing is derived from it.
+     */
+    private static function votesIn(int $cycleId): int
+    {
+        try {
+            return (int) DB::table('gates_nominees as n')
+                ->join('gates_award_categories as c', 'c.id', '=', 'n.category_id')
+                ->where('c.cycle_id', $cycleId)
+                ->whereNull('n.merged_into')
+                ->sum('n.vote_count');
+        } catch (\Throwable) {
+            return 0;
+        }
+    }
+
+    /**
+     * AN EDITION WHOSE AWARDS ARE NOT DECIDED YET — WITHOUT ONE FIGURE FROM ITS STANDING.
+     *
+     * ══════════════════════════════════════════════════════════════════════════
+     * WHY THIS IS A SECOND METHOD AND NOT A RELAXED GATE ON {@see edition()}
+     * ══════════════════════════════════════════════════════════════════════════
+     *
+     * `edition()` refuses anything not in {@see RELEASED}, and that refusal is the rule
+     * this platform breaks hardest when it breaks it: serving a judged-but-unreleased
+     * standing publicly IS announcing it, and the last time this gate was loose a cycle
+     * still in `judging` published a full standing with a named winner three days past its
+     * results date, from a panel that was still open.
+     *
+     * So the gate is not relaxed. This is a different page with a different job: it says
+     * an award is RUNNING, which is a fact the platform already publishes on every vote
+     * page and every nominate form, and it says how far along each of its categories is.
+     * It draws no nominee, calls no scorer and touches nothing that could produce an
+     * order — the safety is structural rather than a condition somebody has to keep true.
+     *
+     * A reader arriving here has usually followed a row from `/results` or a link they
+     * were sent. Answering them with a 404 reads as the award having been taken down.
+     *
+     * @return array<string,mixed>|null null for a released edition — that is {@see edition()}'s
+     */
+    public static function openEdition(string $slug): ?array
+    {
+        if (!preg_match('~^(?<p>[a-z0-9-]*?)-(?<y>\d{4})$~', strtolower(trim($slug)), $m)) {
+            return null;
+        }
+
+        try {
+            $cy = DemoSeeder::notSandbox(
+                DB::table('gates_award_cycles as cy')
+                    ->join('gates_award_programmes as p', 'p.id', '=', 'cy.programme_id')
+                    ->whereNotIn('cy.status', self::RELEASED)
+                    ->where('cy.year', (int) $m['y']),
+                'cy.programme_id')
+                ->where('p.slug', (string) $m['p'])
+                ->orderByDesc('cy.id')
+                ->first(['cy.id', 'cy.year', 'cy.edition_label', 'cy.results_date', 'cy.status',
+                         'cy.programme_id', 'cy.nominations_open', 'cy.nominations_close',
+                         'cy.voting_open', 'cy.voting_close',
+                         'p.title as programme', 'p.slug as programme_slug']);
+            if (!$cy) return null;
+
+            $catIds = DB::table('gates_award_categories')
+                ->where('cycle_id', (int) $cy->id)
+                ->orderBy('sort_order')->orderBy('id')
+                ->pluck('id')->all();
+        } catch (\Throwable) {
+            return null;
+        }
+
+        $phase  = CyclePolicy::phaseFor($cy);
+        $status = ResultStatus::forAward($phase);
+
+        // A cycle that has not opened has nothing to say to a results page, and saying it
+        // anyway would put a page with no content behind a URL people share.
+        if ($status['key'] === ResultStatus::PENDING) return null;
+
+        return [
+            'cycle_id'        => (int) $cy->id,
+            'programme'       => (string) $cy->programme,
+            'programme_slug'  => (string) $cy->programme_slug,
+            'programme_id'    => (int) ($cy->programme_id ?? 0),
+            'programme_style' => Accent::programmeStyle((int) ($cy->programme_id ?? 0)),
+            'year'            => (int) $cy->year,
+            'edition'         => self::edition_($cy),
+            'slug'            => self::editionSlug((string) $cy->programme_slug, (int) $cy->year),
+            'url'             => self::editionUrl((string) $cy->programme_slug, (int) $cy->year),
+            'status'          => $status,
+            'promised'        => (string) ($cy->results_date ?? ''),
+            'closes'          => $status['key'] === ResultStatus::COUNTING
+                                 ? self::futureDate($cy->voting_close ?? null) : null,
+            'votes'           => self::votesIn((int) $cy->id),
+            'categories'      => self::categoryRows((int) $cy->id, $catIds, [], $phase),
+            // Present and empty, so a template written against the released shape cannot
+            // find a standing here by reaching for a key that is simply absent.
+            'awards'          => [],
+            'held'            => 0,
+            'top'             => null,
+        ];
+    }
+
+    /**
+     * Every category in one edition as a row, decided or not.
+     *
+     * The DECIDED ones are matched against the awards already drawn by the caller — never
+     * re-drawn. Drawing a category twice on one page is two scorer passes over the same
+     * edition scale, and worse, it is two chances for the page to disagree with itself.
+     *
+     * A row for an undecided category carries a title, a link and a status. It carries no
+     * nominee, because the whole reason this list can exist on an open edition's page is
+     * that there is nothing on it to leak.
+     *
+     * ONE SCORER FOR THE LIST, not one per row. The held-award lookup below calls
+     * {@see category()}, and the community denominator is the whole EDITION's maximum — so
+     * a fresh scorer per row repeats a full-cycle pass for every category on the page,
+     * quadratic in the size of the edition with nothing to see but a page that gets slower
+     * as a cycle grows. `EditionScaleTest` sweeps `src/` for exactly this loop and found
+     * this one.
+     *
+     * @param list<int>                 $catIds every category id, in the edition's own order
+     * @param list<array<string,mixed>> $awards the drawn, sealed, published categories
+     * @return list<array<string,mixed>>
+     */
+    private static function categoryRows(int $cycleId, array $catIds, array $awards,
+                                         CyclePhase $phase,
+                                         ?NomineeScoringService $scoring = null): array
+    {
+        $drawn = [];
+        foreach ($awards as $a) {
+            $id = (int) ($a['category']->id ?? 0);
+            if ($id > 0) $drawn[$id] = $a;
+        }
+
+        // Titles for the ones that were not drawn. One query for the lot; a per-row lookup
+        // on a page that already reads a whole edition is how a list becomes quadratic.
+        $titles = [];
+        try {
+            foreach (DB::table('gates_award_categories')->whereIn('id', $catIds)
+                        ->get(['id', 'title']) as $r) {
+                $titles[(int) $r->id] = (string) $r->title;
+            }
+        } catch (\Throwable) {
+            // Names missing is a poorer page; an exception is no page at all.
+        }
+
+        $progress = $phase === CyclePhase::Judging
+            ? self::judgingProgress($cycleId) : [];
+
+        $out = [];
+        foreach ($catIds as $raw) {
+            $id = (int) $raw;
+
+            if (isset($drawn[$id])) {
+                $a = $drawn[$id];
+                $out[] = [
+                    'id'       => $id,
+                    'title'    => (string) ($a['category']->title ?? ($titles[$id] ?? '')),
+                    'url'      => (string) ($a['url'] ?? ''),
+                    // Decided WITHOUT asking the phase. A drawn award is proof the
+                    // materialiser crowned and announced it; a cycle whose results date is
+                    // still in the future computes as `Upcoming`, and asking here printed
+                    // "Not open yet" over six published results. See ResultStatus::decided().
+                    'status'   => ResultStatus::decided(),
+                    'award'    => $a,
+                    'progress' => null,
+                ];
+                continue;
+            }
+
+            // Not drawn. Either the cycle has not decided anything yet, or it has and THIS
+            // award is being held — {@see category()} is the one thing that knows which,
+            // and it answers with a reason rather than a silence precisely so this row can
+            // say so.
+            //
+            // The question is "has this edition published anything", not "what does the
+            // calendar say": an edition with awards on the page has been announced whatever
+            // its dates claim, and reading the phase here filed a held-back award under
+            // "Not open yet" — the one wording that tells a nominee waiting on it to stop
+            // waiting.
+            $held = $drawn !== []
+                  ? (self::category($id, $scoring)['held'] ?? self::HELD_DARK) : null;
+
+            $out[] = [
+                'id'       => $id,
+                'title'    => $titles[$id] ?? '',
+                'url'      => '',
+                'status'   => ResultStatus::forAward($phase, $held),
+                'award'    => null,
+                'progress' => $progress[$id] ?? null,
+            ];
+        }
+
+        return $out;
+    }
+
+    /**
+     * How far each category's panel has got, as complete scorecards against what is needed.
+     *
+     * ══════════════════════════════════════════════════════════════════════════
+     * THE ONE HONEST RAMP ON THIS PLATFORM
+     * ══════════════════════════════════════════════════════════════════════════
+     *
+     * Every other progress-shaped thing here would be a statement about a PERSON — how far
+     * up a ranking they are, how close to a threshold. This is a statement about OUR work:
+     * we said a panel would mark these nominees and this is how much of that we have done.
+     * It is also the only honest answer available to "why is this taking so long", which is
+     * the question the silence on this page used to leave unanswered.
+     *
+     * A scorecard is COMPLETE when one judge has scored one nominee against every active
+     * criterion — a half-filled card is not progress, it is a card somebody is in the
+     * middle of, and counting it would let the bar move backwards when a criterion is
+     * added. The denominator is nominees × quorum: the number of complete cards the rules
+     * of this programme require before anybody can be crowned.
+     *
+     * @return array<int,array{done:int,needed:int,pct:int}> keyed by category id
+     */
+    private static function judgingProgress(int $cycleId): array
+    {
+        try {
+            $ctx = DB::table('gates_award_cycles')->where('id', $cycleId)
+                ->first(['programme_id']);
+
+            $criteria = array_map(
+                static fn (object $r): int => (int) $r->id,
+                array_filter(JudgeRubric::effective((int) ($ctx->programme_id ?? 0)),
+                             static fn (object $r): bool => (int) $r->is_active === 1));
+            $required = count($criteria);
+            if ($required < 1) return [];
+
+            $quorum = (int) ((new RuleEngine())->effective(
+                (int) ($ctx->programme_id ?? 0), $cycleId)['min_judges_per_nominee']
+                ?? RuleEngine::DEFAULTS['min_judges_per_nominee']);
+            if ($quorum < 1) return [];
+
+            // Nominees per category, which is the denominator's other half. A merged-away
+            // nominee is nobody's work: counting one would hold a panel permanently short
+            // of a total it can never reach.
+            $nominees = DB::table('gates_nominees as n')
+                ->join('gates_award_categories as c', 'c.id', '=', 'n.category_id')
+                ->where('c.cycle_id', $cycleId)
+                ->whereNull('n.merged_into')
+                ->groupBy('n.category_id')
+                ->get(['n.category_id', DB::raw('COUNT(*) as n')]);
+
+            // COMPLETE cards only, counted in SQL — on a full panel this is tens of
+            // thousands of rows and walking them in PHP to draw a bar is not a trade.
+            $cards = DB::table('gates_judge_criteria_scores as s')
+                ->join('gates_award_categories as c', 'c.id', '=', 's.category_id')
+                ->where('c.cycle_id', $cycleId)
+                ->whereIn('s.criterion_id', $criteria)
+                ->groupBy('s.category_id', 's.judge_id', 's.nominee_id')
+                ->havingRaw('COUNT(DISTINCT s.criterion_id) = ?', [$required])
+                ->get(['s.category_id']);
+        } catch (\Throwable) {
+            // No rubric, no judges table on this deployment, a column not migrated yet.
+            // A row without a bar still says "with the panel", which is the fact.
+            return [];
+        }
+
+        $done = [];
+        foreach ($cards as $c) {
+            $id = (int) $c->category_id;
+            $done[$id] = ($done[$id] ?? 0) + 1;
+        }
+
+        $out = [];
+        foreach ($nominees as $r) {
+            $id     = (int) $r->category_id;
+            $needed = (int) $r->n * $quorum;
+            if ($needed < 1) continue;
+
+            $got = min($done[$id] ?? 0, $needed);
+            $out[$id] = ['done' => $got, 'needed' => $needed,
+                         // Floored, never rounded up: a bar that reads 100% beside a panel
+                         // that has one card left is the page contradicting its own status.
+                         'pct' => (int) floor($got / $needed * 100)];
+        }
+
+        return $out;
     }
 }

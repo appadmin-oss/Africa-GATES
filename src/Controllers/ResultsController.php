@@ -46,20 +46,37 @@ final class ResultsController
     /** GET /results */
     public function index(Request $req, Response $res): Response
     {
-        $r = PublicResults::index();
+        // ── THE VIEW STATE IS IN THE URL, AND THAT IS NOT A DETAIL ──────────
+        //
+        // This is a public, indexable archive. Every filter and every order is a link with
+        // a real address, so a reader can send somebody "the awards counting right now",
+        // a search engine can index each view, and the back button does what it says. A
+        // filter held in JavaScript is a filter nobody can share and a page that has one
+        // URL for every state it can be in.
+        //
+        // Nothing is validated here: `standings()` resolves every value against a known
+        // set, because a query string is untrusted input and a stale link is somebody
+        // trying to read a results page rather than an error.
+        $q = $req->getQueryParams();
+        $r = PublicResults::standings(24, [
+            'order'     => (string) ($q['order'] ?? ''),
+            'programme' => (string) ($q['programme'] ?? ''),
+            'q'         => (string) ($q['q'] ?? ''),
+        ]);
 
         return $this->view->render($res, 'pages/results/index.twig', [
             'page_title'       => 'Results — Africa GATES',
-            'meta_description' => 'Every award Africa GATES has decided, with the full '
-                . 'standing and the arithmetic behind each Cultural Power Index — community '
-                . 'support and judges’ marks, shown separately.',
+            'meta_description' => 'Where every Africa GATES award stands — counting, with '
+                . 'the panel, decided or withheld — and the full standing behind each '
+                . 'decided one, community support and judges’ marks shown separately.',
             'gates_page'       => 'results',
             'current_section'  => 'projects',
             'has_hero'         => false,
-            'items'            => $r['items'],
-            // The page renders editions; `items` stays for anything that wants the
-            // flat list. See PublicResults::index() for why the cap is on editions.
             'editions'         => $r['editions'],
+            'stats'            => $r['stats'],
+            'shown'            => $r['shown'],
+            'programmes'       => $r['programmes'],
+            'view'             => $r['view'],
             'held'             => $r['held'],
             // ── AND THE AWARDS THAT ARE LATE ─────────────────────────────────
             //
@@ -126,8 +143,26 @@ final class ResultsController
      */
     public function edition(Request $req, Response $res, array $args = []): Response
     {
-        $e = PublicResults::edition((string) ($args['edition'] ?? ''));
-        if ($e === null) throw new \Slim\Exception\HttpNotFoundException($req);
+        $slug = (string) ($args['edition'] ?? '');
+        $e    = PublicResults::edition($slug);
+
+        // ── AN EDITION THAT IS STILL RUNNING GETS A PAGE, AND NOT ITS STANDING ──
+        //
+        // `edition()` answers only for an ANNOUNCED cycle, and that refusal is one of this
+        // platform's load-bearing rules: serving a judged-but-unreleased standing publicly
+        // IS announcing it. It is not relaxed here. {@see PublicResults::openEdition()} is
+        // a different page for a different fact — that an award is running, and how far
+        // along each of its categories is — built by code that never draws a nominee, so
+        // there is structurally nothing on it to leak.
+        //
+        // Without this, every row `/results` now shows for a counting or judging edition
+        // would link to a 404, which reads as the award having been taken down.
+        $open = $e === null ? PublicResults::openEdition($slug) : null;
+        if ($e === null && $open === null) {
+            throw new \Slim\Exception\HttpNotFoundException($req);
+        }
+
+        if ($open !== null) return $this->openEdition($req, $res, $open);
 
         $base  = \AfricaGates\Support\SiteUrl::base($req);
         $names = array_slice(array_map(
@@ -152,6 +187,41 @@ final class ResultsController
             'breadcrumbs'     => [
                 ['label' => 'Results', 'url' => '/results'],
                 ['label' => $e['programme'] . ' ' . ($e['edition'] ?: $e['year'])],
+            ],
+        ]);
+    }
+
+    /**
+     * The same URL, for an edition whose awards are not decided yet.
+     *
+     * Rendered from its own template rather than by threading conditionals through the
+     * released one: the two pages answer different questions, and a single template
+     * carrying both is a template one edit away from printing a standing that does not
+     * exist. `noindex`, because the real result takes this exact URL the moment the cycle
+     * is announced and a search engine holding the holding page is worse than none.
+     *
+     * @param array<string,mixed> $o
+     */
+    private function openEdition(Request $req, Response $res, array $o): Response
+    {
+        $name = $o['programme'] . ' ' . ($o['edition'] ?: $o['year']);
+
+        return $this->view->render($res, 'pages/results/open.twig', [
+            'page_title' => $name . ' — where it stands',
+            'meta_description' => $name . ' is '
+                . ($o['status']['key'] === 'counting' ? 'open for voting' : 'with the panel')
+                . '. ' . count($o['categories']) . ' award'
+                . (count($o['categories']) === 1 ? '' : 's') . ', and no standing is '
+                . 'published until every one of them is decided.',
+            'gates_page'      => 'results',
+            'current_section' => 'projects',
+            'has_hero'        => false,
+            'robots'          => 'noindex, follow',
+            'canonical_url'   => \AfricaGates\Support\SiteUrl::base($req) . $o['url'],
+            'e'               => $o,
+            'breadcrumbs'     => [
+                ['label' => 'Results', 'url' => '/results'],
+                ['label' => $name],
             ],
         ]);
     }

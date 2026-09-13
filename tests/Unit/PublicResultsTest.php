@@ -848,16 +848,38 @@ final class PublicResultsTest extends TestCase
         $this->assertSame(0, PublicResults::category($this->categoryId)['votes']['bought']);
     }
 
-    /** The index page draws, with and without anything on it. */
-    public function test_the_index_page_draws_empty_and_full(): void
+    /**
+     * The index page draws in all three of its states, and the middle one is the new one.
+     *
+     * This page used to be an archive of announced editions, so an award that existed but
+     * had not been decided produced "No award has been decided yet" — a page telling a
+     * reader nothing was happening while an award of ours was being verified. It lists
+     * every award now, with where each one stands, so the genuinely empty state is
+     * narrower and means exactly what it says: this platform has never announced anything.
+     */
+    public function test_the_index_page_draws_in_each_of_its_states(): void
     {
-        $empty = $this->renderIndex(PublicResults::index());
-        $this->assertStringContainsString('No award has been decided yet', $empty);
+        // ── UNDECIDED, BUT REAL. The award exists and is being checked, and the page
+        // says so rather than claiming there is nothing here.
+        $waiting = $this->renderIndex(PublicResults::standings());
+        $this->assertStringContainsString('rx-st--withheld', $waiting,
+            'an award being verified is not on the page at all');
+        $this->assertStringContainsString('Decided, and being checked', $waiting);
+        $this->assertStringNotContainsString('No award has been announced yet', $waiting,
+            'the page claims to be empty while carrying an award');
 
+        // ── DECIDED. The winner, and the category they won.
         $this->decided();
-        $full = $this->renderIndex(PublicResults::index());
+        $full = $this->renderIndex(PublicResults::standings());
         $this->assertStringContainsString('Dr. Adegboyega Aborode', $full);
         $this->assertStringContainsString('Primary School Principal', $full);
+
+        // ── GENUINELY EMPTY. No cycle at all — a platform before its first award, which
+        // is a platform working correctly rather than a failure to dress up.
+        DB::table('gates_award_categories')->delete();
+        DB::table('gates_award_cycles')->delete();
+        $this->assertStringContainsString('No award has been announced yet',
+            $this->renderIndex(PublicResults::standings()));
     }
 
     // ══ the reply box ════════════════════════════════════════════════════════
@@ -1080,6 +1102,12 @@ final class PublicResultsTest extends TestCase
         // page started rendering `editions` the test drew an empty list and failed on the
         // winner's name — a failure that reads as the page being broken when the only
         // thing missing was a key this helper had not been told about.
+        //
+        // And it is {@see PublicResults::standings()} that is spread, because that is what
+        // the controller passes. It happened a second time on `index()`: the page began
+        // ordering by status and needed `view`, `stats` and `programmes`, and every caller
+        // here was still handing it the archive payload — so the failure named a missing
+        // Twig variable rather than anything about results.
         return $this->twig()->render('pages/results/index.twig', $i + [
             'page_title' => 'Results', 'gates_page' => 'results',
             // The service's own output, exactly as the controller passes it: a payload
@@ -1116,7 +1144,7 @@ final class PublicResultsTest extends TestCase
         ]);
 
         $html = (string) preg_replace('~\s+~', ' ',
-            (string) preg_replace('~<style\b.*?</style>~s', '', $this->renderIndex(PublicResults::index())));
+            (string) preg_replace('~<style\b.*?</style>~s', '', $this->renderIndex(PublicResults::standings())));
 
         // 'not been decided yet' rather than the whole clause: the heading agrees with the
         // number of awards waiting ("This award has", "These results have"), and an

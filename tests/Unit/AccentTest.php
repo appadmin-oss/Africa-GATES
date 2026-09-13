@@ -100,11 +100,39 @@ final class AccentTest extends TestCase
 
     // ══ the ceiling, which is what keeps a payoff rare ════════════════════════
 
+    /**
+     * No screen wears more than two accents AS FIELDS.
+     *
+     * Restraint is the setup and colour is the payoff, so the payoff must be rare — and
+     * rarity is not something a palette can hope for. A screen reaching for four accents
+     * has none: every one of them is a background.
+     *
+     * ══════════════════════════════════════════════════════════════════════════
+     * WHY THIS COUNTS FIELDS AND NOT TOKENS, WHICH IS A NARROWING
+     * ══════════════════════════════════════════════════════════════════════════
+     *
+     * It used to match any `--ag-<role>-*`, and on that reading /results wears three:
+     * `live` on the chip for an award that is counting, `caution` on the OUTLINE of one
+     * being withheld, and `action` on the focus ring. Two of those three are not colour a
+     * reader can point at. An outline is a boundary and a focus ring is a keyboard
+     * affordance, and forbidding them pushes a page towards two bad answers — FILLING the
+     * withheld chip, which makes the absence of one result the loudest thing on a page of
+     * good news, or dropping the focus ring, which is a WCAG failure traded for a palette
+     * rule.
+     *
+     * So the ceiling is on `fill` and `wash` — the slots that produce a bounded coloured
+     * AREA — and `edge` and `ink` are structure, exactly as `SlotFloorTest` already treats
+     * them and as `components/tile.css` documents. How MUCH colour one page may spend is a
+     * different question with a different answer per page type, and it is
+     * {@see \Tests\Unit\ColourBudgetTest}'s, not this one's: tier 0 allows no field at
+     * all, and a printed ticket legitimately needs three.
+     *
+     * This test keeps the thing a budget cannot express — that no screen, at any tier,
+     * wears three different accents as fields at once, because that is a screen with no
+     * accent rather than a screen over budget.
+     */
     public function test_no_screen_wears_more_than_two_accents_at_once(): void
     {
-        // Restraint is the setup and colour is the payoff, so the payoff must be rare —
-        // and rarity is not something a palette can hope for. A screen reaching for four
-        // accents has none: every one of them is a background.
         $offenders = [];
 
         foreach ($this->publicTemplates() as $path => $body) {
@@ -113,7 +141,8 @@ final class AccentTest extends TestCase
             // GlobeBandTest records: sweep what a READER sees.
             $seen = [];
             foreach (Accent::roles() as $role) {
-                if (preg_match('/var\(\s*--ag-' . $role . '-/', (string) preg_replace('/\{#.*?#\}/s', '', $body))) {
+                if (preg_match('/var\(\s*--ag-' . $role . '-(?:fill|wash)\b/',
+                               (string) preg_replace('/\{#.*?#\}/s', '', $body))) {
                     $seen[] = $role;
                 }
             }
@@ -122,7 +151,37 @@ final class AccentTest extends TestCase
         }
 
         $this->assertSame([], $offenders,
-            "these screens wear more than two accents, so they wear none:\n  "
+            "these screens wear more than two accents as fields, so they wear none:\n  "
+            . implode("\n  ", $offenders));
+    }
+
+    /**
+     * And the narrowing is not a hole: an edge or an ink is still a ROLE, and a screen
+     * reaching for every role it can name is still doing the thing this file forbids.
+     *
+     * Asserted separately at a higher ceiling, so the two questions stay apart. Three is
+     * the number a real page reaches honestly — a live chip, a withheld outline and a
+     * focus ring is /results, and all three are correct — and four is a page using colour
+     * as its vocabulary.
+     */
+    public function test_no_screen_names_every_role_it_can_reach_for(): void
+    {
+        $offenders = [];
+
+        foreach ($this->publicTemplates() as $path => $body) {
+            $seen = [];
+            foreach (Accent::roles() as $role) {
+                if (preg_match('/var\(\s*--ag-' . $role . '-/',
+                               (string) preg_replace('/\{#.*?#\}/s', '', $body))) {
+                    $seen[] = $role;
+                }
+            }
+
+            if (count($seen) > 3) $offenders[] = basename($path) . ': ' . implode(', ', $seen);
+        }
+
+        $this->assertSame([], $offenders,
+            "these screens reach for four or more roles, which is colour as a vocabulary:\n  "
             . implode("\n  ", $offenders));
     }
 

@@ -67,8 +67,11 @@ final class NoLiteralHexTest extends TestCase
             $body = (string) preg_replace('/\{#.*?#\}/s', '',
                 (string) file_get_contents($f->getPathname()));
 
-            $n = preg_match_all('/#[0-9a-fA-F]{3,8}\b/', $body);
-            if ($n > 0) $out[$rel] = $n;
+            // EVERY template, including the ones on zero. A converted file dropping out
+            // of this map entirely is indistinguishable from a DELETED one, and the ghost
+            // sweep below then reports a template that is sitting right there — a finding
+            // that sends somebody looking for a file nobody removed.
+            $out[$rel] = (int) preg_match_all('/#[0-9a-fA-F]{3,8}\b/', $body);
         }
 
         ksort($out);

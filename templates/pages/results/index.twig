@@ -1,259 +1,407 @@
 {% extends "layout/gates.twig" %}
 
-{#
-  THE LIST OF AWARDS THIS PLATFORM HAS DECIDED.
+{# ── COLOUR BUDGET: tier 1, and the one event is `live` ─────────────────────────
+   This page states one thing — where each award stands — so it buys one colour
+   event, and it spends it on the only status that is true right now: an award
+   whose voting is open. Decided is plain ink and a date; a panel's progress is a
+   neutral bar; withheld is an OUTLINE and never a fill, because on a page that is
+   mostly good news the absence of one result must not be the loudest thing on it.
+   Programme hues on the row spines are identity, not events. See
+   ColourBudgetTest. #}
+{% set colour_tier = '1' %}
 
-  Deliberately a ledger and not a trophy case. Every row carries the winner's index and
-  the split that produced it, because a list of names is an announcement and a list of
-  decomposable numbers is a record. The one gold accent is reserved for the index itself.
+{#
+  ══════════════════════════════════════════════════════════════════════════════
+  WHERE EVERY AWARD STANDS — not an archive of the ones that finished
+  ══════════════════════════════════════════════════════════════════════════════
+
+  This was a list of announced editions, newest first, and that is an index of
+  things that have already happened. The question a reader arrives with is not
+  "which editions exist" but "where does this award stand right now", and that has
+  four answers: counting, with the panel, decided, withheld. Three of the four were
+  invisible here — an award in the middle of its voting window did not appear on
+  the page named after its results at all, so the only way to learn it was running
+  was to already know.
+
+  So the list is ordered by STATUS. What is open now is what brings somebody here;
+  what happened in 2025 is what brings them back, and a date order is one tap away
+  and changes nothing any row says.
+
+  ── AND AN OPEN AWARD SHOWS NO LEADER ────────────────────────────────────────
+
+  Not a column left blank for later. Publishing a running order while voting is
+  open turns the window into a bandwagon, and on a platform that sells vote packs
+  it turns this page into a sales page — a nominee's supporters would be able to
+  read off exactly how many votes buy the lead, and we would be the ones telling
+  them. Vote COUNTS are published, because participation is a fact and a nominee
+  is entitled to see their own support. The rule is carried on the status itself
+  (`publishes_standing`) rather than remembered here, because a rule three screens
+  have to remember is a rule one of them will forget.
 #}
 
 {% block head_styles %}
 <style nonce="{{ csp_nonce }}">
   body[data-page="results"]{ background:var(--ag-ground); color:var(--ag-ink); }
 
-  .rx{ max-width:1080px; margin:0 auto; padding:clamp(2rem,5vw,2.8rem) var(--ag-gutter,32px) clamp(3rem,6vw,4.5rem); }
+  /* ── 2.4.11 FOCUS NOT OBSCURED ──────────────────────────────────────────────
+     The filter bar is sticky, so a row reached by keyboard scrolls to the top of
+     the viewport and lands UNDER it. Read from the bar's own height token rather
+     than typed, or the two drift the first time the bar gains a line. */
+  html{ scroll-padding-top:calc(var(--rx-bar,64px) + 12px); }
 
-  .rx-head{ max-width:44rem; }
-  .rx-eyebrow{ margin:0 0 10px; font:600 var(--ag-fs-label) / 1 var(--ag-font-mono);
-               letter-spacing:var(--ag-tracking-label); text-transform:uppercase; color:var(--ag-green); }
+  .rx{ max-width:1180px; margin:0 auto; padding:0 var(--ag-gutter,32px) clamp(3rem,6vw,4.5rem); }
+
+  /* ── the header ── */
+  .rx-head{ padding:clamp(1.6rem,4vw,2.4rem) 0 clamp(1.3rem,3vw,1.8rem); }
+  .rx-crumb{ margin:0 0 14px; font-size:13.5px; line-height:1.5; color:var(--ag-ink-soft); }
+  .rx-crumb a{ color:var(--ag-ink-2); text-decoration:none; }
+  .rx-crumb a:hover{ text-decoration:underline; }
+  .rx-crumb b{ color:var(--ag-ink); font-weight:600; }
   .rx-head h1{ margin:0; font-family:var(--ag-font-display); font-weight:700;
-               font-size:clamp(2rem,4.6vw,2.7rem); letter-spacing:-.02em; }
-  .rx-head p{ margin:14px 0 0; font-size:15.5px; line-height:1.62; color:#4a5256; max-width:62ch; }
+               font-size:clamp(2.1rem,5.2vw,3.1rem); line-height:1.04; letter-spacing:-.03em;
+               max-width:18ch; }
+  .rx-head p{ margin:16px 0 0; font-size:16px; line-height:1.65; color:var(--ag-ink-2);
+              max-width:64ch; }
 
-  .rx-rule{ height:1px; background:var(--ag-line-strong); margin:clamp(1.6rem,4vw,2.2rem) 0 0; }
+  .rx-figs{ display:flex; flex-wrap:wrap; gap:0 clamp(28px,5vw,54px); margin:clamp(1.4rem,3vw,2rem) 0 0;
+            padding:0; }
+  .rx-figs > div{ margin:0; }
+  .rx-figs dt{ margin:0 0 4px; font:600 10.5px/1 var(--ag-font-mono); letter-spacing:.16em;
+               text-transform:uppercase; color:var(--ag-ink-soft); }
+  .rx-figs dd{ margin:0; font:700 clamp(1.5rem,3.4vw,1.9rem)/1 var(--ag-font-mono);
+               letter-spacing:-.02em; font-variant-numeric:tabular-nums; color:var(--ag-ink); }
 
-  /* ── an edition ── */
-  .rx-ed{ margin-top:clamp(2rem,5vw,2.9rem); }
-  .rx-ed__h{ display:flex; align-items:flex-end; justify-content:space-between; gap:16px 24px;
-             flex-wrap:wrap; padding-bottom:12px; border-bottom:2px solid var(--ag-ink); }
-  /* The programme's identity colour, set inline per edition from
-     Support\Accent::programmeStyle(). The same hue this programme wears in the hall of
-     fame, so a reader who learns it once carries it across the site — which is the only
-     thing that makes a categorical colour worth having. The programme's NAME sits in it,
-     so the hue is an accelerator on a word and never the fact. */
-  .rx-ed__h{ border-bottom-color:var(--pg-edge,var(--ag-ink)) !important; }
-  .rx-ed__kick{ color:var(--pg-ink,var(--ag-ink-soft)) !important; display:flex;
-                align-items:center; gap:7px; }
-  .rx-ed__kick i{ flex:none; width:8px; height:8px; border-radius:50%; font-style:normal;
-                  background:var(--pg-fill,currentColor); }
-  .rx-ed__t a:hover{ border-color:var(--pg-edge,var(--ag-green)) !important; }
-  .rx-ed__kick{ margin:0 0 6px; font:600 11px/1.4 var(--ag-font-mono); letter-spacing:.12em;
-                text-transform:uppercase; }
-  .rx-ed__t{ margin:0; font-family:var(--ag-font-display); font-weight:700;
-             font-size:clamp(1.5rem,3.4vw,2rem); letter-spacing:-.02em; line-height:1.1; }
-  .rx-ed__t a{ color:inherit; text-decoration:none; border-bottom:2px solid transparent; }
-  .rx-ed__t a:hover{ border-color:var(--ag-green); }
-  .rx-ed__t a:focus-visible{ outline:3px solid var(--ag-green); outline-offset:3px; }
-  .rx-ed__n{ margin:0; font:600 11.5px/1.4 var(--ag-font-mono); letter-spacing:.06em;
-             text-transform:uppercase; color:var(--ag-ink-soft); white-space:nowrap; }
-  .rx-ed__n a{ color:inherit; text-decoration:none; }
-  .rx-ed__n a:hover{ color:var(--ag-green); }
-  .rx-ed__held{ margin:16px 0 0; font-size:14.5px; line-height:1.65; color:#4a5256; }
+  /* ── the sticky bar ── */
+  .rx-bar{ position:sticky; top:0; z-index:5; display:flex; flex-wrap:wrap; gap:12px 18px;
+           align-items:center; justify-content:space-between;
+           padding:12px 0; margin:0 0 clamp(1.2rem,3vw,1.7rem);
+           background:var(--ag-ground); border-bottom:1px solid var(--ag-line); }
+  .rx-find{ display:flex; gap:8px; align-items:center; }
+  .rx-find input{ min-width:min(280px,60vw); min-height:40px; padding:0 14px;
+                  border:1px solid var(--ag-ink); border-radius:999px; background:var(--ag-card);
+                  font:400 14.5px/1 inherit; color:var(--ag-ink); }
+  .rx-find input:focus-visible{ outline:3px solid var(--ag-action-edge); outline-offset:2px; }
+  .rx-find button{ min-height:40px; min-width:44px; padding:0 16px; border-radius:999px;
+                   border:1px solid var(--ag-line); background:var(--ag-card); color:var(--ag-ink);
+                   font:600 13px/1 inherit; cursor:pointer; }
+  .rx-find button:hover{ background:var(--ag-surface-2); }
 
+  .rx-chips{ display:flex; gap:8px; flex-wrap:nowrap; overflow-x:auto; padding-bottom:2px;
+             scrollbar-width:thin; }
+  /* 2.5.8 — the AA floor is 24px and is NOT conditional on the pointer. A coarse
+     pointer gets more; nobody gets less. */
+  .rx-chip{ flex:none; display:inline-flex; align-items:center; gap:7px; min-height:32px;
+            padding:0 13px; border-radius:999px; border:1px solid var(--ag-line);
+            background:var(--ag-card); color:var(--ag-ink-2); text-decoration:none;
+            font:600 12.5px/1 inherit; white-space:nowrap; }
+  .rx-chip:hover{ border-color:var(--ag-ink-soft); color:var(--ag-ink); }
+  .rx-chip[aria-current]{ border:2px solid var(--ag-ink); color:var(--ag-ink); padding:0 12px; }
+  .rx-chip i{ flex:none; width:8px; height:8px; border-radius:50%; font-style:normal;
+              background:var(--pg-fill,var(--ag-mute)); }
+  .rx-count{ font:600 11px/1 var(--ag-font-mono); letter-spacing:.1em; text-transform:uppercase;
+             color:var(--ag-ink-soft); white-space:nowrap; font-variant-numeric:tabular-nums; }
+  .rx-order{ display:flex; align-items:center; gap:10px; font:600 11px/1 var(--ag-font-mono);
+             letter-spacing:.1em; text-transform:uppercase; color:var(--ag-ink-soft); }
+  .rx-order a{ color:var(--ag-ink-2); text-decoration:none; padding:6px 0; }
+  .rx-order a:hover{ color:var(--ag-ink); }
+  .rx-order a[aria-current]{ color:var(--ag-ink); border-bottom:2px solid var(--ag-ink); }
+
+  /* ── a row ── */
   .rx-list{ list-style:none; margin:0; padding:0; }
-  .rx-item{ border-bottom:1px solid var(--ag-line); }
-  .rx-a{ display:grid; grid-template-columns:minmax(0,1fr) auto; gap:8px 20px; align-items:center;
-         padding:20px 4px; text-decoration:none; color:inherit; transition:background var(--ag-dur-fast) var(--ag-ease); }
-  .rx-a:hover{ background:rgba(16,41,44,.03); }
-  .rx-a:focus-visible{ outline:2px solid var(--ag-green); outline-offset:2px; }
+  .rx-item + .rx-item{ border-top:1px solid var(--ag-line); }
+  .rx-item:nth-child(even) .rx-a{ background:var(--ag-surface-2); }
+  .rx-a{ display:grid; grid-template-columns:minmax(0,1fr) 260px 230px 150px 40px;
+         gap:10px 22px; align-items:center; padding:20px;
+         border-left:5px solid var(--pg-fill,var(--ag-line));
+         color:inherit; text-decoration:none; }
+  .rx-a:hover{ background:var(--ag-surface-2); }
+  .rx-a:focus-visible{ outline:3px solid var(--ag-action-edge); outline-offset:-3px; }
 
-  .rx-meta{ font:600 11px/1.4 var(--ag-font-mono); letter-spacing:.1em; text-transform:uppercase;
-            color:var(--ag-ink-soft); margin:0 0 6px; }
-  .rx-cat{ margin:0; font-family:var(--ag-font-display); font-weight:700; font-size:1.22rem;
-           letter-spacing:-.01em; line-height:1.25; }
-  .rx-won{ margin:6px 0 0; font-size:14.5px; color:#4a5256; }
-  .rx-won b{ color:var(--ag-ink); font-weight:600; }
+  .rx-pg{ margin:0 0 6px; display:flex; align-items:center; gap:7px;
+          font:600 10.5px/1.3 var(--ag-font-mono); letter-spacing:.14em; text-transform:uppercase;
+          color:var(--pg-ink,var(--ag-ink-soft)); }
+  .rx-name{ margin:0; font-family:var(--ag-font-display); font-weight:700;
+            font-size:clamp(1.18rem,2.6vw,1.56rem); line-height:1.12; letter-spacing:-.02em; }
+  .rx-a:hover .rx-name{ text-decoration:underline; text-underline-offset:4px; }
 
-  .rx-score{ text-align:right; }
-  .rx-cpi{ font:700 1.7rem/1 var(--ag-font-mono); color:var(--ag-ink); font-variant-numeric:tabular-nums; }
-  .rx-cpi span{ font-size:.72rem; color:var(--ag-ink-soft); font-weight:600; }
-  .rx-split{ margin:5px 0 0; font:600 10.5px/1 var(--ag-font-mono); letter-spacing:.07em;
-             text-transform:uppercase; color:var(--ag-ink-soft); font-variant-numeric:tabular-nums; }
-  .rx-split i{ font-style:normal; color:var(--ag-green); }
+  /* ── the four statuses, and the one that is allowed a colour ── */
+  .rx-st{ display:inline-flex; align-items:center; gap:8px; min-height:28px; padding:0 11px;
+          border-radius:999px; border:1px solid var(--ag-line); background:var(--ag-card);
+          font:700 10.5px/1 var(--ag-font-mono); letter-spacing:.12em; text-transform:uppercase;
+          color:var(--ag-ink); }
+  /* `counting` is the page's one event: a bounded field with a saturated mark and a
+     word inside it. The LABEL is house ink and not `live-ink`, which is 4.44 on its
+     own wash — see SlotFloorTest, which refuses that pairing by name. */
+  .rx-st--counting{ background:var(--ag-live-wash); border-color:var(--ag-live-edge); }
+  .rx-st--counting i{ flex:none; width:9px; height:9px; border-radius:50%; font-style:normal;
+                      background:var(--ag-live-fill); }
+  @media (prefers-reduced-motion: no-preference){
+    .rx-st--counting i{ animation:rx-pulse 2s ease-in-out infinite; }
+  }
+  @keyframes rx-pulse{ 0%,100%{ opacity:1 } 50%{ opacity:.45 } }
+  /* OUTLINED, never filled. One withheld award against eleven decided ones, drawn as
+     a field, makes the absence of a result the loudest thing on the page. */
+  .rx-st--withheld{ border-color:var(--ag-caution-edge); color:var(--ag-caution-ink); }
+  .rx-st--decided{ border:0; padding:0; background:none; color:var(--ag-ink-soft); }
 
-  .rx-held{ margin:26px 0 0; padding:16px 18px; border-left:3px solid var(--ag-gold);
-            background:rgba(201,162,75,.07); font-size:14px; line-height:1.6; color:#4a5256; }
+  .rx-when{ margin:6px 0 0; font:600 10.5px/1.4 var(--ag-font-mono); letter-spacing:.07em;
+            text-transform:uppercase; color:var(--ag-ink-soft);
+            font-variant-numeric:tabular-nums; }
 
-  /* A result that is LATE, not withheld — a different piece of news from .rx-held, and
-     above the list rather than under it, because somebody who came for this cycle must not
-     have to read past last year's awards to find out why theirs is not here. */
-  .rx-late{ margin:0 0 26px; padding:18px 20px; border:1px solid var(--ag-line-strong);
-            border-left:3px solid var(--ag-pulse); border-radius:var(--ag-r-lg);
-            background:var(--ag-surface); }
+  /* The panel's own progress — a count against its own denominator, and the only
+     honest ramp on this platform because it is a statement about OUR work rather
+     than about a person. No hue: it is not a state, it is a total. */
+  .rx-bar2{ height:6px; border-radius:999px; background:var(--ag-line); overflow:hidden;
+            max-width:180px; margin:7px 0 0; }
+  .rx-bar2 span{ display:block; height:100%; background:var(--ag-ink-2); }
+
+  .rx-who{ min-width:0; }
+  .rx-who p{ margin:0; font-family:var(--ag-font-display); font-weight:700; font-size:1.12rem;
+             line-height:1.2; letter-spacing:-.01em; }
+  .rx-who small{ display:block; margin:5px 0 0; font:600 10.5px/1.3 var(--ag-font-mono);
+                 letter-spacing:.1em; text-transform:uppercase; color:var(--ag-ink-soft); }
+  .rx-prov{ display:inline-flex; align-items:center; min-height:22px; margin:6px 0 0;
+            padding:0 8px; border-radius:999px; border:1px solid var(--ag-caution-edge);
+            color:var(--ag-caution-ink); font:700 9.5px/1 var(--ag-font-mono);
+            letter-spacing:.11em; text-transform:uppercase; }
+  /* Not a blank cell. A reader who sees nothing in the column where a winner goes
+     assumes the page failed; a sentence says the platform is declining, on purpose.
+     Scoped under .rx-who, because `.rx-who p` is the winner's name in Playfair at
+     1.12rem and would otherwise win on specificity — which set a sentence explaining
+     why there is no winner in the exact type reserved for one. */
+  .rx-who .rx-quiet{ margin:0; font-family:inherit; font-weight:400; font-size:13.5px;
+                     line-height:1.55; letter-spacing:0; color:var(--ag-ink-soft);
+                     max-width:28ch; }
+
+  .rx-n{ text-align:right; }
+  .rx-n b{ display:block; font:700 1.5rem/1 var(--ag-font-mono); letter-spacing:-.02em;
+           font-variant-numeric:tabular-nums; color:var(--ag-ink); }
+  .rx-n small{ display:block; margin:5px 0 0; font:600 10px/1.3 var(--ag-font-mono);
+               letter-spacing:.1em; text-transform:uppercase; color:var(--ag-ink-soft); }
+  /* An affordance marker, never the target — the whole row is the link. */
+  .rx-go{ text-align:right; color:var(--ag-mute); font-size:19px; }
+
+  /* ── the notices, and the empty page ── */
+  .rx-late{ margin:0 0 22px; padding:18px 20px; border:1px solid var(--ag-line);
+            border-left:3px solid var(--ag-caution-edge); border-radius:14px;
+            background:var(--ag-card); }
   .rx-late h2{ margin:0 0 .4rem; font-family:var(--ag-font-display); font-weight:700;
                font-size:1.15rem; color:var(--ag-ink); }
-  .rx-late p{ margin:.5rem 0 0; font-size:14px; line-height:1.65; color:#4a5256; max-width:64ch; }
+  .rx-late p{ margin:.5rem 0 0; font-size:14.5px; line-height:1.65; color:var(--ag-ink-2);
+              max-width:64ch; }
   .rx-late__meta{ margin:0; font:600 10.5px/1.4 var(--ag-font-mono); letter-spacing:.07em;
                   text-transform:uppercase; color:var(--ag-ink-soft); }
-  /* The operator's own words, set apart from the platform's — a reader is entitled to know
-     which sentences a person wrote and which the site derived. */
-  .rx-late__note{ margin:.7rem 0 0; padding:.7rem .9rem; border-radius:var(--ag-r-sm,8px);
-                  background:rgba(16,41,44,.04); font-size:14px; line-height:1.62;
+  .rx-late__note{ margin:.7rem 0 0; padding:.7rem .9rem; border-radius:10px;
+                  background:var(--ag-surface-2); font-size:14px; line-height:1.62;
                   color:var(--ag-ink); white-space:pre-line; }
 
-  .rx-empty{ margin-top:30px; padding:clamp(2rem,5vw,3rem) 1.5rem; text-align:center;
-             border:1px solid var(--ag-line-strong); border-radius:var(--ag-r-lg); background:var(--ag-surface); }
-  .rx-empty h2{ margin:0 0 .5rem; font-family:var(--ag-font-display); font-weight:700; font-size:1.4rem; }
-  .rx-empty p{ margin:0 auto 1.4rem; max-width:44ch; color:#4a5256; line-height:1.62; }
-  .rx-btn{ display:inline-flex; align-items:center; gap:.5rem; min-height:44px; padding:0 24px;
-           border-radius:var(--ag-r-pill); background:var(--ag-green); color:#fff; font-weight:600;
-           font-size:14.5px; text-decoration:none; }
-  .rx-btn:hover{ background:var(--ag-green-dark); }
+  .rx-held{ margin:26px 0 0; padding:16px 18px; border:1px dashed var(--ag-line);
+            border-radius:14px; font-size:14px; line-height:1.6; color:var(--ag-ink-2); }
 
-  @media (max-width:560px){
-    .rx-a{ grid-template-columns:minmax(0,1fr); }
-    .rx-score{ text-align:left; }
-    .rx-cpi{ font-size:1.4rem; }
+  /* Dashed, ink only, zero events. A platform before its first announcement is a
+     platform working correctly, and dressing that up as a problem is a lie. */
+  .rx-empty{ margin-top:26px; padding:clamp(2rem,5vw,3rem) 1.5rem; text-align:center;
+             border:1px dashed var(--ag-line); border-radius:16px; }
+  .rx-empty h2{ margin:0 0 .5rem; font-family:var(--ag-font-display); font-weight:700;
+                font-size:1.4rem; }
+  .rx-empty p{ margin:0 auto 1.4rem; max-width:46ch; color:var(--ag-ink-2); line-height:1.62; }
+  .rx-empty a{ display:inline-flex; align-items:center; min-height:44px; padding:0 22px;
+               border:1px solid var(--ag-ink); border-radius:999px; color:var(--ag-ink);
+               font-weight:600; font-size:14.5px; text-decoration:none; }
+  .rx-empty a:hover{ background:var(--ag-ink); color:var(--ag-card); }
+
+  @media (max-width:1000px){
+    .rx-a{ grid-template-columns:minmax(0,1fr) 200px 40px; }
+    .rx-who, .rx-n{ grid-column:1 / -1; text-align:left; }
+    .rx-n b{ font-size:1.25rem; }
+  }
+  @media (max-width:640px){
+    .rx-a{ grid-template-columns:minmax(0,1fr) 34px; padding:16px; }
+    .rx-a > *{ grid-column:1; }
+    .rx-go{ grid-column:2; grid-row:1; }
   }
 </style>
 {% endblock %}
 
 {% block content %}
-{# The outer guard is "is there a published award ANYWHERE", not "is there an edition":
-   a released edition whose every award is withheld produces an edition block with no
-   rows, and gating on that would replace "No award has been decided yet" — the honest
-   headline when nothing is published — with a heading over an apology. #}
-{% set rows = items|default([]) %}
-
 <div class="rx">
   <header class="rx-head">
-    <p class="rx-eyebrow">The record</p>
-    <h1>Results</h1>
-    <p>Every award this platform has decided, edition by edition. A Cultural Power Index
-       runs from 0 to 1000 and always splits two ways — the support a community gave, and
-       the marks a panel awarded. Open any award for the full standing, and the working
-       behind it.</p>
+    <p class="rx-crumb"><a href="/">Home</a> / <b>Results</b></p>
+    <h1>Where every award stands</h1>
+    <p>Counting, with the panel, decided, or being checked. Every decided award opens on
+       its full standing — a Cultural Power Index from 0 to 1000, split two ways: the
+       support a community gave, and the marks a panel awarded.</p>
+
+    {# Counted from the drawn page, never typed. A headline figure written into a
+       template is a figure that is wrong the first week a new edition opens. #}
+    <dl class="rx-figs">
+      <div><dt>Editions</dt><dd>{{ stats.editions|default(0) }}</dd></div>
+      <div><dt>Categories</dt><dd>{{ stats.categories|default(0) }}</dd></div>
+      <div><dt>Decided</dt><dd>{{ stats.decided|default(0) }}</dd></div>
+      {% if stats.counting|default(0) %}
+        <div><dt>Counting now</dt><dd>{{ stats.counting }}</dd></div>
+      {% endif %}
+    </dl>
   </header>
 
-  <div class="rx-rule"></div>
+  {#
+    ── EVERY FILTER IS A LINK WITH A REAL ADDRESS ──────────────────────────────
+    So "the awards counting right now" is something a reader can send to somebody,
+    a search engine can index each view, and the back button does what it says.
+    The chips are built from the WHOLE page rather than the filtered one, or
+    choosing a programme would delete the way back out of that choice.
+  #}
+  <nav class="rx-bar" aria-label="Filter and order the results">
+    <form class="rx-find" method="get" action="/results" role="search">
+      <label class="ag-sr-only" for="rx-q">Search awards</label>
+      <input id="rx-q" type="search" name="q" value="{{ view.q|default('') }}"
+             placeholder="Search an award or a year" autocomplete="off">
+      {% if view.order|default('status') != 'status' %}
+        <input type="hidden" name="order" value="{{ view.order }}">
+      {% endif %}
+      <button type="submit">Search</button>
+    </form>
+
+    {% if programmes|default([]) %}
+      <div class="rx-chips">
+        <a class="rx-chip" href="/results{{ view.order|default('status') != 'status' ? '?order=' ~ view.order : '' }}"
+           {% if not view.programme %}aria-current="true"{% endif %}>Everything</a>
+        {% for p in programmes %}
+          <a class="rx-chip" style="{{ p.style }}"
+             href="/results?programme={{ p.name|url_encode }}{{ view.order|default('status') != 'status' ? '&order=' ~ view.order : '' }}"
+             {% if view.programme == p.name %}aria-current="true"{% endif %}>
+            <i aria-hidden="true"></i>{{ p.name }}
+          </a>
+        {% endfor %}
+      </div>
+    {% endif %}
+
+    <p class="rx-order">
+      <span class="rx-count">Showing {{ shown|default(0) }} of {{ stats.editions|default(0) }}</span>
+      <span aria-hidden="true">·</span>
+      Order:
+      {% for key, word in {'status':'By status','date':'By date','programme':'By programme'} %}
+        <a href="/results?order={{ key }}{{ view.programme ? '&programme=' ~ view.programme|url_encode : '' }}{{ view.q ? '&q=' ~ view.q|url_encode : '' }}"
+           {% if view.order|default('status') == key %}aria-current="true"{% endif %}>{{ word }}</a>
+      {% endfor %}
+    </p>
+  </nav>
 
   {#
-    ── A RESULT THAT IS LATE, SAID BEFORE THE LIST AND NOT AFTER IT ──────────
+    ── A RESULT THAT IS LATE, SAID BEFORE THE LIST AND NOT AFTER IT ────────────
 
     A results date is a promise made in public. This page used to serve the current
-    standing once that date passed, whether or not the cycle had been announced — a named
-    winner nobody had crowned, from a panel still open, unsealed. Gating that off leaves
-    the other failure: the page a nominee's family refreshes on the day would go from a
-    wrong answer to NO answer, which reads as the result being hidden.
+    standing once that date passed, announced or not — a named winner nobody had
+    crowned, from a panel still open, unsealed. Gating that off leaves the other
+    failure: the page a nominee's family refreshes on the day would go from a wrong
+    answer to NO answer, which reads as the result being hidden.
 
-    So the fact is stated. Above the list, because somebody who came for this cycle must
-    not have to read past three years of other people's awards to find out why theirs is
-    not here — and `.rx-held` below is a different piece of news (decided, not published)
-    that would be actively misleading if the two were merged.
-
-    Derived, so nobody has to remember to take it down: it appears when a release slips
-    and disappears when the cycle is announced, which is the same moment the real result
-    replaces it.
+    Derived, so nobody has to remember to take it down: it appears when a release
+    slips and disappears when the cycle is announced, which is the same moment the
+    real result replaces it.
   #}
   {% for d in delayed|default([]) %}
     <div class="rx-late">
       <p class="rx-late__meta">{{ d.programme }}{% if d.edition %} &middot; {{ d.edition }}{% endif %}</p>
       <h2>{% if d.awards == 1 %}This award has not been decided yet{% else %}These results have not been decided yet{% endif %}</h2>
-      {#
-        The promised date is NAMED. It is the thing a reader is holding this platform to,
-        and a delay notice that will not repeat the date it broke is asking to be trusted
-        twice.
-      #}
+      {# The promised date is NAMED. A delay notice that will not repeat the date it
+         broke is asking to be trusted twice. #}
       <p>Results for {{ d.edition ?: d.programme }} were expected on
         <strong>{{ d.promised|date('j F Y') }}</strong> and are late.
         {% if d.awards > 1 %}{{ d.awards }} awards are waiting.{% endif %}
         Nothing is published here until every part of the index can be shown and the
         standing has been sealed &mdash; a figure that could still move is not a result,
         and we would rather be late than announce one twice.</p>
-      {#
-        The operator's own words, where somebody has written them. Escaped like every
-        other operator string on a public page, and `white-space:pre-line` so a
-        paragraph they typed stays a paragraph. Absent, the page says what it knows and
-        does not invent a reason or a new date: a made-up date is a second broken
-        promise, and the first one is why anybody is reading this.
-      #}
-      {% if d.note %}
-        <p class="rx-late__note">{{ d.note }}</p>
-      {% endif %}
+      {% if d.note %}<p class="rx-late__note">{{ d.note }}</p>{% endif %}
     </div>
   {% endfor %}
 
-  {% if rows %}
-    {#
-      ── AN EDITION AT A TIME ────────────────────────────────────────────────
+  {% if editions|default([]) %}
+    <ul class="rx-list">
+      {% for e in editions %}
+        <li class="rx-item">
+          <a class="rx-a" href="{{ e.url }}" style="{{ e.programme_style }}">
+            <div>
+              {# The dot is decoration; the programme's NAME is the fact, and it is
+                 always printed beside it. A reader who cannot separate two of the
+                 hues loses nothing at all. #}
+              <p class="rx-pg"><i aria-hidden="true"
+                   style="width:8px;height:8px;border-radius:50%;background:var(--pg-fill,currentColor);display:inline-block"></i>{{ e.programme }}</p>
+              <h2 class="rx-name">{{ e.edition ?: e.year }}</h2>
+            </div>
 
-      This was one flat list of categories, newest first, with the programme and year
-      repeated on every row. Two things were wrong with that. An award programme is the
-      thing people come here for — "the 2026 Principal Awards", not "Teachers' Choice" —
-      and its eleven categories were scattered down a page interleaved with three other
-      programmes, so the one question a reader actually has (who won this edition?) could
-      only be answered by reading every row and sorting them in their head.
+            <div>
+              <span class="rx-st rx-st--{{ e.status.key }}">
+                {% if e.status.key == 'counting' %}<i aria-hidden="true"></i>{% endif %}
+                {{ e.status.label }}
+              </span>
+              {% if e.status.key == 'counting' and e.closes %}
+                {# Server-rendered, so the figure is right before a line of script runs
+                   and stays right where script never runs at all. #}
+                <p class="rx-when">Voting closes {{ e.closes|date('j M, H:i') }}</p>
+              {% elseif e.status.key == 'decided' and e.announced|default('') %}
+                <p class="rx-when">{{ e.announced|date('j F Y') }}</p>
+              {% endif %}
+            </div>
 
-      And the list was capped at sixty CATEGORIES, so the cut landed wherever the
-      sixtieth happened to be: an edition could appear with seven of its eleven awards
-      and nothing saying four were missing. {@see PublicResults::index} caps editions
-      now, and each one arrives whole.
-    #}
-    {% for e in editions|default([]) %}
-      <section class="rx-ed" aria-labelledby="ed-{{ e.cycle_id }}" style="{{ e.programme_style }}">
-        <header class="rx-ed__h">
-          <div>
-            <p class="rx-ed__kick"><i aria-hidden="true"></i>{{ e.programme }}</p>
-            {# The heading IS the link to the edition's own page. An edition is the thing
-               people name — "the 2026 Principal Awards" — and until it had a page there
-               was nowhere for that name to point. #}
-            <h2 class="rx-ed__t" id="ed-{{ e.cycle_id }}">
-              <a href="{{ e.url }}">{{ e.edition ?: e.year }}</a>
-            </h2>
-          </div>
-          <p class="rx-ed__n">
-            <a href="{{ e.url }}">{{ e.awards|length }} award{{ e.awards|length == 1 ? '' : 's' }}
-            {%- if e.held %} · {{ e.held }} withheld{% endif %} &rarr;</a>
-          </p>
-        </header>
+            <div class="rx-who">
+              {#
+                THE COLUMN THAT MUST STAY EMPTY WHILE VOTING IS OPEN.
 
-        {% if e.awards|length %}
-        <ul class="rx-list">
-          {% for c in e.awards %}
-            <li class="rx-item">
-              <a class="rx-a" href="{{ c.url }}">
-                <div>
-                  {# The programme and year are the heading above, so the row carries the
-                     category alone. Repeating them on every line is what made the old
-                     list unreadable at eleven awards. #}
-                  <h3 class="rx-cat">{{ c.category.title }}</h3>
-                  <p class="rx-won"><b>{{ c.winner.name }}</b>{% if c.dead_heat %} — dead heat, separated by nominee id{% endif %}</p>
-                </div>
-                <div class="rx-score">
-                  <div class="rx-cpi">{{ c.winner.cpi }}<span> / 1000</span></div>
-                  {# The split, and nothing more. The arithmetic behind it is on the award's
-                     own page, one click away — a list of sixty decompositions is a
-                     spreadsheet, and nobody checks a spreadsheet they did not ask for. #}
-                  <p class="rx-split"><i>{{ c.winner.community_points }} community</i> · {{ c.winner.judge_points }} judges</p>
-                </div>
-              </a>
-            </li>
-          {% endfor %}
-        </ul>
-        {% else %}
-          {# Named, not dropped. A released edition that disappears reads as one that
-             never happened. #}
-          <p class="rx-ed__held">Every award in this edition is decided and not yet
-            published — see the note at the foot of this page.</p>
-        {% endif %}
-      </section>
-    {% endfor %}
+                `publishes_standing` is false for every status but `decided`, and it is
+                read here rather than the status name, so adding a fifth status cannot
+                accidentally open this column. What goes in its place is a sentence:
+                a blank cell reads as the page having failed, and this is the platform
+                declining on purpose.
+              #}
+              {% if e.status.publishes_standing and e.overall and e.overall.winner %}
+                <p>{{ e.overall.winner.name }}</p>
+                <small>Overall &middot; {{ e.overall.winner.category }}</small>
+                {% if e.overall.provisional %}
+                  <span class="rx-prov">Provisional</span>
+                {% endif %}
+              {% elseif e.status.key == 'counting' %}
+                <p class="rx-quiet">{{ e.votes|number_format }} vote{{ e.votes == 1 ? '' : 's' }} counted
+                  so far. No standing while voting is open.</p>
+              {% elseif e.status.key == 'judging' %}
+                <p class="rx-quiet">With the panel. Nothing is published until every
+                  scorecard is in.</p>
+              {% elseif e.status.key == 'withheld' %}
+                <p class="rx-quiet">Decided, and being checked before it is published.</p>
+              {% endif %}
+            </div>
+
+            <div class="rx-n">
+              <b>{{ e.categories|default(0) }}</b>
+              <small>{{ e.categories == 1 ? 'Category' : 'Categories' }}{% if e.decided|default(0) and e.decided < e.categories %} &middot; {{ e.decided }} decided{% endif %}</small>
+            </div>
+
+            <div class="rx-go" aria-hidden="true">&rarr;</div>
+          </a>
+        </li>
+      {% endfor %}
+    </ul>
+  {% elseif view.q|default('') or view.programme|default('') %}
+    <div class="rx-empty">
+      <h2>Nothing matches that</h2>
+      <p>No award here matches {% if view.q %}&ldquo;{{ view.q }}&rdquo;{% else %}that programme{% endif %}.</p>
+      <a href="/results">Show everything</a>
+    </div>
   {% else %}
     <div class="rx-empty">
-      <h2>No award has been decided yet</h2>
-      <p>Results appear here the moment a cycle closes and its panel has finished. Nothing
-         is published before the arithmetic can be shown in full.</p>
-      <a href="/awards" class="rx-btn">See the awards running now</a>
+      <h2>No award has been announced yet</h2>
+      <p>Awards appear here the moment one opens for voting, and their results the moment
+         a panel has finished and the standing can be shown in full.</p>
+      <a href="/awards">See the awards running now</a>
     </div>
   {% endif %}
 
   {#
-    A withheld result is SAID, not hidden. A category that vanishes from this list reads as
-    a category that never existed; one that is named as being verified is a promise somebody
-    can hold this platform to.
+    A withheld result is SAID, not hidden. A category that vanishes from this list
+    reads as one that never existed; one named as being verified is a promise
+    somebody can hold this platform to.
   #}
-  {% if held > 0 %}
+  {% if held|default(0) > 0 %}
     <p class="rx-held">{{ held }} further {{ held == 1 ? 'award is' : 'awards are' }} decided but
       not published: {{ held == 1 ? 'its' : 'their' }} community half has not been counted into
       the index yet, or no nominee met the judging quorum. Nothing is announced until the
