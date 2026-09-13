@@ -1,6 +1,19 @@
 {% extends "layout/gates.twig" %}
 {% import "partials/article.twig" as art %}
 
+{# ── COLOUR BUDGET: 0 for a document, 1 for the one that carries a control ──────
+   A policy that is loud reads as one that is selling something, so terms, privacy
+   and refunds spend nothing at all — links included, which are ink with an
+   underline and not an accent.
+   /cookies is the exception and it is a real one rather than a convenience: it is
+   the only document here that ASKS the reader to decide something, and the budget
+   is denominated in exactly that ("one event for each thing a page asks the reader
+   to do"). The one event is the consent button in partials/cookie-choice.twig.
+   The tier is gated on the same variable as the spend, so neither can appear
+   without the other, and the sweep holds this template to the higher of the two —
+   see ColourBudgetTest::tier(), which explains why it may not read a flat 1. #}
+{% set colour_tier = cookie_control ? '1' : '0' %}
+
 {#
   ══════════════════════════════════════════════════════════════════════════════
   LEGAL — the terms, the privacy policy, and anything else filed beside them

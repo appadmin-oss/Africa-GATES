@@ -1,5 +1,16 @@
 {% extends "layout/gates.twig" %}
 
+{# ── COLOUR BUDGET: tier 1, and the one event is the band ───────────────────────
+   The hall states exactly one thing — these people were crowned — so it is
+   declarative, and declarative buys one colour event. It spends it on `honour`,
+   in two places that are one event because they are one field: the band across the
+   top and the medal mark inside it. That is the band privilege: only a hall and a
+   decided edition may cash their single tile in for a full-bleed band, because only
+   those two pages have a subject the band is actually about.
+   Programme hues on the spines are not events — a spine is structure, which is why
+   the programme palette was cut to three. See ColourBudgetTest. #}
+{% set colour_tier = '1' %}
+
 {#
   ══════════════════════════════════════════════════════════════════════════════
   THE HALL — everybody this platform has crowned, as people rather than as rows
