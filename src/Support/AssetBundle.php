@@ -83,6 +83,10 @@ final class AssetBundle
         // body[data-page="pulse"] overrides win over the generic components, and
         // before a11y.css, which must stay last.
         'assets/css/components/pulse-immersive.css',
+        // The lip. After every component sheet, because it overrides the hover lift
+        // those sheets declare on the buttons it applies to — a lipped button does not
+        // rise, and a rule that loses on order would leave the press overshooting.
+        'assets/css/components/lip.css',
         // LAST, and it must stay last — its corrections are meant to win.
         'assets/css/a11y.css',
     ];

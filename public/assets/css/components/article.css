@@ -51,7 +51,11 @@ body[data-page="legal"]{
   --ar-accent-dark:var(--ag-green-dark,#1a6118);
   --ar-wash:rgba(127,200,124,.14);
   --ar-gold:#9a7726;
-  --ar-shadow:0 1px 2px rgba(16,41,44,.04), 0 8px 24px -14px rgba(16,41,44,.16);
+  /* THERE ARE NO SHADOWS ON THIS SITE. Depth is a hard offset border — the lip — and
+     the lip belongs only to things that are pressed. Kept as a token set to `none` rather
+     than deleted, because three rules reference it and a dangling var() resolves to an
+     invalid value that takes the whole declaration with it. */
+  --ar-shadow:none;
   --ar-measure:44rem;
   background:var(--ar-ground);
   color:var(--ar-ink);
@@ -274,7 +278,7 @@ body[data-page="legal"]{
           border-radius:var(--ag-r-md,14px); text-decoration:none !important;
           background:var(--ag-surface-2,#f6f7f6); box-shadow:var(--ar-shadow);
           transition:border-color .15s, transform .15s, box-shadow .15s; }
-.ar-next:hover{ transform:translateY(-2px); box-shadow:0 10px 28px -14px rgba(16,41,44,.28); }
+.ar-next:hover{ transform:translateY(-2px); }
 .ar-next span{ display:block; font:700 10px/1 var(--ag-font-mono); letter-spacing:.14em;
                text-transform:uppercase; color:var(--ar-accent); }
 .ar-next b{ display:block; margin-top:.5rem; font-family:var(--ag-font-display); font-weight:700;
@@ -373,7 +377,7 @@ body[data-page="legal"]{
   body[data-page="integrity"], body[data-page="philosophy"], body[data-page="legal"]{ background:#fff; }
   .ar-tools, .ar-rail, .ar-toc, .ar-say, .ar-tabs, .ar-cite-act, .ar-next{ display:none !important; }
   .ar-shell{ max-width:none; padding:0; display:block; }
-  .ar-body{ max-width:none; border:0; border-radius:0; box-shadow:none; padding:0; }
+  .ar-body{ max-width:none; border:0; border-radius:0; padding:0; }
   .ar-body > *{ max-width:none; }
   .ar-body p, .ar-body li{ font-size:11pt; line-height:1.5; }
   .ar-sec, .ar-part-head, .ar-cite, .ar-note{ break-inside:avoid-page; }

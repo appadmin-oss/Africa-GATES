@@ -99,7 +99,7 @@
 .ag-acct__card{
   width:100%; background:#fff; border-radius:var(--ac-r-xl);
   padding:clamp(30px,4vw,40px);
-  box-shadow:0 34px 74px -34px rgba(74,58,22,.26), 0 2px 5px rgba(74,58,22,.05);
+
   animation:agAcctUp .3s ease both;
 }
 @media (prefers-reduced-motion:reduce){

@@ -118,7 +118,7 @@
 .node:focus-visible{ outline:2px solid var(--gold-500,#d49a0e); outline-offset:3px; }
 .node--v{ width:11px; height:11px; background:var(--ag-green); box-shadow:0 0 0 4px var(--reg-halo); }
 .node--h{ width:26px; height:26px; background:var(--ag-surface); border:1.5px solid var(--ag-green);
-  box-shadow:0 6px 18px -10px var(--reg-shade-2); }
+ }
 .node--h svg{ width:12px; height:12px; }
 .node__lb{
   position:absolute; top:calc(100% + 7px); left:50%; transform:translateX(-50%); white-space:nowrap;
@@ -152,7 +152,7 @@
      viewport. */
   position:absolute; left:clamp(20px,4vw,56px); bottom:max(7rem,12.5vw); width:250px;
   background:var(--ag-surface); border:1px solid var(--ag-line); border-radius:14px;
-  box-shadow:0 26px 60px -40px var(--reg-shade);
+
   pointer-events:auto; opacity:0; transform:translateY(8px); visibility:hidden; transition:.2s ease;
 }
 .ccard.is-in{ opacity:1; transform:none; visibility:visible; }

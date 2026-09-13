@@ -47,12 +47,22 @@
   --ag-r-lg:24px;
   --ag-r-pill:999px;
 
-  /* ── Shadow / elevation ── */
-  --ag-shadow-cutout:drop-shadow(0 28px 40px rgba(7,20,22,.32));
-  --ag-shadow-card:0 24px 48px -28px rgba(16,41,44,.25);
-  --ag-shadow-nav:0 1px 0 rgba(16,41,44,.04);
-  --ag-shadow-cta:0 8px 18px -8px rgba(35,123,34,.6);
-  --ag-shadow-pop:0 24px 48px -28px rgba(16,41,44,.25);
+  /* ── Shadow / elevation ─────────────────────────────────────────────────────
+     ALL `none`. There are no shadows anywhere on this site: depth is a hard offset
+     border in a solid darker shade of the element's own colour — the lip — which
+     collapses on press, and that collapse is what makes it an affordance rather
+     than an ornament. So the lip belongs only to things that are pressed.
+
+     Kept as tokens rather than deleted because dozens of rules reference them, and
+     a dangling var() resolves to an invalid value that takes its whole declaration
+     with it — including, in fifteen places here, a focus ring sharing the same
+     declaration. `--ag-shadow-nav` becomes the solid hairline it was imitating.
+     ─────────────────────────────────────────────────────────────────────────── */
+  --ag-shadow-cutout:none;
+  --ag-shadow-card:none;
+  --ag-shadow-nav:0 1px 0 var(--ag-line);
+  --ag-shadow-cta:none;
+  --ag-shadow-pop:none;
 
   /* ── Layout ── */
   --ag-maxw:1240px;

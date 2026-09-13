@@ -41,7 +41,7 @@
   .ed-venue__addr{ font-size:13.5px; color:#626a6e; margin-top:3px; }
 
   .ed-rail{ position:sticky; top:88px; display:flex; flex-direction:column; gap:18px; }
-  .ed-rsvp{ background:var(--ag-surface); border:1px solid rgba(16,41,44,.08); border-radius:20px; padding:22px; box-shadow:0 12px 36px -20px rgba(16,41,44,.35); }
+  .ed-rsvp{ background:var(--ag-surface); border:1px solid rgba(16,41,44,.08); border-radius:20px; padding:22px; }
   .ed-rsvp__top{ display:flex; align-items:center; justify-content:space-between; }
   .ed-rsvp__eyebrow{ font-size:12px; font-weight:600; letter-spacing:.06em; text-transform:uppercase; color:var(--ag-green); }
   /* The fundraiser line. Sits between the eyebrow and the tier list because it is the
@@ -337,7 +337,6 @@
                     opacity:calc(.12 * var(--tier-w)); transform:scale(0);
                     pointer-events:none; will-change:transform,opacity; }
 
-
   /* ══════════════════════════════════════════════════════════════════════════
      THE ARRIVAL — the card-wide light, for the one press that is not a comparison
      ══════════════════════════════════════════════════════════════════════════
@@ -399,13 +398,12 @@
   /* 1–2 · the lift. A pre-painted shadow crossfaded in, so the card rises without a
      box-shadow keyframe. Two layers: neutral depth, then the tier's own colour. */
   .ed-fx__lift, .ed-fx__lifttint{ inset:0; border-radius:20px; }
-  .ed-fx__lift{ box-shadow:0 26px 46px -22px rgba(16,41,44,.44); }
-  .ed-fx__lifttint{ box-shadow:0 22px 40px -20px color-mix(in srgb, var(--tier-hue) 70%, transparent); }
+  .ed-fx__lift{ }
+  .ed-fx__lifttint{ }
 
   /* 3 · the bloom out from the perimeter */
   .ed-fx__glow{ inset:0; border-radius:20px;
-    box-shadow:0 0 0 1.5px color-mix(in srgb, var(--tier-hue) 70%, transparent),
-               0 0 18px 2px color-mix(in srgb, var(--tier-hue) 45%, transparent); }
+    box-shadow: 0 0 0 1.5px color-mix(in srgb, var(--tier-hue) 70%, transparent); }
 
   /* 4 · the strike point, where the light enters at the top edge */
   .ed-fx__impact{ top:-1px; left:50%; width:34%; height:3px; border-radius:999px; transform:translateX(-50%) scaleX(.2);
@@ -648,9 +646,9 @@
      not get a panel taller than its viewport with the Share button below the fold. */
   .flo__panel{ position:relative; display:flex; flex-direction:column; width:100%; max-width:560px;
     max-height:min(94vh, 920px); background:var(--ag-surface,#fff);
-    border-radius:20px 20px 0 0; box-shadow:0 -10px 44px rgba(9,26,24,.3); overflow:hidden }
+    border-radius:20px 20px 0 0; overflow:hidden }
   @media (min-width:721px){
-    .flo__panel{ border-radius:20px; box-shadow:0 24px 72px rgba(9,26,24,.34) }
+    .flo__panel{ border-radius:20px;}
     .flo__grab{ display:none }
   }
   .flo__grab{ display:block; width:40px; height:4px; border-radius:3px; margin:9px auto 0;

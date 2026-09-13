@@ -168,8 +168,8 @@
      One elevation for the whole artefact rather than a shadow per panel, so the
      hero, the tear and the stub read as one piece of card. */
   .tk__doc{ position:relative; display:flex; flex-direction:column;
-    box-shadow:0 24px 56px -30px rgba(0,0,0,.7); }
-  .tk:not(.tk--dark) .tk__doc{ box-shadow:0 24px 56px -34px rgba(16,41,44,.5); }
+ }
+  .tk:not(.tk--dark) .tk__doc{ }
 
   /* ── the hero ────────────────────────────────────────────────────────────
      · SPEC · a 268px band, 20px radius on the top two corners only. */
@@ -463,7 +463,7 @@
        Letter's 196mm. Everything below is re-measured against the new card rather than
        multiplied: the artwork gains proportionally more than the type does, because at
        62mm the picture was down to a 4.4:1 letterbox. */
-    .tk__doc{ width:180mm; height:86mm; box-shadow:none; overflow:hidden;
+    .tk__doc{ width:180mm; height:86mm; overflow:hidden;
       display:grid; grid-template-columns:1fr 56mm; grid-template-rows:1fr auto;
       -webkit-print-color-adjust:exact; print-color-adjust:exact; }
     .tk__hero{ grid-area:1 / 1 }

@@ -45,8 +45,8 @@
 .ag-vote{ font:600 14px/1 var(--ag-font-body); color:var(--ag-ink); text-decoration:none; padding:9px 12px; border-radius:10px; }
 .ag-vote:hover{ background:rgba(16,41,44,.05); }
 .ag-register{ display:inline-flex; align-items:center; gap:7px; font:600 14px/1 var(--ag-font-body); color:#fff; text-decoration:none;
-  background:var(--ag-green); padding:11px 20px; border-radius:var(--ag-r-pill); box-shadow:var(--ag-shadow-cta); transition:background var(--ag-dur-fast),transform var(--ag-dur-fast); }
-.ag-register:hover{ background:var(--ag-green-dark); transform:translateY(-1px); }
+  background:var(--ag-green); padding:11px 20px; border-radius:var(--ag-r-pill); transition:background var(--ag-dur-fast),transform var(--ag-dur-fast); }
+.ag-register:hover{ background:var(--ag-green-dark); }   /* no lift — see components/lip.css */
 .ag-register svg{ width:14px; height:14px; }
 .ag-signin{ font:600 14px/1 var(--ag-font-body); color:var(--ag-ink); text-decoration:none; padding:10px 14px; border-radius:var(--ag-r-pill);
   border:1px solid rgba(16,41,44,.16); transition:border-color var(--ag-dur-fast),background var(--ag-dur-fast); }
@@ -56,7 +56,7 @@
 /* ── Mega menu ── */
 .ag-mega-wrap{ position:relative; }
 .ag-mega{ position:absolute; left:50%; transform:translateX(-50%) translateY(8px); top:calc(100% + 14px); width:min(760px,86vw);
-  background:#fff; border:1px solid var(--ag-line); border-radius:18px; box-shadow:var(--ag-shadow-pop);
+  background:#fff; border:1px solid var(--ag-line); border-radius:18px;
   padding:18px; display:grid; grid-template-columns:repeat(2,1fr); gap:8px;
   opacity:0; visibility:hidden; pointer-events:none; transition:opacity var(--ag-dur),transform var(--ag-dur),visibility var(--ag-dur); z-index:var(--ag-z-mega); }
 .ag-mega-wrap.is-open .ag-mega{ opacity:1; visibility:visible; pointer-events:auto; transform:translateX(-50%) translateY(0); }
@@ -80,7 +80,7 @@
 .ag-tab.is-active{ color:var(--ag-green); }
 .ag-tab--cta{ gap:5px; }
 .ag-tab--cta .ag-tab__fab{ width:50px; height:38px; margin-top:-14px; border-radius:16px; background:var(--ag-green);
-  display:flex; align-items:center; justify-content:center; box-shadow:0 10px 20px -8px rgba(35,123,34,.7); }
+  display:flex; align-items:center; justify-content:center; }
 .ag-tab--cta .ag-tab__fab svg{ width:22px; height:22px; stroke:#fff; }
 
 /* ════ FULL-SCREEN OVERLAY MENU ════ */

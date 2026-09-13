@@ -186,7 +186,6 @@
 </figure>
 {% endmacro %}
 
-
 {#
   Styles and behaviour. Include ONCE per page, after the charts.
   `nonce` is the page's `csp_nonce` — this site's policy has no 'unsafe-inline'.
@@ -243,7 +242,7 @@
   .viz__seg{ display:flex; align-items:center; justify-content:center; min-width:2px;
     /* The 2px separation is a surface-coloured border, not a stroke around the mark. */
     box-shadow:inset -2px 0 0 var(--viz-surface); transition:opacity .12s; }
-  .viz__seg:last-child{ box-shadow:none; }
+  .viz__seg:last-child{ }
   .viz__seg b{ font:700 11.5px/1 inherit; color:#fff; }
   .viz__seg:focus-visible{ outline:3px solid var(--viz-ink); outline-offset:-3px; }
 
@@ -295,7 +294,7 @@
   /* ── tooltip ──────────────────────────────────────────────────────────── */
   .viz-tip{ position:fixed; z-index:60; pointer-events:none; max-width:260px;
     padding:7px 10px; border-radius:8px; background:#10292c; color:#fff;
-    font:600 12px/1.45 var(--ag-font-body,system-ui); box-shadow:0 8px 20px -10px rgba(0,0,0,.6); }
+    font:600 12px/1.45 var(--ag-font-body,system-ui); }
   @media (prefers-reduced-motion:reduce){ .viz *{ transition:none !important } }
   @media print{ .viz__btn, .viz__legend{ display:none } .viz__tw{ display:block !important } }
 </style>

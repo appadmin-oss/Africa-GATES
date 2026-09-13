@@ -33,7 +33,7 @@
   .hm-hero__cta{ display:flex; gap:13px; justify-content:center; flex-wrap:wrap; margin-top:32px; }
   .hm-btn{ cursor:pointer; text-decoration:none; font-family:inherit; font-weight:600; font-size:15.5px; padding:15px 28px; border-radius:999px; display:inline-flex; align-items:center; gap:8px; border:1px solid transparent; }
   .hm-btn svg{ width:15px; height:15px; }
-  .hm-btn--p{ background:var(--ag-green); color:#fff; box-shadow:0 14px 28px -12px rgba(35,123,34,.6); }
+  .hm-btn--p{ background:var(--ag-green); color:#fff; }
   .hm-btn--p:hover{ background:var(--ag-green-dark); }
   .hm-btn--o{ background:#fff; color:var(--ag-ink); border-color:rgba(16,41,44,.16); }
   .hm-btn--o:hover{ border-color:var(--ag-green); color:var(--ag-green); }
@@ -58,7 +58,7 @@
   .hm-vis__orb{ position:absolute; width:min(380px,80%); aspect-ratio:1; border-radius:50%; background:radial-gradient(circle at 42% 36%,#2a8f3a,#10292C 74%); }
   .hm-vis__ring{ position:absolute; width:min(316px,68%); aspect-ratio:1; border-radius:50%; border:1px solid rgba(16,41,44,.1); }
   .hm-vis__mono{ position:relative; z-index:2; font-family:var(--ag-font-display); font-weight:700; font-size:96px; color:rgba(255,255,255,.92); }
-  .hm-vis__tag{ position:absolute; z-index:3; background:#fff; border-radius:16px; padding:13px 17px; box-shadow:0 18px 40px -20px rgba(16,41,44,.45); display:flex; align-items:center; gap:11px; }
+  .hm-vis__tag{ position:absolute; z-index:3; background:#fff; border-radius:16px; padding:13px 17px; display:flex; align-items:center; gap:11px; }
   .hm-vis__tag--bl{ left:2%; bottom:18%; }
   .hm-vis__tag--tr{ right:2%; top:16%; background:#10292C; }
   .hm-vis__tagi{ width:38px; height:38px; border-radius:11px; background:#effaf0; color:#1a6118; display:flex; align-items:center; justify-content:center; flex:none; }
@@ -68,7 +68,7 @@
   .hm-vis__cpil{ font-size:10px; font-weight:600; letter-spacing:.05em; text-transform:uppercase; color:rgba(255,255,255,.6); margin-top:3px; }
 
   /* vote mini card */
-  .hm-mini{ background:#fff; border:1px solid rgba(16,41,44,.08); border-radius:24px; padding:22px; box-shadow:0 30px 60px -40px rgba(16,41,44,.5); }
+  .hm-mini{ background:#fff; border:1px solid rgba(16,41,44,.08); border-radius:24px; padding:22px; }
   .hm-mini__hd{ display:flex; align-items:center; justify-content:space-between; margin-bottom:14px; font-size:12px; font-weight:600; color:#5a6d6f; }
   .hm-mini__open{ display:inline-flex; align-items:center; gap:6px; font-size:11px; font-weight:600; color:#1a6118; background:#effaf0; padding:5px 10px; border-radius:999px; }
   .hm-mini__row{ display:flex; align-items:center; gap:12px; background:#f6f7f6; border:1px solid rgba(16,41,44,.06); border-radius:14px; padding:11px 13px; }
@@ -108,7 +108,7 @@
      the failure this is worth having. */
   .hm-reels{ position:relative; height:380px; overflow-x:clip; }
   .hm-reel{ position:absolute; left:50%; top:50%; width:168px; height:300px;
-    border-radius:22px; overflow:hidden; box-shadow:0 28px 56px -26px rgba(16,41,44,.6);
+    border-radius:22px; overflow:hidden;
     display:flex; align-items:flex-end;
     transition:transform .85s cubic-bezier(.22,1,.36,1), opacity .85s, box-shadow .85s; }
   @media (prefers-reduced-motion: reduce){ .hm-reel{ transition:none; } }
@@ -261,7 +261,7 @@
   .hm-final__h em{ color:var(--ag-green-light); font-style:italic; }
   .hm-final__p{ position:relative; max-width:540px; margin:18px auto 0; font-size:16.5px; line-height:1.55; color:rgba(255,255,255,.72); }
   .hm-final__cta{ position:relative; display:flex; gap:13px; justify-content:center; flex-wrap:wrap; margin-top:30px; }
-  .hm-final .hm-btn--p{ background:#fff; color:#10292C; box-shadow:none; }
+  .hm-final .hm-btn--p{ background:#fff; color:#10292C; }
   .hm-final .hm-btn--o{ background:none; border-color:rgba(255,255,255,.28); color:#fff; }
   .hm-final .hm-btn--o:hover{ background:rgba(255,255,255,.08); color:#fff; }
 
@@ -329,7 +329,7 @@
   .hm-mini__cta a{ color:var(--ag-green); font-weight:700; text-decoration:none; }
 
   /* Events empty state — a mini calendar that reads "in preparation" */
-  .hm-cal{ background:#fff; border:1px solid rgba(16,41,44,.09); border-radius:18px; padding:18px; box-shadow:0 24px 50px -32px rgba(16,41,44,.25); }
+  .hm-cal{ background:#fff; border:1px solid rgba(16,41,44,.09); border-radius:18px; padding:18px; }
   .hm-cal__hd{ display:flex; align-items:center; justify-content:space-between; margin-bottom:12px; }
   .hm-cal__mon{ font-family:var(--ag-font-mono); font-weight:700; font-size:13px; color:var(--ag-ink); }
   .hm-cal__grid{ display:grid; grid-template-columns:repeat(7,1fr); gap:5px; }
@@ -638,12 +638,7 @@
       <span class="hm-eyebrow" style="background:#fdeaf0;color:#b03a5b">04 · Pulse &amp; Community</span>
       <h2 class="hm-feat__h">Recognition you <span class="hm-em">live with daily.</span></h2>
       <p class="hm-feat__p">Pulse is the living feed — reels, posts and stories from nominees, plus programme channels where the community gathers between cycles. Not a vote-once site; a place you return to.</p>
-      <div class="hm-feat__btn"><a class="hm-btn hm-btn--p" style="background:var(--ag-ink);box-shadow:none" href="/community">Open the community
-        <svg aria-hidden="true" focusable="false" viewBox="0 0 20 20" fill="none"><path d="M7.5 4.5 13 10 7.5 15.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></a></div>
-    </div>
-  </section>
-
-  {# ── LEADERBOARD + HOW RAIL ── #}
+      <div class="hm-feat__btn"><a class="hm-btn hm-btn--p" style="background:var(--ag-ink);}
   <section class="hm-lbsec">
     <div>
       <div class="hm-lbsec__hd">

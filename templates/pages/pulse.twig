@@ -350,7 +350,7 @@
      there, which is also where there is room. */
   .pf__pick{ position:absolute; left:0; bottom:calc(100% + 6px); display:flex; gap:2px; padding:6px;
              border-radius:999px; background:rgba(7,16,15,.94); border:1px solid rgba(255,255,255,.16);
-             box-shadow:0 16px 38px rgba(0,0,0,.5); backdrop-filter:blur(6px); }
+ backdrop-filter:blur(6px); }
   .pf--media .pf__pick{ left:auto; right:calc(100% + 6px); bottom:0; }
   .pf__pk{ border:0; background:none; cursor:pointer; padding:6px 7px; border-radius:999px;
            display:flex; flex-direction:column; align-items:center; gap:4px; font-family:inherit; }
@@ -401,7 +401,7 @@
   .pf__pips{ display:flex; align-items:center; flex:none; }
   .pf__pip{ width:23px; height:23px; border-radius:50%; margin-left:-6px; flex:none;
             display:flex; align-items:center; justify-content:center;
-            background:#fff; border:2px solid #fff; box-shadow:0 1px 4px rgba(16,41,44,.22); }
+            background:#fff; border:2px solid #fff; }
   .pf__pip:first-child{ margin-left:0; }
   .pf__pip svg{ width:13px; height:13px; }
   .pf__sumtx{ font-size:13.5px; font-weight:700; color:var(--ag-ink,#10292c); }
@@ -424,7 +424,7 @@
   .pf-sheet{ position:fixed; inset:0; z-index:70; display:flex; align-items:flex-end;
              justify-content:center; background:rgba(7,16,15,.6); }
   .pf-sheet__c{ width:100%; max-width:540px; background:#fff; border-radius:22px 22px 0 0;
-                padding:20px 20px 24px; box-shadow:0 -20px 50px rgba(0,0,0,.3); }
+                padding:20px 20px 24px; }
   .pf-sheet__k{ margin:0 0 4px; font:700 11px/1 var(--ag-font-mono,monospace); letter-spacing:.12em;
                 text-transform:uppercase; color:#5a6d6f; }
   .pf-sheet__q{ margin:0 0 14px; font-size:14px; line-height:1.5; color:#4a5256; }
@@ -459,7 +459,7 @@
   /* new-posts pill + infinite scroll */
   .pf-new{ position:sticky; top:84px; z-index:5; display:flex; justify-content:center; margin:0 0 -6px; }
   .pf-new button{ border:0; background:var(--ag-ink,#10292c); color:#fff; font:700 13px/1 inherit; cursor:pointer;
-                  padding:11px 20px; border-radius:999px; box-shadow:0 8px 24px rgba(16,41,44,.22); }
+                  padding:11px 20px; border-radius:999px; }
   .pf-more{ display:flex; justify-content:center; padding:8px 0 4px; }
   .pf-more button{ border:1px solid rgba(16,41,44,.14); background:#fff; color:#3d4c4e; font:700 13.5px/1 inherit;
                    cursor:pointer; padding:12px 22px; border-radius:999px; }
@@ -468,7 +468,7 @@
   /* toast */
   .pf-toast{ position:fixed; left:50%; bottom:26px; transform:translateX(-50%); z-index:60;
              background:var(--ag-ink,#10292c); color:#fff; font-size:13.5px; font-weight:600;
-             padding:12px 18px; border-radius:999px; box-shadow:0 10px 30px rgba(0,0,0,.25);
+             padding:12px 18px; border-radius:999px;
              display:flex; gap:12px; align-items:center; max-width:calc(100vw - 32px); }
   .pf-toast a{ color:#7FC87C; font-weight:700; white-space:nowrap; }
 
@@ -585,7 +585,7 @@
     /* Tabs become app chrome: smaller, tighter, and stuck under the site bar so
        switching surface never costs a scroll back to the top. */
     .pl-tabs{ margin:0 0 18px; gap:0; position:sticky; top:0; z-index:6;
-              background:#fbfbfa; box-shadow:0 6px 10px -10px rgba(16,41,44,.5);
+              background:#fbfbfa;
               /* Four tabs do not fit 296px of usable width at 320. They scroll —
                  but a scroller with a hard edge looks like a row that simply ends,
                  and the tab that gets hidden is whichever was added last. The fade
@@ -1336,7 +1336,6 @@ function plCompose(max, limitLabel){
       this.open = true;
       this.$nextTick(() => { if (this.$refs.ta) this.$refs.ta.focus(); });
     },
-
 
     // ── the studio ────────────────────────────────────────────────────────
     // Culturally named rather than "Filter 1..6" — these are the design's, and

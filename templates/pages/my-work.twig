@@ -46,7 +46,7 @@
     color:#10292C; line-height:1.25 }
   .mw__lede{ margin:12px 0 0; font-size:15px; line-height:1.75; color:#3d5254 }
   .mw__card{ margin-top:16px; background:#fff; border:1px solid rgba(16,41,44,.1); border-radius:18px;
-    padding:22px 20px; box-shadow:0 1px 2px rgba(16,41,44,.04), 0 14px 40px -30px rgba(16,41,44,.3) }
+    padding:22px 20px;}
   .mw__card h2{ margin:0 0 4px; font-size:16px; color:#10292C }
   .mw__card p{ margin:9px 0 0; font-size:13.5px; line-height:1.7; color:#5a6d6f }
 
@@ -753,7 +753,6 @@
       </div>
       {% endif %}
 
-
       {# ══ THE FORM ══════════════════════════════════════════════════════ #}
       <form method="post" action="/my-work/{{ token }}" id="mwForm" data-mw-answers>
         <input type="hidden" name="_token" value="{{ csrf_token }}">
@@ -1158,7 +1157,6 @@
           </p>
         </div>
       </form>
-
 
       {# ── THE WAY BACK TO THE CONVERSATION ─────────────────────────────────
          "Fill in the form instead" used to be a one-way door: pressing it once, on purpose

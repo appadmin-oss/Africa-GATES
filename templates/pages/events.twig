@@ -21,10 +21,10 @@
   @media(max-width:860px){ .ev-grid{ grid-template-columns:repeat(2,1fr); gap:14px; } }
   @media(max-width:560px){ .ev-grid{ grid-template-columns:1fr; } }
   .ev-card{ background:var(--ag-surface,#fff); border:1px solid rgba(16,41,44,.08); border-radius:18px; overflow:hidden; display:flex; flex-direction:column; text-decoration:none; color:inherit; transition:transform .15s, box-shadow .15s, border-color .15s; }
-  .ev-card:hover{ transform:translateY(-3px); border-color:rgba(16,41,44,.16); box-shadow:0 20px 40px -26px rgba(16,41,44,.45); }
+  .ev-card:hover{ transform:translateY(-3px); border-color:rgba(16,41,44,.16); }
   .ev-card__media{ position:relative; aspect-ratio:16/10; background-size:cover; background-position:center; background-color:#10292C; }
   .ev-card__media--empty{ background:radial-gradient(120% 120% at 75% 0%,#1d5b2a,#10292C); }
-  .ev-card__cal{ position:absolute; top:12px; left:12px; background:#fff; border-radius:11px; padding:6px 11px; text-align:center; box-shadow:0 8px 18px -8px rgba(0,0,0,.55); }
+  .ev-card__cal{ position:absolute; top:12px; left:12px; background:#fff; border-radius:11px; padding:6px 11px; text-align:center; }
   .ev-card__mon{ display:block; font:700 10px/1.2 var(--ag-font-mono,monospace); letter-spacing:.1em; text-transform:uppercase; color:#b42318; }
   .ev-card__day{ display:block; font-family:var(--ag-font-display,serif); font-weight:800; font-size:19px; color:var(--ag-ink); line-height:1.05; }
   /* The labels along the foot of the media STACK. They used to be positioned into the same
@@ -56,7 +56,7 @@
   .ev-card__stand{ max-width:100%; box-sizing:border-box; display:inline-flex;
     align-items:center; gap:6px; padding:5px 11px; border-radius:999px; background:#f3b416;
     color:#3a2800; font-size:11px; font-weight:700; letter-spacing:.01em; white-space:nowrap;
-    overflow:hidden; text-overflow:ellipsis; box-shadow:0 8px 18px -10px rgba(0,0,0,.6); }
+    overflow:hidden; text-overflow:ellipsis; }
   /* 8.9:1 against the gold. The venue pill beside it is white on translucent kale and the
      two must not read as the same kind of label — one is where it is, this is a door that
      is open and will shut. */

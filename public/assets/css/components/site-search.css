@@ -34,7 +34,7 @@
 .ags__panel{
   position:relative; width:min(680px,100%); max-height:calc(100vh - 100px);
   display:flex; flex-direction:column; background:#fff; border-radius:20px;
-  box-shadow:0 24px 70px rgba(0,0,0,.34); overflow:hidden;
+ overflow:hidden;
 }
 
 .ags__bar{ display:flex; align-items:center; gap:10px; padding:14px 16px;

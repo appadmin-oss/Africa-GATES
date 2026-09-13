@@ -11,10 +11,10 @@
 <style nonce="{{ csp_nonce }}">
   /* Anchored bottom-LEFT so it never collides with the sitewide right-edge
      FAB stack (Gee · Community · Back-to-top). */
-  .sc-fab{ position:fixed; left:22px; bottom:22px; z-index:80; width:56px; height:56px; border-radius:50%; border:none; cursor:pointer; background:#10292C; color:#fff; display:flex; align-items:center; justify-content:center; box-shadow:0 14px 30px -12px rgba(16,41,44,.6); }
+  .sc-fab{ position:fixed; left:22px; bottom:22px; z-index:80; width:56px; height:56px; border-radius:50%; border:none; cursor:pointer; background:#10292C; color:#fff; display:flex; align-items:center; justify-content:center; }
   .sc-fab__n{ position:absolute; top:-3px; right:-3px; min-width:20px; height:20px; padding:0 5px; border-radius:999px; background:#e0245e; color:#fff; font:700 11px/20px var(--ag-font-mono,monospace); }
   .sc-ov{ position:fixed; inset:0; z-index:90; background:rgba(5,12,13,.5); backdrop-filter:blur(3px); }
-  .sc-drawer{ position:absolute; top:0; right:0; bottom:0; width:400px; max-width:92vw; background:#fbfbfa; display:flex; flex-direction:column; box-shadow:-20px 0 50px -20px rgba(0,0,0,.4); }
+  .sc-drawer{ position:absolute; top:0; right:0; bottom:0; width:400px; max-width:92vw; background:#fbfbfa; display:flex; flex-direction:column; }
   .sc-hd{ display:flex; align-items:center; justify-content:space-between; padding:20px 22px; border-bottom:1px solid rgba(16,41,44,.08); }
   .sc-hd h2{ margin:0; font-family:var(--ag-font-display,serif); font-weight:700; font-size:19px; color:#10292C; }
   .sc-x{ cursor:pointer; border:1px solid rgba(16,41,44,.12); background:#fff; width:34px; height:34px; border-radius:50%; font-size:18px; color:#10292C; }
@@ -38,7 +38,7 @@
   .sc-sub b{ font:700 18px var(--ag-font-mono,monospace); color:#10292C; }
   .sc-go{ display:block; width:100%; text-align:center; cursor:pointer; border:none; background:#237b22; color:#fff; font-family:inherit; font-weight:600; font-size:15px; padding:14px; border-radius:999px; }
   .sc-go:hover{ background:#1a6118; }
-  .sc-modal{ position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); width:460px; max-width:94vw; max-height:92vh; overflow-y:auto; background:#fbfbfa; border-radius:22px; box-shadow:0 40px 90px -30px rgba(0,0,0,.6); }
+  .sc-modal{ position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); width:460px; max-width:94vw; max-height:92vh; overflow-y:auto; background:#fbfbfa; border-radius:22px; }
   .sc-co{ padding:22px; }
   .sc-co h2{ margin:0 0 14px; font-family:var(--ag-font-display,serif); font-weight:700; font-size:20px; color:#10292C; }
   .sc-card{ background:#fff; border:1px solid rgba(16,41,44,.08); border-radius:14px; padding:15px; }
@@ -59,7 +59,7 @@
   .sc-prov input{ accent-color:#237b22; width:auto; flex:none; margin:0; }
   .sc-soon{ background:#fff8df; border:1px solid #ecdca0; color:#7a5a08; border-radius:12px; padding:14px 16px; font-size:13.5px; line-height:1.5; }
   .sc-soon a{ color:#237b22; font-weight:600; }
-  .sc-toast{ position:fixed; left:50%; bottom:90px; transform:translateX(-50%); z-index:95; background:#10292C; color:#fff; font-size:13.5px; font-weight:500; padding:12px 20px; border-radius:999px; box-shadow:0 16px 40px -12px rgba(0,0,0,.5); display:flex; align-items:center; gap:12px; max-width:92vw; }
+  .sc-toast{ position:fixed; left:50%; bottom:90px; transform:translateX(-50%); z-index:95; background:#10292C; color:#fff; font-size:13.5px; font-weight:500; padding:12px 20px; border-radius:999px; display:flex; align-items:center; gap:12px; max-width:92vw; }
   .sc-toast__undo{ flex:none; cursor:pointer; border:1px solid rgba(255,255,255,.34); background:transparent; color:#fff; font-family:inherit; font-size:13px; font-weight:700; padding:6px 13px; border-radius:999px; }
   .sc-toast__undo:hover{ background:rgba(255,255,255,.12); }
   /* The focused dialog itself must show a ring — it takes focus on open, and without this

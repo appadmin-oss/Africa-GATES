@@ -110,7 +110,7 @@
     border-color var(--motion-fast, 160ms) linear,
     box-shadow   var(--motion-fast, 160ms) linear;
 }
-.mth-more__a:hover { transform: translateY(-2px); box-shadow: 0 10px 22px -14px rgba(16,41,44,.5); }
+.mth-more__a:hover { transform: translateY(-2px); }
 .mth-cell:hover    { transform: translateY(-1px); }
 .mth-index a:hover { transform: translateY(-1px); }
 

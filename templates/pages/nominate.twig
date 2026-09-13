@@ -81,7 +81,7 @@
   /* Info "i" — reveals the programme blurb on hover (desktop) or tap/focus (mobile). */
   .nm-pc__i{ position:absolute; top:8px; right:8px; width:19px; height:19px; border-radius:50%; border:1.5px solid rgba(16,41,44,.22); background:#fff; color:#5a6d6f; font:italic 700 11px/1 Georgia,serif; display:flex; align-items:center; justify-content:center; cursor:help; z-index:2; }
   .nm-pc__i:hover, .nm-pc__i:focus{ border-color:#237b22; color:#237b22; outline:none; }
-  .nm-pc__i::after{ content:attr(data-tip); position:absolute; bottom:calc(100% + 8px); right:-6px; width:max-content; max-width:230px; white-space:normal; background:#10292C; color:#fff; font:400 12px/1.45 var(--font-body,sans-serif); text-align:left; padding:9px 12px; border-radius:10px; box-shadow:0 12px 30px -12px rgba(0,0,0,.5); opacity:0; visibility:hidden; transform:translateY(4px); transition:opacity .15s, transform .15s; pointer-events:none; z-index:5; }
+  .nm-pc__i::after{ content:attr(data-tip); position:absolute; bottom:calc(100% + 8px); right:-6px; width:max-content; max-width:230px; white-space:normal; background:#10292C; color:#fff; font:400 12px/1.45 var(--font-body,sans-serif); text-align:left; padding:9px 12px; border-radius:10px; opacity:0; visibility:hidden; transform:translateY(4px); transition:opacity .15s, transform .15s; pointer-events:none; z-index:5; }
   .nm-pc__i:hover::after, .nm-pc__i:focus::after{ opacity:1; visibility:visible; transform:translateY(0); }
 
   .nm-hint{ font-size:12px; color:var(--faint); }
@@ -98,7 +98,7 @@
 
   .nm-nav{ display:flex; align-items:center; justify-content:space-between; margin-top:26px; padding-top:22px; border-top:1px solid var(--line); }
   .nm-back{ cursor:pointer; border:none; background:none; font-family:inherit; font-size:14px; font-weight:600; color:#626a6e; padding:8px 4px; }
-  .nm-next{ cursor:pointer; border:none; background:var(--green); color:#fff; font-family:inherit; font-weight:600; font-size:15px; padding:13px 28px; border-radius:999px; display:inline-flex; align-items:center; gap:8px; box-shadow:0 10px 20px -10px rgba(35,123,34,.6); transition:.18s; }
+  .nm-next{ cursor:pointer; border:none; background:var(--green); color:#fff; font-family:inherit; font-weight:600; font-size:15px; padding:13px 28px; border-radius:999px; display:inline-flex; align-items:center; gap:8px; transition:.18s; }
   .nm-next:hover{ background:var(--green-d); }
   .nm-next[disabled]{ opacity:.7; cursor:default; }
   .nm-foot{ margin:16px 0 0; text-align:center; font-size:12.5px; color:var(--faint); }
