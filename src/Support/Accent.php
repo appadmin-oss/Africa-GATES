@@ -384,6 +384,42 @@ final class Accent
     }
 
     /**
+     * One tile's four values, as inline custom properties.
+     *
+     * ── THE TILE IS THE ONE COLOUR DEVICE, AND IT HAS FOUR PARTS ─────────────
+     *
+     * An emoji pops for three reasons at once: it is fully saturated, it is small, and it
+     * is BOUNDED. Saturation without a boundary is a wash; a boundary without saturation
+     * is a card. You need both, at small size, rarely — and that is a tile:
+     *
+     *     wash   the bounded ground, holding house ink above 12:1
+     *     edge   a 1px hard boundary — what makes it an object rather than a tint
+     *     fill   the saturated mark, 14–20px, rounded 4–5px
+     *     ink    the word, above 4.5:1 — saying what the colour says
+     *
+     * Remove any one and it stops being a tile: no edge and it is a wash, no fill and it
+     * is a card, no ink and it is decoration, no wash and it is a floating chip.
+     *
+     * ── AND `live` CANNOT LABEL ITSELF ───────────────────────────────────────
+     *
+     * A role ink on its own wash IS the tile, and three of the four clear it. `live` ink
+     * on `live` wash is 4.44 — the system's one failure, and a stated exception rather
+     * than a bug. A live tile's label is house ink and the DOT carries the hue, so the
+     * `ink` slot is overridden here rather than left for each template to remember.
+     * `SlotFloorTest` holds both halves: the three that work, and the one that does not.
+     */
+    public static function tileStyle(string $meaning): string
+    {
+        $c    = self::for($meaning);
+        $role = self::roleFor($meaning);
+
+        $ink = $role === self::LIVE ? self::NEUTRALS['ink']['hex'] : $c['ink'];
+
+        return '--tile-wash:' . $c['wash'] . ';--tile-edge:' . $c['edge']
+             . ';--tile-fill:' . $c['fill'] . ';--tile-ink:' . $ink;
+    }
+
+    /**
      * A programme's colour as inline custom properties.
      *
      * Inline because the value is per-row and cannot live in `:root`. Safe in a `style`

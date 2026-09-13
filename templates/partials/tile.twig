@@ -1,0 +1,23 @@
+{#
+  THE TILE. One bounded, saturated, small, rare object — see components/tile.css.
+
+  Usage:
+    {% include 'partials/tile.twig' with {
+         meaning: 'award-decided', label: 'Overall winner · won twice'
+       } only %}
+
+  `meaning`, never a role name and never a hue: Accent::for() throws on a meaning
+  nobody defined, so a typo stops the build rather than rendering the wrong state.
+  A page that says "withheld" in caution red when it meant "form error" is worse
+  than a page that fails.
+
+  The MARK is aria-hidden and the LABEL is not. The colour is an accelerator on a
+  word, never the fact itself — which is the rule that keeps the palette honest
+  for the ~1 in 12 men with a colour vision deficiency, and for every screen
+  reader.
+#}
+<span class="ag-tile{{ size|default('') == 'lg' ? ' ag-tile--lg' : '' }}{{ live|default(false) ? ' ag-tile--live' : '' }}"
+      style="{{ tile_style(meaning) }}">
+  <span class="ag-tile__mark" aria-hidden="true"></span>
+  <span>{{ label }}</span>
+</span>

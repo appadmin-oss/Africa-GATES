@@ -83,6 +83,9 @@ final class AssetBundle
         // body[data-page="pulse"] overrides win over the generic components, and
         // before a11y.css, which must stay last.
         'assets/css/components/pulse-immersive.css',
+        // The tile — the one device that carries colour. After the components it is
+        // placed inside, so a card's own rules cannot win over it on order.
+        'assets/css/components/tile.css',
         // The lip. After every component sheet, because it overrides the hover lift
         // those sheets declare on the buttons it applies to — a lipped button does not
         // rise, and a rule that loses on order would leave the press overshooting.

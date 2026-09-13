@@ -15,3 +15,63 @@
   letter-spacing:var(--ag-tracking-label); text-transform:uppercase; color:var(--ag-green); }
 .ag-lead{ font-size:var(--ag-fs-body); line-height:1.6; color:var(--ag-ink-soft); }
 .ag-mono{ font-family:var(--ag-font-mono); }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   NUMERALS ARE DISPLAY TYPE
+   ═══════════════════════════════════════════════════════════════════════════
+
+   The Cultural Power Index was set at 10.5px mono on pages whose entire subject
+   is the index. That is where the missing emphasis actually was — and it is the
+   honest way to make a score prominent, given that colouring a column of
+   people's scores is ruled out. A sequential ramp is only honest when the
+   quantity is continuous, ordered and comparable; the index is a composite of
+   two differently-sourced signals computed per category against that category's
+   own denominator. Shading 630 darker than 503 asserts an ordering the
+   arithmetic does not support, and does it to named human beings.
+
+   So: size and weight, not hue.
+
+   DM Sans and not Playfair. Playfair is reserved for ONE thing on this
+   platform — a person's name — which is what stops the site reading
+   commemorative rather than current.
+
+   `tabular-nums` always, on any figure that sits in a column. Without it the
+   digits jitter as a countdown ticks and a column of scores fails to align on
+   its own decimal.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.ag-figure {
+  font-family: var(--ag-font-body);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -.035em;
+  line-height: .92;
+  color: var(--ag-ink);
+}
+
+/* A row in a list — a results table, a standing. */
+.ag-figure--row { font-size: 24px; }
+
+/* The one figure a page is about: an edition's winning index, a vote total. */
+.ag-figure--hero { font-size: clamp(40px, 5vw, 64px); letter-spacing: -.045em; }
+
+/* The denominator. Always present on an index, because "630" means nothing
+   without it, and always quieter than the figure it qualifies. */
+.ag-figure__of {
+  font-family: var(--ag-font-body);
+  font-weight: 400;
+  font-size: .36em;
+  letter-spacing: 0;
+  color: var(--ag-ink-soft);
+}
+.ag-figure--hero .ag-figure__of { font-size: .34em; }
+
+/* A countdown. Mono, because the digits are being read as digits rather than as
+   a quantity, and mono is what keeps a ticking clock from jittering. */
+.ag-count {
+  font-family: var(--ag-font-mono);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  font-size: clamp(20px, 2.2vw, 24px);
+  color: var(--ag-ink);
+}

@@ -265,6 +265,17 @@ return [
             [\AfricaGates\Support\Accent::class, 'css'],
             ['is_safe' => ['html']]
         ));
+        // The tile's four values, by MEANING. Throws on a meaning nobody defined, so a
+        // typo in a template stops the build rather than rendering the wrong state.
+        $twig->getEnvironment()->addFunction(new \Twig\TwigFunction(
+            'tile_style',
+            [\AfricaGates\Support\Accent::class, 'tileStyle']
+        ));
+        // A programme's identity colour, for a spine.
+        $twig->getEnvironment()->addFunction(new \Twig\TwigFunction(
+            'programme_style',
+            [\AfricaGates\Support\Accent::class, 'programmeStyle']
+        ));
         $twig->getEnvironment()->addFunction(new \Twig\TwigFunction(
             'cookie_ask',
             static fn (): bool => \AfricaGates\Services\CookiePrefs::asking()

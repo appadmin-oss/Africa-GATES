@@ -64,6 +64,8 @@ final class AppTwig
             // testing. CookiePrefs answers from a per-request memo nothing primes here, so
             // an unprimed test render correctly gets "do not ask".
             'ag_accents'    => [\AfricaGates\Support\Accent::class, 'css'],
+            'tile_style'    => [\AfricaGates\Support\Accent::class, 'tileStyle'],
+            'programme_style' => [\AfricaGates\Support\Accent::class, 'programmeStyle'],
             'cookie_ask'    => [\AfricaGates\Services\CookiePrefs::class, 'asking'],
             'cookie_return' => [\AfricaGates\Services\CookiePrefs::class, 'returnPath'],
         ] as $name => $callable) {
