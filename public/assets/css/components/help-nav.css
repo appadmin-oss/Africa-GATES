@@ -1,0 +1,144 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   THE HELP SURFACE'S MASTHEAD
+   ═══════════════════════════════════════════════════════════════════════════
+
+   One identity, one search field, one row of tabs — on every help surface, so
+   the three things a stuck person can do are always all three and always in the
+   same place. See partials/help-nav.twig for why that had to change.
+
+   ── NO COLOUR AT ALL, AND THAT IS THE BUDGET ──────────────────────────────
+
+   This is chrome for a surface whose whole job is answering a worried person.
+   It spends nothing: ink, a hairline, and weight. The current tab is a 2px ink
+   underline rather than a tinted pill, for the same reason the site nav is —
+   "where I am" and "where my pointer is" must not be drawn with one device, and
+   on a touch screen there is no hover at all.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.hn {
+  border-bottom: 1px solid var(--ag-line, #d6d4cc);
+  background: var(--ag-ground, #f1efe9);
+}
+
+.hn__in {
+  max-width: 1080px;
+  margin: 0 auto;
+  /* `padding-block` and never the shorthand: this element carries the page gutter
+     and `padding: 20px 0` would zero it, running the search field flush to both
+     screen edges. GutterShorthandTest holds it. */
+  padding-block: clamp(18px, 3vw, 26px);
+  padding-inline: var(--ag-gutter, 32px);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px 28px;
+  min-width: 0;
+}
+
+/* ── the identity ── */
+.hn__id {
+  margin: 0;
+  font: 700 clamp(15px, 2vw, 17px)/1.2 var(--ag-font-body, system-ui);
+  letter-spacing: -.01em;
+  color: var(--ag-ink, #10292c);
+  min-width: 0;
+}
+.hn__id a { color: inherit; text-decoration: none; }
+.hn__id a:hover { text-decoration: underline; text-underline-offset: 3px; }
+.hn__id a:focus-visible { outline: 3px solid var(--ag-action-edge, #237b22); outline-offset: 3px; }
+
+/* The audience, when one is chosen. Lighter than the identity because it is a
+   qualifier on it — "Help centre · Organisations" reads as one line, not two. */
+.hn__scope { font-weight: 500; color: var(--ag-ink-soft, #626a6e); }
+
+/* ── the search ── */
+.hn__find {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1 1 320px;
+  min-width: 0;
+  max-width: 520px;
+  position: relative;
+}
+.hn__mag {
+  position: absolute;
+  left: 14px;
+  color: var(--ag-ink-soft, #626a6e);
+  pointer-events: none;
+}
+.hn__find input {
+  flex: 1;
+  min-width: 0;
+  min-height: 44px;
+  padding: 0 14px 0 39px;
+  border: 1px solid var(--ag-line, #d6d4cc);
+  border-radius: 999px;
+  background: var(--ag-card, #fff);
+  font: 400 15px/1 inherit;
+  color: var(--ag-ink, #10292c);
+}
+.hn__find input:hover { border-color: var(--ag-ink-soft, #626a6e); }
+.hn__find input:focus-visible {
+  outline: 3px solid var(--ag-action-edge, #237b22);
+  outline-offset: 2px;
+  border-color: var(--ag-ink, #10292c);
+}
+.hn__find button {
+  flex: none;
+  min-height: 44px;
+  min-width: 44px;
+  padding: 0 18px;
+  border: 1px solid var(--ag-ink, #10292c);
+  border-radius: 999px;
+  background: var(--ag-card, #fff);
+  color: var(--ag-ink, #10292c);
+  font: 600 14px/1 inherit;
+  cursor: pointer;
+}
+.hn__find button:hover { background: var(--ag-ink, #10292c); color: var(--ag-card, #fff); }
+.hn__find button:focus-visible { outline: 3px solid var(--ag-action-edge, #237b22); outline-offset: 2px; }
+
+/* ── the tabs ── */
+.hn__tabs {
+  max-width: 1080px;
+  margin: 0 auto;
+  padding-inline: var(--ag-gutter, 32px);
+  display: flex;
+  gap: 24px;
+  /* A row that can scroll rather than wrap, and `min-width:0` so it actually can:
+     a flex item's min-width defaults to its MIN-CONTENT width — the whole row —
+     so without this the overflow can never fire because the box has already grown
+     to fit, and the last tab sits off the edge of a phone with no way to reach it. */
+  overflow-x: auto;
+  min-width: 0;
+  scrollbar-width: thin;
+}
+.hn__tabs a {
+  flex: none;
+  /* 44px, not the 24px floor: this is the primary navigation of the surface and
+     it is used most by somebody one-handed on a phone who is already annoyed. */
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  padding: 0 2px;
+  border-bottom: 2px solid transparent;
+  color: var(--ag-ink-2, #3a4a4c);
+  font: 600 14.5px/1 inherit;
+  text-decoration: none;
+  white-space: nowrap;
+}
+.hn__tabs a:hover { color: var(--ag-ink, #10292c); }
+.hn__tabs a:focus-visible { outline: 3px solid var(--ag-action-edge, #237b22); outline-offset: 2px; }
+/* Where you ARE is weight and a rule; where your pointer is, is colour. Two
+   different questions, so two different devices. */
+.hn__tabs a[aria-current] {
+  color: var(--ag-ink, #10292c);
+  border-bottom-color: var(--ag-ink, #10292c);
+}
+
+@media (max-width: 720px) {
+  .hn__in { align-items: stretch; }
+  .hn__find { flex-basis: 100%; max-width: none; }
+}

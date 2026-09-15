@@ -41,6 +41,16 @@ final class HelpController
     {
         $q = trim((string) ($req->getQueryParams()['q'] ?? ''));
 
+        // ── WHO IS ASKING, AS A FILTER AND NEVER AS A PARTITION ──────────────
+        //
+        // `?for=` narrows a 40-answer shelf for somebody who knows what they are. It
+        // does NOT narrow a search: `HelpCentre::search()` is handed the query alone,
+        // so a person searching "refund" gets the refund answer whoever they say they
+        // are. Scoping that can hide an answer is how a help centre comes to have a
+        // page nobody can reach.
+        $aud   = HelpCentre::audience($req->getQueryParams()['for'] ?? null);
+        $shelf = HelpCentre::forAudience($aud);
+
         return $this->view->render($res, 'pages/help.twig', [
             'page_title'       => $q !== ''
                 ? 'Search: ' . $q . ' — Help Centre — Africa GATES'
@@ -52,7 +62,12 @@ final class HelpController
             'q'                => $q,
             'results'          => $q !== '' ? HelpCentre::search($q, 12) : [],
             'categories'       => HelpCentre::CATEGORIES,
-            'by_category'      => $this->grouped(),
+            'by_category'      => $this->grouped($shelf),
+            'audience'         => $aud,
+            'audiences'        => HelpCentre::AUDIENCES,
+            // Counted from the corpus, so a chip can never offer a shelf that is empty
+            // when it is opened — which is worse than not offering the chip.
+            'audience_counts'  => HelpCentre::audienceCounts(),
             // How many titles a category card shows before it defers to its own
             // page. The index used to print all 33 at once, which made "Results &
             // integrity" a wall of twelve links and the page 2,800px tall.
@@ -60,13 +75,13 @@ final class HelpController
             // The four a stuck person needs most often, promoted above the fold so
             // the commonest arrival does not have to read a taxonomy first.
             'top'              => array_values(array_filter(
-                HelpCentre::all(),
+                $shelf,
                 static fn(array $a) => in_array($a['slug'], [
                     'paid-but-no-votes', 'vote-not-showing', 'code-did-not-arrive', 'paid-just-before-close',
                 ], true)
             )),
-            'index'            => $this->searchIndex(),
-            'total'            => count(HelpCentre::all()),
+            'index'            => $this->searchIndex($shelf),
+            'total'            => count($shelf),
         ]);
     }
 
@@ -143,10 +158,10 @@ final class HelpController
      *
      * @return list<array{s:string,t:string,c:string,k:string}>
      */
-    private function searchIndex(): array
+    private function searchIndex(?array $shelf = null): array
     {
         $out = [];
-        foreach (HelpCentre::all() as $a) {
+        foreach ($shelf ?? HelpCentre::all() as $a) {
             $out[] = [
                 's' => (string) $a['slug'],
                 't' => (string) $a['title'],
@@ -240,12 +255,21 @@ final class HelpController
     }
 
     /** @return array<string,list<array<string,mixed>>> */
-    private function grouped(): array
+    private function grouped(?array $shelf = null): array
     {
-        $out = [];
+        $shelf = $shelf ?? HelpCentre::all();
+        $out   = [];
+
         foreach (array_keys(HelpCentre::CATEGORIES) as $key) {
-            $out[$key] = HelpCentre::inCategory($key);
+            $in = array_values(array_filter($shelf,
+                static fn (array $a): bool => ($a['cat'] ?? '') === $key));
+
+            // A CATEGORY WITH NOTHING IN IT IS DROPPED, not drawn empty. Under an
+            // audience the directory is a subset, and a heading over no links reads as
+            // a section that is broken rather than as one that does not apply here.
+            if ($in !== []) $out[$key] = $in;
         }
+
         return $out;
     }
 }

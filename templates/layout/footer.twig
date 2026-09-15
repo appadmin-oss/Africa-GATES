@@ -33,6 +33,7 @@
         <li><a href="/legacy">Legacy Vault</a></li>
         <li><a href="/community">Community</a></li>
         <li><a href="/blog">Blog</a></li>
+        <li><a href="/opportunities">Opportunities</a></li>
       </ul>
     </div>
 
@@ -41,12 +42,25 @@
       <ul class="ag-foot__links">
         <li><a href="https://afrovanguard.org.ng/about/">About Afrovanguard</a></li>
         <li><a href="/partner">Become a Partner</a></li>
+        {# THE PAYING TENANT'S FRONT DOOR. `/org` was linked only from pages a partner
+           lands on immediately after an action — an application they had just
+           submitted, a stand offer, their member dashboard. Close the tab and the way
+           back was an old email.
+           It is a DESTINATION here and not a sign-in form: `account/login.twig`
+           refuses to advertise the organisation login beside the member one, because
+           separate trust domains on separate routes are what stop one of them becoming
+           a target. That refusal stands; this is the other half of it. #}
+        <li><a href="/org">Organisation console</a></li>
         {# The Help Centre was reachable only by typing the URL, so nobody found
            it — including us. It sits ABOVE Support & Appeals because it is the
            cheaper of the two for everybody: an answer costs nobody a reply. #}
         <li><a href="/help">Help Centre</a></li>
         <li><a href="/support">Support &amp; Appeals</a></li>
         <li><a href="/giving">Give</a></li>
+        {# A status page nobody can find is a status page that does not exist. It is the
+           first thing anybody looks for when something is wrong, and the first thing an
+           organisation asks for before trusting a platform with a programme. #}
+        <li><a href="/status">Platform status</a></li>
         <li><a href="https://afrovanguard.org.ng/contact/">Contact</a></li>
       </ul>
     </div>
@@ -72,6 +86,10 @@
            their bank. #}
         <a href="/cookies">Cookies</a>
         <a href="/refunds">Refunds</a>
+        {# The terms a stand vendor actually signs up under. Filed with the other legal
+           documents rather than only inside the stands flow, because somebody deciding
+           whether to apply reads them BEFORE they are in the flow. #}
+        <a href="/vendor-terms">Vendor terms</a>
         <a href="/integrity">Integrity Center</a>
       </nav>
     </div>

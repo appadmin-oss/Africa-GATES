@@ -28,13 +28,35 @@
   body[data-page="support"]{ background:#eef0ec; color:var(--ag-ink); }
   .sp{ max-width:1040px; margin:0 auto; padding:clamp(1.75rem,5vw,2.75rem) var(--ag-gutter,32px) clamp(3rem,6vw,4rem); }
 
-  .sp-hero{ text-align:center; max-width:38rem; margin:0 auto; }
+  /* Left-aligned, on the text measure. It was centred over a left-aligned page: a
+     centred hero is what a surface looks like when it is a landing page, and this is
+     a working screen somebody reaches while annoyed. `help.twig` made the same change
+     for the same reason. */
+  .sp-hero{ max-width:46rem; }
   .sp-eyebrow{ margin:0 0 10px; font:600 12px/1 var(--ag-font-body); letter-spacing:.14em; text-transform:uppercase; color:var(--ag-green); }
   .sp-hero h1{ margin:0; font-family:var(--ag-font-display); font-weight:700; font-size:clamp(1.8rem,4.4vw,2.5rem); letter-spacing:-.02em; }
   .sp-hero p{ margin:13px 0 0; font-size:15.5px; line-height:1.62; color:#4a5256; }
 
   /* Numbered steps. The number is the whole point: it says these are not peers,
      and that trying the first one is usually the end of it. */
+  /* ── the two routes, as an index ────────────────────────────────────────
+     Hairlines carry the structure. No card, no tinted icon square: `help.twig`
+     records why that pattern went, and this page was the last one still using it.
+     The row is the link; the qualifier under it is not, because "members only" is
+     a fact about the route rather than a second place to press. */
+  .sp-routes{ list-style:none; margin:0; padding:0; border-top:1px solid var(--ag-line,#d6d4cc); }
+  .sp-routes li{ border-bottom:1px solid var(--ag-line,#d6d4cc); padding:18px 2px 20px; }
+  .sp-route{ display:block; text-decoration:none; color:inherit; }
+  .sp-route__t{ display:block; font-family:var(--ag-font-display,Georgia,serif);
+    font-weight:700; font-size:1.18rem; line-height:1.25; letter-spacing:-.01em;
+    color:var(--ag-ink,#10292c); }
+  .sp-route:hover .sp-route__t{ text-decoration:underline; text-underline-offset:4px; }
+  .sp-route:focus-visible{ outline:3px solid var(--ag-action-edge,#237b22); outline-offset:3px; }
+  .sp-route__d{ display:block; margin-top:6px; max-width:62ch; font-size:15px;
+    line-height:1.6; color:var(--ag-ink-2,#3a4a4c); }
+  .sp-route__m{ margin:8px 0 0; max-width:62ch; font-size:13px; line-height:1.55;
+    color:var(--ag-ink-soft,#626a6e); }
+
   .sp-step{ margin-top:clamp(1.9rem,4vw,2.5rem); }
   .sp-step__h{ display:flex; align-items:center; gap:11px; margin:0 0 14px; }
   .sp-step__n{ flex:none; width:25px; height:25px; border-radius:50%; background:var(--ag-ink); color:#fff;
@@ -117,6 +139,12 @@
 {% endblock %}
 
 {% block content %}
+  {# The shared help masthead. Answers and the assistant are TABS now, not cards on
+   this page — which is the whole point: this page used to open with "Search the
+   Help Centre → Browse the answers", a card that routed a stuck person to /help,
+   which is itself a search-first page. A router routing to another router. #}
+{% include 'partials/help-nav.twig' with { tab: 'contact', q: '' } %}
+
 <div class="sp" x-data="{
   reason:'Dispute a result', name:'', email:'', ref:'', detail:'',
   hints:{
@@ -135,70 +163,72 @@
 }">
 
   <header class="sp-hero">
-    <p class="sp-eyebrow">Support &amp; appeals</p>
-    <h1>We’re here to help</h1>
-    <p>Most problems are solved in the first step below without waiting for anyone. What needs a person gets one — usually within a business day.</p>
+    <h1>Reach a person</h1>
+    <p>For anything that needs judgement rather than a lookup. If it is a payment that
+      has not landed, a missing code or a receipt, <a href="/support/assistant">the
+      assistant</a> can usually fix it on the spot and without waiting for anyone.</p>
   </header>
 
-  {# ── 1. self-service that actually resolves ─────────────────────────────── #}
-  <section class="sp-step">
-    <div class="sp-step__h">
-      <span class="sp-step__n">1</span>
-      <h2>Try this first</h2>
-      <span>No account needed, no waiting</span>
-    </div>
-    <div class="sp-two">
-      <a class="sp-card sp-card--lead" href="/support/assistant">
-        <span class="sp-card__ico" style="background:#eef7ee;color:#1a6118"><svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.4 8.4 0 0 1-9 8.4 9 9 0 0 1-3.6-.7L3 21l1.9-5A8.2 8.2 0 0 1 4 11.5 8.4 8.4 0 0 1 12.5 3 8.4 8.4 0 0 1 21 11.5Z"/></svg></span>
-        <div class="sp-card__t">Ask the assistant</div>
-        <div class="sp-card__d">The only route that can <strong>fix</strong> something: it re-checks your payment with the bank and adds missing votes on the spot. It can also resend a receipt and tell you if a refund is already on its way.</div>
-        <span class="sp-card__go">Open the assistant
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg></span>
-      </a>
-      <a class="sp-card" href="/help">
-        <span class="sp-card__ico" style="background:#e8f1f7;color:#1c5a86"><svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg></span>
-        <div class="sp-card__t">Search the Help Centre</div>
-        <div class="sp-card__d">Written answers to the questions we get most — payments that have not landed, codes that never arrived, how scoring works, and what we do with your data.</div>
-        <span class="sp-card__go">Browse the answers
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg></span>
-      </a>
-    </div>
-  </section>
+  {#
+    ── TWO ROUTES, AS AN INDEX AND NOT AS CARDS ──────────────────────────────
 
-  {# ── 2. a person ────────────────────────────────────────────────────────── #}
+    This was four rounded cards in two rows, each with a pale tinted icon square in a
+    different hue — the exact pattern `help.twig` records at length as the shape a page
+    takes when nobody has decided what is important on it. Two of the four have become
+    tabs. The two that are left are genuinely different routes with different
+    properties, and the differences are what a reader needs, so they are stated in a
+    row rather than implied by an icon.
+  #}
   <section class="sp-step">
-    <div class="sp-step__h">
-      <span class="sp-step__n">2</span>
-      <h2>Reach a person</h2>
-      <span>When it needs judgement, not a lookup</span>
-    </div>
-    <div class="sp-two">
-      <a class="sp-card" href="/support/tickets">
-        <span class="sp-card__ico" style="background:#e9efef;color:#2b373d"><svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h16v4a2 2 0 0 0 0 4v4H4v-4a2 2 0 0 0 0-4V6Z"/><path d="M12 6v12"/></svg></span>
-        <div class="sp-card__t">Open a support ticket</div>
-        <div class="sp-card__d">A thread you can follow, with replies in one place rather than scattered through your inbox.</div>
-        <div class="sp-card__meta">Members only — a support ticket is a promise to reply, and we need somewhere to reply to.</div>
-      </a>
-      <a class="sp-card" href="#sp-form">
-        <span class="sp-card__ico" style="background:#fff8df;color:#7a5600"><svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v18M5 7l-3 6a3 3 0 0 0 6 0L5 7Zm14 0-3 6a3 3 0 0 0 6 0l-3-6ZM4 7h16"/></svg></span>
-        <div class="sp-card__t">Appeal a decision</div>
-        <div class="sp-card__d">Dispute a result, report a profile, or challenge a moderation call. Read by someone independent of the original decision.</div>
-        <div class="sp-card__meta">Open to anyone, account or not.</div>
-      </a>
-    </div>
+    <ul class="sp-routes">
+      <li>
+        <a class="sp-route" href="/support/tickets">
+          <span class="sp-route__t">Open a support ticket</span>
+          <span class="sp-route__d">A thread you can follow, with every reply in one
+            place rather than scattered through your inbox.</span>
+        </a>
+        <p class="sp-route__m">Members only &mdash; a support ticket is a promise to
+          reply, and we need somewhere to reply to.</p>
+      </li>
+      <li>
+        <a class="sp-route" href="#sp-form">
+          <span class="sp-route__t">Appeal a decision</span>
+          <span class="sp-route__d">Dispute a result, report a profile, or challenge a
+            moderation call. Read by someone independent of the original decision.</span>
+        </a>
+        <p class="sp-route__m">Open to anyone, account or not. Opens your own email app
+          &mdash; see below.</p>
+      </li>
+    </ul>
   </section>
 
   {# ── 3. the appeal form ─────────────────────────────────────────────────── #}
   <section class="sp-step">
+    {# No step number. It was "3" of a one-two-three whose first two steps are the
+       Answers and Assistant tabs now — a numbered step with no 1 or 2 above it reads
+       as a page that has lost something. #}
     <div class="sp-step__h">
-      <span class="sp-step__n">3</span>
       <h2>Submit an appeal</h2>
     </div>
 
     <div class="sp-grid">
       <div class="sp-form" id="sp-form">
         <h3>Tell us what happened</h3>
-        <p class="sp-form__sub">The more specific you are, the faster this resolves. A nominee name, a reference or a link is worth three paragraphs of description.</p>
+        {#
+          ── THIS IS A COMPOSER, NOT A FORM, AND IT NOW SAYS SO ─────────────────
+          Nothing here posts. The button assembles a `mailto:` and hands it to the
+          reader's own email app, which is deliberate — an appeal goes to a mailbox
+          read by someone independent of the decision, not into the support queue —
+          but it was drawn as a form with a submit button and said nothing about it
+          until after the press. Somebody with no mail app configured pressed a
+          button and nothing happened at all.
+          Stated up front, and the fallback address is printed below rather than
+          being reachable only through the button.
+        #}
+        <p class="sp-form__sub">This fills in an email for you to send from your own
+          address &mdash; nothing is submitted from this page. The more specific you are,
+          the faster it resolves: a nominee name, a reference or a link is worth three
+          paragraphs of description.</p>
 
         <label class="sp-label" id="sp-reason-l">What is this about?</label>
         <div class="sp-chips" role="group" aria-labelledby="sp-reason-l">
@@ -233,8 +263,14 @@
           <textarea class="sp-textarea" id="sp-detail" x-model="detail" placeholder="What happened, and what outcome are you hoping for?"></textarea>
         </div>
 
-        <button type="button" class="sp-cta" :disabled="!valid" @click="send()">Email this appeal →</button>
-        <p class="sp-fine">This opens your email app with the details filled in, addressed to <strong>appeals@afrovanguard.org.ng</strong>. Appeals are confidential and handled under our <a href="/integrity">integrity policy</a>.</p>
+        <button type="button" class="sp-cta" :disabled="!valid" @click="send()">Open this in my email app &rarr;</button>
+        {# The address is a LINK and not bold text. The button needs a mail app and a
+           working script; this needs neither, and somebody who has just pressed a
+           button that did nothing is exactly the person who needs the address. #}
+        <p class="sp-fine">Goes to <a href="mailto:appeals@afrovanguard.org.ng">appeals@afrovanguard.org.ng</a>
+          &mdash; write to it directly if you would rather, or if the button does nothing.
+          Appeals are confidential and handled under our <a href="/integrity">integrity
+          policy</a>.</p>
       </div>
 
       <aside class="sp-side">

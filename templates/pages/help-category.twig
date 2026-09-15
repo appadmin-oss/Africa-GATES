@@ -124,6 +124,8 @@
 {% endblock %}
 
 {% block content %}
+{% include 'partials/help-nav.twig' with { tab: 'answers', q: '' } %}
+
 <div class="hcc">
 
   <nav class="hcc-crumb" aria-label="Breadcrumb">

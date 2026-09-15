@@ -17,7 +17,7 @@
 
   /* ── header ────────────────────────────────────────────────────────────── */
   .sa-top{ display:flex; align-items:flex-start; justify-content:space-between; gap:16px; flex-wrap:wrap; }
-  .sa-eyebrow{ margin:0 0 6px; font:700 11.5px/1 var(--ag-font-mono,monospace); letter-spacing:.14em;
+  .sa-eyebrow{ margin:0 0 6px; font:700 11.5px/1 var(--ag-font-mono); letter-spacing:.14em;
                text-transform:uppercase; color:var(--ag-green,#237b22); }
   /* Qualified: `.ag-scope h1` is (0,1,1) and beats any bare page class. */
   .sa .sa-h1{ margin:0; font-family:var(--ag-font-display); font-weight:700;
@@ -31,7 +31,7 @@
   .sa-cap{ display:inline-flex; align-items:center; gap:6px; font:600 12px/1 inherit; color:#3d4c4e;
            background:#fff; border:1px solid rgba(16,41,44,.1); border-radius:999px; padding:6px 11px; }
   .sa-cap svg{ flex:none; }
-  .sa-cap--off{ color:var(--ag-ink-soft,#626a6e); background:#f2f4f3; }
+  .sa-cap--off{ color:var(--ag-ink-soft); background:#f2f4f3; }
 
   .sa-note{ margin:14px 0 0; padding:11px 14px; border-radius:12px; font-size:13.5px; line-height:1.55;
             background:#fdf6e3; border:1px solid #efe0b5; color:#7a611a; }
@@ -78,14 +78,14 @@
   .sa-msg__b p{ margin:0 0 9px; } .sa-msg__b p:last-child{ margin:0; }
   .sa-msg__b a{ color:var(--ag-green,#237b22); font-weight:600; }
   .sa-msg__b code{ background:#f2f5f2; border-radius:4px; padding:1px 5px; font-size:13px;
-                   font-family:var(--ag-font-mono,monospace); }
+                   font-family:var(--ag-font-mono); }
   .sa-msg__b ul{ margin:0 0 9px; padding-left:20px; } .sa-msg__b li{ margin:0 0 4px; }
   .sa-msg--me .sa-msg__b{ color:var(--ag-ink,#10292c); }
 
   /* What it looked at. Shown because a support answer you can sanity-check is
      worth more than one you have to take on trust. */
   .sa-used{ margin-top:8px; display:flex; flex-wrap:wrap; gap:6px; }
-  .sa-used span{ font:600 10.5px/1 var(--ag-font-mono,monospace); letter-spacing:.05em;
+  .sa-used span{ font:600 10.5px/1 var(--ag-font-mono); letter-spacing:.05em;
                  text-transform:uppercase; color:#5a6d6f; background:#f2f5f2;
                  border:1px solid rgba(16,41,44,.09); border-radius:5px; padding:4px 7px; }
   .sa-used span.is-act{ color:#1c6b1c; background:#e9f5e9; border-color:#bfe3bf; }
@@ -97,8 +97,11 @@
   .sa-art{ display:block; background:var(--ag-surface,#fff); border:1px solid rgba(16,41,44,.11);
     border-radius:13px; padding:11px 13px; text-decoration:none; transition:border-color .15s, transform .12s; }
   .sa-art:hover{ border-color:var(--ag-green,#3f9c3c); transform:translateY(-1px); }
-  .sa-art__c{ display:inline-block; font:700 9.5px/1 var(--ag-font-body); letter-spacing:.06em;
-    text-transform:uppercase; padding:4px 8px; border-radius:999px; }
+  /* The ground and ink came from the article's own category and are gone; without
+     them a padded pill is an empty box, so this is the mono micro-label the rest of
+     the platform uses for a topic. */
+  .sa-art__c{ display:inline-block; font:700 9.5px/1 var(--ag-font-mono);
+    letter-spacing:.16em; text-transform:uppercase; color:var(--ag-ink-soft); }
   .sa-art__t{ display:block; margin-top:7px; font-size:13.5px; font-weight:650; line-height:1.35; color:var(--ag-ink,#10292c); }
   .sa-art__s{ display:block; margin-top:3px; font-size:12px; line-height:1.5; color:#5a6d6f; }
   .sa-art__go{ display:inline-block; margin-top:7px; font-size:11.5px; font-weight:650; color:var(--ag-green-dark,#177015); }
@@ -135,19 +138,19 @@
      reference it is about, and what it can do next. A support console that
      forgets the number it was just given makes the reader paste it twice. */
   .sa-strip{ display:flex; align-items:center; gap:8px; flex-wrap:wrap; padding:0 18px 10px; }
-  .sa-ref{ display:inline-flex; align-items:center; gap:7px; font:700 12px/1 var(--ag-font-mono,monospace);
+  .sa-ref{ display:inline-flex; align-items:center; gap:7px; font:700 12px/1 var(--ag-font-mono);
            color:#1c6b1c; background:#e9f5e9; border:1px solid #bfe3bf; border-radius:999px; padding:7px 11px; }
   .sa-ref button{ border:0; background:none; cursor:pointer; color:#1c6b1c; font:inherit;
                   padding:0; line-height:1; opacity:.65; }
   .sa-ref button:hover{ opacity:1; }
   .sa-reset{ margin-left:auto; border:0; background:none; cursor:pointer; font:600 12.5px/1 inherit;
-             color:var(--ag-ink-soft,#626a6e); text-decoration:underline; padding:5px; }
+             color:var(--ag-ink-soft); text-decoration:underline; padding:5px; }
   .sa-reset:hover{ color:var(--ag-ink,#10292c); }
 
   /* The busy line says WHICH kind of work is running. "…" for eight seconds
      is indistinguishable from a hung page, and this desk's slowest answers are
      the ones that talk to a payment gateway. */
-  .sa-work{ font-size:13px; color:var(--ag-ink-soft,#626a6e); }
+  .sa-work{ font-size:13px; color:var(--ag-ink-soft); }
 
   .sa-form{ display:flex; gap:10px; align-items:flex-end; padding:14px 16px;
             border-top:1px solid rgba(16,41,44,.08); }
@@ -160,7 +163,7 @@
   .sa-go[disabled]{ opacity:.45; cursor:default; }
 
   .sa-foot{ display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap;
-            padding:0 18px 16px; font-size:12.5px; line-height:1.5; color:var(--ag-ink-soft,#626a6e); }
+            padding:0 18px 16px; font-size:12.5px; line-height:1.5; color:var(--ag-ink-soft); }
   .sa-foot p{ margin:0; max-width:52ch; }
   .sa-human{ border:0; background:none; cursor:pointer; font:700 13px/1 inherit;
              color:var(--ag-green,#237b22); text-decoration:underline; padding:5px; }
@@ -188,6 +191,8 @@
 {% endblock %}
 
 {% block content %}
+{% include 'partials/help-nav.twig' with { tab: 'assistant', q: '' } %}
+
 {# ══════════════════════════════════════════════════════════════════════════
    THE SUPPORT DESK
 
@@ -297,7 +302,11 @@
               <div class="sa-arts__h" x-text="m.articles.some(a => a.cited) ? 'From the Help Centre' : 'You might also want'"></div>
               <template x-for="a in m.articles" :key="a.slug">
                 <a class="sa-art" :href="a.url">
-                  <span class="sa-art__c" :style="'background:'+a.tint+';color:'+a.fg" x-text="a.category"></span>
+                  {# A mono kicker, not a tinted pill: the topic is a label, not a status,
+                     and a pink chip at the top of a payments answer is colour a reader
+                     cannot act on. `help-article.twig` reached this first; this was the
+                     last surface still tinting. #}
+                  <span class="sa-art__c" x-text="a.category"></span>
                   <span class="sa-art__t" x-text="a.title"></span>
                   <span class="sa-art__s" x-text="a.summary"></span>
                   <span class="sa-art__go" aria-hidden="true">Read this &rarr;</span>

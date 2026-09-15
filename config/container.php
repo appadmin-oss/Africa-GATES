@@ -276,6 +276,13 @@ return [
             'programme_style',
             [\AfricaGates\Support\Accent::class, 'programmeStyle']
         ));
+        // The help surface's audiences, for the masthead's scope line. A FUNCTION and
+        // not a global: it is read by one partial on six surfaces, and a global is a
+        // variable every one of four hundred routes carries in order to serve those six.
+        $twig->getEnvironment()->addFunction(new \Twig\TwigFunction(
+            'help_audiences',
+            static fn (): array => \AfricaGates\Services\HelpCentre::AUDIENCES
+        ));
         $twig->getEnvironment()->addFunction(new \Twig\TwigFunction(
             'cookie_ask',
             static fn (): bool => \AfricaGates\Services\CookiePrefs::asking()

@@ -84,7 +84,26 @@
      Left-aligned and on the text measure. A centred hero centres the search too,
      and a centred search on a 1080px page is a control floating in the middle of
      nothing — which is what made this read as a template. */
-  .hc-mast h1{ margin:12px 0 0; font-family:var(--ag-font-display,Georgia,serif);
+  /* ── who is asking ───────────────────────────────────────────────────────
+     A filter, so it is drawn as one: a row of quiet chips under the heading, with
+     the current one carrying a 2px ink border rather than a fill. It scrolls rather
+     than wraps on a phone, and `min-width:0` is what lets it — a flex item's
+     min-width defaults to MIN-CONTENT, the whole row, so without it the overflow
+     never fires and the last chip sits off the edge of the screen. */
+  .hc-who{ display:flex; gap:8px; margin:20px 0 0; min-width:0;
+    overflow-x:auto; scrollbar-width:thin; padding-bottom:2px; }
+  .hc-who a{ flex:none; display:inline-flex; align-items:center; gap:7px; min-height:34px;
+    padding:0 13px; border-radius:999px; border:1px solid var(--ag-line);
+    background:var(--ag-card); color:var(--ag-ink-2);
+    font:600 12.5px/1 inherit; text-decoration:none; white-space:nowrap; }
+  .hc-who a:hover{ border-color:var(--ag-ink-soft); color:var(--ag-ink); }
+  .hc-who a:focus-visible{ outline:3px solid var(--ag-action-edge); outline-offset:2px; }
+  .hc-who a[aria-current]{ border:2px solid var(--ag-ink); color:var(--ag-ink); padding:0 12px; }
+  /* The count is a fact about the shelf, not a badge: mono, lighter, no pill. */
+  .hc-who i{ font-style:normal; font-family:var(--ag-font-mono,monospace); font-size:11px;
+    font-variant-numeric:tabular-nums; color:var(--ag-ink-soft); }
+
+  .hc-mast h1{ margin:0; font-family:var(--ag-font-display,Georgia,serif);
     font-weight:800; font-size:clamp(2rem,4.4vw,2.9rem); line-height:1.03;
     letter-spacing:-.03em; color:var(--hc-ink); text-wrap:balance; }
   .hc-mast p{ margin:14px 0 0; max-width:54ch; font-size:16px; line-height:1.65;
@@ -302,8 +321,7 @@
   closes the attribute. JSON in a script tag has no such failure mode, and it is
   not executable, so CSP is untouched.
 #}
-<div class="hc"
-     x-data="{
+<div x-data="{
        filter: '',
        index: [],
        init() { try { this.index = JSON.parse(this.$refs.corpus.textContent) } catch (e) { this.index = [] } },
@@ -320,27 +338,47 @@
      invariant with an exception in it stops being mechanically checkable. #}
   <script type="application/json" nonce="{{ csp_nonce }}" x-ref="corpus">{{ index|json_encode(constant('JSON_UNESCAPED_UNICODE'))|raw }}</script>
 
+  {# The shared masthead: identity, the one search field, and the three things a
+     stuck person can do. `search_model` binds the field to this page's Alpine state,
+     so the list still narrows as you type without a SECOND search box on the page —
+     which is what the old markup had once this partial arrived. #}
+  {% include 'partials/help-nav.twig' with {
+       tab: 'answers', audience: audience|default(''), q: q,
+       search_model: 'filter',
+       search_placeholder: 'Describe it — “paid but no votes”, “no code”…'
+     } %}
+
+  <div class="hc">
+
+
   <header class="hc-mast">
-    <span class="hc-kick">Help Centre</span>
-    <h1>{% if q %}Results for “{{ q }}”{% else %}What has gone wrong?{% endif %}</h1>
+    <h1>{% if q %}Results for “{{ q }}”{% elseif audience|default('') and audiences[audience] is defined %}Help for {{ audiences[audience].noun }}{% else %}How can we help?{% endif %}</h1>
     {% if not q %}
-      <p>Most problems here have a two-minute answer. Start typing and the list
-        narrows, or press Enter to search the full text of every answer.</p>
+      <p>{% if audience|default('') and audiences[audience] is defined %}{{ audiences[audience].blurb }}
+         {% else %}Most problems here have a two-minute answer. Start typing and the list
+         narrows, or press Enter to search the full text of every answer.{% endif %}</p>
     {% endif %}
 
-    {# A GET form, not an Alpine filter. A search you can bookmark, share with
-       support, or press back to — and it matches the keywords people actually type,
-       which client-side filtering over rendered text cannot. The live narrowing
-       below is additive: with JavaScript off this still works. #}
-    <form class="hc-search" method="get" action="/help" role="search">
-      <span class="hc-search__ico" aria-hidden="true">
-        <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
-      </span>
-      <input type="search" name="q" value="{{ q }}" x-model="filter"
-             placeholder="Describe it — “paid but no votes”, “no code”…"
-             aria-label="Search the Help Centre" autocomplete="off">
-      <button type="submit"><span>Search</span><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true" style="display:block"><path d="M5 12h14M13 6l6 6-6 6"/></svg></button>
-    </form>
+    {#
+      ── WHO IS ASKING ─────────────────────────────────────────────────────────
+      A filter on a forty-answer shelf, never a partition: "Everyone" is the default
+      and stays complete, and a search ignores the scope entirely. Each chip carries
+      its own count, read from the corpus, so a chip can never open an empty shelf.
+      The reference is Google's "Google Account Help" — a reader should always know
+      whose answers they are reading.
+    #}
+    {% if not q %}
+      <nav class="hc-who" aria-label="Who is asking">
+        <a href="/help"{% if not audience|default('') %} aria-current="true"{% endif %}>Everyone</a>
+        {% for key, a in audiences|default({}) %}
+          {% if audience_counts[key]|default(0) > 0 %}
+            <a href="/help?for={{ key }}"{% if audience == key %} aria-current="true"{% endif %}>
+              {{ a.title }} <i>{{ audience_counts[key] }}</i>
+            </a>
+          {% endif %}
+        {% endfor %}
+      </nav>
+    {% endif %}
 
     {# aria-live so the count is announced rather than only seen. `polite`, not
        `assertive`: it changes on every keystroke and must not interrupt. #}
@@ -395,6 +433,11 @@
        Hidden once a filter is on: they are a shortcut for somebody who has not yet
        said what they want, and leaving them above a filtered list makes the filter
        look broken. #}
+    {# And only when there IS one. The four promoted answers are all about a payment
+       that has not landed, so under an audience scope there can be none of them —
+       and a heading over nothing reads as a section that is broken rather than as
+       one that does not apply here. #}
+    {% if top|length %}
     <section class="hc-sec" x-show="needle.length < 2">
       <div class="hc-sec__h">
         <h2>Most people are here for one of these</h2>
@@ -412,16 +455,21 @@
         {% endfor %}
       </div>
     </section>
+    {% endif %}
 
     {# ── the directory ──────────────────────────────────────────────────── #}
     <section class="hc-sec">
       <div class="hc-sec__h">
         <h2 x-text="needle.length >= 2 ? 'Matching answers' : 'Every topic'">Every topic</h2>
-        <span x-show="needle.length < 2">{{ total }} answers · {{ categories|length }} topics</span>
+        <span x-show="needle.length < 2">{{ total }} answers · {{ by_category|length }} topics</span>
       </div>
       <div class="hc-cats">
-        {% for key, c in categories %}
-          {% set list = by_category[key] %}
+        {# THE SHELF, NOT THE CONSTANT. Iterating `categories` printed all eight
+           headings under an audience scope, each with a count of nought — the exact
+           empty-shell fault the note below forbids, arriving through the other door.
+           `by_category` has already dropped the topics this audience has nothing in. #}
+        {% for key, list in by_category %}
+          {% set c = categories[key] %}
           {# A topic with nothing left after filtering is removed entirely rather than
              left as an empty shell — six empty headings is a worse answer than one
              line saying nothing matched. #}
@@ -498,5 +546,6 @@
       <a class="hc-btn hc-btn--g" href="/support">Contact a person</a>
     </div>
   </section>
+</div>
 </div>
 {% endblock %}

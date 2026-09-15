@@ -232,6 +232,12 @@
 {% endblock %}
 
 {% block content %}
+{# The shared help masthead — identity, the one search field, and the three things a
+   stuck person can do. On an ANSWER page this matters most: a reader who opens the
+   wrong answer used to have to go back to the index to search again, and could not
+   see from here that an assistant or a person existed at all. #}
+{% include 'partials/help-nav.twig' with { tab: 'answers', q: '' } %}
+
 <div class="ha"
      x-data="{
        copied:false, said:'', pct:0,

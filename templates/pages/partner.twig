@@ -20,6 +20,17 @@
   .pt-hero__card{ position:relative; flex:none; width:300px; align-self:stretch; background:rgba(255,255,255,.06); border:1px solid rgba(255,255,255,.12); border-radius:20px; padding:26px; display:flex; flex-direction:column; justify-content:center; gap:14px; }
   .pt-hero__card svg{ color:var(--ag-green-light); }
   .pt-hero__card b{ color:#fff; font-family:var(--ag-font-display); font-size:17px; }
+  /* The way back in for an organisation that has already joined. It is a LINK,
+     not a second button: the page's job is persuading somebody who has not
+     partnered yet, and a sign-in competing with "Become a partner" sells to the
+     wrong reader. It matters that it is here at all — the organisation console
+     was routed, permissioned and built, and linked from nowhere a partner could
+     reach, so the only people who could find it were the ones who already knew
+     the URL. It points at /org, which is the organisations' own sign-in on its
+     own trust domain; the forms are never merged. PublicIaTest holds it. */
+  .pt-hero__back{ position:relative; margin:18px 0 0; font-size:13.5px; color:rgba(255,255,255,.72); }
+  .pt-hero__back a{ color:inherit; text-decoration:underline; text-underline-offset:3px; }
+  .pt-hero__back a:hover{ color:rgba(255,255,255,.96); }
   .pt-hero__card small{ color:rgba(255,255,255,.7); font-size:12.5px; line-height:1.5; }
 
   /* real stat row */
@@ -133,6 +144,7 @@
         <a class="pt-btn pt-btn--light" href="#enquiry">Become a partner</a>
         <a class="pt-btn pt-btn--ghost" href="#how">How it works</a>
       </div>
+      <p class="pt-hero__back">Already partnered with us? <a href="/org">Sign in to your organisation console</a></p>
     </div>
     <div class="pt-hero__card">
       <svg aria-hidden="true" focusable="false" width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2 4 5v6c0 5 3.4 9.7 8 11 4.6-1.3 8-6 8-11V5l-8-3Z"/><path d="m9 12 2 2 4-4"/></svg>

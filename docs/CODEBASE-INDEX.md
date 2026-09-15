@@ -1902,3 +1902,129 @@ the overall/category split from that field, the edit stopped reaching the page w
 went on claiming to exercise it), and a progress-bar test asserting only `pct < 100`, which
 passes on a `ceil` implementation — verified by writing one. The rounding DIRECTION is the
 guard, so the test pins 33.
+
+---
+
+## 27. Two front doors to one job, and the tenant with none (2026-09-15)
+
+A UX pass over the public site, taken as a product question rather than a visual one. The
+strategy half is `docs/PRODUCT-STRATEGY.md`; this section is what changed in the code and
+the three faults behind it.
+
+### 27.1 `/help` and `/support` were two routers, each routing to the other
+
+`/help` opened with **"What has gone wrong?"** over a search field. `/support` opened with
+"We're here to help" over four cards, the **first** of which was "Search the Help Centre →
+Browse the answers" — which lands on `/help`. So a stuck person hit a router whose top
+answer was another router, and neither page contained a link that said the other one
+existed for any purpose except starting over.
+
+This is the shape the reference (Google's support masthead) resolves with one device: an
+identity line, one search field, and a **persistent row of tabs** carrying the three things
+a person can actually do. They are one surface now — `templates/partials/help-nav.twig`,
+included by all six help surfaces — with `Answers` / `Ask the assistant` / `Contact us`
+always all three and always in the same place, ordered by what costs the reader least (an
+answer is instant, the assistant can fix a payment without waiting for anyone, a person
+takes until the next working day).
+
+Three smaller things went with it, each of which had a reason:
+
+- **The masthead is full-bleed and the search is inside it**, so the field is on every tab.
+  Somebody reading an answer that turns out to be the wrong answer should not have to go
+  back to the index to search again.
+- **The heading is "How can we help?" and not "What has gone wrong?"** The old one assumes
+  a fault. Most arrivals are a question.
+- **`aria-current` is a 2px ink underline, never a tinted pill.** "Where I am" and "where my
+  pointer is" must not be drawn with one device, and on a touch screen there is no hover at
+  all. `components/help-nav.css` spends **no colour** — it is chrome for a surface whose job
+  is answering a worried person.
+
+### 27.2 The help centre did not know who was asking
+
+A supporter, a nominee, a judge and a partner organisation arrive with almost disjoint
+problems, and the shelf was one undifferentiated list written for the first two. There was
+**not one article addressed to a judge or to an organisation.**
+
+`HelpCentre::AUDIENCES` is the scope, and it is a **LABEL and a FILTER, never a partition**:
+`search()` ignores it outright, so a nominee who searches for something written for
+organisations still finds it. The chip row is on the index; the chosen audience rides in the
+search form as a hidden field so it survives a query; the identity line says which shelf you
+are on.
+
+Seven articles were written to make a scoped chip mean something — a chip that opens an
+empty shelf is worse than no chip. **Supporter 25 · nominee 22 · judge 8 · organisation 10**,
+forty articles in total, counted from `audienceCounts()` rather than typed here.
+
+Two existing tests caught this work and both were right: `HelpCentreTest`'s "no article
+hardcodes a price" found a literal ₦1,000 payout floor I had typed (now `{min_payout}`,
+resolved from `OrgPayout::MIN_NAIRA`), and `SupportTicketNamingTest` found "a ticket is a
+promise to reply" — a *ticket* on this platform is a thing you buy for an event.
+
+### 27.3 The paying tenant had no front door
+
+`gates_partner_orgs` is a vetted financial tenant: CAC and SCUML numbers, a Paystack
+subaccount, `platform_fee_bps`, payouts, suspension. The organisation console at `/org` was
+routed, permissioned and built — and linked from exactly four templates, **every one of them
+a page a partner lands on in the minute after an action they just took**: the application
+they had just submitted, a stand offer, a stand application, their member dashboard. Close
+the tab, come back on Monday, and the way back in was an old email.
+
+It is linked from the footer and from `/partner` now. **Not** by putting organisation
+sign-in on the member sign-in page: `account/login.twig` refuses that deliberately, and the
+reason stands — separate trust domains on separate routes are what stop one of them becoming
+a target. A findable public *destination* is a different thing from a shared login form.
+
+### 27.4 Nothing checked that a public page was reachable
+
+`AdminIaTest` asks "is every admin page findable without knowing its URL?" and has for
+months. There was no public equivalent, which is why §27.3 lasted. `tests/Unit/PublicIaTest.php`
+is it, and it reuses `AdminIaTest`'s discipline: the exclusions are **KINDS with reasons** —
+aliases (parsed from `$aliases`, as `AliasRedirectTest` does), gateway callbacks, outcome
+pages, auth steps, legacy giving prefixes, machine formats, parameterised routes, the
+separate consoles, data endpoints (detected from the `fetch(` calls that reach them) and
+view-state routes (detected by a shared callable with a shorter path) — never a list of
+pages nobody linked, which would make the list the answer rather than a record of
+exceptions.
+
+**Four things it had to learn, and two of them had it lying.**
+
+- **`/pulse/reels` is not an orphan**, it is a view of `/pulse` — same callable, longer path.
+  Resolved by comparing callables rather than by an exception.
+- **A Twig comment reaches no reader**, so a URL named in one is not a link. Known, and
+  handled from the start.
+- **A CSS comment reaches no reader either, and that one passed.** The partner-page
+  assertion was a bare `str_contains($body, '/org')`, and the comment I wrote above the new
+  link — *"It points at /org"* — satisfied it with the link itself deleted. Proved by
+  deleting the link and watching the test stay green. There is now one `visible()` helper
+  that strips both comment syntaxes, and the assertion asks for an `href`.
+- **"Is it linked anywhere" was never the question.** `/org` was already linked from four
+  templates before this test existed, so that assertion was true throughout the years the
+  console was unreachable in practice. The test names the **two places** that make it a
+  front door — the footer, which is on every page, and `/partner`, which is where an
+  organisation is sent before it is anything — and requires both: the footer alone is a link
+  nobody reads on the one page written for this reader, and `/partner` alone is unreachable
+  from the rest of the site.
+
+Four mutations were run and each named its own break: unlink `/org` from `/partner`; unlink
+it from the footer; orphan a real page (`/status`); and satisfy the partner assertion with a
+comment alone.
+
+### 27.5 The colour budget was blind to a shared stylesheet
+
+Carried over from the previous pass and recorded here because it belongs with the rest: the
+budget read a template's own `<style>` block and its inline attributes, and not the sheets
+the template `<link>`s. `/cookies` was spending green through `components/article.css`,
+which every legal and methodology document loads. Those documents are ink-on-paper now
+(`--ar-accent` → `--ag-ink`, `--ar-wash` → `--ag-surface-2`), zero events, which is the
+right register for a page somebody is asked to rely on.
+
+And **my first diagnosis of the mobile fault was simply wrong.** I reported a site-wide
+horizontal scroll at 430px from `chrome --headless --window-size=430` screenshots.
+`--window-size` **crops** rather than setting the layout viewport. Measured properly, inside
+a real 430px iframe, `scrollWidth == viewport` on every page. Two real faults were found by
+the correct measurement and neither was site-wide: a `class="ag-sr-only"` that does not
+exist (the class is `.sr-only`), which left a visible label eating 80px and pushed the
+Search button off the screen, and a `padding: 12px 0` shorthand zeroing the page gutter on
+an element that also carried the wrapper class. `SrOnlyClassTest` and `GutterShorthandTest`
+hold both. **A screenshot is not a measurement**, and the helper that renders inside a true
+viewport exists so the next person does not repeat it.

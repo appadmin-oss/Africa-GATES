@@ -61,44 +61,156 @@ final class HelpCentre
      * "How to nominate" to reach their answer is a small unkindness that repeats
      * thousands of times.
      *
-     * @var array<string,array{title:string,blurb:string,tint:string,fg:string,icon:string}>
+     * @var array<string,array{title:string,blurb:string,icon:string}>
      */
+    /**
+     * WHO IS ASKING, AS A FILTER AND NEVER AS A PARTITION.
+     *
+     * ══════════════════════════════════════════════════════════════════════════
+     * WHY THE HELP CENTRE HAD TO LEARN THIS
+     * ══════════════════════════════════════════════════════════════════════════
+     *
+     * Thirty-three articles, six categories, and one undifferentiated shelf — so a
+     * partner organisation's finance officer looking for "when does our money arrive"
+     * scrolled past "I paid but my votes have not appeared", and a judge looking for
+     * what they are being asked to score found nothing at all, because there was not one
+     * article for either of them. A platform that sells to institutions and has no
+     * answers for the institution's own staff is a platform that has not noticed who its
+     * customers are.
+     *
+     * The reference is Google's, which says "Google Account Help" rather than "Google
+     * Help": a reader always knows whose answers they are reading.
+     *
+     * ══════════════════════════════════════════════════════════════════════════
+     * A FILTER, BECAUSE SCOPING IS THE THING THAT USUALLY BREAKS A HELP CENTRE
+     * ══════════════════════════════════════════════════════════════════════════
+     *
+     * An article may serve several audiences and most do. The audience narrows a long
+     * shelf for somebody who knows what they are; it NEVER hides an answer from somebody
+     * who does not. The unscoped view is the default and stays complete, and
+     * {@see search()} deliberately ignores the audience entirely — a person searching
+     * "refund" gets the refund answer whoever they are.
+     *
+     * That is the difference between scoping and partitioning, and partitioning is how a
+     * help centre comes to have an answer that nobody can reach.
+     *
+     * @var array<string,array{title:string,noun:string,blurb:string}>
+     */
+    public const AUDIENCES = [
+        'supporter' => [
+            'title' => 'Voting & paying',
+            'noun'  => 'supporters',
+            'blurb' => 'Casting a vote, a payment that has not landed, codes and receipts.',
+        ],
+        'nominee' => [
+            'title' => 'Nominees',
+            'noun'  => 'nominees',
+            'blurb' => 'Being entered, your profile, your score, and how to challenge it.',
+        ],
+        'judge' => [
+            'title' => 'Judges',
+            'noun'  => 'judges',
+            'blurb' => 'What a panel is asked to do, and the rules it works under.',
+        ],
+        'organisation' => [
+            'title' => 'Organisations',
+            'noun'  => 'organisations',
+            'blurb' => 'Running a programme with us, verification, settlement and fees.',
+        ],
+    ];
+
+    /** A normalised audience key, or '' for the unscoped shelf. */
+    public static function audience(?string $raw): string
+    {
+        $k = strtolower(trim((string) $raw));
+
+        return isset(self::AUDIENCES[$k]) ? $k : '';
+    }
+
+    /**
+     * Articles for one audience, resolved, in corpus order.
+     *
+     * An empty audience is every article — the default shelf — rather than none.
+     *
+     * @return list<array<string,mixed>>
+     */
+    public static function forAudience(string $audience): array
+    {
+        $a = self::audience($audience);
+        if ($a === '') return self::all();
+
+        return array_values(array_filter(self::all(), static fn (array $x): bool
+            => in_array($a, (array) ($x['audience'] ?? []), true)));
+    }
+
+    /**
+     * How many articles each audience has, from the corpus.
+     *
+     * Counted rather than typed: an audience chip showing a number the shelf does not
+     * contain is the fastest way to make a directory untrustworthy, and a chip leading to
+     * an empty shelf is worse than no chip at all.
+     *
+     * @return array<string,int>
+     */
+    public static function audienceCounts(): array
+    {
+        $out = array_fill_keys(array_keys(self::AUDIENCES), 0);
+
+        foreach (self::all() as $a) {
+            foreach ((array) ($a['audience'] ?? []) as $k) {
+                if (isset($out[$k])) $out[$k]++;
+            }
+        }
+
+        return $out;
+    }
+
     public const CATEGORIES = [
         'payments' => [
             'title' => 'Payments & votes you paid for',
             'blurb' => 'Money taken, votes missing, receipts and refunds.',
-            'tint'  => '#fdeaf0', 'fg' => '#b03a5b',
             'icon'  => '<rect x="2" y="5" width="20" height="14" rx="3"/><path d="M2 10h20"/>',
         ],
         'voting' => [
             'title' => 'Voting',
             'blurb' => 'Free voting, codes, limits and why a vote may not show.',
-            'tint'  => '#eef7ee', 'fg' => '#1a6118',
             'icon'  => '<path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/>',
         ],
         'nominations' => [
             'title' => 'Nominations',
             'blurb' => 'Entering someone, what happens next, and decisions.',
-            'tint'  => '#fff8df', 'fg' => '#7a5600',
             'icon'  => '<circle cx="12" cy="8" r="5"/><path d="M8.2 12 7 22l5-3 5 3-1.2-10"/>',
         ],
         'results' => [
             'title' => 'Results & integrity',
             'blurb' => 'How scoring works, and how to challenge it.',
-            'tint'  => '#e8f1f7', 'fg' => '#1c5a86',
             'icon'  => '<path d="M3 3v18h18"/><path d="m19 9-5 5-4-4-3 3"/>',
         ],
         'account' => [
             'title' => 'Account & profile',
             'blurb' => 'Signing in, your registry profile, your details.',
-            'tint'  => '#e9efef', 'fg' => '#2b373d',
             'icon'  => '<path d="M20 21a8 8 0 1 0-16 0"/><circle cx="12" cy="7" r="4"/>',
         ],
         'privacy' => [
             'title' => 'Privacy & your data',
             'blurb' => 'What we hold, what we never hold, and your rights.',
-            'tint'  => '#f0f2f2', 'fg' => '#4a5256',
             'icon'  => '<rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>',
+        ],
+        // ── THE TWO THAT DID NOT EXIST ───────────────────────────────────────
+        //
+        // Thirty-three articles and not one addressed to a judge or to a partner
+        // organisation — the two audiences with the most at stake and the least
+        // written down. A platform that sells to institutions and has no answers for
+        // the institution's own people has not noticed who its customers are.
+        'judging' => [
+            'title' => 'Judging',
+            'blurb' => 'What a panel is asked to do, and the rules it works under.',
+            'icon'  => '<path d="M12 3v18"/><path d="M5 7h14"/><path d="m5 7-3 6h6Z"/><path d="m19 7-3 6h6Z"/>',
+        ],
+        'organisations' => [
+            'title' => 'Organisations & partners',
+            'blurb' => 'Verification, settlement, fees and your console.',
+            'icon'  => '<path d="M3 21h18"/><path d="M5 21V7l7-4 7 4v14"/><path d="M10 21v-6h4v6"/>',
         ],
     ];
 
@@ -124,6 +236,7 @@ final class HelpCentre
         // ── PAYMENTS ─────────────────────────────────────────────────────────
         [
             'slug' => 'paid-but-no-votes',
+            'audience' => ['supporter'],
             'cat'  => 'payments',
             'title' => 'I paid but my votes have not appeared',
             'summary' => 'Almost always fixable in under a minute, and you do not need to wait for anyone.',
@@ -153,6 +266,7 @@ final class HelpCentre
         ],
         [
             'slug' => 'wallet-app-reference',
+            'audience' => ['supporter'],
             'cat'  => 'payments',
             'title' => 'The reference my wallet app shows is different',
             'summary' => 'OPay, PalmPay, Kuda and bank apps show their own transaction number. Both are real.',
@@ -178,6 +292,7 @@ final class HelpCentre
         ],
         [
             'slug' => 'no-receipt',
+            'audience' => ['supporter'],
             'cat'  => 'payments',
             'title' => 'My votes are there but no receipt arrived',
             'summary' => 'A separate problem from a stuck payment, with a one-step fix.',
@@ -198,6 +313,7 @@ final class HelpCentre
         ],
         [
             'slug' => 'card-payment-closed-early',
+            'audience' => ['supporter'],
             'cat'  => 'payments',
             'title' => 'Why can I not pay when voting is still open?',
             'summary' => 'Card payment stops {cutoff} minutes before the ballot does. Free voting runs to the bell.',
@@ -218,6 +334,7 @@ final class HelpCentre
         ],
         [
             'slug' => 'paid-just-before-close',
+            'audience' => ['supporter'],
             'cat'  => 'payments',
             'title' => 'I paid just before voting closed — do I still get my votes?',
             'summary' => 'Yes. We judge it on when you paid, not on when your bank told us.',
@@ -243,6 +360,7 @@ final class HelpCentre
         ],
         [
             'slug' => 'refund-when-votes-cannot-count',
+            'audience' => ['supporter'],
             'cat'  => 'payments',
             'title' => 'When do you refund, and do I have to ask?',
             'summary' => 'If we took money for votes we could not count, it goes back by itself.',
@@ -264,6 +382,7 @@ final class HelpCentre
         ],
         [
             'slug' => 'what-paid-votes-do',
+            'audience' => ['supporter', 'nominee'],
             'cat'  => 'payments',
             'title' => 'What do paid votes actually do?',
             'summary' => 'They count toward the tally exactly like a free vote, and cannot buy the '
@@ -301,6 +420,7 @@ final class HelpCentre
         // ── VOTING ───────────────────────────────────────────────────────────
         [
             'slug' => 'how-free-voting-works',
+            'audience' => ['supporter'],
             'cat'  => 'voting',
             'title' => 'How do I vote, and is it free?',
             'summary' => 'Free, open to anyone, and confirmed by a six-digit code.',
@@ -322,6 +442,7 @@ final class HelpCentre
         ],
         [
             'slug' => 'code-did-not-arrive',
+            'audience' => ['supporter'],
             'cat'  => 'voting',
             'title' => 'My six-digit code never arrived',
             'summary' => 'Nearly always spam, a typo, or the code from an earlier attempt.',
@@ -345,6 +466,7 @@ final class HelpCentre
         ],
         [
             'slug' => 'vote-not-showing',
+            'audience' => ['supporter'],
             'cat'  => 'voting',
             'title' => 'I voted but the count did not change',
             'summary' => 'Four causes, in the order they actually happen.',
@@ -371,6 +493,7 @@ final class HelpCentre
         ],
         [
             'slug' => 'already-voted',
+            'audience' => ['supporter'],
             'cat'  => 'voting',
             'title' => 'It says I have already voted',
             'summary' => 'That is the integrity system working, not a fault.',
@@ -390,6 +513,7 @@ final class HelpCentre
         ],
         [
             'slug' => 'when-does-voting-close',
+            'audience' => ['supporter', 'nominee'],
             'cat'  => 'voting',
             'title' => 'When does voting open and close?',
             'summary' => 'Per category, and always shown on the ballot itself.',
@@ -415,6 +539,7 @@ final class HelpCentre
         // ── NOMINATIONS ──────────────────────────────────────────────────────
         [
             'slug' => 'how-to-nominate',
+            'audience' => ['supporter'],
             'cat'  => 'nominations',
             'title' => 'How do I nominate someone?',
             'summary' => 'Anyone can nominate anyone, including themselves.',
@@ -432,6 +557,7 @@ final class HelpCentre
         ],
         [
             'slug' => 'nomination-what-next',
+            'audience' => ['supporter', 'nominee'],
             'cat'  => 'nominations',
             'title' => 'I submitted a nomination — what happens now?',
             'summary' => 'A person reviews it. You are told either way.',
@@ -451,6 +577,7 @@ final class HelpCentre
         ],
         [
             'slug' => 'nomination-rejected',
+            'audience' => ['supporter', 'nominee'],
             'cat'  => 'nominations',
             'title' => 'My nomination was rejected',
             'summary' => 'Usually fixable. Rejection is about the entry, not about the person.',
@@ -472,6 +599,7 @@ final class HelpCentre
         // ── RESULTS & INTEGRITY ──────────────────────────────────────────────
         [
             'slug' => 'how-cpi-works',
+            'audience' => ['supporter', 'nominee', 'judge', 'organisation'],
             'cat'  => 'results',
             'title' => 'How is the Cultural Power Index calculated?',
             'summary' => 'Community votes, jury scoring and documented impact — and no money.',
@@ -525,6 +653,7 @@ final class HelpCentre
         ],
         [
             'slug' => 'dispute-a-result',
+            'audience' => ['supporter', 'nominee'],
             'cat'  => 'results',
             'title' => 'I think a count or a ranking is wrong',
             'summary' => 'Ask for an audit. We will replay the arithmetic from source.',
@@ -554,6 +683,7 @@ final class HelpCentre
         ],
         [
             'slug' => 'report-a-profile',
+            'audience' => ['supporter', 'nominee'],
             'cat'  => 'results',
             'title' => 'How do I report a nominee or a profile?',
             'summary' => 'Confidentially, and you do not need proof — just what you saw.',
@@ -587,6 +717,7 @@ final class HelpCentre
         // /integrity still says all of it, in summary, and links here for the rest.
         [
             'slug' => 'why-a-small-category-is-not-a-disadvantage',
+            'audience' => ['nominee', 'organisation'],
             'cat'  => 'results',
             // ══ THIS ARTICLE USED TO PROMISE THE OPPOSITE ══════════════════════
             //
@@ -642,6 +773,7 @@ final class HelpCentre
         ],
         [
             'slug' => 'why-the-leader-may-not-be-eligible-to-win',
+            'audience' => ['supporter', 'nominee'],
             'cat'  => 'results',
             'title' => 'Why the nominee with the most votes may not be eligible to win',
             'summary' => 'Winning needs {min_judges} complete judge scorecards. Votes alone are not enough.',
@@ -672,6 +804,7 @@ final class HelpCentre
         ],
         [
             'slug' => 'what-the-judges-actually-score',
+            'audience' => ['nominee', 'judge'],
             'cat'  => 'results',
             'title' => 'What the judges actually score you on',
             'summary' => 'Four criteria, equally weighted, each scored out of ten.',
@@ -702,6 +835,7 @@ final class HelpCentre
         ],
         [
             'slug' => 'how-we-spot-a-vote-that-is-not-real',
+            'audience' => ['supporter', 'nominee', 'organisation'],
             'cat'  => 'results',
             'title' => 'How we decide a vote was not cast by a real person',
             'summary' => 'Every vote is scored for risk before it is recorded — and some are blocked outright.',
@@ -735,6 +869,7 @@ final class HelpCentre
         ],
         [
             'slug' => 'what-happens-if-two-nominees-tie',
+            'audience' => ['nominee', 'judge'],
             'cat'  => 'results',
             'title' => 'What happens if two nominees finish level',
             'summary' => 'The tiebreak is the vote tally — the same votes the index counts.',
@@ -755,6 +890,7 @@ final class HelpCentre
         ],
         [
             'slug' => 'how-results-are-sealed',
+            'audience' => ['nominee', 'organisation', 'judge'],
             'cat'  => 'results',
             'title' => 'How you can tell a result was not edited afterwards',
             'summary' => 'Each standing is sealed into a chain, and every link is checked daily.',
@@ -784,6 +920,7 @@ final class HelpCentre
         ],
         [
             'slug' => 'votes-we-could-not-deliver',
+            'audience' => ['supporter', 'nominee'],
             'cat'  => 'results',
             'title' => 'Votes that never reached you, and how they are given back',
             'summary' => 'When our own records show a code never got out, the vote is restored — under review, and disclosed.',
@@ -816,6 +953,7 @@ final class HelpCentre
         ],
         [
             'slug' => 'the-community-return',
+            'audience' => ['nominee'],
             'cat'  => 'results',
             'title' => 'The community return: a share of what your supporters raised',
             'summary' => 'A nominee keeps a share of the contributions made in their name — win or lose.',
@@ -877,6 +1015,7 @@ final class HelpCentre
         ],
         [
             'slug' => 'the-stages-of-an-award-cycle',
+            'audience' => ['nominee', 'judge', 'organisation'],
             'cat'  => 'results',
             'title' => 'The stages of an award cycle, and what freezes at each one',
             'summary' => 'Six stages. Each one closes something so the next cannot be argued with.',
@@ -912,6 +1051,7 @@ final class HelpCentre
         // ── ACCOUNT & PROFILE ────────────────────────────────────────────────
         [
             'slug' => 'do-i-need-an-account',
+            'audience' => ['supporter'],
             'cat'  => 'account',
             'title' => 'Do I need an account?',
             'summary' => 'Not to vote, nominate or pay. An account gets you your own history.',
@@ -930,6 +1070,7 @@ final class HelpCentre
         ],
         [
             'slug' => 'cannot-sign-in',
+            'audience' => ['supporter', 'nominee'],
             'cat'  => 'account',
             'title' => 'I cannot sign in',
             'summary' => 'Usually the wrong address rather than the wrong password.',
@@ -950,6 +1091,7 @@ final class HelpCentre
         ],
         [
             'slug' => 'claim-my-profile',
+            'audience' => ['nominee'],
             'cat'  => 'account',
             'title' => 'Someone nominated me — can I manage my own profile?',
             'summary' => 'Yes. Claiming lets you correct your own details and add your own story.',
@@ -971,6 +1113,7 @@ final class HelpCentre
         ],
         [
             'slug' => 'remove-my-profile',
+            'audience' => ['nominee'],
             'cat'  => 'account',
             'title' => 'I do not want to be listed — take my profile down',
             'summary' => 'We will. Being nominated is not something you consented to.',
@@ -991,9 +1134,209 @@ final class HelpCentre
             'related' => ['claim-my-profile', 'what-data-do-you-keep'],
         ],
 
+
+        // ── JUDGING ──────────────────────────────────────────────────────────
+        //
+        // Written from the code that runs the panel, not from a description of it:
+        // JudgeService shuffles the ballot per judge, hides the tally, scores the
+        // shortlist, and refuses a judge who has declared a conflict. Every claim below
+        // is one of those.
+        [
+            'slug' => 'what-a-judge-is-asked-to-do',
+            'audience' => ['judge', 'nominee'],
+            'cat'  => 'judging',
+            'title' => 'What a judge is actually asked to do',
+            'summary' => 'Score a shortlist against written criteria. You never see the vote counts.',
+            'keywords' => ['judge', 'judging', 'panel', 'scorecard', 'how do i judge',
+                           'i am a judge', 'jury', 'assessor', 'score a nominee'],
+            'body' => [
+                ['p' => 'You score each nominee on your ballot against the programme’s written '
+                      . 'criteria, one mark per criterion, on a scale of 0 to 10. That is the whole '
+                      . 'task. You are not asked to rank anybody, to pick a winner, or to compare '
+                      . 'your marks with another judge’s.'],
+                ['p' => 'Three things about your ballot are deliberate, and it is worth knowing why:'],
+                ['steps' => [
+                    '<strong>You cannot see how many votes anybody has.</strong> The public tally is '
+                        . 'never rendered on a ballot. The panel exists to be independent of the '
+                        . 'public half of the index, and it cannot be that if it can see it.',
+                    '<strong>Your nominees are in a different order from every other judge’s.</strong> '
+                        . 'Position is a well-evidenced anchor, so a single shared order would push a '
+                        . 'whole panel the same way. The shuffle is seeded on you and the cycle, so '
+                        . 'your order never changes between visits and can be reproduced months later '
+                        . 'if a result is questioned.',
+                    '<strong>You judge the shortlist, not the whole field.</strong> Where a category '
+                        . 'has published one, the ballot is that list.',
+                ]],
+                ['note' => 'If you know a nominee, or have any interest in the outcome, declare a '
+                         . 'conflict on that programme rather than scoring carefully around it. '
+                         . 'Scoring is then disabled for you there, and that is the correct result.'],
+            ],
+        ],
+        [
+            'slug' => 'when-a-scorecard-counts',
+            'audience' => ['judge', 'nominee'],
+            'cat'  => 'judging',
+            'title' => 'When your scorecard counts, and when it does not',
+            'summary' => 'A scorecard counts once every criterion on it has a mark. Part-filled counts for nothing.',
+            'keywords' => ['scorecard', 'incomplete', 'quorum', 'did my score count', 'saved my scores',
+                           'half finished', 'criteria', 'minimum judges'],
+            'body' => [
+                ['p' => 'A scorecard is <strong>complete</strong> when you have given a mark for every '
+                      . 'active criterion for that nominee. Until then it counts for nothing at all — '
+                      . 'not partially, not pro rata. A part-filled card is a card somebody is in the '
+                      . 'middle of, and counting it would let a nominee’s standing move while you '
+                      . 'are still thinking.'],
+                ['p' => 'Each nominee also needs a minimum number of complete scorecards before they '
+                      . 'can be crowned at all. That number is the programme’s <em>quorum</em>, it is '
+                      . 'usually two, and a nominee below it is <strong>pending</strong> rather than '
+                      . 'out — their result simply is not decided yet.'],
+                ['note' => 'This is why an award can sit unpublished while every vote is counted: the '
+                         . 'public half is finished and the panel is not. The result page says so.'],
+            ],
+        ],
+        [
+            'slug' => 'why-a-criterion-change-voids-scorecards',
+            'audience' => ['judge', 'organisation'],
+            'cat'  => 'judging',
+            'title' => 'Why adding a criterion can undo work the panel has already done',
+            'summary' => 'A complete card is complete against a fixed list. Change the list and it is not complete any more.',
+            'keywords' => ['criterion', 'criteria', 'rubric', 'changed the rubric', 'void', 'reset scores',
+                           'added a criterion', 'edit rubric'],
+            'body' => [
+                ['p' => 'A scorecard counts when it has a mark against <em>every</em> active criterion. '
+                      . 'Add a criterion and every card that was complete a moment ago is now missing '
+                      . 'one — so it stops counting, and the judge who filled it has to go back.'],
+                ['p' => 'The console says how many complete scorecards a change would void <strong>before '
+                      . 'you make it</strong>, because "this will void 47 scorecards" and "you can still '
+                      . 'change it" are different sentences and an organiser needs the first one.'],
+                ['note' => 'A criterion that has been used is retired, never deleted. Marks already given '
+                         . 'point at it, and deleting it would change a record that has already decided '
+                         . 'something.'],
+            ],
+        ],
+
+        // ── ORGANISATIONS ────────────────────────────────────────────────────
+        //
+        // The customer's own staff. Every figure here is read from the code that
+        // enforces it: OrgPayout::MIN_NAIRA, platform_fee_bps, PlatformTip.
+        [
+            'slug' => 'run-a-programme-with-us',
+            'audience' => ['organisation'],
+            'cat'  => 'organisations',
+            'title' => 'Running a recognition programme with Africa GATES',
+            'summary' => 'What you get that a form and a spreadsheet cannot give you: a result that survives being questioned.',
+            'keywords' => ['partner', 'run an award', 'our own awards', 'host awards', 'programme',
+                           'institution', 'university awards', 'white label', 'sponsor'],
+            'body' => [
+                ['p' => 'Most recognition programmes run on a form for nominations, a group chat for '
+                      . 'campaigning and a spreadsheet for judging — and the result is always '
+                      . 'arguable, because there is no method anybody outside the room can check.'],
+                ['p' => 'What you get here is the method. Every award decided on this platform '
+                      . 'publishes the arithmetic that decided it, the denominator it was measured '
+                      . 'against, the size of the panel and the quorum it had to clear, and a sealed '
+                      . 'record that cannot be quietly edited afterwards. There is an appeals route, '
+                      . 'and it is on the record too.'],
+                ['steps' => [
+                    'Tell us about the programme through the <a href="/partner">partner form</a>.',
+                    'We verify the organisation — see <a href="/help/what-we-verify-before-you-can-raise-money">'
+                        . 'what we check</a>. Nothing goes live before that is done.',
+                    'We agree the rules for your cycle: the split between public support and the '
+                        . 'panel, the judging quorum, and the ceiling on paid votes. These are set per '
+                        . 'programme, and every screen that prints a figure can say which of your '
+                        . 'settings produced it.',
+                    'You run the cycle from your own console, and the results publish on pages you can '
+                        . 'link in a press release.',
+                ]],
+                ['note' => 'We do not sell the software without the method. The method is the thing '
+                         . 'that makes the result worth announcing, and a programme that can be bought '
+                         . 'outright would take the value out of every other programme here.'],
+            ],
+        ],
+        [
+            'slug' => 'what-we-verify-before-you-can-raise-money',
+            'audience' => ['organisation'],
+            'cat'  => 'organisations',
+            'title' => 'What we verify before your organisation can take money',
+            'summary' => 'Registration, anti-money-laundering registration, and a settlement account in your own name.',
+            'keywords' => ['cac', 'scuml', 'verification', 'vetting', 'approved', 'documents',
+                           'compliance', 'registration', 'why is my organisation pending'],
+            'body' => [
+                ['p' => 'Before an organisation can raise a naira through this platform we check three '
+                      . 'things, and a person looks at all of them:'],
+                ['steps' => [
+                    '<strong>Your CAC registration.</strong> The organisation has to exist, in law, '
+                        . 'under the name it is raising money as.',
+                    '<strong>Your SCUML registration.</strong> Non-profits taking donations in Nigeria '
+                        . 'are required to hold one. We ask for it because the law does.',
+                    '<strong>A settlement account in the organisation’s own name.</strong> We resolve '
+                        . 'the account with the bank and keep only the last four digits and the name '
+                        . 'the bank returned. Money never routes to an individual.',
+                ]],
+                ['p' => 'While that is in progress your status is <strong>draft</strong> and your public '
+                      . 'pages are not live. This is slower than a sign-up button on purpose: an '
+                      . 'unvetted organisation taking money through these rails is a risk to every '
+                      . 'other organisation on them.'],
+                ['note' => 'We can suspend an organisation later if something changes, and the reason '
+                         . 'is recorded. It is not a silent switch.'],
+            ],
+        ],
+        [
+            'slug' => 'when-our-money-arrives',
+            'audience' => ['organisation'],
+            'cat'  => 'organisations',
+            'title' => 'When your money arrives, and what Africa GATES takes',
+            'summary' => 'Gifts settle to your own account. Our fee is agreed in advance and comes out of the gift; a donor tip is added on top and never comes out of yours.',
+            'keywords' => ['payout', 'settlement', 'when do we get paid', 'platform fee', 'our cut',
+                           'commission', 'withdraw', 'minimum payout', 'subaccount', 'tip'],
+            'body' => [
+                ['p' => 'Gifts to your appeal settle into <strong>your own account</strong>, not ours. '
+                      . 'We hold a settlement destination for your organisation with the payment '
+                      . 'provider, resolved against your CAC name when you were verified.'],
+                ['p' => 'Two separate amounts get confused constantly, so here they are apart:'],
+                ['steps' => [
+                    '<strong>The platform fee</strong> is the cut agreed with you before you went live. '
+                        . 'It comes <em>out of</em> the gift, and it is the same percentage on every '
+                        . 'gift until it is renegotiated. Your console shows it on each donation.',
+                    '<strong>A donor’s tip to Africa GATES</strong> is <em>added on top</em> of what '
+                        . 'they gave you, never taken from it. It is off by default, the donor has to '
+                        . 'choose it, and it is capped. You receive exactly the number the donor typed '
+                        . 'for you whether the tip is zero or the largest we allow.',
+                ]],
+                ['p' => 'You request a payout from the payouts section of your console. The smallest '
+                      . 'payout is <strong>₦{min_payout}</strong>, and only an account owner can '
+                      . 'request one — not every user you have added.'],
+                ['note' => 'A payout has more than one non-final state on the way through: in flight, '
+                         . 'awaiting approval, waiting on a one-time code. Your console names the state '
+                         . 'rather than showing a spinner, because "not yet" and "failed" need '
+                         . 'different actions from you.'],
+            ],
+        ],
+        [
+            'slug' => 'your-organisation-console',
+            'audience' => ['organisation'],
+            'cat'  => 'organisations',
+            'title' => 'Getting into your organisation console',
+            'summary' => 'It is a separate sign-in from a member account, on purpose.',
+            'keywords' => ['org login', 'partner login', 'organisation sign in', 'vendor dashboard',
+                           'cannot find dashboard', 'console', 'where do i log in'],
+            'body' => [
+                ['p' => 'Your console is at <a href="/org">africagates.org/org</a>. Sign in there with '
+                      . 'the address you gave us when you applied.'],
+                ['p' => 'It is a <strong>different sign-in from a personal member account</strong>, and '
+                      . 'deliberately so: an organisation console can move money, and a shared front '
+                      . 'door is the thing that makes one of these a target. Having a member account '
+                      . 'does not sign you into your organisation, and it should not.'],
+                ['p' => 'The console holds your documents, your applications, your donations, your '
+                      . 'appeals, your payouts and the fee on each gift.'],
+                ['note' => 'Only an account owner can request a payout. Add colleagues as users so they '
+                         . 'can see the money and run the appeals without being able to move it.'],
+            ],
+        ],
+
         // ── PRIVACY ──────────────────────────────────────────────────────────
         [
             'slug' => 'what-data-do-you-keep',
+            'audience' => ['supporter', 'nominee'],
             'cat'  => 'privacy',
             'title' => 'What do you do with my email address?',
             'summary' => 'Voting emails are hashed, not stored. Payment emails are, because of receipts.',
@@ -1015,6 +1358,7 @@ final class HelpCentre
         ],
         [
             'slug' => 'is-my-card-safe',
+            'audience' => ['supporter'],
             'cat'  => 'privacy',
             'title' => 'Is my card safe? Do you store card details?',
             'summary' => 'We never see them. Your card goes straight to the payment provider.',
@@ -1227,15 +1571,22 @@ final class HelpCentre
         foreach (array_keys($picked) as $slug) {
             $a = self::bySlug((string) $slug);
             if ($a === null) continue;
-            $cat = self::CATEGORIES[$a['cat']] ?? ['title' => '', 'tint' => '#eef2ef', 'fg' => '#39464a'];
+            $cat = self::CATEGORIES[$a['cat']] ?? ['title' => ''];
             $out[] = [
                 'slug'     => (string) $a['slug'],
                 'title'    => (string) $a['title'],
                 'summary'  => (string) $a['summary'],
                 'url'      => self::url((string) $a['slug']),
+                // ── NO TINT, AND THE TOPIC IS WHY ───────────────────────────
+                //
+                // Each category used to carry a hand-picked ground and ink, rendered as a
+                // coloured chip on the assistant's article previews — a pink pill at the
+                // top of a payments answer for no reason a reader could act on. The topic
+                // is a LABEL here, not a status, and `help-article.twig` had already
+                // reached that conclusion and replaced its own pill with a mono kicker.
+                // The assistant was the last surface still tinting, so the six hand-picked
+                // pairs were funding one chip on one screen.
                 'category' => (string) $cat['title'],
-                'tint'     => (string) $cat['tint'],
-                'fg'       => (string) $cat['fg'],
                 // Lets the UI say "I used this" rather than "you might also want",
                 // which are different claims and should not look identical.
                 'cited'    => in_array((string) $a['slug'], $cited, true),
@@ -1398,6 +1749,12 @@ final class HelpCentre
         } catch (\Throwable) {}
 
         return [
+            // Read from the service that REFUSES a smaller payout, not typed. The article
+            // that states this figure is the one an organisation's finance officer plans
+            // around, and a number in prose outlives the rule it describes — which is why
+            // HelpCentreTest refuses a naira figure written into an article at all.
+            '{min_payout}' => number_format(\AfricaGates\Services\OrgPayout::MIN_NAIRA),
+
             '{price}'   => $price,
             '{max_qty}' => $maxQty,
             '{cutoff}'  => $cutoff,
