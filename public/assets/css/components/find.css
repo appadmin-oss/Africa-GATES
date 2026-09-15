@@ -1,0 +1,148 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   "WHO ARE YOU LOOKING FOR?" — the find band
+   ═══════════════════════════════════════════════════════════════════════════
+
+   See partials/find-band.twig for why this is a door onto the existing search
+   rather than a second search.
+
+   ── NO COLOUR, AND THAT IS THE BUDGET ─────────────────────────────────────
+
+   Paper, ink, a hairline and weight. The band's whole job is a question and a
+   field, and a tinted call-to-action here would be the third competing accent
+   on a homepage that already carries a hero and a globe. Colour on this site
+   comes from Support\Accent and is spent where it means something; a search
+   box is not one of those places. The focus ring is the one exception and it
+   is an ACCESSIBILITY requirement rather than a decision — see below.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.fb {
+  border-top: 1px solid var(--ag-line, #d6d4cc);
+  border-bottom: 1px solid var(--ag-line, #d6d4cc);
+  background: var(--ag-ground, #f0f2f2);
+}
+
+.fb__in {
+  max-width: 760px;
+  margin: 0 auto;
+  /* `padding-block`, never the shorthand: this element carries the page gutter and
+     `padding: 64px 0` would zero it, running the field flush to both screen edges on
+     a phone. GutterShorthandTest holds it. */
+  padding-block: clamp(44px, 7vw, 76px);
+  padding-inline: var(--ag-gutter, 32px);
+  text-align: center;
+}
+
+.fb--compact .fb__in { padding-block: clamp(28px, 4vw, 40px); }
+
+/* ── the question ── */
+.fb__q {
+  margin: 0 0 clamp(18px, 2.4vw, 26px);
+  font-family: var(--ag-font-display, Georgia, serif);
+  font-weight: 700;
+  /* Clamped rather than fixed so it survives 200% text zoom and a 320px phone
+     without either wrapping to four lines or overflowing the gutter. */
+  font-size: clamp(1.5rem, 4.2vw, 2.15rem);
+  line-height: 1.1;
+  letter-spacing: -.02em;
+  color: var(--ag-ink, #10292c);
+  text-wrap: balance;
+}
+
+/* ── the field ── */
+.fb__form {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  max-width: 560px;
+  margin: 0 auto;
+  /* Without this a flex item's min-width is its MIN-CONTENT width, so a long
+     placeholder makes the row wider than the screen and the page scrolls sideways
+     with nothing visibly wrong. */
+  min-width: 0;
+}
+
+.fb__mag {
+  position: absolute;
+  left: 16px;
+  /* Anchored to the TOP, not left to its static position.
+     An absolutely positioned box with no `top` sits where it would have been in flow —
+     and below 520px this row wraps so the button can take its own line, which put the
+     magnifier on the SECOND line, floating under the field it belongs inside. It looked
+     like a stray dot on the phone and was correct on the desktop, so nothing about
+     either rule read as wrong.
+     15px = (48px field − 18px icon) ÷ 2, and the field is the first row at every width,
+     so this is centred on it whether the row wraps or not. */
+  top: 15px;
+  color: var(--ag-ink-soft, #626a6e);
+  pointer-events: none;
+}
+
+.fb__input {
+  flex: 1 1 auto;
+  min-width: 0;
+  /* 48px. The 24×24 floor is the AA minimum for any target; this is the primary
+     control of the band and is used most on a phone, one-handed. */
+  min-height: 48px;
+  padding: 0 16px 0 44px;
+  border: 1px solid var(--ag-line-strong, #c9c6bc);
+  border-radius: 999px;
+  background: var(--ag-card, #fff);
+  font: 400 15px/1 var(--ag-font-body, system-ui);
+  color: var(--ag-ink, #10292c);
+}
+
+.fb__input::placeholder { color: var(--ag-ink-soft, #626a6e); opacity: 1; }
+.fb__input:hover { border-color: var(--ag-ink-soft, #626a6e); }
+
+/* A visible focus ring, 3px, offset so it is not swallowed by the pill's own
+   border — WCAG 2.4.7, and 2.4.11 is why nothing sticky may cover this band. */
+.fb__input:focus-visible,
+.fb__go:focus-visible {
+  outline: 3px solid var(--ag-action-edge, #237b22);
+  outline-offset: 2px;
+}
+.fb__input:focus-visible { border-color: var(--ag-ink, #10292c); }
+
+.fb__go {
+  flex: none;
+  min-height: 48px;
+  min-width: 48px;
+  padding: 0 22px;
+  border: 1px solid var(--ag-ink, #10292c);
+  border-radius: 999px;
+  background: var(--ag-ink, #10292c);
+  color: var(--ag-card, #fff);
+  font: 600 14.5px/1 var(--ag-font-body, system-ui);
+  cursor: pointer;
+}
+.fb__go:hover { background: var(--ag-ink-2, #3a4a4c); border-color: var(--ag-ink-2, #3a4a4c); }
+
+/* ── what it covers, and the promise ── */
+.fb__note {
+  max-width: 480px;
+  margin: 16px auto 0;
+  font-size: 12.5px;
+  line-height: 1.55;
+  color: var(--ag-ink-soft, #626a6e);
+  text-wrap: pretty;
+}
+
+/* The promise is its own sentence on its own line: it is the one claim on this band
+   that a test is holding, and running it into the list of sources reads as a caveat
+   rather than as a guarantee. `display:block` rather than a <br>, so it re-flows. */
+.fb__promise { display: block; margin-top: 3px; color: var(--ag-ink-2, #3a4a4c); }
+
+@media (max-width: 520px) {
+  /* The button drops below the field rather than squeezing it: at 320px a side-by-side
+     row leaves the input about 150px wide, which is too narrow to read back what you
+     typed. Both keep their 48px height. */
+  .fb__form { flex-wrap: wrap; }
+  .fb__input { flex-basis: 100%; }
+  .fb__go { flex: 1 1 100%; }
+}
+
+/* The minimum-length hint, where a page sets one. Its own line above the coverage
+   sentence: it is an instruction about using the field, not a claim about what the
+   field holds, and running the two together makes the promise read as a footnote. */
+.fb__min { display: block; margin-bottom: 4px; }

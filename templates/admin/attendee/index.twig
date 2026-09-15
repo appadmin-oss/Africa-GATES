@@ -1,0 +1,201 @@
+{% extends "admin/layout.twig" %}
+{% block topbar_eyebrow %}<small>System</small>{% endblock %}
+{% block topbar_title %}Interview bot{% endblock %}
+{% block topbar_actions %}
+  <a class="ad-btn" href="/admin/interviews">← Interviews</a>
+{% endblock %}
+
+{% block content %}
+
+<p style="margin:0 0 14px;font-size:13.5px;color:var(--ad-text-mute,#5a6d6f)">
+  The bot that sits in a judging interview, records it and hands the panel a transcript. It
+  runs on <a href="https://attendee.dev" target="_blank" rel="noopener noreferrer" style="color:var(--ad-accent,#237b22);font-weight:600">Attendee</a>,
+  which you can use hosted or run yourself.
+  {% if configured %}
+    Currently pointed at <strong>{{ report.attendee_base_url.value ?: hosted_base }}</strong>{% if self_hosted %} (your own instance){% endif %}.
+  {% else %}
+    <strong>Not configured yet</strong>, so no interview is being recorded.
+  {% endif %}
+</p>
+
+{# ── THE TEST RESULT, WHEN THERE IS ONE ─────────────────────────────────────
+   First on the page after a test, because it is what the operator just asked for and it
+   is the thing that tells them whether anything below needs changing. #}
+{% if test %}
+<div class="ad-card">
+  <div class="ad-card__head"><div class="ad-card__title"
+       style="color:{{ test.level == 'ok' ? 'var(--ad-accent,#237b22)' : (test.level == 'warn' ? 'var(--ad-warn,#a5610c)' : 'var(--ad-danger,#a4243d)') }}">
+    {{ test.level == 'ok' ? 'Connected' : (test.level == 'warn' ? 'Connected, with warnings' : 'Not working') }}
+    <small>{{ test.message }}</small>
+  </div></div>
+  <div class="ad-table-wrap">
+    <table class="ad-table">
+      <thead><tr><th scope="col">Check</th><th scope="col">Result</th></tr></thead>
+      <tbody>
+        {% for c in test.checks %}
+        <tr>
+          <td><strong>{{ c.name }}</strong></td>
+          <td>
+            {% if c.ok %}<span class="ad-chip ad-chip--green">ok</span>
+            {% else %}<span class="ad-chip ad-chip--red">problem</span>{% endif %}
+            <span style="margin-left:8px;font-size:12.5px;color:var(--ad-text-soft)">{{ c.detail }}</span>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endif %}
+
+{# ── SETTINGS ─────────────────────────────────────────────────────────────── #}
+<form class="ad-form" method="post" action="/admin/attendee">
+  <input type="hidden" name="_token" value="{{ csrf_token }}">
+  <div class="ad-card">
+    <div class="ad-card__head"><div class="ad-card__title">Connection
+      <small>Saved here rather than in a <code>.env</code> file, because this host has no shell. A value saved here wins over the environment variable of the same name.</small>
+    </div></div>
+    <div class="ad-card__body"><div class="ad-form">
+
+      {# ── THE KEY ─────────────────────────────────────────────────────────
+         Write-only, like every provider key in Settings. Never rendered back: the screen
+         shows enough of it to recognise, and no more. #}
+      <div>
+        <label for="at-key">API key</label>
+        <input type="password" name="attendee_api_key" id="at-key" autocomplete="off"
+               placeholder="{{ report.attendee_api_key.value ? 'Currently ' ~ report.attendee_api_key.value ~ ' — leave blank to keep it' : 'Paste the key from your Attendee instance' }}">
+        <p class="hint">
+          {% if report.attendee_api_key.source == 'env' %}
+            Currently coming from the <code>{{ report.attendee_api_key.env }}</code> environment variable.
+            Anything you save here takes over from it.
+          {% elseif report.attendee_api_key.source == 'settings' %}
+            Stored here.
+            {% if report.attendee_api_key.shadowed_env %}There is also a <code>{{ report.attendee_api_key.env }}</code>
+            in the environment ({{ report.attendee_api_key.shadowed_env }}); it is not being used.{% endif %}
+            Leave the box blank to keep it — it is never shown back in full.
+          {% else %}
+            Not set anywhere. Nothing can be recorded without it.
+          {% endif %}
+        </p>
+        {% if report.attendee_api_key.source == 'settings' %}
+        <label class="checkbox" style="margin-top:6px"><input type="checkbox" name="clear[attendee_api_key]" value="1">
+          Remove the stored key{% if report.attendee_api_key.shadowed_env %} (falls back to the environment variable){% endif %}</label>
+        {% endif %}
+      </div>
+
+      <div class="row">
+        <div>
+          <label for="at-base">Base URL</label>
+          <input type="url" name="attendee_base_url" id="at-base"
+                 value="{{ report.attendee_base_url.source == 'settings' ? report.attendee_base_url.value : '' }}"
+                 placeholder="{{ hosted_base }}">
+          <p class="hint">
+            Blank uses the hosted service at <code>{{ hosted_base }}</code>. Point it at your own
+            box to self-host. Must be <code>https://</code> — redirects are deliberately not
+            followed, because following one would replay your key to wherever it points.
+            {% if report.attendee_base_url.source == 'env' %}<br>Currently from <code>{{ report.attendee_base_url.env }}</code>.{% endif %}
+          </p>
+        </div>
+        <div>
+          <label for="at-name">Bot display name</label>
+          <input type="text" name="attendee_bot_name" id="at-name" maxlength="120"
+                 value="{{ report.attendee_bot_name.source == 'settings' ? report.attendee_bot_name.value : '' }}"
+                 placeholder="{{ settings.attendee_bot_name.default }}">
+          <p class="hint">What the other people in the meeting see in the participant list.</p>
+        </div>
+      </div>
+    </div></div>
+  </div>
+
+  <div class="ad-card">
+    <div class="ad-card__head"><div class="ad-card__title">What the bot does in the room
+      <small>All optional. The defaults are what a judging interview should probably do.</small>
+    </div></div>
+    <div class="ad-card__body"><div class="ad-form">
+
+      <div>
+        <label for="at-notice">Notice posted on joining</label>
+        <input type="text" name="attendee_join_notice" id="at-notice" maxlength="500"
+               value="{{ report.attendee_join_notice.source == 'settings' ? report.attendee_join_notice.value : '' }}"
+               placeholder="{{ settings.attendee_join_notice.default }}">
+        {# `none` and not a blank box, because a blank stored value falls back to the
+           default — so clearing the field CANNOT turn the notice off. Saying so here is
+           the only thing that stops somebody clearing it and believing they have. #}
+        <p class="hint">Type <code>none</code> to join silently. Clearing the box restores the
+          default rather than switching it off. Emoji are stripped — Attendee's chat endpoint
+          rejects them and losing the whole announcement over a decoration would be a poor trade.</p>
+      </div>
+
+      <div class="row">
+        <div>
+          <label for="at-stt">Transcription model</label>
+          <input type="text" name="attendee_stt_model" id="at-stt" maxlength="80"
+                 value="{{ report.attendee_stt_model.source == 'settings' ? report.attendee_stt_model.value : '' }}"
+                 placeholder="{{ settings.attendee_stt_model.default }}">
+          <p class="hint">Needs an OpenAI key set in <a href="/admin/settings" style="color:var(--ad-accent,#237b22)">Settings</a>.
+            Without one the bot falls back to the meeting platform's own captions — worse, but
+            not silent.</p>
+        </div>
+        <div>
+          <label for="at-img">Bot avatar</label>
+          <input type="text" name="attendee_bot_image" id="at-img" maxlength="400"
+                 value="{{ report.attendee_bot_image.source == 'settings' ? report.attendee_bot_image.value : '' }}"
+                 placeholder="/home/you/public_html/assets/img/logo-mark.png">
+          <p class="hint">A server path to a PNG or JPEG under 1.5MB. Leave blank for no picture.</p>
+        </div>
+      </div>
+    </div></div>
+    <div class="ad-card__body" style="padding-top:0"><div class="ad-form__actions" style="justify-content:flex-end">
+      <button class="ad-btn ad-btn--primary" type="submit">Save</button>
+    </div></div>
+  </div>
+</form>
+
+{# ── TEST ─────────────────────────────────────────────────────────────────── #}
+<div class="ad-card">
+  <div class="ad-card__head"><div class="ad-card__title">Test the connection
+    <small>Reads the bot list. It creates nothing and puts no bot in any meeting.</small>
+  </div>
+  <form method="post" action="/admin/attendee/test">
+    <input type="hidden" name="_token" value="{{ csrf_token }}">
+    <button class="ad-btn{% if not test %} ad-btn--primary{% endif %}" type="submit">Test now</button>
+  </form>
+  </div>
+  <div class="ad-card__body">
+    <p style="margin:0;font-size:13px;color:var(--ad-text-soft)">
+      Everything that can be checked without the network is checked first, so a missing key
+      or an <code>http://</code> base URL is never reported as “the host is unreachable”.
+    </p>
+  </div>
+</div>
+
+{# ── WHERE EACH VALUE IS COMING FROM ──────────────────────────────────────── #}
+<details class="ad-card">
+  <summary class="ad-card__head" style="cursor:pointer"><div class="ad-card__title">Where each value comes from
+    <small>Open this when a value on the screen is not the one you expected.</small>
+  </div></summary>
+  <div class="ad-table-wrap">
+    <table class="ad-table">
+      <thead><tr><th scope="col">Setting</th><th scope="col">Source</th><th scope="col">In force</th></tr></thead>
+      <tbody>
+        {% for key, r in report %}
+        <tr>
+          <td><strong>{{ r.label }}</strong><br><span style="font-size:11.5px;color:var(--ad-text-mute)"><code>{{ r.env }}</code></span></td>
+          <td>
+            {% if r.source == 'settings' %}<span class="ad-chip ad-chip--green">saved here</span>
+            {% elseif r.source == 'env' %}<span class="ad-chip ad-chip--blue">environment</span>
+            {% elseif r.source == 'default' %}<span class="ad-chip ad-chip--grey">default</span>
+            {% else %}<span class="ad-chip ad-chip--red">not set</span>{% endif %}
+          </td>
+          <td style="font-size:12.5px;color:var(--ad-text-soft);word-break:break-all">
+            {{ r.value ?: '—' }}
+            {% if r.shadowed_env %}<br><span style="color:var(--ad-text-mute)">environment says {{ r.shadowed_env }} — not used</span>{% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</details>
+
+{% endblock %}

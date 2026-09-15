@@ -1,0 +1,169 @@
+{% extends "admin/layout.twig" %}
+{% block topbar_title %}Support tickets{% endblock %}
+
+{#
+  THE QUEUE.
+
+  Ordered by LAST ACTIVITY, not by creation — a ticket somebody replied to an hour
+  ago is live, and a three-week-old one nobody has touched is a different problem.
+  Sorting by created_at, the obvious choice, buries every active conversation under
+  the backlog.
+
+  A table, not cards. Thirty rows scanned for "which of these is oldest and still
+  unanswered" is exactly what a table is for, and a card grid makes that comparison
+  impossible by putting the timestamps in different places on every row.
+#}
+
+{% block head_styles %}
+<style nonce="{{ csp_nonce }}">
+  .sq-tabs{ display:flex; gap:8px; flex-wrap:wrap; margin-bottom:16px; }
+  .sq-tab{ display:inline-flex; align-items:center; gap:7px; padding:8px 15px; border-radius:999px;
+    border:1px solid rgba(16,41,44,.14); background:#fff; color:#4a5256; text-decoration:none;
+    font-size:13px; font-weight:600; }
+  .sq-tab.is-on{ background:#10292C; border-color:#10292C; color:#fff; }
+  .sq-tab span{ font-size:11.5px; opacity:.75 }
+
+  .sq-search{ display:flex; gap:8px; margin-bottom:16px; }
+  .sq-search input{ flex:1; max-width:340px; border:1px solid rgba(16,41,44,.16); border-radius:10px;
+    padding:10px 13px; font-family:inherit; font-size:13.5px; outline:none; }
+  .sq-search input:focus{ border-color:#3f9c3c }
+  .sq-search button{ cursor:pointer; border:none; background:#10292C; color:#fff; font-family:inherit;
+    font-weight:600; font-size:13.5px; padding:10px 18px; border-radius:10px; }
+
+  .sq-wrap{ background:#fff; border:1px solid rgba(16,41,44,.09); border-radius:14px; overflow:hidden; }
+  /* The table scrolls inside its own box. The page body must never scroll
+     sideways, and a reference plus a subject plus three timestamps will exceed a
+     laptop at some zoom level. */
+  .sq-scroll{ overflow-x:auto; }
+  table.sq{ width:100%; border-collapse:collapse; min-width:760px; }
+  .sq th{ text-align:left; font:600 10.5px/1 var(--ag-font-body,inherit); letter-spacing:.08em;
+    text-transform:uppercase; color:#5a6d6f; padding:12px 14px; background:#f7f9f7;
+    border-bottom:1px solid rgba(16,41,44,.09); white-space:nowrap; }
+  .sq td{ padding:13px 14px; border-bottom:1px solid rgba(16,41,44,.06); font-size:13.5px; color:#39464a; vertical-align:top; }
+  .sq tr:last-child td{ border-bottom:none }
+  .sq tr:hover td{ background:#fafcfa }
+  .sq__ref{ font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-size:12px; white-space:nowrap; color:#5a6d6f; }
+  .sq__subj{ font-weight:600; color:#10292C; }
+
+  /* ── The row opens the ticket ──────────────────────────────────────────
+     `position:relative` on the row plus a stretched pseudo-element on the
+     subject's anchor. One link per row — the reference is now plain text — so
+     the keyboard gets a single tab stop and a screen reader reads one
+     destination, while the pointer gets the whole row. */
+  .sq__row{ position:relative; transition:background-color .12s linear; }
+  .sq__row:hover{ background:#f4f8f4; }
+  .sq__row:has(.sq__go:focus-visible){ background:#eef6ee; outline:2px solid #177015; outline-offset:-2px; }
+  .sq__go{ color:#10292C; text-decoration:none; text-decoration-color:rgba(23,112,21,.4); }
+  .sq__go::after{ content:""; position:absolute; inset:0; }
+  .sq__go:hover{ text-decoration:underline; }
+  .sq__open{ text-align:right; white-space:nowrap; }
+  /* Visible at rest, not only on hover. The whole reason this exists is that
+     somebody could not find how to open a ticket — an affordance you have to
+     discover by hovering is the same failure with an extra step. */
+  .sq-open{ font-size:12.5px; font-weight:600; color:#177015; opacity:.6; transition:opacity .12s linear; }
+  .sq__row:hover .sq-open{ opacity:1; }
+  .sr-only{ position:absolute; width:1px; height:1px; padding:0; margin:-1px; overflow:hidden;
+            clip:rect(0 0 0 0); white-space:nowrap; border:0; }
+  .sq__who{ font-size:12px; color:#5a6d6f; margin-top:3px; }
+  .sq__when{ white-space:nowrap; font-size:12.5px; color:#5a6d6f; }
+
+  .sq-pill{ display:inline-block; font:700 10px/1 var(--ag-font-body,inherit); letter-spacing:.05em;
+    text-transform:uppercase; padding:5px 9px; border-radius:999px; white-space:nowrap; }
+  .sq-pill--open{ background:#fff8df; color:#7a5600 }
+  .sq-pill--answered{ background:#e8f1f7; color:#1c5a86 }
+  .sq-pill--resolved{ background:#eef7ee; color:#1a6118 }
+  /* Severity is the one thing that must survive a fast scan of thirty rows. */
+  .sq-pill--urgent{ background:#fdf3f3; color:#8a2020 }
+
+  .sq-empty{ padding:44px 20px; text-align:center; color:#5a6d6f; font-size:14px; }
+  .sq-page{ display:flex; align-items:center; justify-content:space-between; gap:12px; margin-top:14px; font-size:13px; color:#5a6d6f; }
+  .sq-page a{ color:#177015; text-decoration:none; font-weight:600 }
+</style>
+{% endblock %}
+
+{% block content %}
+
+<div class="sq-tabs">
+  {% for key, label in {'open':'Open','answered':'Answered','resolved':'Resolved','all':'All'} %}
+    <a class="sq-tab {% if status == key %}is-on{% endif %}" href="/admin/support?status={{ key }}">
+      {{ label }} <span>{{ counts[key]|default(0) }}</span>
+    </a>
+  {% endfor %}
+</div>
+
+<form class="sq-search" method="get" action="/admin/support">
+  <input type="hidden" name="status" value="{{ status }}">
+  <input type="search" name="q" value="{{ q }}" placeholder="Reference, subject, name or email…" aria-label="Search support tickets">
+  <button type="submit">Search</button>
+  {% if q %}<a class="sq-tab" href="/admin/support?status={{ status }}">Clear</a>{% endif %}
+</form>
+
+<div class="sq-wrap">
+  {% if tickets %}
+    <div class="sq-scroll">
+      <table class="sq">
+        <thead>
+          <tr>
+            <th>Support ticket</th>
+            <th>Subject</th>
+            <th>Status</th>
+            <th>Replies</th>
+            <th>Last activity</th>
+            <th>Opened</th>
+            <th><span class="sr-only">Open support ticket</span></th>
+          </tr>
+        </thead>
+        <tbody>
+          {# ── THE WHOLE ROW IS THE TARGET ──────────────────────────────────
+             Only the reference was a link, which is a six-character word in a
+             monospace column that does not look like one. Somebody who came here
+             to answer tickets could not work out how to open one — and a queue
+             you cannot get into is a queue nobody clears.
+
+             The row is made clickable by a stretched overlay on the subject's
+             own anchor, so there is still exactly ONE link per row for a screen
+             reader and for the keyboard, and the destination is the subject
+             rather than the reference. The explicit Open button is there because
+             a discoverable affordance should not depend on hovering. #}
+          {% for t in tickets %}
+            <tr class="sq__row">
+              <td class="sq__ref">{{ t.reference }}</td>
+              <td>
+                <div class="sq__subj">
+                  <a class="sq__go" href="/admin/support/{{ t.reference }}">{{ t.subject }}</a>
+                </div>
+                <div class="sq__who">
+                  {{ t.name ?: 'Someone' }}{% if t.email %} · {{ t.email }}{% endif %}
+                  {% if t.severity == 'urgent' %}
+                    &nbsp;<span class="sq-pill sq-pill--urgent">urgent</span>
+                  {% endif %}
+                </div>
+              </td>
+              <td><span class="sq-pill sq-pill--{{ t.status }}">{{ t.status }}</span></td>
+              <td>{{ replies[t.id]|default(0) }}</td>
+              <td class="sq__when">{{ t.last_activity ?: '—' }}</td>
+              <td class="sq__when">{{ t.created_at }}</td>
+              <td class="sq__open"><span class="sq-open" aria-hidden="true">Open &rarr;</span></td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  {% else %}
+    <div class="sq-empty">
+      {% if q %}Nothing matches “{{ q }}”.{% else %}No {{ status == 'all' ? '' : status }} support tickets.{% endif %}
+    </div>
+  {% endif %}
+</div>
+
+{% if pages > 1 %}
+  <div class="sq-page">
+    <span>Page {{ page }} of {{ pages }} · {{ total }} support ticket{{ total == 1 ? '' : 's' }}</span>
+    <span>
+      {% if page > 1 %}<a href="/admin/support?status={{ status }}&q={{ q|url_encode }}&page={{ page - 1 }}">← Previous</a>{% endif %}
+      {% if page < pages %}&nbsp;&nbsp;<a href="/admin/support?status={{ status }}&q={{ q|url_encode }}&page={{ page + 1 }}">Next →</a>{% endif %}
+    </span>
+  </div>
+{% endif %}
+
+{% endblock %}

@@ -1,0 +1,278 @@
+{% extends 'admin/layout.twig' %}
+
+{#
+  THE CONSOLE — open on a laptop beside a live video call, with a nervous person on the
+  other end. Every decision here follows from that one fact.
+
+    • ONE QUESTION AT A TIME, LARGE. An interviewer glancing down must find their place in
+      under a second. A list of twelve questions in body text does not survive eye contact
+      with a person who has just stopped talking.
+
+    • THE CRITERION IS PRINTED ON THE QUESTION. This is what makes it a judging interview
+      rather than a chat: the interviewer can see that they are three questions in with
+      nothing on Integrity yet.
+
+    • THE NOTE BOX SAVES WITHOUT A PAGE LOAD. A full reload mid-answer loses the room —
+      the interviewer looks away, the nominee stops, the moment goes. It posts JSON and
+      says "saved" quietly.
+
+    • NOTHING DESTRUCTIVE IS ON THIS SCREEN. No cancel, no delete, no publish. Those live
+      on the detail page, at a desk. Scrolling past "cancel this interview" while somebody
+      is mid-sentence is how the wrong button gets pressed.
+
+    • AND NO SCORING. Not a slider, not a star, not a number. Scores are written by judges
+      on their own ballot, from the evidence, after the call — never in the room while the
+      nominee is still talking and the panel is still being charmed or unimpressed.
+
+  The x-model state is deliberately tiny: an index and a per-question note map. Everything
+  else is server-rendered, so a dropped connection loses the current note and nothing else.
+#}
+
+{% set b = iv.brief %}
+{% set qs = b.questions ?? [] %}
+
+{% block head_styles %}
+<style nonce="{{ csp_nonce }}">
+  .rn{ max-width:none }
+  .rn-top{ display:flex; justify-content:space-between; align-items:center; gap:14px;
+    flex-wrap:wrap; margin-bottom:14px }
+  .rn-who{ font-size:19px; font-weight:700; color:#10292C; margin:0 }
+  .rn-who small{ display:block; font-size:12.5px; font-weight:400; color:#5a6d6f; margin-top:3px }
+  .rn-join{ background:#10292C; color:#fff; text-decoration:none; border-radius:999px;
+    padding:11px 20px; font:700 13.5px/1 inherit }
+  .rn-join--off{ background:none; border:1px solid rgba(16,41,44,.2); color:#8a2020 }
+
+  /* consent, and it is the first thing on the screen when it is missing */
+  .rn-consent{ border-radius:12px; padding:13px 16px; font-size:13px; line-height:1.65;
+    margin-bottom:14px }
+  .rn-consent--ok{ background:#f2faf2; border:1px solid #cbe6c9; color:#265825 }
+  .rn-consent--no{ background:#fdf3f3; border:1px solid #f0c9c9; color:#8a2020 }
+
+  .rn-wrap{ display:grid; gap:16px; grid-template-columns:minmax(0,1fr) 19rem; align-items:start }
+
+  .rn-card{ background:#fff; border:1px solid rgba(16,41,44,.1); border-radius:16px; padding:22px 24px }
+  .rn-crit{ display:inline-block; font-size:11px; font-weight:700; letter-spacing:.07em;
+    text-transform:uppercase; color:#1c5f1b; background:#eaf7ea; border-radius:999px; padding:5px 12px }
+  .rn-crit--claim{ color:#6b5312; background:#fff4d6 }
+  .rn-q{ margin:14px 0 0; font-size:21px; line-height:1.45; font-weight:600; color:#10292C;
+    letter-spacing:-.01em }
+  .rn-why{ margin:12px 0 0; font-size:12.5px; line-height:1.7; color:#67797b;
+    border-left:3px solid rgba(16,41,44,.12); padding-left:11px }
+  .rn-probe{ margin:14px 0 0; padding:0; list-style:none; display:flex; flex-wrap:wrap; gap:7px }
+  .rn-probe li{ font-size:12.5px; color:#3d5254; background:#f4f7f4;
+    border:1px solid rgba(16,41,44,.08); border-radius:999px; padding:6px 12px }
+
+  .rn-note{ width:100%; box-sizing:border-box; margin-top:16px; font:inherit; font-size:14.5px;
+    line-height:1.6; color:#10292C; border:1px solid rgba(16,41,44,.18); border-radius:12px;
+    padding:12px 14px; min-height:104px; resize:vertical }
+  .rn-note:focus{ outline:none; border-color:#237b22; box-shadow:0 0 0 3px rgba(35,123,34,.12) }
+  .rn-flags{ display:flex; gap:7px; flex-wrap:wrap; margin-top:10px }
+  .rn-flag{ cursor:pointer; font:600 12px/1 inherit; border:1px solid rgba(16,41,44,.18);
+    background:#fff; color:#3d5254; border-radius:999px; padding:8px 13px }
+  .rn-flag[aria-pressed="true"]{ background:#10292C; color:#fff; border-color:#10292C }
+  .rn-bar{ display:flex; gap:9px; align-items:center; margin-top:16px; flex-wrap:wrap }
+  .rn-btn{ cursor:pointer; font:650 13.5px/1 inherit; border:none; padding:12px 20px;
+    border-radius:999px; background:#237b22; color:#fff }
+  .rn-btn--ghost{ background:none; border:1px solid rgba(16,41,44,.2); color:#10292C }
+  .rn-btn:disabled{ opacity:.5; cursor:default }
+  .rn-said{ font-size:12px; color:#237b22; font-weight:600 }
+
+  /* the rail: where we are, and what is still uncovered */
+  .rn-rail{ display:grid; gap:12px; position:sticky; top:14px }
+  .rn-mini{ background:#fff; border:1px solid rgba(16,41,44,.1); border-radius:14px; padding:15px 16px }
+  .rn-mini h3{ margin:0 0 9px; font:700 10.5px/1 var(--ag-font-body,inherit); letter-spacing:.08em;
+    text-transform:uppercase; color:#5a6d6f }
+  .rn-cov{ display:grid; gap:6px }
+  .rn-cov__r{ display:flex; justify-content:space-between; gap:10px; font-size:12.5px; color:#3d5254 }
+  .rn-cov__r b{ font-weight:700 }
+  .rn-cov__r--no b{ color:#8a2020 }
+  .rn-cov__r--ok b{ color:#237b22 }
+  .rn-list{ display:grid; gap:3px; margin:0; padding:0; list-style:none; max-height:15rem; overflow:auto }
+  .rn-list button{ width:100%; text-align:left; cursor:pointer; font:inherit; font-size:12.5px;
+    line-height:1.5; background:none; border:none; border-radius:8px; padding:7px 9px; color:#3d5254 }
+  .rn-list button:hover{ background:#f4f7f4 }
+  .rn-list button[aria-current="true"]{ background:#10292C; color:#fff }
+  .rn-list .done{ color:#237b22 }
+  .rn-open{ font-size:12px; line-height:1.65; color:#5a6d6f }
+  .rn-open a{ color:#237b22; font-weight:600 }
+  .rn-warn{ background:#fff8df; border:1px solid #ecd9a0; border-radius:10px; padding:11px 13px;
+    font-size:12px; line-height:1.6; color:#6b5312 }
+  @media (max-width:900px){ .rn-wrap{ grid-template-columns:minmax(0,1fr) } .rn-rail{ position:static } }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="rn"
+     x-data='{
+       i: 0,
+       notes: {{ (iv.answers|reduce((acc, a) => acc|merge({ (a.key): {note: a.note, flag: a.flag} }), {}))|json_encode }},
+       saving: false,
+       saved: "",
+       get key(){ return this.qs[this.i]?.key || "" },
+       qs: {{ qs|json_encode }},
+       note(){ return this.notes[this.key]?.note || "" },
+       flag(){ return this.notes[this.key]?.flag || "" },
+       set(v){ this.notes[this.key] = Object.assign({note:"",flag:""}, this.notes[this.key], v) },
+       done(k){ return (this.notes[k]?.note || "").trim().length > 0 },
+       covered(c){ return this.qs.some((q,ix) => q.criterion === c && this.done(q.key)) },
+       async save(next){
+         const q = this.qs[this.i]; if(!q) return;
+         this.saving = true; this.saved = "";
+         try {
+           const body = new URLSearchParams({
+             _token: {{ csrf_token|json_encode }},
+             key: q.key, question: q.q, note: this.note(), flag: this.flag(),
+             criterion_id: q.criterion_id ?? ""
+           });
+           const r = await fetch("/admin/interviews/{{ iv.row.id }}/answer",
+                                 {method:"POST", body, headers:{"X-Requested-With":"fetch"}});
+           this.saved = r.ok ? "saved" : "not saved — write it down elsewhere";
+         } catch(e) { this.saved = "not saved — no connection"; }
+         this.saving = false;
+         if(next && this.i < this.qs.length - 1) this.i++;
+       }
+     }'>
+
+  {# The layout's topbar already says whose interview this is; this strip carries the
+     details and the join button, not a second copy of the name. #}
+  <div class="rn-top">
+    <p class="rn-who">{{ iv.category ?: 'no category' }}{{ iv.org ? ' · ' ~ iv.org : '' }}
+      <small>{{ iv.when_text }} ·
+        <a href="/admin/interviews/{{ iv.row.id }}">interview #{{ iv.row.id }}</a></small>
+    </p>
+    {% if iv.row.meet_url %}
+      <a class="rn-join" href="{{ iv.row.meet_url }}" target="_blank" rel="noopener">Join the Meet call →</a>
+    {% else %}
+      <span class="rn-join rn-join--off">No Meet link — add one on the interview page</span>
+    {% endif %}
+  </div>
+
+  {% if iv.consented %}
+    <div class="rn-consent rn-consent--ok">
+      <strong>Permission to record was given</strong> by {{ iv.row.consent_name ?: 'the nominee' }}
+      on {{ iv.row.consent_at }}. Say so out loud at the start anyway — that they are being
+      recorded, that a machine writes it down, and that the panel reads it. Then turn
+      transcription on in Meet: <em>Activities → Transcripts → Start</em>.
+    </div>
+  {% else %}
+    <div class="rn-consent rn-consent--no">
+      <strong>No permission to record has been given.</strong> Ask on the call. If they agree,
+      send them their own link and have them press the button — it is the only place consent
+      can be recorded, and without it nothing from this conversation can be shown to the panel
+      in writing. Your notes below are still kept either way.
+    </div>
+  {% endif %}
+
+  {% if b.opening %}
+    <div class="rn-mini" style="margin-bottom:14px">
+      <h3>Open with this</h3>
+      <div class="rn-open">{{ b.opening }}</div>
+    </div>
+  {% endif %}
+
+  <div class="rn-wrap">
+    {# ── the question ──────────────────────────────────────────────────── #}
+    <div class="rn-card">
+      {% if qs|length %}
+        <template x-for="(q, ix) in qs" :key="q.key">
+          <div x-show="i === ix">
+            <span class="rn-crit" :class="{ 'rn-crit--claim': q.source === 'claim' }"
+                  x-text="q.criterion + (q.source === 'claim' ? ' · quoted from the record' : '')"></span>
+            <p class="rn-q" x-text="q.q"></p>
+            <p class="rn-why" x-text="q.why" x-show="q.why"></p>
+            <ul class="rn-probe" x-show="(q.probe || []).length">
+              <template x-for="p in (q.probe || [])" :key="p"><li x-text="p"></li></template>
+            </ul>
+          </div>
+        </template>
+
+        <label for="rn-note" style="display:block; margin-top:18px; font:700 10.5px/1 inherit;
+               letter-spacing:.08em; text-transform:uppercase; color:#5a6d6f">
+          What they said — the gist, names, numbers</label>
+        <textarea class="rn-note" id="rn-note" :value="note()"
+                  @input="set({note: $event.target.value}); saved = ''"
+                  placeholder="Key facts, not a transcript. Google is writing the transcript."></textarea>
+
+        <div class="rn-flags">
+          <button type="button" class="rn-flag" :aria-pressed="flag() === 'good'"
+                  @click="set({flag: flag() === 'good' ? '' : 'good'})">Answered well</button>
+          <button type="button" class="rn-flag" :aria-pressed="flag() === 'thin'"
+                  @click="set({flag: flag() === 'thin' ? '' : 'thin'})">Thin / vague</button>
+          <button type="button" class="rn-flag" :aria-pressed="flag() === 'evasive'"
+                  @click="set({flag: flag() === 'evasive' ? '' : 'evasive'})">Avoided it</button>
+          <button type="button" class="rn-flag" :aria-pressed="flag() === 'contradiction'"
+                  @click="set({flag: flag() === 'contradiction' ? '' : 'contradiction'})">Contradicts the file</button>
+        </div>
+
+        <div class="rn-bar">
+          <button type="button" class="rn-btn" :disabled="saving" @click="save(true)">
+            Save &amp; next question</button>
+          <button type="button" class="rn-btn rn-btn--ghost" :disabled="saving" @click="save(false)">
+            Save, stay here</button>
+          <button type="button" class="rn-btn rn-btn--ghost" @click="i = Math.max(0, i-1)"
+                  x-show="i > 0">← Back</button>
+          <span class="rn-said" x-text="saved"></span>
+        </div>
+        <p style="margin:12px 0 0; font-size:11.5px; color:#8a969a">
+          These notes are not a score. Scoring happens on each judge's own ballot, from the
+          transcript and the dossier, after the call.</p>
+      {% else %}
+        <p class="rn-q" style="font-size:16px">No questions could be prepared for this nominee —
+          there is nothing on file to build from. Ask them to describe their work, what changed
+          because of it, where it has spread, and how any of it could be checked.</p>
+      {% endif %}
+    </div>
+
+    {# ── the rail ──────────────────────────────────────────────────────── #}
+    <div class="rn-rail">
+      <div class="rn-mini">
+        <h3>Rubric covered</h3>
+        <div class="rn-cov">
+          {% set seen = [] %}
+          {% for q in qs %}
+            {% if q.criterion not in seen %}
+              {% set seen = seen|merge([q.criterion]) %}
+              <div class="rn-cov__r" :class="covered({{ q.criterion|json_encode }}) ? 'rn-cov__r--ok' : 'rn-cov__r--no'">
+                <span>{{ q.criterion }}</span>
+                <b x-text="covered({{ q.criterion|json_encode }}) ? 'covered' : 'nothing yet'"></b>
+              </div>
+            {% endif %}
+          {% endfor %}
+        </div>
+      </div>
+
+      <div class="rn-mini">
+        <h3>Questions</h3>
+        <ul class="rn-list">
+          <template x-for="(q, ix) in qs" :key="'n'+q.key">
+            <li>
+              {# The criterion alone is not a label. Three claim questions in a row all read
+                 "Reach", so an interviewer wanting to jump back to a specific one had
+                 nothing to aim at — visible the moment this rendered with real data. #}
+              <button type="button" @click="i = ix" :aria-current="i === ix"
+                      :class="done(q.key) ? 'done' : ''">
+                <span x-text="(done(q.key) ? '✓ ' : '') + (ix+1) + '. ' + q.criterion
+                              + ' — ' + q.q.replace(/^The nomination says: /, '').slice(0, 44)
+                              + (q.q.length > 44 ? '…' : '')"></span>
+              </button>
+            </li>
+          </template>
+        </ul>
+      </div>
+
+      {% for w in b.warnings ?? [] %}<div class="rn-warn">{{ w }}</div>{% endfor %}
+
+      <div class="rn-mini">
+        <h3>When you finish</h3>
+        <div class="rn-open">
+          Ask the closing question, then stop Meet's transcription. On
+          <a href="/admin/interviews/{{ iv.row.id }}">the interview page</a> you can fetch or paste
+          the transcript, and publishing it puts the nominee's own words into every judge's
+          dossier.
+          {% if b.closing %}<br><br><em>{{ b.closing }}</em>{% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

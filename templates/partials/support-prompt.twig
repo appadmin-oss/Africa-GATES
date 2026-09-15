@@ -1,0 +1,145 @@
+{# ══════════════════════════════════════════════════════════════════════════
+   SUPPORT PROMPT — one component, dropped wherever people get stuck.
+
+   ── WHY THIS EXISTS AS A PARTIAL ────────────────────────────────────────────
+
+   Support that only lives at /support is support that only reaches people who
+   already believe somebody can help. The person whose payment has just stalled
+   is looking at a payment page, not at a help menu, and what they do next is
+   decided by what is in front of them — refresh, give up, or tell their friends
+   they were robbed. So the offer has to be on THAT page.
+
+   ── AND WHY IT CARRIES THE REFERENCE ────────────────────────────────────────
+
+   `sp_ref` is the whole point. Handing somebody a support link is asking them to
+   re-explain a problem the page already knows about, and to copy a forty-
+   character reference by hand — which is where the digits get dropped and the
+   lookup fails and they conclude, reasonably, that nothing works. With the
+   reference in the link, the assistant opens already holding it and can go
+   straight to the repair.
+
+   ── PARAMETERS ──────────────────────────────────────────────────────────────
+     sp_ref      payment reference to hand over, if the page has one
+     sp_kind     'payment' | 'votes' | 'account' | 'general'  (default general)
+     sp_title    override the heading
+     sp_body     override the sentence
+     sp_compact  true for a single line rather than a card
+   ══════════════════════════════════════════════════════════════════════════ #}
+{% set _kind  = sp_kind|default('general') %}
+{% set _ref   = sp_ref|default('') %}
+{% set _href  = '/support/assistant?topic=' ~ _kind
+                ~ (_ref ? '&ref=' ~ _ref|url_encode ~ '&ask=1' : '') %}
+
+{% set _title = sp_title|default({
+  'payment': 'Paid, but nothing has arrived?',
+  'votes':   'Votes not showing?',
+  'account': 'Trouble with your account?',
+  'general': 'Something not right?'
+}[_kind]) %}
+
+{% set _body = sp_body|default({
+  'payment': _ref
+    ? 'The assistant can re-check this payment with the gateway right now and credit the votes if the money went through. It takes a few seconds and you do not need an account.'
+    : 'The assistant can re-check a payment with the gateway and credit the votes if the money went through — have your reference to hand.',
+  'votes':   'If a payment went through and the votes never appeared, the assistant can put that right on the spot.',
+  'account': 'The assistant can check what the platform is doing and pass anything it cannot settle to a person.',
+  'general': 'The assistant can check the live state of the platform, fix a stuck payment, and hand you to a person when that is the better answer.'
+}[_kind]) %}
+
+{# ── THE COMPACT LINE'S SECOND CLAUSE ────────────────────────────────────────
+   It used to print the support mailbox in full, in plain text, directly beneath
+   the pay button. Three things wrong with that in that position:
+
+   · It is a worse answer than the link beside it. The assistant re-checks the
+     payment with the gateway on the spot; an email is a wait, and offering both
+     side by side invites the slower one.
+   · A long address in a narrow ballot column had nothing to wrap on, so it ran
+     under the edge of the panel on a phone — the client's screenshot shows it
+     cut in half.
+   · It is a live mailto in public HTML on one of the most-visited pages on the
+     platform, which is a gift to address harvesters.
+
+   What belongs there instead is the answer to the question somebody actually has
+   with their thumb over a pay button: why does a vote carry a contribution at
+   all. That is /philosophy. Overridable, so a caller in a different context can
+   point the clause somewhere that fits it.
+
+   The card form (below) still offers "Email the team", where it sits in an
+   already-wide layout beside a heading that explains what it is for. #}
+{% set _altHref  = sp_alt_href|default('/philosophy') %}
+{% set _altLabel = sp_alt_label|default('why a vote carries a contribution') %}
+{% if sp_compact|default(false) %}
+  <p class="ag-sprompt ag-sprompt--line">
+    <a href="{{ _href }}">{{ _title }}</a>
+    <span>Or read <a href="{{ _altHref }}">{{ _altLabel }}</a>.</span>
+  </p>
+{% else %}
+  <aside class="ag-sprompt" aria-label="Get help">
+    <span class="ag-sprompt__i" aria-hidden="true">
+      <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+           stroke-linecap="round" stroke-linejoin="round" focusable="false">
+        <circle cx="12" cy="12" r="9"/><path d="M9.6 9.2a2.5 2.5 0 0 1 4.9.6c0 1.7-2.5 2-2.5 3.7M12 17h.01"/>
+      </svg>
+    </span>
+    <div class="ag-sprompt__b">
+      <strong>{{ _title }}</strong>
+      <p>{{ _body }}</p>
+      <div class="ag-sprompt__a">
+        <a class="ag-sprompt__go" href="{{ _href }}">{{ _ref ? 'Re-check it now' : 'Open the assistant' }}</a>
+        <a class="ag-sprompt__alt" href="mailto:{{ support_email }}{% if _ref %}?subject={{ ('Payment ' ~ _ref)|url_encode }}{% endif %}">Email the team</a>
+      </div>
+    </div>
+  </aside>
+{% endif %}
+
+{# Styles ship WITH the component rather than from the global sheet, because it
+   is included on pages with wildly different palettes — a dark ballot hero, a
+   white success card, an error page that loads no page CSS at all — and one of
+   those has no stylesheet to add a rule to. So it carries literal values and
+   inherits nothing it cannot afford to lose.
+
+   A page that includes the prompt twice ships this block twice. That is a few
+   hundred duplicate bytes and identical rules, which is the cheaper half of the
+   trade: the alternative is a global stylesheet the error pages never load, and
+   an unstyled support offer on the page where support is most needed. There is
+   no once-guard because `{% include %}` gets its own scope — a flag set here
+   would not be visible to the next include, so it would guard nothing. #}
+<style nonce="{{ csp_nonce }}">
+  .ag-sprompt{ display:flex; gap:12px; align-items:flex-start; max-width:640px;
+               margin:20px auto 0; padding:14px 16px; text-align:left;
+               background:#f6f9f6; border:1px solid rgba(16,41,44,.1); border-radius:14px; }
+  .ag-sprompt__i{ flex:none; display:flex; width:30px; height:30px; border-radius:50%;
+                  align-items:center; justify-content:center; background:#e6f2e6; color:#1c6b1c; }
+  .ag-sprompt__b{ min-width:0; }
+  .ag-sprompt strong{ display:block; font-size:14.5px; font-weight:700; color:#10292C; }
+  .ag-sprompt p{ margin:4px 0 0; font-size:13.5px; line-height:1.55; color:#4a5c5e; }
+  .ag-sprompt__a{ display:flex; gap:14px; flex-wrap:wrap; align-items:center; margin-top:10px; }
+  .ag-sprompt__go{ display:inline-block; padding:8px 16px; border-radius:999px; background:#237b22;
+                   color:#fff; font-weight:700; font-size:13.5px; text-decoration:none; }
+  .ag-sprompt__go:hover{ background:#1c6b1c; }
+  .ag-sprompt__alt{ font-weight:600; font-size:13.5px; color:#4a5c5e; text-decoration:underline; }
+  .ag-sprompt__go:focus-visible, .ag-sprompt__alt:focus-visible,
+  .ag-sprompt--line a:focus-visible{ outline:2px solid #237b22; outline-offset:2px; }
+  /* The compact form drops into columns with their own type scale, and a bare
+     `font-size` on the wrapper loses to any page rule that targets the anchor
+     directly — which is how one sentence came to render as a heavy 16px green
+     slab in the middle of a checkout form. Size and weight are therefore set on
+     the DESCENDANTS too. This is an aside, not a call to action; the only thing
+     that should carry emphasis is the link, and only by being a link. */
+  .ag-sprompt--line{ display:block; max-width:none; margin:12px 0 0; padding:0; background:none;
+                     border:0; font:400 12.5px/1.6 inherit; color:#5a6d6f; }
+  .ag-sprompt--line a, .ag-sprompt--line span{ font-size:12.5px; line-height:1.6; }
+  .ag-sprompt--line a{ color:#237b22; font-weight:600; text-decoration:underline;
+                       text-underline-offset:2px; }
+  .ag-sprompt--line span{ color:inherit; font-weight:400; }
+
+  /* On a dark hero the card would be a white slab. Opt in with `.ag-sprompt--dark`
+     on an ancestor rather than guessing from a media query — the page knows what
+     colour it is and this component does not. */
+  .ag-sprompt--dark .ag-sprompt,
+  .ag-sprompt--dark.ag-sprompt{ background:rgba(255,255,255,.06); border-color:rgba(255,255,255,.16); }
+  .ag-sprompt--dark .ag-sprompt strong{ color:#fff; }
+  .ag-sprompt--dark .ag-sprompt p{ color:rgba(255,255,255,.74); }
+  .ag-sprompt--dark .ag-sprompt__i{ background:rgba(127,200,124,.16); color:#7FC87C; }
+  .ag-sprompt--dark .ag-sprompt__alt{ color:rgba(255,255,255,.74); }
+</style>

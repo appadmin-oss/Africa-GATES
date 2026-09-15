@@ -9,24 +9,24 @@
   <div class="ad-card"><div class="ad-card__head"><div class="ad-card__title">Event details</div></div><div class="ad-card__body">
     <div class="ad-form">
       <div class="row">
-        <div><label>Title</label><input type="text" name="title" value="{{ row.title|default('') }}" required></div>
-        <div><label>Slug</label><input type="text" name="slug" value="{{ row.slug|default('') }}" required></div>
+        <div><label for="f-title">Title</label><input type="text" name="title" id="f-title" value="{{ row.title|default('') }}" required></div>
+        <div><label for="f-slug">Slug</label><input type="text" name="slug" id="f-slug" value="{{ row.slug|default('') }}" required></div>
       </div>
-      <div><label>Tagline</label><input type="text" name="tagline" value="{{ row.tagline|default('') }}"></div>
+      <div><label for="f-tagline">Tagline</label><input type="text" name="tagline" id="f-tagline" value="{{ row.tagline|default('') }}"></div>
       <div class="row">
-        <div><label>Date</label><input type="date" name="event_date" value="{{ row.event_date|default('') }}" required></div>
-        <div><label>Location</label><input type="text" name="location" value="{{ row.location|default('') }}"></div>
-      </div>
-      <div class="row">
-        <div><label>Icon emoji</label><input type="text" name="icon" value="{{ row.icon|default('🏆') }}"></div>
-        <div><label>Attendees</label><input type="number" name="attendee_count" value="{{ row.attendee_count|default(0) }}"></div>
+        <div><label for="f-event_date">Date</label><input type="date" name="event_date" id="f-event_date" value="{{ row.event_date|default('') }}" required></div>
+        <div><label for="f-location">Location</label><input type="text" name="location" id="f-location" value="{{ row.location|default('') }}"></div>
       </div>
       <div class="row">
-        <div><label>Awards conferred</label><input type="number" name="award_count" value="{{ row.award_count|default(0) }}"></div>
+        <div><label for="f-icon">Icon emoji</label><input type="text" name="icon" id="f-icon" value="{{ row.icon|default('🏆') }}"></div>
+        <div><label for="f-attendee_count">Attendees</label><input type="number" name="attendee_count" id="f-attendee_count" value="{{ row.attendee_count|default(0) }}"></div>
+      </div>
+      <div class="row">
+        <div><label for="f-award_count">Awards conferred</label><input type="number" name="award_count" id="f-award_count" value="{{ row.award_count|default(0) }}"></div>
         <div style="display:flex;align-items:flex-end"><label class="checkbox"><input type="checkbox" name="is_published" {% if row.is_published %}checked{% endif %}> Published</label></div>
       </div>
-      <div><label>Excerpt</label><textarea name="excerpt" rows="2">{{ row.excerpt|default('') }}</textarea></div>
-      <div><label>Full content (HTML allowed)</label><textarea name="full_content" rows="8">{{ row.full_content|default('') }}</textarea></div>
+      <div><label for="f-excerpt">Excerpt</label><textarea name="excerpt" id="f-excerpt" rows="2">{{ row.excerpt|default('') }}</textarea></div>
+      <div><label for="f-full_content">Full content</label><textarea name="full_content" id="f-full_content" rows="8" data-richtext placeholder="Write the recap…">{{ row.full_content|default('') }}</textarea></div>
     </div>
   </div></div>
 
@@ -49,7 +49,7 @@
         </label>
         <div class="preview-grid" data-file-preview></div>
       </div>
-      <div><label>Or paste image URLs (one per line)</label><textarea name="gallery_urls" rows="3" placeholder="https://…"></textarea></div>
+      <div><label for="f-gallery_urls">Or paste image URLs (one per line)</label><textarea name="gallery_urls" id="f-gallery_urls" rows="3" placeholder="https://…"></textarea></div>
       {% if row.gallery_paths is iterable and row.gallery_paths|length > 0 %}
       <div><label>Existing gallery</label>
         <div class="preview-grid">{% for url in row.gallery_paths %}<img src="{{ url }}" alt="">{% endfor %}</div>

@@ -1,0 +1,677 @@
+{% extends "layout/gates.twig" %}
+
+{# ── COLOUR BUDGET: tier 1, under the band privilege ───────────────────────────
+   A hall of fame is one of exactly two page types allowed to replace its single
+   colour tile with a full-bleed honour field — the other is a decided edition.
+   That is the rarest thing on this platform getting the loudest treatment, and it
+   is only safe as a list of two, so the privilege is declared and the
+   declarations are counted. See ColourBudgetTest.
+   Everything else here is ink, a hairline, or a programme hue on a spine — and a
+   spine is structure, which is why the programme palette was cut to three. #}
+{% set colour_tier = '1' %}
+{% set colour_band = true %}
+
+{#
+  ══════════════════════════════════════════════════════════════════════════════
+  THE HALL — everybody this platform has crowned, as people rather than as rows
+  ══════════════════════════════════════════════════════════════════════════════
+
+  `/results` is the LEDGER: editions, awards, an index and the split that produced
+  it, organised by when. This is organised by WHO, and that is the whole
+  difference. A ledger answers "what happened in 2026". A hall answers "who is in
+  here" — and it is the only surface that can answer "who is in here TWICE", a
+  fact that exists nowhere in a list grouped by edition.
+
+  ── THE HIERARCHY IS THE POINT, AND IT USED NOT TO EXIST ─────────────────────
+
+  The first cut drew eleven identical cards. Topping a WHOLE EDITION and winning
+  one category of it are the two different things this platform decides, and
+  drawing them at one weight throws away the only ranking it makes: the person who
+  led an entire edition sat in the same row as somebody who won one category, with
+  nothing saying which was which.
+
+  So there are two sections, and the distance between them is deliberate and
+  measurable. Cover both gold elements and you still know within a second which
+  you are looking at: a 2px ink rule against a 1px one, a 300px portrait against
+  180px, a 42px name against 18px, a 52px index against 24px. Colour is the
+  accelerator; the hierarchy is carried by size, weight and space.
+
+  ── AND THE RAIL LISTS ONLY THE LETTERS SOMEBODY IS UNDER ────────────────────
+
+  An A–Z with fifteen dead keys is a control that lies about the size of the hall.
+#}
+
+{% block head_styles %}
+<style nonce="{{ csp_nonce }}">
+  body[data-page="hall"]{ background:var(--ag-ground); color:var(--ag-ink); }
+
+  /* ── 2.4.11 FOCUS NOT OBSCURED ──────────────────────────────────────────────
+     The filter bar is sticky, so anything reached by keyboard scrolls to the top
+     of the viewport and lands under it. Read off the bar's own height rather than
+     typed, or the two drift the first time the bar gains a line. */
+  html{ scroll-padding-top:calc(var(--hf-bar,64px) + 14px); }
+
+  .hf-wrap{ max-width:1240px; margin:0 auto; padding:0 var(--ag-gutter,32px); }
+
+  /* ══ THE BAND — the page's one colour event ══════════════════════════════
+     `honour` is 1.65:1 on paper: under the 3:1 a border owes and far under the
+     4.5:1 a word owes, so it is only ever visible as a FIELD. Its wash holds house
+     ink above 12:1, which SlotFloorTest re-derives rather than trusts. */
+  .hf-band{ background:var(--ag-honour-wash); border-bottom:1px solid var(--ag-honour-edge);
+            padding:clamp(1.2rem,3vw,1.5rem) 0 clamp(2rem,5vw,2.75rem); }
+  .hf-crumb{ margin:0 0 18px; font-size:13.5px; line-height:1.5; color:var(--ag-honour-ink); }
+  .hf-crumb a{ color:var(--ag-ink-2); text-decoration:none; }
+  .hf-crumb a:hover{ text-decoration:underline; }
+  .hf-crumb b{ color:var(--ag-ink); font-weight:600; }
+  .hf-kick{ margin:0 0 12px; font:600 11px/1 var(--ag-font-mono); letter-spacing:.2em;
+            text-transform:uppercase; color:var(--ag-honour-ink); }
+  .hf-band h1{ margin:0; font-family:var(--ag-font-display); font-weight:700;
+               font-size:clamp(2.2rem,6vw,3.75rem); line-height:1.02; letter-spacing:-.03em;
+               max-width:20ch; }
+  .hf-sub{ margin:16px 0 0; font-size:16.5px; line-height:1.62; color:var(--ag-ink-2);
+           max-width:60ch; }
+
+  .hf-figs{ display:flex; flex-wrap:wrap; align-items:flex-start; gap:14px clamp(24px,4vw,44px);
+            margin:clamp(1.5rem,3.5vw,2.2rem) 0 0; padding:0; }
+  .hf-figs dt{ margin:0 0 5px; font:600 10.5px/1 var(--ag-font-mono); letter-spacing:.16em;
+               text-transform:uppercase; color:var(--ag-honour-ink); }
+  .hf-figs dd{ margin:0; font:700 clamp(1.5rem,3.4vw,1.95rem)/1 var(--ag-font-mono);
+               letter-spacing:-.02em; font-variant-numeric:tabular-nums; color:var(--ag-ink); }
+  /* Separated by a rule because it is NOT a statistic: it is a filter wearing the
+     shape of one, and the underline is what says so before it is pressed. */
+  .hf-figs .hf-filter{ padding-left:clamp(24px,4vw,44px); border-left:1px solid var(--ag-honour-edge); }
+  .hf-figs .hf-filter dd a{ color:inherit; text-decoration:underline;
+                            text-underline-offset:4px; text-decoration-thickness:2px; }
+  .hf-figs .hf-filter dd a:hover{ color:var(--ag-honour-ink); }
+
+  /* ══ the sticky bar ══════════════════════════════════════════════════════ */
+  .hf-bar{ position:sticky; top:0; z-index:5; background:var(--ag-ground);
+           border-bottom:1px solid var(--ag-line); }
+  /* ── `padding-block`, NEVER THE SHORTHAND ──────────────────────────────────
+     This element carries the page wrapper's side gutter, and `padding:12px 0`
+     zeroes it — so the bar's content ran flush to both screen edges while every
+     other line on the page sat inside a 17px margin. At 430px the Search button
+     ended exactly on the last pixel of the viewport and read as cut off, which is
+     how it was found. Vertical padding here is `padding-block` for that reason. */
+  .hf-bar__in{ display:flex; flex-wrap:wrap; min-width:0; gap:12px 18px; align-items:center;
+               justify-content:space-between; padding-block:12px; }
+  .hf-find{ display:flex; gap:8px; align-items:center; min-width:0; }
+  .hf-find input{ min-width:min(280px,60vw); min-height:40px; padding:0 14px;
+                  border:1px solid var(--ag-ink); border-radius:999px; background:var(--ag-card);
+                  font:400 14.5px/1 inherit; color:var(--ag-ink); }
+  .hf-find input:focus-visible{ outline:3px solid var(--ag-action-edge); outline-offset:2px; }
+  .hf-find button{ min-height:40px; min-width:44px; padding:0 16px; border-radius:999px;
+                   border:1px solid var(--ag-line); background:var(--ag-card); color:var(--ag-ink);
+                   font:600 13px/1 inherit; cursor:pointer; }
+  .hf-find button:hover{ background:var(--ag-surface-2); }
+
+  /* overflow-x, never hidden, and never a truncated label. */
+  /* ── `min-width:0` IS WHAT MAKES `overflow-x:auto` ACTUALLY SCROLL ──────────
+     A flex item's min-width defaults to `auto`, which is its MIN-CONTENT width —
+     and for a nowrap row of chips that is the whole row. So the row refused to
+     shrink, pushed its flex parent wide, pushed the page wrapper wide, and the
+     document scrolled horizontally at phone width with the right-hand end of
+     every line cut off. The `overflow-x:auto` was already there and could not
+     fire, because there was nothing to overflow: the box had grown to fit. */
+  .hf-chips{ display:flex; min-width:0; gap:8px; flex-wrap:nowrap; overflow-x:auto; padding-bottom:2px; }
+  /* 2.5.8 — the AA floor is 24px and is NOT conditional on the pointer. */
+  .hf-chip{ flex:none; display:inline-flex; align-items:center; gap:7px; min-height:32px;
+            padding:0 13px; border-radius:999px; border:1px solid var(--ag-line);
+            background:var(--ag-card); color:var(--ag-ink-2); text-decoration:none;
+            font:600 12.5px/1 inherit; white-space:nowrap; }
+  .hf-chip:hover{ border-color:var(--ag-ink-soft); color:var(--ag-ink); }
+  .hf-chip[aria-current]{ border:2px solid var(--ag-ink); color:var(--ag-ink); padding:0 12px; }
+  .hf-chip i{ flex:none; width:8px; height:8px; border-radius:50%; font-style:normal;
+              background:var(--pg-fill,var(--ag-mute)); }
+  .hf-count{ font:600 11px/1 var(--ag-font-mono); letter-spacing:.1em; text-transform:uppercase;
+             color:var(--ag-ink-soft); white-space:nowrap; font-variant-numeric:tabular-nums; }
+
+  /* ══ the sections ═══════════════════════════════════════════════════════ */
+  .hf-sec{ padding:clamp(2rem,4.5vw,3rem) 0 0; }
+  .hf-h{ display:flex; align-items:baseline; justify-content:space-between; gap:16px;
+         margin:0 0 clamp(1.1rem,2.5vw,1.5rem); padding-bottom:11px; }
+  .hf-h--major{ border-bottom:2px solid var(--ag-ink); }
+  .hf-h--minor{ border-bottom:1px solid var(--ag-line); }
+  .hf-h h2{ margin:0; font-family:var(--ag-font-display); font-weight:700;
+            font-size:clamp(1.3rem,2.8vw,1.6rem); letter-spacing:-.02em; }
+  .hf-h--minor h2{ font-size:clamp(1.1rem,2.2vw,1.3rem); }
+  .hf-h p{ margin:0; font-size:13.5px; line-height:1.5; color:var(--ag-ink-soft);
+           max-width:40ch; text-align:right; }
+  /* ── AND IT STACKS BEFORE THE HEADING IS CRUSHED ───────────────────────────
+     `justify-content:space-between` on a flex row gives the two children whatever
+     they ask for, and a 40ch paragraph asks for a lot. Measured at 430px the
+     paragraph took 298px and left the HEADING 76 — so "Overall winners" broke over
+     two lines in a 76px column beside its own caption, which reads as a layout
+     failure rather than as a heading. The caption is a gloss on the heading, so
+     below it is where it goes; `text-align` returns to the start, because a
+     right-aligned paragraph on its own line has no edge to align to. */
+  @media (max-width:760px){
+    .hf-h{ display:block; }
+    .hf-h p{ margin-top:6px; max-width:60ch; text-align:start; }
+  }
+
+  /* ── overall winners: two-up, and the cards ARE level ────────────────────
+     This grid was `align-items:start`, defended in a comment saying the heights
+     differ on purpose — "forcing them level means stretching a portrait or
+     padding a card to hide a fact".
+
+     It hides no fact. The provisional caveat is a paragraph printed inside the
+     card that has it, and it goes on being printed whatever the card's height;
+     what `start` actually produced was two siblings on one row at different
+     heights, with DIFFERENT-SIZED PORTRAITS (measured 260x326 beside 260x290,
+     because each card sized its own row independently) and the shorter card's
+     footer stopping in mid-air a hundred pixels above its neighbour's. That
+     reads as a layout that failed, not as information.
+
+     So: the cards stretch, the portrait is a fixed shape in both, and the
+     footers are pinned to the bottom edge. The difference between the two cards
+     is now carried by what is written in them, which is where it belongs. */
+  .hf-major{ list-style:none; margin:0; padding:0; display:grid;
+             grid-template-columns:repeat(2,minmax(0,1fr)); gap:34px; align-items:stretch; }
+  /* The grid item is the <li>; the card is an <article> INSIDE it. `align-items:
+     stretch` levels the list items and stops there, so without this the two <li>
+     were the same height and the two cards were not — which looks exactly like
+     the bug it was meant to fix, and is why stretching alone appeared not to
+     work. */
+  .hf-major > li{ display:flex; }
+  .hf-major > li > .hf-card{ flex:1; }
+  /* A column, so the body can take the slack and the footers sit on the bottom
+     edge of a stretched card rather than floating under the text. */
+  .hf-card{ display:flex; flex-direction:column; border:1px solid var(--ag-line);
+            border-radius:16px; background:var(--ag-card); overflow:hidden;
+            color:inherit; text-decoration:none; }
+  .hf-card:focus-within{ outline:3px solid var(--ag-action-edge); outline-offset:2px; }
+  /* The programme's identity, on a spine. Never the only carrier of anything: the
+     programme's NAME is printed on every card that has one. */
+  .hf-spine{ display:block; height:6px; background:var(--pg-fill,var(--ag-line)); }
+  /* ── 260px AND NOT 300, BECAUSE A NAME HERE IS LONGER THAN THE REFERENCE'S ──
+     The handoff pairs a 300px portrait with a 42px name, which on a two-up grid
+     leaves roughly 244px for the text — and "Oluwagbemiga" alone needs about 290
+     at that size. It clipped mid-word on the first real name this page drew.
+     A person's name is the SUBJECT of this page and must never be cut, so the
+     portrait gives the column back. The hierarchy survives easily: 260 against
+     the small card's 180, and the name below is still more than twice its 18px. */
+  /* `flex:1` is what pins the footers: the body absorbs a stretched card's extra
+     height instead of the gap between the text and the first footer doing it. */
+  .hf-card__in{ flex:1; display:grid; grid-template-columns:260px minmax(0,1fr);
+                gap:clamp(18px,2.4vw,26px); align-items:start;
+                padding:clamp(1.2rem,2.4vw,1.5rem); }
+
+  /* ── A FIXED SHAPE, WHICH IS WHAT `stretch` COULD NOT GIVE ────────────────
+     This was `align-self:stretch` with a `min-height`, and the comment here
+     warned against `aspect-ratio` on the grounds that it "leaves the card's
+     white showing below the portrait".
+
+     Stretching is what made the two cards disagree. A stretched item takes the
+     height of ITS OWN row, and the two cards are separate grids, so the portrait
+     came out 326px beside one column of text and 290px beside a shorter one —
+     two photographs of two people, on one row, at two different sizes, which is
+     the one thing a row of portraits must not do.
+
+     4:5 is the ratio the images are actually stored at (`width="600"
+     height="750"` on every one of them), so this crops nothing that was not
+     already going to be cropped, and every portrait on the page is now the same
+     shape as every other — including the small cards below, which have used
+     `aspect-ratio:4/5` all along.
+
+     The white the old comment feared is the card's own background beside a
+     column of text that ran longer, which is what every card on the internet
+     does. Nothing is hidden by it. */
+  .hf-ph{ aspect-ratio:4/5; border-radius:12px; overflow:hidden;
+          background:var(--ag-surface-2); position:relative;
+          display:flex; align-items:center; justify-content:center; }
+  /* ── THE PHOTO IS TAKEN OUT OF FLOW, OR IT SIZES THE CARD ──────────────────
+     `width:100%; height:100%; object-fit:cover` was already here and NONE of it
+     was in effect. `height:100%` resolves against a parent whose own height is
+     `auto` — which this box's is, because it is a stretched grid item — so it
+     computed to `auto`, the image fell back to its intrinsic ratio from the
+     `width="600" height="750"` attributes, and the IMAGE then set the grid row.
+
+     So the portrait was never cropped, `object-fit` never ran, and the
+     `min-height` above (and the 260px at phone width below) governed nothing at
+     all: they were only ever floors under a number the image was choosing.
+
+     Measured: at 1280 the box was 260×326 — exactly 4:5 — rather than the 290 the
+     rule asks for. At 430 the card collapses to one column, so the image took the
+     full 350px of width and 438px of HEIGHT, a portrait taller than a phone's
+     visible area, pushing the name of the person the card is about below the
+     fold on the page whose entire subject is that person.
+
+     `position:absolute; inset:0` removes it from layout, so the box is sized by
+     the rules that were written to size it and the image fills what it is given.
+     That is what the two declarations above were always for. */
+  .hf-ph img{ position:absolute; inset:0; width:100%; height:100%;
+              object-fit:cover; display:block; }
+  .hf-ph b{ font:700 clamp(2.6rem,5vw,3.4rem)/1 var(--ag-font-display); color:var(--ag-ink-2); }
+  /* WORDED. An initial alone reads as a broken image; this says which it is, on a
+     page whose whole subject is a person. */
+  .hf-ph small{ position:absolute; bottom:12px; left:0; right:0; text-align:center;
+                font:600 9px/1 var(--ag-font-mono); letter-spacing:.14em;
+                text-transform:uppercase; color:var(--ag-ink-soft); }
+
+  /* ── THE TILE'S LABEL BREAKS WHERE THE SENTENCE DOES ──────────────────────
+     "Overall winner · won twice" does not fit the 227px text column, so it wraps
+     — which is right, and is what `.ag-tile`'s own `max-width:100%` is for: a
+     long label wraps rather than pushing the card wide. What was wrong is WHERE.
+     It broke after "WON", leaving a second line reading "TWICE", beside a
+     neighbouring card whose tile is one line. `balance` puts the break at the
+     middle separator instead, so the two lines are the two halves of the phrase.
+
+     Scoped to this page rather than added to components/tile.css: the tile is
+     used across the site, mostly with labels short enough that balancing is a
+     no-op, and a shared component should not gain a rule for one caller. */
+  .hf-card .ag-tile span{ text-wrap:balance; }
+
+  .hf-cat{ margin:12px 0 0; font-size:17px; line-height:1.4; color:var(--ag-ink-2); }
+  .hf-name{ margin:10px 0 0; font-family:var(--ag-font-display); font-weight:700;
+            font-size:clamp(1.6rem,3vw,2.3rem); line-height:1.04; letter-spacing:-.03em;
+            /* Never hyphenated — a name is not a word to be broken for convenience —
+               but never clipped either, so a name longer than any column can hold
+               wraps inside itself rather than running off the card. */
+            overflow-wrap:break-word; hyphens:none; }
+  .hf-name a{ color:inherit; text-decoration:none; }
+  .hf-card:hover .hf-name a{ text-decoration:underline; text-underline-offset:5px; }
+  .hf-meta{ margin:10px 0 0; display:flex; align-items:center; gap:7px;
+            font:600 10.5px/1.3 var(--ag-font-mono); letter-spacing:.12em;
+            text-transform:uppercase; color:var(--pg-ink,var(--ag-ink-soft)); }
+  .hf-meta i{ flex:none; width:7px; height:7px; border-radius:50%; font-style:normal;
+              background:var(--pg-fill,currentColor); }
+  .hf-idx{ margin:14px 0 0; font:700 clamp(2.1rem,4.4vw,3.25rem)/.92 var(--ag-font-mono);
+           letter-spacing:-.045em; font-variant-numeric:tabular-nums; }
+  .hf-idx span{ font-size:.365em; letter-spacing:0; color:var(--ag-ink-soft); }
+  .hf-gloss{ margin:10px 0 0; font-size:15px; line-height:1.5; color:var(--ag-ink-2); }
+
+  /* Footers, stacked and full-bleed inside the card. */
+  .hf-foot{ padding:13px clamp(1.2rem,2.4vw,1.5rem); border-top:1px solid var(--ag-line);
+            font-size:13.5px; line-height:1.55; color:var(--ag-ink-2); }
+  /* OUTLINED in caution, never filled: a caveat drawn as a red field under a
+     person's face is an accusation, and this one is about our process. */
+  .hf-foot--caveat{ border-top:1px solid var(--ag-caution-edge); }
+  .hf-foot--caveat b{ color:var(--ag-caution-ink); }
+  .hf-foot--note{ background:var(--ag-surface-2); display:flex; flex-wrap:wrap;
+                  gap:6px 16px; justify-content:space-between; align-items:baseline; }
+  .hf-foot--note a{ color:var(--ag-ink); }
+
+  /* ── the jump-to rail ── */
+  .hf-jump{ display:flex; flex-wrap:wrap; gap:6px; align-items:center;
+            margin:0 0 clamp(1rem,2.2vw,1.3rem); }
+  .hf-jump span{ margin-right:6px; font:600 10px/1 var(--ag-font-mono); letter-spacing:.14em;
+                 text-transform:uppercase; color:var(--ag-ink-soft); }
+  .hf-jump a{ display:inline-flex; align-items:center; justify-content:center;
+              min-width:28px; min-height:28px; padding:0 6px; border-radius:8px;
+              border:1px solid var(--ag-line); background:var(--ag-card);
+              font:700 11.5px/1 var(--ag-font-mono); color:var(--ag-ink-2); text-decoration:none; }
+  .hf-jump a:hover{ border-color:var(--ag-ink-soft); color:var(--ag-ink); }
+  .hf-jump a[aria-current]{ border:2px solid var(--ag-ink); color:var(--ag-ink); }
+
+  /* ── category winners: five-up, and every measure a step down ── */
+  /* ── LEVEL, FOR THE SAME REASON THE BIG CARDS ARE ────────────────────────
+     `align-items:start` here too, and it went ragged at exactly the widths where
+     one card's category or programme name wrapped a line and its neighbour's did
+     not. Measured across ten viewports: level at 430, 900, 1240 and 1920 — and at
+     768 a row came out [425, 437, 437], at 1024 [424, 435, 435, 435]. So it
+     looked correct at every width anybody checks and was ragged in between,
+     which is why it survived.
+     Nothing here differs between cards the way the provisional caveat differs on
+     the big ones; these are the same object repeated, and a grid of them is the
+     one place a ragged bottom edge has nothing to say. */
+  .hf-minor{ list-style:none; margin:0; padding:0; display:grid;
+             grid-template-columns:repeat(5,minmax(0,1fr)); gap:22px; align-items:stretch; }
+  /* The <li> is the grid item and the card is the <a> inside it — stretching the
+     grid alone levels the items and leaves the cards uneven. */
+  .hf-minor > li{ display:flex; }
+  .hf-minor > li > .hf-m{ flex:1; }
+  .hf-m{ display:flex; flex-direction:column; border:1px solid var(--ag-line);
+         border-radius:14px; background:var(--ag-card); overflow:hidden;
+         color:inherit; text-decoration:none; }
+  .hf-m:hover{ border-color:var(--ag-ink-soft); }
+  .hf-m:focus-visible{ outline:3px solid var(--ag-action-edge); outline-offset:2px; }
+  .hf-m__spine{ display:block; height:4px; background:var(--pg-fill,var(--ag-line)); }
+  /* `aspect-ratio` is correct HERE — it is a block in normal flow, not a grid item
+     being asked to stretch. */
+  .hf-m__ph{ display:block; aspect-ratio:4/5; max-width:100%; background:var(--ag-surface-2);
+             position:relative; overflow:hidden; }
+  .hf-m__ph img{ width:100%; height:100%; object-fit:cover; display:block; }
+  .hf-m__ph b{ position:absolute; inset:0; display:flex; align-items:center; justify-content:center;
+               font:700 2.4rem/1 var(--ag-font-display); color:var(--ag-ink-2); }
+  .hf-m__ph small{ position:absolute; bottom:8px; left:0; right:0; text-align:center;
+                   font:600 8.5px/1 var(--ag-font-mono); letter-spacing:.12em;
+                   text-transform:uppercase; color:var(--ag-ink-soft); }
+  .hf-m__b{ padding:12px 13px 14px; }
+  .hf-m__n{ margin:0; font-family:var(--ag-font-display); font-weight:700; font-size:18px;
+            line-height:1.2; letter-spacing:-.01em; }
+  .hf-m:hover .hf-m__n{ text-decoration:underline; text-underline-offset:3px; }
+  .hf-m__c{ margin:5px 0 0; font-size:14px; line-height:1.4; color:var(--ag-ink-2); }
+  .hf-m__p{ margin:8px 0 0; display:flex; align-items:center; gap:6px;
+            font:600 9px/1.3 var(--ag-font-mono); letter-spacing:.12em; text-transform:uppercase;
+            color:var(--pg-ink,var(--ag-ink-soft)); }
+  .hf-m__p i{ flex:none; width:6px; height:6px; border-radius:50%; font-style:normal;
+              background:var(--pg-fill,currentColor); }
+  .hf-m__i{ margin:8px 0 0; font:700 24px/1 var(--ag-font-mono); letter-spacing:-.04em;
+            font-variant-numeric:tabular-nums; }
+  .hf-m__i span{ font-size:.44em; letter-spacing:0; color:var(--ag-ink-soft); }
+  .hf-again{ display:inline-flex; align-items:center; min-height:22px; margin:8px 0 0;
+             padding:0 8px; border-radius:999px; border:1px solid var(--ag-honour-edge);
+             color:var(--ag-honour-ink); font:700 9px/1 var(--ag-font-mono);
+             letter-spacing:.11em; text-transform:uppercase; }
+
+  /* ── the empty hall: dashed, ink only, zero events ──────────────────────── */
+  .hf-empty{ margin:clamp(2rem,5vw,3rem) 0; padding:clamp(2rem,5vw,3rem) 1.5rem; text-align:center;
+             border:1px dashed var(--ag-line); border-radius:16px; }
+  .hf-empty h2{ margin:0 0 .5rem; font-family:var(--ag-font-display); font-weight:700;
+                font-size:1.4rem; }
+  .hf-empty p{ margin:0 auto 1.4rem; max-width:48ch; color:var(--ag-ink-2); line-height:1.62; }
+  .hf-empty a{ display:inline-flex; align-items:center; min-height:44px; padding:0 22px;
+               border:1px solid var(--ag-ink); border-radius:999px; color:var(--ag-ink);
+               font-weight:600; font-size:14.5px; text-decoration:none; }
+  .hf-empty a:hover{ background:var(--ag-ink); color:var(--ag-card); }
+
+  .hf-note{ margin:clamp(2.2rem,4vw,3rem) 0 clamp(3rem,6vw,4.5rem); padding:18px 20px;
+            border:1px dashed var(--ag-line); border-radius:14px; font-size:14.5px;
+            line-height:1.65; color:var(--ag-ink-2); max-width:74ch; }
+  .hf-note a{ color:var(--ag-ink); }
+
+
+  /* ── THE BAR AT PHONE WIDTH ────────────────────────────────────────────────
+     The search form takes its own row and fills it, and the chip rail takes the
+     next one. Side by side at 430px the form's 280px input plus its button ran
+     past the right edge — and `html`/`body` carry `overflow-x: clip`, so there
+     was no scrollbar and no way to reach the Search button at all. Clipped is
+     worse than scrolled: a reader cannot even tell something is missing.
+
+     Belt and braces on top of the real cause, which was a LABEL. It was written
+     `class="ag-sr-only"` — a class that does not exist anywhere in this codebase
+     (the real one is `.sr-only`) — so "Search awards" rendered as visible text
+     and took eighty pixels out of the row. A misspelt utility class fails in
+     total silence: no error, no warning, just a control pushed off the edge of a
+     phone. `SrOnlyClassTest` refuses the shape now. */
+  @media (max-width:760px){
+    .hf-bar__in{ align-items:stretch; }
+    .hf-find{ width:100%; }
+    .hf-find input{ flex:1; min-width:0; }
+    .hf-chips{ width:100%; }
+  }
+  @media (max-width:1080px){ .hf-minor{ grid-template-columns:repeat(4,minmax(0,1fr)); } }
+
+  /* ── TWO-UP ONLY WHERE THERE IS ROOM FOR TWO, AND 1240 IS THAT NUMBER ──────
+     The single-column switch used to be at 900px, and between 901 and 1240 the
+     two-up grid was catastrophically broken in a way no round test width shows.
+
+     The arithmetic: each card gets (viewport − 64 gutter − 34 gap) ÷ 2, and the
+     portrait track is a FIXED 260px, so the name's column is whatever is left
+     after 260 + 26 gap + 48 padding = 334px.
+
+         viewport 910  → card 397 → NAME COLUMN 72px
+         viewport 1000 → card 439 → name column 107px
+         viewport 1080 → card 479 → name column 145px
+
+     Measured, not estimated. At 910 "Oluwagbemiga Dorcas" rendered 142px tall in a
+     72px column — a display face at 2.3rem broken over five lines in a strip
+     narrower than one word of it. The rule above this one reduced the portrait
+     from 300 to 260 precisely so a name would never be cut, and that reasoning
+     holds; what it could not survive was the card itself being halved.
+
+     1240px is `.hf-wrap`'s own max-width, and it is the number because that is
+     where the wrap stops growing: above it each card is 571px and the name has
+     237px, the proportion the design was drawn at. Below it the card takes the
+     full width instead — 243px of name column at the narrowest, and more
+     everywhere else — which is never the cramped case, only a taller page.
+
+     A 1024px iPad and a 1366px laptop both sat inside the broken band. */
+  @media (max-width:1239px){
+    .hf-major{ grid-template-columns:minmax(0,1fr); gap:24px; }
+  }
+  @media (max-width:900px){
+    .hf-card__in{ grid-template-columns:210px minmax(0,1fr); }
+    .hf-minor{ grid-template-columns:repeat(3,minmax(0,1fr)); }
+  }
+  @media (max-width:640px){
+    .hf-card__in{ grid-template-columns:minmax(0,1fr); }
+    /* Stacked, the portrait has the card's full width, and 4:5 of that is taller
+       than a phone's visible area — measured 350x438 at 430px, which put the name
+       of the person the card is about below the fold. A wider crop here, and the
+       ratio goes back the moment there is a column to sit beside. */
+    .hf-ph{ aspect-ratio:4/3; }
+    .hf-minor{ grid-template-columns:repeat(2,minmax(0,1fr)); gap:16px; }
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+{% set v = hall.view|default({}) %}
+{% set base = '/winners' %}
+
+<div class="hf-band">
+  <div class="hf-wrap">
+    <p class="hf-crumb"><a href="/">Home</a> / <a href="/results">Results</a> / <b>Hall of fame</b></p>
+    <p class="hf-kick">Hall of fame</p>
+    <h1>Everyone Africa GATES has honoured</h1>
+
+    {% if hall.people|length %}
+      <p class="hf-sub">Every award this platform has decided and announced, and the person it
+         was decided for. Each index runs from 0 to 1000 and splits two ways — the support a
+         community gave, and the marks a panel awarded.</p>
+
+      {# Counted from the drawn hall, never typed: a headline figure in a template is a
+         figure that is wrong the first week a new edition closes. #}
+      <dl class="hf-figs">
+        <div><dt>People honoured</dt><dd>{{ hall.people|length }}</dd></div>
+        <div><dt>Awards decided</dt><dd>{{ hall.awards }}</dd></div>
+        <div><dt>Programmes</dt><dd>{{ hall.programmes }}</dd></div>
+        {% if hall.reach.from and hall.reach.to and hall.reach.from != hall.reach.to %}
+          <div><dt>Editions</dt><dd>{{ hall.reach.from }}&ndash;{{ hall.reach.to }}</dd></div>
+        {% elseif hall.reach.to %}
+          <div><dt>Edition</dt><dd>{{ hall.reach.to }}</dd></div>
+        {% endif %}
+        {% if hall.repeat %}
+          {# A FILTER wearing the shape of a statistic, and the underline is what says so
+             before it is pressed. Separated by a rule for the same reason. #}
+          <div class="hf-filter"><dt>Won more than once</dt>
+            <dd><a href="{{ base }}?repeat=1">{{ hall.repeat }}</a></dd></div>
+        {% endif %}
+      </dl>
+    {% else %}
+      <p class="hf-sub">Nothing appears here before it has been announced.</p>
+    {% endif %}
+  </div>
+</div>
+
+{% if hall.people|length %}
+  {#
+    ── EVERY FILTER IS A LINK WITH A REAL ADDRESS ────────────────────────────
+    So "everybody who has won twice" is something a reader can send to somebody,
+    a search engine can index each view, and the back button does what it says.
+    The chips are built from the WHOLE hall rather than the filtered one, or
+    choosing a programme would delete the way back out of that choice.
+  #}
+  <nav class="hf-bar" aria-label="Filter the hall">
+    <div class="hf-wrap hf-bar__in">
+      <form class="hf-find" method="get" action="{{ base }}" role="search">
+        <label class="sr-only" for="hf-q">Search the hall</label>
+        <input id="hf-q" type="search" name="q" value="{{ v.q|default('') }}"
+               placeholder="Search a name or an award" autocomplete="off">
+        <button type="submit">Search</button>
+      </form>
+
+      <div class="hf-chips">
+        <a class="hf-chip" href="{{ base }}"
+           {% if not v.programme and not v.edition and not v.repeat and not v.q and not v.letter %}aria-current="true"{% endif %}>Everyone</a>
+        {% for p in hall.programme_chips|default([]) %}
+          <a class="hf-chip" style="{{ p.style }}" href="{{ base }}?programme={{ p.name|url_encode }}"
+             {% if v.programme == p.name %}aria-current="true"{% endif %}>
+            <i aria-hidden="true"></i>{{ p.name }}
+          </a>
+        {% endfor %}
+        {% for ed in hall.edition_chips|default([]) %}
+          <a class="hf-chip" href="{{ base }}?edition={{ ed.year }}"
+             {% if v.edition == ed.year %}aria-current="true"{% endif %}>{{ ed.year }}</a>
+        {% endfor %}
+        {% if hall.repeat %}
+          <a class="hf-chip" href="{{ base }}?repeat=1"
+             {% if v.repeat %}aria-current="true"{% endif %}>Won more than once</a>
+        {% endif %}
+      </div>
+
+      <p class="hf-count">Showing {{ hall.shown|default(0) }} of {{ hall.total|default(0) }}</p>
+    </div>
+  </nav>
+{% endif %}
+
+<div class="hf-wrap">
+  {% if hall.overall_people|default([])|length %}
+    <section class="hf-sec" aria-labelledby="hf-major">
+      {# A 2px rule against the 1px one below: the hierarchy is carried by weight and
+         space, so it survives the gold being covered. #}
+      <div class="hf-h hf-h--major">
+        <h2 id="hf-major">Overall winners</h2>
+        <p>Highest index across a whole edition &mdash; the largest thing this platform decides.</p>
+      </div>
+
+      <ul class="hf-major">
+        {% for p in hall.overall_people %}
+          {% set w = p.wins|first %}
+          <li>
+            <article class="hf-card" style="{{ w.programme_style }}">
+              <span class="hf-spine" aria-hidden="true"></span>
+              <div class="hf-card__in">
+                <span class="hf-ph">
+                  {% if p.photo %}
+                    <img src="{{ p.photo|media_url('portrait') }}" alt="{{ p.name }}"
+                         width="600" height="750" loading="lazy" decoding="async">
+                  {% else %}
+                    {# `aria-hidden` on the initial — announcing "O" before the person's own
+                       name reads as a stammer — and the words beneath it are not, because
+                       "no photograph" and "broken image" must be tellable apart. #}
+                    <b aria-hidden="true">{{ p.name|slice(0,1)|upper }}</b>
+                    <small>No photograph</small>
+                  {% endif %}
+                </span>
+
+                <div>
+                  {# The tile: a bounded field with a saturated mark and a WORD in it. A
+                     repeat win is WORDED here rather than drawn as a ring or a second
+                     badge — cover the gold and the sentence still says it. #}
+                  {% include 'partials/tile.twig' with {
+                       meaning: 'overall-winner', size: 'lg',
+                       label: p.count > 1
+                            ? 'Overall winner · won ' ~ (p.count == 2 ? 'twice' : p.count ~ ' times')
+                            : 'Overall winner'
+                     } only %}
+
+                  <h3 class="hf-name"><a href="{{ w.url }}">{{ p.name }}</a></h3>
+                  <p class="hf-cat">{{ w.category }}</p>
+                  <p class="hf-meta"><i aria-hidden="true"></i>{{ w.programme }}
+                     {%- if w.year %} &middot; {{ w.year }}{% endif %}</p>
+                  <p class="hf-idx">{{ w.cpi }}<span> / 1000</span></p>
+                  {% if w.overall_margin is not null and w.overall_margin > 0 %}
+                    <p class="hf-gloss">Clear of second by {{ w.overall_margin }}{% if w.awards_in_edition %}
+                      &middot; {{ w.awards_in_edition }} award{{ w.awards_in_edition == 1 ? '' : 's' }}
+                      in this edition{% endif %}.</p>
+                  {% endif %}
+                </div>
+              </div>
+
+              {% if w.overall_provisional %}
+                {# BELOW the person, never a mark on their name or their photograph. The
+                   sentence says whose process it is about, because a caveat that does not
+                   reads as an accusation. #}
+                <p class="hf-foot hf-foot--caveat"><b>Provisional.</b> An award in this
+                  edition is still being checked, and the top of the edition can change when
+                  it lands. The caveat is about our process, not about the winner.</p>
+              {% endif %}
+
+              {% if p.count > 1 or w.edition_url %}
+                <p class="hf-foot hf-foot--note">
+                  <span>{% if p.count > 1 %}Honoured {{ p.count }} times by Africa GATES.{% else %}&nbsp;{% endif %}</span>
+                  {% if w.edition_url %}<a href="{{ w.edition_url }}">See the full standing &rarr;</a>{% endif %}
+                </p>
+              {% endif %}
+            </article>
+          </li>
+        {% endfor %}
+      </ul>
+    </section>
+  {% endif %}
+
+  {% if hall.category_people|default([])|length %}
+    <section class="hf-sec" aria-labelledby="hf-minor">
+      <div class="hf-h hf-h--minor">
+        <h2 id="hf-minor">Category winners</h2>
+        <p>One award of an edition, decided on the same index.</p>
+      </div>
+
+      {% if hall.letters|default([])|length > 1 %}
+        {# Only the letters somebody is filed under. An A–Z with fifteen dead keys is a
+           control that lies about the size of the hall. #}
+        <nav class="hf-jump" aria-label="Jump to a letter">
+          <span>Jump to</span>
+          {% for l in hall.letters %}
+            <a href="{{ base }}?letter={{ l }}"
+               {% if v.letter == l %}aria-current="true"{% endif %}>{{ l }}</a>
+          {% endfor %}
+          {% if v.letter %}<a href="{{ base }}">All</a>{% endif %}
+        </nav>
+      {% endif %}
+
+      <ul class="hf-minor">
+        {% for p in hall.category_people %}
+          {% set w = p.wins|first %}
+          <li>
+            <a class="hf-m" href="{{ w.url }}" style="{{ w.programme_style }}">
+              <span class="hf-m__spine" aria-hidden="true"></span>
+              <span class="hf-m__ph">
+                {% if p.photo %}
+                  <img src="{{ p.photo|media_url('portrait') }}" alt="{{ p.name }}"
+                       width="420" height="525" loading="lazy" decoding="async">
+                {% else %}
+                  <b aria-hidden="true">{{ p.name|slice(0,1)|upper }}</b>
+                  <small>No photograph</small>
+                {% endif %}
+              </span>
+              <span class="hf-m__b">
+                <p class="hf-m__n">{{ p.name }}</p>
+                <p class="hf-m__c">{{ w.category }}</p>
+                <p class="hf-m__p"><i aria-hidden="true"></i>{{ w.programme }}
+                   {%- if w.year %} &middot; {{ w.year }}{% endif %}</p>
+                <p class="hf-m__i">{{ w.cpi }}<span> / 1000</span></p>
+                {% if p.count > 1 %}
+                  {# Worded, never a ring. It is the one fact on this page a reader could
+                     not get anywhere else, and a ring alone is a colour-only signal. #}
+                  <span class="hf-again">Won {{ p.count }} times</span>
+                {% endif %}
+              </span>
+            </a>
+          </li>
+        {% endfor %}
+      </ul>
+    </section>
+  {% endif %}
+
+  {% if not hall.people|length %}
+    <div class="hf-empty">
+      <h2>No award has been announced yet</h2>
+      <p>Everyone this platform honours appears here, with the index that decided it. A
+         platform before its first announcement is a platform working correctly.</p>
+      <a href="/results">See the awards running now</a>
+    </div>
+  {% elseif not hall.shown %}
+    <div class="hf-empty">
+      <h2>Nobody here matches that</h2>
+      <p>No one in the hall matches
+         {%- if v.q %} &ldquo;{{ v.q }}&rdquo;{% elseif v.letter %} the letter {{ v.letter }}{% else %} that filter{% endif %}.</p>
+      <a href="{{ base }}">Show everyone</a>
+    </div>
+  {% endif %}
+
+  {% if hall.people|length %}
+    <p class="hf-note">
+      Nothing appears here before it has been announced, and nothing is removed once it
+      has. {% if hall.held %}{{ hall.held }} further award{{ hall.held == 1 ? ' is' : 's are' }}
+      decided and not yet published.{% endif %}
+      {% if hall.truncated %}Older editions are in the <a href="/results">full archive</a>.{% endif %}
+      How an index is built, and what money can and cannot move, is set out on
+      <a href="/integrity">integrity</a>.
+    </p>
+  {% endif %}
+</div>
+{% endblock %}

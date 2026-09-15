@@ -1,0 +1,103 @@
+{#
+  ══════════════════════════════════════════════════════════════════════════════
+  "WHO ARE YOU LOOKING FOR?" — the front door to the search that already exists
+  ══════════════════════════════════════════════════════════════════════════════
+
+  ── WHY THIS IS A BAND AND NOT A SEARCH PAGE ────────────────────────────────
+
+  The obvious build for this design was a new `/search` with its own service. It would
+  have been the same fault this repository has just spent a commit fixing on `/help` and
+  `/support`: two front doors to one job, each unable to say the other exists.
+
+  `ActivityFeedService` already searches announced results, categories, programmes,
+  nominees, registry profiles, posts, events, discussions, cycle phases and the site's
+  own pages. What it did NOT have was an entrance framed around the question people
+  actually arrive with. It is called "Activity", it is filed under a heading about what
+  is happening, and nobody who wants to find a principal types the word activity.
+
+  So this is a door, not a second room. It submits to the same GET endpoint the search
+  page's own form submits to, so the two can never disagree about what the site holds.
+
+  ── THE CAPTION IS GENERATED, AND THAT IS THE POINT ─────────────────────────
+
+  A sentence naming what a box searches is exactly the kind of claim this codebase has
+  been burnt by: `/cookies` said in bold "We set one cookie" while three were being set,
+  and every word of it had been true the day it was typed. So the nouns come from
+  `ActivityFeedService::SOURCES` through `search_covers()`. Adding a source adds a noun;
+  a source with no noun declared is covered by the closing clause rather than silently
+  dropped from a promise.
+
+  ── THE PROMISE UNDER IT IS THE ONE THAT MATTERS ────────────────────────────
+
+  "Nothing unannounced is searchable" is not decoration. Until this commit the search
+  returned nominees crowned during `judging` labelled "Winner", with their category — an
+  announcement made by a search box for an award nobody had announced. It is gated now,
+  and `UnannouncedResultTest` is the sentence's evidence. Do not print this line on a
+  surface that does not go through that gate.
+
+  PARAMS
+    heading      — override the question. Defaults to the design's own.
+    placeholder  — override the field's hint.
+    q            — the current query, echoed back so the field survives a submit.
+    compact      — true on a page that already has a heading above it.
+    live         — true to carry the `data-act-*` hooks the activity page's script
+                   upgrades into an ARIA combobox. Opt-IN, because the attributes are
+                   meaningless without that script and the script exists on one page.
+    min_query    — when set, states the shortest query worth submitting.
+#}
+<link rel="stylesheet" href="{{ asset('/assets/css/components/find.css') }}">
+
+<section class="fb{% if compact|default(false) %} fb--compact{% endif %}" aria-labelledby="fbHeading">
+  <div class="fb__in">
+    <h2 class="fb__q" id="fbHeading">{{ heading|default('Who are you looking for?') }}</h2>
+
+    {# A real GET form, and the only one on this band. It posts to the search page
+       rather than to an endpoint of its own: with scripting off, on a browser too old
+       for fetch, or on a connection that dropped the bundle, this still works — which
+       on this platform is routine rather than an edge case. #}
+    {# `data-act-form` / `data-act-input` are the hooks the activity page's own script
+       looks for. They ride on THIS form because this band replaced that page's separate
+       field — one search surface, one input. The script bails out quietly when they are
+       absent (`if (!form || !input) return;`), so dropping them would have cost the live
+       as-you-type search with nothing failing anywhere. ActivityPageAccessibilityTest
+       and FindBandTest both pin them for that reason. #}
+    <form class="fb__form" method="get" action="/activity" role="search"
+          {% if live|default(false) %}data-act-form{% endif %}>
+      {# A real label, not a placeholder. A placeholder disappears the moment somebody
+         types, is not reliably announced, and is the single most common way a search
+         field becomes unusable for anybody who needs the name of the thing they are
+         filling in. `.sr-only` — the class is NOT `ag-sr-only`, which does not exist
+         and once pushed this site's Search button off the edge of a phone. #}
+      <label class="sr-only" for="fbQ">{{ heading|default('Who are you looking for?') }}</label>
+
+      <svg class="fb__mag" width="18" height="18" viewBox="0 0 24 24" fill="none"
+           stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">
+        <circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/>
+      </svg>
+
+      <input class="fb__input" id="fbQ" type="search" name="q" value="{{ q|default('') }}"
+             autocomplete="off" spellcheck="false"
+             placeholder="{{ placeholder|default('A name, an award, a category or a school') }}"
+             {% if min_query|default(0) %}aria-describedby="fbNote"{% endif %}
+             {% if live|default(false) %}data-act-input{% endif %}>
+
+      {# Visible on its own row rather than tucked inside the pill. A submit button that
+         is only an icon inside a rounded field is the pattern that fails a 24×24 target
+         check and reads as decoration. #}
+      <button class="fb__go" type="submit">Search</button>
+    </form>
+
+    <p class="fb__note" id="fbNote">
+      {%- if min_query|default(0) %}
+        <span class="fb__min">Type at least {{ min_query }} characters.</span>
+      {%- endif %}
+      {%- set _covers = search_covers() -%}
+      Searches
+      {%- for noun in _covers %}
+        {{- ' ' }}{{ noun }}{% if not loop.last %},{% endif %}
+        {%- if loop.last %}, and everything else published here.{% endif %}
+      {%- endfor %}
+      <span class="fb__promise">Nothing unannounced is searchable.</span>
+    </p>
+  </div>
+</section>

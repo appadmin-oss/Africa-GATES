@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,600;0,700;0,800;1,600&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&family=JetBrains+Mono:wght@500;600;700&display=swap" rel="stylesheet">
+<script src="image-slot.js"></script>
+<style>
+  *{box-sizing:border-box}
+  body{margin:0;font-family:'DM Sans',system-ui,sans-serif;-webkit-font-smoothing:antialiased;background:#eef0ec}
+  image-slot::part(frame){background:transparent}
+  image-slot[data-deco]::part(empty){display:none}
+  @keyframes evRise{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+</style>
+</helmet>
+
+<div style="min-height:100vh;background:#eef0ec">
+  <header style="position:sticky;top:0;z-index:50;background:rgba(251,251,250,.82);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);border-bottom:1px solid rgba(16,41,44,.07)">
+    <div style="max-width:1100px;margin:0 auto;padding:0 32px;height:72px;display:flex;align-items:center;justify-content:space-between;gap:28px">
+      <a href="#" style="text-decoration:none;display:flex;align-items:center;gap:11px"><span style="width:38px;height:38px;border-radius:11px;background:#10292C;display:flex;align-items:center;justify-content:center;font-family:'Playfair Display',serif;font-weight:700;font-size:21px;color:#7FC87C">G</span><span style="display:flex;flex-direction:column;line-height:1"><span style="font-family:'Playfair Display',serif;font-weight:700;font-size:17px;color:#10292C">Africa</span><span style="font-size:10px;font-weight:700;letter-spacing:.26em;color:#237b22">GATES</span></span></a>
+      <nav style="display:flex;align-items:center;gap:4px">
+        <a href="#" style="text-decoration:none;font-size:14.5px;font-weight:600;color:#3a4448;padding:9px 14px;border-radius:10px;display:flex;align-items:center;gap:7px"><span style="width:7px;height:7px;border-radius:50%;background:#e0245e"></span>Pulse</a>
+        <a href="#" style="text-decoration:none;font-size:14.5px;font-weight:600;color:#10292C;padding:9px 14px;border-radius:10px">Events</a>
+        <a href="#" style="text-decoration:none;font-size:14.5px;font-weight:500;color:#3a4448;padding:9px 14px;border-radius:10px">Leaderboard</a>
+      </nav>
+      <a href="#" style="text-decoration:none;background:#237b22;color:#fff;font-size:14px;font-weight:600;padding:10px 20px;border-radius:999px;box-shadow:0 8px 18px -8px rgba(35,123,34,.6)">Get tickets</a>
+    </div>
+  </header>
+
+  <!-- FEATURED -->
+  <div style="max-width:1100px;margin:24px auto 0;padding:0 32px">
+    <div style="position:relative;border-radius:24px;overflow:hidden;background:radial-gradient(130% 130% at 80% 0%,#1d5b2a,#10292C 60%);min-height:300px;display:flex;align-items:flex-end;padding:36px 40px">
+      <image-slot id="ev-hero" data-deco fit="cover" style="position:absolute;inset:0;width:100%;height:100%;opacity:.4" placeholder=""></image-slot>
+      <div style="position:absolute;right:-60px;top:-60px;width:280px;height:280px;border-radius:50%;background:radial-gradient(circle,rgba(212,154,14,.3),transparent 68%)"></div>
+      <div style="position:relative;max-width:560px">
+        <span style="display:inline-flex;align-items:center;gap:7px;font-size:11px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:#fbc329;background:rgba(212,154,14,.18);padding:7px 14px;border-radius:999px">Featured · flagship</span>
+        <h1 style="margin:16px 0 0;font-family:'Playfair Display',serif;font-weight:800;font-size:40px;line-height:1.04;letter-spacing:-.02em;color:#fff">Inaugural Awards Gala</h1>
+        <p style="margin:12px 0 0;font-size:14.5px;color:rgba(255,255,255,.82)">15 September 2026 · Eko Hotel, Lagos · 18:00 WAT</p>
+        <div style="display:flex;gap:11px;margin-top:22px">
+          <a href="#" style="text-decoration:none;background:#fff;color:#10292C;font-weight:600;font-size:14.5px;padding:13px 26px;border-radius:999px">Get tickets · from ₦15,000</a>
+          <a href="#" style="text-decoration:none;border:1px solid rgba(255,255,255,.28);color:#fff;font-weight:600;font-size:14.5px;padding:13px 24px;border-radius:999px">View details</a>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- filters -->
+  <div style="max-width:1100px;margin:26px auto 0;padding:0 32px">
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap">
+      <div style="display:flex;gap:8px;overflow-x:auto">
+        <sc-for list="{{ filters }}" as="f" hint-placeholder-count="5">
+          <button onClick="{{ f.set }}" style="flex:none;cursor:pointer;font-family:inherit;font-size:13px;font-weight:600;padding:9px 16px;border-radius:999px;border:1px solid {{ f.border }};background:{{ f.bg }};color:{{ f.fg }}">{{ f.label }}</button>
+        </sc-for>
+      </div>
+      <span style="font-size:13px;color:#92a6a7">{{ countLabel }}</span>
+    </div>
+  </div>
+
+  <!-- list -->
+  <div style="max-width:1100px;margin:20px auto 0;padding:0 32px 60px;display:flex;flex-direction:column;gap:14px">
+    <sc-for list="{{ events }}" as="e" hint-placeholder-count="5">
+      <div style="background:#fff;border:1px solid rgba(16,41,44,.08);border-radius:18px;padding:18px;display:flex;align-items:center;gap:20px;animation:evRise .3s ease both" style-hover="border-color:rgba(16,41,44,.18);box-shadow:0 16px 32px -24px rgba(16,41,44,.4)">
+        <div style="flex:none;width:74px;height:80px;border-radius:14px;background:{{ e.dateBg }};display:flex;flex-direction:column;align-items:center;justify-content:center;color:{{ e.dateFg }}"><span style="font-size:10.5px;font-weight:700;letter-spacing:.06em;text-transform:uppercase">{{ e.mon }}</span><span style="font-family:'JetBrains Mono',monospace;font-weight:700;font-size:28px;line-height:1">{{ e.day }}</span></div>
+        <div style="flex:1;min-width:0">
+          <div style="display:flex;align-items:center;gap:9px"><span style="font-size:10px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;padding:4px 9px;border-radius:999px;background:{{ e.pillBg }};color:{{ e.pillFg }}">{{ e.kind }}</span><span style="font-size:12.5px;color:#92a6a7">{{ e.time }}</span></div>
+          <div style="font-family:'Playfair Display',serif;font-weight:700;font-size:19px;color:#10292C;margin-top:7px">{{ e.title }}</div>
+          <div style="display:flex;align-items:center;gap:6px;font-size:13px;color:#717a7e;margin-top:4px"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#92a6a7" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg>{{ e.place }}</div>
+        </div>
+        <div style="flex:none;display:flex;flex-direction:column;align-items:flex-end;gap:9px">
+          <span style="font-family:'JetBrains Mono',monospace;font-weight:700;font-size:15px;color:{{ e.priceColor }}">{{ e.price }}</span>
+          <button onClick="{{ e.act }}" style="cursor:pointer;border:1px solid {{ e.btnBorder }};background:{{ e.btnBg }};color:{{ e.btnFg }};font-family:inherit;font-size:13px;font-weight:600;padding:9px 18px;border-radius:999px">{{ e.btnLabel }}</button>
+        </div>
+      </div>
+    </sc-for>
+  </div>
+
+  <sc-if value="{{ toastOpen }}" hint-placeholder-val="{{ false }}">
+    <div style="position:fixed;left:50%;bottom:32px;transform:translateX(-50%);z-index:95;background:#10292C;color:#fff;font-size:13.5px;font-weight:500;padding:13px 22px;border-radius:999px;box-shadow:0 16px 40px -12px rgba(0,0,0,.5)">{{ toastMsg }}</div>
+  </sc-if>
+
+  <footer style="background:#0c2225"><div style="max-width:1100px;margin:0 auto;padding:40px 32px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:16px">
+    <div style="display:flex;align-items:center;gap:11px"><span style="width:32px;height:32px;border-radius:9px;background:rgba(127,200,124,.16);display:flex;align-items:center;justify-content:center;font-family:'Playfair Display',serif;font-weight:700;font-size:16px;color:#7FC87C">G</span><span style="font-family:'Playfair Display',serif;font-weight:700;font-size:15px;color:#fff">Africa<span style="color:#7FC87C">GATES</span></span></div>
+    <span style="font-size:12.5px;color:rgba(255,255,255,.5)">Gatherings across the continent · 2026 cycle</span>
+  </div></footer>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:1100,&quot;height&quot;:900}}">
+class Component extends DCLogic {
+  state = { filter:'All', rsvp:{}, toast:null };
+  ping(m){ this.setState({toast:m}); clearTimeout(this._t); this._t=setTimeout(()=>this.setState({toast:null}),2100); }
+  renderVals(){
+    const s = this.state;
+    const EV = [
+      { mon:'SEP', day:'15', title:'Inaugural Awards Gala', kind:'Ceremony', time:'18:00 WAT', place:'Eko Hotel, Lagos', price:'₦15,000', ticketed:true, dateBg:'#10292C', dateFg:'#7FC87C', pillBg:'#fff8df', pillFg:'#a47306' },
+      { mon:'SEP', day:'22', title:'How the CPI is scored', kind:'Webinar', time:'15:00 WAT', place:'Online · open', price:'Free', ticketed:false, dateBg:'#effaf0', dateFg:'#1a6118', pillBg:'#effaf0', pillFg:'#1a6118' },
+      { mon:'OCT', day:'04', title:'Education town hall', kind:'Community', time:'17:00 WAT', place:'Pulse Live', price:'Free', ticketed:false, dateBg:'#f0f2f2', dateFg:'#2b373d', pillBg:'#f0f2f2', pillFg:'#5d7374' },
+      { mon:'OCT', day:'19', title:'Judges & methodology AMA', kind:'Webinar', time:'16:00 WAT', place:'Online', price:'Free', ticketed:false, dateBg:'#effaf0', dateFg:'#1a6118', pillBg:'#effaf0', pillFg:'#1a6118' },
+      { mon:'NOV', day:'08', title:'Cultural Icons night', kind:'Ceremony', time:'19:00 WAT', place:'Accra, Ghana', price:'₦20,000', ticketed:true, dateBg:'#10292C', dateFg:'#7FC87C', pillBg:'#fff8df', pillFg:'#a47306' }
+    ];
+    const KIND=['All','Ceremony','Webinar','Community'];
+    const filters = KIND.map(k=>{ const on=s.filter===k; return { label:k, set:()=>this.setState({filter:k}), bg:on?'#10292C':'#fff', fg:on?'#fff':'#4a5256', border:on?'#10292C':'rgba(16,41,44,.12)' }; });
+    const list = EV.filter(e=>s.filter==='All'||e.kind===s.filter);
+    const events = list.map((e,i)=>{ const on=!!s.rsvp[e.title];
+      return { ...e, priceColor: e.ticketed?'#10292C':'#1a6118',
+        btnLabel: e.ticketed?'Get tickets':(on?'Going ✓':'RSVP'),
+        btnBg: e.ticketed?'#237b22':(on?'#eef7ee':'#fff'), btnFg: e.ticketed?'#fff':(on?'#1a6118':'#10292C'), btnBorder: e.ticketed?'#237b22':(on?'#bfe0bd':'rgba(16,41,44,.16)'),
+        act: ()=>{ if(e.ticketed){ this.ping('Opening ticket checkout…'); } else { this.setState(st=>({rsvp:{...st.rsvp,[e.title]:!st.rsvp[e.title]}})); } } }; });
+    return { filters, events, countLabel: list.length+' upcoming', toastOpen:!!s.toast, toastMsg:s.toast||'' };
+  }
+}
+</script>
+</body>
+</html>

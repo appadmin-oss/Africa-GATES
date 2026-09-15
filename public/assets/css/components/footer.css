@@ -1,0 +1,96 @@
+/* ════════════════════════════════════════════════════════════════
+   Africa GATES — Footer (component)
+   v3 design: dark teal surface (#0c2225), brand + 3 link columns,
+   bottom bar with copyright · circular socials · legal links.
+   Layout chrome — styled globally off :root tokens (not .ag-scope).
+   ════════════════════════════════════════════════════════════════ */
+.ag-foot{
+  background:#0c2225;
+  color:#fff;
+  font-family:var(--ag-font-body);
+  -webkit-font-smoothing:antialiased;
+}
+
+/* ── Top: brand + link columns ── */
+.ag-foot__top{
+  max-width:1240px;
+  margin:0 auto;
+  padding:clamp(2.75rem,5vw,3.4rem) var(--ag-gutter,40px) 1.9rem;
+  display:grid;
+  grid-template-columns:1.4fr 1fr 1fr 1fr;
+  gap:clamp(1.6rem,3vw,2.5rem);
+}
+
+.ag-foot__mark{ display:flex; align-items:center; gap:11px; margin-bottom:1rem; }
+.ag-foot__glyph{
+  width:34px; height:34px; flex:none;
+  border-radius:10px;
+  background:rgba(127,200,124,.16);
+  color:var(--ag-green-light);
+  display:flex; align-items:center; justify-content:center;
+  font-family:var(--ag-font-display); font-weight:700; font-size:18px;
+}
+.ag-foot__word{ display:flex; flex-direction:column; line-height:1; }
+.ag-foot__word b{ font-family:var(--ag-font-display); font-weight:700; font-size:16px; color:#fff; }
+.ag-foot__word span{ font-size:9px; font-weight:700; letter-spacing:.26em; color:var(--ag-green-light); }
+.ag-foot__tag{ margin:0; font-size:13.5px; line-height:1.65; color:rgba(255,255,255,.6); max-width:280px; }
+
+.ag-foot__col-title{
+  margin:0 0 .9rem; font-size:11px; font-weight:700;
+  letter-spacing:.1em; text-transform:uppercase; color:var(--ag-green-light);
+}
+.ag-foot__links{ display:flex; flex-direction:column; gap:.65rem; padding:0; margin:0; list-style:none; }
+.ag-foot__links a{
+  font-size:13.5px; color:rgba(255,255,255,.7); text-decoration:none;
+  width:fit-content; transition:color .15s ease;
+}
+.ag-foot__links a:hover,
+.ag-foot__links a:focus-visible{ color:#fff; }
+
+/* ── Bottom bar ── */
+.ag-foot__bottom{
+  max-width:1240px;
+  margin:0 auto;
+  padding:1.25rem var(--ag-gutter,40px) 2.5rem;
+  border-top:1px solid rgba(255,255,255,.1);
+  display:flex; align-items:center; justify-content:space-between;
+  gap:1.25rem; flex-wrap:wrap;
+}
+.ag-foot__copy{ font-size:12.5px; color:rgba(255,255,255,.5); margin:0; }
+.ag-foot__meta{ display:flex; align-items:center; gap:1.1rem; flex-wrap:wrap; }
+.ag-foot__social{ display:flex; gap:9px; }
+.ag-foot__social a{
+  width:36px; height:36px; border-radius:50%;
+  border:1px solid rgba(255,255,255,.16);
+  display:flex; align-items:center; justify-content:center;
+  color:rgba(255,255,255,.8); text-decoration:none;
+  transition:background .15s ease, color .15s ease, border-color .15s ease;
+}
+.ag-foot__social a:hover,
+.ag-foot__social a:focus-visible{ background:#fff; color:#10292C; border-color:#fff; }
+.ag-foot__sep{ width:1px; height:18px; background:rgba(255,255,255,.16); }
+.ag-foot__legal{ display:flex; align-items:center; gap:1.1rem; flex-wrap:wrap; }
+.ag-foot__legal a{ font-size:12.5px; color:rgba(255,255,255,.6); text-decoration:none; transition:color .15s ease; }
+.ag-foot__legal a:hover,
+.ag-foot__legal a:focus-visible{ color:#fff; }
+
+/* ── Tablet: brand spans the row, links in 3 columns ── */
+@media (max-width:920px){
+  .ag-foot__top{ grid-template-columns:repeat(3,1fr); }
+  .ag-foot__brand{ grid-column:1 / -1; }
+  .ag-foot__tag{ max-width:none; }
+}
+
+/* ── Mobile: stack everything; clear the fixed bottom nav ── */
+@media (max-width:600px){
+  .ag-foot__top{ grid-template-columns:1fr 1fr; gap:1.4rem 1.2rem; }
+  .ag-foot__brand{ grid-column:1 / -1; }
+  .ag-foot__bottom{
+    flex-direction:column; align-items:flex-start; gap:1rem;
+    padding-bottom:calc(84px + env(safe-area-inset-bottom,0px));
+  }
+  .ag-foot__sep{ display:none; }
+}
+@media (max-width:380px){
+  .ag-foot__top{ grid-template-columns:1fr; }
+}

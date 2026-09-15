@@ -1,0 +1,331 @@
+{% extends "admin/layout.twig" %}
+{% block topbar_eyebrow %}<small>Entries &amp; panel · Questionnaires</small>{% endblock %}
+{% block topbar_title %}Invitations{% endblock %}
+{% block topbar_actions %}
+  <a class="ad-btn" href="/admin/questionnaires">← Queue</a>
+{% endblock %}
+
+{% block content %}
+
+{% if cycle_id == 0 %}
+  <div class="ad-card"><div class="ad-card__body">
+    <p style="margin:0">No award cycle has any questionnaires yet. Open some from the
+      <a href="/admin/questionnaires" style="color:var(--ad-accent,#237b22);font-weight:600">queue</a> first.</p>
+  </div></div>
+{% else %}
+
+{#
+  ── THE ORDER OF THIS SCREEN ────────────────────────────────────────────────
+  Deadline, then audience, then send. The deadline is what the email will SAY, so
+  choosing it after choosing who to write to would mean sending the wrong sentence.
+#}
+
+{# The whole page is one GET form. Changing a checkbox reloads with a new count, so the
+   number beside the button is always the number that button will send — the count and the
+   selection cannot drift apart, because there is only one of each. #}
+<form method="get" action="/admin/questionnaires/invitations" id="qiPick">
+  <div class="ad-card">
+    <div class="ad-card__head"><div class="ad-card__title">Cycle
+      <small>Invitations are per cycle: the deadline, the audience and the send log all belong to one.</small>
+    </div></div>
+    <div class="ad-card__body"><div class="ad-form">
+      <div class="row">
+        <div>
+          <label for="q-cycle">Award cycle</label>
+          <select name="cycle" id="q-cycle" data-ag-do="submit-form">
+            {% for c in cycles %}<option value="{{ c.id }}" {% if c.id == cycle_id %}selected{% endif %}>{{ c.programme|default('Awards') }} — {{ c.year }}{% if c.edition_label %} · {{ c.edition_label }}{% endif %}</option>{% endfor %}
+          </select>
+        </div>
+        <div style="display:flex;align-items:flex-end">
+          <button class="ad-btn ad-btn--sm" type="submit">Update</button>
+        </div>
+      </div>
+    </div></div>
+  </div>
+</form>
+
+{# ── 1. THE DEADLINE ──────────────────────────────────────────────────────── #}
+<form class="ad-form" method="post" action="/admin/questionnaires/invitations/policy">
+  <input type="hidden" name="_token" value="{{ csrf_token }}">
+  <input type="hidden" name="cycle_id" value="{{ cycle_id }}">
+  <div class="ad-card">
+    <div class="ad-card__head"><div class="ad-card__title">Deadline
+      <small>The date the invitation prints. It is not a lock — the questionnaire stays fillable afterwards, deliberately.</small>
+    </div></div>
+    <div class="ad-card__body"><div class="ad-form">
+      <div class="row">
+        <div>
+          <label for="q-deadline">Send it by</label>
+          <input type="datetime-local" name="deadline_at" id="q-deadline"
+                 {# ── RAW, NOT |date — THIS FIELD ROUND-TRIPS ─────────────────────────
+                    Every other datetime-local field in the admin uses this same string
+                    transform, and the reason is that the SAVE side parses what comes back
+                    with `Carbon::parse()` — no zone attached, so it lands in the stored
+                    zone. Display and parse therefore have to agree, and they agree on the
+                    stored value.
+
+                    This one field used `|date`, which was identical while Twig had no
+                    timezone configured and stopped being identical the moment one was set
+                    for the public pages: the field would show an hour later than it stored,
+                    and saving without touching it would push the deadline forward an hour
+                    every single time. #}
+                 value="{{ policy.deadline_at ? policy.deadline_at|when_input : '' }}" step="1">
+          {% if policy.source == 'derived' %}
+            <p class="hint">Currently taken from this cycle's results date. Set one here and it stops moving when you reschedule the results.</p>
+          {% elseif policy.source == 'none' %}
+            <p class="hint">No deadline is set, so invitations do not mention one.</p>
+          {% endif %}
+        </div>
+        <div>
+          <label for="q-grace">Days of grace before enforcing</label>
+          <input type="number" name="grace_days" id="q-grace" min="0" max="365" value="{{ policy.grace_days }}">
+          <p class="hint">Somebody submitting four hours after midnight has not declined to take part.</p>
+        </div>
+      </div>
+      <div>
+        <label class="checkbox"><input type="checkbox" name="autodisqualify" value="1" {% if policy.autodisqualify %}checked{% endif %}>
+          Disqualify anyone who has not submitted by then</label>
+      </div>
+
+      <div class="ad-callout{% if policy.autodisqualify %} ad-callout--warn{% endif %}">
+        <strong>What this means today</strong>
+        {{ policy_text }}
+      </div>
+    </div></div>
+    <div class="ad-card__body" style="padding-top:0"><div class="ad-form__actions" style="justify-content:flex-end">
+      <button class="ad-btn ad-btn--primary" type="submit">Save deadline</button>
+    </div></div>
+  </div>
+</form>
+
+{# The rule's effect, stated BEFORE it can be run. `enforce(dryRun: true)` names the
+   people, because a count is not enough to authorise taking a nomination away. #}
+{# Shown when anybody is held back too, not only when somebody would be taken. Gating
+   the whole card on `would > 0` meant that a cycle where EVERY silent nominee is still
+   waiting for their warning showed the organiser nothing at all — and "nothing on the
+   screen" reads as "the rule found nobody", which is the opposite of what is true. #}
+{% if policy.autodisqualify and enforce and (enforce.would > 0 or enforce.held|default([])|length) %}
+<div class="ad-card">
+  <div class="ad-card__head"><div class="ad-card__title" style="color:var(--ad-danger,#a4243d)">
+    {% if enforce.would > 0 %}{{ enforce.would }} nominee{{ enforce.would == 1 ? '' : 's' }} would be disqualified now
+    {%- else %}Nobody would be disqualified yet{% endif %}
+    <small>Nothing has happened yet. This is what the rule would do if it ran this minute.</small>
+  </div>
+  {% if may_write and enforce.would > 0 %}
+  <form method="post" action="/admin/questionnaires/invitations/disqualify">
+    <input type="hidden" name="_token" value="{{ csrf_token }}">
+    <input type="hidden" name="cycle_id" value="{{ cycle_id }}">
+    <button class="ad-btn ad-btn--sm ad-btn--danger" type="submit"
+      data-confirm="Disqualify {{ enforce.would }} nominee(s) who have not submitted? Each one can be reinstated individually afterwards.">Run it now</button>
+  </form>
+  {% endif %}
+  </div>
+  <div class="ad-card__body">
+    {% if enforce.would > 0 %}
+    <p style="margin:0 0 8px;font-size:12.5px;color:var(--ad-text-mute,#5a6d6f)">
+      Try sending to them again first — most of these are people who never saw the email.</p>
+    <p style="margin:0;font-size:13px;line-height:1.7">
+      {% for n in enforce.names|slice(0, 40) %}<span class="ad-chip ad-chip--grey" style="margin:0 4px 4px 0">{{ n }}</span>{% endfor %}
+      {% if enforce.names|length > 40 %}<span style="color:var(--ad-text-mute)">and {{ enforce.names|length - 40 }} more</span>{% endif %}
+    </p>
+    {% endif %}
+
+    {# ── WHO THE RULE WILL NOT TAKE, AND WHY ─────────────────────────────────
+       A nominee with no warning on file is held back rather than disqualified. Named
+       here rather than only counted, because an organiser looking at a smaller number
+       than they expected has to be able to see it is a warning queue and not a bug. #}
+    {% if enforce.held|default([])|length %}
+    <div style="margin-top:{{ enforce.would > 0 ? '14px' : '0' }};padding-top:{{ enforce.would > 0 ? '14px' : '0' }};
+                border-top:{{ enforce.would > 0 ? '1px solid var(--ad-line,#dfe4e4)' : 'none' }}">
+      <p style="margin:0 0 8px;font-size:12.5px;color:var(--ad-text-mute,#5a6d6f)">
+        <strong>{{ enforce.held|length }} {{ enforce.would > 0 ? 'more ' : '' }}being held back:
+        {{ enforce.held|length == 1 ? 'this nominee has' : 'these nominees have' }} not been warned yet.</strong>
+        The rule will not take a nomination from somebody whose only message was the
+        invitation. Warnings go out with the daily run; each person is taken by a later
+        run if they still say nothing.</p>
+      <p style="margin:0;font-size:13px;line-height:1.7">
+        {% for n in enforce.held|slice(0, 40) %}<span class="ad-chip ad-chip--grey" style="margin:0 4px 4px 0">{{ n }}</span>{% endfor %}
+        {% if enforce.held|length > 40 %}<span style="color:var(--ad-text-mute)">and {{ enforce.held|length - 40 }} more</span>{% endif %}
+      </p>
+    </div>
+    {% endif %}
+  </div>
+</div>
+{% endif %}
+
+{# ── 2. WHO, AND HOW MANY ─────────────────────────────────────────────────── #}
+<form class="ad-form" method="get" action="/admin/questionnaires/invitations">
+  <input type="hidden" name="cycle" value="{{ cycle_id }}">
+  <div class="ad-card">
+    <div class="ad-card__head"><div class="ad-card__title">Who to write to
+      <small>Change anything here and press Recount. The number on the send button is always the number it will send.</small>
+    </div></div>
+    <div class="ad-card__body"><div class="ad-form">
+
+      <div>
+        <label>Programmes <small style="font-weight:500;color:var(--ad-text-mute)">— none ticked means every programme in this cycle</small></label>
+        <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:8px;margin-top:6px">
+          {% for pr in programmes %}
+          <label class="checkbox" style="border:1px solid var(--ad-line);border-radius:8px;padding:9px 12px;margin:0">
+            <input type="checkbox" name="p[]" value="{{ pr.id }}" {% if pr.id in picked %}checked{% endif %}>
+            <span>{{ pr.title }}
+              <span style="display:block;font-weight:500;font-size:11.5px;color:var(--ad-text-mute)">
+                {{ pr.open }} still to submit of {{ pr.n }}</span>
+            </span>
+          </label>
+          {% else %}
+          <p class="hint">This cycle has no questionnaires yet.</p>
+          {% endfor %}
+        </div>
+      </div>
+
+      <div>
+        <label for="q-aud">Audience</label>
+        <select name="audience" id="q-aud">
+          {% for k, label in audiences %}<option value="{{ k }}" {% if audience == k %}selected{% endif %}>{{ label }}</option>{% endfor %}
+        </select>
+        <p class="hint">The default excludes anyone who has already submitted — writing to ask somebody for work they have already sent is the fastest way to look like a robot.</p>
+      </div>
+
+      <div>
+        {# The resend switch. Deliberately a separate tick from the audience: "who is
+           eligible" and "write to them again" are different decisions, and folding them
+           into one dropdown is how a chase-up becomes a duplicate. #}
+        <label class="checkbox"><input type="checkbox" name="again" value="1" {% if again %}checked{% endif %}>
+          Write again to nominees who have already been sent this — a resend</label>
+      </div>
+
+      <div class="ad-form__actions">
+        <button class="ad-btn" type="submit">Recount</button>
+      </div>
+    </div></div>
+
+    {# The counts. Every recipient lands in exactly one of these, and all of them are
+       shown — a nominee with no email is not "nothing happened", it is somebody an
+       organiser has to reach another way. #}
+    <div class="ad-card__body" style="padding-top:0">
+      <div class="ad-stat-grid">
+        <div class="ad-stat ad-stat--accent">
+          <span class="ad-stat__num">{{ plan.counts.sendable|default(0) }}</span>
+          <span class="ad-stat__lbl">Will be written to</span>
+          {% if plan.counts.sendable|default(0) > plan.batch %}
+            <span class="ad-stat__hint">{{ plan.batch }} per press</span>
+          {% endif %}
+        </div>
+        <div class="ad-stat">
+          <span class="ad-stat__num">{{ plan.counts.nominees|default(0) }}</span>
+          <span class="ad-stat__lbl">Matched the filter</span>
+        </div>
+        <div class="ad-stat">
+          <span class="ad-stat__num">{{ plan.counts.already|default(0) }}</span>
+          <span class="ad-stat__lbl">Already sent</span>
+          <span class="ad-stat__hint">tick “resend” to include</span>
+        </div>
+        <div class="ad-stat">
+          <span class="ad-stat__num">{{ plan.counts.no_email|default(0) }}</span>
+          <span class="ad-stat__lbl">No email address</span>
+          <span class="ad-stat__hint">reach these another way</span>
+        </div>
+        <div class="ad-stat">
+          <span class="ad-stat__num">{{ plan.counts.unsubscribed|default(0) }}</span>
+          <span class="ad-stat__lbl">Unsubscribed</span>
+        </div>
+        {% if plan.counts.disqualified|default(0) > 0 %}
+        <div class="ad-stat">
+          <span class="ad-stat__num">{{ plan.counts.disqualified }}</span>
+          <span class="ad-stat__lbl">Disqualified</span>
+          <span class="ad-stat__hint">never written to</span>
+        </div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</form>
+
+{# ── 3. SEND ──────────────────────────────────────────────────────────────── #}
+<div class="ad-card">
+  <div class="ad-card__head"><div class="ad-card__title">Send
+    <small>{% if history and history.last_at %}Last delivered {{ history.last_at|date('j M Y, H:i') }} — {{ history.count }} sent{% if history.failed %}, {{ history.failed }} failed{% endif %}.{% else %}Nothing has been sent for this cycle yet.{% endif %}{% if pending %} <strong>{{ pending }} still in the queue.</strong>{% endif %}</small>
+  </div>
+  {% if may_write and plan.counts.sendable|default(0) > 0 %}
+  <form method="post" action="/admin/questionnaires/invitations/send" style="display:flex;gap:8px;align-items:center">
+    <input type="hidden" name="_token" value="{{ csrf_token }}">
+    <input type="hidden" name="cycle_id" value="{{ cycle_id }}">
+    <input type="hidden" name="audience" value="{{ audience }}">
+    {% if again %}<input type="hidden" name="again" value="1">{% endif %}
+    {% for id in picked %}<input type="hidden" name="p[]" value="{{ id }}">{% endfor %}
+    {# One press queues the WHOLE audience. `send_now` is the escape hatch for a handful of
+       chased stragglers, where waiting for a tick is the wrong trade — same batch path,
+       still capped by what a request can do. #}
+    <button class="ad-btn ad-btn--primary" type="submit"
+      data-confirm="Queue {{ plan.counts.sendable }} invitation(s){% if again %}, including people already written to{% endif %}? They go out on the next maintenance run.">
+      Queue all {{ plan.counts.sendable }}
+    </button>
+    <button class="ad-btn ad-btn--sm" type="submit" name="send_now" value="1"
+      data-confirm="Send {{ min(plan.counts.sendable, plan.batch) }} invitation(s) now, in this request? They go straight out and cannot be recalled — and the page will sit here until every one has been handed to the mail server. Queue them instead unless you need them gone this minute.">
+      Send {{ min(plan.counts.sendable, plan.batch) }} now
+    </button>
+  </form>
+  {% endif %}
+  </div>
+  <div class="ad-card__body">
+    {% if plan.counts.sendable|default(0) == 0 %}
+      <p style="margin:0;color:var(--ad-text-mute,#5a6d6f)">Nobody matches this selection.
+        {% if plan.counts.already|default(0) > 0 %}Everyone eligible has already been written to — tick “resend” above to write again.{% endif %}</p>
+    {% else %}
+      <p style="margin:0 0 10px;font-size:12.5px;color:var(--ad-text-mute,#5a6d6f)">
+        <strong>Queue all</strong> hands the whole list to the maintenance run, which delivers
+        it in the background — one press, however many nominees. Queueing twice adds nothing
+        the second time, so a double-click cannot double-send.
+        <strong>Send now</strong> pushes {{ plan.batch }} inside this request instead, for when
+        you are chasing a handful and do not want to wait for a tick.</p>
+      <div class="ad-table-wrap">
+        <table class="ad-table">
+          <thead><tr><th scope="col">Nominee</th><th scope="col">Programme</th><th scope="col">Email</th><th scope="col">State</th></tr></thead>
+          <tbody>
+            {% for r in plan.rows|slice(0, plan.batch) %}
+            <tr>
+              <td><a href="/admin/questionnaires/{{ r.submission_id }}" style="color:var(--ad-accent,#237b22);font-weight:600">{{ r.name }}</a></td>
+              <td style="font-size:12.5px;color:var(--ad-text-soft)">{{ r.programme|default('—') }}</td>
+              <td style="font-size:12.5px;color:var(--ad-text-soft)">{{ r.email }}</td>
+              <td><span class="ad-chip ad-chip--grey">{{ r.status }}</span></td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    {% endif %}
+  </div>
+</div>
+
+{# Who is being skipped, and why. Collapsed, because on a healthy cycle it is a long list
+   of "already sent" that nobody needs to read — but never hidden, because the one row that
+   matters is somebody with no address, and that person is invisible otherwise. #}
+{% if plan.skipped|default([])|length > 0 %}
+<details class="ad-card">
+  <summary class="ad-card__head" style="cursor:pointer"><div class="ad-card__title">
+    {{ plan.skipped|length }} not being written to
+    <small>Every reason, so nobody is dropped silently.</small>
+  </div></summary>
+  <div class="ad-table-wrap">
+    <table class="ad-table">
+      <thead><tr><th scope="col">Nominee</th><th scope="col">Programme</th><th scope="col">Why not</th></tr></thead>
+      <tbody>
+        {% for r in plan.skipped|slice(0, 200) %}
+        <tr>
+          <td><a href="/admin/questionnaires/{{ r.submission_id }}" style="color:var(--ad-accent,#237b22)">{{ r.name }}</a></td>
+          <td style="font-size:12.5px;color:var(--ad-text-soft)">{{ r.programme|default('—') }}</td>
+          <td><span class="ad-chip {{ r.reason starts with 'no email' ? 'ad-chip--gold' : 'ad-chip--grey' }}">{{ r.reason }}</span></td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% if plan.skipped|length > 200 %}
+    <p style="margin:12px 20px;font-size:12.5px;color:var(--ad-text-mute)">{{ plan.skipped|length - 200 }} more not listed.</p>
+    {% endif %}
+  </div>
+</details>
+{% endif %}
+
+{% endif %}
+{% endblock %}

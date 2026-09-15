@@ -1,0 +1,62 @@
+{# ── Member autofill chip ──────────────────────────────────────────────────
+   Opt-in "use my profile details" for signed-in members. Renders nothing for
+   guests. Filling is a CHOICE: one click applies, one click undoes, and every
+   field stays editable afterwards. Works with plain inputs and Alpine
+   x-model fields alike (sets .value then dispatches an `input` event).
+
+   Usage:
+     {% include 'partials/member-autofill.twig' with {
+       member: member,                                  — from UserAccountService::memberForForms()
+       maf_fields: [                                    — selector → member field
+         {sel: '#byName',  key: 'name'},
+         {sel: '#byEmail', key: 'email'},
+         {sel: '#byPhone', key: 'phone'},
+       ],
+     } only %}
+─────────────────────────────────────────────────────────────────────────── #}
+{% if member %}
+<div class="ag-maf" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;background:#f4f9f4;border:1px solid #d5e8d5;border-radius:12px;padding:9px 13px;margin:0 0 14px">
+  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#237b22" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+  <span style="font-size:13px;color:#40554f">Signed in as <strong>{{ member.name }}</strong></span>
+  <button type="button" class="ag-maf__btn" data-ag-do="member-fill"
+          data-fill='{{ maf_fields|json_encode }}'
+          data-member='{{ {name: member.name, email: member.email, phone: member.phone}|json_encode }}'
+          style="margin-left:auto;background:#237b22;color:#fff;border:0;font-weight:600;font-size:12.5px;padding:7px 14px;border-radius:999px;cursor:pointer">
+    Use my details
+  </button>
+</div>
+<script nonce="{{ csp_nonce }}">
+if (!window.agMemberFill) {
+  window.agMemberFill = function (btn) {
+    var fields = JSON.parse(btn.getAttribute('data-fill') || '[]');
+    var member = JSON.parse(btn.getAttribute('data-member') || '{}');
+    var applied = btn.getAttribute('data-applied') === '1';
+    if (!applied) {
+      var undo = [];
+      fields.forEach(function (f) {
+        var el = document.querySelector(f.sel);
+        if (!el) return;
+        undo.push({ sel: f.sel, v: el.value });
+        el.value = member[f.key] || '';
+        el.dispatchEvent(new Event('input', { bubbles: true }));
+        el.classList.remove('is-error');
+      });
+      btn.setAttribute('data-undo', JSON.stringify(undo));
+      btn.setAttribute('data-applied', '1');
+      btn.textContent = 'Applied ✓ — undo';
+      btn.style.background = '#10292c';
+    } else {
+      JSON.parse(btn.getAttribute('data-undo') || '[]').forEach(function (u) {
+        var el = document.querySelector(u.sel);
+        if (!el) return;
+        el.value = u.v;
+        el.dispatchEvent(new Event('input', { bubbles: true }));
+      });
+      btn.setAttribute('data-applied', '0');
+      btn.textContent = 'Use my details';
+      btn.style.background = '#237b22';
+    }
+  };
+}
+</script>
+{% endif %}

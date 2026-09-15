@@ -1,0 +1,226 @@
+{# ═══════════════════════════════════════════════════════════════════════════
+   MEMBER SIGN-IN — /account/login
+
+   Two states on one route: credentials, and (with `sent`) the one-time code.
+
+   ── WHAT IS DELIBERATELY NOT HERE ──────────────────────────────────────────
+   No link to the admin console, the judges' panel or the organisation
+   sign-in. Those are separate trust domains on their own routes and a shared
+   public entry point is the thing that makes one of them a target.
+
+   Three alternate ways in, and each one exists. The passkey row is HIDDEN until
+   the script confirms this browser can run the ceremony, and is not rendered at
+   all when the server half is unavailable — a row that opens nothing reads as
+   the account being broken rather than as the feature being absent, which is
+   worse than not offering it.
+
+   ── THE EMAIL IS CARRIED, NOT REMEMBERED ───────────────────────────────────
+   The code screen used to show neither the address the code went to nor any
+   way to correct it, and `otpVerify` read the address out of the SESSION. So a
+   typo put somebody on a code screen for an inbox they do not own, with
+   "Invalid or expired code" as the only feedback — a message about the code,
+   for a fault in the address. The address is now printed, posted with the
+   code, and changeable in one click.
+   ═══════════════════════════════════════════════════════════════════════════ #}
+{% extends "layout/account-auth.twig" %}
+
+{% block card %}
+{% if sent %}
+
+  <a class="ag-acct__back" href="/account/login">
+    <svg width="14" height="14" viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M12.5 4.5 7 10l5.5 5.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    Use a different email
+  </a>
+
+  <div class="ag-acct__art">{% include 'partials/lottie.twig' with { src: '/assets/anim/otp-verify.json', width: 170, height: 112 } only %}</div>
+
+  <h1 class="ag-acct__h1">Check your email</h1>
+  <p class="ag-acct__lede">
+    {% if login_email %}Enter the 6-digit code we sent to <b>{{ login_email }}</b>.{% else %}Enter the 6-digit code we just sent you.{% endif %}
+    It expires in 15 minutes.
+  </p>
+
+  {% if error %}<div class="ag-acct__alert ag-acct__alert--err" role="alert">{{ error }}</div>{% endif %}
+  {% if notice %}<div class="ag-acct__alert ag-acct__alert--note" role="status">{{ notice }}</div>{% endif %}
+
+  <form method="post" action="/account/login/verify">
+    <input type="hidden" name="_token" value="{{ csrf_token }}">
+    {# Posted rather than read from the session, so the code and the address it
+       belongs to travel together. A session that has rolled over — a new
+       browser, a code opened an hour later — otherwise verifies against an
+       empty address and reports a bad code. #}
+    <input type="hidden" name="email" value="{{ login_email|default('') }}">
+
+    <div class="ag-acct__field ag-acct__otp-wrap" id="agOtpWrap">
+      <label class="ag-acct__label" for="otp">6-digit code</label>
+      {# Decorative. The real input below takes the entry — see account-auth.css. #}
+      <span class="ag-acct__otp" aria-hidden="true">
+        <span class="ag-acct__box{% if error %} ag-acct__box--err{% endif %}"></span>
+        <span class="ag-acct__box{% if error %} ag-acct__box--err{% endif %}"></span>
+        <span class="ag-acct__box{% if error %} ag-acct__box--err{% endif %}"></span>
+        <span class="ag-acct__box{% if error %} ag-acct__box--err{% endif %}"></span>
+        <span class="ag-acct__box{% if error %} ag-acct__box--err{% endif %}"></span>
+        <span class="ag-acct__box{% if error %} ag-acct__box--err{% endif %}"></span>
+      </span>
+      <input class="ag-acct__input ag-acct__code{% if error %} ag-acct__input--err{% endif %}"
+             id="otp" name="otp" type="text" inputmode="numeric" pattern="[0-9]{6}" maxlength="6"
+             autocomplete="one-time-code" aria-label="6-digit code" required autofocus>
+    </div>
+
+    <div class="ag-acct__btns">
+      <button class="ag-acct__cta" type="submit">Sign in</button>
+    </div>
+  </form>
+
+  {# A second form, a sibling of the one above — never nested. The HTML parser
+     DROPS a <form> start tag while a form is open and adopts its children into
+     the outer one, so a nested "send a new code" would silently post the code
+     form to the verify route instead. #}
+  <form method="post" action="/account/login/otp">
+    <input type="hidden" name="_token" value="{{ csrf_token }}">
+    <input type="hidden" name="email" value="{{ login_email|default('') }}">
+    <p class="ag-acct__fine">
+      Code not arrived?
+      <button class="ag-acct__quiet" type="submit">Send a new one</button>
+      · <a href="/account/login">use a password</a>
+    </p>
+  </form>
+
+{% else %}
+
+  <h1 class="ag-acct__h1">Welcome back</h1>
+  <p class="ag-acct__lede">Sign in to track your points and redeem votes.</p>
+
+  {% if error %}<div class="ag-acct__alert ag-acct__alert--err" role="alert">{{ error }}</div>{% endif %}
+  {% if notice %}<div class="ag-acct__alert ag-acct__alert--note" role="status">{{ notice }}</div>{% endif %}
+
+  <form method="post" action="/account/login">
+    <input type="hidden" name="_token" value="{{ csrf_token }}">
+
+    <div class="ag-acct__field">
+      <label class="ag-acct__label" for="email">Email</label>
+      <input class="ag-acct__input{% if error %} ag-acct__input--err{% endif %}" id="email" type="email" name="email"
+             value="{{ login_email|default('') }}" autocomplete="email" placeholder="you@email.com" required autofocus>
+    </div>
+
+    <div class="ag-acct__field">
+      <label class="ag-acct__label" for="password">Password <span>or use a code instead</span></label>
+      {# Not required, deliberately: the code button below is a first-class
+         sign-in route, not a fallback, and `required` here would block it. #}
+      <input class="ag-acct__input{% if error %} ag-acct__input--err{% endif %}" id="password" type="password"
+             name="password" autocomplete="current-password" placeholder="••••••••">
+    </div>
+
+    <div class="ag-acct__btns">
+      <button class="ag-acct__cta" type="submit">Sign in</button>
+      {# formaction on the submitter, never a second <form> — and formnovalidate
+         so an empty password field cannot hold the code path hostage. #}
+      <button class="ag-acct__ghost" type="submit" formaction="/account/login/otp" formnovalidate>Email me a one-time code</button>
+    </div>
+  </form>
+
+  <div class="ag-acct__rows">
+    {% if passkeys_available|default(false) %}
+      {# HIDDEN until the script confirms this browser can actually do it. A passkey row
+         that opens nothing on an older browser is worse than no row: the person reads it
+         as the account being broken rather than as the feature being unavailable. #}
+      <button class="ag-acct__row" type="button" id="agPasskeyRow" hidden
+              data-passkey-signin data-passkey-note="agPasskeyNote">
+        <span class="ag-acct__row-body">
+          <b class="ag-acct__row-title">Use a passkey</b>
+          <span class="ag-acct__row-note">Face, fingerprint or device PIN — nothing to type and nothing to remember.</span>
+        </span>
+        <svg class="ag-acct__chev" width="16" height="16" viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M7.5 4.5 13 10l-5.5 5.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </button>
+      <p class="ag-acct__alert ag-acct__alert--note" id="agPasskeyNote" hidden></p>
+    {% endif %}
+    <a class="ag-acct__row" href="/vote">
+      <span class="ag-acct__row-body">
+        <b class="ag-acct__row-title">Claim a profile someone nominated</b>
+        <span class="ag-acct__row-note">Open the page you were nominated on, verify by code, and it becomes yours to edit.</span>
+      </span>
+      <svg class="ag-acct__chev" width="16" height="16" viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M7.5 4.5 13 10l-5.5 5.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    </a>
+    <a class="ag-acct__row" href="/account/forgot">
+      <span class="ag-acct__row-body">
+        <b class="ag-acct__row-title">Forgotten your password</b>
+        <span class="ag-acct__row-note">We email a reset link, valid once.</span>
+      </span>
+      <svg class="ag-acct__chev" width="16" height="16" viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M7.5 4.5 13 10l-5.5 5.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    </a>
+  </div>
+
+{% endif %}
+{% endblock %}
+
+{% block below %}
+{% if not sent %}
+  <p class="ag-acct__switch">New to Africa GATES? <a class="ag-acct__quiet" href="/account/register">Create an account</a></p>
+  {# The prototype carried a stat row here — "1,240 points", "9 categories",
+     "54 nations". A signed-out visitor has no points, and this platform has
+     shipped invented figures before (StatsService's "1,247 profiles"). What is
+     true without a query is the sentence. #}
+  <p class="ag-acct__note">Points come from shop orders, event tickets and donations, and turn into votes.</p>
+{% endif %}
+{% endblock %}
+
+{% block foot_scripts %}
+{% if passkeys_available|default(false) %}
+<script nonce="{{ csp_nonce }}" src="{{ asset('/assets/js/passkeys.js') }}" defer></script>
+{# The row appears only once BOTH halves are real: the library on the server (checked
+   above) and the API in this browser. `hidden` off, not `display`, so the toggle cannot
+   be undone by a stylesheet. #}
+<script nonce="{{ csp_nonce }}">
+document.addEventListener('DOMContentLoaded', function () {
+  var row = document.getElementById('agPasskeyRow');
+  if (row && window.agPasskeys && window.agPasskeys.supported()) row.hidden = false;
+});
+</script>
+{% endif %}
+{% if sent %}
+{# Mirrors the real input's digits into the decorative boxes, and only then
+   hides the input behind them. Ordered that way on purpose: if this script
+   never runs, the page keeps a plainly visible code field rather than six
+   empty boxes over an invisible input, which is a sign-in screen where typing
+   shows nothing and nothing reports an error. #}
+<script nonce="{{ csp_nonce }}">
+(function () {
+  var wrap  = document.getElementById('agOtpWrap');
+  var input = document.getElementById('otp');
+  if (!wrap || !input) return;
+  var boxes = wrap.querySelectorAll('.ag-acct__box');
+  if (boxes.length !== 6) return;
+
+  wrap.classList.add('is-boxed');
+
+  function paint() {
+    var v = input.value.replace(/\D/g, '').slice(0, 6);
+    // Keep the FIELD and the boxes agreeing. `pattern` and `maxlength` police the
+    // submission, not the typing, so "4821ab" left the boxes showing four digits
+    // while the field held six characters: the person sees an unfinished code, the
+    // sixth keystroke is refused by maxlength, and the form then declines to submit
+    // for a reason nothing on screen explains. Stripping here also makes a pasted
+    // "your code is 482193" work, which is how a code actually arrives.
+    if (input.value !== v) {
+      var atEnd = input.selectionStart === input.value.length;
+      input.value = v;
+      if (atEnd) { try { input.setSelectionRange(v.length, v.length); } catch (e) {} }
+    }
+    for (var i = 0; i < boxes.length; i++) {
+      boxes[i].textContent = v.charAt(i) || '';
+      boxes[i].classList.toggle('ag-acct__box--active',
+        i === v.length && document.activeElement === input);
+    }
+  }
+  input.addEventListener('input', paint);
+  input.addEventListener('focus', paint);
+  input.addEventListener('blur', paint);
+  // The boxes are aria-hidden, so a tap on them must reach the real input.
+  wrap.addEventListener('click', function (e) {
+    if (e.target.classList && e.target.classList.contains('ag-acct__box')) input.focus();
+  });
+  paint();
+})();
+</script>
+{% endif %}
+{% endblock %}

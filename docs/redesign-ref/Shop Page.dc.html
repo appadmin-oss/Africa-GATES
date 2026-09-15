@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,600;0,700;0,800;1,600&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&family=JetBrains+Mono:wght@500;600;700&display=swap" rel="stylesheet">
+<script src="image-slot.js"></script>
+<style>
+  *{box-sizing:border-box}
+  body{margin:0;font-family:'DM Sans',system-ui,sans-serif;-webkit-font-smoothing:antialiased;background:#eef0ec}
+  image-slot::part(frame){background:transparent}
+  image-slot[data-deco]::part(empty){display:none}
+  @keyframes shRise{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+  @keyframes shToast{0%{opacity:0;transform:translateX(-50%) translateY(12px)}12%{opacity:1;transform:translateX(-50%) translateY(0)}88%{opacity:1}100%{opacity:0}}
+</style>
+</helmet>
+
+<div style="min-height:100vh;background:#eef0ec">
+  <header style="position:sticky;top:0;z-index:50;background:rgba(251,251,250,.82);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);border-bottom:1px solid rgba(16,41,44,.07)">
+    <div style="max-width:1180px;margin:0 auto;padding:0 32px;height:72px;display:flex;align-items:center;justify-content:space-between;gap:28px">
+      <a href="#" style="text-decoration:none;display:flex;align-items:center;gap:11px"><span style="width:38px;height:38px;border-radius:11px;background:#10292C;display:flex;align-items:center;justify-content:center;font-family:'Playfair Display',serif;font-weight:700;font-size:21px;color:#7FC87C">G</span><span style="display:flex;flex-direction:column;line-height:1"><span style="font-family:'Playfair Display',serif;font-weight:700;font-size:17px;color:#10292C">Africa</span><span style="font-size:10px;font-weight:700;letter-spacing:.26em;color:#237b22">GATES</span></span></a>
+      <nav style="display:flex;align-items:center;gap:4px">
+        <a href="#" style="text-decoration:none;font-size:14.5px;font-weight:600;color:#3a4448;padding:9px 14px;border-radius:10px;display:flex;align-items:center;gap:7px"><span style="width:7px;height:7px;border-radius:50%;background:#e0245e"></span>Pulse</a>
+        <a href="#" style="text-decoration:none;font-size:14.5px;font-weight:500;color:#3a4448;padding:9px 14px;border-radius:10px;display:flex;align-items:center;gap:6px">Participate <svg width="11" height="11" viewBox="0 0 20 20" fill="currentColor"><path d="M13.8 7.2 10 11 6.2 7.2 5 8.3l5 5 5-5z"/></svg></a>
+        <a href="#" style="text-decoration:none;font-size:14.5px;font-weight:500;color:#3a4448;padding:9px 14px;border-radius:10px;display:flex;align-items:center;gap:6px">Explore <svg width="11" height="11" viewBox="0 0 20 20" fill="currentColor"><path d="M13.8 7.2 10 11 6.2 7.2 5 8.3l5 5 5-5z"/></svg></a>
+        <a href="#" style="text-decoration:none;font-size:14.5px;font-weight:500;color:#3a4448;padding:9px 14px;border-radius:10px">Leaderboard</a>
+      </nav>
+      <div style="display:flex;align-items:center;gap:12px">
+        <a href="#" style="text-decoration:none;font-size:14px;font-weight:600;color:#10292C;padding:9px 12px;border-radius:10px">Vote</a>
+        <button onClick="{{ openCart }}" style="cursor:pointer;position:relative;border:1px solid rgba(16,41,44,.16);background:#fff;color:#10292C;width:42px;height:42px;border-radius:999px;display:flex;align-items:center;justify-content:center"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="21" r="1"/><circle cx="19" cy="21" r="1"/><path d="M2 3h3l2.4 12.4a2 2 0 0 0 2 1.6h7.7a2 2 0 0 0 2-1.6L23 7H6"/></svg><sc-if value="{{ hasItems }}" hint-placeholder-val="{{ false }}"><span style="position:absolute;top:-3px;right:-3px;min-width:18px;height:18px;padding:0 4px;border-radius:999px;background:#e0245e;color:#fff;font-size:10px;font-weight:700;display:flex;align-items:center;justify-content:center">{{ cartCount }}</span></sc-if></button>
+      </div>
+    </div>
+  </header>
+
+  <!-- HERO -->
+  <div style="max-width:1180px;margin:24px auto 0;padding:0 32px">
+    <div style="position:relative;border-radius:24px;overflow:hidden;background:radial-gradient(130% 130% at 80% 0%,#1d5b2a,#10292C 60%);padding:44px 40px">
+      <div style="position:absolute;right:-60px;bottom:-80px;width:320px;height:320px;border-radius:50%;background:radial-gradient(circle,rgba(212,154,14,.28),transparent 68%)"></div>
+      <div style="position:relative;max-width:560px">
+        <span style="display:inline-flex;align-items:center;gap:7px;font-size:11px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:#fbc329;background:rgba(212,154,14,.16);padding:7px 14px;border-radius:999px">The GATES Shop</span>
+        <h1 style="margin:16px 0 0;font-family:'Playfair Display',serif;font-weight:800;font-size:42px;line-height:1.04;letter-spacing:-.02em;color:#fff">Wear the recognition</h1>
+        <p style="margin:14px 0 0;font-size:15.5px;line-height:1.6;color:rgba(255,255,255,.82);max-width:460px">Heritage-grade apparel and keepsakes. Every purchase funds child leadership programmes across the continent.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- filters -->
+  <div style="max-width:1180px;margin:24px auto 0;padding:0 32px">
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap">
+      <div style="display:flex;gap:8px;overflow-x:auto">
+        <sc-for list="{{ filters }}" as="f" hint-placeholder-count="5">
+          <button onClick="{{ f.set }}" style="flex:none;cursor:pointer;font-family:inherit;font-size:13px;font-weight:600;padding:9px 16px;border-radius:999px;border:1px solid {{ f.border }};background:{{ f.bg }};color:{{ f.fg }}">{{ f.label }}</button>
+        </sc-for>
+      </div>
+      <span style="font-size:13px;color:#92a6a7">{{ countLabel }}</span>
+    </div>
+  </div>
+
+  <!-- grid -->
+  <div style="max-width:1180px;margin:20px auto 0;padding:0 32px 60px">
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:20px">
+      <sc-for list="{{ products }}" as="p" hint-placeholder-count="6">
+        <div style="background:#fff;border:1px solid rgba(16,41,44,.08);border-radius:18px;overflow:hidden;animation:shRise .3s ease both" style-hover="border-color:rgba(16,41,44,.18);box-shadow:0 18px 36px -24px rgba(16,41,44,.4)">
+          <div style="position:relative;aspect-ratio:1/1;background:{{ p.cover }}">
+            <image-slot id="{{ p.slot }}" data-deco fit="cover" style="position:absolute;inset:0;width:100%;height:100%;pointer-events:none" placeholder=""></image-slot>
+            <sc-if value="{{ p.tag }}" hint-placeholder-val="{{ false }}"><span style="position:absolute;top:12px;left:12px;font-size:10px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;padding:5px 10px;border-radius:999px;background:{{ p.tagBg }};color:{{ p.tagFg }}">{{ p.tag }}</span></sc-if>
+          </div>
+          <div style="padding:16px">
+            <div style="font-size:11px;color:#92a6a7;text-transform:uppercase;letter-spacing:.05em">{{ p.cat }}</div>
+            <div style="font-weight:600;font-size:15.5px;color:#10292C;margin-top:4px">{{ p.name }}</div>
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-top:14px">
+              <span style="font-family:'JetBrains Mono',monospace;font-weight:700;font-size:17px;color:#10292C">{{ p.price }}</span>
+              <button onClick="{{ p.add }}" style="cursor:pointer;border:none;background:#237b22;color:#fff;font-family:inherit;font-size:13px;font-weight:600;padding:9px 16px;border-radius:999px;display:flex;align-items:center;gap:6px" style-hover="background:#1a6118"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>Add</button>
+            </div>
+          </div>
+        </div>
+      </sc-for>
+    </div>
+  </div>
+
+  <!-- mission strip -->
+  <div style="max-width:1180px;margin:0 auto 60px;padding:0 32px">
+    <div style="background:#fff;border:1px solid rgba(16,41,44,.08);border-radius:20px;padding:26px 30px;display:flex;align-items:center;gap:18px;flex-wrap:wrap">
+      <span style="flex:none;width:48px;height:48px;border-radius:13px;background:#effaf0;color:#1a6118;display:flex;align-items:center;justify-content:center"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.6l-1-1a5.5 5.5 0 0 0-7.8 7.8l1 1L12 21l7.8-7.6 1-1a5.5 5.5 0 0 0 0-7.8Z"/></svg></span>
+      <div style="flex:1;min-width:220px"><div style="font-weight:600;font-size:16px;color:#10292C">Every order gives back</div><div style="font-size:13.5px;color:#717a7e;margin-top:3px">100% of profit funds child leadership programmes — receipted and transparent.</div></div>
+      <a href="#" style="text-decoration:none;font-size:13.5px;font-weight:600;color:#237b22">See the impact →</a>
+    </div>
+  </div>
+
+  <!-- CART DRAWER -->
+  <sc-if value="{{ cartOpen }}" hint-placeholder-val="{{ false }}">
+  <div onClick="{{ closeCart }}" style="position:fixed;inset:0;z-index:90;background:rgba(5,12,13,.5);backdrop-filter:blur(3px);animation:shToast .001s">
+    <div onClick="{{ stop }}" style="position:absolute;top:0;right:0;bottom:0;width:400px;max-width:92vw;background:#fbfbfa;display:flex;flex-direction:column;box-shadow:-20px 0 50px -20px rgba(0,0,0,.4)">
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:22px 24px;border-bottom:1px solid rgba(16,41,44,.08)"><h2 style="margin:0;font-family:'Playfair Display',serif;font-weight:700;font-size:20px;color:#10292C">Your cart</h2><button onClick="{{ closeCart }}" style="cursor:pointer;border:1px solid rgba(16,41,44,.12);background:#fff;width:34px;height:34px;border-radius:50%;font-size:18px;color:#10292C">×</button></div>
+      <div style="flex:1;overflow-y:auto;padding:18px 24px">
+        <sc-if value="{{ hasItems }}" hint-placeholder-val="{{ false }}">
+          <div style="display:flex;flex-direction:column;gap:14px">
+            <sc-for list="{{ cartLines }}" as="c" hint-placeholder-count="2">
+              <div style="display:flex;gap:13px;align-items:center">
+                <span style="flex:none;width:58px;height:58px;border-radius:12px;background:{{ c.cover }}"></span>
+                <div style="flex:1;min-width:0"><div style="font-weight:600;font-size:13.5px;color:#10292C">{{ c.name }}</div><div style="font-size:12px;color:#92a6a7">{{ c.price }}</div></div>
+                <div style="display:flex;align-items:center;gap:9px"><button onClick="{{ c.dec }}" style="cursor:pointer;width:26px;height:26px;border-radius:8px;border:1px solid rgba(16,41,44,.14);background:#fff;font-size:15px;color:#10292C">−</button><span style="font-family:'JetBrains Mono',monospace;font-weight:700;font-size:13px;min-width:14px;text-align:center">{{ c.qty }}</span><button onClick="{{ c.inc }}" style="cursor:pointer;width:26px;height:26px;border-radius:8px;border:1px solid rgba(16,41,44,.14);background:#fff;font-size:15px;color:#10292C">+</button></div>
+              </div>
+            </sc-for>
+          </div>
+        </sc-if>
+        <sc-if value="{{ empty }}" hint-placeholder-val="{{ true }}">
+          <div style="text-align:center;padding:50px 20px;color:#92a6a7"><svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#c8d0cc" stroke-width="1.5" style="margin:0 auto"><circle cx="9" cy="21" r="1"/><circle cx="19" cy="21" r="1"/><path d="M2 3h3l2.4 12.4a2 2 0 0 0 2 1.6h7.7a2 2 0 0 0 2-1.6L23 7H6"/></svg><p style="margin:14px 0 0;font-size:14px">Your cart is empty</p></div>
+        </sc-if>
+      </div>
+      <sc-if value="{{ hasItems }}" hint-placeholder-val="{{ false }}">
+      <div style="padding:20px 24px;border-top:1px solid rgba(16,41,44,.08)">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px"><span style="font-size:14px;color:#4a5256">Subtotal</span><span style="font-family:'JetBrains Mono',monospace;font-weight:700;font-size:18px;color:#10292C">{{ subtotal }}</span></div>
+        <a href="#" style="display:block;text-align:center;background:#237b22;color:#fff;text-decoration:none;font-weight:600;font-size:15px;padding:14px;border-radius:999px">Checkout →</a>
+      </div>
+      </sc-if>
+    </div>
+  </div>
+  </sc-if>
+
+  <sc-if value="{{ toastOpen }}" hint-placeholder-val="{{ false }}">
+    <div style="position:fixed;left:50%;bottom:32px;transform:translateX(-50%);z-index:95;background:#10292C;color:#fff;font-size:13.5px;font-weight:500;padding:13px 22px;border-radius:999px;box-shadow:0 16px 40px -12px rgba(0,0,0,.5);animation:shToast 2.2s ease both">{{ toastMsg }}</div>
+  </sc-if>
+
+  <footer style="background:#0c2225"><div style="max-width:1180px;margin:0 auto;padding:40px 32px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:16px">
+    <div style="display:flex;align-items:center;gap:11px"><span style="width:32px;height:32px;border-radius:9px;background:rgba(127,200,124,.16);display:flex;align-items:center;justify-content:center;font-family:'Playfair Display',serif;font-weight:700;font-size:16px;color:#7FC87C">G</span><span style="font-family:'Playfair Display',serif;font-weight:700;font-size:15px;color:#fff">Africa<span style="color:#7FC87C">GATES</span></span></div>
+    <span style="font-size:12.5px;color:rgba(255,255,255,.5)">Free shipping across Nigeria over ₦25,000 · ships continent-wide</span>
+  </div></footer>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:1180,&quot;height&quot;:900}}">
+class Component extends DCLogic {
+  state = { filter:'All', cart:{}, cartOpen:false, toast:null };
+  ping(m){ this.setState({toast:m}); clearTimeout(this._t); this._t=setTimeout(()=>this.setState({toast:null}),2100); }
+  renderVals(){
+    const s = this.state;
+    const COV=['linear-gradient(135deg,#10292C,#1a6118)','linear-gradient(135deg,#a47306,#d49a0e)','linear-gradient(135deg,#1a2629,#5d7374)','linear-gradient(135deg,#237b22,#7FC87C)','linear-gradient(135deg,#2b373d,#4a5b60)','linear-gradient(135deg,#b97a12,#fbc329)'];
+    const P = [
+      { id:'tee', name:'Heritage Tee', cat:'Apparel', price:12000, cover:COV[0], slot:'sh-tee', tag:'Bestseller', tagBg:'#fff8df', tagFg:'#a47306' },
+      { id:'hood', name:'CPI Hoodie', cat:'Apparel', price:28000, cover:COV[2], slot:'sh-hood' },
+      { id:'cap', name:'Laurel Cap', cat:'Apparel', price:9500, cover:COV[1], slot:'sh-cap' },
+      { id:'mug', name:'Enamel Mug', cat:'Home', price:6500, cover:COV[3], slot:'sh-mug', tag:'New', tagBg:'#effaf0', tagFg:'#1a6118' },
+      { id:'tote', name:'Canvas Tote', cat:'Accessories', price:7500, cover:COV[5], slot:'sh-tote' },
+      { id:'book', name:'2026 Legacy Book', cat:'Keepsakes', price:34000, cover:COV[4], slot:'sh-book', tag:'Limited', tagBg:'#fdeaf0', tagFg:'#b03a5b' }
+    ];
+    const NGN = n => '₦'+n.toLocaleString();
+    const CATS=['All','Apparel','Accessories','Home','Keepsakes'];
+    const filters = CATS.map(c=>{ const on=s.filter===c; return { label:c, set:()=>this.setState({filter:c}), bg:on?'#10292C':'#fff', fg:on?'#fff':'#4a5256', border:on?'#10292C':'rgba(16,41,44,.12)' }; });
+    const shown = P.filter(p=>s.filter==='All'||p.cat===p.cat&&(s.filter==='All'||p.cat===s.filter));
+    const products = shown.map(p=>({ ...p, price:NGN(p.price), add:()=>{ this.setState(st=>({cart:{...st.cart,[p.id]:(st.cart[p.id]||0)+1}})); this.ping(p.name+' added to cart'); } }));
+    const ids = Object.keys(s.cart).filter(k=>s.cart[k]>0);
+    const cartLines = ids.map(id=>{ const p=P.find(x=>x.id===id); return { name:p.name, price:NGN(p.price), cover:p.cover, qty:s.cart[id],
+      inc:()=>this.setState(st=>({cart:{...st.cart,[id]:st.cart[id]+1}})),
+      dec:()=>this.setState(st=>{ const n=(st.cart[id]||0)-1; const c={...st.cart}; if(n<=0) delete c[id]; else c[id]=n; return {cart:c}; }) }; });
+    const count = ids.reduce((a,id)=>a+s.cart[id],0);
+    const sub = ids.reduce((a,id)=>a+P.find(x=>x.id===id).price*s.cart[id],0);
+    return {
+      filters, products, countLabel: products.length+' items',
+      hasItems: count>0, empty: count===0, cartCount: count, cartLines, subtotal: NGN(sub),
+      cartOpen:s.cartOpen, openCart:()=>this.setState({cartOpen:true}), closeCart:()=>this.setState({cartOpen:false}), stop:(e)=>e.stopPropagation(),
+      toastOpen:!!s.toast, toastMsg:s.toast||''
+    };
+  }
+}
+</script>
+</body>
+</html>

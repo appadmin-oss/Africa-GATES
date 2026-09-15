@@ -1,0 +1,134 @@
+{# Self-contained rich-text editor. Progressively enhances any <textarea data-richtext>:
+   hides it, shows a toolbar + contenteditable surface, and syncs HTML back to the
+   textarea so the normal form submit still works. No external deps / no CDN. Link
+   insertion uses an inline input (no browser prompt); paste is coerced to plain text;
+   stored HTML is sanitized at render time by the |sanitize_html filter. #}
+<style nonce="{{ csp_nonce }}">
+  .rt{ border:1px solid var(--ad-line,#dfe4e3); border-radius:10px; overflow:hidden; background:#fff; }
+  .rt__bar{ display:flex; flex-wrap:wrap; gap:2px; padding:6px; background:var(--ad-bg,#f4f6f5); border-bottom:1px solid var(--ad-line,#dfe4e3); }
+  .rt__btn{ border:none; background:transparent; cursor:pointer; font-size:13px; font-weight:700; color:var(--ad-text,#10292C); padding:5px 9px; border-radius:6px; min-width:30px; line-height:1.1; }
+  .rt__btn:hover{ background:#e2e8e6; }
+  .rt__link{ display:flex; gap:6px; padding:6px; border-bottom:1px solid var(--ad-line,#dfe4e3); }
+  .rt__linkin{ flex:1; border:1px solid var(--ad-line,#dfe4e3); border-radius:6px; padding:6px 8px; font-size:13px; }
+  .rt__ed{ min-height:180px; max-height:520px; overflow-y:auto; padding:12px 14px; font-size:14.5px; line-height:1.65; color:var(--ad-text,#10292C); outline:none; }
+  .rt__ed:focus{ box-shadow:inset 0 0 0 2px rgba(35,123,34,.16); }
+  .rt__ed:empty::before{ content:attr(data-ph); color:#9aa7a3; }
+  .rt__ed h2{ font-size:1.3rem; margin:.7em 0 .3em; } .rt__ed h3{ font-size:1.12rem; margin:.6em 0 .3em; }
+  .rt__ed blockquote{ border-left:3px solid var(--ad-accent,#237b22); margin:.7em 0; padding:2px 12px; color:#475; }
+  .rt__ed ul,.rt__ed ol{ padding-left:1.4em; } .rt__ed a{ color:var(--ad-accent,#237b22); text-decoration:underline; }
+</style>
+<script nonce="{{ csp_nonce }}">
+(function(){
+  // Dependency-free scrub of stored HTML before it touches a live DOM. DOMParser
+  // parses INERTLY (no script execution, no resource loads, so no onerror fires);
+  // we then strip dangerous nodes, event-handler (on*) attributes and javascript:
+  // URLs. Defense-in-depth — public output is already sanitized at render time.
+  function clean(html){
+    try{
+      var doc = new DOMParser().parseFromString('<div id="rtroot">' + (html || '') + '</div>', 'text/html');
+      var root = doc.getElementById('rtroot');
+      if(!root) return '';
+      root.querySelectorAll('script,style,iframe,object,embed,link,meta,form,input,button').forEach(function(n){ n.remove(); });
+      root.querySelectorAll('*').forEach(function(el){
+        [].slice.call(el.attributes).forEach(function(a){
+          var n = a.name.toLowerCase(), v = (a.value || '').replace(/\s+/g, '').toLowerCase();
+          if(n.indexOf('on') === 0) el.removeAttribute(a.name);
+          else if((n === 'href' || n === 'src' || n === 'xlink:href') && v.indexOf('javascript:') === 0) el.removeAttribute(a.name);
+        });
+      });
+      return root.innerHTML;
+    }catch(e){ return ''; }
+  }
+
+  function enhance(ta){
+    if(ta.dataset.rtReady) return; ta.dataset.rtReady = '1';
+    var wrap = document.createElement('div'); wrap.className = 'rt';
+    var bar  = document.createElement('div'); bar.className = 'rt__bar';
+    var linkRow = document.createElement('div'); linkRow.className = 'rt__link'; linkRow.style.display = 'none';
+    var ed = document.createElement('div'); ed.className = 'rt__ed'; ed.contentEditable = 'true'; ed.setAttribute('role','textbox');
+    if(ta.getAttribute('placeholder')) ed.setAttribute('data-ph', ta.getAttribute('placeholder'));
+    ed.innerHTML = clean(ta.value || '');
+
+    function sync(){ var h = ed.innerHTML; ta.value = (h === '<br>' || h === '<div><br></div>') ? '' : h; }
+    var saved = null;
+    function save(){ var s = window.getSelection(); if(s && s.rangeCount && ed.contains(s.anchorNode)) saved = s.getRangeAt(0).cloneRange(); }
+    function restore(){ if(saved){ var s = window.getSelection(); s.removeAllRanges(); s.addRange(saved); } }
+    function exec(cmd, val){ ed.focus(); restore(); try{ document.execCommand(cmd, false, val || null); }catch(e){} sync(); }
+
+    [['B','bold','Bold'],['I','italic','Italic'],['H2','formatBlock|<h2>','Heading'],['H3','formatBlock|<h3>','Subheading'],
+     ['•','insertUnorderedList','Bullet list'],['1.','insertOrderedList','Numbered list'],['❝','formatBlock|<blockquote>','Quote'],['⌫','removeFormat','Clear formatting']
+    ].forEach(function(c){
+      var b = document.createElement('button'); b.type='button'; b.className='rt__btn'; b.textContent=c[0]; b.title=c[2];
+      b.addEventListener('mousedown', function(e){ e.preventDefault(); save(); });
+      b.addEventListener('click', function(){ var p = c[1].split('|'); exec(p[0], p[1]); });
+      bar.appendChild(b);
+    });
+
+    // ── Auto-format: turn pasted / messy text into clean structure ──────────
+    // Deterministic (no AI, no deps): collapses runaway blank lines, promotes
+    // "# "/"## " and short ALL-CAPS lines to headings, "- "/"* "/"1." runs to
+    // real lists, links bare URLs, and wraps the rest in <p>. Idempotent-ish:
+    // re-running clean HTML mostly leaves it alone. Undoable with the editor's
+    // native Ctrl+Z since it's applied as a single innerHTML replace.
+    function esc(s){ return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;'); }
+    function inlineFmt(s){
+      // esc() first (incl. quotes) so nothing can break out of markup or the
+      // href attribute; the URL class excludes <>"' as belt-and-braces. Output
+      // is ALSO run through the server-side sanitize_html allowlist on save.
+      return esc(s).replace(/(https?:\/\/[^\s<>"']+)/g, function(u){ return '<a href="'+u+'">'+u+'</a>'; })
+                   .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+    }
+    function autoFormat(){
+      // Work from the editor's visible text so it handles both pasted plain
+      // text and already-marked-up content (line structure is what matters).
+      var raw = ed.innerText.replace(/\r/g, '').replace(/ /g, ' ');
+      var lines = raw.split('\n');
+      var out = [], list = null; // list = 'ul' | 'ol' | null
+      function closeList(){ if(list){ out.push('</'+list+'>'); list = null; } }
+      for(var i=0;i<lines.length;i++){
+        var ln = lines[i].replace(/\s+$/,'');
+        var t = ln.trim();
+        if(t === ''){ closeList(); continue; }
+        var mH = t.match(/^(#{1,3})\s+(.*)$/);
+        var mUl = t.match(/^[-*•]\s+(.*)$/);
+        var mOl = t.match(/^\d+[.)]\s+(.*)$/);
+        if(mH){ closeList(); var lvl = Math.min(3, Math.max(2, mH[1].length + 1)); out.push('<h'+lvl+'>'+inlineFmt(mH[2])+'</h'+lvl+'>'); }
+        else if(mUl){ if(list!=='ul'){ closeList(); out.push('<ul>'); list='ul'; } out.push('<li>'+inlineFmt(mUl[1])+'</li>'); }
+        else if(mOl){ if(list!=='ol'){ closeList(); out.push('<ol>'); list='ol'; } out.push('<li>'+inlineFmt(mOl[1])+'</li>'); }
+        else if(t.length <= 60 && t === t.toUpperCase() && /[A-Z]/.test(t)){ closeList(); out.push('<h2>'+inlineFmt(t.replace(/[:：]\s*$/,''))+'</h2>'); }
+        else { closeList(); out.push('<p>'+inlineFmt(t)+'</p>'); }
+      }
+      closeList();
+      ed.innerHTML = out.join('') || '<p></p>';
+      sync();
+    }
+    var fmtBtn = document.createElement('button'); fmtBtn.type='button'; fmtBtn.className='rt__btn'; fmtBtn.textContent='✦ Auto-format'; fmtBtn.title='Tidy into clean paragraphs, headings & lists';
+    fmtBtn.style.minWidth='auto';
+    fmtBtn.addEventListener('mousedown', function(e){ e.preventDefault(); });
+    fmtBtn.addEventListener('click', autoFormat);
+    bar.appendChild(fmtBtn);
+
+    var linkBtn = document.createElement('button'); linkBtn.type='button'; linkBtn.className='rt__btn'; linkBtn.textContent='🔗'; linkBtn.title='Insert link';
+    var inp = document.createElement('input'); inp.type='url'; inp.className='rt__linkin'; inp.placeholder='https://…';
+    var apply = document.createElement('button'); apply.type='button'; apply.className='rt__btn'; apply.textContent='Add link';
+    linkRow.appendChild(inp); linkRow.appendChild(apply);
+    linkBtn.addEventListener('mousedown', function(e){ e.preventDefault(); save(); });
+    linkBtn.addEventListener('click', function(){ linkRow.style.display = linkRow.style.display === 'none' ? 'flex' : 'none'; if(linkRow.style.display === 'flex') inp.focus(); });
+    apply.addEventListener('click', function(){ var u = (inp.value || '').trim(); if(/^https?:\/\//i.test(u)) exec('createLink', u); linkRow.style.display='none'; inp.value=''; });
+    inp.addEventListener('keydown', function(e){ if(e.key === 'Enter'){ e.preventDefault(); apply.click(); } });
+    bar.appendChild(linkBtn);
+
+    ed.addEventListener('input', sync);
+    ed.addEventListener('blur', sync);
+    ed.addEventListener('paste', function(e){ e.preventDefault(); var t = (e.clipboardData || window.clipboardData).getData('text/plain'); try{ document.execCommand('insertText', false, t); }catch(_){ } sync(); });
+    // Keep the textarea synced if the form is submitted while the editor has focus.
+    if(ta.form) ta.form.addEventListener('submit', sync);
+
+    ta.style.display = 'none';
+    ta.parentNode.insertBefore(wrap, ta);
+    wrap.appendChild(bar); wrap.appendChild(linkRow); wrap.appendChild(ed);
+  }
+  function init(){ document.querySelectorAll('textarea[data-richtext]').forEach(enhance); }
+  if(document.readyState !== 'loading') init(); else document.addEventListener('DOMContentLoaded', init);
+})();
+</script>

@@ -1,0 +1,195 @@
+{% extends 'admin/layout.twig' %}
+
+{#
+  DISPUTES — the one screen on this platform with a hard external deadline.
+
+  Paystack gives 16 hours to answer a chargeback. Miss it and Paystack accepts on
+  our behalf and refunds the customer out of our balance, so doing nothing is not
+  neutral: it is the decision to pay, taken by default, with nobody's name on it.
+
+  Everything about the layout follows from that. The clock is the first thing on
+  each row, not a detail in a column. Rows are ordered by time remaining rather
+  than by date raised. What our own records show is printed BEFORE the buttons,
+  because the honest reason to contest a chargeback is that we can show what was
+  delivered — and if we cannot, the operator should see that before pressing
+  anything.
+#}
+
+{% block head_styles %}
+<style nonce="{{ csp_nonce }}">
+  .dp-lede{ margin:0 0 16px; font-size:13px; line-height:1.65; color:#4a5256; max-width:84ch }
+  .dp-card{ background:#fff; border:1px solid rgba(16,41,44,.10); border-radius:14px; padding:18px 20px; margin-bottom:16px }
+  /* The clock decides the colour. Under four hours is a different kind of row. */
+  .dp-card--soon{ border-color:#ecd9a0; background:#fff8df }
+  .dp-card--now{ border-color:#f0c9c9; background:#fdf3f3 }
+  .dp-card--gone{ border-color:#e2c4c4; background:#faeceb }
+  .dp-head{ display:flex; align-items:baseline; justify-content:space-between; gap:14px; flex-wrap:wrap; margin-bottom:4px }
+  .dp-clock{ font-family:var(--ag-font-mono,monospace); font-weight:700; font-size:19px; color:#10292C }
+  .dp-clock--now{ color:#8a2020 }
+  .dp-due{ font-size:12px; color:#5a6d6f }
+  .dp-ref{ font-family:var(--ag-font-mono,monospace); font-size:13px; color:#10292C }
+  .dp-tag{ display:inline-block; font-size:10.5px; font-weight:700; letter-spacing:.05em; text-transform:uppercase;
+    padding:3px 8px; border-radius:999px; background:rgba(16,41,44,.07); color:#3d4b4d }
+  .dp-tag--fraud{ background:#fdeaf0; color:#b03a5b }
+  .dp-facts{ display:grid; grid-template-columns:repeat(auto-fit,minmax(min(100%,190px),1fr)); gap:10px; margin:14px 0 4px }
+  .dp-fact{ background:rgba(16,41,44,.035); border-radius:10px; padding:10px 12px }
+  .dp-fact__k{ font:700 10px/1 var(--ag-font-body,inherit); letter-spacing:.08em; text-transform:uppercase; color:#5a6d6f }
+  .dp-fact__v{ font-size:13.5px; font-weight:600; color:#10292C; margin-top:6px; word-break:break-word }
+  .dp-fact__v--ok{ color:#237b22 }
+  .dp-fact__v--no{ color:#8a2020 }
+  .dp-say{ margin:10px 0 0; font-size:12.5px; line-height:1.6; color:#4a5256 }
+  .dp-acts{ display:flex; gap:10px; flex-wrap:wrap; align-items:flex-end; margin-top:16px;
+    border-top:1px solid rgba(16,41,44,.08); padding-top:16px }
+  .dp-acts label{ display:block; font:700 10px/1 var(--ag-font-body,inherit); letter-spacing:.08em;
+    text-transform:uppercase; color:#5a6d6f; margin-bottom:6px }
+  .dp-in{ font-family:inherit; font-size:13px; padding:9px 11px; border:1px solid rgba(16,41,44,.18);
+    border-radius:9px; background:#fff; color:#10292C; min-width:0 }
+  .dp-in--wide{ flex:1 1 22rem }
+  .dp-btn{ cursor:pointer; font-family:inherit; font-size:13px; font-weight:650; border:none;
+    padding:10px 18px; border-radius:999px; background:#10292C; color:#fff }
+  .dp-btn--ghost{ background:none; border:1px solid rgba(16,41,44,.2); color:#10292C }
+  .dp-btn--warn{ background:#8a2020; color:#fff }
+  .dp-link{ font-size:12.5px; color:#237b22; font-weight:600 }
+  .dp-empty{ background:#f7fbf6; border:1px solid #bfe0bd; border-radius:14px; padding:22px; font-size:13.5px; color:#2b5c2a }
+  .dp-err{ background:#fdf3f3; border:1px solid #f0c9c9; border-radius:14px; padding:18px; font-size:13.5px; color:#8a2020 }
+  @media (max-width:640px){ .dp-acts{ flex-direction:column; align-items:stretch } }
+</style>
+{% endblock %}
+
+{% block content %}
+{# No <h1> here: admin/layout.twig already renders page_title in the topbar. #}
+
+<p class="dp-lede">
+  Paystack allows <strong>{{ hours }} hours</strong> to answer a chargeback. If that passes with no
+  answer, Paystack accepts the dispute for us and refunds the customer <strong>out of our
+  balance</strong> — so leaving a row here alone is not the cautious option, it is the expensive one.
+  Rows are ordered by time left, not by when they arrived.
+</p>
+
+{% if not result.ok %}
+  <div class="dp-err">
+    <strong>Paystack could not be read.</strong><br>{{ result.message }}
+    <p style="margin:10px 0 0">Disputes can still be answered in the Paystack dashboard. This screen
+      needs a live secret key with dispute access.</p>
+  </div>
+
+{% elseif result.disputes is empty %}
+  <div class="dp-empty">
+    <strong>Nothing is waiting on us.</strong>
+    No dispute in the last {{ days }} days is awaiting our response. This is the ordinary state —
+    the alert email and an urgent ticket both arrive the moment one is raised, so there is no need
+    to keep this page open.
+  </div>
+
+{% else %}
+  {% for d in result.disputes %}
+    {% set left = d.hours_left %}
+    {% set tone = left is null ? '' : (left <= 0 ? 'gone' : (left <= 4 ? 'now' : (left <= 8 ? 'soon' : ''))) %}
+    <div class="dp-card {{ tone ? 'dp-card--' ~ tone : '' }}">
+
+      <div class="dp-head">
+        <div>
+          <span class="dp-clock {{ tone == 'now' or tone == 'gone' ? 'dp-clock--now' : '' }}">
+            {%- if left is null %}deadline unknown
+            {%- elseif left <= 0 %}PAST THE DEADLINE
+            {%- else %}{{ left }}h left{% endif -%}
+          </span>
+          <span class="dp-due">
+            {% if d.deadline %}· answer before {{ d.deadline }}{% endif %}
+            {% if d.created_at %}· raised {{ d.created_at }}{% endif %}
+          </span>
+        </div>
+        <div>
+          <span class="dp-tag {{ d.kind == 'fraud' ? 'dp-tag--fraud' : '' }}">{{ d.kind }}</span>
+          <span class="dp-tag">#{{ d.id }}</span>
+        </div>
+      </div>
+
+      <div class="dp-ref">{{ d.reference ?: 'no transaction reference on the dispute' }}
+        · NGN {{ d.amount|number_format }}{% if d.email %} · {{ d.email }}{% endif %}</div>
+
+      {% if d.note %}<p class="dp-say"><strong>They say:</strong> {{ d.note }}</p>{% endif %}
+
+      {#
+        OUR RECORDS, BEFORE THE BUTTONS. The only honest reason to contest is that we
+        can show what was delivered. If "Votes credited" reads none, contesting is
+        arguing against a record we do not have — and the operator should be able to
+        see that without opening another screen.
+      #}
+      {% set f = d.evidence %}
+      <div class="dp-facts">
+        <div class="dp-fact">
+          <div class="dp-fact__k">On record here</div>
+          <div class="dp-fact__v {{ f.found ? 'dp-fact__v--ok' : 'dp-fact__v--no' }}">
+            {{ f.found ? 'yes' : 'NO ORDER FOUND' }}</div>
+        </div>
+        <div class="dp-fact">
+          <div class="dp-fact__k">Votes credited</div>
+          <div class="dp-fact__v {{ f.votes > 0 ? 'dp-fact__v--ok' : 'dp-fact__v--no' }}">
+            {{ f.votes > 0 ? f.votes : 'none' }}</div>
+        </div>
+        <div class="dp-fact">
+          <div class="dp-fact__k">Credited to</div>
+          <div class="dp-fact__v">{{ f.nominee ?: '—' }}</div>
+        </div>
+        <div class="dp-fact">
+          <div class="dp-fact__k">Credited at</div>
+          <div class="dp-fact__v">{{ f.minted_at ?: '—' }}</div>
+        </div>
+      </div>
+
+      {% if f.found and f.votes > 0 %}
+        <p class="dp-say">
+          We can show delivery. Contesting attaches a receipt naming the votes, the nominee and the
+          time they were written, plus a public URL where anyone can check the same tally.
+          <a class="dp-link" href="/admin/payments/disputes/evidence?ref={{ f.reference|url_encode }}"
+             target="_blank" rel="noopener">See the receipt we would send →</a>
+        </p>
+      {% elseif f.found %}
+        <p class="dp-say"><strong>No votes were credited against this payment.</strong>
+          If the money was taken and nothing was delivered, the customer is owed it — accepting is
+          the correct answer, and contesting would be arguing against our own record.</p>
+      {% else %}
+        <p class="dp-say"><strong>No order with this reference is on record here.</strong>
+          There is nothing to contest with. This is usually a charge taken outside this site's
+          checkout — see <code>/__setup/payments</code>.</p>
+      {% endif %}
+
+      {#
+        Both buttons in one form, distinguished by `action`. No GET anywhere near this:
+        resolving is irreversible and moves money, so a prefetch or a shared link must
+        not be able to answer somebody's chargeback.
+      #}
+      <form class="dp-acts" method="post" action="/admin/payments/disputes/resolve">
+        <input type="hidden" name="_token" value="{{ csrf_token }}">
+        <input type="hidden" name="dispute_id" value="{{ d.id }}">
+        <input type="hidden" name="reference" value="{{ f.reference ?: d.reference }}">
+
+        <div class="dp-in--wide">
+          <label for="msg-{{ d.id }}">Message to the reviewer (optional)</label>
+          <input class="dp-in" style="width:100%" id="msg-{{ d.id }}" name="message" type="text"
+                 maxlength="1000"
+                 placeholder="Left blank, we send the facts from the receipt and the verification link.">
+        </div>
+
+        {% if f.found and f.votes > 0 %}
+          <button class="dp-btn" type="submit" name="action" value="contest">Contest, with the receipt</button>
+        {% endif %}
+
+        <div>
+          <label for="ref-{{ d.id }}">Refund NGN (blank = all)</label>
+          <input class="dp-in" id="ref-{{ d.id }}" name="refund_naira" type="number" min="0"
+                 style="width:9rem" placeholder="{{ d.amount }}">
+        </div>
+        <button class="dp-btn dp-btn--warn" type="submit" name="action" value="concede">Accept &amp; refund</button>
+      </form>
+    </div>
+  {% endfor %}
+{% endif %}
+
+<p class="dp-lede" style="margin-top:18px">
+  Looking for a payment rather than a dispute? <a class="dp-link" href="/admin/payments">Payment triage</a>
+  re-checks one order against the gateway, and <a class="dp-link" href="/admin/payments/ledger">the gateway
+  ledger</a> compares a whole window against Paystack's own list.
+</p>
+{% endblock %}

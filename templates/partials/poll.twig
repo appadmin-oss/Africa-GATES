@@ -1,0 +1,70 @@
+{# Reusable poll widget. Expects a `poll` payload from CommunityService::getPoll
+   (id, question, options[{index,label,count,pct}], total, multi, is_closed, my_votes[]).
+   Works for both thread polls and blog-post polls — votes go to /api/community/poll. #}
+{% if poll %}
+<div class="ag-poll" x-data="pollApp({{ poll|json_encode|e('html_attr') }})" style="margin-top:18px;border:1px solid rgba(16,41,44,.1);border-radius:14px;padding:16px 18px;background:#f9fbf8">
+  <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:10px;margin-bottom:12px">
+    <div style="font-weight:700;font-size:15px;color:var(--ag-ink,#10292C)" x-text="poll.question"></div>
+    <span x-show="poll.multi" x-cloak style="flex:none;font-size:11px;font-weight:600;color:#5a6d6f;background:#eef4ee;border-radius:999px;padding:3px 9px">Select multiple</span>
+  </div>
+  <template x-for="o in poll.options" :key="o.index">
+    {# ── :class FOR THE STATE, :style ONLY FOR THE MEASUREMENT ────────────────
+       This button carried a static `style` attribute AND `:style="chosen(...) ?
+       'border-color:#237b22' : ''"`. Alpine's :style with a string value REPLACES the
+       style attribute, so the instant the component initialised every option lost its
+       border, its radius, its padding, its full width and its left alignment — the
+       whole widget collapsed into a stack of bare text.
+
+       The state now rides on a class, which adds rather than overwrites. The only
+       remaining :style is the fill bar's WIDTH, which is a live measurement and has no
+       static style to destroy. #}
+    <button type="button" class="ag-poll__opt" @click="vote(o.index)" :disabled="busy || poll.is_closed"
+            :aria-pressed="chosen(o.index)" :class="chosen(o.index) && 'is-on'">
+      <span class="ag-poll__fill" :style="'width:' + (voted ? o.pct : 0) + '%'" aria-hidden="true"></span>
+      <span class="ag-poll__row">
+        <span class="ag-poll__label"><span x-show="chosen(o.index)">✓ </span><span x-text="o.label"></span></span>
+        <span class="ag-poll__pct" x-show="voted" x-cloak x-text="o.pct+'%'"></span>
+      </span>
+    </button>
+  </template>
+  <div style="font-size:12px;color:#5f7273;margin-top:4px">
+    <span x-text="poll.total"></span> vote<span x-show="poll.total!==1">s</span>
+    <template x-if="!poll.is_closed"><span> · <span x-text="poll.multi ? 'tap options to select' : (voted ? 'tap to change your vote' : 'tap an option to vote')"></span></span></template>
+    <template x-if="poll.is_closed"><span> · closed</span></template>
+  </div>
+</div>
+<style nonce="{{ csp_nonce }}">
+  /* Real classes, because the state used to be applied with an Alpine :style binding
+     that wiped the static style attribute — see the markup above. Ships with the
+     component for the same reason the support prompt's does: it is included on pages
+     with different palettes and one of them loads no page stylesheet at all. */
+  .ag-poll__opt{ display:block; width:100%; text-align:left; border:1px solid rgba(16,41,44,.12);
+    background:#fff; border-radius:10px; padding:10px 13px; margin-bottom:8px; cursor:pointer;
+    position:relative; overflow:hidden; font-family:inherit; min-height:44px;
+    transition:border-color .15s; }
+  .ag-poll__opt:hover{ border-color:rgba(35,123,34,.5); }
+  .ag-poll__opt[disabled]{ cursor:default; }
+  .ag-poll__opt.is-on{ border-color:#237b22; }
+  .ag-poll__fill{ position:absolute; inset:0; background:#e7f3e6; transition:width .4s; }
+  .ag-poll__row{ position:relative; display:flex; justify-content:space-between; align-items:center; gap:10px; }
+  .ag-poll__label{ color:#283133; }
+  .ag-poll__opt.is-on .ag-poll__label{ font-weight:700; color:#1a6118; }
+  .ag-poll__pct{ font-size:12.5px; font-weight:700; color:#5a6d6f; flex:none; }
+</style>
+<script nonce="{{ csp_nonce }}">
+function pollApp(seed){
+  return {
+    poll: seed, busy:false,
+    get voted(){ return !!(this.poll.my_votes && this.poll.my_votes.length); },
+    chosen(i){ return (this.poll.my_votes||[]).includes(i); },
+    vote(i){
+      if(this.busy || this.poll.is_closed) return;
+      this.busy=true;
+      fetch('/api/community/poll',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded','X-Requested-With':'XMLHttpRequest'},body:new URLSearchParams({poll_id:this.poll.id,option_index:i})})
+        .then(r=>r.json()).then(d=>{ if(d.success){ this.poll={...this.poll, options:d.options, total:d.total, my_vote:d.my_vote, my_votes:d.my_votes||[]}; } this.busy=false; })
+        .catch(()=>{ this.busy=false; });
+    }
+  };
+}
+</script>
+{% endif %}

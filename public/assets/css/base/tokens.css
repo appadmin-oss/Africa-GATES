@@ -1,0 +1,85 @@
+/* ════════════════════════════════════════════════════════════════
+   Africa GATES — Design Tokens (single source of truth)
+   Values lifted directly from the approved design prototype.
+   Part of the modular system: base/ → components/ → pages/.
+   ════════════════════════════════════════════════════════════════ */
+:root{
+  /* ── Color ──────────────────────────────────────────────────────────────────
+     NOT HERE ANY MORE. Every colour on this site is emitted at runtime by
+     Support\Accent — the ground, the six-step neutral ramp, the five roles and
+     their slots, and the press shade. See Accent::css(), which the site layout
+     writes into a nonced <style> after these sheets so it wins the cascade.
+
+     They were moved out rather than duplicated here because a colour with two
+     sources is decided by load order, and load order is the one thing nobody can
+     see in a diff. It is also what made a literal-hex sweep over the templates
+     impossible to state: you cannot forbid a literal while the correct value is
+     harder to reach than one.
+
+     The old names — --ag-bg, --ag-surface, --ag-line, --ag-line-strong — are
+     still emitted as aliases so ~60 unconverted templates keep working and warm
+     with everything else. --ag-green and friends are emitted as role slots.
+     ────────────────────────────────────────────────────────────────────────── */
+  --ag-green:#237b22;        /* legacy alias — action.fill. Do not add to this list. */
+  --ag-green-dark:#1a6118;
+  --ag-green-light:#7fc87c;
+  --ag-green-wash:rgba(127,200,124,.16);
+  --ag-pulse:#e0245e;
+  --ag-gold:#c9a24b;
+
+  /* ── Typography ── */
+  --ag-font-display:"Playfair Display",Georgia,"Times New Roman",serif;
+  --ag-font-body:"DM Sans",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --ag-font-mono:"JetBrains Mono",ui-monospace,Menlo,Consolas,monospace;
+
+  /* fluid display sizes */
+  --ag-fs-hero:clamp(2.6rem,6vw,4.5rem);
+  --ag-fs-h2:clamp(1.9rem,3.4vw,2.9rem);
+  --ag-fs-h3:clamp(1.35rem,2.2vw,1.75rem);
+  --ag-fs-body:1.0625rem;
+  --ag-fs-sm:.9rem;
+  --ag-fs-label:.72rem;      /* mono micro-labels */
+  --ag-tracking-label:.22em;
+
+  /* ── Radii ── */
+  --ag-r-sm:10px;
+  --ag-r-md:14px;
+  --ag-r-lg:24px;
+  --ag-r-pill:999px;
+
+  /* ── Shadow / elevation ─────────────────────────────────────────────────────
+     ALL `none`. There are no shadows anywhere on this site: depth is a hard offset
+     border in a solid darker shade of the element's own colour — the lip — which
+     collapses on press, and that collapse is what makes it an affordance rather
+     than an ornament. So the lip belongs only to things that are pressed.
+
+     Kept as tokens rather than deleted because dozens of rules reference them, and
+     a dangling var() resolves to an invalid value that takes its whole declaration
+     with it — including, in fifteen places here, a focus ring sharing the same
+     declaration. `--ag-shadow-nav` becomes the solid hairline it was imitating.
+     ─────────────────────────────────────────────────────────────────────────── */
+  --ag-shadow-cutout:none;
+  --ag-shadow-card:none;
+  --ag-shadow-nav:0 1px 0 var(--ag-line);
+  --ag-shadow-cta:none;
+  --ag-shadow-pop:none;
+
+  /* ── Layout ── */
+  --ag-maxw:1240px;
+  --ag-gutter:clamp(1rem,4vw,2.5rem);
+  --ag-nav-h:72px;
+  --ag-mobile-nav-h:64px;    /* bottom tab bar on mobile */
+
+  /* ── Motion ── */
+  --ag-ease:cubic-bezier(.2,.7,.3,1);
+  --ag-dur-fast:.15s;
+  --ag-dur:.25s;
+  --ag-dur-slow:.45s;
+
+  /* ── Z-index scale ── */
+  --ag-z-nav:50;
+  --ag-z-mega:55;
+  --ag-z-mobile-nav:60;
+  --ag-z-overlay:80;         /* full-screen mobile menu */
+  --ag-z-loader:2147483000;  /* above everything — full-screen site entrance */
+}

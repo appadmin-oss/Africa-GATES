@@ -1,0 +1,405 @@
+{% extends 'admin/layout.twig' %}
+
+{% block head_styles %}
+<style nonce="{{ csp_nonce }}">
+  .pt-grid{ display:grid; grid-template-columns:repeat(auto-fit,minmax(190px,1fr)); gap:12px; margin-bottom:20px }
+  .pt-stat{ background:#fff; border:1px solid rgba(16,41,44,.10); border-radius:13px; padding:14px 16px }
+  .pt-stat--bad{ border-color:#f0c9c9; background:#fdf3f3 }
+  .pt-stat--warn{ border-color:#ecd9a0; background:#fff8df }
+  .pt-stat--ok{ border-color:#bfe0bd; background:#f2f9f1 }
+  .pt-stat__k{ font:700 10px/1 var(--ag-font-body,inherit); letter-spacing:.09em; text-transform:uppercase; color:#5a6d6f }
+  .pt-stat__n{ font-family:var(--ag-font-mono,monospace); font-weight:700; font-size:26px; color:#10292C; margin:8px 0 3px }
+  .pt-stat__s{ font-size:12px; color:#5a6d6f }
+  .pt-card{ background:#fff; border:1px solid rgba(16,41,44,.10); border-radius:14px; padding:18px 20px; margin-bottom:18px }
+  .pt-card h2{ margin:0 0 4px; font-size:15px; color:#10292C }
+  .pt-lede{ margin:0 0 14px; font-size:13px; line-height:1.65; color:#4a5256; max-width:74ch }
+  .pt-kv{ display:flex; justify-content:space-between; gap:14px; padding:7px 0; font-size:13px; border-bottom:1px solid rgba(16,41,44,.06) }
+  .pt-kv__v{ font-weight:650; text-align:right }
+  .pt-bad{ color:#8a2020 } .pt-warn{ color:#6b4a00 } .pt-ok{ color:#1a4d18 }
+  .pt-table{ width:100%; border-collapse:collapse; font-size:12.5px; margin-top:10px }
+  .pt-table th{ text-align:left; font:700 10px/1 var(--ag-font-body,inherit); letter-spacing:.08em;
+    text-transform:uppercase; color:#5a6d6f; padding:8px 10px; border-bottom:1px solid rgba(16,41,44,.10) }
+  .pt-table td{ padding:9px 10px; border-bottom:1px solid rgba(16,41,44,.05); font-family:var(--ag-font-mono,monospace) }
+  .pt-btn{ cursor:pointer; font-family:inherit; font-size:13px; font-weight:650; border:none;
+    padding:10px 18px; border-radius:999px; background:#10292C; color:#fff }
+  .pt-btn--go{ background:#177015 } .pt-btn--fix{ background:#8a2020 }
+  .pt-in{ font-family:inherit; font-size:13px; padding:9px 13px; border:1px solid rgba(16,41,44,.16); border-radius:9px }
+  .pt-verdict{ border-radius:11px; padding:13px 15px; font-size:13.5px; line-height:1.6; margin:12px 0 }
+  .pt-verdict--charged_unnoticed,.pt-verdict--orphan{ background:#fdf3f3; border:1px solid #f0c9c9; color:#8a2020 }
+  .pt-verdict--refund_owed,.pt-verdict--unverifiable{ background:#fff8df; border:1px solid #ecd9a0; color:#6b4a00 }
+  .pt-verdict--delivered,.pt-verdict--refunded,.pt-verdict--abandoned{ background:#eef7ee; border:1px solid #bfe0bd; color:#1a4d18 }
+  .pt-verdict--unknown{ background:#f4f6f6; border:1px solid rgba(16,41,44,.12); color:#4a5256 }
+  .pt-row{ display:flex; gap:10px; align-items:center; flex-wrap:wrap }
+</style>
+{% endblock %}
+
+{% block content %}
+
+<h1 style="margin:0 0 4px;font-size:20px">Payment triage</h1>
+<p class="pt-lede">
+  Every repair path on this platform starts at <code>status = confirmed</code> — minting, the refund
+  sweep and the receipt all do. An order whose card was charged at the gateway but whose row never
+  flipped is invisible to all three at once: no votes, no refund, no receipt, and no mention in any
+  other report. This is the only page that shows those.
+</p>
+<p class="pt-lede">
+  Everything here begins with an order of ours and asks Paystack about it, so it can only find
+  payments we already know we started. For the opposite direction — Paystack's own list of
+  successful charges, including any with no record on this platform at all — use the
+  <a href="/admin/payments/ledger?days={{ days }}">gateway ledger</a>.
+</p>
+
+<form method="get" action="/admin/payments" class="pt-row" style="margin-bottom:18px">
+  <label style="font-size:13px;color:#5a6d6f">Last
+    <input class="pt-in" type="number" name="days" min="1" max="3650" value="{{ days }}" style="width:90px"> days
+  </label>
+  <button class="pt-btn" type="submit">Show</button>
+</form>
+
+{# ── Where every order stopped ─────────────────────────────────────────────── #}
+<div class="pt-grid">
+  <div class="pt-stat pt-stat--ok">
+    <div class="pt-stat__k">Delivered</div>
+    <div class="pt-stat__n">{{ counts.delivered }}</div>
+    <div class="pt-stat__s">₦{{ naira.delivered|number_format }} · votes on the tally</div>
+  </div>
+  <div class="pt-stat {{ counts.stuck_pending > 0 ? 'pt-stat--bad' : 'pt-stat--ok' }}">
+    <div class="pt-stat__k">Stuck pending</div>
+    <div class="pt-stat__n">{{ counts.stuck_pending }}</div>
+    <div class="pt-stat__s">₦{{ naira.stuck_pending|number_format }} · <strong>may be charged</strong></div>
+  </div>
+  <div class="pt-stat {{ counts.refund_owed > 0 ? 'pt-stat--warn' : 'pt-stat--ok' }}">
+    <div class="pt-stat__k">Refund owed</div>
+    <div class="pt-stat__n">{{ counts.refund_owed }}</div>
+    <div class="pt-stat__s">₦{{ naira.refund_owed|number_format }} · confirmed, no votes</div>
+  </div>
+  <div class="pt-stat">
+    <div class="pt-stat__k">Refunded</div>
+    <div class="pt-stat__n">{{ counts.refunded }}</div>
+    <div class="pt-stat__s">₦{{ naira.refunded|number_format }} · sent back</div>
+  </div>
+  <div class="pt-stat">
+    <div class="pt-stat__k">In checkout</div>
+    <div class="pt-stat__n">{{ counts.in_flight }}</div>
+    <div class="pt-stat__s">normal — still at the gateway</div>
+  </div>
+  {# Two different facts that were one number until now. A row the GATEWAY declined is a
+     verdict: nobody paid. A row WE wrote off after three days of being unable to reach the
+     gateway is a guess, taken at the one moment the evidence was missing — and it is the
+     bucket the gateway ledger could see money in while this screen reported a clean
+     window, because every sweeper on the platform filters on `pending`. #}
+  <div class="pt-stat {{ counts.written_off > 0 ? 'pt-stat--bad' : 'pt-stat--ok' }}">
+    <div class="pt-stat__k">Written off by us</div>
+    <div class="pt-stat__n">{{ counts.written_off }}</div>
+    <div class="pt-stat__s">₦{{ naira.written_off|number_format }} · <strong>never verified</strong></div>
+  </div>
+  <div class="pt-stat">
+    <div class="pt-stat__k">Declined by the gateway</div>
+    <div class="pt-stat__n">{{ counts.failed }}</div>
+    <div class="pt-stat__s">no charge was made</div>
+  </div>
+</div>
+
+{# ── THE BUCKET THIS SCREEN CANNOT REACH BY ITSELF ─────────────────────────────
+     Everything else here starts from OUR rows and asks the gateway about them. That finds a
+     payment we started and then mishandled, which is the common failure — and it structurally
+     cannot find the other one: a charge that exists at Paystack with NO row here at all. The
+     insert failed, the request died between initialise and insert, or the money came in
+     through a Payment Page or a POS terminal this codebase never knew about. There is nothing
+     local to iterate, so no query we own will ever surface it.
+
+     That is the last reason "the ledger saw the misses and the triage did not" stayed true.
+     Reaching it means walking PAYSTACK's list, which is up to twenty outbound calls and
+     therefore cannot happen on page load — so the result of the last walk is kept, and the
+     walk itself is one press from here. #}
+<div class="pt-card">
+  <h2>Paystack's own list, against ours</h2>
+
+  {% if ledger_last is null %}
+    <div class="pt-verdict pt-verdict--charged_unnoticed">
+      <strong>This has never been compared.</strong> Everything above starts from our records
+      and asks Paystack about them — which cannot find a charge Paystack has that we have no
+      record of at all. Those are the payments where somebody paid and nothing here knows they
+      exist, and they are invisible until this comparison runs.
+    </div>
+  {% else %}
+    {% set orphans = ledger_last.counts.theirs|default(0) %}
+    {% set mismatch = ledger_last.counts.mismatch|default(0) %}
+    <div class="pt-verdict {{ orphans > 0 or mismatch > 0 ? 'pt-verdict--charged_unnoticed' : (ledger_last.stale ? 'pt-verdict--refund_owed' : 'pt-verdict--delivered') }}">
+      {% if orphans > 0 %}
+        <strong>{{ orphans }} charge(s) at Paystack have no record here at all — ₦{{ ledger_last.naira.theirs|default(0)|number_format }}.</strong>
+        Nothing on this screen can repair those: there is no order to confirm. They need a
+        person, and usually a manual refund at the gateway.
+      {% elseif mismatch > 0 %}
+        <strong>{{ mismatch }} payment(s) told two different stories</strong> when this last ran.
+        Those ones ARE on this screen — press “Ask the gateway” above, then repair.
+      {% else %}
+        Compared {{ ledger_last.counts.gateway|default(0) }} successful Paystack charge(s) over
+        {{ ledger_last.days }} day(s) and every one of them matched a record here.
+      {% endif %}
+      <br><small>
+        Last compared <strong>{{ ledger_last.at }}</strong>{% if ledger_last.stale %} —
+        which is more than a week ago, so this describes last week rather than today{% endif %}.
+        {%- if ledger_last.truncated %} The window was cut short by Paystack's paging; a shorter
+        window sees all of it.{% endif %}
+      </small>
+    </div>
+  {% endif %}
+
+  <form method="post" action="/admin/payments/ledger" class="pt-row" style="margin-top:14px">
+    <input type="hidden" name="_token" value="{{ csrf_token }}">
+    <input type="hidden" name="back" value="triage">
+    <label for="pt-ldays" style="font-size:12.5px;color:#5a6d6f">Compare the last</label>
+    <input id="pt-ldays" name="days" type="number" min="1" max="{{ ledger_days }}" value="{{ days }}"
+           style="width:88px;padding:8px 10px;border:1px solid rgba(16,41,44,.2);border-radius:9px">
+    <span style="font-size:12.5px;color:#5a6d6f">days</span>
+    <button class="pt-btn pt-btn--go" type="submit">Compare with Paystack now</button>
+    <a class="pt-btn" href="/admin/payments/ledger?days={{ days }}"
+       style="background:none;border:1px solid rgba(16,41,44,.2);color:#10292C;text-decoration:none">See it line by line</a>
+  </form>
+  <p class="pt-lede" style="margin-top:8px">
+    Read-only, and it makes up to twenty calls to Paystack — which is why it is a button rather
+    than something this page does every time you open it.
+  </p>
+</div>
+
+{# ── Look one reference up against the gateway ─────────────────────────────── #}
+<div class="pt-card">
+  <h2>Look up one payment</h2>
+  <p class="pt-lede">
+    Our row says what we noticed. The gateway says what happened to the money. Nearly every complaint
+    of this kind lives in the gap between those two sentences, and until now there was nowhere to read
+    them together. Paste the reference a buyer quotes.
+  </p>
+  <form method="get" action="/admin/payments" class="pt-row">
+    <input type="hidden" name="days" value="{{ days }}">
+    <label class="sr-only" for="ptRef">Payment reference</label>
+    <input class="pt-in" id="ptRef" type="text" name="ref" value="{{ lookup_ref }}" placeholder="AFG-PVOTE-…" style="min-width:280px">
+    <button class="pt-btn pt-btn--go" type="submit">Ask the gateway</button>
+  </form>
+
+  {% if lookup %}
+    <div class="pt-verdict pt-verdict--{{ lookup.verdict }}">{{ lookup.detail }}</div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:18px">
+      <div>
+        <div class="pt-stat__k" style="margin-bottom:6px">What our database says</div>
+        {% if lookup.ours %}
+          <div class="pt-kv"><span>Status</span><span class="pt-kv__v">{{ lookup.ours.status }}</span></div>
+          <div class="pt-kv"><span>Amount</span><span class="pt-kv__v">₦{{ lookup.ours.amount_naira|number_format }}</span></div>
+          <div class="pt-kv"><span>Votes credited</span><span class="pt-kv__v">{{ lookup.ours.votes_used }} of {{ lookup.ours.bonus_votes }}</span></div>
+          <div class="pt-kv"><span>Buyer</span><span class="pt-kv__v">{{ lookup.ours.donor_email }}</span></div>
+          <div class="pt-kv"><span>Started</span><span class="pt-kv__v">{{ lookup.ours.created_at }}</span></div>
+          <div class="pt-kv"><span>Refunded</span><span class="pt-kv__v">{{ lookup.ours.refunded_at ?: '—' }}</span></div>
+        {% else %}
+          <p class="pt-lede pt-bad">No order with this reference.</p>
+        {% endif %}
+      </div>
+      <div>
+        <div class="pt-stat__k" style="margin-bottom:6px">What the gateway says</div>
+        {% if lookup.gateway %}
+          <div class="pt-kv"><span>Provider</span><span class="pt-kv__v">{{ lookup.gateway.provider }}</span></div>
+          <div class="pt-kv"><span>Status</span><span class="pt-kv__v">{{ lookup.gateway.status }}</span></div>
+          <div class="pt-kv"><span>Amount</span><span class="pt-kv__v">₦{{ lookup.gateway.amount|number_format }}</span></div>
+          <div class="pt-kv"><span>Currency</span><span class="pt-kv__v">{{ lookup.gateway.currency ?: '—' }}</span></div>
+        {% else %}
+          <p class="pt-lede pt-warn">
+            The gateway could not be reached, or does not recognise this reference.
+            {% if providers is empty %}<strong>No gateway is configured in this environment</strong> — see below.{% endif %}
+          </p>
+        {% endif %}
+      </div>
+    </div>
+  {% endif %}
+</div>
+
+{# ── The switches that make everything a silent no-op ──────────────────────── #}
+<div class="pt-card">
+  <h2>Is the repair machinery even running?</h2>
+  <p class="pt-lede">
+    None of these are visible in the code, and any one of them being wrong stops every repair path
+    while nothing appears to fail.
+  </p>
+  <div class="pt-kv"><span>Automatic refunds</span>
+    <span class="pt-kv__v {{ health.auto_refund ? 'pt-ok' : 'pt-bad' }}">
+      {{ health.auto_refund ? 'ON' : 'OFF — nothing is being refunded, by configuration' }}</span></div>
+  <div class="pt-kv"><span>Maintenance last completed</span>
+    <span class="pt-kv__v {{ health.cron_stale ? 'pt-bad' : 'pt-ok' }}">
+      {{ health.last_cron ?: 'NEVER' }}</span></div>
+  <div class="pt-kv"><span>Paystack key</span>
+    <span class="pt-kv__v {{ health.paystack ? 'pt-ok' : 'pt-bad' }}">{{ health.paystack ? 'set' : 'MISSING' }}</span></div>
+  <div class="pt-kv"><span>Flutterwave key</span>
+    <span class="pt-kv__v {{ health.flutterwave ? 'pt-ok' : 'pt-warn' }}">{{ health.flutterwave ? 'set' : 'not set' }}</span></div>
+
+  {% if health.cron_stale %}
+    <div class="pt-verdict pt-verdict--charged_unnoticed" style="margin-top:14px">
+      <strong>Maintenance has not completed in the last hour.</strong> Reconciliation, automatic refunds,
+      receipts for abandoned checkouts and automatic ticket answers all run from that one tick. If it is
+      not running, none of them are — and every part of the code will look perfectly healthy, because
+      nothing is failing. Nothing is happening.
+    </div>
+  {% endif %}
+  {% if not health.auto_refund and counts.refund_owed > 0 %}
+    <div class="pt-verdict pt-verdict--refund_owed" style="margin-top:14px">
+      Automatic refunds are switched off and {{ counts.refund_owed }} order(s) above are confirmed with no
+      votes delivered. That is ₦{{ naira.refund_owed|number_format }} the platform is holding for votes it
+      did not deliver, and nothing will send it back on its own.
+    </div>
+  {% endif %}
+</div>
+
+{# ── The bucket nothing else watches ───────────────────────────────────────── #}
+<div class="pt-card">
+  {% set askable = counts.stuck_pending + counts.written_off %}
+  <h2>{{ askable }} order(s) the gateway has not been asked about</h2>
+  {% if askable == 0 %}
+    <p class="pt-lede pt-ok">None. Charges the platform never noticed are not the problem in this window.</p>
+  {% else %}
+    <p class="pt-lede">
+      <strong>{{ counts.stuck_pending }} stuck at pending</strong> — past their checkout window and never
+      confirmed.
+      {% if counts.written_off > 0 %}
+        And <strong>{{ counts.written_off }} this platform wrote off itself</strong> after three days of
+        being unable to reach the gateway. That write-off is a guess taken at the one moment the evidence
+        was missing, and the reasons a gateway cannot be reached — a rotated key, a provider switched off,
+        an outbound firewall — take out every payment in the window at once, the successful ones included.
+      {% endif %}
+      If the money left the buyer's account they have no votes, no refund and no receipt. Only the gateway
+      can say which of these were really charged; our records say what they say precisely because we never
+      found out.
+    </p>
+
+    <form method="post" action="/admin/payments/verify" class="pt-row">
+      <input type="hidden" name="_token" value="{{ csrf_token }}">
+      <input type="hidden" name="days" value="{{ days }}">
+      <button class="pt-btn pt-btn--go" type="submit">Ask the gateway about all {{ askable }}</button>
+      <span style="font-size:12px;color:#5a6d6f">Read-only. Makes outbound calls; nothing is changed.</span>
+    </form>
+
+    {% if verified %}
+      <div class="pt-verdict {{ verified.charged|length > 0 ? 'pt-verdict--charged_unnoticed' : 'pt-verdict--delivered' }}"
+           style="margin-top:16px">
+        {% if verified.charged|length > 0 %}
+          <strong>{{ verified.charged|length }} of these WERE CHARGED and the platform never noticed.</strong>
+          {{ verified.clean }} were genuinely abandoned. Checked {{ verified.at }}.
+        {% else %}
+          Checked {{ verified.at }} — the gateway has no successful payment for any of the
+          {{ verified.clean }} stuck orders. Those buyers were not charged; the checkouts were abandoned.
+        {% endif %}
+      </div>
+
+      {# ── Charged, but not for what the order asked ────────────────────────
+         Deliberately NOT repairable from here. Minting the full stored quantity
+         against a part-payment inflates a tally, and refunding somebody who did
+         pay something is not a decision to take automatically either. Both ends
+         of that need a person, so the row is shown and nothing else happens. #}
+      {% if verified.underpaid|default([])|length > 0 %}
+        <div class="pt-verdict pt-verdict--refund_owed" style="margin-top:14px">
+          <strong>{{ verified.underpaid|length }} paid LESS than the order asked for.</strong>
+          These are not repaired automatically — crediting the full quantity for a part-payment would
+          put votes on a tally that nobody bought. Decide each one: top-up, partial delivery, or refund.
+        </div>
+        <table class="pt-table">
+          <thead><tr><th>Reference</th><th>Order</th><th>Actually paid</th><th>Buyer</th></tr></thead>
+          <tbody>
+          {% for c in verified.underpaid|slice(0, 40) %}
+            <tr><td>{{ c.ref }}</td><td>₦{{ c.ours|number_format }}</td>
+                <td>₦{{ c.gateway|number_format }}</td><td>{{ c.email }}</td></tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      {% endif %}
+
+      {% if verified.charged|length > 0 %}
+        <table class="pt-table">
+          <thead><tr><th>Reference</th><th>Provider</th><th>Ours</th><th>Gateway</th><th>Buyer</th><th>Started</th></tr></thead>
+          <tbody>
+          {% for c in verified.charged|slice(0, 40) %}
+            <tr><td>{{ c.ref }}</td><td>{{ c.provider }}</td>
+                <td>₦{{ c.ours|number_format }}</td><td>₦{{ c.gateway|number_format }}</td>
+                <td>{{ c.email }}</td><td>{{ c.created }}</td></tr>
+          {% endfor %}
+          </tbody>
+        </table>
+
+        {# No inline onsubmit: the site's CSP forbids inline handlers, and an admin
+           screen is not the place to make an exception. Confirmation is wired from a
+           nonced script below. #}
+        <form method="post" action="/admin/payments/repair" style="margin-top:16px" id="pt-repair">
+          <input type="hidden" name="_token" value="{{ csrf_token }}">
+          <button class="pt-btn pt-btn--fix" type="submit">
+            Repair these {{ verified.charged|length }} order(s)</button>
+          <p class="pt-lede" style="margin-top:10px">
+            Confirms each one and runs the normal delivery: votes are credited where they still can be,
+            and anything that cannot mint becomes visible to the refund sweep. Nothing is decided
+            silently — every order becomes either votes or money back. This repairs the damage, not the
+            cause; whatever is stopping confirmations from arriving is still doing it.
+          </p>
+        </form>
+      {% endif %}
+    {% endif %}
+
+    <table class="pt-table">
+      <thead><tr><th>Reference</th><th>Amount</th><th>Buyer</th><th>Started</th><th>Our record says</th></tr></thead>
+      <tbody>
+      {% for o in stuck %}
+        <tr>
+          <td><a href="/admin/payments?days={{ days }}&ref={{ o.payment_ref|url_encode }}">{{ o.payment_ref }}</a></td>
+          <td>₦{{ o.amount_naira|number_format }}</td>
+          <td>{{ o.donor_email }}</td>
+          <td>{{ o.created_at }}</td>
+          {# Named, because "pending" and "we gave up on this" are different problems with
+             different histories, and an operator reading a mixed list needs to know which
+             one they are looking at before they ring the buyer. #}
+          <td>{% if o.status == 'failed' %}<strong>written off {{ o.expired_at ?? '' }}</strong>{% else %}{{ o.status }}{% endif %}</td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  {% endif %}
+</div>
+
+{% if counts.refund_owed > 0 %}
+<div class="pt-card">
+  <h2>{{ counts.refund_owed }} confirmed order(s) with no votes and no refund</h2>
+  <p class="pt-lede">
+    These the automatic sweep <em>can</em> see. If it has not acted on them, the reason is above:
+    refunds switched off, or maintenance not running.
+  </p>
+  <form method="post" action="/admin/payments/deliver" class="pt-row" style="margin-bottom:6px">
+    <input type="hidden" name="_token" value="{{ csrf_token }}">
+    <input type="hidden" name="days" value="{{ days }}">
+    <button class="pt-btn pt-btn--go" type="submit">Check Paystack, then deliver what can still be delivered</button>
+  </form>
+  <p class="pt-lede" style="margin-bottom:14px">
+    Each one is re-checked against the gateway before any votes are minted — the confirmed flag on
+    these rows was written a while ago and this is the wrong place to trust it. Anything the gateway
+    will not vouch for is left alone for the refund queue.
+  </p>
+  <table class="pt-table">
+    <thead><tr><th>Reference</th><th>Amount</th><th>Buyer</th><th>Confirmed</th></tr></thead>
+    <tbody>
+    {% for o in owed %}
+      <tr>
+        <td><a href="/admin/payments?days={{ days }}&ref={{ o.payment_ref|url_encode }}">{{ o.payment_ref }}</a></td>
+        <td>₦{{ o.amount_naira|number_format }}</td>
+        <td>{{ o.donor_email }}</td>
+        <td>{{ o.confirmed_at ?: o.created_at }}</td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
+
+{# Inside the block, and it has to be. Twig refuses any content outside a block in
+   a child template, so while this sat below {% endblock %} the whole page was a
+   SyntaxError — /admin/payments rendered a 500, not a triage screen. The
+   confirmation it holds was dead for the same reason. #}
+<script nonce="{{ csp_nonce }}">
+  // Confirming orders moves money. One deliberate pause before it happens.
+  document.getElementById('pt-repair')?.addEventListener('submit', function (e) {
+    if (!window.confirm('Confirm these orders and deliver what is owed?')) e.preventDefault();
+  });
+</script>
+
+{% endblock %}

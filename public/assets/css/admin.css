@@ -9,7 +9,14 @@
   --ad-line-soft: #eef1f7;
   --ad-text:      #1a1f2b;
   --ad-text-soft: #5b667a;
-  --ad-text-mute: #93a0b5;
+  /* Was #93a0b5, which is 2.65:1 on --ad-surface and 2.45:1 on --ad-bg — a long way
+     under the 4.5:1 that WCAG 1.4.3 asks of body text, and this token is the `color`
+     on ~184 rules: every table caption, field hint, timestamp and empty-state line in
+     the admin. Darkened along the same hue to the LIGHTEST value that clears 4.5:1 on
+     BOTH grounds (4.88:1 on white, 4.51:1 on the page ground), so the muted register
+     survives and the text becomes readable. Anything lighter fails on --ad-bg, which
+     is where most of these strings actually sit. */
+  --ad-text-mute: #61728e;
   --ad-primary:   #086411;
   --ad-primary-hover: #045008;
   --ad-gold:      #d49a0e;
@@ -25,6 +32,18 @@
    here — it covers both the dashboard (body[data-page-admin]) and the login
    (body.ad-auth), whose full-bleed backgrounds were otherwise inset on every edge. */
 body { margin: 0; }
+
+/* ─── border-box ──────────────────────────────────────────────────
+   The public site gets this from main.css, which admin pages do not load — so every admin
+   input has been overflowing its container by its own padding and border since the admin was
+   written. Measured on the product editor: a `.row` of two 1fr columns with a 14px gap put
+   the second field's left edge SIXTEEN PIXELS INSIDE the first field's right edge, because
+   `width:100%` plus 28px of padding plus 2px of border is 30px wider than the column.
+
+   That is why paired fields never looked paired, why several tables push a horizontal
+   scrollbar, and why the phone breakpoints have needed hand-tuned widths. One line, and the
+   declared width becomes the width. */
+*, *::before, *::after { box-sizing: border-box; }
 
 body[data-page-admin] {
   background: var(--ad-bg);
@@ -61,12 +80,115 @@ body[data-page-admin] {
 .ad-side__brand .label small { display: block; font-weight: 500; color: rgba(255, 255, 255, 0.5); font-size: 11px; letter-spacing: 0.05em; margin-top: 2px; }
 
 .ad-side__group { padding: 16px 12px; }
-.ad-side__group h6 {
+
+/* ── COLLAPSIBLE SECTIONS ───────────────────────────────────────────────────
+   The sidebar used to show every group expanded — thirty-six links, of which the two
+   or three anybody wanted were somewhere in the middle. These are <details>, so the
+   collapse is native: keyboard operable, correctly announced, and working with no
+   JavaScript at all, which matters on the console someone opens to find out why the
+   site is down. AdminNav marks the section holding the current page `open`. */
+.ad-side__sec { padding: 4px 12px; }
+.ad-side__sec + .ad-side__sec { border-top: 1px solid rgba(255,255,255,.06); }
+.ad-side__sectitle {
+  display: flex; align-items: center; gap: 5px;
+  list-style: none; cursor: pointer;
+  /* NOT the mono/uppercase/0.14em treatment the group titles had. Twelve rows of
+     wide-tracked capitals is a rail that shouts every label equally, which is the
+     opposite of a hierarchy — and the headings are now the primary control, not a
+     caption above one. Sentence case at normal tracking reads as a list you scan. */
+  font-size: 12.5px; font-weight: 600; letter-spacing: 0;
+  color: rgba(255, 255, 255, 0.62);
+  padding: 9px 10px;
+  border-radius: 6px;
+}
+/* Safari/Chrome draw their own triangle; we supply a chevron that can be animated. */
+.ad-side__sectitle::-webkit-details-marker { display: none; }
+.ad-side__sectitle::marker { content: ''; }
+.ad-side__sectitle:hover { color: rgba(255,255,255,.85); background: rgba(255,255,255,.04); }
+.ad-side__sectitle:focus-visible { outline: 2px solid #7FC87C; outline-offset: 2px; }
+.ad-side__chev { margin-left: auto; opacity: .5; transition: transform 140ms ease; flex: none; }
+.ad-side__sec[open] > .ad-side__sectitle > .ad-side__chev { transform: rotate(180deg); }
+.ad-side__sec > nav { padding: 2px 0 10px; }
+
+/* A collapsed section still has to show that something inside it is where you are. */
+.ad-side__sec:not([open]) > .ad-side__sectitle:has(+ nav .is-active) { color: #7FC87C; }
+
+@media (prefers-reduced-motion: reduce) { .ad-side__chev { transition: none; } }
+
+/* ── THE COMMAND PALETTE ────────────────────────────────────────────────────
+   A <dialog>, so the backdrop, focus trap and Escape are the browser's. Sized and
+   positioned near the top rather than centred: the list grows downward and a centred
+   box jumps as it filters. */
+.ad-cmd{ border:0; padding:0; background:transparent; max-width:560px; width:calc(100% - 32px);
+  margin-top:11vh; border-radius:14px; box-shadow:0 24px 60px rgba(8,20,22,.34); }
+.ad-cmd::backdrop{ background:rgba(8,20,22,.5); }
+.ad-cmd__box{ background:var(--ad-surface,#fff); border-radius:14px; overflow:hidden;
+  border:1px solid var(--ad-line,#e5eae8); }
+.ad-cmd__in{ width:100%; box-sizing:border-box; border:0; border-bottom:1px solid var(--ad-line,#e5eae8);
+  padding:15px 17px; font:inherit; font-size:15px; color:var(--ad-text,#10292c); background:transparent; }
+.ad-cmd__in:focus{ outline:none; }
+.ad-cmd__list{ list-style:none; margin:0; padding:6px; max-height:min(52vh,420px); overflow-y:auto; }
+.ad-cmd__i{ display:flex; align-items:center; gap:11px; padding:9px 11px; border-radius:8px;
+  text-decoration:none; color:var(--ad-text,#10292c); font-size:13.5px; }
+.ad-cmd__i .ico{ width:16px; height:16px; flex:none; opacity:.7; }
+.ad-cmd__l{ font-weight:600; }
+/* The section is the disambiguator — "Events" means one thing under Content and another
+   in conversation — so it sits right-aligned and quiet rather than competing. */
+.ad-cmd__s{ margin-left:auto; font-size:11.5px; color:var(--ad-text-mute,#5a6d6f); }
+.ad-cmd__i:hover, .ad-cmd__i.is-on{ background:var(--ad-accent,#237b22); color:#fff; }
+.ad-cmd__i:hover .ad-cmd__s, .ad-cmd__i.is-on .ad-cmd__s{ color:rgba(255,255,255,.8); }
+.ad-cmd__i:hover .ico, .ad-cmd__i.is-on .ico{ opacity:1; }
+.ad-cmd__none{ margin:0; padding:14px 17px; font-size:13px; color:var(--ad-text-mute,#5a6d6f); }
+
+/* The affordance. An unlabelled shortcut is a feature only its author has. */
+.ad-cmd__open{ display:inline-flex; align-items:center; gap:8px; cursor:pointer;
+  background:var(--ad-surface,#fff); border:1px solid var(--ad-line,#e5eae8); border-radius:8px;
+  padding:7px 11px; font:inherit; font-size:12.5px; color:var(--ad-text-mute,#5a6d6f); }
+.ad-cmd__open:hover{ color:var(--ad-text,#10292c); border-color:var(--ad-text-mute,#5a6d6f); }
+.ad-cmd__open kbd{ font:inherit; font-size:11px; padding:1px 5px; border-radius:4px;
+  background:rgba(16,41,44,.07); border:1px solid rgba(16,41,44,.1); }
+/* On a phone the label goes and the magnifier stays — the shortcut is meaningless
+   without a keyboard, but the button still opens a searchable list. */
+@media (max-width:720px){ .ad-cmd__open span, .ad-cmd__open kbd{ display:none; } }
+
+/* ── THE SECOND LEVEL ───────────────────────────────────────────────────────
+   This page's siblings, under the title. The sidebar answers "where else can I go";
+   this answers "what else is part of this job" — and it survives the sidebar being
+   collapsed off-canvas on a phone. Scrolls rather than wraps, so the strip stays one
+   line and the page below does not jump as sections change height. */
+.ad-subnav {
+  display: flex; gap: 4px; align-items: center;
+  margin: 0 0 16px; padding-bottom: 2px;
+  overflow-x: auto; scrollbar-width: thin;
+  -webkit-overflow-scrolling: touch;
+}
+.ad-subnav__link {
+  display: inline-flex; align-items: center; gap: 7px; flex: none;
+  padding: 7px 13px; border-radius: 999px;
+  font-size: 12.5px; font-weight: 600; text-decoration: none; white-space: nowrap;
+  color: var(--ad-text-mute, #5a6d6f);
+  border: 1px solid var(--ad-line, #e5eae8);
+  background: var(--ad-surface, #fff);
+  transition: background 120ms ease, color 120ms ease, border-color 120ms ease;
+}
+.ad-subnav__link .ico { width: 14px; height: 14px; flex: none; }
+.ad-subnav__link:hover { color: var(--ad-text, #10292c); border-color: var(--ad-text-mute, #5a6d6f); }
+.ad-subnav__link.is-active {
+  background: var(--ad-accent, #237b22); border-color: transparent; color: #fff;
+}
+.ad-subnav__link:focus-visible { outline: 2px solid var(--ad-accent, #237b22); outline-offset: 2px; }
+
+.ad-side__group h6, .ad-side__grouptitle {
   font-family: 'Space Mono', monospace;
   font-size: 10px; font-weight: 700;
   text-transform: uppercase; letter-spacing: 0.14em;
-  color: rgba(255, 255, 255, 0.35);
+  /* .35 alpha reads 3.20:1 on the #0b1220 rail — under 4.5:1, and these are the section
+     headings that tell you which part of the admin you are in. .55 is 6.1:1 and still
+     sits clearly below the nav links at .66. (Everything else on the rail already
+     passes; .449 is the alpha where white crosses 4.5:1 on this ground.) */
+  color: rgba(255, 255, 255, 0.55);
   padding: 0 10px 8px;
+  margin: 0;
 }
 .ad-side__link {
   display: flex; align-items: center; gap: 12px;
@@ -115,9 +237,13 @@ body[data-page-admin] {
 
 /* ─── Main ───────────────────────────────────────────────────── */
 .ad-main { padding: 28px 36px; min-width: 0; }
+/* The actions wrapped internally but the topbar itself did not, so a page whose title and
+   button together exceed the width — Opportunities at 390px, found by sweeping every admin
+   page at phone width — pushed a horizontal scrollbar onto the WHOLE page rather than putting
+   the button on its own line. */
 .ad-topbar {
   display: flex; align-items: center; justify-content: space-between; gap: 16px;
-  margin-bottom: 22px;
+  flex-wrap: wrap; margin-bottom: 22px;
 }
 .ad-h1 { font-family: 'Cormorant Garamond', serif; font-weight: 700; font-size: 1.85rem; line-height: 1.1; color: var(--ad-text); }
 .ad-h1 small { display: block; font-family: 'Space Mono', monospace; font-size: 11px; font-weight: 600; letter-spacing: 0.18em; text-transform: uppercase; color: var(--ad-text-mute); margin-bottom: 6px; }
@@ -259,6 +385,12 @@ body[data-page-admin] {
 .ad-form { display: grid; gap: 14px; }
 .ad-form .row { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
 @media (max-width: 720px) { .ad-form .row { grid-template-columns: 1fr; } }
+/* Two forms wrote `ad-form__row` instead, which was never a selector here — so their paired
+   fields had been stacking since they were written. They now use `.row`; this alias means a
+   template that reaches for the BEM spelling gets the layout rather than silence. */
+.ad-form .ad-form__row { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+@media (max-width: 720px) { .ad-form .ad-form__row { grid-template-columns: 1fr; } }
+.ad-form__actions { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
 .ad-form label { display: block; font-weight: 600; font-size: 12.5px; color: var(--ad-text); margin-bottom: 6px; }
 .ad-form .hint { font-size: 12px; color: var(--ad-text-soft); margin-top: 4px; }
 .ad-form input[type=text], .ad-form input[type=email], .ad-form input[type=url], .ad-form input[type=tel], .ad-form input[type=password], .ad-form input[type=number], .ad-form input[type=date], .ad-form input[type=datetime-local], .ad-form select, .ad-form textarea {
@@ -379,6 +511,193 @@ body[data-page-admin] {
 .ad-pager a:hover { background: var(--ad-line-soft); color: var(--ad-text); }
 .ad-pager .is-current { background: var(--ad-primary); color: #fff; border-color: var(--ad-primary); }
 .ad-pager .is-disabled { opacity: 0.4; }
+/* The "…" between distant page numbers. It is not a destination, so it should not be drawn as
+   one: no box, no border, nothing to aim a click at. */
+.ad-pager__gap { border-color: transparent !important; background: none !important; }
 
 /* Avatar pill */
 .ad-avatar { width: 28px; height: 28px; border-radius: 50%; background-size: cover; background-position: center; background-color: var(--ad-line); display: inline-block; vertical-align: middle; margin-right: 8px; }
+
+/* Info icon (tooltip on hover/focus via tippy [data-tip]) — admin help everywhere */
+.ad-info { display:inline-flex; align-items:center; justify-content:center; width:16px; height:16px; border-radius:50%; border:1.5px solid var(--ad-info,#2563eb); color:var(--ad-info,#2563eb); font:700 10px/1 Georgia, 'Times New Roman', serif; font-style:italic; cursor:help; vertical-align:middle; margin-left:6px; flex:none; user-select:none; transition:background .12s, color .12s; }
+.ad-info:hover, .ad-info:focus { background:var(--ad-info,#2563eb); color:#fff; outline:none; }
+.ad-h1 .ad-info { width:18px; height:18px; font-size:11px; }
+.ad-side__group h6 .ad-info, .ad-side__grouptitle .ad-info { width:13px; height:13px; font-size:8.5px; margin-left:5px; opacity:.55; }
+.ad-side__group h6 .ad-info:hover, .ad-side__group h6 .ad-info:focus,
+.ad-side__grouptitle .ad-info:hover, .ad-side__grouptitle .ad-info:focus { opacity:1; }
+.ad-card__title .ad-info { border-color:var(--ad-text-mute,#61728e); color:var(--ad-text-mute,#61728e); }
+.ad-card__title .ad-info:hover { background:var(--ad-text-mute,#61728e); color:#fff; }
+
+/* ═══════════════════════════════════════════════════════════════════════
+   ADMIN POLISH — data legibility · table scannability · button/badge
+   consistency · form clarity · keyboard-focus floor. Appended so it layers
+   over the base rules above (equal specificity → later declaration wins).
+   ═══════════════════════════════════════════════════════════════════════ */
+
+/* 1 · Data legibility. Force lining + tabular figures wherever a number
+   carries meaning, so the display serif's old-style "1" stops reading as an
+   "I", and columns of counts, dates, references and prices line up
+   digit-for-digit for fast scanning. */
+.ad-stat__num,
+.ad-table,
+.ad-pager,
+.ad-h1 small,
+[data-countup] {
+  font-variant-numeric: lining-nums tabular-nums;
+  font-feature-settings: "lnum" 1, "tnum" 1;
+}
+
+/* 2 · Table scannability. The header stays pinned while you scroll a long
+   list (review 1,000 rows without losing the columns); cells align to a
+   consistent middle baseline; a calmer, clearer hover; no trailing hairline. */
+.ad-table-wrap { overflow: auto; max-height: calc(100vh - 190px); }
+.ad-table th {
+  position: sticky; top: 0; z-index: 5;
+  background: var(--ad-bg);
+  /* border-collapse hides a th's own border when sticky — paint it as a shadow */
+  box-shadow: inset 0 -1px 0 var(--ad-line);
+}
+.ad-table th, .ad-table td { vertical-align: middle; }
+.ad-table tbody tr { transition: background 90ms ease; }
+.ad-table tbody tr:hover { background: #f3f7ff; }
+.ad-table tbody tr:last-child td { border-bottom: 0; }
+
+/* 3 · Buttons & badges. A visible keyboard focus ring everywhere (the
+   accessibility floor), buttons that never wrap or fall below a tap target,
+   an honest disabled state, and badges that hold the text baseline. */
+.ad-btn { min-height: 34px; white-space: nowrap; justify-content: center; }
+.ad-btn--sm { min-height: 28px; }
+/* 22px failed WCAG 2.5.8, which sets the floor at 24×24 CSS px regardless of pointer
+   type — the coarse-pointer bump in a11y.css does not cover a mouse user on a desktop
+   admin. These sit in row-action clusters (11 of them on the nominees table alone), so
+   the 2.5.8 spacing exception does not rescue them either: adjacent targets that close
+   together fail the undrawn-circle test. 24px is the minimum that passes, and it costs
+   one pixel of row height. */
+.ad-btn--xs { min-height: 24px; }
+.ad-btn:focus-visible,
+.ad-tab:focus-visible,
+.ad-pager a:focus-visible {
+  outline: 2px solid var(--ad-primary);
+  outline-offset: 2px;
+}
+.ad-btn:disabled, .ad-btn[aria-disabled="true"] {
+  opacity: 0.5; cursor: not-allowed; pointer-events: none;
+}
+.ad-chip { white-space: nowrap; vertical-align: middle; line-height: 1.4; }
+
+/* 4 · Forms. Inputs answer to hover, keyboard focus rings match the buttons,
+   controls tint to the brand, disabled fields read as disabled, and the
+   select chevron is identical across browsers. */
+.ad-form input:hover, .ad-form select:hover, .ad-form textarea:hover,
+.ad-filters input:hover, .ad-filters select:hover { border-color: #ccd2dc; }
+.ad-form input:focus-visible, .ad-form select:focus-visible, .ad-form textarea:focus-visible,
+.ad-filters input:focus-visible, .ad-filters select:focus-visible {
+  outline: none; border-color: var(--ad-primary);
+  box-shadow: 0 0 0 3px rgba(8, 100, 17, 0.12);
+}
+.ad-form input::placeholder, .ad-form textarea::placeholder { color: var(--ad-text-mute); }
+.ad-form input:disabled, .ad-form select:disabled, .ad-form textarea:disabled {
+  background: var(--ad-line-soft); color: var(--ad-text-mute); cursor: not-allowed;
+}
+.ad-form input[type=checkbox], .ad-form input[type=radio],
+.ad-form .checkbox input { accent-color: var(--ad-primary); width: 16px; height: 16px; }
+.ad-form select, .ad-filters select {
+  appearance: none; -webkit-appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath fill='none' stroke='%235b667a' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round' d='M1 1.5 6 6.5 11 1.5'/%3E%3C/svg%3E");
+  background-repeat: no-repeat; background-position: right 14px center;
+  padding-right: 38px;
+}
+
+/* Honour reduced-motion for the transitions introduced above. */
+@media (prefers-reduced-motion: reduce) {
+  .ad-btn, .ad-table tbody tr, .ad-tab, .ad-form .file-zone { transition: none; }
+}
+
+/* ── Accessibility helpers ─────────────────────────────────────────────────
+   sr-only: visible to screen readers, hidden visually (used by the review-desk
+   live region and "opens in a new tab" hints). skip-link: keyboard/SR users
+   jump straight to page content past the sidebar. */
+.sr-only {
+  position: absolute !important;
+  width: 1px; height: 1px;
+  padding: 0; margin: -1px;
+  overflow: hidden; clip: rect(0, 0, 0, 0);
+  white-space: nowrap; border: 0;
+}
+.skip-link {
+  position: absolute; left: 8px; top: -48px; z-index: 1000;
+  background: var(--ad-primary, #10292c); color: #fff;
+  padding: 10px 16px; border-radius: 0 0 8px 8px;
+  font-weight: 700; text-decoration: none;
+  transition: top .15s ease;
+}
+.skip-link:focus { top: 0; outline: 3px solid #f3b416; outline-offset: 2px; }
+.ad-main:focus { outline: none; }
+
+/* Site-wide reduced-motion safety net for the admin console — covers any
+   animation/transition not already individually guarded above. */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: .001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: .001ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* Nomination review — category picker.
+   Was `onmouseenter`/`onmouseleave` inline handlers on each <label>, which this
+   site's nonce-based CSP refuses to run (there is no script-src-attr
+   'unsafe-inline'), so the hover highlight silently did nothing. A hover border
+   never needed JavaScript. */
+.nr-cat {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  padding: 12px 14px;
+  background: var(--ad-bg);
+  border: 1.5px solid var(--ad-line);
+  border-radius: 10px;
+  cursor: pointer;
+  transition: border-color .15s ease;
+}
+.nr-cat:hover,
+.nr-cat:focus-within { border-color: var(--ad-primary); }
+
+/* ═══════════════════════════════════════════════════════════════════════
+   SHORTLISTS — the callout, and the cut line drawn as an actual line
+   ═══════════════════════════════════════════════════════════════════════ */
+
+/* A callout, not a flash. `.ad-flash` is centred on one line for a single
+   sentence delivered after an action; this holds a list of things that are true
+   about a rule while you are still editing it, and has to sit in the form flow. */
+.ad-callout {
+  padding: 12px 14px; border-radius: 8px; font-size: 13px; line-height: 1.55;
+  border: 1px solid var(--ad-line); background: var(--ad-bg, #f4f6fa);
+  color: var(--ad-text);
+}
+.ad-callout strong { display: block; margin-bottom: 4px; font-size: 12.5px; }
+.ad-callout ul { margin: 0; padding-left: 18px; }
+.ad-callout li + li { margin-top: 3px; }
+.ad-callout--warn { background: #fffaf0; border-color: #f2dfae; color: #7a4f07; }
+
+/* THE CUT LINE.
+   A row that is a boundary rather than a record, so it is styled as a rule with a
+   label on it rather than as another line of data: no hover, no cell padding
+   rhythm, and the label in the same mono the rest of the console uses for
+   machine facts. The 2px top border is the line; everything else keeps it from
+   reading as a nominee. */
+tr.ad-cut > td {
+  padding: 6px 14px;
+  border-top: 2px solid var(--ad-gold, #f3b416);
+  background: #fffdf5;
+  font: 600 11px/1.4 ui-monospace, SFMono-Regular, Menlo, monospace;
+  letter-spacing: .06em; text-transform: uppercase;
+  color: var(--ad-text-mute, #5a6d6f);
+}
+tr.ad-cut:hover > td { background: #fffdf5; }
+
+/* Below the line. Dimmed rather than hidden — an organiser deciding where to put
+   a threshold needs to see who the next three are, and by how much they missed. */
+tr.ad-out > td { opacity: .62; }
+tr.ad-out:hover > td { opacity: 1; }

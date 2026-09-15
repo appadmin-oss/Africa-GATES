@@ -1,0 +1,976 @@
+{% extends "admin/layout.twig" %}
+{% import "admin/stands/_viz.twig" as viz %}
+{# The site-wide chart component. `_viz` keeps only the to-scale size swatch, which is a
+   measured drawing rather than a chart and has no equivalent here. #}
+{% import "partials/viz.twig" as vz %}
+
+{# ─────────────────────────────────────────────────────────────────────────────
+   Running a call for vendor stands.
+
+   The page is laid out in the order the argument runs: the published terms first, then
+   what was on offer and how much of it is left, then who applied and what was decided.
+   Every one of those is a thing an unsuccessful applicant may reasonably ask about, and
+   they are in the order somebody would have to answer them.
+
+   There is deliberately no "override quota" and no "reopen criteria". Each would be one
+   line and each would destroy the only thing that makes the rest defensible.
+   ───────────────────────────────────────────────────────────────────────────── #}
+
+{% block head_styles %}
+<style nonce="{{ csp_nonce }}">
+  .st-strip{ display:grid; grid-template-columns:repeat(auto-fit,minmax(122px,1fr)); gap:1px;
+             background:var(--ad-line); border-radius:12px; overflow:hidden; }
+  .st-strip__c{ background:var(--ad-surface); padding:14px 16px; }
+  .st-strip__n{ font-family:'Space Mono',monospace; font-weight:700; font-size:21px; line-height:1.1; }
+  .st-strip__l{ font-size:11px; font-weight:700; letter-spacing:.12em; text-transform:uppercase;
+                color:var(--ad-text-soft); margin-top:5px; }
+
+  /* Capacity. The bar is decoration — the figures beside it are the fact, because a width
+     is not readable and a screen reader user is entitled to the same number. */
+  .st-cap{ display:flex; align-items:center; gap:12px; }
+  .st-cap__bar{ flex:1; min-width:80px; height:8px; border-radius:99px; background:var(--ad-line);
+                overflow:hidden; }
+  .st-cap__fill{ height:100%; background:var(--ad-primary); }
+  .st-cap__fill.is-full{ background:#b91c1c; }
+  .st-cap__n{ font-family:'Space Mono',monospace; font-size:12.5px; white-space:nowrap; }
+
+  /* The eight fields, shared by the add form and every row's edit form so the two
+     cannot drift into different layouts of the same thing. */
+  .st-grid{ display:grid; grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); gap:14px; }
+
+  /* Editing a row in place. Quiet until opened — a table with an expanded form under
+     every row is unreadable, and the reason to open one is a correction, not a habit. */
+  .st-editrow > td{ border-top:none; }
+  .st-edit__sum{ cursor:pointer; padding:8px 0 12px; font-size:12.5px; font-weight:600;
+    color:var(--ad-text-soft); list-style:none; }
+  .st-edit__sum::-webkit-details-marker{ display:none; }
+  .st-edit__sum::before{ content:'✎ '; }
+  .st-edit__sum:hover{ color:var(--ad-primary); text-decoration:underline; }
+  .st-edit__body{ padding:4px 0 18px; }
+  /* A disabled custom box is greyed rather than hidden: hiding it would leave somebody
+     hunting for where the size went when they pick Custom. */
+  [data-ag-size-wrap]:has(input:disabled){ opacity:.45; }
+
+  .st-locked{ border-left:4px solid var(--ad-gold); }
+  .st-app__meta{ font-size:12px; color:var(--ad-text-soft); line-height:1.55; }
+  .st-miss{ color:#b91c1c; font-size:12px; }
+  .st-tabs{ display:flex; flex-wrap:wrap; gap:8px; margin-bottom:14px; }
+  .st-tab{ display:inline-flex; align-items:center; gap:6px; min-height:34px; padding:6px 13px;
+           border-radius:99px; border:1px solid var(--ad-line); background:var(--ad-surface);
+           font-size:12.5px; font-weight:600; color:var(--ad-text); text-decoration:none; }
+    /* #086411 on white is 6.9:1; white on #086411 is the same pair inverted. */
+  .st-tab.is-on{ background:var(--ad-primary); color:#fff; border-color:transparent; }
+  .st-dec{ display:grid; grid-template-columns:1fr auto; gap:8px; align-items:end; }
+
+  /* ── VISUALS ──────────────────────────────────────────────────────────────
+     Chart ink is text ink, never a series colour: the swatch beside a label carries
+     identity, the words stay readable. Three of the eight categorical hues sit below
+     3:1 on this white surface, so every mark is directly labelled — that is the
+     relief, and it is why none of these rely on colour alone. */
+  .viz-sw{ display:block; }
+  .viz-swatches{ display:flex; flex-wrap:wrap; gap:22px; align-items:flex-end; }
+  .viz-swatch{ text-align:center; }
+  .viz-swatch__l{ margin-top:7px; font-size:12px; font-weight:600; color:var(--ad-text); }
+  .viz-swatch__d{ font-size:11.5px; color:var(--ad-text-soft);
+                  font-family:'Space Mono',monospace; }
+  .viz-bar{ display:block; overflow:visible; }
+  .viz-plan{ display:block; max-width:100%; height:auto; }
+  .viz-planwrap{ overflow-x:auto; padding:14px 4px 4px; }
+  .viz-legend{ list-style:none; display:flex; flex-wrap:wrap; gap:6px 18px;
+               margin:12px 0 0; padding:0; font-size:12.5px; color:var(--ad-text); }
+  .viz-legend li{ display:flex; align-items:center; gap:7px; }
+  .viz-legend em{ font-style:normal; color:var(--ad-text-soft);
+                  font-family:'Space Mono',monospace; }
+  .viz-legend__dot{ width:11px; height:11px; border-radius:3px; flex:none; }
+  .viz-figs{ display:flex; flex-wrap:wrap; gap:26px; margin-top:4px; }
+  .viz-fig__n{ font-family:'Space Mono',monospace; font-weight:700; font-size:19px; }
+  .viz-fig__l{ font-size:11px; font-weight:700; letter-spacing:.12em;
+               text-transform:uppercase; color:var(--ad-text-soft); margin-top:4px; }
+  .viz-warn{ margin-top:14px; border-left:4px solid #d03b3b; background:#fdf2f2;
+             border-radius:0 10px 10px 0; padding:12px 15px; font-size:13.5px;
+             line-height:1.65; color:#7f1d1d; }
+  .viz-caveat{ margin-top:12px; font-size:12.5px; line-height:1.65; color:var(--ad-text-soft); }
+</style>
+{% endblock %}
+
+{# ── ONE HEADER, AND IT IS THE LAYOUT'S ─────────────────────────────────────
+   This page used to render its own `.ad-topbar` underneath the one the layout had
+   already drawn, so an operator arriving here was told where they are twice, in two
+   different type treatments, one above the other.
+
+   The layout has held `topbar_eyebrow`, `topbar_title` and `topbar_actions` all
+   along. Filling them is the whole fix — nothing moves except the second copy,
+   which goes. #}
+{% block topbar_eyebrow %}<small>Vendor stands</small>{% endblock %}
+{% block topbar_title %}{{ event.title }}{% endblock %}
+{% block topbar_actions %}
+  <a class="ad-btn ad-btn--sm" href="/admin/events/{{ event.id }}">← Event</a>
+  <a class="ad-btn ad-btn--sm" href="/admin/events/{{ event.id }}/tickets">Tickets</a>
+  {% if summary.accepted > 0 %}
+    <a class="ad-btn ad-btn--sm ad-btn--primary"
+       href="/admin/events/{{ event.id }}/stands/allocation.csv">Allocation sheet (CSV)</a>
+  {% endif %}
+{% endblock %}
+
+{% block content %}
+
+{# ── WHERE THIS CALL IS UP TO ──────────────────────────────────────────────── #}
+<div class="st-strip" style="margin-bottom:16px">
+  <div class="st-strip__c"><div class="st-strip__n">{{ summary.total }}</div>
+    <div class="st-strip__l">Applications</div></div>
+  <div class="st-strip__c"><div class="st-strip__n">{{ summary.complete }}</div>
+    <div class="st-strip__l">Complete</div></div>
+  <div class="st-strip__c"><div class="st-strip__n">{{ summary.pending }}</div>
+    <div class="st-strip__l">Undecided</div></div>
+  <div class="st-strip__c"><div class="st-strip__n">{{ summary.offered }}</div>
+    <div class="st-strip__l">Offered</div></div>
+  <div class="st-strip__c"><div class="st-strip__n">{{ summary.accepted }}</div>
+    <div class="st-strip__l">Accepted</div></div>
+  <div class="st-strip__c"><div class="st-strip__n">{{ summary.waitlisted }}</div>
+    <div class="st-strip__l">Waiting list</div></div>
+</div>
+
+{# ── 1 · THE PUBLISHED TERMS ───────────────────────────────────────────────── #}
+<div class="ad-card {% if call and call.locked_at %}st-locked{% endif %}" style="margin-bottom:16px">
+  <div class="ad-card__head"><div class="ad-card__title">The call
+    <small>{{ call ? statuses[call.status]|default(call.status) : 'not created yet' }}</small></div></div>
+  <div class="ad-card__body">
+
+  {% if call and call.locked_at %}
+    <p style="margin:0 0 14px;font-size:13.5px;line-height:1.7;color:var(--ad-text-soft)">
+      These terms were <strong>locked on {{ call.locked_at|slice(0,16) }}</strong> and cannot be
+      edited. That is not a limitation of this screen — it is the mechanism. A rule that can be
+      changed once you know who applied is not a rule, and every rejection made under this call
+      is justified against the snapshot below and nothing else. To use different terms, close
+      this call and open another; that is visible and dated.
+    </p>
+
+    <table class="ad-table" style="max-width:720px">
+      <caption class="sr-only">Published terms of this call</caption>
+      <tbody>
+        <tr><th scope="row" style="width:190px">Opens</th>
+            <td>{{ call.opens_at ? call.opens_at|slice(0,16) : 'Immediately' }}</td></tr>
+        <tr><th scope="row">Closes</th><td>{{ call.closes_at|slice(0,16) }}</td></tr>
+        <tr><th scope="row">Taking applications</th>
+            <td>{% if accepting %}<span class="ad-chip ad-chip--green">Yes</span>
+                {% else %}<span class="ad-chip ad-chip--grey">No</span>{% endif %}</td></tr>
+        <tr><th scope="row">Published quotas</th>
+            <td>
+              {% if criteria.types is defined %}
+                {% for t in criteria.types %}
+                  <div>{{ t.name }} — {{ t.quota }} place(s) at ₦{{ t.price|number_format }}</div>
+                {% endfor %}
+              {% else %}—{% endif %}
+            </td></tr>
+      </tbody>
+    </table>
+
+    {% if call.intro %}
+      <div style="margin-top:14px;font-size:13.5px;line-height:1.7">{{ call.intro|nl2br }}</div>
+    {% endif %}
+
+    <div style="margin-top:16px;display:flex;gap:10px;flex-wrap:wrap">
+      <a class="ad-btn ad-btn--sm" href="/events/{{ event.slug }}/stands" target="_blank" rel="noopener">
+        View the public call page</a>
+      {% if may_decide and call.status == 'open' %}
+        <form method="post" action="/admin/events/{{ event.id }}/stands/call/close">
+          <input type="hidden" name="_token" value="{{ csrf_token }}">
+          <button class="ad-btn ad-btn--sm" type="submit">Close to new applications</button>
+        </form>
+      {% endif %}
+    </div>
+
+    {# ── REOPENING ──────────────────────────────────────────────────────────
+         Closing used to be a one-way door. A call shut a week early by accident, or one that
+         closed on schedule with four pitches unfilled, had no route back except a SECOND
+         call for the same event — competing with the first on the same page, with its own
+         quotas that the capacity check would then double-count.
+
+         Reopening unlocks NOTHING. The criteria, the quotas and the prices stay exactly as
+         published; only the closing date moves, because a call cannot take an application on
+         Monday while still saying it closed on Friday. Different terms mean a new call,
+         which is visible in a way that quietly editing a locked one would not be. #}
+    {% if may_decide and call.status == 'closed' %}
+      <details style="margin-top:14px">
+        <summary class="ad-btn ad-btn--sm" style="cursor:pointer">Reopen this call</summary>
+        <form method="post" action="/admin/events/{{ event.id }}/stands/call/reopen"
+              style="margin-top:12px;display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end">
+          <input type="hidden" name="_token" value="{{ csrf_token }}">
+          <div>
+            <label for="stReopen">New closing date</label>
+            <input id="stReopen" name="closes_at" type="datetime-local" required
+                   value="{{ call.closes_at ? call.closes_at|when_input : '' }}" step="1">
+          </div>
+          <button class="ad-btn ad-btn--sm" type="submit">Reopen</button>
+        </form>
+        <p style="margin:10px 0 0;font-size:12.5px;line-height:1.7;color:var(--ad-text-soft)">
+          The published terms do not change. Only the closing date moves — everything a
+          vendor was shown when they applied stays exactly as it was.</p>
+      </details>
+    {% endif %}
+
+  {% elseif may_decide %}
+    <p style="margin:0 0 14px;font-size:13.5px;line-height:1.7;color:var(--ad-text-soft)">
+      A draft. Nothing here is public and everything is editable. Publishing locks the closing
+      date, the prices and the quotas <strong>permanently</strong> — read them once more first.
+    </p>
+    <form method="post" action="/admin/events/{{ event.id }}/stands/call">
+      <input type="hidden" name="_token" value="{{ csrf_token }}">
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px">
+        <div>
+          <label for="stOpens">Opens (optional)</label>
+          <input id="stOpens" name="opens_at" type="datetime-local"
+                 value="{{ call and call.opens_at ? call.opens_at|when_input : '' }}" step="1">
+        </div>
+        <div>
+          <label for="stCloses">Closes <span aria-hidden="true">*</span></label>
+          <input id="stCloses" name="closes_at" type="datetime-local" required
+                 value="{{ call and call.closes_at ? call.closes_at|when_input : '' }}" step="1">
+          <small style="color:var(--ad-text-mute)">A window with no deadline is an appeal that never resolves</small>
+        </div>
+      </div>
+      <div style="margin-top:12px">
+        <label for="stIntro">What you are looking for</label>
+        <textarea id="stIntro" name="intro" rows="4"
+          placeholder="Say what makes a strong application — this is the text every rejection will be measured against.">{{ call ? call.intro : '' }}</textarea>
+      </div>
+      <div style="margin-top:14px;display:flex;gap:10px;flex-wrap:wrap">
+        <button class="ad-btn ad-btn--primary" type="submit">Save draft</button>
+      </div>
+    </form>
+
+    {% if call %}
+      <form method="post" action="/admin/events/{{ event.id }}/stands/call/open" style="margin-top:12px">
+        <input type="hidden" name="_token" value="{{ csrf_token }}">
+        {# A one-way door earns a confirmation — through the delegated data-confirm handler,
+           not an inline onsubmit. The CSP carries no 'unsafe-inline', so an inline handler
+           here would be a confirmation that silently never fires. #}
+        <button class="ad-btn" type="submit"
+                data-confirm="Publish this call? The closing date, the prices and the quotas can never be edited afterwards — changing them means closing this call and opening another.">Publish and lock the terms</button>
+        <small style="display:block;margin-top:6px;color:var(--ad-text-mute)">
+          Needs a closing date and at least one stand type.</small>
+      </form>
+    {% endif %}
+  {% else %}
+    <p style="margin:0;color:var(--ad-text-soft)">No call has been set up for this event.</p>
+  {% endif %}
+  </div>
+</div>
+
+{# ── 2 · WHAT IS ON OFFER ──────────────────────────────────────────────────── #}
+<div class="ad-card" id="types" style="margin-bottom:16px">
+  <div class="ad-card__head"><div class="ad-card__title">Stand types and quotas
+    <small>a quota is a published number, not a preference</small></div></div>
+
+  <div class="ad-table-wrap">
+    <table class="ad-table">
+      <caption class="sr-only">Stand types on offer</caption>
+      <thead>
+        <tr>
+          <th scope="col">Stand type</th>
+          <th scope="col">Size</th>
+          <th scope="col">Category</th>
+          <th scope="col">Price</th>
+          <th scope="col">Deposit</th>
+          <th scope="col">Places</th>
+          <th scope="col">Facilities</th>
+          <th scope="col" class="col-actions">&nbsp;</th>
+        </tr>
+      </thead>
+      <tbody>
+      {% for c in capacity %}
+        {% set pct = c.quota > 0 ? (c.taken / c.quota * 100)|round : 0 %}
+        <tr>
+          <td><strong>{{ c.type.name }}</strong>
+            {% if c.type.description %}
+              <div class="st-app__meta">{{ c.type.description }}</div>{% endif %}</td>
+          <td>
+            {# The swatch is drawn at the SAME scale as every other on the page, so a 6×3
+               looks like twice a 3×3. That comparison is the thing a number cannot do. #}
+            <div style="display:flex;align-items:center;gap:10px">
+              {{ viz.swatch(c.type, 9, c.type.name, c.size) }}
+              <span>
+                <span class="st-cap__n">{{ c.size }}</span>
+                <div class="st-app__meta">{{ c.each_sqm }} m² each · {{ c.total_sqm }} m² total</div>
+              </span>
+            </div>
+          </td>
+          <td>{{ categories[c.type.category]|default(c.type.category) }}</td>
+          <td style="font-family:'Space Mono',monospace">₦{{ c.type.price_naira|number_format }}</td>
+          <td style="font-family:'Space Mono',monospace">
+            {{ c.type.deposit_naira > 0 ? '₦' ~ c.type.deposit_naira|number_format : '—' }}</td>
+          <td>
+            <div class="st-cap">
+              <div class="st-cap__bar" role="presentation">
+                <div class="st-cap__fill {% if c.left == 0 %}is-full{% endif %}" style="width:{{ pct }}%"></div>
+              </div>
+              <span class="st-cap__n">{{ c.taken }}/{{ c.quota }}</span>
+            </div>
+            <div class="st-app__meta">{{ c.left }} left</div>
+          </td>
+          <td class="st-app__meta">
+            {{ c.type.includes_power ? 'Power' : 'No power' }}{% if c.type.step_free %} · step-free{% endif %}
+          </td>
+          <td class="col-actions">
+            {% if may_decide and not (call and call.status == 'open') %}
+              <form method="post" action="/admin/events/{{ event.id }}/stands/type/{{ c.type.id }}/delete">
+                <input type="hidden" name="_token" value="{{ csrf_token }}">
+                <button class="ad-btn ad-btn--sm ad-btn--danger" type="submit"
+                        data-confirm="Remove “{{ c.type.name }}”? Refused once anybody has applied for it — deleting it would erase what they applied for.">Remove</button>
+              </form>
+            {% endif %}
+          </td>
+        </tr>
+
+        {# ── EDITING ONE, WHICH WAS NOT POSSIBLE AT ALL ─────────────────────────
+           StandType::save() has taken a type_id since it was written and no form ever
+           sent one. So the only correction available for a typo in a name, a price
+           entered in kobo, or a quota of 1 where 10 was meant was Remove and add
+           again — and Remove is REFUSED once anybody has applied, by design, because
+           deleting a type erases what those vendors applied for. The result was a
+           priced, published row that could not be changed and could not be deleted.
+
+           A <details> rather than a modal or a separate screen: it is the same eight
+           fields, it belongs beside the row it edits, and it needs no JavaScript. #}
+        {% if may_decide and not (call and call.status == 'open') %}
+        <tr class="st-editrow">
+          <td colspan="8" style="padding:0">
+            <details class="st-edit">
+              <summary class="st-edit__sum">Edit “{{ c.type.name }}”</summary>
+              <form method="post" action="/admin/events/{{ event.id }}/stands/type"
+                    class="st-edit__body">
+                <input type="hidden" name="_token" value="{{ csrf_token }}">
+                <input type="hidden" name="type_id" value="{{ c.type.id }}">
+                {# Carried through explicitly. save() reads sort_order from the form and
+                   defaults it to 0, so omitting it here would silently reorder the whole
+                   table every time somebody fixed a price. #}
+                <input type="hidden" name="sort_order" value="{{ c.type.sort_order }}">
+
+                <div class="st-grid">
+                  <div>
+                    <label for="eN{{ c.type.id }}">Name</label>
+                    <input id="eN{{ c.type.id }}" name="name" type="text" maxlength="160"
+                           required value="{{ c.type.name }}">
+                  </div>
+                  <div>
+                    <label for="eS{{ c.type.id }}">Size</label>
+                    <select id="eS{{ c.type.id }}" name="size_preset" data-ag-do="stand-size">
+                      {% set current = size_of[c.type.id]|default('custom') %}
+                      {% for key, sz in sizes %}
+                        <option value="{{ key }}"{% if key == current %} selected{% endif %}>{{ sz.label }}</option>
+                      {% endfor %}
+                      <option value="custom"{% if current == 'custom' %} selected{% endif %}>
+                        Custom — {{ c.size }}</option>
+                    </select>
+                  </div>
+                  <div data-ag-size-wrap>
+                    <label for="eW{{ c.type.id }}">Custom width (m)</label>
+                    <input id="eW{{ c.type.id }}" name="width_m" type="number" min="0.5" max="50"
+                           step="0.01" data-ag-size-custom
+                           value="{{ (c.type.width_cm / 100)|number_format(2, '.', '') }}">
+                  </div>
+                  <div data-ag-size-wrap>
+                    <label for="eD{{ c.type.id }}">Custom depth (m)</label>
+                    <input id="eD{{ c.type.id }}" name="depth_m" type="number" min="0.5" max="50"
+                           step="0.01" data-ag-size-custom
+                           value="{{ (c.type.depth_cm / 100)|number_format(2, '.', '') }}">
+                  </div>
+                  <div>
+                    <label for="eC{{ c.type.id }}">Category</label>
+                    <select id="eC{{ c.type.id }}" name="category">
+                      {% for slug, label in categories %}
+                        <option value="{{ slug }}"{% if slug == c.type.category %} selected{% endif %}>{{ label }}</option>
+                      {% endfor %}
+                    </select>
+                  </div>
+                  <div>
+                    <label for="eP{{ c.type.id }}">Price (₦)</label>
+                    <input id="eP{{ c.type.id }}" name="price_naira" type="number" min="0" step="500"
+                           value="{{ c.type.price_naira }}">
+                  </div>
+                  <div>
+                    <label for="eDep{{ c.type.id }}">Deposit (₦)</label>
+                    <input id="eDep{{ c.type.id }}" name="deposit_naira" type="number" min="0" step="500"
+                           value="{{ c.type.deposit_naira }}">
+                  </div>
+                  <div>
+                    <label for="eQ{{ c.type.id }}">How many exist</label>
+                    <input id="eQ{{ c.type.id }}" name="quota" type="number" min="1" required
+                           value="{{ c.type.quota }}">
+                    {% if c.taken > 0 %}
+                      <small style="color:var(--ad-text-mute)">{{ c.taken }} already allocated —
+                        a quota below that leaves them over the cap.</small>
+                    {% endif %}
+                  </div>
+                </div>
+
+                <div style="margin-top:12px">
+                  <label for="eDesc{{ c.type.id }}">Description</label>
+                  <textarea id="eDesc{{ c.type.id }}" name="description" rows="2">{{ c.type.description }}</textarea>
+                </div>
+                <div style="margin-top:12px;display:flex;gap:18px;flex-wrap:wrap;align-items:center">
+                  <label style="display:flex;gap:8px;align-items:center;font-weight:500">
+                    <input type="checkbox" name="includes_power" value="1"
+                           {% if c.type.includes_power %}checked{% endif %}> Power included</label>
+                  <label style="display:flex;gap:8px;align-items:center;font-weight:500">
+                    <input type="checkbox" name="step_free" value="1"
+                           {% if c.type.step_free %}checked{% endif %}> Step-free pitch</label>
+                  <button class="ad-btn ad-btn--primary ad-btn--sm" type="submit">Save changes</button>
+                </div>
+              </form>
+            </details>
+          </td>
+        </tr>
+        {% endif %}
+      {% else %}
+        <tr><td colspan="8" style="color:var(--ad-text-soft)">
+          Nothing on offer yet. A call with no stand types is a form with no options.</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  {% if may_decide %}
+    {% if call and call.status == 'open' %}
+      <div class="ad-card__body" style="border-top:1px solid var(--ad-line);color:var(--ad-text-soft);font-size:13.5px;line-height:1.7">
+        The call is open, so prices and quotas are locked. They were published before anybody
+        applied, and that is the whole of what makes the allocation defensible.
+      </div>
+    {% else %}
+      {# ── FROM THE CATALOGUE, WHICH IS THE COMMON CASE ───────────────────────
+         The size, price and terms are already decided and priced once, in
+         /admin/stand-presets. The only thing this event has to say is how many of them
+         this hall holds — which is the one number a catalogue cannot know. Retyping a
+         size and a price per event is how the ₦10,000 pitch quietly becomes ₦12,000. #}
+      {% if presets|default([])|length > 0 %}
+      <div class="ad-card__body" style="border-top:1px solid var(--ad-line)">
+        <form method="post" action="/admin/events/{{ event.id }}/stands/preset"
+              style="display:flex;flex-wrap:wrap;gap:12px;align-items:flex-end">
+          <input type="hidden" name="_token" value="{{ csrf_token }}">
+          <div style="flex:1 1 260px">
+            <label for="stPreset">Add from the catalogue</label>
+            <select id="stPreset" name="preset_id">
+              {% for pr in presets %}
+              <option value="{{ pr.id }}">{{ pr.name }} · {{ preset_size[pr.id]|default('') }}{% if pr.price_naira %} — ₦{{ pr.price_naira|number_format }}{% endif %}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div style="flex:0 0 150px">
+            <label for="stPresetQty">How many?</label>
+            {# A real default rather than a placeholder. A required empty box on the one
+               control that decides whether the action succeeds is a form that refuses
+               itself, and the catalogue already carries a sensible number per preset. #}
+            <input id="stPresetQty" name="quota" type="number" min="1" max="10000" required
+                   value="{{ preset_quota|default(10) }}">
+          </div>
+          <button class="ad-btn ad-btn--primary" type="submit">Add</button>
+          <p class="hint" style="flex:1 1 100%;margin:0">
+            Terms are copied, not linked — repricing a preset later never rewrites what a
+            vendor applied for. Manage the catalogue in
+            <a href="/admin/stand-presets" style="color:var(--ad-accent,#237b22);font-weight:600">Stand presets</a>.
+          </p>
+        </form>
+      </div>
+      {% endif %}
+      <div class="ad-card__body" style="border-top:1px solid var(--ad-line)">
+        <form method="post" action="/admin/events/{{ event.id }}/stands/type">
+          <input type="hidden" name="_token" value="{{ csrf_token }}">
+          <div class="st-grid">
+            <div>
+              <label for="stName">Name</label>
+              <input id="stName" name="name" type="text" maxlength="160" required placeholder="Food pitch, 3m">
+            </div>
+            <div>
+              <label for="stSize">Size</label>
+              <select id="stSize" name="size_preset" data-ag-do="stand-size">
+                {% for key, sz in sizes %}
+                  <option value="{{ key }}" {% if key == '3x3' %}selected{% endif %}>{{ sz.label }}</option>
+                {% endfor %}
+                <option value="custom">Custom — use the boxes beside this</option>
+              </select>
+              <small style="color:var(--ad-text-mute)">A market is built from stock parts: hired
+                gazebos and multiples of them. 2.8m fits nothing and orders nothing.</small>
+            </div>
+            {# ── THE BOXES ARE DISABLED UNTIL “CUSTOM” IS CHOSEN ──────────────
+               They used to sit live and pre-filled with 3 beside a select showing
+               "Standard gazebo", with a line of small print saying they were ignored.
+               Somebody typing 6 × 6 into them and pressing Add got a 3 × 3 and no
+               warning — the size is a published term, so that is a stand sold to a
+               vendor at a size nobody chose. Disabled inputs are not submitted, which
+               is exactly the behaviour the small print was describing. #}
+            <div data-ag-size-wrap>
+              <label for="stW">Custom width (m)</label>
+              <input id="stW" name="width_m" type="number" min="0.5" max="50" step="0.01"
+                     data-ag-size-custom value="3">
+            </div>
+            <div data-ag-size-wrap>
+              <label for="stD">Custom depth (m)</label>
+              <input id="stD" name="depth_m" type="number" min="0.5" max="50" step="0.01"
+                     data-ag-size-custom value="3">
+              <small style="color:var(--ad-text-mute)">Live only when the size is “Custom”</small>
+            </div>
+            <div>
+              <label for="stCat">Category</label>
+              <select id="stCat" name="category">
+                {% for slug, label in categories %}<option value="{{ slug }}">{{ label }}</option>{% endfor %}
+              </select>
+              <small style="color:var(--ad-text-mute)">Quotas are what stop twelve of one thing</small>
+            </div>
+            <div>
+              <label for="stPrice">Price (₦)</label>
+              <input id="stPrice" name="price_naira" type="number" min="0" step="1000" value="0">
+            </div>
+            <div>
+              <label for="stDep">Deposit (₦)</label>
+              <input id="stDep" name="deposit_naira" type="number" min="0" step="1000" value="0">
+            </div>
+            <div>
+              <label for="stQuota">How many exist</label>
+              <input id="stQuota" name="quota" type="number" min="1" value="10" required>
+            </div>
+          </div>
+          <div style="margin-top:12px">
+            <label for="stDesc">Description</label>
+            <textarea id="stDesc" name="description" rows="2"></textarea>
+          </div>
+          <div style="margin-top:12px;display:flex;gap:18px;flex-wrap:wrap;align-items:center">
+            <label style="display:flex;gap:8px;align-items:center;font-weight:500">
+              <input type="checkbox" name="includes_power" value="1"> Power included</label>
+            <label style="display:flex;gap:8px;align-items:center;font-weight:500">
+              <input type="checkbox" name="step_free" value="1"> Step-free pitch</label>
+            <button class="ad-btn ad-btn--primary" type="submit">Add stand type</button>
+          </div>
+          <small style="display:block;margin-top:8px;color:var(--ad-text-mute)">
+            Step-free pitches are inventory, not a favour — marking them here is what lets a
+            vendor request one on the form instead of asking and hoping.</small>
+        </form>
+      </div>
+    {% endif %}
+  {% endif %}
+</div>
+
+{# ── 2b · SIZES AND THE FLOOR ───────────────────────────────────────────────
+   The arithmetic nobody does, on the screen where the quota is typed.
+
+   An organiser sets forty 3×3s and twelve 6×3s, publishes, allocates every place, and finds
+   on build morning that 576m² of stands do not fit a 500m² hall with room to walk. There is
+   no good move left at that point — every option is a broken promise. The sum that prevents
+   it is trivial and lives in a different head from the one setting quotas, so it is done
+   here, beside the quota box. #}
+<div class="ad-card" id="plan" style="margin-bottom:16px">
+  <div class="ad-card__head"><div class="ad-card__title">Sizes and the floor
+    <small>does what you have published fit in the hall you have hired?</small></div></div>
+  <div class="ad-card__body">
+
+  {# ── the pitches, all at one scale ──────────────────────────────────── #}
+  {% if plan.types is not empty %}
+    <div class="viz-swatches" role="group" aria-label="Stand sizes drawn to a shared scale">
+      {% for r in plan.types %}
+        <figure class="viz-swatch" style="margin:0">
+          {{ viz.swatch(r.type, swatch_scale, r.type.name, r.size) }}
+          <figcaption>
+            <div class="viz-swatch__l">{{ r.type.name }}</div>
+            <div class="viz-swatch__d">{{ r.size }} · {{ r.each_sqm }} m² × {{ r.quota }}</div>
+          </figcaption>
+        </figure>
+      {% endfor %}
+    </div>
+    <p class="viz-caveat">
+      Drawn to one shared scale with a 1.7 m figure for reference — a 6 × 3 is twice a 3 × 3
+      on screen because it is twice a 3 × 3 on the floor. That comparison is the thing a
+      column of numbers cannot do.
+    </p>
+  {% else %}
+    <p style="margin:0;color:var(--ad-text-soft)">Add a stand type and its size appears here.</p>
+  {% endif %}
+
+  {# ── the venue ──────────────────────────────────────────────────────── #}
+  {% if may_decide %}
+    <form method="post" action="/admin/events/{{ event.id }}/stands/venue"
+          style="margin-top:20px;padding-top:18px;border-top:1px solid var(--ad-line)">
+      <input type="hidden" name="_token" value="{{ csrf_token }}">
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:14px">
+        <div>
+          <label for="flW">Hall width (m)</label>
+          <input id="flW" name="floor_width_m" type="number" min="0" max="1000" step="0.1"
+                 value="{{ plan.measured ? (plan.floor_w_cm / 100) : '' }}">
+        </div>
+        <div>
+          <label for="flD">Hall depth (m)</label>
+          <input id="flD" name="floor_depth_m" type="number" min="0" max="1000" step="0.1"
+                 value="{{ plan.measured ? (plan.floor_d_cm / 100) : '' }}">
+        </div>
+        <div>
+          <label for="flA">Aisles and circulation (%)</label>
+          <input id="flA" name="aisle_pct" type="number" min="0" max="80" step="1"
+                 value="{{ plan.aisle_pct }}">
+          <small style="color:var(--ad-text-mute)">The floor no pitch can stand on. 35% is
+            deliberately generous — a market with nowhere to walk is one a fire officer closes.</small>
+        </div>
+      </div>
+      <div style="margin-top:12px">
+        <label for="flN">Notes about the space</label>
+        <input id="flN" name="floor_note" type="text" maxlength="400" value="{{ plan.note }}"
+               placeholder="Columns down the centre; loading door on the north wall.">
+      </div>
+      <div style="margin-top:14px">
+        <button class="ad-btn ad-btn--primary" type="submit">Save the venue</button>
+        <small style="display:block;margin-top:6px;color:var(--ad-text-mute)">
+          Editable at any time, including after the call locks. The lock stops the
+          <em>rules</em> changing once you know who applied; how wide the hall is, is a fact
+          somebody may measure better next week.</small>
+      </div>
+    </form>
+  {% endif %}
+
+  {# ── the budget ─────────────────────────────────────────────────────── #}
+  {% if plan.measured %}
+    <div style="margin-top:20px;padding-top:18px;border-top:1px solid var(--ad-line)">
+      <div class="viz-figs">
+        <div><div class="viz-fig__n">{{ plan.gross_sqm }} m²</div>
+          <div class="viz-fig__l">Hall</div></div>
+        <div><div class="viz-fig__n">{{ plan.usable_sqm }} m²</div>
+          <div class="viz-fig__l">Sellable, after {{ plan.aisle_pct }}% aisles</div></div>
+        <div><div class="viz-fig__n">{{ plan.committed_sqm }} m²</div>
+          <div class="viz-fig__l">Committed by the quotas</div></div>
+        <div><div class="viz-fig__n" {% if not plan.fits %}style="color:#b91c1c"{% endif %}>{{ plan.used_pct }}%</div>
+          <div class="viz-fig__l">Of the sellable floor</div></div>
+        <div><div class="viz-fig__n">{{ plan.pitches }}</div>
+          <div class="viz-fig__l">Pitches published</div></div>
+      </div>
+
+      <div style="margin-top:16px">{{ vz.chart(viz_budget) }}</div>
+
+      {% if not plan.fits %}
+        <div class="viz-warn" role="alert">
+          <strong>Over by {{ plan.over_sqm }} m².</strong>
+          The quotas as published commit more floor than this hall has, once
+          {{ plan.aisle_pct }}% is set aside for aisles. Every way out of this on build morning
+          is a broken promise — pitches shrunk without notice, or vendors turned away who hold
+          an accepted offer. Reduce a quota, use a smaller pitch, or find more room.
+          {% if call and call.status == 'open' %}
+            <br><br>The call is already open, so the quotas are locked. Fixing this means
+            closing it and opening a new one — which is exactly the cost this warning exists
+            to make you pay <em>before</em> publishing.
+          {% endif %}
+        </div>
+      {% endif %}
+    </div>
+
+    {# ── the block layout ────────────────────────────────────────────── #}
+    <div style="margin-top:20px;padding-top:18px;border-top:1px solid var(--ad-line)">
+      <div class="ad-card__title" style="margin-bottom:2px">Indicative block layout</div>
+      <p class="viz-caveat" style="margin-top:6px">
+        <strong>This is not a site plan.</strong> It packs rows of pitches into a plain
+        rectangle and knows nothing about fire exits, columns, power drops, the servery or
+        which wall the loading door is on. Do not send it to the venue. It answers one
+        question — is this plausibly the right order of magnitude, or obviously impossible?
+      </p>
+      {# The component carries the legend, the hover, the keyboard reading and the table.
+         Coloured by CATEGORY on the same scale the mix bar below uses — one meaning per hue
+         on this card — and a legend key isolates one category by dimming the rest rather
+         than removing them, so the hall does not reflow under the pointer. #}
+      {# The hall's real proportions, handed to the component as a custom property rather
+         than baked into the spec: the geometry inside is percentages, so one ratio here is
+         all that separates a 40×25m hall from a 25×40m one. #}
+      <div style="--viz-plan-ar:{{ plan.floor_w_cm }}/{{ plan.floor_d_cm }}">{{ vz.chart(viz_plan) }}</div>
+      {% if plan.unplaced > 0 %}
+      <p class="viz-caveat">
+        <strong style="color:#b91c1c">{{ plan.unplaced }} would not fit.</strong>
+        {% if plan.note %}{{ plan.note }}{% endif %}
+      </p>
+      {% elseif plan.note %}
+        <p class="viz-caveat">{{ plan.note }}</p>
+      {% endif %}
+    </div>
+
+    {# ── the mix ─────────────────────────────────────────────────────── #}
+    {% if plan.categories|length > 1 %}
+      <div style="margin-top:20px;padding-top:18px;border-top:1px solid var(--ad-line)">
+        {{ vz.chart(viz_mix) }}
+      </div>
+    {% endif %}
+  {% else %}
+    <p class="viz-caveat" style="margin-top:18px">
+      No venue measured yet, so there is nothing to check the quotas against. Two numbers —
+      the width and depth of the hall — turn the list above into a plan that can be wrong on
+      screen instead of on build morning.
+    </p>
+  {% endif %}
+  </div>
+</div>
+
+{# ── 3 · WHO APPLIED ───────────────────────────────────────────────────────── #}
+<div class="ad-card" id="apps">
+  <div class="ad-card__head">
+    <div class="ad-card__title">Applications
+      <small>complete ones first, in the order they became complete — the published
+        tiebreak, so the list reads in the order the rule ranks it</small></div>
+    {% if may_decide and summary.total > 0 %}
+      <form method="post" action="/admin/events/{{ event.id }}/stands/check">
+        <input type="hidden" name="_token" value="{{ csrf_token }}">
+        <button class="ad-btn ad-btn--sm" type="submit">Run the eligibility check</button>
+      </form>
+    {% endif %}
+  </div>
+
+  {# ── RECORDED IS NOT THE SAME FACT AS EMAILED ─────────────────────────────
+     A decision queues its message and the maintenance tick sends it, because there is no
+     worker process on this host. So there is a real interval in which a vendor has been
+     offered a pitch and does not yet know — and an organiser waiting for a reply needs to
+     be able to tell that state from "they were told and have not answered". #}
+  {% if notices_pending > 0 %}
+    <div class="ad-card__body" style="padding-bottom:0">
+      <p class="viz-caveat" style="margin:0">
+        <strong>{{ notices_pending }} message(s) still to go out.</strong>
+        Decisions are emailed by the scheduled task rather than at the moment you press
+        Record, so nobody is kept waiting on a slow mail server. Until these send, the
+        vendors concerned do not yet know — including anyone whose acceptance clock has
+        already started.
+      </p>
+    </div>
+  {% endif %}
+
+  <div class="ad-card__body" style="padding-bottom:0">
+    <nav class="st-tabs" aria-label="Filter applications by outcome">
+      <a class="st-tab {% if filter == '' %}is-on{% endif %}"
+         href="/admin/events/{{ event.id }}/stands#apps">All ({{ summary.total }})</a>
+      {% for slug, label in decisions %}
+        <a class="st-tab {% if filter == slug %}is-on{% endif %}"
+           href="/admin/events/{{ event.id }}/stands?decision={{ slug }}#apps">{{ label }} ({{ summary[slug] }})</a>
+      {% endfor %}
+    </nav>
+  </div>
+
+  <div class="ad-table-wrap">
+    <table class="ad-table">
+      <caption class="sr-only">Stand applications</caption>
+      <thead>
+        <tr>
+          <th scope="col">Applicant</th>
+          <th scope="col">Applied for</th>
+          <th scope="col">Eligibility</th>
+          <th scope="col">Outcome</th>
+          <th scope="col">Decide</th>
+        </tr>
+      </thead>
+      <tbody>
+      {% for r in applications %}
+        <tr>
+          <td>
+            <strong>{{ r.org ? r.org.name : 'Unknown' }}</strong>
+            {% if r.individual %}
+              <span class="ad-chip ad-chip--grey" style="margin-left:6px">Individual</span>
+            {% endif %}
+            {% if r.org and r.org.self_registered %}
+              <span class="ad-chip ad-chip--gold" style="margin-left:6px" title="Applied through the public form — nobody here has met them">Self-registered</span>
+            {% endif %}
+            <div class="st-app__meta">
+              {% if r.org %}
+                {{ r.org.legal_name|default(r.org.name) }}
+                {% if r.org.contact_phone %} · {{ r.org.contact_phone }}{% endif %}<br>
+              {% endif %}
+              Applied {{ r.app.submitted_at|slice(0,16) }} ·
+              {% if r.app.completed_at %}complete {{ r.app.completed_at|slice(0,16) }}
+              {% else %}<span class="st-miss">not complete</span>{% endif %}
+            </div>
+            {% if r.org %}
+              <div style="margin-top:5px">
+                <a class="ad-btn ad-btn--sm" href="/admin/partner-orgs/{{ r.org.id }}">Vetting record</a>
+              </div>
+            {% endif %}
+          </td>
+          <td>
+            {{ r.type ? r.type.name : '—' }}
+            {# The VENDOR'S declared trade, not the pitch's category. The two are
+               different claims and can disagree — a "3m corner pitch" filed under
+               `general` is chosen for its size, and two vendors picking it are not
+               necessarily in the same trade. Shown beside what they wrote, because
+               that is the sentence it was read off.
+
+               Absent on an application submitted before the form asked, and nothing
+               is rendered for those: a blank is the honest reading of "not asked",
+               and a default would invent a claim on the row a market is allocated
+               from. #}
+            {% if r.app.category %}
+              <div style="margin-top:4px">
+                <span class="ad-chip ad-chip--grey">{{ categories[r.app.category]|default(r.app.category) }}</span>
+              </div>
+            {% endif %}
+            <div class="st-app__meta">
+              {% if r.app.needs_power %}Needs power. {% endif %}
+              {% if r.app.needs_step_free %}Needs a step-free pitch. {% endif %}
+              {{ r.app.what_they_sell }}
+            </div>
+          </td>
+          <td>
+            {% if r.app.eligibility == 'pass' %}
+              <span class="ad-chip ad-chip--green">Eligible</span>
+            {% elseif r.app.eligibility == 'fail' %}
+              <span class="ad-chip ad-chip--red">Not eligible</span>
+              <div class="st-miss" style="margin-top:5px">{{ r.app.eligibility_note }}</div>
+            {% else %}
+              <span class="ad-chip ad-chip--grey">Unchecked</span>
+            {% endif %}
+            {% if r.missing is not empty %}
+              <div class="st-miss" style="margin-top:5px">
+                Missing: {{ r.missing|join(', ') }}</div>
+            {% endif %}
+          </td>
+          <td>
+            {% set dchip = {'offered':'gold','accepted':'green','rejected':'red',
+                            'declined':'grey','waitlisted':'grey','pending':'grey'}[r.app.decision]|default('grey') %}
+            <span class="ad-chip ad-chip--{{ dchip }}">{{ decisions[r.app.decision]|default(r.app.decision) }}</span>
+            {% if r.app.decision == 'offered' and r.app.offer_expires_at %}
+              <div class="st-app__meta">Expires {{ r.app.offer_expires_at|slice(0,16) }}</div>
+            {% endif %}
+            {% if r.app.decision_reason %}
+              <div class="st-app__meta" style="margin-top:5px">“{{ r.app.decision_reason }}”</div>
+            {% endif %}
+          </td>
+          <td>
+            {% if may_decide %}
+              {# ── NOTHING HERE IS PRE-SELECTED, AND THAT IS THE POINT ──────────
+                 The select used to open on "Offer a stand", beside a button labelled
+                 "Record", on a table that routinely runs to two hundred identical rows.
+                 One misdirected click sent a real offer — and now that decisions are
+                 actually emailed, it sends a real offer with a {{ offer_hours }}-hour
+                 clock to the wrong business, which cannot be taken back by editing a
+                 row. A placeholder plus `required` makes the consequential option one
+                 somebody chose, not one they failed to change. #}
+              <form method="post" action="/admin/events/{{ event.id }}/stands/{{ r.app.id }}/decide"
+                    data-confirm="Record this decision for {{ r.org ? r.org.name : 'this application' }}? They are emailed immediately, and an offer starts a {{ offer_hours }}-hour acceptance clock.">
+                <input type="hidden" name="_token" value="{{ csrf_token }}">
+                <div class="st-dec">
+                  <div>
+                    <label class="sr-only" for="dec{{ r.app.id }}">Decision for {{ r.org ? r.org.name : 'this application' }}</label>
+                    <select id="dec{{ r.app.id }}" name="decision" required>
+                      <option value="" selected>Choose…</option>
+                      <option value="offered">Offer a stand</option>
+                      <option value="waitlisted">Waiting list</option>
+                      <option value="rejected">Not selected</option>
+                    </select>
+                  </div>
+                  <button class="ad-btn ad-btn--sm" type="submit">Record</button>
+                </div>
+                <label class="sr-only" for="rsn{{ r.app.id }}">Reason</label>
+                {# Repopulated. A rejection with no reason is refused — deliberately — and
+                   the refusal used to come back with the typed reason gone, on a page
+                   scrolled to the top. Somebody who has just written three sentences
+                   explaining a decision does not write them twice. #}
+                <input id="rsn{{ r.app.id }}" name="reason" type="text" maxlength="400"
+                       style="margin-top:6px" value="{{ kept_reason[r.app.id]|default('') }}"
+                       placeholder="Reason — required to reject, and they read it">
+              </form>
+
+              {# ── PUTTING A SETTLED APPLICATION BACK ──────────────────────────
+                   Every decision on this table used to be one-way. An offer that ran out
+                   while the trader was at a funeral, a rejection recorded against the wrong
+                   row, a waitlisted applicant there is now room for — the only workaround
+                   was asking the vendor to apply again, which loses their place in the
+                   completeness tiebreak and rewrites their record as though the first
+                   application never happened.
+
+                   NOT shown on an accepted pitch. That one may have been paid for, and
+                   reopening it would leave money against a place nobody holds. Withdrawing
+                   an accepted stand is a different act with a refund attached; the service
+                   refuses it here so this is not the only thing standing in the way. #}
+              {% if r.app.decision in ['rejected', 'waitlisted', 'declined', 'expired'] %}
+                <form method="post" action="/admin/events/{{ event.id }}/stands/{{ r.app.id }}/reopen"
+                      style="margin-top:8px"
+                      data-confirm="Put this application back in the undecided pile? Nothing is sent to the vendor.">
+                  <input type="hidden" name="_token" value="{{ csrf_token }}">
+                  <button class="ad-btn ad-btn--sm" type="submit">Reopen</button>
+                </form>
+              {% endif %}
+            {% else %}
+              <span style="color:var(--ad-text-soft)">Read only</span>
+            {% endif %}
+          </td>
+        </tr>
+      {% else %}
+        <tr><td colspan="5" style="color:var(--ad-text-soft)">
+          {% if summary.total > 0 %}No application matches that filter.
+          {% else %}Nobody has applied yet.{% endif %}</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  <div class="ad-card__body" style="border-top:1px solid var(--ad-line);font-size:13px;line-height:1.7;color:var(--ad-text-soft)">
+    An offer is held for <strong>{{ offer_hours }} hours</strong>. After that the maintenance run
+    returns the place to the waiting list automatically — a place held by somebody who stopped
+    replying is a place the waiting list was promised and never got.
+    <br>A rejection cannot be recorded without a reason. That is the difference between a
+    disappointment and a story about favouritism.
+  </div>
+</div>
+
+{# ══ WHO HAS PAID ══════════════════════════════════════════════════════════
+     The question on the morning of the market, and until now it had no answer anywhere in
+     the product: accepting a stand said "you will be invoiced" and nothing invoiced anybody
+     — no amount on the row, nothing the vendor could see, no way to pay.
+
+     ACCEPTED pitches only in the totals. An open offer is a place being HELD, not money
+     anybody is owed, and counting it as expected income would let this card report a figure
+     that evaporates when the clock runs out. #}
+{% if fees.rows %}
+<div class="ad-card" id="fees">
+  <div class="ad-card__head">
+    <div class="ad-card__title">Stand fees</div>
+  </div>
+
+  <div class="ad-card__body" style="display:flex;gap:26px;flex-wrap:wrap">
+    <div>
+      <div class="st-app__meta">Expected, from accepted pitches</div>
+      <div style="font-size:1.35rem;font-weight:700">₦{{ fees.expected|number_format }}</div>
+    </div>
+    <div>
+      <div class="st-app__meta">Collected</div>
+      <div style="font-size:1.35rem;font-weight:700;color:#1a6118">₦{{ fees.collected|number_format }}</div>
+    </div>
+    <div>
+      <div class="st-app__meta">Still owed</div>
+      <div style="font-size:1.35rem;font-weight:700;{% if fees.owed > 0 %}color:#a32b1c{% endif %}">
+        ₦{{ fees.owed|number_format }}</div>
+    </div>
+  </div>
+
+  <div class="ad-card__body" style="padding-top:0;overflow-x:auto">
+    <table class="ad-table">
+      <caption class="sr-only">Stand fees by vendor</caption>
+      <thead><tr><th scope="col">Vendor</th><th scope="col">Stand</th>
+                 <th scope="col">Fee</th><th scope="col">Paid</th><th scope="col">Where it stands</th></tr></thead>
+      <tbody>
+        {% for f in fees.rows %}
+        <tr>
+          <td>{{ f.org_name }}{% if not f.accepted %}
+            <div class="st-app__meta">Offer open — not counted above</div>{% endif %}</td>
+          <td>{{ f.type_name }}</td>
+          <td>{% if f.owing.fee > 0 %}₦{{ f.owing.fee|number_format }}{% else %}No fee{% endif %}</td>
+          <td>{% if f.owing.paid > 0 %}₦{{ f.owing.paid|number_format }}{% else %}—{% endif %}</td>
+          <td>
+            {% if f.owing.settled %}
+              <span class="ad-chip ad-chip--green">{{ f.owing.stage == 'free' ? 'Nothing to pay' : 'Paid' }}</span>
+            {% elseif f.owing.stage == 'balance' %}
+              <span class="ad-chip ad-chip--gold">Deposit paid</span>
+            {% else %}
+              <span class="ad-chip ad-chip--grey">Not paid</span>
+            {% endif %}
+            <div class="st-app__meta" style="margin-top:5px">{{ f.owing.label }}</div>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  <div class="ad-card__body" style="border-top:1px solid var(--ad-line);font-size:13px;line-height:1.7;color:var(--ad-text-soft)">
+    A vendor pays from their own offer link, which is in the email that told them they had
+    been offered a pitch. Nothing here is marked paid by hand — the amount comes from the
+    gateway's own verification, so a row saying Paid is a row the gateway confirmed.
+  </div>
+</div>
+{% endif %}
+{{ vz.assets(csp_nonce) }}
+{% endblock %}

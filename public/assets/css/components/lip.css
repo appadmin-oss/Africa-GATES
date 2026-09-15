@@ -1,0 +1,80 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   THE LIP — the one way this platform shows depth
+   ═══════════════════════════════════════════════════════════════════════════
+
+   A hard offset bottom border in a solid darker shade of the element's own
+   colour. Never a blurred drop shadow: there are no shadows anywhere on this
+   site, and the 118 that were here have been removed.
+
+   ── WHY IT BELONGS ONLY TO THINGS THAT ARE PRESSED ────────────────────────
+
+   The lip COLLAPSES on press — the button travels down by exactly the lip's
+   height and the border goes to zero, so the element ends where it started and
+   the only thing that moved is the depth. That collapse is the whole point: it
+   is what makes the lip an affordance rather than an ornament.
+
+   So a tile does not get one. A card does not get one. A panel does not get
+   one. Depth that cannot be pressed is decoration, and this site does not have
+   decoration it cannot explain.
+
+   ── THE PADDING IS ASYMMETRIC ON PURPOSE ──────────────────────────────────
+
+   Bottom padding is reduced by the lip height, so the LABEL sits optically
+   centred in the visible pill rather than centred in a box that happens to
+   have a 4px border on one side. Get this wrong and every button on the site
+   reads a few pixels high without anybody being able to say why.
+
+   ── AND THE HOVER LIFT HAD TO GO ──────────────────────────────────────────
+
+   `transform: translateY(-1px)` on hover fought the press: the button rose a
+   pixel, then fell four, so the press overshot and read as a stumble. A lipped
+   button does not lift. It is already up.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.ag-lip,
+.btn--primary,
+.ag-register {
+  border-bottom: 4px solid var(--ag-action-lip);
+  /* The lip is part of the shape, so the radius has to survive it. */
+  border-radius: var(--ag-r-pill, 999px);
+  /* 15px top / 13px bottom — the 2px difference plus the 4px lip optically
+     centres the label. See above. */
+  padding-top: 15px;
+  padding-bottom: 13px;
+  min-height: 48px;
+  transition: transform 60ms ease-out, border-bottom-width 60ms ease-out,
+              background-color 120ms ease-out;
+}
+
+.ag-lip:active,
+.btn--primary:active,
+.ag-register:active {
+  transform: translateY(4px);
+  border-bottom-width: 0;
+}
+
+/* The lift is replaced by the only thing a lipped button should do on hover:
+   deepen. Stated as a rule rather than left to the old declaration, because the
+   old one is still in main.css and nav.css and would otherwise win on order. */
+.btn--primary:hover,
+.ag-register:hover {
+  transform: none;
+}
+
+/* An outlined button is not pressed into the page — it has no fill to darken —
+   so it takes no lip. Named here so the exclusion is deliberate rather than an
+   oversight somebody "fixes" later. */
+.btn--ghost,
+.ag-signin {
+  border-bottom-width: 1px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ag-lip, .btn--primary, .ag-register { transition: none; }
+}
+
+/* A coarse pointer gets the AAA target size; the lip is inside it, not on top
+   of it, so the pressable area does not shrink by the border's height. */
+@media (pointer: coarse) {
+  .ag-lip, .btn--primary, .ag-register { min-height: 52px; }
+}

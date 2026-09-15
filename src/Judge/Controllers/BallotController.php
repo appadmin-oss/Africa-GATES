@@ -29,7 +29,23 @@ class BallotController
         return $this->view->render($res, 'judge/dashboard.twig', array_merge($data, [
             'page_title'     => 'Judges — Africa GATES',
             'judge'          => $judge ? (array)$judge : null,
-            'no_assignments' => $forceEmpty || empty($data['programmes']),
+            // Counted from the REAL panels, not from every card on the page. The practice
+            // programme is appended to every active judge, so `empty($data['programmes'])`
+            // stopped ever being true — and a judge who has not been rostered onto anything
+            // would have been shown a practice ballot with no hint that it was the only
+            // thing there.
+            'no_assignments' => $forceEmpty || ($data['overview']['programmes'] ?? 0) < 1,
+            'has_practice'   => !$forceEmpty && array_filter(
+                (array) ($data['programmes'] ?? []),
+                static fn (array $b): bool => !empty($b['is_practice'])
+            ) !== [],
+            // ── WHERE THIS JUDGE IS EXPECTED ─────────────────────────────────
+            //
+            // A judge could see their ballots and not their calls. The sittings existed in
+            // `gates_interviews` with a time, a panel and a joining link, and the only
+            // place any of it reached them was an email three days old — so on the morning
+            // of a call the link had to be found again in an inbox.
+            'sittings'       => \AfricaGates\Services\JudgeSchedule::forJudge($judgeId),
         ]));
     }
 
@@ -55,6 +71,87 @@ class BallotController
         ]);
     }
 
+    /**
+     * Produce (or return) the dossier map for one nominee.
+     *
+     * ── THE AUTHORISATION IS THE INTERESTING PART ───────────────────────────
+     *
+     * A judge may only ask about a nominee on a panel they sit on. Not because the map is
+     * secret — the dossier behind it is already visible to them — but because without the
+     * check this endpoint would summarise ANY nominee by id, including entries in a
+     * programme this judge was deliberately not assigned to, and including ones withheld
+     * for a conflict of interest. That is Broken Access Control wearing a helpful hat.
+     *
+     * `evidenceFor()` already resolves evidence → nominee → category → cycle → programme
+     * against this judge's assignments, so the same question is asked here directly.
+     */
+    public function orient(Request $req, Response $res, array $args): Response
+    {
+        $judgeId   = (int) ($_SESSION['judge_id'] ?? 0);
+        $nomineeId = (int) ($args['nomineeId'] ?? 0);
+
+        $json = static function (Response $res, array $body, int $code = 200): Response {
+            $res->getBody()->write((string) json_encode($body));
+            return $res->withHeader('Content-Type', 'application/json')->withStatus($code);
+        };
+
+        if (!$this->judges->mayJudgeNominee($judgeId, $nomineeId)) {
+            // Deliberately the same answer as "no such nominee". Distinguishing them would
+            // let somebody enumerate which entries exist in a programme they cannot see.
+            return $json($res, ['ok' => false,
+                'message' => 'That nominee is not on your ballot.'], 404);
+        }
+
+        $r = \AfricaGates\Services\JudgeAssist::forNominee($nomineeId);
+
+        return $json($res, [
+            'ok'      => (bool) $r['ok'],
+            'map'     => $r['map'],
+            'message' => (string) $r['message'],
+        ]);
+    }
+
+    /**
+     * A judge saying the dossier map misreads the dossier.
+     *
+     * ── THE SAME GUARD AS orient(), AND NOT A WEAKER ONE ─────────────────────
+     *
+     * `mayJudgeNominee` first, answering exactly as it does for a nominee that does not
+     * exist. Without it this endpoint would confirm, one id at a time, which entries a
+     * programme holds to somebody who cannot see that programme — a cheaper enumeration
+     * than the map endpoint offers, because it writes rather than reads and so cannot be
+     * rate-limited by a cache.
+     *
+     * Returns JSON: the ballot replaces the panel in place rather than reloading a page a
+     * judge has scrolled halfway down and half-filled.
+     */
+    public function flagMap(Request $req, Response $res, array $args): Response
+    {
+        $judgeId   = (int) ($_SESSION['judge_id'] ?? 0);
+        $nomineeId = (int) ($args['nomineeId'] ?? 0);
+
+        $json = static function (Response $res, array $body, int $code = 200): Response {
+            $res->getBody()->write((string) json_encode($body));
+
+            return $res->withHeader('Content-Type', 'application/json')->withStatus($code);
+        };
+
+        if (!$this->judges->mayJudgeNominee($judgeId, $nomineeId)) {
+            return $json($res, ['ok' => false,
+                'message' => 'That nominee is not on your ballot.'], 404);
+        }
+
+        $reason = trim((string) (((array) $req->getParsedBody())['reason'] ?? ''));
+        $ok     = \AfricaGates\Services\JudgeAssist::flag($judgeId, $nomineeId, $reason);
+
+        return $json($res, [
+            'ok'      => $ok,
+            'message' => $ok
+                ? 'Noted — this map is hidden for you, and the panel administrators can see it was disputed.'
+                : 'That could not be recorded just now.',
+        ]);
+    }
+
     public function saveScore(Request $req, Response $res, array $args): Response
     {
         $judgeId = (int)$_SESSION['judge_id'];
@@ -76,5 +173,15 @@ class BallotController
         $this->judges->declareConflict($judgeId, $programmeId, isset($b['reason']) ? (string)$b['reason'] : null);
         $_SESSION['flash_ok'] = 'Conflict of interest recorded — you are recused from scoring this programme.';
         return $res->withHeader('Location', '/judge')->withStatus(302);
+    }
+
+    /** Withdraw a conflict-of-interest recusal declared in error, re-opening scoring. */
+    public function withdrawConflict(Request $req, Response $res, array $args): Response
+    {
+        $judgeId = (int)$_SESSION['judge_id'];
+        $programmeId = (int)$args['programmeId'];
+        $this->judges->withdrawConflict($judgeId, $programmeId);
+        $_SESSION['flash_ok'] = 'Conflict of interest withdrawn — you can score this programme again.';
+        return $res->withHeader('Location', '/judge/ballot/' . $programmeId)->withStatus(302);
     }
 }

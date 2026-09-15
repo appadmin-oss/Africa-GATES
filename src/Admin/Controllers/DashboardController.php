@@ -14,23 +14,47 @@ class DashboardController
     public function __construct(
         private readonly Twig $view,
         private readonly AuditService $audit,
+        /** Only for the stalled-schedule alert; nullable so a mailerless build still renders. */
+        private readonly ?\AfricaGates\Services\OtpService $mailer = null,
     ) {}
 
     public function index(Request $req, Response $res): Response
     {
-        $stats = [
-            'total_profiles'      => (int)DB::table('gates_profiles')->where('status','approved')->count(),
-            'pending_profiles'    => (int)DB::table('gates_profiles')->where('status','pending')->count(),
-            'total_votes'         => (int)DB::table('gates_votes')->count(),
-            'votes_24h'           => (int)DB::table('gates_votes')->where('voted_at','>=', date('Y-m-d H:i:s', strtotime('-1 day')))->count(),
-            'pending_nominations' => (int)DB::table('gates_nominations')->where('status','pending')->count(),
-            'approved_nominations'=> (int)DB::table('gates_nominations')->where('status','approved')->count(),
-            'legacy_events'       => (int)DB::table('gates_legacy_events')->where('is_published',1)->count(),
-            'opportunities'       => (int)DB::table('gates_opportunities')->where('status','active')->count(),
-            'partner_enquiries'   => (int)DB::table('gates_partner_enquiries')->whereIn('status',['new','in_review'])->count(),
-            'judges'              => (int)DB::table('gates_judges')->where('is_active',1)->count(),
-            'admins'              => (int)DB::table('gates_admins')->where('is_active',1)->count(),
-        ];
+        // ── A STALLED SCHEDULE, EMAILED ONCE A DAY ───────────────────────────
+        //
+        // The layout banner covers the admin who is already looking. This covers
+        // the days nobody looks, which are the days it matters — reconciliation and
+        // automatic refunds live entirely inside the maintenance run, so a stall
+        // means supporters who are owed money quietly stop being paid.
+        //
+        // Sent from a page load rather than from maintenance because a run that has
+        // stopped cannot report that it has stopped. `claimAlert()` holds it to one
+        // email a day; without that it would send one per click.
+        if ($this->mailer !== null && \AfricaGates\Support\CronHealth::claimAlert()) {
+            $h = \AfricaGates\Support\CronHealth::status();
+            \AfricaGates\Services\Notifier::adminAlert(
+                $this->mailer,
+                'Scheduled maintenance has stopped',
+                ($h['say'] ?? 'Scheduled maintenance is not running.') . "\n\n"
+                . "Until it runs again: payments that the browser callback missed are NOT being "
+                . "confirmed, and money owed for votes that could not be minted is NOT being "
+                . "returned. Neither shows up anywhere else — the site serves normally throughout.\n\n"
+                . "Last recorded run: " . ($h['last'] ?? 'never') . "\n"
+                . "Fix: re-check the webcron job, or press \"Run maintenance now\" in "
+                . "Settings → Automation & cron."
+            );
+        }
+
+        // ── WHAT NEEDS A PERSON, BEFORE ANYTHING THAT MERELY MEASURES ────────
+        //
+        // The dashboard used to open on eight counts and three charts. Every number was true
+        // and not one of them was a job — while a chargeback on a sixteen-hour clock, an
+        // interview held weeks ago whose transcript nobody published, and sixty nominees never
+        // told their questionnaire exists appeared nowhere on the first screen after login.
+        //
+        // Filtered by ROLE through the same resolver the section guard uses, so a card can
+        // never offer a screen that then bounces the person who clicked it.
+        $board = \AfricaGates\Admin\Services\AttentionBoard::forRole((string) ($_SESSION['admin_role'] ?? ''));
 
         // Region distribution
         $regionDist = DB::table('gates_profiles')->where('status','approved')
@@ -62,15 +86,37 @@ class DashboardController
             ->select(['n.id','n.name','n.vote_count','n.country_code','c.title as category'])
             ->get()->map(fn($r)=>(array)$r)->all();
 
+        // Integrity briefing — deterministic signals + a templated summary on
+        // load (NO AI call here); the "AI briefing" button upgrades it on demand.
+        $intSignals = \AfricaGates\Services\IntegrityBriefService::signals();
+        $intBrief   = \AfricaGates\Services\IntegrityBriefService::narrative($intSignals, new \AfricaGates\Services\AiService());
+
         return $this->view->render($res, 'admin/dashboard.twig', [
             'page_title'  => 'Dashboard — Africa GATES Admin',
             'admin_page'  => 'dashboard',
-            'stats'       => $stats,
+            'board'       => $board,
+            'board_total' => \AfricaGates\Admin\Services\AttentionBoard::total($board),
+            // The counts that are worth knowing but are not jobs, rendered small and BELOW the
+            // work rather than across the top of it.
+            'pulse'       => \AfricaGates\Admin\Services\AttentionBoard::pulse(),
             'region_dist' => $regionDist,
             'tier_dist'   => $tierDist,
             'vote_series' => $voteSeries,
             'top_nominees'=> $topNominees,
             'recent_activity' => $this->audit->recent(12),
+            'integrity'       => $intSignals,
+            'integrity_brief' => $intBrief['text'],
+            'ai_enabled'      => \AfricaGates\Services\AiGateway::available('integrity.brief'),
         ]);
+    }
+
+    /** On-demand AI integrity briefing (JSON) for the dashboard button. */
+    public function integrityBrief(Request $req, Response $res): Response
+    {
+        $r = \AfricaGates\Services\IntegrityBriefService::brief();
+        $res->getBody()->write((string) json_encode([
+            'ok' => true, 'text' => $r['text'], 'ai' => $r['ai'], 'total' => $r['signals']['total'] ?? 0,
+        ], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE));
+        return $res->withHeader('Content-Type', 'application/json');
     }
 }

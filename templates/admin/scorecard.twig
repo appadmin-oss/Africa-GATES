@@ -1,0 +1,257 @@
+{% extends 'admin/layout.twig' %}
+
+{#
+  ONE NOMINEE'S CARD: every judge, every criterion, the number they wrote.
+
+  Every other screen built on gates_judge_criteria_scores shows arithmetic OVER the
+  marks — the index, a panel average, a lean, a criterion's range. None shows a mark.
+  So the first question anybody asks about an award had no screen at all.
+
+  Marks that do NOT count are drawn, marked, with the reason. A screen that quietly
+  rendered only the counting ones would be the same failure in a new place: a nominee
+  with twenty marks on record and a panel of two would look unjudged.
+#}
+
+{% block head_styles %}
+<style nonce="{{ csp_nonce }}">
+  .ja-lede{ background:#fff; border:1px solid rgba(16,41,44,.1); border-radius:14px;
+    padding:18px 20px; margin-bottom:16px }
+  .ja-lede h2{ margin:0 0 6px; font-size:14.5px; color:#10292C }
+  .ja-lede p{ margin:8px 0 0; font-size:12.5px; line-height:1.7; color:#5a6d6f; max-width:76ch }
+
+  .ja-card{ background:#fff; border:1px solid rgba(16,41,44,.1); border-radius:14px;
+    padding:18px 20px; margin-bottom:16px }
+  .ja-card h3{ margin:0 0 4px; font-size:13.5px; color:#10292C }
+  .ja-card > p{ margin:0 0 14px; font-size:12.5px; line-height:1.7; color:#5a6d6f; max-width:76ch }
+
+  .ja-t{ width:100%; border-collapse:collapse; font-size:12.5px }
+  .ja-t th{ text-align:left; font-family:var(--ag-font-mono,monospace); font-size:10px;
+    font-weight:700; letter-spacing:.09em; text-transform:uppercase; color:#5a6d6f;
+    padding:0 10px 8px 0; border-bottom:1px solid rgba(16,41,44,.12); vertical-align:bottom }
+  .ja-t td{ padding:10px 10px 10px 0; border-bottom:1px solid rgba(16,41,44,.06);
+    color:#3d4b4d; vertical-align:top }
+  .ja-t tr:last-child td{ border-bottom:none }
+  .ja-num{ font-family:var(--ag-font-mono,monospace); font-variant-numeric:tabular-nums }
+  .ja-name{ font-weight:600; color:#10292C }
+  .ja-den{ display:block; margin-top:3px; font-size:11px; color:#5a6d6f }
+
+  .ja-flag{ font-family:var(--ag-font-mono,monospace); font-size:10px; font-weight:700;
+    letter-spacing:.05em; text-transform:uppercase; padding:3px 8px; border-radius:999px;
+    background:rgba(16,41,44,.07); color:#3d4b4d; white-space:nowrap }
+  .ja-flag--bad{ background:#fdecea; color:#8a2b18 }
+  .ja-flag--warn{ background:#fffaf0; color:#7a5605 }
+
+  .ja-fact{ border-left:3px solid #8a2b18; background:#fdf6f5; border-radius:0 10px 10px 0;
+    padding:13px 16px; margin-bottom:12px }
+  .ja-fact b{ color:#8a2b18 }
+  .ja-fact p{ margin:6px 0 0; font-size:12.5px; line-height:1.65; color:#5a4442 }
+  .ja-caveat{ margin:14px 0 0; padding:12px 15px; border-left:3px solid #d49a0e;
+    background:#fffaf0; border-radius:0 8px 8px 0; font-size:12.5px; line-height:1.65;
+    color:#7a5605 }
+  .ja-empty{ font-size:12.5px; line-height:1.7; color:#5a6d6f; margin:0 }
+
+  /* ── THE MARK ──────────────────────────────────────────────────────────────
+     The number a judge wrote, and the whole reason this page exists — so it is the
+     largest thing in its cell and every other figure is set beside it, not above it. */
+  .sc-mark{ font-family:var(--ag-font-mono,monospace); font-variant-numeric:tabular-nums;
+    font-size:17px; font-weight:700; color:#10292C; line-height:1 }
+  .sc-mark--none{ color:#a4b0b1; font-weight:400 }
+  /* A card whose marks were not used. Greyed rather than hidden: it is a real
+     assessment the platform really ignored, and hiding it is how a screen comes to
+     look like it is concealing something. */
+  .sc-t tr.sc--out td{ background:rgba(16,41,44,.02); color:#6b7b7d }
+  .sc-t tr.sc--out .sc-mark{ color:#8a949a; font-weight:400 }
+  /* The panel's own row. Not a judge — the number the award uses. */
+  .sc-t tr.sc--panel td{ border-top:2px solid #10292C; background:#fbfcfc }
+  .sc-t tr.sc--panel td{ padding-top:13px }
+  .sc-sum{ font-family:var(--ag-font-mono,monospace); font-size:20px; font-weight:700;
+    color:#10292C; line-height:1 }
+  .sc-scroll{ overflow-x:auto }
+</style>
+{% endblock %}
+
+{% block topbar_title %}Scorecard{% endblock %}
+
+{% block content %}
+
+{% if failed %}
+  <div class="ja-fact">
+    <b>This scorecard could not be built.</b>
+    <p>The reason is in the server log. Nothing below is missing because it is empty
+      &mdash; it is missing because the query did not run, and those two look the same
+      on a screen.</p>
+  </div>
+{% elseif not card.nominee %}
+  <div class="ja-card">
+    <h3>No such nominee</h3>
+    <p class="ja-empty">Nothing on this platform has that id.</p>
+  </div>
+{% else %}
+
+  <div class="ja-lede">
+    <h2>{{ card.nominee.name }}</h2>
+    <p>
+      {%- if card.category %}{{ card.category.title }}{% endif %}
+      {%- if card.cycle %} &middot; {{ card.cycle.edition_label|default(card.cycle.year) }}{% endif %}
+      &middot; <a href="/admin/result-release{% if card.cycle %}?cycle={{ card.cycle.id }}{% endif %}">back to the release</a>
+    </p>
+    <p>Every mark on record for this nominee: which judge wrote it, on which criterion,
+      and what became of it. The panel average at the foot of the table is the one the
+      award uses &mdash; it is read from the scorer rather than added up here, so this
+      page and the result cannot disagree.</p>
+  </div>
+
+  {% if card.judges is empty %}
+    <div class="ja-card">
+      <h3>Nobody has scored this nominee</h3>
+      <p class="ja-empty">No judge has recorded a mark. That is a finding rather than an
+        empty page: a nominee nobody has read cannot be crowned, and the
+        <a href="/admin/judging-audit">judging audit</a> counts how many there are.</p>
+    </div>
+  {% else %}
+
+    {% if card.panel.ignored > 0 %}
+      <div class="ja-fact">
+        <b>{{ card.panel.ignored }} of these
+          scorecard{{ card.judges|length == 1 ? '' : 's' }} did not count.</b>
+        <p>A mark on record is not a mark in the result. A judge who recused themselves or
+          was taken off the panel has every mark dropped &mdash; not merely no further ones
+          accepted &mdash; and a card that misses one criterion is dropped whole rather than
+          reweighted. They are shown here, greyed, with the reason: a nominee with marks on
+          record and a panel of {{ card.panel.counted }} is exactly what somebody appealing
+          a result needs to see.</p>
+      </div>
+    {% endif %}
+
+    <div class="ja-card">
+      <h3>What each judge gave, criterion by criterion</h3>
+      <p>The rubric in ballot order, with what each criterion is worth. A judge&rsquo;s own
+        average is their marks weighted by those shares &mdash; the same arithmetic the
+        award uses, per judge.</p>
+
+      <div class="sc-scroll">
+        <table class="ja-t sc-t">
+          <thead>
+            <tr>
+              <th>Judge</th>
+              {% for c in card.criteria %}
+                <th>{{ c.label }}<span class="ja-den">worth {{ c.share }}%</span></th>
+              {% endfor %}
+              <th>Their average<span class="ja-den">of 10</span></th>
+              <th>Counted</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for j in card.judges %}
+              <tr class="{{ j.counts ? '' : 'sc--out' }}">
+                <td class="ja-name">{{ j.judge }}
+                  {%- if j.at %}<span class="ja-den">{{ j.at|slice(0, 10) }}</span>{% endif %}</td>
+
+                {# Walk the RUBRIC and ask for a mark, never the other way round: walking
+                   the marks would put a judge's fourth answer under the third heading the
+                   moment one criterion went unanswered. #}
+                {% for c in card.criteria %}
+                  <td>
+                    {% if j.marks[c.id] is defined %}
+                      <span class="sc-mark">{{ j.marks[c.id] }}</span>
+                    {% else %}
+                      <span class="sc-mark sc-mark--none">&mdash;</span>
+                      <span class="ja-den">not marked</span>
+                    {% endif %}
+                  </td>
+                {% endfor %}
+
+                <td class="ja-num">
+                  {%- if j.average is not null %}<span class="sc-mark">{{ j.average }}</span>
+                  {%- else %}<span class="sc-mark sc-mark--none">&mdash;</span>
+                    <span class="ja-den">{{ j.covered }} of {{ j.required }} marked</span>
+                  {%- endif %}
+                </td>
+
+                <td>
+                  {% if j.counts %}<span class="ja-flag">counted</span>
+                  {% elseif j.why == 'recused' %}
+                    <span class="ja-flag ja-flag--bad">recused</span>
+                    <span class="ja-den">declared a conflict on this programme</span>
+                  {% elseif j.why == 'removed' %}
+                    <span class="ja-flag ja-flag--bad">off the panel</span>
+                    <span class="ja-den">no longer an active judge</span>
+                  {% else %}
+                    <span class="ja-flag ja-flag--warn">part-marked</span>
+                    <span class="ja-den">dropped whole, not reweighted</span>
+                  {% endif %}
+                </td>
+              </tr>
+            {% endfor %}
+
+            {# ── AND THE NUMBER THE AWARD USES ─────────────────────────────
+               The point of the whole page: the marks above, and the one figure they
+               become. Read from the scorer, so it is the same number the index is
+               built from rather than a second opinion that agrees today. #}
+            <tr class="sc--panel">
+              <td class="ja-name">The panel
+                <span class="ja-den">{{ card.panel.counted }} of
+                  {{ card.judges|length }} scorecard{{ card.judges|length == 1 ? '' : 's' }}
+                  counted</span></td>
+              <td colspan="{{ card.criteria|length }}">
+                {% if card.panel.eligible %}
+                  <span class="ja-den" style="margin:0">The mean of the counted averages,
+                    which is what the judge half of the index is built from.</span>
+                {% else %}
+                  <span class="ja-flag ja-flag--warn">below quorum</span>
+                  <span class="ja-den">{{ card.panel.counted }} of
+                    {{ card.panel.quorum }} judges &mdash; the judge half is scored as
+                    absent, not renormalised away</span>
+                {% endif %}
+              </td>
+              <td class="ja-num">
+                {%- if card.panel.average is not null %}
+                  <span class="sc-sum">{{ card.panel.average }}</span>
+                {%- else %}<span class="sc-mark sc-mark--none">&mdash;</span>{% endif %}
+              </td>
+              <td>
+                {% if card.panel.points is not null %}
+                  <span class="sc-sum">{{ card.panel.points }}</span>
+                  <span class="ja-den">points of the index &mdash;
+                    {{ (card.panel.weight * 100)|round }}% of 1000 at
+                    {{ card.panel.average }}/10</span>
+                {% else %}
+                  <span class="ja-den" style="margin:0">no points from the panel</span>
+                {% endif %}
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <p class="ja-caveat">A judge&rsquo;s average is their own marks weighted by the shares
+        above; the panel&rsquo;s is the mean of those, not of every mark. The difference
+        matters when the panel is uneven &mdash; averaging every mark together would give a
+        judge who answered more criteria a larger say than one who answered fewer.</p>
+    </div>
+
+    {% if card.changes %}
+      <div class="ja-card">
+        <h3>Marks on this card that were changed</h3>
+        <p>Every mark here that was set and then set again. A first mark is not listed
+          &mdash; that is the judging. A second is the audit.</p>
+        <table class="ja-t">
+          <thead><tr><th>When</th><th>Judge</th><th>Criterion</th><th>Change</th></tr></thead>
+          <tbody>
+            {% for c in card.changes %}
+              <tr>
+                <td class="ja-num">{{ c.changed_at|slice(0, 16) }}</td>
+                <td class="ja-name">{{ c.judge }}</td>
+                <td>{{ c.criterion|default('—') }}</td>
+                <td class="ja-num">{{ c.old }} &rarr; {{ c.new }}</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    {% endif %}
+
+  {% endif %}
+{% endif %}
+
+{% endblock %}

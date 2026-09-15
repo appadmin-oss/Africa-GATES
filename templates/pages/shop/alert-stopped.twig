@@ -1,0 +1,31 @@
+{% extends "layout/gates.twig" %}
+
+{#
+  ONE CLICK OFF THE BACK-IN-STOCK LIST.
+
+  Reachable with the token alone — same doctrine as an event ticket and the nominee
+  questionnaire. The person who asked has no account, and requiring one to STOP receiving mail
+  would be the worst possible place to put a registration wall.
+
+  The page NEVER says whether the token was real. It confirms either way, because the
+  difference between "done" and "we could not find that" is a way to test tokens, and the
+  outcome for an honest reader is identical: they will not hear from us about that item.
+#}
+
+{% block content %}
+<div style="max-width:560px;margin:0 auto;padding:clamp(3rem,9vw,5.5rem) var(--ag-gutter,32px);text-align:center">
+  <span style="display:inline-flex;align-items:center;justify-content:center;width:62px;height:62px;border-radius:50%;background:#effaf0;color:#1a6118;margin-bottom:18px">
+    <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg>
+  </span>
+  <h1 style="margin:0;font-family:var(--ag-font-display);font-weight:800;font-size:clamp(1.6rem,4vw,2.1rem);line-height:1.1;letter-spacing:-.015em;color:var(--ag-ink)">
+    Done — you are off that list
+  </h1>
+  <p style="margin:14px 0 0;font-size:15px;line-height:1.7;color:#3a4448">
+    We will not write to you about that item again. Nothing else changes, and you were never on
+    a mailing list — that was a single reminder you had asked for.
+  </p>
+  <p style="margin:26px 0 0">
+    <a href="/shop" style="display:inline-block;background:var(--ag-green);color:#fff;font-weight:600;font-size:14.5px;padding:12px 28px;border-radius:999px;text-decoration:none">Back to the shop</a>
+  </p>
+</div>
+{% endblock %}

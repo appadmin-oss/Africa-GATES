@@ -1,0 +1,227 @@
+{% extends "layout/gates.twig" %}
+
+{# ── COLOUR BUDGET: tier 1, one event ──────────────────────────────────────────
+   Whether this award is counting or with the panel is the single thing this page
+   states, so the live field is its one event and it appears only while voting is
+   actually open. A panel's progress is a neutral bar: it is a total, not a state,
+   and it is a statement about OUR work rather than about anybody on the list. #}
+{% set colour_tier = '1' %}
+
+{#
+  ══════════════════════════════════════════════════════════════════════════════
+  AN EDITION THAT HAS NOT BEEN DECIDED, AT THE URL ITS RESULT WILL TAKE
+  ══════════════════════════════════════════════════════════════════════════════
+
+  `/results` now lists awards that are counting and awards with the panel, because
+  "where does this award stand" is the question people actually arrive with. Every
+  one of those rows is a link, and without this page every one of them would be a
+  404 — which reads as the award having been taken down.
+
+  ── WHAT IS NOT ON IT, AND WHY THAT IS THE POINT ─────────────────────────────
+
+  No leader. No index. No nominee at all. Not a column left blank for later:
+  publishing a running order while voting is open turns the window into a
+  bandwagon, and on a platform that sells vote packs it turns this page into a
+  sales page — a supporter could read off exactly how many votes buy the lead, and
+  we would be the ones telling them.
+
+  The safety is structural rather than a rule somebody has to keep. This page is
+  rendered from `PublicResults::openEdition()`, which calls no scorer and draws no
+  nominee, so there is nothing here to leak even if this template asked for it.
+
+  What IS published is participation — how many votes have been cast, how many
+  scorecards are in — because those are facts about the process rather than about
+  a person's standing, and they are the only honest answer to "why is this taking
+  so long".
+
+  `noindex`: the real result takes this exact URL the moment the cycle is
+  announced, and a crawler holding this page as the award's content is worse than
+  holding none.
+#}
+
+{% block head_styles %}
+<style nonce="{{ csp_nonce }}">
+  body[data-page="results"]{ background:var(--ag-ground); color:var(--ag-ink); }
+  html{ scroll-padding-top:72px; }
+
+  .op{ max-width:920px; margin:0 auto;
+       padding:clamp(1.6rem,4vw,2.4rem) var(--ag-gutter,32px) clamp(3rem,7vw,4.5rem); }
+
+  .op-crumb{ margin:0 0 16px; font-size:13.5px; line-height:1.5; color:var(--ag-ink-soft); }
+  .op-crumb a{ color:var(--ag-ink-2); text-decoration:none; }
+  .op-crumb a:hover{ text-decoration:underline; }
+  .op-crumb b{ color:var(--ag-ink); font-weight:600; }
+
+  .op-pg{ margin:0 0 10px; display:flex; align-items:center; gap:8px;
+          font:600 11px/1.3 var(--ag-font-mono); letter-spacing:.16em; text-transform:uppercase;
+          color:var(--pg-ink,var(--ag-ink-soft)); }
+  .op-pg i{ flex:none; width:9px; height:9px; border-radius:50%; font-style:normal;
+            background:var(--pg-fill,currentColor); }
+  .op h1{ margin:0; font-family:var(--ag-font-display); font-weight:700;
+          font-size:clamp(2rem,5vw,2.9rem); line-height:1.04; letter-spacing:-.03em; }
+  .op-lede{ margin:16px 0 0; font-size:16.5px; line-height:1.65; color:var(--ag-ink-2);
+            max-width:62ch; }
+
+  /* ── the one event, and only while it is true ───────────────────────────────
+     A bounded field with a saturated mark and a word inside it. The label is
+     house ink, not `live-ink`, which is 4.44 on its own wash — SlotFloorTest
+     refuses that pairing by name. */
+  .op-live{ display:flex; flex-wrap:wrap; align-items:center; gap:10px 18px;
+            margin:clamp(1.3rem,3vw,1.8rem) 0 0; padding:14px 18px; border-radius:14px;
+            background:var(--ag-live-wash); border:1px solid var(--ag-live-edge); }
+  .op-live__k{ display:inline-flex; align-items:center; gap:9px;
+               font:700 11px/1 var(--ag-font-mono); letter-spacing:.14em; text-transform:uppercase;
+               color:var(--ag-ink); }
+  .op-live__k i{ flex:none; width:10px; height:10px; border-radius:50%; font-style:normal;
+                 background:var(--ag-live-fill); }
+  @media (prefers-reduced-motion: no-preference){
+    .op-live__k i{ animation:op-pulse 2s ease-in-out infinite; }
+  }
+  @keyframes op-pulse{ 0%,100%{ opacity:1 } 50%{ opacity:.45 } }
+  .op-live__t{ margin:0; font-size:15px; line-height:1.5; color:var(--ag-ink); }
+  .op-live__t b{ font-variant-numeric:tabular-nums; }
+
+  /* The same fact without a hue, for a panel that is marking. Judging is not a
+     state a reader can act on, and dressing it as one makes it compete with the
+     one thing on this platform that is. */
+  .op-quiet{ display:flex; flex-wrap:wrap; align-items:center; gap:10px 18px;
+             margin:clamp(1.3rem,3vw,1.8rem) 0 0; padding:14px 18px; border-radius:14px;
+             border:1px solid var(--ag-line); background:var(--ag-card); }
+  .op-quiet__k{ font:700 11px/1 var(--ag-font-mono); letter-spacing:.14em;
+                text-transform:uppercase; color:var(--ag-ink); }
+  .op-quiet__t{ margin:0; font-size:15px; line-height:1.5; color:var(--ag-ink-2); }
+
+  .op-figs{ display:flex; flex-wrap:wrap; gap:0 clamp(26px,5vw,48px);
+            margin:clamp(1.4rem,3vw,2rem) 0 0; padding:0; }
+  .op-figs dt{ margin:0 0 4px; font:600 10.5px/1 var(--ag-font-mono); letter-spacing:.16em;
+               text-transform:uppercase; color:var(--ag-ink-soft); }
+  .op-figs dd{ margin:0; font:700 clamp(1.4rem,3.2vw,1.8rem)/1 var(--ag-font-mono);
+               letter-spacing:-.02em; font-variant-numeric:tabular-nums; }
+
+  .op-rule{ height:2px; background:var(--ag-ink); margin:clamp(1.8rem,4vw,2.4rem) 0 0; }
+  .op-h2{ margin:clamp(1.4rem,3vw,1.9rem) 0 2px; font-family:var(--ag-font-display);
+          font-weight:700; font-size:1.3rem; letter-spacing:-.02em; }
+  .op-h2 + p{ margin:0 0 14px; font-size:14.5px; line-height:1.6; color:var(--ag-ink-soft);
+              max-width:60ch; }
+
+  .op-list{ list-style:none; margin:0; padding:0; }
+  .op-row{ display:grid; grid-template-columns:minmax(0,1fr) 240px; gap:8px 22px;
+           align-items:center; padding:16px 4px; border-top:1px solid var(--ag-line); }
+  .op-row h3{ margin:0; font-family:var(--ag-font-display); font-weight:700;
+              font-size:1.08rem; line-height:1.25; letter-spacing:-.01em; }
+  .op-row__st{ font:700 10.5px/1 var(--ag-font-mono); letter-spacing:.12em;
+               text-transform:uppercase; color:var(--ag-ink-soft); }
+
+  /* THE ONE HONEST RAMP HERE: a count against its own denominator, and a statement
+     about our work rather than about a person. No hue — it is a total, not a state. */
+  .op-bar{ height:6px; border-radius:999px; background:var(--ag-line); overflow:hidden;
+           margin:8px 0 0; }
+  .op-bar span{ display:block; height:100%; background:var(--ag-ink-2); }
+  .op-n{ margin:7px 0 0; font:600 10.5px/1.3 var(--ag-font-mono); letter-spacing:.08em;
+         text-transform:uppercase; color:var(--ag-ink-soft);
+         font-variant-numeric:tabular-nums; }
+
+  .op-foot{ margin:clamp(2rem,4vw,2.6rem) 0 0; padding:18px 20px; border:1px dashed var(--ag-line);
+            border-radius:14px; font-size:14.5px; line-height:1.65; color:var(--ag-ink-2);
+            max-width:70ch; }
+  .op-foot a{ color:var(--ag-ink); }
+
+  @media (max-width:620px){
+    .op-row{ grid-template-columns:minmax(0,1fr); }
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="op">
+  <p class="op-crumb"><a href="/">Home</a> / <a href="/results">Results</a> /
+     <b>{{ e.programme }} {{ e.edition ?: e.year }}</b></p>
+
+  <div style="{{ e.programme_style }}">
+    {# The dot is decoration; the programme's name is the fact and is always printed. #}
+    <p class="op-pg"><i aria-hidden="true"></i>{{ e.programme }}</p>
+  </div>
+  <h1>{{ e.edition ?: e.year }}</h1>
+
+  {% if e.status.key == 'counting' %}
+    <p class="op-lede">This edition is open for voting. How many votes each award has
+       attracted is published as it runs; who is ahead is not, and will not be until
+       every award here is decided.</p>
+
+    <div class="op-live">
+      <span class="op-live__k"><i aria-hidden="true"></i>{{ e.status.label }}</span>
+      <p class="op-live__t">
+        {% if e.closes %}
+          {# Server-rendered, so the figure is right before a line of script runs and
+             stays right where script never runs at all. #}
+          Voting closes <b>{{ e.closes|date('l j F, H:i') }}</b>.
+        {% else %}
+          Voting is open.
+        {% endif %}
+        <b>{{ e.votes|number_format }}</b> vote{{ e.votes == 1 ? '' : 's' }} counted so far.
+      </p>
+    </div>
+  {% else %}
+    <p class="op-lede">Voting has closed and the panel is marking. Nothing is published
+       until every scorecard is in and the whole index can be shown &mdash; a figure that
+       could still move is not a result.</p>
+
+    <div class="op-quiet">
+      <span class="op-quiet__k">{{ e.status.label }}</span>
+      <p class="op-quiet__t">{{ e.votes|number_format }} vote{{ e.votes == 1 ? '' : 's' }}
+        were counted in this edition.</p>
+    </div>
+  {% endif %}
+
+  {# Counted from the drawn page, never typed. #}
+  <dl class="op-figs">
+    <div><dt>Awards</dt><dd>{{ e.categories|length }}</dd></div>
+    <div><dt>Votes counted</dt><dd>{{ e.votes|number_format }}</dd></div>
+    {% if e.promised %}
+      <div><dt>Results expected</dt><dd style="font-size:1rem">{{ e.promised|date('j M Y') }}</dd></div>
+    {% endif %}
+  </dl>
+
+  <div class="op-rule"></div>
+
+  <h2 class="op-h2">The awards in this edition</h2>
+  <p>{% if e.status.key == 'counting' %}Every one of these is open. No order is published
+      while that is true.{% else %}Each of these is with its panel. The bar is complete
+      scorecards against the number this programme's rules require.{% endif %}</p>
+
+  <ul class="op-list">
+    {% for c in e.categories %}
+      <li class="op-row">
+        <h3>{{ c.title }}</h3>
+        <div>
+          <p class="op-row__st">{{ c.status.label }}</p>
+          {% if c.progress %}
+            {#
+              A count against its own denominator. `aria-valuenow` and a written figure
+              both, because a bar with no number is a picture of progress rather than a
+              statement of it — and a reader who cannot see the bar gets the same fact.
+            #}
+            <div class="op-bar" role="progressbar" aria-valuemin="0"
+                 aria-valuemax="{{ c.progress.needed }}" aria-valuenow="{{ c.progress.done }}"
+                 aria-label="Scorecards in for {{ c.title }}">
+              <span style="width:{{ c.progress.pct }}%"></span>
+            </div>
+            <p class="op-n">{{ c.progress.done }} of {{ c.progress.needed }} scorecards in</p>
+          {% endif %}
+        </div>
+      </li>
+    {% endfor %}
+  </ul>
+
+  <p class="op-foot">
+    Nothing is announced here until the whole index can be shown: the community half, the
+    judges' half, and the working behind both. When this edition is decided, its result
+    appears at this same address.
+    {% if e.status.key == 'counting' %}
+      <a href="/vote">Cast a vote</a> while it is open.
+    {% else %}
+      <a href="/results">See the awards already decided</a>.
+    {% endif %}
+  </p>
+</div>
+{% endblock %}

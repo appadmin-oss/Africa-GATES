@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,600;0,700;1,600&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&family=JetBrains+Mono:wght@500;600;700&display=swap" rel="stylesheet">
+<style>
+  *{box-sizing:border-box}
+  body{margin:0;font-family:'DM Sans',system-ui,sans-serif;-webkit-font-smoothing:antialiased;background:#eef0ec}
+  @keyframes stPulse{0%{box-shadow:0 0 0 0 rgba(35,123,34,.45)}70%{box-shadow:0 0 0 6px rgba(35,123,34,0)}100%{box-shadow:0 0 0 0 rgba(35,123,34,0)}}
+</style>
+</helmet>
+
+<div style="min-height:100vh;background:#eef0ec">
+  <!-- NAV -->
+  <div style="background:rgba(251,251,250,.86);backdrop-filter:blur(18px);border-bottom:1px solid rgba(16,41,44,.08)">
+    <div style="max-width:880px;margin:0 auto;padding:15px 32px;display:flex;align-items:center;justify-content:space-between">
+      <div style="display:flex;align-items:center;gap:11px"><span style="width:34px;height:34px;border-radius:9px;background:#10292C;display:flex;align-items:center;justify-content:center;font-family:'Playfair Display',serif;font-weight:700;font-size:18px;color:#7FC87C">G</span><span style="display:flex;flex-direction:column;line-height:1"><span style="font-family:'Playfair Display',serif;font-weight:700;font-size:15px;color:#10292C">Africa</span><span style="font-size:9px;font-weight:700;letter-spacing:.26em;color:#237b22">GATES</span></span></div>
+      <button onClick="{{ subscribe }}" style="cursor:pointer;border:1px solid rgba(16,41,44,.16);background:#fff;color:#10292C;font-family:inherit;font-size:13px;font-weight:600;padding:9px 16px;border-radius:999px;display:flex;align-items:center;gap:7px"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>{{ subLabel }}</button>
+    </div>
+  </div>
+
+  <div style="max-width:880px;margin:0 auto;padding:36px 32px 60px">
+    <!-- overall banner -->
+    <div style="background:linear-gradient(135deg,#1a6118,#237b22);border-radius:22px;padding:30px 32px;display:flex;align-items:center;gap:18px;position:relative;overflow:hidden">
+      <div style="position:absolute;right:-50px;top:-50px;width:200px;height:200px;border-radius:50%;background:radial-gradient(circle,rgba(255,255,255,.12),transparent 68%)"></div>
+      <span style="flex:none;width:54px;height:54px;border-radius:50%;background:rgba(255,255,255,.16);display:flex;align-items:center;justify-content:center"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></span>
+      <div style="flex:1;position:relative"><h1 style="margin:0;font-family:'Playfair Display',serif;font-weight:700;font-size:27px;color:#fff;letter-spacing:-.01em">All systems operational</h1><p style="margin:6px 0 0;font-size:13.5px;color:rgba(255,255,255,.82)">Last checked 20 Jun 2026, 14:32 WAT · refreshes every 60s</p></div>
+      <span style="flex:none;font-size:12px;font-weight:600;color:#fff;background:rgba(255,255,255,.16);padding:8px 14px;border-radius:999px">99.98% uptime</span>
+    </div>
+
+    <!-- components -->
+    <h2 style="margin:34px 0 14px;font-size:13px;font-weight:700;letter-spacing:.04em;color:#10292C">Components</h2>
+    <div style="background:#fff;border:1px solid rgba(16,41,44,.08);border-radius:18px;overflow:hidden">
+      <sc-for list="{{ components }}" as="c" hint-placeholder-count="6">
+        <div style="display:flex;align-items:center;gap:14px;padding:17px 22px;border-bottom:1px solid rgba(16,41,44,.06)">
+          <div style="flex:1;min-width:0"><div style="font-weight:600;font-size:14.5px;color:#10292C">{{ c.name }}</div><div style="font-size:12px;color:#92a6a7;margin-top:2px">{{ c.desc }}</div></div>
+          <!-- 90-day sparkline -->
+          <div style="flex:none;display:flex;gap:2px;align-items:flex-end">
+            <sc-for list="{{ c.bars }}" as="b" hint-placeholder-count="30">
+              <span style="width:4px;height:22px;border-radius:2px;background:{{ b.color }}"></span>
+            </sc-for>
+          </div>
+          <div style="flex:none;display:flex;align-items:center;gap:8px;width:148px;justify-content:flex-end">
+            <span style="width:9px;height:9px;border-radius:50%;background:{{ c.dot }};{{ c.pulse }}"></span>
+            <span style="font-size:13px;font-weight:600;color:{{ c.statusColor }}">{{ c.status }}</span>
+          </div>
+        </div>
+      </sc-for>
+    </div>
+    <p style="margin:10px 2px 0;font-size:11.5px;color:#92a6a7;text-align:right">90-day history · each bar = 1 day</p>
+
+    <!-- metrics -->
+    <h2 style="margin:34px 0 14px;font-size:13px;font-weight:700;letter-spacing:.04em;color:#10292C">Live metrics</h2>
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px">
+      <div style="background:#fff;border:1px solid rgba(16,41,44,.08);border-radius:16px;padding:20px"><div style="font-size:11.5px;color:#92a6a7;text-transform:uppercase;letter-spacing:.05em">API response</div><div style="font-family:'JetBrains Mono',monospace;font-weight:700;font-size:26px;color:#10292C;margin-top:6px">128<span style="font-size:14px;color:#92a6a7">ms</span></div><div style="font-size:11.5px;color:#1a9c34;font-weight:600;margin-top:4px">▼ 12% vs 24h</div></div>
+      <div style="background:#fff;border:1px solid rgba(16,41,44,.08);border-radius:16px;padding:20px"><div style="font-size:11.5px;color:#92a6a7;text-transform:uppercase;letter-spacing:.05em">Votes / min</div><div style="font-family:'JetBrains Mono',monospace;font-weight:700;font-size:26px;color:#10292C;margin-top:6px">342</div><div style="font-size:11.5px;color:#1a9c34;font-weight:600;margin-top:4px">▲ live</div></div>
+      <div style="background:#fff;border:1px solid rgba(16,41,44,.08);border-radius:16px;padding:20px"><div style="font-size:11.5px;color:#92a6a7;text-transform:uppercase;letter-spacing:.05em">Error rate</div><div style="font-family:'JetBrains Mono',monospace;font-weight:700;font-size:26px;color:#10292C;margin-top:6px">0.01<span style="font-size:14px;color:#92a6a7">%</span></div><div style="font-size:11.5px;color:#92a6a7;font-weight:600;margin-top:4px">nominal</div></div>
+    </div>
+
+    <!-- incidents -->
+    <h2 style="margin:34px 0 14px;font-size:13px;font-weight:700;letter-spacing:.04em;color:#10292C">Recent incidents</h2>
+    <div style="display:flex;flex-direction:column;gap:14px">
+      <sc-for list="{{ incidents }}" as="i" hint-placeholder-count="2">
+        <div style="background:#fff;border:1px solid rgba(16,41,44,.08);border-radius:16px;padding:20px 22px">
+          <div style="display:flex;align-items:center;gap:10px"><span style="font-size:11px;font-weight:600;padding:4px 10px;border-radius:999px;background:{{ i.tagBg }};color:{{ i.tagFg }}">{{ i.tag }}</span><span style="font-weight:600;font-size:14.5px;color:#10292C">{{ i.title }}</span><span style="margin-left:auto;font-size:12px;color:#92a6a7">{{ i.date }}</span></div>
+          <p style="margin:11px 0 0;font-size:13.5px;line-height:1.6;color:#4a5256">{{ i.body }}</p>
+          <div style="margin-top:10px;font-size:12px;color:#92a6a7"><span style="font-weight:600;color:#1a6118">Resolved</span> · duration {{ i.dur }}</div>
+        </div>
+      </sc-for>
+      <div style="text-align:center;padding:18px;background:#fff;border:1px dashed rgba(16,41,44,.14);border-radius:16px;font-size:13px;color:#92a6a7">No incidents in the last 30 days before this.</div>
+    </div>
+  </div>
+
+  <div style="background:#0c2225;padding:30px 0"><div style="max-width:880px;margin:0 auto;padding:0 32px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:14px"><span style="font-family:'Playfair Display',serif;font-weight:700;font-size:15px;color:#fff">Africa<span style="color:#7FC87C">GATES</span></span><span style="font-size:12px;color:rgba(255,255,255,.5)">status.africagates.org · powered by the Afrovanguard platform team</span></div></div>
+
+  <sc-if value="{{ toastOpen }}" hint-placeholder-val="{{ false }}">
+    <div style="position:fixed;left:50%;bottom:32px;transform:translateX(-50%);z-index:90;background:#10292C;color:#fff;font-size:13.5px;font-weight:500;padding:13px 22px;border-radius:999px;box-shadow:0 16px 40px -12px rgba(0,0,0,.5)">{{ toastMsg }}</div>
+  </sc-if>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:880,&quot;height&quot;:900}}">
+class Component extends DCLogic {
+  state = { subbed:false, toast:null };
+  renderVals(){
+    const s = this.state;
+    const mkBars = (degradedDays) => {
+      const arr=[];
+      for(let i=0;i<60;i++){ const bad = degradedDays.includes(i); arr.push({ color: bad ? (degradedDays.indexOf(i)%2 ? '#e0a52b' : '#c0392b') : '#7FC87C' }); }
+      return arr;
+    };
+    const OP = { status:'Operational', statusColor:'#1a6118', dot:'#237b22', pulse:'animation:stPulse 2.2s infinite' };
+    const components = [
+      { name:'Voting & ballots', desc:'Vote casting, OTP verification', ...OP, bars:mkBars([]) },
+      { name:'Leaderboard & CPI', desc:'Score computation, rankings', ...OP, bars:mkBars([]) },
+      { name:'Registry & profiles', desc:'Profile browse and search', ...OP, bars:mkBars([41]) },
+      { name:'Pulse & media', desc:'Feed, reels, stories', status:'Degraded', statusColor:'#a47306', dot:'#e0a52b', pulse:'', bars:mkBars([2,3,4]) },
+      { name:'Payments & tickets', desc:'Checkout, donations, ticketing', ...OP, bars:mkBars([]) },
+      { name:'Email & notifications', desc:'Transactional delivery', ...OP, bars:mkBars([28]) }
+    ];
+    const incidents = [
+      { tag:'Degraded', tagBg:'#fdf3df', tagFg:'#a47306', title:'Pulse media slow to load', date:'20 Jun 2026', body:'A CDN edge node in West Africa is serving reels and stories with elevated latency. Voting, leaderboard and payments are unaffected. Our team is rerouting traffic.', dur:'ongoing' },
+      { tag:'Resolved', tagBg:'#e7f3e7', tagFg:'#1a6118', title:'Email delivery delay', date:'12 Jun 2026', body:'OTP and receipt emails were delayed up to 4 minutes due to a provider queue backlog. All messages were delivered and the queue has cleared.', dur:'47 min' }
+    ];
+    return {
+      components, incidents,
+      subscribe: ()=>{ this.setState(st=>({subbed:!st.subbed, toast: st.subbed?null:'Subscribed to status updates'})); clearTimeout(this._t); this._t=setTimeout(()=>this.setState({toast:null}),2300); },
+      subLabel: s.subbed?'Subscribed ✓':'Subscribe to updates',
+      toastOpen: !!s.toast, toastMsg: s.toast||''
+    };
+  }
+}
+</script>
+</body>
+</html>

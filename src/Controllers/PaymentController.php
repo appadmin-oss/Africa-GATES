@@ -3,13 +3,17 @@ declare(strict_types=1);
 
 namespace AfricaGates\Controllers;
 
+use AfricaGates\Support\Env;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
 use Psr\Log\LoggerInterface;
 use Illuminate\Support\Carbon;
 use Illuminate\Database\Capsule\Manager as DB;
 use Slim\Views\Twig;
-use AfricaGates\Services\PaymentService;
+use AfricaGates\Services\{PaymentService, PaymentDestination, RateLimitService};
+// Aliased because `webhook()` and `handleWebhook()` mention it on almost every branch, and
+// the fully-qualified name at each one buried the routing decision it sits beside.
+use AfricaGates\Services\GatewayEventLog as Log;
 
 /**
  * Checkout orchestration for the partner page (vote packs, event tickets, child
@@ -83,17 +87,23 @@ final class PaymentController
         private readonly PaymentService $payments,
         private readonly Twig $view,
         private readonly ?LoggerInterface $log = null,
+        private readonly ?RateLimitService $rateLimit = null,
     ) {}
 
     /** Where to send the buyer when checkout can't start. Keeps the enquiry fallback alive. */
-    private function fallbackUrl(): string
+    private function fallbackUrl(?Request $req = null): string
     {
-        return $this->base() . '/partner#enquiry';
+        return $this->base($req) . '/partner#enquiry';
     }
 
-    private function base(): string
+    /**
+     * Absolute site base. Via SiteUrl, which falls back to the REQUEST when APP_URL is
+     * unset — this used to return '' and every gateway callback URL built from it was
+     * relative, which a payment provider cannot redirect a browser to. See SiteUrl.
+     */
+    private function base(?Request $req = null): string
     {
-        return rtrim((string)($_ENV['APP_URL'] ?? ''), '/');
+        return \AfricaGates\Support\SiteUrl::base($req);
     }
 
     private function isAjax(Request $req): bool
@@ -133,9 +143,9 @@ final class PaymentController
         $bail = function (string $msg) use ($req, $res): Response {
             $this->log?->info('[payment] init rejected', ['reason' => $msg]);
             if ($this->isAjax($req)) {
-                return $this->json($res, ['ok' => false, 'message' => $msg, 'redirect' => $this->fallbackUrl()], 422);
+                return $this->json($res, ['ok' => false, 'message' => $msg, 'redirect' => $this->fallbackUrl($req)], 422);
             }
-            return $this->redirect($res, $this->fallbackUrl());
+            return $this->redirect($res, $this->fallbackUrl($req));
         };
 
         // 1. Provider must be one we can actually transact with right now.
@@ -152,6 +162,18 @@ final class PaymentController
             return $bail('A valid email address is required.');
         }
 
+        // 4. Abuse control: cap pending-row + gateway churn. Financial abuse is
+        // already impossible (amounts are server-authoritative); this throttles the
+        // noise/table-growth a scripted caller could otherwise generate — which is
+        // why it comes AFTER validation and why the cap is generous. Twelve per hour
+        // keyed on REMOTE_ADDR was, behind Cloudflare, twelve purchases per hour for
+        // every buyer on the platform combined. See CheckoutThrottle.
+        $gate = (new \AfricaGates\Services\CheckoutThrottle($this->rateLimit))->allow($req, 'pay_init');
+        if (!$gate['ok']) {
+            return $bail('Checkout is busy right now — please try again '
+                . \AfricaGates\Services\CheckoutThrottle::retryPhrase((int) $gate['retry_after']) . '.');
+        }
+
         $amount = (int) $price['amount'];
         $votes  = (int) $price['votes'];
 
@@ -163,7 +185,12 @@ final class PaymentController
         //    has something to reconcile against and nothing is credited until
         //    server-side verification flips it to 'confirmed'.
         try {
-            DB::table('gates_donations')->insert([
+            // `provider` is dropped on an unmigrated database rather than throwing,
+            // for the same reason `show_name` is on the paid-vote path: losing which
+            // gateway took the money costs a lookup later, losing the INSERT costs
+            // the buyer the ability to pay at all. Everything downstream still
+            // falls back to asking every gateway when the column is absent.
+            DB::table('gates_donations')->insert(\AfricaGates\Support\OptionalColumn::filter('gates_donations', [
                 'donor_name'     => $name !== '' ? $name : 'Supporter',
                 'donor_email'    => $email,
                 'donor_phone'    => $phone !== '' ? $phone : null,
@@ -174,8 +201,9 @@ final class PaymentController
                 'votes_used'     => 0,
                 'payment_ref'    => $reference,
                 'status'         => 'pending',
+                'provider'       => $provider,
                 'created_at'     => Carbon::now()->toDateTimeString(),
-            ]);
+            ], ['provider']));
         } catch (\Throwable $e) {
             $this->log?->error('[payment] could not persist pending donation', ['err' => $e->getMessage()]);
             return $bail('Could not start checkout. Please try the enquiry form.');
@@ -183,7 +211,7 @@ final class PaymentController
 
         // 5. Ask the gateway for a hosted-checkout URL. callback carries the ref so
         //    /pay/callback knows which provider+reference to verify.
-        $callbackUrl = $this->base() . '/pay/callback?provider=' . urlencode($provider) . '&ref=' . urlencode($reference);
+        $callbackUrl = $this->base($req) . '/pay/callback?provider=' . urlencode($provider) . '&ref=' . urlencode($reference);
         $meta = [
             'reference' => $reference,
             'purpose'   => $purpose,
@@ -202,10 +230,35 @@ final class PaymentController
 
         $this->log?->info('[payment] checkout started', ['provider' => $provider, 'ref' => $reference, 'amount' => $amount]);
 
+        // The AJAX branch is exempt on purpose: a JavaScript-initiated navigation is not a
+        // form submission, so `form-action` never governed it. Only the non-AJAX branch —
+        // an ordinary form POST — needs the same-origin hop.
         if ($this->isAjax($req)) {
             return $this->json($res, ['ok' => true, 'checkout_url' => $init['checkout_url'], 'reference' => $reference]);
         }
-        return $this->redirect($res, $init['checkout_url']);
+        // NOT a 302 straight to the gateway: `form-action` governs the redirect chain of a
+        // form submission, and a policy without the gateway hosts blocks the POST in the
+        // browser before any PHP runs. See GatewayHandoff.
+        return $this->redirect($res, \AfricaGates\Services\GatewayHandoff::remember(
+            $reference, (string) $init['checkout_url'], $this->base($req) . '/pay/redirect', $provider
+        ));
+    }
+
+    /**
+     * GET /pay/redirect — the same-origin hop to the gateway.
+     *
+     * See {@see \AfricaGates\Services\GatewayHandoff}.
+     */
+    public function handoff(Request $req, Response $res): Response
+    {
+        $reference = \AfricaGates\Services\GatewayHandoff::reference($req);
+        $url = \AfricaGates\Services\GatewayHandoff::take($reference);
+        if ($url === null) {
+            return $this->redirect($res, $this->fallbackUrl($req));
+        }
+        return \AfricaGates\Services\GatewayHandoff::page(
+            $res, $url, \AfricaGates\Services\GatewayHandoff::providerLabel(), $reference
+        );
     }
 
     // ───────────────────────────── /pay/callback ────────────────────────────
@@ -221,27 +274,27 @@ final class PaymentController
         $provider  = strtolower(trim((string)($q['provider'] ?? '')));
 
         if ($reference === '') {
-            return $this->redirect($res, $this->base() . '/partner?pay=error');
+            return $this->redirect($res, $this->base($req) . '/partner?pay=error');
         }
 
         // The provider comes from the callback URL we generated at /pay/init. We
         // need it to know which gateway to re-verify against; without a known one
         // we can't confirm anything, so treat it as an error.
         if (!$this->payments->isKnownProvider($provider)) {
-            return $this->redirect($res, $this->base() . '/partner?pay=error');
+            return $this->redirect($res, $this->base($req) . '/partner?pay=error');
         }
 
         $donation = DB::table('gates_donations')->where('payment_ref', $reference)->first();
         if (!$donation) {
-            return $this->redirect($res, $this->base() . '/partner?pay=error');
+            return $this->redirect($res, $this->base($req) . '/partner?pay=error');
         }
 
         $result = $this->confirmByReference($provider, $reference, $donation, 'callback');
 
         if ($result === 'confirmed' || $result === 'already') {
-            return $this->redirect($res, $this->base() . '/pay/success?ref=' . urlencode($reference));
+            return $this->redirect($res, $this->base($req) . '/pay/success?ref=' . urlencode($reference));
         }
-        return $this->redirect($res, $this->base() . '/partner?pay=failed');
+        return $this->redirect($res, $this->base($req) . '/partner?pay=failed');
     }
 
     /**
@@ -286,34 +339,309 @@ final class PaymentController
         $provider = $this->detectWebhookProvider($req);
         if ($provider === null || !$this->payments->isEnabled($provider)) {
             $this->log?->warning('[payment] webhook from unknown/disabled provider');
+            Log::record((string) $provider, '', '', '', 'rejected', 'unknown or disabled provider');
             return $res->withStatus(404);
+        }
+
+        // ── OPTIONAL SECOND LINE OF DEFENCE ──────────────────────────────────
+        //
+        // Paystack sends webhooks from three fixed addresses, and its docs offer IP
+        // allowlisting alongside signature verification. OFF unless switched on, and
+        // deliberately so: the signature is the real control, and an allowlist is the kind of
+        // hardening that silently drops every payment notification the day a provider adds a
+        // fourth address or a reverse proxy stops forwarding the client IP.
+        //
+        // So it is opt-in per deployment, and a rejection is recorded rather than merely
+        // dropped — a security control that fails closed and invisibly is how the "no webhooks
+        // have arrived in a week" incident happens a second time.
+        if (!$this->sourceAllowed($provider, $req)) {
+            $this->log?->warning('[payment] webhook from a non-allowlisted address', ['provider' => $provider]);
+            Log::record($provider, '', '', '', 'rejected', 'source address not in PAYSTACK_WEBHOOK_IPS');
+            return $res->withStatus(403);
         }
 
         if (!$this->verifyWebhookSignature($provider, $req, $raw)) {
             $this->log?->warning('[payment] webhook signature rejected', ['provider' => $provider]);
+            Log::record($provider, '', '', '', 'rejected', 'signature did not verify');
             return $res->withStatus(401);
         }
 
         $payload = json_decode($raw, true);
         if (!is_array($payload)) {
+            Log::record($provider, '', '', '', 'rejected', 'body was not JSON');
             return $res->withStatus(400);
         }
 
+        $event  = strtolower(trim((string) ($payload['event'] ?? ($payload['type'] ?? ''))));
+        // Paystack allows ONE webhook URL per account and test and live share it, so this is
+        // the only thing in the request that says which world it came from. Recorded rather
+        // than acted on: the signing secret already decides which mode can reach us at all,
+        // and refusing on `domain` would break the moment somebody rehearses against staging.
+        $domain = strtolower(trim((string) ($payload['data']['domain'] ?? ($payload['domain'] ?? ''))));
+
+        try {
+            return $this->handleWebhook($res, $provider, $event, $domain, $payload);
+        } catch (\Throwable $e) {
+            // ── AND IT STILL ANSWERS 200 ─────────────────────────────────────
+            //
+            // A 500 here is a delivery Paystack will retry every three minutes and then
+            // hourly for 72 hours, against a handler that has just proved it throws. The
+            // failure is recorded where somebody can see it, and the sweep will pick the
+            // payment up regardless — that is what the sweep is for.
+            $this->log?->error('[payment] webhook handler threw', ['err' => $e->getMessage()]);
+            Log::record($provider, $event, '', '', 'error', $e->getMessage(), $domain);
+            return $res->withStatus(200);
+        }
+    }
+
+    /**
+     * Decide what one signed delivery means, and route it.
+     *
+     * ── WHY THE ROUTING IS BY REFERENCE AND NOT BY TABLE ─────────────────────
+     *
+     * This method used to be four lines that looked the reference up in `gates_donations` and
+     * did nothing if it was not there. Paystack permits exactly ONE webhook URL per account,
+     * so every payment on the platform — vote packs, donations, shop orders, event tickets —
+     * arrives here. Three of those four live in `gates_donations`. The other two do not.
+     *
+     * So a shop order and an event ticket were signed, matched nothing, and were acknowledged
+     * with a 200 — which the gateway reads as success, and which therefore ended the only
+     * notification either of them was ever going to get. The shop survived on the cron sweep.
+     * Event tickets had no sweep, no admin repair and no support lookup, so a buyer who paid
+     * inside a wallet app and never came back lost both the money and the seat.
+     *
+     * The stream comes from the reference prefix via {@see PaymentDestination}, which is
+     * already the authority for which subaccount the money settled into — so the confirmation
+     * and the settlement can never disagree about what kind of payment this is.
+     */
+    private function handleWebhook(Response $res, string $provider, string $event,
+                                   string $domain, array $payload): Response
+    {
+        $ack = static fn (): Response => $res->withStatus(200);
+
+        // ── money going OUT: a partner payout ────────────────────────────────
+        //
+        // CHECKED FIRST, and that ordering is load-bearing. `webhookReversalKind()` treats any
+        // event name containing "reversed" as money coming back from a customer — which is
+        // right for `charge.reversed` and wrong for `transfer.reversed`, where what bounced
+        // is OUR payout to a charity. Reaching that branch would find no donation for an
+        // `agpo-` reference and raise a false chargeback alert on a 16-hour clock every time
+        // a bank refused a payout.
+        //
+        // Transfers are also the one event class where the reference is ours but belongs to
+        // no donation, so they have to be claimed before anything tries to interpret it.
+        if (str_starts_with($event, 'transfer.')) {
+            $ref = trim((string) ($payload['data']['reference'] ?? ''));
+            if ($ref === '') {
+                Log::record($provider, $event, '', 'payout', 'ignored', 'transfer event with no reference', $domain);
+                return $ack();
+            }
+
+            // Paystack's own status, taken from the payload rather than inferred from the
+            // event name: `transfer.failed` and `transfer.reversed` are different outcomes
+            // for the money and the data object is where that distinction is authoritative.
+            $status = strtolower(trim((string) ($payload['data']['status'] ?? '')));
+            if ($status === '') {
+                $status = match (true) {
+                    str_ends_with($event, '.success')  => \AfricaGates\Services\OrgPayout::ST_SUCCESS,
+                    str_ends_with($event, '.failed')   => \AfricaGates\Services\OrgPayout::ST_FAILED,
+                    str_ends_with($event, '.reversed') => \AfricaGates\Services\OrgPayout::ST_REVERSED,
+                    default => '',
+                };
+            }
+
+            // applyStatus() refuses to move a payout that is already terminal, so a duplicate
+            // delivery and an out-of-order one are both no-ops rather than a payout that
+            // reopens itself after settling.
+            $moved = $status !== '' && \AfricaGates\Services\OrgPayout::applyStatus(
+                $ref, $status, (string) ($payload['data']['message'] ?? '')
+            );
+
+            Log::record($provider, $event, $ref, 'payout',
+                        $moved ? $status : 'ignored',
+                        $moved ? '' : 'already terminal, unknown reference, or no status', $domain);
+            return $ack();
+        }
+
+        // ── a STANDING ARRANGEMENT changing state ────────────────────────────
+        //
+        // Claimed before anything tries to read a reference, because these events carry
+        // Paystack's own identifiers and not ours. `subscription.create` in particular
+        // arrives with a subscription code and an email token and no reference at all — run
+        // through the confirmation path below it would match nothing, log `unmatched`, and
+        // the platform would never learn the two values it needs to let the donor stop.
+        if (str_starts_with($event, 'subscription.')) {
+            $d    = is_array($payload['data'] ?? null) ? $payload['data'] : [];
+            $code = trim((string) ($d['subscription_code'] ?? ''));
+            $did  = 'ignored';
+
+            if (str_starts_with($event, 'subscription.create')) {
+                $ok = \AfricaGates\Services\RecurringGiving::activate(
+                    (string) ($d['customer']['email'] ?? ''),
+                    // Paystack quotes the plan in KOBO here, like everywhere else.
+                    (int) round(((int) ($d['plan']['amount'] ?? 0)) / 100),
+                    $code,
+                    (string) ($d['email_token'] ?? ''),
+                    (string) ($d['customer']['customer_code'] ?? ''),
+                    (string) ($d['next_payment_date'] ?? ''),
+                    (string) ($d['metadata']['reference'] ?? '')
+                );
+                $did = $ok ? 'activated' : 'unmatched';
+            } elseif (str_starts_with($event, 'subscription.disable')
+                   || str_starts_with($event, 'subscription.not_renew')) {
+                $did = \AfricaGates\Services\RecurringGiving::cancelled($code) ? 'cancelled' : 'ignored';
+            }
+
+            Log::record($provider, $event, $code, 'donation', $did, '', $domain);
+            return $ack();
+        }
+
+        if (str_starts_with($event, 'invoice.payment_failed')) {
+            $code = trim((string) ($payload['data']['subscription']['subscription_code'] ?? ''));
+            $did  = \AfricaGates\Services\RecurringGiving::collectionFailed($code) ? 'failed' : 'ignored';
+            Log::record($provider, $event, $code, 'donation', $did, '', $domain);
+            return $ack();
+        }
+
+        // ── money going BACK ─────────────────────────────────────────────────
+        $reversal = $this->webhookReversalKind($payload);
+        if ($reversal !== null) {
+            $ref    = $this->webhookReversalReference($provider, $payload);
+            $stream = PaymentDestination::streamForReference($ref);
+            $amount = null;
+            $did    = 'unmatched';
+
+            if ($ref !== '') {
+                // Each stream owns what a reversal means for it. Votes lose the display votes
+                // the donation bought; a shop order goes back to stock and gives up its
+                // points; a ticket has its code cleared so it stops opening a door.
+                if ($stream === 'shop') {
+                    $o = DB::table('gates_orders')->where('reference', $ref)->first();
+                    $amount = isset($o->subtotal_naira) ? (int) $o->subtotal_naira : null;
+                    $did = \AfricaGates\Services\ShopOrderService::reverse($ref, $reversal, $this->log)
+                        ? 'reversed' : ($o ? 'ignored' : 'unmatched');
+                } elseif ($stream === 'events') {
+                    $r = \AfricaGates\Services\EventTicketService::byReference($ref);
+                    $amount = isset($r->amount_naira) ? (int) $r->amount_naira : null;
+                    $did = \AfricaGates\Services\EventTicketService::reverse($ref, $reversal)
+                        ? 'reversed' : ($r ? 'ignored' : 'unmatched');
+                } else {
+                    $d = DB::table('gates_donations')->where('payment_ref', $ref)->first();
+                    $amount = isset($d->amount_naira) ? (int) $d->amount_naira : null;
+                    if ($d) {
+                        $r = \AfricaGates\Services\BonusVoteService::clawbackDonation(
+                            (int) $d->id, null, 'webhook:' . $provider . ':' . $reversal);
+                        $this->log?->info('[payment] reversal clawback', [
+                            'ref' => $ref, 'provider' => $provider, 'event' => $reversal,
+                            'cleared' => $r['cleared'] ?? 0,
+                        ]);
+                        $did = 'reversed';
+                    }
+                }
+            }
+
+            // ── A CHARGEBACK STARTS A 16-HOUR CLOCK ─────────────────────────
+            //
+            // Paystack gives a merchant 16 hours to respond to a dispute; if the window
+            // closes it accepts the dispute on your behalf and refunds the customer out
+            // of your balance. The four-hourly `dispute.remind` events are deliberately
+            // ignored as step events, so there is no second chance either.
+            //
+            // OUTSIDE the reference guard on purpose: a dispute we cannot tie to an order
+            // is MORE alarming than one we can, not less, and it is the case most in need
+            // of a human. Queued, not sent — see DisputeAlert.
+            if (str_contains($reversal, 'dispute') || str_contains($reversal, 'chargeback')) {
+                \AfricaGates\Services\DisputeAlert::queue($ref, $reversal, $provider, $amount);
+                if ($did === 'unmatched') $did = 'alerted';
+            }
+
+            Log::record($provider, $event, $ref, $stream, $did, $reversal, $domain);
+            return $ack();     // ack either way so the gateway stops retrying
+        }
+
+        // ── money coming IN ──────────────────────────────────────────────────
         $reference = $this->webhookReference($provider, $payload);
         if ($reference === '') {
-            // Signed but no reference we recognise (e.g. a non-charge event). Ack so
-            // the gateway doesn't retry; nothing to do.
-            return $res->withStatus(200);
+            // Signed, but carrying no reference we mint — a subscription notice, an expiring
+            // -cards batch, a customer-identification result. Recorded so an operator can see
+            // what a gateway is actually sending before deciding whether to act on it.
+            Log::record($provider, $event, '', '', 'ignored', 'no reference in payload', $domain);
+            return $ack();
+        }
+
+        $stream = PaymentDestination::streamForReference($reference);
+
+        if ($stream === 'shop') {
+            $r = \AfricaGates\Services\ShopOrderService::confirm(
+                $reference, $provider, $this->payments, $this->log);
+            Log::record($provider, $event, $reference, $stream,
+                        (string) $r['state'], (string) $r['message'], $domain);
+            return $ack();
+        }
+
+        if ($stream === 'events') {
+            $reg = \AfricaGates\Services\EventTicketService::byReference($reference);
+            if (!$reg) {
+                Log::record($provider, $event, $reference, $stream, 'unmatched', '', $domain);
+                return $ack();
+            }
+            $r = \AfricaGates\Services\EventTicketService::confirm($reference, $this->payments);
+            $did = ($r['ok'] ?? false)
+                ? (($r['already'] ?? false) ? 'already' : 'confirmed')
+                : 'mismatch';
+            // The buyer's ticket email. Only on the transition — `already` means some other
+            // path has been here — and queued, because SMTP is up to twelve seconds of a
+            // roughly thirty-second budget for the whole delivery.
+            if ($did === 'confirmed') {
+                \AfricaGates\Services\EventTicketMailer::queue((int) $reg->id);
+            }
+            Log::record($provider, $event, $reference, $stream, $did,
+                        (string) ($r['message'] ?? ''), $domain);
+            return $ack();
         }
 
         $donation = DB::table('gates_donations')->where('payment_ref', $reference)->first();
-        if ($donation) {
-            // Re-verify server-to-server rather than trusting the webhook body's
-            // amount/status — defence in depth even past the signature.
-            $this->confirmByReference($provider, $reference, $donation, 'webhook');
-        }
+        if (!$donation) {
+            // ── THE SECOND MONTH ─────────────────────────────────────────────
+            //
+            // A recurring charge arrives with a reference PAYSTACK generated, so it matches
+            // nothing here and this is exactly where it used to stop: logged `unmatched`,
+            // acknowledged, and gone. The money kept arriving in the bank, the donor kept
+            // being charged, and the platform's own total stopped moving after month one.
+            //
+            // The subscription code on the payload is what says this is ours. Minting is
+            // idempotent on the gateway reference — Paystack retries a delivery every three
+            // minutes and then hourly for 72 hours, and a row per delivery would turn one
+            // ₦5,000 gift into a day of them.
+            // The PLAN is what says this is ours. Paystack puts the plan object on a
+            // subscription instalment and leaves the subscription code to the invoice
+            // events, so keying on the code here would miss every real recurring charge.
+            $d       = is_array($payload['data'] ?? null) ? $payload['data'] : [];
+            $planCode = trim((string) ($d['plan']['plan_code'] ?? ''));
 
-        return $res->withStatus(200);
+            if ($planCode !== '') {
+                $minted = \AfricaGates\Services\RecurringGiving::chargeArrived(
+                    $planCode,
+                    (string) ($d['customer']['email'] ?? ''),
+                    $reference,
+                    (int) round(((int) ($d['amount'] ?? 0)) / 100),
+                    (string) ($d['paid_at'] ?? ''),
+                    (string) ($d['subscription_code'] ?? '')
+                );
+                Log::record($provider, $event, $reference, 'donation',
+                            $minted > 0 ? 'recurring' : 'already', '', $domain);
+                return $ack();
+            }
+
+            Log::record($provider, $event, $reference, $stream, 'unmatched', '', $domain);
+            return $ack();
+        }
+        // Re-verify server-to-server rather than trusting the webhook body's
+        // amount/status — defence in depth even past the signature.
+        $state = $this->confirmByReference($provider, $reference, $donation, 'webhook');
+        Log::record($provider, $event, $reference, $stream, $state, '', $domain);
+
+        return $ack();
     }
 
     // ──────────────────────────── confirmation core ─────────────────────────
@@ -332,7 +660,14 @@ final class PaymentController
     private function confirmByReference(string $provider, string $reference, object $donation, string $source): string
     {
         if (($donation->status ?? '') === 'confirmed') {
-            return 'already'; // idempotent fast-path; never re-credits
+            // Idempotent fast-path: the money is settled and is never re-verified
+            // or re-credited. But it is NOT nothing-to-do. The commonest way to
+            // arrive here is the webhook reading a row the browser callback
+            // confirmed a second earlier — and if that callback's mint was refused
+            // or its process died, this is the only other chance anybody gets. Both
+            // calls claim before they act, so a completed order is untouched.
+            $this->deliver($reference);
+            return 'already';
         }
 
         $v = $this->payments->verify($provider, $reference);
@@ -348,13 +683,36 @@ final class PaymentController
             return 'failed';
         }
 
-        // CRITICAL: the verified amount must equal what we asked the buyer to pay.
-        // Guards against a buyer paying a different amount or a forged callback.
-        if ((int) $v['amount'] !== (int) $donation->amount_naira) {
-            $this->log?->warning('[payment] amount mismatch — refusing to confirm', [
-                'ref' => $reference, 'expected' => (int) $donation->amount_naira, 'verified' => (int) $v['amount'],
+        // CRITICAL: the buyer must have paid at least what we asked for, in naira.
+        //
+        // ── WHY THIS IS `<` AND NOT `!==` ────────────────────────────────────
+        //
+        // Strict equality refused an OVERpayment as hard as an underpayment, and
+        // the two are nothing alike. Short of the price is a partial payment or a
+        // tampered reference and must never confirm. Over the price is somebody who
+        // paid MORE than we asked and got nothing: the row stayed `pending`, so the
+        // refund sweep — which only ever looks at CONFIRMED orders — never saw it
+        // either. They were owed money by rules that could not reach them.
+        //
+        // It is not hypothetical. Turning on "customer bears the transaction fee" in
+        // a gateway dashboard adds the fee to the charged amount, and every single
+        // payment on the platform then arrives a few hundred naira over and is
+        // refused. One dashboard toggle, total outage, no code change.
+        //
+        // The surplus is logged rather than silently absorbed, because money we did
+        // not ask for is a conversation somebody has to have.
+        if ((int) $v['amount'] < (int) $donation->amount_naira || !$this->currencyAgrees($v)) {
+            $this->log?->warning('[payment] amount/currency mismatch — refusing to confirm', [
+                'ref' => $reference, 'expected' => (int) $donation->amount_naira,
+                'verified' => (int) $v['amount'], 'currency' => (string) ($v['currency'] ?? ''),
             ]);
             return 'failed';
+        }
+        if ((int) $v['amount'] > (int) $donation->amount_naira) {
+            $this->log?->warning('[payment] OVERPAID — confirming anyway', [
+                'ref' => $reference, 'expected' => (int) $donation->amount_naira,
+                'paid' => (int) $v['amount'], 'surplus' => (int) $v['amount'] - (int) $donation->amount_naira,
+            ]);
         }
 
         // IDEMPOTENT transition: the WHERE status='pending' clause means only the
@@ -363,18 +721,139 @@ final class PaymentController
         $changed = DB::table('gates_donations')
             ->where('payment_ref', $reference)
             ->where('status', 'pending')
-            ->update(['status' => 'confirmed']);
+            ->update(\AfricaGates\Support\OptionalColumn::filter('gates_donations', [
+                'status' => 'confirmed',
+                // WHEN the money arrived. The platform recorded only when checkout
+                // STARTED, so every question about confirmation — including the
+                // refund grace window, which documents itself as measuring this —
+                // was answered with the wrong timestamp. Dropped on an unmigrated
+                // database rather than throwing: losing the moment costs accuracy,
+                // losing this UPDATE costs the buyer their votes.
+                'confirmed_at' => Carbon::now()->toDateTimeString(),
+            ], ['confirmed_at']));
+
+        // The gateway's own transaction id and reference — the numbers on the buyer's
+        // receipt, and the only moment we hold them. Every lookup surface on this
+        // platform used to match only the AFG- reference WE minted, so "the number on my
+        // Paystack receipt" was the one thing guaranteed to find nothing. Outside the
+        // `$changed` branch on purpose: a second confirmation attempt that loses the race
+        // still learned the ids, and writing them is not a state transition.
+        // See PaymentLookup. Never throws.
+        \AfricaGates\Services\PaymentLookup::remember('gates_donations', (int) $donation->id, $v);
 
         if ($changed > 0) {
             $this->log?->info('[payment] confirmed', ['src' => $source, 'ref' => $reference, 'amount' => $v['amount']]);
+            // Post-commit, best-effort — additive to the audited payment path.
+            // Reference + amount only; no donor PII.
+            //
+            // QUEUED, not sent here. This runs inside the Paystack webhook, which has
+            // about 30 seconds for the whole handler before the delivery is counted as
+            // failed and enters a 72-hour retry schedule — and dispatch() sends one
+            // HTTP request per active integration, 8 seconds each worst case, on top of
+            // the 15 seconds this method may already have spent verifying. The number
+            // of integrations is set by an admin who has no reason to connect the
+            // console to payment reliability. See WebhookService::dispatchLater().
+            \AfricaGates\Services\WebhookService::dispatchLater('donation.confirmed', [
+                'reference' => $reference,
+                'amount'    => $v['amount'] ?? null,
+                'source'    => $source,
+            ]);
+            $this->deliver($reference);
             return 'confirmed';
         }
 
         // 0 rows: someone else confirmed it between our read and write.
+        //
+        // DELIVER ANYWAY. This used to return here, which quietly assumed the writer
+        // that won the race also finished the job. It need not have: mint() can be
+        // refused, the process can die between the flip and the mint, a receipt can
+        // throw. The loser of the race then walked away from a confirmed order with
+        // no votes on it — and the WEBHOOK is very often that loser, because a buyer
+        // paying inside a wallet app comes back late or not at all. Both calls are
+        // idempotent, so the second one either finishes the work or does nothing.
+        $this->deliver($reference);
         return 'already';
     }
 
+    /**
+     * Everything a confirmed order still owes its buyer. Idempotent, and it never
+     * throws: a receipt failure must not undo a confirmation.
+     */
+    private function deliver(string $reference): void
+    {
+        try {
+            $row = DB::table('gates_donations')->where('payment_ref', $reference)->first(['id', 'tier', 'intent_nominee_id']);
+            if ($row && ($row->tier ?? '') === 'paid-vote' && !empty($row->intent_nominee_id)) {
+                // MINTING STAYS INLINE, deliberately. It is a handful of indexed
+                // writes, and it is the thing the supporter is actually watching — a
+                // tally that updates on the next cron tick instead of now is the
+                // complaint this platform gets most. The slow work below is what moves.
+                //
+                // Guarded by the votes_used claim, so a second call credits nothing.
+                \AfricaGates\Services\PaidVoteService::mint((int) $row->id);
+                // The buyer's receipt — and the one path that NEEDS it, because a
+                // webhook confirm means the browser never came back, so the
+                // confirmation page was never seen. QUEUED: SMTP is up to 12 seconds
+                // and this method runs inside a gateway webhook with a ~30-second
+                // budget. Claimed once per order, so whichever of {webhook, callback}
+                // lands second sends nothing, and a job that runs twice sends one
+                // email. See CheckoutMailer::queueReceipt().
+                \AfricaGates\Services\CheckoutMailer::queueReceipt((int) $row->id);
+            }
+        } catch (\Throwable $e) {
+            $this->log?->error('[payment] paid-vote delivery failed', ['ref' => $reference, 'err' => $e->getMessage()]);
+        }
+    }
+
+    /**
+     * Everything is priced and charged in naira. A gateway reporting success in
+     * another currency has not paid THIS order, whatever the number says — ₦5,000
+     * and $5,000 are the same integer and three orders of magnitude apart, and the
+     * amount check above compares integers.
+     */
+    private function currencyAgrees(array $v): bool
+    {
+        $c = strtoupper(trim((string) ($v['currency'] ?? '')));
+        return $c === '' || $c === 'NGN';   // '' = a gateway that does not report one
+    }
+
     // ──────────────────────────── webhook helpers ───────────────────────────
+
+    /**
+     * Is this delivery coming from an address we accept?
+     *
+     * ── WHY THE DEFAULT IS "YES" ─────────────────────────────────────────────
+     *
+     * Unset means unrestricted, which is the behaviour this platform has always had and which
+     * the HMAC signature already makes safe. Paystack's own three addresses are documented
+     * below so an operator switching this on does not have to go and find them — but they are
+     * NOT baked in as a default, because Paystack adding a fourth would then silently stop
+     * every payment notification on every deployment of this code at once.
+     *
+     *     PAYSTACK_WEBHOOK_IPS=52.31.139.75,52.49.173.169,52.214.14.220
+     *
+     * Only Paystack is checked. Flutterwave publishes no equivalent list, and inventing one
+     * would be a control that looks like protection and is a coin toss.
+     */
+    private function sourceAllowed(string $provider, Request $req): bool
+    {
+        if ($provider !== 'paystack') return true;
+
+        $configured = trim((string) Env::get('PAYSTACK_WEBHOOK_IPS', ''));
+        if ($configured === '') return true;                 // unset = unrestricted
+
+        $allowed = array_values(array_filter(array_map('trim', explode(',', $configured))));
+        if ($allowed === []) return true;
+
+        // REMOTE_ADDR, not a forwarded header. Behind Cloudflare the true client address
+        // arrives in a header — but a header is attacker-controlled unless the proxy in front
+        // is known to overwrite it, and an allowlist that trusts a spoofable value is worse
+        // than no allowlist, because it reads as a control while checking nothing. A
+        // deployment behind a proxy should leave this unset and rely on the signature.
+        $ip = (string) ($req->getServerParams()['REMOTE_ADDR'] ?? '');
+
+        return $ip !== '' && in_array($ip, $allowed, true);
+    }
 
     /** Identify the calling gateway from its signature header. */
     private function detectWebhookProvider(Request $req): ?string
@@ -393,7 +872,7 @@ final class PaymentController
     private function verifyWebhookSignature(string $provider, Request $req, string $raw): bool
     {
         if ($provider === 'paystack') {
-            $secret = trim((string)($_ENV['PAYSTACK_SECRET_KEY'] ?? ''));
+            $secret = trim((string) Env::get('PAYSTACK_SECRET_KEY', ''));
             if ($secret === '') return false;
             $expected = hash_hmac('sha512', $raw, $secret);
             $got      = $req->getHeaderLine('x-paystack-signature');
@@ -401,7 +880,7 @@ final class PaymentController
         }
 
         if ($provider === 'flutterwave') {
-            $configured = trim((string)($_ENV['FLUTTERWAVE_WEBHOOK_HASH'] ?? ''));
+            $configured = trim((string) Env::get('FLUTTERWAVE_WEBHOOK_HASH', ''));
             if ($configured === '') return false; // no shared secret set → reject
             $got = $req->getHeaderLine('verif-hash');
             return $got !== '' && hash_equals($configured, $got);
@@ -422,5 +901,77 @@ final class PaymentController
             return trim((string)($payload['data']['tx_ref'] ?? ($payload['data']['txRef'] ?? '')));
         }
         return '';
+    }
+
+    /**
+     * Did money actually go BACK?
+     *
+     * ── WHY THIS IS NOT A SUBSTRING SEARCH ───────────────────────────────────
+     *
+     * It used to be: any event whose name contained "refund" or "dispute" claimed
+     * back the votes that donation had bought. Both gateways emit an event per STEP
+     * of a refund, not just per outcome, so that matched:
+     *
+     *   refund.failed        the refund did NOT happen. The buyer still has no
+     *                        money back — and now no votes either, permanently,
+     *                        because the clawback stamps `refunded_at` and that
+     *                        blocks both re-minting and redeeming. The single worst
+     *                        outcome available, produced by the gateway telling us
+     *                        nothing had happened.
+     *   refund.pending       queued, hours from settling, might still fail.
+     *   charge.dispute.remind  a reminder to respond to a dispute we already
+     *                        handled at .create.
+     *
+     * Removing somebody's votes cannot be undone from here, so the rule is now the
+     * other way round: act ONLY on events that mean the money is gone, name them,
+     * and treat everything else as information. An unrecognised money-movement
+     * event is LOGGED rather than acted on — a person reading a warning is a much
+     * better failure than a supporter silently losing what they paid for.
+     */
+    private function webhookReversalKind(array $payload): ?string
+    {
+        $event = strtolower(trim((string)($payload['event'] ?? ($payload['event.type'] ?? ($payload['type'] ?? '')))));
+        if ($event === '') return null;
+
+        // Steps along the way, not outcomes. Explicit, and checked FIRST so no
+        // later pattern can reach them.
+        foreach (['refund.failed', 'refund.pending', 'refund.processing',
+                  'dispute.remind', 'dispute.resolve'] as $step) {
+            if (str_contains($event, $step)) return null;
+        }
+
+        // The money is gone. A dispute at CREATE is included on purpose: the bank
+        // has already pulled the funds, whatever the eventual resolution.
+        foreach (['refund.processed', 'refund.completed', 'refund.success', 'charge.refunded',
+                  'chargeback', 'charge.back', 'dispute.create', 'reversed', 'reversal'] as $done) {
+            if (str_contains($event, $done)) return $event;
+        }
+
+        // Names a refund or a dispute and matches nothing above — a gateway has
+        // added an event, or renamed one. Say so; do not guess with someone's votes.
+        foreach (['refund', 'dispute', 'chargeback'] as $hint) {
+            if (str_contains($event, $hint)) {
+                $this->log?->warning('[payment] unrecognised reversal-shaped webhook — no clawback', ['event' => $event]);
+                return null;
+            }
+        }
+        return null;
+    }
+
+    /**
+     * The original charge reference on a reversal event — tolerant across
+     * providers, since refund payloads carry it under different keys than a
+     * successful charge (e.g. Paystack's transaction_reference).
+     */
+    private function webhookReversalReference(string $provider, array $payload): string
+    {
+        $d = (array)($payload['data'] ?? []);
+        foreach (['reference', 'transaction_reference', 'tx_ref', 'txRef', 'transaction', 'flw_ref', 'flwRef'] as $k) {
+            $v = $d[$k] ?? null;
+            if (is_array($v)) $v = $v['reference'] ?? ($v['tx_ref'] ?? null);   // nested { transaction: { reference } }
+            if (is_string($v) && trim($v) !== '') return trim($v);
+        }
+        // Last resort: the normal per-provider extractor.
+        return $this->webhookReference($provider, $payload);
     }
 }

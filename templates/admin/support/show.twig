@@ -1,0 +1,375 @@
+{% extends "admin/layout.twig" %}
+{% block topbar_title %}Support ticket {{ t.reference }}{% endblock %}
+{% block topbar_actions %}<a class="ad-btn" href="/admin/support">← Queue</a>{% endblock %}
+
+{#
+  A CASE RECORD. Explicitly NOT a chat thread.
+
+  ── WHY NOT BUBBLES ─────────────────────────────────────────────────────────
+
+  Left-and-right bubbles are wrong for this in three ways, and all three matter:
+
+  1. THEY IMPLY SYNCHRONY. Replies here are hours or days apart. A chat layout
+     tells the reader these were exchanged in a sitting, so the gaps — which are
+     the most important fact about a support thread — become invisible.
+  2. THEY WASTE HALF THE WIDTH. These entries are paragraphs, sometimes with a
+     payment reference and a bank's wording pasted in. Alignment costs 50% of the
+     line length to communicate something a name already communicates.
+  3. THEY HAVE NOWHERE HONEST FOR A PRIVATE NOTE. `is_internal` has existed since
+     the table was built and nothing could write to it, because an inbox has no
+     private note. In a bubble layout an internal note is a differently-tinted
+     bubble — which is exactly how somebody eventually mistakes one for a reply
+     they sent.
+
+  So: full-width entries, one column, oldest first, each headed with who wrote it,
+  in what capacity, and when. The reading order is the order things happened. An
+  internal note is visibly a DIFFERENT KIND OF THING — dashed border, amber, and a
+  label saying it is not visible to the member.
+
+  ── AND THE EVIDENCE IS ON THIS PAGE ────────────────────────────────────────
+
+  Most tickets here are about a payment and the answer is a fact about that
+  payment. Reading it used to mean leaving the ticket for Finance and coming back,
+  so in practice the reply was written from memory of what the member SAID — which
+  is how support ends up agreeing with a mistaken premise. If the thread mentions
+  an AFG- reference, what is actually on the tally is shown beside the reply box.
+#}
+
+{% block head_styles %}
+<style nonce="{{ csp_nonce }}">
+  .tk{ display:grid; grid-template-columns:minmax(0,1fr) 300px; gap:22px; align-items:start; }
+
+  .tk-card{ background:#fff; border:1px solid rgba(16,41,44,.09); border-radius:14px; padding:20px 22px; }
+  .tk-card + .tk-card{ margin-top:16px }
+  .tk-card h2{ margin:0 0 14px; font:600 11px/1.4 var(--ag-font-body,inherit); letter-spacing:.09em;
+    text-transform:uppercase; color:#5a6d6f; }
+
+  /* header */
+  .tk-hd__subj{ margin:0; font-family:var(--ag-font-display,inherit); font-weight:700; font-size:19px; line-height:1.3; color:#10292C; }
+  .tk-hd__meta{ display:flex; flex-wrap:wrap; gap:6px 14px; margin-top:10px; font-size:12.5px; color:#5a6d6f; }
+  .tk-hd__meta code{ font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-size:11.5px }
+  .tk-pill{ display:inline-block; font:700 10px/1 var(--ag-font-body,inherit); letter-spacing:.05em;
+    text-transform:uppercase; padding:5px 9px; border-radius:999px; }
+  .tk-pill--open{ background:#fff8df; color:#7a5600 }
+  .tk-pill--answered{ background:#e8f1f7; color:#1c5a86 }
+  .tk-pill--resolved{ background:#eef7ee; color:#1a6118 }
+  .tk-pill--urgent{ background:#fdf3f3; color:#8a2020 }
+
+  /* ── the record ─────────────────────────────────────────────────────────── */
+  .tk-entry{ padding:16px 0; border-bottom:1px solid rgba(16,41,44,.08); }
+  .tk-entry:first-of-type{ padding-top:0 }
+  .tk-entry:last-child{ border-bottom:none; padding-bottom:0 }
+  .tk-entry__hd{ display:flex; align-items:baseline; gap:9px; flex-wrap:wrap; margin-bottom:8px; }
+  .tk-entry__who{ font-size:13.5px; font-weight:650; color:#10292C; }
+  /* The CAPACITY, not just the name. "Ada (member)" and "Ada (staff)" are
+     different claims and a thread that only shows a name loses the difference. */
+  .tk-entry__cap{ font:700 9.5px/1 var(--ag-font-body,inherit); letter-spacing:.06em; text-transform:uppercase;
+    padding:4px 7px; border-radius:5px; }
+  .tk-cap--member{ background:#e9efef; color:#2b373d }
+  .tk-cap--staff{ background:#eef7ee; color:#1a6118 }
+  .tk-cap--assistant{ background:#f3eef7; color:#5b3a8a }
+  .tk-entry__when{ margin-left:auto; font-size:12px; color:#7a8a86; white-space:nowrap; }
+  .tk-entry__body{ font-size:14px; line-height:1.68; color:#39464a; white-space:pre-wrap; word-break:break-word; }
+
+  /* An internal note is a different KIND of thing, not a tinted variant. */
+  .tk-entry--note{ background:#fffdf5; border:1px dashed #e0cf9a; border-radius:12px; padding:14px 16px; margin:8px 0; }
+  .tk-entry--note .tk-entry__body{ color:#5c4a1a }
+  .tk-note__warn{ display:inline-flex; align-items:center; gap:5px; font:700 9.5px/1 var(--ag-font-body,inherit);
+    letter-spacing:.06em; text-transform:uppercase; color:#8a6d00; background:#fff3cd; padding:4px 8px; border-radius:5px; }
+
+  /* ── reply ──────────────────────────────────────────────────────────────── */
+  .tk-reply textarea{ width:100%; min-height:132px; resize:vertical; border:1px solid rgba(16,41,44,.16);
+    border-radius:11px; padding:13px 15px; font-family:inherit; font-size:14px; line-height:1.6; color:#39464a; outline:none; }
+  .tk-reply textarea:focus{ border-color:#3f9c3c; box-shadow:0 0 0 3px rgba(127,200,124,.16) }
+  .tk-reply__row{ display:flex; align-items:center; gap:12px; flex-wrap:wrap; margin-top:13px; }
+  .tk-btn{ cursor:pointer; border:none; font-family:inherit; font-weight:650; font-size:13.5px;
+    padding:11px 19px; border-radius:999px; }
+  .tk-btn--send{ background:#177015; color:#fff }
+  /* Deliberately NOT beside the send button. Sending an internal note to a
+     customer is the mistake this page makes possible and it is unrecoverable, so
+     the two paths sit in separate blocks with separate labels. */
+  .tk-btn--note{ background:#fff; border:1px dashed #cbb26a; color:#7a5f00 }
+  .tk-check{ display:inline-flex; align-items:center; gap:7px; font-size:13px; color:#4a5256; cursor:pointer }
+  .tk-att{ display:flex; flex-wrap:wrap; gap:8px; margin-top:10px }
+  .tk-att__item{ display:flex; flex-direction:column; gap:5px; width:132px; text-decoration:none;
+                 border:1px solid #dbe4e0; border-radius:10px; padding:6px; background:#fff; color:#3d4b4c }
+  .tk-att__item:hover{ border-color:#177015 }
+  .tk-att__item img{ width:100%; height:88px; object-fit:cover; border-radius:6px; display:block; background:#eef2ef }
+  .tk-att__item--doc{ flex-direction:row; align-items:center; width:auto; max-width:260px; padding:10px 12px; gap:9px }
+  .tk-att__meta{ font-size:11px; line-height:1.3; overflow:hidden; text-overflow:ellipsis; white-space:nowrap }
+  .tk-file{ display:inline-flex; align-items:center; gap:7px; font-size:12.5px; color:#3d4b4c; cursor:pointer }
+  .tk-file input{ max-width:190px; font-size:11.5px }
+  .tk-hint{ margin:9px 0 0; font-size:11.5px; line-height:1.55; color:#7a8a86 }
+  .tk-sep{ border:none; border-top:1px solid rgba(16,41,44,.08); margin:20px 0 }
+
+  /* ── evidence rail ──────────────────────────────────────────────────────── */
+  .tk-side{ display:flex; flex-direction:column; gap:14px; position:sticky; top:20px; }
+  .tk-kv{ display:flex; justify-content:space-between; gap:12px; padding:8px 0; font-size:13px; }
+  .tk-kv + .tk-kv{ border-top:1px solid rgba(16,41,44,.06) }
+  .tk-kv__k{ color:#5a6d6f }
+  .tk-kv__v{ font-weight:650; color:#10292C; text-align:right; word-break:break-all }
+  .tk-verdict{ border-radius:11px; padding:12px 14px; font-size:13px; line-height:1.55; margin-bottom:12px; }
+  .tk-verdict--ok{ background:#eef7ee; border:1px solid #bfe0bd; color:#1a4d18 }
+  .tk-verdict--bad{ background:#fdf3f3; border:1px solid #f0c9c9; color:#8a2020 }
+  .tk-verdict--wait{ background:#fff8df; border:1px solid #ecd9a0; color:#6b4a00 }
+  .tk-side a.tk-link{ display:block; margin-top:9px; font-size:12.5px; font-weight:600; color:#177015; text-decoration:none }
+
+  .tk-status{ display:flex; gap:7px; flex-wrap:wrap }
+  .tk-status button{ cursor:pointer; font-family:inherit; font-size:12px; font-weight:600; padding:8px 13px;
+    border-radius:999px; border:1px solid rgba(16,41,44,.14); background:#fff; color:#4a5256 }
+  .tk-status button:hover{ border-color:#3f9c3c; color:#177015 }
+
+  .tk-flash{ border-radius:11px; padding:12px 15px; font-size:13.5px; margin-bottom:16px; }
+  .tk-flash--ok{ background:#eef7ee; border:1px solid #bfe0bd; color:#1a4d18 }
+  .tk-flash--err{ background:#fdf3f3; border:1px solid #f0c9c9; color:#8a2020 }
+  /* Written but not delivered is a third outcome, and it needs its own colour —
+     shown green it reads as done, shown red it reads as lost. It is neither. */
+  .tk-flash--warn{ background:#fff8df; border:1px solid #ecd9a0; color:#6b4a00 }
+  .tk-flash code{ font-family:var(--ag-font-mono,monospace); font-size:12.5px }
+
+  @media (max-width:960px){ .tk{ grid-template-columns:1fr } .tk-side{ position:static } }
+</style>
+{% endblock %}
+
+{% block content %}
+{% macro evidence(items) %}
+  {# Thumbnails for images, a labelled row for a PDF. Every href goes through
+     /support/attachment/{id}, which checks who is asking before it writes a
+     byte — the files are outside the web root and have no other way out. #}
+  <div class="tk-att">
+    {% for a in items %}
+      <a class="tk-att__item{{ a.mime starts with 'image/' ? '' : ' tk-att__item--doc' }}"
+         href="/support/attachment/{{ a.id }}" target="_blank" rel="noopener">
+        {% if a.mime starts with 'image/' %}
+          <img src="/support/attachment/{{ a.id }}" alt="{{ a.original_name }}" loading="lazy">
+        {% else %}
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z"/><path d="M14 2v6h6"/></svg>
+        {% endif %}
+        <span class="tk-att__meta">{{ a.original_name }} · {{ a.bytes >= 1048576 ? (a.bytes / 1048576)|round(1) ~ ' MB' : (a.bytes / 1024)|round ~ ' KB' }}</span>
+      </a>
+    {% endfor %}
+  </div>
+{% endmacro %}
+{% import _self as ui %}
+
+
+
+{# `ok` and `err` come from the controller. They used to be read off an `app` global
+   that does not exist in this project's Twig, so both were always '' and this whole
+   block was dead markup — see the note in SupportController::show(). #}
+{% set ok = ok|default('') %}
+{% set err = err|default('') %}
+{% if ok %}
+  {# saved-* means the reply IS on the record but no email went out. That is a third
+     outcome, not a variant of the first: shown green it reads as done, and a desk
+     that believes it answered somebody it never reached stops chasing them. #}
+  <div class="tk-flash tk-flash--{{ ok starts with 'saved-' ? 'warn' : 'ok' }}">
+    {% if ok == 'sent' %}Reply sent and added to the member's thread.
+    {% elseif ok == 'resolved' %}Reply sent and the support ticket is resolved.
+    {% elseif ok == 'note' %}Internal note saved. The member cannot see it.
+    {% elseif ok == 'saved-no_address' %}Reply saved to the thread — but this support ticket carries
+      <strong>no email address</strong>, so nothing was sent. They will only see it if they open
+      their own support ticket link. Add an address to the support ticket or reach them another way.
+    {% elseif ok == 'saved-no_mailer' %}Reply saved to the thread — but <strong>outgoing mail is not
+      configured on this installation</strong>, so nothing was sent, and the same is true of every
+      reply written until it is fixed. Set SMTP_USER and SMTP_PASS, then run <code>bin/console doctor</code>.
+    {% elseif ok == 'saved-send_failed' %}Reply saved to the thread — but <strong>the email failed to
+      send</strong>. The member has not been told. Check <code>var/logs/</code> and the mail settings.
+    {% elseif ok starts with 'saved-' %}Reply saved to the thread, but it was not emailed.
+    {% else %}Done.{% endif %}
+  </div>
+{% endif %}
+{% if err %}
+  <div class="tk-flash tk-flash--err">
+    {% if err == 'empty' %}Nothing to send — the box was empty.
+    {% elseif err == 'send' %}The reply could not be delivered. It has not been recorded either — try again.
+    {% else %}That did not work.{% endif %}
+  </div>
+{% endif %}
+
+<div class="tk">
+  <div>
+    {# ── header ───────────────────────────────────────────────────────────── #}
+    <div class="tk-card">
+      <h1 class="tk-hd__subj">{{ t.subject }}</h1>
+      <div class="tk-hd__meta">
+        <span class="tk-pill tk-pill--{{ t.status }}">{{ t.status }}</span>
+        {% if t.severity == 'urgent' %}<span class="tk-pill tk-pill--urgent">urgent</span>{% endif %}
+        <span><code>{{ t.reference }}</code></span>
+        <span>{{ t.name ?: 'Someone' }}{% if t.email %} · {{ t.email }}{% endif %}</span>
+        <span>Opened {{ t.created_at }}</span>
+        {% if t.resolved_at %}<span>Resolved {{ t.resolved_at }}</span>{% endif %}
+      </div>
+    </div>
+
+    {# ── the record ───────────────────────────────────────────────────────── #}
+    <div class="tk-card">
+      <h2>Record · oldest first</h2>
+
+      {# The opening transcript. It is stored on the ticket rather than as a
+         message row, so it is rendered as the first entry to keep the record in
+         one chronological column. #}
+      {% if t.transcript %}
+        <div class="tk-entry">
+          <div class="tk-entry__hd">
+            <span class="tk-entry__who">{{ t.name ?: 'Member' }}</span>
+            <span class="tk-entry__cap tk-cap--member">opened it</span>
+            <span class="tk-entry__when">{{ t.created_at }}</span>
+          </div>
+          <div class="tk-entry__body">{{ t.transcript }}</div>
+        </div>
+      {% endif %}
+
+      {% for m in messages %}
+        {% if m.is_internal %}
+          <div class="tk-entry tk-entry--note">
+            <div class="tk-entry__hd">
+              <span class="tk-note__warn">
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z"/><path d="m4 4 16 16"/></svg>
+                Internal note — not visible to the member
+              </span>
+              <span class="tk-entry__when">{{ m.author_name ?: 'Staff' }} · {{ m.created_at }}</span>
+            </div>
+            <div class="tk-entry__body">{{ m.body }}</div>
+          </div>
+        {% else %}
+          {# The service writes 'agent' for the bot; this only tested for 'assistant',
+             so every automated reply was captioned as staff. Harmless while nothing
+             else wrote to the thread — actively wrong now that a person's reply is
+             filed as 'staff' and the two must be told apart at a glance. #}
+          {% set cap = m.author_type == 'member' ? 'member'
+                     : (m.author_type in ['assistant', 'agent'] ? 'assistant' : 'staff') %}
+          <div class="tk-entry">
+            <div class="tk-entry__hd">
+              <span class="tk-entry__who">{{ m.author_name ?: (cap == 'member' ? 'Member' : 'Support team') }}</span>
+              <span class="tk-entry__cap tk-cap--{{ cap }}">{{ cap == 'assistant' ? 'support assistant' : cap }}</span>
+              {# "not emailed" is stated, not left as the absence of a word — a reply
+                 that reached nobody is the thing somebody scanning this needs to see. #}
+              <span class="tk-entry__when">{{ m.created_at }}{% if cap != 'member' %} · {{ m.emailed ? 'emailed' : 'NOT emailed' }}{% endif %}</span>
+            </div>
+            <div class="tk-entry__body">{{ m.body }}</div>
+            {% if attachments[m.id]|default([])|length %}{{ ui.evidence(attachments[m.id]) }}{% endif %}
+          </div>
+        {% endif %}
+      {% endfor %}
+
+      {# Evidence whose message is gone. Shown rather than dropped: losing a bank
+         screenshot silently is worse than showing it without its sentence. #}
+      {% if attachments[0]|default([])|length %}
+        <div class="tk-entry">
+          <div class="tk-entry__hd"><span class="tk-entry__who">Attached to the support ticket</span></div>
+          {{ ui.evidence(attachments[0]) }}
+        </div>
+      {% endif %}
+
+      {% if not messages and not t.transcript %}
+        <p style="margin:0;font-size:13.5px;color:#7a8a86">Nothing on this support ticket yet.</p>
+      {% endif %}
+    </div>
+
+    {# ── reply ────────────────────────────────────────────────────────────── #}
+    <div class="tk-card tk-reply">
+      <h2>Reply to the member</h2>
+      <form method="post" action="/admin/support/{{ t.reference }}/reply" enctype="multipart/form-data">
+        <input type="hidden" name="_token" value="{{ csrf_token }}">
+        <input type="hidden" name="kind" value="reply">
+        <label class="sr-only" for="tkReply">Reply to the member</label>
+        <textarea id="tkReply" name="body" placeholder="Written to the member. Emailed to them and added to their own thread page."></textarea>
+        <div class="tk-reply__row">
+          <button class="tk-btn tk-btn--send" type="submit">Send reply</button>
+          {# Evidence going the OTHER way — a gateway screenshot, a refund receipt.
+             Stored privately and served only to this ticket's participants. #}
+          <label class="tk-file">
+            <input type="file" name="files[]" multiple accept="{{ attach_accept }}">
+            <span>Attach evidence</span>
+          </label>
+          <label class="tk-check">
+            <input type="checkbox" name="resolve" value="1"> Mark resolved after sending
+          </label>
+        </div>
+        <p class="tk-hint">Up to {{ attach_max }} files, {{ attach_limit }} each — photos or PDF.
+          Attachments are stored privately and are only ever served to this support ticket's participants.
+          Goes to the address on the support ticket. It also lands on the member's own thread at
+          /support/tickets — which a reply sent from an inbox never did, which is why their page showed
+          silence while somebody had in fact answered.</p>
+      </form>
+
+      <hr class="tk-sep">
+
+      {# Separate block, separate form, separate label. Sending an internal note
+         to a customer is unrecoverable, so the two are not adjacent buttons. #}
+      <h2>Or leave an internal note</h2>
+      <form method="post" action="/admin/support/{{ t.reference }}/reply">
+        <input type="hidden" name="_token" value="{{ csrf_token }}">
+        <input type="hidden" name="kind" value="note">
+        <label class="sr-only" for="tkNote">Internal note</label>
+        <textarea id="tkNote" name="body" placeholder="Not emailed. Not shown to the member. e.g. “refunded by hand at the gateway, chased Paystack ref 90210”."></textarea>
+        <div class="tk-reply__row">
+          <button class="tk-btn tk-btn--note" type="submit">Save internal note</button>
+        </div>
+        <p class="tk-hint">For the things a colleague needs to know and the customer must not read.</p>
+      </form>
+    </div>
+  </div>
+
+  {# ── evidence + controls ─────────────────────────────────────────────────── #}
+  <aside class="tk-side">
+    <div class="tk-card">
+      <h2>Status</h2>
+      <div class="tk-status">
+        {% for to, label in {'open':'Reopen','answered':'Answered','resolved':'Resolved'} %}
+          {% if t.status != to %}
+            <form method="post" action="/admin/support/{{ t.reference }}/status/{{ to }}" style="display:inline">
+              <input type="hidden" name="_token" value="{{ csrf_token }}">
+              <button type="submit">{{ label }}</button>
+            </form>
+          {% endif %}
+        {% endfor %}
+      </div>
+    </div>
+
+    {% if proof %}
+      <div class="tk-card">
+        <h2>The payment on this support ticket</h2>
+        {% if proof.state == 'delivered' %}
+          <div class="tk-verdict tk-verdict--ok"><strong>Delivered.</strong> {{ proof.delivered }} vote(s) are on the tally.
+            Their complaint may be about something else — read again before agreeing with it.</div>
+        {% elseif proof.state == 'refunded' %}
+          <div class="tk-verdict tk-verdict--wait"><strong>Refunded</strong> on {{ proof.refunded_at }}. Votes correctly absent.</div>
+        {% elseif proof.state == 'pending' or proof.state == 'not_paid' %}
+          <div class="tk-verdict tk-verdict--wait"><strong>No confirmed payment.</strong> Re-check it with the
+            gateway before telling them anything — the assistant's repair tool does exactly that.</div>
+        {% else %}
+          <div class="tk-verdict tk-verdict--bad"><strong>Paid, votes NOT on the tally.</strong> They are right.
+            Fix it before replying.</div>
+        {% endif %}
+
+        <div class="tk-kv"><span class="tk-kv__k">Reference</span><span class="tk-kv__v">{{ proof.reference }}</span></div>
+        {% if proof.nominee %}<div class="tk-kv"><span class="tk-kv__k">For</span><span class="tk-kv__v">{{ proof.nominee }}</span></div>{% endif %}
+        <div class="tk-kv"><span class="tk-kv__k">Ordered</span><span class="tk-kv__v">{{ proof.ordered }}</span></div>
+        <div class="tk-kv"><span class="tk-kv__k">On the tally</span><span class="tk-kv__v">{{ proof.delivered }}</span></div>
+        <div class="tk-kv"><span class="tk-kv__k">Amount</span><span class="tk-kv__v">₦{{ proof.amount|number_format }}</span></div>
+        {% if proof.confirmed_at %}<div class="tk-kv"><span class="tk-kv__k">Confirmed</span><span class="tk-kv__v">{{ proof.confirmed_at }}</span></div>{% endif %}
+
+        {% if proof.mismatch %}
+          <div class="tk-verdict tk-verdict--bad" style="margin-top:12px;margin-bottom:0">
+            <strong>Counter/tally mismatch.</strong> The order claims {{ proof.claimed }}; the tally holds
+            {{ proof.delivered }}. A mint that died half-way — nothing else detects this.
+          </div>
+        {% endif %}
+
+        <a class="tk-link" href="/vote/verify?ref={{ proof.reference|url_encode }}">Open the member-facing proof page →</a>
+        <a class="tk-link" href="/admin/finance">Finance</a>
+      </div>
+    {% endif %}
+
+    <div class="tk-card">
+      <h2>Where it came from</h2>
+      {% if t.page_url %}<div class="tk-kv"><span class="tk-kv__k">Page</span><span class="tk-kv__v">{{ t.page_url }}</span></div>{% endif %}
+      {% if t.tools_used %}<div class="tk-kv"><span class="tk-kv__k">Tools run</span><span class="tk-kv__v">{{ t.tools_used }}</span></div>{% endif %}
+      <div class="tk-kv"><span class="tk-kv__k">Emailed out</span><span class="tk-kv__v">{{ t.emailed ? 'yes' : 'no' }}</span></div>
+    </div>
+  </aside>
+</div>
+
+{% endblock %}

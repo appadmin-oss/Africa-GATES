@@ -1,0 +1,43 @@
+{% extends "layout/gates.twig" %}
+{% block content %}
+{% if confirmed %}
+{% set _qty = 0 %}{% for l in items %}{% set _qty = _qty + l.qty %}{% endfor %}
+{% include 'partials/success.twig' with {
+  sc_accent: 'green',
+  sc_art: 'green',
+  sc_glyph: 'bag',
+  sc_kicker: 'Order confirmed',
+  sc_heading: 'Order confirmed',
+  sc_body: 'Thank you! Your order' ~ (_qty > 0 ? ' of ' ~ _qty ~ ' item' ~ (_qty == 1 ? '' : 's') : '') ~ ' is confirmed and being prepared — and every purchase helps fund leadership programmes across the continent.',
+  sc_receipt: { label: 'Order', code: reference, amount: '₦' ~ (subtotal_naira|number_format) },
+  sc_primary: { label: 'Continue shopping', href: '/shop' },
+  sc_secondary: { label: 'Back home', href: '/' },
+  sc_email_note: 'A receipt has been emailed to you.',
+  sc_confetti: true,
+  sc_next_label: 'What happens next',
+  sc_steps: [
+    'Your order is confirmed and being prepared.',
+    'A receipt and any updates will be emailed to you.',
+    'Every purchase helps fund leadership programmes.'
+  ]
+} only %}
+{% else %}
+{% include 'partials/success.twig' with {
+  sc_accent: 'slate',
+  sc_art: 'slate',
+  sc_glyph: 'clock',
+  sc_kicker: 'Confirming your order',
+  sc_heading: 'We’re confirming your order',
+  sc_body: 'We haven’t been able to confirm this order yet. If you were charged it will reconcile automatically and a receipt will follow by email. If nothing was charged, nothing was taken.',
+  sc_receipt: reference ? { label: 'Reference', code: reference } : null,
+  sc_primary: { label: 'Back to the shop', href: '/shop' },
+  sc_secondary: { label: 'Contact support', href: '/support' },
+  sc_email_note: 'No charge is confirmed until you receive an emailed receipt.',
+  sc_confetti: false
+} only %}
+{% endif %}
+{% endblock %}
+
+{% block foot_scripts %}
+{% if confirmed %}<script nonce="{{ csp_nonce }}">try{ localStorage.removeItem('afg_cart'); }catch(e){}</script>{% endif %}
+{% endblock %}

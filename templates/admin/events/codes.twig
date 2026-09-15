@@ -1,0 +1,261 @@
+{% extends 'admin/layout.twig' %}
+
+{#
+  DISCOUNT CODES.
+
+  Its own screen rather than a block on the edit form, because a code is created and retired
+  on a completely different rhythm from an event's title and venue: an organiser adds
+  ALUMNI20 the afternoon they decide to, three weeks after the page was written, and making
+  them re-save the whole event to do it is how a description gets clobbered by a stale tab.
+
+  Every limit on this form exists because its absence is a known failure — the notes beside
+  each field say which one. They are not decoration: an unbounded discount code shared in a
+  WhatsApp group is the single most expensive mistake available on this screen.
+#}
+
+{% block head_styles %}
+<style nonce="{{ csp_nonce }}">
+  .dc-sub{ font-size:13px; color:#5a6d6f; margin:2px 0 18px }
+  .dc-sec{ background:#fff; border:1px solid rgba(16,41,44,.1); border-radius:14px;
+    padding:18px 20px; margin-bottom:14px }
+  .dc-sec h2{ margin:0 0 3px; font-size:14.5px; color:#10292C }
+  .dc-sec p{ margin:8px 0 0; font-size:12.5px; line-height:1.7; color:#5a6d6f }
+
+  .dc-grid{ display:grid; gap:12px; grid-template-columns:repeat(auto-fit,minmax(min(100%,190px),1fr)); margin-top:14px }
+  .dc-f{ display:flex; flex-direction:column; gap:5px; min-width:0 }
+  .dc-f label{ font:700 10px/1.3 inherit; letter-spacing:.08em; text-transform:uppercase; color:#5a6d6f }
+  .dc-f small{ font-weight:400; letter-spacing:0; text-transform:none; color:#8a9a9c; font-size:11px }
+  .dc-f input, .dc-f select{ border:1px solid rgba(16,41,44,.18); border-radius:10px;
+    padding:9px 11px; font-family:inherit; font-size:13px; color:#10292C; width:100%; box-sizing:border-box }
+  .dc-f input:focus, .dc-f select:focus{ outline:none; border-color:#237b22 }
+  .dc-f input[name="code"]{ font-family:var(--ag-font-mono,monospace); font-weight:700;
+    text-transform:uppercase; letter-spacing:.06em }
+  .dc-tiers{ display:flex; flex-wrap:wrap; gap:8px; margin-top:6px }
+  /* nowrap: these are pills, and a wrapped pill becomes a tall lozenge with the tick
+     floating in the middle of it. */
+  .dc-tiers label{ display:inline-flex; align-items:center; gap:7px; white-space:nowrap;
+    font:500 12.5px/1 inherit; letter-spacing:0; text-transform:none; color:#3d4b4d;
+    border:1px solid rgba(16,41,44,.14); border-radius:999px; padding:8px 14px; cursor:pointer }
+  .dc-tiers label:hover{ border-color:rgba(16,41,44,.3) }
+  .dc-check{ display:flex; align-items:center; gap:7px; font-size:13px; color:#3d4b4d; margin-top:14px }
+  .dc-btn{ cursor:pointer; font:650 13px/1 inherit; border:none; padding:11px 20px;
+    border-radius:999px; background:#10292C; color:#fff; text-decoration:none; display:inline-block }
+  .dc-btn--ghost{ background:none; border:1px solid rgba(16,41,44,.2); color:#10292C }
+  .dc-btn--kill{ background:none; border:1px solid rgba(138,32,32,.3); color:#8a2020; padding:7px 13px; font-size:12px }
+
+  .dc-list{ width:100%; border-collapse:collapse; margin-top:12px; font-size:12.5px }
+  .dc-list th{ text-align:left; font:700 10px/1.3 inherit; letter-spacing:.08em;
+    text-transform:uppercase; color:#5a6d6f; padding:0 8px 8px 0 }
+  .dc-list td{ padding:10px 8px 10px 0; border-top:1px solid rgba(16,41,44,.07); vertical-align:top }
+  .dc-code{ font-family:var(--ag-font-mono,monospace); font-weight:700; font-size:13.5px; color:#10292C }
+  .dc-tag{ font-size:10px; font-weight:700; letter-spacing:.05em; text-transform:uppercase;
+    padding:3px 8px; border-radius:999px; background:rgba(16,41,44,.07); color:#3d4b4d }
+  .dc-tag--ok{ background:#eaf7ea; color:#1c5f1b }
+  .dc-tag--no{ background:#fdeaea; color:#8a2020 }
+  .dc-tag--glob{ background:#eef2fb; color:#2a4a86 }
+  .dc-bar{ height:6px; border-radius:99px; background:rgba(16,41,44,.1); overflow:hidden; min-width:70px; margin-top:5px }
+  .dc-bar i{ display:block; height:100%; background:#237b22; border-radius:99px }
+  .dc-bar i.is-done{ background:#b3261e }
+</style>
+{% endblock %}
+
+{% block topbar_title %}Discount codes{% endblock %}
+{% block topbar_actions %}
+  <a class="ad-btn" href="/admin/events/{{ event.id }}/tickets">Who is coming</a>
+  <a class="ad-btn" href="/admin/events/{{ event.id }}/stands">Vendor stands</a>
+  <a class="ad-btn" href="/admin/events/{{ event.id }}">Edit event</a>
+{% endblock %}
+
+{% block content %}
+<p class="dc-sub">
+  <strong>{{ event.title }}</strong> · {{ event.event_date }} ·
+  <a href="/events/{{ event.slug }}" target="_blank" rel="noopener noreferrer">public page</a> ·
+  <a href="/admin/events">back to events</a>
+</p>
+
+{% if missing|default([])|length %}
+  <div class="dc-sec" style="border-color:#f3d38a;background:#fffbeb">
+    <h2>One step outstanding on the server</h2>
+    <p style="color:#7a5a1a">
+      Codes can be created, but a booking cannot yet record which one it used —
+      <code>gates_event_registrations.{{ missing|join('</code>, <code>')|raw }}</code> is missing.
+      Run <strong>/__setup/migrate</strong> before you advertise a code, or the per-person
+      limit will have nothing to count and receipts will not name the discount.
+    </p>
+  </div>
+{% endif %}
+
+{# ── create / edit ─────────────────────────────────────────────────────────── #}
+<div class="dc-sec" x-data="dcForm()">
+  <h2 x-text="editing ? 'Editing ' + form.code : 'Add a code'"></h2>
+  <p>A code reduces a PRICE. It is not the same thing as a tier's access code, which hides a
+     ticket type — use that one for a sponsor or speaker allocation.</p>
+
+  <form method="post" action="/admin/events/{{ event.id }}/codes">
+    <input type="hidden" name="_token" value="{{ csrf_token }}">
+    <input type="hidden" name="code_id" :value="form.id || ''">
+
+    <div class="dc-grid">
+      <div class="dc-f">
+        <label for="dcCode">Code</label>
+        <input id="dcCode" name="code" x-model="form.code" maxlength="40" placeholder="ALUMNI20"
+               autocomplete="off" required>
+      </div>
+      <div class="dc-f">
+        <label for="dcLabel">Label <small>(shown to the buyer)</small></label>
+        <input id="dcLabel" name="label" x-model="form.label" maxlength="120" placeholder="Alumni rate">
+      </div>
+      <div class="dc-f">
+        <label for="dcKind">Kind</label>
+        <select id="dcKind" name="kind" x-model="form.kind">
+          <option value="percent">Percentage off</option>
+          <option value="fixed">Naira off</option>
+        </select>
+      </div>
+      <div class="dc-f">
+        <label for="dcAmount" x-text="form.kind === 'fixed' ? 'Naira off' : 'Percent off'"></label>
+        <input id="dcAmount" name="amount" type="number" min="1" step="1"
+               :max="form.kind === 'fixed' ? 10000000 : 100" x-model.number="form.amount" required>
+      </div>
+    </div>
+
+    <div class="dc-grid">
+      <div class="dc-f">
+        {# Without this, a code shared in a WhatsApp group is a code used four hundred times. #}
+        <label for="dcMax">Total uses <small>(blank = unlimited — think hard)</small></label>
+        <input id="dcMax" name="max_uses" type="number" min="1" step="1" x-model="form.max_uses" placeholder="Unlimited">
+      </div>
+      <div class="dc-f">
+        {# Without this, one person books ten discounted tables. #}
+        <label for="dcPer">Uses per person</label>
+        <input id="dcPer" name="max_per_email" type="number" min="1" step="1" x-model.number="form.max_per_email">
+      </div>
+      <div class="dc-f">
+        <label for="dcFrom">Usable from <small>(optional)</small></label>
+        <input id="dcFrom" name="starts_at" type="datetime-local" x-model="form.starts_at" step="1">
+      </div>
+      <div class="dc-f">
+        {# An early-bird code that still works in December. #}
+        <label for="dcUntil">Stops working <small>(optional)</small></label>
+        <input id="dcUntil" name="ends_at" type="datetime-local" x-model="form.ends_at" step="1">
+      </div>
+    </div>
+
+    {% if tiers %}
+    <div class="dc-f" style="margin-top:14px">
+      <label>Which tickets <small>(none ticked = every ticket type)</small></label>
+      <div class="dc-tiers">
+        {% for t in tiers %}
+          <label><input type="checkbox" name="tier_ids[]" value="{{ t.id }}"
+                        :checked="form.tier_ids.indexOf({{ t.id }}) !== -1"
+                        @change="toggleTier({{ t.id }})">
+            {{ t.name }} · {{ t.price_naira > 0 ? '₦' ~ t.price_naira|number_format : 'free' }}</label>
+        {% endfor %}
+      </div>
+      <p style="margin:6px 0 0">A discount meant for students that also applied to the top table
+        is an expensive kind of generous, and it is the mistake anybody makes at speed.</p>
+    </div>
+    {% endif %}
+
+    <label class="dc-check"><input type="checkbox" name="is_active" value="1" x-model="form.is_active"> Active</label>
+
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:16px">
+      <button class="dc-btn" type="submit" x-text="editing ? 'Save changes' : 'Create code'"></button>
+      <button class="dc-btn dc-btn--ghost" type="button" x-show="editing" x-cloak @click="reset()">Cancel edit</button>
+    </div>
+  </form>
+
+  {# ── the codes themselves ──────────────────────────────────────────────── #}
+  <table class="dc-list">
+    <thead><tr><th>Code</th><th>Takes off</th><th>Applies to</th><th>Used</th><th>Window</th><th></th></tr></thead>
+    <tbody>
+      {% for c in codes %}
+        {% set pct = c.max_uses ? (100 * c.used_count / c.max_uses)|round : 0 %}
+        <tr>
+          <td>
+            <span class="dc-code">{{ c.code }}</span>
+            {% if c.global %}<br><span class="dc-tag dc-tag--glob">every event</span>{% endif %}
+            {% if c.label %}<br><span style="color:#67797b">{{ c.label }}</span>{% endif %}
+          </td>
+          <td>{{ c.kind == 'fixed' ? '₦' ~ c.amount|number_format : c.amount ~ '%' }}</td>
+          <td>
+            {% set only = c.tier_list|default([]) %}
+            {% if only %}
+              {% for t in tiers %}{% if t.id in only %}<span class="dc-tag">{{ t.name }}</span> {% endif %}{% endfor %}
+            {% else %}
+              <span style="color:#8a9a9c">every ticket</span>
+            {% endif %}
+          </td>
+          <td>
+            {{ c.used_count }}{% if c.max_uses %} / {{ c.max_uses }}{% endif %}
+            {% if c.max_uses %}
+              <div class="dc-bar"><i class="{{ pct >= 100 ? 'is-done' : '' }}" style="width:{{ pct > 100 ? 100 : pct }}%"></i></div>
+            {% endif %}
+            <br><span style="color:#8a9a9c;font-size:11.5px">{{ c.max_per_email }} per person</span>
+          </td>
+          <td style="color:#67797b">
+            {{ c.starts_at ?: 'now' }}<br>→ {{ c.ends_at ?: 'no end' }}
+            <br>{% if c.is_active %}<span class="dc-tag dc-tag--ok">active</span>{% else %}<span class="dc-tag dc-tag--no">off</span>{% endif %}
+          </td>
+          <td>
+            {% if not c.global %}
+              <button class="dc-btn dc-btn--ghost" type="button" style="padding:7px 13px;font-size:12px"
+                      @click="edit({{ {
+                        id: c.id, code: c.code, label: c.label|default(''), kind: c.kind,
+                        amount: c.amount, max_uses: c.max_uses, max_per_email: c.max_per_email,
+                        starts_at: c.starts_at|default(''), ends_at: c.ends_at|default(''),
+                        is_active: c.is_active == 1, tier_ids: c.tier_list|default([])
+                      }|json_encode|e('html_attr') }})">Edit</button>
+              <form method="post" action="/admin/events/{{ event.id }}/codes/{{ c.id }}/delete"
+                    style="display:inline;margin-left:5px">
+                <input type="hidden" name="_token" value="{{ csrf_token }}">
+                {# The outcome DEPENDS on the count in the column beside it, and the operator
+                   cannot be expected to reason about that mid-click. A used code is switched
+                   off and kept, because bookings made with it name it on their receipts; an
+                   unused one is genuinely gone. So the confirmation states which of the two
+                   this press does, using the same number the row already shows. #}
+                <button class="dc-btn dc-btn--kill" type="submit"
+                  data-confirm="{% if c.used_count %}Switch off {{ c.code }}? It stays on record because {{ c.used_count }} booking(s) were made with it and their receipts name it — it just stops working for new ones.{% else %}Delete {{ c.code }} for good? Nothing has been booked with it, so it is removed outright and cannot be brought back.{% endif %}">Remove</button>
+              </form>
+            {% else %}
+              <span style="color:#8a9a9c;font-size:11.5px">edited on whichever event owns it</span>
+            {% endif %}
+          </td>
+        </tr>
+      {% else %}
+        <tr><td colspan="6" style="padding:20px 0;text-align:center;color:#8a9a9c">No codes yet.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}
+
+{% block foot_scripts %}
+<script nonce="{{ csp_nonce }}">
+function dcForm(){
+  var blank = { id: 0, code: '', label: '', kind: 'percent', amount: 10, max_uses: '',
+                max_per_email: 1, starts_at: '', ends_at: '', is_active: true, tier_ids: [] };
+  return {
+    form: Object.assign({}, blank),
+    get editing(){ return this.form.id > 0; },
+    reset(){ this.form = Object.assign({}, blank); },
+    edit(row){
+      /* A copy, and the datetimes trimmed to what datetime-local accepts. A raw
+         "2026-01-31 19:00:00" in one of those boxes renders as EMPTY, which reads as
+         "no window set" and would quietly remove one on the next save. */
+      var f = Object.assign({}, blank, row);
+      f.starts_at = (f.starts_at || '').replace(' ', 'T').slice(0, 16);
+      f.ends_at   = (f.ends_at   || '').replace(' ', 'T').slice(0, 16);
+      f.max_uses  = f.max_uses === null ? '' : f.max_uses;
+      f.tier_ids  = Array.isArray(f.tier_ids) ? f.tier_ids.map(Number) : [];
+      this.form = f;
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    },
+    toggleTier(id){
+      var i = this.form.tier_ids.indexOf(id);
+      if (i === -1) this.form.tier_ids.push(id); else this.form.tier_ids.splice(i, 1);
+    }
+  };
+}
+</script>
+{% endblock %}

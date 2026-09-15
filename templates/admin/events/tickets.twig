@@ -1,0 +1,850 @@
+{% extends 'admin/layout.twig' %}
+
+{#
+  TICKETS, AND THE DOOR.
+
+  Two jobs on one page, and they belong together because they are the same question asked
+  a week apart: "how many have we sold at each price" before the day, and "is this person
+  on the list" on it.
+
+  The check-in box is FIRST and focused on load, because the person using it is standing at
+  a door with a queue behind them. Everything else on the page can be scrolled to.
+#}
+
+{% block head_styles %}
+<style nonce="{{ csp_nonce }}">
+  .tx-sub{ font-size:13px; color:#5a6d6f; margin:2px 0 18px }
+  .tx-sec{ background:#fff; border:1px solid rgba(16,41,44,.1); border-radius:14px;
+    padding:18px 20px; margin-bottom:14px }
+  .tx-sec h2{ margin:0 0 3px; font-size:14.5px; color:#10292C }
+  .tx-sec p{ margin:8px 0 0; font-size:12.5px; line-height:1.7; color:#5a6d6f }
+
+  .tx-door{ display:flex; gap:10px; flex-wrap:wrap; align-items:center; margin-top:14px }
+  .tx-door input{ flex:1 1 220px; font:700 20px/1 var(--ag-font-mono, monospace);
+    letter-spacing:.08em; text-transform:uppercase; padding:14px 16px;
+    border:2px solid rgba(16,41,44,.2); border-radius:12px; color:#10292C }
+  .tx-door input:focus{ outline:none; border-color:#237b22 }
+  .tx-btn{ cursor:pointer; font:650 13px/1 inherit; border:none; padding:12px 20px;
+    border-radius:999px; background:#10292C; color:#fff; text-decoration:none; display:inline-block }
+  .tx-btn--ghost{ background:none; border:1px solid rgba(16,41,44,.2); color:#10292C }
+  .tx-btn--tiny{ padding:6px 12px; font-size:11.5px }
+  /* The second press. A class rather than an Alpine :style binding — a :style REPLACES the
+     style attribute when it runs, so the padding above would vanish the moment Alpine
+     initialised. AlpineStyleClobberTest fails the build on that. */
+  .tx-btn--sure{ border-color:#8a2020; color:#8a2020; font-weight:700 }
+  /* The inline seat box. Deliberately quiet until focused — thirty of these down a column
+     would otherwise read as the loudest thing on a page whose job is the code box at the top. */
+  .tx-seat{ margin:4px 0 0 }
+  .tx-seat input{ width:100%; max-width:120px; padding:3px 6px; font-size:11.5px;
+    font-family:inherit; border:1px dashed rgba(16,41,44,.22); border-radius:6px;
+    background:transparent; color:#10292C }
+  .tx-seat input:focus{ border-style:solid; border-color:#237b22; background:#fff;
+    outline:2px solid rgba(35,123,34,.15) }
+  .tx-seat input::placeholder{ color:#a9b7b8 }
+
+  .tx-tiers{ width:100%; border-collapse:collapse; margin-top:12px; font-size:13px }
+  .tx-tiers th{ text-align:left; font:700 10px/1.3 var(--ag-font-body,inherit); letter-spacing:.08em;
+    text-transform:uppercase; color:#5a6d6f; padding:0 10px 8px 0 }
+  .tx-tiers td{ padding:10px 10px 10px 0; border-top:1px solid rgba(16,41,44,.08) }
+  .tx-bar{ height:7px; border-radius:99px; background:rgba(16,41,44,.1); overflow:hidden; min-width:80px }
+  .tx-bar i{ display:block; height:100%; background:#237b22; border-radius:99px }
+  .tx-bar i.is-tight{ background:#c79a3a }
+  .tx-bar i.is-full{ background:#b3261e }
+
+  .tx-stat{ display:grid; gap:10px; grid-template-columns:repeat(auto-fit,minmax(min(100%,150px),1fr)) }
+  .tx-s{ background:#fff; border:1px solid rgba(16,41,44,.1); border-radius:12px; padding:13px 15px }
+  .tx-s__k{ font:700 10px/1 var(--ag-font-body,inherit); letter-spacing:.08em;
+    text-transform:uppercase; color:#5a6d6f }
+  .tx-s__v{ font-size:22px; font-weight:700; color:#10292C; margin-top:7px }
+  .tx-s__n{ font-size:11.5px; line-height:1.5; color:#67797b; margin-top:4px }
+
+  .tx-list{ width:100%; border-collapse:collapse; margin-top:12px; font-size:12.5px }
+  .tx-list th{ text-align:left; font:700 10px/1.3 var(--ag-font-body,inherit); letter-spacing:.08em;
+    text-transform:uppercase; color:#5a6d6f; padding:0 8px 8px 0 }
+  .tx-list td{ padding:9px 8px 9px 0; border-top:1px solid rgba(16,41,44,.07); vertical-align:top }
+  .tx-tag{ font-size:10px; font-weight:700; letter-spacing:.05em; text-transform:uppercase;
+  /* The second line under a cell: which gate, why it was reversed, the date under a
+     clock. Small and quiet on purpose — it is context for the row above it, and a
+     door log where every line competes is one nobody reads to the bottom of.
+     11.5px against #67797b clears 4.5:1 on this ground. */
+  .tx-mini{ font-size:11.5px; color:#67797b; line-height:1.5 }
+    padding:3px 8px; border-radius:999px; background:rgba(16,41,44,.07); color:#3d4b4d }
+  .tx-tag--ok{ background:#eaf7ea; color:#1c5f1b }
+  .tx-tag--wait{ background:#fff8df; color:#6b5312 }
+  .tx-tag--no{ background:#fdeaea; color:#8a2020 }
+  .tx-code{ font-family:var(--ag-font-mono, monospace); font-weight:700 }
+  .tx-row{ display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin-top:12px }
+
+  /* the camera */
+  #txScan{ margin-top:14px }
+  #txVideo{ display:block; width:100%; max-width:420px; aspect-ratio:1/1; object-fit:cover;
+    background:#0b1416; border-radius:14px }
+  .tx-scan__bar{ display:flex; align-items:center; justify-content:space-between; gap:10px;
+    flex-wrap:wrap; max-width:420px; margin-top:9px; font-size:12.5px; color:#5a6d6f }
+  .tx-scan__bar span{ flex:1 1 200px }
+</style>
+{% endblock %}
+
+{% block topbar_title %}{{ event.title }}{% endblock %}
+{% block topbar_actions %}
+  <a class="ad-btn" href="/admin/events/{{ event.id }}">Edit event</a>
+  <a class="ad-btn" href="/admin/events/{{ event.id }}/codes">Discount codes{% if code_count|default(0) %} ({{ code_count }}){% endif %}</a>
+{% endblock %}
+
+{% block content %}
+<p class="tx-sub">
+  {{ event.event_date }}{% if event.location %} · {{ event.location }}{% endif %} ·
+  <a href="/events/{{ event.slug }}" target="_blank" rel="noopener noreferrer">public page</a> ·
+  <a href="/admin/events">back to events</a>
+</p>
+
+{# ── the door ────────────────────────────────────────────────────────────── #}
+<div class="tx-sec">
+  <h2>Check somebody in</h2>
+  <p>Type the code from their ticket. It is refused if the payment never arrived, and it
+     says so if the code has already been used — a screenshot passed between two people
+     shows up here rather than at the door.</p>
+  <form method="post" action="/admin/events/{{ event.id }}/check-in" class="tx-door" id="txForm">
+    <input type="hidden" name="_token" value="{{ csrf_token }}">
+    <input name="code" id="txCode" placeholder="ABCD-2468" autocomplete="off"
+           autocapitalize="characters" spellcheck="false" aria-label="Ticket code">
+    <button class="tx-btn" type="submit">Check in</button>
+    {# ── THE CAMERA ─────────────────────────────────────────────────────────
+       Hidden until the script confirms this browser can actually decode a barcode. Shown
+       unconditionally it would be a button that does nothing on iOS Safari and on any desktop
+       Chromium built without the feature — and a door control that sometimes does nothing is
+       worse than one that is not offered. The typed box above always works. #}
+    <button class="tx-btn tx-btn--ghost" type="button" id="txScanBtn" hidden>Scan a ticket</button>
+  </form>
+  <div id="txScan" hidden>
+    <video id="txVideo" playsinline muted></video>
+    <div class="tx-scan__bar">
+      <span id="txScanSaid">Point the camera at the QR code on their ticket.</span>
+      <button class="tx-btn tx-btn--ghost tx-btn--tiny" type="button" id="txScanStop">Stop</button>
+    </div>
+  </div>
+</div>
+
+{# ── DOOR PASSES ───────────────────────────────────────────────────────────
+   A link that lets somebody work the gate with no account, for one event, between two
+   times. It exists because a door is staffed by volunteers and venue staff who must not
+   end up holding admin accounts on a platform that runs an awards cycle and moves money —
+   and because the alternative, creating and deleting logins by hand around a gala, is the
+   part that never happens. #}
+<div class="ad-card" style="margin-bottom:14px">
+  <div class="ad-card__head"><div class="ad-card__title">
+    Door passes
+    <small>A scanning link for whoever is on the gate. Works only between the times you set,
+      then stops by itself. It cannot see the guest list, the money, or any other event.</small>
+  </div></div>
+  <div class="ad-card__body">
+
+    {% if new_pass %}
+    {# Shown ONCE. Only the hash is stored, so there is no second chance — said plainly
+       rather than letting somebody navigate away and discover it later. #}
+    <div style="margin-bottom:14px;padding:12px 14px;border-radius:8px;background:#eaf7ec;
+                border-left:4px solid #237b22">
+      <strong style="font-size:13.5px;color:#14531a">Copy this now — it is not shown again</strong>
+      <div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap">
+        <input id="dpLink" readonly value="{{ site_url|default('') }}/door/{{ new_pass }}"
+               style="flex:1 1 320px;min-width:0;font-family:var(--ag-font-mono,monospace);
+                      font-size:12.5px;padding:10px;min-height:44px;border:1px solid #b6d8bb;
+                      border-radius:6px;background:#fff"
+               aria-label="Door scanning link">
+        <button class="tx-btn" type="button" id="dpCopy" style="min-height:44px">Copy link</button>
+      </div>
+      <p style="margin:8px 0 0;font-size:12.5px;color:#2c5c31">
+        Send it to whoever is on the gate. Anyone with the link can check tickets in, so treat
+        it like a key — and revoke it below the moment the door closes.
+      </p>
+    </div>
+    {% endif %}
+
+    <form method="post" action="/admin/events/{{ event.id }}/door" class="ad-form">
+      <input type="hidden" name="_token" value="{{ csrf_token }}">
+      <div class="row">
+        <div>
+          <label for="dpLabel">Which door <span style="font-weight:400;color:#5a6d6f">(optional)</span></label>
+          <input type="text" id="dpLabel" name="label" maxlength="60" placeholder="Main gate">
+        </div>
+        <div>
+          <label for="dpOpens">Opens <span style="font-weight:400;color:#5a6d6f">(optional)</span></label>
+          {# Blank means "works now" — an organiser standing at the door with a queue already
+             forming should not have to fill in a start time to get moving. #}
+          <input type="datetime-local" id="dpOpens" name="opens_at" step="1">
+        </div>
+        <div>
+          <label for="dpCloses">Closes</label>
+          <input type="datetime-local" id="dpCloses" name="closes_at" step="1">
+        </div>
+      </div>
+      <p class="st-hint" style="margin:6px 0 10px">
+        Leave both times blank for a pass that works now and stops in {{ door_hours }} hours.
+      </p>
+      <button class="tx-btn" type="submit" style="min-height:44px">Create a scanning link</button>
+    </form>
+
+    {% if passes %}
+    <div class="ad-table-wrap">
+      <table class="ad-table" style="margin-top:14px">
+        <thead><tr>
+          <th scope="col">Door</th><th scope="col">Window</th>
+          <th scope="col">State</th><th scope="col" class="fi-right">Scans</th><th scope="col"></th>
+        </tr></thead>
+        <tbody>
+          {% for p in passes %}
+          <tr>
+            <td><strong>{{ p.label ?: 'Door' }}</strong></td>
+            <td style="font-size:12.5px;color:#5a6d6f">
+              {# The event's own clock, not the stored string. Slicing a datetime is not
+                 formatting it — it reads the UTC storage convention out loud, so a gate
+                 closing at 23:00 in Lagos listed here as 22:00. #}
+              {{ p.opens_at ? event_at(event, p.opens_at, 'j M, H:i') : 'now' }}
+              → {{ event_when(event, p.closes_at, 'j M, H:i') }}
+            </td>
+            <td>
+              {# A word, not a colour: this table is read to decide whether a gate is live. #}
+              {% if p.state == 'open' %}<span class="tx-tag tx-tag--ok">open now</span>
+              {% elseif p.state == 'scheduled' %}<span class="tx-tag tx-tag--wait">not yet</span>
+              {% elseif p.state == 'revoked' %}<span class="tx-tag tx-tag--no">revoked</span>
+              {% else %}<span class="tx-tag">closed</span>{% endif %}
+            </td>
+            <td class="fi-right fi-num">{{ p.scans }}</td>
+            <td class="fi-right">
+              {% if not p.revoked and p.state != 'closed' %}
+              <form method="post" action="/admin/events/{{ event.id }}/door/revoke" style="display:inline">
+                <input type="hidden" name="_token" value="{{ csrf_token }}">
+                <input type="hidden" name="pass_id" value="{{ p.id }}">
+                {# Immediate and one-way: revoke() stamps revoked_at and there is no
+                   un-revoke. Whoever is holding this link is very likely standing at the
+                   door with a queue in front of them, which is exactly when a mis-click
+                   costs the most. Issuing a fresh pass is the way back. #}
+                <button class="tx-btn tx-btn--ghost tx-btn--tiny" type="submit"
+                        style="min-height:32px"
+                        data-confirm="Turn off this scanning link? It stops working immediately and cannot be turned back on — whoever is using it to scan at the door will be locked out until you issue a new one.">Turn off</button>
+              </form>
+              {% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    {# Empty state: what this is, why it is empty, what fills it. #}
+    <p class="st-hint" style="margin-top:12px">
+      No scanning links yet. Create one shortly before the doors open and send it to whoever
+      is working the gate — they will not need an account.
+    </p>
+    {% endif %}
+
+    {# ── WILL THE DOOR SAY THEIR NAMES? ───────────────────────────────────
+       A COUNT, not a switch, and this is the whole point of the panel: greetings are
+       rendered ahead by the 06:00 sweep, so an organiser who imported a guest list this
+       afternoon has a list of names and no clips — and the door fails SILENTLY by design,
+       giving everybody the generic welcome. The one place that is recoverable is here,
+       hours beforehand, beside the pass they are about to issue.
+
+       It used to draw only when the voice was switched on, to keep a permanent "0 of 0
+       ready" off a screen read under time pressure. That was the wrong trade: it also
+       kept the ANSWER off it. A line that says "the door voice is switched off" is not
+       noise to somebody who has just been asked why nobody was greeted — it is the whole
+       thing they came here for. #}
+    {# ── WILL THE DOOR SPEAK, AND IF NOT, WHY NOT ──────────────────────────
+       This drew only when the voice was already switched ON, so the single most
+       likely reason for silence — nobody ticked the box — said nothing at all. So did
+       a missing key, an unwritable cache, an event outside the render window, and a
+       sweep that has never run because scheduled maintenance was never set up. All
+       five sound identical at the door: silence, which is exactly what a working door
+       sounds like when the voice is off on purpose.
+
+       Drawn always now, and it names the FIRST broken link rather than a count. #}
+    <div style="margin-top:14px;padding-top:12px;border-top:1px solid rgba(16,41,44,.12)">
+      {% if welcome_state.blocker %}
+        <p class="st-hint" style="margin:0">
+          <strong>The voice at the door:</strong> {{ welcome_state.blocker }}
+          <span style="color:var(--ad-text-mute,#61728e)">{{ welcome_state.fix }}</span>
+        </p>
+        {# The button only where pressing it can achieve something. Offering "make them
+           now" while the voice is switched off is a control that fails on purpose. #}
+        {% if welcome_state.on and welcome_state.voice and welcome_state.writable
+              and welcome_state.lines > welcome_state.ready %}
+          <form method="post" action="/admin/events/{{ event.id }}/welcome-render" style="margin-top:8px">
+            <input type="hidden" name="_token" value="{{ csrf_token }}">
+            <button type="submit" class="ad-btn ad-btn--xs">Make the greetings now</button>
+          </form>
+        {% endif %}
+      {% else %}
+        <p class="st-hint" style="margin:0">
+          <strong>The voice at the door:</strong> all {{ welcome_state.lines }}
+          greeting{{ welcome_state.lines == 1 ? '' : 's' }} are ready — everyone on the
+          list will be welcomed by name.
+        </p>
+      {% endif %}
+    </div>
+  </div>
+</div>
+
+{# ── REFUNDS THAT DID NOT LAND ─────────────────────────────────────────────
+   Only drawn when there is something in it. A permanently-present empty panel headed
+   "refunds" trains an organiser to scroll past the word, which is exactly the word they
+   need to still be able to see on the one morning it is not empty.
+
+   FAILED first, then PENDING, then the settled ones folded away. A failed refund is the
+   only row here that is a debt: the seat went back, the ticket code is dead, and the
+   money is still sitting with the organiser. Sorting this list by date alone would bury
+   that under a week of rows costing nobody anything. #}
+{% set rf = refund_tally|default({}) %}
+{% if refunds|default([])|length %}
+<div class="tx-sec" id="refunds">
+  <h2>Refunds</h2>
+  <p>
+    {% if rf.failed|default(0) %}
+      {{ rf.failed }} refund{{ rf.failed == 1 ? '' : 's' }} did not go through —
+      <strong>₦{{ rf.owed|default(0)|number_format }}</strong> is still with you and these
+      people have already lost their seats. Try the gateway again, or send the money another
+      way and record it here so the list clears.
+    {% elseif rf.pending|default(0) %}
+      {{ rf.pending }} refund{{ rf.pending == 1 ? ' is' : 's are' }} with the gateway. Nothing
+      to do — they usually settle within a few hours and this list updates itself.
+    {% else %}
+      Everything cancelled on this event has been refunded.
+    {% endif %}
+    {% if rf.stale|default(0) %}
+      {{ rf.stale }} {{ rf.stale == 1 ? 'has' : 'have' }} been waiting more than three days,
+      which is longer than a refund normally takes — worth chasing with your gateway.
+    {% endif %}
+  </p>
+
+  <div class="ad-table-wrap">
+    <table class="tx-list">
+      <thead><tr>
+        <th scope="col">Who</th><th scope="col">Amount</th><th scope="col">State</th>
+        <th scope="col">Cancelled</th><th scope="col"></th>
+      </tr></thead>
+      <tbody>
+        {% for r in refunds|filter(r => r.status != 'refunded') %}
+          <tr>
+            <td>
+              <strong>{{ r.name }}</strong><br>
+              <span style="color:#67797b">{{ r.email }}</span>
+              {% if r.by %}<br><span style="color:#8a9a9c;font-size:11.5px">cancelled by {{ r.by }}</span>{% endif %}
+            </td>
+            <td>
+              <strong>₦{{ r.naira|number_format }}</strong>
+              {# Both figures when they differ: a partial refund looks like a mistake unless the
+                 screen says out loud what was paid and what is going back. #}
+              {% if r.naira != r.paid %}
+                <br><span style="color:#8a9a9c;font-size:11.5px">of ₦{{ r.paid|number_format }} paid</span>
+              {% endif %}
+            </td>
+            <td>
+              {# The word carries the meaning; the colour only agrees with it. Somebody reading
+                 this in greyscale, or colourblind, still gets the same answer. #}
+              {% if r.status == 'failed' %}
+                <span class="tx-tag tx-tag--no">✕ did not go through</span>
+              {% else %}
+                <span class="tx-tag tx-tag--wait">⋯ with the gateway</span>
+                {% if r.stale %}<br><span class="tx-tag tx-tag--no" style="margin-top:4px;display:inline-block">3+ days</span>{% endif %}
+              {% endif %}
+            </td>
+            <td style="color:#67797b">{{ r.when ? r.when|slice(0, 16)|replace({'-': '/'}) : '—' }}</td>
+            <td>
+              {% if r.status == 'failed' %}
+              <div style="display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end">
+                <form method="post" action="/admin/events/{{ event.id }}/refunds/retry" style="margin:0">
+                  <input type="hidden" name="_token" value="{{ csrf_token }}">
+                  <input type="hidden" name="reg_id" value="{{ r.id }}">
+                  {# Named in the label, not just in the row. Five buttons all reading "Try
+                     again" to a screen reader tabbing down the column is a list you cannot
+                     act on without counting rows. #}
+                  <button class="tx-btn tx-btn--tiny" type="submit" style="min-height:32px"
+                          aria-label="Try the refund for {{ r.name }} again">Try again</button>
+                </form>
+                {# Two presses. It is not destructive, but it makes the platform's books say the
+                   money went back — and a mis-click that quietly closes a debt is worse than one
+                   extra tap. Same pattern as "release seat" above. #}
+                <form method="post" action="/admin/events/{{ event.id }}/refunds/settle" style="margin:0"
+                      x-data="{ sure: false }" @submit="if(!sure){ $event.preventDefault(); sure = true }">
+                  <input type="hidden" name="_token" value="{{ csrf_token }}">
+                  <input type="hidden" name="reg_id" value="{{ r.id }}">
+                  {# The accessible name is BOUND, not fixed: `x-text` swaps the visible words on
+                     the first press, and a static aria-label would leave a screen reader still
+                     announcing the unconfirmed wording after the state changed. #}
+                  <button class="tx-btn tx-btn--ghost tx-btn--tiny" type="submit" style="min-height:32px"
+                          :class="sure ? 'tx-btn--sure' : ''"
+                          aria-label="Record that {{ r.name }} was paid another way"
+                          :aria-label="sure
+                            ? 'Confirm: {{ r.name|e('js') }} was paid another way'
+                            : 'Record that {{ r.name|e('js') }} was paid another way'"
+                          x-text="sure ? 'Yes — I have sent it' : 'I paid this another way'">I paid this another way</button>
+                </form>
+              </div>
+              {% else %}
+                <span style="color:#8a9a9c;font-size:11.5px">nothing to do</span>
+              {% endif %}
+            </td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  {% set done = refunds|filter(r => r.status == 'refunded') %}
+  {% if done|length %}
+  {# Folded, not dropped. Settled refunds are the answer to "did that ever go back?", asked
+     weeks later — but they are not work, and putting them in the same list as the debts is
+     what makes the debts hard to see. #}
+  <details style="margin-top:12px">
+    <summary style="cursor:pointer;font-size:12.5px;color:#5a6d6f;padding:6px 0">
+      {{ done|length }} refund{{ done|length == 1 ? '' : 's' }} already settled
+    </summary>
+    <div class="ad-table-wrap">
+      <table class="tx-list">
+        <thead><tr><th scope="col">Who</th><th scope="col">Amount</th><th scope="col">Refunded</th><th scope="col">Reference</th></tr></thead>
+        <tbody>
+          {% for r in done %}
+            <tr>
+              <td><strong>{{ r.name }}</strong><br><span style="color:#67797b">{{ r.email }}</span></td>
+              <td>₦{{ r.naira|number_format }}</td>
+              <td style="color:#67797b">{{ r.settled ? r.settled|slice(0, 16)|replace({'-': '/'}) : '—' }}</td>
+              <td style="color:#8a9a9c;font-size:11.5px;word-break:break-all">
+                {{ r.gateway_ref ?: '—' }}
+                {% if r.gateway_ref starts with 'by-hand' %}
+                  <br><span class="tx-tag">paid outside the platform</span>
+                {% endif %}
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </details>
+  {% endif %}
+</div>
+{% endif %}
+
+{# ── what is sold ────────────────────────────────────────────────────────── #}
+<div class="tx-stat" style="margin-bottom:14px">
+  <div class="tx-s">
+    <div class="tx-s__k">Seats taken</div>
+    <div class="tx-s__v">{{ summary.sold|number_format }}</div>
+    <div class="tx-s__n">{% if summary.capacity %}of {{ summary.capacity|number_format }} in the room{% else %}no overall limit set{% endif %}</div>
+  </div>
+  <div class="tx-s">
+    <div class="tx-s__k">Money taken</div>
+    <div class="tx-s__v">₦{{ summary.revenue|number_format }}</div>
+    <div class="tx-s__n">confirmed tickets only</div>
+  </div>
+  <div class="tx-s">
+    <div class="tx-s__k">Mid-checkout</div>
+    <div class="tx-s__v">{{ summary.pending }}</div>
+    <div class="tx-s__n">holding a seat for {{ hold_minutes|default(30) }} minutes</div>
+  </div>
+  {# Counted from EventArrivals, not from `attendees`, and the difference is the point:
+     a guest of honour is admitted on an INVITATION and has no registration row at all, so
+     filtering the attendee list showed an organiser a hall with every nominee and judge
+     missing from it. `room.in` is the same number the door itself displays — one resolver,
+     because a door and an office disagreeing about how many people are in a building is
+     the kind of disagreement that matters to a fire officer. #}
+  <div class="tx-s">
+    <div class="tx-s__k">In the room</div>
+    <div class="tx-s__v">{{ room.in }}</div>
+    <div class="tx-s__n">
+      {%- if room.honoured_in %}{{ room.tickets_in }} on tickets · {{ room.honoured_in }} guest{{ room.honoured_in == 1 ? '' : 's' }} of honour
+      {%- else %}through the door, of {{ room.expected }} expected{% endif -%}
+    </div>
+  </div>
+</div>
+
+{# ── WHAT HAPPENED AT THE DOOR ─────────────────────────────────────────────
+   Durable, server-timestamped, and it includes reversals. The steward's on-screen list
+   is twelve rows on one phone, stamped from that phone's clock and gone when the screen
+   locks; this is what an organiser can actually stand behind a week later.
+
+   Reversals are shown as their own kind rather than omitted. A log that quietly dropped
+   the admissions that were taken back would be a record of what we wish had happened. #}
+{% if arrivals|length %}
+<div class="tx-sec">
+  <h2>What happened at the door</h2>
+  <p>Every admission and every reversal, newest first — with which gate did it. This is the
+    record to reach for when somebody disputes being turned away.</p>
+  <div class="ad-table-wrap">
+    <table class="tx-list">
+      <thead><tr>
+        <th scope="col">Time</th><th scope="col">Who</th><th scope="col"></th>
+        <th scope="col">Gate</th><th scope="col">Seats</th>
+      </tr></thead>
+      <tbody>
+        {% for r in arrivals %}
+          <tr>
+            {# THE ROOM'S OWN CLOCK. This was `|slice(11, 5)` over the stored string, and
+               storage is UTC — so an admission at 19:42 in Lagos printed as 18:42, on the
+               one record an organiser is meant to stand behind a week later. Resolved in the
+               controller against the EVENT's zone, because Twig's `|date` is pinned to the
+               platform's display zone and a Nairobi gala is not read in Lagos hours. #}
+            <td style="color:#67797b;white-space:nowrap">{{ r.at_time }}<br>
+              <span class="tx-mini">{{ r.at_date }} {{ r.at_zone }}</span></td>
+            <td>{{ r.who ?: '—' }}
+              {%- if r.invite_id %}<br><span class="tx-mini">guest of honour</span>{% endif %}</td>
+            <td>
+              {% if r.action == 'undo' %}<span class="tx-tag tx-tag--no">taken back</span>
+                {%- if r.reason %}<br><span class="tx-mini">{{ r.reason }}</span>{% endif %}
+              {% else %}<span class="tx-tag tx-tag--ok">admitted</span>{% endif %}
+            </td>
+            {# The NAME, not the number. "admin #7" is unreadable a week later, which is
+               the only moment this list is opened. #}
+            <td>{{ r.via ?: '—' }}{% if r.by_name %}<br><span class="tx-mini">{{ r.by_name }}</span>{% endif %}</td>
+            <td>{{ r.seats }}</td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endif %}
+
+<div class="tx-sec">
+  <h2>Each ticket type, against its own limit</h2>
+  <p>A tier can sell out while the event has room, and the room can fill while a tier still
+     has seats — both limits are real and both are checked. A blank limit means "as many as
+     the room allows".</p>
+  <div class="ad-table-wrap">
+    <table class="tx-tiers">
+      <thead><tr><th>Ticket</th><th>Price</th><th>Sold</th><th style="width:24%">Against its limit</th><th>State</th><th>Waiting list</th></tr></thead>
+      <tbody>
+        {% for t in summary.tiers %}
+          {% set pct = t.capacity ? (100 * t.sold / t.capacity)|round : 0 %}
+          {% set waiting = queue|default([])|filter(q => (q.tier_id|default(0)) == t.id)|length %}
+          <tr>
+            <td><strong>{{ t.name }}</strong>{% if not t.active %} <span class="tx-tag">off sale</span>{% endif %}</td>
+            <td>{{ t.price_naira > 0 ? '₦' ~ t.price_naira|number_format : 'Free' }}</td>
+            <td>{{ t.sold }}{% if t.capacity %} / {{ t.capacity }}{% endif %}</td>
+            <td>
+              {% if t.capacity %}
+                <div class="tx-bar"><i class="{{ pct >= 100 ? 'is-full' : (pct >= 80 ? 'is-tight' : '') }}"
+                     style="width:{{ pct > 100 ? 100 : pct }}%"></i></div>
+              {% else %}
+                <span style="color:#8a9a9c">no limit</span>
+              {% endif %}
+            </td>
+            <td>
+              {% if t.state == 'open' %}<span class="tx-tag tx-tag--ok">on sale</span>
+              {% elseif t.state == 'sold_out' %}<span class="tx-tag tx-tag--no">sold out</span>
+              {% else %}<span class="tx-tag tx-tag--wait">{{ t.state }}</span>{% endif %}
+            </td>
+            <td>
+              {# The button appears only when there is somebody to offer a seat TO. A control
+                 that would email nobody is a control that teaches you to stop trusting it. #}
+              {% if waiting %}
+                <form method="post" action="/admin/events/{{ event.id }}/promote" style="margin:0">
+                  <input type="hidden" name="_token" value="{{ csrf_token }}">
+                  <input type="hidden" name="tier_id" value="{{ t.id }}">
+                  <button class="tx-btn" type="submit" style="padding:8px 14px;font-size:12px">
+                    Offer free seats <span style="opacity:.7">({{ waiting }} waiting)</span>
+                  </button>
+                </form>
+              {% elseif waitlist_open|default(false) %}
+                <span style="color:#8a9a9c;font-size:12px">nobody waiting</span>
+              {% endif %}
+            </td>
+          </tr>
+        {% else %}
+          <tr><td colspan="6" style="padding:18px 0;color:#8a9a9c">
+            No ticket types yet. <a href="/admin/events/{{ event.id }}">Add one on the event</a> —
+            a price of 0 makes it a free RSVP.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+{# ── THE WAITING LIST ─────────────────────────────────────────────────────────
+   Two lists, deliberately separate. A waitlisted row is somebody hoping; an offered row is
+   a seat currently HELD for somebody who has not answered yet — and the second is the one
+   with a clock on it. #}
+{% if waitlist_open|default(false) or queue|default([])|length or offers|default([])|length %}
+<div class="tx-sec">
+  <h2>Waiting list</h2>
+  <p>
+    {% if waitlist_open|default(false) %}
+      Open — a sold-out ticket offers to take somebody's details instead of saying no.
+    {% else %}
+      Closed. Nobody new can join, but the {{ queue|length }} already on the list can still be offered a seat.
+      <a href="/admin/events/{{ event.id }}">Reopen it on the event →</a>
+    {% endif %}
+    Pressing “offer free seats” above emails the longest-waiting people and holds a seat for
+    each of them for {{ offer_hours|default(48) }} hours. Offers nobody takes go back to the
+    front of the queue automatically the next time you press it.
+  </p>
+
+  {% if offers|default([])|length %}
+  <div class="ad-table-wrap">
+    <table class="tx-list">
+      <thead><tr><th>Offered to</th><th>Ticket</th><th>Offered</th><th>Expires</th></tr></thead>
+      <tbody>
+        {% for o in offers %}
+          <tr>
+            <td><strong>{{ o.name }}</strong><br><span style="color:#67797b">{{ o.email }}</span></td>
+            <td>{{ o.tier|default('—') }}</td>
+            <td style="color:#67797b">{{ o.offered_at }}</td>
+            <td><span class="tx-tag tx-tag--wait">{{ o.offer_expires_at }}</span></td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% endif %}
+
+  <div class="ad-table-wrap">
+    <table class="tx-list">
+      <thead><tr><th>#</th><th>Name</th><th>Contact</th><th>Ticket</th><th>Joined</th></tr></thead>
+      <tbody>
+        {% for q in queue|default([]) %}
+          <tr>
+            <td style="color:#8a9a9c;font-weight:700">{{ loop.index }}</td>
+            <td><strong>{{ q.name }}</strong></td>
+            <td>{{ q.email }}{% if q.phone %}<br>{{ q.phone }}{% endif %}</td>
+            <td>{{ q.tier|default('—') }}</td>
+            <td style="color:#67797b">{{ q.waitlist_at|default(q.created_at) }}</td>
+          </tr>
+        {% else %}
+          <tr><td colspan="5" style="padding:18px 0;text-align:center;color:#8a9a9c">Nobody waiting.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endif %}
+
+{# ── who is coming ───────────────────────────────────────────────────────── #}
+<div class="tx-sec">
+  <h2>{{ attendees|length }} registration(s)</h2>
+  <div class="tx-row">
+    {% for f in [['', 'Everyone'], ['confirmed', 'Confirmed'], ['pending', 'Mid-checkout'], ['waitlisted', 'Waiting'], ['cancelled', 'Cancelled']] %}
+      <a class="tx-btn tx-btn--ghost" href="/admin/events/{{ event.id }}/tickets{{ f.0 ? '?status=' ~ f.0 : '' }}"
+         {% if filter == f.0 %}style="background:#10292C;color:#fff;border-color:#10292C"{% endif %}>{{ f.1 }}</a>
+    {% endfor %}
+    <a class="tx-btn tx-btn--ghost" href="/admin/events/{{ event.id }}/attendees.csv">Download CSV</a>
+    {# Physical tickets, for the guest list, the sponsor's table and the people who bought at
+       a kiosk with no email address. A generated PDF at exact millimetres — not the browser's
+       print dialogue, which rescales the QR to whatever "Fit to page" feels like. Only
+       confirmed bookings are printed. #}
+    <a class="tx-btn tx-btn--ghost" href="/admin/events/{{ event.id }}/tickets.pdf">Print tickets (PDF)</a>
+    <a class="tx-btn tx-btn--ghost" href="/admin/events/{{ event.id }}/tickets.pdf?per=2">Large, 2 a page</a>
+  </div>
+
+  <div class="ad-table-wrap">
+    <table class="tx-list">
+      <thead><tr><th>Name</th><th>Contact</th><th>Ticket</th><th>Paid</th><th>Code</th><th>Status</th><th>Registered</th><th></th></tr></thead>
+      <tbody>
+        {% for a in attendees %}
+          <tr>
+            <td><strong>{{ a.name }}</strong>{% if (a.quantity|default(1)) > 1 %} <span class="tx-tag">{{ a.quantity }} seats</span>{% endif %}</td>
+            <td>{{ a.email }}{% if a.phone %}<br>{{ a.phone }}{% endif %}</td>
+            <td>{{ a.tier|default('—') }}</td>
+            <td>
+              {{ (a.amount_naira|default(0)) > 0 ? '₦' ~ a.amount_naira|number_format : 'Free' }}
+              {# What a code took off, read off the ROW rather than recomputed: a code can be
+                 edited or deleted after somebody bought against it, and a receipt that quietly
+                 restated history would make the money stop adding up. #}
+              {% if a.discount_code|default('') %}
+                <br><span class="tx-tag">{{ a.discount_code }}
+                  {%- if a.discount_naira|default(0) %} −₦{{ a.discount_naira|number_format }}{% endif %}</span>
+              {% endif %}
+            </td>
+            <td class="tx-code">{{ a.ticket_code|default('—') }}
+              {# The seat or table label. Inline and saved on blur rather than behind an edit
+                 screen, because assigning a room full of tables is thirty of these in a row and
+                 a page load between each one is the difference between doing it and not.
+  
+                 `seat_missing` rather than hiding it silently: an organiser who typed a table
+                 number into a field that was never going to store it would find out at the
+                 door. #}
+              {% if not seat_missing %}
+                <form method="post" action="/admin/events/{{ event.id }}/seat" class="tx-seat">
+                  <input type="hidden" name="_token" value="{{ csrf_token }}">
+                  <input type="hidden" name="reg_id" value="{{ a.id }}">
+                  <input type="text" name="seat_label" value="{{ a.seat_label|default('') }}"
+                         maxlength="60" placeholder="Seat / table"
+                         aria-label="Seat or table for {{ a.name }}"
+                         data-ag-do="submit-form">
+                </form>
+              {% endif %}
+            </td>
+            <td>
+              {% if a.status == 'confirmed' %}<span class="tx-tag tx-tag--ok">confirmed</span>
+              {% elseif a.status == 'pending' %}<span class="tx-tag tx-tag--wait">{{ a.offered_at|default('') ? 'offered a seat' : 'mid-checkout' }}</span>
+              {% elseif a.status == 'waitlisted' %}<span class="tx-tag tx-tag--wait">waiting</span>
+              {% elseif a.status == 'cancelled' %}<span class="tx-tag tx-tag--no">cancelled</span>
+              {% else %}<span class="tx-tag">{{ a.status|default('—') }}</span>{% endif %}
+              {# WHICH door and WHO, not just that they arrived — the two questions asked
+                 after a disputed entry. `checked_in_via` had been written since the
+                 scan-pass migration and read by nothing; `checked_in_by` had never been
+                 rendered at all, so the person who admitted somebody was recorded on the
+                 row and shown on no screen.
+
+                 The time is the event's, not the storage convention's: this said
+                 `|slice(11, 5)` and printed a Lagos arrival an hour early. #}
+              {% if a.checked_in_at %}<br><span class="tx-tag tx-tag--ok">arrived
+                {{- a.arrived_time ? ' ' ~ a.arrived_time : '' }}</span>
+                {%- if a.checked_in_via %}<br><span class="tx-mini">{{ a.checked_in_via }}</span>{% endif %}
+                {%- if a.by_name %}<br><span class="tx-mini">by {{ a.by_name }}</span>{% endif %}
+              {% endif %}
+            </td>
+            <td style="color:#67797b">{{ a.created_at }}</td>
+            <td>
+              {# The other half of a waiting list: a seat only comes back if somebody can give
+                 it back. Money is NOT refunded here — a withdrawal and a refund are different
+                 decisions, and the confirmation says so out loud. #}
+              {% if a.status in ['confirmed', 'pending', 'waitlisted'] %}
+                <form method="post" action="/admin/events/{{ event.id }}/release" style="margin:0"
+                      x-data="{ sure: false }" @submit="if(!sure){ $event.preventDefault(); sure = true }">
+                  <input type="hidden" name="_token" value="{{ csrf_token }}">
+                  <input type="hidden" name="reg_id" value="{{ a.id }}">
+                  <input type="hidden" name="why" value="withdrawn by an organiser">
+                  <button class="tx-btn tx-btn--ghost tx-btn--tiny" type="submit"
+                          :class="sure ? 'tx-btn--sure' : ''"
+                          x-text="sure ? 'Confirm release' : 'Release seat'">Release seat</button>
+                </form>
+              {% endif %}
+            </td>
+          </tr>
+        {% else %}
+          <tr><td colspan="8" style="padding:20px 0;text-align:center;color:#8a9a9c">Nobody yet.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}
+
+{% block foot_scripts %}
+{# Focus the code box on load. The person opening this page at a door has a queue in front
+   of them, and one tap saved per attendee is the difference between a moving line and a
+   stationary one. Nonced, and nothing on the page depends on it running. #}
+<script nonce="{{ csp_nonce }}">
+/* The one-shot door link. Copy-to-clipboard because the alternative is somebody
+   hand-transcribing 64 hex characters into WhatsApp, and the token is shown exactly once. */
+(function () {
+  var btn = document.getElementById('dpCopy');
+  var box = document.getElementById('dpLink');
+  if (!btn || !box) return;
+  btn.addEventListener('click', function () {
+    box.select(); box.setSelectionRange(0, 99999);
+    var done = function () { btn.textContent = 'Copied'; setTimeout(function () { btn.textContent = 'Copy link'; }, 2000); };
+    if (navigator.clipboard) { navigator.clipboard.writeText(box.value).then(done, done); }
+    else { try { document.execCommand('copy'); done(); } catch (e) {} }
+  });
+})();
+</script>
+<script nonce="{{ csp_nonce }}">
+(function () {
+  var box = document.getElementById('txCode');
+  // Not on a touch device: focusing there opens the on-screen keyboard over the page, and the
+  // person about to press "Scan a ticket" does not want a keyboard.
+  if (box && !('ontouchstart' in window)) box.focus();
+})();
+
+// ── the seat boxes ─────────────────────────────────────────────────────────
+// `change` rather than `input`: on a text input it fires on BLUR and only when the value
+// actually changed, which is exactly "save when you move to the next one" and never a POST
+// per keystroke. Enter submits natively because each box is alone in its form, so this adds
+// nothing that the form did not already do — it just removes the need to press it.
+//
+// A delegated listener with `data-ag-do`, not an inline handler: CspTest fails the build on
+// an inline event handler.
+document.addEventListener('change', function (e) {
+  var el = e.target.closest('[data-ag-do="submit-form"]');
+  if (!el || !el.form) return;
+  el.form.submit();
+});
+</script>
+
+{# ── SCANNING A TICKET ────────────────────────────────────────────────────────
+   The whole feature is behind a capability check. BarcodeDetector is absent on iOS Safari and
+   on desktop Chromium builds without it, and a door control that silently does nothing is
+   worse than one that was never offered — so the button stays hidden unless the browser both
+   HAS the API and reports that it can read qr_code specifically.
+
+   On a hit it fills the existing form and submits it. The scanner does not check anybody in by
+   itself: the server has always been the thing that decides whether a code is valid, already
+   paid and not already used, and giving the camera its own path would mean two implementations
+   of the one question that matters at a door. #}
+<script nonce="{{ csp_nonce }}">
+(function () {
+  var btn   = document.getElementById('txScanBtn');
+  var panel = document.getElementById('txScan');
+  var video = document.getElementById('txVideo');
+  var said  = document.getElementById('txScanSaid');
+  var stop  = document.getElementById('txScanStop');
+  var form  = document.getElementById('txForm');
+  var box   = document.getElementById('txCode');
+  if (!btn || !panel || !video || !form || !box) return;
+
+  // A camera needs a secure context. Said out loud rather than failing on the first tap.
+  var secure = window.isSecureContext || location.hostname === 'localhost' || location.hostname === '127.0.0.1';
+  if (!('BarcodeDetector' in window) || !navigator.mediaDevices || !secure) return;
+
+  var detector = null, stream = null, timer = null, busy = false;
+
+  BarcodeDetector.getSupportedFormats().then(function (formats) {
+    if (formats.indexOf('qr_code') === -1) return;   // present but cannot read QR
+    detector = new BarcodeDetector({ formats: ['qr_code'] });
+    btn.hidden = false;
+  }).catch(function () { /* no scanner: the typed box is the door */ });
+
+  function shut() {
+    clearInterval(timer); timer = null;
+    if (stream) { stream.getTracks().forEach(function (t) { t.stop(); }); stream = null; }
+    panel.hidden = true; btn.hidden = false; busy = false;
+  }
+
+  async function open() {
+    btn.hidden = true; panel.hidden = false;
+    said.textContent = 'Point the camera at the QR code on their ticket.';
+    try {
+      // The rear camera, because the person scanning is holding the phone and the ticket is
+      // in front of them.
+      stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: { ideal: 'environment' } }, audio: false
+      });
+      video.srcObject = stream;
+      await video.play();
+    } catch (e) {
+      said.textContent = 'The camera could not be opened — type the code instead.';
+      btn.hidden = false;
+      return;
+    }
+
+    timer = setInterval(async function () {
+      if (busy || video.readyState < 2) return;
+      busy = true;
+      try {
+        var found = await detector.detect(video);
+        if (found.length) {
+          var value = String(found[0].rawValue || '').trim().toUpperCase();
+          // Only a ticket-code shape. A QR on somebody's lanyard from another conference should
+          // not submit the door form, and the server would refuse it anyway — but a pointless
+          // round trip at a door costs the queue.
+          if (/^[A-Z0-9]{4}-[A-Z0-9]{4}$/.test(value)) {
+            said.textContent = 'Read ' + value + ' — checking in…';
+            box.value = value;
+            shut();
+            form.submit();
+            return;
+          }
+          said.textContent = 'That is not a ticket from this platform. Try again, or type the code.';
+        }
+      } catch (e) { /* a frame that could not be read is not an error worth showing */ }
+      busy = false;
+    }, 220);
+  }
+
+  btn.addEventListener('click', open);
+  stop.addEventListener('click', shut);
+  // Leaving the page with the camera on drains a battery an organiser needs all evening.
+  window.addEventListener('pagehide', shut);
+})();
+</script>
+{% endblock %}

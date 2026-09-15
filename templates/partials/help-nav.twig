@@ -1,0 +1,98 @@
+{#
+  ══════════════════════════════════════════════════════════════════════════════
+  THE HELP SURFACE'S MASTHEAD — one identity, one search, one row of tabs
+  ══════════════════════════════════════════════════════════════════════════════
+
+  ── THE FAULT THIS EXISTS TO END ────────────────────────────────────────────
+
+  There were two front doors to the same job. `/help` opened with "What has gone
+  wrong?" over a search field; `/support` opened with "We're here to help" over
+  four cards, the first of which was "Search the Help Centre → Browse the
+  answers" — which lands on `/help`. A stuck person hit a router that routed them
+  to another router, and neither page could tell them the other one existed.
+
+  They are one surface now, with the three things a person can actually do side by
+  side: read an answer, ask the assistant to fix it, or reach a person. Whichever
+  they land on, the other two are one tap away and the search field is the same
+  field.
+
+  ── WHY THE IDENTITY LINE SAYS WHOSE HELP THIS IS ───────────────────────────
+
+  Google's support masthead says "Google Account Help", not "Google Help", so a
+  reader always knows whose answers they are reading. Ours said nothing at all,
+  on a platform where a supporter, a nominee, a judge and a partner organisation
+  arrive with almost disjoint problems — and where, until this week, there was
+  not one article written for a judge or for an organisation.
+
+  When an audience is chosen the line says so. That is the whole mechanism: it is
+  a LABEL and a filter, never a partition. See HelpCentre::AUDIENCES.
+
+  ── THE SEARCH IS IN THE MASTHEAD, SO IT IS ON EVERY TAB ────────────────────
+
+  A real GET form on every surface, not a filter that only exists on the index.
+  Somebody reading an answer that turns out to be the wrong answer should not
+  have to go back to search again.
+
+  `tab` is 'answers' | 'assistant' | 'contact'.
+  `audience` is a HelpCentre audience key, or empty.
+#}
+{# The surface's own sheet, deliberately outside AssetBundle::STYLESHEETS: it is
+   loaded by the six help surfaces and by nothing else, and bundling it into the
+   global payload to save a request on those six makes every other page heavier.
+   `'self'` in style-src-elem covers it, so no nonce is needed. #}
+<link rel="stylesheet" href="{{ asset('/assets/css/components/help-nav.css') }}">
+
+{% set _tab = tab|default('answers') %}
+{% set _aud = audience|default('') %}
+
+<header class="hn">
+  <div class="hn__in">
+    {# The identity, and the scope when there is one. `aria-current` is on the tab
+       row below rather than here: this is a heading, not a control. #}
+    <p class="hn__id">
+      <a href="/help">Help centre</a>
+      {%- set _auds = help_audiences() %}
+      {%- if _aud and _auds[_aud] is defined %}
+        <span class="hn__scope" aria-hidden="true">·</span>
+        <span class="hn__scope">{{ _auds[_aud].title }}</span>
+      {%- endif %}
+    </p>
+
+    <form class="hn__find" method="get" action="/help" role="search">
+      <label class="sr-only" for="hn-q">Search the help centre</label>
+      <svg class="hn__mag" width="17" height="17" viewBox="0 0 24 24" fill="none"
+           stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">
+        <circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/>
+      </svg>
+      {# `search_model` binds this field to the including page's Alpine state, which is
+         what lets the answers index narrow as you type without a second search field on
+         the page. Absent — every other surface — it is a plain GET input and behaves
+         identically with scripting off. #}
+      <input id="hn-q" type="search" name="q" value="{{ q|default('') }}"
+             {% if search_model|default('') %}x-model="{{ search_model }}"{% endif %}
+             placeholder="{{ search_placeholder|default('Describe your problem') }}" autocomplete="off">
+      {# The chosen audience rides with the search, so a nominee who searches stays a
+         nominee. It is a filter on the shelf and never on the results — see
+         HelpCentre::search(), which ignores it outright. #}
+      {% if _aud %}<input type="hidden" name="for" value="{{ _aud }}">{% endif %}
+      <button type="submit">Search</button>
+    </form>
+  </div>
+
+  {#
+    THE THREE THINGS A STUCK PERSON CAN DO, ALWAYS ALL THREE.
+
+    Ordered by what costs them least: an answer is instant, the assistant can fix a
+    payment without waiting for anyone, a person takes until the next working day.
+    Nobody should reach the third without having been shown the first two, and
+    nobody should be unable to reach the third from the first.
+  #}
+  <nav class="hn__tabs" aria-label="Help">
+    <a href="/help{{ _aud ? '?for=' ~ _aud : '' }}"
+       {% if _tab == 'answers' %}aria-current="page"{% endif %}>Answers</a>
+    <a href="/support/assistant"
+       {% if _tab == 'assistant' %}aria-current="page"{% endif %}>Ask the assistant</a>
+    <a href="/support"
+       {% if _tab == 'contact' %}aria-current="page"{% endif %}>Contact us</a>
+  </nav>
+</header>

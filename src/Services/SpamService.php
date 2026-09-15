@@ -10,14 +10,15 @@ use Illuminate\Support\Carbon;
  * Two-stage moderation:
  *   1. Heuristic pass (fast, free) — catches obvious spam, link-spam, all-caps,
  *      profanity, gibberish, repetition. Returns score 0..1 (1 = pure spam).
- *   2. AI pass (only for borderline 0.20–0.60) — calls the configured AI
- *      moderation endpoint (Anthropic by default; OpenAI moderation if
- *      OPENAI_KEY set). Falls back gracefully when no API key.
+ *   2. AI pass (only for borderline 0.20–0.60) — delegates to {@see AiService},
+ *      which calls whichever provider key is configured (Groq → Gemini →
+ *      Anthropic → OpenAI). Falls back gracefully when no provider is set.
  *
- * Decision thresholds (final score):
- *   < 0.30 → allow
- *   < 0.65 → quarantine (admin review)
- *   ≥ 0.65 → reject (auto-block, never shown)
+ * Decision thresholds (final score) — admin-configurable in Settings →
+ * Moderation, defaults shown (see {@see thresholds()} for the clamps):
+ *   < quarantine (0.30) → allow
+ *   < reject     (0.65) → quarantine (admin review)
+ *   ≥ reject            → reject (auto-block, never shown)
  */
 class SpamService
 {
@@ -26,12 +27,38 @@ class SpamService
         'bitcoin mining','make money fast','click here','seo expert','buy followers',
     ];
 
-    public function __construct(
-        private readonly ?string $groqKey = null,
-        private readonly ?string $geminiKey = null,
-        private readonly ?string $anthropicKey = null,
-        private readonly ?string $openaiKey = null
-    ) {}
+    public function __construct(private readonly ?AiService $ai = null) {}
+
+    /** Per-request cache of the admin-configured thresholds. */
+    private static ?array $thresholds = null;
+
+    /**
+     * Decision thresholds, admin-configurable in Settings → Moderation
+     * (mod_threshold_quarantine / mod_threshold_reject). Clamped so a typo can
+     * never disable moderation: quarantine ∈ [0.05, 0.90], reject always at
+     * least 0.05 above quarantine and ≤ 0.99. Defaults 0.30 / 0.65.
+     *
+     * @return array{quarantine: float, reject: float}
+     */
+    public static function thresholds(): array
+    {
+        if (self::$thresholds !== null) return self::$thresholds;
+        $q = 0.30; $r = 0.65;
+        try {
+            $rows = DB::table('gates_settings')->whereIn('key_name', ['mod_threshold_quarantine', 'mod_threshold_reject'])->pluck('value', 'key_name');
+            if (isset($rows['mod_threshold_quarantine']) && is_numeric($rows['mod_threshold_quarantine'])) $q = (float) $rows['mod_threshold_quarantine'];
+            if (isset($rows['mod_threshold_reject']) && is_numeric($rows['mod_threshold_reject']))         $r = (float) $rows['mod_threshold_reject'];
+        } catch (\Throwable) {}
+        $q = max(0.05, min(0.90, $q));
+        $r = max($q + 0.05, min(0.99, $r));
+        return self::$thresholds = ['quarantine' => $q, 'reject' => $r];
+    }
+
+    /** Test/long-process hook: forget the cached thresholds. */
+    public static function resetThresholdCache(): void
+    {
+        self::$thresholds = null;
+    }
 
     /**
      * @return array{decision:'allow'|'quarantine'|'reject', score:float, reason:string, provider:string}
@@ -44,9 +71,10 @@ class SpamService
         }
 
         // ── Stage 1: heuristics ────────────────────────────────────
+        $t = self::thresholds();
         $h = $this->heuristicScore($text);
 
-        if ($h['score'] >= 0.65) {
+        if ($h['score'] >= $t['reject']) {
             return ['decision' => 'reject', 'score' => $h['score'], 'reason' => $h['reason'], 'provider' => 'heuristic'];
         }
         if ($h['score'] < 0.20) {
@@ -54,20 +82,53 @@ class SpamService
         }
 
         // ── Stage 2: AI (only borderline) ──────────────────────────
-        if ($this->groqKey || $this->geminiKey || $this->anthropicKey || $this->openaiKey) {
-            try {
-                $ai = $this->aiScore($text, $context);
-                if ($ai !== null) {
-                    $score = max($h['score'], $ai['score']);
-                    if ($score >= 0.65) return ['decision' => 'reject', 'score' => $score, 'reason' => $ai['reason'], 'provider' => $ai['provider']];
-                    if ($score >= 0.30) return ['decision' => 'quarantine', 'score' => $score, 'reason' => $ai['reason'], 'provider' => $ai['provider']];
-                    return ['decision' => 'allow', 'score' => $score, 'reason' => $ai['reason'], 'provider' => $ai['provider']];
-                }
-            } catch (\Throwable $e) { /* fall through to heuristic */ }
+        //
+        // Through the gateway, which matters most here: this runs INSIDE a
+        // synchronous form POST, and the old path could chain four providers ×
+        // two attempts × 6s onto a user waiting on a submit button. The
+        // capability declares a 4s timeout, a daily budget and a kill switch,
+        // and every call is recorded.
+        $r = (new AiGateway($this->ai))->run('moderation.classify', [
+            'system' => 'You are a content-moderation classifier for Africa GATES, a continental cultural awards platform. '
+                . 'Reply ONLY with a JSON object {"score": 0.NN, "reason": "short"}. '
+                . '0.0 = clean and on-topic; 0.5 = irrelevant or low-effort; 1.0 = spam, scam, hate, doxxing, or harassment. '
+                . 'Your score is ADVISORY and is combined with other signals — it never decides alone.',
+            'user'         => mb_substr($text, 0, 2000),
+            'json'         => true,
+            'temperature'  => 0.0,
+            'subject_type' => isset($context['target']) ? mb_substr((string) $context['target'], 0, 40) : null,
+            'schema'       => static function (string $raw): ?array {
+                if (!preg_match('/\{[\s\S]*\}/', $raw, $m)) return null;
+                $p = json_decode($m[0], true);
+                if (!is_array($p) || !isset($p['score']) || !is_numeric($p['score'])) return null;
+                return [
+                    'score'  => max(0.0, min(1.0, (float) $p['score'])),
+                    'reason' => mb_substr(trim((string) ($p['reason'] ?? 'ai-classified')), 0, 200) ?: 'ai-classified',
+                ];
+            },
+        ]);
+
+        if ($r->ok) {
+            // The AI can only ever RAISE the heuristic score, never lower it —
+            // unchanged behaviour, stated explicitly.
+            $score    = max($h['score'], (float) $r->value['score']);
+            $provider = $r->provider ?? 'ai';
+            if ($score >= $t['reject'])     return ['decision' => 'reject', 'score' => $score, 'reason' => $r->value['reason'], 'provider' => $provider];
+            if ($score >= $t['quarantine']) return ['decision' => 'quarantine', 'score' => $score, 'reason' => $r->value['reason'], 'provider' => $provider];
+            return ['decision' => 'allow', 'score' => $score, 'reason' => $r->value['reason'], 'provider' => $provider];
         }
 
-        // Borderline + no AI available → quarantine
-        return ['decision' => 'quarantine', 'score' => $h['score'], 'reason' => $h['reason'], 'provider' => 'heuristic'];
+        // Borderline with no usable AI signal → quarantine, i.e. a HUMAN looks.
+        // FAIL_ANNOUNCE is declared for this capability so the reason names the
+        // outage rather than implying the content itself was the problem.
+        return [
+            'decision' => 'quarantine',
+            'score'    => $h['score'],
+            'reason'   => $r->shouldAnnounce()
+                ? $h['reason'] . ' · AI check unavailable (' . $r->code . ') — queued for human review'
+                : $h['reason'],
+            'provider' => 'heuristic',
+        ];
     }
 
     /** Heuristic features → score [0..1]. */
@@ -105,156 +166,6 @@ class SpamService
         return ['score' => min(1.0, $score), 'reason' => empty($reasons) ? 'clean' : implode(', ', $reasons)];
     }
 
-    /** Call provider in priority order. Groq is free + fast (Llama 3.1/3.3). */
-    private function aiScore(string $text, array $context): ?array
-    {
-        if ($this->groqKey)      return $this->groqScore($text, $context);
-        if ($this->geminiKey)    return $this->geminiScore($text, $context);
-        if ($this->anthropicKey) return $this->anthropicScore($text, $context);
-        if ($this->openaiKey)    return $this->openaiScore($text);
-        return null;
-    }
-
-    /** Groq (free, OpenAI-compatible) — uses llama-3.1-8b-instant by default. */
-    private function groqScore(string $text, array $context): ?array
-    {
-        $ch = curl_init('https://api.groq.com/openai/v1/chat/completions');
-        curl_setopt_array($ch, [
-            CURLOPT_POST => true,
-            CURLOPT_RETURNTRANSFER => true,
-            CURLOPT_TIMEOUT => 6,
-            CURLOPT_HTTPHEADER => [
-                'Content-Type: application/json',
-                'Authorization: Bearer ' . $this->groqKey,
-            ],
-            CURLOPT_POSTFIELDS => json_encode([
-                'model' => $_ENV['GROQ_MODEL'] ?? 'llama-3.1-8b-instant',
-                'temperature' => 0.0,
-                'max_tokens' => 80,
-                'response_format' => ['type' => 'json_object'],
-                'messages' => [
-                    ['role' => 'system', 'content' => 'You are a content-moderation classifier for Africa GATES, a continental cultural awards platform. Reply ONLY with {"score": 0.NN, "reason": "..."}. 0.0=clean & on-topic; 0.5=irrelevant/low-effort; 1.0=spam, scam, hate, doxxing, harassment.'],
-                    ['role' => 'user',   'content' => substr($text, 0, 2000)],
-                ],
-            ]),
-        ]);
-        $resp = curl_exec($ch);
-        $code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-        curl_close($ch);
-        if ($code !== 200 || !$resp) return null;
-        $j = json_decode((string)$resp, true);
-        $content = $j['choices'][0]['message']['content'] ?? '';
-        if (preg_match('/\{[\s\S]*\}/', $content, $m)) {
-            $parsed = json_decode($m[0], true);
-            if (is_array($parsed) && isset($parsed['score'])) {
-                return ['score' => (float)$parsed['score'], 'reason' => (string)($parsed['reason'] ?? 'ai-classified'), 'provider' => 'groq'];
-            }
-        }
-        return null;
-    }
-
-    /** Google Gemini (free tier, very smart). */
-    private function geminiScore(string $text, array $context): ?array
-    {
-        $model = $_ENV['GEMINI_MODEL'] ?? 'gemini-2.0-flash';
-        $url = "https://generativelanguage.googleapis.com/v1beta/models/$model:generateContent?key=" . urlencode($this->geminiKey);
-        $ch = curl_init($url);
-        curl_setopt_array($ch, [
-            CURLOPT_POST => true,
-            CURLOPT_RETURNTRANSFER => true,
-            CURLOPT_TIMEOUT => 6,
-            CURLOPT_HTTPHEADER => ['Content-Type: application/json'],
-            CURLOPT_POSTFIELDS => json_encode([
-                'contents' => [['parts' => [['text' =>
-                    'Classify this user-submitted text for an African cultural-awards platform. Reply ONLY with a JSON object: {"score": 0.NN, "reason": "short"}. 0.0=clean on-topic; 0.5=low-effort; 1.0=spam/scam/hate.\n\n' . substr($text, 0, 2000)
-                ]]]],
-                'generationConfig' => ['temperature' => 0, 'maxOutputTokens' => 80, 'responseMimeType' => 'application/json'],
-            ]),
-        ]);
-        $resp = curl_exec($ch);
-        $code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-        curl_close($ch);
-        if ($code !== 200 || !$resp) return null;
-        $j = json_decode((string)$resp, true);
-        $content = $j['candidates'][0]['content']['parts'][0]['text'] ?? '';
-        if (preg_match('/\{[\s\S]*\}/', $content, $m)) {
-            $parsed = json_decode($m[0], true);
-            if (is_array($parsed) && isset($parsed['score'])) {
-                return ['score' => (float)$parsed['score'], 'reason' => (string)($parsed['reason'] ?? 'ai-classified'), 'provider' => 'gemini'];
-            }
-        }
-        return null;
-    }
-
-    private function anthropicScore(string $text, array $context): ?array
-    {
-        $ch = curl_init('https://api.anthropic.com/v1/messages');
-        curl_setopt_array($ch, [
-            CURLOPT_POST => true,
-            CURLOPT_RETURNTRANSFER => true,
-            CURLOPT_TIMEOUT => 6,
-            CURLOPT_HTTPHEADER => [
-                'Content-Type: application/json',
-                'x-api-key: ' . $this->anthropicKey,
-                'anthropic-version: 2023-06-01',
-            ],
-            CURLOPT_POSTFIELDS => json_encode([
-                'model' => 'claude-haiku-4-5-20251001',
-                'max_tokens' => 80,
-                'messages' => [[
-                    'role' => 'user',
-                    'content' => "Score this user-submitted text on Africa GATES (a continental cultural awards platform) for spam/abuse on a 0-1 scale.\n\n"
-                        . "0.0 = clean and on-topic\n"
-                        . "0.5 = irrelevant, low-effort\n"
-                        . "1.0 = spam, scam, hate, doxxing\n\n"
-                        . "Reply with ONLY a JSON object: {\"score\": 0.NN, \"reason\": \"short explanation\"}.\n\n"
-                        . "Text: " . substr($text, 0, 2000)
-                ]],
-            ]),
-        ]);
-        $resp = curl_exec($ch);
-        $code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-        curl_close($ch);
-        if ($code !== 200 || !$resp) return null;
-        $j = json_decode((string)$resp, true);
-        $content = $j['content'][0]['text'] ?? '';
-        if (preg_match('/\{[^}]*\}/s', $content, $m)) {
-            $parsed = json_decode($m[0], true);
-            if (is_array($parsed) && isset($parsed['score'])) {
-                return ['score' => (float)$parsed['score'], 'reason' => (string)($parsed['reason'] ?? 'ai-classified'), 'provider' => 'anthropic'];
-            }
-        }
-        return null;
-    }
-
-    private function openaiScore(string $text): ?array
-    {
-        $ch = curl_init('https://api.openai.com/v1/moderations');
-        curl_setopt_array($ch, [
-            CURLOPT_POST => true,
-            CURLOPT_RETURNTRANSFER => true,
-            CURLOPT_TIMEOUT => 6,
-            CURLOPT_HTTPHEADER => [
-                'Content-Type: application/json',
-                'Authorization: Bearer ' . $this->openaiKey,
-            ],
-            CURLOPT_POSTFIELDS => json_encode(['model' => 'omni-moderation-latest', 'input' => substr($text, 0, 2000)]),
-        ]);
-        $resp = curl_exec($ch);
-        $code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-        curl_close($ch);
-        if ($code !== 200 || !$resp) return null;
-        $j = json_decode((string)$resp, true);
-        $r = $j['results'][0] ?? null;
-        if (!$r) return null;
-        $score = (float)($r['category_scores']['harassment'] ?? 0);
-        $score = max($score, (float)($r['category_scores']['hate'] ?? 0));
-        $score = max($score, (float)($r['category_scores']['sexual'] ?? 0));
-        $score = max($score, (float)($r['category_scores']['violence'] ?? 0));
-        if (!empty($r['flagged'])) $score = max($score, 0.7);
-        return ['score' => $score, 'reason' => $r['flagged'] ? 'flagged by OpenAI' : 'cleared by OpenAI', 'provider' => 'openai'];
-    }
-
     public function logDecision(string $targetType, int $targetId, array $verdict): void
     {
         try {
@@ -268,5 +179,16 @@ class SpamService
                 'created_at' => Carbon::now()->toDateTimeString(),
             ]);
         } catch (\Throwable $e) {}
+        // Anything short of a clean allow is a flag operators may want to see
+        // in real time (quarantine queue growth, reject spikes). Best-effort.
+        if (($verdict['decision'] ?? 'allow') !== 'allow') {
+            WebhookService::dispatch('moderation.flagged', [
+                'target_type' => $targetType,
+                'target_id'   => $targetId,
+                'decision'    => (string) $verdict['decision'],
+                'score'       => (float) ($verdict['score'] ?? 0),
+                'provider'    => (string) ($verdict['provider'] ?? 'heuristic'),
+            ]);
+        }
     }
 }

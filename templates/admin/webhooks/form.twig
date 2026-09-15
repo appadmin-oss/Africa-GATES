@@ -1,0 +1,31 @@
+{% extends "admin/layout.twig" %}
+{% block topbar_title %}{{ is_new ? 'New webhook' : 'Edit webhook' }}{% endblock %}
+{% block topbar_actions %}<a class="ad-btn" href="/admin/webhooks">← Back</a>{% endblock %}
+{% block content %}
+<form class="ad-form" method="post" action="{{ is_new ? '/admin/webhooks/new' : '/admin/webhooks/' ~ row.id }}">
+  <input type="hidden" name="_token" value="{{ csrf_token }}">
+  <div class="ad-card"><div class="ad-card__body">
+    <div class="ad-form">
+      <div><label for="f-url">Endpoint URL</label><input type="url" name="url" id="f-url" value="{{ row.url|default('') }}" placeholder="https://hooks.example.com/africa-gates" required></div>
+      <div><label for="f-description">Description <span style="font-weight:400;color:var(--ad-text-mute)">(optional)</span></label><input type="text" name="description" id="f-description" value="{{ row.description|default('') }}" maxlength="200" placeholder="e.g. Zapier · n8n · our AI agent"></div>
+      <div>
+        <label>Events</label>
+        <label class="checkbox" style="display:flex;align-items:center;gap:8px;margin:5px 0 10px"><input type="checkbox" name="all_events" {% if all_events %}checked{% endif %}> All events <span style="color:var(--ad-text-mute,#5a6d6f);font-size:12.5px">(recommended — includes future event types)</span></label>
+        <div style="display:flex;flex-direction:column;gap:8px;padding-left:4px">
+          {% for key, label in events %}{% if key != 'ping' %}
+          <label class="checkbox" style="display:flex;align-items:center;gap:8px"><input type="checkbox" name="events[]" value="{{ key }}" {% if key in sel_events %}checked{% endif %}> <code style="font-size:12px">{{ key }}</code> <span style="color:var(--ad-text-mute,#5a6d6f);font-size:12.5px">— {{ label }}</span></label>
+          {% endif %}{% endfor %}
+        </div>
+      </div>
+      {% if not is_new and row.secret %}
+      <div><label for="f-webhook-secret">Signing secret</label><input type="text" id="f-webhook-secret" value="{{ row.secret }}" readonly data-ag-do="select-all" style="font-family:monospace;font-size:12px"><div style="font-size:12px;color:var(--ad-text-mute,#5a6d6f);margin-top:4px">Verify deliveries: <code>hash_hmac('sha256', rawBody, secret)</code> must equal the <code>X-AG-Signature</code> header value (after the <code>sha256=</code> prefix).</div></div>
+      {% endif %}
+      <div><label class="checkbox"><input type="checkbox" name="is_active" {% if is_new or row.is_active %}checked{% endif %}> Active — deliver events to this endpoint</label></div>
+    </div>
+  </div></div>
+  <div style="display:flex;justify-content:flex-end;gap:10px">
+    <a class="ad-btn" href="/admin/webhooks">Cancel</a>
+    <button class="ad-btn ad-btn--primary" type="submit">Save webhook</button>
+  </div>
+</form>
+{% endblock %}
