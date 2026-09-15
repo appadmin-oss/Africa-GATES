@@ -289,13 +289,15 @@ class ActivityFeedTest extends TestCase
 
     public function test_how_many_sources_answered_is_reported(): void
     {
-        // "No activity" and "eight of nine sources are unavailable on this install"
-        // must be distinguishable — the page shows a warning for the second.
+        // "No activity" and "most sources are unavailable on this install" must be
+        // distinguishable — the page shows a warning for the second.
         //
-        // Nine since the search became site-wide: the seven activity sources plus
-        // `award` (programmes and categories) and `page` (the site's own
-        // destinations). If this number falls, a source stopped answering.
-        $this->assertSame(9, $this->feed->search('')['sources'],
+        // Counted from ActivityFeedService::SOURCES rather than typed. It used to be a
+        // literal 9 with a comment explaining which nine, three lines from a whitelist
+        // that named seven: a number spelled out here is a number that stops matching
+        // the code and goes on passing, because a source that silently stopped answering
+        // and a source that was never added look identical to a hard-coded total.
+        $this->assertSame(count(ActivityFeedService::SOURCES), $this->feed->search('')['sources'],
             'every source must be readable on a complete schema');
     }
 

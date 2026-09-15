@@ -283,6 +283,14 @@ return [
             'help_audiences',
             static fn (): array => \AfricaGates\Services\HelpCentre::AUDIENCES
         ));
+        // What the site search actually covers, in the words the band prints. Generated
+        // from ActivityFeedService::SOURCES so the sentence cannot outlive the list —
+        // `/cookies` said "We set one cookie" when there were three, and a search box
+        // promising what it searches is the same document making the same kind of claim.
+        $twig->getEnvironment()->addFunction(new \Twig\TwigFunction(
+            'search_covers',
+            static fn (): array => \AfricaGates\Services\ActivityFeedService::nouns()
+        ));
         $twig->getEnvironment()->addFunction(new \Twig\TwigFunction(
             'cookie_ask',
             static fn (): bool => \AfricaGates\Services\CookiePrefs::asking()

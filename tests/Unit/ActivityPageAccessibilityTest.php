@@ -85,15 +85,47 @@ class ActivityPageAccessibilityTest extends TestCase
         $this->assertStringContainsString('role="search"', $this->render());
     }
 
-    public function test_the_input_has_a_real_visible_label_not_only_a_placeholder(): void
+    public function test_the_input_has_a_real_label_not_only_a_placeholder(): void
     {
         // A placeholder disappears the moment you type, is low-contrast by default, and
         // is not reliably announced. It is not a label.
+        //
+        // ── ASSERTED AS A RULE, NOT AS AN ID ────────────────────────────────
+        //
+        // This used to pin the literal `actQ`, and that id belonged to a form this page
+        // no longer owns: the field is `partials/find-band.twig` now, shared with the
+        // homepage, so one search box has one set of copy instead of two that drift.
+        // A test naming the id fails on a move that changes nothing it was written to
+        // protect — and, worse, would have passed on a rename that dropped the label,
+        // as long as something somewhere still used the old id.
+        //
+        // So: find the search input, read ITS id, and require a label bound to that id.
         $html = $this->render();
 
-        $this->assertMatchesRegularExpression('~<label[^>]+for="actQ"~', $html);
-        $this->assertMatchesRegularExpression('~id="actQ"~', $html);
+        $this->assertMatchesRegularExpression('~<input[^>]+name="q"[^>]*>~', $html,
+            'the search field is gone');
+        preg_match('~<input[^>]*\bid="([^"]+)"[^>]*name="q"~', $html, $m)
+            || preg_match('~<input[^>]*name="q"[^>]*\bid="([^"]+)"~', $html, $m);
+
+        $this->assertNotEmpty($m, 'the search input has no id, so no <label for> can reach it');
+
+        $this->assertMatchesRegularExpression(
+            '~<label[^>]+for="' . preg_quote($m[1], '~') . '"~', $html,
+            'the search input has no <label for> bound to it — a placeholder is not a label');
         $this->assertStringContainsString('placeholder=', $html, 'a placeholder as well is fine');
+    }
+
+    public function test_the_field_is_labelled_by_something_a_sighted_reader_can_see(): void
+    {
+        // The other half, and the reason the label above is allowed to be `.sr-only`.
+        // The band puts its question immediately above the field as a heading, which is
+        // what a sighted reader takes as the label — the pattern every search engine
+        // uses. If that heading ever goes, the visible labelling goes with it and only
+        // the placeholder is left, which is the state this test exists to refuse.
+        $html = $this->render();
+
+        $this->assertStringContainsString('Who are you looking for?', $html,
+            'nothing visible above the field says what it is for');
     }
 
     // ── The combobox is added by script, not asserted in markup ──────────────

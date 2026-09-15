@@ -1,10 +1,13 @@
 {# ══════════════════════════════════════════════════════════════════════════
    SITE-WIDE SEARCH
 
-   One box that reaches nominees, results, posts, events, threads, profiles,
-   phase changes, award programmes, categories and the site's own pages. It is
-   the /activity engine — the same ActivityFeedService, the same AI intent pass
-   — surfaced from the header instead of only from one page.
+   One box, reaching every source in ActivityFeedService::SOURCES. It is the
+   /activity engine — the same service, the same AI intent pass — surfaced from
+   the header instead of only from one page.
+
+   The sources are NOT listed here. This comment used to name ten of them and was
+   already missing the eleventh; a list of sources in a comment is a list that
+   stops being true the same way the label below it did.
 
    ── THE ACCESSIBILITY IS THE FEATURE, NOT A COATING ──────────────────────────
 
@@ -42,9 +45,23 @@
        renders the same results server-side. The overlay is an enhancement. #}
     <form class="ags__bar" method="get" action="/activity" role="search">
       <svg class="ags__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true" focusable="false"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.6-3.6" stroke-linecap="round"/></svg>
-      <label class="sr-only" for="agsInput">Search nominees, events, posts and pages</label>
+      {# ── THE LABEL DOES NOT ENUMERATE WHAT IS SEARCHED ──────────────────
+         It used to: "Search nominees, events, posts and pages", with a matching
+         placeholder — four sources named on a box that reads TEN. That is the
+         `/cookies` shape on the one string a screen reader announces as this
+         field's name, and it had already drifted twice (announced results,
+         categories, verified organisations, profiles, discussions and cycle
+         phases were all missing).
+
+         The fix is not to list the other six. A coverage claim belongs in ONE
+         place, generated from ActivityFeedService::SOURCES — the band under
+         "Who are you looking for?", where there is room to state it and a test
+         that regenerates it. Here the label names the box, and the hint below
+         suggests what to TYPE, which is a different kind of sentence and cannot
+         go stale when a source is added. #}
+      <label class="sr-only" for="agsInput">Search Africa GATES</label>
       <input class="ags__input" id="agsInput" name="q" type="search" autocomplete="off"
-             spellcheck="false" placeholder="Search nominees, events, pages…"
+             spellcheck="false" placeholder="A name, an award, a category or a school"
              aria-describedby="agsHint">
       <button type="button" class="ags__close" data-ag-search-close aria-label="Close search">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true" focusable="false"><path d="m6 6 12 12M18 6 6 18" stroke-linecap="round"/></svg>

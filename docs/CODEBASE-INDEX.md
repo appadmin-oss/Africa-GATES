@@ -2028,3 +2028,158 @@ Search button off the screen, and a `padding: 12px 0` shorthand zeroing the page
 an element that also carried the wrapper class. `SrOnlyClassTest` and `GutterShorthandTest`
 hold both. **A screenshot is not a measurement**, and the helper that renders inside a true
 viewport exists so the next person does not repeat it.
+
+---
+
+## 28. A search box that announced awards nobody had announced (2026-09-15)
+
+A design handoff — one band, "Who are you looking for?", a pill search field and two lines
+of caption — turned into a live integrity fault, a second sweep that passed over the thing
+it was written for, and a strategy correction. The band itself was the smallest part of it.
+
+### 28.1 The finding: `results()` had no gate
+
+`PublicResults` opens by stating the rule in as many words — *"a judged-but-unreleased
+category is a decided award nobody has announced, and serving it publicly is announcing
+it"* — and enforces it on every query it owns. `ActivityFeedService::results()` was not one
+of them. It selected nominees on `n.status IN ('winner','runner_up')` and checked nothing
+about the cycle at all.
+
+That column is written by an ordinary admin action. `POST /admin/nominees/{id}/winner`
+updates the row from any screen at any phase, and crowning the winners of a category you
+are still judging is the natural way to use that screen. So the public search returned the
+person's **name**, the word **"Winner"**, and their **category** — the announcement, made
+by a search box, for an award nobody had announced.
+
+**The destination being correct is what made it invisible.** The item linked to
+`/results/{id}`, and that page *is* gated: following the link behaved properly and showed
+nothing. Only the listing leaked. Nobody auditing "is the results page gated?" would ever
+have found it, because the results page was never the thing that was wrong. The
+generalisable question is not *is this page gated* but **what gate does this surface
+inherit** — and "none, but the page it links to has one" is precisely this bug.
+
+The join is now `PublicResults::RELEASED`, and INNER rather than LEFT. A LEFT join plus
+`whereIn('cy.status', …)` would have excluded the orphan rows too — NULL is in no list —
+but by accident, and the next person widening a join would have quietly reopened it.
+
+`UnannouncedResultTest` holds all three halves: the verdict is withheld before the
+announcement, it appears for every status in `RELEASED`, and **the nominee stays findable
+throughout** — the gate belongs on the outcome, never on the person. Dropping nominees from
+search would break the one lookup a supporter actually performs.
+
+### 28.2 Two lists, one of which could never be selected
+
+`ActivityFeedService::KINDS` named seven kinds. `collect()` ran **nine** sources. `award`
+(programmes and categories) and `page` (the site's own destinations) were added later, with
+a comment saying they exist "so this searches the SITE, not only its activity", and neither
+was added to the whitelist.
+
+Since an interpreted `kinds` narrows which sources run, and a kind absent from the
+whitelist is dropped before it can appear there, **those two sources could never be asked
+for.** Any query specific enough for the model to narrow switched off the two sources that
+answer "choral" and "how does voting work". Nothing failed. The search quietly stopped
+covering the site for exactly the queries most worth interpreting.
+
+The prose carried the fingerprint: `MIN_QUERY` said "seven table scans", `collect()` said
+"two tables instead of seven", and a test asserted `9` with a comment explaining which
+nine — three lines from a constant naming seven. The file contained the evidence of its own
+drift and went on passing.
+
+`SOURCES` is the one list now. Five things read it: the whitelist (`kinds()`), the prompt
+that tells the model what each kind means (`hints()`), the sentence the band prints
+(`nouns()`), the recency sort's notion of a timeless destination (`dated`), and the source
+map in `collect()`.
+
+**And the test written to catch this exact direction passed over it.**
+`test_every_item_kind_a_source_emits_is_in_the_whitelist` seeded a nominee and a post,
+called `search('')` and checked every returned kind. `search('')` is shorter than
+`MIN_QUERY`, so it returns `latest()` and never reaches `collect()`; neither offending
+source ran. It asked a **fixture** a question it could only answer about the fixture's own
+rows. That is `SchemaIndexTest` excusing three 1064s, again. `SearchSourcesTest` asks the
+declarations statically in **both** directions, where no fixture can make it vacuous, plus
+one behavioural test that seeds a term into every source at once.
+
+### 28.3 The vetted partner was not in the index
+
+`gates_partner_orgs` is the most heavily vetted table here — a CAC number checked against
+the registry, a SCUML number, documents with expiries, a named approver, a settlement
+subaccount. An organisation does all of that to be here, and **could not be found by typing
+its own name into the site's search**, because no source read the table.
+
+That is §27.3 one level down: the console had no front door, and the organisation itself
+had no entry in the index. Gated on `PartnerOrg::receivableStatuses()` rather than a status
+string spelled locally — a search result naming an organisation is this platform vouching
+for them, so a suspension has to take effect everywhere at once. Matched on `name` and
+`description` only: not the contact fields, which are the compliance contact given to verify
+a registration, and not the CAC or SCUML numbers, because a box that confirms a guessed
+registration number is a lookup service nobody asked this platform to run.
+
+### 28.4 The band, and why it is not a page
+
+The obvious build was `/search` with its own service. That would have been the fault §27.1
+had just finished fixing — two front doors to one job — repeated one commit later by the
+person who wrote it down.
+
+So `partials/find-band.twig` is a **door, not a second room**: it submits to the same GET
+endpoint the search page's own form submits to. It sits on the homepage directly under the
+globe band (which answers "where is this platform live"; the next question from somebody
+watching their own country light up is "then find me the person I came here about"), and it
+**replaced** the activity page's own field, so one search box has one set of copy instead of
+two that drift. `/search` and `/find` are aliases, because the search is called `/activity`
+and nobody looking for a principal types the word activity.
+
+**The caption is generated.** A sentence naming what a box searches is the `/cookies` shape
+exactly — *"We set one cookie"* was true the day it was typed — so the nouns come from
+`SOURCES` via a `search_covers()` Twig function, and `FindBandTest` asserts the nouns are
+**absent** from the template as well as present in the output. Sources with no public noun
+are covered by a closing clause rather than dropped from the promise.
+
+Three things that fail silently, all now pinned:
+
+- **The combobox hooks.** The activity page's script upgrades the form into an ARIA
+  combobox and bails out quietly when it cannot find `data-act-form` / `data-act-input`
+  (`if (!form || !input) return`). Moving the field into the partial without carrying them
+  would have cost the as-you-type search with nothing failing and nothing in the console.
+  They are opt-in per include, so the homepage does not carry a hook to a script that is
+  not there.
+- **The label.** `ActivityPageAccessibilityTest` pinned the literal id `actQ`, which
+  belonged to a form this page no longer owns. Rewritten to read the search input's own id
+  out of the markup and require a `<label for>` bound to it — the rule, not the instance —
+  plus a second test that something *visible* labels the field, which is what allows the
+  bound label to be `.sr-only`.
+- **My own comment tripped my own sweep.** `FindBandTest` briefly asserted the band does
+  not contain `ag-sr-only`; the comment beside the label names that class in order to warn
+  about it. The assertion is gone — `SrOnlyClassTest` already sweeps every template and
+  strips comments first — and the reason is recorded where the duplicate used to be.
+
+### 28.5 One `LIKE` escape, not three
+
+`AuditService` and `ActivityFeedService` each carried the escape dance and each carried its
+own long comment explaining the same trap. `Support\Like` is the one implementation; both
+delegate.
+
+Worth restating because it is the rule that runs **backwards** from every other divergence
+here: MySQL's default `LIKE` escape is a backslash and **SQLite has none at all**, so the
+naive form works on production and returns zero rows in dev and in the suite. The failure
+appears on the machine where somebody is trying to fix it, and the natural response is to
+loosen a filter that was never broken where it runs. `ESCAPE '!'` is identical on both.
+
+### 28.6 The strategy said "sell", and this is a non-profit
+
+`docs/PRODUCT-STRATEGY.md` §3 had Africa GATES *selling* recognition infrastructure and §4
+priced it in three tiers. `PlatformTip`'s docblock states the opposite two lines above the
+rule that makes its funding model defensible: *"Africa GATES is a project of a Nigerian
+non-profit and it has to fund itself."*
+
+A strategy document contradicting a fact the code states is §19 one level up. The analysis
+survives with the right noun — the unit of partnership is still the **cycle and not the
+seat**, and that was never a commercial argument: metering per account would make a partner
+ration judge accounts, which degrades `min_judges_per_nominee`, which is load-bearing in the
+integrity apparatus. An arrangement that gives a partner a reason to appoint fewer judges
+attacks the thing being offered.
+
+§4.3 now states the three mechanisms that exist and the fact that there is no fourth:
+`platform_fee_bps` (out of the gift, disclosed, **defaults to 0**), `PlatformTip` (added
+never taken, `DEFAULT_PCT = 0`, never pre-ticked), and the shop, tickets and stands. No
+licence fee, no seat charge, no subscription — and the three levels in §4.2 are drawn on
+operational load, which is a real constraint for a non-profit, rather than on price.

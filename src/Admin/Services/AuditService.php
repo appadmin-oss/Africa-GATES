@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 namespace AfricaGates\Admin\Services;
 
+use AfricaGates\Support\Like;
 use AfricaGates\Admin\Support\AuditTargets;
 use Illuminate\Database\Capsule\Manager as DB;
 use Illuminate\Support\Carbon;
@@ -340,32 +341,24 @@ class AuditService
     }
 
     /**
-     * `col LIKE ? ESCAPE '!'`.
+     * `col LIKE ? ESCAPE '!'` and the term escaping, both from {@see Like}.
      *
-     * ── WHY NOT JUST ->where(…, 'like', …) ───────────────────────────────────
-     *
-     * Because the wildcards have to be escaped, and the two drivers disagree about how.
-     * MySQL treats backslash as the LIKE escape by default; SQLite has NO default escape
-     * character at all, so a backslash-escaped `_` matches a literal backslash there and
-     * therefore matches nothing. Several areas in this log contain an underscore —
-     * `stand_call`, `vendor_policy`, `stand_type` — so the naive form would work on
-     * production and silently return zero rows in dev and in the suite, which is this
-     * codebase's most expensive shape of bug pointing the wrong way round.
-     *
-     * Spelling the ESCAPE clause out fixes it, but not with a backslash: `ESCAPE '\\'` is
-     * one character to MySQL and two to SQLite (which does not process escapes inside
-     * string literals), and `ESCAPE '\'` is an unterminated literal to MySQL. `!` needs
-     * no escaping in either dialect and is not a wildcard in either.
+     * These were two private methods here, carrying the full explanation of the driver
+     * trap — and {@see \AfricaGates\Services\ActivityFeedService} carried its own copy
+     * of both, with its own copy of the explanation. Two implementations of one rule is
+     * how the audit filter and the site search come to disagree about whether
+     * `stand_call` contains a wildcard, silently. The reasoning now lives once, in
+     * {@see Like}; these stay as the names this file's call sites already read by.
      */
     private function like(string $column): string
     {
-        return $column . " LIKE ? ESCAPE '!'";
+        return Like::clause($column);
     }
 
-    /** Escape the LIKE wildcards in user input, so a search for `100%` is not a search for everything. */
+    /** Escape the LIKE wildcards in user input. {@see Like::esc()}. */
     private function esc(string $s): string
     {
-        return str_replace(['!', '%', '_'], ['!!', '!%', '!_'], $s);
+        return Like::esc($s);
     }
 
     /** A date or datetime bound in the format the column stores, or null. */

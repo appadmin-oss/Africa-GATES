@@ -1873,6 +1873,17 @@ return function(App $app) {
             '/give'            => '/giving',
             '/votes'           => '/vote',
             '/cookie'          => '/cookies',
+            // ── WHAT PEOPLE TYPE WHEN THEY WANT TO FIND SOMEBODY ─────────
+            //
+            // The site search is `/activity`, which is accurate about what it reads and
+            // useless as a guess: nobody looking for a principal types "activity". These
+            // are the words they do type. The alias preserves the query string, so
+            // `/search?q=ada` lands on the results rather than on an empty box.
+            //
+            // NOT a second search page. See partials/find-band.twig — one endpoint, one
+            // index, one set of promises about what is covered.
+            '/search'          => '/activity',
+            '/find'            => '/activity',
             // the thing they want, not the section it lives in
             '/ticket'          => '/events',
             '/tickets'         => '/events',

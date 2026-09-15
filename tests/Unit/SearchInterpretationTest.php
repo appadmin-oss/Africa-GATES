@@ -67,40 +67,9 @@ class SearchInterpretationTest extends TestCase
         $this->assertNull($r['understood']);
     }
 
-    // ── The whitelist, asserted against the source ────────────────────────────
-
-    public function test_only_declared_kinds_can_ever_be_filtered_to(): void
-    {
-        // KINDS is the whitelist and it must match the sources that actually exist —
-        // a kind in the list with no source behind it would filter every result away.
-        $src = (string) file_get_contents(dirname(__DIR__, 2) . '/src/Services/ActivityFeedService.php');
-
-        foreach (ActivityFeedService::KINDS as $kind) {
-            $this->assertMatchesRegularExpression(
-                "~'" . preg_quote($kind, '~') . "'\s*=>\s*fn~",
-                $src,
-                "KINDS declares '{$kind}' but no source produces it — filtering to it would return nothing"
-            );
-        }
-    }
-
-    public function test_every_item_kind_a_source_emits_is_in_the_whitelist(): void
-    {
-        // The other direction. A source emitting a kind the whitelist does not know
-        // cannot be filtered to, so the model would have no way to ask for it.
-        DB::table('gates_nominees')->insert([
-            'id' => 8802, 'category_id' => 1, 'name' => 'Someone', 'status' => 'approved',
-            'vote_count' => 0, 'nominated_at' => Carbon::now()->toDateTimeString(),
-        ]);
-        DB::table('gates_posts')->insert([
-            'slug' => 'p1', 'title' => 'A story', 'status' => 'published',
-            'published_at' => Carbon::now()->toDateTimeString(), 'created_at' => Carbon::now()->toDateTimeString(),
-        ]);
-
-        foreach ($this->feed->search('')['items'] as $item) {
-            $this->assertContains($item['kind'], ActivityFeedService::KINDS, $item['kind']);
-        }
-    }
+    // The whitelist and the source map are held by SearchSourcesTest — one place asks
+    // whether the two lists agree, because two tests with their own idea of what counts
+    // as a source is how they come to disagree.
 
     public function test_the_capability_is_declared_with_a_single_attempt(): void
     {
@@ -209,15 +178,18 @@ class SearchInterpretationTest extends TestCase
 
     public function test_narrowing_to_one_kind_reads_fewer_sources(): void
     {
-        // Where the speed-up is: "winners in Ghana" reads two tables instead of nine.
-        // `sources` counts what was ASKED for, so a narrowed search does not look like
-        // seven unavailable sources.
+        // Where the speed-up is: "winners in Ghana" reads two sources instead of all of
+        // them. `sources` counts what was ASKED for, so a narrowed search does not look
+        // like eight unavailable sources.
         $ref = new \ReflectionMethod(ActivityFeedService::class, 'collect');
 
         $all = $ref->invoke($this->feed, null, 20, null);
         $one = $ref->invoke($this->feed, null, 20, ['kinds' => ['post'], 'country' => null, 'days' => null]);
 
-        $this->assertSame(9, $all['sources']);   // seven activity sources + award + page
+        // Counted from the declaration, not typed: this line said 9 while the whitelist
+        // said 7, and the comment beside it explained the 9 — so the file contained the
+        // evidence of the drift and still passed.
+        $this->assertSame(count(ActivityFeedService::SOURCES), $all['sources']);
         $this->assertSame(1, $one['sources'], 'one kind, one source read');
     }
 

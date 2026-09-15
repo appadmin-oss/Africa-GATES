@@ -38,26 +38,24 @@
         published, cycles opening and closing, stories, events and discussions. Search it live.</p>
     </header>
 
-    {# A real GET form. `role="search"` gives it a landmark; the visible <label>
-       is not a placeholder, because a placeholder disappears the moment you type
-       and is not reliably announced. #}
-    <form class="act__form" method="get" action="/activity" role="search" data-act-form>
-      <label class="act__label" for="actQ">Search activity</label>
-      <div class="act__row">
-        <input class="act__input" type="search" id="actQ" name="q"
-               value="{{ q }}"
-               autocomplete="off" spellcheck="false"
-               placeholder="A nominee, a category, a country, a story…"
-               aria-describedby="actHint"
-               {# The combobox attributes are added by script. Without it this stays a
-                  plain text input, which is exactly right for a plain form. #}
-               data-act-input>
-        <button class="act__go" type="submit">Search</button>
-      </div>
-      <p class="act__hint" id="actHint">
-        Type at least {{ min_query }} characters. Results are read live from the site — nothing cached.
-      </p>
-    </form>
+    {# ── ONE SEARCH FIELD ON THE SURFACE, AND IT IS THE SITE'S ──────────────
+       This page used to carry its own form, and the homepage now offers the same
+       search through `partials/find-band.twig`. Two fields with two sets of copy
+       for one endpoint is how they come to describe different things: this one
+       said "A nominee, a category, a country, a story…" while the band's caption
+       is generated from the source list. The band IS the field now, here too, so
+       whatever it promises is what this page delivers.
+
+       `compact`, because the <h1> above already names the surface — the band's own
+       question would be a second heading asking something the page has answered. #}
+    {% include 'partials/find-band.twig' with {
+      'compact': true,
+      'heading': 'Who are you looking for?',
+      'q': q,
+      'live': true,
+      'min_query': min_query,
+    } only %}
+
 
     {# The status line is the accessible announcement channel AND visible text, so
        sighted and screen-reader users get the same information rather than one of

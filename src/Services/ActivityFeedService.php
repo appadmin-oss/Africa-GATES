@@ -3,6 +3,8 @@ declare(strict_types=1);
 
 namespace AfricaGates\Services;
 
+use AfricaGates\Support\GivingUrl;
+use AfricaGates\Support\Like;
 use Illuminate\Database\Capsule\Manager as DB;
 use Illuminate\Support\Carbon;
 
@@ -53,11 +55,122 @@ final class ActivityFeedService
     /** Hard ceiling on rows returned, whatever the caller asks for. */
     public const MAX_LIMIT = 60;
 
-    /** Shortest query worth running seven table scans for. */
+    /** Shortest query worth running every source for. */
     public const MIN_QUERY = 2;
 
-    /** Kinds a caller may filter to. The whitelist the AI's answer is checked against. */
-    public const KINDS = ['nominee', 'result', 'post', 'event', 'thread', 'profile', 'phase'];
+    /**
+     * EVERY SOURCE THIS SEARCH READS — the one list, because five things read it.
+     *
+     * ══════════════════════════════════════════════════════════════════════════
+     * WHY THIS REPLACED A BARE `KINDS` ARRAY
+     * ══════════════════════════════════════════════════════════════════════════
+     *
+     * There were two lists and they had already drifted. `KINDS` named seven kinds and
+     * {@see collect()} ran NINE sources: `award` and `page` were added later, with a
+     * comment saying they exist "so this searches the SITE, not only its activity" —
+     * and they were never added to the whitelist. Since an interpreted `kinds` narrows
+     * which sources run, and a kind not on the whitelist is dropped before it gets
+     * there, those two could never be asked for. The moment the model narrowed a query
+     * at all, the two sources that answer "choral" and "how does voting work" were
+     * silently switched off. Nothing failed; the search just quietly stopped covering
+     * the site for exactly the queries specific enough to interpret.
+     *
+     * The prose had drifted with it — {@see MIN_QUERY} still said "seven table scans"
+     * and {@see collect()} still said "two tables instead of seven" — which is how you
+     * can tell the two lists were never being read together.
+     *
+     * So there is one list now, and everything that needs to know about a source reads
+     * it here: the AI whitelist ({@see kinds()}), the prompt that tells the model what
+     * each kind means ({@see hints()}), the sentence the search band prints about what
+     * it covers ({@see nouns()}), the recency sort's notion of a timeless destination
+     * (`dated`), and the source map in {@see collect()} — which
+     * {@see \Tests\Unit\SearchSourcesTest} pins against these keys, because a source
+     * declared here with no method behind it would answer nothing, silently.
+     *
+     * ── `noun` IS WHAT THE PUBLIC IS PROMISED, AND IT IS WHY IT LIVES HERE ──
+     *
+     * The band under "Who are you looking for?" states what the box searches. A sentence
+     * like that, typed into a template, is this repository's §19 shape: it was true the
+     * day it was written and nothing makes it false out loud. `/cookies` said "We set
+     * one cookie" when there were three. So the sentence is GENERATED from this list.
+     *
+     * A source with a `noun` is named in it. A source with `null` is covered by the
+     * sentence's closing clause rather than listed — ten nouns is not a sentence anybody
+     * reads — and that clause is a catch-all precisely so the omission stays honest.
+     * Give a source a noun when a stranger would look for it by name.
+     */
+    public const SOURCES = [
+        // The outcome people come back for, and the one with a gate on it: only cycles
+        // that have actually been announced. See results() and UnannouncedResultTest.
+        'result'  => ['noun' => 'every announced result',
+                      'hint' => 'winners and runners-up of awards already announced',
+                      'dated' => true],
+        // Programmes and their categories. "Choral" is a category, not an event, and it
+        // is one of the words most likely to be typed into a box on this site.
+        'award'   => ['noun' => 'every award category',
+                      'hint' => 'award programmes and the categories inside them',
+                      'dated' => false],
+        // Vetted partner organisations. Named, because an organisation that went through
+        // CAC and SCUML vetting to be here should be findable by the name on its sign.
+        'org'     => ['noun' => 'every verified organisation',
+                      'hint' => 'vetted partner organisations raising funds on the platform',
+                      'dated' => false],
+        'nominee' => ['noun' => 'everyone standing in a category',
+                      'hint' => 'people entered into a category',
+                      'dated' => true],
+        'profile' => ['noun' => null,
+                      'hint' => 'people who joined the registry',
+                      'dated' => true],
+        'phase'   => ['noun' => null,
+                      'hint' => 'voting or nominations opening or closing',
+                      'dated' => true],
+        'post'    => ['noun' => null, 'hint' => 'articles and announcements',  'dated' => true],
+        'event'   => ['noun' => null, 'hint' => 'ceremonies, webinars and sessions', 'dated' => true],
+        'thread'  => ['noun' => null, 'hint' => 'community discussions', 'dated' => true],
+        'page'    => ['noun' => null, 'hint' => "the site's own pages", 'dated' => false],
+    ];
+
+    /**
+     * Kinds a caller may filter to — the whitelist the model's answer is checked against.
+     *
+     * A method rather than a constant only because a `const` cannot call `array_keys()`.
+     * That is the whole reason, and it is worth the awkwardness: the alternative is
+     * writing the keys out a second time, which is the bug this replaced.
+     *
+     * @return list<string>
+     */
+    public static function kinds(): array
+    {
+        return array_keys(self::SOURCES);
+    }
+
+    /**
+     * What this search covers, in the words the public reads, in declaration order.
+     *
+     * @return list<string>
+     */
+    public static function nouns(): array
+    {
+        $out = [];
+        foreach (self::SOURCES as $s) {
+            if (($s['noun'] ?? null) !== null) $out[] = $s['noun'];
+        }
+        return $out;
+    }
+
+    /**
+     * `kind — what it means`, one per line, for the interpretation prompt.
+     *
+     * Generated so a new source cannot be invisible to the model while being visible to
+     * everything else: the prompt used to explain four of the seven whitelisted kinds by
+     * hand, and explained neither of the two that were missing from the whitelist.
+     */
+    public static function hints(): string
+    {
+        $out = [];
+        foreach (self::SOURCES as $kind => $s) $out[] = $kind . ' — ' . $s['hint'];
+        return implode('; ', $out);
+    }
 
     /**
      * @param bool $interpret Whether to let a model read the query for intent. Off by
@@ -115,9 +228,8 @@ final class ActivityFeedService
         $r = (new AiGateway())->run('search.interpret', [
             'system' => 'You turn a search query about an African awards platform into filters. '
                 . 'Reply ONLY with JSON: {"kinds":[...],"country":"XX"|null,"days":<int>|null,"terms":"...","note":"..."}. '
-                . 'kinds may ONLY contain: ' . implode(', ', self::KINDS) . '. '
-                . 'Use "result" for winners or runners-up, "phase" for voting or nominations opening or closing, '
-                . '"profile" for people who joined, "nominee" for people entered into a category. '
+                . 'kinds may ONLY contain: ' . implode(', ', self::kinds()) . '. '
+                . 'What each kind means: ' . self::hints() . '. '
                 . 'country is an ISO 3166-1 alpha-2 code or null. days is a lookback window or null. '
                 . 'terms is the remaining words to match literally, and may be an empty string. '
                 . 'note is a short plain-English restatement of what you understood, for the user to read. '
@@ -134,7 +246,7 @@ final class ActivityFeedService
                 $kinds = [];
                 foreach ((array) ($j['kinds'] ?? []) as $k) {
                     $k = strtolower(trim((string) $k));
-                    if (in_array($k, self::KINDS, true)) $kinds[] = $k;
+                    if (in_array($k, self::kinds(), true)) $kinds[] = $k;
                 }
                 $kinds = array_values(array_unique($kinds));
 
@@ -193,25 +305,28 @@ final class ActivityFeedService
     {
         $q = ($q === null || trim($q) === '') ? null : trim($q);
 
+        // Keyed by the SOURCES keys, and SearchSourcesTest asserts the two sets are
+        // identical in both directions. A key here with no entry in SOURCES cannot be
+        // filtered to; an entry in SOURCES with no key here is a noun printed on the
+        // search band for something nothing ever queries. Both are silent.
         $sources = [
-            'nominee' => fn (): array => $this->nominees($q, $limit),
             'result'  => fn (): array => $this->results($q, $limit),
+            // `award` and `page` are what make this search the SITE rather than only its
+            // activity: without them "choral" or "how does voting work" returned nothing,
+            // which reads as "we have nothing on that".
+            'award'   => fn (): array => $this->awards($q, $limit),
+            'org'     => fn (): array => $this->organisations($q, $limit),
+            'nominee' => fn (): array => $this->nominees($q, $limit),
+            'profile' => fn (): array => $this->profiles($q, $limit),
+            'phase'   => fn (): array => $this->transitions($q, $limit),
             'post'    => fn (): array => $this->posts($q, $limit),
             'event'   => fn (): array => $this->events($q, $limit),
             'thread'  => fn (): array => $this->threads($q, $limit),
-            'profile' => fn (): array => $this->profiles($q, $limit),
-            'phase'   => fn (): array => $this->transitions($q, $limit),
-            // Added so this searches the SITE, not only its activity. Without
-            // them, "choral" or "how does voting work" returned nothing — which
-            // reads as "we have nothing on that" rather than "this box only
-            // covers recent events". A search offered site-wide has to be able to
-            // reach the destination pages themselves.
-            'award'   => fn (): array => $this->awards($q, $limit),
             'page'    => fn (): array => $this->pages($q),
         ];
 
         // An interpreted `kinds` narrows WHICH SOURCES RUN, which is where the speed-up
-        // is: "winners in Ghana" reads two tables instead of seven. `sources` still
+        // is: "winners in Ghana" reads two sources instead of all of them. `sources` still
         // counts only what was asked for, so a narrowed search does not look like six
         // unavailable sources.
         $wanted = $understood['kinds'] ?? [];
@@ -264,7 +379,12 @@ final class ActivityFeedService
     {
         if (count($items) <= $limit) return $items;
 
-        $isSignpost = static fn (array $i): bool => in_array($i['kind'], ['page', 'award'], true);
+        // Derived from SOURCES rather than listed again here. This was `['page','award']`
+        // written out, so adding a third timeless source — organisations — would have
+        // sorted it as though it had a timestamp, which for an item whose `at` is the
+        // empty string means "oldest thing on the site", below every real row.
+        $isSignpost = static fn (array $i): bool
+            => (self::SOURCES[$i['kind']]['dated'] ?? true) === false;
 
         $signposts = array_values(array_filter($items, $isSignpost));
         if ($signposts === []) return array_slice($items, 0, $limit);
@@ -325,41 +445,30 @@ final class ActivityFeedService
      * The term is bound as a parameter and the column list is a literal in this file —
      * never anything a caller supplies.
      *
-     * AN EXPLICIT `ESCAPE` CLAUSE, because the drivers do not agree without one.
-     * `%` and `_` are LIKE metacharacters, so an unescaped query of `%` matches every
-     * row in seven tables — a one-character way past the minimum-length guard to dump
-     * the timeline. Escaping them with a backslash is the obvious fix and it is
-     * half-broken: MySQL treats `\` as the default escape character, SQLite does not.
-     * Measured on both:
+     * AN EXPLICIT `ESCAPE` CLAUSE, because the drivers do not agree without one, and
+     * {@see Like} is where the whole explanation lives. The short version: `%` and `_`
+     * are LIKE metacharacters, so an unescaped query of `%` matches every row in every
+     * source — a one-character way past the minimum-length guard to dump the timeline.
+     * Measured on both drivers before the fix:
      *
      *     query "100%"   MySQL 1 row (correct)   SQLite 0 rows
      *     query "A_B"    MySQL 1 row (correct)   SQLite 0 rows
      *
-     * So on SQLite a search for any name containing a percent sign or an underscore
-     * silently returned nothing, and only the MySQL half of the guard actually worked
-     * as escaping rather than as accidental over-blocking.
-     *
-     * `LIKE ? ESCAPE '!'` is identical on both, and `!` sidesteps the backslash
-     * question entirely — it is not special to either driver, to PHP string literals,
-     * or to the query builder.
+     * This file used to carry its own copy of the escaping AND its own copy of that
+     * reasoning, while the admin audit filter carried a second pair. One rule, one
+     * implementation: two is how they drift apart without anything failing.
      */
-    private const LIKE_ESCAPE = '!';
-
     private function filter(mixed $builder, ?string $q, array $columns): mixed
     {
         if ($q === null || $q === '') return $builder;
 
-        $e    = self::LIKE_ESCAPE;
-        // The escape character itself must be escaped first, or a query containing
-        // "!" would consume the character after it.
-        $term = str_replace([$e, '%', '_'], [$e . $e, $e . '%', $e . '_'], $q);
-        $like = '%' . $term . '%';
+        $like = Like::contains($q);
 
-        return $builder->where(function ($w) use ($columns, $like, $e) {
+        return $builder->where(function ($w) use ($columns, $like) {
             foreach ($columns as $i => $col) {
                 // The column is a literal from the call sites in this file; the term is
-                // bound. `$e` is a class constant, not input.
-                $sql = "{$col} LIKE ? ESCAPE '{$e}'";
+                // bound.
+                $sql = Like::clause($col);
                 $i === 0 ? $w->whereRaw($sql, [$like]) : $w->orWhereRaw($sql, [$like]);
             }
         });
@@ -392,14 +501,38 @@ final class ActivityFeedService
         ), $rows);
     }
 
-    /** Winners and runners-up — the outcome people come back for. */
+    /**
+     * Winners and runners-up — the outcome people come back for.
+     *
+     * ── ONLY WHERE THE AWARD HAS ACTUALLY BEEN ANNOUNCED ────────────────────
+     *
+     * This used to select on `n.status` alone, and that column is written by an ordinary
+     * admin action: `POST /admin/nominees/{id}/winner` sets it from any screen at any
+     * phase, which is how you would naturally use that screen while deciding a category.
+     * So a nominee crowned during `judging` came back through the public search labelled
+     * "Winner", with their category — the announcement, made by a search box, for an
+     * award nobody had announced. {@see PublicResults} states the rule at the top of the
+     * file and enforces it on every query it owns; this one was not one of them.
+     *
+     * The link was never the problem and that is exactly why it lasted: `/results/{id}`
+     * IS gated, so following the item behaved correctly and only the listing leaked.
+     *
+     * An INNER join, deliberately. The nominee and category joins above are LEFT because
+     * a row whose category was deleted should still appear as a nominee; here the cycle's
+     * status is the authorisation, so a result whose cycle cannot be found is a result
+     * this platform cannot vouch for and must not publish. In SQL a LEFT join plus
+     * `whereIn('cy.status', …)` would have dropped those rows anyway — NULL is not in any
+     * list — but by accident rather than on purpose, and the next person to widen a join
+     * would have quietly reopened this.
+     */
     private function results(?string $q, int $limit): array
     {
         $rows = $this->filter(
             DemoSeeder::notSandbox(
                 DB::table('gates_nominees as n')
-                    ->leftJoin('gates_award_categories as c', 'c.id', '=', 'n.category_id')
-                    ->leftJoin('gates_award_cycles as cy', 'cy.id', '=', 'c.cycle_id')
+                    ->join('gates_award_categories as c', 'c.id', '=', 'n.category_id')
+                    ->join('gates_award_cycles as cy', 'cy.id', '=', 'c.cycle_id')
+                    ->whereIn('cy.status', PublicResults::RELEASED)
                     ->whereIn('n.status', ['winner', 'runner_up'])
                     ->whereNull('n.merged_into'),
                 'cy.programme_id'),
@@ -623,6 +756,68 @@ final class ActivityFeedService
         }
 
         return $out;
+    }
+
+    /**
+     * Vetted partner organisations.
+     *
+     * ── WHY THIS SOURCE DID NOT EXIST, WHICH IS THE INTERESTING PART ────────
+     *
+     * `gates_partner_orgs` is the most heavily vetted table on the platform: a CAC
+     * number checked against the registry, a SCUML number, uploaded documents with
+     * expiries, a named admin who approved it, and a settlement subaccount. An
+     * organisation does all of that to be here — and could not be found by typing its
+     * own name into the site's search box, because no source read the table.
+     *
+     * That is `docs/CODEBASE-INDEX.md` §27.3 one level down. The console had no front
+     * door; the organisation itself had no entry in the index. Both are the same fault:
+     * the tenant is built, vetted, and invisible.
+     *
+     * ── THE GATE IS THE ONE THE DONATE BUTTON USES ──────────────────────────
+     *
+     * {@see PartnerOrg::receivableStatuses()}, not a status string spelled here. An
+     * organisation that is pending, rejected or suspended must not be listed: a search
+     * result naming an organisation is this platform saying it vouches for them, which
+     * is the whole meaning of the vetting. Suspension in particular has to take effect
+     * everywhere at once, or the search keeps advertising an organisation the platform
+     * has just stopped settling money to.
+     *
+     * Not gated on `subaccount_code` though, which {@see PartnerOrg::canReceive()} also
+     * requires: that is the question "may we take money for them right now", and this is
+     * "is this a real organisation on this platform". An approved partner between
+     * subaccounts is still findable; their page decides whether to draw a donate button.
+     *
+     * No timestamp. An organisation is a destination, not an event — `dated => false` in
+     * {@see SOURCES}, so it is kept as a signpost rather than sorted to the bottom.
+     */
+    private function organisations(?string $q, int $limit): array
+    {
+        $rows = $this->filter(
+            DB::table('gates_partner_orgs')
+                ->whereIn('status', PartnerOrg::receivableStatuses()),
+            $q,
+            // `name` and `description` only. NOT contact_name, contact_email or
+            // contact_phone — those are the compliance contact given to verify a
+            // registration, and a search box that matches on them publishes them to
+            // anyone who guesses. Not cac_number or scuml_number either: a search that
+            // confirms a guessed registration number is a lookup service nobody asked
+            // this platform to run.
+            ['name', 'description'],
+        )
+            ->orderBy('name')->limit($limit)
+            ->get(['slug', 'name', 'description'])->all();
+
+        return array_map(fn (object $r): array => $this->item(
+            kind:   'org',
+            label:  'Organisation',
+            title:  (string) $r->name,
+            detail: (string) ($r->description ?? ''),
+            // Through GivingUrl, which is the only thing allowed to spell `/giving` —
+            // the path was renamed twice and the receipts from before the rename are
+            // still in people's inboxes.
+            url:    GivingUrl::org((string) $r->slug),
+            at:     '',
+        ), $rows);
     }
 
     /**
