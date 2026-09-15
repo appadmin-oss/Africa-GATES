@@ -120,7 +120,8 @@ final class ColourBudgetTest extends TestCase
 
         foreach ($all as $file => $body) {
             if (!str_starts_with($file, 'templates/pages/')) continue;
-            $out[$file] = $this->withIncludes($body, $all, 0);
+            $whole = $this->withIncludes($body, $all, 0);
+            $out[$file] = $whole . "\n" . $this->linkedCss($whole);
         }
 
         return $out;
@@ -137,7 +138,10 @@ final class ColourBudgetTest extends TestCase
     {
         if ($depth > 4) return $body;
 
-        if (!preg_match_all('/\{%-?\s*(?:include|embed)\s+[\'"]([^\'"]+\.twig)[\'"]/',
+        // `import` and `from` as well: `legal.twig` pulls its whole article chrome in
+        // through `{% import "partials/article.twig" as art %}`, and a sweep that only
+        // followed `include` read that page as having no chrome at all.
+        if (!preg_match_all('/\{%-?\s*(?:include|embed|import|from)\s+[\'"]([^\'"]+\.twig)[\'"]/',
                             $body, $m)) {
             return $body;
         }
@@ -570,5 +574,82 @@ final class ColourBudgetTest extends TestCase
         $this->assertStringContainsString('vn-qty', $regions[0],
             'the marked region does not contain the pack controls, so the money sweep '
           . 'is looking at the wrong part of the page');
+    }
+
+    /**
+     * The stylesheets a page LINKS, with their own custom properties resolved.
+     *
+     * ══════════════════════════════════════════════════════════════════════════
+     * WHY THIS HAD TO EXIST, AND WHAT IT COST TO LEAVE OUT
+     * ══════════════════════════════════════════════════════════════════════════
+     *
+     * This sweep read templates. Most colour on this platform is declared in a page's own
+     * inline `<style>` block, so that was enough for most pages — and completely blind on
+     * the ones that pull a component sheet in.
+     *
+     * `/cookies` was the live proof: the page and its article partial hold no literal and
+     * no role token, `components/article.css` paints the eyebrow chip and the download
+     * button green, and this test reported a tier-0 legal document as spending nothing.
+     * A policy that is loud reads as one that is selling something, which is the entire
+     * reason a legal page has a budget of zero.
+     *
+     * ── GLOBAL SHEETS ARE NOT CHARGED, AND THAT IS THE CHROME RULE ───────────
+     *
+     * {@see AssetBundle::STYLESHEETS} is every sheet the public layout loads on every
+     * page. Charging those to each page is charging the chrome to the chrome, which makes
+     * a tier-0 page impossible — the same argument that keeps the nav out of this count.
+     * A sheet a page LINKS FOR ITSELF is that page's colour.
+     *
+     * ── ONE LEVEL OF INDIRECTION, AND IT IS STATED BECAUSE IT IS A LIMIT ─────
+     *
+     * `article.css` does not name a role. It declares `--ar-accent: var(--ag-green)` and
+     * paints with `--ar-accent` — an alias of an alias, two hops from anything this sweep
+     * recognised. Local properties defined in the sheet are substituted once, which
+     * resolves that and every shape like it. A third hop would not be caught, and chasing
+     * arbitrary variable chains is a CSS resolver rather than a sweep; if one appears, the
+     * answer is to name the role rather than to deepen this.
+     */
+    private function linkedCss(string $body): string
+    {
+        $root = dirname(__DIR__, 2);
+
+        if (!preg_match_all('/<link\b[^>]*\bhref\s*=\s*"[^"]*?([a-z0-9\/_.-]+\.css)[^"]*"/i',
+                            $body, $m)) {
+            return '';
+        }
+
+        $global = array_map(static fn (string $p): string => basename($p),
+                            \AfricaGates\Support\AssetBundle::STYLESHEETS);
+        $out = '';
+
+        foreach (array_unique($m[1]) as $href) {
+            $rel = ltrim(str_replace('/assets/', 'assets/', $href), '/');
+            if (in_array(basename($rel), $global, true)) continue;   // chrome, counted once
+
+            $path = $root . '/public/' . $rel;
+            if (!is_file($path)) continue;
+
+            $out .= "\n" . $this->resolved((string) file_get_contents($path));
+        }
+
+        return $out;
+    }
+
+    /** A sheet with its own `--x: var(--ag-y)` declarations substituted once. */
+    private function resolved(string $css): string
+    {
+        $css = (string) preg_replace('!/\*.*?\*/!s', ' ', $css);
+
+        if (!preg_match_all('/(--[a-z0-9-]+)\s*:\s*var\(\s*(--[a-z0-9-]+)/i', $css, $m,
+                            PREG_SET_ORDER)) {
+            return $css;
+        }
+
+        $map = [];
+        foreach ($m as $d) $map[$d[1]] = $d[2];
+
+        return (string) preg_replace_callback('/var\(\s*(--[a-z0-9-]+)/i',
+            static fn (array $v): string
+                => 'var(' . ($map[$v[1]] ?? $v[1]), $css);
     }
 }

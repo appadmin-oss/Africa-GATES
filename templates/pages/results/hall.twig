@@ -87,9 +87,15 @@
   /* ══ the sticky bar ══════════════════════════════════════════════════════ */
   .hf-bar{ position:sticky; top:0; z-index:5; background:var(--ag-ground);
            border-bottom:1px solid var(--ag-line); }
+  /* ── `padding-block`, NEVER THE SHORTHAND ──────────────────────────────────
+     This element carries the page wrapper's side gutter, and `padding:12px 0`
+     zeroes it — so the bar's content ran flush to both screen edges while every
+     other line on the page sat inside a 17px margin. At 430px the Search button
+     ended exactly on the last pixel of the viewport and read as cut off, which is
+     how it was found. Vertical padding here is `padding-block` for that reason. */
   .hf-bar__in{ display:flex; flex-wrap:wrap; min-width:0; gap:12px 18px; align-items:center;
-               justify-content:space-between; padding:12px 0; }
-  .hf-find{ display:flex; gap:8px; align-items:center; }
+               justify-content:space-between; padding-block:12px; }
+  .hf-find{ display:flex; gap:8px; align-items:center; min-width:0; }
   .hf-find input{ min-width:min(280px,60vw); min-height:40px; padding:0 14px;
                   border:1px solid var(--ag-ink); border-radius:999px; background:var(--ag-card);
                   font:400 14.5px/1 inherit; color:var(--ag-ink); }
@@ -262,6 +268,26 @@
             line-height:1.65; color:var(--ag-ink-2); max-width:74ch; }
   .hf-note a{ color:var(--ag-ink); }
 
+
+  /* ── THE BAR AT PHONE WIDTH ────────────────────────────────────────────────
+     The search form takes its own row and fills it, and the chip rail takes the
+     next one. Side by side at 430px the form's 280px input plus its button ran
+     past the right edge — and `html`/`body` carry `overflow-x: clip`, so there
+     was no scrollbar and no way to reach the Search button at all. Clipped is
+     worse than scrolled: a reader cannot even tell something is missing.
+
+     Belt and braces on top of the real cause, which was a LABEL. It was written
+     `class="ag-sr-only"` — a class that does not exist anywhere in this codebase
+     (the real one is `.sr-only`) — so "Search awards" rendered as visible text
+     and took eighty pixels out of the row. A misspelt utility class fails in
+     total silence: no error, no warning, just a control pushed off the edge of a
+     phone. `SrOnlyClassTest` refuses the shape now. */
+  @media (max-width:760px){
+    .hf-bar__in{ align-items:stretch; }
+    .hf-find{ width:100%; }
+    .hf-find input{ flex:1; min-width:0; }
+    .hf-chips{ width:100%; }
+  }
   @media (max-width:1080px){ .hf-minor{ grid-template-columns:repeat(4,minmax(0,1fr)); } }
   @media (max-width:900px){
     .hf-major{ grid-template-columns:minmax(0,1fr); gap:24px; }
@@ -326,7 +352,7 @@
   <nav class="hf-bar" aria-label="Filter the hall">
     <div class="hf-wrap hf-bar__in">
       <form class="hf-find" method="get" action="{{ base }}" role="search">
-        <label class="ag-sr-only" for="hf-q">Search the hall</label>
+        <label class="sr-only" for="hf-q">Search the hall</label>
         <input id="hf-q" type="search" name="q" value="{{ v.q|default('') }}"
                placeholder="Search a name or an award" autocomplete="off">
         <button type="submit">Search</button>

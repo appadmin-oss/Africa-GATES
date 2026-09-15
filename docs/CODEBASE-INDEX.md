@@ -1809,42 +1809,77 @@ and the category race page — and the middle option considered was to keep the 
 count while dropping the lead bar and "every vote widens the lead", which are the parts that
 read as an appeal to buy rather than as a fact.
 
-### TWO THINGS THE BUDGET SWEEP CANNOT SEE, SAID BEFORE ANYBODY TRUSTS IT
+### THE TWO BLIND SPOTS, BOTH NOW CLOSED
 
-**The legacy aliases were a back door, and are now closed.** `--ag-green` IS action.fill,
-`--ag-pulse` IS live.fill, `--ag-gold` is a second honour nothing documents. They are still
-emitted so the ~60 unconverted templates keep working, and while the sweep did not recognise
-them a declared page could spend any amount of role colour through them and pass. They count
-as their role now, but only for a page that has DECLARED a tier: an undeclared template has
-not opted in, and charging it would demand tiers from sixty screens in one pass, which is
+**The legacy aliases were a back door.** `--ag-green` IS action.fill, `--ag-pulse` IS
+live.fill, `--ag-gold` is a second honour nothing documents. They are still emitted so the
+~60 unconverted templates keep working, and while the sweep did not recognise them a
+declared page could spend any amount of role colour through them and pass. They count as
+their role now, but only for a page that has DECLARED a tier: an undeclared template has not
+opted in, and charging it would demand tiers from sixty screens in one pass, which is
 guessing at most of them.
 
-**It reads TEMPLATES, and colour can arrive from a shared stylesheet.** Most colour here is
-declared in a page's own inline `<style>` block, which is why that is enough for most pages.
-`/cookies` is the live counter-example: the page and its article partial hold no literal and
-no role token, and `components/article.css` still paints its eyebrow chip and its download
-button in `--ag-green`. A tier-0 legal document is supposed to spend nothing at all, and the
-sweep reports it clean. Closing that needs a page-to-stylesheet map, which is real work and
-not a tightening of a regex.
+**And it read TEMPLATES while colour arrived from a stylesheet.** `/cookies` was the proof:
+the page and its article partial hold no literal and no role token, and
+`components/article.css` painted the eyebrow chip, the download button, the contents rail
+and the inline code in green — so a tier-0 legal document was reported as spending nothing.
 
-### A PRE-EXISTING FAULT FOUND WHILE CHECKING THIS WORK, AND NOT CAUSED BY IT
+The sweep resolves a page's own `<link rel="stylesheet">` now. Three things it had to learn:
 
-**Every page scrolls horizontally at 430px.** The right-hand end of every line is cut, the
-top banner is clipped mid-sentence, and the mobile tab bar's fifth item is off-screen —
-on `/results` and `/winners`, which were rebuilt here, and identically on `/integrity`,
-which was not touched at all. It is site-wide and it predates this work. Nigeria is a
-mobile-first market; this deserves its own investigation.
+- **`import` and `from` are includes too.** `legal.twig` pulls its whole article chrome in
+  through `{% import "partials/article.twig" as art %}`, and a resolver that followed only
+  `include` read that page as having no chrome at all.
+- **Global sheets are not charged.** `AssetBundle::STYLESHEETS` is what every page loads;
+  charging those to each page is charging the chrome to the chrome, which makes a tier-0
+  page impossible. A sheet a page links FOR ITSELF is that page's colour.
+- **One level of indirection, because the fault used two.** `article.css` names no role: it
+  declares `--ar-accent: var(--ag-green)` and paints with `--ar-accent`. Local properties
+  are substituted once. A third hop would not be caught, and chasing arbitrary variable
+  chains is a CSS resolver rather than a sweep.
 
-(One genuine instance of the same shape WAS introduced here and is fixed: the new chip rows
-are flex items with `overflow-x:auto`, and a flex item's min-width defaults to its
-MIN-CONTENT width — the whole nowrap row — so the overflow could never fire because the box
-had already grown to fit. `min-width:0` on both.)
+**And the fault it found is fixed.** `--ar-accent` is ink. Every document built on that
+sheet — privacy, terms, refunds, the cookie policy, the philosophy, the methodology — is
+now what Surface D asks for: ink on paper, zero events, links underlined rather than
+coloured. `integrity.twig` and `philosophy.twig` declare `colour_tier = '0'` so the rule
+bites rather than relying on `legal.twig` alone; the only colour left on `/cookies` is the
+consent button, which is the one thing that page asks the reader to decide.
+
+### THE MOBILE FAULT, AND THE FIRST DIAGNOSIS OF IT WAS WRONG
+
+It was first reported here as "every page scrolls horizontally at 430px", from screenshots
+taken with `chrome --headless --window-size=430`. **That was an artefact of the screenshot,
+not the site** — headless renders at a wider layout viewport and crops, so untouched pages
+appeared broken too. Measured properly, inside a real 430px iframe, `scrollWidth` equals the
+viewport on every page.
+
+What WAS real, and what the measurement found:
+
+- **A class that does not exist.** `class="ag-sr-only"` on two search labels — the real
+  utility is `.sr-only`. A misspelt utility class fails in total silence, and this one had
+  two costs at once: the label rendered as visible text, and it ate eighty pixels of a
+  430px row and pushed the Search button off the edge. `SrOnlyClassTest` reads the shipped
+  CSS and refuses any hiding-class that resolves to no rule.
+- **`padding: 12px 0` on an element that carries the page gutter.** The wrapper declares
+  `padding: 0 var(--ag-gutter)`; the sticky bar puts a second class on that same element for
+  vertical room and the shorthand zeroes all four sides. The bar then ran flush to both
+  screen edges while every other line sat inside a 17px margin. `GutterShorthandTest` is the
+  rule — narrow on purpose, firing only where the element also carries a gutter class — and
+  it reads right AND left, because a four-value shorthand sets them separately and an
+  earlier version of it missed `padding: 12px 0 12px 8px` by reading the fourth value alone.
+- **A flex item with `overflow-x: auto` and no `min-width: 0`.** Its min-width defaults to
+  MIN-CONTENT — the whole nowrap chip row — so the overflow could never fire: the box had
+  already grown to fit.
+
+`html` and `body` carry `overflow-x: clip`, which is why none of this ever produced a
+scrollbar. **Clipped is worse than scrolled**: there is no swipe and no way for a reader to
+tell anything is missing.
 
 ### Tests
 
 `ColourBudgetTest` (9), `ColourIsNeverAloneTest` (6), `NoLiteralHexTest` (4), `AccentTest`
-(10), `ResultStandingsTest` (10), `VoteCountdownTest` (12), plus additions to
-`HallOfFameTest`, `EditionPageTest` and `PublicResultsTest`.
+(10), `ResultStandingsTest` (10), `VoteCountdownTest` (12), `SrOnlyClassTest` (3),
+`GutterShorthandTest` (2), plus additions to `HallOfFameTest`, `EditionPageTest` and
+`PublicResultsTest`.
 
 **Every sweep was watched naming a real break before it was trusted**, and three assertions
 were found VACUOUS that way and rewritten:

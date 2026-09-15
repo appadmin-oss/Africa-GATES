@@ -72,11 +72,17 @@
                letter-spacing:-.02em; font-variant-numeric:tabular-nums; color:var(--ag-ink); }
 
   /* ── the sticky bar ── */
+  /* ── `padding-block`, NEVER THE SHORTHAND ──────────────────────────────────
+     This element carries the page wrapper's side gutter, and `padding:12px 0`
+     zeroes it — so the bar's content ran flush to both screen edges while every
+     other line on the page sat inside a 17px margin. At 430px the Search button
+     ended exactly on the last pixel of the viewport and read as cut off, which is
+     how it was found. Vertical padding here is `padding-block` for that reason. */
   .rx-bar{ position:sticky; top:0; z-index:5; display:flex; flex-wrap:wrap; min-width:0; gap:12px 18px;
            align-items:center; justify-content:space-between;
-           padding:12px 0; margin:0 0 clamp(1.2rem,3vw,1.7rem);
+           padding-block:12px; margin:0 0 clamp(1.2rem,3vw,1.7rem);
            background:var(--ag-ground); border-bottom:1px solid var(--ag-line); }
-  .rx-find{ display:flex; gap:8px; align-items:center; }
+  .rx-find{ display:flex; gap:8px; align-items:center; min-width:0; }
   .rx-find input{ min-width:min(280px,60vw); min-height:40px; padding:0 14px;
                   border:1px solid var(--ag-ink); border-radius:999px; background:var(--ag-card);
                   font:400 14.5px/1 inherit; color:var(--ag-ink); }
@@ -217,6 +223,27 @@
                font-weight:600; font-size:14.5px; text-decoration:none; }
   .rx-empty a:hover{ background:var(--ag-ink); color:var(--ag-card); }
 
+
+  /* ── THE BAR AT PHONE WIDTH ────────────────────────────────────────────────
+     The search form takes its own row and fills it, and the chip rail takes the
+     next one. Side by side at 430px the form's 280px input plus its button ran
+     past the right edge — and `html`/`body` carry `overflow-x: clip`, so there
+     was no scrollbar and no way to reach the Search button at all. Clipped is
+     worse than scrolled: a reader cannot even tell something is missing.
+
+     Belt and braces on top of the real cause, which was a LABEL. It was written
+     `class="ag-sr-only"` — a class that does not exist anywhere in this codebase
+     (the real one is `.sr-only`) — so "Search awards" rendered as visible text
+     and took eighty pixels out of the row. A misspelt utility class fails in
+     total silence: no error, no warning, just a control pushed off the edge of a
+     phone. `SrOnlyClassTest` refuses the shape now. */
+  @media (max-width:760px){
+    .rx-bar__stack, .rx-bar{ align-items:stretch; }
+    .rx-find{ width:100%; }
+    .rx-find input{ flex:1; min-width:0; }
+    .rx-chips{ width:100%; }
+    .rx-order{ flex-wrap:wrap; }
+  }
   @media (max-width:1000px){
     .rx-a{ grid-template-columns:minmax(0,1fr) 200px 40px; }
     .rx-who, .rx-n{ grid-column:1 / -1; text-align:left; }
@@ -260,7 +287,7 @@
   #}
   <nav class="rx-bar" aria-label="Filter and order the results">
     <form class="rx-find" method="get" action="/results" role="search">
-      <label class="ag-sr-only" for="rx-q">Search awards</label>
+      <label class="sr-only" for="rx-q">Search awards</label>
       <input id="rx-q" type="search" name="q" value="{{ view.q|default('') }}"
              placeholder="Search an award or a year" autocomplete="off">
       {% if view.order|default('status') != 'status' %}

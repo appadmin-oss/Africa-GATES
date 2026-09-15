@@ -47,9 +47,27 @@ body[data-page="legal"]{
   --ar-faint:#6b7773;           /* ≥4.5:1 on white — labels and furniture */
   --ar-line:rgba(16,41,44,.10);
   --ar-line-soft:rgba(16,41,44,.06);
-  --ar-accent:var(--ag-green,#237b22);
-  --ar-accent-dark:var(--ag-green-dark,#1a6118);
-  --ar-wash:rgba(127,200,124,.14);
+  /* ── A DOCUMENT SPENDS NO ACCENT, AND THAT IS THE WHOLE OF SURFACE D ───────
+     These were `--ag-green` and a green wash, so every screen built on this sheet —
+     the privacy policy, the terms, the refunds page, the cookie policy, the
+     philosophy — carried `action` green on its eyebrow chip, its download button,
+     its contents rail and its inline code. `action` is the role reserved for the
+     one thing a screen asks you to do, and a policy asks for nothing: a legal page
+     that is loud reads as one that is selling something, which is exactly why a
+     document's colour budget is zero.
+
+     It was also invisible to every sweep here for months. `ColourBudgetTest` read
+     TEMPLATES, and `legal.twig` and its article partial hold no literal and no role
+     token — the colour arrived from this file, through `--ar-accent`, which is an
+     alias of an alias. The sweep reads a page's linked stylesheets now and resolves
+     one level of indirection, which is what made this findable at all.
+
+     Ink and a neutral wash. Nothing here is smaller, quieter or harder to press —
+     the primary download is still a filled button and still the most prominent
+     thing in its row. It simply is not green. */
+  --ar-accent:var(--ag-ink,#10292c);
+  --ar-accent-dark:var(--ag-ink,#10292c);
+  --ar-wash:var(--ag-surface-2,#e8e5dd);
   --ar-gold:#9a7726;
   /* THERE ARE NO SHADOWS ON THIS SITE. Depth is a hard offset border — the lip — and
      the lip belongs only to things that are pressed. Kept as a token set to `none` rather
