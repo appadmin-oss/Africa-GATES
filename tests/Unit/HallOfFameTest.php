@@ -692,4 +692,135 @@ final class HallOfFameTest extends TestCase
         $this->assertGreaterThan(0, $withoutRows,
             'both call shapes cost nothing, so this test proves nothing about either');
     }
+
+    // ── THE TWO-UP LAYOUT'S ARITHMETIC ───────────────────────────────────────
+
+    /** The page's own stylesheet, which lives in `head_styles` in the template. */
+    private function hallCss(): string
+    {
+        return (string) file_get_contents(dirname(__DIR__, 2) . '/templates/pages/results/hall.twig');
+    }
+
+    /**
+     * A number out of the stylesheet.
+     *
+     * FLOAT, and that is not fussiness. This returned `(int)` first, which truncated the
+     * card's `1.5rem` padding to `1` — so the arithmetic below subtracted 32px where the
+     * layout subtracts 48, and the check came out 16px too generous. Widening the
+     * portrait back to 300px, which leaves the name 197px, passed it. The fault was
+     * caught only because a neighbouring test happens to pin the 260 by name, which is
+     * luck rather than coverage.
+     */
+    private function cssNumber(string $pattern, string $what): float
+    {
+        $this->assertMatchesRegularExpression($pattern, $this->hallCss(),
+            "could not find {$what} in the hall's stylesheet — this test reads the real "
+          . 'numbers rather than repeating them, so a rename here means the arithmetic '
+          . 'below is no longer being checked at all. Fix the pattern, never delete it.');
+        preg_match($pattern, $this->hallCss(), $m);
+
+        return (float) $m[1];
+    }
+
+    public function test_the_cards_go_one_up_before_the_name_column_is_starved(): void
+    {
+        /*
+         * ── THE FAULT, WHICH NO ROUND TEST WIDTH SHOWS ──────────────────────
+         *
+         * `.hf-card__in` puts a FIXED 260px portrait beside a `1fr` name column, and
+         * `.hf-major` puts two of those cards side by side. The fixed track does not
+         * shrink, so everything the viewport loses comes out of the name.
+         *
+         * The single-column switch used to be at 900px. Measured in a browser at the
+         * widths just above it:
+         *
+         *     910  → card 397px → NAME COLUMN 72px
+         *     1000 → card 439px → name column 107px
+         *     1080 → card 479px → name column 145px
+         *
+         * At 910 "Oluwagbemiga Dorcas" rendered 142px tall in a 72px strip — a 2.3rem
+         * display face broken over five lines, narrower than one word of it. A 1024px
+         * iPad and a 1366px laptop both sat inside that band, and 430 and 1280 — the two
+         * widths anybody actually checks — both looked perfect.
+         *
+         * So this asserts the RELATIONSHIP rather than either number: two-up may not
+         * begin before the wrapper has stopped growing, because that is the only width
+         * at which the card is the size the design was drawn for.
+         */
+        $wrap  = $this->cssNumber('/\.hf-wrap\{[^}]*max-width:(\d+)px/', "`.hf-wrap`'s max-width");
+        $oneUp = $this->cssNumber(
+            '/@media \(max-width:(\d+)px\)\{\s*\.hf-major\{[^}]*grid-template-columns:minmax\(0,1fr\)/',
+            'the breakpoint where `.hf-major` becomes one column');
+
+        // `max-width: Npx` applies AT N, so two-up begins at N + 1.
+        $this->assertGreaterThanOrEqual($wrap, $oneUp + 1,
+            "the overall cards go two-up from {$oneUp}px, before `.hf-wrap` reaches its "
+          . "full {$wrap}px. Between those widths each card is narrower than the design's, "
+          . 'and because the portrait track is a fixed pixel width every pixel lost comes '
+          . "out of the person's name. At 910px that column measured 72px wide.");
+    }
+
+    public function test_the_name_keeps_a_usable_column_at_the_narrowest_two_up_width(): void
+    {
+        // The other direction, and the one the breakpoint alone does not catch: widening
+        // the portrait back towards the 300px it started at would starve the name again
+        // without moving any breakpoint. The comment above `.hf-card__in` records that
+        // 300 clipped "Oluwagbemiga" mid-word on the first real name this page drew.
+        $wrap     = $this->cssNumber('/\.hf-wrap\{[^}]*max-width:(\d+)px/', "`.hf-wrap`'s max-width");
+        $gutter   = $this->cssNumber('/\.hf-wrap\{[^}]*padding:0 var\(--ag-gutter,(\d+)px\)/', "the wrapper's gutter");
+        $gridGap  = $this->cssNumber('/\.hf-major\{[^}]*gap:(\d+)px/', "the two-up grid's gap");
+        $portrait = $this->cssNumber('/\.hf-card__in\{[^}]*grid-template-columns:(\d+)px/', 'the portrait track');
+        // The card's own inner gap and padding are clamped; the widest value is what
+        // applies at the widths where the grid is two-up, so that is what is subtracted.
+        $cardGap  = $this->cssNumber('/\.hf-card__in\{[^}]*gap:clamp\([^)]*,(\d+)px\)/', "the card's inner gap");
+        $padRem   = $this->cssNumber('/\.hf-card__in\{[^}]*padding:clamp\([^)]*,([\d.]+)rem\)/', "the card's padding");
+
+        $content = $wrap - (2 * $gutter);
+        $card    = ($content - $gridGap) / 2;
+        $name    = (int) round($card - $portrait - $cardGap - (2 * $padRem * 16));
+
+        // 200px holds "Oluwagbemiga" — the longest name this page has actually drawn — on
+        // one line at the clamped-down display size, which is what stops `overflow-wrap`
+        // breaking a person's name mid-word. The rule above `.hf-card__in` is explicit
+        // that a name here is the SUBJECT of the page and may never be cut.
+        $this->assertGreaterThanOrEqual(200, $name,
+            "at the narrowest two-up width the name's column is {$name}px. The portrait "
+          . "track is {$portrait}px and does not shrink, so it has to give the column "
+          . 'back — that is the trade the 300 → 260 reduction already made once.');
+    }
+
+    public function test_the_portrait_photo_is_taken_out_of_flow(): void
+    {
+        // Otherwise `min-height` governs nothing. `.hf-ph` is a stretched grid item, so
+        // its own height is `auto`; `height:100%` on the image resolved against `auto` to
+        // `auto`, the image fell back to the intrinsic ratio of its `width="600"
+        // height="750"` attributes, and the IMAGE sized the row.
+        //
+        // Measured before the fix: 260x326 at 1280 rather than the 290 the rule asks for,
+        // and — where the card collapses to one column — 350x438 at 430px, a portrait
+        // taller than the visible area of a phone, pushing the name of the person the card
+        // is about below the fold. `object-fit:cover` never ran once.
+        $css = $this->hallCss();
+
+        $this->assertMatchesRegularExpression(
+            '/\.hf-ph img\{[^}]*position:absolute/', $css,
+            "the large card's photo is in flow, so it sizes the card instead of filling "
+          . 'it — `min-height` and `object-fit:cover` on it are both dead letters');
+        $this->assertMatchesRegularExpression('/\.hf-ph img\{[^}]*object-fit:cover/', $css);
+        $this->assertMatchesRegularExpression('/\.hf-ph\{[^}]*position:relative/', $css,
+            'the photo is absolutely positioned, so its box must be the containing block');
+    }
+
+    public function test_a_section_heading_is_not_crushed_against_its_own_caption(): void
+    {
+        // `.hf-h` is a flex row with `justify-content:space-between`, and the caption asks
+        // for 40ch. Measured at 430px the caption took 298px and left the HEADING 76 — so
+        // "Overall winners" broke over two lines in a 76px column beside its own gloss,
+        // which reads as a broken layout rather than as a heading.
+        $this->assertMatchesRegularExpression(
+            '/@media \(max-width:\d+px\)\{\s*\.hf-h\{[^}]*display:block/',
+            $this->hallCss(),
+            'the section heading and its caption never stop sharing a row, so at phone '
+          . 'width the heading is squeezed into whatever the caption leaves');
+    }
 }

@@ -137,6 +137,18 @@
   .hf-h--minor h2{ font-size:clamp(1.1rem,2.2vw,1.3rem); }
   .hf-h p{ margin:0; font-size:13.5px; line-height:1.5; color:var(--ag-ink-soft);
            max-width:40ch; text-align:right; }
+  /* ── AND IT STACKS BEFORE THE HEADING IS CRUSHED ───────────────────────────
+     `justify-content:space-between` on a flex row gives the two children whatever
+     they ask for, and a 40ch paragraph asks for a lot. Measured at 430px the
+     paragraph took 298px and left the HEADING 76 — so "Overall winners" broke over
+     two lines in a 76px column beside its own caption, which reads as a layout
+     failure rather than as a heading. The caption is a gloss on the heading, so
+     below it is where it goes; `text-align` returns to the start, because a
+     right-aligned paragraph on its own line has no edge to align to. */
+  @media (max-width:760px){
+    .hf-h{ display:block; }
+    .hf-h p{ margin-top:6px; max-width:60ch; text-align:start; }
+  }
 
   /* ── overall winners: two-up, and the heights DIFFER on purpose ──────────
      `align-items:start`. One card carries a provisional caveat and a second win
@@ -166,7 +178,28 @@
   .hf-ph{ align-self:stretch; min-height:290px; border-radius:12px; overflow:hidden;
           background:var(--ag-surface-2); position:relative;
           display:flex; align-items:center; justify-content:center; }
-  .hf-ph img{ width:100%; height:100%; object-fit:cover; display:block; }
+  /* ── THE PHOTO IS TAKEN OUT OF FLOW, OR IT SIZES THE CARD ──────────────────
+     `width:100%; height:100%; object-fit:cover` was already here and NONE of it
+     was in effect. `height:100%` resolves against a parent whose own height is
+     `auto` — which this box's is, because it is a stretched grid item — so it
+     computed to `auto`, the image fell back to its intrinsic ratio from the
+     `width="600" height="750"` attributes, and the IMAGE then set the grid row.
+
+     So the portrait was never cropped, `object-fit` never ran, and the
+     `min-height` above (and the 260px at phone width below) governed nothing at
+     all: they were only ever floors under a number the image was choosing.
+
+     Measured: at 1280 the box was 260×326 — exactly 4:5 — rather than the 290 the
+     rule asks for. At 430 the card collapses to one column, so the image took the
+     full 350px of width and 438px of HEIGHT, a portrait taller than a phone's
+     visible area, pushing the name of the person the card is about below the
+     fold on the page whose entire subject is that person.
+
+     `position:absolute; inset:0` removes it from layout, so the box is sized by
+     the rules that were written to size it and the image fills what it is given.
+     That is what the two declarations above were always for. */
+  .hf-ph img{ position:absolute; inset:0; width:100%; height:100%;
+              object-fit:cover; display:block; }
   .hf-ph b{ font:700 clamp(2.6rem,5vw,3.4rem)/1 var(--ag-font-display); color:var(--ag-ink-2); }
   /* WORDED. An initial alone reads as a broken image; this says which it is, on a
      page whose whole subject is a person. */
@@ -289,8 +322,36 @@
     .hf-chips{ width:100%; }
   }
   @media (max-width:1080px){ .hf-minor{ grid-template-columns:repeat(4,minmax(0,1fr)); } }
-  @media (max-width:900px){
+
+  /* ── TWO-UP ONLY WHERE THERE IS ROOM FOR TWO, AND 1240 IS THAT NUMBER ──────
+     The single-column switch used to be at 900px, and between 901 and 1240 the
+     two-up grid was catastrophically broken in a way no round test width shows.
+
+     The arithmetic: each card gets (viewport − 64 gutter − 34 gap) ÷ 2, and the
+     portrait track is a FIXED 260px, so the name's column is whatever is left
+     after 260 + 26 gap + 48 padding = 334px.
+
+         viewport 910  → card 397 → NAME COLUMN 72px
+         viewport 1000 → card 439 → name column 107px
+         viewport 1080 → card 479 → name column 145px
+
+     Measured, not estimated. At 910 "Oluwagbemiga Dorcas" rendered 142px tall in a
+     72px column — a display face at 2.3rem broken over five lines in a strip
+     narrower than one word of it. The rule above this one reduced the portrait
+     from 300 to 260 precisely so a name would never be cut, and that reasoning
+     holds; what it could not survive was the card itself being halved.
+
+     1240px is `.hf-wrap`'s own max-width, and it is the number because that is
+     where the wrap stops growing: above it each card is 571px and the name has
+     237px, the proportion the design was drawn at. Below it the card takes the
+     full width instead — 243px of name column at the narrowest, and more
+     everywhere else — which is never the cramped case, only a taller page.
+
+     A 1024px iPad and a 1366px laptop both sat inside the broken band. */
+  @media (max-width:1239px){
     .hf-major{ grid-template-columns:minmax(0,1fr); gap:24px; }
+  }
+  @media (max-width:900px){
     .hf-card__in{ grid-template-columns:210px minmax(0,1fr); }
     .hf-minor{ grid-template-columns:repeat(3,minmax(0,1fr)); }
   }
