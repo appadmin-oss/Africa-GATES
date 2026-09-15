@@ -446,17 +446,87 @@ final class HallOfFameTest extends TestCase
         $this->assertMatchesRegularExpression('/\.hf-m__n\{[^}]*font-size:18px/', $css);
         $this->assertMatchesRegularExpression('/\.hf-m__i\{[^}]*font:700 24px/', $css);
 
-        // `align-items:start` on the two-up grid. The cards are genuinely different
-        // heights and that difference is information — one carries a provisional caveat
-        // and a second win. Forcing them level means stretching a portrait or padding a
-        // card to hide a fact.
-        $this->assertMatchesRegularExpression('/\.hf-major\{[^}]*align-items:start/', $css);
+        // Card LAYOUT is held by test_the_two_overall_cards_are_level below. It used to
+        // be asserted here, which is how three assertions about grid alignment came to
+        // live inside a test about telling two sections apart without colour — and why
+        // changing the alignment failed a test whose name says nothing about it.
+    }
 
-        // `align-self:stretch` with a min-height, NOT `aspect-ratio`, on the large
-        // portrait: aspect-ratio gives a grid item a definite height, overrides stretch,
-        // and leaves the card's white showing below the picture.
-        $this->assertMatchesRegularExpression('/\.hf-ph\{[^}]*align-self:stretch/', $css);
-        $this->assertDoesNotMatchRegularExpression('/\.hf-ph\{[^}]*aspect-ratio/', $css);
+    public function test_the_two_overall_cards_are_level(): void
+    {
+        /*
+         * ── WHAT THIS REPLACED, AND WHY THE OLD REASONING WAS WRONG ─────────
+         *
+         * The grid was `align-items:start`, defended in a comment — and in an assertion
+         * — saying the heights differ on purpose: "forcing them level means stretching a
+         * portrait or padding a card to hide a fact."
+         *
+         * It hides no fact. The provisional caveat is a paragraph printed inside the card
+         * that has it, and it is printed whatever that card's height. What `start`
+         * actually produced, measured at 1440px:
+         *
+         *     card 0   563x520      portrait 260x326
+         *     card 1   563x429      portrait 260x290
+         *
+         * Two people's portraits, side by side on one row, at two different sizes — which
+         * is the one thing a row of portraits must not do — and the shorter card's footer
+         * stopping in mid-air ninety pixels above its neighbour's. That reads as a layout
+         * that failed, not as information.
+         *
+         * ── AND STRETCHING THE GRID WAS NOT ENOUGH ──────────────────────────
+         *
+         * The grid items are the `<li>`; the card is an `<article>` inside one. So
+         * `align-items:stretch` levelled the list items and stopped — the two `<li>` were
+         * equal and the two cards were not, which looks identical to the bug and reads as
+         * "stretching didn't work". The card has to be told to fill its item.
+         */
+        $css = $this->hallCss();
+
+        $this->assertMatchesRegularExpression('/\.hf-major\{[^}]*align-items:stretch/', $css,
+            'the two overall cards size themselves independently again');
+        $this->assertMatchesRegularExpression('/\.hf-major > li\{[^}]*display:flex/', $css,
+            'the grid stretches the <li> but nothing makes the card fill it, so the cards '
+          . 'are unequal while the list items are equal');
+        $this->assertMatchesRegularExpression('/\.hf-major > li > \.hf-card\{[^}]*flex:1/', $css);
+
+        // A fixed shape, so both portraits match whatever the text beside them does.
+        // 4:5 is the ratio the images are stored at — `width="600" height="750"` on every
+        // one — and the small cards below have used it all along.
+        $this->assertMatchesRegularExpression('/\.hf-ph\{[^}]*aspect-ratio:4\/5/', $css,
+            'the large portrait is sized by its surroundings again, so two cards on one '
+          . 'row show two different-sized photographs');
+        $this->assertMatchesRegularExpression('/\.hf-m__ph\{[^}]*aspect-ratio:4\/5/', $css,
+            'the large and small portraits must be the same SHAPE even though the small '
+          . 'one is a step down in size');
+
+        // The footers sit on the card's bottom edge rather than under the text: the body
+        // takes the slack of a stretched card.
+        $this->assertMatchesRegularExpression('/\.hf-card\{[^}]*flex-direction:column/', $css);
+        $this->assertMatchesRegularExpression('/\.hf-card__in\{[^}]*flex:1/', $css,
+            'without this the extra height of a stretched card opens as a gap between the '
+          . 'text and the first footer, which is worse than the unequal cards were');
+    }
+
+    public function test_the_category_cards_are_level_too(): void
+    {
+        // The same fault one section down, and a better illustration of why a round test
+        // width proves nothing: `.hf-minor` was `align-items:start`, and the rows came out
+        // level at 430, 900, 1240 and 1920 — every width anybody checks — while at 768 a
+        // row measured [425, 437, 437] and at 1024 [424, 435, 435, 435]. It went ragged
+        // exactly where one card's category or programme name wrapped a line and its
+        // neighbour's did not, which is a property of the DATA, so no fixture reproduces
+        // it reliably either.
+        //
+        // Unlike the big cards there is nothing here that differs between them on purpose:
+        // these are the same object repeated, and a grid of them is the one place a ragged
+        // bottom edge has nothing to say.
+        $css = $this->hallCss();
+
+        $this->assertMatchesRegularExpression('/\.hf-minor\{[^}]*align-items:stretch/', $css);
+        $this->assertMatchesRegularExpression('/\.hf-minor > li\{[^}]*display:flex/', $css,
+            'the grid stretches the <li> and the card inside it stays its own height');
+        $this->assertMatchesRegularExpression('/\.hf-minor > li > \.hf-m\{[^}]*flex:1/', $css);
+        $this->assertMatchesRegularExpression('/\.hf-m\{[^}]*flex-direction:column/', $css);
     }
 
     // ══ the controls ═════════════════════════════════════════════════════════

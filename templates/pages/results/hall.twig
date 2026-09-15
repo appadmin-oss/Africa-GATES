@@ -150,14 +150,36 @@
     .hf-h p{ margin-top:6px; max-width:60ch; text-align:start; }
   }
 
-  /* ── overall winners: two-up, and the heights DIFFER on purpose ──────────
-     `align-items:start`. One card carries a provisional caveat and a second win
-     and the other does not; forcing them level means stretching a portrait or
-     padding a card to hide a fact. */
+  /* ── overall winners: two-up, and the cards ARE level ────────────────────
+     This grid was `align-items:start`, defended in a comment saying the heights
+     differ on purpose — "forcing them level means stretching a portrait or
+     padding a card to hide a fact".
+
+     It hides no fact. The provisional caveat is a paragraph printed inside the
+     card that has it, and it goes on being printed whatever the card's height;
+     what `start` actually produced was two siblings on one row at different
+     heights, with DIFFERENT-SIZED PORTRAITS (measured 260x326 beside 260x290,
+     because each card sized its own row independently) and the shorter card's
+     footer stopping in mid-air a hundred pixels above its neighbour's. That
+     reads as a layout that failed, not as information.
+
+     So: the cards stretch, the portrait is a fixed shape in both, and the
+     footers are pinned to the bottom edge. The difference between the two cards
+     is now carried by what is written in them, which is where it belongs. */
   .hf-major{ list-style:none; margin:0; padding:0; display:grid;
-             grid-template-columns:repeat(2,minmax(0,1fr)); gap:34px; align-items:start; }
-  .hf-card{ display:block; border:1px solid var(--ag-line); border-radius:16px;
-            background:var(--ag-card); overflow:hidden; color:inherit; text-decoration:none; }
+             grid-template-columns:repeat(2,minmax(0,1fr)); gap:34px; align-items:stretch; }
+  /* The grid item is the <li>; the card is an <article> INSIDE it. `align-items:
+     stretch` levels the list items and stops there, so without this the two <li>
+     were the same height and the two cards were not — which looks exactly like
+     the bug it was meant to fix, and is why stretching alone appeared not to
+     work. */
+  .hf-major > li{ display:flex; }
+  .hf-major > li > .hf-card{ flex:1; }
+  /* A column, so the body can take the slack and the footers sit on the bottom
+     edge of a stretched card rather than floating under the text. */
+  .hf-card{ display:flex; flex-direction:column; border:1px solid var(--ag-line);
+            border-radius:16px; background:var(--ag-card); overflow:hidden;
+            color:inherit; text-decoration:none; }
   .hf-card:focus-within{ outline:3px solid var(--ag-action-edge); outline-offset:2px; }
   /* The programme's identity, on a spine. Never the only carrier of anything: the
      programme's NAME is printed on every card that has one. */
@@ -169,13 +191,33 @@
      A person's name is the SUBJECT of this page and must never be cut, so the
      portrait gives the column back. The hierarchy survives easily: 260 against
      the small card's 180, and the name below is still more than twice its 18px. */
-  .hf-card__in{ display:grid; grid-template-columns:260px minmax(0,1fr); gap:clamp(18px,2.4vw,26px);
+  /* `flex:1` is what pins the footers: the body absorbs a stretched card's extra
+     height instead of the gap between the text and the first footer doing it. */
+  .hf-card__in{ flex:1; display:grid; grid-template-columns:260px minmax(0,1fr);
+                gap:clamp(18px,2.4vw,26px); align-items:start;
                 padding:clamp(1.2rem,2.4vw,1.5rem); }
 
-  /* `align-self:stretch` with a min-height, NOT `aspect-ratio` — which gives a
-     grid item a definite height, overrides stretch, and leaves the card's white
-     showing below the portrait. */
-  .hf-ph{ align-self:stretch; min-height:290px; border-radius:12px; overflow:hidden;
+  /* ── A FIXED SHAPE, WHICH IS WHAT `stretch` COULD NOT GIVE ────────────────
+     This was `align-self:stretch` with a `min-height`, and the comment here
+     warned against `aspect-ratio` on the grounds that it "leaves the card's
+     white showing below the portrait".
+
+     Stretching is what made the two cards disagree. A stretched item takes the
+     height of ITS OWN row, and the two cards are separate grids, so the portrait
+     came out 326px beside one column of text and 290px beside a shorter one —
+     two photographs of two people, on one row, at two different sizes, which is
+     the one thing a row of portraits must not do.
+
+     4:5 is the ratio the images are actually stored at (`width="600"
+     height="750"` on every one of them), so this crops nothing that was not
+     already going to be cropped, and every portrait on the page is now the same
+     shape as every other — including the small cards below, which have used
+     `aspect-ratio:4/5` all along.
+
+     The white the old comment feared is the card's own background beside a
+     column of text that ran longer, which is what every card on the internet
+     does. Nothing is hidden by it. */
+  .hf-ph{ aspect-ratio:4/5; border-radius:12px; overflow:hidden;
           background:var(--ag-surface-2); position:relative;
           display:flex; align-items:center; justify-content:center; }
   /* ── THE PHOTO IS TAKEN OUT OF FLOW, OR IT SIZES THE CARD ──────────────────
@@ -206,6 +248,19 @@
   .hf-ph small{ position:absolute; bottom:12px; left:0; right:0; text-align:center;
                 font:600 9px/1 var(--ag-font-mono); letter-spacing:.14em;
                 text-transform:uppercase; color:var(--ag-ink-soft); }
+
+  /* ── THE TILE'S LABEL BREAKS WHERE THE SENTENCE DOES ──────────────────────
+     "Overall winner · won twice" does not fit the 227px text column, so it wraps
+     — which is right, and is what `.ag-tile`'s own `max-width:100%` is for: a
+     long label wraps rather than pushing the card wide. What was wrong is WHERE.
+     It broke after "WON", leaving a second line reading "TWICE", beside a
+     neighbouring card whose tile is one line. `balance` puts the break at the
+     middle separator instead, so the two lines are the two halves of the phrase.
+
+     Scoped to this page rather than added to components/tile.css: the tile is
+     used across the site, mostly with labels short enough that balancing is a
+     no-op, and a shared component should not gain a rule for one caller. */
+  .hf-card .ag-tile span{ text-wrap:balance; }
 
   .hf-cat{ margin:12px 0 0; font-size:17px; line-height:1.4; color:var(--ag-ink-2); }
   .hf-name{ margin:10px 0 0; font-family:var(--ag-font-display); font-weight:700;
@@ -250,10 +305,25 @@
   .hf-jump a[aria-current]{ border:2px solid var(--ag-ink); color:var(--ag-ink); }
 
   /* ── category winners: five-up, and every measure a step down ── */
+  /* ── LEVEL, FOR THE SAME REASON THE BIG CARDS ARE ────────────────────────
+     `align-items:start` here too, and it went ragged at exactly the widths where
+     one card's category or programme name wrapped a line and its neighbour's did
+     not. Measured across ten viewports: level at 430, 900, 1240 and 1920 — and at
+     768 a row came out [425, 437, 437], at 1024 [424, 435, 435, 435]. So it
+     looked correct at every width anybody checks and was ragged in between,
+     which is why it survived.
+     Nothing here differs between cards the way the provisional caveat differs on
+     the big ones; these are the same object repeated, and a grid of them is the
+     one place a ragged bottom edge has nothing to say. */
   .hf-minor{ list-style:none; margin:0; padding:0; display:grid;
-             grid-template-columns:repeat(5,minmax(0,1fr)); gap:22px; align-items:start; }
-  .hf-m{ display:block; border:1px solid var(--ag-line); border-radius:14px;
-         background:var(--ag-card); overflow:hidden; color:inherit; text-decoration:none; }
+             grid-template-columns:repeat(5,minmax(0,1fr)); gap:22px; align-items:stretch; }
+  /* The <li> is the grid item and the card is the <a> inside it — stretching the
+     grid alone levels the items and leaves the cards uneven. */
+  .hf-minor > li{ display:flex; }
+  .hf-minor > li > .hf-m{ flex:1; }
+  .hf-m{ display:flex; flex-direction:column; border:1px solid var(--ag-line);
+         border-radius:14px; background:var(--ag-card); overflow:hidden;
+         color:inherit; text-decoration:none; }
   .hf-m:hover{ border-color:var(--ag-ink-soft); }
   .hf-m:focus-visible{ outline:3px solid var(--ag-action-edge); outline-offset:2px; }
   .hf-m__spine{ display:block; height:4px; background:var(--pg-fill,var(--ag-line)); }
@@ -357,7 +427,11 @@
   }
   @media (max-width:640px){
     .hf-card__in{ grid-template-columns:minmax(0,1fr); }
-    .hf-ph{ min-height:260px; }
+    /* Stacked, the portrait has the card's full width, and 4:5 of that is taller
+       than a phone's visible area — measured 350x438 at 430px, which put the name
+       of the person the card is about below the fold. A wider crop here, and the
+       ratio goes back the moment there is a column to sit beside. */
+    .hf-ph{ aspect-ratio:4/3; }
     .hf-minor{ grid-template-columns:repeat(2,minmax(0,1fr)); gap:16px; }
   }
 </style>
