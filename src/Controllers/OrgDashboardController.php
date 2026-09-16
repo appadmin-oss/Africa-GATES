@@ -672,18 +672,18 @@ final class OrgDashboardController
         $from = date('Y-m-d', strtotime('-' . ($days - 1) . ' days'));
 
         try {
-            $rows = DB::table('gates_donations')
-                ->where('recipient_org_id', $orgId)
-                ->where('status', 'confirmed')
+            // PartnerOrg::countableDonations() is the one definition of a donation that
+            // counts, and the headline above this chart takes its figure from the same
+            // place. Spelled separately, the line and the total drift apart by exactly the
+            // rows nobody notices — a refund shows in neither, so both stay plausible.
+            $rows = PartnerOrg::countableDonations($orgId)
                 ->where('created_at', '>=', $from . ' 00:00:00')
                 ->orderBy('id')
                 ->get(['amount_naira', 'platform_fee_naira', 'created_at']);
             // Everything before the window, so the line starts where the organisation
             // actually stood rather than at zero — a partner two years in is not somebody
             // who joined ninety days ago.
-            $before = (int) DB::table('gates_donations')
-                ->where('recipient_org_id', $orgId)
-                ->where('status', 'confirmed')
+            $before = (int) PartnerOrg::countableDonations($orgId)
                 ->where('created_at', '<', $from . ' 00:00:00')
                 ->sum(DB::raw('amount_naira - COALESCE(platform_fee_naira, 0)'));
         } catch (\Throwable) {
@@ -712,9 +712,7 @@ final class OrgDashboardController
     private function recentDonations(int $orgId, int $limit = 25): array
     {
         try {
-            $rows = DB::table('gates_donations')
-                ->where('recipient_org_id', $orgId)
-                ->where('status', 'confirmed')
+            $rows = PartnerOrg::countableDonations($orgId)
                 ->orderByDesc('id')->limit($limit)
                 ->get(['donor_name', 'amount_naira', 'platform_fee_naira', 'show_name', 'created_at']);
         } catch (\Throwable) {

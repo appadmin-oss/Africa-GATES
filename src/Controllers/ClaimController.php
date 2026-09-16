@@ -158,9 +158,12 @@ final class ClaimController
     {
         if ($nomineeId < 1) return null;
         try {
-            return MergeService::notMerged(
+            // The sandbox is contained by its programme's `is_active = 0`, and a lookup
+            // BY ID never goes near a programme — so without this the rehearsal had a
+            // live claim page at a guessable URL. See DemoSeeder::liveAwardOnly().
+            return \AfricaGates\Services\DemoSeeder::liveAwardOnly(MergeService::notMerged(
                 DB::table('gates_nominees')->where('id', $nomineeId)->where('status', 'approved')
-            )->first(['id', 'name']);
+            ))->first(['id', 'name']);
         } catch (\Throwable) {
             return null;
         }

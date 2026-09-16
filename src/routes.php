@@ -2376,8 +2376,14 @@ return function(App $app) {
         //
         // The query string is carried on every one of these — losing it drops the `?ref=`
         // a gateway appends to a callback, and the `?give=` that explains a refusal.
+        //
+        // The RETURNED closure is not static, and that is not a style choice: Slim binds
+        // the container to a route callable, and binding to a static closure is a PHP
+        // warning it emits on every request to each of these seven redirects. Nothing
+        // here uses `$this`, so the warning bought nothing and cost a line in the error
+        // log per hit — invisible on a host with no shell, which is where these run.
         $bounce = static function (callable $to, int $code) {
-            return static function ($req, $res, array $args = []) use ($to, $code) {
+            return function ($req, $res, array $args = []) use ($to, $code) {
                 $qs  = $req->getUri()->getQuery();
                 $url = $to($args);
                 return $res->withHeader('Location', $url . ($qs !== '' ? '?' . $qs : ''))

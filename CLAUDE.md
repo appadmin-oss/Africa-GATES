@@ -967,6 +967,47 @@ Full account in `docs/CODEBASE-INDEX.md` §16.
 - **The sandbox must never reach the public.** `DemoSeeder` creates real rows with real
   flags, because the sandbox exists to be walked through for real. Every public reader has
   to exclude them — `JudgeService::realJudges()` is the pattern.
+  **The containment is the CATEGORY CHAIN, so a lookup BY ID has no containment at all.**
+  The demo lives in a programme with `is_active = 0`, and every reader that walks
+  nominee → category → cycle → programme is therefore safe without knowing the sandbox
+  exists. A reader that starts at `gates_nominees` and filters on an id never goes near a
+  programme, so it resolves any number a stranger types. That is how the ballot page
+  shipped, and `/claim/{id}` shipped with it twice over — once in `ClaimController` and
+  again in `NomineeClaimService`, each with its own copy of the same unfiltered lookup.
+  `DemoSeeder::liveAwardOnly()` is the one clause; it excludes only what it can positively
+  prove is not live (`whereNotExists` a chain reaching an INACTIVE programme), because the
+  inverted test also deletes every uncategorised nominee — which `/registry` lists on
+  purpose — while looking like a security fix.
+  **And a page that refuses to DRAW is not a closed door.** The two POSTs behind that claim
+  page were refused before the fix, and not by anything about the sandbox: the seeded
+  nomination happens to carry no contact `canDeliver()` accepts, so `channels()` came back
+  empty. A guard resting on a property of today's fixture is one seeder change away from
+  letting a stranger put a verified claim and an audit trail on a row whose whole purpose is
+  to be deleted — records `purge()` then destroys. Assert the REASON, not the refusal.
+  **The sweep that finds the next one asks the rule, not the list.** Every named test in
+  `PublicSurfaceSandboxTest` is a reader somebody already found leaking, which is an
+  enumeration of past failures. `test_no_public_url_serves_anything_from_the_sandbox` boots
+  the real router, seeds the real sandbox, walks every public GET route and fails on a body
+  carrying the rehearsal. It found the claim page. It also says plainly what it cannot see —
+  POSTs, and routes keyed on something the sandbox does not mint — because a sweep that
+  narrows the surface without saying where it stopped reads as having cleared it.
+
+- **`status` DOES NOT GO BACKWARDS, so `confirmed` alone counts refunded money.** A donation
+  clawback stamps `refunded_at` and deliberately leaves the status where it was — the row is
+  the record that the money once cleared, and rewriting it to 'refunded' destroys that fact.
+  So `where('status','confirmed')` is not "money this organisation has", and five readers
+  spelled exactly that by hand. Three were displays that all agreed with each other — the
+  partner dashboard's headline, its 90-day line and its recent list — which is what made it
+  invisible: nothing on the screen contradicts anything else on the screen, so there is no
+  symptom for anybody to report. The fourth was not a display. `OrgPayout::available()` takes
+  its figure straight from `PartnerOrg::totals()`, so **a refunded gift stayed inside the
+  balance an organisation is allowed to request**: the donor had their money back and the
+  withdrawable number never moved. The fifth is printed on the public page that asks people
+  for money. `PartnerOrg::countableDonations()` is the one definition now, `null` meaning
+  every organisation; `refunded_at` is optional on this table, so the clause is added through
+  `SchemaHas` and its absence means no refund has been recorded rather than an error.
+  `RefundedMoneyTest` refunds a real row and requires every figure to move, which is the only
+  way to tell a scope that is APPLIED from one that is merely present in the source.
 - **Anything a partner or nominee typed is untrusted in JSON-LD.** `layout/gates.twig`
   renders it with `JSON_UNESCAPED_SLASHES`, so `</script>` in a campaign title closes the
   script element. Everything in `src/Support/Schema.php` goes through `text()`.

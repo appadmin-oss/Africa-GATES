@@ -477,6 +477,15 @@
   .dn-alloc__b{ margin:6px 0 0; font-size:14px; line-height:1.65; color:var(--dn-ink-2);
     max-width:52ch; text-wrap:pretty; }
 
+  /* Same voice as the line above it, and deliberately not a tinted panel: a caveat
+     drawn as a callout reads as a warning about the donation. */
+  /* The base is a centred one-liner; this is a sentence that wraps, so it has to
+     start at the left or the second line hangs under nothing. The icon is nudged
+     to the first line's baseline rather than centred against two. */
+  .dn-secure--votes{ margin:9px 0 0; justify-content:flex-start;
+    align-items:flex-start; text-align:left; max-width:34rem; line-height:1.55; }
+  .dn-secure--votes svg{ margin-top:2px; }
+  .dn-secure--votes a{ color:inherit; font-weight:600; text-decoration:underline; }
   .dn-trust{ display:flex; align-items:flex-start; gap:12px; margin-top:22px;
     font-size:14px; line-height:1.65; color:var(--dn-ink-2); max-width:60ch; }
   .dn-trust svg{ flex:none; margin-top:2px; color:var(--dn-gold-ink); }
@@ -935,6 +944,26 @@
               <svg aria-hidden="true" focusable="false" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
               You’ll complete payment on our secure gateway.
             </div>
+            {# ── WHAT A GIFT DOES NOT BUY ──────────────────────────────────
+               The code has always been unambiguous — every donation row is written with
+               `bonus_votes = 0`, on this page and on a partner's — and the page had never
+               once said so. That silence is only safe on a platform that does not also
+               sell votes, and this one does: vote packs are a separate product with their
+               own page, and voting points are a third thing again, earned from purchases
+               and tickets. A donor looking at an amount field on an awards site has every
+               reason to assume some of it lands on the scoreboard, and nothing here told
+               them otherwise.
+
+               Stated at the form rather than in the trust panel further down, because the
+               trust panel is inside the allocation section and does not render on every
+               variant of this page — and because this is the moment the decision is made.
+               The rule itself is published, so it links to where it is kept rather than
+               restating it here and becoming a second copy that can go stale. #}
+            <p class="dn-secure dn-secure--votes">
+              <svg aria-hidden="true" focusable="false" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2 4 5v6c0 5 3.4 9.7 8 11 4.6-1.3 8-6 8-11V5l-8-3Z"/><path d="M15 9l-4 4-2-2"/></svg>
+              <span>A donation buys no votes and changes no score &mdash; not here and not
+                on a partner’s appeal. <a href="/integrity">How that is kept true</a>.</span>
+            </p>
           </div>
         </form>
         {% endif %}

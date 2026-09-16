@@ -746,9 +746,7 @@ final class PartnerOrg
         }
 
         try {
-            $row = DB::table('gates_donations')
-                ->whereNotNull('recipient_org_id')
-                ->where('status', 'confirmed')
+            $row = self::countableDonations()
                 ->selectRaw('COALESCE(SUM(amount_naira),0) g, COUNT(*) c')
                 ->first();
             $out['raised'] = (int) ($row->g ?? 0);
@@ -1153,13 +1151,54 @@ final class PartnerOrg
      *
      * @return array{gross:int,platform_fee:int,net:int,count:int}
      */
+    /**
+     * THE ONE DEFINITION OF A DONATION THAT COUNTS FOR AN ORGANISATION.
+     *
+     * ══════════════════════════════════════════════════════════════════════════
+     * `status` DOES NOT GO BACK, SO `confirmed` ALONE INCLUDES REFUNDED MONEY
+     * ══════════════════════════════════════════════════════════════════════════
+     *
+     * A donation clawback stamps `refunded_at` and deliberately leaves `status` where it
+     * was — {@see \AfricaGates\Services\BonusVoteService::clawbackDonation()} says so in
+     * as many words, and it is right to: the row is a record that the money WAS confirmed,
+     * and rewriting that to 'refunded' would lose the fact that it ever cleared.
+     *
+     * The consequence is that `where('status','confirmed')` on its own is not "money this
+     * organisation has". Four readers spelled exactly that, each by hand, and the one that
+     * mattered was not a display: {@see \AfricaGates\Services\OrgPayout::available()}
+     * takes `net` straight from here, so a refunded gift stayed in the balance an
+     * organisation may request — the donor got their money back and the withdrawable
+     * figure never moved. The dashboard's headline, its 90-day line and its recent list
+     * all agreed with each other and all three were wrong by the same rows, which is what
+     * makes it invisible: nothing on the screen disagrees with anything else.
+     *
+     * So it is one scope now, and the readers compose on top of it. `refunded_at` is
+     * OPTIONAL on this table — {@see \AfricaGates\Support\OptionalColumn} is used for it
+     * elsewhere — so the filter is added only where the column exists, and its absence
+     * means no refund has ever been recorded rather than an error.
+     *
+     * `$orgId` of null means EVERY organisation, which is the public headline on the
+     * partner page — the figure shown to people who are being asked for money, and so the
+     * one it would be least acceptable to overstate.
+     *
+     * @return \Illuminate\Database\Query\Builder
+     */
+    public static function countableDonations(?int $orgId = null): object
+    {
+        $q = DB::table('gates_donations')->where('status', 'confirmed');
+        $orgId === null ? $q->whereNotNull('recipient_org_id') : $q->where('recipient_org_id', $orgId);
+
+        if (\AfricaGates\Support\SchemaHas::column('gates_donations', 'refunded_at')) {
+            $q->whereNull('refunded_at');
+        }
+        return $q;
+    }
+
     public static function totals(int $orgId): array
     {
         $zero = ['gross' => 0, 'platform_fee' => 0, 'net' => 0, 'count' => 0];
         try {
-            $row = DB::table('gates_donations')
-                ->where('recipient_org_id', $orgId)
-                ->where('status', 'confirmed')
+            $row = self::countableDonations($orgId)
                 ->selectRaw('COALESCE(SUM(amount_naira),0) g, COALESCE(SUM(platform_fee_naira),0) f, COUNT(*) c')
                 ->first();
         } catch (\Throwable) {

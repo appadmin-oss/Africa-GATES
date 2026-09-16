@@ -846,6 +846,60 @@ final class DemoSeeder
         return $q;
     }
 
+    /**
+     * Refuse a nominee whose award is not live — the by-id hole in the containment.
+     *
+     * ── WHY A SECOND HELPER, AND WHY IT IS SHAPED LIKE THIS ──────────────────
+     *
+     * {@see notSandbox()} needs a programme id already in the query. A reader that starts
+     * at `gates_nominees` and looks a row up BY ID has no programme anywhere near it, so
+     * it cannot use that helper and — every time so far — has simply had no filter at all.
+     * That is the shape the ballot page shipped with, and `/claim/{id}` shipped with it
+     * twice over: the controller renders the page and {@see NomineeClaimService} guards
+     * the two POSTs behind it, each with its own copy of the same unfiltered lookup.
+     *
+     * What that cost, stated exactly. A stranger who guessed a number reached a claim
+     * page NAMING a rehearsal nominee — rehearsal content served on a public URL, which
+     * is the whole thing this containment exists to prevent. The POST behind it was
+     * refused, but by accident rather than by rule: the seeded nomination happens to
+     * carry no contact anything will deliver to, so `channels()` came back empty and
+     * `start()` answered CHANNEL_UNKNOWN. That is a property of today's fixture, not a
+     * guarantee — give the sandbox a deliverable-looking contact, or change what
+     * `canDeliver()` accepts, and a row that exists to be DELETED starts accepting real
+     * claims with real audit trails, which `purge()` then destroys the records for.
+     *
+     * Three decisions here, each load-bearing:
+     *
+     *  · **`whereNotExists`, never a join.** Callers select different shapes — one asks
+     *    for `['id','name']`, one for everything — and a join changes the row and can
+     *    collide on a column name. A NOT EXISTS is strictly additive: it constrains and
+     *    touches nothing the caller already built.
+     *  · **It excludes only what it can positively prove is not live.** The test is "this
+     *    nominee's chain reaches a programme with `is_active = 0`", not "…reaches an
+     *    active one". A nominee with no category has no chain, and `/registry` lists
+     *    those deliberately — an inverted test would delete them from the site while
+     *    looking like a security fix. Nothing the seeder makes is uncategorised.
+     *  · **`is_active` and not the name prefix.** The prefix is for the operator's eye;
+     *    `is_active = 0` is the mechanism this class chose, and a filter on a name is one
+     *    rename away from being wrong.
+     *
+     * @param \Illuminate\Database\Query\Builder $q
+     * @param string $nomineeIdColumn the qualified column holding the nominee id
+     */
+    public static function liveAwardOnly(object $q, string $nomineeIdColumn = 'gates_nominees.id'): object
+    {
+        $q->whereNotExists(static function ($w) use ($nomineeIdColumn): void {
+            $w->selectRaw('1')
+              ->from('gates_nominees as ds_n')
+              ->join('gates_award_categories as ds_c', 'ds_c.id', '=', 'ds_n.category_id')
+              ->join('gates_award_cycles as ds_cy', 'ds_cy.id', '=', 'ds_c.cycle_id')
+              ->join('gates_award_programmes as ds_p', 'ds_p.id', '=', 'ds_cy.programme_id')
+              ->where('ds_p.is_active', 0)
+              ->whereColumn('ds_n.id', $nomineeIdColumn);
+        });
+        return $q;
+    }
+
     public static function exists(): bool
     {
         try {

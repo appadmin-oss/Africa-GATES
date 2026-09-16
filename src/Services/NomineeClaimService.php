@@ -777,14 +777,20 @@ HTML;
         }
     }
 
-    /** An approved, unmerged nominee — the only kind with a page to claim. */
+    /**
+     * An approved, unmerged nominee on a LIVE award — the only kind with a page to claim.
+     *
+     * The controller renders the page and this guards the two POSTs behind it, so both
+     * have to ask the same question: a claim page that merely refuses to draw is still a
+     * claim somebody can complete by posting to it.
+     */
     private function nominee(int $nomineeId): ?object
     {
         if ($nomineeId < 1) return null;
         try {
-            return MergeService::notMerged(
+            return DemoSeeder::liveAwardOnly(MergeService::notMerged(
                 DB::table('gates_nominees')->where('id', $nomineeId)->where('status', 'approved')
-            )->first();
+            ))->first();
         } catch (\Throwable) {
             return null;
         }

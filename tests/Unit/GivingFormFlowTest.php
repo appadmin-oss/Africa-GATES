@@ -186,4 +186,48 @@ final class GivingFormFlowTest extends TestCase
         $this->assertMatchesRegularExpression('~tipPct:\s*0~', $src,
             'the form arrives with a gift to the platform already chosen');
     }
+
+    // ══ 4 · what the gift does NOT buy ═══════════════════════════════════════
+
+    /**
+     * THE PAGE SAYS A DONATION BUYS NO VOTES, AND THE CODE MAKES THAT TRUE.
+     *
+     * The rule was enforced from the first commit — every donation row is written with
+     * `bonus_votes = 0`, on this page and on a partner's appeal — and the page had never
+     * once said so. Silence is only safe on a platform that does not also sell votes, and
+     * this one does: vote packs are a separate product with their own reference prefix,
+     * and voting points earned from purchases and tickets are a third thing again. A donor
+     * looking at an amount field on an AWARDS site has every reason to assume some of it
+     * lands on the scoreboard.
+     *
+     * Both halves are asserted together deliberately. This repo's recurring fault is prose
+     * outliving the rule it describes, and a promise about money and influence is the worst
+     * place for that: pinning only the sentence would let somebody start granting votes
+     * here with the page still denying it, and pinning only the code leaves the donor
+     * uninformed. The sentence is also checked to be OUTSIDE a Twig comment, because
+     * {@see page()} strips those — a promise nobody can read is not a promise.
+     */
+    public function test_the_form_states_that_a_gift_buys_no_votes(): void
+    {
+        $page = self::page();
+
+        $this->assertMatchesRegularExpression(
+            '~buys no votes and changes no score~i', $page,
+            'the giving form no longer tells a donor that a donation grants no votes');
+
+        $this->assertStringContainsString('not here and not', $page,
+            'the claim is narrowed to this page, while a partner appeal grants no votes either');
+
+        // The rule the sentence is describing. `bonus_votes` is written once, as a literal
+        // zero — read out of the controller so this fails if it ever becomes a variable.
+        $controller = (string) file_get_contents(
+            dirname(__DIR__, 2) . '/src/Controllers/DonationController.php');
+
+        $this->assertMatchesRegularExpression(
+            "~'bonus_votes'\\s*=>\\s*0\\s*,~", $controller,
+            'the page promises a donation grants no votes and the controller no longer writes a plain zero');
+        $this->assertSame(
+            1, preg_match_all("~'bonus_votes'\\s*=>~", $controller),
+            'there is a second place a donation sets bonus_votes, so the promise has two authors');
+    }
 }
