@@ -78,15 +78,15 @@
   .iv__h1{ font-family:var(--ag-font-display, "Playfair Display", Georgia, serif); font-weight:600;
     font-size:clamp(28px, 7.5vw, 34px); line-height:1.08; letter-spacing:-.025em; color:#10292c;
     margin:20px 0 0 }
-  .iv__lede{ font-size:15.5px; line-height:1.7; color:#3d5254; margin:14px 0 0 }
-  .iv__cap{ font-size:12.5px; line-height:1.6; color:#626a6e; margin:8px 0 0 }
+  .iv__lede{ font-size:16px; line-height:1.7; color:#3d5254; margin:14px 0 0 }
+  .iv__cap{ font-size:13px; line-height:1.6; color:#626a6e; margin:8px 0 0 }
   .iv__free{ font:500 11px/1.5 var(--ag-font-mono, ui-monospace, monospace); letter-spacing:.1em;
     text-transform:uppercase; color:#626a6e; text-align:center; margin:26px 0 0 }
 
   /* ── buttons ───────────────────────────────────────────────────────────── */
   .iv__go{ display:flex; align-items:center; justify-content:center; width:100%; min-height:56px;
     border:none; border-radius:16px; background:#10292c; color:#fff; cursor:pointer;
-    font:600 15.5px/1 inherit; letter-spacing:-.01em; padding:0 20px; text-decoration:none }
+    font:600 16px/1 inherit; letter-spacing:-.01em; padding:0 20px; text-decoration:none }
   .iv__go:hover{ background:#1a3c40 }
   .iv__go--green{ background:#237b22 } .iv__go--green:hover{ background:#1a6118 }
   .iv__go[disabled]{ background:rgba(16,41,44,.16); cursor:default }
@@ -115,7 +115,7 @@
   .iv__head{ padding:8px 20px 14px; background:#fff; border-bottom:1px solid rgba(16,41,44,.08);
     position:sticky; top:var(--ag-nav-h, 72px); z-index:4 }
   .iv__headrow{ display:flex; align-items:center; gap:12px }
-  .iv__title{ font:600 14.5px/1.2 inherit; color:#10292c; margin:0 }
+  .iv__title{ font:600 14px/1.2 inherit; color:#10292c; margin:0 }
   .iv__status{ font:500 10px/1.4 var(--ag-font-mono, ui-monospace, monospace); letter-spacing:.14em;
     text-transform:uppercase; color:#626a6e; margin:3px 0 0 }
   .iv__count{ margin-left:auto; display:inline-flex; align-items:center; gap:8px; height:44px;
@@ -143,7 +143,7 @@
   .iv__log{ flex:1; padding:22px 20px; display:flex; flex-direction:column;
     justify-content:flex-start; gap:16px }
   .iv__turn{ display:flex; flex-direction:column }
-  .iv__bub{ padding:14px 17px; font-size:15px; line-height:1.6; max-width:86%;
+  .iv__bub{ padding:14px 17px; font-size:16px; line-height:1.6; max-width:86%;
     white-space:pre-wrap; overflow-wrap:anywhere; border:none; text-align:left;
     font-family:inherit; margin:0 }
   .iv__bub--ai{ align-self:flex-start; background:#f1f6f1; color:#22332c;
@@ -153,18 +153,18 @@
   .iv__bub--sel{ box-shadow:0 0 0 3px #fff, 0 0 0 5px #237b22 }
   .iv__bub--fail{ align-self:flex-end; background:#fff; color:#3d5254;
     border:1.5px solid rgba(179,38,30,.35); border-radius:22px 22px 6px 22px }
-  .iv__mine{ font:500 9.5px/1 var(--ag-font-mono, ui-monospace, monospace); letter-spacing:.14em;
+  .iv__mine{ font:500 10px/1 var(--ag-font-mono, ui-monospace, monospace); letter-spacing:.14em;
     text-transform:uppercase; color:#626a6e; align-self:flex-end; margin-top:6px }
-  .iv__failnote{ font:500 9.5px/1 var(--ag-font-mono, ui-monospace, monospace); letter-spacing:.14em;
+  .iv__failnote{ font:500 10px/1 var(--ag-font-mono, ui-monospace, monospace); letter-spacing:.14em;
     text-transform:uppercase; color:#b3261e; align-self:flex-end; margin-top:8px }
 
   /* Every machine-derived value carries this label and the quote behind it, wherever it
      appears. It is the difference between a record a panel can read and one it cannot. */
   .iv__noted{ align-self:flex-start; border-left:2px solid #237b22; padding-left:14px;
     max-width:92% }
-  .iv__noted-k{ font:600 9.5px/1 var(--ag-font-mono, ui-monospace, monospace); letter-spacing:.14em;
+  .iv__noted-k{ font:600 10px/1 var(--ag-font-mono, ui-monospace, monospace); letter-spacing:.14em;
     text-transform:uppercase; color:#237b22; margin:0 }
-  .iv__noted-b{ font-size:13.5px; line-height:1.6; color:#3d5254; margin:6px 0 0 }
+  .iv__noted-b{ font-size:14px; line-height:1.6; color:#3d5254; margin:6px 0 0 }
   .iv__noted-b b{ color:#10292c; font-weight:600 }
   .iv__noted-c{ font-size:12px; line-height:1.55; color:#626a6e; margin:6px 0 0 }
 
@@ -191,7 +191,7 @@
   .iv__field{ flex:1; display:flex; align-items:flex-end; gap:8px; background:#f6f7f6;
     border-radius:26px; min-height:52px; padding:0 8px 0 18px }
   .iv__field--armed{ border:1.5px solid #10292c }
-  .iv__say{ flex:1; border:none; background:none; resize:none; font:400 15.5px/1.45 inherit;
+  .iv__say{ flex:1; border:none; background:none; resize:none; font:400 16px/1.45 inherit;
     color:#10292c; padding:15px 0; max-height:40vh; overflow-y:auto }
   .iv__say:focus{ outline:none }
   .iv__say::placeholder{ color:#626a6e }
@@ -216,7 +216,7 @@
     color:#8a6a1c; margin:0 }
   .iv__heard-k b{ width:7px; height:7px; border-radius:50%; background:#c9a24b; display:block }
   .iv__heard-box{ border:1.5px solid #10292c; border-radius:20px; padding:14px 16px; margin-top:10px;
-    font-size:15.5px; line-height:1.6; color:#10292c; white-space:pre-wrap }
+    font-size:16px; line-height:1.6; color:#10292c; white-space:pre-wrap }
   .iv__heard-acts{ display:flex; gap:10px; align-items:center; margin-top:12px }
 
   /* ── bottom sheets: 07c and 07d ────────────────────────────────────────── */
@@ -246,17 +246,17 @@
   .iv__mark--part{ border:2px solid #c9a24b }
   .iv__mark--unmet{ border:2px solid rgba(16,41,44,.2) }
   .iv__mark--opt{ border:2px dashed rgba(16,41,44,.25) }
-  .iv__out-l{ font:600 14.5px/1.4 inherit; color:#10292c; margin:0 }
+  .iv__out-l{ font:600 14px/1.4 inherit; color:#10292c; margin:0 }
   .iv__out-l--soft{ color:#3d5254; font-weight:500 }
-  .iv__out-s{ font-size:12.5px; line-height:1.55; color:#626a6e; margin:4px 0 0 }
+  .iv__out-s{ font-size:13px; line-height:1.55; color:#626a6e; margin:4px 0 0 }
   .iv__out-s--part{ color:#8a6a1c }
 
   .iv__opt{ display:block; width:100%; text-align:left; background:#f6f7f6; border:none;
     border-radius:16px; min-height:56px; padding:13px 16px; margin-top:10px; cursor:pointer;
     font-family:inherit }
   .iv__opt:hover{ background:#eceeec }
-  .iv__opt b{ display:block; font:600 15px/1.35 inherit; color:#10292c }
-  .iv__opt span{ display:block; font-size:12.5px; line-height:1.5; color:#3d5254; margin-top:3px }
+  .iv__opt b{ display:block; font:600 16px/1.35 inherit; color:#10292c }
+  .iv__opt span{ display:block; font-size:13px; line-height:1.5; color:#3d5254; margin-top:3px }
   .iv__opt--bad{ background:#fff; border:1px solid rgba(179,38,30,.3) }
   .iv__opt--bad b{ color:#b3261e } .iv__opt--bad span{ color:#8a2020 }
 
@@ -273,10 +273,10 @@
   .iv__file--bad{ background:#fff; border:1px solid rgba(179,38,30,.35) }
   .iv__badge{ width:32px; height:32px; flex:none; border-radius:8px; background:#e6ebe6;
     display:flex; align-items:center; justify-content:center;
-    font:600 9px/1 var(--ag-font-mono, ui-monospace, monospace); color:#3d5254 }
-  .iv__filename{ flex:1; min-width:0; font:600 13.5px/1.35 inherit; color:#10292c;
+    font:600 10px/1 var(--ag-font-mono, ui-monospace, monospace); color:#3d5254 }
+  .iv__filename{ flex:1; min-width:0; font:600 14px/1.35 inherit; color:#10292c;
     overflow-wrap:anywhere }
-  .iv__filemeta{ font-size:11.5px; color:#626a6e; margin-top:2px }
+  .iv__filemeta{ font-size:12px; color:#626a6e; margin-top:2px }
   .iv__x{ width:32px; height:32px; flex:none; border:none; border-radius:8px; background:none;
     cursor:pointer; color:#3d5254; font-size:16px; line-height:1 }
   .iv__x:hover{ background:rgba(16,41,44,.07); color:#10292c }
@@ -284,7 +284,7 @@
     text-align:center; margin-top:12px }
   .iv__track{ height:4px; border-radius:99px; background:rgba(16,41,44,.1); margin-top:8px }
   .iv__track i{ display:block; height:100%; border-radius:99px; background:#237b22 }
-  .iv__in{ width:100%; font-family:inherit; font-size:15px; line-height:1.5; color:#10292c;
+  .iv__in{ width:100%; font-family:inherit; font-size:16px; line-height:1.5; color:#10292c;
     background:#f6f7f6; border:none; border-radius:14px; padding:13px 15px; min-height:50px }
   .iv__in:focus-visible{ outline:2px solid #237b22; outline-offset:1px }
   textarea.iv__in{ min-height:96px; resize:vertical }
@@ -299,8 +299,8 @@
   .iv__review{ padding:28px 20px calc(40px + var(--iv-bar)) }
   .iv__claim{ padding:20px 0; border-top:1px solid rgba(16,41,44,.09) }
   .iv__claim-h{ display:flex; align-items:center; gap:10px }
-  .iv__claim-l{ font:600 15px/1.3 inherit; color:#10292c; margin:0 }
-  .iv__tag{ font:600 9.5px/1 var(--ag-font-mono, ui-monospace, monospace); letter-spacing:.14em;
+  .iv__claim-l{ font:600 16px/1.3 inherit; color:#10292c; margin:0 }
+  .iv__tag{ font:600 10px/1 var(--ag-font-mono, ui-monospace, monospace); letter-spacing:.14em;
     text-transform:uppercase; color:#8a6a1c; background:#fbfaf5; border-radius:999px;
     padding:5px 8px }
   /* The nominee's sentence is the only editorial type on this screen, which is the correct
@@ -309,7 +309,7 @@
     font-size:17px; line-height:1.55; color:#10292c; margin:12px 0 0 }
   .iv__claim-acts{ display:flex; gap:16px; align-items:center; margin-top:6px; flex-wrap:wrap }
   .iv__claim-acts button{ background:none; border:none; cursor:pointer; padding:0;
-    font:600 13.5px/1 inherit; min-height:44px; display:inline-flex; align-items:center }
+    font:600 14px/1 inherit; min-height:44px; display:inline-flex; align-items:center }
   /* A full-width text button inside a claim block reads as a link on that block, not as a
      centred call to action — so it starts where the text above it starts. */
   .iv__claim .iv__text{ justify-content:flex-start; padding:0 }
@@ -321,12 +321,12 @@
   .iv__state i{ width:9px; height:9px; border-radius:50%; margin-top:5px; flex:none }
   .iv__state-k{ font:600 10px/1 var(--ag-font-mono, ui-monospace, monospace); letter-spacing:.16em;
     text-transform:uppercase; margin:0 }
-  .iv__state p{ font-size:13.5px; line-height:1.6; color:#3d5254; margin:7px 0 0 }
+  .iv__state p{ font-size:14px; line-height:1.6; color:#3d5254; margin:7px 0 0 }
 
   .iv__ok{ margin:14px 20px 0; background:#eef7ee; border:1px solid rgba(35,123,34,.25);
-    border-radius:12px; padding:12px 14px; font-size:13.5px; line-height:1.6; color:#22452a }
+    border-radius:12px; padding:12px 14px; font-size:14px; line-height:1.6; color:#22452a }
   .iv__err{ margin:14px 20px 0; background:#fdf4f3; border:1px solid rgba(179,38,30,.28);
-    border-radius:12px; padding:12px 14px; font-size:13.5px; line-height:1.6; color:#7a1f19 }
+    border-radius:12px; padding:12px 14px; font-size:14px; line-height:1.6; color:#7a1f19 }
 
   [x-cloak]{ display:none !important }
 

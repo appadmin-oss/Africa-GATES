@@ -11,7 +11,7 @@
   .sh-hero__in{ position:relative; max-width:560px; }
   .sh-badge{ display:inline-flex; align-items:center; gap:7px; font-size:11px; font-weight:700; letter-spacing:.1em; text-transform:uppercase; color:#ffd24a; background:rgba(8,26,16,.55); box-shadow:inset 0 0 0 1px rgba(212,154,14,.32); padding:7px 14px; border-radius:999px; }
   .sh-hero h1{ margin:16px 0 0; color:#fff; font-family:var(--ag-font-display); font-weight:800; font-size:clamp(2rem,5vw,2.6rem); line-height:1.04; letter-spacing:-.02em; }
-  .sh-hero p{ margin:14px 0 0; font-size:15.5px; line-height:1.6; color:rgba(255,255,255,.85); max-width:460px; }
+  .sh-hero p{ margin:14px 0 0; font-size:16px; line-height:1.6; color:rgba(255,255,255,.85); max-width:460px; }
 
   /* search + sort — a real form, so it works with JS off and the URL is shareable */
   .sh-find{ display:flex; gap:10px; flex-wrap:wrap; align-items:center; margin-top:22px; }
@@ -19,10 +19,10 @@
   .sh-search input{ width:100%; border:1px solid rgba(16,41,44,.14); border-radius:999px; padding:11px 42px 11px 42px; font-family:inherit; font-size:14px; color:var(--ag-ink); background:var(--ag-surface,#fff); outline:none; }
   .sh-search input:focus{ border-color:var(--ag-green); box-shadow:0 0 0 3px rgba(35,123,34,.1); }
   .sh-search__i{ position:absolute; left:15px; top:50%; transform:translateY(-50%); color:var(--ag-ink-soft,#626a6e); pointer-events:none; }
-  .sh-search__go{ position:absolute; right:5px; top:5px; bottom:5px; cursor:pointer; border:none; background:var(--ag-ink); color:#fff; font-family:inherit; font-size:12.5px; font-weight:600; padding:0 15px; border-radius:999px; }
+  .sh-search__go{ position:absolute; right:5px; top:5px; bottom:5px; cursor:pointer; border:none; background:var(--ag-ink); color:#fff; font-family:inherit; font-size:13px; font-weight:600; padding:0 15px; border-radius:999px; }
   .sh-sort{ display:inline-flex; align-items:center; gap:7px; font-size:13px; color:#4a5256; }
   .sh-sort select{ border:1px solid rgba(16,41,44,.16); border-radius:999px; padding:9px 13px; font-family:inherit; font-size:16px; background:var(--ag-surface,#fff); color:var(--ag-ink); cursor:pointer; }
-  .sh-ship{ display:flex; align-items:center; gap:9px; background:#eafaf0; border:1px solid rgba(35,123,34,.2); border-radius:14px; padding:11px 16px; margin-top:16px; font-size:13.5px; color:#10292C; }
+  .sh-ship{ display:flex; align-items:center; gap:9px; background:#eafaf0; border:1px solid rgba(35,123,34,.2); border-radius:14px; padding:11px 16px; margin-top:16px; font-size:14px; color:#10292C; }
   .sh-ship b{ font-weight:700; }
 
   .sh-bar{ display:flex; align-items:center; justify-content:space-between; gap:16px; flex-wrap:wrap; margin-top:24px; }
@@ -46,7 +46,7 @@
   .sh-tag--Limited{ background:#fdeaf0; color:#9c2b48; }
   .sh-card__body{ padding:16px; }
   .sh-card__cat{ font-size:11px; color:#5a6d6f; text-transform:uppercase; letter-spacing:.05em; }
-  .sh-card__name{ font-weight:600; font-size:15.5px; color:var(--ag-ink); margin-top:4px; text-decoration:none; display:block; }
+  .sh-card__name{ font-weight:600; font-size:16px; color:var(--ag-ink); margin-top:4px; text-decoration:none; display:block; }
   .sh-card__row{ display:flex; align-items:center; justify-content:space-between; margin-top:14px; gap:10px; flex-wrap:wrap; }
   .sh-card__price{ font:700 17px/1 var(--ag-font-mono); color:var(--ag-ink); }
   /* `white-space:nowrap` and `flex:none`, because "Choose colour" was breaking across two
@@ -58,11 +58,11 @@
   .sh-add[disabled]{ background:#dfe4e3; color:#5b6669; cursor:not-allowed; }
   /* stock, said out loud on the card — an "Add" button for something sold out is a promise
      the checkout then has to break */
-  .sh-card__stock{ font-size:11.5px; font-weight:700; margin-top:6px; }
+  .sh-card__stock{ font-size:12px; font-weight:700; margin-top:6px; }
   .sh-card__stock.is-low{ color:#8a2020; }
   .sh-card__stock.is-gone{ color:#8a5a00; }
   .sh-card__stock.is-opt{ color:#5a6d6f; font-weight:600; }
-  .sh-card__sub{ font-size:12.5px; line-height:1.5; color:var(--ag-ink-soft,#626a6e); margin-top:3px; }
+  .sh-card__sub{ font-size:13px; line-height:1.5; color:var(--ag-ink-soft,#626a6e); margin-top:3px; }
   .sh-card--gone .sh-card__cover{ filter:grayscale(.7) opacity(.65); }
 
   /* paging */
@@ -75,7 +75,7 @@
   .sh-mission__i{ flex:none; width:48px; height:48px; border-radius:13px; background:#effaf0; color:#1a6118; display:flex; align-items:center; justify-content:center; }
   .sh-mission__b{ flex:1; min-width:220px; }
   .sh-mission__b b{ font-size:16px; color:var(--ag-ink); }
-  .sh-mission__b div{ font-size:13.5px; color:#626a6e; margin-top:3px; }
+  .sh-mission__b div{ font-size:14px; color:#626a6e; margin-top:3px; }
 
   .sh-empty{ background:var(--ag-surface,#fff); border:1px solid rgba(16,41,44,.08); border-radius:20px; padding:clamp(2rem,5vw,3rem); text-align:center; margin-top:20px; }
   .sh-empty h3{ margin:0 0 .4rem; font-family:var(--ag-font-display); font-weight:700; font-size:1.4rem; }
@@ -96,7 +96,7 @@
     .sh-hero__orb{ width:200px; height:200px; right:-70px; bottom:-90px; }
     .sh-badge{ font-size:10px; padding:5px 11px; }
     .sh-find{ margin-top:14px; }
-    .sh-ship{ margin-top:11px; padding:9px 13px; font-size:12.5px; }
+    .sh-ship{ margin-top:11px; padding:9px 13px; font-size:13px; }
   }
 
   /* "Not sure what to get?" — a link row, not a chat widget. A floating bubble is a thing
@@ -107,10 +107,10 @@
   .sh-ask__i{ flex:none; width:38px; height:38px; border-radius:11px; background:#eef4ff;
     color:#2b4f8a; display:flex; align-items:center; justify-content:center; }
   .sh-ask__b{ flex:1; min-width:190px; }
-  .sh-ask__b b{ display:block; font-size:14.5px; color:var(--ag-ink); }
-  .sh-ask__b span{ display:block; font-size:12.5px; color:#626a6e; margin-top:2px; }
+  .sh-ask__b b{ display:block; font-size:14px; color:var(--ag-ink); }
+  .sh-ask__b span{ display:block; font-size:13px; color:#626a6e; margin-top:2px; }
   .sh-ask__l{ display:flex; gap:8px; flex-wrap:wrap; }
-  .sh-ask__l a{ font-size:12.5px; font-weight:600; text-decoration:none; color:#10292C;
+  .sh-ask__l a{ font-size:13px; font-weight:600; text-decoration:none; color:#10292C;
     border:1px solid rgba(16,41,44,.14); border-radius:999px; padding:8px 13px;
     background:var(--ag-surface,#fff); white-space:nowrap; }
   .sh-ask__l a:hover{ border-color:var(--ag-green); color:var(--ag-green); }
@@ -128,7 +128,7 @@
     .sh-ask{ margin-top:11px; padding:11px 13px; gap:9px; align-items:center; }
     .sh-ask__i{ width:32px; height:32px; border-radius:9px; }
     .sh-ask__b{ min-width:0; }
-    .sh-ask__b b{ font-size:13.5px; }
+    .sh-ask__b b{ font-size:14px; }
     .sh-ask__b span{ display:none; }
     /* Its own line, scrolling sideways. Nowrap so the three stay one row; the scrollbar is
        hidden because a 3px bar under three chips reads as damage rather than as a control. */
@@ -193,25 +193,25 @@
   .sh-fs{ border:none; margin:0; padding:14px 0 0; border-top:1px solid rgba(16,41,44,.08); }
   .sh-fs__l{ font-size:11px; font-weight:700; letter-spacing:.08em; text-transform:uppercase;
     color:var(--ag-ink-soft,#626a6e); padding:0; margin-bottom:9px; }
-  .sh-opt{ display:flex; align-items:center; gap:9px; font-size:13.5px; color:#3a4448;
+  .sh-opt{ display:flex; align-items:center; gap:9px; font-size:14px; color:#3a4448;
     padding:5px 0; cursor:pointer; }
   .sh-opt input{ width:auto; flex:none; margin:0; accent-color:var(--ag-green); }
   .sh-opt span{ min-width:0; overflow-wrap:anywhere; }
-  .sh-opt__n{ margin-left:auto; font-size:11.5px; color:var(--ag-ink-soft,#626a6e); font-variant-numeric:tabular-nums; }
+  .sh-opt__n{ margin-left:auto; font-size:12px; color:var(--ag-ink-soft,#626a6e); font-variant-numeric:tabular-nums; }
 
   .sh-money{ display:flex; align-items:center; gap:7px; }
   .sh-money input{ min-width:0; width:100%; border:1px solid rgba(16,41,44,.16);
     border-radius:10px; padding:8px 10px; font-family:var(--ag-font-mono,monospace);
-    font-size:12.5px; color:var(--ag-ink); background:var(--ag-surface,#fff);
+    font-size:13px; color:var(--ag-ink); background:var(--ag-surface,#fff);
     box-sizing:border-box; }
   .sh-money span{ color:var(--ag-ink-soft,#626a6e); font-size:12px; flex:none; }
-  .sh-hint{ font-size:11.5px; color:var(--ag-ink-soft,#626a6e); margin:7px 0 0; }
+  .sh-hint{ font-size:12px; color:var(--ag-ink-soft,#626a6e); margin:7px 0 0; }
 
   .sh-apply{ display:flex; gap:8px; margin-top:16px; }
   .sh-apply button{ flex:1; cursor:pointer; border:none; background:var(--ag-ink); color:#fff;
     font-family:inherit; font-size:13px; font-weight:700; padding:11px; border-radius:999px; }
   .sh-apply a{ flex:none; display:inline-flex; align-items:center; padding:0 13px;
-    border-radius:999px; border:1px solid rgba(16,41,44,.14); font-size:12.5px;
+    border-radius:999px; border:1px solid rgba(16,41,44,.14); font-size:13px;
     font-weight:600; color:#4a5256; text-decoration:none; }
   .sh-apply a:hover{ border-color:rgba(16,41,44,.3); color:var(--ag-ink); }
 
@@ -281,7 +281,7 @@
   {# Two tones, because not every one of these is a failure. `mismatch` means the gateway
      says money MOVED — wording that red and calling it an error is what turns a debited
      customer into a chargeback (see ShopCheckoutController::callback). #}
-  <div class="sh-notice" id="shopNotice" role="alert" style="display:none;margin-top:16px;padding:12px 16px;border-radius:12px;font-size:13.5px;font-weight:500;line-height:1.5"></div>
+  <div class="sh-notice" id="shopNotice" role="alert" style="display:none;margin-top:16px;padding:12px 16px;border-radius:12px;font-size:14px;font-weight:500;line-height:1.5"></div>
   <script nonce="{{ csp_nonce }}">(function(){
     /* Every code ShopCheckoutController can emit. Kept in step with it deliberately: a code
        with no entry here used to render an EMPTY box, so `mismatch` — a customer who has been
@@ -656,7 +656,7 @@
       {% elseif F.category %}There is nothing in {{ F.category }} that also matches the rest of your filters.
       {% else %}Nothing in the shop matches all of those filters.{% endif %}
     </p>
-    <p style="margin-top:10px;font-size:13.5px;color:#626a6e">
+    <p style="margin-top:10px;font-size:14px;color:#626a6e">
       {% if F.min is not null or F.max is not null %}Try widening the price range{% if F.in_stock or F.featured %}, or{% endif %}{% endif %}
       {%- if F.in_stock %} include out-of-stock items{% if F.featured %}, or{% endif %}{% endif %}
       {%- if F.featured %} include products that are not featured{% endif %}

@@ -19,7 +19,7 @@
      by descent, which an earlier `.fi-tabs input` selector failed to do: it matched
      nothing and left five bare radio dots sitting above the tab strip. */
   .fi-tabs__radio{position:absolute;width:1px;height:1px;opacity:0;pointer-events:none}
-  .fi-tabs label{border:1px solid var(--ad-line,#e5eae8);background:var(--ad-surface,#fff);color:var(--ad-text,#10292c);border-radius:999px;padding:7px 15px;font-size:12.5px;font-weight:600;cursor:pointer;user-select:none}
+  .fi-tabs label{border:1px solid var(--ad-line,#e5eae8);background:var(--ad-surface,#fff);color:var(--ad-text,#10292c);border-radius:999px;padding:7px 15px;font-size:13px;font-weight:600;cursor:pointer;user-select:none}
   #fi-t-summary:checked ~ .fi-tabs label[for="fi-t-summary"],
   #fi-t-sources:checked ~ .fi-tabs label[for="fi-t-sources"],
   #fi-t-tx:checked      ~ .fi-tabs label[for="fi-t-tx"],
@@ -33,10 +33,10 @@
   #fi-t-giving:checked  ~ .fi-tabs label[for="fi-t-giving"]{background:var(--ad-accent,#237b22);border-color:transparent;color:#fff}
 
   /* ── The wider read. Same CSS-only tab machinery as above; no new JS. ───── */
-  .fx-note{margin:0 0 12px;font-size:12.5px;line-height:1.6;color:#5a6d6f;max-width:86ch}
+  .fx-note{margin:0 0 12px;font-size:13px;line-height:1.6;color:#5a6d6f;max-width:86ch}
   .fx-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;margin-bottom:14px}
   .fx-up{color:#177015;font-weight:700} .fx-down{color:#8a2020;font-weight:700} .fx-flat{color:#7a8a8c;font-weight:700}
-  .fx-tbl{width:100%;border-collapse:collapse;font-size:12.5px}
+  .fx-tbl{width:100%;border-collapse:collapse;font-size:13px}
   .fx-tbl th{text-align:left;font:700 10px/1 var(--ag-font-body,inherit);letter-spacing:.08em;text-transform:uppercase;
     color:#5a6d6f;padding:7px 9px;border-bottom:1px solid rgba(16,41,44,.12)}
   .fx-tbl td{padding:8px 9px;border-bottom:1px solid rgba(16,41,44,.05)}
@@ -45,24 +45,24 @@
   .fx-scroll{overflow-x:auto}
   /* Heatmap: one cell per hour, colour carries the amount. */
   .fx-heat{border-collapse:separate;border-spacing:2px;font-size:10px}
-  .fx-heat th{font:700 9px/1 var(--ag-font-body,inherit);color:#7a8a8c;padding:2px;text-align:center}
+  .fx-heat th{font:700 10px/1 var(--ag-font-body,inherit);color:#7a8a8c;padding:2px;text-align:center}
   .fx-heat th.lbl{text-align:right;padding-right:7px;font-family:var(--ag-font-mono,monospace)}
   .fx-heat td{width:15px;height:15px;border-radius:3px;background:rgba(16,41,44,.05)}
   .fx-fun__row{margin-bottom:10px}
-  .fx-fun__top{display:flex;justify-content:space-between;gap:10px;font-size:12.5px;margin-bottom:4px}
+  .fx-fun__top{display:flex;justify-content:space-between;gap:10px;font-size:13px;margin-bottom:4px}
   .fx-fun__n{font-family:var(--ag-font-mono,monospace);font-weight:700}
   .fx-fun__bar{height:9px;border-radius:99px;background:rgba(16,41,44,.07);overflow:hidden}
   .fx-fun__fill{height:100%;border-radius:99px}
-  .fx-empty{font-size:12.5px;color:#7a8a8c;margin:8px 0 0}
+  .fx-empty{font-size:13px;color:#7a8a8c;margin:8px 0 0}
   .fx-sub{margin:18px 0 8px;font-size:13px;font-weight:700;letter-spacing:-.01em}
   .fx-bad{background:#fdf3f3;border:1px solid #f0c9c9;color:#8a2020;border-radius:10px;padding:11px 14px;
-    font-size:12.5px;line-height:1.6;margin-top:10px}
+    font-size:13px;line-height:1.6;margin-top:10px}
   .fx-ok{background:#f2f9f1;border:1px solid #bfe0bd;color:#1a4d18;border-radius:10px;padding:11px 14px;
-    font-size:12.5px;line-height:1.6;margin-top:10px}
+    font-size:13px;line-height:1.6;margin-top:10px}
 
   /* Reconciliation outcomes. Colour carries the meaning at a glance because the
      table is scanned, not read: green moved money, amber needs a person. */
-  .fi-act{display:inline-block;border-radius:999px;padding:3px 10px;font-size:11.5px;font-weight:800;letter-spacing:.02em}
+  .fi-act{display:inline-block;border-radius:999px;padding:3px 10px;font-size:12px;font-weight:800;letter-spacing:.02em}
   .fi-act--confirmed{background:#e6f4e6;color:#1c6b1c}
   .fi-act--mismatch{background:#fdf0d5;color:#8a5a00}
   .fi-act--unverifiable{background:#fdf0d5;color:#8a5a00}
@@ -90,7 +90,7 @@
 
   .fi-kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;margin-bottom:14px}
   .fi-kpi{background:var(--ad-surface,#fff);border:1px solid var(--ad-line,#e5eae8);border-radius:14px;padding:14px 16px}
-  .fi-kpi__l{font-size:11.5px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--ad-text-mute,#5a6d6f)}
+  .fi-kpi__l{font-size:12px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--ad-text-mute,#5a6d6f)}
   .fi-kpi__v{font-size:26px;font-weight:800;margin-top:6px;line-height:1.1}
   .fi-kpi__s{font-size:12px;color:var(--ad-text-mute,#5a6d6f);margin-top:4px}
   .fi-kpi--good .fi-kpi__v{color:var(--ad-accent,#237b22)}
@@ -108,9 +108,9 @@
   .fi-spark__b{flex:1;min-width:2px;background:var(--ad-accent,#237b22);border-radius:2px 2px 0 0;opacity:.85}
   .fi-spark__b[data-zero="1"]{background:var(--ad-line,#e5eae8)}
 
-  .fi-note{font-size:12.5px;color:var(--ad-text-mute,#5a6d6f);margin:0 0 12px}
+  .fi-note{font-size:13px;color:var(--ad-text-mute,#5a6d6f);margin:0 0 12px}
   .fi-empty{text-align:center;color:var(--ad-text-mute,#61728e);padding:34px 10px}
-  .fi-num{font-family:'Space Mono',monospace;font-size:12.5px;white-space:nowrap}
+  .fi-num{font-family:'Space Mono',monospace;font-size:13px;white-space:nowrap}
   .fi-right{text-align:right}
 </style>
 
@@ -199,7 +199,7 @@
                    title="{{ d.date }} — ₦{{ d.naira|number_format }}"></div>
             {% endfor %}
           </div>
-          <div style="display:flex;justify-content:space-between;font-size:11.5px;color:var(--ad-text-mute,#5a6d6f)">
+          <div style="display:flex;justify-content:space-between;font-size:12px;color:var(--ad-text-mute,#5a6d6f)">
             <span>{{ daily|first.date }}</span><span>peak ₦{{ peak|number_format }}</span><span>{{ daily|last.date }}</span>
           </div>
         </div>
@@ -255,7 +255,7 @@
                 <td>
                   <strong>{{ s.label }}</strong>
                   {% if s.configured and s.bearer == 'subaccount' %}
-                  <br><span style="font-size:11.5px;color:var(--ad-text-mute,#5a6d6f)">subaccount bears the fee</span>
+                  <br><span style="font-size:12px;color:var(--ad-text-mute,#5a6d6f)">subaccount bears the fee</span>
                   {% endif %}
                 </td>
                 <td style="font-family:var(--ag-font-mono,monospace);font-size:12px">
@@ -272,11 +272,11 @@
                 </td>
                 <td class="fi-right fi-num">
                   ₦{{ s.routed_naira|number_format }}
-                  <br><span style="font-size:11.5px;color:var(--ad-text-mute,#5a6d6f)">{{ s.routed_count|number_format }} payment{{ s.routed_count == 1 ? '' : 's' }}</span>
+                  <br><span style="font-size:12px;color:var(--ad-text-mute,#5a6d6f)">{{ s.routed_count|number_format }} payment{{ s.routed_count == 1 ? '' : 's' }}</span>
                 </td>
                 <td class="fi-right fi-num">
                   ₦{{ s.main_naira|number_format }}
-                  <br><span style="font-size:11.5px;color:var(--ad-text-mute,#5a6d6f)">{{ s.main_count|number_format }} payment{{ s.main_count == 1 ? '' : 's' }}</span>
+                  <br><span style="font-size:12px;color:var(--ad-text-mute,#5a6d6f)">{{ s.main_count|number_format }} payment{{ s.main_count == 1 ? '' : 's' }}</span>
                 </td>
               </tr>
               {% endfor %}
@@ -493,7 +493,7 @@
                   <td class="fi-num" style="color:var(--ad-text-mute,#5a6d6f)">{{ i.ref }}</td>
                   <td class="fi-right fi-num">₦{{ i.amount_ours|number_format }}</td>
                   <td class="fi-right fi-num">{{ i.amount_gateway > 0 ? '₦' ~ i.amount_gateway|number_format : '—' }}</td>
-                  <td style="font-size:12.5px">{{ i.note }}</td>
+                  <td style="font-size:13px">{{ i.note }}</td>
                 </tr>
                 {% endfor %}
               </tbody>
@@ -505,7 +505,7 @@
              apply, and never before the operator has seen the table above. #}
           {% if not recon.applied and (recon.confirmed > 0 or recon.failed > 0) %}
           <div class="fi-danger" style="margin-top:14px">
-            <strong style="font-size:13.5px">Apply these changes</strong>
+            <strong style="font-size:14px">Apply these changes</strong>
             <p class="fi-note" style="margin:6px 0 10px">
               Confirms the {{ recon.confirmed }} genuinely-paid payment{{ recon.confirmed == 1 ? '' : 's' }} (₦{{ recon.naira|number_format }}),
               mints any votes owed and sends the receipts{% if recon.failed %}, and marks {{ recon.failed }} definitively-failed order{{ recon.failed == 1 ? '' : 's' }} as failed{% endif %}.
@@ -516,7 +516,7 @@
               <input type="hidden" name="_token" value="{{ csrf_token }}">
               <input type="hidden" name="mode" value="apply">
               <input type="hidden" name="minutes" value="{{ recon.minutes|default(60) }}">
-              <label for="rcConfirm" style="font-size:12.5px;font-weight:600">Type <code>APPLY</code> to confirm</label>
+              <label for="rcConfirm" style="font-size:13px;font-weight:600">Type <code>APPLY</code> to confirm</label>
               <input id="rcConfirm" name="confirm" autocomplete="off" placeholder="APPLY"
                      style="padding:9px 12px;border:1px solid var(--ad-line,#dfe4e3);border-radius:9px;width:120px;font-family:'Space Mono',monospace">
               <button class="ad-btn ad-btn--primary" type="submit">Apply reconciliation</button>
@@ -711,7 +711,7 @@
                 <tbody>
                 {% for p in people.top %}
                   <tr>
-                    <td>{{ p.name ?: p.email }}<br><span style="color:#7a8a8c;font-size:11.5px">{{ p.email }}</span></td>
+                    <td>{{ p.name ?: p.email }}<br><span style="color:#7a8a8c;font-size:12px">{{ p.email }}</span></td>
                     <td class="n">₦{{ p.naira|number_format }}</td>
                     <td class="n">{{ p.payments }}</td>
                   </tr>
@@ -743,7 +743,7 @@
                   <tbody>
                   {% for c in programmes.categories %}
                     <tr>
-                      <td>{{ c.title }}<br><span style="color:#7a8a8c;font-size:11.5px">{{ c.programme }}{% if c.year %} · {{ c.year }}{% endif %}</span></td>
+                      <td>{{ c.title }}<br><span style="color:#7a8a8c;font-size:12px">{{ c.programme }}{% if c.year %} · {{ c.year }}{% endif %}</span></td>
                       <td class="n">₦{{ c.naira|number_format }}</td>
                       <td class="n">{{ c.votes|number_format }}</td>
                     </tr>
@@ -904,10 +904,10 @@
                 <tr>
                   <td>
                     {{ r.name }}
-                    {% if r.email %}<br><span style="color:#5a6d6f;font-size:11.5px">{{ r.email }}</span>{% endif %}
+                    {% if r.email %}<br><span style="color:#5a6d6f;font-size:12px">{{ r.email }}</span>{% endif %}
                   </td>
                   <td>{{ r.referrals|number_format }}</td>
-                  <td>₦{{ r.owed|number_format }}{% if r.paid_out %}<br><span style="color:#5a6d6f;font-size:11.5px">₦{{ r.paid_out|number_format }} paid before</span>{% endif %}</td>
+                  <td>₦{{ r.owed|number_format }}{% if r.paid_out %}<br><span style="color:#5a6d6f;font-size:12px">₦{{ r.paid_out|number_format }} paid before</span>{% endif %}</td>
                   <td>
                     {% if r.unlocked %}
                       <span class="fx-up">Payable</span>

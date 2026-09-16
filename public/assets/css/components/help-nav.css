@@ -39,7 +39,7 @@
 /* ── the identity ── */
 .hn__id {
   margin: 0;
-  font: 700 clamp(15px, 2vw, 17px)/1.2 var(--ag-font-body, system-ui);
+  font: 700 clamp(16px, 2vw, 17px)/1.2 var(--ag-font-body, system-ui);
   letter-spacing: -.01em;
   color: var(--ag-ink, #10292c);
   min-width: 0;
@@ -76,7 +76,7 @@
   border: 1px solid var(--ag-line, #d6d4cc);
   border-radius: 999px;
   background: var(--ag-card, #fff);
-  font: 400 15px/1 inherit;
+  font: 400 16px/1 inherit;
   color: var(--ag-ink, #10292c);
 }
 .hn__find input:hover { border-color: var(--ag-ink-soft, #626a6e); }
@@ -125,7 +125,7 @@
   padding: 0 2px;
   border-bottom: 2px solid transparent;
   color: var(--ag-ink-2, #3a4a4c);
-  font: 600 14.5px/1 inherit;
+  font: 600 14px/1 inherit;
   text-decoration: none;
   white-space: nowrap;
 }

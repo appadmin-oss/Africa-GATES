@@ -20,7 +20,7 @@
 {% block head_styles %}
 <style nonce="{{ csp_nonce }}">
   body[data-page="partner"]{
-    --pl-paper:var(--ag-ground); --pl-card:#fff; --pl-cream:#f6f2e6;
+    --pl-paper:var(--ag-ground); --pl-card:#fff;
     --pl-ink:#10292C; --pl-ink-2:#4a5256; --pl-mute:#626a6e;
     --pl-line:rgba(16,41,44,.12); --pl-line-2:rgba(16,41,44,.22);
     --pl-gold-ink:#745001; --pl-green:#237b22; --pl-green-dark:#12481d;
@@ -28,12 +28,12 @@
   }
   .pl{ max-width:440px; margin:0 auto; padding:clamp(32px,7vw,64px) var(--ag-gutter,32px) 90px; }
 
-  .pl-kick{ display:block; font-family:var(--ag-font-mono,monospace); font-size:10.5px;
+  .pl-kick{ display:block; font-family:var(--ag-font-mono,monospace); font-size:11px;
     font-weight:700; letter-spacing:.24em; text-transform:uppercase; color:var(--pl-gold-ink); }
   .pl h1{ margin:12px 0 0; font-family:var(--ag-font-display,Georgia,serif); font-weight:800;
     font-size:clamp(1.6rem,4vw,2.2rem); line-height:1.06; letter-spacing:-.03em;
     color:var(--pl-ink); }
-  .pl__sub{ margin:12px 0 26px; font-size:14.5px; line-height:1.65; color:var(--pl-ink-2); }
+  .pl__sub{ margin:12px 0 26px; font-size:14px; line-height:1.65; color:var(--pl-ink-2); }
 
   .pl__card{ background:var(--pl-card); border:1px solid var(--pl-line);
     border-radius:14px; padding:24px 22px; }
@@ -48,13 +48,13 @@
   .pl__f input:focus{ border-color:var(--pl-green); box-shadow:0 0 0 3px rgba(35,123,34,.16); }
   .pl__go{ width:100%; min-height:50px; cursor:pointer; border:none;
     border-radius:var(--ag-r-pill,999px); background:var(--pl-green-dark); color:#fff;
-    font:700 15px/1 inherit; }
+    font:700 16px/1 inherit; }
   .pl__go:hover{ background:#0d3716 }
   .pl__go:focus-visible{ outline:3px solid var(--pl-green); outline-offset:3px }
   /* #b42318 on #fdeaea is 6.1:1. An error nobody can read is not an error message. */
   .pl__err{ background:#fdeaea; border:1px solid #f3c2c2; color:#b42318; border-radius:4px;
-    padding:12px 14px; font-size:13.5px; line-height:1.6; margin-bottom:18px; font-weight:600; }
-  .pl__note{ margin:20px 0 0; font-size:12.5px; line-height:1.7; color:var(--pl-mute); }
+    padding:12px 14px; font-size:14px; line-height:1.6; margin-bottom:18px; font-weight:600; }
+  .pl__note{ margin:20px 0 0; font-size:13px; line-height:1.7; color:var(--pl-mute); }
 
   /* No account? The two doors, named by what they are for rather than by what we call
      them internally — a trader looking for "vendor" will not find "partner". */
@@ -63,8 +63,8 @@
     font-weight:700; letter-spacing:.22em; text-transform:uppercase; color:var(--pl-mute); }
   .pl__door{ display:block; padding:15px 0; border-bottom:1px solid var(--pl-line);
     text-decoration:none; }
-  .pl__door b{ display:block; font-size:14.5px; font-weight:700; color:var(--pl-ink); }
-  .pl__door span{ display:block; margin-top:4px; font-size:12.5px; line-height:1.55;
+  .pl__door b{ display:block; font-size:14px; font-weight:700; color:var(--pl-ink); }
+  .pl__door span{ display:block; margin-top:4px; font-size:13px; line-height:1.55;
     color:var(--pl-mute); }
   .pl__door:hover b{ color:var(--pl-green-dark); text-decoration:underline }
   .pl__door:focus-visible{ outline:3px solid var(--pl-green); outline-offset:3px }

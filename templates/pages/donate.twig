@@ -83,14 +83,14 @@
 
   /* ── shared type ─────────────────────────────────────────────────────────
      The mono micro-label is the one motif that carries across every surface. */
-  .dn-kick{ display:block; font-family:var(--ag-font-mono,monospace); font-size:10.5px;
+  .dn-kick{ display:block; font-family:var(--ag-font-mono,monospace); font-size:11px;
     font-weight:700; letter-spacing:.24em; text-transform:uppercase; color:var(--dn-gold-ink); }
   .dn-kick--deep{ color:var(--dn-gold); }
   .dn-h2{ margin:10px 0 0; font-family:var(--ag-font-display,Georgia,serif); font-weight:700;
     font-size:clamp(1.45rem,2.8vw,1.95rem); line-height:1.14; letter-spacing:-.02em;
     color:var(--dn-ink); text-wrap:balance; }
   .dn-h2--deep{ color:#fff; }
-  .dn-lede{ margin:12px 0 0; max-width:60ch; font-size:15px; line-height:1.7;
+  .dn-lede{ margin:12px 0 0; max-width:60ch; font-size:16px; line-height:1.7;
     color:var(--dn-ink-2); text-wrap:pretty; }
 
   /* ══ AN ORGANISATION'S OWN BLOCKS ═════════════════════════════════════════
@@ -104,7 +104,7 @@
      the cream panel, or as a hairline. A figure at 2rem is large text and clears 3:1
      comfortably; a paragraph in the same colour would not be covered by that check. */
   .ob-sec{ padding-top:var(--dn-sec); }
-  .ob-prose p{ margin:12px 0 0; max-width:64ch; font-size:15.5px; line-height:1.75;
+  .ob-prose p{ margin:12px 0 0; max-width:64ch; font-size:16px; line-height:1.75;
     color:var(--dn-ink-2); text-wrap:pretty; }
 
   .ob-figs{ margin:18px 0 0; display:grid; gap:1px; background:var(--dn-line);
@@ -124,7 +124,7 @@
   .ob-asks__a{ flex:0 0 auto; min-width:6.5em; font-family:var(--ag-font-mono,monospace);
     font-weight:700; font-size:14px; letter-spacing:.02em; color:var(--ob-accent);
     font-variant-numeric:tabular-nums; }
-  .ob-asks__b{ flex:1 1 14ch; font-size:14.5px; line-height:1.55; color:var(--dn-ink-2); }
+  .ob-asks__b{ flex:1 1 14ch; font-size:14px; line-height:1.55; color:var(--dn-ink-2); }
 
   /* ── the video facade ──────────────────────────────────────────────────────
      16:9 held by aspect-ratio so the swap for a real iframe does not move the page
@@ -141,13 +141,13 @@
   .ob-vid__icon{ flex:0 0 auto; display:grid; place-items:center; width:52px; height:52px;
     border-radius:999px; background:var(--ob-accent); color:#fff; }
   .ob-vid__meta{ display:block; }
-  .ob-vid__t{ display:block; font-weight:650; font-size:15px; line-height:1.35;
+  .ob-vid__t{ display:block; font-weight:650; font-size:16px; line-height:1.35;
     color:var(--dn-ink); }
-  .ob-vid__p{ display:block; margin-top:5px; font-size:12.5px; line-height:1.45;
+  .ob-vid__p{ display:block; margin-top:5px; font-size:13px; line-height:1.45;
     color:var(--dn-mute); }
   .ob-vid iframe{ display:block; width:100%; aspect-ratio:16/9; height:auto;
     border:0; border-radius:var(--dn-r); background:var(--dn-deep); }
-  .ob-vid__alt{ margin-top:8px; font-size:12.5px; }
+  .ob-vid__alt{ margin-top:8px; font-size:13px; }
   .ob-vid__alt a{ color:var(--dn-mute); }
 
   .ob-shots{ margin:18px 0 0; display:grid; gap:10px;
@@ -160,7 +160,7 @@
   .ob-quote{ margin:0; padding:16px 18px; background:var(--dn-card);
     border:1px solid var(--dn-line); border-left:3px solid var(--ob-accent);
     border-radius:var(--dn-r-sm); }
-  .ob-quote p{ margin:0; font-size:15px; line-height:1.65; color:var(--dn-ink); }
+  .ob-quote p{ margin:0; font-size:16px; line-height:1.65; color:var(--dn-ink); }
   .ob-quote cite{ display:block; margin-top:10px; font-style:normal;
     font-family:var(--ag-font-mono,monospace); font-size:11px; font-weight:700;
     letter-spacing:.14em; text-transform:uppercase; color:var(--dn-mute); }
@@ -169,7 +169,7 @@
     background:var(--dn-line); border:1px solid var(--dn-line);
     border-radius:var(--dn-r); overflow:hidden; }
   .ob-people li, .ob-with li{ background:var(--dn-card); padding:13px 16px; }
-  .ob-people__n, .ob-with__n{ display:block; font-weight:650; font-size:14.5px;
+  .ob-people__n, .ob-with__n{ display:block; font-weight:650; font-size:14px;
     color:var(--dn-ink); }
   .ob-people__r, .ob-with__d{ display:block; margin-top:3px; font-size:13px; line-height:1.5;
     color:var(--dn-mute); }
@@ -183,7 +183,7 @@
   .ob-track__w{ display:block; font-family:var(--ag-font-mono,monospace); font-size:11px;
     font-weight:700; letter-spacing:.16em; text-transform:uppercase;
     color:var(--dn-gold-ink); }
-  .ob-track__d{ display:block; margin-top:4px; font-size:14.5px; line-height:1.6;
+  .ob-track__d{ display:block; margin-top:4px; font-size:14px; line-height:1.6;
     color:var(--dn-ink-2); }
 
   /* `<details>` rather than a scripted accordion — see the partial. The 44px floor is on
@@ -192,9 +192,9 @@
     overflow:hidden; background:var(--dn-card); }
   .ob-faq__i + .ob-faq__i{ border-top:1px solid var(--dn-line); }
   .ob-faq summary{ padding:14px 16px; min-height:44px; display:flex; align-items:center;
-    gap:10px; cursor:pointer; font-weight:650; font-size:14.5px; color:var(--dn-ink); }
+    gap:10px; cursor:pointer; font-weight:650; font-size:14px; color:var(--dn-ink); }
   .ob-faq summary:hover{ background:var(--ob-accent-wash); }
-  .ob-faq__a{ padding:0 16px 15px; font-size:14.5px; line-height:1.7;
+  .ob-faq__a{ padding:0 16px 15px; font-size:14px; line-height:1.7;
     color:var(--dn-ink-2); max-width:66ch; }
 
   .ob-links{ margin:18px 0 0; padding:0; list-style:none; display:grid; gap:1px;
@@ -203,9 +203,9 @@
   .ob-links a{ display:flex; gap:12px; align-items:baseline; flex-wrap:wrap;
     padding:14px 16px; min-height:44px; background:var(--dn-card); text-decoration:none; }
   .ob-links a:hover{ background:var(--ob-accent-wash); }
-  .ob-links__l{ flex:1 1 12ch; font-weight:650; font-size:14.5px; color:var(--ob-accent-dark);
+  .ob-links__l{ flex:1 1 12ch; font-weight:650; font-size:14px; color:var(--ob-accent-dark);
     text-decoration:underline; text-underline-offset:2px; }
-  .ob-links__h{ flex:0 0 auto; font-family:var(--ag-font-mono,monospace); font-size:11.5px;
+  .ob-links__h{ flex:0 0 auto; font-family:var(--ag-font-mono,monospace); font-size:12px;
     letter-spacing:.04em; color:var(--dn-mute); }
   .ob-sr{ position:absolute; width:1px; height:1px; overflow:hidden; clip-path:inset(50%);
     white-space:nowrap; }
@@ -215,7 +215,7 @@
      hand out beside theirs converts worse for the charity, which is the one thing this
      platform exists to be good at. */
   .ob-gates{ margin-top:var(--dn-sec); padding:20px 0 0; border-top:1px solid var(--dn-line); }
-  .ob-gates__c{ margin:0; font-family:var(--ag-font-mono,monospace); font-size:10.5px;
+  .ob-gates__c{ margin:0; font-family:var(--ag-font-mono,monospace); font-size:11px;
     font-weight:700; letter-spacing:.22em; text-transform:uppercase; color:var(--dn-mute); }
   .ob-gates__b{ margin:9px 0 0; max-width:62ch; font-size:13px; line-height:1.65;
     color:var(--dn-mute); }
@@ -244,7 +244,7 @@
   .dn-say h1{ margin:12px 0 0; font-family:var(--ag-font-display,Georgia,serif);
     font-weight:800; font-size:clamp(2.1rem,4.6vw,3.1rem); line-height:1.02;
     letter-spacing:-.03em; color:var(--dn-ink); text-wrap:balance; }
-  .dn-say p{ margin:16px 0 0; max-width:52ch; font-size:16.5px; line-height:1.65;
+  .dn-say p{ margin:16px 0 0; max-width:52ch; font-size:17px; line-height:1.65;
     color:var(--dn-ink-2); text-wrap:pretty; }
 
   /* The figures, in the same breath as the ask rather than in a card further down.
@@ -254,7 +254,7 @@
   .dn-fig__n{ font-family:var(--ag-font-mono,monospace); font-weight:700;
     letter-spacing:-.02em; font-size:clamp(1.5rem,3vw,2.05rem); color:var(--dn-ink);
     line-height:1.1; }
-  .dn-fig__l{ margin-top:6px; font-size:12.5px; line-height:1.5; color:var(--dn-mute);
+  .dn-fig__l{ margin-top:6px; font-size:13px; line-height:1.5; color:var(--dn-mute);
     max-width:22ch; }
   /* No figures yet. A zero beside an ask reads as a verdict, so the space says what
      it means instead of printing one. */
@@ -295,14 +295,14 @@
                border:1px solid var(--dn-line); background:var(--dn-card,#fff); color:var(--dn-ink-2); }
   .dn-freq__b.is-on{ border-color:var(--dn-gold-ink,#8a6005); color:var(--dn-ink);
                      box-shadow:inset 0 0 0 1px var(--dn-gold-ink,#8a6005); }
-  .dn-freq__n{ margin:9px 0 0; font-size:12.5px; line-height:1.55; color:var(--dn-mute); }
+  .dn-freq__n{ margin:9px 0 0; font-size:13px; line-height:1.55; color:var(--dn-mute); }
 
   .dn-goal{ margin:30px 0 0; max-width:44rem; }
   .dn-goal__bar{ height:11px; border-radius:99px; background:rgba(16,41,44,.10);
                  overflow:hidden; }
   .dn-goal__bar i{ display:block; height:100%; border-radius:99px;
                    background:var(--dn-gold-ink,#8a6005); }
-  .dn-goal__nums{ margin:11px 0 0; font-size:13.5px; line-height:1.6; color:var(--dn-ink-2); }
+  .dn-goal__nums{ margin:11px 0 0; font-size:14px; line-height:1.6; color:var(--dn-ink-2); }
   .dn-goal__nums b{ font-family:var(--ag-font-mono,monospace); font-weight:700;
                     font-variant-numeric:tabular-nums; color:var(--dn-ink); }
   .dn-goal__met{ color:var(--ag-green-dark,#1a6118); font-weight:600; }
@@ -312,7 +312,7 @@
     overflow:hidden; }
   .dn-prog__bar i{ display:block; height:100%; border-radius:99px;
     background:var(--dn-green); transition:width .4s ease; }
-  .dn-prog__nums{ margin-top:9px; font-size:12.5px; line-height:1.6; color:var(--dn-ink-2); }
+  .dn-prog__nums{ margin-top:9px; font-size:13px; line-height:1.6; color:var(--dn-ink-2); }
   .dn-prog__nums b{ font-family:var(--ag-font-mono,monospace); color:var(--dn-ink);
     font-size:14px; }
   @media (prefers-reduced-motion:reduce){ .dn-prog__bar i{ transition:none } }
@@ -327,7 +327,7 @@
   .dn-appeal:hover{ border-color:var(--dn-green); }
   .dn-appeal:focus-visible{ outline:3px solid var(--dn-green); outline-offset:2px; }
   .dn-appeal b{ display:block; font-size:14px; color:var(--dn-ink); }
-  .dn-appeal span{ display:block; margin-top:3px; font-size:12.5px; color:var(--dn-mute); }
+  .dn-appeal span{ display:block; margin-top:3px; font-size:13px; color:var(--dn-mute); }
 
   .dn-lab{ display:block; margin:18px 0 8px; font-family:var(--ag-font-mono,monospace);
     font-size:11px; font-weight:700; letter-spacing:.18em; text-transform:uppercase;
@@ -358,12 +358,12 @@
      palette is the action, and using it for a note makes the button quieter. */
   .dn-echo{ margin-top:16px; display:flex; align-items:flex-start; gap:10px;
     padding:13px 15px; border-radius:var(--dn-r-sm); background:var(--dn-cream);
-    font-size:12.5px; line-height:1.55; color:var(--dn-ink-2); }
+    font-size:13px; line-height:1.55; color:var(--dn-ink-2); }
   .dn-echo svg{ flex:none; margin-top:1px; color:var(--dn-gold-ink); }
 
   .dn-cta{ width:100%; margin-top:18px; cursor:pointer; border:none;
     background:var(--dn-green); color:#fff; font-family:inherit; font-weight:700;
-    font-size:15px; min-height:52px; padding:15px; border-radius:var(--ag-r-pill,999px);
+    font-size:16px; min-height:52px; padding:15px; border-radius:var(--ag-r-pill,999px);
     transition:background .15s; }
   .dn-cta:hover{ background:var(--dn-green-dark); }
   .dn-cta:focus-visible{ outline:3px solid var(--dn-ink); outline-offset:2px; }
@@ -371,7 +371,7 @@
      carrying the sentence that says what to do to enable it. */
   .dn-cta:disabled{ background:#dfe4e3; color:#5b6669; cursor:not-allowed; }
   .dn-secure{ display:flex; align-items:center; justify-content:center; gap:7px;
-    margin-top:12px; font-size:11.5px; color:var(--dn-mute); text-align:center; }
+    margin-top:12px; font-size:12px; color:var(--dn-mute); text-align:center; }
   .dn-secure svg{ flex:none; }
 
   .dn-back{ cursor:pointer; border:none; background:none; font-family:inherit;
@@ -413,7 +413,7 @@
   .dn-prov{ display:flex; gap:8px; flex-wrap:wrap; }
   .dn-prov label{ flex:1 1 128px; display:flex; align-items:center; gap:9px;
     min-height:48px; border:1px solid var(--dn-line-2); border-radius:var(--dn-r-sm);
-    padding:12px 14px; cursor:pointer; font-size:13.5px; font-weight:600;
+    padding:12px 14px; cursor:pointer; font-size:14px; font-weight:600;
     color:var(--dn-ink); }
   .dn-prov label:has(input:checked){ border-color:var(--dn-ink);
     box-shadow:inset 0 0 0 1px var(--dn-ink); }
@@ -427,7 +427,7 @@
   .dn-tip{ border:1px solid rgba(16,41,44,.12); border-radius:12px; padding:12px 14px;
     margin:14px 0 0; }
   .dn-tip legend{ padding:0 4px; }
-  .dn-tip__why{ margin:4px 0 10px; font-size:12.5px; line-height:1.6; color:#5a6d6f; }
+  .dn-tip__why{ margin:4px 0 10px; font-size:13px; line-height:1.6; color:#5a6d6f; }
   .dn-tip__opts{ display:flex; gap:8px; flex-wrap:wrap; }
   .dn-tip__opts label{ cursor:pointer; }
   .dn-tip__opts input{ position:absolute; opacity:0; width:0; height:0; }
@@ -439,23 +439,23 @@
   /* Focus has to survive the hidden input — without this the whole row is unreachable by
      keyboard, which is the failure an accessibility pass catches and a mouse never does. */
   .dn-tip__opts input:focus-visible + span{ outline:2px solid #237b22; outline-offset:2px; }
-  .dn-tip__sum{ margin:10px 0 0; font-size:12.5px; font-weight:600; color:#18571a; }
+  .dn-tip__sum{ margin:10px 0 0; font-size:13px; font-weight:600; color:#18571a; }
   [x-cloak]{ display:none !important; }
   .dn-cover{ display:flex; align-items:flex-start; gap:10px; margin-top:16px;
     padding:13px 15px; border-radius:var(--dn-r-sm); background:var(--dn-cream);
     cursor:pointer; }
   .dn-cover input{ margin-top:2px; width:17px; height:17px; flex:none;
     accent-color:var(--dn-green); }
-  .dn-cover span{ font-size:12.5px; line-height:1.55; color:var(--dn-ink-2); }
+  .dn-cover span{ font-size:13px; line-height:1.55; color:var(--dn-ink-2); }
   .dn-cover:focus-within{ outline:3px solid var(--dn-green); outline-offset:2px; }
 
   .dn-soon{ margin-top:16px; background:var(--dn-cream); border:1px solid #e3d9ba;
-    color:#5f4805; border-radius:var(--dn-r-sm); padding:14px 16px; font-size:13.5px;
+    color:#5f4805; border-radius:var(--dn-r-sm); padding:14px 16px; font-size:14px;
     line-height:1.6; }
   .dn-soon a{ color:var(--dn-green-dark); font-weight:700; text-decoration:underline; }
   /* #8f1d14 on #fdecec is 6.5:1. An error message that fails contrast is not an
      error message. */
-  .dn-err{ font-size:13.5px; line-height:1.55; color:#8f1d14; background:#fdecec;
+  .dn-err{ font-size:14px; line-height:1.55; color:#8f1d14; background:#fdecec;
     border:1px solid rgba(180,35,24,.24); border-radius:var(--dn-r-sm);
     padding:12px 14px; margin-top:16px; }
 
@@ -478,7 +478,7 @@
     max-width:52ch; text-wrap:pretty; }
 
   .dn-trust{ display:flex; align-items:flex-start; gap:12px; margin-top:22px;
-    font-size:13.5px; line-height:1.65; color:var(--dn-ink-2); max-width:60ch; }
+    font-size:14px; line-height:1.65; color:var(--dn-ink-2); max-width:60ch; }
   .dn-trust svg{ flex:none; margin-top:2px; color:var(--dn-gold-ink); }
   .dn-trust a{ color:var(--dn-green-dark); font-weight:700; text-decoration:underline; }
 
@@ -489,14 +489,14 @@
     font-style:italic; font-weight:600; font-size:clamp(1.2rem,2.4vw,1.6rem);
     line-height:1.4; letter-spacing:-.01em; color:var(--dn-ink); text-wrap:pretty; }
   .dn-quote small{ display:block; margin-top:14px; font-family:var(--ag-font-mono,monospace);
-    font-size:10.5px; font-style:normal; font-weight:700; letter-spacing:.2em;
+    font-size:11px; font-style:normal; font-weight:700; letter-spacing:.2em;
     text-transform:uppercase; color:var(--dn-mute); }
 
   /* ══ RECENT DONATIONS — a ledger, not a testimonial wall ══════════════════ */
   .dn-led{ margin:22px 0 0; border-top:1px solid var(--dn-line-2); }
   .dn-led__r{ display:flex; align-items:baseline; gap:16px; padding:14px 0;
     border-bottom:1px solid var(--dn-line); }
-  .dn-led__n{ flex:1; min-width:0; font-size:14.5px; color:var(--dn-ink);
+  .dn-led__n{ flex:1; min-width:0; font-size:14px; color:var(--dn-ink);
     overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
   /* `tabular-nums` so a column of amounts lines up on its digits rather than
      roughly. A ledger whose figures do not align is not being read as a ledger. */
@@ -505,10 +505,10 @@
      pushing the figure off a phone. */
   .dn-led__w{ flex:none; font-size:12px; color:var(--dn-mute);
               font-variant-numeric:tabular-nums; white-space:nowrap; }
-  .dn-sec--share .dn-share__l{ margin:10px 0 18px; max-width:58ch; font-size:14.5px;
+  .dn-sec--share .dn-share__l{ margin:10px 0 18px; max-width:58ch; font-size:14px;
                                line-height:1.65; color:var(--dn-ink-2); }
   .dn-led__a{ flex:none; font-family:var(--ag-font-mono,monospace); font-weight:700;
-    font-size:14.5px; font-variant-numeric:tabular-nums; color:var(--dn-ink); }
+    font-size:14px; font-variant-numeric:tabular-nums; color:var(--dn-ink); }
 
   /* Hidden by default. Above the breakpoint the form is still in the rail beside the
      reader, and a "donate" link that scrolls to something already on screen is a dead
@@ -516,7 +516,7 @@
   .dn-jump{ display:none; margin:var(--dn-sec) 0 0; }
   .dn-jump a{ display:inline-flex; align-items:center; gap:9px; min-height:48px;
     padding:0 24px; border-radius:var(--ag-r-pill,999px); background:var(--dn-ink);
-    color:#fff; font-weight:700; font-size:14.5px; text-decoration:none; }
+    color:#fff; font-weight:700; font-size:14px; text-decoration:none; }
   .dn-jump a:hover{ background:var(--dn-green-dark); }
   .dn-jump a:focus-visible{ outline:3px solid var(--dn-green); outline-offset:3px; }
 
@@ -525,14 +525,14 @@
     background:var(--dn-deep); padding:clamp(28px,4vw,48px); }
   .dn-org__grid{ display:grid; grid-template-columns:minmax(0,1.15fr) minmax(0,1fr);
     gap:clamp(28px,4vw,56px); align-items:start; }
-  .dn-org p{ margin:14px 0 0; max-width:48ch; font-size:15px; line-height:1.7;
+  .dn-org p{ margin:14px 0 0; max-width:48ch; font-size:16px; line-height:1.7;
     color:var(--dn-on-deep); text-wrap:pretty; }
   .dn-org p strong{ color:#fff; }
-  .dn-org__fine{ margin-top:16px; max-width:48ch; font-size:12.5px; line-height:1.65;
+  .dn-org__fine{ margin-top:16px; max-width:48ch; font-size:13px; line-height:1.65;
     color:var(--dn-on-deep-2); }
   .dn-org__cta{ display:inline-flex; align-items:center; justify-content:center;
     margin-top:24px; min-height:50px; padding:0 28px; border-radius:var(--ag-r-pill,999px);
-    background:var(--dn-gold); color:#241c00; font-weight:700; font-size:15px;
+    background:var(--dn-gold); color:#241c00; font-weight:700; font-size:16px;
     text-decoration:none; }
   .dn-org__cta:hover{ background:#ffc63d; }
   .dn-org__cta:focus-visible{ outline:3px solid #fff; outline-offset:3px; }
@@ -545,7 +545,7 @@
   .dn-org__n{ font-family:var(--ag-font-mono,monospace); font-weight:700;
     letter-spacing:-.02em; font-size:clamp(1.4rem,2.6vw,1.85rem); color:var(--dn-figure);
     line-height:1.1; }
-  .dn-org__l{ margin-top:7px; font-size:12.5px; line-height:1.55;
+  .dn-org__l{ margin-top:7px; font-size:13px; line-height:1.55;
     color:var(--dn-on-deep-2); }
 
   /* ── ONE BREAKPOINT ──────────────────────────────────────────────────────

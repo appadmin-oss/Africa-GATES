@@ -81,7 +81,7 @@
                 <span class="ad-chip ad-chip--green">Strong ({{ (name_match * 100)|round }}%)</span>
               {% else %}
                 <span class="ad-chip ad-chip--red">Weak ({{ (name_match * 100)|round }}%)</span>
-                <div style="margin-top:6px;font-size:12.5px;line-height:1.6;color:var(--ad-text-soft)">
+                <div style="margin-top:6px;font-size:13px;line-height:1.6;color:var(--ad-text-soft)">
                   {% if individual %}
                     The bank's name does not match the name this person gave. Names are compared
                     as a set of parts, so surname-first ordering and an extra middle name already
@@ -105,7 +105,7 @@
       </tbody>
     </table>
   {% elseif may_decide %}
-    <p style="font-size:13.5px;line-height:1.7;color:var(--ad-text-soft);margin:0 0 12px">
+    <p style="font-size:14px;line-height:1.7;color:var(--ad-text-soft);margin:0 0 12px">
       The account number is sent to Paystack once and <strong>never stored here</strong>. We keep
       the subaccount code, the bank, the last four digits and the name the bank resolved.
     </p>
@@ -195,12 +195,12 @@
            decides whether a charity is real, an outage that reads as a refusal is the most
            dangerous thing this page could do. #}
         <div style="margin-bottom:14px;border-left:4px solid var(--ad-gold);background:#fffdf5;
-                    border-radius:0 10px 10px 0;padding:12px 15px;font-size:13.5px;line-height:1.65;
+                    border-radius:0 10px 10px 0;padding:12px 15px;font-size:14px;line-height:1.65;
                     color:#6b5312" role="status">
           {{ cac_results.message }}
         </div>
       {% elseif cac_results.results is empty %}
-        <div style="margin-bottom:14px;font-size:13.5px;line-height:1.65;color:var(--ad-text-soft)">
+        <div style="margin-bottom:14px;font-size:14px;line-height:1.65;color:var(--ad-text-soft)">
           {{ cac_results.message }}
         </div>
       {% else %}
@@ -236,7 +236,7 @@
             </tbody>
           </table>
         </div>
-        <p style="font-size:12.5px;line-height:1.65;color:var(--ad-text-soft);margin:0 0 14px">
+        <p style="font-size:13px;line-height:1.65;color:var(--ad-text-soft);margin:0 0 14px">
           {{ cac_results.message }} Recording one stores the register's spelling of the name,
           which is what the bank account name is later compared against — so it must not be
           retyped by hand.
@@ -327,7 +327,7 @@
     </table>
 
     {% if org.checked_at %}
-      <p style="font-size:12.5px;color:var(--ad-text-soft);margin:12px 0 0">
+      <p style="font-size:13px;color:var(--ad-text-soft);margin:12px 0 0">
         Last recorded {{ org.checked_at }}{% if org.checked_by %} by admin #{{ org.checked_by }}{% endif %}.
       </p>
     {% endif %}
@@ -355,7 +355,7 @@
           <td>
             <a href="/admin/documents/org-doc/{{ d.id }}" target="_blank" rel="noopener">{{ d.original_name|default('document') }}</a>
             <a href="/admin/documents/org-doc/{{ d.id }}?download=1"
-               style="margin-left:8px;font-size:11.5px;color:var(--ad-text-soft)">download</a>
+               style="margin-left:8px;font-size:12px;color:var(--ad-text-soft)">download</a>
           </td>
           <td>
             {% if d.expires_on %}
@@ -363,7 +363,7 @@
                 {{ expired ? 'Expired ' : '' }}{{ d.expires_on }}</span>
             {% else %}<span style="color:var(--ad-text-soft)">—</span>{% endif %}
           </td>
-          <td style="font-size:12.5px;color:var(--ad-text-soft)">{{ d.created_at }}</td>
+          <td style="font-size:13px;color:var(--ad-text-soft)">{{ d.created_at }}</td>
         </tr>
       {% endfor %}
       </tbody>
@@ -429,13 +429,13 @@
             </td>
             <td style="font-family:'Space Mono',monospace">
               ₦{{ c.progress.raised|number_format }}
-              {%- if c.progress.target > 0 %}<div style="font-size:11.5px;color:var(--ad-text-soft)">of ₦{{ c.progress.target|number_format }} ({{ c.progress.pct }}%)</div>{% endif %}
+              {%- if c.progress.target > 0 %}<div style="font-size:12px;color:var(--ad-text-soft)">of ₦{{ c.progress.target|number_format }} ({{ c.progress.pct }}%)</div>{% endif %}
             </td>
-            <td style="font-size:12.5px">{{ shortfall[c.row.shortfall_policy]|default('—') }}</td>
+            <td style="font-size:13px">{{ shortfall[c.row.shortfall_policy]|default('—') }}</td>
             <td>
               <span class="ad-chip ad-chip--{{ chip }}">{{ camp_states[st]|default(st) }}</span>
               {% if st == 'live' and not c.open %}
-                <div style="font-size:11.5px;color:var(--ad-text-soft);margin-top:3px">Outside its dates</div>
+                <div style="font-size:12px;color:var(--ad-text-soft);margin-top:3px">Outside its dates</div>
               {% endif %}
             </td>
             <td class="col-actions">
@@ -484,7 +484,7 @@
           <td>{{ u.email }}</td>
           <td>{{ u.name|default('—') }}</td>
           <td><span class="ad-chip ad-chip--{{ u.role == 'owner' ? 'blue' : 'grey' }}">{{ u.role }}</span></td>
-          <td style="font-size:12.5px;color:var(--ad-text-soft)">{{ u.last_login_at|default('never') }}</td>
+          <td style="font-size:13px;color:var(--ad-text-soft)">{{ u.last_login_at|default('never') }}</td>
         </tr>
       {% endfor %}
       </tbody>
@@ -505,7 +505,7 @@
       </div>
       <div><button class="ad-btn" type="submit">Create login</button></div>
     </form>
-    <p style="font-size:12.5px;color:var(--ad-text-soft);margin:10px 0 0">
+    <p style="font-size:13px;color:var(--ad-text-soft);margin:10px 0 0">
       A password is generated and shown <strong>once</strong> on the next screen. It is never
       emailed — a credential that can request payouts should not live in two mailboxes.
     </p>
@@ -529,7 +529,7 @@
           Approve and go live
         </button>
       </div>
-      <p style="font-size:12.5px;color:var(--ad-text-soft);margin:10px 0 0">
+      <p style="font-size:13px;color:var(--ad-text-soft);margin:10px 0 0">
         Refused unless a settlement account, a CAC number and a SCUML number are all on file.
       </p>
     </form>

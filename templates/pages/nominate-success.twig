@@ -37,7 +37,7 @@
 <section style="max-width:620px;margin:26px auto 0;padding:0 18px" x-data="agShareNom()">
   <div style="background:#f4f9f4;border:1px solid #d5e8d5;border-radius:16px;padding:18px 20px">
     <h3 style="margin:0 0 6px;font-size:16px;color:#10292c">Rally more nominations for {{ nominee }}</h3>
-    <p style="margin:0 0 12px;font-size:13.5px;color:#5a6d6f;line-height:1.55">Nominations from more people and places strengthen a nominee's case. Share a link that pre-fills their details — whoever opens it adds their own voice in seconds.</p>
+    <p style="margin:0 0 12px;font-size:14px;color:#5a6d6f;line-height:1.55">Nominations from more people and places strengthen a nominee's case. Share a link that pre-fills their details — whoever opens it adds their own voice in seconds.</p>
     <button type="button" x-show="!url" x-bind:disabled="busy" @click="make()"
             style="background:#237b22;color:#fff;border:0;font-weight:600;padding:11px 20px;border-radius:999px;cursor:pointer"
             x-text="busy ? 'Creating link…' : 'Get a share link'"></button>

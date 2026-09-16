@@ -24,11 +24,11 @@
 
   /* tabs */
   .pl-tabs{ display:flex; gap:4px; border-bottom:1px solid rgba(16,41,44,.08); margin:20px 0 26px; overflow-x:auto; }
-  .pl-tab{ flex:none; cursor:pointer; border:0; background:none; font-family:inherit; font-size:14.5px; font-weight:600; color:#5a6d6f; padding:12px 16px; border-bottom:2px solid transparent; margin-bottom:-1px; }
+  .pl-tab{ flex:none; cursor:pointer; border:0; background:none; font-family:inherit; font-size:14px; font-weight:600; color:#5a6d6f; padding:12px 16px; border-bottom:2px solid transparent; margin-bottom:-1px; }
   .pl-tab.is-on{ color:var(--ag-green); border-bottom-color:var(--ag-green); }
   .pl-tab__dot{ display:inline-flex; align-items:center; justify-content:center; min-width:17px; height:17px;
                 margin-left:6px; padding:0 5px; border-radius:999px; background:#e0245e; color:#fff;
-                font:700 10.5px/1 var(--ag-font-mono,monospace); vertical-align:1px; }
+                font:700 11px/1 var(--ag-font-mono,monospace); vertical-align:1px; }
 
   /* ── alerts ────────────────────────────────────────────────────────────
      One row per GROUP, never per event. Forty-three "X cheered your post"
@@ -50,7 +50,7 @@
                 display:flex; align-items:center; justify-content:center; line-height:0; }
   .pl-alert__i svg{ width:17px; height:17px; }
   .pl-alert__b{ flex:1; min-width:0; }
-  .pl-alert__t{ display:block; font-size:14.5px; line-height:1.5; color:#2c3a3c; overflow-wrap:anywhere; }
+  .pl-alert__t{ display:block; font-size:14px; line-height:1.5; color:#2c3a3c; overflow-wrap:anywhere; }
   .pl-alert__m{ display:block; margin-top:3px; font:600 12px/1 var(--ag-font-mono,monospace); color:var(--ag-ink-soft,#626a6e); }
   .pl-alert__n{ flex:none; width:8px; height:8px; border-radius:50%; background:#e0245e; margin-top:6px; }
 
@@ -79,7 +79,7 @@
   .pl-compose__row{ display:flex; gap:12px; align-items:flex-start; }
   .pl-compose__av{ flex:none; width:40px; height:40px; border-radius:50%; background:#10292C; color:#7FC87C;
                    display:flex; align-items:center; justify-content:center; font-weight:800; font-size:16px; }
-  .pl-compose__ta{ flex:1; min-width:0; border:0; resize:vertical; font:inherit; font-size:15px; line-height:1.5;
+  .pl-compose__ta{ flex:1; min-width:0; border:0; resize:vertical; font:inherit; font-size:16px; line-height:1.5;
                    color:var(--ag-ink,#10292c); background:transparent; padding:9px 0; min-height:46px; }
   .pl-compose__ta:focus{ outline:none; }
   .pl-compose__ta::placeholder{ color:var(--ag-ink-soft,#626a6e); }
@@ -96,7 +96,7 @@
   /* attach control + pre-send preview */
   .pl-compose__spacer{ flex:1; }
   .pl-attach{ display:inline-flex; align-items:center; gap:8px; cursor:pointer; color:#3d4c4e;
-              font-size:13.5px; font-weight:600; padding:8px 12px; border-radius:12px; }
+              font-size:14px; font-weight:600; padding:8px 12px; border-radius:12px; }
   .pl-attach:hover{ background:#f4f7f4; }
   /* The input is visually hidden but still focusable, so the label lights up from
      the keyboard as well as the mouse — `display:none` would take it out of the
@@ -124,7 +124,7 @@
   .pl-studio__k{ flex:none; font:700 10px/1 var(--ag-font-mono,monospace); letter-spacing:.12em;
                  text-transform:uppercase; color:var(--ag-ink-soft,#626a6e); margin-right:2px; }
   .pl-studio__c{ flex:none; cursor:pointer; border:1px solid rgba(16,41,44,.14); background:#fff;
-                 color:#3d4c4e; font:600 12.5px/1 inherit; padding:8px 12px; border-radius:999px; }
+                 color:#3d4c4e; font:600 13px/1 inherit; padding:8px 12px; border-radius:999px; }
   .pl-studio__c.is-on{ background:var(--ag-ink,#10292c); border-color:var(--ag-ink,#10292c); color:#fff; }
   .pl-studio__c:focus-visible{ outline:2px solid var(--ag-green,#237b22); outline-offset:2px; }
   /* The focus slider only appears when the crop is actually cutting something
@@ -198,15 +198,15 @@
            font:700 16px/1 var(--ag-font-display); }
   .pf__hwho{ min-width:0; flex:1; }
   .pf__hline{ display:flex; align-items:center; gap:6px; min-width:0; }
-  .pf__hname{ font-weight:700; font-size:15px; color:var(--ag-ink,#10292c); text-decoration:none;
+  .pf__hname{ font-weight:700; font-size:16px; color:var(--ag-ink,#10292c); text-decoration:none;
               overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
   .pf__hname:hover{ text-decoration:underline; }
   .pf__hdot{ color:var(--ag-ink-soft,#626a6e); }
   .pf__hwhen{ flex:none; font:600 12px/1 var(--ag-font-mono,monospace); color:var(--ag-ink-soft,#626a6e); }
   .pf__hrole{ display:flex; align-items:center; gap:8px; margin-top:1px;
-              font-size:12.5px; color:var(--ag-ink-soft,#626a6e); min-width:0; }
+              font-size:13px; color:var(--ag-ink-soft,#626a6e); min-width:0; }
   .pf__hrole > span{ overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-  .pf__hchan{ flex:none; font:700 9.5px/1 var(--ag-font-mono,monospace); letter-spacing:.12em;
+  .pf__hchan{ flex:none; font:700 10px/1 var(--ag-font-mono,monospace); letter-spacing:.12em;
               text-transform:uppercase; color:var(--ag-green,#237b22); text-decoration:none;
               border:1px solid rgba(35,123,34,.28); border-radius:999px; padding:4px 8px; }
   .pf__hflag{ flex:none; border:0; background:none; cursor:pointer; line-height:0; padding:6px;
@@ -220,7 +220,7 @@
      box — a sentence somebody typed rendered as a poster, clamped at seven lines
      with no way to open it unless the post also happened to exceed 320 characters. */
   .pf__text{ padding:8px 16px 4px; }
-  .pf__text p{ margin:0; font-size:15.5px; line-height:1.55; color:var(--ag-ink,#10292c);
+  .pf__text p{ margin:0; font-size:16px; line-height:1.55; color:var(--ag-ink,#10292c);
                overflow-wrap:anywhere; white-space:pre-wrap; }
   .pf__text p.is-clamped{ display:-webkit-box; -webkit-line-clamp:10;
                           -webkit-box-orient:vertical; overflow:hidden; }
@@ -242,10 +242,10 @@
   .pf__resaward{ display:block; margin-top:5px; font-family:var(--ag-font-display);
                  font-weight:700; font-size:1.15rem; line-height:1.25; letter-spacing:-.01em; }
   .pf__reswin{ display:flex; align-items:center; gap:9px; margin-top:11px; flex-wrap:wrap; }
-  .pf__resbadge{ flex:none; font:700 9.5px/1 var(--ag-font-mono,monospace); letter-spacing:.14em;
+  .pf__resbadge{ flex:none; font:700 10px/1 var(--ag-font-mono,monospace); letter-spacing:.14em;
                  text-transform:uppercase; color:#4a3200; background:var(--ag-gold,#c9a24b);
                  border-radius:999px; padding:5px 9px; }
-  .pf__resname{ font-weight:700; font-size:15.5px; overflow-wrap:anywhere; }
+  .pf__resname{ font-weight:700; font-size:16px; overflow-wrap:anywhere; }
 
   /* THE BAR IS THE ARGUMENT — 849 is a number to take on trust; 849 drawn as 354 of
      community support beside 495 of panel marks is a claim somebody can check from a
@@ -261,9 +261,9 @@
                 font:600 11px/1.4 var(--ag-font-mono,monospace); letter-spacing:.06em;
                 text-transform:uppercase; color:var(--ag-ink-soft,#626a6e);
                 font-variant-numeric:tabular-nums; }
-  .pf__resnums b{ font-size:15px; letter-spacing:0; color:var(--ag-ink,#10292c); }
+  .pf__resnums b{ font-size:16px; letter-spacing:0; color:var(--ag-ink,#10292c); }
   .pf__resnums .c{ color:var(--ag-green,#237b22); }
-  .pf__resrun, .pf__resnote{ display:block; margin-top:9px; font-size:13.5px; line-height:1.55;
+  .pf__resrun, .pf__resnote{ display:block; margin-top:9px; font-size:14px; line-height:1.55;
                              color:var(--ag-ink-soft,#626a6e); }
   .pf__resnote{ color:var(--ag-ink,#10292c); }
   .pf__resgo{ display:block; margin-top:12px; font-size:13px; font-weight:600;
@@ -317,7 +317,7 @@
   .pf__r:hover{ background:rgba(16,41,44,.05); }
   .pf__r svg{ width:20px; height:20px; fill:none; stroke:currentColor; stroke-width:1.7;
               stroke-linecap:round; stroke-linejoin:round; }
-  .pf__r span{ font:700 12.5px/1 var(--ag-font-mono,monospace); color:inherit;
+  .pf__r span{ font:700 13px/1 var(--ag-font-mono,monospace); color:inherit;
                font-variant-numeric:tabular-nums; }
   /* On a photograph the rail is a column of large white glyphs with the count beneath —
      the shape it has always had, and the one that survives being over an image. */
@@ -356,7 +356,7 @@
            display:flex; flex-direction:column; align-items:center; gap:4px; font-family:inherit; }
   .pf__pk:hover, .pf__pk:focus-visible{ background:rgba(255,255,255,.12); outline:none; }
   .pf__pk svg{ width:24px; height:24px; stroke-width:1.6; stroke-linecap:round; stroke-linejoin:round; }
-  .pf__pk small{ font:700 8.5px/1 var(--ag-font-mono,monospace); letter-spacing:.07em;
+  .pf__pk small{ font:700 10px/1 var(--ag-font-mono,monospace); letter-spacing:.07em;
                  text-transform:uppercase; color:rgba(255,255,255,.72); }
   .pf__pk[data-kind="cheer"] svg{ fill:#E0245E; stroke:#E0245E; }
   .pf__pk[data-kind="insight"] svg{ fill:#F2C230; stroke:#F2C230; }
@@ -368,19 +368,19 @@
      `right` clears the rail, so a long name never runs underneath it. */
   .pf__meta{ position:absolute; left:15px; right:70px; bottom:16px; z-index:3;
              display:flex; flex-direction:column; gap:7px; }
-  .pf__chan{ align-self:flex-start; font:700 9.5px/1 var(--ag-font-mono,monospace); letter-spacing:.13em;
+  .pf__chan{ align-self:flex-start; font:700 10px/1 var(--ag-font-mono,monospace); letter-spacing:.13em;
              text-transform:uppercase; color:#7FC87C; background:rgba(11,26,27,.55);
              border:1px solid rgba(127,200,124,.4); border-radius:999px; padding:5px 9px;
              text-decoration:none; }
   .pf__whoami{ display:flex; align-items:center; gap:7px; min-width:0; }
-  .pf__name{ font-weight:700; font-size:15px; color:#fff; text-shadow:0 1px 6px rgba(0,0,0,.65);
+  .pf__name{ font-weight:700; font-size:16px; color:#fff; text-shadow:0 1px 6px rgba(0,0,0,.65);
              overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
   .pf__tick{ flex:none; width:15px; height:15px; line-height:0; }
   .pf__tick svg{ display:block; width:15px; height:15px; }
   .pf__role{ align-self:flex-start; font-size:12px; font-weight:600; color:rgba(255,255,255,.72);
              text-shadow:0 1px 5px rgba(0,0,0,.6); text-decoration:none; margin-top:-3px; }
   .pf__role:hover{ color:#7FC87C; }
-  .pf__when{ flex:none; font:600 11.5px/1 var(--ag-font-mono,monospace); color:rgba(255,255,255,.62); }
+  .pf__when{ flex:none; font:600 12px/1 var(--ag-font-mono,monospace); color:rgba(255,255,255,.62); }
   .pf__cap{ margin:0; font-size:14px; line-height:1.5; color:rgba(255,255,255,.94);
             text-shadow:0 1px 6px rgba(0,0,0,.7); overflow-wrap:anywhere; }
   .pf__cap.is-clamped{ display:-webkit-box; -webkit-line-clamp:3; -webkit-box-orient:vertical; overflow:hidden; }
@@ -404,9 +404,9 @@
             background:#fff; border:2px solid #fff; }
   .pf__pip:first-child{ margin-left:0; }
   .pf__pip svg{ width:13px; height:13px; }
-  .pf__sumtx{ font-size:13.5px; font-weight:700; color:var(--ag-ink,#10292c); }
+  .pf__sumtx{ font-size:14px; font-weight:700; color:var(--ag-ink,#10292c); }
   .pf__sumtx b{ font-weight:700; }
-  .pf__reposted{ font-size:12.5px; color:var(--ag-ink-soft,#626a6e); margin-left:auto; }
+  .pf__reposted{ font-size:13px; color:var(--ag-ink-soft,#626a6e); margin-left:auto; }
   .pf__open{ display:block; padding:8px 18px 14px; font-size:13px; font-weight:600;
              color:var(--ag-green,#237b22); text-decoration:none; }
 
@@ -430,13 +430,13 @@
   .pf-sheet__q{ margin:0 0 14px; font-size:14px; line-height:1.5; color:#4a5256; }
   .pf-sheet__q b{ color:var(--ag-ink,#10292c); }
   .pf-sheet__ta{ width:100%; border:1px solid rgba(16,41,44,.14); border-radius:16px; resize:vertical;
-                 font:inherit; font-size:15px; line-height:1.55; padding:12px 14px; min-height:88px;
+                 font:inherit; font-size:16px; line-height:1.55; padding:12px 14px; min-height:88px;
                  color:var(--ag-ink,#10292c); }
   .pf-sheet__ta:focus{ outline:2px solid var(--ag-green,#237b22); outline-offset:1px; }
   .pf-sheet__row{ display:flex; align-items:center; gap:10px; margin-top:14px; }
   .pf-sheet__row .pf__cmgo{ margin-left:auto; }
   .pf-sheet__x{ border:1px solid rgba(16,41,44,.14); background:#fff; color:#3d4c4e;
-                font:600 13.5px/1 inherit; padding:11px 18px; border-radius:999px; cursor:pointer; }
+                font:600 14px/1 inherit; padding:11px 18px; border-radius:999px; cursor:pointer; }
   @media (min-width:620px){ .pf-sheet{ align-items:center; } .pf-sheet__c{ border-radius:22px; } }
 
   /* comments */
@@ -448,12 +448,12 @@
   .pf__cmta{ flex:1; min-width:0; border:1px solid rgba(16,41,44,.12); border-radius:14px; resize:vertical;
              font:inherit; font-size:14px; line-height:1.5; padding:9px 12px; color:var(--ag-ink,#10292c); min-height:40px; }
   .pf__cmta:focus{ outline:2px solid var(--ag-green,#237b22); outline-offset:1px; }
-  .pf__cmgo{ flex:none; border:0; background:var(--ag-green,#237b22); color:#fff; font-weight:700; font-size:13.5px;
+  .pf__cmgo{ flex:none; border:0; background:var(--ag-green,#237b22); color:#fff; font-weight:700; font-size:14px;
              padding:10px 16px; border-radius:999px; cursor:pointer; }
   .pf__cmgo[disabled]{ opacity:.45; cursor:default; }
-  .pf__note{ margin:8px 0 0; font-size:12.5px; font-weight:600; color:#8a6d1f;
+  .pf__note{ margin:8px 0 0; font-size:13px; font-weight:600; color:#8a6d1f;
              background:#fdf6e3; border:1px solid #efe0b5; border-radius:12px; padding:8px 11px; }
-  .pf__guest{ margin:0; font-size:13.5px; color:#5a6d6f; }
+  .pf__guest{ margin:0; font-size:14px; color:#5a6d6f; }
   .pf__guest a{ color:var(--ag-green,#237b22); font-weight:700; }
 
   /* new-posts pill + infinite scroll */
@@ -461,13 +461,13 @@
   .pf-new button{ border:0; background:var(--ag-ink,#10292c); color:#fff; font:700 13px/1 inherit; cursor:pointer;
                   padding:11px 20px; border-radius:999px; }
   .pf-more{ display:flex; justify-content:center; padding:8px 0 4px; }
-  .pf-more button{ border:1px solid rgba(16,41,44,.14); background:#fff; color:#3d4c4e; font:700 13.5px/1 inherit;
+  .pf-more button{ border:1px solid rgba(16,41,44,.14); background:#fff; color:#3d4c4e; font:700 14px/1 inherit;
                    cursor:pointer; padding:12px 22px; border-radius:999px; }
   .pf-end{ text-align:center; font-size:13px; color:var(--ag-ink-soft,#626a6e); padding:10px 0; }
 
   /* toast */
   .pf-toast{ position:fixed; left:50%; bottom:26px; transform:translateX(-50%); z-index:60;
-             background:var(--ag-ink,#10292c); color:#fff; font-size:13.5px; font-weight:600;
+             background:var(--ag-ink,#10292c); color:#fff; font-size:14px; font-weight:600;
              padding:12px 18px; border-radius:999px;
              display:flex; gap:12px; align-items:center; max-width:calc(100vw - 32px); }
   .pf-toast a{ color:#7FC87C; font-weight:700; white-space:nowrap; }
@@ -496,16 +496,16 @@
   .pl-post{ background:#fff; padding-bottom:6px; border-bottom:1px solid rgba(16,41,44,.09); }
   .pl-post__hd{ display:flex; align-items:center; gap:11px; padding:15px 16px 10px; }
   .pl-post__av{ width:40px; height:40px; border-radius:50%; background:#eef2f1; color:var(--ag-ink); display:flex; align-items:center; justify-content:center; font-family:var(--ag-font-display); font-weight:700; font-size:16px; flex:none; }
-  .pl-post__au{ font-weight:700; font-size:15px; color:var(--ag-ink); }
+  .pl-post__au{ font-weight:700; font-size:16px; color:var(--ag-ink); }
   .pl-post__mt{ font:600 12px/1 var(--ag-font-mono,monospace); color:var(--ag-ink-soft,#626a6e); margin-top:3px; }
   .pl-post__cover{ display:block; width:100%; aspect-ratio:16/9; background-size:cover; background-position:center; background-color:#10292C; margin:0 0 2px; border-radius:16px; }
   .pl-post__bd{ padding:12px 16px 6px; }
   .pl-post__cat{ font:700 11px/1 var(--ag-font-mono); letter-spacing:.1em; text-transform:uppercase; color:var(--ag-green); }
   .pl-post__t{ margin:8px 0 0; font-family:var(--ag-font-display); font-weight:700; font-size:19px; line-height:1.25; color:var(--ag-ink); text-decoration:none; display:block; }
   .pl-post__x{ margin:8px 0 0; font-size:14px; line-height:1.55; color:#4a5256; }
-  .pl-post__a{ display:inline-flex; align-items:center; gap:6px; margin-top:8px; padding:8px 0; min-height:40px; font-size:13.5px; font-weight:600; color:var(--ag-green); text-decoration:none; }
+  .pl-post__a{ display:inline-flex; align-items:center; gap:6px; margin-top:8px; padding:8px 0; min-height:40px; font-size:14px; font-weight:600; color:var(--ag-green); text-decoration:none; }
 
-  .pl-empty{ background:#fff; border:1px dashed rgba(16,41,44,.16); border-radius:20px; padding:48px 24px; text-align:center; color:#5a6d6f; font-size:14.5px; }
+  .pl-empty{ background:#fff; border:1px dashed rgba(16,41,44,.16); border-radius:20px; padding:48px 24px; text-align:center; color:#5a6d6f; font-size:14px; }
   .pl-empty a{ color:var(--ag-green); font-weight:600; }
   /* A button that has to read as a link: switching tab is not navigation, so an
      <a href> would be a lie to a screen reader and a broken middle-click. */
@@ -524,7 +524,7 @@
   .pl-lead__r{ font-family:var(--ag-font-mono); font-weight:700; font-size:14px; color:#5a6d6f; width:18px; flex:none; }
   .pl-lead__av{ width:40px; height:40px; border-radius:12px; background:var(--ag-green-wash); color:var(--ag-green-dark); display:flex; align-items:center; justify-content:center; font-family:var(--ag-font-display); font-weight:700; font-size:16px; flex:none; background-size:cover; background-position:center; }
   .pl-lead__n{ flex:1; min-width:0; font-weight:600; font-size:14px; color:var(--ag-ink); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-  .pl-lead__c{ font-family:var(--ag-font-mono); font-weight:700; font-size:15px; color:var(--ag-green); flex:none; }
+  .pl-lead__c{ font-family:var(--ag-font-mono); font-weight:700; font-size:16px; color:var(--ag-green); flex:none; }
   .pl-dark{ background:#10292C; border-radius:20px; padding:24px; position:relative; overflow:hidden; }
   .pl-dark__orb{ position:absolute; right:-40px; top:-40px; width:150px; height:150px; border-radius:50%; background:radial-gradient(circle,rgba(127,200,124,.22),transparent 70%); }
   .pl-dark__k{ position:relative; margin:0 0 6px; font:700 11px/1 var(--ag-font-mono); letter-spacing:.12em; text-transform:uppercase; color:#fbc329; }
@@ -548,15 +548,15 @@
   .pl-ch{ background:#fff; border:1px solid rgba(16,41,44,.08); border-radius:20px; padding:22px; text-decoration:none; transition:border-color .15s; }
   .pl-ch:hover{ border-color:rgba(16,41,44,.2); }
   .pl-ch__t{ font-family:var(--ag-font-display); font-weight:700; font-size:18px; color:var(--ag-ink); }
-  .pl-ch__x{ margin:8px 0 0; font-size:13.5px; line-height:1.5; color:#5a6d6f; }
-  .pl-ch__m{ margin-top:14px; padding-top:14px; border-top:1px solid rgba(16,41,44,.06); font-size:12.5px; color:#5a6d6f; }
+  .pl-ch__x{ margin:8px 0 0; font-size:14px; line-height:1.5; color:#5a6d6f; }
+  .pl-ch__m{ margin-top:14px; padding-top:14px; border-top:1px solid rgba(16,41,44,.06); font-size:13px; color:#5a6d6f; }
 
   /* The collapsed composer. display:none by default, because on anything with
      room the expanded box IS the right answer — a desktop reader is not paying
      for it with the only screen they have. */
   .pl-openc{ display:none; width:100%; align-items:center; gap:12px; cursor:pointer;
              border:0; background:none; padding:8px 0; font:inherit; color:var(--ag-ink-soft,#626a6e); text-align:left; }
-  .pl-openc__t{ flex:1; min-width:0; font-size:15px; }
+  .pl-openc__t{ flex:1; min-width:0; font-size:16px; }
   .pl-openc svg{ flex:none; color:#3d4c4e; }
   .pl-openc:focus-visible{ outline:2px solid var(--ag-green,#237b22); outline-offset:3px; border-radius:12px; }
 
@@ -1233,7 +1233,7 @@
         </div>
         <div class="pl-card">
           <p class="pl-card__k">Join the conversation</p>
-          <p style="margin:0 0 14px;font-size:13.5px;line-height:1.5;color:#4a5256">Programme channels where the community gathers between cycles — OTP-verified, moderated.</p>
+          <p style="margin:0 0 14px;font-size:14px;line-height:1.5;color:#4a5256">Programme channels where the community gathers between cycles — OTP-verified, moderated.</p>
           <a class="pl-post__a" href="/community" style="margin-top:0">Open the community
             <svg aria-hidden="true" focusable="false" width="14" height="14" viewBox="0 0 20 20" fill="none"><path d="M7.5 4.5 13 10 7.5 15.5" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/></svg></a>
         </div>

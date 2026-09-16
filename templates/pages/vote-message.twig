@@ -18,7 +18,7 @@
 {% block head_styles %}
 <style nonce="{{ csp_nonce }}">
   .vm{ max-width:720px; margin:0 auto; padding:44px 20px 72px; }
-  .vm__kicker{ display:inline-flex; align-items:center; gap:7px; font-size:11.5px; font-weight:700; letter-spacing:.09em; text-transform:uppercase; color:#237b22; background:#e8f3e7; border-radius:999px; padding:6px 13px; }
+  .vm__kicker{ display:inline-flex; align-items:center; gap:7px; font-size:12px; font-weight:700; letter-spacing:.09em; text-transform:uppercase; color:#237b22; background:#e8f3e7; border-radius:999px; padding:6px 13px; }
   .vm__card{ margin-top:18px; background:#fff; border:1px solid rgba(16,41,44,.1); border-radius:20px; padding:32px 30px; }
   .vm__quote{ margin:0; font-size:clamp(1.28rem, 1.05rem + 1vw, 1.7rem); line-height:1.5; font-weight:500; color:#10292C; letter-spacing:-.01em; }
   .vm__quote::before{ content:'“'; color:#7FC87C; font-size:1.4em; line-height:0; vertical-align:-.28em; margin-right:2px; }
@@ -28,19 +28,19 @@
   .vm__by-t{ font-size:14px; line-height:1.45; color:#3d5254; }
   .vm__by-t strong{ color:#10292C; }
   .vm__actions{ margin-top:26px; padding-top:22px; border-top:1px solid rgba(16,41,44,.09); display:flex; flex-direction:column; gap:16px; }
-  .vm__cheer{ display:inline-flex; align-items:center; gap:8px; align-self:flex-start; border:1px solid rgba(16,41,44,.16); background:#fff; color:#10292C; border-radius:999px; padding:9px 15px; font:600 13.5px/1 inherit; cursor:pointer; }
+  .vm__cheer{ display:inline-flex; align-items:center; gap:8px; align-self:flex-start; border:1px solid rgba(16,41,44,.16); background:#fff; color:#10292C; border-radius:999px; padding:9px 15px; font:600 14px/1 inherit; cursor:pointer; }
   .vm__cheer:hover{ border-color:#237b22; color:#237b22; }
   .vm__cheer[data-on="1"]{ background:#e8f3e7; border-color:#7FC87C; color:#1a6118; }
   /* 40px of hit area, same reason as .vmi__act: it was 23px tall, next to a control
      that does something entirely different, on a page people reach from a chat app. */
   .vm__report{ background:none; border:none; padding:4px 6px; min-height:40px; display:inline-flex;
-               align-items:center; font:500 12.5px/1.4 inherit; color:var(--ag-ink-soft,#626a6e); cursor:pointer; }
+               align-items:center; font:500 13px/1.4 inherit; color:var(--ag-ink-soft,#626a6e); cursor:pointer; }
   .vm__report:hover{ color:#b3261e; text-decoration:underline; }
-  .vm__reported{ font-size:12.5px; color:var(--ag-ink-soft,#626a6e); min-height:40px; display:inline-flex; align-items:center; }
+  .vm__reported{ font-size:13px; color:var(--ag-ink-soft,#626a6e); min-height:40px; display:inline-flex; align-items:center; }
   .vm__cta{ margin-top:26px; background:#10292C; border-radius:18px; padding:26px 28px; color:#eef3ee; }
   .vm__cta h2{ margin:0 0 8px; font-size:1.12rem; color:#fff; letter-spacing:-.01em; }
   .vm__cta p{ margin:0 0 18px; font-size:14px; line-height:1.7; color:#b9c9bd; }
-  .vm__cta a.vm__go{ display:inline-block; background:#7FC87C; color:#0b1f21; font-weight:700; font-size:14.5px; padding:12px 24px; border-radius:999px; text-decoration:none; }
+  .vm__cta a.vm__go{ display:inline-block; background:#7FC87C; color:#0b1f21; font-weight:700; font-size:14px; padding:12px 24px; border-radius:999px; text-decoration:none; }
   .vm__cta a.vm__go:hover{ background:#9ad897; }
   .vm__more{ margin-top:44px; }
   .vm__more h2{ font-size:1.02rem; margin:0 0 4px; letter-spacing:-.01em; }

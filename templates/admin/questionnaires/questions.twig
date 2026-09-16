@@ -25,15 +25,15 @@
 <style nonce="{{ csp_nonce }}">
   .qb-sub{ font-size:13px; color:#5a6d6f; margin:2px 0 16px }
   .qb-nav{ display:flex; gap:6px; flex-wrap:wrap; margin:0 0 18px; padding:0; list-style:none }
-  .qb-nav a{ display:inline-block; text-decoration:none; font:650 12.5px/1 inherit;
+  .qb-nav a{ display:inline-block; text-decoration:none; font:650 13px/1 inherit;
     padding:10px 14px; border-radius:999px; background:#f2f5f2; color:#3d5254;
     border:1px solid rgba(16,41,44,.08); min-height:40px; box-sizing:border-box }
   .qb-nav a:hover{ background:#e7ece7; color:#10292C }
 
   .qb-sec{ background:#fff; border:1px solid rgba(16,41,44,.1); border-radius:14px;
     padding:18px 20px; margin-bottom:16px; scroll-margin-top:80px }
-  .qb-sec h2{ margin:0 0 3px; font-size:15px; color:#10292C }
-  .qb-sec p{ margin:8px 0 0; font-size:12.5px; line-height:1.7; color:#5a6d6f }
+  .qb-sec h2{ margin:0 0 3px; font-size:16px; color:#10292C }
+  .qb-sec p{ margin:8px 0 0; font-size:13px; line-height:1.7; color:#5a6d6f }
   .qb-sec p.qb-tight{ margin-top:4px }
 
   .qb-card{ border:1px solid rgba(16,41,44,.13); border-radius:12px; padding:14px 15px;
@@ -49,7 +49,7 @@
     margin-top:10px }
   .qb-lab{ display:block; font:700 10px/1 inherit; letter-spacing:.08em;
     text-transform:uppercase; color:#5a6d6f; margin-bottom:5px }
-  .qb-in{ width:100%; box-sizing:border-box; font-family:inherit; font-size:13.5px; padding:9px 11px;
+  .qb-in{ width:100%; box-sizing:border-box; font-family:inherit; font-size:14px; padding:9px 11px;
     border:1px solid rgba(16,41,44,.18); border-radius:9px; background:#fff; color:#10292C }
   textarea.qb-in{ min-height:58px; line-height:1.6; resize:vertical }
   .qb-in:focus-visible{ outline:2px solid #237b22; outline-offset:1px }
@@ -74,11 +74,11 @@
 
   .qb-row{ display:flex; gap:9px; flex-wrap:wrap; align-items:center; margin-top:16px }
   .qb-warn{ background:#fff8df; border:1px solid #ecd9a0; border-radius:10px; padding:12px 14px;
-    font-size:12.5px; line-height:1.7; color:#6b5312; margin-top:12px }
+    font-size:13px; line-height:1.7; color:#6b5312; margin-top:12px }
   .qb-note{ background:#f2f7f2; border:1px solid rgba(35,123,34,.2); border-radius:10px;
-    padding:12px 14px; font-size:12.5px; line-height:1.7; color:#22452a; margin-top:12px }
+    padding:12px 14px; font-size:13px; line-height:1.7; color:#22452a; margin-top:12px }
   .qb-bad{ background:#fdf4f3; border:1px solid rgba(179,38,30,.25); border-radius:10px;
-    padding:12px 14px; font-size:12.5px; line-height:1.7; color:#7a1f19; margin-top:12px }
+    padding:12px 14px; font-size:13px; line-height:1.7; color:#7a1f19; margin-top:12px }
 
   /* The style choice. Two real options side by side, because choosing between them is the
      decision this screen exists to support — a single checkbox would hide the alternative. */
@@ -92,18 +92,18 @@
      — reflow held at 320px, the width WCAG 1.4.10 actually asks about, and broke below it. */
   .qb-style h3{ margin:0 0 4px; font-size:14px; color:#10292C; display:flex; align-items:center;
     gap:8px; flex-wrap:wrap }
-  .qb-style p{ margin:0; font-size:12.5px; line-height:1.65; color:#5a6d6f }
+  .qb-style p{ margin:0; font-size:13px; line-height:1.65; color:#5a6d6f }
   .qb-style input{ margin-right:2px }
   .qb-style:has(input:checked){ border-color:#237b22; background:#f6faf6 }
   .qb-style:has(input:focus-visible){ outline:2px solid #237b22; outline-offset:2px }
 
-  .qb-pill{ font:700 9.5px/1 var(--ag-font-mono, ui-monospace, monospace); letter-spacing:.14em;
+  .qb-pill{ font:700 10px/1 var(--ag-font-mono, ui-monospace, monospace); letter-spacing:.14em;
     text-transform:uppercase; border-radius:999px; padding:5px 8px }
   .qb-pill--on{ background:#e7f2e7; color:#1a6118 }
   .qb-pill--off{ background:#f4e9e8; color:#8a2020 }
 
   .qb-branch{ margin-top:10px; padding-top:10px; border-top:1px dashed rgba(16,41,44,.14) }
-  .qb-branch summary{ cursor:pointer; font:650 11.5px/1 inherit; color:#3d5254;
+  .qb-branch summary{ cursor:pointer; font:650 12px/1 inherit; color:#3d5254;
     min-height:34px; display:flex; align-items:center }
   .qb-branch summary:hover{ color:#10292C }
 </style>
@@ -221,7 +221,7 @@
       <div class="qb-card" :class="q.removed && 'qb-card--gone'">
         <div class="qb-head">
           <span class="qb-num" x-text="'Q' + (i + 1)"></span>
-          <code style="font-size:11.5px; color:#5a6d6f" x-text="q.slug || 'no short name'"></code>
+          <code style="font-size:12px; color:#5a6d6f" x-text="q.slug || 'no short name'"></code>
           <span x-show="q.removed" x-cloak class="qb-pill qb-pill--off">Deleted on save</span>
           <span class="qb-head-sp"></span>
           <button type="button" class="qb-mini" x-show="q.removed" x-cloak @click="undo(i)"
@@ -508,7 +508,7 @@
       <div class="qb-card" :class="o.removed && 'qb-card--gone'">
         <div class="qb-head">
           <span class="qb-num" x-text="i + 1"></span>
-          <code style="font-size:11.5px; color:#5a6d6f" x-text="o.slug || 'no short name'"></code>
+          <code style="font-size:12px; color:#5a6d6f" x-text="o.slug || 'no short name'"></code>
           <span x-show="o.removed" x-cloak class="qb-pill qb-pill--off">Removed on save</span>
           <span class="qb-head-sp"></span>
           <button type="button" class="qb-mini" x-show="o.removed" x-cloak @click="undo(i)"

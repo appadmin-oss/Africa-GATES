@@ -59,10 +59,7 @@
      declaration. `--ag-shadow-nav` becomes the solid hairline it was imitating.
      ─────────────────────────────────────────────────────────────────────────── */
   --ag-shadow-cutout:none;
-  --ag-shadow-card:none;
   --ag-shadow-nav:0 1px 0 var(--ag-line);
-  --ag-shadow-cta:none;
-  --ag-shadow-pop:none;
 
   /* ── Layout ── */
   --ag-maxw:1240px;
@@ -74,7 +71,6 @@
   --ag-ease:cubic-bezier(.2,.7,.3,1);
   --ag-dur-fast:.15s;
   --ag-dur:.25s;
-  --ag-dur-slow:.45s;
 
   /* ── Z-index scale ── */
   --ag-z-nav:50;

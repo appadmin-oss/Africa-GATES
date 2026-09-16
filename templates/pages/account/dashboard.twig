@@ -162,7 +162,7 @@
 
   .me-btn{ display:inline-flex; align-items:center; justify-content:center; gap:7px;
     min-height:40px; padding:0 15px; box-sizing:border-box; cursor:pointer;
-    font:600 13.5px/1 inherit; color:var(--me-ink); text-decoration:none; white-space:nowrap;
+    font:600 14px/1 inherit; color:var(--me-ink); text-decoration:none; white-space:nowrap;
     background:var(--me-panel); border:1px solid var(--me-line-2); border-radius:999px; }
   .me-btn:hover{ border-color:var(--me-ink); }
   .me-btn:focus-visible{ outline:3px solid var(--me-accent); outline-offset:2px; }
@@ -216,7 +216,7 @@
   .me-rail__n{ flex:1; min-width:0; }
   /* Tabular, because these sit in a vertical column and ragged digits make the
      column look broken. (The hero figure below is the opposite case.) */
-  .me-rail__c{ flex:none; font:600 11.5px/1 var(--ag-font-mono,monospace);
+  .me-rail__c{ flex:none; font:600 12px/1 var(--ag-font-mono,monospace);
     font-variant-numeric:tabular-nums; color:var(--me-mute);
     background:rgba(16,41,44,.06); border-radius:999px; padding:4px 7px; }
   {% for t in me_tabs %}
@@ -252,7 +252,7 @@
             padding:13px 14px; border:1px solid var(--ag-line,rgba(16,41,44,.16)); border-radius:11px;
             background:var(--ag-surface-2,#f6f7f6); color:var(--ag-ink,#10292c); }
   .rf-copy,.rf-get{ flex:none; min-height:48px; padding:0 22px; border:0; border-radius:999px;
-            background:var(--ag-ink,#10292c); color:#fff; font-family:inherit; font-size:15px;
+            background:var(--ag-ink,#10292c); color:#fff; font-family:inherit; font-size:16px;
             font-weight:600; cursor:pointer; }
   .rf-copy:hover,.rf-get:hover{ background:#1b3d41; }
   .rf-hint{ margin:10px 0 0; font-size:14px; line-height:1.55; color:var(--ag-ink-soft,#626a6e); }
@@ -262,9 +262,9 @@
   .rf-stats{ display:flex; gap:12px; flex-wrap:wrap; margin-top:14px; }
   .rf-stat{ flex:1 1 150px; background:var(--ag-surface-2,#f6f7f6); border-radius:14px; padding:14px 16px; }
   .rf-stat__n{ display:block; font:700 24px/1.1 var(--ag-font-mono,monospace); color:var(--ag-ink,#10292c); }
-  .rf-stat__of{ font-size:15px; font-weight:600; color:var(--ag-ink-soft,#626a6e); }
+  .rf-stat__of{ font-size:16px; font-weight:600; color:var(--ag-ink-soft,#626a6e); }
   .rf-stat__l{ display:block; margin-top:5px; font-size:13px; color:var(--ag-ink-soft,#626a6e); }
-  .rf-note{ margin:14px 0 0; font-size:15px; line-height:1.6; color:var(--ag-ink,#10292c); }
+  .rf-note{ margin:14px 0 0; font-size:16px; line-height:1.6; color:var(--ag-ink,#10292c); }
   .rf-note--ok{ font-weight:600; color:#1a6118; }
   .rf-note a{ color:var(--ag-green,#237b22); font-weight:600; }
   .rf-small{ margin:10px 0 0; font-size:13px; line-height:1.55; color:var(--ag-ink-soft,#626a6e); }
@@ -313,13 +313,13 @@
     flex-wrap:wrap; margin:0 0 4px; }
   .me-sec__h h2{ margin:0; font-family:var(--ag-font-display,serif); font-weight:700;
     font-size:1.3rem; color:var(--me-ink); }
-  .me-sec__lead{ margin:0 0 16px; font-size:13.5px; line-height:1.6; color:var(--me-mute); max-width:62ch; }
+  .me-sec__lead{ margin:0 0 16px; font-size:14px; line-height:1.6; color:var(--me-mute); max-width:62ch; }
 
   .me-panel{ background:var(--me-panel); border:1px solid var(--me-line);
     border-radius:var(--me-r); padding:20px 22px; }
   .me-panel + .me-panel{ margin-top:14px; }
-  .me-panel__h{ margin:0 0 2px; font-size:14.5px; font-weight:700; color:var(--me-ink); }
-  .me-panel__s{ margin:0 0 14px; font-size:12.5px; color:var(--me-mute); }
+  .me-panel__h{ margin:0 0 2px; font-size:14px; font-weight:700; color:var(--me-ink); }
+  .me-panel__s{ margin:0 0 14px; font-size:13px; color:var(--me-mute); }
 
   /* ── rows ────────────────────────────────────────────────────────────────── */
   .me-list{ list-style:none; margin:0; padding:0; }
@@ -330,9 +330,9 @@
   .me-row__t{ font-size:14px; font-weight:600; color:var(--me-ink); overflow-wrap:anywhere; }
   a.me-row__t{ text-decoration:none; }
   a.me-row__t:hover{ text-decoration:underline; }
-  .me-row__m{ font-size:12.5px; color:var(--me-mute); margin-top:3px; line-height:1.55; }
+  .me-row__m{ font-size:13px; color:var(--me-mute); margin-top:3px; line-height:1.55; }
   .me-row__r{ flex:none; text-align:right; }
-  .me-code{ display:inline-block; margin-top:6px; font:700 13.5px/1 var(--ag-font-mono,monospace);
+  .me-code{ display:inline-block; margin-top:6px; font:700 14px/1 var(--ag-font-mono,monospace);
     letter-spacing:.06em; color:var(--me-ink); }
 
   /* Never colour alone — every one of these carries its own word. */
@@ -356,9 +356,9 @@
   .me-hero__u{ font-size:.34em; font-weight:700; color:var(--me-mute); margin-left:6px;
     letter-spacing:0; }
   .me-hero__f{ display:flex; gap:22px; flex-wrap:wrap; margin-bottom:4px; }
-  .me-fact__k{ font:700 10.5px/1 var(--ag-font-mono,monospace); letter-spacing:.13em;
+  .me-fact__k{ font:700 11px/1 var(--ag-font-mono,monospace); letter-spacing:.13em;
     text-transform:uppercase; color:var(--me-mute); }
-  .me-fact__v{ font:700 15px/1.2 var(--ag-font-mono,monospace); font-variant-numeric:tabular-nums;
+  .me-fact__v{ font:700 16px/1.2 var(--ag-font-mono,monospace); font-variant-numeric:tabular-nums;
     color:var(--me-ink); margin-top:5px; }
 
   .me-spark__a{ fill:var(--me-accent); fill-opacity:.10; }
@@ -386,30 +386,30 @@
 
   /* ── forms ───────────────────────────────────────────────────────────────── */
   .me-field{ display:block; margin-top:14px; }
-  .me-field > span{ display:block; font-size:12.5px; font-weight:600; color:var(--me-mute);
+  .me-field > span{ display:block; font-size:13px; font-weight:600; color:var(--me-mute);
     margin-bottom:5px; }
   /* The same label, for a <label> that is not inside a .me-field wrapper. Identical rule
      rather than a second style: two label treatments on one page is one too many. */
-  .me-lab{ display:block; font-size:12.5px; font-weight:600; color:var(--me-mute);
+  .me-lab{ display:block; font-size:13px; font-weight:600; color:var(--me-mute);
     margin-bottom:5px; }
   .me-in{ width:100%; box-sizing:border-box; min-height:44px; padding:11px 13px;
-    font:400 15px/1.3 inherit; color:var(--me-ink); background:var(--me-panel);
+    font:400 16px/1.3 inherit; color:var(--me-ink); background:var(--me-panel);
     border:1px solid var(--me-line-2); border-radius:var(--me-r-sm); }
   .me-in:focus-visible{ outline:3px solid var(--me-accent); outline-offset:1px;
     border-color:var(--me-accent); }
   .me-in[readonly]{ background:#f7f8f7; color:var(--me-mute); }
   .me-grid2{ display:grid; grid-template-columns:repeat(auto-fit,minmax(210px,1fr)); gap:0 16px; }
-  .me-hint{ font-size:12.5px; color:var(--me-mute); margin:8px 0 0; line-height:1.6; }
+  .me-hint{ font-size:13px; color:var(--me-mute); margin:8px 0 0; line-height:1.6; }
 
   /* ── states ──────────────────────────────────────────────────────────────── */
   .me-empty{ text-align:center; padding:34px 20px; }
   .me-empty__i{ width:40px; height:40px; margin:0 auto 12px; border-radius:12px;
     display:grid; place-items:center; background:rgba(16,41,44,.05); color:var(--me-mute); }
-  .me-empty h3{ margin:0; font-size:15px; font-weight:700; color:var(--me-ink); }
-  .me-empty p{ margin:6px auto 0; max-width:44ch; font-size:13.5px; line-height:1.65;
+  .me-empty h3{ margin:0; font-size:16px; font-weight:700; color:var(--me-ink); }
+  .me-empty p{ margin:6px auto 0; max-width:44ch; font-size:14px; line-height:1.65;
     color:var(--me-mute); }
   .me-empty .me-btn{ margin-top:14px; }
-  .me-note{ border-radius:var(--me-r-sm); padding:11px 14px; font-size:13.5px;
+  .me-note{ border-radius:var(--me-r-sm); padding:11px 14px; font-size:14px;
     line-height:1.55; margin-bottom:16px; }
   .me-note--ok{ background:var(--me-accent-wash); border:1px solid rgba(35,123,34,.28); color:#1a6118; }
   .me-note--bad{ background:var(--me-bad-wash); border:1px solid rgba(168,50,31,.3); color:var(--me-bad); }
@@ -427,9 +427,9 @@
   .me-won__row{ display:flex; align-items:center; gap:12px; flex-wrap:wrap;
     padding:12px 0; border-bottom:1px solid var(--me-line); }
   .me-won__b{ flex:1; min-width:160px; }
-  .me-won__n{ display:block; font-size:14.5px; font-weight:700; }
-  .me-won__c{ display:block; margin-top:2px; font-size:12.5px; color:var(--me-mute); }
-  .me-won__k{ flex:none; font:700 10.5px/1 var(--ag-font-mono,monospace); letter-spacing:.12em;
+  .me-won__n{ display:block; font-size:14px; font-weight:700; }
+  .me-won__c{ display:block; margin-top:2px; font-size:13px; color:var(--me-mute); }
+  .me-won__k{ flex:none; font:700 11px/1 var(--ag-font-mono,monospace); letter-spacing:.12em;
     text-transform:uppercase; padding:6px 10px; border-radius:999px; }
   /* #5c4100 on #fdf4dd is 7.4:1; the gold itself would be 2.1:1 and unreadable. */
   .me-won__k--winner{ background:#fdf4dd; color:#5c4100; }
@@ -443,8 +443,8 @@
   .me-key{ display:flex; align-items:center; gap:14px; flex-wrap:wrap;
     padding:14px 0; border-bottom:1px solid var(--me-line); }
   .me-key__b{ flex:1; min-width:180px; }
-  .me-key__n{ display:block; font-size:14.5px; font-weight:700; }
-  .me-key__m{ display:block; margin-top:3px; font-size:12.5px; line-height:1.5; color:var(--me-mute); }
+  .me-key__n{ display:block; font-size:14px; font-weight:700; }
+  .me-key__m{ display:block; margin-top:3px; font-size:13px; line-height:1.5; color:var(--me-mute); }
 
   @media print{ .me-rail, .me-top__act, .me-find{ display:none } [data-me] .me-sec{ display:block } }
 </style>
@@ -1003,7 +1003,7 @@
           <p class="me-panel__h">Your account is not complete yet</p>
           <p class="me-panel__s">Applications are ranked by when they became complete, so
             this is worth doing today. Still needed:</p>
-          <ul style="margin:9px 0 0;padding-left:20px;font-size:13.5px;line-height:1.8;color:#8a2020">
+          <ul style="margin:9px 0 0;padding-left:20px;font-size:14px;line-height:1.8;color:#8a2020">
             {% for m in vendor.missing_docs %}<li>{{ m }}</li>{% endfor %}
           </ul>
           <p style="margin:12px 0 0"><a class="me-btn" href="/org#documents">Upload them</a></p>
@@ -1321,7 +1321,7 @@
                   <button type="button" class="me-btn" data-me-copy="{{ n.reference }}"
                           style="margin-top:7px;min-height:36px;padding:0 12px"
                           aria-label="Copy reference {{ n.reference }}">
-                    <span class="me-code" style="margin:0;font-size:12.5px">{{ n.reference }}</span>{{ gi.ui('copy', 14) }}
+                    <span class="me-code" style="margin:0;font-size:13px">{{ n.reference }}</span>{{ gi.ui('copy', 14) }}
                   </button>
                 </div>
               </li>

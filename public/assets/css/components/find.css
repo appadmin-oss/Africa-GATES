@@ -88,7 +88,7 @@
   border: 1px solid var(--ag-line-strong, #c9c6bc);
   border-radius: 999px;
   background: var(--ag-card, #fff);
-  font: 400 15px/1 var(--ag-font-body, system-ui);
+  font: 400 16px/1 var(--ag-font-body, system-ui);
   color: var(--ag-ink, #10292c);
 }
 
@@ -113,7 +113,7 @@
   border-radius: 999px;
   background: var(--ag-ink, #10292c);
   color: var(--ag-card, #fff);
-  font: 600 14.5px/1 var(--ag-font-body, system-ui);
+  font: 600 14px/1 var(--ag-font-body, system-ui);
   cursor: pointer;
 }
 .fb__go:hover { background: var(--ag-ink-2, #3a4a4c); border-color: var(--ag-ink-2, #3a4a4c); }
@@ -122,7 +122,7 @@
 .fb__note {
   max-width: 480px;
   margin: 16px auto 0;
-  font-size: 12.5px;
+  font-size: 13px;
   line-height: 1.55;
   color: var(--ag-ink-soft, #626a6e);
   text-wrap: pretty;

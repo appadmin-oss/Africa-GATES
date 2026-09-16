@@ -40,7 +40,7 @@
   .db-h{ display:flex; align-items:baseline; justify-content:space-between; gap:12px;
     flex-wrap:wrap; margin:0 0 12px }
   .db-h h2{ margin:0; font-size:16px; letter-spacing:-.01em; color:var(--ad-text,#10292C) }
-  .db-h span{ font-size:12.5px; color:var(--ad-text-mute,#61728e) }
+  .db-h span{ font-size:13px; color:var(--ad-text-mute,#61728e) }
 
   /* the board */
   .db-board{ display:grid; gap:12px; margin-bottom:26px;
@@ -59,17 +59,17 @@
     color:var(--ad-text,#10292C) }
   .db-job--urgent .db-job__n{ color:#b3261e }
   .db-job--warn .db-job__n{ color:#8a6a12 }
-  .db-job__l{ margin-top:5px; font-size:13.5px; font-weight:650; line-height:1.4;
+  .db-job__l{ margin-top:5px; font-size:14px; font-weight:650; line-height:1.4;
     color:var(--ad-text,#10292C) }
   .db-job__w{ margin:8px 0 0; font-size:12px; line-height:1.65; color:var(--ad-text-soft,#5a6d6f) }
   .db-job__go{ margin-top:13px; align-self:flex-start; text-decoration:none;
-    font-size:12.5px; font-weight:650; line-height:1;
+    font-size:13px; font-weight:650; line-height:1;
     padding:9px 15px; border-radius:999px; background:var(--ad-text,#10292C); color:#fff }
   .db-job--urgent .db-job__go{ background:#b3261e }
 
   .db-clear{ background:#f7fbf6; border:1px solid #bfe0bd; border-radius:14px;
     padding:20px 22px; margin-bottom:26px }
-  .db-clear b{ display:block; font-size:15px; color:#1c5f1b; margin-bottom:6px }
+  .db-clear b{ display:block; font-size:16px; color:#1c5f1b; margin-bottom:6px }
   .db-clear p{ margin:0; font-size:13px; line-height:1.7; color:#3d5254; max-width:80ch }
 
   /* the quiet numbers
@@ -80,7 +80,7 @@
     grid-template-columns:repeat(auto-fit,minmax(min(100%,168px),1fr)) }
   .db-p{ background:var(--ad-surface,#fff); border:1px solid var(--ad-line,rgba(16,41,44,.11));
     border-radius:12px; padding:13px 14px }
-  .db-p__k{ font-size:9.5px; font-weight:700; line-height:1.3; letter-spacing:.09em;
+  .db-p__k{ font-size:10px; font-weight:700; line-height:1.3; letter-spacing:.09em;
     text-transform:uppercase; color:var(--ad-text-mute,#61728e) }
   .db-p__v{ margin-top:7px; font-size:20px; font-weight:700; color:var(--ad-text,#10292C) }
   .db-p__n{ margin-top:3px; font-size:11px; line-height:1.5; color:var(--ad-text-soft,#67797b) }
@@ -134,7 +134,7 @@
     {% if ai_enabled %}<button type="button" id="aiBriefBtn" class="ad-btn ad-btn--sm">✨ AI briefing</button>{% endif %}
   </div>
   <div class="ad-card__body">
-    <p id="integrityBrief" style="font-size:13.5px;line-height:1.65;color:var(--ad-text);margin:0 0 10px">{{ integrity_brief }}</p>
+    <p id="integrityBrief" style="font-size:14px;line-height:1.65;color:var(--ad-text);margin:0 0 10px">{{ integrity_brief }}</p>
     <div style="display:flex;gap:8px;flex-wrap:wrap;font-size:12px">
       <a href="/admin/data/collusion" class="ad-chip ad-chip--grey" style="text-decoration:none">Collusion: {{ integrity.collusion.open }} open</a>
       <a href="/admin/judges" class="ad-chip ad-chip--grey" style="text-decoration:none">Judge anomalies: {{ integrity.judges.flags }}</a>

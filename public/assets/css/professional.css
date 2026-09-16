@@ -12,27 +12,15 @@
 :root {
   /* Glow colours extracted from the logo corona */
   --corona-gold:    rgba(243, 180, 22, 0.55);
-  --corona-white:   rgba(255, 255, 255, 0.72);
-  --corona-emerald: rgba(51,  134, 50,  0.35);
 
   /* Professional shadow scale */
   --shadow-xs: none;
-  --shadow-sm: none;
-  --shadow-md: none;
-  --shadow-lg: none;
-  --shadow-xl: none;
-  --shadow-2xl: none;
 
   /* Glow shadows */
   --glow-emerald: 0 0 0 3px rgba(51,134,50,0.20), 0 4px 24px rgba(51,134,50,0.18);
-  --glow-gold:    0 0 0 3px rgba(243,180,22,0.25), 0 4px 24px rgba(243,180,22,0.20);
-  --glow-white:   0 0 40px rgba(255,255,255,0.12), 0 0 80px rgba(255,255,255,0.06);
 
   /* Border system */
   --border-subtle:  1px solid rgba(16,41,44,0.07);
-  --border-default: 1px solid rgba(16,41,44,0.12);
-  --border-medium:  1.5px solid rgba(16,41,44,0.16);
-  --border-strong:  2px solid rgba(16,41,44,0.24);
 
   /* Radius */
   --r-sm:  8px;
@@ -40,13 +28,11 @@
   --r-lg:  16px;
   --r-xl:  20px;
   --r-2xl: 28px;
-  --r-3xl: 36px;
   --r-full: 9999px;
 
   /* Motion */
   --ease-spring:    cubic-bezier(0.34, 1.56, 0.64, 1);
   --ease-silky:     cubic-bezier(0.23, 1,    0.32, 1);
-  --ease-bounce:    cubic-bezier(0.175, 0.885, 0.32, 1.275);
   --dur-fast:   150ms;
   --dur-normal: 280ms;
   --dur-slow:   480ms;

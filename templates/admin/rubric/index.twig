@@ -18,7 +18,7 @@
 
 {% block content %}
 
-<p style="margin:0 0 14px;font-size:13.5px;line-height:1.7;color:var(--ad-text-mute,#5a6d6f)">
+<p style="margin:0 0 14px;font-size:14px;line-height:1.7;color:var(--ad-text-mute,#5a6d6f)">
   What a judge is asked about each nominee, and what each answer is worth. This is the rubric
   the panel scores against and the one the published result is computed from.
 </p>
@@ -29,16 +29,16 @@
    should have the reason for the weights in front of them while they do it. #}
 <div class="ad-card">
   <div class="ad-card__body" style="padding-top:18px;padding-bottom:18px">
-    <p style="margin:0;font-family:var(--ag-font-display,Georgia,serif);font-size:16.5px;line-height:1.6;color:var(--ad-text,#10292c)">
+    <p style="margin:0;font-family:var(--ag-font-display,Georgia,serif);font-size:17px;line-height:1.6;color:var(--ad-text,#10292c)">
       &ldquo;{{ purpose }}&rdquo;
     </p>
-    <p style="margin:12px 0 0;font-size:12.5px;line-height:1.7;color:var(--ad-text-mute,#5a6d6f)">
+    <p style="margin:12px 0 0;font-size:13px;line-height:1.7;color:var(--ad-text-mute,#5a6d6f)">
       Four criteria, <strong>equally weighted</strong> — so no single dimension can carry a
       result on its own: not wealth, not a following, not the public tally, not a reputation
       that arrived before the evidence did. A rubric weighted 40/25/20/15 lets its heaviest
       criterion decide, and the heaviest criterion is always the one easiest to perform.
     </p>
-    <p style="margin:10px 0 0;font-size:12.5px;line-height:1.7;color:var(--ad-text-mute,#5a6d6f)">
+    <p style="margin:10px 0 0;font-size:13px;line-height:1.7;color:var(--ad-text-mute,#5a6d6f)">
       Weights here are <strong>relative</strong>, so four 25s and four 1s score identically.
       25 is used because the rubric is published as percentages and the number on this screen
       should be the number that was published.
@@ -96,7 +96,7 @@
       </div>
     </form>
     {% if scope %}
-      <p style="margin:10px 0 0;font-size:12.5px;line-height:1.7;color:var(--ad-text-soft)">
+      <p style="margin:10px 0 0;font-size:13px;line-height:1.7;color:var(--ad-text-soft)">
         A criterion here <strong>replaces</strong> the default one with the same reference for
         {{ scope_label }}. Anything the default has and this does not is still asked.</p>
     {% endif %}
@@ -110,7 +110,7 @@
      them — so they are told, with the number. #}
 {% if exposure.scored %}
 <div class="ad-card" style="border-color:#ecd9a0;background:#fffdf5">
-  <div class="ad-card__body" style="font-size:13.5px;line-height:1.7;color:#6b5312">
+  <div class="ad-card__body" style="font-size:14px;line-height:1.7;color:#6b5312">
     <p style="margin:0">{{ exposure.note }}</p>
 
     {# ── AND ADDING ONE IS THE DANGEROUS EDIT ────────────────────────────────
@@ -162,7 +162,7 @@
         {% for c in effective %}
         <tr>
           <td><strong>{{ c.label }}</strong>
-            {% if c.description %}<div style="font-size:12.5px;color:var(--ad-text-soft);margin-top:3px">{{ c.description }}</div>{% endif %}</td>
+            {% if c.description %}<div style="font-size:13px;color:var(--ad-text-soft);margin-top:3px">{{ c.description }}</div>{% endif %}</td>
           <td><code>{{ c.slug }}</code></td>
           <td>{{ c.weight }}</td>
           {# The number an operator actually wants, and the one they would otherwise work
@@ -182,7 +182,7 @@
     actually worth.
   </div>
   {% else %}
-  <div class="ad-card__body" style="font-size:13.5px;line-height:1.7;color:var(--ad-text-soft)">
+  <div class="ad-card__body" style="font-size:14px;line-height:1.7;color:var(--ad-text-soft)">
     <strong>There is no rubric yet, so scoring is locked.</strong> A judge cannot open a
     ballot with nothing to score against. Add at least one criterion below.
   </div>
@@ -210,7 +210,7 @@
           <td>
             <strong>{{ r.row.label }}</strong>
             {% if not r.row.is_active %}<span class="ad-chip ad-chip--grey">Retired</span>{% endif %}
-            <div style="font-size:12.5px;color:var(--ad-text-soft);margin-top:3px">
+            <div style="font-size:13px;color:var(--ad-text-soft);margin-top:3px">
               <code>{{ r.row.slug }}</code>{% if r.row.description %} · {{ r.row.description }}{% endif %}</div>
           </td>
           <td>{{ r.row.weight }}</td>
@@ -284,7 +284,7 @@
     </table>
   </div>
   {% else %}
-  <div class="ad-card__body" style="font-size:13.5px;line-height:1.7;color:var(--ad-text-soft)">
+  <div class="ad-card__body" style="font-size:14px;line-height:1.7;color:var(--ad-text-soft)">
     {% if scope %}
       Nothing specific to {{ scope_label }}. Its panel is asked the default criteria above,
       which is usually right — add one here only when this programme needs to be judged
@@ -342,15 +342,15 @@
   <div class="ad-card__body">
     {% for d in doctrine %}
       <div style="padding:12px 0{{ loop.first ? ';padding-top:0' : '' }}{{ loop.last ? '' : ';border-bottom:1px solid var(--ad-line)' }}">
-        <p style="margin:0 0 4px;font-weight:600;font-size:13.5px;color:var(--ad-text,#10292c)">{{ d.title }}</p>
-        <p style="margin:0;font-size:12.5px;line-height:1.7;color:var(--ad-text-mute,#5a6d6f)">{{ d.body }}</p>
+        <p style="margin:0 0 4px;font-weight:600;font-size:14px;color:var(--ad-text,#10292c)">{{ d.title }}</p>
+        <p style="margin:0;font-size:13px;line-height:1.7;color:var(--ad-text-mute,#5a6d6f)">{{ d.body }}</p>
       </div>
     {% endfor %}
     <p style="margin:16px 0 0;padding-top:14px;border-top:1px solid var(--ad-line);
-              font-family:var(--ag-font-display,Georgia,serif);font-size:15px;line-height:1.6;color:var(--ad-text,#10292c)">
+              font-family:var(--ag-font-display,Georgia,serif);font-size:16px;line-height:1.6;color:var(--ad-text,#10292c)">
       &ldquo;{{ standard }}&rdquo;
     </p>
-    <p style="margin:8px 0 0;font-size:12.5px;line-height:1.7;color:var(--ad-text-mute,#5a6d6f)">
+    <p style="margin:8px 0 0;font-size:13px;line-height:1.7;color:var(--ad-text-mute,#5a6d6f)">
       A nominee does not win because they are the most popular. They win because, across all
       four, their contribution withstands scrutiny.
     </p>

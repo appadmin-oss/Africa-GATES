@@ -21,7 +21,7 @@
    filters below (status/country/range/sort/search) and applied via redirect. #}
 <form method="post" action="/admin/nominations/ai-filter" class="ad-card" style="display:flex;gap:8px;align-items:center;margin-bottom:12px;padding:10px 14px">
   <input type="hidden" name="_token" value="{{ csrf_token }}">
-  <span aria-hidden="true" style="font-size:15px">✦</span>
+  <span aria-hidden="true" style="font-size:16px">✦</span>
   <label for="aiQuery" class="sr-only">Filter nominations in plain English</label>
   <input id="aiQuery" type="text" name="ai_query" maxlength="200"
          placeholder="Ask in plain English — e.g. “pending nominations from Kenya this month, oldest first”"
@@ -93,16 +93,16 @@
             </div>
           </div>
         </td>
-        <td style="font-size:12.5px;color:var(--ad-text-soft)">
+        <td style="font-size:13px;color:var(--ad-text-soft)">
           {% if r.nominee_email %}<div>✉ {{ ui.cell(r.nominee_email, 26, 'Nominee email') }}</div>{% endif %}
           {% if r.nominee_phone %}<div>☎ {{ r.nominee_phone }}</div>{% endif %}
           {% if not r.nominee_email and not r.nominee_phone %}<span class="ad-dim">—</span>{% endif %}
           <div style="color:var(--ad-text-mute)">{{ r.country_code|default('—') }}{% if r.nominee_state %} · {{ r.nominee_state }}{% endif %}</div>
         </td>
         <td>{{ r.programme_title|default('—') }}<div style="font-size:11px;color:var(--ad-text-mute)">{{ r.cycle_year }}</div></td>
-        <td style="font-size:12.5px">
+        <td style="font-size:13px">
           {{ ui.cell(r.nominator_name, 22, 'Nominator') }}
-          <div style="font-size:11.5px;color:var(--ad-text-soft)">{{ ui.cell(r.nominator_email, 24, 'Nominator email') }}</div>
+          <div style="font-size:12px;color:var(--ad-text-soft)">{{ ui.cell(r.nominator_email, 24, 'Nominator email') }}</div>
         </td>
         <td style="max-width:240px">{{ ui.cell(r.reason, 60, 'Reason for nominating ' ~ r.nominee_name) }}</td>
         <td style="font-size:12px;color:var(--ad-text-soft);font-family:'Space Mono',monospace;white-space:nowrap">{{ r.created_at|slice(0, 16) }}</td>

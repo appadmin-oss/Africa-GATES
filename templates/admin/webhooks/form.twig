@@ -10,10 +10,10 @@
       <div><label for="f-description">Description <span style="font-weight:400;color:var(--ad-text-mute)">(optional)</span></label><input type="text" name="description" id="f-description" value="{{ row.description|default('') }}" maxlength="200" placeholder="e.g. Zapier · n8n · our AI agent"></div>
       <div>
         <label>Events</label>
-        <label class="checkbox" style="display:flex;align-items:center;gap:8px;margin:5px 0 10px"><input type="checkbox" name="all_events" {% if all_events %}checked{% endif %}> All events <span style="color:var(--ad-text-mute,#5a6d6f);font-size:12.5px">(recommended — includes future event types)</span></label>
+        <label class="checkbox" style="display:flex;align-items:center;gap:8px;margin:5px 0 10px"><input type="checkbox" name="all_events" {% if all_events %}checked{% endif %}> All events <span style="color:var(--ad-text-mute,#5a6d6f);font-size:13px">(recommended — includes future event types)</span></label>
         <div style="display:flex;flex-direction:column;gap:8px;padding-left:4px">
           {% for key, label in events %}{% if key != 'ping' %}
-          <label class="checkbox" style="display:flex;align-items:center;gap:8px"><input type="checkbox" name="events[]" value="{{ key }}" {% if key in sel_events %}checked{% endif %}> <code style="font-size:12px">{{ key }}</code> <span style="color:var(--ad-text-mute,#5a6d6f);font-size:12.5px">— {{ label }}</span></label>
+          <label class="checkbox" style="display:flex;align-items:center;gap:8px"><input type="checkbox" name="events[]" value="{{ key }}" {% if key in sel_events %}checked{% endif %}> <code style="font-size:12px">{{ key }}</code> <span style="color:var(--ad-text-mute,#5a6d6f);font-size:13px">— {{ label }}</span></label>
           {% endif %}{% endfor %}
         </div>
       </div>

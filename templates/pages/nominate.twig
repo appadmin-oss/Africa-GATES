@@ -24,7 +24,7 @@
   .nm-head{ max-width:1000px; margin:0 auto; padding:clamp(1.6rem,4vw,2.2rem) var(--ag-gutter,32px) 0; text-align:center; }
   .nm-head .nm-ey{ margin:0 0 7px; font-size:11px; font-weight:700; letter-spacing:.16em; text-transform:uppercase; color:var(--green); }
   .nm-head h1{ margin:0; font-family:var(--ag-font-display); font-weight:700; font-size:clamp(1.9rem,5vw,2.4rem); letter-spacing:-.02em; color:var(--ink); }
-  .nm-head p{ margin:12px auto 0; font-size:15px; line-height:1.6; color:var(--soft); max-width:520px; }
+  .nm-head p{ margin:12px auto 0; font-size:16px; line-height:1.6; color:var(--soft); max-width:520px; }
 
   /* stepper */
   .nm-steps{ max-width:680px; margin:26px auto 0; padding:0 var(--ag-gutter,32px); }
@@ -88,27 +88,27 @@
   .nm-count{ font-size:12px; font-family:var(--ag-font-mono); }
   .nm-check{ display:flex; align-items:flex-start; gap:9px; cursor:pointer; }
   .nm-check input{ margin-top:2px; width:16px; height:16px; accent-color:var(--green); }
-  .nm-check span{ font-size:12.5px; line-height:1.5; color:#626a6e; }
+  .nm-check span{ font-size:13px; line-height:1.5; color:#626a6e; }
   .nm-check a{ color:var(--green); font-weight:600; text-decoration:none; }
   .nm-file{ border:1px dashed #bcd9bb; background:#f6fcf5; border-radius:12px; padding:13px 15px; }
   .nm-file input{ width:100%; font-size:13px; color:var(--soft); }
 
   .nm-alert{ display:flex; gap:.6rem; align-items:flex-start; border-radius:12px; padding:.8rem 1rem; margin-bottom:1.2rem; font-size:14px; font-weight:500; background:#fdeaea; border:1px solid #f5c2c2; color:#9c2b2b; }
-  .nm-perr{ color:#b4452f; font-size:12.5px; margin-top:10px; }
+  .nm-perr{ color:#b4452f; font-size:13px; margin-top:10px; }
 
   .nm-nav{ display:flex; align-items:center; justify-content:space-between; margin-top:26px; padding-top:22px; border-top:1px solid var(--line); }
   .nm-back{ cursor:pointer; border:none; background:none; font-family:inherit; font-size:14px; font-weight:600; color:#626a6e; padding:8px 4px; }
-  .nm-next{ cursor:pointer; border:none; background:var(--green); color:#fff; font-family:inherit; font-weight:600; font-size:15px; padding:13px 28px; border-radius:999px; display:inline-flex; align-items:center; gap:8px; transition:.18s; }
+  .nm-next{ cursor:pointer; border:none; background:var(--green); color:#fff; font-family:inherit; font-weight:600; font-size:16px; padding:13px 28px; border-radius:999px; display:inline-flex; align-items:center; gap:8px; transition:.18s; }
   .nm-next:hover{ background:var(--green-d); }
   .nm-next[disabled]{ opacity:.7; cursor:default; }
-  .nm-foot{ margin:16px 0 0; text-align:center; font-size:12.5px; color:var(--faint); }
+  .nm-foot{ margin:16px 0 0; text-align:center; font-size:13px; color:var(--faint); }
 
   /* "How it works" orientation strip */
   .nm-how{ list-style:none; margin:22px auto 0; padding:0 var(--ag-gutter,32px); max-width:820px; display:grid; grid-template-columns:repeat(3,1fr); gap:14px; }
   .nm-how li{ display:flex; align-items:flex-start; gap:11px; background:#fff; border:1px solid rgba(16,41,44,.1); border-radius:14px; padding:14px 16px; }
   .nm-how__n{ flex:none; width:26px; height:26px; border-radius:50%; background:#eef7ee; color:#1a6118; font-weight:700; font-size:13px; display:flex; align-items:center; justify-content:center; }
   .nm-how li strong{ display:block; font-size:14px; color:var(--ink); margin-bottom:2px; }
-  .nm-how li small{ display:block; font-size:12.5px; line-height:1.5; color:#5a6d6f; }
+  .nm-how li small{ display:block; font-size:13px; line-height:1.5; color:#5a6d6f; }
   @media (max-width:640px){ .nm-how{ grid-template-columns:1fr; gap:10px; } }
   /* The line under the three steps. Same measure as the cards above it, quiet
      enough not to compete with the form, prominent enough to be found. */
@@ -180,7 +180,7 @@
           {% if p.phase %}
           <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;background:#f6f8f6;border-radius:12px;padding:11px 14px">
             <span style="font-size:14px;font-weight:600;color:var(--ink)">{{ p.icon_emoji|default('') }} {{ p.title }}</span>
-            <span style="font-size:12.5px;color:#5a6d6f;text-align:right">{{ p.phase.label }}</span>
+            <span style="font-size:13px;color:#5a6d6f;text-align:right">{{ p.phase.label }}</span>
           </div>
           {% endif %}
         {% endfor %}
@@ -190,7 +190,7 @@
       {# Always offer the nearest useful action rather than a dead end. #}
       <div style="display:flex;gap:10px;flex-wrap:wrap;justify-content:center">
         <a class="nm-next" href="/leaderboard" style="text-decoration:none">See the live rankings</a>
-        <a href="/vote" style="display:inline-flex;align-items:center;padding:13px 24px;border-radius:999px;border:1px solid rgba(16,41,44,.16);background:#fff;color:var(--ink);font-weight:600;font-size:15px;text-decoration:none">Browse the programmes</a>
+        <a href="/vote" style="display:inline-flex;align-items:center;padding:13px 24px;border-radius:999px;border:1px solid rgba(16,41,44,.16);background:#fff;color:var(--ink);font-weight:600;font-size:16px;text-decoration:none">Browse the programmes</a>
       </div>
     </div>
   </div>
@@ -239,11 +239,11 @@
           <h2>Who are you nominating?</h2>
           <p class="lead">Tell us about the person you believe deserves recognition.</p>
           {% if prefill %}
-          <div style="background:#eef7ee;border:1px solid #cfe6cf;border-radius:12px;padding:10px 14px;margin:0 0 14px;font-size:13.5px;color:#1d4d1f">
+          <div style="background:#eef7ee;border:1px solid #cfe6cf;border-radius:12px;padding:10px 14px;margin:0 0 14px;font-size:14px;color:#1d4d1f">
             <strong>Shared nomination link</strong> — we've pre-filled {{ prefill.nominee_name|default('the nominee') }}'s details for you. Review and edit anything before you submit your own nomination.
           </div>
           {% elseif share_expired %}
-          <div style="background:#fdf3ec;border:1px solid #f2d9c4;border-radius:12px;padding:10px 14px;margin:0 0 14px;font-size:13.5px;color:#7a4a1f">
+          <div style="background:#fdf3ec;border:1px solid #f2d9c4;border-radius:12px;padding:10px 14px;margin:0 0 14px;font-size:14px;color:#7a4a1f">
             That share link has expired or is invalid — no problem, you can still nominate from scratch below.
           </div>
           {% endif %}

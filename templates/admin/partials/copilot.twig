@@ -21,8 +21,8 @@
             ? 'align-self:flex-end;background:var(--ad-accent,#237b22);color:#fff;border-radius:12px 12px 3px 12px;padding:8px 12px;max-width:85%;font-size:13px;line-height:1.5;white-space:pre-wrap'
             : 'align-self:flex-start;background:var(--ad-bg-soft,#f4f5f5);color:var(--ad-text,#10292c);border-radius:12px 12px 12px 3px;padding:8px 12px;max-width:85%;font-size:13px;line-height:1.5;white-space:pre-wrap'"><span x-text="m.text"></span></div>
       </template>
-      <div x-show="busy" x-cloak style="align-self:flex-start;color:var(--ad-text-mute,#5a6d6f);font-size:12.5px">Thinking…</div>
-      <p x-show="!msgs.length && !busy" style="margin:auto;text-align:center;color:var(--ad-text-mute,#5a6d6f);font-size:12.5px;max-width:280px">Ask about the platform&rsquo;s live state — &ldquo;What needs my attention today?&rdquo;</p>
+      <div x-show="busy" x-cloak style="align-self:flex-start;color:var(--ad-text-mute,#5a6d6f);font-size:13px">Thinking…</div>
+      <p x-show="!msgs.length && !busy" style="margin:auto;text-align:center;color:var(--ad-text-mute,#5a6d6f);font-size:13px;max-width:280px">Ask about the platform&rsquo;s live state — &ldquo;What needs my attention today?&rdquo;</p>
     </div>
     <p role="alert" x-show="error" x-cloak x-text="error" style="color:#b42318;font-size:12px;font-weight:600;margin:0;padding:0 12px 6px"></p>
     <form @submit.prevent="send()" style="display:flex;gap:6px;padding:10px;border-top:1px solid var(--ad-line,#dfe4e3)">

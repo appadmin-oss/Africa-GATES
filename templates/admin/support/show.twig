@@ -46,8 +46,8 @@
 
   /* header */
   .tk-hd__subj{ margin:0; font-family:var(--ag-font-display,inherit); font-weight:700; font-size:19px; line-height:1.3; color:#10292C; }
-  .tk-hd__meta{ display:flex; flex-wrap:wrap; gap:6px 14px; margin-top:10px; font-size:12.5px; color:#5a6d6f; }
-  .tk-hd__meta code{ font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-size:11.5px }
+  .tk-hd__meta{ display:flex; flex-wrap:wrap; gap:6px 14px; margin-top:10px; font-size:13px; color:#5a6d6f; }
+  .tk-hd__meta code{ font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-size:12px }
   .tk-pill{ display:inline-block; font:700 10px/1 var(--ag-font-body,inherit); letter-spacing:.05em;
     text-transform:uppercase; padding:5px 9px; border-radius:999px; }
   .tk-pill--open{ background:#fff8df; color:#7a5600 }
@@ -60,10 +60,10 @@
   .tk-entry:first-of-type{ padding-top:0 }
   .tk-entry:last-child{ border-bottom:none; padding-bottom:0 }
   .tk-entry__hd{ display:flex; align-items:baseline; gap:9px; flex-wrap:wrap; margin-bottom:8px; }
-  .tk-entry__who{ font-size:13.5px; font-weight:650; color:#10292C; }
+  .tk-entry__who{ font-size:14px; font-weight:650; color:#10292C; }
   /* The CAPACITY, not just the name. "Ada (member)" and "Ada (staff)" are
      different claims and a thread that only shows a name loses the difference. */
-  .tk-entry__cap{ font:700 9.5px/1 var(--ag-font-body,inherit); letter-spacing:.06em; text-transform:uppercase;
+  .tk-entry__cap{ font:700 10px/1 var(--ag-font-body,inherit); letter-spacing:.06em; text-transform:uppercase;
     padding:4px 7px; border-radius:5px; }
   .tk-cap--member{ background:#e9efef; color:#2b373d }
   .tk-cap--staff{ background:#eef7ee; color:#1a6118 }
@@ -74,7 +74,7 @@
   /* An internal note is a different KIND of thing, not a tinted variant. */
   .tk-entry--note{ background:#fffdf5; border:1px dashed #e0cf9a; border-radius:12px; padding:14px 16px; margin:8px 0; }
   .tk-entry--note .tk-entry__body{ color:#5c4a1a }
-  .tk-note__warn{ display:inline-flex; align-items:center; gap:5px; font:700 9.5px/1 var(--ag-font-body,inherit);
+  .tk-note__warn{ display:inline-flex; align-items:center; gap:5px; font:700 10px/1 var(--ag-font-body,inherit);
     letter-spacing:.06em; text-transform:uppercase; color:#8a6d00; background:#fff3cd; padding:4px 8px; border-radius:5px; }
 
   /* ── reply ──────────────────────────────────────────────────────────────── */
@@ -82,7 +82,7 @@
     border-radius:11px; padding:13px 15px; font-family:inherit; font-size:14px; line-height:1.6; color:#39464a; outline:none; }
   .tk-reply textarea:focus{ border-color:#3f9c3c; box-shadow:0 0 0 3px rgba(127,200,124,.16) }
   .tk-reply__row{ display:flex; align-items:center; gap:12px; flex-wrap:wrap; margin-top:13px; }
-  .tk-btn{ cursor:pointer; border:none; font-family:inherit; font-weight:650; font-size:13.5px;
+  .tk-btn{ cursor:pointer; border:none; font-family:inherit; font-weight:650; font-size:14px;
     padding:11px 19px; border-radius:999px; }
   .tk-btn--send{ background:#177015; color:#fff }
   /* Deliberately NOT beside the send button. Sending an internal note to a
@@ -97,9 +97,9 @@
   .tk-att__item img{ width:100%; height:88px; object-fit:cover; border-radius:6px; display:block; background:#eef2ef }
   .tk-att__item--doc{ flex-direction:row; align-items:center; width:auto; max-width:260px; padding:10px 12px; gap:9px }
   .tk-att__meta{ font-size:11px; line-height:1.3; overflow:hidden; text-overflow:ellipsis; white-space:nowrap }
-  .tk-file{ display:inline-flex; align-items:center; gap:7px; font-size:12.5px; color:#3d4b4c; cursor:pointer }
-  .tk-file input{ max-width:190px; font-size:11.5px }
-  .tk-hint{ margin:9px 0 0; font-size:11.5px; line-height:1.55; color:#7a8a86 }
+  .tk-file{ display:inline-flex; align-items:center; gap:7px; font-size:13px; color:#3d4b4c; cursor:pointer }
+  .tk-file input{ max-width:190px; font-size:12px }
+  .tk-hint{ margin:9px 0 0; font-size:12px; line-height:1.55; color:#7a8a86 }
   .tk-sep{ border:none; border-top:1px solid rgba(16,41,44,.08); margin:20px 0 }
 
   /* ── evidence rail ──────────────────────────────────────────────────────── */
@@ -112,20 +112,20 @@
   .tk-verdict--ok{ background:#eef7ee; border:1px solid #bfe0bd; color:#1a4d18 }
   .tk-verdict--bad{ background:#fdf3f3; border:1px solid #f0c9c9; color:#8a2020 }
   .tk-verdict--wait{ background:#fff8df; border:1px solid #ecd9a0; color:#6b4a00 }
-  .tk-side a.tk-link{ display:block; margin-top:9px; font-size:12.5px; font-weight:600; color:#177015; text-decoration:none }
+  .tk-side a.tk-link{ display:block; margin-top:9px; font-size:13px; font-weight:600; color:#177015; text-decoration:none }
 
   .tk-status{ display:flex; gap:7px; flex-wrap:wrap }
   .tk-status button{ cursor:pointer; font-family:inherit; font-size:12px; font-weight:600; padding:8px 13px;
     border-radius:999px; border:1px solid rgba(16,41,44,.14); background:#fff; color:#4a5256 }
   .tk-status button:hover{ border-color:#3f9c3c; color:#177015 }
 
-  .tk-flash{ border-radius:11px; padding:12px 15px; font-size:13.5px; margin-bottom:16px; }
+  .tk-flash{ border-radius:11px; padding:12px 15px; font-size:14px; margin-bottom:16px; }
   .tk-flash--ok{ background:#eef7ee; border:1px solid #bfe0bd; color:#1a4d18 }
   .tk-flash--err{ background:#fdf3f3; border:1px solid #f0c9c9; color:#8a2020 }
   /* Written but not delivered is a third outcome, and it needs its own colour —
      shown green it reads as done, shown red it reads as lost. It is neither. */
   .tk-flash--warn{ background:#fff8df; border:1px solid #ecd9a0; color:#6b4a00 }
-  .tk-flash code{ font-family:var(--ag-font-mono,monospace); font-size:12.5px }
+  .tk-flash code{ font-family:var(--ag-font-mono,monospace); font-size:13px }
 
   @media (max-width:960px){ .tk{ grid-template-columns:1fr } .tk-side{ position:static } }
 </style>
@@ -263,7 +263,7 @@
       {% endif %}
 
       {% if not messages and not t.transcript %}
-        <p style="margin:0;font-size:13.5px;color:#7a8a86">Nothing on this support ticket yet.</p>
+        <p style="margin:0;font-size:14px;color:#7a8a86">Nothing on this support ticket yet.</p>
       {% endif %}
     </div>
 

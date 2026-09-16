@@ -9,11 +9,10 @@
      validated values. Everything the accent touches is bound in Alpine, so no rule here
      may set a `style` on the same tags — AlpineStyleClobberTest fails the build on a tag
      carrying both a static `style` and a bound `:style`. */
-  .tkp{ --tkp-card:#fff; --tkp-line:rgba(16,41,44,.10); --tkp-text:#10292C; --tkp-mute:#5a6d6f;
+  .tkp{ --tkp-card:#fff; --tkp-line:rgba(16,41,44,.10); --tkp-text:#10292C;
     background:var(--tkp-card); border:1px solid var(--tkp-line); border-radius:14px;
     overflow:hidden; box-shadow:0 12px 30px -22px rgba(16,41,44,.5) }
-  .tkp--dark{ --tkp-card:#0f1c1e; --tkp-line:rgba(255,255,255,.14); --tkp-text:#eef5f0;
-    --tkp-mute:#9fb3ad }
+  .tkp--dark{ --tkp-card:#0f1c1e; --tkp-line:rgba(255,255,255,.14); --tkp-text:#eef5f0 }
   .tkp__head{ position:relative; padding:12px 13px 13px; overflow:hidden }
   .tkp__shot{ position:absolute; inset:0; width:100%; height:100%; object-fit:cover }
   /* The cropped artwork, at 3:2 — the shape the server bakes. The head is ~236×90, i.e.
@@ -25,10 +24,10 @@
   .tkp__stage{ position:absolute }
   .tkp__scrim{ position:absolute; inset:0 }
   .tkp__headin{ position:relative }
-  .tkp__eyebrow{ display:block; font-size:8px; font-weight:700; letter-spacing:.14em;
+  .tkp__eyebrow{ display:block; font-size:10px; font-weight:700; letter-spacing:.14em;
     text-transform:uppercase; opacity:.85 }
   .tkp__title{ display:block; margin-top:5px; font-size:13px; font-weight:800; line-height:1.25 }
-  .tkp__when{ display:block; margin-top:4px; font-size:9.5px; opacity:.9 }
+  .tkp__when{ display:block; margin-top:4px; font-size:10px; opacity:.9 }
   .tkp__tear{ position:relative; height:14px; background:var(--tkp-card) }
   .tkp__tear::before, .tkp__tear::after{ content:""; position:absolute; top:50%; width:13px;
     height:13px; border-radius:50%; transform:translateY(-50%); background:#f4f7f4;
@@ -46,11 +45,11 @@
       repeating-linear-gradient(0deg,#10292C 0 4px,#fff 4px 8px);
     background-blend-mode:difference; background-color:#fff;
     box-shadow:0 0 0 4px #fff, 0 1px 6px -2px rgba(16,41,44,.4) }
-  .tkp__code{ display:inline-block; font-family:var(--ag-font-mono,monospace); font-size:15px;
+  .tkp__code{ display:inline-block; font-family:var(--ag-font-mono,monospace); font-size:16px;
     font-weight:700; letter-spacing:.05em; color:var(--tkp-text) }
-  .tkp__note{ display:block; margin-top:6px; font-size:9px; font-weight:600; color:var(--tkp-text) }
+  .tkp__note{ display:block; margin-top:6px; font-size:10px; font-weight:600; color:var(--tkp-text) }
   .tkp__rows{ display:flex; gap:1px; background:var(--tkp-line); border-top:1px solid var(--tkp-line) }
-  .tkp__rows span{ flex:1; background:var(--tkp-card); padding:7px 9px; font-size:9.5px;
+  .tkp__rows span{ flex:1; background:var(--tkp-card); padding:7px 9px; font-size:10px;
     font-weight:700; color:var(--tkp-text) }
   /* The panel's two columns. `min-width:0` is also set on each child inline — a grid item's
      default `min-width:auto` is its content's minimum, and the form's inputs are width:100%
@@ -95,9 +94,9 @@
   .tka__wash{ position:absolute; inset:0; pointer-events:none }
   .tka__over{ position:absolute; left:0; right:0; bottom:0; padding:10px 12px 11px;
     pointer-events:none }
-  .tka__overk{ display:block; font-family:var(--ag-font-mono,monospace); font-size:8.5px;
+  .tka__overk{ display:block; font-family:var(--ag-font-mono,monospace); font-size:10px;
     font-weight:700; letter-spacing:.2em; text-transform:uppercase; opacity:.88 }
-  .tka__overt{ display:block; margin-top:3px; font-size:15px; font-weight:800; line-height:1.2;
+  .tka__overt{ display:block; margin-top:3px; font-size:16px; font-weight:800; line-height:1.2;
     overflow:hidden; text-overflow:ellipsis; white-space:nowrap }
   /* Thirds, on hover and on focus only. Permanent guides read as part of the picture and
      get cropped around; guides that appear while you are dragging read as a tool. */
@@ -112,7 +111,7 @@
     border:2px dashed var(--ad-line,#cbd8d4); border-radius:12px; background:#f7faf9;
     color:#5a6d6f; font-size:13px; cursor:pointer }
   .tka__drop:hover, .tka__drop.is-over{ border-color:#237b22; background:#f1f8f1; color:#10292C }
-  .tka__drop strong{ font-size:13.5px; color:#10292C }
+  .tka__drop strong{ font-size:14px; color:#10292C }
   /* Visually hidden rather than `display:none`: a hidden input cannot be focused, and the
      label above it is the only way to reach the picker from a keyboard. */
   .tka__file{ position:absolute; width:1px; height:1px; opacity:0 }
@@ -122,7 +121,7 @@
   .tka__btn{ display:inline-flex; align-items:center; justify-content:center; gap:6px;
     min-width:38px; height:38px; padding:0 11px; box-sizing:border-box; cursor:pointer;
     border:1px solid var(--ad-line,#e2e8e6); border-radius:9px; background:#fff;
-    color:#10292C; font-size:12.5px; font-weight:600; line-height:1 }
+    color:#10292C; font-size:13px; font-weight:600; line-height:1 }
   .tka__btn:hover{ border-color:#10292C }
   .tka__btn:focus-visible{ outline:3px solid #237b22; outline-offset:2px }
   .tka__btn[aria-pressed="true"]{ background:#10292C; border-color:#10292C; color:#fff }
@@ -224,7 +223,7 @@
            operator had run it, repeatedly, so the feature read as one that had never been
            built. EventInvites::linkBlocker() decides which of the two faults it is. #}
         {% if programme_link %}
-        <div style="grid-column:1/-1;background:#fdf6e3;border:1px solid #f3b416;border-radius:11px;padding:12px 14px;font-size:12.5px;line-height:1.7;color:#10292C">
+        <div style="grid-column:1/-1;background:#fdf6e3;border:1px solid #f3b416;border-radius:11px;padding:12px 14px;font-size:13px;line-height:1.7;color:#10292C">
           <strong style="display:block;margin-bottom:2px">Awards cannot be linked to this event yet.</strong>
           {{ programme_link.what }} {{ programme_link.fix }}
           {% if programme_link.rerun and row.id is defined %}
@@ -259,7 +258,7 @@
            answering one question, which is exactly what a group label is for — a screen
            reader reading the fourth checkbox otherwise has no idea what the four are. #}
         <fieldset style="grid-column:1/-1;border:0;padding:0;margin:0;min-width:0">
-          <legend style="display:block;font-weight:600;font-size:12.5px;color:var(--ad-text);margin-bottom:6px;padding:0">
+          <legend style="display:block;font-weight:600;font-size:13px;color:var(--ad-text);margin-bottom:6px;padding:0">
             Awards presented at this event
             <small style="display:block;font-weight:400;color:var(--ad-text-soft)">the invitation run draws its guests of honour from these — leave all unticked when the event is not a ceremony</small>
           </legend>
@@ -269,7 +268,7 @@
           <input type="hidden" name="programme_ids[]" value="">
           <div style="display:flex;flex-wrap:wrap;gap:10px 18px">
             {% for p in programmes %}
-              <label style="display:inline-flex;align-items:center;gap:8px;font-weight:400;font-size:13.5px;min-height:44px;margin:0">
+              <label style="display:inline-flex;align-items:center;gap:8px;font-weight:400;font-size:14px;min-height:44px;margin:0">
                 <input type="checkbox" name="programme_ids[]" value="{{ p.id }}"
                        {% if p.id in programme_ids %}checked{% endif %}>
                 {{ p.title }}
@@ -679,7 +678,7 @@
     {% if design_missing is not empty %}
       <div style="border:1px solid #ecd9a0;border-radius:12px;padding:14px 16px;margin-top:6px;background:#fffdf5">
         <strong style="font-size:14px">Ticket design needs one more step</strong>
-        <p style="font-size:12.5px;color:#6b5312;margin:6px 0 0;line-height:1.7">
+        <p style="font-size:13px;color:#6b5312;margin:6px 0 0;line-height:1.7">
           These columns are not in the database yet:
           <code>{{ design_missing|join('</code>, <code>')|raw }}</code>. Run
           <strong>/__setup/migrate</strong> and this section appears. Until then tickets use
@@ -880,7 +879,7 @@
             {# Folded away. An address is the escape hatch for artwork that lives somewhere
                else, and it is the wrong first thing to offer somebody holding a JPEG. #}
             <details style="margin-top:10px">
-              <summary style="font-size:12.5px;font-weight:600;cursor:pointer;color:#5a6d6f">Use a picture that is already online</summary>
+              <summary style="font-size:13px;font-weight:600;cursor:pointer;color:#5a6d6f">Use a picture that is already online</summary>
               <label style="margin-top:8px">Address of the image
                 <input type="text" name="ticket_image" x-model="imageField"
                        placeholder="/uploads/ticket-art.jpg or https://…"></label>
@@ -997,7 +996,7 @@
     {# The sibling screens, out of the save bar. They are navigation, not actions on this form,
        and sitting beside Save is how somebody loses an edit by pressing one of them. #}
     {% if row.id is defined %}
-    <p style="margin:12px 0 0;font-size:12.5px;color:var(--ad-text-mute,#5a6d6f)">
+    <p style="margin:12px 0 0;font-size:13px;color:var(--ad-text-mute,#5a6d6f)">
       Also for this event:
       <a href="/admin/events/{{ row.id }}/tickets" style="font-weight:600">Who is coming</a> ·
       <a href="/admin/events/{{ row.id }}/codes" style="font-weight:600">Discount codes</a> ·

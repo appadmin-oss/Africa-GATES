@@ -32,7 +32,7 @@
                 overflow:hidden; }
   .st-cap__fill{ height:100%; background:var(--ad-primary); }
   .st-cap__fill.is-full{ background:#b91c1c; }
-  .st-cap__n{ font-family:'Space Mono',monospace; font-size:12.5px; white-space:nowrap; }
+  .st-cap__n{ font-family:'Space Mono',monospace; font-size:13px; white-space:nowrap; }
 
   /* The eight fields, shared by the add form and every row's edit form so the two
      cannot drift into different layouts of the same thing. */
@@ -41,7 +41,7 @@
   /* Editing a row in place. Quiet until opened — a table with an expanded form under
      every row is unreadable, and the reason to open one is a correction, not a habit. */
   .st-editrow > td{ border-top:none; }
-  .st-edit__sum{ cursor:pointer; padding:8px 0 12px; font-size:12.5px; font-weight:600;
+  .st-edit__sum{ cursor:pointer; padding:8px 0 12px; font-size:13px; font-weight:600;
     color:var(--ad-text-soft); list-style:none; }
   .st-edit__sum::-webkit-details-marker{ display:none; }
   .st-edit__sum::before{ content:'✎ '; }
@@ -57,7 +57,7 @@
   .st-tabs{ display:flex; flex-wrap:wrap; gap:8px; margin-bottom:14px; }
   .st-tab{ display:inline-flex; align-items:center; gap:6px; min-height:34px; padding:6px 13px;
            border-radius:99px; border:1px solid var(--ad-line); background:var(--ad-surface);
-           font-size:12.5px; font-weight:600; color:var(--ad-text); text-decoration:none; }
+           font-size:13px; font-weight:600; color:var(--ad-text); text-decoration:none; }
     /* #086411 on white is 6.9:1; white on #086411 is the same pair inverted. */
   .st-tab.is-on{ background:var(--ad-primary); color:#fff; border-color:transparent; }
   .st-dec{ display:grid; grid-template-columns:1fr auto; gap:8px; align-items:end; }
@@ -71,13 +71,13 @@
   .viz-swatches{ display:flex; flex-wrap:wrap; gap:22px; align-items:flex-end; }
   .viz-swatch{ text-align:center; }
   .viz-swatch__l{ margin-top:7px; font-size:12px; font-weight:600; color:var(--ad-text); }
-  .viz-swatch__d{ font-size:11.5px; color:var(--ad-text-soft);
+  .viz-swatch__d{ font-size:12px; color:var(--ad-text-soft);
                   font-family:'Space Mono',monospace; }
   .viz-bar{ display:block; overflow:visible; }
   .viz-plan{ display:block; max-width:100%; height:auto; }
   .viz-planwrap{ overflow-x:auto; padding:14px 4px 4px; }
   .viz-legend{ list-style:none; display:flex; flex-wrap:wrap; gap:6px 18px;
-               margin:12px 0 0; padding:0; font-size:12.5px; color:var(--ad-text); }
+               margin:12px 0 0; padding:0; font-size:13px; color:var(--ad-text); }
   .viz-legend li{ display:flex; align-items:center; gap:7px; }
   .viz-legend em{ font-style:normal; color:var(--ad-text-soft);
                   font-family:'Space Mono',monospace; }
@@ -87,9 +87,9 @@
   .viz-fig__l{ font-size:11px; font-weight:700; letter-spacing:.12em;
                text-transform:uppercase; color:var(--ad-text-soft); margin-top:4px; }
   .viz-warn{ margin-top:14px; border-left:4px solid #d03b3b; background:#fdf2f2;
-             border-radius:0 10px 10px 0; padding:12px 15px; font-size:13.5px;
+             border-radius:0 10px 10px 0; padding:12px 15px; font-size:14px;
              line-height:1.65; color:#7f1d1d; }
-  .viz-caveat{ margin-top:12px; font-size:12.5px; line-height:1.65; color:var(--ad-text-soft); }
+  .viz-caveat{ margin-top:12px; font-size:13px; line-height:1.65; color:var(--ad-text-soft); }
 </style>
 {% endblock %}
 
@@ -137,7 +137,7 @@
   <div class="ad-card__body">
 
   {% if call and call.locked_at %}
-    <p style="margin:0 0 14px;font-size:13.5px;line-height:1.7;color:var(--ad-text-soft)">
+    <p style="margin:0 0 14px;font-size:14px;line-height:1.7;color:var(--ad-text-soft)">
       These terms were <strong>locked on {{ call.locked_at|slice(0,16) }}</strong> and cannot be
       edited. That is not a limitation of this screen — it is the mechanism. A rule that can be
       changed once you know who applied is not a rule, and every rejection made under this call
@@ -166,7 +166,7 @@
     </table>
 
     {% if call.intro %}
-      <div style="margin-top:14px;font-size:13.5px;line-height:1.7">{{ call.intro|nl2br }}</div>
+      <div style="margin-top:14px;font-size:14px;line-height:1.7">{{ call.intro|nl2br }}</div>
     {% endif %}
 
     <div style="margin-top:16px;display:flex;gap:10px;flex-wrap:wrap">
@@ -203,14 +203,14 @@
           </div>
           <button class="ad-btn ad-btn--sm" type="submit">Reopen</button>
         </form>
-        <p style="margin:10px 0 0;font-size:12.5px;line-height:1.7;color:var(--ad-text-soft)">
+        <p style="margin:10px 0 0;font-size:13px;line-height:1.7;color:var(--ad-text-soft)">
           The published terms do not change. Only the closing date moves — everything a
           vendor was shown when they applied stays exactly as it was.</p>
       </details>
     {% endif %}
 
   {% elseif may_decide %}
-    <p style="margin:0 0 14px;font-size:13.5px;line-height:1.7;color:var(--ad-text-soft)">
+    <p style="margin:0 0 14px;font-size:14px;line-height:1.7;color:var(--ad-text-soft)">
       A draft. Nothing here is public and everything is editable. Publishing locks the closing
       date, the prices and the quotas <strong>permanently</strong> — read them once more first.
     </p>
@@ -432,7 +432,7 @@
 
   {% if may_decide %}
     {% if call and call.status == 'open' %}
-      <div class="ad-card__body" style="border-top:1px solid var(--ad-line);color:var(--ad-text-soft);font-size:13.5px;line-height:1.7">
+      <div class="ad-card__body" style="border-top:1px solid var(--ad-line);color:var(--ad-text-soft);font-size:14px;line-height:1.7">
         The call is open, so prices and quotas are locked. They were published before anybody
         applied, and that is the whole of what makes the allocation defensible.
       </div>

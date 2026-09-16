@@ -3,7 +3,7 @@
 {% block topbar_actions %}<a class="ad-btn ad-btn--primary" href="/admin/webhooks/new">+ New webhook</a>{% endblock %}
 {% block content %}
 <div class="ad-card"><div class="ad-card__body">
-  <p style="margin:0;color:var(--ad-text-mute,#5a6d6f);font-size:13.5px;line-height:1.6">Outbound webhooks notify external platforms &amp; AI agents the moment something happens. Each delivery is a signed JSON <code>POST</code> carrying <code>X-AG-Event</code>, <code>X-AG-Delivery</code> and <code>X-AG-Signature: sha256=&lt;hmac&gt;</code> — verify it on your endpoint using that webhook's secret.</p>
+  <p style="margin:0;color:var(--ad-text-mute,#5a6d6f);font-size:14px;line-height:1.6">Outbound webhooks notify external platforms &amp; AI agents the moment something happens. Each delivery is a signed JSON <code>POST</code> carrying <code>X-AG-Event</code>, <code>X-AG-Delivery</code> and <code>X-AG-Signature: sha256=&lt;hmac&gt;</code> — verify it on your endpoint using that webhook's secret.</p>
 </div></div>
 
 <div class="ad-card" style="margin-top:16px"><div class="ad-table-wrap">
@@ -34,7 +34,7 @@
 
 {% if deliveries is not empty %}
 <div class="ad-card" style="margin-top:16px"><div class="ad-card__body">
-  <h3 style="margin:0 0 12px;font-size:15px;color:var(--ad-ink,#10292C)">Recent deliveries</h3>
+  <h3 style="margin:0 0 12px;font-size:16px;color:var(--ad-ink,#10292C)">Recent deliveries</h3>
   <div class="ad-table-wrap">
   <table class="ad-table">
     <thead><tr><th scope="col">When</th><th scope="col">Event</th><th scope="col">Endpoint</th><th scope="col">Result</th></tr></thead>

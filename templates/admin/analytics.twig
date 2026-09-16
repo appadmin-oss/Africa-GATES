@@ -39,21 +39,21 @@
 <style nonce="{{ csp_nonce }}">
   .an-lede{ margin:0 0 18px; font-size:13px; line-height:1.65; color:#4a5256; max-width:86ch }
   .an-tabs{ display:flex; gap:8px; flex-wrap:wrap; margin-bottom:20px }
-  .an-tab{ font-size:12.5px; font-weight:600; padding:7px 14px; border-radius:999px; text-decoration:none;
+  .an-tab{ font-size:13px; font-weight:600; padding:7px 14px; border-radius:999px; text-decoration:none;
     border:1px solid rgba(16,41,44,.14); color:#3d4b4d; background:#fff }
   .an-tab.is-on{ background:#10292C; border-color:#10292C; color:#fff }
 
   .an-sec{ margin:0 0 26px }
   .an-sec__h{ display:flex; align-items:baseline; gap:12px; margin:0 0 4px }
-  .an-sec__h h2{ margin:0; font-size:15px; color:#10292C }
-  .an-sec__h span{ font-size:11.5px; color:#7a8a8c }
-  .an-sec__note{ margin:0 0 12px; font-size:12.5px; line-height:1.6; color:#5a6d6f; max-width:86ch }
+  .an-sec__h h2{ margin:0; font-size:16px; color:#10292C }
+  .an-sec__h span{ font-size:12px; color:#7a8a8c }
+  .an-sec__note{ margin:0 0 12px; font-size:13px; line-height:1.6; color:#5a6d6f; max-width:86ch }
 
   .an-grid{ display:grid; grid-template-columns:repeat(auto-fit,minmax(190px,1fr)); gap:12px }
   .an-card{ background:#fff; border:1px solid rgba(16,41,44,.10); border-radius:13px; padding:14px 16px }
   .an-card__k{ font:700 10px/1 var(--ag-font-body,inherit); letter-spacing:.09em; text-transform:uppercase; color:#5a6d6f }
   .an-card__n{ font-family:var(--ag-font-mono,monospace); font-weight:700; font-size:25px; color:#10292C; margin:8px 0 2px }
-  .an-card__s{ font-size:11.5px; color:#5a6d6f; line-height:1.5 }
+  .an-card__s{ font-size:12px; color:#5a6d6f; line-height:1.5 }
   .an-up{ color:#177015; font-weight:700 } .an-down{ color:#8a2020; font-weight:700 }
   .an-flat{ color:#7a8a8c; font-weight:700 }
 
@@ -63,7 +63,7 @@
   .an-panel + .an-panel{ margin-top:12px }
   .an-two{ display:grid; grid-template-columns:repeat(auto-fit,minmax(330px,1fr)); gap:12px }
 
-  .an-tbl{ width:100%; border-collapse:collapse; font-size:12.5px }
+  .an-tbl{ width:100%; border-collapse:collapse; font-size:13px }
   .an-tbl th{ text-align:left; font:700 10px/1 var(--ag-font-body,inherit); letter-spacing:.08em;
     text-transform:uppercase; color:#5a6d6f; padding:7px 9px; border-bottom:1px solid rgba(16,41,44,.12) }
   .an-tbl td{ padding:8px 9px; border-bottom:1px solid rgba(16,41,44,.05) }
@@ -72,15 +72,15 @@
   /* Funnel: width is the share, so the drop between stages is the visual. */
   .an-fun{ margin-top:6px }
   .an-fun__row{ margin-bottom:11px }
-  .an-fun__top{ display:flex; justify-content:space-between; gap:10px; font-size:12.5px; margin-bottom:5px }
+  .an-fun__top{ display:flex; justify-content:space-between; gap:10px; font-size:13px; margin-bottom:5px }
   .an-fun__n{ font-family:var(--ag-font-mono,monospace); font-weight:700; color:#10292C }
   .an-fun__bar{ height:9px; border-radius:99px; background:rgba(16,41,44,.07); overflow:hidden }
   .an-fun__fill{ height:100%; border-radius:99px; background:#237B22 }
-  .an-fun__note{ font-size:11.5px; color:#7a8a8c; margin-top:4px }
+  .an-fun__note{ font-size:12px; color:#7a8a8c; margin-top:4px }
 
   /* Retention grid */
   .an-ret{ border-collapse:separate; border-spacing:3px; font-size:11px }
-  .an-ret th{ font:700 9.5px/1 var(--ag-font-body,inherit); letter-spacing:.06em; text-transform:uppercase;
+  .an-ret th{ font:700 10px/1 var(--ag-font-body,inherit); letter-spacing:.06em; text-transform:uppercase;
     color:#7a8a8c; padding:3px 4px; text-align:center }
   .an-ret td{ text-align:center; padding:6px 5px; border-radius:5px; font-family:var(--ag-font-mono,monospace);
     min-width:38px; color:#10292C }
@@ -97,14 +97,14 @@
   .an-split{ display:flex; height:11px; border-radius:99px; overflow:hidden; margin:10px 0 8px;
     background:rgba(16,41,44,.07) }
   .an-split__a{ background:#237B22 } .an-split__b{ background:#C9A24B } .an-split__c{ background:#5A6D6F }
-  .an-key{ display:flex; gap:16px; font-size:11.5px; color:#5a6d6f; flex-wrap:wrap }
+  .an-key{ display:flex; gap:16px; font-size:12px; color:#5a6d6f; flex-wrap:wrap }
   .an-key i{ display:inline-block; width:9px; height:9px; border-radius:2px; margin-right:5px }
 
-  .an-empty{ font-size:12.5px; color:#7a8a8c; margin:8px 0 0 }
+  .an-empty{ font-size:13px; color:#7a8a8c; margin:8px 0 0 }
   .an-warn{ background:#fff8df; border:1px solid #ecd9a0; color:#6b4a00; border-radius:10px;
-    padding:10px 13px; font-size:12.5px; line-height:1.6; margin-top:10px }
+    padding:10px 13px; font-size:13px; line-height:1.6; margin-top:10px }
   .an-bad{ background:#fdf3f3; border:1px solid #f0c9c9; color:#8a2020; border-radius:10px;
-    padding:10px 13px; font-size:12.5px; line-height:1.6; margin-top:10px }
+    padding:10px 13px; font-size:13px; line-height:1.6; margin-top:10px }
   .an-scroll{ overflow-x:auto }
 </style>
 {% endblock %}
@@ -459,7 +459,7 @@
 
   <div class="an-two">
     <div class="an-panel">
-      <strong style="font-size:13.5px">Where the votes came from</strong>
+      <strong style="font-size:14px">Where the votes came from</strong>
       <div class="an-split">
         <div class="an-split__a" style="width:{{ voting.organic_pct }}%"></div>
         <div class="an-split__c" style="width:{{ voting.bonus_pct }}%"></div>
@@ -475,7 +475,7 @@
     </div>
 
     <div class="an-panel">
-      <strong style="font-size:13.5px">When people vote</strong>
+      <strong style="font-size:14px">When people vote</strong>
       <p class="an-sec__note" style="margin:4px 0 0">
         Hour of day, platform clock. This is what a closing time should be chosen against.
       </p>
@@ -543,7 +543,7 @@
 
   <div class="an-two">
     <div class="an-panel">
-      <strong style="font-size:13.5px">Nomination to ballot</strong>
+      <strong style="font-size:14px">Nomination to ballot</strong>
       {% if noms.stages|length %}
         <div class="an-fun">
           {% for s in noms.stages %}
@@ -569,7 +569,7 @@
     </div>
 
     <div class="an-panel">
-      <strong style="font-size:13.5px">Ballot flow</strong>
+      <strong style="font-size:14px">Ballot flow</strong>
       <p class="an-sec__note" style="margin:4px 0 8px">
         Distinct sessions per recorded step, biggest first. Sessions rather than events, so one
         person refreshing the ballot six times counts once.
@@ -642,7 +642,7 @@
   </p>
   <div class="an-two">
     <div class="an-panel">
-      <strong style="font-size:13.5px">Votes by nominee country</strong>
+      <strong style="font-size:14px">Votes by nominee country</strong>
       {% if geo.vote_countries|length %}
         <table class="an-tbl">
           <thead><tr><th>Country</th><th class="n">Votes</th><th class="n">Share</th></tr></thead>
@@ -656,7 +656,7 @@
     </div>
 
     <div class="an-panel">
-      <strong style="font-size:13.5px">Nominations by state</strong>
+      <strong style="font-size:14px">Nominations by state</strong>
       {% if geo.nomination_states|length %}
         <p class="an-sec__note" style="margin:4px 0 8px">
           {{ geo.states_covered }} of 37 states and the FCT have sent at least one nomination.
@@ -681,7 +681,7 @@
 
   <div class="an-two">
     <div class="an-panel">
-      <strong style="font-size:13.5px">The feed</strong>
+      <strong style="font-size:14px">The feed</strong>
       <p class="an-sec__note" style="margin:4px 0 6px">
         A thousand posts from four accounts is not a community. The author count and the top
         author's share are next to the volume so that shape is visible immediately.
@@ -702,7 +702,7 @@
     </div>
 
     <div class="an-panel">
-      <strong style="font-size:13.5px">Support desk</strong>
+      <strong style="font-size:14px">Support desk</strong>
       <p class="an-sec__note" style="margin:4px 0 6px">
         Open tickets alone is ambiguous — forty is fine on a results day. Opened minus resolved
         says whether the queue is growing, and the median is what a person writing in experiences.
@@ -736,7 +736,7 @@
   </div>
 
   <div class="an-panel" style="margin-top:12px">
-    <strong style="font-size:13.5px">Email delivery</strong>
+    <strong style="font-size:14px">Email delivery</strong>
     <p class="an-sec__note" style="margin:4px 0 8px">
       Not a nicety here: a vote code that does not arrive is a vote that does not happen, and the
       failure is invisible on every other screen — it just looks like a quiet day.

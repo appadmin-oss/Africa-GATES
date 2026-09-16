@@ -29,15 +29,15 @@
 {% block head_styles %}
 <style nonce="{{ csp_nonce }}">
   .ivp{ max-width:640px; margin:0 auto; padding:40px 20px 76px }
-  .ivp__kick{ display:inline-flex; align-items:center; gap:7px; font-size:11.5px; font-weight:700;
+  .ivp__kick{ display:inline-flex; align-items:center; gap:7px; font-size:12px; font-weight:700;
     letter-spacing:.09em; text-transform:uppercase; color:#1c5f1b; background:#eaf7ea;
     border-radius:999px; padding:6px 13px }
   .ivp__card{ margin-top:16px; background:#fff; border:1px solid rgba(16,41,44,.1); border-radius:20px;
     padding:28px 26px;}
   .ivp h1{ margin:0; font-size:clamp(1.3rem, 1.1rem + 1vw, 1.75rem); letter-spacing:-.015em; color:#10292C }
-  .ivp h2{ margin:26px 0 0; font-size:15px; letter-spacing:.01em; color:#10292C }
-  .ivp p{ margin:13px 0 0; font-size:15px; line-height:1.75; color:#3d5254 }
-  .ivp small{ display:block; margin-top:10px; font-size:12.5px; line-height:1.7; color:#67797b }
+  .ivp h2{ margin:26px 0 0; font-size:16px; letter-spacing:.01em; color:#10292C }
+  .ivp p{ margin:13px 0 0; font-size:16px; line-height:1.75; color:#3d5254 }
+  .ivp small{ display:block; margin-top:10px; font-size:13px; line-height:1.7; color:#67797b }
 
   /* The appointment, as a block you can read in one look on a phone. */
   .ivp__when{ margin-top:18px; display:grid; gap:1px; background:rgba(16,41,44,.09);
@@ -46,7 +46,7 @@
     padding:12px 15px; font-size:14px; color:#3d5254 }
   .ivp__row b{ color:#10292c; font-weight:650; text-align:right }
   .ivp__join{ display:block; margin-top:16px; text-align:center; background:#10292C; color:#fff;
-    text-decoration:none; border-radius:999px; padding:15px 24px; font:700 15px/1 inherit; min-height:48px;
+    text-decoration:none; border-radius:999px; padding:15px 24px; font:700 16px/1 inherit; min-height:48px;
     box-sizing:border-box }
   .ivp__join:hover{ background:#1d4145 }
 
@@ -59,24 +59,24 @@
     padding:20px 20px 22px }
   .ivp__consent h2{ margin:0 }
   .ivp__consent ul{ margin:12px 0 0; padding-left:20px; font-size:14px; line-height:1.8; color:#4a5256 }
-  .ivp__check{ display:flex; gap:11px; align-items:flex-start; margin-top:16px; font-size:14.5px;
+  .ivp__check{ display:flex; gap:11px; align-items:flex-start; margin-top:16px; font-size:14px;
     line-height:1.65; color:#10292C; cursor:pointer }
   .ivp__check input{ margin-top:3px; width:19px; height:19px; flex:0 0 auto; accent-color:#237b22 }
-  .ivp__name{ width:100%; box-sizing:border-box; margin-top:14px; font:inherit; font-size:15px;
+  .ivp__name{ width:100%; box-sizing:border-box; margin-top:14px; font:inherit; font-size:16px;
     border:1px solid rgba(16,41,44,.2); border-radius:12px; padding:12px 13px; color:#10292C }
   .ivp__name:focus{ outline:none; border-color:#237b22; box-shadow:0 0 0 3px rgba(35,123,34,.12) }
   .ivp__lab{ display:block; margin-top:16px; font-size:13px; font-weight:650; color:#3d5254 }
   .ivp__go{ margin-top:16px; width:100%; background:#237b22; color:#fff; border:none; border-radius:999px;
-    padding:15px 24px; font:700 15px/1 inherit; cursor:pointer; min-height:48px }
+    padding:15px 24px; font:700 16px/1 inherit; cursor:pointer; min-height:48px }
   .ivp__go:hover{ background:#1c631b }
   .ivp__ghost{ margin-top:10px; width:100%; background:none; color:#3d5254; border:1px solid rgba(16,41,44,.2);
     border-radius:999px; padding:13px 24px; font:600 14px/1 inherit; cursor:pointer; min-height:44px }
 
   .ivp__ok{ background:#f0fdf4; border:1px solid #b6e3b6; border-left:4px solid #237b22;
-    border-radius:0 14px 14px 0; padding:16px 18px; margin-top:16px; font-size:14.5px;
+    border-radius:0 14px 14px 0; padding:16px 18px; margin-top:16px; font-size:14px;
     line-height:1.7; color:#22551f }
   .ivp__bad{ background:#fdf3f3; border:1px solid #f0c9c9; border-left:4px solid #b3261e;
-    border-radius:0 14px 14px 0; padding:16px 18px; margin-top:16px; font-size:14.5px;
+    border-radius:0 14px 14px 0; padding:16px 18px; margin-top:16px; font-size:14px;
     line-height:1.7; color:#8a2020 }
   .ivp__free{ margin-top:24px; font-size:13px; line-height:1.75; color:#5a6d6f;
     border-top:1px solid rgba(16,41,44,.09); padding-top:18px }

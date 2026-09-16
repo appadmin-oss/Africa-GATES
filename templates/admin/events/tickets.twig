@@ -16,8 +16,8 @@
   .tx-sub{ font-size:13px; color:#5a6d6f; margin:2px 0 18px }
   .tx-sec{ background:#fff; border:1px solid rgba(16,41,44,.1); border-radius:14px;
     padding:18px 20px; margin-bottom:14px }
-  .tx-sec h2{ margin:0 0 3px; font-size:14.5px; color:#10292C }
-  .tx-sec p{ margin:8px 0 0; font-size:12.5px; line-height:1.7; color:#5a6d6f }
+  .tx-sec h2{ margin:0 0 3px; font-size:14px; color:#10292C }
+  .tx-sec p{ margin:8px 0 0; font-size:13px; line-height:1.7; color:#5a6d6f }
 
   .tx-door{ display:flex; gap:10px; flex-wrap:wrap; align-items:center; margin-top:14px }
   .tx-door input{ flex:1 1 220px; font:700 20px/1 var(--ag-font-mono, monospace);
@@ -27,7 +27,7 @@
   .tx-btn{ cursor:pointer; font:650 13px/1 inherit; border:none; padding:12px 20px;
     border-radius:999px; background:#10292C; color:#fff; text-decoration:none; display:inline-block }
   .tx-btn--ghost{ background:none; border:1px solid rgba(16,41,44,.2); color:#10292C }
-  .tx-btn--tiny{ padding:6px 12px; font-size:11.5px }
+  .tx-btn--tiny{ padding:6px 12px; font-size:12px }
   /* The second press. A class rather than an Alpine :style binding — a :style REPLACES the
      style attribute when it runs, so the padding above would vanish the moment Alpine
      initialised. AlpineStyleClobberTest fails the build on that. */
@@ -35,7 +35,7 @@
   /* The inline seat box. Deliberately quiet until focused — thirty of these down a column
      would otherwise read as the loudest thing on a page whose job is the code box at the top. */
   .tx-seat{ margin:4px 0 0 }
-  .tx-seat input{ width:100%; max-width:120px; padding:3px 6px; font-size:11.5px;
+  .tx-seat input{ width:100%; max-width:120px; padding:3px 6px; font-size:12px;
     font-family:inherit; border:1px dashed rgba(16,41,44,.22); border-radius:6px;
     background:transparent; color:#10292C }
   .tx-seat input:focus{ border-style:solid; border-color:#237b22; background:#fff;
@@ -56,9 +56,9 @@
   .tx-s__k{ font:700 10px/1 var(--ag-font-body,inherit); letter-spacing:.08em;
     text-transform:uppercase; color:#5a6d6f }
   .tx-s__v{ font-size:22px; font-weight:700; color:#10292C; margin-top:7px }
-  .tx-s__n{ font-size:11.5px; line-height:1.5; color:#67797b; margin-top:4px }
+  .tx-s__n{ font-size:12px; line-height:1.5; color:#67797b; margin-top:4px }
 
-  .tx-list{ width:100%; border-collapse:collapse; margin-top:12px; font-size:12.5px }
+  .tx-list{ width:100%; border-collapse:collapse; margin-top:12px; font-size:13px }
   .tx-list th{ text-align:left; font:700 10px/1.3 var(--ag-font-body,inherit); letter-spacing:.08em;
     text-transform:uppercase; color:#5a6d6f; padding:0 8px 8px 0 }
   .tx-list td{ padding:9px 8px 9px 0; border-top:1px solid rgba(16,41,44,.07); vertical-align:top }
@@ -67,7 +67,7 @@
      clock. Small and quiet on purpose — it is context for the row above it, and a
      door log where every line competes is one nobody reads to the bottom of.
      11.5px against #67797b clears 4.5:1 on this ground. */
-  .tx-mini{ font-size:11.5px; color:#67797b; line-height:1.5 }
+  .tx-mini{ font-size:12px; color:#67797b; line-height:1.5 }
     padding:3px 8px; border-radius:999px; background:rgba(16,41,44,.07); color:#3d4b4d }
   .tx-tag--ok{ background:#eaf7ea; color:#1c5f1b }
   .tx-tag--wait{ background:#fff8df; color:#6b5312 }
@@ -80,7 +80,7 @@
   #txVideo{ display:block; width:100%; max-width:420px; aspect-ratio:1/1; object-fit:cover;
     background:#0b1416; border-radius:14px }
   .tx-scan__bar{ display:flex; align-items:center; justify-content:space-between; gap:10px;
-    flex-wrap:wrap; max-width:420px; margin-top:9px; font-size:12.5px; color:#5a6d6f }
+    flex-wrap:wrap; max-width:420px; margin-top:9px; font-size:13px; color:#5a6d6f }
   .tx-scan__bar span{ flex:1 1 200px }
 </style>
 {% endblock %}
@@ -144,16 +144,16 @@
        rather than letting somebody navigate away and discover it later. #}
     <div style="margin-bottom:14px;padding:12px 14px;border-radius:8px;background:#eaf7ec;
                 border-left:4px solid #237b22">
-      <strong style="font-size:13.5px;color:#14531a">Copy this now — it is not shown again</strong>
+      <strong style="font-size:14px;color:#14531a">Copy this now — it is not shown again</strong>
       <div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap">
         <input id="dpLink" readonly value="{{ site_url|default('') }}/door/{{ new_pass }}"
                style="flex:1 1 320px;min-width:0;font-family:var(--ag-font-mono,monospace);
-                      font-size:12.5px;padding:10px;min-height:44px;border:1px solid #b6d8bb;
+                      font-size:13px;padding:10px;min-height:44px;border:1px solid #b6d8bb;
                       border-radius:6px;background:#fff"
                aria-label="Door scanning link">
         <button class="tx-btn" type="button" id="dpCopy" style="min-height:44px">Copy link</button>
       </div>
-      <p style="margin:8px 0 0;font-size:12.5px;color:#2c5c31">
+      <p style="margin:8px 0 0;font-size:13px;color:#2c5c31">
         Send it to whoever is on the gate. Anyone with the link can check tickets in, so treat
         it like a key — and revoke it below the moment the door closes.
       </p>
@@ -195,7 +195,7 @@
           {% for p in passes %}
           <tr>
             <td><strong>{{ p.label ?: 'Door' }}</strong></td>
-            <td style="font-size:12.5px;color:#5a6d6f">
+            <td style="font-size:13px;color:#5a6d6f">
               {# The event's own clock, not the stored string. Slicing a datetime is not
                  formatting it — it reads the UTC storage convention out loud, so a gate
                  closing at 23:00 in Lagos listed here as 22:00. #}
@@ -328,14 +328,14 @@
             <td>
               <strong>{{ r.name }}</strong><br>
               <span style="color:#67797b">{{ r.email }}</span>
-              {% if r.by %}<br><span style="color:#8a9a9c;font-size:11.5px">cancelled by {{ r.by }}</span>{% endif %}
+              {% if r.by %}<br><span style="color:#8a9a9c;font-size:12px">cancelled by {{ r.by }}</span>{% endif %}
             </td>
             <td>
               <strong>₦{{ r.naira|number_format }}</strong>
               {# Both figures when they differ: a partial refund looks like a mistake unless the
                  screen says out loud what was paid and what is going back. #}
               {% if r.naira != r.paid %}
-                <br><span style="color:#8a9a9c;font-size:11.5px">of ₦{{ r.paid|number_format }} paid</span>
+                <br><span style="color:#8a9a9c;font-size:12px">of ₦{{ r.paid|number_format }} paid</span>
               {% endif %}
             </td>
             <td>
@@ -381,7 +381,7 @@
                 </form>
               </div>
               {% else %}
-                <span style="color:#8a9a9c;font-size:11.5px">nothing to do</span>
+                <span style="color:#8a9a9c;font-size:12px">nothing to do</span>
               {% endif %}
             </td>
           </tr>
@@ -396,7 +396,7 @@
      weeks later — but they are not work, and putting them in the same list as the debts is
      what makes the debts hard to see. #}
   <details style="margin-top:12px">
-    <summary style="cursor:pointer;font-size:12.5px;color:#5a6d6f;padding:6px 0">
+    <summary style="cursor:pointer;font-size:13px;color:#5a6d6f;padding:6px 0">
       {{ done|length }} refund{{ done|length == 1 ? '' : 's' }} already settled
     </summary>
     <div class="ad-table-wrap">
@@ -408,7 +408,7 @@
               <td><strong>{{ r.name }}</strong><br><span style="color:#67797b">{{ r.email }}</span></td>
               <td>₦{{ r.naira|number_format }}</td>
               <td style="color:#67797b">{{ r.settled ? r.settled|slice(0, 16)|replace({'-': '/'}) : '—' }}</td>
-              <td style="color:#8a9a9c;font-size:11.5px;word-break:break-all">
+              <td style="color:#8a9a9c;font-size:12px;word-break:break-all">
                 {{ r.gateway_ref ?: '—' }}
                 {% if r.gateway_ref starts with 'by-hand' %}
                   <br><span class="tx-tag">paid outside the platform</span>

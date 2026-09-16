@@ -196,17 +196,17 @@
     --viz-surface:#fff; }
   .viz__head{ display:flex; align-items:flex-start; justify-content:space-between; gap:12px;
     margin:0 0 12px; }
-  .viz__t{ display:block; font-size:14.5px; font-weight:700; color:var(--viz-ink); }
-  .viz__s{ display:block; margin-top:2px; font-size:12.5px; color:var(--viz-mute); }
+  .viz__t{ display:block; font-size:14px; font-weight:700; color:var(--viz-ink); }
+  .viz__s{ display:block; margin-top:2px; font-size:13px; color:var(--viz-mute); }
   .viz__btn{ flex:none; min-height:32px; padding:0 11px; cursor:pointer; font:600 12px/1 inherit;
     color:var(--viz-mute); background:none; border:1px solid rgba(16,41,44,.16); border-radius:999px; }
   .viz__btn:hover{ color:var(--viz-ink); border-color:var(--viz-ink); }
   .viz__btn:focus-visible{ outline:3px solid #237b22; outline-offset:2px; }
-  .viz__empty{ margin:0; padding:22px 0; font-size:13.5px; color:var(--viz-mute); }
+  .viz__empty{ margin:0; padding:22px 0; font-size:14px; color:var(--viz-mute); }
   .viz__note{ margin:10px 0 0; font-size:12px; line-height:1.6; color:var(--viz-mute); }
-  .viz__count{ margin:8px 0 0; font-size:12.5px; color:var(--viz-mute); }
+  .viz__count{ margin:8px 0 0; font-size:13px; color:var(--viz-mute); }
   /* Reserved, so a readout appearing under the pointer does not move what is under it. */
-  .viz__read{ min-height:18px; margin:10px 0 0; font-size:12.5px; color:var(--viz-mute); }
+  .viz__read{ min-height:18px; margin:10px 0 0; font-size:13px; color:var(--viz-mute); }
   .viz__read b{ color:var(--viz-ink); font-family:var(--ag-font-mono,monospace);
     font-variant-numeric:tabular-nums; }
 
@@ -218,7 +218,7 @@
   .viz__line{ fill:none; stroke:#237b22; stroke-width:2; stroke-linejoin:round; stroke-linecap:round; }
   .viz__cur{ stroke:var(--viz-ink); stroke-width:1; opacity:.35; }
   .viz__dot{ fill:var(--viz-surface); stroke:#237b22; stroke-width:2.5; }
-  .viz__ax{ font:600 10.5px/1 var(--ag-font-mono,monospace); fill:var(--viz-mute); }
+  .viz__ax{ font:600 11px/1 var(--ag-font-mono,monospace); fill:var(--viz-mute); }
   .viz__hit{ fill:transparent; cursor:crosshair; }
 
   /* ── bars ─────────────────────────────────────────────────────────────── */
@@ -231,7 +231,7 @@
   .viz__bar-t{ height:12px; border-radius:99px; background:rgba(16,41,44,.06); overflow:hidden; }
   .viz__bar-f{ display:block; height:100%; border-radius:99px; min-width:3px;
     transition:opacity .12s, width .3s var(--ag-ease,ease); }
-  .viz__bar-v{ font:700 12.5px/1 var(--ag-font-mono,monospace); font-variant-numeric:tabular-nums;
+  .viz__bar-v{ font:700 13px/1 var(--ag-font-mono,monospace); font-variant-numeric:tabular-nums;
     color:var(--viz-ink); }
   @media (max-width:520px){ .viz__bar{ grid-template-columns:minmax(0,1fr) auto; }
     .viz__bar-t{ grid-column:1 / -1; } }
@@ -243,7 +243,7 @@
     /* The 2px separation is a surface-coloured border, not a stroke around the mark. */
     box-shadow:inset -2px 0 0 var(--viz-surface); transition:opacity .12s; }
   .viz__seg:last-child{ }
-  .viz__seg b{ font:700 11.5px/1 inherit; color:#fff; }
+  .viz__seg b{ font:700 12px/1 inherit; color:#fff; }
   .viz__seg:focus-visible{ outline:3px solid var(--viz-ink); outline-offset:-3px; }
 
   /* ── budget ───────────────────────────────────────────────────────────── */
@@ -253,7 +253,7 @@
   .viz__spill{ position:absolute; top:0; bottom:0; background:#c0392b; }
   .viz__limit{ position:absolute; top:-2px; bottom:-2px; width:2px; background:var(--viz-ink); }
   .viz__budget-l{ display:flex; justify-content:space-between; gap:12px; flex-wrap:wrap;
-    margin-top:8px; font-size:12.5px; color:var(--viz-mute); }
+    margin-top:8px; font-size:13px; color:var(--viz-mute); }
   .viz__budget-l .is-bad{ color:#c0392b; font-weight:700; }
 
   /* ── plan ─────────────────────────────────────────────────────────────── */
@@ -263,7 +263,7 @@
   .viz__pitch{ position:absolute; border-radius:2px; box-shadow:0 0 0 1.5px #fcfcfb;
     transition:opacity .12s; }
   .viz__pitch:focus-visible{ outline:3px solid var(--viz-ink); outline-offset:1px; z-index:2; }
-  .viz__dim{ position:absolute; font:600 10.5px/1 var(--ag-font-mono,monospace); color:var(--viz-mute); }
+  .viz__dim{ position:absolute; font:600 11px/1 var(--ag-font-mono,monospace); color:var(--viz-mute); }
   .viz__dim--w{ top:0; left:50%; transform:translateX(-50%); }
   .viz__dim--d{ left:0; top:55%; transform:translateY(-50%) rotate(-90deg); transform-origin:left center; }
 
@@ -283,7 +283,7 @@
 
   /* ── table twin ───────────────────────────────────────────────────────── */
   .viz__tw{ overflow-x:auto; margin-top:12px; }
-  .viz__table{ width:100%; border-collapse:collapse; font-size:12.5px; }
+  .viz__table{ width:100%; border-collapse:collapse; font-size:13px; }
   .viz__table th, .viz__table td{ text-align:left; padding:8px 12px 8px 0;
     border-top:1px solid var(--viz-line); white-space:nowrap; }
   .viz__table thead th{ border-top:0; font:700 10px/1 var(--ag-font-mono,monospace);

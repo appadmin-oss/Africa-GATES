@@ -35,7 +35,7 @@
 </div>
 
 <div class="ad-card" style="margin-bottom:16px">
-  <div class="ad-card__body" style="font-size:13.5px;line-height:1.7;color:var(--ad-text-soft)">
+  <div class="ad-card__body" style="font-size:14px;line-height:1.7;color:var(--ad-text-soft)">
     Organisations that collect donations through Africa GATES. Each one's share settles into
     <strong>its own Paystack subaccount</strong>, tied to a bank account in its own registered
     name — this platform never holds a partner's money. Only an <strong>approved</strong>
@@ -140,10 +140,10 @@
           <span class="ad-chip ad-chip--{{ chip }}">{{ statuses[o.status]|default(o.status) }}</span>
           {# Live is a different question from approved: an approved partner with no
              settlement account has nowhere for money to land. #}
-          {% if r.live %}<div style="font-size:11.5px;color:#056b3b;font-weight:600;margin-top:3px">Collecting</div>
-          {% else %}<div style="font-size:11.5px;color:var(--ad-text-soft);margin-top:3px">Not collecting</div>{% endif %}
+          {% if r.live %}<div style="font-size:12px;color:#056b3b;font-weight:600;margin-top:3px">Collecting</div>
+          {% else %}<div style="font-size:12px;color:var(--ad-text-soft);margin-top:3px">Not collecting</div>{% endif %}
         </td>
-        <td style="font-size:12.5px">
+        <td style="font-size:13px">
           {% if o.subaccount_code %}
             {{ o.account_last4 ? '••••' ~ o.account_last4 : 'attached' }}
             <div style="color:var(--ad-text-soft)">{{ o.settlement_schedule }}</div>

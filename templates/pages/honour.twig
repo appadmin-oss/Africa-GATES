@@ -38,8 +38,8 @@
 <style nonce="{{ csp_nonce }}">
   /* Scoped to .hn — a dark island inside a paper-ground site. */
   .hn{
-    --ink:#0a1d20; --ink-2:#102a2e; --ink-3:#16383c;
-    --paper:#f4f6f5; --gold:#f3b416; --gold-dim:#c9930f;
+    --ink:#0a1d20; --ink-2:#102a2e;
+    --paper:#f4f6f5; --gold:#f3b416;
     --emerald:#3fa93c; --rust:#e58a72;
     --mute:#8fa5a4; --line:rgba(243,180,22,.20);
     background:var(--ink); color:var(--paper); margin:-1px 0 0; padding:0 0 60px;
@@ -74,7 +74,7 @@
     line-height:1; color:var(--gold); font-variant-numeric:tabular-nums; display:block;
   }
   .hn__mon{
-    font-family:var(--ag-font-mono,monospace); font-size:9.5px; letter-spacing:.14em;
+    font-family:var(--ag-font-mono,monospace); font-size:10px; letter-spacing:.14em;
     text-transform:uppercase; color:var(--mute); margin-top:4px; display:block;
   }
 
@@ -114,7 +114,7 @@
     letter-spacing:.16em; margin:0; color:var(--ink);
   }
   .hn__reflab{
-    font-family:var(--ag-font-mono,monospace); font-size:9.5px; letter-spacing:.16em;
+    font-family:var(--ag-font-mono,monospace); font-size:10px; letter-spacing:.16em;
     text-transform:uppercase; color:#5d7275; margin:6px 0 0;
   }
   .hn__tick{
@@ -139,17 +139,17 @@
   .hn__off{
     display:none; margin:14px 0 0; padding:11px 14px; border-radius:11px;
     background:rgba(229,138,114,.12); border:1px solid rgba(229,138,114,.4);
-    font-size:13.5px; line-height:1.5; color:#f7d9d1;
+    font-size:14px; line-height:1.5; color:#f7d9d1;
   }
   .hn--offline .hn__off{ display:block; }
 
   /* ── the rest ───────────────────────────────────────────────────────── */
   .hn__sec{ margin:16px 0 0; background:var(--ink-2); border:1px solid var(--line); border-radius:16px; padding:18px 20px; }
   .hn__lab{
-    font-family:var(--ag-font-mono,monospace); font-size:9.5px; letter-spacing:.18em;
+    font-family:var(--ag-font-mono,monospace); font-size:10px; letter-spacing:.18em;
     text-transform:uppercase; color:var(--gold); margin:0 0 10px;
   }
-  .hn__p{ font-size:15px; line-height:1.62; margin:0; color:#dbe6e5; }
+  .hn__p{ font-size:16px; line-height:1.62; margin:0; color:#dbe6e5; }
   .hn__p + .hn__p{ margin-top:10px; }
   .hn__p b{ color:var(--gold); font-weight:600; }
   .hn__code{
@@ -157,22 +157,22 @@
     letter-spacing:.14em; color:var(--gold); display:block; margin:0 0 4px;
   }
   .hn__facts{ list-style:none; padding:0; margin:0; display:grid; gap:12px; }
-  .hn__facts div{ font-size:14.5px; line-height:1.5; color:#dbe6e5; }
+  .hn__facts div{ font-size:14px; line-height:1.5; color:#dbe6e5; }
   .hn__facts dt{
-    font-family:var(--ag-font-mono,monospace); font-size:9.5px; letter-spacing:.16em;
+    font-family:var(--ag-font-mono,monospace); font-size:10px; letter-spacing:.16em;
     text-transform:uppercase; color:var(--mute); margin:0 0 3px;
   }
   .hn__cta{
     display:block; text-align:center; background:var(--gold); color:#17110b;
-    font-weight:700; font-size:15px; text-decoration:none; padding:14px 18px;
+    font-weight:700; font-size:16px; text-decoration:none; padding:14px 18px;
     border-radius:12px; margin:14px 0 0; min-height:44px; box-sizing:border-box;
   }
   .hn__cta:focus-visible{ outline:3px solid var(--paper); outline-offset:3px; }
   .hn__alt{
-    display:block; text-align:center; color:var(--mute); font-size:13.5px;
+    display:block; text-align:center; color:var(--mute); font-size:14px;
     margin:12px 0 0; text-decoration:underline; min-height:44px; line-height:44px;
   }
-  .hn__foot{ font-size:12.5px; line-height:1.65; color:var(--mute); margin:22px 0 0; text-align:center; }
+  .hn__foot{ font-size:13px; line-height:1.65; color:var(--mute); margin:22px 0 0; text-align:center; }
 
   @media (prefers-reduced-motion:reduce){ .hn__ring .p{ transition:none; } }
 </style>

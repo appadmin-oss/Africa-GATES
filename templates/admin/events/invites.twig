@@ -21,8 +21,8 @@
   .iv-sub{ font-size:13px; color:#5a6d6f; margin:2px 0 18px }
   .iv-sec{ background:#fff; border:1px solid rgba(16,41,44,.1); border-radius:14px;
     padding:18px 20px; margin-bottom:14px }
-  .iv-sec h2{ margin:0 0 3px; font-size:14.5px; color:#10292C }
-  .iv-sec p{ margin:8px 0 0; font-size:12.5px; line-height:1.7; color:#5a6d6f }
+  .iv-sec h2{ margin:0 0 3px; font-size:14px; color:#10292C }
+  .iv-sec p{ margin:8px 0 0; font-size:13px; line-height:1.7; color:#5a6d6f }
   .iv-warn{ background:#fdf6e3; border:1px solid #f3b416; border-radius:14px;
     padding:16px 18px; margin-bottom:14px; font-size:13px; line-height:1.7; color:#10292C }
   .iv-warn strong{ display:block; margin-bottom:4px }
@@ -31,7 +31,7 @@
   .iv-who{ font-size:11px; color:#8a9a9c }
   .iv-act{ display:flex; gap:12px; align-items:center; flex-wrap:wrap; margin-top:14px }
   .iv-act .hint{ font-size:12px; color:#5a6d6f; margin:0 }
-  .iv-bad{ margin:12px 0 0; font-size:12.5px; color:#5a6d6f }
+  .iv-bad{ margin:12px 0 0; font-size:13px; color:#5a6d6f }
   .iv-bad summary{ cursor:pointer; color:#10292C }
   .iv-bad ul{ margin:8px 0 0 18px; line-height:1.8 }
 
@@ -241,7 +241,7 @@
     <form class="ad-form" method="post" action="/admin/events/{{ event.id }}/invites/test" style="margin-top:16px">
       <input type="hidden" name="_token" value="{{ csrf_token }}">
       <fieldset style="border:0;padding:0;margin:0;min-width:0">
-        <legend style="display:block;font-weight:600;font-size:12.5px;color:var(--ad-text);margin-bottom:6px;padding:0">
+        <legend style="display:block;font-weight:600;font-size:13px;color:var(--ad-text);margin-bottom:6px;padding:0">
           Send one to yourself
           <small style="display:block;font-weight:400;color:var(--ad-text-soft)">the real invitation, with the letter and the picture attached — nothing is marked sent</small>
         </legend>
@@ -487,7 +487,7 @@
         {% for d in seq_days %}
           {% if drafts[d] is defined %}
             <div style="margin-top:12px">
-              <label for="d-{{ d }}" style="display:block;font-weight:600;font-size:12.5px;margin-bottom:6px">
+              <label for="d-{{ d }}" style="display:block;font-weight:600;font-size:13px;margin-bottom:6px">
                 Day {{ d }}
                 <small style="display:block;font-weight:400;color:var(--ad-text-soft)">{% if d == 1 %}the eve — action{% elseif d == 2 %}message{% elseif d == 3 %}responsibility{% elseif d == 4 %}values{% else %}why{% endif %}</small>
               </label>
@@ -508,7 +508,7 @@
       <form method="post" action="/admin/events/{{ event.id }}/invites/letters/draft">
         <input type="hidden" name="_token" value="{{ csrf_token }}">
         <div style="margin-top:6px">
-          <label for="steer" style="display:block;font-weight:600;font-size:12.5px;margin-bottom:6px">
+          <label for="steer" style="display:block;font-weight:600;font-size:13px;margin-bottom:6px">
             Anything the letters should carry
             <small style="display:block;font-weight:400;color:var(--ad-text-soft)">optional — the ceremony's own name, theme, date and venue are already known</small>
           </label>

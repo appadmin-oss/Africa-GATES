@@ -187,7 +187,7 @@
             {% if recused %}
               <span class="jd-card__badge jd-card__badge--recused">⚖ Recused — conflict declared</span>
             {% else %}
-              <span style="font-size:12.5px;color:var(--ink-500)">{{ b.progress.scored }} / {{ b.progress.total }} scored</span>
+              <span style="font-size:13px;color:var(--ink-500)">{{ b.progress.scored }} / {{ b.progress.total }} scored</span>
               <span class="jd-card__cta">
                 {{ b.judging_open ? 'Score now →' : 'View nominees →' }}
               </span>
@@ -256,7 +256,7 @@
             </div>
             {% endfor %}
           </div>
-          <p class="jdh-muted" style="margin-top:12px;font-size:11.5px">
+          <p class="jdh-muted" style="margin-top:12px;font-size:12px">
             Using the full 0–10 range and writing notes strengthens the audit record behind each award.
           </p>
         {% else %}

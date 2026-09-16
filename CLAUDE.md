@@ -337,6 +337,81 @@ invisible — both fixed by focusing a marker turning the globe to it); 2.5.8 (4
 `pointer: coarse` was the only floor, and the AA 24×24 is not conditional on the pointer).
 `docs/CODEBASE-INDEX.md` §25.
 
+## The type scale is closed, and a scale with no guard is a comment
+
+`10 · 11 · 12 · 13 · 14 · 16 · 17`, and the gap at 15 is deliberate — 14 is the reading
+size, 16 is the lede, and a rung between them is an invitation to split the difference
+again. Above 17px is the display range, set with `clamp()` against the viewport rather
+than off this ladder. `TypeScaleTest` holds it.
+
+It arrived as a comment in a design handoff and stayed one: the tree it was handed to
+carried **1,579** declarations off the ladder, 41% of every font size on the site. Nothing
+failed, because nothing asked. Eight distinct sizes existed between 11px and 15px, because
+sizes were set one screen at a time — `12.5px` and `13px` on adjacent cards doing the same
+job, and the next person splitting the difference again from whichever they copied. None
+of that is visible from any single file, which is why it ran for the life of the codebase.
+
+Two things a sweep over this has to know, both of which had one lying here:
+
+- **Most of the type is in the `font:` SHORTHAND**, not in `font-size:`. 214 declarations
+  of micro-label live as `font:600 11px/1 var(--ag-font-mono)`, and a `font-size:` grep
+  never sees one. Inside the shorthand the size is the FIRST px value — nothing else in
+  `font` takes a length except the line-height, which follows a `/`.
+- **`font-size:1px` in an email is not type.** It is the collapse that keeps the hidden
+  preheader from occupying a line in clients that ignore `display:none`, and raising it to
+  the ladder puts a stray line of grey text at the top of four production emails. It is
+  exempted by what it DOES — a 1px size beside `mso-hide:all` — never by naming the four
+  files that currently do it.
+
+**And a guard that spells a SIZE inside a regex about something else goes quiet the moment
+type moves.** `EventTierSelectionTest` found the ticket row's perk colour with
+`/\.ed-tier__perk\{ font-size:11\.5px; color:(#[0-9a-f]{6})/`, to check that no state
+layer takes that text below AA. Moving the row half a pixel stopped the regex matching, and
+a contrast floor that cannot find its colour is a contrast floor that is not being checked.
+The size was never the subject: anything under 18.66px is small text to 1.4.3 and owes the
+same 4.5:1. Find it by SELECTOR. This is `camera=()` again — the right rule pinned to the
+wrong token.
+
+## A declared token with no reader, and the three ways the sweep lies
+
+§17 at the stylesheet layer. Fifty-six custom properties were declared and read nowhere —
+seven greys of a `--kale-*` ramp, twelve `--s-*` spacing steps, two shadow sets declared
+`none`, three border presets — all from palettes the house style replaced. The cost is not
+the bytes: the next person reads `--shadow-lg: none`, takes it for the site's shadow
+convention, writes `box-shadow: var(--shadow-lg)` and gets nothing, from a token that has
+not been part of this design system for years. `DeadTokenTest` holds it.
+
+Every one of these was observed reporting live code dead, not imagined:
+
+- **BEM's modifier separator IS the custom-property sigil.** `.ag-share__btn--x:hover{`
+  matches `--name:` exactly as a declaration does, so a text-level sweep reported thirty-odd
+  live selectors — `--x`, `--wa`, `--fb`, `--yes`, `--no`, `--light` — as dead tokens, each
+  one a selector somebody would then have deleted. **And brace depth alone does not fix it**:
+  an at-rule opens a block, so inside `@media (…){ .hm-cal__c--mark::after{ … } }` the
+  selector sits at depth 1 and reads as a declaration again. A declaration is the first
+  thing in its `;`-separated segment of an INNERMOST block; a selector never is.
+  **The obvious repair then fails the other way and is silent about it**: one `nested` flag
+  for the file makes every declaration under a media query invisible, so the sweep reports
+  a clean pass over the half it read. One frame per open block. The parser's own unit test
+  caught that, and the corrected parser immediately found a fifty-sixth token the broken
+  one had hidden — `--motion-glacial`, inside the reduced-motion block.
+- **A reader can be a file you are not allowed to edit.** `--plyr-color-main` is Plyr's own
+  theming API: declared in ours, consumed in `css/vendor/`. A sweep that skips vendored
+  files to avoid EDITING them reports our declaration dead and takes the player's colour
+  with it. Read declarations from authored source only; count READERS everywhere, the
+  built bundle and vendored code included.
+- **A script can name a property without ever writing `var()`.** stripe-gradient holds
+  `['--gradient-color-1', … , '--gradient-color-4']` and reads the four off the canvas in a
+  loop, so a sweep knowing only `var()` and `getPropertyValue('--x')` sees the first and
+  calls the other three dead — three quarters of the homepage aurora's palette. Any quoted
+  `--name` anywhere is a reader.
+
+**And deleting a declaration can take a brace with it.** `--tkp-mute:#9fb3ad }` was the last
+property of its rule and carried the rule's `}`; dropping the line left the stylesheet
+unterminated, and everything after it inherited the wrong block with nothing to see but a
+screen that renders. Compare the brace balance against `HEAD` for every file a bulk edit
+touches — it is two lines and it caught this one.
+
 ## Anything operational must be settable from `/admin/settings`
 
 There is no shell on production, so a credential read only from `.env` is a credential that

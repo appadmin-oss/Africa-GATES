@@ -104,16 +104,16 @@
                   <img src="{{ ph }}" alt="Photo {{ loop.index }} of {{ r.name }}" width="64" height="64" loading="lazy"
                        style="width:64px;height:64px;object-fit:cover;border-radius:7px;border:2px solid {{ is_primary ? 'var(--ad-accent,#237b22)' : 'var(--ad-line,#dfe4e3)' }}">
                   {% if is_primary %}
-                    <div style="font-size:9.5px;font-weight:700;color:var(--ad-accent,#237b22);margin-top:2px">★ Primary</div>
+                    <div style="font-size:10px;font-weight:700;color:var(--ad-accent,#237b22);margin-top:2px">★ Primary</div>
                   {% else %}
                     <form method="post" action="/admin/nominees/{{ r.id }}/photo/primary" style="margin-top:2px">
                       <input type="hidden" name="_token" value="{{ csrf_token }}"><input type="hidden" name="path" value="{{ ph }}">
-                      <button class="ad-btn ad-btn--xs" type="submit" style="font-size:9.5px;padding:1px 5px" title="Make primary">Set ★</button>
+                      <button class="ad-btn ad-btn--xs" type="submit" style="font-size:10px;padding:1px 5px" title="Make primary">Set ★</button>
                     </form>
                   {% endif %}
                   <form method="post" action="/admin/nominees/{{ r.id }}/photo/delete" style="margin-top:2px">
                     <input type="hidden" name="_token" value="{{ csrf_token }}"><input type="hidden" name="path" value="{{ ph }}">
-                    <button class="ad-btn ad-btn--xs ad-btn--danger" type="submit" style="font-size:9.5px;padding:1px 5px" data-confirm="Remove this photo from {{ r.name }}? It comes off their public profile immediately and would have to be uploaded again." title="Remove">×</button>
+                    <button class="ad-btn ad-btn--xs ad-btn--danger" type="submit" style="font-size:10px;padding:1px 5px" data-confirm="Remove this photo from {{ r.name }}? It comes off their public profile immediately and would have to be uploaded again." title="Remove">×</button>
                   </form>
                 </div>
                 {% endfor %}
@@ -158,7 +158,7 @@
 {% if admin_role in ['superadmin','admin'] and merged is defined and merged|length %}
 <details class="ad-card" style="margin-top:18px">
   <summary style="cursor:pointer;font-weight:600;font-size:13px">↩ Recently merged ({{ merged|length }}) — undo a merge</summary>
-  <p style="font-size:11.5px;color:var(--ad-text-mute,#61728e);margin:6px 0 10px">
+  <p style="font-size:12px;color:var(--ad-text-mute,#61728e);margin:6px 0 10px">
     These nominees were folded into a survivor and hidden from voting, judging and the leaderboard.
     Undoing restores the nominee and moves its votes + judge scores back off the survivor.
   </p>
@@ -231,7 +231,7 @@
     return '<form method="post" action="/admin/nominees/merge" data-dup-group style="padding:10px 12px;border:1px solid var(--ad-line,#dfe4e3);border-radius:8px;background:#fff;margin-bottom:8px">'
       + hidden
       + '<fieldset style="border:0;padding:0;margin:0 0 6px">'
-      + '<legend style="font-size:11.5px;color:var(--ad-text-mute,#61728e);padding:0">Keep which record? Votes and judge scores combine either way.</legend>'
+      + '<legend style="font-size:12px;color:var(--ad-text-mute,#61728e);padding:0">Keep which record? Votes and judge scores combine either way.</legend>'
       + rows
       + '</fieldset>'
       + '<div style="display:flex;gap:10px;align-items:center;justify-content:space-between">'
@@ -266,7 +266,7 @@
         if (j.skipped) caveats.push(j.skipped.toLocaleString() + ' nominee' + (j.skipped === 1 ? '' : 's') + ' beyond the per-category scan limit were not checked');
         if (j.crowded) caveats.push(j.crowded + ' name group' + (j.crowded === 1 ? '' : 's') + ' were too generic to compare');
         var caveatHtml = caveats.length
-          ? '<p style="font-size:11.5px;color:#8a6d00;margin:6px 0 0">Partial scan: ' + esc(caveats.join('; ')) + '.</p>' : '';
+          ? '<p style="font-size:12px;color:#8a6d00;margin:6px 0 0">Partial scan: ' + esc(caveats.join('; ')) + '.</p>' : '';
 
         if (!j.groups || !j.groups.length) {
           panel.innerHTML = '<p style="color:var(--ad-text-soft);font-size:13px">No likely duplicates found'
@@ -276,7 +276,7 @@
         var head = '<div style="padding:10px 14px;border-left:4px solid var(--ad-accent,#237b22);background:var(--ad-bg,#f7faf9);border-radius:8px">'
           + '<strong style="font-size:13px">' + j.groups.length + ' possible duplicate group' + (j.groups.length === 1 ? '' : 's') + '</strong>'
           + (j.ai ? ' <span style="font-size:11px;color:var(--ad-text-mute,#61728e)">· AI-assisted</span>' : '')
-          + '<p style="font-size:11.5px;color:var(--ad-text-mute,#61728e);margin:2px 0 10px">Review each. The recommended record to keep is preselected — change it if the other entry is the better one.</p>';
+          + '<p style="font-size:12px;color:var(--ad-text-mute,#61728e);margin:2px 0 10px">Review each. The recommended record to keep is preselected — change it if the other entry is the better one.</p>';
         panel.innerHTML = head + j.groups.map(groupForm).join('') + caveatHtml + '</div>';
       })
       .catch(function () { btn.disabled = false; btn.textContent = orig; panel.innerHTML = '<p style="color:#b42318;font-size:13px">Network error — try again.</p>'; });

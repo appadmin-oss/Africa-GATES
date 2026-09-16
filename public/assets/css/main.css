@@ -32,18 +32,10 @@
   --emerald-600: #237b22;
   --emerald-700: #1a6118;
   --emerald-800: #144a13;
-  --emerald-900: #0a3009;
 
-  --kale-50:  #f5f7f7;
-  --kale-100: #e4eaea;
-  --kale-200: #c4d0d0;
-  --kale-300: #92a6a7;
-  --kale-400: #5d7374;
-  --kale-500: #2b373d;
   --kale-600: #1a2629;
   --kale-700: #10292C;   /* primary dark text */
   --kale-800: #081518;
-  --kale-900: #050b0d;
 
   /* Heritage gold — Afrovanguard / Africa GATES accent */
   --gold-50:  #fff8df;
@@ -75,13 +67,10 @@
 
   /* Semantic */
   --color-text: var(--kale-700);
-  --color-text-soft: var(--neutral-600);   /* AA on white: 6.4:1 */
+   /* AA on white: 6.4:1 */
   --color-text-muted: var(--neutral-500);  /* AA on white: 4.7:1 */
   --color-bg: #ffffff;
-  --color-bg-soft: var(--neutral-50);
   --color-border: rgba(16, 41, 44, 0.08);
-  --color-accent: var(--emerald-500);
-  --color-accent-hover: var(--emerald-600);
 
   /* Typography — Africa GATES heritage: Playfair Display for display, DM Sans for body */
   --font-body:    'DM Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
@@ -106,23 +95,8 @@
 
   /* Spacing scale */
   --s-1: 0.25rem;
-  --s-2: 0.5rem;
-  --s-3: 0.75rem;
-  --s-4: 1rem;
-  --s-5: 1.5rem;
-  --s-6: 2rem;
-  --s-7: 2.5rem;
-  --s-8: 3rem;
-  --s-9: 4rem;
-  --s-10: 5rem;
-  --s-11: 6rem;
-  --s-12: 8rem;
 
   /* Shadows — soft, layered */
-  --shadow-sm: none;
-  --shadow-md: none;
-  --shadow-lg: none;
-  --shadow-xl: none;
 
   /* Motion */
   --ease-out-quart: cubic-bezier(0.25, 1, 0.5, 1);
@@ -1764,7 +1738,7 @@ p { color: var(--neutral-500); line-height: 1.6; }
 /* Mobile-first: most sections already use clamp() so resize fluidly.
    Tighten typography & spacing under 600px. */
 @media (max-width: 599px) {
-  body { font-size: 15px; }
+  body { font-size: 16px; }
   h1, .h1 { font-size: clamp(2rem, 9vw, 2.75rem); letter-spacing: -0.03em; }
   h2, .h2 { font-size: clamp(1.625rem, 6.5vw, 2.125rem); }
   h3, .h3 { font-size: clamp(1.375rem, 5vw, 1.75rem); }

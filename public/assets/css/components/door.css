@@ -168,7 +168,7 @@ html.dr-html, body.dr-body {
 .dr__head__l { flex:1; min-width:0 }
 
 /* Straight on the feed, no pill and no glass. Legibility is the shadow. */
-.dr__ev { margin:0 0 5px; font:500 15px/1.2 var(--dr-sans); letter-spacing:-.012em; color:#f4f8f7;
+.dr__ev { margin:0 0 5px; font:500 16px/1.2 var(--dr-sans); letter-spacing:-.012em; color:#f4f8f7;
           text-shadow:0 2px 12px rgba(0,0,0,.7);
           white-space:nowrap; overflow:hidden; text-overflow:ellipsis }
 .dr__gate { margin:0; font:400 10px/1 var(--dr-mono); letter-spacing:.22em;
@@ -185,7 +185,7 @@ html.dr-html, body.dr-body {
 .dr__held { position:relative; flex:0 0 auto; margin:20px 24px 0; padding-top:14px;
             border-top:1px solid rgba(255,255,255,.10);
             display:flex; align-items:center; gap:14px }
-.dr__held__t { flex:1; font:400 12.5px/1.4 var(--dr-sans); color:#a9c9dc }
+.dr__held__t { flex:1; font:400 13px/1.4 var(--dr-sans); color:#a9c9dc }
 .dr__held__b { min-height:34px; padding:0 14px; font:500 12px/1 var(--dr-sans);
                border:1px solid rgba(169,201,220,.4); border-radius:999px;
                background:transparent; color:#c8e2f2; cursor:pointer }
@@ -211,10 +211,10 @@ html.dr-html, body.dr-body {
                   animation:dr-rule .55s cubic-bezier(.22,.61,.36,1) }
 
 .dr__vh { display:flex; align-items:center; gap:11px; margin-bottom:22px }
-.dr__mark   { font-size:15px; line-height:1; color:var(--dr-dot) }
+.dr__mark   { font-size:16px; line-height:1; color:var(--dr-dot) }
 .dr__kicker { font:400 10px/1 var(--dr-mono); letter-spacing:.26em;
               text-transform:uppercase; color:var(--dr-dot) }
-.dr__code   { margin-left:auto; font:400 11.5px/1 var(--dr-mono); letter-spacing:.14em;
+.dr__code   { margin-left:auto; font:400 12px/1 var(--dr-mono); letter-spacing:.14em;
               color:rgba(226,238,235,.68) }
 
 .dr__word { margin:0; font:300 46px/.98 var(--dr-sans); letter-spacing:-.042em;
@@ -253,9 +253,9 @@ html.dr-html, body.dr-body {
 
 .dr__circ { width:44px; height:44px; flex:0 0 auto; border-radius:50%;
             border:1px solid rgba(255,255,255,.18); background:transparent;
-            color:rgba(226,238,235,.85); font-size:15px; line-height:1; cursor:pointer;
+            color:rgba(226,238,235,.85); font-size:16px; line-height:1; cursor:pointer;
             display:flex; align-items:center; justify-content:center }
-.dr__circ--pad { font:400 11.5px/1 var(--dr-mono) }
+.dr__circ--pad { font:400 12px/1 var(--dr-mono) }
 .dr__circ.is-on { border-color:rgba(243,180,22,.7); color:var(--dr-accent) }
 /* Only ever on screen because the browser REFUSED to play a greeting, so it is drawn
    as something to do rather than as another instrument on the dock — the accent the
@@ -265,7 +265,7 @@ html.dr-html, body.dr-body {
 /* Why the door is silent — a fact, not an alarm. Nothing it says stops a queue and
    nothing it says is the steward's to fix; it exists so the sentence they report is the
    true one instead of "the voice is not working", which is the report nobody can act on. */
-.dr__quiet{ margin:0; padding:0 24px 18px; font:400 11.5px/1.5 var(--dr-sans, inherit);
+.dr__quiet{ margin:0; padding:0 24px 18px; font:400 12px/1.5 var(--dr-sans, inherit);
             color:rgba(226,238,235,.52); text-align:center; }
 
 .dr__arr { flex:1; min-width:0; height:44px; padding:0; border:0; background:transparent;
@@ -319,7 +319,7 @@ html.dr-html, body.dr-body {
    (2.64:1), because a hint nobody can read is a hint nobody has. */
 .dr__pad__i::placeholder { color:rgba(226,238,235,.5) }
 .dr__pad__go { flex:0 0 auto; min-width:92px; height:56px; border:0; border-radius:999px;
-               background:#eef4f2; color:#08100f; font:600 15px/1 var(--dr-sans); cursor:pointer }
+               background:#eef4f2; color:#08100f; font:600 16px/1 var(--dr-sans); cursor:pointer }
 
 .dr__log { position:absolute; inset:0; z-index:16; display:flex; flex-direction:column;
            background:rgba(6,11,12,.9);
@@ -335,9 +335,9 @@ html.dr-html, body.dr-body {
               max-width:34ch }
 .dr__row { display:flex; align-items:baseline; gap:16px; padding:15px 0;
            border-bottom:1px solid rgba(255,255,255,.06) }
-.dr__row__t { flex:0 0 40px; font:400 11.5px/1 var(--dr-mono);
+.dr__row__t { flex:0 0 40px; font:400 12px/1 var(--dr-mono);
               font-variant-numeric:tabular-nums; color:rgba(226,238,235,.4) }
-.dr__row__n { flex:1; font:400 15px/1.35 var(--dr-sans); color:#eef4f2 }
+.dr__row__n { flex:1; font:400 16px/1.35 var(--dr-sans); color:#eef4f2 }
 .dr__row__v { flex:0 0 auto; font:400 10px/1 var(--dr-mono); letter-spacing:.2em;
               text-transform:uppercase }
 .dr__row__v[data-v="in"]    { color:#7fd07c }
@@ -350,7 +350,7 @@ html.dr-html, body.dr-body {
 
 .dr__shut { position:absolute; inset:0; z-index:20; display:flex; flex-direction:column;
             justify-content:center; padding:40px 30px; background:#0a0d0e }
-.dr__shut__m { font-size:15px; line-height:1; color:#e2725e }
+.dr__shut__m { font-size:16px; line-height:1; color:#e2725e }
 .dr__shut__k { margin:18px 0 0; font:400 10px/1 var(--dr-mono); letter-spacing:.26em;
                text-transform:uppercase; color:#e2725e }
 .dr__shut__w { margin:16px 0 0; font:300 46px/.98 var(--dr-sans); letter-spacing:-.042em; color:#f6faf9 }

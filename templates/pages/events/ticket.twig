@@ -159,9 +159,9 @@
      out to support, and the floating help button covers the bottom-right of the
      viewport, so it goes at the top. */
   .tk__meta{ display:flex; align-items:center; justify-content:space-between; gap:12px; }
-  .tk__admit{ font-family:var(--ag-font-mono, monospace); font-size:9.5px; font-weight:700;
+  .tk__admit{ font-family:var(--ag-font-mono, monospace); font-size:10px; font-weight:700;
     letter-spacing:.24em; text-transform:uppercase; color:var(--tk-frame-gold); }
-  .tk__ref{ font-family:var(--ag-font-mono, monospace); font-size:9.5px; letter-spacing:.16em;
+  .tk__ref{ font-family:var(--ag-font-mono, monospace); font-size:10px; letter-spacing:.16em;
     color:var(--tk-on-frame-2); text-align:right; overflow-wrap:anywhere; }
 
   /* ── the document ────────────────────────────────────────────────────────
@@ -213,7 +213,7 @@
   .tk__scrim{ position:absolute; inset:0; }
   .tk__title{ position:absolute; left:22px; right:22px; bottom:20px;
     display:flex; flex-direction:column; gap:6px; }
-  .tk__kick{ margin:0; font-family:var(--ag-font-mono, monospace); font-size:9.5px;
+  .tk__kick{ margin:0; font-family:var(--ag-font-mono, monospace); font-size:10px;
     font-weight:700; letter-spacing:.26em; text-transform:uppercase;
     color:var(--tk-hero-gold); }
   .tk__title h1{ margin:0; font-family:var(--ag-font-display, Georgia, serif);
@@ -280,9 +280,9 @@
   .tk__grid{ display:grid; grid-template-columns:1fr 1fr; gap:18px 16px;
     padding-top:22px; border-top:1px solid var(--tk-line); }
   .tk__cell{ display:flex; flex-direction:column; gap:3px; min-width:0; }
-  .tk__cell small{ font-family:var(--ag-font-mono, monospace); font-size:8px; font-weight:700;
+  .tk__cell small{ font-family:var(--ag-font-mono, monospace); font-size:10px; font-weight:700;
     letter-spacing:.22em; text-transform:uppercase; color:var(--tk-mute); }
-  .tk__cell b{ font-size:13.5px; font-weight:500; letter-spacing:-.005em; line-height:1.45;
+  .tk__cell b{ font-size:14px; font-weight:500; letter-spacing:-.005em; line-height:1.45;
     color:var(--tk-text); overflow-wrap:anywhere; }
   .tk__cell--wide{ grid-column:1 / -1 }
   /* Print only. The 46mm stub cannot carry the day name AND the time as two cells, so
@@ -304,7 +304,7 @@
   .tk__sig{ display:flex; align-items:center; justify-content:space-between; gap:12px;
     padding-top:18px; border-top:1px solid var(--tk-line); }
   .tk__sig img{ width:26px; height:26px; display:block; opacity:.9; }
-  .tk__sig span{ font-family:var(--ag-font-mono, monospace); font-size:9.5px;
+  .tk__sig span{ font-family:var(--ag-font-mono, monospace); font-size:10px;
     letter-spacing:.18em; color:var(--tk-mute); }
   /* Paper cannot be clicked. This is how somebody who printed a ticket and then
      lost the email finds it again, so on paper it is spelled out as text. */
@@ -335,7 +335,7 @@
      ticket is a clean screenshot. */
   .tk__acts{ display:flex; gap:10px; margin-top:2px; }
   .tk__act{ flex:1; display:inline-flex; align-items:center; justify-content:center; gap:7px;
-    min-height:46px; padding:0 10px; border-radius:12px; font-size:13.5px; font-weight:700;
+    min-height:46px; padding:0 10px; border-radius:12px; font-size:14px; font-weight:700;
     letter-spacing:.01em; text-align:center; text-decoration:none; }
   .tk__act--go{ background:var(--tk-gold); color:#10292C; }
   .tk__act--go:hover{ background:#ffc63d }
@@ -357,7 +357,7 @@
     color:var(--tk-text); }
   .tk__lost h1{ margin:0 0 10px; font-family:var(--ag-font-display, Georgia, serif);
     font-size:22px; font-weight:800; line-height:1.2; letter-spacing:-.02em; }
-  .tk__lost p{ margin:0 0 10px; font-size:13.5px; line-height:1.65; color:var(--tk-mute) }
+  .tk__lost p{ margin:0 0 10px; font-size:14px; line-height:1.65; color:var(--tk-mute) }
   .tk__lost a{ color:#1a6118; font-weight:700; text-decoration:underline }
 
   /* ══════════════════════════════════════════════════════════════════════════
@@ -649,17 +649,17 @@
   @media (max-width:430px){ .tk__self{ max-width:none; padding:0 16px } }
   .tk__d{ border:1px solid #dde5e4; border-radius:12px; background:#fff }
   .tk__d summary{ cursor:pointer; padding:14px 16px; min-height:48px; display:flex;
-    align-items:center; font-size:14.5px; font-weight:600; color:#10292C; border-radius:12px }
+    align-items:center; font-size:14px; font-weight:600; color:#10292C; border-radius:12px }
   .tk__d summary:focus-visible{ outline:3px solid #237b22; outline-offset:2px }
   .tk__dbody{ padding:2px 16px 18px; border-top:1px solid #eef3f2 }
-  .tk__dnote{ font-size:12.5px; line-height:1.65; color:#5a6d6f; margin:12px 0 }
+  .tk__dnote{ font-size:13px; line-height:1.65; color:#5a6d6f; margin:12px 0 }
   .tk__act2{ margin:10px 0 }
   .tk__lab{ display:block; font-size:12px; font-weight:600; color:#3d5457; margin:12px 0 4px }
   /* 16px: anything smaller and iOS zooms the page on focus. */
   .tk__in{ width:100%; box-sizing:border-box; font-size:16px; padding:11px 12px; min-height:46px;
     border:1px solid #cfdad8; border-radius:9px; background:#fff; color:#10292C }
   .tk__in:focus{ outline:3px solid #237b22; outline-offset:1px; border-color:#237b22 }
-  .tk__btn{ margin-top:12px; min-height:46px; padding:0 20px; font-size:14.5px; font-weight:650;
+  .tk__btn{ margin-top:12px; min-height:46px; padding:0 20px; font-size:14px; font-weight:650;
     border:0; border-radius:999px; background:#10292C; color:#fff; cursor:pointer }
   .tk__btn--ghost{ background:#fff; color:#10292C; border:1px solid #cfdad8; width:100%; margin-top:0 }
   .tk__btn:disabled{ opacity:.55; cursor:default }
@@ -669,8 +669,8 @@
   .tk__btn--danger{ background:#fff; color:#a32b1f; border:1.5px solid #a32b1f }
   .tk__btn--danger:hover{ background:#a32b1f; color:#fff }
   .tk__fs{ border:0; border-top:1px solid #eef3f2; margin:18px 0 0; padding:14px 0 0 }
-  .tk__fs legend{ font-size:13.5px; font-weight:700; color:#10292C; padding:0 }
-  .tk__said{ margin:14px 0 0; font-size:13.5px; line-height:1.6; min-height:1.2em }
+  .tk__fs legend{ font-size:14px; font-weight:700; color:#10292C; padding:0 }
+  .tk__said{ margin:14px 0 0; font-size:14px; line-height:1.6; min-height:1.2em }
   .tk__said.is-ok{ color:#1c5f1b } .tk__said.is-no{ color:#a32b1f }
   /* `@media screen`, not a bare rule. Bare, it sits AFTER the print block in this file and
      wins on source order at equal specificity — so the print caption was in the document,

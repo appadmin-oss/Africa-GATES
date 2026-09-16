@@ -25,25 +25,25 @@
 #}
 {% block content %}
 <style nonce="{{ csp_nonce }}">
-  .cp-note{margin:0 0 14px;font-size:12.5px;line-height:1.6;color:#5a6d6f;max-width:86ch}
+  .cp-note{margin:0 0 14px;font-size:13px;line-height:1.6;color:#5a6d6f;max-width:86ch}
   .cp-grid{display:grid;grid-template-columns:minmax(0,1.25fr) minmax(0,1fr);gap:18px;align-items:start}
   @media (max-width:1020px){.cp-grid{grid-template-columns:1fr}}
   .cp-blk{border:1px solid rgba(16,41,44,.12);border-radius:10px;padding:12px 14px;margin-bottom:10px;background:#fff}
   .cp-blk__h{display:flex;gap:8px;align-items:center;justify-content:space-between;margin-bottom:8px}
   .cp-blk__t{font:700 10px/1 inherit;letter-spacing:.08em;text-transform:uppercase;color:#5a6d6f}
   .cp-f{display:block;margin-bottom:8px}
-  .cp-f span{display:block;font-size:11.5px;font-weight:700;color:#5a6d6f;margin-bottom:3px}
+  .cp-f span{display:block;font-size:12px;font-weight:700;color:#5a6d6f;margin-bottom:3px}
   .cp-f input,.cp-f textarea,.cp-f select{width:100%;font:inherit;font-size:13px;padding:7px 9px;
     border:1px solid rgba(16,41,44,.18);border-radius:7px;background:#fff;color:#10292c}
   .cp-f textarea{min-height:70px;resize:vertical;line-height:1.55}
   .cp-kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:10px;margin-bottom:12px}
   .cp-kpi{border:1px solid rgba(16,41,44,.1);border-radius:9px;padding:10px 12px;background:#fff}
-  .cp-kpi__l{font-size:10.5px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:#5a6d6f}
+  .cp-kpi__l{font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:#5a6d6f}
   .cp-kpi__v{font-size:21px;font-weight:800;margin-top:3px;line-height:1.1}
   .cp-bad{border-left:3px solid #a32020;background:#fdf3f3;padding:11px 13px;border-radius:8px;margin-bottom:12px}
-  .cp-bad li{font-size:12.5px;line-height:1.6;color:#7a1c1c;margin:0 0 5px 18px}
-  .cp-ok{border-left:3px solid #177015;background:#f2f9f1;padding:11px 13px;border-radius:8px;margin-bottom:12px;font-size:12.5px;color:#1c5c19}
-  .cp-pre{background:#0d1f21;color:#cfe6d0;padding:12px;border-radius:9px;font-size:11.5px;line-height:1.6;
+  .cp-bad li{font-size:13px;line-height:1.6;color:#7a1c1c;margin:0 0 5px 18px}
+  .cp-ok{border-left:3px solid #177015;background:#f2f9f1;padding:11px 13px;border-radius:8px;margin-bottom:12px;font-size:13px;color:#1c5c19}
+  .cp-pre{background:#0d1f21;color:#cfe6d0;padding:12px;border-radius:9px;font-size:12px;line-height:1.6;
     white-space:pre-wrap;word-break:break-word;max-height:340px;overflow:auto}
   .cp-pill{display:inline-block;border-radius:999px;padding:2px 10px;font-size:11px;font-weight:700}
   .cp-draft{background:#eef1f0;color:#5a6d6f} .cp-approved{background:#fff3d6;color:#8a6100} .cp-sent{background:#e4f5e3;color:#177015}
@@ -60,7 +60,7 @@
 
 {% if problems %}
   <div class="cp-bad">
-    <strong style="font-size:12.5px;color:#7a1c1c">This would not render properly in an inbox:</strong>
+    <strong style="font-size:13px;color:#7a1c1c">This would not render properly in an inbox:</strong>
     <ul style="margin:7px 0 0;padding:0;list-style:disc">
       {% for p in problems %}<li>{{ p }}</li>{% endfor %}
     </ul>
@@ -69,7 +69,7 @@
 
 {% if not site_ok %}
   <div class="cp-bad" style="border-left-color:#8a6100;background:#fffaf0">
-    <p style="margin:0;font-size:12.5px;color:#7a5200">
+    <p style="margin:0;font-size:13px;color:#7a5200">
       <strong>APP_URL is not set.</strong> Every link in this email is absolute, so a send now
       would go out with broken links. Nothing can be sent until it is set.
     </p>
@@ -214,7 +214,7 @@
         <p class="cp-note" style="margin:0">
           Ambiguous means two approved nominations share a name in one cycle, so the address
           cannot be chosen safely — those are skipped, never guessed.
-          {% for pair in ambiguous %}<br><span style="font-size:11.5px">· {{ pair[0].name }} → {{ pair[1]|join(', ') }}</span>{% endfor %}
+          {% for pair in ambiguous %}<br><span style="font-size:12px">· {{ pair[0].name }} → {{ pair[1]|join(', ') }}</span>{% endfor %}
         </p>
       {% endif %}
     </div>

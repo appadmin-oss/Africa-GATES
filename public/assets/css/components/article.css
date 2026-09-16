@@ -109,7 +109,7 @@ body[data-page="legal"]{
 /* ── TYPE ───────────────────────────────────────────────────────────────────
    Denser than the first pass: 16.5/1.72 rather than 17.5/1.78. These are long
    documents and the extra air was making them feel longer than they are. */
-.ar-body p, .ar-body li{ font-family:var(--ag-font-body); font-size:16.5px; line-height:1.72; color:var(--ar-ink); }
+.ar-body p, .ar-body li{ font-family:var(--ag-font-body); font-size:17px; line-height:1.72; color:var(--ar-ink); }
 .ar-body p{ margin:0 0 1.15em; }
 .ar-body a{ color:var(--ar-accent-dark); font-weight:500; text-decoration:underline;
             text-decoration-color:rgba(35,123,34,.35); text-decoration-thickness:1px; text-underline-offset:.16em; }
@@ -120,13 +120,13 @@ body[data-page="legal"]{
 /* ── MASTHEAD ───────────────────────────────────────────────────────────── */
 .ar-eyebrow{ display:inline-flex; align-items:center; margin:0 0 .9rem; padding:.34rem .7rem;
              background:var(--ar-wash); border-radius:var(--ag-r-pill,999px);
-             font:700 10.5px/1 var(--ag-font-mono); letter-spacing:.14em; text-transform:uppercase;
+             font:700 11px/1 var(--ag-font-mono); letter-spacing:.14em; text-transform:uppercase;
              color:var(--ar-accent-dark); }
 .ar-h1{ margin:0; font-family:var(--ag-font-display); font-weight:700; font-size:clamp(1.95rem,4.4vw,2.85rem);
         line-height:1.1; letter-spacing:-.022em; color:var(--ar-ink); }
 .ar-sub{ margin:.7rem 0 0; font-family:var(--ag-font-display); font-style:italic; font-weight:400;
          font-size:clamp(1.08rem,2.3vw,1.3rem); line-height:1.4; color:var(--ar-soft); }
-.ar-stand{ margin:1.3rem 0 0; font-size:17.5px !important; line-height:1.68 !important; color:var(--ar-soft) !important; }
+.ar-stand{ margin:1.3rem 0 0; font-size:17px !important; line-height:1.68 !important; color:var(--ar-soft) !important; }
 
 /* The colophon. A tinted strip rather than two bare hairlines — it reads as a
    block of metadata instead of a stray line of small text. */
@@ -143,7 +143,7 @@ body[data-page="legal"]{
 .ar-tools{ margin:1.25rem 0 0; display:flex; flex-wrap:wrap; gap:.5rem; position:relative; }
 .ar-tool{ display:inline-flex; align-items:center; gap:.45rem; cursor:pointer;
           background:var(--ar-surface); border:1px solid var(--ar-line); border-radius:var(--ag-r-pill,999px);
-          padding:.52rem 1rem; font:600 12.5px/1 var(--ag-font-body); color:var(--ar-ink);
+          padding:.52rem 1rem; font:600 13px/1 var(--ag-font-body); color:var(--ar-ink);
           text-decoration:none !important; transition:border-color .15s, background-color .15s, transform .15s; }
 .ar-tool:hover{ border-color:var(--ar-accent); background:var(--ar-wash); transform:translateY(-1px); }
 .ar-tool[aria-expanded="true"]{ border-color:var(--ar-accent); background:var(--ar-wash); }
@@ -159,13 +159,13 @@ body[data-page="legal"]{
    else would be a coin toss. */
 .ar-fmt{ font-family:var(--ag-font-mono); font-size:11px; font-weight:700; opacity:.72; letter-spacing:.02em; }
 
-.ar-say{ margin:.65rem 0 0; min-height:1.1rem; font:600 12.5px/1.1 var(--ag-font-body); color:var(--ar-accent-dark); }
+.ar-say{ margin:.65rem 0 0; min-height:1.1rem; font:600 13px/1.1 var(--ag-font-body); color:var(--ar-accent-dark); }
 
 /* ── CONTENTS ───────────────────────────────────────────────────────────────
    A card, like every other sidebar on this platform. */
 .ar-rail, .ar-toc{ background:var(--ar-surface); border:1px solid var(--ar-line);
                    border-radius:var(--ag-r-lg,18px); padding:1.1rem 1.2rem; box-shadow:var(--ar-shadow); }
-.ar-rail h2, .ar-toc h2{ margin:0 0 .7rem; font:700 10.5px/1 var(--ag-font-mono); letter-spacing:.14em;
+.ar-rail h2, .ar-toc h2{ margin:0 0 .7rem; font:700 11px/1 var(--ag-font-mono); letter-spacing:.14em;
                          text-transform:uppercase; color:var(--ar-faint); }
 .ar-rail ol, .ar-toc ol{ list-style:none; margin:0; padding:0; counter-reset:ar; }
 .ar-rail ol > li, .ar-toc ol > li{ counter-increment:ar; }
@@ -193,11 +193,11 @@ body[data-page="legal"]{
 .ar-part-head{ margin:clamp(2.6rem,5vw,3.6rem) 0 0; padding:1.3rem 1.4rem;
                background:var(--ag-surface-2,#f6f7f6); border:1px solid var(--ar-line-soft);
                border-left:3px solid var(--ar-accent); border-radius:var(--ag-r-md,14px); }
-.ar-part-head .ar-pn{ display:block; font:700 10.5px/1 var(--ag-font-mono); letter-spacing:.15em;
+.ar-part-head .ar-pn{ display:block; font:700 11px/1 var(--ag-font-mono); letter-spacing:.15em;
                       text-transform:uppercase; color:var(--ar-accent); margin-bottom:.5rem; }
 .ar-part-head h2{ margin:0; font-family:var(--ag-font-display); font-weight:700;
                   font-size:clamp(1.45rem,3vw,1.85rem); line-height:1.18; letter-spacing:-.018em; }
-.ar-part-head p{ margin:.55rem 0 0; color:var(--ar-soft) !important; font-size:15.5px !important; }
+.ar-part-head p{ margin:.55rem 0 0; color:var(--ar-soft) !important; font-size:16px !important; }
 
 /* ── SECTIONS ───────────────────────────────────────────────────────────────
    The number is a green chip rather than a bare mono string. It gives each
@@ -240,17 +240,17 @@ body[data-page="legal"]{
         border-radius:var(--ag-r-md,14px); background:var(--ar-surface); }
 .ar-table{ width:100%; border-collapse:collapse; font-family:var(--ag-font-body); }
 .ar-table caption{ caption-side:top; text-align:left; padding:.8rem 1rem .1rem;
-                   font:700 10.5px/1.4 var(--ag-font-mono); letter-spacing:.13em; text-transform:uppercase; color:var(--ar-faint); }
+                   font:700 11px/1.4 var(--ag-font-mono); letter-spacing:.13em; text-transform:uppercase; color:var(--ar-faint); }
 .ar-table th, .ar-table td{ text-align:left; padding:.7rem 1rem; border-bottom:1px solid var(--ar-line-soft);
-                            font-size:15px; line-height:1.6; vertical-align:baseline; }
+                            font-size:16px; line-height:1.6; vertical-align:baseline; }
 .ar-table thead th{ background:var(--ag-surface-2,#f6f7f6); border-bottom:1px solid var(--ar-line);
-                    font-weight:700; font-size:11.5px; letter-spacing:.08em; text-transform:uppercase; color:var(--ar-faint); }
+                    font-weight:700; font-size:12px; letter-spacing:.08em; text-transform:uppercase; color:var(--ar-faint); }
 .ar-table tbody th{ font-weight:600; color:var(--ar-ink); }
 .ar-table tbody tr:last-child td, .ar-table tbody tr:last-child th{ border-bottom:0; }
 .ar-table .ar-num{ font-family:var(--ag-font-mono); font-weight:700; font-size:14px;
                    color:var(--ar-accent-dark); white-space:nowrap; }
 .ar-table tfoot td{ background:var(--ag-surface-2,#f6f7f6); border-bottom:0; border-top:1px solid var(--ar-line);
-                    font-size:13.5px; color:var(--ar-soft); }
+                    font-size:14px; color:var(--ar-soft); }
 
 /* ── TWO COLUMNS ──────────────────────────────────────────────────────────── */
 .ar-cols{ margin:0 0 1.3em; display:grid; gap:1rem; }
@@ -262,7 +262,7 @@ body[data-page="legal"]{
 .ar-cols h4{ margin:0 0 .65rem; font:700 11px/1 var(--ag-font-mono); letter-spacing:.12em; text-transform:uppercase; }
 .ar-cols--can h4{ color:var(--ar-accent-dark); }
 .ar-cols--cannot h4{ color:#a2453f; }
-.ar-cols li{ font-size:15px !important; line-height:1.65 !important; }
+.ar-cols li{ font-size:16px !important; line-height:1.65 !important; }
 .ar-cols--cannot .ar-list li::before{ background:#a2453f; }
 
 /* ── NOTICE ─────────────────────────────────────────────────────────────────
@@ -272,13 +272,13 @@ body[data-page="legal"]{
           border-radius:var(--ag-r-md,14px); }
 .ar-note h4{ margin:0 0 .8rem; font:700 11px/1 var(--ag-font-mono); letter-spacing:.14em;
              text-transform:uppercase; color:var(--ar-gold); }
-.ar-note p{ font-size:15.5px !important; line-height:1.68 !important; }
+.ar-note p{ font-size:16px !important; line-height:1.68 !important; }
 .ar-note p:last-child{ margin-bottom:0; }
 
 /* ── ASIDE ──────────────────────────────────────────────────────────────── */
 .ar-aside{ margin:1.3rem 0; padding:.9rem 1.1rem; background:var(--ag-surface-2,#f6f7f6);
            border-radius:var(--ag-r-md,12px); }
-.ar-aside p{ margin:0; font-size:15px !important; line-height:1.65 !important; color:var(--ar-soft) !important; }
+.ar-aside p{ margin:0; font-size:16px !important; line-height:1.65 !important; color:var(--ar-soft) !important; }
 
 /* Further reading — a line of references, the way an article ends a section. */
 .ar-refs{ margin:1.2rem 0 0; padding-top:.8rem; border-top:1px solid var(--ar-line-soft); }
@@ -316,7 +316,7 @@ body[data-page="legal"]{
 .ar-tab{ cursor:pointer; background:var(--ag-surface-2,#f6f7f6); border:1px solid var(--ar-line);
          border-radius:var(--ag-r-pill,999px); padding:.42rem .85rem;
          min-height:40px; display:inline-flex; align-items:center;
-         font:600 12.5px/1 var(--ag-font-body); color:var(--ar-soft); transition:background .15s, color .15s; }
+         font:600 13px/1 var(--ag-font-body); color:var(--ar-soft); transition:background .15s, color .15s; }
 .ar-tab:hover{ color:var(--ar-ink); background:var(--ar-wash); border-color:var(--ar-accent); }
 .ar-tab[aria-selected="true"]{ background:var(--ar-accent); border-color:var(--ar-accent); color:#fff; }
 .ar-cite-body{ margin:1rem 0 0; }
@@ -331,7 +331,7 @@ body[data-page="legal"]{
 
 /* ── CLOSING ────────────────────────────────────────────────────────────── */
 .ar-end{ margin:clamp(2.4rem,5vw,3.2rem) 0 0; padding-top:1.4rem; border-top:1px solid var(--ar-line); }
-.ar-end p{ color:var(--ar-soft) !important; font-size:15px !important; }
+.ar-end p{ color:var(--ar-soft) !important; font-size:16px !important; }
 
 /* ── RICH BODY (admin-authored) ─────────────────────────────────────────────
    The terms and the privacy policy are written in the admin rich-text editor, so
@@ -356,7 +356,7 @@ body[data-page="legal"]{
                        font-size:clamp(1.05rem,2.2vw,1.22rem) !important; line-height:1.5 !important; }
 .ar-rich hr{ margin:2rem 0; border:0; border-top:1px solid var(--ar-line); }
 .ar-rich small{ font-size:.86em; color:var(--ar-soft); }
-.ar-rich table{ width:100%; border-collapse:collapse; margin:0 0 1.3em; font-size:15px; }
+.ar-rich table{ width:100%; border-collapse:collapse; margin:0 0 1.3em; font-size:16px; }
 .ar-rich th, .ar-rich td{ text-align:left; padding:.6rem .8rem; border:1px solid var(--ar-line-soft); }
 .ar-rich thead th{ background:var(--ag-surface-2,#f6f7f6); font-weight:700; }
 .ar-rich td code{ white-space:nowrap; }

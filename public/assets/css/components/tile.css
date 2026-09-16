@@ -42,7 +42,7 @@
   border: 1px solid var(--tile-edge);
   color: var(--tile-ink);
   font-family: var(--ag-font-mono, ui-monospace, monospace);
-  font-size: 10.5px;
+  font-size: 11px;
   font-weight: 700;
   line-height: 1.3;
   letter-spacing: .1em;
@@ -79,6 +79,6 @@
 
 /* A tile on a larger surface — the hall's band, an edition's honour band. Same
    four parts; the mark and the word grow together so the proportion holds. */
-.ag-tile--lg { padding: 9px 14px 9px 10px; font-size: 11.5px; gap: 10px; }
+.ag-tile--lg { padding: 9px 14px 9px 10px; font-size: 12px; gap: 10px; }
 .ag-tile--lg .ag-tile__mark { width: 20px; height: 20px; border-radius: 5px; }
 .ag-tile--lg.ag-tile--live .ag-tile__mark { width: 12px; height: 12px; }

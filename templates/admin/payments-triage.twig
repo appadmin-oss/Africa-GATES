@@ -11,12 +11,12 @@
   .pt-stat__n{ font-family:var(--ag-font-mono,monospace); font-weight:700; font-size:26px; color:#10292C; margin:8px 0 3px }
   .pt-stat__s{ font-size:12px; color:#5a6d6f }
   .pt-card{ background:#fff; border:1px solid rgba(16,41,44,.10); border-radius:14px; padding:18px 20px; margin-bottom:18px }
-  .pt-card h2{ margin:0 0 4px; font-size:15px; color:#10292C }
+  .pt-card h2{ margin:0 0 4px; font-size:16px; color:#10292C }
   .pt-lede{ margin:0 0 14px; font-size:13px; line-height:1.65; color:#4a5256; max-width:74ch }
   .pt-kv{ display:flex; justify-content:space-between; gap:14px; padding:7px 0; font-size:13px; border-bottom:1px solid rgba(16,41,44,.06) }
   .pt-kv__v{ font-weight:650; text-align:right }
   .pt-bad{ color:#8a2020 } .pt-warn{ color:#6b4a00 } .pt-ok{ color:#1a4d18 }
-  .pt-table{ width:100%; border-collapse:collapse; font-size:12.5px; margin-top:10px }
+  .pt-table{ width:100%; border-collapse:collapse; font-size:13px; margin-top:10px }
   .pt-table th{ text-align:left; font:700 10px/1 var(--ag-font-body,inherit); letter-spacing:.08em;
     text-transform:uppercase; color:#5a6d6f; padding:8px 10px; border-bottom:1px solid rgba(16,41,44,.10) }
   .pt-table td{ padding:9px 10px; border-bottom:1px solid rgba(16,41,44,.05); font-family:var(--ag-font-mono,monospace) }
@@ -24,7 +24,7 @@
     padding:10px 18px; border-radius:999px; background:#10292C; color:#fff }
   .pt-btn--go{ background:#177015 } .pt-btn--fix{ background:#8a2020 }
   .pt-in{ font-family:inherit; font-size:13px; padding:9px 13px; border:1px solid rgba(16,41,44,.16); border-radius:9px }
-  .pt-verdict{ border-radius:11px; padding:13px 15px; font-size:13.5px; line-height:1.6; margin:12px 0 }
+  .pt-verdict{ border-radius:11px; padding:13px 15px; font-size:14px; line-height:1.6; margin:12px 0 }
   .pt-verdict--charged_unnoticed,.pt-verdict--orphan{ background:#fdf3f3; border:1px solid #f0c9c9; color:#8a2020 }
   .pt-verdict--refund_owed,.pt-verdict--unverifiable{ background:#fff8df; border:1px solid #ecd9a0; color:#6b4a00 }
   .pt-verdict--delivered,.pt-verdict--refunded,.pt-verdict--abandoned{ background:#eef7ee; border:1px solid #bfe0bd; color:#1a4d18 }
@@ -149,10 +149,10 @@
   <form method="post" action="/admin/payments/ledger" class="pt-row" style="margin-top:14px">
     <input type="hidden" name="_token" value="{{ csrf_token }}">
     <input type="hidden" name="back" value="triage">
-    <label for="pt-ldays" style="font-size:12.5px;color:#5a6d6f">Compare the last</label>
+    <label for="pt-ldays" style="font-size:13px;color:#5a6d6f">Compare the last</label>
     <input id="pt-ldays" name="days" type="number" min="1" max="{{ ledger_days }}" value="{{ days }}"
            style="width:88px;padding:8px 10px;border:1px solid rgba(16,41,44,.2);border-radius:9px">
-    <span style="font-size:12.5px;color:#5a6d6f">days</span>
+    <span style="font-size:13px;color:#5a6d6f">days</span>
     <button class="pt-btn pt-btn--go" type="submit">Compare with Paystack now</button>
     <a class="pt-btn" href="/admin/payments/ledger?days={{ days }}"
        style="background:none;border:1px solid rgba(16,41,44,.2);color:#10292C;text-decoration:none">See it line by line</a>

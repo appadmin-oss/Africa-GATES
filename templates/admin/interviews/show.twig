@@ -47,13 +47,13 @@
   .is-sub{ font-size:13px; color:#5a6d6f; margin:2px 0 18px }
   .is-sec{ background:#fff; border:1px solid rgba(16,41,44,.1); border-radius:14px;
     padding:18px 20px; margin-bottom:14px }
-  .is-sec h2{ margin:0 0 3px; font-size:14.5px; color:#10292C }
-  .is-sec p{ margin:8px 0 0; font-size:12.5px; line-height:1.7; color:#5a6d6f }
+  .is-sec h2{ margin:0 0 3px; font-size:14px; color:#10292C }
+  .is-sec p{ margin:8px 0 0; font-size:13px; line-height:1.7; color:#5a6d6f }
   .is-grid{ display:grid; gap:12px; grid-template-columns:repeat(auto-fit,minmax(min(100%,200px),1fr));
     margin-top:14px }
   .is-f label{ display:block; font:700 10px/1 var(--ag-font-body,inherit); letter-spacing:.08em;
     text-transform:uppercase; color:#5a6d6f; margin-bottom:6px }
-  .is-in{ width:100%; box-sizing:border-box; font-family:inherit; font-size:13.5px; padding:9px 11px;
+  .is-in{ width:100%; box-sizing:border-box; font-family:inherit; font-size:14px; padding:9px 11px;
     border:1px solid rgba(16,41,44,.18); border-radius:9px; background:#fff; color:#10292C }
   textarea.is-in{ min-height:160px; line-height:1.6; resize:vertical }
   .is-btn{ cursor:pointer; font:650 13px/1 inherit; border:none; padding:10px 17px; border-radius:999px;
@@ -61,18 +61,18 @@
   .is-btn--ghost{ background:none; border:1px solid rgba(16,41,44,.2); color:#10292C }
   .is-btn--warn{ background:#8a2020; color:#fff }
   .is-row{ display:flex; gap:9px; flex-wrap:wrap; align-items:center; margin-top:14px }
-  .is-tag{ font-size:10.5px; font-weight:700; letter-spacing:.05em; text-transform:uppercase;
+  .is-tag{ font-size:11px; font-weight:700; letter-spacing:.05em; text-transform:uppercase;
     padding:3px 8px; border-radius:999px; background:rgba(16,41,44,.07); color:#3d4b4d }
   .is-tag--ok{ background:#eaf7ea; color:#1c5f1b }
   .is-tag--no{ background:#fdeaea; color:#8a2020 }
   .is-warn{ background:#fff8df; border:1px solid #ecd9a0; border-radius:10px; padding:12px 14px;
-    font-size:12.5px; line-height:1.7; color:#6b5312; margin-top:12px }
+    font-size:13px; line-height:1.7; color:#6b5312; margin-top:12px }
   .is-link{ font-family:var(--ag-font-mono,monospace); font-size:12px; word-break:break-all;
     background:#f6f9f6; border:1px solid rgba(16,41,44,.09); border-radius:8px; padding:9px 11px;
     margin-top:10px; color:#3d5254 }
   .is-q{ border-top:1px solid rgba(16,41,44,.08); padding:12px 0 }
   .is-q:first-of-type{ border-top:none }
-  .is-q__k{ font-size:10.5px; font-weight:700; letter-spacing:.06em; text-transform:uppercase;
+  .is-q__k{ font-size:11px; font-weight:700; letter-spacing:.06em; text-transform:uppercase;
     color:#5a6d6f }
   .is-q__q{ font-size:14px; line-height:1.6; color:#10292C; margin-top:5px; font-weight:600 }
   .is-q__w{ font-size:12px; line-height:1.65; color:#67797b; margin-top:5px }
@@ -80,7 +80,7 @@
   .is-quote{ border-left:3px solid rgba(16,41,44,.15); padding:2px 0 2px 12px; margin:9px 0;
     font-size:13px; line-height:1.7; color:#3d5254 }
   .is-fig{ display:grid; gap:8px; margin-top:10px }
-  .is-fig__r{ border-radius:10px; padding:11px 13px; font-size:12.5px; line-height:1.65 }
+  .is-fig__r{ border-radius:10px; padding:11px 13px; font-size:13px; line-height:1.65 }
   .is-fig--confirmed{ background:#f2faf2; border:1px solid #cbe6c9; color:#265825 }
   .is-fig--differs{ background:#fff8df; border:1px solid #ecd9a0; color:#6b5312 }
   .is-fig--unmentioned{ background:#f6f8f8; border:1px solid rgba(16,41,44,.09); color:#4a5256 }
@@ -95,8 +95,8 @@
   .is-ph > summary:focus-visible{ outline:2px solid #f3b416; outline-offset:3px; border-radius:6px }
   .is-ph__i{ font:700 10px/1 var(--ag-font-mono,monospace); letter-spacing:.1em;
     text-transform:uppercase; color:#8a9698; width:1.4em; flex:none }
-  .is-ph__t{ font:650 13.5px/1.3 inherit; color:#10292C }
-  .is-ph__w{ margin-left:auto; font-size:11.5px; color:#67797b; text-align:right }
+  .is-ph__t{ font:650 14px/1.3 inherit; color:#10292C }
+  .is-ph__w{ margin-left:auto; font-size:12px; color:#67797b; text-align:right }
   /* The affordance. Without it a closed group reads as a heading with nothing under it,
      which is how a collapsed screen loses sections rather than tidying them. */
   .is-ph__c{ font:700 10px/1 var(--ag-font-mono,monospace); letter-spacing:.08em;
@@ -205,7 +205,7 @@
           <input type="checkbox" name="panel[]" value="{{ j.id }}" {{ j.id in onPanel ? 'checked' : '' }}>
           {{ j.name }}</label>
       {% else %}
-        <span style="font-size:12.5px; color:#67797b">No active judges to choose from.</span>
+        <span style="font-size:13px; color:#67797b">No active judges to choose from.</span>
       {% endfor %}
     </div>
   </div>
@@ -324,7 +324,7 @@
   {# Said plainly rather than implied, because "co-host" is the word people ask in and
      Calendar genuinely cannot grant one. Overpromising here would have somebody discover
      it at the start of a real interview. #}
-  <p style="margin-top:14px;font-size:12.5px;color:#67797b;line-height:1.7">
+  <p style="margin-top:14px;font-size:13px;color:#67797b;line-height:1.7">
     <strong>On co-hosts.</strong> Google Calendar has no co-host setting — co-host is a Meet
     thing, and the host grants it inside the call (the people panel, next to a name). What
     being invited here does get somebody: Meet lets them straight in instead of making them
@@ -607,8 +607,8 @@
         {% for r in B.refused %}
           <div style="padding:7px 0; border-bottom:1px solid rgba(16,41,44,.08)">
             <code style="font-size:11px">{{ r.reason }}</code>
-            &nbsp;<span style="font-size:12.5px">&ldquo;{{ r.text }}&rdquo;</span>
-            <div style="font-size:11.5px; color:#67797b">{{ r.note }}</div>
+            &nbsp;<span style="font-size:13px">&ldquo;{{ r.text }}&rdquo;</span>
+            <div style="font-size:12px; color:#67797b">{{ r.note }}</div>
           </div>
         {% endfor %}
       </div>

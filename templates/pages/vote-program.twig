@@ -4,7 +4,7 @@
 <style nonce="{{ csp_nonce }}">
   body[data-page="awards"]{ background:#eef0ec; color:var(--ag-ink); }
   .vp{ max-width:1180px; margin:0 auto; padding:0 var(--ag-gutter,28px) 56px; }
-  .vp-crumb{ font-size:12.5px; color:#5a6d6f; padding:16px 0 0; }
+  .vp-crumb{ font-size:13px; color:#5a6d6f; padding:16px 0 0; }
   .vp-crumb a{ color:#5a6d6f; text-decoration:none; } .vp-crumb a:hover{ color:var(--ag-ink); }
 
   .vp-hero{ position:relative; overflow:hidden; border-radius:22px; margin-top:14px; background:radial-gradient(130% 130% at 82% 0%,#1d5b2a,#10292C 60%); padding:clamp(1.8rem,5vw,2.9rem) clamp(1.4rem,4vw,2.6rem); color:#fff; }
@@ -12,7 +12,7 @@
   .vp-hero__in{ position:relative; max-width:680px; }
   .vp-hero__ico{ font-size:30px; line-height:1; }
   .vp-hero h1{ margin:12px 0 0; color:#fff; font-family:var(--ag-font-display); font-weight:800; font-size:clamp(1.8rem,5vw,2.7rem); line-height:1.05; letter-spacing:-.02em; }
-  .vp-hero p{ margin:12px 0 0; font-size:15px; line-height:1.6; color:rgba(255,255,255,.85); }
+  .vp-hero p{ margin:12px 0 0; font-size:16px; line-height:1.6; color:rgba(255,255,255,.85); }
   .vp-hero__meta{ display:flex; flex-wrap:wrap; gap:10px; margin-top:18px; }
   .vp-pill{ display:inline-flex; align-items:center; gap:7px; font-size:12px; font-weight:600; padding:7px 13px; border-radius:999px; background:rgba(255,255,255,.1); box-shadow:inset 0 0 0 1px rgba(255,255,255,.16); color:#fff; }
   .vp-pill--open{ background:rgba(127,200,124,.18); color:#bff0bc; box-shadow:inset 0 0 0 1px rgba(127,200,124,.4); }
@@ -21,8 +21,8 @@
   .vp-cat{ margin-top:34px; }
   .vp-cat__head{ display:flex; align-items:baseline; gap:10px; margin-bottom:14px; }
   .vp-cat__title{ margin:0; font-family:var(--ag-font-display); font-weight:800; font-size:clamp(1.25rem,3vw,1.6rem); color:var(--ag-ink); }
-  .vp-cat__n{ font-size:12.5px; color:#626a6e; }
-  .vp-cat__desc{ margin:-8px 0 14px; font-size:13.5px; color:#5a6d6f; max-width:640px; line-height:1.5; }
+  .vp-cat__n{ font-size:13px; color:#626a6e; }
+  .vp-cat__desc{ margin:-8px 0 14px; font-size:14px; color:#5a6d6f; max-width:640px; line-height:1.5; }
 
   /* TWO columns, not three. A race card carries four things a plain card did not —
      rank, organisation, the gap to the position above, and a progress track — and at
@@ -39,13 +39,13 @@
      has to be visible: the sighted reader is the only one it is for. */
   .vp-card__mono{ font-family:var(--ag-font-display,serif); font-weight:800; font-size:24px; color:var(--ag-action-ink); }
   .vp-card__b{ flex:1; min-width:0; }
-  .vp-card__name{ font-weight:700; font-size:15px; color:var(--ag-ink); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .vp-card__name{ font-weight:700; font-size:16px; color:var(--ag-ink); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
   /* Shortlisted. Deliberately quiet: it is a fact about a nominee, not a call to
      action, and a loud badge beside a "Vote →" button competes with the button. */
   .vp-short{ display:inline-flex; align-items:center; gap:4px; margin-top:5px; padding:2px 8px 2px 6px;
     border-radius:999px; background:#e8f6ec; color:#146c37; border:1px solid #bfe5cb;
-    font-size:10.5px; font-weight:700; letter-spacing:.04em; text-transform:uppercase; align-self:flex-start; }
-  .vp-card__tag{ font-size:12.5px; color:#5a6d6f; margin-top:2px; display:-webkit-box; -webkit-line-clamp:1; -webkit-box-orient:vertical; overflow:hidden; }
+    font-size:11px; font-weight:700; letter-spacing:.04em; text-transform:uppercase; align-self:flex-start; }
+  .vp-card__tag{ font-size:13px; color:#5a6d6f; margin-top:2px; display:-webkit-box; -webkit-line-clamp:1; -webkit-box-orient:vertical; overflow:hidden; }
   /* The CTA is pushed to the right edge so votes and gap read as one group, and the
      row is allowed to wrap rather than squeezing three items into a narrow card. */
   .vp-card__foot{ display:flex; align-items:center; gap:10px; margin-top:7px; flex-wrap:wrap; }
@@ -59,7 +59,7 @@
     .vp-card__cta{ flex-basis:100%; margin-left:0; text-align:right; }
   }
   .vp-card__votes{ font:700 12px/1 var(--ag-font-mono,monospace); color:#1a6118; }
-  .vp-card__cta{ font-size:12.5px; font-weight:600; color:var(--ag-green,#237b22); }
+  .vp-card__cta{ font-size:13px; font-weight:600; color:var(--ag-green,#237b22); }
   .vp-card__chev{ flex:none; color:#c4cdc6; }
 
   .vp-empty{ background:var(--ag-surface,#fff); border:1px solid rgba(16,41,44,.08); border-radius:18px; padding:clamp(1.8rem,5vw,2.6rem); text-align:center; margin-top:18px; }
@@ -104,7 +104,7 @@
      block. */
   .vp-close{ display:inline-flex; align-items:flex-start; gap:7px; background:rgba(201,162,39,.12);
              border:1px solid rgba(201,162,39,.3); border-radius:14px; padding:6px 12px;
-             font-size:12.5px; font-weight:600; line-height:1.45; color:#7a5c00; margin-top:8px }
+             font-size:13px; font-weight:600; line-height:1.45; color:#7a5c00; margin-top:8px }
   .vp-close svg{ flex:none; margin-top:3px }
   /* `hidden` is a UA rule of the lowest possible specificity, so ANY class rule
      that sets `display` beats it. This element carries `hidden` when a category
@@ -114,7 +114,7 @@
   .vp-close[hidden]{ display:none }
 
   /* Live updates. The pulse only runs while the page is actually being watched. */
-  .vp-live{ display:inline-flex; align-items:center; gap:7px; font-size:12.5px; color:#5a6d6f }
+  .vp-live{ display:inline-flex; align-items:center; gap:7px; font-size:13px; color:#5a6d6f }
   .vp-live__dot{ width:7px; height:7px; border-radius:50%; background:#7FC87C; animation:vpPulse 2.4s ease-in-out infinite }
   @keyframes vpPulse{ 0%,100%{opacity:1} 50%{opacity:.25} }
   /* A vote count that just changed. Brief, and only on the number that moved — a

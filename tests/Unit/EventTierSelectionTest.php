@@ -534,7 +534,7 @@ final class EventTierSelectionTest extends TestCase
      * ══════════════════════════════════════════════════════════════════════════
      *
      * The effect this replaced kept off the row's face on purpose, and its comment said
-     * exactly why: `.ed-tier__perk` is 11.5px at #626a6e, which is 5.52:1 on white — AA
+     * exactly why: `.ed-tier__perk` is small text on white with only a little headroom — AA
      * with almost nothing to spend. A state layer DOES cross the face, so the first
      * version of it put a 12% wash of the tier's own colour behind that text and took a
      * navy peak row to 4.09:1. Below the floor, on a persistent state somebody can sit in
@@ -564,9 +564,15 @@ final class EventTierSelectionTest extends TestCase
         $this->assertNotEmpty($m[1], 'the state layer opacities are not in the stylesheet');
         $weight = 0.75 + 0.45 * 1.0;
 
-        // The colours that appear on a row at 11.5px, from the stylesheet and from the two
-        // inline overrides on the scarcity lines.
-        preg_match('/\.ed-tier__perk\{ font-size:11\.5px; color:(#[0-9a-f]{6})/i', $css, $pk);
+        // The colours that appear on the row's small text, from the stylesheet and from
+        // the two inline overrides on the scarcity lines.
+        //
+        // Found by SELECTOR, never by size. This regex used to spell the size out, so a
+        // sitewide type pass that moved the row half a pixel stopped it matching — and a
+        // contrast floor that cannot find its colour is a contrast floor that is not being
+        // checked. The size is not the subject here: anything under 18.66px is small text
+        // to WCAG 1.4.3 and owes the same 4.5:1, so the rule is unchanged by the number.
+        preg_match('/\.ed-tier__perk\{[^}]*?color:(#[0-9a-f]{6})/i', $css, $pk);
         $this->assertNotEmpty($pk, 'the perk colour could not be read');
         preg_match_all('/class="ed-tier__perk" style="color:(#[0-9a-f]{6})/i', $css, $inline);
         $smalls = array_merge([$pk[1]], $inline[1]);

@@ -39,7 +39,7 @@
    was a 2.1:1 difference in text colour. The underline is the one that survives
    both. `aria-current="page"` is on the markup either way; this is what a reader
    who is not using a screen reader gets. */
-.ag-link{ font:600 14.5px/1 var(--ag-font-body); color:var(--ag-ink-2); background:none; border:0; cursor:pointer;
+.ag-link{ font:600 14px/1 var(--ag-font-body); color:var(--ag-ink-2); background:none; border:0; cursor:pointer;
   padding:9px 14px; border-radius:10px; display:flex; align-items:center; gap:6px; text-decoration:none;
   border-bottom:2px solid transparent;
   transition:background var(--ag-dur-fast),color var(--ag-dur-fast),border-color var(--ag-dur-fast); }
@@ -73,8 +73,8 @@
 .ag-mega__item{ display:flex; align-items:flex-start; padding:13px 14px; border-radius:14px; border:1px solid transparent; text-decoration:none; transition:background var(--ag-dur-fast); }
 .ag-mega__item:hover{ background:var(--ag-surface-2); }
 .ag-mega__txt{ display:flex; flex-direction:column; gap:3px; }
-.ag-mega__txt strong{ font-weight:600; font-size:14.5px; color:var(--ag-ink); }
-.ag-mega__txt small{ font-size:12.5px; line-height:1.4; color:var(--ag-ink-soft); }
+.ag-mega__txt strong{ font-weight:600; font-size:14px; color:var(--ag-ink); }
+.ag-mega__txt small{ font-size:13px; line-height:1.4; color:var(--ag-ink-soft); }
 
 /* ════ MOBILE BOTTOM BAR ════ */
 .ag-mobnav{ display:none; position:fixed; left:0; right:0; bottom:0; z-index:var(--ag-z-mobile-nav);
@@ -85,7 +85,7 @@
 .ag-tab svg{ width:23px; height:23px; }
 /* 11.5px, not 10: this is the only persistent navigation on mobile and it carried the
    smallest type in the product. Contrast was never the problem here (15.27:1) — size was. */
-.ag-tab span{ font:600 11.5px/1.1 var(--ag-font-body); }
+.ag-tab span{ font:600 12px/1.1 var(--ag-font-body); }
 .ag-tab.is-active{ color:var(--ag-green); }
 .ag-tab--cta{ gap:5px; }
 .ag-tab--cta .ag-tab__fab{ width:50px; height:38px; margin-top:-14px; border-radius:16px; background:var(--ag-green);
@@ -106,8 +106,8 @@
 .ag-menu__link{ display:flex; align-items:center; padding:13px 12px; border-radius:14px; text-decoration:none; transition:background var(--ag-dur-fast); }
 .ag-menu__link:hover,.ag-menu__link.is-active{ background:var(--ag-surface-2); }
 .ag-menu__txt{ display:flex; flex-direction:column; gap:2px; }
-.ag-menu__txt strong{ font-weight:600; font-size:15px; color:var(--ag-ink); }
-.ag-menu__txt small{ font-size:12.5px; color:var(--ag-ink-soft); }
+.ag-menu__txt strong{ font-weight:600; font-size:16px; color:var(--ag-ink); }
+.ag-menu__txt small{ font-size:13px; color:var(--ag-ink-soft); }
 .ag-menu__ctas{ display:flex; flex-direction:column; gap:10px; margin-top:26px; }
 
 /* ════ RESPONSIVE SWITCH ════ */
@@ -174,7 +174,7 @@ html.ag-menu-open{ overflow:hidden; }
    uses: it is the same fact — this is happening right now — and it has no business
    being a second hue. */
 .vc--bare{ position:relative; border:0; padding:0; background:transparent; margin-top:10px; }
-.vc--bare .vc__abs{ margin-top:8px; font-size:12.5px; }
+.vc--bare .vc__abs{ margin-top:8px; font-size:13px; }
 .vc--bare .vc__cell{ background:var(--ag-card); border-color:var(--ag-line); }
 
 /* The pulse is decoration; the numbers are the information. */

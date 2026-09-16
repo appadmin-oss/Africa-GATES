@@ -15,12 +15,10 @@
   --motion-fast: 160ms;   /* hover/press feedback                   */
   --motion-base: 320ms;   /* default UI transitions                 */
   --motion-slow: 640ms;   /* entrance reveals, scroll choreography  */
-  --motion-glacial: 1200ms; /* ambient / aurora-class effects       */
 
   /* Easings */
   --ease-out-expo:  cubic-bezier(0.16, 1, 0.30, 1);
   --ease-out-quart: cubic-bezier(0.25, 1, 0.50, 1);
-  --ease-in-out:    cubic-bezier(0.45, 0, 0.55, 1);
   --ease-spring:    cubic-bezier(0.34, 1.56, 0.64, 1);
 
   /* Distances / amplitudes (used by translate-based entrances) */
@@ -30,7 +28,6 @@
   /* Staggers (children fade in N apart) */
   --motion-stagger:    60ms;
   --motion-stagger-sm: 35ms;
-  --motion-stagger-lg: 100ms;
 }
 
 /* Honor reduced-motion universally for any future rule that uses the tokens. */
@@ -39,11 +36,9 @@
     --motion-fast: 0ms;
     --motion-base: 0ms;
     --motion-slow: 0ms;
-    --motion-glacial: 0ms;
     --motion-rise: 0px;
     --motion-rise-lg: 0px;
     --motion-stagger: 0ms;
     --motion-stagger-sm: 0ms;
-    --motion-stagger-lg: 0ms;
   }
 }

@@ -14,15 +14,15 @@
   .spon__n[href]{ text-decoration:underline; text-underline-offset:3px;
     text-decoration-color:rgba(16,41,44,.28) }
   .spon__n[href]:hover{ text-decoration-color:currentColor }
-  .spon__t{ font-family:var(--ag-font-mono,monospace); font-size:10.5px; font-weight:700;
+  .spon__t{ font-family:var(--ag-font-mono,monospace); font-size:11px; font-weight:700;
     letter-spacing:.1em; text-transform:uppercase; color:#5a6d6f }
   /* The headline sponsor is the one thing given weight, and it is given ONE thing —
      a gold rule, not a size, a background and a badge. A highlight almost everything
      qualifies for is a background. */
   .spon__i--headline{ border-left:3px solid #f3b416; padding-left:14px }
   .spon__i--headline .spon__n{ font-size:19px }
-  .spon__d{ margin:6px 0 0; font-size:13.5px; line-height:1.6; color:#5a6d6f; max-width:62ch }
-  .spon__rule{ margin:16px 0 0; font-size:12.5px; line-height:1.7; color:#5a6d6f;
+  .spon__d{ margin:6px 0 0; font-size:14px; line-height:1.6; color:#5a6d6f; max-width:62ch }
+  .spon__rule{ margin:16px 0 0; font-size:13px; line-height:1.7; color:#5a6d6f;
     max-width:72ch }
 </style>
 {% endblock %}
@@ -101,7 +101,7 @@
         <div style="display:flex;align-items:center;gap:10px;margin:14px 0 0;padding:10px 12px;background:#f4f9f4;border:1px solid #cfe6cf;border-radius:14px">
           <span aria-hidden="true" style="flex:none;width:34px;height:34px;border-radius:50%;background:#237b22;color:#fff;display:inline-flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;background-size:cover;background-position:center{% if c.leader.photo_path %};background-image:url('{{ c.leader.photo_path }}'){% endif %}">{% if not c.leader.photo_path %}{{ c.leader.name|slice(0,1)|upper }}{% endif %}</span>
           <span style="min-width:0">
-            <span style="display:block;font-size:10.5px;font-weight:700;letter-spacing:.09em;text-transform:uppercase;color:#5a6d6f">Out in front</span>
+            <span style="display:block;font-size:11px;font-weight:700;letter-spacing:.09em;text-transform:uppercase;color:#5a6d6f">Out in front</span>
             <strong style="display:block;font-size:14px;color:#10292c;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ c.leader.name }}</strong>
             {% if c.leader.organisation %}<span style="display:block;font-size:12px;color:#5a6d6f;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ c.leader.organisation }}</span>{% endif %}
           </span>

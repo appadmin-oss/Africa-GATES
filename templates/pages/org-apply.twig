@@ -40,11 +40,9 @@
     --oa-mute:#626a6e;
     --oa-line:rgba(16,41,44,.12);
     --oa-line-2:rgba(16,41,44,.22);
-    --oa-gold:#f3b416;
     --oa-gold-ink:#745001;
     --oa-green:#237b22;
     --oa-green-dark:#12481d;
-    --oa-r:14px;
     --oa-r-sm:4px;
 
     background:var(--oa-paper); color:var(--oa-ink);
@@ -52,13 +50,13 @@
   .oa{ max-width:760px; margin:0 auto;
     padding:clamp(20px,4vw,36px) var(--ag-gutter,32px) clamp(56px,7vw,88px); }
 
-  .oa-kick{ display:block; font-family:var(--ag-font-mono,monospace); font-size:10.5px;
+  .oa-kick{ display:block; font-family:var(--ag-font-mono,monospace); font-size:11px;
     font-weight:700; letter-spacing:.24em; text-transform:uppercase; color:var(--oa-gold-ink); }
 
   .oa-head h1{ margin:12px 0 0; font-family:var(--ag-font-display,Georgia,serif);
     font-weight:800; font-size:clamp(1.9rem,4.4vw,2.6rem); line-height:1.04;
     letter-spacing:-.03em; color:var(--oa-ink); text-wrap:balance; }
-  .oa-head p{ margin:16px 0 0; max-width:58ch; font-size:15.5px; line-height:1.7;
+  .oa-head p{ margin:16px 0 0; max-width:58ch; font-size:16px; line-height:1.7;
     color:var(--oa-ink-2); text-wrap:pretty; }
   .oa-head p strong{ color:var(--oa-ink); font-weight:700; }
 
@@ -69,7 +67,7 @@
   .oa-fig__n{ font-family:var(--ag-font-mono,monospace); font-weight:700; letter-spacing:0;
     font-size:clamp(1.4rem,3vw,1.9rem); font-variant-numeric:tabular-nums;
     line-height:1.1; color:var(--oa-ink); }
-  .oa-fig__l{ margin-top:6px; max-width:24ch; font-size:12.5px; line-height:1.5;
+  .oa-fig__l{ margin-top:6px; max-width:24ch; font-size:13px; line-height:1.5;
     color:var(--oa-mute); }
 
   /* ── the numbered sections ─────────────────────────────────────────────────
@@ -129,25 +127,25 @@
   .oa-f textarea{ padding:13px 14px; line-height:1.6; resize:vertical; }
   .oa-f input:focus, .oa-f textarea:focus{ border-color:var(--oa-green);
     box-shadow:0 0 0 3px rgba(35,123,34,.16); }
-  .oa-f small{ display:block; margin-top:7px; font-size:12.5px; line-height:1.55;
+  .oa-f small{ display:block; margin-top:7px; font-size:13px; line-height:1.55;
     color:var(--oa-mute); }
 
   /* #8a2b18 on #fdecea is 6.4:1. An error nobody can read is not an error message. */
   .oa-err{ background:#fdecea; border:1px solid #f3c4bd; color:#8a2b18;
-    border-radius:var(--oa-r-sm); padding:14px 16px; font-size:14.5px; line-height:1.6;
+    border-radius:var(--oa-r-sm); padding:14px 16px; font-size:14px; line-height:1.6;
     margin-top:22px; }
   .oa-err b{ font-weight:700 }
 
   .oa-note-box{ display:flex; align-items:flex-start; gap:11px; margin-top:20px;
     padding:14px 16px; border-radius:var(--oa-r-sm); background:var(--oa-cream);
-    font-size:13.5px; line-height:1.65; color:var(--oa-ink-2); }
+    font-size:14px; line-height:1.65; color:var(--oa-ink-2); }
   .oa-note-box svg{ flex:none; margin-top:2px; color:var(--oa-gold-ink); }
   .oa-note-box b{ color:var(--oa-ink); font-weight:700 }
 
   .oa-go{ display:inline-flex; align-items:center; justify-content:center; min-height:52px;
     margin-top:28px; padding:0 30px; border:0; border-radius:var(--ag-r-pill,999px);
     background:var(--oa-green-dark); color:#fff; font-family:inherit; font-weight:700;
-    font-size:15.5px; cursor:pointer; }
+    font-size:16px; cursor:pointer; }
   .oa-go:hover{ background:#0d3716 }
   .oa-go:focus-visible{ outline:3px solid var(--oa-green); outline-offset:3px }
   .oa-note{ margin-top:14px; max-width:58ch; font-size:13px; line-height:1.65;

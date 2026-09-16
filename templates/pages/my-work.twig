@@ -39,16 +39,16 @@
 {% block head_styles %}
 <style nonce="{{ csp_nonce }}">
   .mw{ max-width:760px; margin:0 auto; padding:34px 20px 80px }
-  .mw__kick{ display:inline-flex; align-items:center; gap:7px; font-size:11.5px; font-weight:700;
+  .mw__kick{ display:inline-flex; align-items:center; gap:7px; font-size:12px; font-weight:700;
     letter-spacing:.09em; text-transform:uppercase; color:#1c5f1b; background:#eaf7ea;
     border-radius:999px; padding:6px 13px }
   .mw h1{ margin:14px 0 0; font-size:clamp(1.35rem, 1.1rem + 1.2vw, 1.9rem); letter-spacing:-.015em;
     color:#10292C; line-height:1.25 }
-  .mw__lede{ margin:12px 0 0; font-size:15px; line-height:1.75; color:#3d5254 }
+  .mw__lede{ margin:12px 0 0; font-size:16px; line-height:1.75; color:#3d5254 }
   .mw__card{ margin-top:16px; background:#fff; border:1px solid rgba(16,41,44,.1); border-radius:18px;
     padding:22px 20px;}
   .mw__card h2{ margin:0 0 4px; font-size:16px; color:#10292C }
-  .mw__card p{ margin:9px 0 0; font-size:13.5px; line-height:1.7; color:#5a6d6f }
+  .mw__card p{ margin:9px 0 0; font-size:14px; line-height:1.7; color:#5a6d6f }
 
   /* progress — sticky, because "how much longer" is the question people abandon over */
   .mw__prog{ position:sticky; top:0; z-index:5; margin:16px 0 0; background:#10292c; color:#eaf2ec;
@@ -63,7 +63,7 @@
   .mw__sum{ margin-top:22px; padding-top:18px; border-top:1px dashed rgba(16,41,44,.16) }
   .mw__sumbox{ margin-top:12px; padding:15px 17px; border-radius:12px; background:#f6f9f6;
     border:1px solid rgba(35,123,34,.18) }
-  .mw__sumt{ margin:8px 0 0; font-size:15.5px; line-height:1.65; color:#10292C; max-width:64ch }
+  .mw__sumt{ margin:8px 0 0; font-size:16px; line-height:1.65; color:#10292C; max-width:64ch }
   .mw__suml{ margin:12px 0 0; padding-left:19px; font-size:14px; line-height:1.7; color:#3a4448 }
   .mw__suml li{ margin:3px 0 0 }
 
@@ -71,11 +71,11 @@
      the bottom: the loudest control on a page whose job is "answer this question" must not
      be the one that leaves it. */
   .mw__back{ margin-top:18px }
-  .mw__back__go{ cursor:pointer; width:100%; text-align:left; font:600 13.5px/1.4 inherit;
+  .mw__back__go{ cursor:pointer; width:100%; text-align:left; font:600 14px/1.4 inherit;
     padding:14px 16px; border-radius:12px; border:1px dashed rgba(16,41,44,.22);
     background:transparent; color:#3d5254 }
   .mw__back__go:hover{ border-color:rgba(35,123,34,.45); color:#1a6118 }
-  .mw__back__go small{ display:block; font-weight:400; font-size:11.5px; margin-top:3px;
+  .mw__back__go small{ display:block; font-weight:400; font-size:12px; margin-top:3px;
     opacity:.75 }
 
   .mw__hint{ margin-top:8px; font-size:12px; color:var(--ag-ink-soft,#626a6e) }
@@ -103,7 +103,7 @@
     flex-wrap:wrap; margin-top:9px }
   .mw__dictate{ cursor:pointer; display:inline-flex; align-items:center; gap:8px;
     background:#fff; border:1px solid rgba(16,41,44,.18); border-radius:999px;
-    padding:7px 14px 7px 11px; font:650 12.5px/1 inherit; color:#3d5254 }
+    padding:7px 14px 7px 11px; font:650 13px/1 inherit; color:#3d5254 }
   .mw__dictate:hover{ border-color:rgba(35,123,34,.45); color:#1a6118 }
   .mw__dictate--on{ background:#b3261e; border-color:#b3261e; color:#fff;
     animation:mwPulse 1.3s infinite }
@@ -115,7 +115,7 @@
   .mw__mic:disabled{ opacity:.5; cursor:default }
   @keyframes mwPulse{ 0%,100%{ box-shadow:0 0 0 0 rgba(179,38,30,.45) }
                       50%{ box-shadow:0 0 0 7px rgba(179,38,30,0) } }
-  .mw__rec{ margin-top:8px; font-size:12.5px; font-weight:650; color:#b3261e }
+  .mw__rec{ margin-top:8px; font-size:13px; font-weight:650; color:#b3261e }
   @media (prefers-reduced-motion: reduce){ .mw__mic--on{ animation:none } }
 
   /* the spoken introduction */
@@ -154,7 +154,7 @@
   .mw__map{ display:flex; flex-wrap:wrap; gap:6px; margin-top:10px }
   .mw__dot{ position:relative; min-width:36px; min-height:36px; padding:0 6px; cursor:pointer;
     border:1px solid rgba(16,41,44,.18); background:#fff; color:#3d5254; border-radius:10px;
-    font:650 12.5px/1 inherit; display:inline-flex; align-items:center; justify-content:center }
+    font:650 13px/1 inherit; display:inline-flex; align-items:center; justify-content:center }
   .mw__dot:hover{ border-color:rgba(16,41,44,.4); color:#10292C }
   .mw__dot--done{ background:#eef6ee; border-color:rgba(35,123,34,.35); color:#1a6118 }
   .mw__dot--here{ background:#10292c; border-color:#10292c; color:#fff }
@@ -169,16 +169,16 @@
     padding-top:14px; border-top:1px solid rgba(16,41,44,.08) }
   /* Next is the primary and Back is not. They used to be identical dark pills, so the one
      somebody wanted nine times out of ten was the one they had to stop and read for. */
-  .mw__nav{ cursor:pointer; border-radius:999px; font:700 13.5px/1 inherit; padding:12px 18px;
+  .mw__nav{ cursor:pointer; border-radius:999px; font:700 14px/1 inherit; padding:12px 18px;
     min-height:44px; border:1px solid transparent }
   .mw__nav--next{ background:#10292C; color:#fff; order:2 }
   .mw__nav--next:hover{ background:#1a3f43 }
   .mw__nav--back{ background:#fff; color:#3d5254; border-color:rgba(16,41,44,.18); order:1 }
   .mw__nav--back:hover{ border-color:rgba(16,41,44,.4); color:#10292C }
-  .mw__seek{ margin:7px 0 0; font-size:12.5px; line-height:1.6; color:#1c5f1b;
+  .mw__seek{ margin:7px 0 0; font-size:13px; line-height:1.6; color:#1c5f1b;
     background:#f2f9f2; border-radius:9px; padding:8px 11px }
   /* Help, never a mark. No number, no percentage, no traffic light with a score behind it. */
-  .mw__coach{ margin-top:11px; font-size:12.5px; line-height:1.65; padding:11px 13px;
+  .mw__coach{ margin-top:11px; font-size:13px; line-height:1.65; padding:11px 13px;
     border-radius:11px; background:#fffdf5; border:1px solid #ecd9a0; color:#6b5312 }
   .mw__coach--ok{ background:#f0fdf4; border-color:#b6e3b6; color:#1c5f1b }
   .mw__coach b{ display:block; margin-bottom:3px }
@@ -186,18 +186,18 @@
   /* the form */
   .mw__q{ padding:18px 0; border-top:1px solid rgba(16,41,44,.08) }
   .mw__q:first-of-type{ border-top:none; padding-top:4px }
-  .mw__lab{ display:block; font-size:15px; font-weight:600; line-height:1.5; color:#10292C }
+  .mw__lab{ display:block; font-size:16px; font-weight:600; line-height:1.5; color:#10292C }
   .mw__req{ color:#8a2020; font-weight:700 }
   .mw__help{ margin:7px 0 0; font-size:13px; line-height:1.65; color:#67797b }
-  .mw__crit{ display:inline-block; margin-top:8px; font-size:10.5px; font-weight:700;
+  .mw__crit{ display:inline-block; margin-top:8px; font-size:11px; font-weight:700;
     letter-spacing:.06em; text-transform:uppercase; color:#1c5f1b; background:#eaf7ea;
     border-radius:999px; padding:3px 9px }
-  .mw__in{ width:100%; box-sizing:border-box; margin-top:10px; font:inherit; font-size:15px;
+  .mw__in{ width:100%; box-sizing:border-box; margin-top:10px; font:inherit; font-size:16px;
     line-height:1.6; color:#10292C; border:1px solid rgba(16,41,44,.2); border-radius:12px;
     padding:12px 13px; background:#fff }
   textarea.mw__in{ min-height:104px; resize:vertical }
   .mw__in:focus{ outline:none; border-color:#237b22; box-shadow:0 0 0 3px rgba(35,123,34,.12) }
-  .mw__done{ font-size:11.5px; font-weight:700; color:#237b22; margin-top:6px }
+  .mw__done{ font-size:12px; font-weight:700; color:#237b22; margin-top:6px }
 
   /* works */
   .mw__work{ border:1px solid rgba(16,41,44,.13); border-radius:14px; padding:15px 15px 6px;
@@ -205,32 +205,32 @@
   .mw__grid{ display:grid; gap:10px; grid-template-columns:repeat(auto-fit,minmax(min(100%,210px),1fr)) }
   .mw__slab{ display:block; font:700 10px/1 var(--ag-font-body,inherit); letter-spacing:.08em;
     text-transform:uppercase; color:#5a6d6f; margin:0 0 5px }
-  .mw__file{ margin-top:10px; font-size:12.5px; color:#3d5254; background:#eef4ee;
+  .mw__file{ margin-top:10px; font-size:13px; color:#3d5254; background:#eef4ee;
     border-radius:9px; padding:9px 11px; display:flex; gap:8px; align-items:center; flex-wrap:wrap }
-  .mw__drop{ margin-top:9px; font-size:12.5px; color:#67797b }
-  .mw__x{ cursor:pointer; background:none; border:none; color:#8a2020; font:600 12.5px/1 inherit;
+  .mw__drop{ margin-top:9px; font-size:13px; color:#67797b }
+  .mw__x{ cursor:pointer; background:none; border:none; color:#8a2020; font:600 13px/1 inherit;
     text-decoration:underline; padding:6px 0; margin:0 0 8px }
   .mw__add{ margin-top:12px; background:#fff; color:#10292C; border:1px dashed rgba(16,41,44,.3);
-    border-radius:12px; padding:12px; width:100%; font:600 13.5px/1 inherit; cursor:pointer }
+    border-radius:12px; padding:12px; width:100%; font:600 14px/1 inherit; cursor:pointer }
   .mw__mini{ cursor:pointer; background:#10292C; color:#fff; border:none; border-radius:999px;
-    padding:9px 15px; font:600 12.5px/1 inherit }
+    padding:9px 15px; font:600 13px/1 inherit }
 
   .mw__go{ margin-top:18px; width:100%; background:#237b22; color:#fff; border:none;
-    border-radius:999px; padding:16px 24px; font:700 15.5px/1 inherit; cursor:pointer; min-height:50px }
+    border-radius:999px; padding:16px 24px; font:700 16px/1 inherit; cursor:pointer; min-height:50px }
   .mw__go:hover{ background:#1c631b }
   .mw__ghost{ margin-top:10px; width:100%; background:none; color:#10292C;
     border:1px solid rgba(16,41,44,.22); border-radius:999px; padding:13px 24px;
     font:600 14px/1 inherit; cursor:pointer; min-height:46px }
 
   .mw__ok{ background:#f0fdf4; border:1px solid #b6e3b6; border-left:4px solid #237b22;
-    border-radius:0 14px 14px 0; padding:15px 17px; margin-top:16px; font-size:14.5px;
+    border-radius:0 14px 14px 0; padding:15px 17px; margin-top:16px; font-size:14px;
     line-height:1.7; color:#22551f }
   .mw__bad{ background:#fdf3f3; border:1px solid #f0c9c9; border-left:4px solid #b3261e;
-    border-radius:0 14px 14px 0; padding:15px 17px; margin-top:16px; font-size:14.5px;
+    border-radius:0 14px 14px 0; padding:15px 17px; margin-top:16px; font-size:14px;
     line-height:1.7; color:#8a2020 }
   .mw__bad ul, .mw__tip ul{ margin:9px 0 0; padding-left:20px }
   .mw__tip{ background:#fffdf5; border:1px solid #ecd9a0; border-radius:12px; padding:14px 16px;
-    margin-top:14px; font-size:13.5px; line-height:1.7; color:#6b5312 }
+    margin-top:14px; font-size:14px; line-height:1.7; color:#6b5312 }
   .mw__free{ margin-top:22px; font-size:13px; line-height:1.75; color:#5a6d6f;
     border-top:1px solid rgba(16,41,44,.09); padding-top:18px }
   .mw__free b{ color:#10292c }

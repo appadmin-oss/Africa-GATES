@@ -39,7 +39,7 @@
   background:#36d05f; border:2.5px solid #fff; box-shadow:0 0 0 1px rgba(16,41,44,.08); }
 /* hover tooltip (desktop) */
 .gee-fab__tip{ position:absolute; right:calc(100% + 12px); top:50%; transform:translateY(-50%) translateX(6px);
-  background:var(--ag-ink,#10292c); color:#fff; font:600 12.5px/1 var(--ag-font-body,sans-serif);
+  background:var(--ag-ink,#10292c); color:#fff; font:600 13px/1 var(--ag-font-body,sans-serif);
   white-space:nowrap; padding:8px 12px; border-radius:9px; opacity:0; pointer-events:none;
   transition:opacity var(--ag-dur-fast,.15s) ease, transform var(--ag-dur-fast,.15s) ease;
  }
@@ -80,8 +80,8 @@
 .gee-avatar::after{ content:""; position:absolute; bottom:-1px; right:-1px; width:11px; height:11px;
   border-radius:50%; background:#36d05f; border:2px solid var(--ag-green,#237b22); }
 .gee-head__txt{ display:flex; flex-direction:column; min-width:0; }
-.gee-head__txt strong{ font:600 15px/1.1 var(--ag-font-body,sans-serif); }
-.gee-head__txt small{ font:500 11.5px/1.3 var(--ag-font-body,sans-serif); color:rgba(255,255,255,.94);
+.gee-head__txt strong{ font:600 16px/1.1 var(--ag-font-body,sans-serif); }
+.gee-head__txt small{ font:500 12px/1.3 var(--ag-font-body,sans-serif); color:rgba(255,255,255,.94);
   overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .gee-head__actions{ display:flex; align-items:center; gap:4px; flex:none; }
 .gee-icon{ width:34px; height:34px; border-radius:10px; border:0; cursor:pointer;
@@ -141,13 +141,13 @@
 /* provenance — quiet by design. It is a receipt, not a headline. */
 .gee-used{ display:flex; flex-wrap:wrap; gap:5px; margin-top:1px; }
 .gee-used--empty{ display:none; }
-.gee-used__c{ font:600 10.5px/1 var(--ag-font-body,sans-serif); letter-spacing:.02em;
+.gee-used__c{ font:600 11px/1 var(--ag-font-body,sans-serif); letter-spacing:.02em;
   color:var(--ag-green-dark,#1a6118); background:var(--ag-green-wash,rgba(127,200,124,.16));
   border-radius:999px; padding:5px 9px; }
 
 /* article preview cards */
 .gee-arts{ display:flex; flex-direction:column; gap:6px; margin-top:3px; }
-.gee-arts__h{ margin:0; font:700 10.5px/1 var(--ag-font-body,sans-serif); letter-spacing:.07em;
+.gee-arts__h{ margin:0; font:700 11px/1 var(--ag-font-body,sans-serif); letter-spacing:.07em;
   text-transform:uppercase; color:var(--ag-ink-soft,#717a7e); }
 /* Deliberately compact. Measured: at the first draft's sizing three cards were
    300px tall inside a 540px panel, so the answer scrolled out of sight and the
@@ -159,9 +159,9 @@
 .gee-art:hover{ border-color:var(--ag-green,#237b22); transform:translateY(-1px); }
 .gee-art:focus-visible{ outline:2px solid var(--ag-green,#237b22); outline-offset:2px; }
 /* colour comes from the category, set inline — see articleStrip() */
-.gee-art__tag{ display:block; font:700 9px/1 var(--ag-font-body,sans-serif); letter-spacing:.07em;
+.gee-art__tag{ display:block; font:700 10px/1 var(--ag-font-body,sans-serif); letter-spacing:.07em;
   text-transform:uppercase; margin-bottom:3px; color:var(--ag-ink-soft,#717a7e); }
-.gee-art__t{ display:block; font:600 12.5px/1.3 var(--ag-font-body,sans-serif); color:var(--ag-ink,#10292c); }
+.gee-art__t{ display:block; font:600 13px/1.3 var(--ag-font-body,sans-serif); color:var(--ag-ink,#10292c); }
 /* one line, ellipsised: the title carries the decision, the summary only
    confirms it, and a wrapping summary is what made these cards tall */
 .gee-art__s{ display:block; margin-top:2px; font:400 11px/1.4 var(--ag-font-body,sans-serif);
@@ -196,7 +196,7 @@
 .gee-suggest:empty{ display:none; }
 .gee-chip{ border:1px solid var(--ag-line-strong,rgba(16,41,44,.12)); background:var(--ag-surface,#fff);
   color:var(--ag-ink,#10292c); cursor:pointer; border-radius:999px; padding:7px 13px;
-  font:500 12.5px/1.2 var(--ag-font-body,sans-serif); text-align:left;
+  font:500 13px/1.2 var(--ag-font-body,sans-serif); text-align:left;
   transition:border-color var(--ag-dur-fast,.15s) ease, background var(--ag-dur-fast,.15s) ease; }
 .gee-chip:hover{ border-color:var(--ag-green,#237b22); background:var(--ag-green-wash,rgba(127,200,124,.16)); }
 .gee-chip:focus-visible{ outline:2px solid var(--ag-green,#237b22); outline-offset:1px; }

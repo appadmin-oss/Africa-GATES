@@ -52,13 +52,13 @@
   .pv-swatch{ display:inline-flex; align-items:flex-end; gap:6px }
   .pv-swatch input[type=color]{ width:38px; height:38px; padding:2px; flex:none; cursor:pointer }
   .pv-hex{ width:118px; font-family:var(--ag-font-mono,monospace); font-size:12px }
-  .pv-wait{ font-size:11.5px; font-weight:700; color:#8a5a00; white-space:nowrap;
+  .pv-wait{ font-size:12px; font-weight:700; color:#8a5a00; white-space:nowrap;
     align-self:center; padding-bottom:8px }
   /* Pinned to the row's corner at every width. Left in the flex flow it landed wherever the
      wrap put it — in the screenshot, in the middle of the second line, beside Stock — which
      reads as "remove the stock" rather than "remove the row". */
   .pv-rm{ position:absolute; top:8px; right:8px; border:none; background:#fbeaea; color:#a4243a;
-    font-weight:700; border-radius:9px; width:32px; height:32px; cursor:pointer; font-size:15px;
+    font-weight:700; border-radius:9px; width:32px; height:32px; cursor:pointer; font-size:16px;
     line-height:1; font-family:inherit }
   .pv-rm:hover{ background:#f6d8d8 }
   .pv-add{ border:none; background:#eef7ee; color:#1a6118; font-weight:600; border-radius:999px;
@@ -145,8 +145,8 @@
 
         {% if shop_missing|default([])|length %}
           <div style="border:1px solid #f3d38a;border-radius:12px;padding:13px 15px;background:#fffbeb">
-            <strong style="font-size:13.5px">Subtitle, details and featured need one more step</strong>
-            <div style="font-size:12.5px;color:#7a5a1a;margin-top:5px">
+            <strong style="font-size:14px">Subtitle, details and featured need one more step</strong>
+            <div style="font-size:13px;color:#7a5a1a;margin-top:5px">
               The database is missing <code>{{ shop_missing|join('</code>, <code>')|raw }}</code>.
               Run <strong>/__setup/migrate</strong> and these fields appear. They are hidden rather
               than shown-and-dropped, so nothing you type can vanish on save.
@@ -278,7 +278,7 @@
           {% endif %}
         </div>
         {% if swatches_ready|default(false) %}
-        <div style="font-size:12.5px;color:var(--ad-text-mute)">
+        <div style="font-size:13px;color:var(--ad-text-mute)">
           With two questions, <strong>every row is one combination</strong> — a row for “M, Navy”
           and another for “M, Cream” — because the stock, the price and the SKU belong to the
           pair. The shop shows two sets of buttons and works out which pairs are still available.

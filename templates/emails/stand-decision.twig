@@ -194,14 +194,14 @@
                           <img src="{{ site_url }}/assets/img/logo-mark.png" width="40" height="40" alt="Africa GATES" style="display:block;">
                         </td>
                         <td valign="middle">
-                          <p style="margin:0; font-family:Helvetica, Arial, sans-serif; font-size:15px; font-weight:700; color:#ffffff; line-height:16px;">Africa</p>
+                          <p style="margin:0; font-family:Helvetica, Arial, sans-serif; font-size:16px; font-weight:700; color:#ffffff; line-height:16px;">Africa</p>
                           <p style="margin:1px 0 0 0; font-family:Helvetica, Arial, sans-serif; font-size:10px; font-weight:700; letter-spacing:2px; color:#4fbf7f; line-height:12px;">GATES</p>
                         </td>
                       </tr>
                     </table>
                   </td>
                   <td valign="middle" align="right">
-                    <p style="margin:0; font-family:Helvetica, Arial, sans-serif; font-size:10.5px; font-weight:700; letter-spacing:1.6px; color:#8a9089; text-transform:uppercase;">{{ eyebrow }}</p>
+                    <p style="margin:0; font-family:Helvetica, Arial, sans-serif; font-size:11px; font-weight:700; letter-spacing:1.6px; color:#8a9089; text-transform:uppercase;">{{ eyebrow }}</p>
                   </td>
                 </tr>
               </table>
@@ -220,12 +220,12 @@
           {%- elseif kind == 'expired' %}Your stand offer<br><span style="color:#1f9d55;">has run out</span>
           {%- else %}You are on the<br><span style="color:#1f9d55;">waiting list</span>{% endif %}
         </h1>
-        <p class="agw-body-t" style="margin:14px 0 0 0; font-family:Helvetica, Arial, sans-serif; font-size:14.5px; line-height:23px; color:#43473f;">
+        <p class="agw-body-t" style="margin:14px 0 0 0; font-family:Helvetica, Arial, sans-serif; font-size:14px; line-height:23px; color:#43473f;">
           {% if first_name %}{{ first_name }}, {% endif %}you applied for
           <strong style="color:#14171a;">{{ stand_name }}</strong>{% if stand_size %} ({{ stand_size }}){% endif %}
           at {{ event_title }}{% if event_date %}, {{ event_date }}{% endif %}.
         </p>
-        <p class="agw-body-t" style="margin:12px 0 0 0; font-family:Helvetica, Arial, sans-serif; font-size:14.5px; line-height:23px; color:#43473f;">
+        <p class="agw-body-t" style="margin:12px 0 0 0; font-family:Helvetica, Arial, sans-serif; font-size:14px; line-height:23px; color:#43473f;">
           {% if kind == 'offered' %}
             The place is <strong style="color:#14171a;">held for you</strong> and it is yours as
             soon as you accept it. It is not yours until you do &mdash; if the time below runs
@@ -256,9 +256,9 @@
         <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="#f7f9f7" style="background-color:#f7f9f7; border-radius:10px;">
           <tr>
             <td style="padding:14px 18px;">
-              <p style="margin:0; font-family:Helvetica, Arial, sans-serif; font-size:10.5px; font-weight:700; letter-spacing:1.2px; color:#9a9c95; text-transform:uppercase;">Accept by</p>
+              <p style="margin:0; font-family:Helvetica, Arial, sans-serif; font-size:11px; font-weight:700; letter-spacing:1.2px; color:#9a9c95; text-transform:uppercase;">Accept by</p>
               <p class="agw-text" style="margin:4px 0 0 0; font-family:Helvetica, Arial, sans-serif; font-size:16px; font-weight:700; color:#14171a;">{{ expires_at }}</p>
-              <p class="agw-muted" style="margin:6px 0 0 0; font-family:Helvetica, Arial, sans-serif; font-size:12.5px; line-height:19px; color:#5b6b60;">
+              <p class="agw-muted" style="margin:6px 0 0 0; font-family:Helvetica, Arial, sans-serif; font-size:13px; line-height:19px; color:#5b6b60;">
                 {{ offer_hours }} hours from when the offer was made. This was one of the published
                 terms of the call.</p>
             </td>
@@ -282,7 +282,7 @@
         {# The address as text as well. A vendor reading this on a borrowed phone needs to be
            able to move it to a laptop, and a client that mangles the button must not be the
            thing that costs somebody a pitch. #}
-        <p class="agw-muted" style="margin:14px 0 0 0; font-family:Helvetica, Arial, sans-serif; font-size:11.5px; line-height:17px; color:#9a9c95; word-break:break-all;">
+        <p class="agw-muted" style="margin:14px 0 0 0; font-family:Helvetica, Arial, sans-serif; font-size:12px; line-height:17px; color:#9a9c95; word-break:break-all;">
           {{ link }}
         </p>
       </td>
@@ -366,11 +366,11 @@
     <!-- CLOSING -->
     <tr>
       <td class="agw-px" style="padding:34px 40px 0 40px;">
-        <p class="agw-muted" style="margin:0 0 2px 0; font-family:Helvetica, Arial, sans-serif; font-size:13.5px; color:#5b6b60;">
+        <p class="agw-muted" style="margin:0 0 2px 0; font-family:Helvetica, Arial, sans-serif; font-size:14px; color:#5b6b60;">
           {% if kind == 'offered' %}We are looking forward to having you,
           {%- elseif kind == 'rejected' %}Thank you for applying, and please do again,
           {%- else %}Thank you for your patience,{% endif %}</p>
-        <p class="agw-text" style="margin:0; font-family:Helvetica, Arial, sans-serif; font-weight:700; font-size:13.5px; color:#14171a;">The Africa GATES Team</p>
+        <p class="agw-text" style="margin:0; font-family:Helvetica, Arial, sans-serif; font-weight:700; font-size:14px; color:#14171a;">The Africa GATES Team</p>
       </td>
     </tr>
 
@@ -380,11 +380,11 @@
         <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
           <tr><td style="border-top:1px solid #f0f0ec; font-size:0; line-height:0; padding-bottom:22px;">&nbsp;</td></tr>
         </table>
-        <p style="margin:0 0 6px 0; font-family:Helvetica, Arial, sans-serif; font-size:10.5px; letter-spacing:1.2px; color:#1f9d55; font-weight:700; text-transform:uppercase;">Africa G.A.T.E.S.</p>
+        <p style="margin:0 0 6px 0; font-family:Helvetica, Arial, sans-serif; font-size:11px; letter-spacing:1.2px; color:#1f9d55; font-weight:700; text-transform:uppercase;">Africa G.A.T.E.S.</p>
         <p style="margin:0 0 14px 0; font-family:Helvetica, Arial, sans-serif; font-size:11px; color:#9a9c95;">
           {{ postal_address }}
         </p>
-        <p style="margin:0; font-family:Helvetica, Arial, sans-serif; font-size:10.5px; color:#9a9c95;">
+        <p style="margin:0; font-family:Helvetica, Arial, sans-serif; font-size:11px; color:#9a9c95;">
           <a href="{{ site_url }}" style="color:#9a9c95; text-decoration:underline;">africagates.org</a>{% if unsubscribe_url %}&nbsp;&nbsp;·&nbsp;&nbsp;<a href="{{ unsubscribe_url }}" style="color:#9a9c95; text-decoration:underline;">Unsubscribe</a>{% endif %}
         </p>
       </td>

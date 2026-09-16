@@ -91,7 +91,7 @@
 }
 .ag-acct__word{ font-family:var(--ag-font-display,Georgia,serif); font-weight:700; font-size:16px; }
 .ag-acct__word span{
-  font-family:var(--ag-font-body,sans-serif); font-size:9.5px; font-weight:700;
+  font-family:var(--ag-font-body,sans-serif); font-size:10px; font-weight:700;
   letter-spacing:.24em; color:var(--ac-green);
 }
 
@@ -117,7 +117,7 @@
 /* ── Back link ── */
 .ag-acct__back{
   display:inline-flex; align-items:center; gap:6px; margin:0 0 14px;
-  font-size:13.5px; font-weight:500; color:var(--ac-ink-soft); text-decoration:none;
+  font-size:14px; font-weight:500; color:var(--ac-ink-soft); text-decoration:none;
 }
 .ag-acct__back:hover{ color:var(--ac-ink); }
 
@@ -132,7 +132,7 @@
    it. The design separated the two with a sub-AA grey; this separates them with
    weight and a still-AA tone instead, because a hint saying a field is OPTIONAL
    is exactly the text somebody needs to be able to read. */
-.ag-acct__label span{ font-size:12.5px; font-weight:400; color:var(--ac-ink-soft); }
+.ag-acct__label span{ font-size:13px; font-weight:400; color:var(--ac-ink-soft); }
 
 /* Breathing room under an illustration. `partials/lottie.twig` sets its own box
    and centres it, so the gap belongs to whatever wraps it — without this the
@@ -159,7 +159,7 @@
 .ag-acct__cta{
   width:100%; padding:16px; border:1px solid transparent; border-radius:var(--ac-r);
   background:var(--ac-green); color:#fff; cursor:pointer;
-  font-family:inherit; font-size:15.5px; font-weight:600; line-height:1;
+  font-family:inherit; font-size:16px; font-weight:600; line-height:1;
   transition:background .14s;
 }
 .ag-acct__cta:hover{ background:var(--ac-green-dark); }
@@ -167,7 +167,7 @@
 .ag-acct__ghost{
   width:100%; padding:16px; border-radius:var(--ac-r); cursor:pointer;
   background:transparent; border:1px solid var(--ac-line-firm); color:var(--ac-ink);
-  font-family:inherit; font-size:15.5px; font-weight:600; line-height:1;
+  font-family:inherit; font-size:16px; font-weight:600; line-height:1;
   text-align:center; text-decoration:none; display:block;
   transition:background .14s;
 }
@@ -189,7 +189,7 @@ button.ag-acct__quiet{ background:none; border:0; padding:0; font:inherit; font-
 /* ── Alerts ── */
 .ag-acct__alert{
   margin-top:18px; padding:12px 14px; border-radius:var(--ac-r);
-  font-size:13.5px; line-height:1.5;
+  font-size:14px; line-height:1.5;
 }
 .ag-acct__alert--err{ background:var(--ac-err-fill); border:1px solid var(--ac-err-line); color:var(--ac-err); }
 .ag-acct__alert--note{ background:#eef7ee; border:1px solid rgba(35,123,34,.2); color:#1a6118; }
@@ -210,8 +210,8 @@ button.ag-acct__quiet{ background:none; border:0; padding:0; font:inherit; font-
 }
 .ag-acct__row--tall{ padding:16px 0; }
 .ag-acct__row-body{ flex:1; min-width:0; }
-.ag-acct__row-title{ display:block; font-size:14.5px; font-weight:600; line-height:1.35; }
-.ag-acct__row--tall .ag-acct__row-title{ font-size:15.5px; }
+.ag-acct__row-title{ display:block; font-size:14px; font-weight:600; line-height:1.35; }
+.ag-acct__row--tall .ag-acct__row-title{ font-size:16px; }
 .ag-acct__row:hover .ag-acct__row-title{ color:var(--ac-green); }
 .ag-acct__row-note{ display:block; margin-top:3px; font-size:13px; line-height:1.5; color:var(--ac-ink-soft); }
 .ag-acct__chev{ flex:none; color:var(--ac-ink-faint); }
@@ -255,7 +255,7 @@ button.ag-acct__quiet{ background:none; border:0; padding:0; font:inherit; font-
 .ag-acct__otp-wrap{ position:relative; }
 
 /* ── Below the card ── */
-.ag-acct__switch{ margin:22px 0 0; text-align:center; font-size:14.5px; color:var(--ac-ink-soft); }
+.ag-acct__switch{ margin:22px 0 0; text-align:center; font-size:14px; color:var(--ac-ink-soft); }
 .ag-acct__stats{
   display:flex; align-items:flex-start; justify-content:center; gap:26px; flex-wrap:wrap;
   margin-top:26px; padding-top:22px; border-top:1px solid rgba(28,26,20,.09);
@@ -263,13 +263,13 @@ button.ag-acct__quiet{ background:none; border:0; padding:0; font:inherit; font-
 .ag-acct__stat{ text-align:center; }
 .ag-acct__stat-n{ display:block; font-family:var(--ag-font-mono,monospace); font-weight:700; font-size:17px; }
 .ag-acct__stat-n--accent{ color:var(--ac-green); }
-.ag-acct__stat-l{ display:block; margin-top:2px; font-size:11.5px; color:var(--ac-ink-soft); }
+.ag-acct__stat-l{ display:block; margin-top:2px; font-size:12px; color:var(--ac-ink-soft); }
 .ag-acct__note{
   margin:20px auto 0; max-width:38ch; text-align:center;
-  font-size:12.5px; line-height:1.6; color:var(--ac-ink-soft);
+  font-size:13px; line-height:1.6; color:var(--ac-ink-soft);
 }
 .ag-acct__credit{ margin:26px 0 0; text-align:center; font-size:12px; color:var(--ac-ink-soft); }
-.ag-acct__fine{ margin:16px 0 0; text-align:center; font-size:12.5px; line-height:1.6; color:var(--ac-ink-soft); }
+.ag-acct__fine{ margin:16px 0 0; text-align:center; font-size:13px; line-height:1.6; color:var(--ac-ink-soft); }
 .ag-acct__fine a{ color:var(--ac-green); }
 
 @media (max-width:560px){

@@ -57,7 +57,7 @@
   .pd{ max-width:1000px; margin:0 auto;
     padding:clamp(20px,4vw,36px) var(--ag-gutter,32px) clamp(56px,7vw,96px); }
 
-  .pd-kick{ display:block; font-family:var(--ag-font-mono,monospace); font-size:10.5px;
+  .pd-kick{ display:block; font-family:var(--ag-font-mono,monospace); font-size:11px;
     font-weight:700; letter-spacing:.24em; text-transform:uppercase; color:var(--pd-gold-ink); }
 
   /* ── the masthead ────────────────────────────────────────────────────────── */
@@ -102,7 +102,7 @@
   .pd-state__go:hover{ background:var(--pd-green-dark) }
   .pd-state__go:focus-visible{ outline:3px solid var(--pd-green); outline-offset:3px }
 
-  .pd__flag{ border-radius:var(--pd-r-sm); padding:13px 16px; font-size:13.5px;
+  .pd__flag{ border-radius:var(--pd-r-sm); padding:13px 16px; font-size:14px;
     line-height:1.65; margin:18px 0 0; font-weight:600; border:1px solid; }
   .pd__flag--ok{ background:#effaf0; border-color:#bfe6bd; color:#1a6118; }
   .pd__flag--err{ background:#fdeaea; border-color:#f3c2c2; color:#b42318; }
@@ -141,7 +141,7 @@
      the moment it is being looked at. */
   .pd-rail__i[aria-selected="true"] .ico{ filter:brightness(1.9) saturate(1.15); }
   .pd-rail__n{ flex:1; min-width:0; }
-  .pd-rail__c{ flex:none; font:600 11.5px/1 var(--ag-font-mono,monospace);
+  .pd-rail__c{ flex:none; font:600 12px/1 var(--ag-font-mono,monospace);
     font-variant-numeric:tabular-nums; color:var(--pd-mute);
     background:rgba(16,41,44,.06); border-radius:999px; padding:4px 7px; }
   .pd-rail__i[aria-selected="true"] .pd-rail__c{ background:rgba(255,255,255,.18); color:#fff; }
@@ -232,16 +232,16 @@
   .pd-brand fieldset[disabled]{ opacity:.62; }
   .pd-brand__lg{ display:block; width:100%; margin:22px 0 0; padding:0 0 7px;
     border-bottom:1px solid var(--pd-line);
-    font:700 10.5px/1.3 var(--ag-font-mono,monospace); letter-spacing:.2em;
+    font:700 11px/1.3 var(--ag-font-mono,monospace); letter-spacing:.2em;
     text-transform:uppercase; color:var(--pd-mute); }
   .pd-brand__lg:first-of-type{ margin-top:0; }
-  .pd-brand__hint{ margin:8px 0 0; max-width:66ch; font-size:12.5px; line-height:1.6;
+  .pd-brand__hint{ margin:8px 0 0; max-width:66ch; font-size:13px; line-height:1.6;
     color:var(--pd-mute); }
   .pd-brand label{ display:block; margin:12px 0 0; }
-  .pd-brand label > span{ display:block; margin-bottom:5px; font-size:12.5px;
+  .pd-brand label > span{ display:block; margin-bottom:5px; font-size:13px;
     font-weight:600; color:var(--pd-ink,#10292C); }
   .pd-brand input[type=text], .pd-brand input[type=url], .pd-brand textarea{
-    width:100%; min-height:44px; padding:10px 12px; font-size:15px; line-height:1.5;
+    width:100%; min-height:44px; padding:10px 12px; font-size:16px; line-height:1.5;
     color:var(--pd-ink,#10292C); background:#fff; border:1px solid var(--pd-line-2);
     border-radius:8px; }
   .pd-brand textarea{ min-height:150px; resize:vertical; }
@@ -262,14 +262,14 @@
     grid-template-columns:repeat(auto-fit,minmax(260px,1fr)); }
   .pd-brand__chk{ display:flex !important; gap:10px; align-items:flex-start;
     margin:0 !important; padding:9px 10px; min-height:44px; border-radius:8px;
-    font-size:13.5px; line-height:1.45; cursor:pointer; }
+    font-size:14px; line-height:1.45; cursor:pointer; }
   .pd-brand__chk:hover{ background:var(--pd-cream); }
   .pd-brand__chk input{ flex:none; width:18px; height:18px; margin-top:2px;
     accent-color:var(--pd-green); }
   .pd-brand__chk span{ margin:0 !important; font-weight:400 !important; }
 
   .pd-brand button[type=submit]{ margin:20px 0 0; min-height:48px; padding:0 22px;
-    font-size:15px; font-weight:650; color:#fff; background:var(--pd-green);
+    font-size:16px; font-weight:650; color:#fff; background:var(--pd-green);
     border:0; border-radius:10px; cursor:pointer; }
   .pd-brand button[type=submit]:hover{ background:var(--pd-green-dark); }
 
@@ -284,18 +284,18 @@
   .pd-sec__h h2{ margin:0; font-family:var(--ag-font-display,Georgia,serif); font-weight:700;
     font-size:clamp(1.2rem,2.4vw,1.5rem); line-height:1.2; letter-spacing:-.02em;
     color:var(--pd-ink); }
-  .pd-sec__h p{ margin:8px 0 0; max-width:62ch; font-size:13.5px; line-height:1.7;
+  .pd-sec__h p{ margin:8px 0 0; max-width:62ch; font-size:14px; line-height:1.7;
     color:var(--pd-ink-2); text-wrap:pretty; }
   .pd-sec__b > :first-child{ margin-top:0 }
   .pd-sec__b{ padding-top:18px; }
-  .pd-sec__b > p{ margin:0 0 14px; max-width:62ch; font-size:13.5px; line-height:1.7;
+  .pd-sec__b > p{ margin:0 0 14px; max-width:62ch; font-size:14px; line-height:1.7;
     color:var(--pd-ink-2); }
 
   /* The money row, as a ledger rather than four boxes. Mono with tabular figures so
      a column of naira lines up on its digits. */
   .pd__grid{ display:flex; flex-wrap:wrap; gap:clamp(20px,4vw,44px); margin:0 0 22px;
     padding:0 0 20px; border-bottom:1px solid var(--pd-line); }
-  .pd__stat dt{ margin:0; font-family:var(--ag-font-mono,monospace); font-size:9.5px;
+  .pd__stat dt{ margin:0; font-family:var(--ag-font-mono,monospace); font-size:10px;
     font-weight:700; letter-spacing:.22em; text-transform:uppercase; color:var(--pd-mute); }
   /* ── letter-spacing:0, NOT the -.02em a display figure usually wants ──────
      JetBrains Mono draws the naira sign as an N with two bars, and at 700 weight with
@@ -310,20 +310,20 @@
 
   /* ── tables ──────────────────────────────────────────────────────────────── */
   .pd__wrap{ overflow-x:auto; }
-  .pd__t{ width:100%; border-collapse:collapse; font-size:13.5px; }
-  .pd__t th{ text-align:left; font-family:var(--ag-font-mono,monospace); font-size:9.5px;
+  .pd__t{ width:100%; border-collapse:collapse; font-size:14px; }
+  .pd__t th{ text-align:left; font-family:var(--ag-font-mono,monospace); font-size:10px;
     font-weight:700; letter-spacing:.2em; text-transform:uppercase; color:var(--pd-mute);
     padding:0 14px 10px 0; border-bottom:1px solid var(--pd-line-2); white-space:nowrap; }
   .pd__t td{ padding:14px 14px 14px 0; border-bottom:1px solid var(--pd-line);
     color:var(--pd-ink); vertical-align:top; line-height:1.55; }
   .pd__num{ font-family:var(--ag-font-mono,monospace); font-variant-numeric:tabular-nums;
     white-space:nowrap; }
-  .pd__empty{ font-size:13.5px; line-height:1.7; color:var(--pd-mute); margin:0; }
-  .pd__who{ font-size:12.5px; line-height:1.55; color:var(--pd-mute); margin-top:4px; }
+  .pd__empty{ font-size:14px; line-height:1.7; color:var(--pd-mute); margin:0; }
+  .pd__who{ font-size:13px; line-height:1.55; color:var(--pd-mute); margin-top:4px; }
   .pd__who a{ color:var(--pd-green-dark); text-decoration:underline; }
 
   /* Status is never colour alone — the word is the signal and the tint is decoration. */
-  .pd__chip{ display:inline-block; font-size:11.5px; font-weight:700; padding:4px 10px;
+  .pd__chip{ display:inline-block; font-size:12px; font-weight:700; padding:4px 10px;
     border-radius:var(--pd-r-sm); border:1px solid; white-space:nowrap; }
   .pd__chip--done{ background:#effaf0; border-color:#bfe6bd; color:#1a6118; }
   .pd__chip--open{ background:#fffdf5; border-color:#ecd9a0; color:#6b5312; }
@@ -742,11 +742,11 @@
                           'rejected':'dead','declined':'dead','pending':'open'}[a.app.decision]|default('open') %}
               <span class="pd__chip pd__chip--{{ c }}">{{ decisions[a.app.decision]|default(a.app.decision) }}</span>
               {% if a.app.decision_reason %}
-                <div style="margin-top:5px;font-size:12.5px;line-height:1.55;color:var(--ag-ink-soft,#626a6e)">
+                <div style="margin-top:5px;font-size:13px;line-height:1.55;color:var(--ag-ink-soft,#626a6e)">
                   {{ a.app.decision_reason }}</div>
               {% endif %}
               {% if a.app.eligibility == 'fail' and a.app.eligibility_note %}
-                <div style="margin-top:5px;font-size:12.5px;line-height:1.55;color:#b42318">
+                <div style="margin-top:5px;font-size:13px;line-height:1.55;color:#b42318">
                   {{ a.app.eligibility_note }}</div>
               {% endif %}
             </td>
@@ -757,16 +757,16 @@
                     <input type="hidden" name="_token" value="{{ csrf_token }}">
                     <button type="submit" style="min-height:44px;padding:0 18px;border:none;
                             border-radius:999px;background:var(--ag-green,#237b22);color:#fff;
-                            font:700 13.5px/1 inherit;cursor:pointer">Accept</button>
+                            font:700 14px/1 inherit;cursor:pointer">Accept</button>
                   </form>
                   <div style="margin-top:5px;font-size:12px;color:var(--ag-ink-soft,#626a6e)">
                     By {{ a.app.offer_expires_at|slice(0,16) }}</div>
                 {% else %}
-                  <span style="font-size:12.5px;color:var(--ag-ink-soft,#626a6e)">
+                  <span style="font-size:13px;color:var(--ag-ink-soft,#626a6e)">
                     Only an account owner can accept</span>
                 {% endif %}
               {% elseif a.expired %}
-                <span style="font-size:12.5px;color:#b42318">This offer expired</span>
+                <span style="font-size:13px;color:#b42318">This offer expired</span>
               {% endif %}
             </td>
           </tr>

@@ -34,9 +34,9 @@
 <style nonce="{{ csp_nonce }}">
   .st-bar{position:sticky;top:0;z-index:20;background:var(--ad-bg,#f6f8f5);padding:12px 0 14px;margin-bottom:4px;border-bottom:1px solid var(--ad-line,#e5eae8)}
   .st-tabs{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
-  .st-tab{border:1px solid var(--ad-line,#e5eae8);background:var(--ad-surface,#fff);color:var(--ad-text,#10292c);border-radius:999px;padding:7px 14px;font-size:12.5px;font-weight:600;cursor:pointer;font:inherit;font-size:12.5px;line-height:1.2}
+  .st-tab{border:1px solid var(--ad-line,#e5eae8);background:var(--ad-surface,#fff);color:var(--ad-text,#10292c);border-radius:999px;padding:7px 14px;font-size:13px;font-weight:600;cursor:pointer;font:inherit;font-size:13px;line-height:1.2}
   .st-tab[aria-pressed="true"]{background:var(--ad-accent,#237b22);border-color:transparent;color:#fff}
-  .st-search{flex:1;min-width:170px;max-width:280px;padding:7px 12px;border:1px solid var(--ad-line,#e5eae8);border-radius:999px;font-size:12.5px;background:var(--ad-surface,#fff);color:inherit}
+  .st-search{flex:1;min-width:170px;max-width:280px;padding:7px 12px;border:1px solid var(--ad-line,#e5eae8);border-radius:999px;font-size:13px;background:var(--ad-surface,#fff);color:inherit}
   .st-hint{margin:8px 0 0;font-size:12px;color:var(--ad-text-mute,#61728e)}
   /* ── one revenue stream's routing ──────────────────────────────────────────
      Boxed per stream rather than as six loose fields, because the pairing is the whole point:
@@ -44,19 +44,19 @@
      somebody sets the shop's bearer against the event's account. */
   .pay-route{border:1px solid var(--ad-line,#e2e8e6);border-radius:12px;padding:12px 14px;margin-bottom:10px;background:var(--ad-surface,#fff)}
   .pay-route__h{display:flex;align-items:center;gap:9px;margin-bottom:8px}
-  .pay-route__h strong{font-size:13.5px}
-  .pay-route__on,.pay-route__off,.pay-route__bad{font-size:10.5px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;border-radius:999px;padding:3px 9px}
+  .pay-route__h strong{font-size:14px}
+  .pay-route__on,.pay-route__off,.pay-route__bad{font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;border-radius:999px;padding:3px 9px}
   .pay-route__on{background:#eef7ee;color:#1a6118}
   .pay-route__off{background:#f2f4f3;color:#6b7679}
   .pay-route__bad{background:#fbeceb;color:#9a2a1e}
   .pay-route__warn{margin:0 0 10px;padding:9px 12px;border-left:3px solid #c2410c;background:#fff7ed;
-    border-radius:0 5px 5px 0;font-size:12.5px;line-height:1.6;color:#7c2d12}
+    border-radius:0 5px 5px 0;font-size:13px;line-height:1.6;color:#7c2d12}
   .pay-route input,.pay-route select{box-sizing:border-box;max-width:100%}
   .st-tier{display:grid;grid-template-columns:1fr 1fr auto;gap:8px;align-items:end;margin-bottom:8px}
   .st-dot{display:inline-block;width:6px;height:6px;border-radius:50%;background:#D8A33C;margin-left:6px;vertical-align:middle}
   .st-tab[aria-pressed="true"] .st-dot{background:#fff}
   .st-dirty{font-size:12px;font-weight:600;color:#8a6a1e;background:#fdf3dc;border:1px solid #ecd9a6;border-radius:999px;padding:5px 11px}
-  .st-kbd{font:600 10.5px/1 ui-monospace,monospace;border:1px solid var(--ad-line,#e5eae8);border-bottom-width:2px;border-radius:4px;padding:2px 4px;background:var(--ad-surface,#fff)}
+  .st-kbd{font:600 11px/1 ui-monospace,monospace;border:1px solid var(--ad-line,#e5eae8);border-bottom-width:2px;border-radius:4px;padding:2px 4px;background:var(--ad-surface,#fff)}
   .st-none{padding:22px;text-align:center;color:var(--ad-text-mute,#61728e);font-size:13px;border:1px dashed var(--ad-line,#e5eae8);border-radius:12px}
   @media (max-width:640px){ .st-bar{position:static} }
 </style>
@@ -245,13 +245,13 @@
           {% if mail_health.dev_24h > 0 %}<span class="ad-chip ad-chip--gold" title="SMTP is unconfigured — these went to var/logs/outgoing-mail.log, NOT to inboxes">{{ mail_health.dev_24h }} dev-logged (not delivered)</span>{% endif %}
         </div>
         {% if mail_health.last_error %}
-        <div class="ad-flash ad-flash--err" role="alert" style="margin-bottom:10px;font-size:12.5px">Most recent failure: {{ mail_health.last_error }}</div>
+        <div class="ad-flash ad-flash--err" role="alert" style="margin-bottom:10px;font-size:13px">Most recent failure: {{ mail_health.last_error }}</div>
         {% endif %}
         {% if mail_health.recent is not empty %}
         <details>
-          <summary style="cursor:pointer;font-size:12.5px;font-weight:600;color:var(--ad-text-soft)">Recent sends ({{ mail_health.recent|length }})</summary>
+          <summary style="cursor:pointer;font-size:13px;font-weight:600;color:var(--ad-text-soft)">Recent sends ({{ mail_health.recent|length }})</summary>
           <div class="ad-table-wrap" style="margin-top:8px">
-            <table class="ad-table" style="font-size:12.5px">
+            <table class="ad-table" style="font-size:13px">
               <thead><tr><th scope="col">When</th><th scope="col">To</th><th scope="col">Subject</th><th scope="col">Status</th></tr></thead>
               <tbody>
                 {% for m in mail_health.recent %}
@@ -436,7 +436,7 @@
       {% if not azure_voice_on and door_voice_provider == 'azure' %}
         <div style="margin:0 0 14px;padding:12px 14px;border:1px solid rgba(16,41,44,.14);border-radius:10px;background:rgba(16,41,44,.03)">
           <p style="margin:0 0 6px;font-weight:600;font-size:13px">Where these come from</p>
-          <ol style="margin:0;padding-left:18px;font-size:12.5px;line-height:1.65">
+          <ol style="margin:0;padding-left:18px;font-size:13px;line-height:1.65">
             <li>In the Azure portal, create a <strong>Speech service</strong> resource — free tier <strong>F0</strong> is enough for this and costs nothing.</li>
             <li>Open it and go to <strong>Keys and Endpoint</strong>. Copy <strong>KEY 1</strong> into the key box, and the <strong>Location/Region</strong> value (like <code>southafricanorth</code>) into the region box.</li>
             <li>Save, then press <strong>Hear it</strong> below. If anything is wrong, the reason appears here in words rather than in a log.</li>
@@ -557,7 +557,7 @@
       {% if azure_voice_on %}
         <label style="display:flex;gap:8px;align-items:center;margin-top:10px;cursor:pointer">
           <input type="checkbox" name="secret_clear[azure_key]" value="1">
-          <span style="font-size:12.5px">Remove the stored key</span>
+          <span style="font-size:13px">Remove the stored key</span>
         </label>
       {% endif %}
 
@@ -720,7 +720,7 @@
             {%- if voice_known %} {{ voice_known }} name{{ voice_known == 1 ? '' : 's' }} worked out so far.{% endif %}
           </p>
           <div style="max-height:280px;overflow:auto;border:1px solid rgba(16,41,44,.12);border-radius:9px">
-            <table style="width:100%;border-collapse:collapse;font-size:12.5px">
+            <table style="width:100%;border-collapse:collapse;font-size:13px">
               <thead><tr>
                 <th style="text-align:left;padding:7px 10px;font-weight:600;border-bottom:1px solid rgba(16,41,44,.12)">Name</th>
                 <th style="text-align:left;padding:7px 10px;font-weight:600;border-bottom:1px solid rgba(16,41,44,.12)">Guests</th>
@@ -742,7 +742,7 @@
                       <input type="text" id="vp-{{ loop.index0 }}" class="vp-say"
                              data-name="{{ p.name }}" value="{{ p.said }}"
                              placeholder="say it how it sounds" maxlength="60" autocomplete="off"
-                             style="width:100%;min-width:150px;font-family:var(--ag-font-mono,monospace);font-size:12.5px">
+                             style="width:100%;min-width:150px;font-family:var(--ag-font-mono,monospace);font-size:13px">
                     </td>
                     <td style="padding:5px 10px;border-bottom:1px solid rgba(16,41,44,.07);color:#8a9a9c;white-space:nowrap">{{ p.source }}</td>
                     <td style="padding:5px 10px 5px 0;border-bottom:1px solid rgba(16,41,44,.07)">
@@ -808,7 +808,7 @@
               read by rule.
             </p>
             <div style="max-height:320px;overflow:auto;border:1px solid rgba(16,41,44,.12);border-radius:9px">
-              <table style="width:100%;border-collapse:collapse;font-size:12.5px">
+              <table style="width:100%;border-collapse:collapse;font-size:13px">
                 <thead><tr>
                   <th style="text-align:left;padding:7px 10px;font-weight:600;border-bottom:1px solid rgba(16,41,44,.12)">Name</th>
                   <th style="text-align:left;padding:7px 10px;font-weight:600;border-bottom:1px solid rgba(16,41,44,.12)">How it is said</th>
@@ -1146,12 +1146,12 @@
                  the admin is actually deciding is what the supporter will be asked
                  to pay — so it is shown here rather than left to be discovered on
                  the ballot. Same formula as PaidVoteService::price(). #}
-              <span style="font-size:12.5px;color:var(--ad-text-mute,#5a6d6f);white-space:nowrap" x-text="'₦' + price(r).toLocaleString()"></span>
+              <span style="font-size:13px;color:var(--ad-text-mute,#5a6d6f);white-space:nowrap" x-text="'₦' + price(r).toLocaleString()"></span>
               <button type="button" class="ad-btn" @click="remove(i)" :disabled="rows.length <= 1" :aria-label="'Remove tier ' + (i+1)" style="padding:6px 10px;font-size:12px">Remove</button>
             </div>
           </div>
         </template>
-        <button type="button" class="ad-btn" @click="add()" style="margin-top:4px;font-size:12.5px">+ Add a tier</button>
+        <button type="button" class="ad-btn" @click="add()" style="margin-top:4px;font-size:13px">+ Add a tier</button>
       </div>
 
       <p style="margin:12px 0 0;font-size:12px;color:var(--ad-text-mute,#5a6d6f)">A bulk buyer purchasing {{ paid_max_qty|default(1000)|number_format }} votes in one order is <strong>one database row</strong>, so a large order costs the site no more work than a small one. The effective maximum is currently <strong>{{ paid_max_qty|default(1000)|number_format }}</strong> — the lower of this field and the quantity whose price stays under ₦{{ (paid_max_order_naira|default(100000000))|number_format }} per transaction. Your payment gateway and the buyer's bank impose their own, usually lower, per-transaction limits.</p>
@@ -1169,7 +1169,7 @@
   <div class="ad-card" data-sec="site" data-keys="scoring cpi index community curve judge floor basis full credit depth cohort rank methodology" x-show="show($el)"><div class="ad-card__head"><div class="ad-card__title">Scoring &mdash; the Cultural Power Index<small>How votes and marks become a number. Published in full on the integrity page.</small></div></div><div class="ad-card__body">
     <input type="hidden" name="scoring_settings" value="1">
     <div class="ad-form">
-      <p style="margin:0 0 12px;padding:9px 11px;border-radius:8px;background:rgba(243,180,22,.12);border:1px solid rgba(243,180,22,.35);font-size:12.5px;line-height:1.55"><strong>These change published standings.</strong> A cycle whose results are announced &mdash; or printed &mdash; keeps the numbers it was announced with only if you leave these alone. Change them for the next cycle, not the one on the wall.</p>
+      <p style="margin:0 0 12px;padding:9px 11px;border-radius:8px;background:rgba(243,180,22,.12);border:1px solid rgba(243,180,22,.35);font-size:13px;line-height:1.55"><strong>These change published standings.</strong> A cycle whose results are announced &mdash; or printed &mdash; keeps the numbers it was announced with only if you leave these alone. Change them for the next cycle, not the one on the wall.</p>
 
       <div class="row">
         <div>
@@ -1269,7 +1269,7 @@
          tuning a share of a revenue stream that does not exist, while /integrity and the
          Help Centre published the rule to nominees in the present tense. #}
       {% if community_return.off_reason|default('') == 'no_paid_voting' %}
-        <p style="margin:0 0 12px;padding:9px 11px;border-radius:8px;background:rgba(243,180,22,.12);border:1px solid rgba(243,180,22,.35);font-size:12.5px;line-height:1.55;color:var(--ad-text,#10292c)"><strong>Nothing is accruing.</strong> The return is a share of what supporters contribute for votes, and <strong>paid voting is switched off</strong> — so there is no contribution to take a share of. These settings are saved and will apply the moment vote contribution is enabled above. Both <a href="/integrity#return" style="color:var(--ad-accent,#237b22)">the integrity page</a> and the Help Centre say so to the public while it is off.</p>
+        <p style="margin:0 0 12px;padding:9px 11px;border-radius:8px;background:rgba(243,180,22,.12);border:1px solid rgba(243,180,22,.35);font-size:13px;line-height:1.55;color:var(--ad-text,#10292c)"><strong>Nothing is accruing.</strong> The return is a share of what supporters contribute for votes, and <strong>paid voting is switched off</strong> — so there is no contribution to take a share of. These settings are saved and will apply the moment vote contribution is enabled above. Both <a href="/integrity#return" style="color:var(--ad-accent,#237b22)">the integrity page</a> and the Help Centre say so to the public while it is off.</p>
       {% endif %}
       <div class="row">
         <div>
@@ -1396,7 +1396,7 @@
             {% set spend = ai_spend|filter(s => s.capability == c.name)|first %}
             {% set agree = ai_agreement|filter(a => a.capability == c.name)|first %}
             <tr>
-              <td><strong>{{ c.name }}</strong><div style="font-size:11.5px;color:var(--ad-text-mute,#61728e)">{{ c.purpose }}</div></td>
+              <td><strong>{{ c.name }}</strong><div style="font-size:12px;color:var(--ad-text-mute,#61728e)">{{ c.purpose }}</div></td>
               <td><code style="font-size:11px">{{ c.model }}</code></td>
               <td>
                 {# Declared per feature, not assumed: silent degradation is right
@@ -1431,7 +1431,7 @@
     {% if ai_failures is defined and ai_failures %}
     <div class="ad-table-wrap">
       <table class="ad-table">
-        <caption style="text-align:left;padding:12px 0;font-size:12.5px;color:var(--ad-text-mute,#5a6d6f)">
+        <caption style="text-align:left;padding:12px 0;font-size:13px;color:var(--ad-text-mute,#5a6d6f)">
           The last {{ ai_failures|length }} failure{{ ai_failures|length == 1 ? '' : 's' }} in 24 hours —
           what the provider actually said, and the one thing to change.
         </caption>
@@ -1444,7 +1444,7 @@
           <tr>
             <td style="white-space:nowrap">{{ f.at|when_zoned('j M, H:i') }}
               {% if f.latency_ms > 0 %}<div style="font-size:11px;color:var(--ad-text-mute,#61728e)">{{ (f.latency_ms / 1000)|number_format(1) }}s</div>{% endif %}</td>
-            <td><strong style="font-size:12.5px">{{ f.capability }}</strong></td>
+            <td><strong style="font-size:13px">{{ f.capability }}</strong></td>
             <td><span class="ad-chip ad-chip--gold">{{ f.outcome }}</span></td>
             <td><code style="font-size:11px">{{ f.provider|default('—') }}{% if f.model %} / {{ f.model }}{% endif %}</code></td>
             <td>
@@ -1461,19 +1461,19 @@
     </div>
     {% endif %}
     <div class="ad-card__body">
-      <p style="margin:0;font-size:12.5px;color:var(--ad-text-mute,#5a6d6f)">
+      <p style="margin:0;font-size:13px;color:var(--ad-text-mute,#5a6d6f)">
         Every AI call is recorded in <code>gates_ai_calls</code>; the prompt itself is not stored, only a hash.
         Switch everything off with <code>ai_enabled = 0</code>, or one feature with
         <code>ai_cap_disabled_&lt;feature&gt;</code> (dots become underscores).
       </p>
-      <p style="margin:8px 0 0;font-size:12.5px;color:var(--ad-text-mute,#5a6d6f)">
+      <p style="margin:8px 0 0;font-size:13px;color:var(--ad-text-mute,#5a6d6f)">
         <strong>Reading a timeout:</strong> <code>TIMEOUT after Ns</code> means the provider
         connected and was answering — the job simply needed longer than the feature allows.
         Nothing is wrong with the key or the network; raise that capability's timeout, or ask
         it for a shorter answer. <code>HTTP 0</code> is the different fault: the request never
         left this server.
       </p>
-      <p style="margin:8px 0 0;font-size:12.5px;color:var(--ad-text-mute,#5a6d6f)">
+      <p style="margin:8px 0 0;font-size:13px;color:var(--ad-text-mute,#5a6d6f)">
         <strong>Reading agreement:</strong> a LOW rate is the clear signal — the suggestion is not earning its
         cost and the feature should be switched off rather than tuned indefinitely. A rate near 100% is
         ambiguous: it may mean the suggestion is good, or that reviewers are deferring to it. Treat it as a
@@ -1555,7 +1555,7 @@
         <div><label for="f-ai_anthropic_model">Anthropic model <small>optional — point at your best Claude</small></label><input type="text" name="ai_anthropic_model" id="f-ai_anthropic_model" value="{{ values.ai_anthropic_model|default('') }}" placeholder="{{ ai_default_models.anthropic }}"></div>
         <div><label for="f-ai_groq_model">Groq model <small>general / public — fast &amp; cheap</small></label><input type="text" name="ai_groq_model" id="f-ai_groq_model" value="{{ values.ai_groq_model|default('') }}" placeholder="{{ ai_default_models.groq }}"></div>
       </div>
-      <p style="margin:8px 0 0;font-size:11.5px;color:var(--ad-text-mute,#61728e)">Every provider's model is yours to set — leave blank for the default shown. Setting one here overrides the per-feature pin for that provider, so moving to a newer model is a settings change rather than a deploy. Point each at the strongest model your plan allows.</p>
+      <p style="margin:8px 0 0;font-size:12px;color:var(--ad-text-mute,#61728e)">Every provider's model is yours to set — leave blank for the default shown. Setting one here overrides the per-feature pin for that provider, so moving to a newer model is a settings change rather than a deploy. Point each at the strongest model your plan allows.</p>
 
       <div style="margin-top:14px;padding-top:14px;border-top:1px solid var(--ad-line,#e5eae8)">
         <label style="font-weight:600">Dedicated moderation Groq key
@@ -1588,7 +1588,7 @@
           <div><label for="f-voice_model">Voice model <small>optional</small></label><input type="text" name="voice_elevenlabs_model" id="f-voice_model" value="{{ values.voice_elevenlabs_model|default('') }}" placeholder="{{ voice_defaults.tts }}"></div>
         </div>
         <div style="margin-top:8px"><label for="f-voice_stt">Transcription model <small>for spoken answers</small></label><input type="text" name="voice_elevenlabs_stt_model" id="f-voice_stt" value="{{ values.voice_elevenlabs_stt_model|default('') }}" placeholder="{{ voice_defaults.stt }}"></div>
-        <p style="margin:8px 0 0;font-size:11.5px;color:var(--ad-text-mute,#61728e)">
+        <p style="margin:8px 0 0;font-size:12px;color:var(--ad-text-mute,#61728e)">
           The default voice is a placeholder, not a recommendation — it is an American one. Copy a voice ID from your ElevenLabs library and paste it here; for a continental African panel the accent is not a cosmetic choice.
           Currently reading with <code>{{ voice_status.tts }}</code> and transcribing with <code>{{ voice_status.stt }}</code>.
         </p>
@@ -1638,7 +1638,7 @@
             {% for p in ai_probe %}
               <tr>
                 <td style="font-weight:600">{{ p.provider|capitalize }}</td>
-                <td><code style="font-size:11.5px">{{ p.model ?: '—' }}</code></td>
+                <td><code style="font-size:12px">{{ p.model ?: '—' }}</code></td>
                 <td>
                   {% if not p.configured %}
                     <span style="color:var(--ad-text-mute,#61728e)">No key set</span>
@@ -1654,10 +1654,10 @@
                     <div style="margin-top:4px;font-family:var(--ag-font-mono,monospace);font-size:11px;color:#5a6d6f;word-break:break-word">{{ p.error }}</div>
                   {% endif %}
                   {% if p.cause %}
-                    <div style="margin-top:4px;font-size:11.5px;line-height:1.5;color:#3c4649">{{ p.cause }}</div>
+                    <div style="margin-top:4px;font-size:12px;line-height:1.5;color:#3c4649">{{ p.cause }}</div>
                   {% endif %}
                 </td>
-                <td style="text-align:right;font-family:var(--ag-font-mono,monospace);font-size:11.5px;color:var(--ad-text-mute,#61728e)">{{ p.configured ? p.ms ~ 'ms' : '—' }}</td>
+                <td style="text-align:right;font-family:var(--ag-font-mono,monospace);font-size:12px;color:var(--ad-text-mute,#61728e)">{{ p.configured ? p.ms ~ 'ms' : '—' }}</td>
               </tr>
             {% endfor %}
             </tbody>
@@ -1746,12 +1746,12 @@
                 <span style="color:#a32b1c;font-weight:600">● Not working</span>
               {% endif %}
               {% if r.detail %}
-                <div style="margin-top:4px;font-size:11.5px;line-height:1.55;color:#3c4649">{{ r.detail }}</div>
+                <div style="margin-top:4px;font-size:12px;line-height:1.55;color:#3c4649">{{ r.detail }}</div>
               {% endif %}
               {# The fix, and only when there is one to give. A row that prints advice on a
                  passing check teaches the reader to stop reading the column. #}
               {% if r.fix %}
-                <div style="margin-top:6px;padding:8px 10px;border-left:3px solid var(--ad-gold,#d49a0e);background:#fffaf0;font-size:11.5px;line-height:1.6;color:#5a4a1f">{{ r.fix }}</div>
+                <div style="margin-top:6px;padding:8px 10px;border-left:3px solid var(--ad-gold,#d49a0e);background:#fffaf0;font-size:12px;line-height:1.6;color:#5a4a1f">{{ r.fix }}</div>
               {% endif %}
             </td>
           </tr>
@@ -1846,7 +1846,7 @@
     </div>
 
     <details style="margin-top:8px">
-      <summary style="cursor:pointer;font-size:12.5px;font-weight:600">Prefer an external scheduler? (optional)</summary>
+      <summary style="cursor:pointer;font-size:13px;font-weight:600">Prefer an external scheduler? (optional)</summary>
       <p style="font-size:12px;color:var(--ad-text-mute,#5a6d6f);margin:8px 0">
         Point a free webcron service (cron-job.org, EasyCron) or a cPanel “fetch a URL” job at this URL every ~15 minutes:
       </p>
@@ -1857,7 +1857,7 @@
       {% else %}
       <p style="font-size:12px;color:#b4452f">No cron token yet — save this section once to generate one.</p>
       {% endif %}
-      <label style="font-size:11.5px;display:inline-flex;gap:6px;align-items:center;margin-top:8px">
+      <label style="font-size:12px;display:inline-flex;gap:6px;align-items:center;margin-top:8px">
         <input type="checkbox" name="cron_token_generate" value="1"> Regenerate the token on save (invalidates the old URL)
       </label>
     </details>
@@ -1866,7 +1866,7 @@
   <div class="ad-card" data-sec="integrity" data-keys="voting integrity disposable emails throwaway blocked domains mx deliverability otp" x-show="show($el)"><div class="ad-card__head"><div class="ad-card__title">Voting integrity — disposable emails<small>Block throwaway inboxes used to stuff votes. A built-in list + your additions.</small></div></div><div class="ad-card__body">
     <p style="margin:0 0 10px;font-size:13px;color:var(--ad-text-mute,#5a6d6f)">The OTP + registration gates already reject known disposable-mail providers. Add any new ones here (comma- or line-separated domains) to block them immediately — no deploy needed.</p>
     <label for="f-disposable">Extra blocked domains</label>
-    <textarea name="disposable_domains_extra" id="f-disposable" rows="3" placeholder="e.g. newtrashmail.com, another-temp.io" style="width:100%;font-family:'Space Mono',monospace;font-size:12.5px">{{ values.disposable_domains_extra|default('') }}</textarea>
+    <textarea name="disposable_domains_extra" id="f-disposable" rows="3" placeholder="e.g. newtrashmail.com, another-temp.io" style="width:100%;font-family:'Space Mono',monospace;font-size:13px">{{ values.disposable_domains_extra|default('') }}</textarea>
     <label style="display:inline-flex;gap:8px;align-items:center;margin-top:10px;font-size:13px">
       <input type="checkbox" name="disposable_require_mx" value="1" {% if values.disposable_require_mx|default('') in ['1','true','on','yes'] %}checked{% endif %}>
       Also reject domains with no mail server (MX/A) — an undeliverable address can't receive the OTP anyway.
@@ -1894,7 +1894,7 @@
          per message to a Nigerian handset than either of the two above it, and almost
          every recipient here is on an African network. Configure one; configure two and
          the higher one is the fallback. #}
-      <p style="margin:0 0 8px;font-size:12.5px;color:var(--ad-text-mute,#5a6d6f)">
+      <p style="margin:0 0 8px;font-size:13px;color:var(--ad-text-mute,#5a6d6f)">
         Texts go out through the first of these that is set up:
         <strong>Africa&rsquo;s Talking</strong> &rarr; <strong>Termii</strong> &rarr; <strong>Twilio</strong> &mdash;
         cheapest per African number first.
@@ -1916,7 +1916,7 @@
         to answer a question about a gateway.
       #}
       {% if sms_status.last_failure %}
-        <p style="margin:0 0 10px;padding:10px 12px;border-left:3px solid #b45309;background:#fff8ed;font-size:12.5px;line-height:1.6;color:#7a4a00">
+        <p style="margin:0 0 10px;padding:10px 12px;border-left:3px solid #b45309;background:#fff8ed;font-size:13px;line-height:1.6;color:#7a4a00">
           <strong>The last message did not go out.</strong>
           {{ sms_status.last_failure.provider }} refused a {{ sms_status.last_failure.channel }}
           to {{ sms_status.last_failure.to }} on {{ sms_status.last_failure.at }} &mdash;
@@ -1953,7 +1953,7 @@
         <div>
           <label for="f-sms_termii_from">Termii sender ID <em style="font-weight:400;color:var(--ad-text-mute,#5a6d6f)">required for Termii</em></label>
           <input type="text" name="sms_termii_from" id="f-sms_termii_from" value="{{ values.sms_termii_from|default('') }}" placeholder="an ID already approved on your account">
-          <p style="margin:4px 0 0;font-size:11.5px;color:var(--ad-text-mute,#5a6d6f)">Termii is skipped without one: a key with no approved sender ID answers 200 and sends nothing.</p>
+          <p style="margin:4px 0 0;font-size:12px;color:var(--ad-text-mute,#5a6d6f)">Termii is skipped without one: a key with no approved sender ID answers 200 and sends nothing.</p>
         </div>
       </div>
       <div class="row">

@@ -13,10 +13,10 @@
 <style nonce="{{ csp_nonce }}">
   .ap-lede{ background:#fff; border:1px solid rgba(16,41,44,.1); border-radius:14px;
     padding:18px 20px; margin-bottom:16px }
-  .ap-lede h2{ margin:0 0 8px; font-size:14.5px; color:#10292C }
-  .ap-lede p{ margin:8px 0 0; font-size:12.5px; line-height:1.7; color:#5a6d6f; max-width:76ch }
+  .ap-lede h2{ margin:0 0 8px; font-size:14px; color:#10292C }
+  .ap-lede p{ margin:8px 0 0; font-size:13px; line-height:1.7; color:#5a6d6f; max-width:76ch }
   .ap-lede strong{ color:#10292C }
-  .ap-tag{ font-size:10.5px; font-weight:700; letter-spacing:.05em; text-transform:uppercase;
+  .ap-tag{ font-size:11px; font-weight:700; letter-spacing:.05em; text-transform:uppercase;
     padding:3px 8px; border-radius:999px; background:rgba(16,41,44,.07); color:#3d4b4d }
   .ap-tag--on{ background:#eaf7ea; color:#1c5f1b }
   .ap-mut{ font-size:12px; color:#5a6d6f; line-height:1.55 }
@@ -71,14 +71,14 @@
       {% for r in rows %}
         <tr>
           <td>
-            <strong style="font-family:var(--ag-font-mono,monospace);font-size:12.5px">{{ r.capability }}</strong>
+            <strong style="font-family:var(--ag-font-mono,monospace);font-size:13px">{{ r.capability }}</strong>
             <div class="ap-mut">
               {% if r.advisory %}Advisory — it can never decide anything.{% endif %}
               {% if r.public %} Reads text the public submitted.{% endif %}
             </div>
           </td>
           <td class="ap-mut">{{ r.purpose }}</td>
-          <td class="ap-mut" style="font-family:var(--ag-font-mono,monospace);font-size:11.5px">{{ r.model }}</td>
+          <td class="ap-mut" style="font-family:var(--ag-font-mono,monospace);font-size:12px">{{ r.model }}</td>
           <td>
             {% if r.edited %}
               <span class="ap-tag ap-tag--on">Yours · v{{ r.version }}</span>

@@ -41,7 +41,7 @@
   html{ scroll-padding-top:88px; }
 
   .vn{ max-width:1080px; margin:0 auto; padding:0 var(--ag-gutter,32px); }
-  .vn-crumb{ padding:18px 0 0; font-size:13.5px; color:var(--ag-ink-soft); }
+  .vn-crumb{ padding:18px 0 0; font-size:14px; color:var(--ag-ink-soft); }
   /* Breadcrumb links were 15px tall — a 12.5px line box and nothing else. The trail
      is how somebody gets back to the category they were browsing, so it has to be
      tappable; inline-block plus vertical padding grows the hit area without moving
@@ -74,16 +74,16 @@
   /* Both of these are facts about a position, and neither is a state anybody can
      act on — so both are outlined ink. A filled pill here would be a third event on
      a two-event page, spent on a standing rather than on the ask. */
-  .vn-badge{ font:600 10.5px/1 var(--ag-font-mono); letter-spacing:.12em; text-transform:uppercase;
+  .vn-badge{ font:600 11px/1 var(--ag-font-mono); letter-spacing:.12em; text-transform:uppercase;
              padding:7px 12px; border-radius:999px; border:1px solid var(--ag-line);
              color:var(--ag-ink-2); display:inline-flex; align-items:center; gap:6px; }
-  .vn-rankpill{ font:600 10.5px/1 var(--ag-font-mono); letter-spacing:.1em; text-transform:uppercase;
+  .vn-rankpill{ font:600 11px/1 var(--ag-font-mono); letter-spacing:.1em; text-transform:uppercase;
                 padding:7px 12px; border-radius:999px; border:1px solid var(--ag-line);
                 color:var(--ag-ink-2); }
   .vn-hero h1{ margin:0; font-family:var(--ag-font-display); font-weight:700;
                font-size:clamp(1.9rem,4.4vw,2.4rem); line-height:1.02; letter-spacing:-.03em;
                color:var(--ag-ink); overflow-wrap:break-word; hyphens:none; }
-  .vn-meta{ margin:12px 0 0; font-size:15px; line-height:1.5; color:var(--ag-ink-2); }
+  .vn-meta{ margin:12px 0 0; font-size:16px; line-height:1.5; color:var(--ag-ink-2); }
 
   .vn-stats{ display:flex; align-items:center; gap:clamp(16px,3vw,26px); margin-top:20px; flex-wrap:wrap; }
   .vn-stat__n{ font-family:var(--ag-font-mono); font-weight:700; font-size:clamp(26px,3.6vw,34px);
@@ -94,13 +94,13 @@
                color:var(--ag-ink-soft); margin-top:6px; }
   /* Under the tally, not beside it: this is a caveat on a number, and a caveat set at
      the same level as the thing it qualifies reads as a second statistic. */
-  .vn-vsplit{ margin:14px 0 0; max-width:56ch; font-size:13.5px; line-height:1.6;
+  .vn-vsplit{ margin:14px 0 0; max-width:56ch; font-size:14px; line-height:1.6;
               color:var(--ag-ink-2); }
   .vn-vsplit a{ color:var(--ag-ink); font-weight:600; }
   .vn-stat__div{ width:1px; height:40px; background:var(--ag-line); }
 
   .vn-cta{ display:flex; gap:11px; margin-top:24px; flex-wrap:wrap; }
-  .vn-btn{ cursor:pointer; text-decoration:none; font-family:inherit; font-weight:600; font-size:15px;
+  .vn-btn{ cursor:pointer; text-decoration:none; font-family:inherit; font-weight:600; font-size:16px;
            padding:13px 26px; border-radius:999px; display:inline-flex; align-items:center; gap:8px;
            border:1px solid transparent; min-height:44px; }
   /* THE ONE `action` EVENT ON THIS PAGE, with the lip — the press is the lip
@@ -145,7 +145,7 @@
   .vn-laurel__badge{ display:inline-flex; align-items:center; gap:8px;
                      border:1px solid var(--ag-honour-fill); color:var(--ag-honour-fill);
                      border-radius:999px; padding:7px 14px;
-                     font:700 10.5px/1 var(--ag-font-mono); letter-spacing:.12em;
+                     font:700 11px/1 var(--ag-font-mono); letter-spacing:.12em;
                      text-transform:uppercase; }
   /* Two class names deep, deliberately. `.vn-card h2` is declared later in this
      same stylesheet at equal specificity, so a plain `.vn-laurel h2` LOSES on
@@ -155,7 +155,7 @@
                  color:var(--ag-card); font-size:clamp(1.5rem,4vw,2rem); letter-spacing:-.02em;
                  line-height:1.15; }
   .vn-laurel .vn-laurel__roll h3{ color:var(--ag-honour-fill); }
-  .vn-laurel__lede{ margin:10px 0 0; font-size:15px; line-height:1.7; color:var(--ag-desk); max-width:56ch; }
+  .vn-laurel__lede{ margin:10px 0 0; font-size:16px; line-height:1.7; color:var(--ag-desk); max-width:56ch; }
   .vn-laurel__lede strong{ color:var(--ag-honour-fill); }
   .vn-laurel__lede em{ color:var(--ag-card); font-style:italic; }
   .vn-laurel__lede a{ color:var(--ag-honour-fill); }
@@ -163,11 +163,11 @@
                     border-top:1px solid var(--ag-ink-soft); }
   .vn-laurel__roll h3{ margin:0; font:700 11px/1 var(--ag-font-mono); letter-spacing:.14em;
                        text-transform:uppercase; color:var(--ag-honour-fill); }
-  .vn-laurel__roll p{ margin:9px 0 0; font-size:13.5px; line-height:1.6; color:var(--ag-desk); max-width:60ch; }
+  .vn-laurel__roll p{ margin:9px 0 0; font-size:14px; line-height:1.6; color:var(--ag-desk); max-width:60ch; }
   .vn-laurel__names{ display:flex; flex-wrap:wrap; gap:8px; margin-top:15px; }
   .vn-laurel__name{ display:inline-flex; align-items:center; background:var(--ag-ink-2);
                     border:1px solid var(--ag-ink-soft); border-radius:999px; padding:6px 14px;
-                    font-size:13.5px; font-weight:500; color:var(--ag-card); }
+                    font-size:14px; font-weight:500; color:var(--ag-card); }
 
   .vn-card h2{ margin:0; font-family:var(--ag-font-display); font-weight:700; font-size:20px;
                letter-spacing:-.02em; color:var(--ag-ink); }
@@ -176,7 +176,7 @@
      the box wide. `anywhere` also lets the browser count the break opportunity
      when sizing, which is what keeps the column from growing in the first place.
      Hyphens make the forced break read as a break rather than as a typo. */
-  .vn-card p.body{ margin:14px 0 0; font-size:15.5px; line-height:1.7; color:var(--ag-ink-2);
+  .vn-card p.body{ margin:14px 0 0; font-size:16px; line-height:1.7; color:var(--ag-ink-2);
                    overflow-wrap:anywhere; hyphens:auto; }
   /* The nomination brief, when a fuller profile bio follows it. Set apart so the
      two read as a lead and a body rather than as one paragraph that repeats. */
@@ -190,7 +190,7 @@
     background:linear-gradient(to bottom, transparent, var(--ag-card) 86%); }
   .vn-more{ display:inline-flex; align-items:center; gap:6px; min-height:40px; margin-top:6px;
     background:none; border:none; padding:6px 0; cursor:pointer;
-    font:700 13.5px/1 inherit; color:var(--ag-ink); text-decoration:underline;
+    font:700 14px/1 inherit; color:var(--ag-ink); text-decoration:underline;
     text-underline-offset:3px; }
   .vn-more:hover{ color:var(--ag-ink-2); }
   .vn-more svg{ transition:transform .18s ease; }
@@ -200,8 +200,8 @@
   .vn-sect{ margin-top:18px; }
   .vn-sect--split{ padding-top:18px; border-top:1px solid var(--ag-line); }
   .vn-sect__h{ margin:0; font-size:14px; font-weight:700; color:var(--ag-ink); }
-  .vn-sect__sub{ margin:8px 0 0; font-size:13.5px; line-height:1.6; color:var(--ag-ink-soft); }
-  .vn-sect__more{ margin:14px 0 0; font-size:13.5px; }
+  .vn-sect__sub{ margin:8px 0 0; font-size:14px; line-height:1.6; color:var(--ag-ink-soft); }
+  .vn-sect__more{ margin:14px 0 0; font-size:14px; }
   .vn-sect__more a{ display:inline-flex; align-items:center; min-height:40px;
     color:var(--ag-ink); font-weight:600; text-decoration:underline; text-underline-offset:3px; }
   .vn-chips{ display:flex; flex-wrap:wrap; gap:8px; margin-top:14px; }
@@ -214,7 +214,7 @@
   .vn-chip__av{ width:24px; height:24px; border-radius:50%; background:var(--ag-ink-2);
     color:var(--ag-card); display:inline-flex; align-items:center; justify-content:center;
     font-size:11px; font-weight:700; }
-  .vn-full{ margin:16px 0 0; font-size:13.5px; font-weight:600; color:var(--ag-ink);
+  .vn-full{ margin:16px 0 0; font-size:14px; font-weight:600; color:var(--ag-ink);
             text-decoration:underline; text-underline-offset:3px;
             display:inline-flex; align-items:center; gap:6px; }
 
@@ -226,10 +226,10 @@
     background:var(--ag-surface-2); color:var(--ag-ink-2);
     background-size:cover; background-position:center; }
   .vn-sim__b{ flex:1; min-width:0; }
-  .vn-sim__n{ font-weight:600; font-size:13.5px; color:var(--ag-ink); white-space:nowrap;
+  .vn-sim__n{ font-weight:600; font-size:14px; color:var(--ag-ink); white-space:nowrap;
               overflow:hidden; text-overflow:ellipsis; }
-  .vn-sim__c{ font-size:11.5px; color:var(--ag-ink-soft); }
-  .vn-sim__go{ font-size:12.5px; font-weight:700; color:var(--ag-ink);
+  .vn-sim__c{ font-size:12px; color:var(--ag-ink-soft); }
+  .vn-sim__go{ font-size:13px; font-weight:700; color:var(--ag-ink);
                text-decoration:underline; text-underline-offset:3px; }
 
   /* ══ THE BALLOT ══════════════════════════════════════════════════════════ */
@@ -242,7 +242,7 @@
                    background:var(--ag-live-wash); border-bottom:1px solid var(--ag-live-edge); }
   .vn-ballot__orb{ display:none; }
   .vn-ballot__k{ position:relative; margin:0; display:flex; align-items:center; gap:8px;
-                 font:700 10.5px/1 var(--ag-font-mono); letter-spacing:.14em; text-transform:uppercase;
+                 font:700 11px/1 var(--ag-font-mono); letter-spacing:.14em; text-transform:uppercase;
                  color:var(--ag-ink); }
   .vn-ballot__k::before{ content:""; flex:none; width:9px; height:9px; border-radius:50%;
                          background:var(--ag-live-fill); }
@@ -260,23 +260,23 @@
   .vn-redeem{ background:var(--ag-surface-2); border:1px solid var(--ag-line);
               border-radius:14px; padding:15px 16px; margin-bottom:16px; }
   .vn-redeem__hd{ display:flex; flex-direction:column; gap:3px; margin-bottom:11px; }
-  .vn-redeem__hd strong{ font-size:14.5px; color:var(--ag-ink); }
-  .vn-redeem__hd span{ font-size:12.5px; color:var(--ag-ink-2); line-height:1.45; }
+  .vn-redeem__hd strong{ font-size:14px; color:var(--ag-ink); }
+  .vn-redeem__hd span{ font-size:13px; color:var(--ag-ink-2); line-height:1.45; }
   .vn-redeem__btn{ width:100%; cursor:pointer; border:1px solid var(--ag-ink); background:var(--ag-card);
     color:var(--ag-ink); font-family:inherit; font-weight:700; font-size:14px; padding:11px;
     border-radius:999px; min-height:44px; }
   .vn-redeem__btn:hover{ background:var(--ag-ink); color:var(--ag-card); }
   .vn-redeem__btn:disabled{ opacity:.55; cursor:not-allowed; }
-  .vn-redeem__err{ margin:9px 0 0; font-size:12.5px; color:var(--ag-caution-ink);
+  .vn-redeem__err{ margin:9px 0 0; font-size:13px; color:var(--ag-caution-ink);
                    font-weight:600; text-align:center; }
   .vn-redeem__ok{ display:flex; align-items:center; justify-content:center; gap:8px; font-size:14px;
                   font-weight:600; color:var(--ag-ink); padding:6px 0; }
   .vn-redeem__or{ margin:11px 0 0; text-align:center; font:600 10px/1 var(--ag-font-mono);
                   letter-spacing:.14em; color:var(--ag-ink-soft); text-transform:uppercase; }
 
-  .vn-sub{ margin:0; font-size:13.5px; line-height:1.55; color:var(--ag-ink-2); }
+  .vn-sub{ margin:0; font-size:14px; line-height:1.55; color:var(--ag-ink-2); }
   .vn-sub strong{ color:var(--ag-ink); }
-  .vn-note{ font-size:12.5px; line-height:1.55; background:var(--ag-surface-2); border-radius:12px;
+  .vn-note{ font-size:13px; line-height:1.55; background:var(--ag-surface-2); border-radius:12px;
             padding:11px 14px; margin-top:14px; color:var(--ag-ink-2); }
   .vn-note a{ color:var(--ag-ink); font-weight:700; }
   .vn-label{ display:block; font-size:12px; font-weight:600; color:var(--ag-ink-2); margin:16px 0 7px; }
@@ -297,13 +297,13 @@
     /* A larger invisible hit box around the control itself, for anyone aiming at the
        box rather than the words. */
     padding:12px; margin-right:-12px; margin-left:-12px; }
-  .vn-check span{ font-size:12.5px; line-height:1.5; color:var(--ag-ink-2); }
+  .vn-check span{ font-size:13px; line-height:1.5; color:var(--ag-ink-2); }
   .vn-check a{ color:var(--ag-ink); font-weight:600; }
 
   /* The free vote. The page's `action` event, and the same lip every primary on the
      platform wears. */
   .vn-go{ width:100%; margin-top:16px; cursor:pointer; border:0; background:var(--ag-action-fill);
-    color:var(--ag-card); font-family:inherit; font-weight:600; font-size:15px; padding:15px 14px 13px;
+    color:var(--ag-card); font-family:inherit; font-weight:600; font-size:16px; padding:15px 14px 13px;
     min-height:48px; border-radius:999px; border-bottom:4px solid var(--ag-action-lip);
     transition:transform 60ms ease-out, border-bottom-width 60ms ease-out; }
   .vn-go:active:not(:disabled){ transform:translateY(4px); border-bottom-width:0; }
@@ -320,14 +320,14 @@
      wear the role reserved for the thing we are actually asking for. */
   .vn-pay{ width:100%; margin-top:16px; cursor:pointer; background:var(--ag-card);
     border:1.5px solid var(--ag-ink); color:var(--ag-ink); font-family:inherit; font-weight:600;
-    font-size:15px; padding:14px; min-height:48px; border-radius:999px;
+    font-size:16px; padding:14px; min-height:48px; border-radius:999px;
     transition:background .15s, color .15s; }
   .vn-pay:hover{ background:var(--ag-ink); color:var(--ag-card); }
   .vn-pay:focus-visible{ outline:3px solid var(--ag-action-edge); outline-offset:3px; }
   .vn-pay:disabled{ border-color:var(--ag-line); color:var(--ag-ink-soft); cursor:not-allowed; }
 
   .vn-secure{ display:flex; align-items:center; justify-content:center; gap:7px; margin-top:13px;
-              font-size:11.5px; color:var(--ag-ink-soft); }
+              font-size:12px; color:var(--ag-ink-soft); }
   .vn-back{ cursor:pointer; border:none; background:none; font-family:inherit; font-size:13px;
             font-weight:600; color:var(--ag-ink-2); padding:6px 0; min-height:40px; margin-bottom:4px;
             text-decoration:underline; text-underline-offset:3px; }
@@ -344,7 +344,7 @@
              align-items:center; justify-content:space-between; gap:12px; margin:14px 0; }
   .vn-newrank{ flex:none; display:inline-flex; align-items:center; gap:6px; padding:6px 11px;
                border-radius:999px; border:1px solid var(--ag-line); background:var(--ag-card);
-               font:600 11.5px/1 var(--ag-font-mono); letter-spacing:.1em; text-transform:uppercase;
+               font:600 12px/1 var(--ag-font-mono); letter-spacing:.1em; text-transform:uppercase;
                color:var(--ag-ink-2); }
   .vn-newrank b{ color:var(--ag-ink); font-variant-numeric:tabular-nums; }
 
@@ -356,7 +356,7 @@
      carries no hue — see the split bar note in the handoff. */
   .vn-race{ margin:16px 0; padding:14px 16px; border-radius:14px;
     background:var(--ag-card); border:1px solid var(--ag-line); }
-  .vn-race__h{ margin:0 0 10px; font-size:14.5px; font-weight:700; color:var(--ag-ink); }
+  .vn-race__h{ margin:0 0 10px; font-size:14px; font-weight:700; color:var(--ag-ink); }
   .vn-race__track{ position:relative; height:10px; border-radius:5px;
     background:var(--ag-surface-2); overflow:visible; }
   .vn-race__fill{ display:block; height:100%; border-radius:5px; background:var(--ag-ink-2);
@@ -369,11 +369,11 @@
   .vn-race__mark{ position:absolute; top:-4px; width:2px; height:18px; background:var(--ag-ink);
     border-radius:1px; transform:translateX(-1px); }
   .vn-race__facts{ list-style:none; display:flex; flex-wrap:wrap; gap:6px 14px;
-    margin:10px 0 0; padding:0; font-size:12.5px; color:var(--ag-ink-2); }
+    margin:10px 0 0; padding:0; font-size:13px; color:var(--ag-ink-2); }
   .vn-race__facts strong{ color:var(--ag-ink); font-weight:700; font-variant-numeric:tabular-nums; }
   .vn-race__hot strong{ color:var(--ag-ink); }
   .vn-race__cta{ margin:10px 0 0; font-size:13px; color:var(--ag-ink); font-weight:600; }
-  .vn-race__fine{ margin:6px 0 0; font-size:11.5px; line-height:1.5; color:var(--ag-ink-soft); }
+  .vn-race__fine{ margin:6px 0 0; font-size:12px; line-height:1.5; color:var(--ag-ink-soft); }
 
   /* ── The recovery disclosure ──────────────────────────────────────────────
      The platform admitting it put votes on a public tally itself, and a disclosure
@@ -383,24 +383,24 @@
      as a finding about the nominee whose page it is on. */
   .vn-rec{ margin:16px 0; padding:14px 16px; border-radius:14px;
     background:var(--ag-card); border:1px solid var(--ag-caution-edge); }
-  .vn-rec__h{ margin:0 0 8px; font-size:14.5px; font-weight:700; color:var(--ag-caution-ink); }
-  .vn-rec__b{ margin:0; font-size:13.5px; line-height:1.6; color:var(--ag-ink-2); }
+  .vn-rec__h{ margin:0 0 8px; font-size:14px; font-weight:700; color:var(--ag-caution-ink); }
+  .vn-rec__b{ margin:0; font-size:14px; line-height:1.6; color:var(--ag-ink-2); }
   .vn-rec__l{ list-style:none; margin:10px 0 0; padding:0;
-    font-size:12.5px; line-height:1.6; color:var(--ag-ink-2); }
+    font-size:13px; line-height:1.6; color:var(--ag-ink-2); }
   .vn-rec__l li + li{ margin-top:8px; padding-top:8px; border-top:1px solid var(--ag-line); }
   .vn-rec__l strong{ color:var(--ag-ink); font-weight:700; }
   /* The reference is the point of printing it: a reader can name the batch that put
      these votes here and ask us about it by that name. Monospace so it survives being
      read aloud, copied, or written down. */
   .vn-rec__r{ display:inline-block; margin-left:6px; font-family:var(--ag-font-mono,monospace);
-    font-size:11.5px; color:var(--ag-ink-soft); }
-  .vn-rec__f{ margin:10px 0 0; font-size:11.5px; line-height:1.55; color:var(--ag-ink-soft); }
+    font-size:12px; color:var(--ag-ink-soft); }
+  .vn-rec__f{ margin:10px 0 0; font-size:12px; line-height:1.55; color:var(--ag-ink-soft); }
   .vn-rec__f a{ color:var(--ag-ink); font-weight:600; }
 
   .vn-share{ display:flex; gap:9px; }
   .vn-share button, .vn-share a{ flex:1; cursor:pointer; border:1px solid var(--ag-line);
     background:var(--ag-card); color:var(--ag-ink); font-family:inherit; font-weight:600;
-    font-size:13.5px; padding:11px; min-height:44px; border-radius:999px; display:inline-flex;
+    font-size:14px; padding:11px; min-height:44px; border-radius:999px; display:inline-flex;
     align-items:center; justify-content:center; gap:7px; text-decoration:none; }
   .vn-share button:hover, .vn-share a:hover{ background:var(--ag-surface-2); border-color:var(--ag-ink-soft); }
   /* The wall's item styles live in partials/vote-message-assets.twig, beside the
@@ -413,7 +413,7 @@
   .vn-msg textarea:focus{ outline:none; border-color:var(--ag-ink); }
   .vn-msg textarea:focus-visible{ outline:3px solid var(--ag-action-edge); outline-offset:2px; }
   .vn-msg__meta{ display:flex; justify-content:space-between; gap:10px; margin-top:6px;
-                 font-size:11.5px; color:var(--ag-ink-soft); }
+                 font-size:12px; color:var(--ag-ink-soft); }
   .vn-msg__meta b{ font-variant-numeric:tabular-nums; }
   .vn-msg__over{ color:var(--ag-caution-ink); font-weight:700; }
   /* min-height 40px: this is the door to the whole message feature and it measured 23px
@@ -422,7 +422,7 @@
     padding:6px 0; min-height:40px;
     font:600 13px/1.4 inherit; color:var(--ag-ink); cursor:pointer; text-align:left;
     text-decoration:underline; text-underline-offset:3px; }
-  .vn-msg__count{ font-style:normal; font-weight:700; font-size:10.5px; letter-spacing:.08em;
+  .vn-msg__count{ font-style:normal; font-weight:700; font-size:11px; letter-spacing:.08em;
     text-transform:uppercase; background:var(--ag-surface-2); color:var(--ag-ink-2);
     border:1px solid var(--ag-line); border-radius:999px; padding:3px 8px; text-decoration:none; }
   .vn-msg__as{ margin:8px 0 0; font-size:12px; line-height:1.6; color:var(--ag-ink-soft); }
@@ -439,7 +439,7 @@
      smallest tap target on the platform sitting on its highest-intent control. */
   .vn-qty{ border:1.5px solid var(--ag-line); background:var(--ag-card); color:var(--ag-ink);
     border-radius:999px; padding:7px 14px; min-height:40px; display:inline-flex;
-    align-items:center; font:700 12.5px/1 inherit; cursor:pointer;
+    align-items:center; font:700 13px/1 inherit; cursor:pointer;
     transition:background .15s, color .15s, border-color .15s; }
   .vn-qty:hover{ border-color:var(--ag-ink-soft); }
   .vn-qty:focus-visible{ outline:3px solid var(--ag-action-edge); outline-offset:2px; }
@@ -463,9 +463,9 @@
   /* Voting has closed. A statement of fact in the past tense, with no hue at all:
      nothing here is live, nothing is withheld, and nothing went wrong. */
   .vn-closed{ background:var(--ag-surface-2); border:1px solid var(--ag-line); border-radius:14px;
-              padding:14px 16px; font-size:13.5px; line-height:1.55; color:var(--ag-ink-2); }
+              padding:14px 16px; font-size:14px; line-height:1.55; color:var(--ag-ink-2); }
   .vn-toast{ position:fixed; left:50%; bottom:32px; transform:translateX(-50%); z-index:90;
-             background:var(--ag-ink); color:var(--ag-card); font-size:13.5px; font-weight:500;
+             background:var(--ag-ink); color:var(--ag-card); font-size:14px; font-weight:500;
              padding:13px 22px; border-radius:999px; }
   .vn-claimline{ margin:34px 0 8px; padding-top:20px; border-top:1px solid var(--ag-line);
                  font-size:13px; color:var(--ag-ink-soft); text-align:center; }
@@ -1021,7 +1021,7 @@
                 gross(){ return this.q() * this.per },
                 cost(){ return Math.max(100, Math.ceil(this.gross() * (100 - this.off()) / 100)) } }"
               style="background:var(--ag-surface-2);border:1.5px solid var(--ag-line);border-radius:16px;padding:16px 18px;margin:0 0 16px">
-              <h3 id="pv-h" style="margin:0 0 4px;font-size:15.5px;color:var(--ag-ink)">Support {{ firstName }}</h3>
+              <h3 id="pv-h" style="margin:0 0 4px;font-size:16px;color:var(--ag-ink)">Support {{ firstName }}</h3>
               {# NO DISCOUNT IS ADVERTISED ANYWHERE ON THIS PAGE.
                  The ladder still PRICES the order — `cost()` below applies it, and the
                  server recomputes the same figure — but the percentage is never named,
@@ -1105,7 +1105,7 @@
                      choosing it, and the pre-filled value would submit unnoticed. The email
                      beside it is tagged, because nothing is published from it. #}
                   <input id="pvName" name="name" class="vn-input" type="text" autocomplete="off" placeholder="e.g. Amara Okonkwo" x-model="pvName">
-                  <p style="margin:5px 0 0;font-size:11.5px;color:var(--ag-ink-soft);line-height:1.5">Shown on {{ firstName }}’s public supporters list and on your receipt. <strong>Leave it blank to give anonymously</strong> — your vote counts exactly the same. Only the name is ever published: never your email, your phone or the amount. <a href="/privacy#supporters" style="color:var(--ag-green,var(--ag-action-ink));font-weight:600">How we handle voter names</a></p>
+                  <p style="margin:5px 0 0;font-size:12px;color:var(--ag-ink-soft);line-height:1.5">Shown on {{ firstName }}’s public supporters list and on your receipt. <strong>Leave it blank to give anonymously</strong> — your vote counts exactly the same. Only the name is ever published: never your email, your phone or the amount. <a href="/privacy#supporters" style="color:var(--ag-green,var(--ag-action-ink));font-weight:600">How we handle voter names</a></p>
 
                 {# ── SAY SOMETHING, ON THE PAID FORM TOO ─────────────────────────
                    This was originally only on the free ballot, and on a paid-only
@@ -1167,7 +1167,7 @@
                 <button type="submit" class="vn-pay" style="margin-top:10px">
                   <span x-text="'Contribute ₦' + cost().toLocaleString() + ' · ' + q() + (q() === 1 ? ' vote' : ' votes') + ' →'">Contribute</span>
                 </button>
-                <p style="margin:8px 0 0;font-size:11.5px;color:var(--ag-ink-soft)">Secured checkout — the charge is verified server-side before any vote counts.</p>
+                <p style="margin:8px 0 0;font-size:12px;color:var(--ag-ink-soft)">Secured checkout — the charge is verified server-side before any vote counts.</p>
               </form>
               {# One line, on the buy form itself. Somebody who paid an hour ago and
                  came back to try again is about to pay TWICE for votes they have
@@ -1282,7 +1282,7 @@
                  unconfigured, and on a free-only ballot the one page explaining why
                  any of this works this way was unreachable from here.
                  So: on the free form too, which always renders. #}
-              <p style="margin:12px 0 0;font-size:12.5px;line-height:1.6;color:var(--ag-ink-soft)">
+              <p style="margin:12px 0 0;font-size:13px;line-height:1.6;color:var(--ag-ink-soft)">
                 <a href="/philosophy" style="color:var(--ag-action-ink);font-weight:600">Why voting works this way</a>
                 &middot;
                 <a href="/integrity" style="color:var(--ag-action-ink)">How a winner is decided</a>
@@ -1299,7 +1299,7 @@
                      autocomplete="one-time-code" maxlength="6" placeholder="······" @keyup.enter="submitVote()">
               <p class="vn-err" x-show="voteError" x-cloak x-text="voteError"></p>
               <button type="button" class="vn-go" :disabled="busy || otp.length !== 6" @click="submitVote()" x-text="busy ? 'Recording…' : 'Confirm vote'">Confirm vote</button>
-              <p style="margin:13px 0 0;text-align:center;font-size:12.5px;color:var(--ag-ink-soft)">Didn’t get it? <button type="button" @click="requestOtp()" style="color:var(--ag-green);font-weight:500;background:none;border:none;cursor:pointer;font:inherit">Resend code</button></p>
+              <p style="margin:13px 0 0;text-align:center;font-size:13px;color:var(--ag-ink-soft)">Didn’t get it? <button type="button" @click="requestOtp()" style="color:var(--ag-green);font-weight:500;background:none;border:none;cursor:pointer;font:inherit">Resend code</button></p>
             </div>
             {# step: done #}
             <div x-show="step === 'done'" x-cloak class="vn-done">
@@ -1309,7 +1309,7 @@
               <h2 style="font-size:1.25rem">Your vote is in ✓</h2>
               <p class="vn-sub" style="margin-top:6px">Counted for <strong>{{ n.name }}</strong> in {{ n.category }}. Tallies refresh every 6 hours.</p>
               <div class="vn-tally">
-                <div style="text-align:left"><div style="font-size:10.5px;text-transform:uppercase;letter-spacing:.05em;color:var(--ag-ink-soft)">Now at</div><div style="font-family:var(--ag-font-mono);font-weight:700;font-size:18px;color:var(--ag-ink)" x-text="votes.toLocaleString() + ' votes'"></div></div>
+                <div style="text-align:left"><div style="font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--ag-ink-soft)">Now at</div><div style="font-family:var(--ag-font-mono);font-weight:700;font-size:18px;color:var(--ag-ink)" x-text="votes.toLocaleString() + ' votes'"></div></div>
                 {#
                   A POSITION IS NOT A STATE, SO IT WEARS NO ROLE. This was an `action`-
                   washed pill — the green reserved for the one thing a screen asks you to

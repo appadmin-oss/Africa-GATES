@@ -122,7 +122,7 @@
   </div>
   <div class="ad-card__body">
     {% if enforce.would > 0 %}
-    <p style="margin:0 0 8px;font-size:12.5px;color:var(--ad-text-mute,#5a6d6f)">
+    <p style="margin:0 0 8px;font-size:13px;color:var(--ad-text-mute,#5a6d6f)">
       Try sending to them again first — most of these are people who never saw the email.</p>
     <p style="margin:0;font-size:13px;line-height:1.7">
       {% for n in enforce.names|slice(0, 40) %}<span class="ad-chip ad-chip--grey" style="margin:0 4px 4px 0">{{ n }}</span>{% endfor %}
@@ -137,7 +137,7 @@
     {% if enforce.held|default([])|length %}
     <div style="margin-top:{{ enforce.would > 0 ? '14px' : '0' }};padding-top:{{ enforce.would > 0 ? '14px' : '0' }};
                 border-top:{{ enforce.would > 0 ? '1px solid var(--ad-line,#dfe4e4)' : 'none' }}">
-      <p style="margin:0 0 8px;font-size:12.5px;color:var(--ad-text-mute,#5a6d6f)">
+      <p style="margin:0 0 8px;font-size:13px;color:var(--ad-text-mute,#5a6d6f)">
         <strong>{{ enforce.held|length }} {{ enforce.would > 0 ? 'more ' : '' }}being held back:
         {{ enforce.held|length == 1 ? 'this nominee has' : 'these nominees have' }} not been warned yet.</strong>
         The rule will not take a nomination from somebody whose only message was the
@@ -169,7 +169,7 @@
           <label class="checkbox" style="border:1px solid var(--ad-line);border-radius:8px;padding:9px 12px;margin:0">
             <input type="checkbox" name="p[]" value="{{ pr.id }}" {% if pr.id in picked %}checked{% endif %}>
             <span>{{ pr.title }}
-              <span style="display:block;font-weight:500;font-size:11.5px;color:var(--ad-text-mute)">
+              <span style="display:block;font-weight:500;font-size:12px;color:var(--ad-text-mute)">
                 {{ pr.open }} still to submit of {{ pr.n }}</span>
             </span>
           </label>
@@ -273,7 +273,7 @@
       <p style="margin:0;color:var(--ad-text-mute,#5a6d6f)">Nobody matches this selection.
         {% if plan.counts.already|default(0) > 0 %}Everyone eligible has already been written to — tick “resend” above to write again.{% endif %}</p>
     {% else %}
-      <p style="margin:0 0 10px;font-size:12.5px;color:var(--ad-text-mute,#5a6d6f)">
+      <p style="margin:0 0 10px;font-size:13px;color:var(--ad-text-mute,#5a6d6f)">
         <strong>Queue all</strong> hands the whole list to the maintenance run, which delivers
         it in the background — one press, however many nominees. Queueing twice adds nothing
         the second time, so a double-click cannot double-send.
@@ -286,8 +286,8 @@
             {% for r in plan.rows|slice(0, plan.batch) %}
             <tr>
               <td><a href="/admin/questionnaires/{{ r.submission_id }}" style="color:var(--ad-accent,#237b22);font-weight:600">{{ r.name }}</a></td>
-              <td style="font-size:12.5px;color:var(--ad-text-soft)">{{ r.programme|default('—') }}</td>
-              <td style="font-size:12.5px;color:var(--ad-text-soft)">{{ r.email }}</td>
+              <td style="font-size:13px;color:var(--ad-text-soft)">{{ r.programme|default('—') }}</td>
+              <td style="font-size:13px;color:var(--ad-text-soft)">{{ r.email }}</td>
               <td><span class="ad-chip ad-chip--grey">{{ r.status }}</span></td>
             </tr>
             {% endfor %}
@@ -314,14 +314,14 @@
         {% for r in plan.skipped|slice(0, 200) %}
         <tr>
           <td><a href="/admin/questionnaires/{{ r.submission_id }}" style="color:var(--ad-accent,#237b22)">{{ r.name }}</a></td>
-          <td style="font-size:12.5px;color:var(--ad-text-soft)">{{ r.programme|default('—') }}</td>
+          <td style="font-size:13px;color:var(--ad-text-soft)">{{ r.programme|default('—') }}</td>
           <td><span class="ad-chip {{ r.reason starts with 'no email' ? 'ad-chip--gold' : 'ad-chip--grey' }}">{{ r.reason }}</span></td>
         </tr>
         {% endfor %}
       </tbody>
     </table>
     {% if plan.skipped|length > 200 %}
-    <p style="margin:12px 20px;font-size:12.5px;color:var(--ad-text-mute)">{{ plan.skipped|length - 200 }} more not listed.</p>
+    <p style="margin:12px 20px;font-size:13px;color:var(--ad-text-mute)">{{ plan.skipped|length - 200 }} more not listed.</p>
     {% endif %}
   </div>
 </details>

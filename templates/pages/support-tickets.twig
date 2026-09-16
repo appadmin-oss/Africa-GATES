@@ -54,14 +54,14 @@
   .st-state{ padding:16px; border-radius:16px; border:1px solid transparent; }
   .st-state--open{ background:#e9f5e9; border-color:#c3e3c3; }
   .st-state--closed{ background:#eef1ef; border-color:rgba(16,41,44,.1); }
-  .st-state__k{ margin:0; font:700 10.5px/1 var(--ag-font-mono,monospace); letter-spacing:.1em;
+  .st-state__k{ margin:0; font:700 11px/1 var(--ag-font-mono,monospace); letter-spacing:.1em;
                 text-transform:uppercase; color:#5a6d6f; }
   .st-state__v{ margin:6px 0 0; font-family:var(--ag-font-display); font-weight:700;
                 font-size:19px; line-height:1.2; color:var(--ag-ink,#10292c); }
-  .st-state__n{ margin:7px 0 0; font-size:12.5px; line-height:1.55; color:#4a5c5e; }
+  .st-state__n{ margin:7px 0 0; font-size:13px; line-height:1.55; color:#4a5c5e; }
 
   .st-facts{ list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:9px; }
-  .st-facts li{ display:flex; justify-content:space-between; gap:10px; font-size:12.5px; line-height:1.4; }
+  .st-facts li{ display:flex; justify-content:space-between; gap:10px; font-size:13px; line-height:1.4; }
   .st-facts dt, .st-facts .k{ color:var(--ag-ink-soft,#626a6e); }
   .st-facts .v{ color:var(--ag-ink,#10292c); font-weight:600; text-align:right;
                 overflow-wrap:anywhere; font-family:var(--ag-font-mono,monospace); font-size:12px; }
@@ -72,38 +72,38 @@
   .st-turn + .st-turn{ border-top:1px solid rgba(16,41,44,.05); }
   .st-turn--me{ background:#fbfcfb; }
   .st-av{ flex:none; width:29px; height:29px; border-radius:50%; display:flex; align-items:center;
-          justify-content:center; font-size:11.5px; font-weight:800; }
+          justify-content:center; font-size:12px; font-weight:800; }
   .st-av--staff{ background:#10292C; color:#7FC87C; }
   .st-av--bot{ background:#1d4a63; color:#bfe0f2; }
   .st-av--me{ background:#e6f2e6; color:#1c6b1c; }
   .st-turn__b{ min-width:0; flex:1; }
   .st-who{ display:flex; align-items:baseline; gap:7px; flex-wrap:wrap;
-           font-size:12.5px; font-weight:700; color:#3d4c4e; }
-  .st-when{ font-weight:500; font-size:11.5px; color:#9aa8aa; }
+           font-size:13px; font-weight:700; color:#3d4c4e; }
+  .st-when{ font-weight:500; font-size:12px; color:#9aa8aa; }
   /* Says what wrote it. A member told a person read their ticket, who later
      works out it was a machine, has been lied to about the one thing support
      cannot lie about — whether anyone is actually looking. */
-  .st-bot{ font:700 9px/1 var(--ag-font-mono,monospace); letter-spacing:.08em; text-transform:uppercase;
+  .st-bot{ font:700 10px/1 var(--ag-font-mono,monospace); letter-spacing:.08em; text-transform:uppercase;
            color:#1d4a63; background:#e8f2f8; border:1px solid #c9e0ee; border-radius:4px; padding:3px 5px; }
   /* A ticket carries whatever somebody typed — a pasted reference, a URL, a
      stack trace. `anywhere` is what stops one unbroken run widening the column. */
-  .st-say{ margin:3px 0 0; font-size:14.5px; line-height:1.65; color:#2c3a3c;
+  .st-say{ margin:3px 0 0; font-size:14px; line-height:1.65; color:#2c3a3c;
            white-space:pre-wrap; overflow-wrap:anywhere; }
 
   /* ── composer ──────────────────────────────────────────────────────────── */
   .st-compose{ border-top:1px solid rgba(16,41,44,.07); padding:14px 16px; }
   .st-ta{ width:100%; border:1px solid rgba(16,41,44,.14); border-radius:12px; font:inherit;
-          font-size:14.5px; line-height:1.55; padding:11px 13px; color:var(--ag-ink,#10292c);
+          font-size:14px; line-height:1.55; padding:11px 13px; color:var(--ag-ink,#10292c);
           background:#fff; min-height:88px; resize:vertical; }
   .st-in{ width:100%; border:1px solid rgba(16,41,44,.14); border-radius:12px; font:inherit;
-          font-size:14.5px; padding:11px 13px; color:var(--ag-ink,#10292c); background:#fff; }
+          font-size:14px; padding:11px 13px; color:var(--ag-ink,#10292c); background:#fff; }
   .st-ta:focus, .st-in:focus{ outline:2px solid var(--ag-green,#237b22); outline-offset:1px; }
   .st-bar{ display:flex; align-items:center; gap:12px; flex-wrap:wrap; margin-top:10px; }
   .st-go{ border:0; background:var(--ag-green,#237b22); color:#fff; font-weight:700;
           font-size:14px; padding:10px 20px; border-radius:999px; cursor:pointer; }
   .st-go[disabled]{ opacity:.45; cursor:default; }
-  .st-file{ display:inline-flex; align-items:center; gap:7px; font-size:12.5px; color:#5a6d6f; cursor:pointer }
-  .st-file input{ max-width:180px; font-size:11.5px }
+  .st-file{ display:inline-flex; align-items:center; gap:7px; font-size:13px; color:#5a6d6f; cursor:pointer }
+  .st-file input{ max-width:180px; font-size:12px }
   .st-att{ display:flex; flex-wrap:wrap; gap:8px; margin-top:10px }
   .st-att__item{ display:block; width:120px; border:1px solid #dbe4e0; border-radius:10px; padding:6px;
                  background:#fff; text-decoration:none; color:#3d4b4c; font-size:11px }
@@ -132,10 +132,10 @@
            box-shadow:inset 0 0 0 1.5px rgba(16,41,44,.18); }
   .st-dot--wait{ background:var(--ag-green,#237b22); }
   .st-row__t{ flex:1; min-width:0; }
-  .st-row__s{ display:block; font-weight:600; font-size:14.5px; color:var(--ag-ink,#10292c);
+  .st-row__s{ display:block; font-weight:600; font-size:14px; color:var(--ag-ink,#10292c);
               overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
   .st-row__m{ display:block; margin-top:2px; font-size:12px; color:var(--ag-ink-soft,#626a6e); }
-  .st-row__m code{ font-family:var(--ag-font-mono,monospace); font-size:11.5px; }
+  .st-row__m code{ font-family:var(--ag-font-mono,monospace); font-size:12px; }
   .st-tags{ flex:none; display:flex; gap:6px; align-items:center; }
   .st-tag{ font:700 10px/1 var(--ag-font-mono,monospace); letter-spacing:.06em;
            text-transform:uppercase; border-radius:999px; padding:5px 9px; white-space:nowrap; }
