@@ -482,12 +482,35 @@ the template, which posts an empty one and has the write rejected in production.
 ### The MySQL parity run, which is the one that finds things
 
 ```bash
+scripts/mysql-parity.sh              # installs, starts, creates, runs
+scripts/mysql-parity.sh --filter X   # anything else is passed to phpunit
+```
+
+which is the documented invocation with a server behind it:
+
+```bash
 TEST_DB_DRIVER=mysql DB_HOST=127.0.0.1 DB_NAME=africa_gates_test \
   DB_USER=… DB_PASS=… ./vendor/bin/phpunit --no-coverage
 ```
 
 Real ENUMs, real integer widths, strict mode, `ONLY_FULL_GROUP_BY`. Everything in the
 MySQL/SQLite list at the top of this file is invisible without it.
+
+**The script exists because the command did not have a server.** This section described the
+one run that finds the faults at the top of this file, and getting to it from a fresh
+container was an `apt` install and four setup steps — which in practice meant it was not
+run, and every audit since has had to say "no parity run was possible" in its own findings.
+Three of those steps are not guessable and each fails in a way that reads as something else:
+Ubuntu's postinst starts the service through **systemd**, which a container does not have,
+so the install aborts unless `policy-rc.d` refuses the start and the daemon is started by
+hand; Ubuntu's `root` uses **`auth_socket`**, which always refuses the TCP connection the
+harness makes, and the refusal reads as a wrong password, so the run needs its own user; and
+the script **refuses MariaDB by name** rather than trusting whoever ran it to have read the
+paragraph below. It reads the count and not the exit code, for the reason
+given below.
+
+**Budget forty minutes.** Against a real server the suite is roughly ten times the SQLite
+run, and that is the price of the only thing that sees a `TINYINT` ceiling.
 
 **It has to be MySQL. MariaDB is not a stand-in, and it is the easy one to reach for**
 (`apt install mariadb-server`, `mysqld` on the path, the same client, the same connection
@@ -500,6 +523,17 @@ anything MariaDB accepts that MySQL rejects.
 
 **Read the count, not the exit code.** Piping to `tail` or `grep` gives you the pipe's
 status, not PHPUnit's, and a run with two hundred errors exits 0 through a pipe.
+
+**And the first thing it found was a TEST that only ran on one database.**
+`MergeScopeTest` asserted the literal string `"purpose" = ?`. Double quotes are SQLITE'S
+identifier style — MySQL emits backticks — so on the driver production actually uses, the
+assertion could never match, while the test read as though it covered both. It is the
+mildest possible instance of the shape and worth knowing precisely for that: the test
+guards `MergeJournal::applyScope()`, the one clause between a nominee merge and the silent
+under-selection described at the top of this file, and half of that guard was dead on the
+database it was guarding. **Never spell an identifier's quoting in an assertion**; strip it
+(`` str_replace(['`', '"'], '', $sql) ``) and assert the part that is the claim — here the
+operator, `=` for a scalar and `IN` for a list.
 
 Three things used to make its output unreadable, and all three are fixed — but they are
 worth knowing, because each turned ONE fault into hundreds and none of the hundreds was

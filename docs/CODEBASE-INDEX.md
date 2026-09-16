@@ -43,12 +43,20 @@ cd public && php -S 127.0.0.1:8000
 
 # Tests
 composer run test             # = phpunit, config in phpunit.xml.dist (strict: failOnWarning/failOnRisky)
+scripts/mysql-parity.sh       # the same suite against REAL MySQL — installs and starts one
 
 # Production (MySQL) — see README.md §Quick Start
 php bin/console db:migrate --with-seed-admin --with-seed-rubric
 ```
 
 Document root must point at `public/`. CLI entry for jobs is `bin/console` (Symfony Console).
+
+**The parity run is not optional reading.** The default suite is in-memory SQLite, and
+production is MySQL 8 — real `ENUM`s, integer widths, strict mode, `ONLY_FULL_GROUP_BY`.
+Every trap in `CLAUDE.md`'s opening list is invisible without it, and it had never been run
+in a container because the documentation gave a command and no way to get a server.
+`scripts/mysql-parity.sh` is both halves; budget forty minutes and read the count rather
+than the exit code.
 
 ---
 

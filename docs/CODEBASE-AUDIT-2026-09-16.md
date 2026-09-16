@@ -334,11 +334,10 @@ this repository have all been the clever ones that went quiet in the wrong place
 - No `CREATE INDEX IF NOT EXISTS` outside a SQLite branch, no nested `<form>`, no
   `{% set %}` inside a `{% block %}`, no inline handler without a nonce. Those four sweeps
   live in the suite and are doing their job.
-- **No MySQL parity run was possible** in this container — no MySQL and no MariaDB. Every
-  ENUM finding above is therefore a *reading of the schema*, not an observed truncation, and
-  the integer-width and strict-mode traps at the top of `CLAUDE.md` are invisible to this
-  pass by construction. 3.1 and 3.4 are `0 rows` on both drivers, so they do not depend on
-  it; anything about a *write* outside an `ENUM` would.
+- ~~**No MySQL parity run was possible**~~ — **it was, and it has now been run.** See §7.
+  Real MySQL 8.0.46, strict mode and `ONLY_FULL_GROUP_BY` on, 147 tables with real `ENUM`
+  column types. It found one fault and the ENUM findings above are confirmed against the
+  live column definitions rather than read off a schema file.
 
 ---
 
@@ -453,3 +452,50 @@ goes through `Like::clause()`/`Like::esc()`. `gates_programme_sponsors.logo_path
 in `CODEBASE-INDEX.md` §19's vestige table — it makes no false statement, so documenting it
 is the fix — and the sponsors migration no longer claims `amount_naira` is "for the finance
 screen" when it is drawn on the sponsors screen.
+
+---
+
+## 7. The MySQL parity run (2026-09-16, same day)
+
+The pass above had to say a parity run was impossible. It was not — `mysql-server` 8.0.46
+installs from Ubuntu noble, and the only reason it had never been run in a container is that
+`CLAUDE.md` documented a *command* with no way to get a *server*. `scripts/mysql-parity.sh`
+is that missing half; it installs, starts, creates the database and user, and runs the
+suite. **It refuses MariaDB by name**, because MariaDB is the easy one to reach for and a
+green run on it says nothing about the 1064s that were the reason the section exists.
+
+Three of its steps are not guessable, and each fails as something else:
+
+- Ubuntu's postinst starts the service through **systemd**, which a container has not got, so
+  the install aborts unless `policy-rc.d` refuses the start and the daemon is started by hand.
+- Ubuntu's `root` uses **`auth_socket`**, which always refuses the TCP connection the harness
+  makes. The refusal reads as a wrong password. The run needs its own user.
+- The suite is **roughly ten times slower** against a real server — about fifty minutes.
+
+**First run: 6,543 tests, 45,445 assertions, ONE failure** (§7.1).
+**After the fix: 6,543 tests, 45,446 assertions, 0 failures, 3 skipped** — the skips are
+deliberate and driver-conditional (`AnalyticsServiceTest` ×2 and `SchemaApplierTest`, which
+drop columns or rebuild the schema; DDL is not transactional on MySQL, so running them would
+corrupt the rest of the run).
+
+It also confirmed on the live schema that `gates_nominee_claims.status` really is
+`enum('pending','active','held','rejected','revoked')` — so §3.1 is an observed fact now and
+not a reading off a migration file. Both modes the run exists for were on:
+`ONLY_FULL_GROUP_BY` and `STRICT_TRANS_TABLES`.
+
+### 7.1 A test that only ran on one database while reading as though it covered both
+
+`MergeScopeTest::test_the_clause_is_an_IN_for_a_list_and_an_equality_for_a_scalar` asserted
+the literal string `"purpose" = ?`. **Double quotes are SQLite's identifier style**; MySQL
+emits backticks, so on the driver production actually uses the assertion could never match.
+
+It is the mildest possible instance of the shape and it is worth recording precisely because
+of that: the test guards `MergeJournal::applyScope()`, which is the one clause standing
+between a nominee merge and the silent under-selection `CLAUDE.md` describes at length — and
+half of that guard was dead on the database it was guarding. Nothing could have shown it but
+this run.
+
+The claim is the OPERATOR (`=` for a scalar, `IN` for a list); the quoting was incidental, so
+it is stripped before comparison. Proven by restoring the original bug — `applyScope()` using
+`where()` for a list — and watching the repaired assertion fail with an identical message on
+**both** drivers.

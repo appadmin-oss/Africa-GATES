@@ -197,18 +197,29 @@ final class MergeScopeTest extends TestCase
     /**
      * Asserted on the query rather than on rows, so the failure names the SQL.
      *
-     * `where "purpose" = ?` for a list is the whole bug in one line, and it is the line
+     * `where purpose = ?` for a list is the whole bug in one line, and it is the line
      * nobody would look at twice.
+     *
+     * ── AND THE IDENTIFIER QUOTING IS NOT PART OF THE CLAIM ─────────────────
+     *
+     * This asserted the literal `"purpose" = ?`. Double quotes are SQLITE'S identifier
+     * style; MySQL emits backticks, so the assertion passed on the harness's default
+     * driver and failed on the one production runs — a test that only ran on one
+     * database while reading as though it covered both. The MySQL parity run found it,
+     * which is the entire reason that run exists.
+     *
+     * The claim here is the OPERATOR — `=` for a scalar, `IN` for a list — so the
+     * quoting is stripped before the comparison rather than spelled for one driver.
      */
     public function test_the_clause_is_an_IN_for_a_list_and_an_equality_for_a_scalar(): void
     {
         $q = DB::table('gates_otp_tokens');
         MergeJournal::applyScope($q, ['purpose', ['vote', 'claim']]);
-        $this->assertStringContainsString('in (?, ?)', strtolower($q->toSql()));
+        $this->assertStringContainsString('in (?, ?)', self::unquoted($q->toSql()));
 
         $q = DB::table('gates_otp_tokens');
         MergeJournal::applyScope($q, ['purpose', 'claim']);
-        $this->assertStringContainsString('"purpose" = ?', $q->toSql());
+        $this->assertStringContainsString('purpose = ?', self::unquoted($q->toSql()));
 
         // Null and empty narrow nothing — an absent scope is not an empty IN, which
         // matches no row at all and would silently reassign nothing.
@@ -217,5 +228,15 @@ final class MergeScopeTest extends TestCase
         MergeJournal::applyScope($q, null);
         MergeJournal::applyScope($q, []);
         $this->assertSame($before, $q->toSql());
+    }
+
+    /**
+     * SQL with the identifier quoting removed, so an assertion means the same thing on
+     * both drivers. MySQL quotes with backticks and SQLite with double quotes; either
+     * spelled literally in a test is a test that silently covers one database.
+     */
+    private static function unquoted(string $sql): string
+    {
+        return strtolower(str_replace(['`', '"'], '', $sql));
     }
 }
