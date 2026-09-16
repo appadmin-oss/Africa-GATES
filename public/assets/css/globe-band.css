@@ -32,8 +32,15 @@
   --reg-hair:   rgba(16,41,44,.055);  /* --ag-ink at 5.5% — inner hairlines */
   --reg-note:   rgba(35,123,34,.5);   /* --ag-green at 50% — dashed note border */
   --reg-halo:   rgba(35,123,34,.12);  /* --ag-green at 12% — node halo */
-  --reg-shade:  rgba(16,41,44,.5);    /* --ag-ink at 50% — card lift */
-  --reg-shade-2:rgba(16,41,44,.6);    /* --ag-ink at 60% — ringed marker lift */
+  /* THE TWO LIFT SHADES ARE GONE, AND DELIBERATELY NOT RESTORED.
+     `--reg-shade` (card lift) and `--reg-shade-2` (ringed marker lift) were
+     extracted from the handoff's two `box-shadow` rules during the tokenising
+     pass — and the rules went with the shadows while the declarations stayed,
+     each carrying a comment naming a reader it no longer had. That is §17 in
+     CSS: a declaration whose own prose promises what it does, read by nothing.
+     The shadows are not coming back — the direction is hairline rules, not
+     stacked cards — so the declarations go instead. `.node--v`'s halo stays
+     because a halo is a ring, not a lift. */
   --reg-cols-bg:#fcfcfc;              /* one step off --ag-surface, no token */
   --reg-lb-bg:  rgba(251,251,250,.82);/* marker label ground */
 

@@ -93,8 +93,22 @@ either side. On a phone **width** decides the radius, which is why
 560px of height for a 234px sphere.
 
 Two shapes, and the difference is a fact: the outlined marker carrying the check is a
-nation whose nominees have recorded ballots; the plain dot is a nation standing in a live
-award and waiting for its first vote.
+nation where an award has been **decided** — a nominee crowned (`decided` from
+{@see GlobeBand::countries()}, `status = 'winner'`); the plain dot is a nation still
+competing.
+
+**This sentence used to describe the ring as marking any nation whose nominees had taken
+votes at all — the mapping this component was built to reject.** `GlobeBand`'s own docblock
+spells out why: that is true of nearly every nation the moment an award opens, so the ring
+fired almost everywhere and the band came out five rings to one dot, the hierarchy exactly
+inverted, every marker defensible and the picture noise. A highlight almost everything
+qualifies for is a background. The guide went on describing the retired model after the
+correction landed, which is the one route by which a reader would have rebuilt it — so
+`GlobeBandTest` now holds the guide to the shipped meaning as well as the script.
+
+(Described rather than quoted, deliberately: the sweep that keeps this true matches on the
+retired phrasing, so spelling it out here would trip the very check this paragraph exists
+to document.)
 
 ## Things that will bite
 
@@ -110,3 +124,42 @@ award and waiting for its first vote.
 - **Do not reintroduce a fallback marker set.** With no data the globe draws with no
   markers, and the annotation says why. That is what a site with no approved nominee looks
   like.
+
+## If you are holding the handoff package
+
+A zip of this component circulates as a `handoff/` folder — `globe-band.js`, `.css`,
+`.twig`, a `GLOBE-BAND.md` and a `ROUTE-MAP.md`. **It is the pre-correction design.**
+It was compared against this tree file by file on 2026-09-16; nothing in it supersedes
+what is here, and applying it would undo three fixes:
+
+| In the handoff | What applying it does |
+|---|---|
+| A sixteen-entry fallback city list with per-city ballot counts and verification seconds | Puts fabricated telemetry on the homepage. This platform records neither, and never had a column for either. |
+| `setPointerCapture` on `pointerdown` with no target check | Re-breaks every marker's click while keyboard `Enter` keeps working — so an accessibility pass signs it off. |
+| A stroke over all 54 nations each frame | The reference outlines one country, the selected one. Fifty-four turns the map into a diagram competing with itself. |
+
+It is also behind in ways that are easy to miss: it inlines the colour literals this file
+resolves to tokens, carries two AA failures this file fixed (a 3.04:1 grey on card content
+and a ~13px close button), hardcodes the marker label sides to the invented city ids where
+this file computes them per position, and hardcodes the stat card's `45% + 55%` and its
+criteria count where `HomeController` reads them from `RuleEngine` and `JudgeRubric`.
+
+**The one thing in it worth wanting is its console harness**, which sweeps the idle
+rotation range and reports four failure modes — the sphere clipping the stage, the sphere
+reaching the annotation card, markers colliding with each other, and markers hidden behind
+the stat card. That last is the shape of the stacking fault this component already shipped,
+so a check for it is worth having.
+
+It cannot be pasted in as delivered. This module is an IIFE (line 46), so `projection` and
+`frame` are not reachable from the console and the snippet throws on its first statement —
+porting it as-is would ship a harness that reads as useful and does nothing, which is the
+fault this file exists to document. The half that works without them is DOM-only: compare
+`.node` rects against `.reg__cols` and against each other at the current rotation. Sweeping
+the rotation needs a deliberate debug hook, and that is a decision about shipping a global
+for a test rather than a port.
+
+Its `homepage-craft-pass.css` is genuinely not in this tree, but it is a delta against the
+`Homepage.html` reference rather than against this homepage: roughly half its selectors
+(`.arch__c`, `.fcta__in`, `.media__play`, `.ag-mega__ico`) match no markup here, and it
+leans on an `--ag-line-2` token nothing defines or emits, so every rule using it would drop
+its border silently. Treat it as a design reference to build from, not a patch to apply.

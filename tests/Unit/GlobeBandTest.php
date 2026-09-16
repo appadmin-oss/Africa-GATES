@@ -49,6 +49,7 @@ final class GlobeBandTest extends TestCase
     private const JS_FILE  = __DIR__ . '/../../public/assets/js/globe-band.js';
     private const TWIG     = __DIR__ . '/../../templates/partials/globe-band.twig';
     private const HOME     = __DIR__ . '/../../templates/pages/home.twig';
+    private const DOC      = __DIR__ . '/../../docs/GLOBE-BAND.md';
 
     private int $liveCategory = 0;
 
@@ -397,6 +398,35 @@ final class GlobeBandTest extends TestCase
      * `ballots`/`verify_seconds` were the invented figures, `FALLBACK` the set itself,
      * `geoInterpolate` the arcs drawn between "nodes", and `hub` the node concept.
      */
+    /**
+     * THE DEVELOPER GUIDE DESCRIBES THE RING THAT SHIPPED, NOT THE ONE THAT WAS REJECTED.
+     *
+     * The sweep below it reads the SCRIPT for the retired city model. Nothing read the
+     * guide, and the guide is what somebody rebuilding this component works from — so it
+     * went on saying the ringed marker meant "a nation whose nominees have recorded
+     * ballots" for as long as it liked. That is the first cut, and {@see GlobeBand}'s own
+     * docblock explains at length why it was thrown away: recorded votes are true of
+     * nearly every nation the moment an award opens, so the ring fired almost everywhere
+     * and the band came out five rings to one dot, the hierarchy exactly inverted.
+     *
+     * A component whose guide documents the mapping it was built to reject is one reader
+     * away from having it back. `GlobeBand` decides the ring on `decided` — a crowned
+     * winner — so that is what the guide has to say, and this is what holds it there.
+     */
+    public function test_the_guide_describes_the_ring_that_shipped(): void
+    {
+        $doc = (string) file_get_contents(self::DOC);
+
+        $this->assertStringNotContainsString('recorded ballots', $doc,
+            'the guide is describing the retired "any votes" ring — see GlobeBand::countries()');
+
+        // And says the live one, so the assertion above is not satisfied by silence.
+        $this->assertMatchesRegularExpression('~ring|outlined marker~i', $doc,
+            'the guide still has to explain the two marker shapes');
+        $this->assertStringContainsString('decided', $doc,
+            'the ring means an award has been decided there');
+    }
+
     public function test_the_script_carries_no_invented_figures_and_no_routes(): void
     {
         $js = (string) file_get_contents(self::JS_FILE);
