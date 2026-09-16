@@ -4,6 +4,8 @@ declare(strict_types=1);
 namespace AfricaGates\Admin\Services;
 
 use Illuminate\Database\Capsule\Manager as DB;
+use AfricaGates\Services\CommunityService;
+use AfricaGates\Services\NomineeClaimService;
 use AfricaGates\Support\SchemaHas;
 
 /**
@@ -393,9 +395,26 @@ final class AnalyticsService
             // Claiming shipped as a later migration; absent is not zero, it is
             // "this deployment does not have the feature", and the stage is
             // dropped rather than drawn as a cliff to nothing.
+            //
+            // ── AND THE FILTER USED TO NAME A STATUS THIS COLUMN CANNOT HOLD ──
+            //
+            // It counted `status = 'approved'`. `gates_nominee_claims.status` is
+            // ENUM('pending','active','held','rejected','revoked') — 'approved' belongs
+            // to `gates_nominations`, the table ONE STAGE ABOVE this one in the same
+            // funnel, and it was borrowed from there. A filter outside its own ENUM is
+            // zero rows on MySQL and on SQLite alike: no error, no warning, nothing to
+            // grep. So this stage read "Profile claimed by the nominee — 0 — 0%" on
+            // every deployment since it shipped, and the null/zero distinction above
+            // made that zero read as a measurement rather than as an absence.
+            //
+            // Through the resolver now, not a literal, because the count of claimed
+            // pages must not be able to disagree with the service that writes them.
             $claimed = null;
+            $held    = 0;
             if (self::has('gates_nominee_claims')) {
-                $claimed = (int) DB::table('gates_nominee_claims')->where('status', 'approved')->count();
+                $c       = NomineeClaimService::counts();
+                $claimed = $c['taken'];
+                $held    = $c['held'];
             }
 
             $pct = static fn (int $n): ?int => $total > 0 ? (int) round($n * 100 / $total) : null;
@@ -409,8 +428,14 @@ final class AnalyticsService
                  'pct' => $pct($nominees), 'note' => 'Approved, published and votable.'],
             ];
             if ($claimed !== null) {
+                // The held count rides in the note rather than in the figure. A held claim
+                // is a nominee who confirmed a code and is waiting on a person — counting
+                // it as claimed would report the work finished at the moment it is owed,
+                // and omitting it entirely hides the queue. See NomineeClaimService::counts().
                 $stages[] = ['key' => 'claimed', 'label' => 'Profile claimed by the nominee', 'n' => $claimed,
-                             'pct' => $pct($claimed), 'note' => 'The nominee proved who they are and took the page.'];
+                             'pct' => $pct($claimed),
+                             'note' => 'The nominee proved who they are and took the page.'
+                                     . ($held > 0 ? ' ' . $held . ' more are held, waiting on a person.' : '')];
             }
 
             return ['stages' => $stages, 'rejected' => $rejected, 'pending' => $pending];
@@ -919,8 +944,19 @@ final class AnalyticsService
             $cheers = self::has('gates_cheers')
                 ? (int) DB::table('gates_cheers')->where('created_at', '>=', $from . ' 00:00:00')->count()
                 : 0;
+            // ── 'quarantined', NOT 'pending' ─────────────────────────────────
+            //
+            // `gates_comments.status` is ENUM('approved','deleted','quarantined',
+            // 'rejected') and `CommunityService::postComment()` writes the first or the
+            // third and nothing else. This counted 'pending', so it was always zero —
+            // and the template guards the warning on `> 0`, which made the whole line
+            // unreachable. The moderation queue reads 'quarantined' and was right the
+            // whole time, so the two screens disagreed structurally: one reported an
+            // empty backlog while the other worked through it.
+            //
+            // Through the same resolver the queue uses, so they cannot drift again.
             $pending = self::hasCol('gates_comments', 'status') && self::has('gates_comments')
-                ? (int) DB::table('gates_comments')->where('status', 'pending')->count()
+                ? CommunityService::awaitingModeration()
                 : 0;
 
             return [

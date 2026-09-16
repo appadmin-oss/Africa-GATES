@@ -137,20 +137,13 @@ class AuditService
         }
     }
 
-    /**
-     * Everything that ever happened to one record.
-     *
-     * Queries every alias of the type, not just the one asked for — see
-     * {@see AuditTargets::ALIASES}. An event's history is written under `site_event` by
-     * one controller and `event` by another, so a caller asking for either and getting
-     * only its own half would be a worse answer than none.
-     *
-     * @return list<array<string,mixed>>
-     */
-    public function forTarget(string $type, ?int $id, int $limit = 200): array
-    {
-        return $this->search(['target_type' => $type, 'target_id' => $id, 'per' => $limit])['rows'];
-    }
+    // One record's whole history used to have a second entry point here — a
+    // `forTarget()` wrapper with no caller anywhere, whose docblock explained the alias
+    // expansion (`site_event` written by one controller, `event` by another) as though
+    // it were the only place that did it. {@see filtered()} does it, for every reader,
+    // and `AuditController::target()` reaches it through {@see search()}. A second
+    // definition of "this record's history" is how the two come to disagree, so there
+    // is one.
 
     /**
      * What can be filtered on, drawn from the log itself rather than a hardcoded list.

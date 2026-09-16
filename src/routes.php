@@ -2112,7 +2112,7 @@ return function(App $app) {
         $g->get('/activity/search',ActivityController::class.':search');
         $g->get('/nominate',      NominationController::class.':form');
         $g->post('/nominate',     NominationController::class.':submit');
-        $g->get('/nominate/success',function($req,$res) use ($tv){ $d=$_SESSION['nom_done']??null; unset($_SESSION['nom_done']); return $tv($req)->render($res,'pages/nominate-success.twig',['page_title'=>'Nomination Submitted — Africa GATES','meta_description'=>'Your nomination is in. Thank you for championing African excellence — our team will review it for the Africa GATES awards cycle. Nominate someone else too.','gates_page'=>'nominate','has_hero'=>false,'ref'=>$d['ref']??'','nominee'=>$d['nominee']??'','category'=>$d['cat']??'','share_payload'=>$d['share']??null]); });
+        $g->get('/nominate/success',function($req,$res) use ($tv){ $d=$_SESSION['nom_done']??null; unset($_SESSION['nom_done']); return $tv($req)->render($res,'pages/nominate-success.twig',['page_title'=>'Nomination Submitted — Africa GATES','meta_description'=>'Your nomination is in. Thank you for championing African excellence — our team will review it for the Africa GATES awards cycle. Nominate someone else too.','gates_page'=>'nominate','ref'=>$d['ref']??'','nominee'=>$d['nominee']??'','category'=>$d['cat']??'','share_payload'=>$d['share']??null]); });
         // Paid-voting routes are STATIC and must be registered BEFORE the
         // /vote/{program}/{slug} variable route, or FastRoute treats them as
         // shadowed and aborts routing for the whole app.
@@ -2141,7 +2141,6 @@ return function(App $app) {
                 'meta_description' => 'Check exactly what happened to a paid vote — what was charged, what was '
                                     . 'delivered to the tally, and when.',
                 'gates_page'       => 'verify',
-                'has_hero'         => false,
                 'ref'              => $ref,
                 'proof'            => $ref !== ''
                     ? \AfricaGates\Services\VoteProof::forReference($ref)
@@ -2209,7 +2208,7 @@ return function(App $app) {
         $g->get('/m/{token:[A-Za-z0-9_-]{16,32}}', VoteMessageController::class.':permalink');
         $g->get('/partner',       PartnerController::class.':form');
         $g->post('/partner',      PartnerController::class.':submit');
-        $g->get('/partner/success',fn($req,$res)=>$tv($req)->render($res,'pages/partner-success.twig',['page_title'=>'Thank You — Africa GATES','meta_description'=>'Thank you for your interest in partnering with Africa GATES. Our team will be in touch to explore how we can champion African excellence together.','gates_page'=>'partner','has_hero'=>false]));
+        $g->get('/partner/success',fn($req,$res)=>$tv($req)->render($res,'pages/partner-success.twig',['page_title'=>'Thank You — Africa GATES','meta_description'=>'Thank you for your interest in partnering with Africa GATES. Our team will be in touch to explore how we can champion African excellence together.','gates_page'=>'partner']));
 
         // ── Shop (storefront + gateway checkout; static routes before {slug}) ──
         $g->get('/shop',           ShopController::class.':index');
@@ -2504,8 +2503,7 @@ return function(App $app) {
                 'page_title'=>$doc['title'].' — Africa GATES',
                 'meta_description'=>'The '.$doc['title'].' for Africa GATES — the continental Cultural Power Index recognising African excellence.',
                 'og_type'=>'article',
-                'gates_page'=>'legal','has_hero'=>false,
-                'breadcrumbs'=>[['label'=>'Home','url'=>'/'],['label'=>$doc['title']]],
+                'gates_page'=>'legal', 'breadcrumbs'=>[['label'=>'Home','url'=>'/'],['label'=>$doc['title']]],
                 'legal_doc'=>$doc,
                 'legal_tabs'=>\AfricaGates\Services\LegalService::published(),
 
@@ -2596,7 +2594,7 @@ return function(App $app) {
             return $tv($req)->render($res,'pages/programme-terms.twig',[
                 'page_title'=>$p->title.' — Terms — Africa GATES',
                 'meta_description'=>'The terms for the '.$p->title.' programme on Africa GATES — eligibility, voting and nomination rules.',
-                'gates_page'=>'legal','has_hero'=>false,'programme'=>(array)$p,
+                'gates_page'=>'legal','programme'=>(array)$p,
             ]);
         });
         $g->get('/cookies', fn($req,$res)=>$legalRender($req,$res,'cookies'));
@@ -2789,8 +2787,6 @@ return function(App $app) {
                     ['label' => 'Philosophy'],
                 ],
                 'gates_page'       => 'philosophy',
-                'has_hero'         => false,
-                'current_section'  => 'projects',
                 'doc_sections'     => $doc::sections($figs),
                 'doc_standfirst'   => $doc::standfirst($figs),
                 'doc_title'        => $doc::TITLE,
@@ -2843,8 +2839,6 @@ return function(App $app) {
                     ['label' => 'Integrity Centre'],
                 ],
                 'gates_page'       => 'integrity',
-                'has_hero'         => false,
-                'current_section'  => 'projects',
 
                 // ── THE DOCUMENT ─────────────────────────────────────────────
                 // Identity from MethodologyDocument: this page is its own citable
@@ -2872,7 +2866,7 @@ return function(App $app) {
                 // The masthead macro omits the field when it is absent.
             ]);
         });
-        $g->get('/support', fn($req,$res)=>$tv($req)->render($res,'pages/support.twig',['page_title'=>'Support & Appeals — Africa GATES','meta_description'=>'Get help with Africa GATES — the CPI, voting, nominations and your profile — and appeal any moderation decision through an independent review.','gates_page'=>'support','has_hero'=>false]));
+        $g->get('/support', fn($req,$res)=>$tv($req)->render($res,'pages/support.twig',['page_title'=>'Support & Appeals — Africa GATES','meta_description'=>'Get help with Africa GATES — the CPI, voting, nominations and your profile — and appeal any moderation decision through an independent review.','gates_page'=>'support']));
         // /signin was a non-functional mock (fake success, no auth). Retire it —
         // the real, working member sign-in is /account/login.
         $g->get('/signin',  fn($req,$res)=>$res->withHeader('Location','/account/login')->withStatus(301));
@@ -2907,7 +2901,6 @@ return function(App $app) {
                 'page_title'       => 'Is it working? — Africa GATES',
                 'meta_description' => 'A live check of Africa GATES: voting and profiles, scheduled work, messages going out, payments, email and the AI helpers.',
                 'gates_page'       => 'status',
-                'has_hero'         => false,
                 'status_labels'    => SystemStatus::LABELS,
             ]);
         });

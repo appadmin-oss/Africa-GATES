@@ -21,7 +21,7 @@ class RegistryController {
         $data=$this->cache->remember("reg:p{$page}",300,fn()=>$this->profiles->paginatedList($page,18,'','','','cpi_desc','',''));
         // The template derives rows/has_profiles/catset from `profiles` — pass the
         // raw array (not a JSON string) or the grid renders the empty state always.
-        return $this->view->render($res,'pages/registry/index.twig',['page_title'=>'Registry — Africa GATES','meta_description'=>'Browse the Africa GATES registry — the verified record of African creatives, businesses and organisations, ranked by live Cultural Power Index scores.','gates_page'=>'registry','has_hero'=>false,'current_section'=>'projects','profiles'=>$data['profiles'],'total_profiles'=>$data['total']]);
+        return $this->view->render($res,'pages/registry/index.twig',['page_title'=>'Registry — Africa GATES','meta_description'=>'Browse the Africa GATES registry — the verified record of African creatives, businesses and organisations, ranked by live Cultural Power Index scores.','gates_page'=>'registry','profiles'=>$data['profiles']]);
     }
     public function profile(Request $req,Response $res,array $args):Response {
         $slug=$args['slug']??''; $p=$this->cache->remember("profile:{$slug}",1800,fn()=>$this->profiles->getBySlug($slug));
@@ -39,7 +39,7 @@ class RegistryController {
                 fn($s)=>($s['slug']??'')!==$p['slug']
             )),0,3);
         }
-        return $this->view->render($res,'pages/registry/profile.twig',['page_title'=>$p['display_name'].' — Africa GATES','meta_description'=>$meta,'og_title'=>$p['display_name'].' — Africa GATES','gates_page'=>'registry','has_hero'=>false,'current_section'=>'projects','profile'=>$p,'comments'=>$comments,'cheer_count'=>$cheerCount,'similar'=>$similar,
+        return $this->view->render($res,'pages/registry/profile.twig',['page_title'=>$p['display_name'].' — Africa GATES','meta_description'=>$meta,'og_title'=>$p['display_name'].' — Africa GATES','gates_page'=>'registry','profile'=>$p,'comments'=>$comments,'cheer_count'=>$cheerCount,'similar'=>$similar,
             // ── THE SPLIT, READ RATHER THAN TYPED ─────────────────────────
             //
             // The card used to have 45/55 written into it in three places. The
@@ -66,14 +66,14 @@ class RegistryController {
             )]+array_filter(['og_image'=>\AfricaGates\Support\Assets::absoluteOg($p['avatar_path']??null),'og_image_alt'=>$p['display_name'].' — Africa GATES profile'],fn($v)=>$v!==null));
     }
     public function registerForm(Request $req,Response $res):Response {
-        return $this->view->render($res,'pages/registry/register.twig',['page_title'=>'Register — Africa GATES','meta_description'=>'Join the Africa GATES registry. Create your verified profile, start building a Cultural Power Index score and become eligible for every awards cycle.','gates_page'=>'register','has_hero'=>false,'current_section'=>'projects']);
+        return $this->view->render($res,'pages/registry/register.twig',['page_title'=>'Register — Africa GATES','meta_description'=>'Join the Africa GATES registry. Create your verified profile, start building a Cultural Power Index score and become eligible for every awards cycle.','gates_page'=>'register']);
     }
     public function registerSubmit(Request $req,Response $res):Response {
         $b=(array)$req->getParsedBody(); $ip=$req->getServerParams()['REMOTE_ADDR']??''; $fp=hash('sha256',$ip);
-        if(!$this->rateLimit->check($fp,'register',3,3600)) return $this->view->render($res,'pages/registry/register.twig',['error'=>'Too many submissions.','gates_page'=>'register','has_hero'=>false,'current_section'=>'projects','old'=>$b])->withStatus(429);
-        foreach(['display_name','email','category','profile_type','country_code'] as $f) if(empty(trim((string)($b[$f]??'')))) return $this->view->render($res,'pages/registry/register.twig',['error'=>'Please fill all required fields.','gates_page'=>'register','has_hero'=>false,'current_section'=>'projects','old'=>$b])->withStatus(422);
-        if(!filter_var($b['email'],FILTER_VALIDATE_EMAIL)) return $this->view->render($res,'pages/registry/register.twig',['error'=>'Invalid email address.','gates_page'=>'register','has_hero'=>false,'current_section'=>'projects','old'=>$b])->withStatus(422);
-        try{ $newId = $this->profiles->register($b); }catch(\Exception $e){ $msg=str_contains($e->getMessage(),'Duplicate')?'Email already registered.':'Registration failed.'; return $this->view->render($res,'pages/registry/register.twig',['error'=>$msg,'gates_page'=>'register','has_hero'=>false,'current_section'=>'projects','old'=>$b])->withStatus(422); }
+        if(!$this->rateLimit->check($fp,'register',3,3600)) return $this->view->render($res,'pages/registry/register.twig',['error'=>'Too many submissions.','gates_page'=>'register','old'=>$b])->withStatus(429);
+        foreach(['display_name','email','category','profile_type','country_code'] as $f) if(empty(trim((string)($b[$f]??'')))) return $this->view->render($res,'pages/registry/register.twig',['error'=>'Please fill all required fields.','gates_page'=>'register','old'=>$b])->withStatus(422);
+        if(!filter_var($b['email'],FILTER_VALIDATE_EMAIL)) return $this->view->render($res,'pages/registry/register.twig',['error'=>'Invalid email address.','gates_page'=>'register','old'=>$b])->withStatus(422);
+        try{ $newId = $this->profiles->register($b); }catch(\Exception $e){ $msg=str_contains($e->getMessage(),'Duplicate')?'Email already registered.':'Registration failed.'; return $this->view->render($res,'pages/registry/register.twig',['error'=>$msg,'gates_page'=>'register','old'=>$b])->withStatus(422); }
         $this->sheets?->pushRegistration($b);
         $this->community?->recordActivity('register', trim((string)$b['display_name']), 'profile', (int)$newId, trim((string)$b['display_name']), ['country' => strtoupper((string)$b['country_code'])]);
         $dn=trim((string)$b['display_name']); $em=strtolower(trim((string)$b['email']));

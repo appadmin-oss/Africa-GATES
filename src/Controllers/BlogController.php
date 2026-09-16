@@ -28,7 +28,6 @@ class BlogController
             'page_title'       => 'Blog — Africa GATES',
             'meta_description' => 'Announcements, methodology notes and partnership stories from Africa GATES.',
             'gates_page'       => 'blog',
-            'has_hero'         => true,
             'posts'            => $posts,
         ]);
     }
@@ -55,7 +54,6 @@ class BlogController
             'page_title'       => $post->title . ' — Africa GATES',
             'meta_description' => (string)($post->excerpt ?? ''),
             'gates_page'       => 'blog',
-            'has_hero'         => false,
             'post'             => (array)$post,
             'more'             => $more,
             'poll'             => $poll,

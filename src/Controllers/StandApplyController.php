@@ -91,7 +91,6 @@ final class StandApplyController
             return $this->view->render($res, 'pages/stands/call.twig', [
                 'page_title' => 'Trade at ' . (string) $event->title,
                 'gates_page' => 'stands',
-                'has_hero'   => false,
                 'event'      => $event,
                 'published'  => false,
                 'accepting'  => false,
@@ -99,7 +98,6 @@ final class StandApplyController
                 'notify_source' => \AfricaGates\Services\StandCallNotice::source((string) $event->slug),
                 'capacity'   => [],
                 'categories' => [],
-                'signed_in'  => OrgAuth::user() !== null,
                 'offer_hours'=> StandApplication::OFFER_HOURS,
             ]);
         }
@@ -107,14 +105,12 @@ final class StandApplyController
         return $this->view->render($res, 'pages/stands/call.twig', [
             'page_title' => 'Trade at ' . (string) $event->title,
             'gates_page' => 'stands',
-            'has_hero'   => false,
             'event'      => $event,
             'call'       => $call,
             'published'  => true,
             'accepting'  => StandCall::isAccepting($call),
             'capacity'   => StandCall::capacity((int) $event->id),
             'categories' => StandType::categories(),
-            'signed_in'  => OrgAuth::user() !== null,
             'offer_hours'=> StandApplication::OFFER_HOURS,
             // ── THE HALL, PUBLISHED ─────────────────────────────────────────
             //
@@ -254,7 +250,6 @@ final class StandApplyController
         return $this->view->render($res, 'pages/stands/apply.twig', [
             'page_title' => 'Apply for a stand — ' . (string) $event->title,
             'gates_page' => 'stands',
-            'has_hero'   => false,
             'lite_page'  => true,
             // ── NO BOTTOM BAR ON THE FORM ───────────────────────────────────
             //

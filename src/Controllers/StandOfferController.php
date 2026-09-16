@@ -76,7 +76,7 @@ final class StandOfferController
             // holding a link to it is owed that sentence rather than a blank wall.
             return $this->view->render($res->withStatus(404), 'pages/stands/offer.twig', [
                 'page_title' => 'That link is not working — Africa GATES',
-                'gates_page' => 'stands', 'has_hero' => false, 'lite_page' => true,
+                'gates_page' => 'stands', 'lite_page' => true,
                 'app' => null, 'dead' => true,
             ])->withHeader('X-Robots-Tag', 'noindex, nofollow');
         }
@@ -97,7 +97,6 @@ final class StandOfferController
         return $this->view->render($res, 'pages/stands/offer.twig', [
             'page_title'  => 'Your stand at ' . (string) ($event->title ?? 'the event'),
             'gates_page'  => 'stands',
-            'has_hero'    => false,
             'lite_page'   => true,
             'dead'        => false,
             'app'         => $app,

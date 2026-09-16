@@ -22,8 +22,6 @@ class PartnerController {
     private function vars(array $extra): array {
         return array_merge([
             'gates_page'      => 'partner',
-            'has_hero'        => false,
-            'current_section' => 'projects',
             'stats'           => $this->stats?->summary() ?? [],
             'payment_providers' => $this->payments ? $this->payments->enabledProviders() : [],
         ], $extra);

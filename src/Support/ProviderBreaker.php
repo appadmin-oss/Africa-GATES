@@ -57,6 +57,12 @@ final class ProviderBreaker
     public const OPEN_SECONDS = 300;
 
     /**
+     * The cache-key prefix, named once so {@see key()} and {@see clearAll()} cannot
+     * spell it differently. It contains an underscore, which is why clearAll() escapes.
+     */
+    private const PREFIX = 'ai_breaker:';
+
+    /**
      * Within-request memo, so one page load asking twice costs one query.
      *
      * Also the whole store when the cache table cannot be read: losing the breaker
@@ -69,7 +75,7 @@ final class ProviderBreaker
 
     private static function key(string $provider): string
     {
-        return 'ai_breaker:' . strtolower(trim($provider));
+        return self::PREFIX . strtolower(trim($provider));
     }
 
     /** Record that a provider could not be reached at the network level. */
@@ -140,8 +146,18 @@ final class ProviderBreaker
     public static function clearAll(): void
     {
         self::$memo = [];
-        try { DB::table('gates_cache')->where('cache_key', 'LIKE', 'ai_breaker:%')->delete(); }
-        catch (\Throwable) {}
+        // ── THE UNDERSCORE IN `ai_breaker` IS A WILDCARD ─────────────────────
+        //
+        // This was `where('cache_key', 'LIKE', 'ai_breaker:%')`, and `_` matches any
+        // single character in a LIKE pattern on both drivers — so the pattern was
+        // really `ai?breaker:%`, inside a DELETE. Nothing this platform writes collides
+        // today, which is exactly what makes it the kind of thing that is discovered by
+        // a row going missing rather than by a test. {@see Like} exists for this.
+        try {
+            DB::table('gates_cache')
+                ->whereRaw(Like::clause('cache_key'), [Like::esc(self::PREFIX) . '%'])
+                ->delete();
+        } catch (\Throwable) {}
     }
 
     /** Does this failure text mean the request never reached the provider? */

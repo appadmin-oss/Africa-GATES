@@ -23,8 +23,9 @@ use Illuminate\Database\Capsule\Manager as DB;
  *
  * `amount_naira` is recorded and NOT published. What a sponsor paid is commercially
  * confidential and publishing it would deter the sponsorships this exists to attract; what
- * cannot be confidential is THAT they paid, which is the disclosure. The figure is for the
- * finance screen and for answering the question honestly when it is asked properly.
+ * cannot be confidential is THAT they paid, which is the disclosure. The figure is drawn on
+ * the sponsors screen itself (`admin/programmes/sponsors.twig`, the money column) and is
+ * there for answering the question honestly when it is asked properly.
  *
  * That is the opposite of a column with no reader — it has one, and it is deliberately not
  * the public page. Named here so the next sweep over unread columns does not delete it.

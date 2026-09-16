@@ -130,8 +130,6 @@ class ShopController
             'page_title'       => 'Shop — Africa GATES',
             'meta_description' => 'Heritage-grade Africa GATES apparel and keepsakes. Every purchase funds child leadership programmes across the continent.',
             'gates_page'       => 'shop',
-            'has_hero'         => false,
-            'current_section'  => 'projects',
             'products'         => $products,
             // Every category with something active in it — read from the catalogue rather than
             // from the products on THIS page, or paging to page 2 would make chips disappear.
@@ -213,7 +211,6 @@ class ShopController
         return $this->view->render($res, 'pages/shop/alert-stopped.twig', [
             'page_title' => 'You are off that list — Africa GATES',
             'gates_page' => 'shop',
-            'has_hero'   => false,
         ])->withHeader('X-Robots-Tag', 'noindex, nofollow');
     }
 
@@ -285,8 +282,6 @@ class ShopController
             'meta_description' => $meta,
             'og_title'         => $product['name'] . ' — Africa GATES',
             'gates_page'       => 'shop',
-            'has_hero'         => false,
-            'current_section'  => 'projects',
             'product'          => $product,
             'related'          => $related,
             'providers'        => $this->providers(),
@@ -295,7 +290,6 @@ class ShopController
             'regions'          => ShopPricing::regions(),
             'region_priced'    => ShopPricing::isActive($mults),
             'currency'         => $cur,
-            'currency_enabled' => $curEnabled,
             'currencies'       => CurrencyService::CURRENCIES,
             'fx_rate'          => $rate,
             'fx_symbol'        => $sym,

@@ -63,7 +63,6 @@ class FormController
             'page_title'       => $form['title'] . ' — Africa GATES',
             'meta_description' => $form['description'] ?: $form['title'],
             'gates_page'       => 'form',
-            'has_hero'         => false,
             'form'             => $form,
             'error'            => $error,
             'values'           => $values,

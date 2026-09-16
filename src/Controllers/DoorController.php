@@ -121,7 +121,6 @@ final class DoorController
 
         $common = [
             'gates_page' => 'events',
-            'has_hero'   => false,
             // The two flags that strip the heavy stack. This page renders on a phone with one
             // bar at a venue door; every library it does not fetch is a request that cannot
             // time out there.

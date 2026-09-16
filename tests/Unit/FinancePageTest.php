@@ -5,6 +5,7 @@ namespace Tests\Unit;
 
 use AfricaGates\Admin\Controllers\FinanceController;
 use AfricaGates\Admin\Support\Permissions;
+use AfricaGates\Services\RecurringGiving;
 use Illuminate\Database\Capsule\Manager as DB;
 use Slim\Psr7\Factory\ServerRequestFactory;
 use Slim\Psr7\Response;
@@ -150,5 +151,38 @@ final class FinancePageTest extends TestCase
         $this->assertStringContainsString('"Paid votes"', $csv);
         $this->assertStringContainsString('7500', $csv);
         $this->assertStringContainsString('ref-abc', $csv);
+    }
+
+    /**
+     * THE STANDING-GIFT PANEL IS ON THE SERVED PAGE, NOT MERELY IN THE TEMPLATE.
+     *
+     * `gates_donation_subscriptions` was read by one service and by nothing in the admin
+     * console at all. The lesson this codebase keeps paying for is that every piece being
+     * correct proves nothing — the donor's stop link was built, resolved, routed and
+     * rendered, and no receipt ever contained the URL. So this asserts the RESPONSE BODY
+     * of `/admin/finance`, through the container, the way an operator receives it.
+     */
+    public function test_a_failed_monthly_gift_reaches_the_finance_page(): void
+    {
+        $_SESSION['admin_role'] = 'admin';
+
+        DB::table('gates_donation_subscriptions')->insert([
+            'provider' => 'paystack', 'donor_email' => 'tunde@example.test',
+            'donor_name' => 'Tunde Bello', 'amount_naira' => 7500,
+            'interval_name' => 'monthly', 'plan_code' => 'PLN_x',
+            'subscription_code' => 'SUB_x', 'status' => RecurringGiving::ST_FAILED,
+            'manage_token' => str_repeat('a', 32), 'charges' => 4,
+            'created_at' => '2026-02-01 09:00:00',
+        ]);
+
+        $res  = $this->get();
+        $html = (string) $res->getBody();
+
+        $this->assertSame(200, $res->getStatusCode());
+        $this->assertStringContainsString('Monthly giving', $html, 'the tab has to exist');
+        $this->assertStringContainsString('tunde@example.test', $html,
+            'a gift the gateway could not collect must be visible to somebody — nothing '
+            . 'emails the donor, so this screen is the only way anybody finds out');
+        $this->assertStringContainsString('Collection failed', $html);
     }
 }

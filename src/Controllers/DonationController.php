@@ -109,8 +109,7 @@ final class DonationController
                             ? 'That appeal has closed. Thank you to everyone who gave.'
                             : 'That appeal could not be found.',
                         'page_title' => 'Appeal closed — Africa GATES',
-                        'gates_page' => 'donate', 'has_hero' => false,
-                        'providers'  => [], 'stats' => $this->stats(), 'givers' => [],
+                        'gates_page' => 'donate', 'providers'  => [], 'stats' => $this->stats(), 'givers' => [],
                     'org_totals' => \AfricaGates\Services\PartnerOrg::platformTotals(),
                         'org' => null, 'campaign' => null, 'org_closed' => true,
                         'brand' => null, 'brand_css' => null, 'story_paragraphs' => [],
@@ -140,8 +139,7 @@ final class DonationController
                 return $this->view->render($res->withStatus(404), 'pages/donate.twig', [
                     'error'      => 'That appeal is not open for gifts.',
                     'page_title' => 'Appeal closed — Africa GATES',
-                    'gates_page' => 'donate', 'has_hero' => false,
-                    'providers'  => [], 'stats' => $this->stats(), 'givers' => [],
+                    'gates_page' => 'donate', 'providers'  => [], 'stats' => $this->stats(), 'givers' => [],
                     'org_totals' => \AfricaGates\Services\PartnerOrg::platformTotals(),
                     'org' => null, 'campaign' => null, 'org_closed' => true,
                         'brand' => null, 'brand_css' => null, 'story_paragraphs' => [],
@@ -192,7 +190,6 @@ final class DonationController
                 ? ('Donate to ' . $org->name . ' through Africa GATES. Your donation settles directly to the organisation.')
                 : 'Fund child leadership programmes across the continent — mentorship, scholarships and grassroots education. Every donation is receipted and independently audited.',
             'gates_page'       => 'donate',
-            'has_hero'         => false,
             'providers'        => $this->payments->enabledProviders(),
             'stats'            => $stats,
             'givers'           => $org ? [] : $this->recentGivers(),
@@ -712,8 +709,7 @@ final class DonationController
 
         return $this->view->render($res->withStatus($sub ? 200 : 404), 'pages/donate-giving.twig', [
             'page_title' => $sub ? 'Your monthly gift — Africa GATES' : 'Link not valid — Africa GATES',
-            'gates_page' => 'donate', 'has_hero' => false,
-            'sub'        => $sub,
+            'gates_page' => 'donate', 'sub'        => $sub,
             'token'      => (string) ($args['token'] ?? ''),
             'flash_ok'   => $flash,
             'flash_err'  => $err,
@@ -792,7 +788,6 @@ final class DonationController
             'page_title'       => 'Thank you — Africa GATES',
             'meta_description' => 'Thank you for funding child leadership programmes across the continent.',
             'gates_page'       => 'donate',
-            'has_hero'         => false,
             'confirmed'        => $don !== null,
             'amount_naira'     => $don ? (int)$don->amount_naira : 0,
             'reference'        => $reference,

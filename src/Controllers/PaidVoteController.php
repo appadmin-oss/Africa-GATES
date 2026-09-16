@@ -404,7 +404,6 @@ final class PaidVoteController
             'page_title'       => $minted ? 'Votes confirmed — Africa GATES' : 'Payment received — Africa GATES',
             'meta_description' => 'Your paid votes have been recorded — thank you for backing African excellence.',
             'gates_page'       => 'awards',
-            'has_hero'         => false,
             'confirmed'        => $don !== null,
             'minted'           => $minted,
             'votes'            => $don ? (int)$don->bonus_votes : 0,

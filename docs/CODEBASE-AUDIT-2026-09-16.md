@@ -1,8 +1,12 @@
 # Africa GATES — Structure & Flaw Audit
 
-> **Date:** 2026-09-16 · **Scope:** analysis only, no behaviour changed.
-> **Measured against** the working tree at `8c2115b` on
+> **Date:** 2026-09-16 · **Findings measured** against the working tree at `8c2115b` on
 > `claude/ai-assistance-judges-features-1ka4oz`.
+> **ALL SIX ARE FIXED** in the commit that follows this one — see §6, which records what
+> each fix was and, where a finding carried a product decision, which way it was called and
+> why. The findings below are left in the present tense deliberately: an audit rewritten to
+> describe the world after its own fixes stops being evidence of what was wrong, and this
+> repository's most expensive documented fault is prose outliving the thing it describes.
 > **Companion docs:** [`CODEBASE-INDEX.md`](CODEBASE-INDEX.md) (the map),
 > [`CODEBASE-AUDIT-2026-08-27.md`](CODEBASE-AUDIT-2026-08-27.md) (the previous pass).
 > Nothing is carried over from that pass; every figure below was re-measured.
@@ -32,7 +36,8 @@ the handbook**; one leaves a **donor's monthly gift with no operator surface at 
 | 3.6 | Three smaller vestiges: `forTarget()`, `logo_path`, an unescaped `_` in a `DELETE … LIKE` | Low |
 
 Each finding below was reproduced with a throwaway test before it was written down, per
-`CLAUDE.md`'s rule that a sweep is only evidence once it has named the break.
+`CLAUDE.md`'s rule that a sweep is only evidence once it has named the break. Those
+throwaway tests are now permanent ones — see §6.
 
 ---
 
@@ -334,3 +339,117 @@ this repository have all been the clever ones that went quiet in the wrong place
   the integer-width and strict-mode traps at the top of `CLAUDE.md` are invisible to this
   pass by construction. 3.1 and 3.4 are `0 rows` on both drivers, so they do not depend on
   it; anything about a *write* outside an `ENUM` would.
+
+---
+
+## 6. What was done about them
+
+Fixed in `claude/ai-assistance-judges-features-1ka4oz`, immediately after this document was
+written. Suite green: **6,543 tests**. Every guard below was watched failing against the
+original code before it was trusted passing, as `CLAUDE.md` requires.
+
+### 6.1 The claimed stage
+
+`NomineeClaimService` now names the five states it writes (`ST_PENDING`, `ST_ACTIVE`,
+`ST_HELD`, `ST_REJECTED`, `ST_REVOKED`) and owns `counts()`, the one reader of "how many
+pages have been claimed". `AnalyticsService` calls it; the literal is gone, and so are the
+eight bare status literals inside `NomineeClaimService` itself.
+
+**The product call: `taken` is `active` alone.** A `held` claim is a nominee who confirmed
+a code and is waiting on a person — counting it as claimed reports the work finished at the
+moment it is owed. It is returned beside the figure and printed in the stage's note
+("*N more are held, waiting on a person*"), because "40 claimed" with nine held is a
+different week's work from "40 claimed" with none.
+
+### 6.2 The handbook
+
+§5 now branches on `community_basis`, `community_scope` and `judge_scale`, resolved through
+the scorer's own normalisers (`CpiService::basis()`, `scope()`, `judgeScale()`) so a stored
+typo is described the way it will be **scored**. `basis_ideal` is gone; `HandbookController::scoring()`
+is what the template reads, and it is public so `HandbookTest` renders from the payload the
+controller actually builds.
+
+**The worked example is now the scorer's own output.** `scoring()` calls
+`CpiService::communityPart()` for both nominees against one cohort and scales it through
+`split()`'s arithmetic, so the two figures the handbook prints are the two figures the
+platform would award. At the live weight it still reads 293 and 135; under `reach` it reads
+450 and 136, which is what `CLAUDE.md` documents that basis paying.
+
+**It is withheld entirely under `relative` and `absolute`.** Neither has a people term, so
+"one backed by a thousand people and one backed by two" scores the pair identically — a
+worked example answering the reader's question with a tautology. Under those the page states
+that the number of separate supporters does not enter the calculation, and shows no
+arithmetic.
+
+`HandbookTest` now forbids the bare figures `450`, `293` and `135` at a moved weight rather
+than the string `450 points`, and a new test renders the page under `curved`, under
+`category` scope and under each of the other three bases. Proven: restoring the typed
+figures fails the first; `{% if scoring.curved %}` → `{% if false %}` fails the second.
+
+### 6.3 Monthly giving
+
+`activeFor()` is deleted — its docblock's claim ("for the admin view and for tests") was
+false in both halves. `RecurringGiving::standing()` replaces it and **has a caller**:
+`/admin/finance` gained a *Monthly giving* panel, no new route and no new rail entry, per
+the rule that a sub-page is linked from the page it belongs under.
+
+**`failed` is returned first, separately, and its count is in the tab label** — it is the
+only row on the panel anybody has to act on. Committed monthly money counts `active` alone;
+a pending checkout the gateway has not confirmed is not committed, and a cancelling gift is
+already leaving.
+
+**What was deliberately NOT done: no dunning mail.** Whether this platform writes to
+somebody whose card bounced is a decision about the relationship, not a default worth
+shipping quietly inside an audit fix. The panel says so in as many words, so the next person
+finds the decision rather than the gap.
+
+`FinancePageTest` asserts a failed gift's address in the **response body** of
+`/admin/finance` through the container — not in the template source. Every piece of the
+donor's stop link was correct too, and no receipt ever contained the URL.
+
+### 6.4 The moderation warning
+
+`CommunityService::HELD` is the one spelling of "waiting on a moderator", and
+`awaitingModeration()` the one count. Both `AnalyticsService` and `ModerationController`
+read them; neither carries a literal.
+
+`AnalyticsServiceTest` holds 6.1 and 6.4 permanently: one inserts two `active` claims, a
+`held` one and a `pending` one and requires the stage to say 2 with the held one named in
+its note; the other inserts a held comment and an approved one and requires the backlog
+figure to be 1. Both were watched failing against the original filters.
+
+### 6.5 The dead context keys
+
+`tests/Unit/TemplateContextTest.php` is the sweep, and it failed with **72 findings** on the
+tree as audited. All are gone: `has_hero` (93 places in `src/`, zero templates),
+`current_section` (29), and seventeen others.
+
+Two carried real work, which went with them:
+
+- `LegacyController::event()` no longer fetches comments and cheers — two uncached queries
+  on every legacy-event view, rendered by nothing. `CommunityService` dropped out of its
+  constructor and its container wiring with them.
+- `HomeController` no longer builds `ticker_profiles`, `legacy_events`, `active_opps` or
+  `latest_posts` — four cached datasets the globe-band redesign stopped drawing.
+  `LegacyService` and `OpportunityService` left its constructor and the container with them.
+
+**And the deletions were swept again, because a deletion makes vestiges.** Removing those
+call sites orphaned `LegacyService::getRecentEvents()`, `LegacyService::getTotals()`,
+`StandsController::planScale()` and `ProfileService::getTopCpiProfiles()` — four public
+methods with no caller, which is the §20 fault created by fixing §17. They are gone too;
+the no-caller sweep now returns **0 of 2,738**.
+
+The sweep's docblock records the three things it had to learn not to lie about: top-level
+keys only (a nested `'schema' => ['mainEntity' => …]` otherwise reads as an unused page
+variable), the template's whole `extends`/`include` family in scope, and string-aware
+bracket matching (a naive depth count truncates the array at the first `$r['id']` and then
+reports a clean pass over the half it read).
+
+### 6.6 The three vestiges
+
+`AuditService::forTarget()` deleted, with a comment where it stood saying where one record's
+history actually resolves. `ProviderBreaker` gained a `PREFIX` constant and its `clearAll()`
+goes through `Like::clause()`/`Like::esc()`. `gates_programme_sponsors.logo_path` is recorded
+in `CODEBASE-INDEX.md` §19's vestige table — it makes no false statement, so documenting it
+is the fix — and the sponsors migration no longer claims `amount_naira` is "for the finance
+screen" when it is drawn on the sponsors screen.

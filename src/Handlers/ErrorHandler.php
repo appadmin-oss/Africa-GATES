@@ -84,7 +84,7 @@ class ErrorHandler {
                     // nothing has ever set it, so the block below it has never rendered
                     // once. Same name, loop closed.
                     'error_ref' => $ref,
-                    'gates_page' => '', 'has_hero' => false, 'lite_page' => true,
+                    'gates_page' => '', 'lite_page' => true,
                 ]);
             } catch(\Throwable $e3){ /* fall through to minimal output */ }
         }

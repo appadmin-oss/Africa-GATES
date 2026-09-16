@@ -44,7 +44,6 @@ final class SupportController
             'page_title'       => 'Support — Africa GATES',
             'meta_description' => 'Get help with voting, payments, nominations and your account on Africa GATES.',
             'gates_page'       => 'support',
-            'has_hero'         => false,
             'ai_on'            => $this->agent?->available() ?? false,
             'is_signed_in'     => $m !== null,
             'member_first'     => $m ? explode(' ', trim((string) $m['name']))[0] : null,
@@ -369,7 +368,6 @@ final class SupportController
             'page_title'       => 'Your support tickets — Africa GATES',
             'meta_description' => 'Track your Africa GATES support tickets and replies.',
             'gates_page'       => 'support',
-            'has_hero'         => false,
             'member_name'      => $m['name'],
             'tickets'          => $this->tickets?->forMember((int) $m['id'], (string) $m['email']) ?? [],
             'thread'           => $thread,
@@ -423,7 +421,6 @@ final class SupportController
                 'page_title'       => 'This link has expired — Africa GATES',
                 'meta_description' => 'Support ticket link.',
                 'gates_page'       => 'support',
-                'has_hero'         => false,
                 'thread'           => null,
                 'token'            => '',
             ])->withHeader('X-Robots-Tag', 'noindex, nofollow');
@@ -435,7 +432,6 @@ final class SupportController
             'page_title'       => 'Ticket ' . $who['reference'] . ' — Africa GATES',
             'meta_description' => 'Your Africa GATES support conversation.',
             'gates_page'       => 'support',
-            'has_hero'         => false,
             // userId 0 — threadFor() has always matched on email alone, so the guest
             // path reuses the member reader rather than a parallel one that could
             // drift from it and start returning internal staff notes.

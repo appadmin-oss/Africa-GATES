@@ -58,7 +58,6 @@ final class HelpController
             'meta_description' => 'Answers about voting, payments, nominations, results and privacy on '
                                 . 'Africa GATES — and how to reach a person when you need one.',
             'gates_page'       => 'help',
-            'has_hero'         => false,
             'q'                => $q,
             'results'          => $q !== '' ? HelpCentre::search($q, 12) : [],
             'categories'       => HelpCentre::CATEGORIES,
@@ -118,7 +117,6 @@ final class HelpController
             'meta_description' => (string) ($cat['blurb'] ?? '')
                                 . ' ' . count($articles) . ' answers on Africa GATES.',
             'gates_page'       => 'help',
-            'has_hero'         => false,
             'category'         => $cat,
             'category_key'     => $key,
             'articles'         => $articles,
@@ -205,7 +203,6 @@ final class HelpController
             'page_title'       => $article['title'] . ' — Help Centre — Africa GATES',
             'meta_description' => (string) $article['summary'],
             'gates_page'       => 'help',
-            'has_hero'         => false,
             'article'          => $article,
             'category'         => $cat,
             'category_key'     => $article['cat'],

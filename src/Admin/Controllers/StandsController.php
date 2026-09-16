@@ -102,7 +102,6 @@ final class StandsController
             'decisions'   => StandApplication::DECISIONS,
             'statuses'    => StandCall::STATUSES,
             'filter'      => $filter,
-            'filter_type' => (int) ($q['type'] ?? 0),
             'offer_hours' => StandApplication::OFFER_HOURS,
             // The reason typed into a refused decision, so it comes back in its own row's
             // box. One-shot: consumed on render.
@@ -140,7 +139,6 @@ final class StandsController
             // getting them wrong renders a picture the size of a wall and Twig is a poor
             // place to discover that.
             'swatch_scale'=> $this->swatchScale($plan),
-            'plan_scale'  => $this->planScale($plan),
 
             // ── THE THREE CHARTS, AS SPECS ───────────────────────────────────
             //
@@ -259,14 +257,6 @@ final class StandsController
             $widest = max($widest, (int) $r['type']->width_cm / 100);
         }
         return round(min(42.0, 210 / $widest), 2);
-    }
-
-    /** Pixels per metre for the hall, so a hall of any size lands about 880px across. */
-    private function planScale(array $plan): float
-    {
-        $w = $plan['floor_w_cm'] / 100;
-        if ($w < 1) return 10.0;
-        return round(min(30.0, 880 / $w), 2);
     }
 
     /**

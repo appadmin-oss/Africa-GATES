@@ -312,7 +312,6 @@ final class PaymentController
             'page_title'       => 'Payment Confirmed — Africa GATES',
             'meta_description' => 'Thank you — your Africa GATES contribution is confirmed.',
             'gates_page'       => 'partner',
-            'has_hero'         => false,
             'confirmed'        => $donation !== null,
             'amount_naira'     => $donation ? (int) $donation->amount_naira : 0,
             'bonus_votes'      => $donation ? (int) $donation->bonus_votes : 0,

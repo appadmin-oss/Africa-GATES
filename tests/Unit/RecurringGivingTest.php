@@ -301,4 +301,86 @@ final class RecurringGivingTest extends TestCase
         $this->assertNotNull($sub);
         $this->assertSame(RG::ST_CANCELLED, (string) $sub['status']);
     }
+
+    // ══ the operator's side ══════════════════════════════════════════════════
+
+    /**
+     * THE STANDING GIFTS ARE VISIBLE TO SOMEBODY, AND THE BROKEN ONES FIRST.
+     *
+     * `gates_donation_subscriptions` was read by `RecurringGiving` and by nothing else on
+     * the platform — the whole of `src/Admin/` and `templates/admin/` contained the word
+     * "subscription" once, in an unrelated webhook allow-list. There is no SSH on this
+     * host, so a monthly giving programme was unobservable by the people running it.
+     *
+     * The method that was supposed to do this said "for the admin view and for tests" in
+     * its own docblock and had neither. That is §20's question answered wrong in one line,
+     * and it is the shape this suite already holds `stopLink()` against.
+     */
+    public function test_the_operator_can_see_every_standing_gift(): void
+    {
+        $live = $this->arrangement(5000, 'AFG-DON-LIVE');
+        RG::activate(self::EMAIL, 5000, 'SUB_live', 'tok_live', 'CUS_1', '2026-11-01T09:00:00.000Z', 'AFG-DON-LIVE');
+
+        $this->arrangement(2000, 'AFG-DON-PEND');   // never confirmed by the gateway
+
+        $s = RG::standing();
+
+        $this->assertSame(5000, $s['monthly_naira'],
+            'only an ACTIVE gift is money anybody has committed — a pending checkout is not');
+        $this->assertSame(1, $s['counts'][RG::ST_ACTIVE] ?? 0);
+        $this->assertSame(1, $s['counts'][RG::ST_PENDING] ?? 0);
+        $this->assertCount(2, $s['live']);
+        $this->assertSame([], $s['failed']);
+}
+
+    /**
+     * A DECLINED CARD IS RETURNED SEPARATELY, BECAUSE NOTHING ELSE TELLS ANYBODY.
+     *
+     * `collectionFailed()` moves a gift to `failed` on `invoice.payment_failed`. Nothing
+     * read that state: the old per-donor query excluded it by construction, no screen
+     * listed it, and the webhook sends no mail. So a supporter's gift stopped, they were
+     * never told, and the platform showed it to nobody — the stop-link-with-no-caller
+     * fault one state further along, costing money from people who did not choose to go.
+     *
+     * Folding it into the list would be worse than omitting it: a list of standing gifts
+     * that quietly includes the broken ones reads as "everyone is still giving".
+     */
+    public function test_a_gift_the_gateway_could_not_collect_is_surfaced_on_its_own(): void
+    {
+        $this->arrangement(5000, 'AFG-DON-FAIL');
+        RG::activate(self::EMAIL, 5000, 'SUB_fail', 'tok_f', 'CUS_2', '', 'AFG-DON-FAIL');
+        $this->assertTrue(RG::collectionFailed('SUB_fail'));
+
+        $s = RG::standing();
+
+        $this->assertCount(1, $s['failed'], 'the declined card has to reach a screen');
+        $this->assertSame(self::EMAIL, $s['failed'][0]['donor_email'],
+            'and with the address on it — the operator\'s job here is to contact them');
+        $this->assertSame([], $s['live']);
+        $this->assertSame(0, $s['monthly_naira'],
+            'a gift that cannot be collected is not committed money');
+    }
+
+    /**
+     * And the panel is on a screen, which is the half that was missing last time.
+     *
+     * Every piece of the donor's stop link worked and `manageUrl()` had no caller; this
+     * suite asserts the receipt's own body calls `stopLink()` for exactly that reason.
+     * The same assertion belongs here: a resolver with a passing test and no reader is
+     * precisely the state the thing it replaced shipped in.
+     */
+    public function test_the_finance_screen_is_the_reader(): void
+    {
+        $controller = file_get_contents(dirname(__DIR__, 2) . '/src/Admin/Controllers/FinanceController.php');
+        $this->assertStringContainsString('RecurringGiving::standing()', (string) $controller,
+            'the finance screen must be the caller, or this is a dead resolver again');
+
+        $twig = file_get_contents(dirname(__DIR__, 2) . '/templates/admin/finance.twig');
+        $this->assertStringContainsString('giving.failed', (string) $twig,
+            'and the template must draw the failed gifts, which are the actionable ones');
+        // A panel with no `:checked ~ .fi-body` rule is `display:none` for ever — this
+        // page's tabs are CSS-only, so a new section is invisible until its rule exists.
+        $this->assertStringContainsString('#fi-t-giving:checked  ~ .fi-body #fi-p-giving', (string) $twig,
+            'the tab has to be able to open');
+    }
 }

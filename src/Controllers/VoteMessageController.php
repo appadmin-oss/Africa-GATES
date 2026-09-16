@@ -75,7 +75,6 @@ final class VoteMessageController
             'meta_description' => $msg['name'] . ' on ' . $msg['nominee_name']
                                 . ': ' . $this->excerpt((string) $msg['body'], 180),
             'gates_page'       => 'awards',
-            'has_hero'         => false,
             'og_type'          => 'article',
             // NOINDEX, FOLLOW. This page exists so a social platform has something to
             // preview — one short quote, mostly boilerplate around it, one per message.
@@ -184,7 +183,6 @@ final class VoteMessageController
             'meta_description' => 'The people who asked to be named among ' . $nom->name
                                 . '\'s supporters in ' . $nom->category . ' at Africa GATES.',
             'gates_page'  => 'awards',
-            'has_hero'    => false,
             'nom'         => $nom,
             'supporters'  => $r['people'],
             'total'       => $r['total'],
@@ -450,7 +448,6 @@ final class VoteMessageController
                     . $nom->name . ' in ' . $nom->category . '.'
                 : 'Messages of support for ' . $nom->name . ' at Africa GATES.',
             'gates_page'  => 'awards',
-            'has_hero'    => false,
             'nom'         => $nom,
             'messages'    => $items,
             'total'       => $total,

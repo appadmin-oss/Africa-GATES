@@ -67,6 +67,33 @@ use Illuminate\Support\Carbon;
  */
 final class NomineeClaimService
 {
+    /**
+     * THE FIVE STATES A CLAIM CAN BE IN, AND THE ONLY PLACE THEY ARE NAMED.
+     *
+     * `gates_nominee_claims.status` is `ENUM('pending','active','held','rejected',
+     * 'revoked')`. A sixth value does not announce itself — MySQL answers
+     * `Data truncated` on a write and a FILTER on one is simply zero rows, on both
+     * drivers, with nothing anywhere to report it.
+     *
+     * Which is what happened. `AnalyticsService::nominationFunnel()` counted
+     * `where('status', 'approved')` — a word this column has never been able to hold,
+     * borrowed from `gates_nominations`, the table one stage above it in the same
+     * funnel. The last stage therefore read "Profile claimed by the nominee — 0 — 0%"
+     * on every deployment for ever, and the code around it goes out of its way to
+     * distinguish that 0 from the NULL meaning "this install has no claiming", so the
+     * zero read as a measurement. It is the screen an operator uses to decide whether
+     * claiming works at all, reporting the opposite of the truth in a sentence that
+     * sounds like a finding about people.
+     *
+     * Named here, beside the code that writes them, so the next reader asks this file
+     * rather than guessing from a neighbouring table.
+     */
+    public const ST_PENDING  = 'pending';  // a code has been sent; nobody has confirmed
+    public const ST_ACTIVE   = 'active';   // confirmed and independent — they hold the page
+    public const ST_HELD     = 'held';     // confirmed, but something needs a person
+    public const ST_REJECTED = 'rejected'; // a person said no
+    public const ST_REVOKED  = 'revoked';  // it was active and has been taken back
+
     /** How long a claim code lives. Matches the voting OTP — one habit, not two. */
     public const CODE_TTL_MINUTES = 10;
 
@@ -155,6 +182,38 @@ final class NomineeClaimService
         private readonly ?SupportTicketService $tickets = null,
         private readonly ?RateLimitService $limits = null,
     ) {}
+    /**
+     * HOW MANY PAGES HAVE ACTUALLY BEEN CLAIMED, AND HOW MANY ARE WAITING ON A PERSON.
+     *
+     * One reader, because two counts of "claimed" is how a dashboard comes to disagree
+     * with the queue somebody is working through.
+     *
+     * `taken` is {@see ST_ACTIVE} alone. A {@see ST_HELD} claim is NOT a claimed page:
+     * the nominee confirmed a code and something still needs a human, so counting it
+     * would report work as finished at the exact moment it is owed. It is returned
+     * beside the figure instead — "40 claimed" with nine of them held is a different
+     * week's work from "40 claimed" with none, and the drop between two stages is the
+     * only actionable number in a funnel.
+     *
+     * @return array{taken:int, held:int}
+     */
+    public static function counts(): array
+    {
+        try {
+            $rows = DB::table('gates_nominee_claims')
+                ->select('status', DB::raw('COUNT(*) as n'))
+                // ONLY_FULL_GROUP_BY: the one non-aggregate selected is the one grouped.
+                ->groupBy('status')->get();
+        } catch (\Throwable) {
+            return ['taken' => 0, 'held' => 0];
+        }
+
+        $by = [];
+        foreach ($rows as $r) $by[(string) $r->status] = (int) $r->n;
+
+        return ['taken' => $by[self::ST_ACTIVE] ?? 0, 'held' => $by[self::ST_HELD] ?? 0];
+    }
+
 
     // ══ 1. what a claimant may pick ══════════════════════════════════════════
 
@@ -372,9 +431,9 @@ final class NomineeClaimService
 
         try {
             $taken = DB::table('gates_nominee_claims')
-                ->where('id', $claimId)->where('status', 'pending')
+                ->where('id', $claimId)->where('status', self::ST_PENDING)
                 ->update(\AfricaGates\Support\OptionalColumn::filter('gates_nominee_claims', [
-                    'status'            => 'active',
+                    'status'            => self::ST_ACTIVE,
                     'active_nominee_id' => $nomineeId,
                     'activated_at'      => date('Y-m-d H:i:s'),
                     'independence'      => self::encode($verdict),
@@ -419,7 +478,7 @@ final class NomineeClaimService
         return [
             'ok'        => true,
             'code'      => 'ACTIVE',
-            'status'    => 'active',
+            'status'    => self::ST_ACTIVE,
             'reference' => $reference,
             'message'   => 'This page is yours. We have told every contact on the nomination that '
                          . 'it was claimed, so anyone else listed knows too.',
@@ -448,7 +507,7 @@ final class NomineeClaimService
 
         try {
             DB::table('gates_nominee_claims')->where('id', $claimId)->update([
-                'status'       => 'held',
+                'status'       => self::ST_HELD,
                 'hold_reason'  => mb_substr($say, 0, 250),
                 'independence' => self::encode($verdict),
             ]);
@@ -459,7 +518,7 @@ final class NomineeClaimService
         return [
             'ok'        => true,          // NOT an error. The claimant did nothing wrong.
             'code'      => 'HELD',
-            'status'    => 'held',
+            'status'    => self::ST_HELD,
             'reference' => $reference,
             'message'   => $say,
             'ticket'    => $this->openAssistedTicket($claim, $reference, $say, $verdict, $contact),
@@ -675,7 +734,7 @@ HTML;
         try {
             $id = (int) DB::table('gates_nominee_claims')->insertGetId([
                 'nominee_id'   => $nomineeId,
-                'status'       => 'pending',
+                'status'       => self::ST_PENDING,
                 'method'       => 'otp',
                 'channel'      => $contact['channel'],
                 // The MASKED destination, in the column too: a leak of this table must not
@@ -700,7 +759,7 @@ HTML;
     {
         try {
             $row = DB::table('gates_nominee_claims')
-                ->where('nominee_id', $nomineeId)->where('status', 'active')->first();
+                ->where('nominee_id', $nomineeId)->where('status', self::ST_ACTIVE)->first();
             return $row === null ? null : ClaimNotifier::reference((int) $row->id, $row);
         } catch (\Throwable) {
             return null;
@@ -712,7 +771,7 @@ HTML;
         if ($claimId < 1) return null;
         try {
             return DB::table('gates_nominee_claims')
-                ->where('id', $claimId)->where('status', 'pending')->first();
+                ->where('id', $claimId)->where('status', self::ST_PENDING)->first();
         } catch (\Throwable) {
             return null;
         }

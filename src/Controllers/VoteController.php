@@ -91,8 +91,6 @@ class VoteController {
             'page_title'       => 'Vote — Africa GATES | Afrovanguard',
             'meta_description' => 'Cast your verified vote in the Africa GATES awards. Browse the live programmes and back the African excellence you believe deserves continental recognition.',
             'gates_page'       => 'awards',
-            'has_hero'         => false,
-            'current_section'  => 'projects',
             'hub'              => $hub,
             'split'            => $this->splitPct(),
             'meta'             => [
@@ -172,8 +170,6 @@ class VoteController {
             'page_title'       => $p['title'] . ' — Vote — Africa GATES',
             'meta_description' => 'Vote in ' . $p['title'] . ' — browse the nominees by category and back the African excellence you believe deserves continental recognition.',
             'gates_page'       => 'awards',
-            'has_hero'         => false,
-            'current_section'  => 'projects',
             'programme'        => $p,
             'categories'       => $cats,
             // The computed phase, not the stored column. `voting_open` is kept
@@ -503,7 +499,6 @@ class VoteController {
             'page_title'       => 'Vote for ' . $nom->name . ' — Africa GATES',
             'meta_description' => 'Cast your verified vote for ' . $nom->name . ' in ' . $nom->category . ' — Africa GATES, the continental Cultural Power Index.',
             'gates_page'       => 'awards',
-            'has_hero'         => false,
             'nominee'          => $nom,
             'profile'          => $profile,
             'rank'             => $rank,

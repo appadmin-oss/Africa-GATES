@@ -38,10 +38,6 @@ class ProfileService {
         return $q->limit($limit)->get(['id','slug','display_name','category','profile_type','cpi_score','cpi_tier','cpi_basis','verification_tier','avatar_path','country_code','region','completeness_pct'])->map(fn($r)=>array_merge($this->fmt($r),['rank'=>0]))->values()->all();
     }
 
-    public function getTopCpiProfiles(int $limit=8): array {
-        return ProfileMergeService::notMerged(DB::table('gates_profiles')->where('status','approved'))->orderByDesc('cpi_score')->limit($limit)->get(['id','display_name','cpi_score','cpi_tier','category','country_code'])->map(fn($r)=>['display_name'=>$r->display_name,'cpi_score'=>(int)$r->cpi_score,'cpi_tier'=>$r->cpi_tier,'category'=>$r->category,'country_code'=>$r->country_code])->values()->all();
-    }
-
     public function getFeaturedProfiles(int $limit=5): array {
         return ProfileMergeService::notMerged(DB::table('gates_profiles')->where('status','approved'))->whereIn('cpi_tier',['diamond','platinum','gold'])->orderByDesc('cpi_score')->limit($limit)->get(['id','slug','display_name','category','profile_type','cpi_score','cpi_tier','cpi_basis','verification_tier','avatar_path','country_code','region','completeness_pct'])->map(fn($r)=>$this->fmt($r))->values()->all();
     }

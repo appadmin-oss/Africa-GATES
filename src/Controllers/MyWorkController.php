@@ -623,7 +623,6 @@ final class MyWorkController
             // The composer's maxlength comes from the same constant the server truncates at,
             // so the two cannot drift into a limit the nominee cannot see.
             'say_max'    => \AfricaGates\Services\QuestionnaireInterview::MAX_SAY_CHARS,
-            'support_email' => Notifier::supportEmail(),
         ])->withHeader('X-Robots-Tag', 'noindex, nofollow');
     }
 }

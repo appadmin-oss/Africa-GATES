@@ -66,7 +66,6 @@ final class EmailPrefsController
             // A task page: no splash, no marketing chrome. Somebody here is trying to
             // finish one thing.
             'task_page'        => true,
-            'has_hero'         => false,
             'valid'            => $email !== null,
             'done'             => $done,
             'email'            => $email,

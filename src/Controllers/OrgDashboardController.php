@@ -86,7 +86,6 @@ final class OrgDashboardController
         return $this->view->render($res, 'pages/org/login.twig', [
             'page_title' => 'Partner sign in — Africa GATES',
             'gates_page' => 'partner',
-            'has_hero'   => false,
             'lite_page'  => true,
             'error'      => trim((string) ($req->getQueryParams()['e'] ?? '')) !== ''
                             ? 'Those details did not match. Check the address and password and try again.'
@@ -141,7 +140,6 @@ final class OrgDashboardController
         return $this->view->render($res, 'pages/org/dashboard.twig', [
             'page_title'  => $org->name . ' — partner dashboard',
             'gates_page'  => 'partner',
-            'has_hero'    => false,
             'lite_page'   => true,
             'org'         => $org,
             'me'          => $user,

@@ -118,8 +118,7 @@ class AccountController
         $as = ($req->getQueryParams()['as'] ?? '') === 'individual' ? 'individual' : '';
         return $this->view->render($res, 'pages/account/register.twig', [
             'page_title' => $as === 'individual' ? 'Create your account — Africa GATES' : 'Join Africa GATES',
-            'gates_page' => 'account', 'has_hero' => false,
-            'hide_chrome' => true, 'as' => $as,
+            'gates_page' => 'account', 'hide_chrome' => true, 'as' => $as,
             'error' => $this->flash('flash_error'), 'old' => $this->flash('reg_old') ?? [],
         ]);
     }
@@ -170,7 +169,7 @@ class AccountController
             $_SESSION['flash_error'] = 'That verification link is invalid or has expired — request a fresh one below.';
         }
         return $this->view->render($res, 'pages/account/verify-notice.twig', [
-            'page_title' => 'Verify your email — Africa GATES', 'gates_page' => 'account', 'has_hero' => false, 'hide_chrome' => true,
+            'page_title' => 'Verify your email — Africa GATES', 'gates_page' => 'account', 'hide_chrome' => true,
             'email'  => $_SESSION['pending_verify_email'] ?? '',
             'error'  => $this->flash('flash_error'), 'notice' => $this->flash('flash_notice'),
         ]);
@@ -245,7 +244,7 @@ class AccountController
         if (!empty($_SESSION['user_id'])) return $res->withHeader('Location', '/account')->withStatus(302);
         return $this->view->render($res, 'pages/account/forgot.twig', [
             'page_title' => 'Reset your password — Africa GATES', 'gates_page' => 'account',
-            'has_hero' => false, 'hide_chrome' => true,
+            'hide_chrome' => true,
             'login_email' => (string) ($_SESSION['user_login_email'] ?? ''),
             'error' => $this->flash('flash_error'), 'notice' => $this->flash('flash_notice'),
         ]);
@@ -308,7 +307,7 @@ class AccountController
 
         return $this->view->render($res, 'pages/account/reset.twig', [
             'page_title' => 'Set a new password — Africa GATES', 'gates_page' => 'account',
-            'has_hero' => false, 'hide_chrome' => true,
+            'hide_chrome' => true,
             // The token is only echoed back into the form when it is LIVE. A dead one is
             // answered with the "ask for another" screen rather than a password field that
             // cannot work — somebody typing into that field is being wasted.
@@ -456,7 +455,7 @@ class AccountController
         $next = $this->safeNext($req->getQueryParams()['next'] ?? null);
         if ($next !== null) $_SESSION['login_next'] = $next;
         return $this->view->render($res, 'pages/account/login.twig', [
-            'page_title' => 'Sign in — Africa GATES', 'gates_page' => 'account', 'has_hero' => false, 'hide_chrome' => true,
+            'page_title' => 'Sign in — Africa GATES', 'gates_page' => 'account', 'hide_chrome' => true,
             'sent'  => $req->getQueryParams()['sent'] ?? null,
             // READ, never flashed: {@see otpVerify} falls back to this same key, so
             // consuming it here would make the screen that shows the address the
@@ -731,7 +730,7 @@ class AccountController
             // ceremony no browser here can run is still nothing to offer.
             'passkeys_available' => \AfricaGates\Services\Passkeys::available(),
             'passkeys' => \AfricaGates\Services\Passkeys::listFor((int) ($_SESSION['user_id'] ?? 0)),
-            'page_title' => 'Your account — Africa GATES', 'gates_page' => 'account', 'has_hero' => false,
+            'page_title' => 'Your account — Africa GATES', 'gates_page' => 'account',
             'user'           => (array) $user,
             'points'         => PointsService::balance((int) $user->id),
             'points_enabled' => PointsService::enabled(),
@@ -763,7 +762,6 @@ class AccountController
             'vendor'         => \AfricaGates\Services\VendorAccount::panel($user),
             'vendor_cats'    => \AfricaGates\Services\VendorPolicy::categories(),
             'vendor_max'     => \AfricaGates\Services\VendorCatalogue::MAX_ITEMS,
-            'brand_sections' => \AfricaGates\Services\OrgBrand::SECTIONS,
             'referral'       => \AfricaGates\Services\ReferralService::stats((int) $user->id),
             'referral_site'  => \AfricaGates\Support\SiteUrl::base($req),
             // Withdrawing. `available()` answers both "can they" and "why not", so the
@@ -778,7 +776,6 @@ class AccountController
             'payout_bank'    => \AfricaGates\Services\ReferralPayout::bankFor((int) $user->id),
             'my_orders'      => $orders,
             'my_tickets'     => $tickets,
-            'community_counts' => $communityC,
             'completeness'   => \AfricaGates\Services\MemberActivityService::completeness($user),
             'checklist'      => \AfricaGates\Services\MemberActivityService::checklist($user, $votes, $nominations, $communityC),
             'flash_ok'       => $this->flash('flash_ok'), 'flash_error' => $this->flash('flash_error'),

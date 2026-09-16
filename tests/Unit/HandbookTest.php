@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 namespace Tests\Unit;
 
+use AfricaGates\Admin\Controllers\HandbookController;
 use AfricaGates\Admin\Support\AdminNav;
 use AfricaGates\Admin\Support\Permissions;
 use AfricaGates\Services\CpiService;
@@ -65,8 +66,12 @@ final class HandbookTest extends TestCase
             'matrix'       => Permissions::MATRIX,
             'your_role'    => 'admin',
             'your_label'   => Permissions::label('admin'),
-            'rules'        => $rules ?? (new RuleEngine())->effective(null, null),
-            'basis_ideal'  => CpiService::BASIS_IDEAL,
+            'rules'        => $r = ($rules ?? (new RuleEngine())->effective(null, null)),
+            // Through the controller's own resolver, so the test cannot render a page
+            // the controller could not produce — the previous shape passed a bare
+            // `basis_ideal` the template never read, which is how the branch below it
+            // stayed unwritten for as long as it did.
+            'scoring'      => HandbookController::scoring($r),
             'grace_days'   => CycleMaterialiser::ANNOUNCE_GRACE_DAYS,
             'check_states' => RegistryCheck::STATES,
             'check_sense'  => array_map(static fn (): string => 'sense', RegistryCheck::STATES),
@@ -219,6 +224,75 @@ final class HandbookTest extends TestCase
         $this->assertStringNotContainsString('450 points', $moved,
             'a stale figure beside a live one is worse than no figure: it is what somebody '
             . 'checks their understanding against');
+
+        // ── AND THE WORKED EXAMPLE, WHICH THIS ASSERTION USED TO STEP OVER ──
+        //
+        // The line above pins the string `450 points`. The note four lines below the
+        // bullet was headed "Why a leader can score well under 450." and quoted "scores
+        // 293 … scores 135" — bare figures, no unit — so it was typed, it was stale the
+        // moment a programme moved its weight, and this test passed the whole time.
+        // Exactly SchemaIndexTest excusing all three 1064s: the right rule pinned to the
+        // wrong token. The figures themselves are what must move, so they are what is
+        // asserted.
+        foreach (['450', '293', '135'] as $stale) {
+            $this->assertStringNotContainsString($stale, $moved,
+                "the {$stale}-point ladder is the previous weight's arithmetic and must "
+                . 'not survive a change of weight');
+        }
+
+        // Present and correct at the live weight, or the assertion above is satisfied by
+        // a page that simply stopped explaining itself.
+        $this->assertStringContainsString('under 450', $normal, 'the example is drawn');
+        $this->assertStringContainsString('293', $normal, 'and is the scorer\'s own figure');
+        $this->assertStringContainsString('135', $normal);
+    }
+
+    /**
+     * THE SHAPE OF THE HALF FOLLOWS THE RULE IN FORCE, NOT THE ONE THAT WAS DEFAULT.
+     *
+     * §5 stated the `ideal` basis, the edition scope and the linear judge scale as plain
+     * fact. All three are settings `RuleEngine` still resolves, because an announced
+     * standing has to stay reproducible — so an operator on `judge_scale = curved` read
+     * "No floor, no curve", and one on `community_scope = category` read "in the whole
+     * edition — not in their own category", on the one admin document every role can
+     * open and is told to trust.
+     *
+     * The tell was `basis_ideal`: passed to the template by the controller and read
+     * nowhere. Somebody meant to write the branch.
+     */
+    public function test_the_prose_follows_the_basis_scope_and_scale_in_force(): void
+    {
+        $live = (new RuleEngine())->effective(null, null);
+
+        $curved = $this->render(array_merge($live, ['judge_scale' => CpiService::SCALE_CURVED]));
+        $this->assertStringNotContainsString('No floor, no curve', $curved,
+            'the panel half is curved and the page says it is not');
+        $this->assertStringContainsString('curved', $curved);
+
+        $byCategory = $this->render(array_merge($live, ['community_scope' => CpiService::SCOPE_CATEGORY]));
+        $this->assertStringNotContainsString('not in their own category', $byCategory,
+            'the denominator IS the category and the page denies it');
+        $this->assertStringContainsString('own category', $byCategory);
+
+        // `relative` and `absolute` have no people term at all, so the seventy/thirty
+        // sentence is false under them and the worked example would score both nominees
+        // identically. The page says so instead of showing arithmetic.
+        foreach ([CpiService::BASIS_RELATIVE, CpiService::BASIS_ABSOLUTE] as $basis) {
+            $html = $this->render(array_merge($live, ['community_basis' => $basis]));
+            $this->assertStringNotContainsString('separate verified people', $html,
+                "there is no people term under {$basis}");
+            $this->assertStringContainsString('does not enter it', $html,
+                "and the page has to say so under {$basis}");
+            $this->assertStringNotContainsString('Why a leader can score well under', $html,
+                "a worked example about supporters is a tautology under {$basis}");
+        }
+
+        // `reach` HAS a people term, on its own denominator — the example stands and the
+        // figures differ from `ideal`, which is the whole reason it is computed.
+        $reach = $this->render(array_merge($live, ['community_basis' => CpiService::BASIS_REACH]));
+        $this->assertStringContainsString('Why a leader can score well under', $reach);
+        $this->assertStringContainsString('different', $reach,
+            'reach divides its two terms by two different yardsticks and must say so');
     }
 
     /**

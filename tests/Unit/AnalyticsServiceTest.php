@@ -4,6 +4,8 @@ declare(strict_types=1);
 namespace Tests\Unit;
 
 use AfricaGates\Admin\Services\AnalyticsService;
+use AfricaGates\Services\CommunityService;
+use AfricaGates\Services\NomineeClaimService;
 use Illuminate\Database\Capsule\Manager as DB;
 use Tests\TestCase;
 
@@ -255,6 +257,73 @@ final class AnalyticsServiceTest extends TestCase
         $this->assertSame(40, $r['stages'][1]['pct']);
         $this->assertSame(4, $r['rejected']);
         $this->assertSame(2, $r['pending']);
+    }
+
+    /**
+     * THE CLAIMED STAGE COUNTS A REAL CLAIM.
+     *
+     * It counted `gates_nominee_claims.status = 'approved'` — a word borrowed from
+     * `gates_nominations`, the table ONE STAGE ABOVE it in this same funnel, and one this
+     * column has never been able to hold: the ENUM is
+     * ('pending','active','held','rejected','revoked'). A filter outside its own ENUM is
+     * zero rows on MySQL and SQLite alike, with no error and nothing to grep.
+     *
+     * So the last stage read "Profile claimed by the nominee — 0 — 0%" on every
+     * deployment since it shipped, and the code above it goes out of its way to
+     * distinguish that 0 from the null meaning "this install has no claiming" — so the
+     * zero read as a measurement. It is the screen an operator uses to decide whether
+     * claiming works at all, reporting the opposite of the truth in a sentence that
+     * sounds like a finding about people.
+     */
+    public function test_the_claimed_stage_counts_an_active_claim_and_not_a_word_the_column_cannot_hold(): void
+    {
+        DB::table('gates_nominations')->insert([
+            'cycle_id' => 1, 'category_id' => 1, 'nominee_name' => 'N', 'nominee_email' => 'n@x.test',
+            'nominator_name' => 'Nom', 'nominator_email' => 's@x.test', 'reason' => 'because',
+            'reference' => 'REF-C', 'status' => 'approved', 'created_at' => self::day(3),
+        ]);
+
+        foreach ([[1, NomineeClaimService::ST_ACTIVE], [2, NomineeClaimService::ST_ACTIVE],
+                  [3, NomineeClaimService::ST_HELD],   [4, NomineeClaimService::ST_PENDING]] as [$n, $st]) {
+            DB::table('gates_nominee_claims')->insert([
+                'nominee_id' => $n, 'status' => $st, 'created_at' => self::day(2),
+            ]);
+        }
+
+        $stage = null;
+        foreach (AnalyticsService::nominationFunnel()['stages'] as $s) {
+            if ($s['key'] === 'claimed') $stage = $s;
+        }
+
+        $this->assertNotNull($stage, 'the stage is drawn where the table exists');
+        $this->assertSame(2, $stage['n'], 'two pages have actually been taken');
+
+        // Held is NOT folded into the figure — a nominee waiting on a person has not taken
+        // the page — but it must not vanish either, or the queue is invisible.
+        $this->assertStringContainsString('1 more are held', $stage['note']);
+    }
+
+    /**
+     * AND THE COMMUNITY PANEL'S BACKLOG IS THE ONE THE MODERATION QUEUE WORKS THROUGH.
+     *
+     * This counted `gates_comments.status = 'pending'`; the ENUM has no `pending` and
+     * `CommunityService::postComment()` writes `approved` or `quarantined`. The figure was
+     * therefore always zero, and `analytics.twig` guards the warning on `> 0` — so the line
+     * "N comment(s) waiting on moderation" was unreachable from the day it was written,
+     * while `/admin/moderation` showed the real backlog. One screen saying there is nothing
+     * to do, beside one working through it.
+     */
+    public function test_a_held_comment_reaches_the_analytics_backlog_figure(): void
+    {
+        foreach ([CommunityService::HELD, 'approved'] as $i => $status) {
+            DB::table('gates_comments')->insert([
+                'target_type' => 'thread', 'target_id' => 1, 'author_name' => 'A' . $i,
+                'body' => 'words', 'status' => $status, 'created_at' => self::day(1),
+            ]);
+        }
+
+        $this->assertSame(1, AnalyticsService::community(30)['pending_moderation'],
+            'the approved one is not a backlog and the held one is');
     }
 
     /**

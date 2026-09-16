@@ -44,7 +44,6 @@ final class FlierController
             'meta_description' => 'Download a ready-to-post flier asking your community to vote for '
                 . $f['name'] . ' in ' . $f['category'] . '.',
             'gates_page'       => 'vote',
-            'has_hero'         => false,
             'f'                => $f,
             'svg_url'          => $path . '.svg',
             'png_url'          => $path . '.png',

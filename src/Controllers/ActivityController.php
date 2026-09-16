@@ -54,7 +54,6 @@ final class ActivityController
                 . 'results published, cycles opening and closing, stories, events and discussions. '
                 . 'Searchable and live.',
             'gates_page'       => 'activity',
-            'has_hero'         => false,
             'q'                => $q,
             'items'            => $result['items'],
             'live'             => $result['live'],

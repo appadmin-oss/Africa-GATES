@@ -71,7 +71,6 @@ class EventsController
             'page_title'       => 'Events — Africa GATES',
             'meta_description' => 'Ceremonies, webinars and community sessions across the Africa GATES cycle.',
             'gates_page'       => 'events',
-            'has_hero'         => true,
             'upcoming'         => $upcoming,
             'past'             => $past,
             // Which of these are taking stand applications. Deliberately OUTSIDE the two
@@ -203,7 +202,6 @@ class EventsController
             'meta_description' => ($event['tagline'] ?? null)
                 ?: mb_substr(strip_tags((string)($event['description'] ?? '')), 0, 150),
             'gates_page'       => 'events',
-            'has_hero'         => false,
             // Event JSON-LD. The only one of these types with a commercial rich result:
             // date, venue and PRICE render in the search listing itself, which on a page
             // that sells tickets is the difference between an impression and a click.
@@ -787,8 +785,7 @@ class EventsController
             // No hint about whether the reference is unknown or merely not ours: the
             // difference is a way to test references.
             return $this->view->render($res->withStatus(404), 'pages/events/ticket.twig', [
-                'page_title' => 'Ticket', 'gates_page' => 'events', 'has_hero' => false,
-                'reg' => null, 'event' => null, 'lite_page' => true, 'task_page' => true,
+                'page_title' => 'Ticket', 'gates_page' => 'events', 'reg' => null, 'event' => null, 'lite_page' => true, 'task_page' => true,
                 // The template prints this as the ticket's own web address. It was never
                 // passed, so its |default() fired and every ticket on every deployment
                 // showed africagates.org. SiteUrl falls back to the request host, so this
@@ -820,7 +817,6 @@ class EventsController
         return $this->view->render($res, 'pages/events/ticket.twig', [
             'page_title'   => 'Your ticket — ' . (string) ($event->title ?? 'Africa GATES'),
             'gates_page'   => 'events',
-            'has_hero'     => false,
             'site_url'     => \AfricaGates\Support\SiteUrl::base($req),
             // LITE. This page uses none of the heavy stack — no map, no carousel, no video
             // player, no scroll cinema — and it is the one page in the site whose whole

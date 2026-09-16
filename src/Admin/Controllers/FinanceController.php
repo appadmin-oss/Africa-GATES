@@ -7,6 +7,7 @@ use AfricaGates\Admin\Services\AuditService;
 use AfricaGates\Admin\Services\FinanceInsights;
 use AfricaGates\Admin\Services\FinanceService;
 use AfricaGates\Services\PaymentReconciler;
+use AfricaGates\Services\RecurringGiving;
 use AfricaGates\Services\ReferralService;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
@@ -139,6 +140,19 @@ class FinanceController
             // liability that shrinks when you change a filter is the kind of number
             // somebody reports to a board.
             'referral'    => ReferralService::liability(50),
+
+            // ── STANDING GIFTS, WHICH NO SCREEN COULD SEE ───────────────────
+            //
+            // `gates_donation_subscriptions` was read by one service and nothing else on
+            // the platform — no admin screen contained the word. On a host with no SSH
+            // that made a monthly giving programme unobservable by the people running
+            // it, and the `failed` state a declined card writes was read by nothing at
+            // all. See {@see RecurringGiving::standing()} for the full account.
+            //
+            // Also NOT date-filtered, for the same reason as the referral liability
+            // above: a standing gift is a live arrangement rather than an event in a
+            // window, and one that vanishes when you narrow the range reads as cancelled.
+            'giving'      => RecurringGiving::standing(),
         ]);
     }
 

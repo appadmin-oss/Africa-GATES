@@ -347,17 +347,81 @@ final class RecurringGiving
         }
     }
 
-    /** Everything still billing for one donor. For the admin view and for tests. */
-    public static function activeFor(string $email): array
+    /**
+     * EVERY STANDING GIFT, FOR THE ONE SCREEN THAT CAN SEE THEM.
+     *
+     * ══════════════════════════════════════════════════════════════════════════
+     * WHY THIS EXISTS: THE WHOLE ARRANGEMENT WAS INVISIBLE TO ITS OWN OPERATOR
+     * ══════════════════════════════════════════════════════════════════════════
+     *
+     * `gates_donation_subscriptions` was read by exactly one file — this one — and the
+     * whole of `src/Admin/` and `templates/admin/` contained the word "subscription"
+     * once, in an unrelated webhook allow-list. There is no SSH on this host, so on a
+     * platform taking monthly gifts nobody could answer: who is giving, how much is
+     * committed, is this donor's gift still running, did this month collect.
+     *
+     * There WAS a method for it. `activeFor($email)` said in its docblock "for the admin
+     * view and for tests" and had neither — §20's question, answered wrong in one line.
+     * It is gone; this is the reader, and it has a caller.
+     *
+     * ── AND `failed` IS WHY THIS IS NOT COSMETIC ────────────────────────────
+     *
+     * {@see collectionFailed()} moves a gift to {@see ST_FAILED} on
+     * `invoice.payment_failed` — an expired card, an empty account. Nothing read that
+     * state: the old per-donor query excluded it by construction, no screen listed it,
+     * and the webhook sends no mail. So a supporter's monthly gift stopped, they were
+     * never told, and the platform showed it to nobody. That is the stop-button-with-no-
+     * caller fault (§18) one state further along, and it costs the organisation money
+     * from people who did not choose to leave.
+     *
+     * So `failed` is returned FIRST and separately rather than folded into a list. A
+     * list of standing gifts that quietly omits the broken ones reads as "everyone is
+     * still giving", which is worse than no list at all.
+     *
+     * Emails are returned unmasked: this is `finance`-gated, and the operator's job here
+     * is to contact the person whose card bounced.
+     *
+     * @return array{failed:list<array<string,mixed>>, live:list<array<string,mixed>>,
+     *                monthly_naira:int, counts:array<string,int>}
+     */
+    public static function standing(int $limit = 200): array
     {
+        $empty = ['failed' => [], 'live' => [], 'monthly_naira' => 0, 'counts' => []];
+
         try {
-            return DB::table('gates_donation_subscriptions')
-                ->where('donor_email', strtolower(trim($email)))
-                ->whereIn('status', [self::ST_ACTIVE, self::ST_PENDING, self::ST_CANCELLING])
-                ->orderByDesc('id')->get()->map(fn ($r) => (array) $r)->all();
+            $rows = DB::table('gates_donation_subscriptions')
+                ->whereIn('status', [self::ST_ACTIVE, self::ST_PENDING,
+                                     self::ST_CANCELLING, self::ST_FAILED])
+                ->orderByDesc('id')->limit(max(1, $limit))
+                ->get()->map(static fn ($r) => (array) $r)->all();
+
+            // Counted over the WHOLE table, not the page above it: "3 cancelled" on a
+            // screen showing 200 rows of a thousand is a statement about the page, and
+            // an operator reads it as a statement about the platform.
+            $counts = [];
+            foreach (DB::table('gates_donation_subscriptions')
+                        ->select('status', DB::raw('COUNT(*) as n'))
+                        // ONLY_FULL_GROUP_BY: the one non-aggregate is the one grouped.
+                        ->groupBy('status')->get() as $c) {
+                $counts[(string) $c->status] = (int) $c->n;
+            }
         } catch (\Throwable) {
-            return [];
+            return $empty;
         }
+
+        $failed = $live = [];
+        $monthly = 0;
+        foreach ($rows as $r) {
+            if (($r['status'] ?? '') === self::ST_FAILED) { $failed[] = $r; continue; }
+            $live[] = $r;
+            // Committed money is ACTIVE alone. A pending gift is a checkout the gateway
+            // has not confirmed and may never confirm, and a cancelling one is already
+            // leaving — counting either inflates a figure somebody will put in a budget.
+            if (($r['status'] ?? '') === self::ST_ACTIVE) $monthly += (int) ($r['amount_naira'] ?? 0);
+        }
+
+        return ['failed' => $failed, 'live' => $live,
+                'monthly_naira' => $monthly, 'counts' => $counts];
     }
 
     /**

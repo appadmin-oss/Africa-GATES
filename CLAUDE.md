@@ -871,6 +871,48 @@ Full account in `docs/CODEBASE-INDEX.md` §16.
   never rendered anywhere since the table shipped. The question that catches this shape is
   not *is anything reading it* but **can the only reader answer the question the data was
   collected for?** `docs/CODEBASE-INDEX.md` §23.
+- **A STATUS FILTER OUTSIDE ITS OWN `ENUM` IS ZERO ROWS, NOT AN ERROR — AND ON A DASHBOARD
+  THAT ZERO READS AS A MEASUREMENT.** `JudgeSchedule`'s `'scheduled'` was the first; the
+  next two were found by sweeping every literal compared to an `ENUM` column **keyed by
+  table**. `AnalyticsService`'s nomination funnel counted
+  `gates_nominee_claims.status = 'approved'` — a word borrowed from `gates_nominations`,
+  the table one stage ABOVE it in the same funnel, and one this column
+  (`'pending','active','held','rejected','revoked'`) has never been able to hold. So the
+  last stage read **"Profile claimed by the nominee — 0 — 0%"** on every deployment since
+  it shipped, and the code around it goes out of its way to distinguish that 0 from the
+  `null` meaning "this install has no claiming" — so the zero looked measured. It is the
+  screen an operator uses to decide whether claiming works at all, reporting the opposite
+  of the truth in a sentence that sounds like a finding about people. The same sweep found
+  `gates_comments.status = 'pending'` (the column has `quarantined`), which made the
+  analytics moderation warning — guarded on `> 0` — **unreachable**, while
+  `/admin/moderation` read `quarantined` and showed the real backlog: one screen saying
+  there is nothing to do, beside one working through it. Both words now live beside the
+  code that writes them (`NomineeClaimService::ST_*` + `counts()`,
+  `CommunityService::HELD` + `awaitingModeration()`), and every reader goes through those.
+  **Key the sweep by TABLE, never by column name** — `status`, `kind`, `purpose`, `source`
+  and `method` each exist on six or more tables, and a name-keyed sweep returns sixty
+  findings of which two are real.
+- **A TEMPLATE VARIABLE WITH NO READER IS §17 AT THE VIEW LAYER, AND TWIG CANNOT SEE IT.**
+  `strict_variables` catches a template READING what a controller stopped passing; it has
+  nothing whatever to say about a controller PASSING what no template reads — that renders
+  perfectly, for ever. `tests/Unit/TemplateContextTest.php` asks the other direction and
+  found **72**. Mostly weight (`has_hero` in 93 places in `src/` and zero templates;
+  `current_section` in 29, superseded when the public nav moved to `_p`), sometimes
+  queries: `LegacyController::event()` fetched comments and cheers UNCACHED on every
+  legacy-event view — the event row beside them cached — and the template renders neither.
+  **And once, the tell for a live fault**: `HandbookController` passed `basis_ideal` and
+  `admin/handbook.twig` never mentioned it, because §5 stated the `ideal` basis, the
+  edition scope and the linear judge scale as plain FACT while `RuleEngine` still resolves
+  four bases, two scopes and two scales. Somebody meant to write that branch. An operator
+  on `judge_scale = curved` read "No floor, no curve" on the one admin document every role
+  can open and is told to trust — and `HandbookTest`'s own stale-figure guard stepped over
+  the typed 293/135 worked example beside it, because it forbids the string `450 points`
+  and the heading reads `450.`. **The right rule pinned to the wrong token is the commonest
+  way a sweep here goes quiet.** Three things that sweep had to learn: top-level keys only
+  (a nested `'schema' => ['mainEntity' => …]` otherwise reads as an unused page variable),
+  the template's whole `extends`/`include` family in scope, and string-aware bracket
+  matching — a naive depth count truncates the array at the first `$r['id']` and then
+  reports a clean pass over the half it read.
 - **A declared field with no reader is the most expensive bug available here.** Six have
   shipped: `AiCapability::$model` (read into the log, never onto the wire),
   `AiCapability::$timeout` (nothing at all — every summary ran on a 6s default and the

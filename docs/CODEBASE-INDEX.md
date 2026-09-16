@@ -989,13 +989,14 @@ Three details worth keeping:
 - The screen no longer hides its whole card when nobody can be taken yet. An empty screen
   reads as "the rule found nobody", which is the opposite of what is true.
 
-### The four that are vestiges, not faults
+### The five that are vestiges, not faults
 
 Listed so the next sweep does not re-derive them. Each is a column for a feature that was
 never built, and none of them makes a false statement today:
 
 | Column | What it was for |
 |---|---|
+| `gates_programme_sponsors.logo_path` | declared in both driver branches of `2027_01_21_programme_sponsors.php`; `ProgrammeSponsor::save()` does not write it, nothing selects it, no template renders it. A sponsor logo for a surface nobody built — the sponsor list is names, tiers and blurbs. Found by the 2026-09-16 sweep |
 | `gates_legacy_events.video_url` | no legacy-event video surface exists |
 | `gates_nominations.show_nominator` | an attribution opt-in for a public nominator credit that does not exist — the nominator appears only on admin screens and in mail to themselves, so nobody is named without consent |
 | `gates_nominee_claims.revoked_reason` | there is no claim-revoke path at all; `revoked_at` is unused beside it |

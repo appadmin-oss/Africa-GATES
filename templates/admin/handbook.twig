@@ -194,27 +194,76 @@
   {# ══ 5 ═══════════════════════════════════════════════════════════════════ #}
   <h2 id="hb-score">5 · How a score is worked out</h2>
   <p>Out of 1,000, and read here from the settings actually in force:</p>
+  {# Everything in this list that is a RULE rather than a weight comes from
+     `scoring`, resolved by HandbookController through the scorer's own normalisers.
+     §5 used to state the `ideal` basis, the edition scope and the linear judge scale
+     as plain fact while RuleEngine resolved four bases, two scopes and two scales —
+     so an operator on `curved` read "no curve" on the page they are told to trust. #}
   <ul>
     <li><strong>Community vote —
       {{ (rules.community_weight * 1000)|round }} points.</strong>
-      Split two ways. Seventy per cent of it is <em>how many separate verified people</em>
-      backed the nominee; thirty per cent is their total votes. Both are measured against
-      the largest vote total anybody reached <em>in the whole edition</em> — not in their
-      own category.</li>
+      {% if scoring.is_ideal or scoring.is_reach %}
+        Split two ways. {{ scoring.people_pct }} per cent of it is <em>how many separate
+        verified people</em> backed the nominee; {{ scoring.votes_pct }} per cent is their
+        total votes.
+        {% if scoring.is_ideal %}
+          Both are measured against the largest vote total anybody reached
+          {% if scoring.by_category %}<em>in the nominee's own category</em>
+          {% else %}<em>in the whole edition</em> — not in their own category{% endif %}.
+        {% else %}
+          The two divide by <em>different</em> yardsticks: the people share against the
+          most separate supporters anybody had, the votes share against the largest vote
+          total — both taken
+          {% if scoring.by_category %}within the nominee's own category
+          {% else %}across the whole edition{% endif %}.
+        {% endif %}
+      {% elseif scoring.is_relative %}
+        A share of the largest vote total anybody reached
+        {% if scoring.by_category %}<em>in the nominee's own category</em>
+        {% else %}<em>in the whole edition</em>{% endif %}, on a curve.
+        <strong>How many separate people backed them does not enter it</strong> — one
+        supporter voting a thousand times counts exactly as a thousand supporters voting once.
+      {% else %}
+        The nominee's own turnout, on a curve, against nobody else's.
+        <strong>How many separate people backed them does not enter it</strong>, and
+        neither does anyone else's tally.
+      {% endif %}</li>
     <li><strong>Judging panel —
       {{ (rules.judge_weight * 1000)|round }} points.</strong>
-      The panel's average mark out of ten, straight. No floor, no curve.</li>
+      {% if scoring.curved %}
+        The panel's average mark out of ten, <em>curved</em>: marks below five score
+        nothing at all, and the rest rise faster than the mark does. A judge writing 8.0
+        does not award eight-tenths of this.
+      {% else %}
+        The panel's average mark out of ten, straight. No floor, no curve.
+      {% endif %}</li>
   </ul>
   <p>A nominee needs <strong>{{ rules.min_judges_per_nominee }} complete
     scorecard{{ rules.min_judges_per_nominee == 1 ? '' : 's' }}</strong> before they can win
     anything. Below that they still appear, marked as provisional, and their judging half
     counts as zero — understated on purpose rather than guessed at.</p>
-  <div class="hb__n hb__n--note"><b>Why a leader can score well under 450.</b>
-    Because both community components divide by the biggest <em>vote total</em>, a full
-    community score means as many separate supporters as the biggest tally anybody managed.
-    Two nominees on 2,000 votes each, where 2,000 is also the edition's largest tally:
-    one backed by a thousand people scores 293, one backed by two scores 135. This is the
-    question you will be asked most often.</div>
+  {# The example is the SCORER'S OWN OUTPUT — HandbookController::scoring() calls
+     CpiService::communityPart() for both rows against one cohort. The figures were
+     typed here once (293 and 135, beside a weight that was already computed), so a
+     programme on a different community weight printed the previous ladder four lines
+     under its own. It is withheld entirely under `relative` and `absolute`, which have
+     no people term and would score the pair identically. #}
+  {% if scoring.example %}
+  <div class="hb__n hb__n--note"><b>Why a leader can score well under
+    {{ scoring.half }}.</b>
+    {% if scoring.is_ideal %}Because both community components divide by the biggest
+      <em>vote total</em>, a full community score means as many separate supporters as
+      the biggest tally anybody managed.{% else %}Because the larger share is measured
+      against the most separate supporters anybody had, not against a vote count.{% endif %}
+    Two nominees on {{ scoring.example.tally|number_format }} votes each, where
+    {{ scoring.example.tally|number_format }} is also the
+    {% if scoring.by_category %}category's{% else %}edition's{% endif %} largest tally:
+    one backed by {{ scoring.example.broad|number_format }} people scores
+    <strong>{{ scoring.example.broad_points }}</strong>, one backed by
+    {{ scoring.example.narrow }} scores
+    <strong>{{ scoring.example.narrow_points }}</strong>. This is the question you will be
+    asked most often.</div>
+  {% endif %}
   <div class="hb__n hb__n--warn"><b>Changing a scoring setting changes published standings.</b>
     An edition whose results are announced keeps the numbers it was announced with only
     because they were sealed at release (§6). Change these for the <em>next</em> edition,

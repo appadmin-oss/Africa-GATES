@@ -59,7 +59,6 @@ final class OrgApplyController
                                 . 'GATES. Money settles directly to your own account — the '
                                 . 'platform never holds it.',
             'gates_page' => 'donate',
-            'has_hero'   => false,
             'old'        => $old,
             'error'      => $error,
             'signed_in'  => OrgAuth::user() !== null,

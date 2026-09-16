@@ -29,7 +29,8 @@
   #fi-t-growth:checked  ~ .fi-tabs label[for="fi-t-growth"],
   #fi-t-people:checked  ~ .fi-tabs label[for="fi-t-people"],
   #fi-t-leak:checked    ~ .fi-tabs label[for="fi-t-leak"],
-  #fi-t-ref:checked     ~ .fi-tabs label[for="fi-t-ref"]{background:var(--ad-accent,#237b22);border-color:transparent;color:#fff}
+  #fi-t-ref:checked     ~ .fi-tabs label[for="fi-t-ref"],
+  #fi-t-giving:checked  ~ .fi-tabs label[for="fi-t-giving"]{background:var(--ad-accent,#237b22);border-color:transparent;color:#fff}
 
   /* ── The wider read. Same CSS-only tab machinery as above; no new JS. ───── */
   .fx-note{margin:0 0 12px;font-size:12.5px;line-height:1.6;color:#5a6d6f;max-width:86ch}
@@ -53,6 +54,7 @@
   .fx-fun__bar{height:9px;border-radius:99px;background:rgba(16,41,44,.07);overflow:hidden}
   .fx-fun__fill{height:100%;border-radius:99px}
   .fx-empty{font-size:12.5px;color:#7a8a8c;margin:8px 0 0}
+  .fx-sub{margin:18px 0 8px;font-size:13px;font-weight:700;letter-spacing:-.01em}
   .fx-bad{background:#fdf3f3;border:1px solid #f0c9c9;color:#8a2020;border-radius:10px;padding:11px 14px;
     font-size:12.5px;line-height:1.6;margin-top:10px}
   .fx-ok{background:#f2f9f1;border:1px solid #bfe0bd;color:#1a4d18;border-radius:10px;padding:11px 14px;
@@ -83,7 +85,8 @@
   #fi-t-growth:checked  ~ .fi-body #fi-p-growth,
   #fi-t-people:checked  ~ .fi-body #fi-p-people,
   #fi-t-leak:checked    ~ .fi-body #fi-p-leak,
-  #fi-t-ref:checked     ~ .fi-body #fi-p-ref{display:block}
+  #fi-t-ref:checked     ~ .fi-body #fi-p-ref,
+  #fi-t-giving:checked  ~ .fi-body #fi-p-giving{display:block}
 
   .fi-kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;margin-bottom:14px}
   .fi-kpi{background:var(--ad-surface,#fff);border:1px solid var(--ad-line,#e5eae8);border-radius:14px;padding:14px 16px}
@@ -143,6 +146,7 @@
     <input class="fi-tabs__radio" type="radio" name="fitab" id="fi-t-people">
     <input class="fi-tabs__radio" type="radio" name="fitab" id="fi-t-leak">
     <input class="fi-tabs__radio" type="radio" name="fitab" id="fi-t-ref">
+    <input class="fi-tabs__radio" type="radio" name="fitab" id="fi-t-giving">
 
     <div class="fi-tabs" role="tablist" aria-label="Finance sections">
       <label for="fi-t-summary">Summary</label>
@@ -155,6 +159,7 @@
       <label for="fi-t-votes">Paid votes</label>
       <label for="fi-t-recon2">Reconcile</label>
       <label for="fi-t-ref">Referrals{% if referral.owed_members %} ({{ referral.owed_members }}){% endif %}</label>
+      <label for="fi-t-giving">Monthly giving{% if giving.failed %} ({{ giving.failed|length }}){% endif %}</label>
     </div>
 
     <div class="fi-body">
@@ -920,6 +925,104 @@
           </p>
         {% else %}
           <p class="fx-empty">Nothing is owed. Commission appears here once a referred ticket is confirmed.</p>
+        {% endif %}
+      </section>
+
+      {# ── MONTHLY GIVING ─────────────────────────────────────────────────────
+
+         `gates_donation_subscriptions` was read by one service and by nothing in the
+         admin console at all — the word "subscription" did not appear in any admin
+         template. On a host with no SSH that made the whole standing-gift programme
+         unobservable by the people running it.
+
+         FAILED IS FIRST, AND IT IS IN THE TAB LABEL. A declined card moves a gift to
+         `failed` on the gateway's webhook, nobody is emailed, and until this panel no
+         screen showed it — so a supporter stopped giving, was never told, and the
+         platform knew and said nothing. It is the only row here anybody has to act on,
+         so it is the only count that travels to the tab. #}
+      <section class="fi-panel" id="fi-p-giving" aria-labelledby="fi-t-giving">
+        <p class="fx-note">
+          Standing monthly gifts. All time &mdash; not the period selected above: a
+          standing gift is a live arrangement rather than something that happened in a
+          window, and one that vanished when you narrowed the range would read as cancelled.
+        </p>
+
+        <div class="fi-kpis">
+          <div class="fi-kpi {{ giving.failed ? 'fi-kpi--warn' : '' }}">
+            <div class="fi-kpi__l">Collection failed</div>
+            <div class="fi-kpi__v">{{ giving.failed|length|number_format }}</div>
+            <div class="fi-kpi__s">the gateway could not charge &mdash; nobody has been told</div>
+          </div>
+          <div class="fi-kpi fi-kpi--good">
+            <div class="fi-kpi__l">Committed each month</div>
+            <div class="fi-kpi__v">&#8358;{{ giving.monthly_naira|number_format }}</div>
+            <div class="fi-kpi__s">
+              {{ giving.counts.active|default(0)|number_format }} active gift{{ giving.counts.active|default(0) == 1 ? '' : 's' }}
+              &mdash; pending and cancelling are not counted
+            </div>
+          </div>
+          <div class="fi-kpi">
+            <div class="fi-kpi__l">Awaiting the gateway</div>
+            <div class="fi-kpi__v">{{ giving.counts.pending|default(0)|number_format }}</div>
+            <div class="fi-kpi__s">checkout started, not yet confirmed</div>
+          </div>
+          <div class="fi-kpi">
+            <div class="fi-kpi__l">Stopped</div>
+            <div class="fi-kpi__v">{{ giving.counts.cancelled|default(0)|number_format }}</div>
+            <div class="fi-kpi__s">
+              {{ giving.counts.cancelling|default(0)|number_format }} asked to stop and not yet confirmed
+            </div>
+          </div>
+        </div>
+
+        {% if giving.failed %}
+          <h3 class="fx-sub">Collection failed</h3>
+          <table class="fx-tbl">
+            <thead><tr>
+              <th scope="col">Donor</th><th scope="col">Each month</th>
+              <th scope="col">Charges so far</th><th scope="col">Last collected</th>
+            </tr></thead>
+            <tbody>
+              {% for g in giving.failed %}
+                <tr>
+                  <td>{{ g.donor_name ?: '&mdash;'|raw }}<br><small>{{ g.donor_email }}</small></td>
+                  <td>&#8358;{{ g.amount_naira|number_format }}</td>
+                  <td>{{ g.charges|default(0)|number_format }}</td>
+                  <td>{{ g.last_charge_at ? g.last_charge_at|slice(0, 10) : 'never' }}</td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+          <p class="fx-note" style="margin-top:12px">
+            Nothing on this page contacts them. There is no dunning mail yet &mdash; whether
+            this platform writes to somebody whose card bounced is a decision about the
+            relationship, not a default worth shipping quietly.
+          </p>
+        {% endif %}
+
+        {% if giving.live %}
+          <h3 class="fx-sub">Standing gifts</h3>
+          <table class="fx-tbl">
+            <thead><tr>
+              <th scope="col">Donor</th><th scope="col">Each month</th>
+              <th scope="col">State</th><th scope="col">Charges</th>
+              <th scope="col">Next</th><th scope="col">Started</th>
+            </tr></thead>
+            <tbody>
+              {% for g in giving.live %}
+                <tr>
+                  <td>{{ g.donor_name ?: '&mdash;'|raw }}<br><small>{{ g.donor_email }}</small></td>
+                  <td>&#8358;{{ g.amount_naira|number_format }}</td>
+                  <td>{{ g.status }}</td>
+                  <td>{{ g.charges|default(0)|number_format }}</td>
+                  <td>{{ g.next_charge_at ? g.next_charge_at|slice(0, 10) : '&mdash;'|raw }}</td>
+                  <td>{{ g.created_at ? g.created_at|slice(0, 10) : '&mdash;'|raw }}</td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        {% elseif not giving.failed %}
+          <p class="fx-empty">No standing gifts yet. They appear here as soon as somebody sets one up.</p>
         {% endif %}
       </section>
 

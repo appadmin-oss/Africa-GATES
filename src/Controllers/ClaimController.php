@@ -64,7 +64,6 @@ final class ClaimController
                 'page_title'       => 'Page not found — Africa GATES',
                 'meta_description' => 'Claim an Africa GATES nominee page.',
                 'gates_page'       => 'awards',
-                'has_hero'         => false,
                 'nominee'          => null,
                 'channels'         => [],
                 'already'          => null,
@@ -78,7 +77,6 @@ final class ClaimController
             'page_title'       => 'Claim the page for ' . $nominee->name . ' — Africa GATES',
             'meta_description' => 'Confirm a code sent to a contact on the nomination to claim this page.',
             'gates_page'       => 'awards',
-            'has_hero'         => false,
             'nominee'          => ['id' => (int) $nominee->id, 'name' => (string) $nominee->name],
             'channels'         => $this->claims?->channels($nomineeId, $deviceFp, $ipHash) ?? [],
             'already'          => $this->activeReference($nomineeId),
@@ -198,7 +196,6 @@ final class ClaimController
             'page_title'       => 'Stop a claim — Africa GATES',
             'meta_description' => 'Freeze a claim on an Africa GATES nominee page.',
             'gates_page'       => 'awards',
-            'has_hero'         => false,
             // Never indexed and never cached: a one-time security action reached from a
             // message, naming a nominee.
             'robots'           => 'noindex, nofollow',
@@ -234,7 +231,6 @@ final class ClaimController
             'page_title'       => 'Claim frozen — Africa GATES',
             'meta_description' => 'Freeze a claim on an Africa GATES nominee page.',
             'gates_page'       => 'awards',
-            'has_hero'         => false,
             'robots'           => 'noindex, nofollow',
             'token'            => $token,
             'claim'            => $before,

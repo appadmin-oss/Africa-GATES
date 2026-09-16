@@ -26,9 +26,14 @@ class ModerationController
 
     public function index(Request $req, Response $res): Response
     {
-        $comments = DB::table('gates_comments')->where('status', 'quarantined')->orderByDesc('id')->limit(100)
+        // The held word comes from the service that writes it, never a literal here:
+        // the analytics screen once spelled it `pending` and reported an empty backlog
+        // while this queue was full. See CommunityService::HELD.
+        $comments = DB::table('gates_comments')->where('status', \AfricaGates\Services\CommunityService::HELD)
+            ->orderByDesc('id')->limit(100)
             ->get()->map(fn($r) => (array)$r)->all();
-        $threads = DB::table('gates_threads')->where('status', 'quarantined')->orderByDesc('id')->limit(100)
+        $threads = DB::table('gates_threads')->where('status', \AfricaGates\Services\CommunityService::HELD)
+            ->orderByDesc('id')->limit(100)
             ->get()->map(fn($r) => (array)$r)->all();
         $recentLog = DB::table('gates_moderation_log')->orderByDesc('id')->limit(40)
             ->get()->map(fn($r) => (array)$r)->all();

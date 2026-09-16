@@ -438,7 +438,6 @@ final class ShopCheckoutController
             'page_title'       => 'Order Confirmed — Africa GATES',
             'meta_description' => 'Thank you — your Africa GATES shop order is confirmed.',
             'gates_page'       => 'shop',
-            'has_hero'         => false,
             'confirmed'        => $order !== null,
             'reference'        => $reference,
             'subtotal_naira'   => $order ? (int)$order->subtotal_naira : 0,
@@ -476,7 +475,6 @@ final class ShopCheckoutController
             [
                 'page_title' => $order ? 'Your order — Africa GATES' : 'Order not found',
                 'gates_page' => 'shop',
-                'has_hero'   => false,
                 'order'      => $order ? (array) $order : null,
                 'items'      => $order ? (json_decode((string) $order->items_json, true) ?: []) : [],
                 'support_email' => Notifier::supportEmail(),

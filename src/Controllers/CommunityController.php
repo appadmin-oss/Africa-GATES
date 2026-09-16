@@ -75,7 +75,6 @@ class CommunityController
             'page_title' => 'The Community — Africa GATES',
             'meta_description' => 'Join the Africa GATES community. Discuss award programmes, rally support for nominees and connect with the people shaping African cultural recognition.',
             'gates_page' => 'community',
-            'has_hero'   => false,
             'threads' => $threads,
             'spaces' => $spaces,
             'active_programme' => $progId,

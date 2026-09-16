@@ -29,7 +29,6 @@ class GatedFormController
         return $this->view->render($res->withStatus($status === 'ok' ? 200 : 410), 'pages/gated-form.twig', [
             'page_title'   => 'Your form — Africa GATES',
             'gates_page'   => 'form',
-            'has_hero'     => false,
             'token'        => $raw,
             'status'       => $status,
             'purpose'      => $row ? (string) $row->purpose : '',
@@ -65,7 +64,6 @@ class GatedFormController
         return $this->view->render($res, 'pages/gated-form.twig', [
             'page_title'   => 'Thank you — Africa GATES',
             'gates_page'   => 'form',
-            'has_hero'     => false,
             'status'       => 'done',
             'purpose'      => (string) $r['purpose'],
             'subject_name' => '',

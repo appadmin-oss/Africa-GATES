@@ -70,8 +70,6 @@ final class ResultsController
                 . 'the panel, decided or withheld — and the full standing behind each '
                 . 'decided one, community support and judges’ marks shown separately.',
             'gates_page'       => 'results',
-            'current_section'  => 'projects',
-            'has_hero'         => false,
             'editions'         => $r['editions'],
             'stats'            => $r['stats'],
             'shown'            => $r['shown'],
@@ -135,8 +133,6 @@ final class ResultsController
             'page_title'       => 'Hall of fame — Africa GATES',
             'meta_description' => mb_substr($desc, 0, 300),
             'gates_page'       => 'hall',
-            'current_section'  => 'projects',
-            'has_hero'         => false,
             'breadcrumbs'      => [['label' => 'Home', 'url' => '/'],
                                    ['label' => 'Results', 'url' => '/results'],
                                    ['label' => 'Hall of fame']],
@@ -191,8 +187,6 @@ final class ResultsController
                     . ($names ? ', including ' . implode(', ', array_filter($names)) : '')
                     . '. Every winner, every index, and the working behind it.',
             'gates_page'      => 'results',
-            'current_section' => 'projects',
-            'has_hero'        => false,
             'canonical_url'   => $base . $e['url'],
             'e'               => $e,
             'breadcrumbs'     => [
@@ -225,8 +219,6 @@ final class ResultsController
                 . (count($o['categories']) === 1 ? '' : 's') . ', and no standing is '
                 . 'published until every one of them is decided.',
             'gates_page'      => 'results',
-            'current_section' => 'projects',
-            'has_hero'        => false,
             'robots'          => 'noindex, follow',
             'canonical_url'   => \AfricaGates\Support\SiteUrl::base($req) . $o['url'],
             'e'               => $o,
@@ -264,8 +256,6 @@ final class ResultsController
                         . ($late['edition'] ?: $late['programme']) . ' were expected on '
                         . date('j F Y', strtotime($late['promised'])) . ' and are late.',
                     'gates_page'       => 'results',
-                    'current_section'  => 'projects',
-                    'has_hero'         => false,
                     'late'             => $late,
                 ])->withHeader('X-Robots-Tag', 'noindex, follow');
             }
@@ -293,8 +283,6 @@ final class ResultsController
             'page_title'       => $this->title($r),
             'meta_description' => $this->description($r),
             'gates_page'       => 'results',
-            'current_section'  => 'projects',
-            'has_hero'         => false,
             'r'                => $r,
             'thread'           => $thread,
             'replies'          => $replies,

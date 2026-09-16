@@ -11,7 +11,7 @@ class LeaderboardController {
     public function index(Request $req,Response $res):Response {
         $p=$req->getQueryParams(); $cat=trim($p['category']??''); $ctr=strtoupper(trim($p['country']??''));
         $entries=$this->cache->remember("lb:50:{$cat}:{$ctr}",3600,fn()=>$this->profiles->getLeaderboard(50,$cat,$ctr));
-        return $this->view->render($res,'pages/leaderboard.twig',['page_title'=>'CPI Leaderboard — Africa GATES','meta_description'=>'The live Africa GATES Cultural Power Index leaderboard — see who ranks highest across the continent, filtered by category and country in real time.','gates_page'=>'leaderboard','has_hero'=>false,'current_section'=>'projects','entries'=>$entries,'active_category'=>$cat,'active_country'=>$ctr,
+        return $this->view->render($res,'pages/leaderboard.twig',['page_title'=>'CPI Leaderboard — Africa GATES','meta_description'=>'The live Africa GATES Cultural Power Index leaderboard — see who ranks highest across the continent, filtered by category and country in real time.','gates_page'=>'leaderboard','entries'=>$entries,
             // ItemList JSON-LD. "Africa GATES winners 2026" spikes hard around results
             // day and resolves to a ranked list, which is what this markup describes.
             'schema'=>\AfricaGates\Support\Schema::itemList(

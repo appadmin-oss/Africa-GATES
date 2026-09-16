@@ -196,7 +196,6 @@ final class PulseController
             'page_title'       => 'Pulse — Africa GATES',
             'meta_description' => 'Pulse — the living feed of Africa GATES: the latest posts, events, and the community shaping the continental Cultural Power Index.',
             'gates_page'       => 'pulse',
-            'has_hero'         => false,
             'posts'            => $data['posts'],
             'events'           => $data['events'],
             'threads'          => $data['threads'],

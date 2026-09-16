@@ -34,7 +34,6 @@ class JudgesController
             'page_title'       => 'Meet the Judges — Africa GATES',
             'meta_description' => 'Meet the independent panel evaluating Africa GATES nominees — distinguished experts scoring documented impact, not popularity, behind the Cultural Power Index.',
             'gates_page'       => 'judges',
-            'has_hero'         => false,
             'judges'           => $roster,
             'filters'          => $filters,
         ]);
@@ -62,7 +61,6 @@ class JudgesController
             'page_title'       => $judge['name'] . ' — Judge — Africa GATES',
             'meta_description' => $judge['name'] . ($judge['title'] ? ', ' . $judge['title'] : '') . ' — an independent judge on the Africa GATES evaluation panel.',
             'gates_page'       => 'judges',
-            'has_hero'         => false,
             'judge'            => $judge,
             'og_image'         => $ogImage,
             'og_image_alt'     => $ogImage ? ($judge['name'] . ' — Africa GATES judge') : null,

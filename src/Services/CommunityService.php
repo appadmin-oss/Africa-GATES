@@ -9,9 +9,44 @@ use Illuminate\Support\Carbon;
 
 class CommunityService
 {
+    /**
+     * WHAT "WAITING ON A MODERATOR" IS SPELLED, AND WHY IT IS NAMED ONCE.
+     *
+     * `gates_comments.status` and `gates_threads.status` are both
+     * ENUM(... ,'quarantined', ...) with no `pending` in either, and
+     * {@see postComment()} writes `approved` or `quarantined` and nothing else.
+     *
+     * `AnalyticsService` counted `pending`. That is zero rows on both drivers — no
+     * error, no warning — and the analytics template guards its warning on `> 0`, so
+     * the line "N comment(s) waiting on moderation" was unreachable from the day it
+     * was written, while `/admin/moderation` read `quarantined` and showed the real
+     * backlog. Two screens describing one fact, disagreeing structurally, with the one
+     * that said "nothing to do" being the one an operator sees without asking.
+     *
+     * So the word lives here, next to the code that writes it, and both screens read
+     * it from here.
+     */
+    public const HELD = 'quarantined';
+
     public function __construct(
         private readonly SpamService $spam
     ) {}
+
+    /**
+     * How many comments are held for a moderator right now.
+     *
+     * Comments only — the sentence it feeds says "comment(s)". The moderation screen's
+     * own total adds threads and vote messages to this, and that difference is real
+     * rather than a drift: they are three queues a person works separately.
+     */
+    public static function awaitingModeration(): int
+    {
+        try {
+            return (int) DB::table('gates_comments')->where('status', self::HELD)->count();
+        } catch (\Throwable) {
+            return 0;
+        }
+    }
 
     /**
      * Post a comment. AI-moderated before persistence.
