@@ -1,8 +1,47 @@
 # Opening donations to partner organisations — a proposal
 
-**Status:** proposal for decision. Nothing built yet.
+**Status: SUPERSEDED — BUILT. Verified against the code on 16 September 2026.**
 **Ask:** let organisations other than Africa GATES collect donations through the platform.
 **Recommendation:** yes, on the split-at-source model in §5, gated behind the vetting in §6.
+**Outcome: the recommendation was taken, and it is live.**
+
+> ## Read this before acting on anything below
+>
+> The line under the title used to read "nothing built yet". It has not been true for
+> some time, and this is the more dangerous of the two stale proposals in `docs/` because
+> a reader could reasonably start building a second donations system beside a working one.
+>
+> Nothing below has been edited — §6's vetting and §8's bounding of what the platform
+> represents are the reasoning the live feature runs on, and §9's honest risks still apply
+> to it.
+>
+> ### What exists
+>
+> | The proposal's | Live as |
+> |---|---|
+> | A recipient on a donation | `gates_partner_orgs`, and an `org_id` the donation page resolves |
+> | A partner's own appeal page | `GET /giving/{slug}[/{campaign}]` — `/gift` and `/donate` are 301 aliases onto `/giving` |
+> | Their control of how it looks | `OrgBrand` — accent, logo, story and nine blocks, one JSON document |
+> | The organiser's console | `GET /org` (`OrgDashboardController`): confirmed totals, a received series, appeals, branding, documents, settlement account |
+> | Split at source (§5) | `platform_fee_naira` on the donation row; the console reports **net** of it |
+> | Vetting (§6) | `RegistryCheck` — CAC states, and a reviewer's name on a hand-confirmation |
+> | Approval and suspension | `/admin/partner-orgs` (`PartnerOrgsController`) |
+> | Getting the money out | `POST /org/payout` (`requestPayout`), gated by `OrgAuth::canRequestPayout` |
+>
+> ### Two things the build decided that the proposal left open
+>
+> - **§11 asked which noun the section takes.** It is **`/giving`**, not `/donate`. The
+>   route carries a reserved-word guard so `/giving/apply` cannot be swallowed by
+>   `/giving/{slug}`, and the older paths redirect rather than dying — a donation URL is in
+>   receipts.
+> - **§4's "who holds the money" was settled as split-at-source**, as recommended, and the
+>   console shows an organisation its own net figure rather than the gross it did not get.
+>
+> ### And one caution the build added that this document could not have known
+>
+> `gates_partner_orgs.contact_email` is the **compliance** address given to verify a CAC
+> registration — not a press office, and not for publication. The public page publishes
+> only the website the organisation typed into a field labelled as public. See `CLAUDE.md`.
 
 ---
 

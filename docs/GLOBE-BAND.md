@@ -110,6 +110,34 @@ correction landed, which is the one route by which a reader would have rebuilt i
 retired phrasing, so spelling it out here would trip the very check this paragraph exists
 to document.)
 
+## On a phone
+
+Three things are different below 900px, and each was a fault before it was a rule.
+
+- **The stage leaves the vertical axis to the browser.** `touch-action` is `pan-y`, not
+  `none`. `none` cancels every browser gesture for a press that STARTS in the element,
+  page scrolling included — and the stage is up to 560px tall, so a finger landing almost
+  anywhere in the band could not move the page. It reads as the page having frozen, not as
+  a globe problem. The drag only ever turned on the horizontal axis anyway; up and down
+  are the arrow keys, or focusing a marker.
+- **The sphere is sized from where the annotation card actually is.** The width factor is
+  clearance for the 186px dashed note at `right:0`; once that note drops into normal flow
+  the clearance buys nothing, and the globe was coming out about 230px across on a 390px
+  screen with vertical slack going spare. `resize()` reads
+  `getComputedStyle(note).position` rather than carrying its own copy of the breakpoint —
+  a constant in the script that has to agree with a media query in the stylesheet is one
+  edit from disagreeing, and neither file shows it. The stage's mobile height moved with
+  it, because a stage shorter than the sphere it is sizing for hands the saving back.
+- **The country card is anchored to the stage's foot, not returned to flow.**
+  `position:static` inside a fixed-height stage whose canvas is absolute lays the card out
+  from the TOP — over the markers it was opened from, and below the fold entirely on a
+  tall stage. That is the third time this card has been somewhere its reader could not see
+  it; the first two are in the list below.
+
+`GlobeBandTest` holds the first two. Both were watched failing against the code they
+replaced, and both sweep the DECLARATIONS rather than the file — a browser never sees a
+comment, and the comment above each fix necessarily names the value it replaced.
+
 ## Things that will bite
 
 - **`setPointerCapture` on the stage eats a marker's click.** The browser dispatches the

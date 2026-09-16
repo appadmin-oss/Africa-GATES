@@ -50,6 +50,7 @@ final class GlobeBandTest extends TestCase
     private const TWIG     = __DIR__ . '/../../templates/partials/globe-band.twig';
     private const HOME     = __DIR__ . '/../../templates/pages/home.twig';
     private const DOC      = __DIR__ . '/../../docs/GLOBE-BAND.md';
+    private const CSS      = __DIR__ . '/../../public/assets/css/globe-band.css';
 
     private int $liveCategory = 0;
 
@@ -398,6 +399,73 @@ final class GlobeBandTest extends TestCase
      * `ballots`/`verify_seconds` were the invented figures, `FALLBACK` the set itself,
      * `geoInterpolate` the arcs drawn between "nodes", and `hub` the node concept.
      */
+    /**
+     * THE BAND DOES NOT EAT THE PAGE'S SCROLL ON A PHONE.
+     *
+     * `touch-action:none` cancels every browser touch gesture for a press that STARTS
+     * inside the element — page scrolling included. The stage is up to 560px tall on a
+     * phone, so a finger landing almost anywhere in the band could not move the page,
+     * and the failure reads as the page having frozen rather than as anything to do with
+     * a globe. Nothing throws and nothing logs; it is invisible to every check that does
+     * not put a thumb on it.
+     *
+     * `pan-y` is the fix and the thing to keep: the browser keeps the vertical axis, the
+     * drag keeps the horizontal one it actually turns on, and up/down stay reachable by
+     * the arrow keys and by focusing a marker.
+     */
+    public function test_the_stage_does_not_cancel_the_page_scroll(): void
+    {
+        // DECLARATIONS ONLY. A browser never sees a comment, so neither does this — and
+        // the comment above the fix necessarily names the value it replaced. Sweeping the
+        // raw file makes the explanation unwritable, which is this repo's own rule about
+        // a comment that documents a removal.
+        $css = self::declarationsOf((string) file_get_contents(self::CSS));
+
+        $this->assertMatchesRegularExpression('~\.reg__stage\{[^}]*touch-action:\s*pan-y~s', $css,
+            'the stage must leave the vertical axis to the browser');
+        $this->assertDoesNotMatchRegularExpression('~\.reg__stage\{[^}]*touch-action:\s*none~s', $css,
+            'touch-action:none on the stage makes the band a scroll trap on a phone');
+    }
+
+    /**
+     * THE SPHERE IS NOT SIZED FOR A CARD THAT IS NOT BESIDE IT.
+     *
+     * The width factor is clearance for the 186px annotation card at `right:0`. Below
+     * 860px that card is in normal flow underneath the band, so the clearance buys
+     * nothing and the globe came out about 230px across on a 390px screen with vertical
+     * slack going spare.
+     *
+     * What this pins is the METHOD, not the number: the factor is chosen from a measured
+     * `getComputedStyle(note).position`, never from a copy of the breakpoint. A constant
+     * in the script that has to agree with a media query in the stylesheet is one edit
+     * away from disagreeing, and neither file shows it.
+     */
+    public function test_the_sphere_measures_the_note_rather_than_copying_the_breakpoint(): void
+    {
+        $raw = (string) file_get_contents(self::JS_FILE);
+
+        $this->assertMatchesRegularExpression('~getComputedStyle\(\s*note\s*\)\s*\.position~', $raw,
+            'resize() must ASK where the annotation card is');
+
+        // Code only, for the same reason as above: the comment explaining why the factor
+        // is measured has every right to name the breakpoint it refuses to duplicate.
+        $this->assertStringNotContainsString('860', self::codeOf($raw),
+            'the breakpoint belongs to the stylesheet — a second copy in the script is the drift');
+    }
+
+    /** CSS with `/* … *\/` comments removed — what a browser actually parses. */
+    private static function declarationsOf(string $css): string
+    {
+        return (string) preg_replace('~/\*.*?\*/~s', '', $css);
+    }
+
+    /** JS with block and line comments removed. */
+    private static function codeOf(string $js): string
+    {
+        $js = (string) preg_replace('~/\*.*?\*/~s', '', $js);
+        return (string) preg_replace('~^\s*//.*$~m', '', $js);
+    }
+
     /**
      * THE DEVELOPER GUIDE DESCRIBES THE RING THAT SHIPPED, NOT THE ONE THAT WAS REJECTED.
      *

@@ -51,6 +51,11 @@
       ctx    = canvas.getContext('2d'),
       layer  = document.getElementById('agGlobeNodes'),
       card   = document.getElementById('agGlobeCard'),
+      /* The dashed annotation card. Read in resize() to find out whether it is
+         beside the sphere or below the band, which is what decides how much
+         width the sphere may take. Scoped to this band's own body rather than
+         the document, so a second band could not size the first. */
+      note   = stage.parentElement && stage.parentElement.querySelector('.reg__note'),
       reduced = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
   /* The 54 nations, as Natural Earth names them (plus the two it splits out). */
@@ -84,9 +89,23 @@
     W = r.width; H = r.height;
     canvas.width = W*dpr; canvas.height = H*dpr;
     ctx.setTransform(dpr,0,0,dpr,0,0);
-    /* radius is bound by whichever of width/height is tighter; H*0.43 with a
-       0.47 centre keeps the whole sphere inside the stage at every viewport */
-    base = Math.min(W*0.30, H*0.43);
+
+    /* ── THE WIDTH FACTOR IS CLEARANCE FOR THE ANNOTATION CARD ────────────
+       0.30 leaves a fifth of the stage free on each side, which is what the
+       186px dashed note at `right:0` needs in order not to be reached by the
+       sphere. Below 860px that note is in normal flow underneath the band
+       instead — so on a phone the 0.30 was defending against something that
+       was not there, and the globe came out about 230px across on a 390px
+       screen with vertical slack going spare.
+
+       MEASURED, not keyed to a second copy of the breakpoint. A constant here
+       that has to agree with a media query in the stylesheet is one edit away
+       from disagreeing, and neither file shows the disagreement. */
+    var aside = note && window.getComputedStyle(note).position === 'absolute';
+
+    /* Radius is bound by whichever of width/height is tighter; H*0.43 with a
+       0.47 centre keeps the whole sphere inside the stage at every viewport. */
+    base = Math.min(W * (aside ? 0.30 : 0.42), H*0.43);
     projection.translate([W*0.5, H*0.47]).scale(base);
   }
   window.addEventListener('resize', resize);
