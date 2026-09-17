@@ -21,6 +21,21 @@
    "Invalid or expired code" as the only feedback — a message about the code,
    for a fault in the address. The address is now printed, posted with the
    code, and changeable in one click.
+
+   ── AND WHEN THERE IS NO ADDRESS TO CARRY ──────────────────────────────────
+   That fix carried the address FORWARD, from the session into the post, which
+   is the wrong direction for the case it named: a session that has already
+   rolled over has nothing to carry. Measured — `/account/login?sent=1` with an
+   empty session rendered the complete code screen, lede, boxes, Sign in and
+   "Send a new one", and every one of those controls posted an EMPTY address,
+   so verifying answered "Invalid or expired code. Request a new one." and
+   resending answered "Please enter a valid email." A screen on which nothing
+   can succeed, with its own comment above saying the case was handled.
+
+   It is a real arrival, not a contrived one: `?sent=1` is in history and the
+   code lands on a phone while the request was made on a laptop. The code is
+   still live, so the screen asks for the one thing it is missing rather than
+   sending somebody back to the start of a flow they have already completed.
    ═══════════════════════════════════════════════════════════════════════════ #}
 {% extends "layout/account-auth.twig" %}
 
@@ -29,15 +44,27 @@
 
   <a class="ag-acct__back" href="/account/login">
     <svg width="14" height="14" viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M12.5 4.5 7 10l5.5 5.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
-    Use a different email
+    {% if login_email %}Use a different email{% else %}Start again{% endif %}
   </a>
 
   <div class="ag-acct__art">{% include 'partials/lottie.twig' with { src: '/assets/anim/otp-verify.json', width: 170, height: 112 } only %}</div>
 
   <h1 class="ag-acct__h1">Check your email</h1>
   <p class="ag-acct__lede">
-    {% if login_email %}Enter the 6-digit code we sent to <b>{{ login_email }}</b>.{% else %}Enter the 6-digit code we just sent you.{% endif %}
-    It expires in 15 minutes.
+    {% if login_email %}
+      Enter the 6-digit code we sent to <b>{{ login_email }}</b>.
+    {% else %}
+      {# Not "we just sent you" — this browser has no record of a send, and saying
+         otherwise is how the screen came to look complete while nothing on it
+         could work. Ask for the address the code went to. #}
+      Enter the address your code went to, and the code itself.
+    {% endif %}
+    {# The window comes from UserAccountService::OTP_TTL_MINUTES, which is also
+       what mints the code and what both halves of the email say. No `default`:
+       a fallback here is a fifth typed copy of the number, and it would take
+       over silently on the day the controller stopped passing it — which is the
+       whole failure this replaced. `strict_variables` throws instead. #}
+    It expires {{ otp_ttl_minutes }} minutes after it is sent.
   </p>
 
   {% if error %}<div class="ag-acct__alert ag-acct__alert--err" role="alert">{{ error }}</div>{% endif %}
@@ -46,10 +73,18 @@
   <form method="post" action="/account/login/verify">
     <input type="hidden" name="_token" value="{{ csrf_token }}">
     {# Posted rather than read from the session, so the code and the address it
-       belongs to travel together. A session that has rolled over — a new
-       browser, a code opened an hour later — otherwise verifies against an
-       empty address and reports a bad code. #}
-    <input type="hidden" name="email" value="{{ login_email|default('') }}">
+       belongs to travel together — and ASKED FOR when the session no longer
+       knows it, because a hidden field carrying nothing posts nothing and the
+       only feedback available is a message about the code. #}
+    {% if login_email %}
+      <input type="hidden" name="email" value="{{ login_email }}">
+    {% else %}
+      <div class="ag-acct__field">
+        <label class="ag-acct__label" for="otp-email">Email</label>
+        <input class="ag-acct__input" id="otp-email" type="email" name="email"
+               autocomplete="email" placeholder="you@email.com" required autofocus>
+      </div>
+    {% endif %}
 
     <div class="ag-acct__field ag-acct__otp-wrap" id="agOtpWrap">
       <label class="ag-acct__label" for="otp">6-digit code</label>
@@ -64,7 +99,8 @@
       </span>
       <input class="ag-acct__input ag-acct__code{% if error %} ag-acct__input--err{% endif %}"
              id="otp" name="otp" type="text" inputmode="numeric" pattern="[0-9]{6}" maxlength="6"
-             autocomplete="one-time-code" aria-label="6-digit code" required autofocus>
+             autocomplete="one-time-code" aria-label="6-digit code" required
+             {% if login_email %}autofocus{% endif %}>
     </div>
 
     <div class="ag-acct__btns">
@@ -75,16 +111,32 @@
   {# A second form, a sibling of the one above — never nested. The HTML parser
      DROPS a <form> start tag while a form is open and adopts its children into
      the outer one, so a nested "send a new code" would silently post the code
-     form to the verify route instead. #}
-  <form method="post" action="/account/login/otp">
-    <input type="hidden" name="_token" value="{{ csrf_token }}">
-    <input type="hidden" name="email" value="{{ login_email|default('') }}">
+     form to the verify route instead.
+
+     Only offered when this browser knows the address. Without one the button
+     posts an empty field and comes back "Please enter a valid email" — a
+     control that cannot succeed, next to a form that is already asking for the
+     address it would need. #}
+  {% if login_email %}
+    <form method="post" action="/account/login/otp">
+      <input type="hidden" name="_token" value="{{ csrf_token }}">
+      <input type="hidden" name="email" value="{{ login_email }}">
+      <p class="ag-acct__fine">
+        Code not arrived?
+        <button class="ag-acct__quiet" type="submit">Send a new one</button>
+        · <a href="/account/login">use a password</a>
+        {# Said because it is otherwise learned as a failure: the older code stops
+           working the moment a new one is sent, and somebody who resends and then
+           types the first code they find is told "that code is not right" with the
+           real reason never stated anywhere. #}
+        <span class="ag-acct__hint">A new code cancels the last one.</span>
+      </p>
+    </form>
+  {% else %}
     <p class="ag-acct__fine">
-      Code not arrived?
-      <button class="ag-acct__quiet" type="submit">Send a new one</button>
-      · <a href="/account/login">use a password</a>
+      No code yet? <a href="/account/login">Ask for one</a> · <a href="/account/login">use a password</a>
     </p>
-  </form>
+  {% endif %}
 
 {% else %}
 

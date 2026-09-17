@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 namespace Tests\Unit;
 
+use AfricaGates\Support\OtpAttempt;
 use Tests\TestCase;
 use Illuminate\Database\Capsule\Manager as DB;
 use Illuminate\Support\Carbon;
@@ -50,13 +51,18 @@ class JudgeOtpAttemptCapTest extends TestCase
         ]);
     }
 
-    /** The guarded claim the controller performs, in one statement. */
+    /**
+     * The guarded claim the controller performs — the REAL one, not a copy of it.
+     *
+     * It used to be spelled out again here, which made this file prove a statement
+     * nobody ran: the controller could drift back to read-then-compare and these
+     * tests would go on passing over a private duplicate. The clause lives in
+     * {@see OtpAttempt::claim} now, three other doors having turned out to need it,
+     * and {@see OtpAttemptCapTest} sweeps `src/` for a second copy.
+     */
     private function claimAttempt(int $tokenId): int
     {
-        return DB::table('gates_otp_tokens')
-            ->where('id', $tokenId)
-            ->where('attempts', '<', self::MAX)
-            ->update(['attempts' => DB::raw('attempts + 1')]);
+        return OtpAttempt::claim($tokenId, self::MAX) ? 1 : 0;
     }
 
     /** The old shape, kept here so the difference is visible rather than asserted about. */

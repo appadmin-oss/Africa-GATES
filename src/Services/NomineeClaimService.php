@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 namespace AfricaGates\Services;
 
+use AfricaGates\Support\OtpAttempt;
 use AfricaGates\Support\Phone;
 use AfricaGates\Support\Reference;
 use Illuminate\Database\Capsule\Manager as DB;
@@ -650,8 +651,11 @@ final class NomineeClaimService
                         'message' => 'That code has expired or was already used. Please ask for a new one.'];
             }
 
-            DB::table('gates_otp_tokens')->where('id', $token->id)->increment('attempts');
-            if (((int) $token->attempts + 1) > self::MAX_TOKEN_ATTEMPTS) {
+            // One statement, so the cap holds when the guesses arrive together rather
+            // than in a queue — see {@see \AfricaGates\Support\OtpAttempt}. Read-then-
+            // compare let every parallel guess believe it was the first, and this code
+            // hands somebody a nominee profile.
+            if (!OtpAttempt::claim((int) $token->id, self::MAX_TOKEN_ATTEMPTS)) {
                 DB::table('gates_otp_tokens')->where('id', $token->id)->update(['is_used' => 1]);
                 return ['ok' => false, 'code' => 'TOO_MANY_ATTEMPTS',
                         'message' => 'That is too many tries on one code. Please ask for a new one.'];

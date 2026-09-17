@@ -597,6 +597,109 @@ there had ever been a clock. The page says it now, and reads it from
 `VERIFY_TTL_HOURS` rather than carrying its own copy; the test asserts against the constant,
 so a number typed into the template fails the moment the two disagree.
 
+### A cap fixed on one door and left standing on three
+
+`gates_otp_tokens` is one table for every purpose, and five places spend a guess against
+it. Each reads the live token first — it has to, to check the purpose and the expiry — and
+then counts the attempt:
+
+```php
+DB::table('gates_otp_tokens')->where('id', $tok->id)->increment('attempts');
+if (((int) $tok->attempts + 1) > self::MAX_ATTEMPTS) { … }
+```
+
+The comparison is against the value the SELECT returned, and **nothing serialises the gap**.
+Fire the guesses together and every one holds a snapshot saying `attempts = 0`, so every one
+concludes it is the first and every one reaches the hash comparison. The counter faithfully
+records them all; the cap never consults it. **At any concurrency above one the cap is
+decoration**, and the only remaining bound is a per-IP rate limit — which is exactly the
+bound an attacker with many addresses does not meet.
+
+That was found on the judges' sign-in, fixed there with a paragraph of comment, and held by
+`JudgeOtpAttemptCapTest`. **The identical two lines were left standing in three other
+places**, because that test proved the PRIMITIVE and pinned the judge controller's constant
+and never asked *who else spends a guess*: the member sign-in (a complete credential needing
+no password, and an attacker mints one for any address by posting it to the public form),
+the code that hands somebody a nominee profile, and the code that opens a ticket. An
+enumeration of past failures is never a fix for the next one. `Support\OtpAttempt::claim()`
+is the one clause now — the predicate and the increment travel together, affected-rows 0
+means the cap is spent — and `OtpAttemptCapTest` sweeps `src/` for a second copy.
+
+**And the sweep has to know the one caller that is right for a different reason.**
+`VoteService::verifyAndVote()` keeps the bare increment and is correct: it reads its token
+`lockForUpdate()` inside a transaction, so the second caller blocks on the row and reads the
+incremented value. Reporting it would be a false finding and rewriting it would be churn on
+the one path that already had the guarantee — so the sweep accepts a lock **in the same
+method**, never merely in the same file, which is the difference between clearing that
+caller correctly and clearing it by accident. What it cannot see is raw SQL, and it says so.
+
+**A private copy of the clause inside its own test is the same fault one level up.**
+`JudgeOtpAttemptCapTest` spelled the guarded update out again in a helper, so the controller
+could drift back to read-then-compare with every test still passing over a duplicate nobody
+runs. It calls the real one now.
+
+**And the clause rests on a driver difference, so it was measured rather than assumed.**
+MySQL reports rows **CHANGED** by an `UPDATE`; SQLite reports rows **matched**. `attempts + 1`
+always changes the value so the two agree, and MySQL 8 was measured allowing exactly five of
+ten claims with the counter stopping at five. Write a future claim as
+`update(['attempts' => $n])` with the value the row already holds and it reports 0 on
+production and 1 in the suite — a cap that silently refuses every guess on the only database
+that matters. Keep the increment relative.
+
+### A screen where nothing can succeed, under a comment saying it was fixed
+
+`/account/login?sent=1` rendered the complete one-time-code screen — lede, six boxes, Sign
+in, "Send a new one" — for a browser whose session no longer held the address. Measured:
+every control posted an **empty** address, so verifying answered "Invalid or expired code.
+Request a new one." and resending answered "Please enter a valid email." Nothing on the page
+could work, and there was no error anywhere to say why.
+
+The template's own docblock was the evidence somebody had already looked: an earlier repair
+made `otpVerify` take the address from the POST rather than the session, precisely so "a
+session that has rolled over — a new browser, a code opened an hour later" would not verify
+against an empty address. **It carried the address FORWARD, which is the wrong direction for
+the case it named** — a session that has already rolled over has nothing to carry. §19's
+shape, on a sign-in screen: the cited evidence confirmed the false answer.
+
+It is not a contrived arrival. `?sent=1` sits in history, and the ordinary shape of this
+flow is a code requested on a laptop and read on a phone. The code is live either way, so
+the screen **asks for the one thing it is missing** rather than discarding a completed
+request — and does not offer a resend it cannot perform.
+
+**Two rules the same screen enforced without stating.** The fifteen-minute window was typed
+into four places (the mint, both halves of the email, the page) with nothing making them
+agree; it reads `UserAccountService::OTP_TTL_MINUTES` now, with **no `|default()`** — a
+fallback is a fifth typed copy that takes over silently the day the controller stops passing
+it. And the five-guess cap was stated nowhere at all until it fired, at which point the code
+is already dead and the person has to go back to their inbox: **the rule arrived only as its
+own punishment.** It counts down out loud. The number is no use to an attacker, who can
+count their own guesses; it is the only thing that tells somebody mistyping a code off a
+phone screen that they are near the end of it — and the budget running out is said plainly
+and spends the code there, rather than leaving it alive-but-unusable until the next guess
+trips the cap and the screen answers a question about the code when the answer is about the
+budget. Same for "a new code cancels the last one", which was otherwise learned as "that
+code is not right" about a code that had been correct.
+
+**The countdown widens an oracle that already existed, and that is accepted rather than
+answered.** A guess against an address with no account finds no token and is told "Invalid
+or expired code"; a guess against a real one is told how many tries remain. The two already
+differed in wording, and `otpRequest` states the platform's position in as many words:
+member existence is discoverable through registration and is not defended here. If that
+position changes, the countdown is one of the places that has to change with it.
+
+**And the "too many attempts" branch reads as unreachable and is not.** The wrong-guess path
+spends the code the moment the budget runs out, so a SEQUENTIAL sixth guess finds no live
+token. What reaches that branch is a guess arriving while the budget is gone and the burn has
+not landed — the concurrency the whole change is about. Do not delete it as dead code.
+
+**And a message that branches on the account describes the account.** The send-failure
+sentence added ", or sign in with your password" only when one was set. That branch is
+reachable only for an address that HAS an account, so its comment's defence — existence is
+already discoverable through registration — covers the wrong disclosure: it told an attacker
+probing during a mail outage which accounts have **no** password, i.e. which are pointless
+to grind and which are worth phishing a code for. "If you have one" helps the owner just as
+well and says nothing about anybody else.
+
 ### A sweep that asks "does it redirect" cannot tell a retired path from a locked one
 
 `PublicIaTest` asks whether every public page is reachable without typing a URL, and a path

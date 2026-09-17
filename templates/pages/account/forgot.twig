@@ -40,7 +40,11 @@
     </div>
   </form>
 
-  <p class="ag-acct__fine">A one-time code signs you in straight away; you can set a new password from your account afterwards.</p>
+  {# The window, on the screen that OFFERS the code — read from
+     UserAccountService::OTP_TTL_MINUTES, the same constant that mints it and that the
+     code screen prints. A rule stated in the email and nowhere the person can read it
+     before they need it is stated to nobody. #}
+  <p class="ag-acct__fine">A one-time code signs you in straight away and lasts {{ otp_ttl_minutes }} minutes; you can set a new password from your account afterwards.</p>
 {% endblock %}
 
 {% block below %}

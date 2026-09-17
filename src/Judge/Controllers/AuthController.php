@@ -10,6 +10,7 @@ use Illuminate\Database\Capsule\Manager as DB;
 use Illuminate\Support\Carbon;
 use AfricaGates\Judge\Services\JudgeService;
 use AfricaGates\Services\{OtpService, RateLimitService};
+use AfricaGates\Support\OtpAttempt;
 use AfricaGates\Support\Session;
 
 /**
@@ -141,11 +142,9 @@ class AuthController
         // succeed in claiming an attempt, however many arrive at once. Affected-rows 0
         // means the cap is spent. Same primitive VoteService gets from lockForUpdate()
         // and RateLimitService from its conditional update.
-        $claimed = DB::table('gates_otp_tokens')
-            ->where('id', $tok->id)
-            ->where('attempts', '<', self::MAX_OTP_ATTEMPTS)
-            ->update(['attempts' => DB::raw('attempts + 1')]);
-        if ($claimed === 0) {
+        // The clause moved to {@see OtpAttempt::claim} once it turned out three other
+        // doors still had the read-then-compare this replaced. Same statement, one copy.
+        if (!OtpAttempt::claim((int) $tok->id, self::MAX_OTP_ATTEMPTS)) {
             DB::table('gates_otp_tokens')->where('id', $tok->id)->update(['is_used' => 1]);
             $_SESSION['flash_error'] = 'Too many attempts. Request a new code.';
             return $res->withHeader('Location', '/judge/login?sent=1')->withStatus(302);

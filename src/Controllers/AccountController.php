@@ -4,6 +4,7 @@ declare(strict_types=1);
 namespace AfricaGates\Controllers;
 
 use AfricaGates\Support\Env;
+use AfricaGates\Support\OtpAttempt;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
 use Slim\Views\Twig;
@@ -418,6 +419,10 @@ class AccountController
             'page_title' => 'Reset your password — Africa GATES', 'gates_page' => 'account',
             'hide_chrome' => true,
             'login_email' => (string) ($_SESSION['user_login_email'] ?? ''),
+            // READ from the rule rather than typed into the page. A window stated on
+            // the screen and separately in the code is two rules claiming to be one,
+            // and the screen is the copy that goes stale silently.
+            'otp_ttl_minutes' => UserAccountService::OTP_TTL_MINUTES,
             'error' => $this->flash('flash_error'), 'notice' => $this->flash('flash_notice'),
         ]);
     }
@@ -706,6 +711,10 @@ class AccountController
             // not own, and the only feedback available was "invalid or expired
             // code": a message about the code, for a fault in the address.
             'login_email' => (string) ($_SESSION['user_login_email'] ?? ''),
+            // READ from the rule rather than typed into the page. A window stated on
+            // the screen and separately in the code is two rules claiming to be one,
+            // and the screen is the copy that goes stale silently.
+            'otp_ttl_minutes' => UserAccountService::OTP_TTL_MINUTES,
             // The server half. The browser half is asked in the page, because a server
             // that can verify a ceremony no browser here can run is still nothing to offer.
             'passkeys_available' => \AfricaGates\Services\Passkeys::available(),
@@ -806,10 +815,11 @@ class AccountController
             DB::table('gates_otp_tokens')->insert([
                 'email_hash' => hash('sha256', $email), 'token_hash' => hash('sha256', $code), 'purpose' => 'user_login',
                 'nominee_id' => (int) $user->id, 'award_id' => 0, 'attempts' => 0, 'is_used' => 0,
-                'expires_at' => Carbon::now()->addMinutes(15)->toDateTimeString(), 'created_at' => Carbon::now()->toDateTimeString(),
+                'expires_at' => Carbon::now()->addMinutes(UserAccountService::OTP_TTL_MINUTES)->toDateTimeString(), 'created_at' => Carbon::now()->toDateTimeString(),
             ]);
-            $nm = htmlspecialchars((string) $user->name, ENT_QUOTES, 'UTF-8');
-            $html = "<p>Hello <strong>{$nm}</strong>,</p><p>Your Africa GATES sign-in code is below — it expires in 15 minutes.</p>"
+            $nm  = htmlspecialchars((string) $user->name, ENT_QUOTES, 'UTF-8');
+            $ttl = UserAccountService::OTP_TTL_MINUTES;
+            $html = "<p>Hello <strong>{$nm}</strong>,</p><p>Your Africa GATES sign-in code is below — it expires in {$ttl} minutes.</p>"
                 . "<div style=\"font:700 34px/1 'JetBrains Mono',monospace;letter-spacing:.3em;color:#10292C;margin:18px 0\">{$code}</div>"
                 . "<p style=\"font-size:13px;color:#92a6a7\">Didn't request this? Ignore this email.</p>";
             // Surface delivery failure honestly — the previous version discarded
@@ -818,12 +828,21 @@ class AccountController
             // registration, so this does not open a new enumeration channel.)
             $sendFailed = false;
             try {
-                $r = $this->otp->sendBranded($email, 'Your Africa GATES sign-in code', $html, "Your sign-in code is {$code} (valid 15 minutes).", 'Accounts');
+                $r = $this->otp->sendBranded($email, 'Your Africa GATES sign-in code', $html, "Your sign-in code is {$code} (valid {$ttl} minutes).", 'Accounts');
                 $sendFailed = !($r['success'] ?? false);
             } catch (\Throwable $e) { $sendFailed = true; }
             if ($sendFailed) {
                 $_SESSION['user_login_email'] = $email;
-                $_SESSION['flash_error'] = 'We could not send your sign-in code — our email service is having trouble. Try again in a few minutes' . (!empty($user->password_hash) ? ', or sign in with your password' : '') . '.';
+                // The sentence does not branch on the account any more. This whole
+                // block is reachable only when the address HAS an account, and the
+                // clause that used to hang off `password_hash` therefore told an
+                // attacker probing during a mail outage which accounts have no
+                // password — i.e. which ones a grind is pointless against and which
+                // are worth phishing a code for. The comment above defends disclosing
+                // that the account exists (registration already does); it does not
+                // defend disclosing its shape. "If you have one" helps the owner just
+                // as well and says nothing about anybody else.
+                $_SESSION['flash_error'] = 'We could not send your sign-in code — our email service is having trouble. Try again in a few minutes, or sign in with your password if you have one.';
                 return $res->withHeader('Location', '/account/login')->withStatus(302);
             }
         }
@@ -851,14 +870,62 @@ class AccountController
             $_SESSION['flash_error'] = 'Invalid or expired code. Request a new one.';
             return $res->withHeader('Location', '/account/login?sent=1')->withStatus(302);
         }
-        DB::table('gates_otp_tokens')->where('id', $tok->id)->increment('attempts');
-        if (((int) $tok->attempts + 1) > self::MAX_OTP_ATTEMPTS) {
+        // COUNT THE GUESS AND CAP IT IN ONE STATEMENT.
+        //
+        // This used to read `attempts` off the row above, increment, then compare the
+        // value it had READ — and nothing serialised the gap. Fire the guesses together
+        // and every one of them holds a snapshot saying attempts = 0, so every one
+        // concludes it is the first and every one reaches the hash comparison below.
+        // The counter recorded them all; the cap never consulted it.
+        //
+        // The judges' door had the identical two lines, and they were replaced there
+        // with a paragraph explaining exactly this. Nothing asked whether the member
+        // door — a complete credential that needs no password, for an account holding
+        // voting points, a purchase history and a phone number — had the same shape. It
+        // did, and an attacker mints a code for any address by posting it to the public
+        // form above. `user_otp_verify` throttles per IP and is the outer bound; this is
+        // the inner one, and it is the one that does not care where the traffic is from.
+        //
+        // This branch reads as unreachable and is not: the wrong-guess path below spends
+        // the code as soon as the budget runs out, so a SEQUENTIAL sixth guess finds no
+        // live token at all. What reaches here is a guess that arrives while the budget
+        // is already gone and the burn has not landed — which is the concurrency this
+        // whole change is about. Do not delete it as dead.
+        if (!OtpAttempt::claim((int) $tok->id, self::MAX_OTP_ATTEMPTS)) {
             DB::table('gates_otp_tokens')->where('id', $tok->id)->update(['is_used' => 1]);
             $_SESSION['flash_error'] = 'Too many attempts. Request a new code.';
             return $res->withHeader('Location', '/account/login?sent=1')->withStatus(302);
         }
         if (!hash_equals((string) $tok->token_hash, hash('sha256', $code))) {
-            $_SESSION['flash_error'] = 'Invalid or expired code. Try again.';
+            // COUNT DOWN OUT LOUD. The five-guess cap was stated nowhere until it
+            // fired, and when it fires the code is already dead and the person has to
+            // go back to their inbox — the rule arrives only as its own punishment.
+            // The number is no use to an attacker, who can count their own guesses;
+            // it is the only thing that lets somebody mistyping a code off a phone
+            // screen know they are near the end of it.
+            //
+            // IT DOES WIDEN AN ORACLE THAT ALREADY EXISTED, and that is accepted rather
+            // than answered. A guess against an address with no account finds no token
+            // and is told "Invalid or expired code. Request a new one."; a guess against
+            // a real one is told how many tries remain. The two already differed in
+            // wording before this ("Request a new one" against "Try again"), and
+            // `otpRequest` above states this platform's position in as many words:
+            // member existence is discoverable through registration and is not defended
+            // here. Minting the token first costs three requests an hour per address.
+            // If that position ever changes, this countdown is one of the places it has
+            // to change with it.
+            $left = max(0, self::MAX_OTP_ATTEMPTS - (int) DB::table('gates_otp_tokens')->where('id', $tok->id)->value('attempts'));
+            if ($left === 0) {
+                // Spend it here rather than leaving it alive-but-unusable until the
+                // next guess trips the cap. No further attempt can succeed, so a code
+                // in that state is one more way for the screen to answer a question
+                // about the code when the answer is about the budget.
+                DB::table('gates_otp_tokens')->where('id', $tok->id)->update(['is_used' => 1]);
+                $_SESSION['flash_error'] = 'That was the last try on that code. Ask for a new one.';
+            } else {
+                $_SESSION['flash_error'] = 'That code is not right. '
+                    . ($left === 1 ? 'One try left' : $left . ' tries left') . ' before we cancel it.';
+            }
             return $res->withHeader('Location', '/account/login?sent=1')->withStatus(302);
         }
         DB::table('gates_otp_tokens')->where('id', $tok->id)->update(['is_used' => 1]);

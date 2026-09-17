@@ -4,6 +4,7 @@ declare(strict_types=1);
 namespace AfricaGates\Services;
 
 use AfricaGates\Support\OptionalColumn;
+use AfricaGates\Support\OtpAttempt;
 use Illuminate\Database\Capsule\Manager as DB;
 use Illuminate\Support\Carbon;
 
@@ -193,8 +194,10 @@ final class TicketSelfService
                                               . 'Ask for a new one.'];
         }
 
-        DB::table('gates_otp_tokens')->where('id', $tok->id)->increment('attempts');
-        if (((int) $tok->attempts + 1) > self::MAX_ATTEMPTS) {
+        // One statement, so the cap holds under concurrency — see
+        // {@see \AfricaGates\Support\OtpAttempt}. Read-then-compare meant every
+        // parallel guess saw attempts = 0 and the cap never applied.
+        if (!OtpAttempt::claim((int) $tok->id, self::MAX_ATTEMPTS)) {
             DB::table('gates_otp_tokens')->where('id', $tok->id)->update(['is_used' => 1]);
             return ['ok' => false, 'message' => 'Too many tries on that code. Ask for a new one.'];
         }

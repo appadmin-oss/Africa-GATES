@@ -148,6 +148,23 @@ final class UserAccountService
     public const ACTIVE = 'active';
 
     /**
+     * How long a one-time SIGN-IN code lives.
+     *
+     * Read by the minting, by both halves of the email that carries the code, and by
+     * the screen that asks for it. It was typed into all four — `addMinutes(15)`, "It
+     * expires in 15 minutes" in the HTML body, "(valid 15 minutes)" in the plain one,
+     * and "It expires in 15 minutes." on the page — which is the shape that had the
+     * verification link's window stated in the email and nowhere the person who needed
+     * it could read. Shortening the window would have left three screens promising the
+     * old one.
+     *
+     * NOT the same as a voting code's ten minutes ({@see OtpService::generate}): those
+     * are different windows for different purposes, and one global constant across
+     * them would be a worse lie than four copies of this one.
+     */
+    public const OTP_TTL_MINUTES = 15;
+
+    /**
      * MAY THIS ACCOUNT BE SIGNED IN? ONE ANSWER, FOR EVERY WAY IN.
      *
      * ── TWO READERS OF THIS QUESTION DISAGREED ───────────────────────────────
