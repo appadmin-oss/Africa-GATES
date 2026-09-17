@@ -562,6 +562,41 @@ The tell was the COUNT, which went 6579 → 6574 after adding five tests, and a 
 reading `M` where `??` was expected. Read the test total after a run that adds tests, and
 make it add up.
 
+### A link that signs you in is a sign-in, and there were three answers to one question
+
+`findByEmail()` has always required `status = 'active'`, so `attemptLogin()` never finds a
+member who is not — a password simply stops working. The two LINK paths resolve their
+account with `findById()` instead, which has no status filter because it is also how a
+profile is read, and both then call `startSession()`. So **a verification link and a
+password-reset link each opened a door the password had already been refused at.** Measured
+side by side: suspended member, password refused, both links allowed.
+
+**Stated precisely, this is LATENT rather than live.** `gates_users.status` is a free
+VARCHAR defaulting to `active` and no admin screen writes it, so nothing here can currently
+produce a member who is not active. What makes it worth closing anyway is who would make it
+live: somebody adding a suspend button is looking at a members table, not at two token
+consumers in a service, and the account they suspend would keep a working way in that
+nothing on their screen mentions. `UserAccountService::canSignIn()` is the one answer now,
+and the test asks BOTH paths in one case so they cannot drift apart again.
+
+**A presented link is spent even when it is refused.** Both consumers burn the token before
+they resolve the account — otherwise the refusal is a retry loop, with the link still live
+in the inbox for the rest of its window.
+
+**And `verify_resend` was the only mail-sending endpoint counting one of the two limits.**
+Four per address and nothing counting the connection, while every sibling counts both —
+which is fine right up until one connection walks a list of ten thousand addresses, at which
+point nothing is counting the thing doing it. Twenty an hour per connection against four per
+address, so a household resending for several people never meets it and a list meets it on
+the fifth.
+
+**A window stated in the email and nowhere else is stated to nobody who needs it.** The
+verification link's life was in the message only, so the one person who could not read it
+was the one whose link had expired — they met the rule as "invalid or expired", with no sign
+there had ever been a clock. The page says it now, and reads it from
+`VERIFY_TTL_HOURS` rather than carrying its own copy; the test asserts against the constant,
+so a number typed into the template fails the moment the two disagree.
+
 ### A sweep that asks "does it redirect" cannot tell a retired path from a locked one
 
 `PublicIaTest` asks whether every public page is reachable without typing a URL, and a path

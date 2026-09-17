@@ -313,6 +313,10 @@ class AccountController
         return $this->view->render($res, 'pages/account/verify-notice.twig', [
             'page_title' => 'Verify your email — Africa GATES', 'gates_page' => 'account', 'hide_chrome' => true,
             'email'  => $_SESSION['pending_verify_email'] ?? '',
+            // Looped from the code, never typed onto the page: the link's life is decided
+            // by `issueEmailVerification()`, and a second copy of it in prose is the shape
+            // this repo has paid for repeatedly.
+            'ttl_hours' => \AfricaGates\Services\UserAccountService::VERIFY_TTL_HOURS,
             'error'  => $this->flash('flash_error'), 'notice' => $this->flash('flash_notice'),
         ]);
     }
@@ -322,6 +326,32 @@ class AccountController
     {
         $b = (array) $req->getParsedBody();
         $email = strtolower(trim((string) ($b['email'] ?? ($_SESSION['pending_verify_email'] ?? ''))));
+        $ip    = $this->ip($req);
+
+        // ── PER ADDRESS *AND* PER CONNECTION ─────────────────────────────────
+        //
+        // This was the only mail-sending endpoint in this controller counting one of the
+        // two. Every sibling counts both — the reset request, the one-time code, and
+        // registration since it gained a limit — and the half that was missing is the half
+        // that matters for the abuse this endpoint actually offers: four messages per
+        // address is a small number until one connection walks a list of ten thousand of
+        // them, at which point nothing is counting the thing doing it.
+        //
+        // What that costs is not rows. It is outbound mail to addresses somebody else
+        // chose, against the sending reputation the whole platform reaches people through.
+        //
+        // Twenty an hour per connection, against four per address: a household or an
+        // office genuinely resending for several people must not meet this, and a list
+        // being walked meets it on the fifth address. The refusal keeps the same
+        // enumeration-safe sentence, because a limit that answers differently is a limit
+        // that tells somebody which addresses are worth trying.
+        if ($this->rateLimit && $ip !== ''
+            && !$this->rateLimit->check(hash('sha256', $ip), 'verify_resend_ip', 20, 3600)) {
+            $_SESSION['pending_verify_email'] = $email;
+            $_SESSION['flash_notice'] = 'If that account still needs verifying, a new link is on the way.';
+            return $res->withHeader('Location', '/account/verify')->withStatus(302);
+        }
+
         if ($this->rateLimit && $email !== '' && !$this->rateLimit->check(hash('sha256', $email), 'verify_resend', 4, 3600)) {
             $_SESSION['flash_notice'] = 'If that account still needs verifying, a new link is on the way.';
             return $res->withHeader('Location', '/account/verify')->withStatus(302);

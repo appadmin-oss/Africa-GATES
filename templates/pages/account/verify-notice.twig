@@ -17,9 +17,24 @@
   <div class="ag-acct__art">{% include 'partials/lottie.twig' with { src: '/assets/anim/otp-verify.json', width: 170, height: 112 } only %}</div>
 
   <h1 class="ag-acct__h1">Confirm your email</h1>
+  {# ── THE TWO THINGS THIS PAGE EXISTS FOR, AND ONLY SAID ONE OF ────────────
+     Its whole job is the gap between a message being sent and arriving, and it said
+     nothing about either thing that goes wrong in that gap.
+
+     The window was in the EMAIL and nowhere else — so the one person who cannot read it
+     is the one whose link has already expired, and they meet the rule as "invalid or
+     expired" with no warning that there had been a clock. And the commonest reason a
+     verification message has not arrived is not that it failed: it is the junk folder,
+     which is free to check and is the first thing a support reply says.
+
+     `ttl_hours` comes from `UserAccountService::VERIFY_TTL_HOURS`, the constant the token
+     is actually minted with. Typed here it would be a second copy of a number somebody
+     will change in one place. #}
   <p class="ag-acct__lede">
     {% if email %}We sent a verification link to <b>{{ email }}</b>. Open it to activate your account.
     {% else %}We sent you a verification link. Open it to activate your account.{% endif %}
+    It works once and lasts {{ ttl_hours }} hours &mdash; if it is not there, check your junk folder
+    before asking for another.
   </p>
 
   {% if error %}<div class="ag-acct__alert ag-acct__alert--err" role="alert">{{ error }}</div>{% endif %}

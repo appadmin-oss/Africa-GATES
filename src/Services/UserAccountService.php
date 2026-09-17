@@ -141,6 +141,36 @@ final class UserAccountService
         return (int) ($u->email_verified ?? 0) === 1;
     }
 
+    /** How long a verification link lives. Read by the page that explains it. */
+    public const VERIFY_TTL_HOURS = 24;
+
+    /** The only status a member may hold and still be signed in. */
+    public const ACTIVE = 'active';
+
+    /**
+     * MAY THIS ACCOUNT BE SIGNED IN? ONE ANSWER, FOR EVERY WAY IN.
+     *
+     * ── TWO READERS OF THIS QUESTION DISAGREED ───────────────────────────────
+     *
+     * `findByEmail()` has always required `status = 'active'`, so a member who is not
+     * active cannot sign in with a password — `attemptLogin()` never finds them. The two
+     * LINK paths resolve their account with `findById()` instead, which has no status
+     * filter because it is also how a profile is read, and both then call
+     * `startSession()`. So a verification link and a password-reset link each let somebody
+     * in through a door the password refuses.
+     *
+     * Measured, and stated precisely: this is LATENT rather than live. `gates_users.status`
+     * is a free VARCHAR defaulting to 'active' and no admin screen writes it, so nothing
+     * on this platform can currently produce a member who is not active. It becomes live
+     * the first time somebody adds a suspend button — and the guard belongs with the
+     * credential, not with the future feature, because whoever adds that button will be
+     * looking at a members table rather than at two token consumers.
+     */
+    public function canSignIn(object $u): bool
+    {
+        return (string) ($u->status ?? self::ACTIVE) === self::ACTIVE;
+    }
+
     /**
      * Issue a single-use, 24-hour email-verification token. Invalidates any prior
      * unused token for the email, then returns the RAW token for the verify link
@@ -162,7 +192,7 @@ final class UserAccountService
             'award_id'   => 0,
             'attempts'   => 0,
             'is_used'    => 0,
-            'expires_at' => Carbon::now()->addHours(24)->toDateTimeString(),
+            'expires_at' => Carbon::now()->addHours(self::VERIFY_TTL_HOURS)->toDateTimeString(),
             'created_at' => Carbon::now()->toDateTimeString(),
         ]);
         return $raw;
@@ -183,7 +213,10 @@ final class UserAccountService
         if (!$tok) return null;
         DB::table('gates_otp_tokens')->where('id', $tok->id)->update(['is_used' => 1]);
         $user = $this->findById((int) $tok->nominee_id);
-        if (!$user) return null;
+        // The token is spent above whatever happens next, so a refusal here cannot leave a
+        // presented link spendable — and a suspended account must not be signed in by a
+        // link when the password it owns is already refused. See canSignIn().
+        if (!$user || !$this->canSignIn($user)) return null;
         DB::table('gates_users')->where('id', $user->id)->update(['email_verified' => 1]);
         $user->email_verified = 1;
         return $user;
@@ -265,12 +298,14 @@ final class UserAccountService
         $row = $this->liveResetRow($token);
         if ($row === null) return null;
 
-        $user = $this->findById((int) $row->nominee_id);
-        if (!$user) return null;
-
-        // Burn the token FIRST. If the update below throws, a token that has already been
-        // presented must not remain spendable.
+        // Burn the token FIRST — before the account is even resolved. A link that has been
+        // PRESENTED is spent, whatever is decided about it afterwards: if the write below
+        // throws, or the account turns out to be one that may not be signed in, a live link
+        // left in an inbox is one somebody can carry on trying.
         DB::table('gates_otp_tokens')->where('id', $row->id)->update(['is_used' => 1]);
+
+        $user = $this->findById((int) $row->nominee_id);
+        if (!$user || !$this->canSignIn($user)) return null;
 
         // ── AND EVERY OTHER CREDENTIAL FOR THIS ACCOUNT ──────────────────────
         //
