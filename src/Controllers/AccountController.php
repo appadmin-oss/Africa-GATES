@@ -627,6 +627,34 @@ class AccountController
         // Kept so the form comes back filled in. Whatever was typed, account or
         // not — this reveals nothing that was not typed into this browser.
         if ($email !== '') $_SESSION['user_login_email'] = $email;
+
+        // ── AND PER ACCOUNT, WHICH THIS SIDE DID NOT HAVE ────────────────────
+        //
+        // The limit above is per IP. That stops one attacker from one address and does
+        // nothing about the case it is easiest to buy: many addresses grinding ONE account.
+        // The organisation sign-in has had both halves since it shipped — an IP throttle and
+        // a per-account lockout — and these accounts hold voting points, a purchase history
+        // and somebody's phone number.
+        //
+        // Per EMAIL and not a lock on the row, deliberately. A lock is a denial of service
+        // an attacker can trigger at will, which is the reasoning `OrgAuth::attempt()`
+        // already spells out for putting its IP check first; a throttle expires on its own.
+        // The mechanism and the precedent are both already here — `otpRequest()` below
+        // throttles `user_otp_email` at three an hour.
+        //
+        // Ten an hour, above the twelve per IP on purpose: somebody who genuinely cannot
+        // remember which password they used should meet the per-IP wall, not this one. And
+        // the one-time code is a separately throttled route, so even a grind that empties
+        // this bucket does not leave the real owner locked out of their own account.
+        //
+        // The message is the SAME sentence a wrong password gets. Saying "too many attempts
+        // for this account" would confirm the account exists, which is the oracle the single
+        // message below exists to close.
+        if ($this->rateLimit && $email !== ''
+            && !$this->rateLimit->check(hash('sha256', $email), 'user_login_email', 10, 3600)) {
+            $_SESSION['flash_error'] = 'That email and password do not match. Try again, or sign in with a one-time code instead.';
+            return $res->withHeader('Location', '/account/login')->withStatus(302);
+        }
         // The password field is deliberately not `required`, because the one-time
         // code beside it is a first-class route rather than a fallback. So an empty
         // password reaches here as a normal submission, and "that email and password

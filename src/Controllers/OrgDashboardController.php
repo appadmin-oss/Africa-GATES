@@ -79,17 +79,44 @@ final class OrgDashboardController
 
     // ──────────────────────────────── sign in ───────────────────────────────
 
+    /**
+     * ── WHY THE FAILURE IS NO LONGER IN THE URL ──────────────────────────────
+     *
+     * It was `/org/login?e=1`, and a query string is not a flash. It survives a refresh, so
+     * the page re-accuses somebody who has attempted nothing; it lands in browser history
+     * and in the referrer of anything the page links to; and it is shareable, which makes
+     * "your sign-in is broken" a URL rather than an event. The member sign-in beside it has
+     * always used a one-shot session value, and there was no reason for the two to differ.
+     *
+     * A dedicated key rather than `org_flash_error`: that one is aliased into the Twig
+     * global `flash_error` when the container is built, which happens BEFORE this runs — so
+     * the message would be in scope twice and the layout could draw it beside the one this
+     * method passes. Explicit beats clever for a thing that renders next to a password box.
+     */
     public function loginPage(Request $req, Response $res): Response
     {
         if (OrgAuth::user()) return $this->redirect($res, '/org');
+
+        $failed = !empty($_SESSION['org_login_failed']);
+        $typed  = (string) ($_SESSION['org_login_email'] ?? '');
+        unset($_SESSION['org_login_failed'], $_SESSION['org_login_email']);
 
         return $this->view->render($res, 'pages/org/login.twig', [
             'page_title' => 'Partner sign in — Africa GATES',
             'gates_page' => 'partner',
             'lite_page'  => true,
-            'error'      => trim((string) ($req->getQueryParams()['e'] ?? '')) !== ''
+            // ONE message for every kind of failure — unknown address, wrong password,
+            // locked account, inactive user. Telling them apart is an enumeration oracle,
+            // and OrgAuth::attempt() returns the same null for all of them precisely so
+            // that this line cannot accidentally learn the difference.
+            'error'      => $failed
                             ? 'Those details did not match. Check the address and password and try again.'
                             : null,
+            // Handed back so a failure costs the password and not the address as well.
+            // Whatever was typed, account or not: this reveals nothing that was not typed
+            // into this browser a moment ago.
+            'old_email'  => $typed,
+            'support_email' => \AfricaGates\Services\Notifier::supportEmail(),
         ])->withHeader('X-Robots-Tag', 'noindex, nofollow');
     }
 
@@ -104,7 +131,11 @@ final class OrgDashboardController
 
         // One message for every failure — unknown address, wrong password, locked, suspended
         // organisation. Telling them apart is an account-enumeration oracle.
-        if (!$user) return $this->redirect($res, '/org/login?e=1');
+        if (!$user) {
+            $_SESSION['org_login_failed'] = true;
+            $_SESSION['org_login_email']  = strtolower(trim((string) ($b['email'] ?? '')));
+            return $this->redirect($res, '/org/login');
+        }
 
         (new OrgAuth($this->rateLimit))->signIn($user);
         return $this->redirect($res, '/org');

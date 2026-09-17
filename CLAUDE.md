@@ -482,6 +482,46 @@ branch's five, deliberately: a shared connection is normal here, and a family or
 signing up together happens, while five organisations applying from one address in an hour
 does not. A limit that locks out real people fails in the direction nobody reports.
 
+### Two sign-ins, each strong where the other was weak
+
+`/account/login` and `/org/login` are separate trust domains on separate routes, and that
+separation is deliberate — `account/login.twig` refuses to offer organisation sign-in for
+exactly that reason. What was not deliberate is the two arriving at different answers to
+the same questions, with nothing anywhere comparing them.
+
+**The organisation side throttles per IP AND locks the account; the member side had the IP
+half only.** That stops one attacker from one address and does nothing about the case that
+is cheapest to buy — many addresses grinding ONE account, which here holds voting points, a
+purchase history and a phone number. The member side now throttles per email hash too, and
+per email rather than a lock on the row: a lock is a denial of service an attacker triggers
+at will, which is the reasoning `OrgAuth::attempt()` already spells out for putting its IP
+check first. The mechanism and the precedent were both already in the same controller —
+`otpRequest()` throttles `user_otp_email` at three an hour.
+
+**A failure is an event, not a URL.** `/org/login?e=1` is not a flash: it survives a
+refresh, so the page goes on accusing somebody who has attempted nothing; it lands in
+history and in the referrer of anything the page links to; and it is shareable, which turns
+"your sign-in is broken" into a link. It also carries nothing, so every retry started from
+an empty address field while the member side had always handed the typed address back.
+A dedicated session key, not `org_flash_error` — that one is aliased into the Twig global
+`flash_error` when the container is built, which happens BEFORE the controller runs, so the
+message would be in scope twice beside a password box.
+
+**The one remedy a page offers is the one sentence that has to be actionable.** There is
+deliberately no self-service reset for an organisation: that sign-in can request payouts,
+and a reset link in an inbox is a payout for whoever holds it. Which makes "contact Africa
+GATES" the only way out of a lockout — and it named no address and carried no link, for a
+reader who is by definition already locked out and cannot reach their dashboard to find one.
+
+**And a guard that compares two states must compare the two that differ.** The enumeration
+test written for that new throttle compared a THROTTLED known address against a THROTTLED
+unknown one, and passed with the account named in the message — the bucket is keyed on the
+email whether or not an account exists, so both were throttled and both got the same wrong
+sentence. It read as covering enumeration and covered nothing. The comparison that matters
+is ACROSS the throttle boundary, not along it: all four states — wrong password on a real
+account, wrong password on no account, and either of those once throttled — have to be told
+one sentence.
+
 ### A sweep that asks "does it redirect" cannot tell a retired path from a locked one
 
 `PublicIaTest` asks whether every public page is reachable without typing a URL, and a path
