@@ -295,6 +295,37 @@
      a column of naira lines up on its digits. */
   .pd__grid{ display:flex; flex-wrap:wrap; gap:clamp(20px,4vw,44px); margin:0 0 22px;
     padding:0 0 20px; border-bottom:1px solid var(--pd-line); }
+
+  /* As the Overview's lede it opens a section rather than sitting inside one, so it
+     carries the rule UNDER it and no margin above — the state panel already set the
+     spacing, and two stacked gaps read as a missing element between them. */
+  .pd__grid--lede{ margin-top:26px; }
+
+  /* ── the balance, beside what can be done with it ──────────────────────────
+     A row, not a panel. This is one sentence about a figure printed directly above it,
+     and boxing it makes a reader look for the second number that would justify a second
+     card. The mono key is the house micro-label; the accent is on the KEY and the rule,
+     never on the sentence — a coloured line of body text reads as a warning about the
+     money rather than a fact about it. */
+  .pd-ready{ display:flex; align-items:baseline; gap:12px; flex-wrap:wrap;
+    margin:0 0 22px; padding:0 0 20px; border-bottom:1px solid var(--pd-line);
+    font-size:14px; line-height:1.65; color:var(--pd-ink-2); }
+  .pd-ready__k{ flex:none; font:700 11px/1 var(--ag-font-mono,monospace);
+    letter-spacing:.16em; text-transform:uppercase; color:var(--pd-green-dark); }
+  .pd-ready--wait .pd-ready__k{ color:var(--pd-gold-ink); }
+  .pd-ready strong{ font-family:var(--ag-font-mono,monospace); font-variant-numeric:tabular-nums;
+    font-weight:700; color:var(--pd-ink); }
+  .pd-ready a{ color:var(--pd-green-dark); font-weight:700; }
+  /* Left inline, with no padded target. 2.5.8 exempts a target that sits INSIDE a
+     sentence, and this one does — it is the last two words of the line. Padding it to 44px
+     would have been the rule applied without reading it: an inline-block grows the line
+     box, so the strip would stand a third taller than the sentence in it for a floor this
+     link does not owe. The payout FORM is where the rule bites, and a11y.css holds that. */
+
+  /* Collapses with the bottom margin of whichever row precedes it rather than adding to
+     it — both are block-level siblings — so this is the gap in every case, including the
+     one where the chart is somehow the only thing here. */
+  .pd-panel--chart{ margin-top:22px; }
   .pd__stat dt{ margin:0; font-family:var(--ag-font-mono,monospace); font-size:10px;
     font-weight:700; letter-spacing:.22em; text-transform:uppercase; color:var(--pd-mute); }
   /* ── letter-spacing:0, NOT the -.02em a display figure usually wants ──────
@@ -422,6 +453,24 @@
 {% set n_offers   = applications|filter(a => a.live_offer)|length %}
 {% set has_money  = totals.count > 0 or payouts|length > 0 or campaigns|length > 0 %}
 {% set show_money = not is_vendor or has_money %}
+
+{# ── THE SECTION NUMBERS, COUNTED RATHER THAN TYPED ────────────────────────
+   Every one of these used to be written out per section, and the later ones carried their
+   own copy of the gate above them — `(applications or is_vendor) ? '04' : '03'`, six times,
+   each a hand-maintained answer to "how many sections came before me", plus two hard-coded
+   numbers that were right only because of what happens to render beside them.
+
+   Checked before assuming the worst, and the worst is NOT true today: every path currently
+   numbers correctly. `VendorPolicy::documentsFor()` never returns an empty list — it falls
+   back to photo ID rather than to nothing, so relaxing a compliance rule never becomes
+   anonymity — which is the single reason the Documents section can be relied on to be 01.
+
+   So this is upkeep, not a repair, and it is worth it for what the next change costs
+   rather than for what the last one broke. Seven expressions have to agree about the
+   gates above them; the failure when one does not is a reader counting 01, 02, 04, with
+   nothing thrown, nothing wrong-looking in the source, and no screen to notice it on.
+   One counter, incremented where a section actually opens. #}
+{% set secn = 0 %}
 
 <div class="pd">
 
@@ -560,16 +609,90 @@
     </div>
   {% endif %}
 
+  {# ══ WHERE THE MONEY STANDS ══════════════════════════════════════════════
+
+     THE FAULT THIS SECTION EXISTS TO FIX, which is the page's own fault repeated.
+
+     This file's opening note describes people arriving with three questions — where am I,
+     what is holding it up, what can I do — answered in three disconnected places, and one
+     strip built to answer all three. That was done for the ELIGIBILITY half and never for
+     the money half, which is what an organisation that is already live opens this console
+     for.
+
+     So a live partner's first screen was one green box saying their organisation is live,
+     and a cumulative line with no figure written anywhere near it. The four numbers were
+     the opening of section 03, behind the rail. And `available` — the one number that can
+     be ACTED on — was the fourth tile of four in "Donations" while the form that spends it
+     was in "Getting paid", four sections further down. A figure and its action in different
+     rooms is exactly the split the strip above was built to close.
+
+     Ordered under the state panel and never above it: a suspension or a missing certificate
+     outranks a balance, because neither can be spent until it is cleared. #}
+  {% if show_money and totals.count > 0 %}
+
+    {# Suppressed until there is something to show, the same rule the public donation page
+       obeys: "₦0 raised" beside an ask reads as a verdict, and four ₦0 tiles is that
+       sentence said four times to the person it is about. The words below carry it better. #}
+    <dl class="pd__grid pd__grid--lede">
+      <div class="pd__stat">
+        <dt>Received</dt>
+        <dd>{{ ngn }}{{ totals.gross|number_format }}</dd>
+        <small>{{ totals.count }} confirmed gift{{ totals.count == 1 ? '' : 's' }}</small>
+      </div>
+      <div class="pd__stat">
+        <dt>Africa GATES share</dt>
+        <dd>{{ ngn }}{{ totals.platform_fee|number_format }}</dd>
+        <small>{{ org.platform_fee_bps > 0 ? (org.platform_fee_bps / 100)|number_format(2) ~ '% of each gift' : 'We take nothing' }}</small>
+      </div>
+      <div class="pd__stat">
+        <dt>Yours</dt>
+        <dd>{{ ngn }}{{ totals.net|number_format }}</dd>
+        <small>After our share</small>
+      </div>
+      <div class="pd__stat">
+        <dt>Available</dt>
+        <dd>{{ ngn }}{{ available|number_format }}</dd>
+        <small>Not already requested</small>
+      </div>
+    </dl>
+
+    {# ── AND WHAT CAN BE DONE WITH IT, ON THE SAME SCREEN AS THE FIGURE ──────
+       Gated on EXACTLY what the payout form itself refuses on — an owner, an approved
+       organisation, and at least the minimum — because a strip that says money is ready
+       to request, linking to a form that then declines, is worse than saying nothing: the
+       reader goes looking for the refusal's cause in the wrong section. The three
+       conditions are spelled here rather than summarised, so a change to the form's own
+       rule shows up as this line disagreeing rather than as a broken promise. #}
+    {% if available > 0 %}
+      {% if can_payout and org.status == 'approved' and available >= min_payout %}
+        <p class="pd-ready">
+          <span class="pd-ready__k">Ready</span>
+          <span><strong>{{ ngn }}{{ available|number_format }}</strong> is yours to request
+            now. <a href="#payouts" data-pd-go="payouts">Request a payout</a>.</span>
+        </p>
+      {% elseif can_payout and org.status == 'approved' %}
+        {# Named rather than hidden: a balance that cannot be moved yet is the commonest
+           reason somebody writes in, and the threshold answers it without a reply. #}
+        <p class="pd-ready pd-ready--wait">
+          <span class="pd-ready__k">Held</span>
+          <span>{{ ngn }}{{ available|number_format }} is below the {{ ngn }}{{ min_payout|number_format }}
+            minimum payout, so it stays here and keeps building.</span>
+        </p>
+      {% endif %}
+    {% endif %}
+  {% endif %}
+
   {# ── THE MONEY, AS A LINE ────────────────────────────────────────────────
      Cumulative and not a bar per day: a fundraiser's question is "how close am I", not
      "what happened on Tuesday", and a rising line answers the first while still showing
      the busy days as the steep bits.
 
-     Only for an account that has money to show. A partner still waiting on a review gets
-     the state panel above and nothing else — "Received, last 90 days: nothing yet" is a
-     graph of somebody's absence, shown to the person least in need of it. #}
+     Under the figures rather than instead of them. A cumulative line states no value
+     anywhere — it is a shape, and this was the only thing on a live partner's first
+     screen. The tiles above are where its endpoint is written, once, so there is no second
+     reader of the same number to drift. #}
   {% if show_money and money_chart.ok|default(false) %}
-  <div class="pd-panel" style="margin-top:22px">
+  <div class="pd-panel pd-panel--chart">
     {{ viz.chart(money_chart) }}
   </div>
   {% endif %}
@@ -585,7 +708,8 @@
   {% if required is not empty %}
   <section class="pd-sec" id="documents">
     <header class="pd-sec__h">
-      <span class="pd-sec__n" aria-hidden="true">01</span>
+      {% set secn = secn + 1 %}
+      <span class="pd-sec__n" aria-hidden="true">{{ '%02d'|format(secn) }}</span>
       <div>
         <h2>Your documents</h2>
         <p>
@@ -695,7 +819,8 @@
   {% if applications or is_vendor %}
   <section class="pd-sec" id="applications">
     <header class="pd-sec__h">
-      <span class="pd-sec__n" aria-hidden="true">02</span>
+      {% set secn = secn + 1 %}
+      <span class="pd-sec__n" aria-hidden="true">{{ '%02d'|format(secn) }}</span>
       <div>
         <h2>Your stand applications</h2>
         <p>An offer is held for a limited time. If it runs out the place returns to the
@@ -788,7 +913,8 @@
      it is the platform describing money that will not arrive. #}
   <section class="pd-sec" id="donations">
     <header class="pd-sec__h">
-      <span class="pd-sec__n" aria-hidden="true">{{ (applications or is_vendor) ? '03' : '02' }}</span>
+      {% set secn = secn + 1 %}
+      <span class="pd-sec__n" aria-hidden="true">{{ '%02d'|format(secn) }}</span>
       <div>
         <h2>Donations</h2>
         <p>Confirmed gifts only. Donors appear by name only where they chose to be named —
@@ -798,37 +924,9 @@
     </header>
     <div class="pd-sec__b">
 
-  {# ── THE SAME RULE THE DONATIONS PAGE OBEYS ─────────────────────────────
-     That page suppresses its figures until there are any, because "₦0 raised" beside an
-     ask reads as a verdict. Four ₦0 tiles at the top of an organisation's own dashboard is
-     the same sentence said four times, to the person it is about. The empty state below
-     carries the meaning in words, which is the more useful form of it. #}
-  {% if totals.count > 0 %}
-  <dl class="pd__grid">
-    <div class="pd__stat">
-      <dt>Received</dt>
-      <dd>{{ ngn }}{{ totals.gross|number_format }}</dd>
-      <small>{{ totals.count }} confirmed gift{{ totals.count == 1 ? '' : 's' }}</small>
-    </div>
-    <div class="pd__stat">
-      <dt>Africa GATES share</dt>
-      <dd>{{ ngn }}{{ totals.platform_fee|number_format }}</dd>
-      <small>{{ org.platform_fee_bps > 0 ? (org.platform_fee_bps / 100)|number_format(2) ~ '% of each gift' : 'We take nothing' }}</small>
-    </div>
-    <div class="pd__stat">
-      <dt>Yours</dt>
-      <dd>{{ ngn }}{{ totals.net|number_format }}</dd>
-      <small>After our share</small>
-    </div>
-    <div class="pd__stat">
-      <dt>Available</dt>
-      <dd>{{ ngn }}{{ available|number_format }}</dd>
-      <small>Not already requested</small>
-    </div>
-  </dl>
-  {% endif %}
-
-  
+  {# The four figures used to open THIS section. They open the Overview now — see the
+     standing strip there for why. What belongs here is the ledger: the rows behind the
+     summary, for somebody who has already read it and wants to know which gift. #}
       {% if donations %}
         <div class="pd__wrap">
           <table class="pd__t" data-find-group>
@@ -865,7 +963,8 @@
      page. #}
   <section class="pd-sec" id="appeals">
     <header class="pd-sec__h">
-      <span class="pd-sec__n" aria-hidden="true">{{ (applications or is_vendor) ? '04' : '03' }}</span>
+      {% set secn = secn + 1 %}
+      <span class="pd-sec__n" aria-hidden="true">{{ '%02d'|format(secn) }}</span>
       <div>
         <h2>Appeals</h2>
         <p>Raise for something specific. Donations to an appeal are restricted to it — what
@@ -998,7 +1097,8 @@
      unlikely. #}
   <section class="pd-sec" id="page">
     <header class="pd-sec__h">
-      <span class="pd-sec__n" aria-hidden="true">{{ (applications or is_vendor) ? '05' : '04' }}</span>
+      {% set secn = secn + 1 %}
+      <span class="pd-sec__n" aria-hidden="true">{{ '%02d'|format(secn) }}</span>
       <div>
         <h2>Your page</h2>
       </div>
@@ -1140,7 +1240,8 @@
 
   <section class="pd-sec" id="payouts">
     <header class="pd-sec__h">
-      <span class="pd-sec__n" aria-hidden="true">{{ (applications or is_vendor) ? '06' : '05' }}</span>
+      {% set secn = secn + 1 %}
+      <span class="pd-sec__n" aria-hidden="true">{{ '%02d'|format(secn) }}</span>
       <div>
         <h2>Getting paid</h2>
       </div>
@@ -1218,7 +1319,8 @@
   {% if not show_money %}
   <section class="pd-sec" id="fees">
     <header class="pd-sec__h">
-      <span class="pd-sec__n" aria-hidden="true">03</span>
+      {% set secn = secn + 1 %}
+      <span class="pd-sec__n" aria-hidden="true">{{ '%02d'|format(secn) }}</span>
       <div>
         <h2>Stand fees</h2>
         <p>A vendor account pays for a pitch rather than collecting through the platform, so
