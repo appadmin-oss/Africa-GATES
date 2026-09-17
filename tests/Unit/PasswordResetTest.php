@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 namespace Tests\Unit;
 
+use AfricaGates\Services\OtpService;
 use AfricaGates\Services\UserAccountService;
 use Illuminate\Database\Capsule\Manager as DB;
 use Slim\Psr7\Factory\ServerRequestFactory;
@@ -31,6 +32,15 @@ use Tests\TestCase;
  *   the same sentence. This platform's members are named public figures, so "no account
  *   uses that email" is a free membership check for anybody who wants one — and a mailer
  *   failure must not become a third, distinguishable outcome.
+ *
+ * · EVERYTHING ELSE OUTSTANDING ENDS WITH IT, AND THE OWNER IS TOLD. Both added later,
+ *   and both are about the situation a reset exists for — somebody else reading the inbox.
+ *   A one-time SIGN-IN code is a complete credential that needs no password and lives
+ *   fifteen minutes, so one taken from the inbox before the reset walked straight past the
+ *   new password for a quarter of an hour after it. And the only mail this flow sent was
+ *   the one ASKING, which says "didn't ask for this? your password has not changed" — so a
+ *   message went out while nothing had happened and none went out at the moment something
+ *   did. An attacker deletes the request; nothing then ever tells anybody.
  *
  * · THE FORM IS NOT DRAWN AGAINST A DEAD TOKEN. People find reset links in old email, on
  *   the wrong device, an hour late. Drawing a password field there means somebody types a
@@ -261,5 +271,135 @@ final class PasswordResetTest extends TestCase
             new Response());
         $res->getBody()->rewind();
         return (string) $res->getBody()->getContents();
+    }
+
+    // ──────────── what else the new password ends, and who hears ─────────────
+
+    /** @var list<array<string,mixed>> */
+    private array $sent = [];
+
+    private function mailer(): OtpService
+    {
+        return new class($this->sent) extends OtpService {
+            /** @param list<array<string,mixed>> $sink */
+            public function __construct(private array &$sink) { parent::__construct([]); }
+
+            public function sendBranded(string $to, string $subject, string $htmlBody, string $plainBody = '',
+                                        string $category = '', string $hero = '', string $unsubscribeUrl = '',
+                                        array $attachments = [], string $preheader = '', int $heroHeight = 0): array
+            {
+                $this->sink[] = ['to' => $to, 'subject' => $subject,
+                                 'html' => $htmlBody, 'plain' => $plainBody];
+                return ['success' => true];
+            }
+        };
+    }
+
+    private function withMailer(OtpService $m): \AfricaGates\Controllers\AccountController
+    {
+        return new \AfricaGates\Controllers\AccountController(
+            $this->container()->get(\Slim\Views\Twig::class), $this->accounts(), $m);
+    }
+
+    private function liveSignInCodes(string $email): int
+    {
+        return (int) DB::table('gates_otp_tokens')
+            ->where('email_hash', hash('sha256', $email))->where('purpose', 'user_login')
+            ->where('is_used', 0)
+            ->where('expires_at', '>', date('Y-m-d H:i:s'))
+            ->count();
+    }
+
+    /**
+     * A NEW PASSWORD ENDS THE SIGN-IN CODE SOMEBODY ELSE MAY BE HOLDING.
+     *
+     * `issuePasswordReset()` has always invalidated prior RESET tokens at issue time. The
+     * sign-in codes were never in that clause, because the two purposes were written on
+     * different days — and a sign-in code is the more dangerous of the two, since it needs
+     * no password at all.
+     */
+    public function test_a_reset_cancels_an_outstanding_sign_in_code(): void
+    {
+        $u = $this->member();
+
+        DB::table('gates_otp_tokens')->insert([
+            'email_hash' => hash('sha256', (string) $u->email),
+            'token_hash' => hash('sha256', '123456'), 'purpose' => 'user_login',
+            'nominee_id' => (int) $u->id, 'award_id' => 0, 'attempts' => 0, 'is_used' => 0,
+            'expires_at' => date('Y-m-d H:i:s', time() + 900),
+            'created_at' => date('Y-m-d H:i:s'),
+        ]);
+        $this->assertSame(1, $this->liveSignInCodes((string) $u->email),
+            'this test proves nothing: no sign-in code was outstanding to begin with');
+
+        $raw = $this->accounts()->issuePasswordReset((int) $u->id, (string) $u->email);
+        $this->assertNotNull($this->accounts()->consumePasswordReset((string) $raw, 'a brand new password'),
+            'the reset itself did not go through');
+
+        $this->assertSame(0, $this->liveSignInCodes((string) $u->email),
+            'a sign-in code issued before the reset is still spendable after it');
+    }
+
+    /**
+     * THE OWNER IS TOLD, AFTER THE FACT.
+     *
+     * The notice an attacker cannot pre-empt by deleting the request mail. It has to say
+     * what to do INSTEAD of "reset it again" — another link goes to the same inbox they
+     * are reading — and it must not carry a credential of its own.
+     */
+    public function test_a_completed_reset_tells_the_owner(): void
+    {
+        $u   = $this->member();
+        $raw = (string) $this->accounts()->issuePasswordReset((int) $u->id, (string) $u->email);
+
+        $this->withMailer($this->mailer())->resetSubmit(
+            (new ServerRequestFactory())->createServerRequest('POST', '/account/reset')
+                ->withParsedBody(['token' => $raw, 'password' => 'a brand new password']),
+            new Response());
+
+        $notice = null;
+        foreach ($this->sent as $m) {
+            if (str_contains(strtolower((string) $m['subject']), 'password was changed')) $notice = $m;
+        }
+
+        $this->assertNotNull($notice, 'nothing tells the owner their password was changed');
+        $this->assertSame((string) $u->email, $notice['to'],
+            'the notice went somewhere other than the account');
+
+        $this->assertMatchesRegularExpression('~do not (simply )?request another~i',
+            (string) $notice['html'] . (string) $notice['plain'],
+            'the notice tells a victim to reset again, which sends the attacker a fresh link');
+
+        $this->assertStringNotContainsString($raw, (string) $notice['html'],
+            'the notice repeats the reset token');
+        $this->assertStringNotContainsString('a brand new password', (string) $notice['html'],
+            'the notice contains the password it is telling them about');
+    }
+
+    /** A mailer that is down must not turn a completed reset into an error. */
+    public function test_a_broken_mailer_does_not_undo_the_reset(): void
+    {
+        $u   = $this->member();
+        $raw = (string) $this->accounts()->issuePasswordReset((int) $u->id, (string) $u->email);
+
+        $exploding = new class extends OtpService {
+            public function __construct() { parent::__construct([]); }
+            public function sendBranded(string $to, string $subject, string $htmlBody, string $plainBody = '',
+                                        string $category = '', string $hero = '', string $unsubscribeUrl = '',
+                                        array $attachments = [], string $preheader = '', int $heroHeight = 0): array
+            {
+                throw new \RuntimeException('the mail host is refusing connections');
+            }
+        };
+
+        $res = $this->withMailer($exploding)->resetSubmit(
+            (new ServerRequestFactory())->createServerRequest('POST', '/account/reset')
+                ->withParsedBody(['token' => $raw, 'password' => 'a brand new password']),
+            new Response());
+
+        $this->assertNotSame('/account/forgot', $res->getHeaderLine('Location'),
+            'a mailer failure sent somebody who had just set a password back to the start');
+        $this->assertNotNull($this->accounts()->attemptLogin((string) $u->email, 'a brand new password'),
+            'the password was not set because the notice could not be sent');
     }
 }

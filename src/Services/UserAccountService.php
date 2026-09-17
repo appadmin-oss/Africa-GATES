@@ -271,6 +271,31 @@ final class UserAccountService
         // Burn the token FIRST. If the update below throws, a token that has already been
         // presented must not remain spendable.
         DB::table('gates_otp_tokens')->where('id', $row->id)->update(['is_used' => 1]);
+
+        // ── AND EVERY OTHER CREDENTIAL FOR THIS ACCOUNT ──────────────────────
+        //
+        // Changing a password has to end every way in that was outstanding when it
+        // changed, not only the link that was just spent. A one-time SIGN-IN code lives
+        // fifteen minutes and is a complete credential on its own — it needs no password —
+        // so one issued before the reset still works for a quarter of an hour after it.
+        //
+        // That is not theoretical for the situation a reset is a response to. The threat a
+        // password reset answers is somebody else reading the inbox: they take a sign-in
+        // code from it, the owner notices and resets, and the code they already hold walks
+        // straight past the new password. `issuePasswordReset()` already does exactly this
+        // for prior RESET tokens at issue time; the sign-in ones were simply never in that
+        // clause, because the two purposes were written on different days.
+        //
+        // Every purpose for this address, not a named list. A list is an enumeration of the
+        // token kinds that existed when it was typed, and the next one added is the one
+        // nobody remembers to add to it — while anything else outstanding for an address
+        // whose owner has just had to take their account back is a credential it is right
+        // to spend rather than keep.
+        DB::table('gates_otp_tokens')
+            ->where('email_hash', (string) $row->email_hash)
+            ->where('is_used', 0)
+            ->update(['is_used' => 1]);
+
         DB::table('gates_users')->where('id', $user->id)->update([
             'password_hash'  => password_hash($password, PASSWORD_BCRYPT),
             'email_verified' => 1,

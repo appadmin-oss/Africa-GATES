@@ -522,6 +522,46 @@ is ACROSS the throttle boundary, not along it: all four states — wrong passwor
 account, wrong password on no account, and either of those once throttled — have to be told
 one sentence.
 
+### A reset has to end everything, and tell somebody
+
+`/account/forgot` and `/account/reset` were the two screens that needed none of the
+register-page work: they state their own rules — one link, one hour, eight characters, in
+the lede AND in `minlength` — and the request path is enumeration-safe, throttled per
+address and per account, with the mailer failure deliberately swallowed so a bounce cannot
+be told apart from "no such account". Both gaps were in the flow behind them, and both are
+about the situation a reset EXISTS for: somebody else is reading the inbox.
+
+**It ended one credential, not all of them.** `issuePasswordReset()` invalidated prior
+RESET tokens at issue time, and `consumePasswordReset()` burned the one it spent. A
+one-time SIGN-IN code was in neither clause — because the two purposes were written on
+different days — and it is the more dangerous of the two: it is a complete credential that
+needs no password, and it lives fifteen minutes. So a code taken from the inbox before the
+reset walked straight past the new password for a quarter of an hour after it. Every
+purpose for the address is spent now, not a named list: a list is an enumeration of the
+token kinds that existed when it was typed.
+
+**The only mail it sent was the one ASKING** — and that one says "didn't ask for this?
+ignore it, your password has not changed". So a message went out while nothing had happened
+and none went out at the moment something did. An attacker reading the inbox deletes the
+request, and there is then no point at all where this platform tells anybody their account
+changed hands. The notice after the fact is the one an attacker cannot pre-empt, and it has
+to say what to do INSTEAD of "reset it again" — another link is delivered to the inbox they
+are already reading.
+
+**And a test can be guarded by the wrong line.** A new case here claimed to hold the
+ordering inside `consumePasswordReset()` — the token is burned BEFORE the password is
+written, so a throw on the write cannot leave a presented link spendable. Deleting that
+burn left the test green, because the clause added beside it marks the same row used on its
+way past. It holds single use, which is worth holding; the ordering is held by nothing, and
+the docblock says so rather than letting a passing suite read as permission to reorder them.
+
+**AND CHECK `git status` BEFORE BELIEVING A NEW TEST FILE IS NEW.** `tests/Unit/PasswordResetTest.php`
+already existed — ten tests, a thorough docblock — and writing "a new file" over it destroyed
+every one. Nothing failed: the suite was green either way, because the replacement passed.
+The tell was the COUNT, which went 6579 → 6574 after adding five tests, and a status line
+reading `M` where `??` was expected. Read the test total after a run that adds tests, and
+make it add up.
+
 ### A sweep that asks "does it redirect" cannot tell a retired path from a locked one
 
 `PublicIaTest` asks whether every public page is reachable without typing a URL, and a path

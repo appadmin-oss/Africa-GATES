@@ -480,11 +480,80 @@ class AccountController
             return $res->withHeader('Location', '/account/forgot')->withStatus(302);
         }
 
+        // ── AND TELL THE OWNER IT HAPPENED ───────────────────────────────────
+        //
+        // The only email this flow used to send was the one ASKING, and it says "didn't ask
+        // for this? ignore it — your password has not changed". So the message goes out
+        // while nothing has happened, and nothing goes out at the moment something does.
+        //
+        // That is the wrong way round for the case this whole path exists to answer. If an
+        // attacker is reading the inbox they can delete the request mail before the owner
+        // sees it, and there is then no point at which the platform tells anybody their
+        // account changed hands. A notice sent AFTER the change is the one message an
+        // attacker cannot pre-empt by deleting the first, and for a victim who still has
+        // their inbox it is the whole difference between noticing today and noticing when
+        // something is missing.
+        //
+        // Sent before the redirect and swallowed on failure, exactly as the welcome mail
+        // is: the password is already set and the person is already signed in, so a mailer
+        // that is down must not turn a completed reset into an error about email.
+        $this->notifyPasswordChanged($req, $user);
+
         // Signed in straight away. Making somebody who has just proved they own the inbox
         // AND chosen a password type it again is a step that protects nothing.
         $this->accounts->startSession($user, $this->ip($req));
         $_SESSION['flash_ok'] = 'Your password is set. You are signed in.';
         return $res->withHeader('Location', $this->nextTarget())->withStatus(302);
+    }
+
+    /**
+     * "Your password was changed" — the notice a takeover cannot delete in advance.
+     *
+     * Deliberately says what to DO rather than only what happened: a person reading "your
+     * password changed" who did not change it needs the next step in the same breath, and
+     * the next step is not another reset — the attacker would receive that link too. It is
+     * to tell a human, so the address is the one on the page.
+     *
+     * It does not name the new password, the reset link, or anything that would make the
+     * message itself worth intercepting, and it states the time so somebody can tell this
+     * change from one they made last week.
+     */
+    private function notifyPasswordChanged(Request $req, object $user): void
+    {
+        if (!$this->otp) return;
+
+        $esc     = static fn ($v): string => htmlspecialchars((string) $v, ENT_QUOTES, 'UTF-8');
+        $base    = \AfricaGates\Support\SiteUrl::base($req);
+        $support = \AfricaGates\Services\Notifier::supportEmail();
+        $when    = Carbon::now()->format('j F Y \a\t H:i') . ' UTC';
+
+        $html = '<p>Hello <strong>' . $esc($user->name) . '</strong>,</p>'
+            . '<p>The password on your Africa GATES account was changed on <strong>'
+            . $esc($when) . '</strong>, and any sign-in codes that were outstanding have '
+            . 'been cancelled.</p>'
+            . '<p>If that was you, there is nothing to do.</p>'
+            . '<p><strong>If it was not</strong>, somebody else may have access to this '
+            . 'inbox — so do not simply request another password link, because it would be '
+            . 'sent here too. Write to <a href="mailto:' . $esc($support) . '">'
+            . $esc($support) . '</a> and we will secure the account with you.</p>'
+            . '<p style="font-size:13px;color:#92a6a7">Signed in at '
+            . $esc($base) . '/account</p>';
+
+        try {
+            $this->otp->sendBranded(
+                (string) $user->email,
+                'Your Africa GATES password was changed',
+                $html,
+                "The password on your Africa GATES account was changed on {$when}, and any "
+                . "outstanding sign-in codes have been cancelled.\n\nIf that was not you, "
+                . "somebody else may be reading this inbox — do not request another password "
+                . "link, it would come here too. Write to {$support} instead.",
+                'Accounts'
+            );
+        } catch (\Throwable) {
+            // The password is already set and they are already signed in. A mailer that is
+            // down must not turn a completed reset into an error about email.
+        }
     }
 
     // ══════════════════════════════════════════════════════════════════════
