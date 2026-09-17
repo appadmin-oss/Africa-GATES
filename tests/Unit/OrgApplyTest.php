@@ -318,6 +318,97 @@ class OrgApplyTest extends TestCase
             'an organisation was created by a post that never said it was one');
     }
 
+    // ───────────────── the two branches do not share a pocket ───────────────
+
+    /**
+     * A FAILED APPLICATION MUST NOT PREFILL THE OTHER FORM.
+     *
+     * Both branches kept their rejected values under one session key, and `name` means
+     * different things on either side — a person on one, an organisation on the other. So
+     * a failed application for "Bright Futures Initiative" put that string into the Full
+     * name field of the individual form, for anybody who backed out and started again as
+     * themselves.
+     *
+     * Nothing threw and nothing looked wrong. A prefilled field IS the feature, and the
+     * value was one the same person had typed a minute earlier — which is exactly why it
+     * needed keying rather than patching: the next field the two branches happen to name
+     * alike would have done it again, silently.
+     */
+    public function test_a_failed_application_does_not_leak_into_the_member_form(): void
+    {
+        $this->apply($this->form(['name' => 'Bright Futures Initiative', 'password' => 'short']));
+
+        $html = (string) $this->ctrl()->registerForm(
+            (new ServerRequestFactory())
+                ->createServerRequest('GET', '/account/register?as=individual')
+                ->withQueryParams(['as' => 'individual']),
+            new Response()
+        )->getBody();
+
+        $this->assertStringNotContainsString('Bright Futures Initiative', $html,
+            "the organisation's name is prefilled into the member form's Full name field");
+    }
+
+    /** And the application's own values still come back to the application. */
+    public function test_the_application_still_gets_its_own_values_back(): void
+    {
+        $this->apply($this->form(['password' => 'short']));
+
+        $this->assertStringContainsString('Bright Futures Initiative', $this->applyForm(),
+            'keying the bag per branch emptied the branch it belongs to');
+    }
+
+    // ────────────────────── member registration is throttled ────────────────
+
+    /**
+     * IT SENDS AN EMAIL PER CALL, AND HAD NO LIMIT OF ANY KIND.
+     *
+     * The organisation branch has been throttled since it shipped. Member registration
+     * beside it was open: an account created and a verification message sent on every
+     * successful call, to an address somebody else chose. The cost of that is not a table
+     * of junk rows, it is outbound mail against our sending reputation — and this platform
+     * reaches everybody by email.
+     *
+     * Asserted through the controller so the limit is proved where a request meets it, and
+     * on the SENT COUNT rather than the row count: the refusal that matters is the one
+     * that stops the mail.
+     */
+    public function test_member_registration_is_rate_limited_per_connection(): void
+    {
+        $ctrl = $this->ctrl();
+        $ip   = '203.0.113.' . random_int(2, 250);
+
+        $post = static function (string $email) use ($ctrl, $ip) {
+            return $ctrl->registerSubmit(
+                (new ServerRequestFactory())
+                    ->createServerRequest('POST', '/account/register',
+                        ['REMOTE_ADDR' => $ip])
+                    ->withParsedBody([
+                        'as' => 'individual', 'name' => 'Ada Obi',
+                        'email' => $email, 'phone' => '08030000000',
+                    ]),
+                new Response()
+            );
+        };
+
+        $made = 0;
+        for ($i = 0; $i < 14; $i++) {
+            $post('m' . $i . '-' . bin2hex(random_bytes(3)) . '@example.test');
+            // The accepted ones land on the verification notice; a refusal goes back to
+            // the form. Counting the destination rather than the rows, because a limit
+            // that creates the account and skips the mail would pass a row count.
+            if (($_SESSION['pending_verify_email'] ?? '') !== '') {
+                $made++;
+                unset($_SESSION['pending_verify_email']);
+            }
+        }
+
+        $this->assertLessThan(14, $made,
+            'member registration accepts an unlimited number of accounts from one connection');
+        $this->assertGreaterThan(0, $made,
+            'the limit refuses everybody, which is not a limit but an outage');
+    }
+
     // ──────────────────────────────── the stats ─────────────────────────────
 
     /**

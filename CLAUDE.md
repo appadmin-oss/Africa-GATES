@@ -447,6 +447,41 @@ refuses only somebody who typed it identically twice. The refusal never names th
 organisation holding the number — a form that answers "which body is registered under this"
 is a register lookup anybody can run against our database.
 
+### Two branches of one form, and three ways a rule goes unsaid
+
+**A shared session bag leaks across branches.** Both halves of `/account/register` kept
+their rejected values under one key, `reg_old`, and `name` means different things on either
+side — a person on one, an organisation on the other. So a failed application for "Bright
+Futures Initiative" prefilled the Full name field of the individual form for anybody who
+backed out and started again as themselves. Measured, not theorised. Nothing threw and
+nothing looked wrong: a prefilled field IS the feature, and the value was one the same
+person had typed a minute earlier. That is why it needs KEYING rather than patching — the
+next field the two branches happen to name alike does it again, silently.
+
+**A browser `pattern` and a server rule are two rules claiming the same thing**, which is
+this codebase's most expensive shape. Stricter in the browser is worse than looser: a
+pattern of `\s*\S+\s+\S+\s*` looks like "first and last name" and refuses
+*Ngozi Chimamanda Adichie* in a tooltip the person cannot argue with, while the server would
+have taken it. Looser is a round trip that reads as the site being broken. So the test
+SAMPLES agreement across the shapes a name actually arrives in — three parts, a tab, a
+trailing space, one letter — rather than pinning either regex, and only a disagreement
+fails.
+
+**A rule stated only in a `placeholder` is stated to nobody.** The eight-character password
+minimum lived there and nowhere else: a placeholder vanishes the moment somebody types, so
+the only person who ever saw it had not started, and the only one who needed it had. The
+server had always enforced it. Put the rule in `minlength`, and the reason in a hint that
+stays on screen.
+
+And the same section's third gap: **member registration creates an account and SENDS AN
+EMAIL on every call, and had no limit of any kind** while the organisation branch beside it
+had one from the day it shipped. What that costs is not a table of junk rows — it is
+outbound mail to addresses somebody else chose, against the sending reputation the whole
+platform reaches people through. Ten an hour per address rather than the organisation
+branch's five, deliberately: a shared connection is normal here, and a family or a classroom
+signing up together happens, while five organisations applying from one address in an hour
+does not. A limit that locks out real people fails in the direction nobody reports.
+
 ### A sweep that asks "does it redirect" cannot tell a retired path from a locked one
 
 `PublicIaTest` asks whether every public page is reachable without typing a URL, and a path

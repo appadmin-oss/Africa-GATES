@@ -35,13 +35,33 @@
 
   {% if error %}<div class="ag-acct__alert ag-acct__alert--err" role="alert">{{ error }}</div>{% endif %}
 
+  {# ── THE RULES THE SERVER ENFORCES, SAID BEFORE IT ENFORCES THEM ──────────
+     `UserAccountService::register()` refuses a one-word name, a disposable inbox and a
+     password under eight characters. Every one of those was a round trip that came back
+     as a red sentence, and the disposable rule in particular reads as arbitrary when you
+     meet it for the first time in a refusal — the page had never said addresses are
+     checked, so the only way to learn it was to be turned away.
+
+     The branch beside this one states its requirements above its first field for exactly
+     this reason. Same here. A `pattern` and a `minlength` catch the first and the third
+     where the person who typed them is still standing there; the second cannot be checked
+     in a browser, so it is said instead. #}
+
   <form method="post" action="/account/register">
     <input type="hidden" name="_token" value="{{ csrf_token }}">
+    {# The member branch, named in the BODY as the organisation one is. It was implicit —
+       anything without `as=organisation` fell through to here — which works and reads as
+       an accident waiting for a third branch. #}
+    <input type="hidden" name="as" value="individual">
 
     <div class="ag-acct__field">
       <label class="ag-acct__label" for="name">Full name</label>
+      {# Two words, because that is the server's rule. Spelled as a pattern rather than
+         left to the round trip — and `title` carries the reason, which is what a browser
+         shows when it refuses. #}
       <input class="ag-acct__input" id="name" type="text" name="name" value="{{ old.name|default('') }}"
-             autocomplete="name" placeholder="First and last name" required autofocus>
+             autocomplete="name" placeholder="First and last name" required autofocus
+             pattern="\s*\S+\s+.*\S.*" title="First and last name, please — both.">
     </div>
 
     <div class="ag-acct__field">
@@ -49,6 +69,8 @@
       {# The one failure that has a field to blame: an address already in use. #}
       <input class="ag-acct__input{% if error %} ag-acct__input--err{% endif %}" id="email" type="email" name="email"
              value="{{ old.email|default('') }}" autocomplete="email" placeholder="you@email.com" required>
+      <small class="ag-acct__hint">Where your vote receipts and tickets go, so it has to be
+        one you keep — disposable inboxes are refused.</small>
     </div>
 
     <div class="ag-acct__field">
@@ -61,8 +83,14 @@
 
     <div class="ag-acct__field">
       <label class="ag-acct__label" for="password">Password <span>optional</span></label>
+      {# `minlength`, which this field did not carry. The eight was in the PLACEHOLDER — a
+         string that vanishes the moment somebody types, so the only person who ever saw
+         the rule was one who had not started, and the only one who needed it was one who
+         had. The server has always enforced it. #}
       <input class="ag-acct__input" id="password" type="password" name="password"
-             autocomplete="new-password" placeholder="At least 8 characters">
+             minlength="8" autocomplete="new-password" placeholder="At least 8 characters">
+      <small class="ag-acct__hint">Leave it blank and we email you a one-time code each time
+        you sign in. You can set one later either way.</small>
     </div>
 
     <div class="ag-acct__btns">
@@ -70,7 +98,9 @@
     </div>
   </form>
 
-  <p class="ag-acct__fine">By continuing you accept the <a href="/terms">Terms</a> and <a href="/privacy">Privacy notice</a>.</p>
+  <p class="ag-acct__fine">We email you a link to confirm the address before the account is
+    usable. By continuing you accept the <a href="/terms">Terms</a> and
+    <a href="/privacy">Privacy notice</a>.</p>
 
 {% elseif as|default('') == 'organisation' %}
 

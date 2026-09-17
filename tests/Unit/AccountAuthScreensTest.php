@@ -479,6 +479,86 @@ final class AccountAuthScreensTest extends TestCase
         return $this->container()->get(Twig::class)->fetch($tpl, $ctx + ['hide_chrome' => true]);
     }
 
+    // ═══════════════════ the individual branch's own rules ═══════════════════
+
+    /**
+     * THE BROWSER'S RULE AND THE SERVER'S RULE ARE THE SAME RULE.
+     *
+     * `UserAccountService::register()` refuses a name that is not two words. The form now
+     * carries a `pattern` saying the same thing, and two rules claiming the same thing in
+     * different words is the shape this codebase keeps paying for: a pattern that is
+     * STRICTER refuses a name the platform would have accepted, in a browser tooltip the
+     * person cannot argue with, and a looser one is a round trip that reads as the site
+     * being broken.
+     *
+     * Sampled across the shapes a name actually arrives in rather than pinned to the
+     * regex, so either side may be rewritten and only a DISAGREEMENT fails.
+     */
+    public function test_the_name_rule_in_the_browser_matches_the_one_on_the_server(): void
+    {
+        $html = $this->render('pages/account/register.twig', ['as' => 'individual']);
+
+        $this->assertMatchesRegularExpression('~id="name"[^>]*pattern="~', $html,
+            'the name field no longer states its rule where it is typed');
+        preg_match('~id="name"[^>]*pattern="([^"]*)"~', $html, $m);
+        $pattern = html_entity_decode($m[1], ENT_QUOTES, 'UTF-8');
+
+        $names = [
+            'Ada Obi', 'Ada', '', '   ', 'Ada ', ' Ada Obi ', "Ada\tObi",
+            'Ada  Obi', 'A B', 'Ngozi Chimamanda Adichie', 'O',
+        ];
+
+        foreach ($names as $name) {
+            // The server's rule, spelled where the service spells it.
+            $server = (bool) preg_match('/\S+\s+\S+/u', trim($name));
+            // The browser's: a pattern is a WHOLE-value match, never a search.
+            $browser = (bool) preg_match('~^(?:' . $pattern . ')$~u', $name);
+
+            $this->assertSame($server, $browser, sprintf(
+                'the two rules disagree about %s — the browser says %s and the server says %s',
+                var_export($name, true), $browser ? 'yes' : 'no', $server ? 'yes' : 'no'));
+        }
+    }
+
+    /**
+     * A requirement met for the first time in a refusal reads as arbitrary.
+     *
+     * Three rules are enforced here that the page never mentioned: a permanent address
+     * (disposable inboxes are refused), eight characters of password, and a confirmation
+     * email before the account is usable. The eight was in the PLACEHOLDER, which vanishes
+     * the moment somebody types — so the only person who ever saw it was one who had not
+     * started, and the only one who needed it was one who had.
+     */
+    public function test_the_form_states_what_it_will_refuse(): void
+    {
+        $html = $this->render('pages/account/register.twig', ['as' => 'individual']);
+
+        $this->assertStringContainsString('disposable', $html,
+            'the page refuses disposable inboxes and never says so');
+        $this->assertMatchesRegularExpression('~id="password"[^>]*minlength="8"~', $html,
+            'the eight-character rule is enforced on the server and not in the browser');
+        $this->assertStringContainsString('confirm the address', $html,
+            'nothing tells somebody an email has to be confirmed before the account works');
+    }
+
+    /**
+     * Both branches name themselves in the BODY.
+     *
+     * The member branch used to be whatever was left over — anything not saying
+     * `organisation` fell through to it. That works, and it reads as an accident waiting
+     * for a third branch: the next one added would silently become a member registration
+     * for every post that forgot to say otherwise.
+     */
+    public function test_each_branch_says_which_one_it_is(): void
+    {
+        foreach (['individual', 'organisation'] as $branch) {
+            $html = $this->render('pages/account/register.twig',
+                ['as' => $branch, 'org_signed_in' => false]);
+            $this->assertStringContainsString('name="as" value="' . $branch . '"', $html,
+                "the $branch form does not name its own branch");
+        }
+    }
+
     /** The one `<form>` posting to `$action`, or null. */
     private static function formFor(string $html, string $action): ?string
     {

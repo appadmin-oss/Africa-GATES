@@ -61,6 +61,27 @@ class AccountController
     private function flash(string $key): mixed { $v = $_SESSION[$key] ?? null; unset($_SESSION[$key]); return $v; }
 
     /**
+     * Where a branch's rejected values are kept, keyed BY BRANCH.
+     *
+     * ── BOTH BRANCHES SHARED ONE BAG, AND IT LEAKED ACROSS THEM ──────────────
+     *
+     * `reg_old` held whatever the last failed registration posted, and both forms read it.
+     * `name` means different things on either side — a person on one, an organisation on
+     * the other — so a failed application for "Bright Futures Initiative" put that string
+     * into the Full name field of the individual form, for anybody who backed out and
+     * started again as themselves. Measured, not theorised.
+     *
+     * Nothing threw and nothing looked wrong: a prefilled field IS the feature, and the
+     * value was one the same person had typed a moment earlier. That is what makes it the
+     * kind worth keying rather than patching — the next field the two branches happen to
+     * name alike would do it again, silently.
+     */
+    private static function oldKey(string $branch): string
+    {
+        return $branch === 'organisation' ? 'reg_old_org' : 'reg_old';
+    }
+
+    /**
      * A safe local redirect target for post-login. Only same-site absolute paths
      * are allowed — never a scheme, host, or protocol-relative (`//evil.com`) URL,
      * which would turn login into an open redirect. Also refuses auth pages so we
@@ -134,7 +155,7 @@ class AccountController
         return $this->view->render($res, 'pages/account/register.twig', [
             'page_title' => $title,
             'gates_page' => 'account', 'hide_chrome' => true, 'as' => $as,
-            'error' => $this->flash('flash_error'), 'old' => $this->flash('reg_old') ?? [],
+            'error' => $this->flash('flash_error'), 'old' => $this->flash(self::oldKey($as)) ?? [],
             // Somebody already holding an organisation sign-in must not be handed a form
             // that mints a SECOND organisation against them — two half-complete records in
             // the review queue, with nothing to say which is real. The apply page guarded
@@ -157,10 +178,36 @@ class AccountController
             return $this->registerOrganisation($req, $res, $b);
         }
 
+        // ── THROTTLED, WHICH IT WAS NOT ──────────────────────────────────────
+        //
+        // This endpoint creates an account and SENDS AN EMAIL on every successful call, and
+        // it had no limit of any kind — the organisation branch beside it has had one since
+        // the day it shipped. The cost of leaving it open is not a table full of junk rows:
+        // it is outbound mail to addresses somebody else chose, which is how a sending
+        // domain's reputation goes, and the whole platform reaches people by email.
+        //
+        // Ten an hour per address rather than the organisation branch's five, and the
+        // difference is deliberate. A shared connection here is normal — an office, a
+        // campus, a phone network's NAT — and a family or a classroom signing up together
+        // is a thing that actually happens, while five organisations applying from one
+        // address in an hour is not. A limit that locks out real people fails silently, in
+        // the direction nobody reports.
+        $ip = $this->ip($req);
+        if ($this->rateLimit && $ip !== ''
+            && !$this->rateLimit->check(hash('sha256', $ip), 'member_register', 10, 3600)) {
+            $_SESSION['flash_error'] = 'That is several accounts from this connection in a '
+                . 'short time. Please wait an hour and try again — or if you already have an '
+                . 'account, sign in instead.';
+            $_SESSION[self::oldKey('individual')] =
+                ['name' => $b['name'] ?? '', 'email' => $b['email'] ?? '', 'phone' => $b['phone'] ?? ''];
+            return $res->withHeader('Location', '/account/register?as=individual')->withStatus(302);
+        }
+
         $r = $this->accounts->register((string) ($b['name'] ?? ''), (string) ($b['email'] ?? ''), (string) ($b['phone'] ?? ''), (string) ($b['password'] ?? '') ?: null);
         if (!$r['ok']) {
             $_SESSION['flash_error'] = $r['error'];
-            $_SESSION['reg_old'] = ['name' => $b['name'] ?? '', 'email' => $b['email'] ?? '', 'phone' => $b['phone'] ?? ''];
+            $_SESSION[self::oldKey('individual')] =
+                ['name' => $b['name'] ?? '', 'email' => $b['email'] ?? '', 'phone' => $b['phone'] ?? ''];
             // Back to the FORM. Step one would show four options and no sign of the
             // message explaining what was wrong with what they had just typed.
             return $res->withHeader('Location', '/account/register?as=individual')->withStatus(302);
@@ -207,7 +254,7 @@ class AccountController
         // The password is deliberately not carried back: it is re-typed, never redisplayed,
         // and a session bag is not where one belongs even for a redirect.
         unset($b['password'], $b['_token']);
-        $_SESSION['reg_old'] = $b;
+        $_SESSION[self::oldKey('organisation')] = $b;
 
         return $res->withHeader('Location', '/account/register?as=organisation')->withStatus(302);
     }
