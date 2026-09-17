@@ -115,17 +115,48 @@ class AccountController
         // now exactly one of them had a door on the public site: the organisation
         // application was linked from the ORGANISATION SIGN-IN, which you reach by
         // already having an account. `?as=individual` is the form itself.
-        $as = ($req->getQueryParams()['as'] ?? '') === 'individual' ? 'individual' : '';
+        //
+        // `?as=organisation` is the SECOND branch, and it is the whole of what used to be
+        // `/giving/apply` — its own controller, its own 403-line template, its own page on
+        // the site. That page had the fault this chooser was built to fix, one level up: a
+        // body looking for a way in met a chooser that sent them somewhere else entirely,
+        // and the two screens disagreed about what registering here even is. One door now,
+        // and the application is a branch of it rather than a different address.
+        $q  = (string) ($req->getQueryParams()['as'] ?? '');
+        $as = in_array($q, ['individual', 'organisation'], true) ? $q : '';
+
+        $title = match ($as) {
+            'individual'   => 'Create your account — Africa GATES',
+            'organisation' => 'Register your organisation — Africa GATES',
+            default        => 'Join Africa GATES',
+        };
+
         return $this->view->render($res, 'pages/account/register.twig', [
-            'page_title' => $as === 'individual' ? 'Create your account — Africa GATES' : 'Join Africa GATES',
+            'page_title' => $title,
             'gates_page' => 'account', 'hide_chrome' => true, 'as' => $as,
             'error' => $this->flash('flash_error'), 'old' => $this->flash('reg_old') ?? [],
+            // Somebody already holding an organisation sign-in must not be handed a form
+            // that mints a SECOND organisation against them — two half-complete records in
+            // the review queue, with nothing to say which is real. The apply page guarded
+            // this on POST only, so the form still drew for them.
+            'org_signed_in' => \AfricaGates\Services\OrgAuth::user() !== null,
+            'auth_wide'     => $as === 'organisation',
         ]);
     }
 
     public function registerSubmit(Request $req, Response $res): Response
     {
         $b = (array) $req->getParsedBody();
+
+        // The organisation branch is a different creation entirely — a partner record, an
+        // owner sign-in and a queued registry check — so it forks before the member path
+        // rather than sharing it. Forking on the POSTED value and not on the query string:
+        // the form carries it, and a branch decided by a URL a submit does not go through
+        // is a branch that silently becomes the wrong one.
+        if ((string) ($b['as'] ?? '') === 'organisation') {
+            return $this->registerOrganisation($req, $res, $b);
+        }
+
         $r = $this->accounts->register((string) ($b['name'] ?? ''), (string) ($b['email'] ?? ''), (string) ($b['phone'] ?? ''), (string) ($b['password'] ?? '') ?: null);
         if (!$r['ok']) {
             $_SESSION['flash_error'] = $r['error'];
@@ -147,6 +178,70 @@ class AccountController
             'email_hash' => hash('sha256', $email),
         ]);
         return $res->withHeader('Location', '/account/verify')->withStatus(302);
+    }
+
+    /**
+     * An organisation applying to receive gifts, from the one registration door.
+     *
+     * ── WHAT MOVED, AND WHAT DID NOT ─────────────────────────────────────────
+     *
+     * This is `OrgApplyController::submit()`, carried over whole rather than rewritten:
+     * the throttle, the already-signed-in refusal, the redirect into the dashboard and the
+     * flash that tells an applicant the certificates are the next thing. A door being moved
+     * is the commonest way a control gets left behind, and each of these is one.
+     *
+     * The throttle in particular. It was per IP address on the apply form because "a script
+     * does not reuse an email", and the member registration beside it has none — so folding
+     * the two together without carrying it would have opened partner creation to exactly the
+     * abuse the old page was rate-limiting, while looking like a tidy-up.
+     */
+    /**
+     * Back to the application with the message and everything they typed.
+     *
+     * A ten-field form emptied by one validation error is a form that does not get filled
+     * in a second time — and this one asks for a CAC number somebody has to go and look up.
+     */
+    private function backToOrgForm(Response $res, array $b, string $message): Response
+    {
+        $_SESSION['flash_error'] = $message;
+        // The password is deliberately not carried back: it is re-typed, never redisplayed,
+        // and a session bag is not where one belongs even for a redirect.
+        unset($b['password'], $b['_token']);
+        $_SESSION['reg_old'] = $b;
+
+        return $res->withHeader('Location', '/account/register?as=organisation')->withStatus(302);
+    }
+
+    private function registerOrganisation(Request $req, Response $res, array $b): Response
+    {
+        if (\AfricaGates\Services\OrgAuth::user() !== null) {
+            $_SESSION['org_flash_error'] = 'You are already signed in. Continue from your dashboard.';
+            return $res->withHeader('Location', '/org')->withStatus(302);
+        }
+
+        $ip = $this->ip($req);
+        if ($this->rateLimit && $ip !== ''
+            && !$this->rateLimit->check(hash('sha256', $ip), 'org_apply', 5, 3600)) {
+            return $this->backToOrgForm($res, $b,
+                'Too many applications have been started from this connection. Try again in an hour.');
+        }
+
+        $r = \AfricaGates\Services\PartnerOrg::registerPartner($b);
+        if (!$r['ok']) return $this->backToOrgForm($res, $b, (string) $r['message']);
+
+        $user = $r['user'];
+        if (!$user) {
+            return $this->backToOrgForm($res, $b,
+                'The account was created but could not be signed in. Try signing in at /org/login.');
+        }
+        (new \AfricaGates\Services\OrgAuth($this->rateLimit))->signIn($user);
+
+        // Straight to the dashboard, because what happens next is uploading certificates —
+        // and an application without them cannot be reviewed at all.
+        $_SESSION['org_flash_ok'] = 'Application received. Upload your CAC and SCUML certificates '
+            . 'below — nothing can be reviewed until they are on file. We will be in touch either '
+            . 'way, with a reason.';
+        return $res->withHeader('Location', '/org')->withStatus(302);
     }
 
     // ── Email verification ────────────────────────────────────────────────────

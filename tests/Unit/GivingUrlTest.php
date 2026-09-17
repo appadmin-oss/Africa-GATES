@@ -80,7 +80,13 @@ final class GivingUrlTest extends TestCase
     {
         $this->assertSame('/giving', GivingUrl::BASE);
         $this->assertSame('/giving', GivingUrl::page());
-        $this->assertSame('/giving/apply', GivingUrl::apply());
+        // apply() is the exception, and it names itself as one. The application is no
+        // longer a page under /giving — it is the `?as=organisation` branch of the one
+        // registration door — so a method that still returned `/giving/apply` would be a
+        // resolver pointing at a redirect, which is exactly the "two nouns for one thing"
+        // this class exists to stop. LEGACY_APPLY is the old path, still built from BASE.
+        $this->assertSame('/account/register?as=organisation', GivingUrl::apply());
+        $this->assertSame('/giving/apply', GivingUrl::LEGACY_APPLY);
         $this->assertSame('/giving/manage/abc', GivingUrl::manage('abc'));
         $this->assertSame('/giving/manage/abc/stop', GivingUrl::stop('abc'));
         $this->assertSame('/giving/borehole-trust', GivingUrl::org('borehole-trust'));
@@ -117,7 +123,10 @@ final class GivingUrlTest extends TestCase
     public function test_the_canonical_paths_are_the_ones_registered(): void
     {
         foreach ([['GET', GivingUrl::BASE], ['POST', GivingUrl::BASE],
-                  ['GET', GivingUrl::apply()], ['POST', GivingUrl::apply()],
+                  // Both verbs, because both still answer: the GET permanently and the
+                  // POST with a 308, which is what keeps a filled-in application from
+                  // being emptied by a browser downgrading the method to GET.
+                  ['GET', GivingUrl::LEGACY_APPLY], ['POST', GivingUrl::LEGACY_APPLY],
                   ['GET', GivingUrl::redirect()],
                   ['GET', GivingUrl::BASE . '/callback'],
                   ['GET', GivingUrl::BASE . '/success']] as [$verb, $path]) {

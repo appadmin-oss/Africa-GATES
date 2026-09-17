@@ -72,6 +72,172 @@
 
   <p class="ag-acct__fine">By continuing you accept the <a href="/terms">Terms</a> and <a href="/privacy">Privacy notice</a>.</p>
 
+{% elseif as|default('') == 'organisation' %}
+
+  {# ═══════════════════════════════════════════════════════════════════════
+     REGISTER AN ORGANISATION — the second branch of the one door.
+
+     This was `/giving/apply`: its own route, its own controller and a 403-line
+     page of its own. Every word here that explains a requirement is carried over
+     from it deliberately — that page's docblock says an application form which
+     hides its requirements "wastes the time of the people least able to spare
+     it", and moving a form is the commonest way that kind of copy gets dropped.
+
+     ── GROUPED, NOT STEPPED ─────────────────────────────────────────────────
+     Ten fields in a 452px card is a wall. The obvious answer is a wizard, and it
+     is the wrong one here: a stepped form needs script to move between steps, and
+     an applicant whose browser blocks it gets a first step and no second. Three
+     labelled groups in one form read as three short asks, submit in one post, and
+     work with nothing running.
+     ═══════════════════════════════════════════════════════════════════════ #}
+
+  <a class="ag-acct__back" href="/account/register">
+    <svg width="14" height="14" viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M12.5 4.5 7 10l5.5 5.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    Back
+  </a>
+
+  <h1 class="ag-acct__h1">Register your organisation</h1>
+  <p class="ag-acct__lede">Raise through Giving, with the money settled straight into your own
+    account — it never passes through Africa GATES.</p>
+
+  {% if error %}<div class="ag-acct__alert ag-acct__alert--err" role="alert">{{ error }}</div>{% endif %}
+
+  {% if org_signed_in|default(false) %}
+    {# The apply page refused this on POST only, so the form still drew for somebody who
+       already had an organisation — and the refusal arrived after they had filled it in. #}
+    <div class="ag-acct__alert" role="status">
+      You are already signed in as an organisation. <a href="/org">Continue from your
+      dashboard</a> — registering again would create a second record for the same body,
+      and a reviewer would have to work out which of the two is real.
+    </div>
+  {% else %}
+
+  {# Said before the first field rather than after the last: these are the two documents
+     without which nothing can be approved, and somebody who does not have them should
+     find that out now rather than after typing for ten minutes. #}
+  <ul class="ag-acct__reqs">
+    <li><b>CAC registration</b> — only an incorporated body may collect charitable gifts in
+      Nigeria. Incorporated Trustees numbers begin <b>IT</b>; an RC or BN is accepted and
+      noted for the reviewer.</li>
+    <li><b>SCUML registration</b> — you can apply without the number. You cannot be approved
+      without it.</li>
+    <li><b>A settlement account in your registered name</b>, checked with your bank before
+      anything is paid.</li>
+  </ul>
+
+  <form method="post" action="/account/register" class="ag-acct__form">
+    <input type="hidden" name="_token" value="{{ csrf_token }}">
+    {# The branch travels in the BODY. A submit does not carry the query string, so a
+       controller forking on `?as=` would send every organisation down the member path. #}
+    <input type="hidden" name="as" value="organisation">
+
+    <fieldset class="ag-acct__group">
+      <legend class="ag-acct__legend">Your organisation</legend>
+
+      <div class="ag-acct__field">
+        <label class="ag-acct__label" for="orgName">Name supporters will know you by</label>
+        <input class="ag-acct__input" id="orgName" type="text" name="name" maxlength="200" required autofocus
+               value="{{ old.name|default('') }}" placeholder="Bright Futures Initiative">
+        <small class="ag-acct__hint">This appears on your donation page.</small>
+      </div>
+
+      <div class="ag-acct__field">
+        <label class="ag-acct__label" for="orgLegal">Registered name at the CAC</label>
+        <input class="ag-acct__input" id="orgLegal" type="text" name="legal_name" maxlength="200" required
+               value="{{ old.legal_name|default('') }}">
+        <small class="ag-acct__hint">Exactly as registered, including the spelling — it is
+          compared against the name your bank returns for your account.</small>
+      </div>
+
+      <div class="ag-acct__field">
+        <label class="ag-acct__label" for="orgCac">CAC number</label>
+        {# The pattern catches the gross shape in the browser, where the person who made the
+           typo is still standing there. Deliberately looser than the server's rule: a
+           browser that silently refuses a real number teaches nothing, while the server's
+           refusal names the three prefixes and can be read. #}
+        <input class="ag-acct__input" id="orgCac" type="text" name="cac_number" maxlength="60" required
+               value="{{ old.cac_number|default('') }}" placeholder="IT/1234567"
+               autocapitalize="characters" spellcheck="false"
+               pattern="[A-Za-z]{2}[ /-]*[0-9]{1,10}"
+               title="Two letters — RC, BN or IT — then the digits. For example IT/1234567.">
+      </div>
+
+      <div class="ag-acct__field">
+        <label class="ag-acct__label" for="orgScuml">SCUML number <span>if you have it yet</span></label>
+        <input class="ag-acct__input" id="orgScuml" type="text" name="scuml_number" maxlength="60"
+               value="{{ old.scuml_number|default('') }}">
+      </div>
+    </fieldset>
+
+    <fieldset class="ag-acct__group">
+      <legend class="ag-acct__legend">Your sign-in</legend>
+      <p class="ag-acct__note">This creates an account as well as an application — one step,
+        not two, because an account belonging to somebody who never finished applying is a
+        row nobody reviews and nobody deletes.</p>
+
+      <div class="ag-acct__field">
+        <label class="ag-acct__label" for="orgEmail">Email</label>
+        <input class="ag-acct__input{% if error %} ag-acct__input--err{% endif %}" id="orgEmail"
+               type="email" name="contact_email" maxlength="190" required autocomplete="email"
+               value="{{ old.contact_email|default('') }}" placeholder="you@organisation.org">
+        <small class="ag-acct__hint">This becomes your sign-in, and it is where the decision goes.</small>
+      </div>
+
+      <div class="ag-acct__field">
+        <label class="ag-acct__label" for="orgPass">Choose a password</label>
+        <input class="ag-acct__input" id="orgPass" type="password" name="password"
+               minlength="12" required autocomplete="new-password">
+        <small class="ag-acct__hint">At least 12 characters. This sign-in can later request
+          payouts, so it is held to a higher bar than a shopping account.</small>
+      </div>
+
+      <div class="ag-acct__field">
+        <label class="ag-acct__label" for="orgContact">Contact name <span>optional</span></label>
+        <input class="ag-acct__input" id="orgContact" type="text" name="contact_name" maxlength="160"
+               autocomplete="name" value="{{ old.contact_name|default('') }}">
+        <small class="ag-acct__hint">Who a reviewer should write to, if that is somebody other than you.</small>
+      </div>
+
+      <div class="ag-acct__field">
+        <label class="ag-acct__label" for="orgPhone">Phone <span>optional</span></label>
+        <input class="ag-acct__input" id="orgPhone" type="tel" name="contact_phone" maxlength="40"
+               autocomplete="tel" inputmode="tel" value="{{ old.contact_phone|default('') }}">
+      </div>
+    </fieldset>
+
+    <fieldset class="ag-acct__group">
+      <legend class="ag-acct__legend">What you do</legend>
+      <div class="ag-acct__field">
+        <label class="ag-acct__label" for="orgWhat">In your own words</label>
+        <textarea class="ag-acct__input ag-acct__input--area" id="orgWhat" name="description" rows="5"
+          placeholder="Who you work with, where, and what a donation actually pays for.">{{ old.description|default('') }}</textarea>
+        <small class="ag-acct__hint">This is what a reviewer reads first, and what supporters
+          read on your page. Plain sentences beat a mission statement.</small>
+      </div>
+    </fieldset>
+
+    {# What pressing it does, before it is pressed. Carried from the apply page, where it
+       was four numbered steps under the button. #}
+    <ol class="ag-acct__next">
+      <li>Your account is created and you are signed in. The record lands as a draft and
+        nothing about your organisation is public.</li>
+      <li>You upload your certificates on your own dashboard. Nothing can be reviewed until
+        they are on file.</li>
+      <li>Your CAC number is checked against the register, in the background, so it costs you
+        no waiting.</li>
+      <li>You hear either way, <b>with a reason</b>.</li>
+    </ol>
+
+    <div class="ag-acct__btns">
+      <button class="ag-acct__cta" type="submit">Send application</button>
+    </div>
+  </form>
+
+  <p class="ag-acct__fine"><b>Free.</b> This takes no payment and asks for no card details.
+    Looking to trade at an event rather than raise donations?
+    <a href="/events">Apply for a stand</a> instead.</p>
+  {% endif %}
+
 {% else %}
 
   <h1 class="ag-acct__h1">Join Africa GATES</h1>
@@ -94,7 +260,7 @@
       </span>
       <svg class="ag-acct__chev" width="16" height="16" viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M7.5 4.5 13 10l-5.5 5.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
     </a>
-    <a class="ag-acct__row ag-acct__row--tall" href="/giving/apply">
+    <a class="ag-acct__row ag-acct__row--tall" href="/account/register?as=organisation">
       <span class="ag-acct__row-body">
         <b class="ag-acct__row-title">Register a non-profit</b>
         <span class="ag-acct__row-note">Raise through Giving, with the money paid to your own account. CAC and SCUML registration required.</span>

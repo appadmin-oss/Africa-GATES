@@ -662,6 +662,35 @@ final class PartnerOrg
         $cacIn = self::checkCacInput($cac, true);
         if (!$cacIn['ok']) return $fail + ['message' => $cacIn['message']];
         $cac = $cacIn['stored'];
+
+        // ── ONE REGISTERED BODY, ONE RECORD ─────────────────────────────────
+        //
+        // The email duplicate below has been refused since this form shipped, and it is the
+        // WEAKER of the two checks: an applicant who tries again from a second address
+        // sails past it, and the result is two organisations for one registered body,
+        // sitting in the review queue with no way to tell which is the real one — the exact
+        // state the old apply page's docblock worried about, guarded there only for
+        // somebody who was already signed in.
+        //
+        // It costs a reviewer more than a tangle. Both records queue their own registry
+        // check against the same CAC number, both can be part-approved, and the two can
+        // acquire different settlement accounts — at which point the question of which one
+        // money should reach has no answer on any screen.
+        //
+        // Compared on the NORMALISED value, which is why this sits after checkCacInput():
+        // `IT/1234567`, `it 1234567` and `IT-1234567` are one number, and a comparison on
+        // what was typed would refuse only somebody who typed it identically twice.
+        $existing = DB::table('gates_partner_orgs')->where('cac_number', $cac)->first(['id', 'name']);
+        if ($existing) {
+            // Deliberately does not name the organisation holding it. A form that answers
+            // "which body is registered under this number" is a register lookup anybody can
+            // run, and this one is not ours to publish.
+            return $fail + ['message' => 'An organisation is already registered here under that '
+                                       . 'CAC number. If it is yours, sign in instead — and if '
+                                       . 'you think somebody else has used your number, write to '
+                                       . 'us and we will look into it.'];
+        }
+
         if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
             return $fail + ['message' => 'That is not a valid email address.'];
         }

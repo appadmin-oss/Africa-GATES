@@ -563,7 +563,6 @@ return [
 
     // Organisations applying to raise gifts. Rate limited for the same reason as the vendor
     // form: the half worth abusing is the one that creates accounts.
-    \AfricaGates\Controllers\OrgApplyController::class => fn(ContainerInterface $c)=>new \AfricaGates\Controllers\OrgApplyController($c->get(Twig::class), $c->get(RateLimitService::class)),
 
     \AfricaGates\Admin\Controllers\StandsController::class => fn(ContainerInterface $c)=>new \AfricaGates\Admin\Controllers\StandsController($c->get(Twig::class), $c->get(\AfricaGates\Admin\Services\AuditService::class)),
     DonationController::class     => fn(ContainerInterface $c)=>new DonationController($c->get(PaymentService::class), $c->get(Twig::class), $c->get(RateLimitService::class), $c->get(OtpService::class), $c->get(\Psr\Log\LoggerInterface::class)),

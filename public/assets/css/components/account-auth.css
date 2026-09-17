@@ -278,3 +278,71 @@ button.ag-acct__quiet{ background:none; border:0; padding:0; font:inherit; font-
   .ag-acct__box{ height:52px; font-size:21px; }
   .ag-acct__stats{ gap:18px; }
 }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   THE ORGANISATION BRANCH of /account/register
+
+   This screen was `/giving/apply`, a full-width page with its own stylesheet. It is
+   a branch of the one registration door now, so it wears this shell — and the shell
+   was built for a four-field sign-in. What follows is only what a ten-field
+   application needs on top of it; nothing here restyles the card everything else uses.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* 452px is right for sign-in and a wall for this. Widened here alone — the card
+   itself is unchanged, so the two screens still read as the same object. */
+.ag-acct__col--wide{ max-width:600px; }
+
+/* ── the requirements, before the first field ──────────────────────────────
+   Somebody without a CAC registration cannot be approved, and the kind thing is
+   for them to learn that now rather than after ten minutes of typing. Drawn as a
+   quiet list rather than a warning panel: these are the terms of the thing they
+   came to do, not a problem with it. */
+.ag-acct__reqs{
+  margin:22px 0 0; padding:18px 20px; list-style:none;
+  background:var(--ac-200); border-radius:var(--ac-r);
+  font-size:13px; line-height:1.65; color:var(--ac-ink-soft);
+}
+.ag-acct__reqs li + li{ margin-top:10px; }
+.ag-acct__reqs b{ color:var(--ac-ink); font-weight:600; }
+
+/* ── the three groups ──────────────────────────────────────────────────────
+   A fieldset, because these ARE groups of related controls and a screen reader
+   should say so on entering each one. Bordered only at the top: a box per group
+   inside a card is three cards inside a card. */
+.ag-acct__group{
+  margin:26px 0 0; padding:22px 0 0; border:0; border-top:1px solid var(--ac-line);
+}
+.ag-acct__group:first-of-type{ border-top:0; padding-top:0; }
+.ag-acct__legend{
+  padding:0; font:700 11px/1 var(--ag-font-mono,ui-monospace,monospace);
+  letter-spacing:.16em; text-transform:uppercase; color:var(--ac-ink-soft);
+}
+/* A note about the whole group, not about one field. */
+.ag-acct__group .ag-acct__note{ margin:10px 0 0; }
+
+/* The per-field explanation. `small` inherits nothing useful, so it is set here
+   rather than left to the browser's 80%. */
+.ag-acct__hint{
+  display:block; margin-top:7px;
+  font-size:12px; line-height:1.6; color:var(--ac-ink-soft);
+}
+
+.ag-acct__input--area{
+  min-height:120px; resize:vertical; line-height:1.6;
+  /* 14px rather than the 16px the single-line inputs carry: iOS zooms on FOCUS of a
+     small control, and a textarea this tall is not one — the reason for 16px does not
+     apply, and 16px over five rows in a 600px card is a paragraph pretending to be a
+     heading. */
+  font-size:14px;
+}
+
+/* ── what pressing it does ─────────────────────────────────────────────────
+   An ordered list, numbered by the browser, because the order is the content. It
+   sat under the button on the old page; above it here, since it is the last thing
+   somebody should read before deciding rather than after. */
+.ag-acct__next{
+  margin:26px 0 0; padding:0 0 0 20px;
+  font-size:13px; line-height:1.7; color:var(--ac-ink-soft);
+}
+.ag-acct__next li + li{ margin-top:8px; }
+.ag-acct__next b{ color:var(--ac-ink); font-weight:600; }

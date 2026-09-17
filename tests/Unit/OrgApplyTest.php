@@ -12,6 +12,15 @@ use Slim\Psr7\Response;
 /**
  * Organisations applying to raise gifts, and the register searched from our own screen.
  *
+ * ── THE DOOR MOVED; THESE ASSERTIONS DID NOT ─────────────────────────────────
+ *
+ * The application was `/giving/apply`, with a controller of its own. It is the
+ * `?as=organisation` branch of `/account/register` now — one registration door rather than
+ * two, which is what the chooser there was built to be. Everything below is pointed at the
+ * new handler and otherwise unchanged, deliberately: a moved form is the commonest way a
+ * control gets left behind, and the only way to know none was is to re-run the same
+ * questions against the new address.
+ *
  * ── WHAT THE APPLICATION FORM CHANGES, AND WHAT IT MUST NOT ──────────────────
  *
  * Until it existed, every organisation here was typed in by an administrator — which is not
@@ -29,15 +38,37 @@ class OrgApplyTest extends TestCase
         return $b->build();
     }
 
-    private function ctrl(): \AfricaGates\Controllers\OrgApplyController
+    private function ctrl(): \AfricaGates\Controllers\AccountController
     {
-        return $this->container()->get(\AfricaGates\Controllers\OrgApplyController::class);
+        return $this->container()->get(\AfricaGates\Controllers\AccountController::class);
+    }
+
+    /** POST the application the way the form does — the branch travels in the BODY. */
+    private function apply(array $in): \Psr\Http\Message\ResponseInterface
+    {
+        return $this->ctrl()->registerSubmit(
+            (new ServerRequestFactory())->createServerRequest('POST', '/account/register')
+                ->withParsedBody($in + ['as' => 'organisation']),
+            new Response()
+        );
+    }
+
+    /** GET the application branch. */
+    private function applyForm(): string
+    {
+        return (string) $this->ctrl()->registerForm(
+            (new ServerRequestFactory())
+                ->createServerRequest('GET', '/account/register?as=organisation')
+                ->withQueryParams(['as' => 'organisation']),
+            new Response()
+        )->getBody();
     }
 
     protected function tearDown(): void
     {
         unset($_SESSION['org_user_id'], $_SESSION['org_id'],
-              $_SESSION['org_flash_ok'], $_SESSION['org_flash_error']);
+              $_SESSION['org_flash_ok'], $_SESSION['org_flash_error'],
+              $_SESSION['flash_error'], $_SESSION['reg_old'], $_SESSION['user_id']);
         parent::tearDown();
     }
 
@@ -61,10 +92,7 @@ class OrgApplyTest extends TestCase
     public function test_an_organisation_can_apply_and_lands_on_its_dashboard(): void
     {
         $in  = $this->form();
-        $res = $this->ctrl()->submit(
-            (new ServerRequestFactory())->createServerRequest('POST', '/gift/apply')->withParsedBody($in),
-            new Response()
-        );
+        $res = $this->apply($in);
 
         $this->assertSame(302, $res->getStatusCode());
         $this->assertSame('/org', $res->getHeaderLine('Location'));
@@ -89,10 +117,7 @@ class OrgApplyTest extends TestCase
     public function test_applying_grants_no_ability_to_collect(): void
     {
         $in = $this->form();
-        $this->ctrl()->submit(
-            (new ServerRequestFactory())->createServerRequest('POST', '/x')->withParsedBody($in),
-            new Response()
-        );
+        $this->apply($in);
 
         $org = PartnerOrg::find((int) OrgAuth::findByEmail($in['contact_email'])->org_id);
         $this->assertFalse(PartnerOrg::canReceive($org));
@@ -109,10 +134,7 @@ class OrgApplyTest extends TestCase
     public function test_the_vetting_standard_is_unchanged(): void
     {
         $in = $this->form(['scuml_number' => '']);
-        $this->ctrl()->submit(
-            (new ServerRequestFactory())->createServerRequest('POST', '/x')->withParsedBody($in),
-            new Response()
-        );
+        $this->apply($in);
         $id = (int) OrgAuth::findByEmail($in['contact_email'])->org_id;
 
         // A settlement account first, so the assertion lands on the SCUML rule rather than on
@@ -152,47 +174,148 @@ class OrgApplyTest extends TestCase
     /** Somebody already signed in has an organisation; a second one is a duplicate. */
     public function test_a_signed_in_user_is_sent_to_their_dashboard(): void
     {
-        $in = $this->form();
-        $this->ctrl()->submit(
-            (new ServerRequestFactory())->createServerRequest('POST', '/x')->withParsedBody($in),
-            new Response()
-        );
+        $this->apply($this->form());
         $before = (int) DB::table('gates_partner_orgs')->count();
 
-        $res = $this->ctrl()->submit(
-            (new ServerRequestFactory())->createServerRequest('POST', '/x')
-                ->withParsedBody($this->form()),
-            new Response()
-        );
+        $res = $this->apply($this->form());
 
         $this->assertSame('/org', $res->getHeaderLine('Location'));
         $this->assertSame($before, (int) DB::table('gates_partner_orgs')->count());
     }
 
-    /** A bad detail must not cost them the other nine fields. */
+    /**
+     * A bad detail must not cost them the other nine fields.
+     *
+     * The old page re-rendered in place; this one redirects back to the branch with the
+     * message and the values in the session, which is the pattern the member half already
+     * uses. So the test follows the redirect — asserting only that the POST bounced would
+     * pass on a handler that dropped every field on the floor.
+     */
     public function test_a_rejected_form_comes_back_filled_in(): void
     {
-        $html = (string) $this->ctrl()->submit(
-            (new ServerRequestFactory())->createServerRequest('POST', '/x')
-                ->withParsedBody($this->form(['password' => 'tooshort'])),
-            new Response()
-        )->getBody();
+        $res = $this->apply($this->form(['password' => 'tooshort']));
 
+        $this->assertSame(302, $res->getStatusCode());
+        $this->assertSame('/account/register?as=organisation', $res->getHeaderLine('Location'));
+
+        $html = $this->applyForm();
         $this->assertStringContainsString('at least 12 characters', $html);
         $this->assertStringContainsString('Bright Futures Initiative', $html);
         $this->assertStringContainsString('IT/1234567', $html);
+
+        // Never handed back, even for one redirect: a session bag is not where a password
+        // belongs, and the field is re-typed rather than repopulated.
+        $this->assertStringNotContainsString('tooshort', $html);
     }
 
     /** The requirements are on the page, above the form, not behind a link. */
     public function test_the_page_states_what_it_will_ask_for(): void
     {
-        $html = (string) $this->ctrl()->form(
-            (new ServerRequestFactory())->createServerRequest('GET', '/gift/apply'), new Response()
-        )->getBody();
+        $html = $this->applyForm();
 
-        foreach (['CAC registration', 'SCUML', 'own registered name', 'with a reason'] as $needle) {
+        foreach (['CAC registration', 'SCUML', 'registered name', 'with a reason'] as $needle) {
             $this->assertStringContainsString($needle, $html);
         }
+    }
+
+    // ──────────────────── one registered body, one record ───────────────────
+
+    /**
+     * A SECOND APPLICATION FOR THE SAME CAC NUMBER IS REFUSED.
+     *
+     * The email duplicate has been refused since this form shipped, and it is the weaker of
+     * the two: an applicant who tries again from another address sails past it. What lands
+     * then is two organisations for one registered body, both queuing their own registry
+     * check against the same number, both part-approvable, and each able to acquire its own
+     * settlement account — at which point "which of these should the money reach" has no
+     * answer on any screen.
+     */
+    public function test_a_second_application_for_the_same_cac_number_is_refused(): void
+    {
+        $this->apply($this->form());
+
+        $r = PartnerOrg::registerPartner($this->form(['cac_number' => 'IT/1234567']));
+
+        $this->assertFalse($r['ok'], 'one registered body now has two records');
+        $this->assertStringContainsString('CAC number', $r['message']);
+    }
+
+    /**
+     * And it is refused on the NORMALISED number, not on what was typed.
+     *
+     * `IT/1234567` and `it 1234567` are one registration. A comparison on the raw string
+     * would refuse only somebody who typed it the same way twice, which is close to nobody
+     * — the check would read as present and catch almost nothing.
+     */
+    public function test_the_same_number_typed_differently_is_still_the_same_number(): void
+    {
+        $this->apply($this->form());
+
+        foreach (['it 1234567', 'IT-1234567', 'IT/1234567'] as $written) {
+            $r = PartnerOrg::registerPartner($this->form(['cac_number' => $written]));
+            $this->assertFalse($r['ok'], "\"$written\" was accepted as a different registration");
+        }
+    }
+
+    /**
+     * The refusal does not say WHO holds the number.
+     *
+     * A form that answers "which body is registered under this number" is a register lookup
+     * anybody can run against our database, and this one is not ours to publish.
+     */
+    public function test_the_refusal_does_not_name_the_organisation_holding_it(): void
+    {
+        $in = $this->form(['name' => 'Bright Futures Initiative']);
+        $this->apply($in);
+
+        $r = PartnerOrg::registerPartner($this->form(['cac_number' => 'IT/1234567']));
+        $this->assertStringNotContainsString('Bright Futures', (string) $r['message']);
+    }
+
+    // ───────────────────────── the door it now lives behind ─────────────────
+
+    /**
+     * The chooser sends a non-profit to the branch, not to a page of its own.
+     *
+     * This is the fault the chooser itself was built to fix, one level up: a mechanism with
+     * no findable way in. Two doors to one thing is the same fault wearing the other face —
+     * the chooser pointed off to a separate address, and the two screens disagreed about
+     * what registering here even is.
+     */
+    public function test_the_chooser_opens_the_application_in_place(): void
+    {
+        $html = (string) $this->ctrl()->registerForm(
+            (new ServerRequestFactory())->createServerRequest('GET', '/account/register'),
+            new Response()
+        )->getBody();
+
+        $this->assertStringContainsString('/account/register?as=organisation', $html,
+            'the chooser no longer offers the organisation branch');
+        $this->assertStringNotContainsString('/giving/apply', $html,
+            'the chooser still sends a non-profit to the retired page');
+    }
+
+    /**
+     * The branch travels in the BODY, and the handler reads it there.
+     *
+     * A submit does not carry a query string. A controller forking on `?as=` would send
+     * every organisation down the member path, where `registerPartner` is never called —
+     * so the application would quietly become a member account with a missing name.
+     */
+    public function test_an_application_without_the_branch_field_is_not_an_application(): void
+    {
+        $before = (int) DB::table('gates_partner_orgs')->count();
+
+        $in = $this->form();
+        unset($in['as']);
+        $this->ctrl()->registerSubmit(
+            (new ServerRequestFactory())->createServerRequest('POST', '/account/register')
+                ->withParsedBody($in),
+            new Response()
+        );
+
+        $this->assertSame($before, (int) DB::table('gates_partner_orgs')->count(),
+            'an organisation was created by a post that never said it was one');
     }
 
     // ──────────────────────────────── the stats ─────────────────────────────

@@ -61,7 +61,26 @@ final class GivingUrl
     ];
 
     public static function page(): string  { return self::BASE; }
-    public static function apply(): string { return self::BASE . '/apply'; }
+
+    /**
+     * Where an organisation applies — which is no longer under `/giving`.
+     *
+     * The application used to be a page of its own at `/giving/apply`, with its own
+     * controller and its own 403-line template, while `/account/register` was a chooser
+     * built to be the ONE door to every kind of account here — and whose own note calls a
+     * mechanism with no findable way in this codebase's oldest fault. Two doors to one
+     * thing is the same fault wearing the other face: the chooser sent a non-profit off to
+     * a different address, and the two screens disagreed about what registering even is.
+     *
+     * This method still exists, and still answers, because it is what the sitemap, the
+     * giving page and the organisation sign-in all ask. `LEGACY_APPLY` is the old path,
+     * kept as a permanent redirect: it has been in the sitemap, so it is indexed, and a
+     * body that reached it from a search result is exactly the person this must not lose.
+     */
+    public static function apply(): string { return '/account/register?as=organisation'; }
+
+    /** The old address, which still answers and always will — 301, never removed. */
+    public const LEGACY_APPLY = self::BASE . '/apply';
     public static function redirect(): string { return self::BASE . '/redirect'; }
 
     /** A partner organisation's appeal, or one campaign inside it. */

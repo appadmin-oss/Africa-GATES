@@ -2271,8 +2271,15 @@ return function(App $app) {
         // `manage` and the rest — and a partner whose name slugs to one of those words is
         // shadowed permanently in the other direction, which is why PartnerOrg refuses
         // those slugs at mint time rather than leaving an approved partner with no page.
-        $g->get('/giving/apply', \AfricaGates\Controllers\OrgApplyController::class.':form');
-        $g->post('/giving/apply', \AfricaGates\Controllers\OrgApplyController::class.':submit');
+        // The application moved into the one registration door. Both verbs answer, and
+        // permanently: this path was in the sitemap, so it is indexed, and 308 on the POST
+        // rather than 301 or 302 — those are downgraded to GET by every browser, which
+        // would drop a filled-in application and land somebody on an empty form with no
+        // idea why. See GivingUrl::apply().
+        $g->get('/giving/apply',  fn($req, $res) => $res
+            ->withHeader('Location', \AfricaGates\Support\GivingUrl::apply())->withStatus(301));
+        $g->post('/giving/apply', fn($req, $res) => $res
+            ->withHeader('Location', \AfricaGates\Support\GivingUrl::apply())->withStatus(308));
         $g->get('/giving',          DonationController::class.':page');
         $g->post('/giving',          DonationController::class.':start');
         $g->get('/giving/redirect', DonationController::class.':handoff');  // see GatewayHandoff

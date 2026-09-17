@@ -358,7 +358,11 @@ final class AccountAuthScreensTest extends TestCase
         $html = $this->render('pages/account/register.twig', []);
 
         $this->assertStringContainsString('/account/register?as=individual', $html, 'take part');
-        $this->assertStringContainsString('/giving/apply', $html, 'register a non-profit');
+        // In place, not off to a page of its own. The application was `/giving/apply`, and
+        // a chooser whose whole purpose is to be the one findable door sending a non-profit
+        // to a second address is that same fault wearing the other face.
+        $this->assertStringContainsString('/account/register?as=organisation', $html,
+            'register a non-profit');
         $this->assertStringContainsString('/partner', $html, 'partner or exhibit');
         // The chooser is not the form.
         $this->assertStringNotContainsString('name="phone"', $html);

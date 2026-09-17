@@ -29,7 +29,12 @@
 
 {% block content %}
 <div class="ag-acct">
-  <div class="ag-acct__col">
+  {# The column is 452px because sign-in is four fields. The organisation application is
+     ten, in three groups, and a wall that narrow is what a wizard usually gets reached for.
+     Widened for that screen alone, by a flag the controller sets — not derived from `as`
+     here, because a shared layout that knows one page's query string is a layout the next
+     screen has to work around. #}
+  <div class="ag-acct__col{{ auth_wide|default(false) ? ' ag-acct__col--wide' : '' }}">
 
     <a class="ag-acct__brand" href="/" aria-label="Africa GATES — home">
       <span class="ag-acct__mark" aria-hidden="true">G</span>

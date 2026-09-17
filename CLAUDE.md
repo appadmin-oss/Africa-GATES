@@ -412,6 +412,59 @@ unterminated, and everything after it inherited the wrong block with nothing to 
 screen that renders. Compare the brace balance against `HEAD` for every file a bulk edit
 touches — it is two lines and it caught this one.
 
+## One door, and what falls off a form when you move it
+
+`/account/register` is the one registration door. It was a chooser with a single branch
+and a row that sent a non-profit somewhere else entirely — `/giving/apply`, its own route,
+its own controller, its own 403-line template — while the chooser's own note calls a
+mechanism with no findable way in this codebase's oldest fault. **Two doors to one thing is
+that fault wearing the other face**: the two screens disagreed about what registering here
+even is. The application is `?as=organisation` now and the old path is a permanent
+redirect, 301 on the GET and **308 on the POST** — 301 and 302 are downgraded to GET by
+every browser, which would empty a ten-field application and land somebody on a blank form
+with no idea why.
+
+**Moving a form is how a control gets left behind**, and each of these was one. The apply
+page throttled per IP address (a script does not reuse an email); the member registration
+beside it has no throttle at all, so folding them together without carrying it would have
+opened partner creation to exactly the abuse the old page was rate-limiting, while reading
+as a tidy-up. The already-signed-in refusal was the same, and it was better than it looked:
+the old page enforced it on POST only, so the form still DREW for somebody who already had
+an organisation and the refusal arrived after they had filled it in.
+
+**And the branch has to travel in the BODY.** A submit does not carry a query string, so a
+handler forking on `?as=` sends every organisation down the member path — where
+`registerPartner` is never called, and the application quietly becomes a member account.
+
+**One registered body, one record.** `registerPartner` refused a duplicate EMAIL from the
+day it shipped, which is the weaker of the two checks: an applicant who tries again from a
+second address sails past it, and what lands is two organisations for one CAC number, both
+queuing their own registry check, both part-approvable, and each able to acquire its own
+settlement account — at which point "which of these should the money reach" has no answer
+on any screen. Compared on the **normalised** number, after `checkCacInput()`: `IT/1234567`,
+`it 1234567` and `IT-1234567` are one registration, and a comparison on what was typed
+refuses only somebody who typed it identically twice. The refusal never names the
+organisation holding the number — a form that answers "which body is registered under this"
+is a register lookup anybody can run against our database.
+
+### A sweep that asks "does it redirect" cannot tell a retired path from a locked one
+
+`PublicIaTest` asks whether every public page is reachable without typing a URL, and a path
+kept as a redirect has nothing to link to. The obvious detector — boot the router and skip
+anything answering 3xx — **quietly excused `/org`, `/community/new` and `/support/tickets`**,
+three real pages that bounce to a sign-in because the test holds no session. One of them is
+the partner console, which the test directly below it exists to keep reachable: the sweep
+would have gone silent on its own headline finding, while passing.
+
+The status codes already carry the distinction and it is not a heuristic. **301 says this
+address is not the page and never will be again; 302 says not right now.** A login bounce is
+the second. Only the first is out of scope.
+
+Two detectors that also look right and are not: a closure handler (132 public GET routes are
+closures, `/cookies` and `/about` among them), and the `$aliases` table (it is GET-only and
+a hand-written redirect never appears in it). Verify what an exclusion actually excludes
+before trusting it — print the list once, and read it.
+
 ## Anything operational must be settable from `/admin/settings`
 
 There is no shell on production, so a credential read only from `.env` is a credential that

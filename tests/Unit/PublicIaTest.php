@@ -5,6 +5,7 @@ namespace Tests\Unit;
 
 use DI\ContainerBuilder;
 use Slim\Factory\AppFactory;
+use Slim\Psr7\Factory\ServerRequestFactory;
 use Tests\TestCase;
 
 /**
@@ -92,6 +93,11 @@ final class PublicIaTest extends TestCase
         AppFactory::setContainer($builder->build());
         $app = AppFactory::create();
         (require dirname(__DIR__, 2) . '/src/routes.php')($app);
+        // Needed so `redirects()` below can actually dispatch. Added after the routes are
+        // declared and before anything reads them: the collector is unaffected, so the
+        // route table this method walks is the same one either way.
+        $app->addRoutingMiddleware();
+        $app->addErrorMiddleware(false, false, false);
 
         $aliases = $this->aliases();
         // A DATA ENDPOINT IS NOT A PAGE. `/activity/search` returns JSON to the script on
@@ -145,12 +151,59 @@ final class PublicIaTest extends TestCase
                 if (preg_match($re, $p)) continue 2;
             }
 
+            // ── A PATH THAT IS PERMANENTLY SOMEWHERE ELSE IS NOT A PAGE ─────
+            //
+            // A retired address kept as a 301 has nothing to link TO: its whole job is to
+            // hand somebody on to the page that replaced it, and linking it would cost
+            // every reader a round trip while splitting the ranking signal across two
+            // URLs. `/giving/apply` is the first — the organisation application is the
+            // `?as=organisation` branch of `/account/register` now.
+            //
+            // ASKED, not listed. The `$aliases` table above is one way a redirect gets
+            // declared and a hand-written route is another, so a test that knew only about
+            // the table would need this exception added by hand every time — which is how
+            // a list of kinds becomes a list of pages nobody linked, the thing this
+            // class's own failure message forbids.
+            //
+            // ── AND 301 SPECIFICALLY, NEVER ANY 3xx ─────────────────────────
+            //
+            // The first cut of this asked "does it redirect", and the answer quietly
+            // excused `/org`, `/community/new` and `/support/tickets` — three real pages
+            // that bounce to a sign-in because this test holds no session. One of them is
+            // the partner console, which the test directly below exists to keep reachable,
+            // so the sweep would have gone silent on its own headline finding.
+            //
+            // The codes already carry the distinction and it is not a heuristic: 301 says
+            // this address is not the page and never will be again, 302 says not right
+            // now. A login bounce is the second. Only the first is out of scope here.
+            if ($this->movedPermanently($app, $p)) continue;
+
             $out[rtrim($p, '/') ?: '/'] = true;
         }
 
         ksort($out);
 
         return array_keys($out);
+    }
+
+    /**
+     * Is this path retired — a 301 to whatever replaced it?
+     *
+     * A throw counts as NOT retired: a handler that needs a session or a real id blows up
+     * here, and swallowing that as "redirects, so skip it" would quietly drop pages out of
+     * the sweep — a clean pass over the half it read, which is the failure this file
+     * already documents for a different sweep.
+     */
+    private function movedPermanently(\Slim\App $app, string $path): bool
+    {
+        try {
+            $res = $app->handle(
+                (new ServerRequestFactory())->createServerRequest('GET', $path));
+        } catch (\Throwable) {
+            return false;
+        }
+
+        return $res->getStatusCode() === 301;
     }
 
     /**
