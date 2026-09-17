@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,600;0,700;0,800;1,600&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&family=JetBrains+Mono:wght@500;600;700&display=swap" rel="stylesheet">
+<style>
+  *{box-sizing:border-box}
+  body{margin:0;font-family:'DM Sans',system-ui,sans-serif;-webkit-font-smoothing:antialiased;background:#eef0ec}
+</style>
+</helmet>
+
+<div style="min-height:100vh;background:#eef0ec">
+  <!-- NAV -->
+  <header style="position:sticky;top:0;z-index:50;background:rgba(251,251,250,.82);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);border-bottom:1px solid rgba(16,41,44,.07)">
+    <div style="max-width:920px;margin:0 auto;padding:0 32px;height:72px;display:flex;align-items:center;justify-content:space-between;gap:28px">
+      <a href="#" style="text-decoration:none;display:flex;align-items:center;gap:11px"><span style="width:38px;height:38px;border-radius:11px;background:#10292C;display:flex;align-items:center;justify-content:center;font-family:'Playfair Display',serif;font-weight:700;font-size:21px;color:#7FC87C">G</span><span style="display:flex;flex-direction:column;line-height:1"><span style="font-family:'Playfair Display',serif;font-weight:700;font-size:17px;color:#10292C">Africa</span><span style="font-size:10px;font-weight:700;letter-spacing:.26em;color:#237b22">GATES</span></span></a>
+      <nav style="display:flex;align-items:center;gap:4px">
+        <a href="#" style="text-decoration:none;font-size:14.5px;font-weight:600;color:#3a4448;padding:9px 14px;border-radius:10px;display:flex;align-items:center;gap:7px"><span style="width:7px;height:7px;border-radius:50%;background:#e0245e"></span>Pulse</a>
+        <a href="#" style="text-decoration:none;font-size:14.5px;font-weight:500;color:#3a4448;padding:9px 14px;border-radius:10px;display:flex;align-items:center;gap:6px">Participate <svg width="11" height="11" viewBox="0 0 20 20" fill="currentColor"><path d="M13.8 7.2 10 11 6.2 7.2 5 8.3l5 5 5-5z"/></svg></a>
+        <a href="#" style="text-decoration:none;font-size:14.5px;font-weight:500;color:#3a4448;padding:9px 14px;border-radius:10px;display:flex;align-items:center;gap:6px">Explore <svg width="11" height="11" viewBox="0 0 20 20" fill="currentColor"><path d="M13.8 7.2 10 11 6.2 7.2 5 8.3l5 5 5-5z"/></svg></a>
+        <a href="#" style="text-decoration:none;font-size:14.5px;font-weight:500;color:#3a4448;padding:9px 14px;border-radius:10px">Leaderboard</a>
+      </nav>
+      <div style="display:flex;align-items:center;gap:10px">
+        <a href="#" style="text-decoration:none;font-size:14px;font-weight:600;color:#10292C;padding:9px 12px;border-radius:10px">Vote</a>
+        <a href="#" style="text-decoration:none;background:#237b22;color:#fff;font-size:14px;font-weight:600;padding:10px 20px;border-radius:999px;display:flex;align-items:center;gap:7px;box-shadow:0 8px 18px -8px rgba(35,123,34,.6)">Register <svg width="14" height="14" viewBox="0 0 20 20" fill="none"><path d="M7.5 4.5 13 10 7.5 15.5" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/></svg></a>
+      </div>
+    </div>
+  </header>
+
+  <!-- HERO + SEARCH -->
+  <div style="max-width:920px;margin:0 auto;padding:46px 32px 0;text-align:center">
+    <p style="margin:0 0 10px;font-size:12px;font-weight:600;letter-spacing:.14em;text-transform:uppercase;color:#237b22">Help Center</p>
+    <h1 style="margin:0;font-family:'Playfair Display',serif;font-weight:700;font-size:40px;letter-spacing:-.02em;color:#10292C">How can we help?</h1>
+    <div style="display:flex;align-items:center;gap:11px;background:#fff;border:1px solid rgba(16,41,44,.14);border-radius:14px;padding:15px 18px;margin:22px auto 0;max-width:520px">
+      <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="#92a6a7" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
+      <input placeholder="Search help articles…" style="flex:1;border:none;outline:none;font-family:inherit;font-size:15px;color:#10292C;background:none"/>
+    </div>
+  </div>
+
+  <!-- TOPIC TILES -->
+  <div style="max-width:920px;margin:32px auto 0;padding:0 32px">
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:16px">
+      <div style="background:#fff;border:1px solid rgba(16,41,44,.08);border-radius:18px;padding:22px;cursor:pointer">
+        <span style="width:42px;height:42px;border-radius:12px;background:#eef7ee;color:#1a6118;display:flex;align-items:center;justify-content:center"><svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg></span>
+        <div style="font-weight:600;font-size:15.5px;color:#10292C;margin-top:14px">Voting</div>
+        <div style="font-size:12.5px;color:#717a7e;margin-top:4px">8 articles</div>
+      </div>
+      <div style="background:#fff;border:1px solid rgba(16,41,44,.08);border-radius:18px;padding:22px;cursor:pointer">
+        <span style="width:42px;height:42px;border-radius:12px;background:#fff8df;color:#a47306;display:flex;align-items:center;justify-content:center"><svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="5"/><path d="M8.2 12 7 22l5-3 5 3-1.2-10"/></svg></span>
+        <div style="font-weight:600;font-size:15.5px;color:#10292C;margin-top:14px">Nominations</div>
+        <div style="font-size:12.5px;color:#717a7e;margin-top:4px">6 articles</div>
+      </div>
+      <div style="background:#fff;border:1px solid rgba(16,41,44,.08);border-radius:18px;padding:22px;cursor:pointer">
+        <span style="width:42px;height:42px;border-radius:12px;background:#e9efef;color:#2b373d;display:flex;align-items:center;justify-content:center"><svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21a8 8 0 1 0-16 0"/><circle cx="12" cy="7" r="4"/></svg></span>
+        <div style="font-weight:600;font-size:15.5px;color:#10292C;margin-top:14px">Profiles &amp; accounts</div>
+        <div style="font-size:12.5px;color:#717a7e;margin-top:4px">9 articles</div>
+      </div>
+      <div style="background:#fff;border:1px solid rgba(16,41,44,.08);border-radius:18px;padding:22px;cursor:pointer">
+        <span style="width:42px;height:42px;border-radius:12px;background:#f3eef7;color:#5b3a8a;display:flex;align-items:center;justify-content:center"><svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9a3 3 0 0 1 0 6v2a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-2a3 3 0 0 1 0-6V7a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2z"/><path d="M13 5v14"/></svg></span>
+        <div style="font-weight:600;font-size:15.5px;color:#10292C;margin-top:14px">Tickets &amp; events</div>
+        <div style="font-size:12.5px;color:#717a7e;margin-top:4px">5 articles</div>
+      </div>
+      <div style="background:#fff;border:1px solid rgba(16,41,44,.08);border-radius:18px;padding:22px;cursor:pointer">
+        <span style="width:42px;height:42px;border-radius:12px;background:#fdeaf0;color:#b03a5b;display:flex;align-items:center;justify-content:center"><svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.6l-1-1a5.5 5.5 0 0 0-7.8 7.8l1 1L12 21l7.8-7.6 1-1a5.5 5.5 0 0 0 0-7.8Z"/></svg></span>
+        <div style="font-weight:600;font-size:15.5px;color:#10292C;margin-top:14px">Donations</div>
+        <div style="font-size:12.5px;color:#717a7e;margin-top:4px">4 articles</div>
+      </div>
+      <div style="background:#fff;border:1px solid rgba(16,41,44,.08);border-radius:18px;padding:22px;cursor:pointer">
+        <span style="width:42px;height:42px;border-radius:12px;background:#f0f2f2;color:#4a5256;display:flex;align-items:center;justify-content:center"><svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></span>
+        <div style="font-weight:600;font-size:15.5px;color:#10292C;margin-top:14px">Privacy &amp; security</div>
+        <div style="font-size:12.5px;color:#717a7e;margin-top:4px">7 articles</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- FAQ ACCORDION -->
+  <div style="max-width:920px;margin:40px auto 0;padding:0 32px 20px">
+    <h2 style="margin:0 0 18px;font-family:'Playfair Display',serif;font-weight:700;font-size:24px;color:#10292C">Frequently asked</h2>
+    <div style="display:flex;flex-direction:column;gap:12px">
+      <sc-for list="{{ faqs }}" as="f" hint-placeholder-count="6">
+        <div style="background:#fff;border:1px solid {{ f.border }};border-radius:16px;overflow:hidden">
+          <button onClick="{{ f.toggle }}" style="width:100%;cursor:pointer;border:none;background:none;text-align:left;display:flex;align-items:center;justify-content:space-between;gap:16px;padding:18px 22px">
+            <span style="font-weight:600;font-size:15px;color:#10292C">{{ f.q }}</span>
+            <span style="flex:none;width:24px;height:24px;border-radius:50%;background:{{ f.iconBg }};color:{{ f.iconColor }};display:flex;align-items:center;justify-content:center;font-size:17px;transition:transform .2s;transform:{{ f.rot }}">+</span>
+          </button>
+          <sc-if value="{{ f.open }}" hint-placeholder-val="{{ false }}">
+            <p style="margin:0;padding:0 22px 20px;font-size:14px;line-height:1.65;color:#4a5256">{{ f.a }}</p>
+          </sc-if>
+        </div>
+      </sc-for>
+    </div>
+  </div>
+
+  <!-- CONTACT -->
+  <div style="max-width:920px;margin:24px auto 0;padding:0 32px 60px">
+    <div style="background:#10292C;border-radius:22px;padding:34px;display:flex;align-items:center;justify-content:space-between;gap:24px;flex-wrap:wrap;position:relative;overflow:hidden">
+      <div style="position:absolute;right:-50px;top:-50px;width:200px;height:200px;border-radius:50%;background:radial-gradient(circle,rgba(127,200,124,.18),transparent 68%)"></div>
+      <div style="position:relative"><h2 style="margin:0;font-family:'Playfair Display',serif;font-weight:700;font-size:23px;color:#fff">Still need help?</h2><p style="margin:8px 0 0;font-size:14px;color:rgba(255,255,255,.78)">Our team replies within one business day.</p></div>
+      <div style="display:flex;gap:11px;position:relative">
+        <button style="cursor:pointer;border:none;background:#7FC87C;color:#10292C;font-family:inherit;font-weight:600;font-size:14.5px;padding:13px 24px;border-radius:999px">Email support</button>
+        <button style="cursor:pointer;border:1px solid rgba(255,255,255,.24);background:none;color:#fff;font-family:inherit;font-weight:600;font-size:14.5px;padding:13px 24px;border-radius:999px">Live chat</button>
+      </div>
+    </div>
+  </div>
+
+  <footer style="background:#0c2225"><div style="max-width:920px;margin:0 auto;padding:52px 32px 30px;display:grid;grid-template-columns:1.6fr 1fr 1fr 1fr;gap:40px">
+      <div>
+        <div style="display:flex;align-items:center;gap:11px;margin-bottom:16px"><span style="width:34px;height:34px;border-radius:10px;background:rgba(127,200,124,.16);display:flex;align-items:center;justify-content:center;font-family:'Playfair Display',serif;font-weight:700;font-size:18px;color:#7FC87C">G</span><span style="display:flex;flex-direction:column;line-height:1"><span style="font-family:'Playfair Display',serif;font-weight:700;font-size:16px;color:#fff">Africa</span><span style="font-size:9px;font-weight:700;letter-spacing:.26em;color:#7FC87C">GATES</span></span></div>
+        <p style="margin:0 0 18px;font-size:13.5px;line-height:1.65;color:rgba(255,255,255,.6);max-width:280px">The continental Cultural Power Index. An Afrovanguard initiative — live in Nigeria, building toward 54 nations.</p>
+        <div style="display:flex;gap:9px"><a href="#" aria-label="X" style="width:36px;height:36px;border-radius:50%;border:1px solid rgba(255,255,255,.16);display:flex;align-items:center;justify-content:center;color:rgba(255,255,255,.8);text-decoration:none" style-hover="background:#fff;color:#10292C"><svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><path d="M18.24 2.25h3.31l-7.23 8.26L22.5 21.75h-6.34l-4.97-6.5-5.68 6.5H2.2l7.73-8.84L1.5 2.25h6.5l4.49 5.94 5.75-5.94Z"/></svg></a><a href="#" aria-label="Instagram" style="width:36px;height:36px;border-radius:50%;border:1px solid rgba(255,255,255,.16);display:flex;align-items:center;justify-content:center;color:rgba(255,255,255,.8);text-decoration:none" style-hover="background:#fff;color:#10292C"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><rect x="3" y="3" width="18" height="18" rx="5"/><circle cx="12" cy="12" r="4"/><circle cx="17.5" cy="6.5" r="1" fill="currentColor" stroke="none"/></svg></a><a href="#" aria-label="LinkedIn" style="width:36px;height:36px;border-radius:50%;border:1px solid rgba(255,255,255,.16);display:flex;align-items:center;justify-content:center;color:rgba(255,255,255,.8);text-decoration:none" style-hover="background:#fff;color:#10292C"><svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><path d="M20.45 20.45h-3.55v-5.57c0-1.33-.02-3.04-1.85-3.04-1.86 0-2.14 1.45-2.14 2.94v5.67H9.36V9h3.41v1.56h.05c.48-.9 1.64-1.85 3.37-1.85 3.6 0 4.27 2.37 4.27 5.46v6.28zM5.34 7.43a2.06 2.06 0 1 1 0-4.12 2.06 2.06 0 0 1 0 4.12zM7.12 20.45H3.56V9h3.56v11.45z"/></svg></a><a href="#" aria-label="YouTube" style="width:36px;height:36px;border-radius:50%;border:1px solid rgba(255,255,255,.16);display:flex;align-items:center;justify-content:center;color:rgba(255,255,255,.8);text-decoration:none" style-hover="background:#fff;color:#10292C"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M23 12s0-3.4-.43-5.03a2.6 2.6 0 0 0-1.83-1.84C19.1 4.7 12 4.7 12 4.7s-7.1 0-8.74.43a2.6 2.6 0 0 0-1.83 1.84C1 8.6 1 12 1 12s0 3.4.43 5.03a2.6 2.6 0 0 0 1.83 1.84C4.9 19.3 12 19.3 12 19.3s7.1 0 8.74-.43a2.6 2.6 0 0 0 1.83-1.84C23 15.4 23 12 23 12ZM9.75 15.02V8.98L15 12l-5.25 3.02Z"/></svg></a></div>
+      </div>
+      <div>
+        <p style="margin:0 0 14px;font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:#7FC87C">Participate</p>
+        <div style="display:flex;flex-direction:column;gap:11px">
+          <a href="#" style="text-decoration:none;font-size:13.5px;color:rgba(255,255,255,.7)" style-hover="color:#fff">Nominate</a>
+          <a href="#" style="text-decoration:none;font-size:13.5px;color:rgba(255,255,255,.7)" style-hover="color:#fff">Vote</a>
+          <a href="#" style="text-decoration:none;font-size:13.5px;color:rgba(255,255,255,.7)" style-hover="color:#fff">Register</a>
+          <a href="#" style="text-decoration:none;font-size:13.5px;color:rgba(255,255,255,.7)" style-hover="color:#fff">Awards Gala</a>
+          <a href="#" style="text-decoration:none;font-size:13.5px;color:rgba(255,255,255,.7)" style-hover="color:#fff">Donate</a>
+        </div>
+      </div>
+      <div>
+        <p style="margin:0 0 14px;font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:#7FC87C">Explore</p>
+        <div style="display:flex;flex-direction:column;gap:11px">
+          <a href="#" style="text-decoration:none;font-size:13.5px;color:rgba(255,255,255,.7)" style-hover="color:#fff">Leaderboard</a>
+          <a href="#" style="text-decoration:none;font-size:13.5px;color:rgba(255,255,255,.7)" style-hover="color:#fff">Registry</a>
+          <a href="#" style="text-decoration:none;font-size:13.5px;color:rgba(255,255,255,.7)" style-hover="color:#fff">Pulse</a>
+          <a href="#" style="text-decoration:none;font-size:13.5px;color:rgba(255,255,255,.7)" style-hover="color:#fff">How it works</a>
+          <a href="#" style="text-decoration:none;font-size:13.5px;color:rgba(255,255,255,.7)" style-hover="color:#fff">Status</a>
+        </div>
+      </div>
+      <div>
+        <p style="margin:0 0 14px;font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:#7FC87C">Company</p>
+        <div style="display:flex;flex-direction:column;gap:11px">
+          <a href="#" style="text-decoration:none;font-size:13.5px;color:rgba(255,255,255,.7)" style-hover="color:#fff">About Afrovanguard</a>
+          <a href="#" style="text-decoration:none;font-size:13.5px;color:rgba(255,255,255,.7)" style-hover="color:#fff">Help Center</a>
+          <a href="#" style="text-decoration:none;font-size:13.5px;color:rgba(255,255,255,.7)" style-hover="color:#fff">Support &amp; appeals</a>
+          <a href="#" style="text-decoration:none;font-size:13.5px;color:rgba(255,255,255,.7)" style-hover="color:#fff">Contact</a>
+        </div>
+      </div>
+    </div>
+    <div style="max-width:920px;margin:0 auto;padding:20px 32px 40px;border-top:1px solid rgba(255,255,255,.1);display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap">
+      <span style="font-size:12.5px;color:rgba(255,255,255,.5)">© 2026 Africa GATES · An Afrovanguard initiative · RC 1234567 · Lagos, Nigeria</span>
+      <div style="display:flex;align-items:center;gap:18px"><a href="#" style="text-decoration:none;font-size:12.5px;color:rgba(255,255,255,.6)" style-hover="color:#fff">Privacy</a><a href="#" style="text-decoration:none;font-size:12.5px;color:rgba(255,255,255,.6)" style-hover="color:#fff">Terms</a><a href="#" style="text-decoration:none;font-size:12.5px;color:rgba(255,255,255,.6)" style-hover="color:#fff">Integrity Center</a></div>
+    </div>
+  </footer>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:920,&quot;height&quot;:900}}">
+class Component extends DCLogic {
+  state = { open:0 };
+  renderVals(){
+    const s=this.state;
+    const topics=[
+      { icon:'🗳️', title:'Voting', count:8, tint:'#eef7ee' },
+      { icon:'🏅', title:'Nominations', count:6, tint:'#fff8df' },
+      { icon:'👤', title:'Profiles & accounts', count:9, tint:'#e9efef' },
+      { icon:'🎟️', title:'Tickets & events', count:5, tint:'#f3eef7' },
+      { icon:'❤️', title:'Donations', count:4, tint:'#fdeaf0' },
+      { icon:'🔒', title:'Privacy & security', count:7, tint:'#f4f5f5' }
+    ];
+    const qa=[
+      ['How do I vote?','Open any nominee or category, enter your email, and confirm the 6-digit code we send you. That records one verified vote — you can vote once per category per cycle.'],
+      ['Is voting free?','Yes. Voting is completely free and always will be. Donations and ticket purchases never affect anyone\u2019s score.'],
+      ['How is the CPI calculated?','The Cultural Power Index combines verified votes (40%), documented impact (30%), peer endorsements (20%) and reach & consistency (10%) into a 0\u20131000 score, recomputed every 6 hours.'],
+      ['Can I nominate someone?','Absolutely. Use the Nominate button, tell us who they are and why, and our panel verifies the profile before it joins the registry.'],
+      ['How is my email protected?','We hash your email and never store it in plain text. It\u2019s used only to verify you\u2019re a real person voting once per category.'],
+      ['I think a vote count is wrong.','Every recomputation is logged and independently audited. Contact support with the profile and we\u2019ll replay the math from source for you.']
+    ];
+    const faqs=qa.map((f,i)=>{ const open=s.open===i; return {
+      q:f[0], a:f[1], open,
+      toggle:()=>this.setState(st=>({open: st.open===i?-1:i})),
+      border: open?'#bfe0bd':'rgba(16,41,44,.08)',
+      iconBg: open?'#237b22':'#f0f2f2', iconColor: open?'#fff':'#10292C',
+      rot: open?'rotate(45deg)':'rotate(0deg)' }; });
+    return { topics, faqs };
+  }
+}
+</script>
+</body>
+</html>

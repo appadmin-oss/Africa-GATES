@@ -1,0 +1,190 @@
+/*
+  THE PANEL, floating over Meet.
+
+  Bottom-left, because Meet puts its own controls bottom-centre and the participant grid
+  top-right, and the captions themselves sit along the bottom-centre — a panel over any of
+  those covers the thing it exists to help with.
+
+  Everything is prefixed .agx and every value is explicit. This stylesheet lands inside
+  somebody else's application, so it inherits nothing and asserts everything: Meet's own
+  rules would otherwise reach in and restyle it on any redesign.
+*/
+
+/*
+  TOP-LEFT by default, and draggable.
+
+  It started bottom-left, which put it exactly where Meet renders the captions — the one
+  thing on screen this panel exists to read. Visible the moment it was screenshotted over a
+  real caption strip.
+
+  Top-left is the emptiest corner of a Meet call, and dragging removes the guesswork
+  permanently: whatever Google moves next, the operator can move this out of its way, and the
+  position is remembered.
+*/
+.agx {
+  position: fixed;
+  left: 16px;
+  top: 16px;
+  z-index: 2147483000;          /* above Meet's own overlays, below nothing that matters */
+  width: 380px;
+  max-width: calc(100vw - 32px);
+  max-height: 62vh;
+  display: flex;
+  flex-direction: column;
+  background: #10292c;
+  color: #f4f7f4;
+  border: 1px solid rgba(255, 255, 255, .14);
+  border-radius: 14px;
+  box-shadow: 0 18px 50px -12px rgba(0, 0, 0, .65);
+  font: 400 13px/1.5 "Google Sans", Roboto, system-ui, -apple-system, sans-serif;
+  overflow: hidden;
+}
+
+.agx__bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: grab;                 /* the drag handle — see content.js */
+  user-select: none;
+  padding: 10px 12px;
+  background: rgba(255, 255, 255, .06);
+  border-bottom: 1px solid rgba(255, 255, 255, .1);
+  font-size: 12.5px;
+}
+.agx__grow { flex: 1 1 auto; }
+.agx__icon {
+  cursor: pointer;
+  background: none;
+  border: none;
+  color: #cfe0d6;
+  font: 700 16px/1 inherit;
+  padding: 2px 6px;
+  border-radius: 6px;
+}
+.agx__icon:hover { background: rgba(255, 255, 255, .12); }
+
+/* The status light. Green means captions are arriving right now — the only fact on this
+   panel that cannot be inferred from anything else on screen. */
+.agx__dot {
+  width: 9px; height: 9px; border-radius: 50%;
+  background: #6b7c7e; flex: 0 0 auto;
+}
+.agx__dot--live { background: #34d058; box-shadow: 0 0 0 3px rgba(52, 208, 88, .22); }
+.agx__dot--wait { background: #e0b341; }
+.agx__dot--off  { background: #d1584f; }
+
+.agx__body { padding: 12px; overflow: auto; }
+.agx--min .agx__body { display: none; }
+
+.agx__msg {
+  font-size: 12px;
+  line-height: 1.55;
+  color: #bcd2c4;
+  background: rgba(255, 255, 255, .06);
+  border-radius: 8px;
+  padding: 8px 10px;
+  margin-bottom: 10px;
+}
+.agx__msg--bad { color: #ffd9d6; background: rgba(209, 88, 79, .22); }
+.agx__msg--none { display: none; }
+
+.agx__q {
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: .07em;
+  text-transform: uppercase;
+  color: #8fd48c;
+}
+.agx__qt {
+  margin-top: 6px;
+  font-size: 16.5px;
+  line-height: 1.4;
+  font-weight: 500;
+  color: #ffffff;
+}
+.agx__why {
+  margin-top: 8px;
+  font-size: 11.5px;
+  line-height: 1.55;
+  color: #9fb3a6;
+  border-left: 2px solid rgba(255, 255, 255, .18);
+  padding-left: 8px;
+}
+.agx__probe { margin-top: 9px; display: flex; flex-wrap: wrap; gap: 5px; }
+.agx__chip {
+  font-size: 11px;
+  color: #d7e5da;
+  background: rgba(255, 255, 255, .09);
+  border-radius: 999px;
+  padding: 4px 9px;
+}
+
+/* The live follow-up. Gold, and unmistakably not one of the prepared questions — an
+   interviewer must be able to tell at a glance which is the pack and which is the machine
+   reacting to what was just said. */
+.agx__fu {
+  display: none;
+  margin-top: 10px;
+  font-size: 14px;
+  line-height: 1.45;
+  color: #ffe9a8;
+  background: rgba(224, 179, 65, .16);
+  border: 1px solid rgba(224, 179, 65, .35);
+  border-radius: 9px;
+  padding: 9px 11px;
+}
+.agx__fu--on { display: block; }
+
+.agx__nav { display: flex; gap: 8px; margin-top: 12px; }
+.agx__btn {
+  cursor: pointer;
+  flex: 1 1 auto;
+  font: 600 12.5px/1 inherit;
+  color: #eaf2ec;
+  background: rgba(255, 255, 255, .1);
+  border: 1px solid rgba(255, 255, 255, .16);
+  border-radius: 999px;
+  padding: 10px 12px;
+}
+.agx__btn:hover { background: rgba(255, 255, 255, .18); }
+.agx__btn--go { background: #237b22; border-color: #237b22; color: #fff; }
+.agx__btn--go:hover { background: #2b942a; }
+
+.agx__foot {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+  margin-top: 11px;
+  padding-top: 10px;
+  border-top: 1px solid rgba(255, 255, 255, .1);
+  font-size: 11px;
+  color: #93a89a;
+}
+.agx__link {
+  cursor: pointer;
+  background: none;
+  border: none;
+  padding: 0;
+  font: 600 11px/1 inherit;
+  color: #8fd48c;
+  text-decoration: underline;
+}
+
+/* Pointing mode: the whole page becomes a target, so it must be obvious that the next
+   click does something unusual. */
+body.agx-picking * { cursor: crosshair !important; }
+body.agx-picking::after {
+  content: "Click the caption text";
+  position: fixed;
+  left: 50%;
+  top: 14px;
+  transform: translateX(-50%);
+  z-index: 2147483001;
+  background: #10292c;
+  color: #fff;
+  font: 600 13px/1 "Google Sans", Roboto, system-ui, sans-serif;
+  padding: 10px 16px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, .2);
+}

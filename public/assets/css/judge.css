@@ -37,13 +37,13 @@
 .jd-who { display: flex; align-items: center; gap: 10px; }
 .jd-who__avatar { width: 36px; height: 36px; border-radius: 50%; background: linear-gradient(135deg, var(--g-500), var(--gold-400)); color: var(--ink-900); display: inline-flex; align-items: center; justify-content: center; font-weight: 700; font-size: 14px; }
 .jd-who__name { font-weight: 600; font-size: 13px; }
-.jd-who__email { font-size: 11.5px; color: var(--ink-500); }
+.jd-who__email { font-size: 12px; color: var(--ink-500); }
 .jd-out { width: 36px; height: 36px; border-radius: 8px; display: inline-flex; align-items: center; justify-content: center; color: var(--ink-500); border: 1px solid var(--line); background: #fff; transition: background-color 160ms ease, color 160ms ease, border-color 160ms ease; }
 .jd-out:hover { background: var(--bg-soft); color: var(--ink-900); }
 
 .jd-main { max-width: 1080px; margin: 32px auto 96px; padding: 0 24px; }
 
-.jd-flash { padding: 12px 16px; border-radius: 10px; font-size: 13.5px; margin-bottom: 18px; }
+.jd-flash { padding: 12px 16px; border-radius: 10px; font-size: 14px; margin-bottom: 18px; }
 .jd-flash--ok    { background: #ecfdf3; color: #04632e; border: 1px solid #b6f0d0; }
 .jd-flash--err   { background: #fef2f2; color: #991b1b; border: 1px solid #f4cbcb; }
 .jd-flash--note  { background: #eff6ff; color: #1d4ed8; border: 1px solid #c2d9ff; }
@@ -58,10 +58,10 @@
 .jd-auth__h { font-family: var(--font-display); font-size: 2rem; font-weight: 700; line-height: 1.1; margin-bottom: 4px; }
 .jd-auth__h em { font-style: italic; background: linear-gradient(135deg, var(--gold-400), var(--gold-500)); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; }
 .jd-auth__sub { color: var(--ink-500); font-size: 14px; margin-bottom: 22px; }
-.jd-auth__form label { display: block; font-size: 12.5px; font-weight: 600; margin-bottom: 6px; color: var(--ink-700); }
+.jd-auth__form label { display: block; font-size: 13px; font-weight: 600; margin-bottom: 6px; color: var(--ink-700); }
 .jd-auth__form input { width: 100%; padding: 13px 16px; font-size: 14px; border: 1.5px solid var(--line); border-radius: 9px; background: #fff; margin-bottom: 12px; }
 .jd-auth__form input:focus { outline: none; border-color: var(--g-500); box-shadow: 0 0 0 3px rgba(14,132,24,0.12); }
-.jd-auth__form button { width: 100%; padding: 14px; border: 0; border-radius: 9px; background: linear-gradient(135deg, var(--g-500), var(--g-700)); color: #fff; font-weight: 700; font-size: 14.5px; cursor: pointer; transition: transform 180ms var(--ease-out), box-shadow 180ms var(--ease-out), filter 180ms var(--ease-out); }
+.jd-auth__form button { width: 100%; padding: 14px; border: 0; border-radius: 9px; background: linear-gradient(135deg, var(--g-500), var(--g-700)); color: #fff; font-weight: 700; font-size: 14px; cursor: pointer; transition: transform 180ms var(--ease-out), box-shadow 180ms var(--ease-out), filter 180ms var(--ease-out); }
 .jd-auth__form button:hover { transform: translateY(-1px); box-shadow: 0 8px 20px rgba(51, 134, 50, 0.28); filter: brightness(1.03); }
 .jd-auth__form button:active { transform: translateY(0); }
 .jd-otp-input { font-family: var(--font-mono); font-size: 26px; font-weight: 700; letter-spacing: 0.6em; text-align: center; padding: 16px !important; background: var(--cream) !important; }
@@ -105,7 +105,7 @@
 .jd-nom__head { display: flex; align-items: center; gap: 14px; margin-bottom: 14px; }
 .jd-nom__avatar { width: 54px; height: 54px; border-radius: 50%; background: linear-gradient(135deg, var(--g-500), var(--gold-400)); color: var(--ink-900); font-family: var(--font-display); font-weight: 700; font-size: 22px; display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; }
 .jd-nom__name { font-family: var(--font-display); font-size: 1.2rem; font-weight: 700; line-height: 1.2; }
-.jd-nom__meta { font-size: 12.5px; color: var(--ink-500); }
+.jd-nom__meta { font-size: 13px; color: var(--ink-500); }
 .jd-nom__avg { margin-left: auto; text-align: right; }
 .jd-nom__avg-n { font-family: var(--font-mono); font-size: 22px; font-weight: 700; color: var(--g-700); }
 .jd-nom__avg-l { font-family: var(--font-mono); font-size: 10px; color: var(--ink-400); letter-spacing: 0.12em; text-transform: uppercase; }
@@ -120,7 +120,7 @@
 .jd-slider::-webkit-slider-thumb { -webkit-appearance: none; appearance: none; width: 22px; height: 22px; border-radius: 50%; background: linear-gradient(135deg, var(--gold-300), var(--gold-500)); border: 2px solid #fff; box-shadow: 0 4px 12px rgba(243,180,22,0.35); cursor: pointer; }
 .jd-slider::-moz-range-thumb { width: 22px; height: 22px; border-radius: 50%; background: linear-gradient(135deg, var(--gold-300), var(--gold-500)); border: 2px solid #fff; box-shadow: 0 4px 12px rgba(243,180,22,0.35); cursor: pointer; }
 .jd-nom__notes { margin-top: 16px; }
-.jd-nom__notes textarea { width: 100%; padding: 10px 14px; font-size: 13.5px; border: 1px solid var(--line); border-radius: 10px; background: var(--cream); font-family: inherit; min-height: 64px; resize: vertical; }
+.jd-nom__notes textarea { width: 100%; padding: 10px 14px; font-size: 14px; border: 1px solid var(--line); border-radius: 10px; background: var(--cream); font-family: inherit; min-height: 64px; resize: vertical; }
 .jd-nom__row { display: flex; justify-content: space-between; align-items: center; margin-top: 12px; }
 .jd-save-state { font-size: 12px; color: var(--ink-500); font-family: var(--font-mono); }
 .jd-save-state.is-ok { color: var(--g-700); }
@@ -146,14 +146,14 @@
 .jdh-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin-top: 28px; }
 .jdh-stat { background: #fff; border: 1px solid var(--line); border-radius: 14px; padding: 16px 18px; }
 .jdh-stat__n { font-family: var(--font-display); font-size: 1.9rem; font-weight: 700; line-height: 1; color: var(--ink-900); }
-.jdh-stat__l { font-size: 11.5px; font-weight: 600; letter-spacing: 0.03em; text-transform: uppercase; color: var(--ink-500); margin-top: 7px; }
+.jdh-stat__l { font-size: 12px; font-weight: 600; letter-spacing: 0.03em; text-transform: uppercase; color: var(--ink-500); margin-top: 7px; }
 .jdh-stat--ok .jdh-stat__n { color: var(--g-700); }
 .jdh-stat--warn { background: linear-gradient(135deg, rgba(243,180,22,0.10), #fff); border-color: rgba(243,180,22,0.35); }
 
 /* Deadline banner */
 .jdh-deadline { display: flex; align-items: center; gap: 12px; margin-top: 18px; padding: 13px 18px; border-radius: 12px;
   background: linear-gradient(135deg, rgba(14,132,24,0.07), rgba(243,180,22,0.06)); border: 1px solid rgba(14,132,24,0.18);
-  font-size: 13.5px; color: var(--ink-700); }
+  font-size: 14px; color: var(--ink-700); }
 .jdh-deadline strong { color: var(--ink-900); }
 .jdh-deadline__dot { width: 9px; height: 9px; border-radius: 50%; background: var(--g-500); flex-shrink: 0; box-shadow: 0 0 0 4px rgba(14,132,24,0.16); }
 
@@ -161,19 +161,79 @@
 .jdh-section { margin-top: 40px; }
 .jdh-section__head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin-bottom: 16px; }
 .jdh-section__title { font-family: var(--font-display); font-size: 1.4rem; font-weight: 700; line-height: 1.1; }
-.jdh-section__hint { font-family: var(--font-mono); font-size: 10.5px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: var(--ink-400); }
+.jdh-section__hint { font-family: var(--font-mono); font-size: 11px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: var(--ink-400); }
 .jdh-panel { background: #fff; border: 1px solid var(--line); border-radius: 16px; padding: 20px 22px; }
 .jdh-muted { font-size: 13px; color: var(--ink-500); margin: 0; line-height: 1.55; }
 
+/* ── YOUR CALLS ─────────────────────────────────────────────────────────────
+   Above the programmes, because a call at eleven tomorrow outranks a ballot with
+   three weeks on it. Deliberately quieter than the programme cards: this is a
+   schedule to check, not a task to start, and the one action on it is Join. */
+.jdh-ics { font-family: var(--font-mono); font-size: 11px; font-weight: 700;
+  letter-spacing: 0.08em; text-transform: uppercase; color: var(--g-700);
+  text-decoration: none; border-bottom: 1px solid rgba(14,132,24,0.35);
+  padding-bottom: 2px; white-space: nowrap; }
+.jdh-ics:hover { color: var(--g-500); }
+.jdh-ics:focus-visible { outline: 3px solid var(--g-500); outline-offset: 3px; }
+
+.jdh-calls { list-style: none; margin: 0; padding: 0; background: #fff;
+  border: 1px solid var(--line); border-radius: 16px; overflow: hidden; }
+.jdh-call { display: flex; align-items: center; gap: 16px; padding: 14px 18px; }
+.jdh-call + .jdh-call { border-top: 1px solid var(--line); }
+
+/* The time is the first thing read and the thing compared down the column, so it is
+   mono and tabular — proportional digits make a list of times impossible to scan. */
+.jdh-call__when { flex: none; min-width: 9.5rem; font-family: var(--font-mono);
+  font-size: 13px; font-variant-numeric: tabular-nums; color: var(--ink-900); }
+.jdh-call__when span { display: block; margin-top: 2px; font-size: 11px; color: var(--ink-400); }
+
+.jdh-call__who { flex: 1; min-width: 0; font-size: 14px; color: var(--ink-900); }
+.jdh-call__who strong { font-weight: 600; }
+.jdh-call__who span { display: block; margin-top: 2px; font-size: 12px; color: var(--ink-500); }
+
+.jdh-call__go { flex: none; background: var(--g-700); color: #fff; text-decoration: none;
+  font-size: 13px; font-weight: 700; padding: 0 16px; border-radius: 999px;
+  /* 44px, because this is tapped on a phone one minute before the hour. */
+  min-height: 44px; display: inline-flex; align-items: center; }
+.jdh-call__go:hover { background: var(--g-500); }
+.jdh-call__go:focus-visible { outline: 3px solid var(--g-500); outline-offset: 2px; }
+
+/* A missing link is somebody's job, and a judge who sees an empty space assumes the
+   page is broken and does not mention it. */
+.jdh-call__pending { flex: none; font-family: var(--font-mono); font-size: 11px;
+  letter-spacing: 0.06em; text-transform: uppercase; color: #b45309; }
+
+.jdh-calls__note { margin: 10px 0 0; font-size: 13px; line-height: 1.55; color: var(--ink-500); }
+
+@media (max-width: 560px) {
+  /* Stacked, so the time keeps its own line rather than squeezing the nominee's name
+     into three. Join stays full width — it is the only action here. */
+  .jdh-call { flex-wrap: wrap; gap: 8px; }
+  .jdh-call__when { min-width: 0; width: 100%; }
+  .jdh-call__go { width: 100%; justify-content: center; }
+}
+
 /* Enriched programme cards */
-.jd-card__sub { font-size: 12.5px; color: var(--ink-500); margin: 0; line-height: 1.4; }
+.jd-card__sub { font-size: 13px; color: var(--ink-500); margin: 0; line-height: 1.4; }
 .jd-card__stats { display: flex; flex-wrap: wrap; gap: 6px; font-size: 12px; color: var(--ink-500); }
 .jd-card__urgent { color: #b45309; font-weight: 700; }
-.jd-card__cta { font-size: 12.5px; font-weight: 700; color: var(--g-700); }
+.jd-card__cta { font-size: 13px; font-weight: 700; color: var(--g-700); }
 .jd-card--open { border-color: rgba(14,132,24,0.28); }
 .jd-card--recused { opacity: 0.72; cursor: default; }
 .jd-card--recused:hover { transform: none; box-shadow: none; }
-.jd-card__badge { font-size: 11.5px; font-weight: 700; }
+
+/* ── THE PRACTICE CARD ───────────────────────────────────────────────────────
+   Marked by BORDER PATTERN as well as colour. A judge who mistakes a rehearsal for
+   a live round either treats real scoring as practice or spends an afternoon
+   carefully scoring nobody, and colour alone does not survive a monochrome screen,
+   colour-blindness, or a phone in daylight. The dashes read as provisional at any
+   size and in any palette. */
+.jd-card--practice {
+  border-style: dashed;
+  border-color: rgba(16, 41, 44, 0.32);
+  background-image: linear-gradient(180deg, rgba(243, 180, 22, 0.07), transparent 60%);
+}
+.jd-card__badge { font-size: 12px; font-weight: 700; }
 .jd-card__badge--recused { color: #b91c1c; }
 
 /* Two-column lower area */
@@ -186,11 +246,11 @@
 .jdh-tl { display: flex; align-items: center; gap: 14px; padding: 12px 0; border-bottom: 1px solid var(--bg-soft); }
 .jdh-tl:last-child { border-bottom: 0; }
 .jdh-tl__avg { width: 42px; height: 42px; border-radius: 11px; flex-shrink: 0; display: inline-flex; align-items: center; justify-content: center;
-  font-family: var(--font-mono); font-weight: 700; font-size: 15px; color: var(--g-700);
+  font-family: var(--font-mono); font-weight: 700; font-size: 16px; color: var(--g-700);
   background: linear-gradient(135deg, rgba(14,132,24,0.10), rgba(243,180,22,0.08)); }
 .jdh-tl__body { flex: 1; min-width: 0; }
 .jdh-tl__name { font-weight: 600; font-size: 14px; color: var(--ink-900); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.jdh-tl__meta { font-size: 11.5px; color: var(--ink-500); margin-top: 2px; }
+.jdh-tl__meta { font-size: 12px; color: var(--ink-500); margin-top: 2px; }
 .jdh-tl__time { font-family: var(--font-mono); font-size: 11px; color: var(--ink-400); flex-shrink: 0; white-space: nowrap; }
 
 /* Self-audit profile */
@@ -199,7 +259,7 @@
 .jdh-profile__l { font-size: 11px; color: var(--ink-500); text-transform: uppercase; letter-spacing: 0.03em; margin-top: 5px; }
 .jdh-dist { display: flex; flex-direction: column; gap: 9px; }
 .jdh-dist__row { display: flex; align-items: center; gap: 10px; }
-.jdh-dist__label { font-size: 11.5px; color: var(--ink-500); width: 92px; flex-shrink: 0; }
+.jdh-dist__label { font-size: 12px; color: var(--ink-500); width: 92px; flex-shrink: 0; }
 .jdh-dist__track { flex: 1; height: 8px; background: var(--bg-soft); border-radius: 4px; overflow: hidden; }
 .jdh-dist__track > div { height: 100%; border-radius: 4px; transition: width 0.5s var(--ease-out); }
 .jdh-dist__v { font-family: var(--font-mono); font-size: 12px; font-weight: 700; color: var(--ink-700); width: 24px; text-align: right; }
@@ -207,21 +267,21 @@
 /* Conflicts of interest */
 .jdh-coi { padding: 10px 0; border-bottom: 1px solid var(--bg-soft); }
 .jdh-coi:last-child { border-bottom: 0; }
-.jdh-coi strong { font-size: 13.5px; color: var(--ink-900); }
+.jdh-coi strong { font-size: 14px; color: var(--ink-900); }
 .jdh-coi__date { font-size: 11px; color: var(--ink-400); margin-left: 8px; }
-.jdh-coi__reason { font-size: 12.5px; color: var(--ink-500); font-style: italic; margin: 4px 0 0; }
+.jdh-coi__reason { font-size: 13px; color: var(--ink-500); font-style: italic; margin: 4px 0 0; }
 
 /* Methodology */
-.jdh-method-intro { font-size: 13.5px; color: var(--ink-700); line-height: 1.6; margin: 0 0 16px; }
+.jdh-method-intro { font-size: 14px; color: var(--ink-700); line-height: 1.6; margin: 0 0 16px; }
 .jdh-method-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 14px; }
 .jdh-crit { background: var(--bg-soft); border-radius: 11px; padding: 12px 14px; }
 .jdh-crit__top { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
 .jdh-crit__label { font-size: 13px; font-weight: 700; color: var(--ink-900); }
-.jdh-crit__w { font-family: var(--font-mono); font-size: 11.5px; font-weight: 700; color: var(--g-700); }
-.jdh-crit__desc { font-size: 11.5px; color: var(--ink-500); line-height: 1.45; margin: 5px 0 0; }
+.jdh-crit__w { font-family: var(--font-mono); font-size: 12px; font-weight: 700; color: var(--g-700); }
+.jdh-crit__desc { font-size: 12px; color: var(--ink-500); line-height: 1.45; margin: 5px 0 0; }
 
 /* Support footer */
-.jdh-support { margin-top: 40px; padding-top: 20px; border-top: 1px solid var(--line); font-size: 12.5px; color: var(--ink-500); text-align: center; }
+.jdh-support { margin-top: 40px; padding-top: 20px; border-top: 1px solid var(--line); font-size: 13px; color: var(--ink-500); text-align: center; }
 .jdh-support a { color: var(--g-700); font-weight: 600; }
 
 /* Keyboard focus — a visible ring on every interactive judge control (WCAG 2.4.7) */
@@ -248,5 +308,5 @@
   .jdh-section { margin-top: 30px; }
   .jdh-panel { padding: 16px; }
   /* The activity timestamp can crowd the name on narrow screens */
-  .jdh-tl__time { font-size: 10.5px; }
+  .jdh-tl__time { font-size: 11px; }
 }

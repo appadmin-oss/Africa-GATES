@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,600;0,700;0,800;1,600&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&family=JetBrains+Mono:wght@500;600;700&display=swap" rel="stylesheet">
+<style>
+  *{box-sizing:border-box}
+  body{margin:0;font-family:'DM Sans',system-ui,sans-serif;-webkit-font-smoothing:antialiased;background:#eef0ec}
+  @keyframes spUp{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}
+  @keyframes spSpin{to{transform:rotate(360deg)}}
+</style>
+</helmet>
+
+<div style="min-height:100vh;background:#eef0ec">
+  <!-- ░░░ NAV (consistent with Africa GATES desktop) ░░░ -->
+  <header style="position:sticky;top:0;z-index:50;background:rgba(251,251,250,.82);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);border-bottom:1px solid rgba(16,41,44,.07)">
+    <div style="max-width:1080px;margin:0 auto;padding:0 32px;height:72px;display:flex;align-items:center;justify-content:space-between;gap:28px">
+      <a href="#" style="text-decoration:none;display:flex;align-items:center;gap:11px"><span style="width:38px;height:38px;border-radius:11px;background:#10292C;display:flex;align-items:center;justify-content:center;font-family:'Playfair Display',serif;font-weight:700;font-size:21px;color:#7FC87C">G</span><span style="display:flex;flex-direction:column;line-height:1"><span style="font-family:'Playfair Display',serif;font-weight:700;font-size:17px;color:#10292C">Africa</span><span style="font-size:10px;font-weight:700;letter-spacing:.26em;color:#237b22">GATES</span></span></a>
+      <nav style="display:flex;align-items:center;gap:4px">
+        <a href="#" style="text-decoration:none;font-size:14.5px;font-weight:600;color:#3a4448;padding:9px 14px;border-radius:10px;display:flex;align-items:center;gap:7px"><span style="width:7px;height:7px;border-radius:50%;background:#e0245e"></span>Pulse</a>
+        <a href="#" style="text-decoration:none;font-size:14.5px;font-weight:500;color:#3a4448;padding:9px 14px;border-radius:10px;display:flex;align-items:center;gap:6px">Participate <svg width="11" height="11" viewBox="0 0 20 20" fill="currentColor"><path d="M13.8 7.2 10 11 6.2 7.2 5 8.3l5 5 5-5z"/></svg></a>
+        <a href="#" style="text-decoration:none;font-size:14.5px;font-weight:500;color:#3a4448;padding:9px 14px;border-radius:10px;display:flex;align-items:center;gap:6px">Explore <svg width="11" height="11" viewBox="0 0 20 20" fill="currentColor"><path d="M13.8 7.2 10 11 6.2 7.2 5 8.3l5 5 5-5z"/></svg></a>
+        <a href="#" style="text-decoration:none;font-size:14.5px;font-weight:500;color:#3a4448;padding:9px 14px;border-radius:10px">Leaderboard</a>
+      </nav>
+      <div style="display:flex;align-items:center;gap:10px">
+        <a href="#" style="text-decoration:none;font-size:14px;font-weight:600;color:#10292C;padding:9px 12px;border-radius:10px">Vote</a>
+        <a href="#" style="text-decoration:none;background:#237b22;color:#fff;font-size:14px;font-weight:600;padding:10px 20px;border-radius:999px;display:flex;align-items:center;gap:7px;box-shadow:0 8px 18px -8px rgba(35,123,34,.6)">Register <svg width="14" height="14" viewBox="0 0 20 20" fill="none"><path d="M7.5 4.5 13 10 7.5 15.5" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/></svg></a>
+      </div>
+    </div>
+  </header>
+
+  <!-- HERO -->
+  <div style="max-width:1080px;margin:0 auto;padding:44px 32px 0;text-align:center">
+    <p style="margin:0 0 10px;font-size:12px;font-weight:600;letter-spacing:.14em;text-transform:uppercase;color:#237b22">Support &amp; appeals</p>
+    <h1 style="margin:0;font-family:'Playfair Display',serif;font-weight:700;font-size:42px;letter-spacing:-.02em;color:#10292C">We're here to help</h1>
+    <p style="margin:14px auto 0;font-size:16px;line-height:1.6;color:#4a5256;max-width:600px">Dispute a result, report a profile, recover access, or raise a concern. Every appeal is reviewed by a real person — most within one business day.</p>
+  </div>
+
+  <!-- QUICK ROUTES -->
+  <div style="max-width:1080px;margin:32px auto 0;padding:0 32px">
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:16px">
+      <button onClick="{{ pickDispute }}" style="cursor:pointer;text-align:left;background:#fff;border:1px solid {{ borderDispute }};border-radius:18px;padding:22px" style-hover="border-color:rgba(16,41,44,.2)">
+        <span style="width:42px;height:42px;border-radius:12px;background:#eef7ee;color:#1a6118;display:flex;align-items:center;justify-content:center"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v18M5 7l-3 6a3 3 0 0 0 6 0L5 7Zm14 0-3 6a3 3 0 0 0 6 0l-3-6ZM4 7h16"/></svg></span>
+        <div style="font-weight:600;font-size:15.5px;color:#10292C;margin-top:14px">Dispute a result</div>
+        <div style="font-size:13px;color:#717a7e;margin-top:4px;line-height:1.5">Think a vote count or ranking is wrong? Ask for an audit.</div>
+      </button>
+      <button onClick="{{ pickReport }}" style="cursor:pointer;text-align:left;background:#fff;border:1px solid {{ borderReport }};border-radius:18px;padding:22px" style-hover="border-color:rgba(16,41,44,.2)">
+        <span style="width:42px;height:42px;border-radius:12px;background:#fff8df;color:#a47306;display:flex;align-items:center;justify-content:center"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2 4 5v6c0 5 3.4 9.7 8 11 4.6-1.3 8-6 8-11V5l-8-3Z"/><path d="M12 8v4M12 16h.01"/></svg></span>
+        <div style="font-weight:600;font-size:15.5px;color:#10292C;margin-top:14px">Report a profile</div>
+        <div style="font-size:13px;color:#717a7e;margin-top:4px;line-height:1.5">Flag a profile that breaks our integrity rules.</div>
+      </button>
+      <button onClick="{{ pickAccess }}" style="cursor:pointer;text-align:left;background:#fff;border:1px solid {{ borderAccess }};border-radius:18px;padding:22px" style-hover="border-color:rgba(16,41,44,.2)">
+        <span style="width:42px;height:42px;border-radius:12px;background:#e9efef;color:#2b373d;display:flex;align-items:center;justify-content:center"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 9.9-1"/></svg></span>
+        <div style="font-weight:600;font-size:15.5px;color:#10292C;margin-top:14px">Recover access</div>
+        <div style="font-size:13px;color:#717a7e;margin-top:4px;line-height:1.5">Can't sign in or verify your email? We'll help.</div>
+      </button>
+    </div>
+  </div>
+
+  <!-- FORM + SIDEBAR -->
+  <div style="max-width:1080px;margin:28px auto 0;padding:0 32px 60px;display:grid;grid-template-columns:1fr 320px;gap:28px;align-items:start">
+    <!-- form card -->
+    <div style="background:#fff;border:1px solid rgba(16,41,44,.08);border-radius:22px;overflow:hidden">
+      <sc-if value="{{ showForm }}" hint-placeholder-val="{{ true }}">
+      <div style="padding:30px;animation:spUp .3s ease both">
+        <h2 style="margin:0;font-family:'Playfair Display',serif;font-weight:700;font-size:23px;color:#10292C">Submit an appeal</h2>
+        <p style="margin:8px 0 22px;font-size:14px;color:#717a7e">Tell us what happened. The more detail you share, the faster we can resolve it.</p>
+
+        <label style="display:block;font-size:12px;font-weight:600;color:#4a5256;margin-bottom:8px">What is this about?</label>
+        <div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:20px">
+          <sc-for list="{{ reasons }}" as="r" hint-placeholder-count="5">
+            <button onClick="{{ r.set }}" style="cursor:pointer;font-family:inherit;font-size:13px;font-weight:600;padding:9px 15px;border-radius:999px;border:1px solid {{ r.border }};background:{{ r.bg }};color:{{ r.fg }}">{{ r.label }}</button>
+          </sc-for>
+        </div>
+
+        <div style="display:flex;gap:14px">
+          <div style="flex:1"><label style="display:block;font-size:12px;font-weight:600;color:#4a5256;margin-bottom:7px">Your name</label><input placeholder="Amara Okonkwo" style="width:100%;border:1px solid rgba(16,41,44,.16);border-radius:12px;padding:13px 15px;font-family:inherit;font-size:14.5px;color:#10292C;outline:none" style-focus="border-color:#237b22"/></div>
+          <div style="flex:1"><label style="display:block;font-size:12px;font-weight:600;color:#4a5256;margin-bottom:7px">Email</label><input value="{{ email }}" onInput="{{ onEmail }}" type="email" placeholder="you@email.com" style="width:100%;border:1px solid {{ emailBorder }};border-radius:12px;padding:13px 15px;font-family:inherit;font-size:14.5px;color:#10292C;outline:none" style-focus="border-color:#237b22"/></div>
+        </div>
+
+        <label style="display:block;font-size:12px;font-weight:600;color:#4a5256;margin:16px 0 7px">Profile or reference (optional)</label>
+        <input placeholder="e.g. africagates.org/vote/amara-okonkwo · or NOM-7F3K2" style="width:100%;border:1px solid rgba(16,41,44,.16);border-radius:12px;padding:13px 15px;font-family:inherit;font-size:14.5px;color:#10292C;outline:none" style-focus="border-color:#237b22"/>
+
+        <label style="display:block;font-size:12px;font-weight:600;color:#4a5256;margin:16px 0 7px">Describe the issue</label>
+        <textarea value="{{ detail }}" onInput="{{ onDetail }}" placeholder="What happened, and what outcome are you hoping for?" style="width:100%;min-height:120px;resize:vertical;border:1px solid rgba(16,41,44,.16);border-radius:12px;padding:13px 15px;font-family:inherit;font-size:14.5px;line-height:1.5;color:#10292C;outline:none" style-focus="border-color:#237b22"></textarea>
+
+        <div style="margin-top:14px;display:flex;align-items:center;gap:11px;border:1px dashed rgba(16,41,44,.2);border-radius:12px;padding:14px 16px;color:#717a7e">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#92a6a7" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21.4 11.6 12 21a5 5 0 0 1-7-7l9-9a3.5 3.5 0 0 1 5 5l-9 9a2 2 0 0 1-3-3l8-8"/></svg>
+          <span style="font-size:13px">Attach evidence — screenshots, documents (optional)</span>
+        </div>
+
+        <button onClick="{{ submit }}" style="width:100%;margin-top:20px;cursor:pointer;border:none;background:{{ ctaBg }};color:#fff;font-family:inherit;font-weight:600;font-size:15px;padding:15px;border-radius:999px;opacity:{{ ctaOp }}">Submit appeal</button>
+        <p style="margin:14px 0 0;font-size:11.5px;line-height:1.55;color:#92a6a7;text-align:center">We respond to <strong style="color:#4a5256">{{ emailEcho }}</strong>. Appeals are confidential and handled under our integrity policy.</p>
+      </div>
+      </sc-if>
+
+      <sc-if value="{{ showProcessing }}" hint-placeholder-val="{{ false }}">
+      <div style="padding:60px 30px;text-align:center"><div style="width:48px;height:48px;margin:0 auto;border-radius:50%;border:4px solid #e8ece9;border-top-color:#237b22;animation:spSpin .8s linear infinite"></div><p style="margin:20px 0 0;font-size:14.5px;font-weight:600;color:#10292C">Filing your appeal…</p></div>
+      </sc-if>
+
+      <sc-if value="{{ showDone }}" hint-placeholder-val="{{ false }}">
+      <div style="padding:34px 30px;text-align:center;animation:spUp .3s ease both">
+        <div style="width:66px;height:66px;margin:0 auto;border-radius:50%;background:#effaf0;display:flex;align-items:center;justify-content:center"><svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#237b22" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></div>
+        <h2 style="margin:16px 0 0;font-family:'Playfair Display',serif;font-weight:700;font-size:24px;color:#10292C">Appeal received</h2>
+        <p style="margin:10px 0 0;font-size:14.5px;line-height:1.55;color:#4a5256">We've logged your case and emailed a confirmation. A reviewer will respond within one business day.</p>
+        <div style="margin:20px auto 0;max-width:280px;background:#f4f7f4;border-radius:14px;padding:16px;display:flex;align-items:center;justify-content:space-between"><span style="font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:#92a6a7">Case ID</span><span style="font-family:'JetBrains Mono',monospace;font-weight:700;font-size:15px;color:#10292C">APL-26-3F9K</span></div>
+        <button onClick="{{ reset }}" style="margin-top:20px;cursor:pointer;border:1px solid rgba(16,41,44,.14);background:#fff;color:#10292C;font-family:inherit;font-weight:600;font-size:14px;padding:12px 24px;border-radius:999px">Submit another</button>
+      </div>
+      </sc-if>
+    </div>
+
+    <!-- sidebar -->
+    <div style="display:flex;flex-direction:column;gap:18px;position:sticky;top:88px">
+      <div style="background:#10292C;border-radius:20px;padding:24px;position:relative;overflow:hidden">
+        <div style="position:absolute;right:-40px;top:-40px;width:150px;height:150px;border-radius:50%;background:radial-gradient(circle,rgba(127,200,124,.2),transparent 68%)"></div>
+        <h3 style="margin:0;font-family:'Playfair Display',serif;font-weight:700;font-size:18px;color:#fff;position:relative">Talk to a human</h3>
+        <p style="margin:9px 0 0;font-size:13.5px;line-height:1.55;color:rgba(255,255,255,.78);position:relative">Prefer to chat? Reach the team directly.</p>
+        <div style="display:flex;flex-direction:column;gap:9px;margin-top:16px;position:relative">
+          <a href="mailto:support@africagates.org" style="text-decoration:none;display:flex;align-items:center;gap:10px;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.14);border-radius:12px;padding:12px 14px;color:#fff;font-size:13.5px;font-weight:500"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#7FC87C" stroke-width="1.9"><rect x="2" y="4" width="20" height="16" rx="3"/><path d="m3 6 9 7 9-7"/></svg>support@africagates.org</a>
+          <a href="#" style="text-decoration:none;display:flex;align-items:center;gap:10px;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.14);border-radius:12px;padding:12px 14px;color:#fff;font-size:13.5px;font-weight:500"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#7FC87C" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.4 8.4 0 0 1-9 8.4 9 9 0 0 1-3.9-.9L3 20l1.1-3.5A8.4 8.4 0 1 1 21 11.5Z"/></svg>Start live chat</a>
+        </div>
+      </div>
+
+      <div style="background:#fff;border:1px solid rgba(16,41,44,.08);border-radius:20px;padding:22px">
+        <h3 style="margin:0 0 12px;font-size:12px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:#92a6a7">Before you appeal</h3>
+        <div style="display:flex;flex-direction:column;gap:13px">
+          <a href="#" style="text-decoration:none;display:flex;align-items:center;gap:10px;color:#10292C" style-hover="color:#237b22"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#237b22" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M9.5 9a2.5 2.5 0 0 1 5 .3c0 1.7-2.5 2-2.5 3.7M12 17h.01"/></svg><span style="font-size:13.5px;font-weight:500">How the CPI is scored</span></a>
+          <a href="#" style="text-decoration:none;display:flex;align-items:center;gap:10px;color:#10292C" style-hover="color:#237b22"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#237b22" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg><span style="font-size:13.5px;font-weight:500">Search the Help Center</span></a>
+          <a href="#" style="text-decoration:none;display:flex;align-items:center;gap:10px;color:#10292C" style-hover="color:#237b22"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#237b22" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2 4 5v6c0 5 3.4 9.7 8 11 4.6-1.3 8-6 8-11V5l-8-3Z"/></svg><span style="font-size:13.5px;font-weight:500">Integrity &amp; voting rules</span></a>
+        </div>
+      </div>
+
+      <div style="background:#f4f7f4;border:1px solid #d6e8d3;border-radius:16px;padding:18px;display:flex;align-items:center;gap:12px">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#1a6118" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
+        <div><div style="font-size:13px;font-weight:600;color:#10292C">Avg. first response</div><div style="font-size:12.5px;color:#1a6118">under 1 business day</div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ░░░ PROFESSIONAL FOOTER ░░░ -->
+  <footer style="background:#0c2225">
+    <div style="max-width:1080px;margin:0 auto;padding:52px 32px 30px;display:grid;grid-template-columns:1.6fr 1fr 1fr 1fr;gap:40px">
+      <div>
+        <div style="display:flex;align-items:center;gap:11px;margin-bottom:16px"><span style="width:34px;height:34px;border-radius:10px;background:rgba(127,200,124,.16);display:flex;align-items:center;justify-content:center;font-family:'Playfair Display',serif;font-weight:700;font-size:18px;color:#7FC87C">G</span><span style="display:flex;flex-direction:column;line-height:1"><span style="font-family:'Playfair Display',serif;font-weight:700;font-size:16px;color:#fff">Africa</span><span style="font-size:9px;font-weight:700;letter-spacing:.26em;color:#7FC87C">GATES</span></span></div>
+        <p style="margin:0 0 18px;font-size:13.5px;line-height:1.65;color:rgba(255,255,255,.6);max-width:280px">The continental Cultural Power Index. An Afrovanguard initiative — live in Nigeria, building toward 54 nations.</p>
+        <div style="display:flex;gap:9px">
+          <a href="#" aria-label="X" style="width:36px;height:36px;border-radius:50%;border:1px solid rgba(255,255,255,.16);display:flex;align-items:center;justify-content:center;color:rgba(255,255,255,.8);text-decoration:none" style-hover="background:#fff;color:#10292C"><svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><path d="M18.24 2.25h3.31l-7.23 8.26L22.5 21.75h-6.34l-4.97-6.5-5.68 6.5H2.2l7.73-8.84L1.5 2.25h6.5l4.49 5.94 5.75-5.94Z"/></svg></a>
+          <a href="#" aria-label="Instagram" style="width:36px;height:36px;border-radius:50%;border:1px solid rgba(255,255,255,.16);display:flex;align-items:center;justify-content:center;color:rgba(255,255,255,.8);text-decoration:none" style-hover="background:#fff;color:#10292C"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><rect x="3" y="3" width="18" height="18" rx="5"/><circle cx="12" cy="12" r="4"/><circle cx="17.5" cy="6.5" r="1" fill="currentColor" stroke="none"/></svg></a>
+          <a href="#" aria-label="LinkedIn" style="width:36px;height:36px;border-radius:50%;border:1px solid rgba(255,255,255,.16);display:flex;align-items:center;justify-content:center;color:rgba(255,255,255,.8);text-decoration:none" style-hover="background:#fff;color:#10292C"><svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><path d="M20.45 20.45h-3.55v-5.57c0-1.33-.02-3.04-1.85-3.04-1.86 0-2.14 1.45-2.14 2.94v5.67H9.36V9h3.41v1.56h.05c.48-.9 1.64-1.85 3.37-1.85 3.6 0 4.27 2.37 4.27 5.46v6.28zM5.34 7.43a2.06 2.06 0 1 1 0-4.12 2.06 2.06 0 0 1 0 4.12zM7.12 20.45H3.56V9h3.56v11.45z"/></svg></a>
+          <a href="#" aria-label="YouTube" style="width:36px;height:36px;border-radius:50%;border:1px solid rgba(255,255,255,.16);display:flex;align-items:center;justify-content:center;color:rgba(255,255,255,.8);text-decoration:none" style-hover="background:#fff;color:#10292C"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M23 12s0-3.4-.43-5.03a2.6 2.6 0 0 0-1.83-1.84C19.1 4.7 12 4.7 12 4.7s-7.1 0-8.74.43a2.6 2.6 0 0 0-1.83 1.84C1 8.6 1 12 1 12s0 3.4.43 5.03a2.6 2.6 0 0 0 1.83 1.84C4.9 19.3 12 19.3 12 19.3s7.1 0 8.74-.43a2.6 2.6 0 0 0 1.83-1.84C23 15.4 23 12 23 12ZM9.75 15.02V8.98L15 12l-5.25 3.02Z"/></svg></a>
+        </div>
+      </div>
+      <div>
+        <p style="margin:0 0 14px;font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:#7FC87C">Participate</p>
+        <div style="display:flex;flex-direction:column;gap:11px">
+          <a href="#" style="text-decoration:none;font-size:13.5px;color:rgba(255,255,255,.7)" style-hover="color:#fff">Nominate</a>
+          <a href="#" style="text-decoration:none;font-size:13.5px;color:rgba(255,255,255,.7)" style-hover="color:#fff">Vote</a>
+          <a href="#" style="text-decoration:none;font-size:13.5px;color:rgba(255,255,255,.7)" style-hover="color:#fff">Register</a>
+          <a href="#" style="text-decoration:none;font-size:13.5px;color:rgba(255,255,255,.7)" style-hover="color:#fff">Awards Gala</a>
+          <a href="#" style="text-decoration:none;font-size:13.5px;color:rgba(255,255,255,.7)" style-hover="color:#fff">Donate</a>
+        </div>
+      </div>
+      <div>
+        <p style="margin:0 0 14px;font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:#7FC87C">Explore</p>
+        <div style="display:flex;flex-direction:column;gap:11px">
+          <a href="#" style="text-decoration:none;font-size:13.5px;color:rgba(255,255,255,.7)" style-hover="color:#fff">Leaderboard</a>
+          <a href="#" style="text-decoration:none;font-size:13.5px;color:rgba(255,255,255,.7)" style-hover="color:#fff">Registry</a>
+          <a href="#" style="text-decoration:none;font-size:13.5px;color:rgba(255,255,255,.7)" style-hover="color:#fff">Pulse</a>
+          <a href="#" style="text-decoration:none;font-size:13.5px;color:rgba(255,255,255,.7)" style-hover="color:#fff">How it works</a>
+          <a href="#" style="text-decoration:none;font-size:13.5px;color:rgba(255,255,255,.7)" style-hover="color:#fff">Status</a>
+        </div>
+      </div>
+      <div>
+        <p style="margin:0 0 14px;font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:#7FC87C">Company</p>
+        <div style="display:flex;flex-direction:column;gap:11px">
+          <a href="#" style="text-decoration:none;font-size:13.5px;color:rgba(255,255,255,.7)" style-hover="color:#fff">About Afrovanguard</a>
+          <a href="#" style="text-decoration:none;font-size:13.5px;color:rgba(255,255,255,.7)" style-hover="color:#fff">Help Center</a>
+          <a href="#" style="text-decoration:none;font-size:13.5px;color:#fff;font-weight:600">Support &amp; appeals</a>
+          <a href="#" style="text-decoration:none;font-size:13.5px;color:rgba(255,255,255,.7)" style-hover="color:#fff">Contact</a>
+        </div>
+      </div>
+    </div>
+    <div style="max-width:1080px;margin:0 auto;padding:20px 32px 40px;border-top:1px solid rgba(255,255,255,.1);display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap">
+      <span style="font-size:12.5px;color:rgba(255,255,255,.5)">© 2026 Africa GATES · An Afrovanguard initiative · RC 1234567 · Lagos, Nigeria</span>
+      <div style="display:flex;align-items:center;gap:18px">
+        <a href="#" style="text-decoration:none;font-size:12.5px;color:rgba(255,255,255,.6)" style-hover="color:#fff">Privacy</a>
+        <a href="#" style="text-decoration:none;font-size:12.5px;color:rgba(255,255,255,.6)" style-hover="color:#fff">Terms</a>
+        <a href="#" style="text-decoration:none;font-size:12.5px;color:rgba(255,255,255,.6)" style-hover="color:#fff">Integrity Center</a>
+      </div>
+    </div>
+  </footer>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:1080,&quot;height&quot;:900}}">
+class Component extends DCLogic {
+  state = { reason:'Dispute a result', step:'form', email:'', detail:'' };
+  renderVals(){
+    const s = this.state;
+    const sel = (r) => () => { this.setState({reason:r}); };
+    const RSET = ['Dispute a result','Report a profile','Recover access','Payment or ticket issue','Something else'];
+    const reasons = RSET.map(r=>{ const on=s.reason===r; return { label:r, set:()=>this.setState({reason:r}), bg:on?'#10292C':'#fff', fg:on?'#fff':'#4a5256', border:on?'#10292C':'rgba(16,41,44,.14)' }; });
+    const validEmail = /.+@.+\..+/.test(s.email);
+    const canSubmit = validEmail && s.detail.trim().length>3;
+    return {
+      reasons,
+      pickDispute: sel('Dispute a result'), pickReport: sel('Report a profile'), pickAccess: sel('Recover access'),
+      borderDispute: s.reason==='Dispute a result'?'#237b22':'rgba(16,41,44,.08)',
+      borderReport: s.reason==='Report a profile'?'#237b22':'rgba(16,41,44,.08)',
+      borderAccess: s.reason==='Recover access'?'#237b22':'rgba(16,41,44,.08)',
+      showForm: s.step==='form', showProcessing: s.step==='processing', showDone: s.step==='done',
+      email:s.email, onEmail:(e)=>this.setState({email:e.target.value}), emailBorder: validEmail||!s.email?'rgba(16,41,44,.16)':'#c0392b',
+      emailEcho: s.email || 'your email',
+      detail:s.detail, onDetail:(e)=>this.setState({detail:e.target.value}),
+      ctaBg: canSubmit?'#237b22':'#9aa6a8', ctaOp: canSubmit?1:0.75,
+      submit:()=>{ if(canSubmit){ this.setState({step:'processing'}); clearTimeout(this._t); this._t=setTimeout(()=>this.setState({step:'done'}),1500);} },
+      reset:()=>this.setState({step:'form', detail:''})
+    };
+  }
+}
+</script>
+</body>
+</html>

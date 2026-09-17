@@ -1,59 +1,39 @@
 {% extends "admin/layout.twig" %}
 {% block topbar_eyebrow %}<small>Nominations</small>{% endblock %}
 {% block topbar_title %}Review · {{ nom.nominee_name }}{% endblock %}
-{% block topbar_actions %}<a class="ad-btn" href="/admin/nominations">← Back</a>{% endblock %}
+{% block topbar_actions %}
+  {% if nom.status == 'pending' %}<a class="ad-btn ad-btn--primary" href="/admin/nominations/review">▶ Open review desk</a>{% endif %}
+  <a class="ad-btn" href="/admin/nominations">← Back</a>
+{% endblock %}
 
 {% block content %}
-<div class="ad-grid-2">
+{% include 'admin/nominations/_review_body.twig' with {
+  nom: nom, categories: categories, eligibility: eligibility,
+  duplicates: duplicates, insight: insight, spa: false
+} %}
 
-  <div>
-    <div class="ad-card">
-      <div class="ad-card__head"><div class="ad-card__title">Submission</div></div>
-      <div class="ad-card__body">
-        <div style="display:grid;grid-template-columns:auto 1fr;gap:14px 18px;font-size:14px">
-          <span style="color:var(--ad-text-soft)">Programme</span><span>{{ nom.icon_emoji }} {{ nom.programme_title }} · {{ nom.year }}</span>
-          <span style="color:var(--ad-text-soft)">Nominee</span><strong>{{ nom.nominee_name }}</strong>
-          <span style="color:var(--ad-text-soft)">Country</span><span>{{ nom.country_code }}</span>
-          <span style="color:var(--ad-text-soft)">Nominee email</span><span>{{ nom.nominee_email|default('—') }}</span>
-          <span style="color:var(--ad-text-soft)">Submitted by</span><span>{{ nom.nominator_name }} · {{ nom.nominator_email }}</span>
-          <span style="color:var(--ad-text-soft)">Submitted</span><span style="font-family:'Space Mono',monospace;font-size:12.5px">{{ nom.created_at|slice(0,16) }}</span>
-        </div>
-        <hr style="margin:18px 0;border:none;border-top:1px solid var(--ad-line-soft)">
-        <h4 style="font-size:11.5px;text-transform:uppercase;letter-spacing:0.12em;color:var(--ad-text-soft);margin-bottom:10px">Reason for nomination</h4>
-        <p style="font-size:14.5px;line-height:1.7;color:var(--ad-text);white-space:pre-wrap">{{ nom.reason }}</p>
-      </div>
-    </div>
-  </div>
-
-  <div>
-    <div class="ad-card">
-      <div class="ad-card__head"><div class="ad-card__title">Approve · pick a category</div></div>
-      <div class="ad-card__body">
-        {% if flash_error %}<div class="ad-flash ad-flash--err">{{ flash_error }}</div>{% endif %}
-        {% if categories|length == 0 %}
-          <p style="color:var(--ad-text-soft)">This cycle has no categories yet. <a style="color:var(--ad-primary)" href="/admin/programmes">Add some first →</a></p>
-        {% else %}
-        <form method="post" action="/admin/nominations/{{ nom.id }}/approve" class="ad-form">
-          <input type="hidden" name="_token" value="{{ csrf_token }}">
-          <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:18px">
-            {% for c in categories %}
-              <label style="display:flex;gap:10px;align-items:flex-start;padding:12px 14px;background:var(--ad-bg);border:1.5px solid var(--ad-line);border-radius:10px;cursor:pointer;transition:all .15s ease" onmouseenter="this.style.borderColor='var(--ad-primary)'" onmouseleave="this.style.borderColor='var(--ad-line)'">
-                <input type="radio" name="category_id" value="{{ c.id }}" {% if loop.first %}checked{% endif %} style="margin-top:3px">
-                <span><strong>{{ c.title }}</strong><br><span style="font-size:12.5px;color:var(--ad-text-soft)">{{ c.description|slice(0,140) }}{% if c.description|length > 140 %}…{% endif %}</span></span>
-              </label>
-            {% endfor %}
-          </div>
-          <button type="submit" class="ad-btn ad-btn--primary" style="width:100%;justify-content:center">Approve → create nominee in this category</button>
-        </form>
-        {% endif %}
-      </div>
-    </div>
-
-    <form method="post" action="/admin/nominations/{{ nom.id }}/reject" style="margin-top:14px">
-      <input type="hidden" name="_token" value="{{ csrf_token }}">
-      <button type="submit" class="ad-btn ad-btn--danger" style="width:100%;justify-content:center" data-confirm="Reject this nomination?">Reject nomination</button>
-    </form>
-  </div>
-
-</div>
+<script nonce="{{ csp_nonce }}">
+/* AI "Suggest with AI" for decision notes — fills the textarea; hides the
+   button if no AI provider is configured (503). Single-page only; the SPA desk
+   has its own delegated handler. */
+document.addEventListener('click', function (e) {
+  var b = e.target.closest('[data-suggest]');
+  if (!b) return;
+  e.preventDefault();
+  var ta = document.getElementById(b.getAttribute('data-target'));
+  if (!ta) return;
+  var nom = b.getAttribute('data-nom');
+  var orig = b.textContent; b.disabled = true; b.textContent = '✦ Thinking…';
+  fetch('/admin/nominations/' + nom + '/suggest-reason', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'X-CSRF-Token': '{{ csrf_token }}' },
+    body: 'decision=' + encodeURIComponent(b.getAttribute('data-suggest'))
+  }).then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); })
+    .then(function (res) {
+      if (res.ok && res.j.reason) { ta.value = res.j.reason; ta.focus(); b.textContent = orig; b.disabled = false; }
+      else if (res.j && res.j.error && String(res.j.error).indexOf('No AI') === 0) { b.style.display = 'none'; }
+      else { b.textContent = orig; b.disabled = false; }
+    }).catch(function () { b.textContent = orig; b.disabled = false; });
+});
+</script>
 {% endblock %}

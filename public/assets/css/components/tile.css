@@ -1,0 +1,84 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   THE TILE — the one device that carries colour on this platform
+   ═══════════════════════════════════════════════════════════════════════════
+
+   An emoji pops for three reasons at once: it is fully saturated, it is small,
+   and it is BOUNDED. Saturation without a boundary is a wash. A boundary
+   without saturation is a card. You need both, at small size, rarely.
+
+   Four parts, all four required:
+
+     --tile-wash   the bounded ground, holding house ink above 12:1
+     --tile-edge   a 1px hard boundary — what makes it an object, not a tint
+     --tile-fill   the saturated mark, 14-20px, rounded 4-5px
+     --tile-ink    the word, above 4.5:1 — saying what the colour says
+
+   Remove any one and it stops being a tile: no edge and it is a wash, no fill
+   and it is a card, no ink and it is decoration, no wash and it is a floating
+   chip.
+
+   The values arrive inline from Accent::tileStyle('<meaning>'), never from a
+   literal here, so a tile cannot be built out of a hue somebody liked.
+
+   ── COVER THE TILE WITH YOUR THUMB AND THE CARD MUST STILL READ ───────────
+
+   It is an accelerator, never a carrier. That is also why the mark is
+   aria-hidden and the word is not: a screen reader gets the sentence, and the
+   colour adds nothing it needs.
+
+   ── NO LIP ────────────────────────────────────────────────────────────────
+
+   A tile is not pressed, so it has no depth. Depth that cannot be pressed is
+   decoration. See components/lip.css.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.ag-tile {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 11px 7px 8px;
+  border-radius: 8px;
+  background: var(--tile-wash);
+  border: 1px solid var(--tile-edge);
+  color: var(--tile-ink);
+  font-family: var(--ag-font-mono, ui-monospace, monospace);
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.3;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+  /* A long label wraps rather than pushing the card wide. */
+  max-width: 100%;
+}
+
+/* The saturated mark. Square-ish and rounded, not a circle: a dot reads as a
+   status light, and most tiles are not statuses. */
+.ag-tile__mark {
+  flex: none;
+  width: 16px;
+  height: 16px;
+  border-radius: 4px;
+  background: var(--tile-fill);
+}
+
+/* `live` is the one role whose ink cannot sit on its own wash (4.44), so its
+   label is house ink and the MARK carries the hue — and a live mark is the one
+   that is allowed to be a circle, because here it genuinely is a status light. */
+.ag-tile--live .ag-tile__mark {
+  border-radius: 50%;
+  width: 10px;
+  height: 10px;
+}
+
+/* The only motion any role is allowed, and only this: opacity, on the dot, and
+   never scale or colour. */
+@media (prefers-reduced-motion: no-preference) {
+  .ag-tile--live .ag-tile__mark { animation: ag-tile-pulse 2s ease-in-out infinite; }
+}
+@keyframes ag-tile-pulse { 0%, 100% { opacity: 1; } 50% { opacity: .45; } }
+
+/* A tile on a larger surface — the hall's band, an edition's honour band. Same
+   four parts; the mark and the word grow together so the proportion holds. */
+.ag-tile--lg { padding: 9px 14px 9px 10px; font-size: 12px; gap: 10px; }
+.ag-tile--lg .ag-tile__mark { width: 20px; height: 20px; border-radius: 5px; }
+.ag-tile--lg.ag-tile--live .ag-tile__mark { width: 12px; height: 12px; }

@@ -6,14 +6,9 @@
  * CHECK on vote_type is omitted here (kept in the fresh schema) — SQLite's
  * ADD COLUMN can't always attach it post-hoc; the app writes only known values.
  */
-require __DIR__ . '/../../vendor/autoload.php';
-Dotenv\Dotenv::createImmutable(__DIR__ . '/../../')->safeLoad();
+require __DIR__ . '/../bootstrap.php';
 use Illuminate\Database\Capsule\Manager as DB;
-
-$c = new DB();
-$c->addConnection(require __DIR__ . '/../../config/database.php');
-$c->setAsGlobal();
-$c->bootEloquent();
+use AfricaGates\Support\SchemaIndex;
 
 $schema = DB::schema();
 
@@ -31,7 +26,8 @@ foreach ($cols as $col => $ddl) {
     }
 }
 
-try { DB::statement('CREATE INDEX IF NOT EXISTS idx_votes_donation ON gates_votes(donation_id)'); echo "  = idx_votes_donation ensured\n"; }
-catch (\Throwable $e) { echo "  ! index skipped: " . $e->getMessage() . "\n"; }
+// Was CREATE INDEX IF NOT EXISTS. Unlike the others this index is NOT declared in
+// schema.sql, so it was missing on every MySQL install, fresh ones included.
+echo SchemaIndex::ensure('gates_votes', 'idx_votes_donation', ['donation_id']) . "\n";
 
 echo "vote weighting OK\n";

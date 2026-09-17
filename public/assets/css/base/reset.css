@@ -1,0 +1,30 @@
+/* ════════════════════════════════════════════════════════════════
+   Africa GATES — Base reset (modular system, loads after tokens.css)
+   Minimal, modern, accessibility-aware. Scoped impact only.
+   ════════════════════════════════════════════════════════════════ */
+*,*::before,*::after{ box-sizing:border-box; }
+/* Sitewide horizontal-overflow guard — decorative bleed (hero glows, orbs,
+   marquees) and full-bleed sections must never trigger horizontal page scroll on
+   narrow screens. `clip` (not `hidden`) so it never creates a scroll container that
+   would break position:sticky; inner overflow-x:auto regions still scroll normally. */
+html{ overflow-x:clip; }
+body{ overflow-x:clip; }
+.ag-scope img,.ag-scope svg,.ag-scope video{ display:block; max-width:100%; }
+/* Responsive media everywhere — images scale to their container instead of forcing
+   page width (works with the overflow-x guard above). */
+img{ max-width:100%; height:auto; }
+.ag-btn-reset{ font:inherit; color:inherit; background:none; border:0; padding:0; margin:0; cursor:pointer; }
+:where(.ag-scope) :focus-visible{ outline:2px solid var(--ag-green,#237b22); outline-offset:2px; border-radius:3px; }
+/* Sitewide keyboard focus ring — visible on every interactive control, scoped or not.
+   Component rules with higher specificity still override where they define their own. */
+a:focus-visible,button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible,
+summary:focus-visible,[tabindex]:focus-visible,[role="button"]:focus-visible,[role="tab"]:focus-visible{
+  outline:2px solid var(--ag-green,#237b22); outline-offset:2px; border-radius:4px;
+}
+/* Never suppress the keyboard focus ring, even if a component cleared :focus outline. */
+:focus-visible{ outline-color:var(--ag-green,#237b22); }
+/* Reduced-motion applies to the whole document, not just the .ag-scope chrome:
+   page content under <main> (vote cards, nominee rises, etc.) must honour it too. */
+@media (prefers-reduced-motion: reduce){
+  *,*::before,*::after{ animation-duration:.001ms!important; animation-iteration-count:1!important; transition-duration:.001ms!important; scroll-behavior:auto!important; }
+}

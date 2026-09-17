@@ -1,0 +1,106 @@
+{# ═══════════════════════════════════════════════════════════════
+   Africa GATES — "We are Africa" band (globe)
+   Sits directly after the hero on the homepage. Light band, dashed
+   background guides, centred globe, dashed annotation card at its right,
+   and the stat card overlapping the sphere's lower edge.
+
+   Requires (see docs/GLOBE-BAND.md):
+     <link rel="stylesheet" href="/assets/css/globe-band.css">
+     <script src="/assets/js/vendor/d3-7.9.0.min.js"></script>
+     <script src="/assets/js/vendor/topojson-client-3.1.0.min.js"></script>
+     <script src="/assets/js/globe-band.js" defer></script>
+
+   ── EVERY FIGURE ON IT IS COUNTED, NONE IS TYPED ────────────────────────
+
+   The handoff drew this band over sixteen invented cities — Lagos on 41,280
+   ballots verified in 1.1 seconds, arcs between "verification nodes", and an
+   annotation stating a median latency as a measured fact. This platform has no
+   such nodes and records no per-ballot timing; there has never been a column
+   for either. `GlobeBand` supplies the markers instead, from the same joins the
+   footer's "live in …" sentence uses, so the globe and that sentence cannot
+   disagree about which nations are live.
+
+   `globe_countries` is therefore NOT optional-with-a-pretty-fallback. Absent,
+   the sphere draws with no markers — which is what a site with no approved
+   nominee actually looks like, and what the annotation then says.
+   ═══════════════════════════════════════════════════════════════ #}
+<section class="reg" id="agGlobeBand">
+  <div class="reg__guides" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
+
+  <div class="hw reg__in">
+    <div class="reg__hd">
+      <h2 class="reg__h">{{ globe_heading|default('We are Africa') }}</h2>
+      <p class="reg__sub">One verified index for the continent — <span class="reg__sub-em">close to voters, close to the record.</span></p>
+    </div>
+
+    <div class="reg__body">
+      <div class="reg__stage" id="agGlobeStage"
+           data-countries="{{ (globe_countries|default([]))|json_encode|e('html_attr') }}"
+           data-topojson="{{ globe_topojson|default('/assets/geo/countries-110m.json') }}">
+        <canvas id="agGlobe"></canvas>
+        <div class="reg__layer" id="agGlobeNodes"></div>
+
+        {#
+          TWO ROWS, NOT THREE. The design's other two were "Verification node"
+          — a named city that routes a ballot — and "Median verification", a
+          time in seconds. This platform has never had a column for either. A
+          row whose value can only be an em dash is worse than an absent row:
+          it reads as data that failed to load.
+
+          `GlobeBandTest` sweeps this file for that retired wording, and strips
+          Twig comments before it does, so this block may name what it removed.
+        #}
+        <div class="ccard" id="agGlobeCard" role="dialog" aria-label="Country detail">
+          <div class="ccard__hd">
+            <div>
+              <p class="ccard__nm" data-globe-name>&mdash;</p>
+              <p class="ccard__rg" data-globe-code>&mdash;</p>
+            </div>
+            <button class="ccard__x" type="button" data-globe-close aria-label="Close">✕</button>
+          </div>
+          <div class="ccard__rows">
+            <div class="crow"><span>Nominees standing</span><b data-globe-nominees>&mdash;</b></div>
+            <div class="crow"><span>Votes cast</span><b data-globe-votes>&mdash;</b></div>
+          </div>
+          {# Shown instead of the rows for a nation with nothing in a live award —
+             stated, because a card of two zeros looks like a fault. #}
+          <p class="ccard__none" data-globe-none hidden>No nominee is standing here in a live award yet.</p>
+        </div>
+      </div>
+
+      <aside class="reg__note">{{ globe_note|default('Each marker is a nation with a nominee standing in a live award.') }}</aside>
+    </div>
+
+    {#
+      ── THE FOUR FIGURES ────────────────────────────────────────────────
+
+      This card is the homepage's ONE stat strip. `home.twig` carried a second
+      one immediately above the band with the same four cells; the handoff's
+      page inventory says delete one, and the duplicate is the one without a
+      globe attached to it. Its live/constant logic is kept here whole, because
+      that logic is the honest part: real counts once there is activity, and the
+      platform's structural constants before that — never a strip of dead zeros.
+
+      Three of the constants are RULES, not literals. `community_pct`/`judge_pct`
+      come from `RuleEngine::weights()` and the criteria count from the active
+      rubric; CLAUDE.md is explicit that the split "is set per cycle rather than
+      fixed forever", and this repo has already shipped four published promises
+      that outlived the rule they described, on pages stating a weighting as a
+      constant. `0–1,000` stays literal: the index range is structural.
+    #}
+    {% set _activity = site_stats.total_profiles|default(0) + site_stats.total_votes|default(0) %}
+    <div class="reg__cols">
+      {% if _activity > 0 %}
+        <div class="reg__col"><div class="reg__n" data-countup="{{ site_stats.total_profiles|default(0) }}">{{ site_stats.total_profiles|default(0)|number_format }}</div><div class="reg__l">Verified profiles</div></div>
+        <div class="reg__col"><div class="reg__n" data-countup="{{ site_stats.total_votes|default(0) }}">{{ site_stats.total_votes|default(0)|number_format }}</div><div class="reg__l">Votes cast</div></div>
+        <div class="reg__col"><div class="reg__n" data-countup="{{ site_stats.nations_live|default(0) }}">{{ site_stats.nations_live|default(0)|number_format }}</div><div class="reg__l">Nation{{ site_stats.nations_live|default(0) == 1 ? '' : 's' }} live</div></div>
+        <div class="reg__col"><div class="reg__n" data-countup="{{ site_stats.categories|default(0) }}">{{ site_stats.categories|default(0)|number_format }}</div><div class="reg__l">Award categories</div></div>
+      {% else %}
+        <div class="reg__col"><div class="reg__n" data-countup="{{ nations_count|default(54) }}">{{ nations_count|default(54) }}</div><div class="reg__l">Nations in scope</div></div>
+        <div class="reg__col"><div class="reg__n">0–1,000</div><div class="reg__l">CPI score scale</div></div>
+        <div class="reg__col"><div class="reg__n">{{ community_pct|default(45) }}<small>%</small> + {{ judge_pct|default(55) }}<small>%</small></div><div class="reg__l">Public votes + jury</div></div>
+        <div class="reg__col"><div class="reg__n" data-countup="{{ jury_criteria|default(4) }}">{{ jury_criteria|default(4) }}</div><div class="reg__l">Jury criteri{{ jury_criteria|default(4) == 1 ? 'on' : 'a' }}</div></div>
+      {% endif %}
+    </div>
+  </div>
+</section>

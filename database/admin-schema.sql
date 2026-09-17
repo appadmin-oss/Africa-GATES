@@ -9,7 +9,7 @@ CREATE TABLE IF NOT EXISTS gates_admins (
   email VARCHAR(191) NOT NULL,
   password_hash VARCHAR(255) DEFAULT NULL,
   name VARCHAR(200) NOT NULL,
-  role ENUM('superadmin','admin','editor','judge','viewer') NOT NULL DEFAULT 'editor',
+  role ENUM('superadmin','admin','editor','moderator','judge','viewer') NOT NULL DEFAULT 'editor',
   avatar_path VARCHAR(400) DEFAULT NULL,
   is_active TINYINT(1) NOT NULL DEFAULT 1,
   last_login_at TIMESTAMP NULL DEFAULT NULL,
@@ -53,6 +53,10 @@ CREATE TABLE IF NOT EXISTS gates_audit_log (
   KEY idx_audit_admin (admin_id),
   KEY idx_audit_action (action),
   KEY idx_audit_created (created_at),
+  -- The per-record trail: WHERE target_type = ? AND target_id = ?. Composite and in
+  -- this order, so it also serves the type-only filter and the GROUP BY that builds
+  -- the filter list. See 2026_12_02_audit_target_index.php.
+  KEY idx_audit_target (target_type, target_id),
   CONSTRAINT fk_audit_admin FOREIGN KEY (admin_id) REFERENCES gates_admins(id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
@@ -75,22 +79,9 @@ CREATE TABLE IF NOT EXISTS gates_judges (
   CONSTRAINT fk_judge_admin FOREIGN KEY (admin_id) REFERENCES gates_admins(id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
-CREATE TABLE IF NOT EXISTS gates_judge_scores (
-  id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
-  judge_id BIGINT UNSIGNED NOT NULL,
-  nominee_id BIGINT UNSIGNED NOT NULL,
-  category_id BIGINT UNSIGNED NOT NULL,
-  score TINYINT NOT NULL,
-  notes TEXT,
-  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  PRIMARY KEY (id),
-  UNIQUE KEY uq_jscore (judge_id, nominee_id),
-  KEY idx_jscore_judge (judge_id),
-  KEY idx_jscore_nominee (nominee_id),
-  CONSTRAINT fk_jscore_judge    FOREIGN KEY (judge_id)    REFERENCES gates_judges(id)           ON DELETE CASCADE,
-  CONSTRAINT fk_jscore_nominee  FOREIGN KEY (nominee_id)  REFERENCES gates_nominees(id)         ON DELETE CASCADE,
-  CONSTRAINT fk_jscore_category FOREIGN KEY (category_id) REFERENCES gates_award_categories(id) ON DELETE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+-- (Removed) gates_judge_scores — the legacy single-score table is dead (zero code
+-- references; scoring uses gates_judge_criteria_scores). Kept out of fresh installs
+-- to match the SQLite schema, which already omits it.
 
 CREATE TABLE IF NOT EXISTS gates_settings (
   key_name VARCHAR(100) NOT NULL,
@@ -113,9 +104,70 @@ CREATE TABLE IF NOT EXISTS gates_uploads (
   alt VARCHAR(250) DEFAULT NULL,
   attached_to_type VARCHAR(50) DEFAULT NULL,
   attached_to_id BIGINT UNSIGNED DEFAULT NULL,
+  -- Where the bytes actually live. `path` holds whichever URL is serveable (a
+  -- Cloudinary secure_url, or a local /uploads/... path), so these three exist to
+  -- answer the questions `path` alone cannot: which host owns it, what to call to
+  -- delete it, and where the original landed on disk.
+  provider ENUM('local','cloudinary') NOT NULL DEFAULT 'local',
+  public_id VARCHAR(255) DEFAULT NULL,
+  local_path VARCHAR(500) DEFAULT NULL,
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (id),
-  KEY idx_uploads_attached (attached_to_type, attached_to_id)
+  KEY idx_uploads_attached (attached_to_type, attached_to_id),
+  KEY idx_uploads_provider (provider),
+  KEY idx_uploads_public_id (public_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Ledger for the local → Cloudinary sweep (AfricaGates\Services\MediaMigrationService).
+--
+-- WHY A LEDGER AND NOT JUST THE REWRITTEN COLUMNS. The sweep rewrites image paths in
+-- eleven columns across nine tables. Without a record of what it did, three ordinary
+-- situations become unrecoverable: a batch interrupted halfway leaves no way to know
+-- which rows were done, a re-run cannot tell "already migrated" from "never had a
+-- photo", and an operator who needs to point the site back at local files has nothing
+-- to reverse. `source_path` is UNIQUE so the same local file is uploaded exactly once
+-- however many times the sweep is run across however many rows referenced it.
+CREATE TABLE IF NOT EXISTS gates_media_migrations (
+  id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  source_path VARCHAR(500) NOT NULL,
+  public_id VARCHAR(255) DEFAULT NULL,
+  remote_url VARCHAR(500) DEFAULT NULL,
+  target_table VARCHAR(64) DEFAULT NULL,
+  target_column VARCHAR(64) DEFAULT NULL,
+  target_id BIGINT UNSIGNED DEFAULT NULL,
+  status ENUM('migrated','missing','failed','skipped') NOT NULL DEFAULT 'migrated',
+  error VARCHAR(300) DEFAULT NULL,
+  bytes INT UNSIGNED DEFAULT NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  UNIQUE KEY uq_media_source (source_path),
+  KEY idx_media_status (status)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS gates_webhooks (
+  id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  url VARCHAR(500) NOT NULL,
+  secret VARCHAR(120) NOT NULL,
+  events TEXT NOT NULL,
+  description VARCHAR(200) DEFAULT NULL,
+  is_active TINYINT(1) NOT NULL DEFAULT 1,
+  last_status INT DEFAULT NULL,
+  last_event_at TIMESTAMP NULL DEFAULT NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  KEY idx_webhook_active (is_active)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS gates_webhook_deliveries (
+  id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  webhook_id BIGINT UNSIGNED NOT NULL,
+  event VARCHAR(60) NOT NULL,
+  status_code INT DEFAULT NULL,
+  ok TINYINT(1) NOT NULL DEFAULT 0,
+  error VARCHAR(300) DEFAULT NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  KEY idx_delivery_hook (webhook_id, created_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 SET FOREIGN_KEY_CHECKS = 1;
