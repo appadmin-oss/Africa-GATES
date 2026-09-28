@@ -320,7 +320,10 @@ body[data-page-admin] {
 }
 
 /* Tables */
-.ad-table-wrap { overflow-x: auto; }
+/* position:relative makes the wrapper the containing block for the .sr-only labels
+   inside cells. Without it those absolutely-positioned spans escaped the scroll box
+   and widened the whole page on phones (/admin/nominees scrolled to 691px). */
+.ad-table-wrap { overflow-x: auto; position: relative; }
 .ad-table { width: 100%; border-collapse: collapse; font-size: 14px; }
 .ad-table th, .ad-table td {
   text-align: left; padding: 12px 16px;

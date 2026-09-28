@@ -622,6 +622,31 @@
   // first-visit gentle attention pulse (once per session)
   try { if (!sessionStorage.getItem(SS_SEEN)) fab.setAttribute('data-attention', '1'); } catch (e) {}
 
+  // ── Step aside while the reader scrolls (phones + tablets) ──────────
+  // A 54px circle fixed to the right edge sits on whatever is there — on /vote
+  // that is each card's "Vote →" button, on /leaderboard the CPI column — and a
+  // tap meant for the content opened the assistant instead. So on the layouts
+  // with the bottom nav it tucks out of the way while you scroll DOWN (reading)
+  // and comes back the moment you scroll UP or reach the end of the page. Never
+  // while it is open or focused: a keyboard user must not lose what they're on.
+  var mqNav = window.matchMedia('(max-width:899px)');
+  var lastY = window.scrollY || 0, ticking = false;
+  function tuck(on) { root.classList.toggle('is-tucked', !!on); }
+  window.addEventListener('scroll', function () {
+    if (ticking) return;
+    ticking = true;
+    requestAnimationFrame(function () {
+      ticking = false;
+      var y = window.scrollY || 0, dy = y - lastY;
+      if (Math.abs(dy) < 6) return;
+      lastY = y;
+      var atEnd = y + window.innerHeight >= document.documentElement.scrollHeight - 80;
+      if (!mqNav.matches || state.open || root.contains(document.activeElement) || y < 120 || atEnd) { tuck(false); return; }
+      tuck(dy > 0);
+    });
+  }, { passive: true });
+  root.addEventListener('focusin', function () { tuck(false); });
+
   paintInitial();
   syncSend();
 })();

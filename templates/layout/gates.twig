@@ -695,6 +695,24 @@ window.agAnnounce = function (msg) {
     switch (el.getAttribute('data-ag-do')) {
       case 'select-all':     el.select && el.select(); break;
       case 'dismiss-parent': if (el.parentElement) el.parentElement.style.display = 'none'; break;
+      case 'dismiss-announce':
+        // Remembered per message, so the bar stops reappearing on every page.
+        var bar = el.closest('.ag-announce');
+        if (bar) {
+          // The button that has focus is about to vanish; hand a keyboard user
+          // somewhere sane rather than leaving focus on a hidden control.
+          var hadFocus = bar.contains(document.activeElement);
+          bar.hidden = true;
+          try { localStorage.setItem('ag_announce_x', bar.getAttribute('data-key') || ''); } catch (err) {}
+          // The brand link on desktop; on phones the top nav is hidden, so fall back
+          // to <main> (tabindex=-1) — the next thing the bar sat above.
+          var home = document.querySelector('.ag-brand');
+          if (hadFocus) {
+            if (home && home.offsetParent) home.focus();
+            else { var m = document.getElementById('main'); if (m) m.focus({ preventScroll: true }); }
+          }
+        }
+        break;
       case 'open-gee':       openGee(); break;
       case 'reload':         location.reload(); break;
       case 'member-fill':    if (window.agMemberFill) window.agMemberFill(el); break;

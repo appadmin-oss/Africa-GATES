@@ -171,7 +171,7 @@
   .hm-reel__play{ position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); width:46px; height:46px; border-radius:50%; background:rgba(255,255,255,.92); display:flex; align-items:center; justify-content:center; }
 
   /* leaderboard + how rail */
-  .hm-lbsec{ display:grid; grid-template-columns:1.15fr .85fr; gap:clamp(2rem,4vw,3.5rem); align-items:start; padding:clamp(3.5rem,7vw,6rem) 0 0; }
+  .hm-lbsec{ display:grid; grid-template-columns:minmax(0,1.15fr) minmax(0,.85fr); gap:clamp(2rem,4vw,3.5rem); align-items:start; padding:clamp(3.5rem,7vw,6rem) 0 0; }
   .hm-lbsec__hd{ display:flex; align-items:baseline; justify-content:space-between; gap:12px; margin-bottom:20px; }
   .hm-lbsec__hd h2{ margin:7px 0 0; font-family:var(--ag-font-display); font-weight:700; font-size:clamp(1.6rem,3.4vw,2.1rem); color:var(--ag-ink); }
   /* A standalone section link, not a link in a sentence, so it needs a real hit area —
@@ -184,8 +184,8 @@
   .hm-lb__rank{ font-family:var(--ag-font-mono); font-weight:700; font-size:16px; color:#5a6d6f; width:24px; text-align:center; flex:none; }
   .hm-lb__av{ width:46px; height:46px; border-radius:13px; font-size:20px; }
   .hm-lb__b{ flex:1; min-width:0; }
-  .hm-lb__n{ font-weight:600; font-size:16px; color:var(--ag-ink); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-  .hm-lb__c{ font-size:13px; color:#5a6d6f; margin-top:2px; }
+  .hm-lb__n{ display:block; font-weight:600; font-size:16px; color:var(--ag-ink); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .hm-lb__c{ display:block; font-size:13px; color:#5a6d6f; margin-top:2px; }
   .hm-lb__cpi{ flex:none; text-align:right; font-family:var(--ag-font-mono); font-weight:700; font-size:19px; color:var(--ag-green); }
   .hm-lb__empty{ background:#fff; border:1px dashed rgba(16,41,44,.16); border-radius:16px; padding:34px 22px; text-align:center; color:#5a6d6f; font-size:14px; }
   /* `position` was declared TWICE here — sticky, then relative — so the later one won
@@ -269,14 +269,16 @@
   @media (max-width:900px){
     .hm-feat{ grid-template-columns:1fr; gap:2rem; }
     .hm-feat__vis{ order:2; }
-    .hm-lbsec{ grid-template-columns:1fr; }
+    /* minmax(0,…) — a bare 1fr track cannot shrink below its content's min width,
+       and the one-line ellipsised names made the rows 20px wider than the phone. */
+    .hm-lbsec{ grid-template-columns:minmax(0,1fr); }
     /* RELATIVE, not static. Cancelling the sticky behaviour is all this was meant to
        do. `static` also removed .hm-how as a containing block, so its absolutely
        positioned orb (right:-50px, 190px wide) re-anchored to an ancestor — and an
        overflow:hidden only clips descendants whose containing block sits inside it, so
        the orb escaped the card and pushed the document 50px past the viewport. That was
        the entire horizontal scroll on the mobile homepage. */
-    .hm-how{ position:relative; }
+    .hm-how{ position:relative; top:auto; }   /* `top:96px` was the sticky offset; on a relative box it shoved the card 96px into the next section */
     .hm-leg__in{ grid-template-columns:1fr; }
     .hm-leg__vis{ min-height:300px; }
   }
@@ -650,7 +652,12 @@
       <span class="hm-eyebrow" style="background:#fdeaf0;color:#b03a5b">04 · Pulse &amp; Community</span>
       <h2 class="hm-feat__h">Recognition you <span class="hm-em">live with daily.</span></h2>
       <p class="hm-feat__p">Pulse is the living feed — reels, posts and stories from nominees, plus programme channels where the community gathers between cycles. Not a vote-once site; a place you return to.</p>
-      <div class="hm-feat__btn"><a class="hm-btn hm-btn--p" style="background:var(--ag-ink);}
+      <div class="hm-feat__btn"><a class="hm-btn hm-btn--p" style="background:var(--ag-ink)" href="/community">Open the community
+        <svg aria-hidden="true" focusable="false" viewBox="0 0 20 20" fill="none"><path d="M7.5 4.5 13 10 7.5 15.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></a></div>
+    </div>
+  </section>
+
+  {# ── LEADERBOARD + HOW RAIL ── #}
   <section class="hm-lbsec">
     <div>
       <div class="hm-lbsec__hd">

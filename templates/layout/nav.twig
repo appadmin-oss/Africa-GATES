@@ -26,13 +26,38 @@
 #}
 {% set _p = gates_page|default('') %}
 
-{% if announcement_text %}
-<div class="ag-announce ag-scope" role="region" aria-label="Announcement">
+{# The banner text is admin-set and outlives the window it announces. A bar that
+   says "Nominate now →" above a /nominate page reading "Nominations are closed"
+   is worse than no bar, so when it points at a window that is shut we either
+   point people at the one that IS open, or say nothing. #}
+{% set _ann_text = announcement_text %}
+{% set _ann_url  = announcement_url %}
+{% set _ann_cta  = announcement_cta|default('Learn more →') %}
+{% set _win = _ann_text ? live_windows() : null %}
+{% if _win is not null %}
+  {% set _ann_path = _ann_url|default('')|split('?')|first|trim('/', 'right') %}
+  {% if (_ann_path ends with '/nominate' or _ann_path == 'nominate') and not _win.nominations %}
+    {% if _win.voting %}
+      {% set _ann_text = 'Voting is open — one verified vote per category' %}
+      {% set _ann_url = '/vote' %}
+      {% set _ann_cta = 'Vote now →' %}
+    {% else %}
+      {% set _ann_text = '' %}
+    {% endif %}
+  {% elseif (_ann_path ends with '/vote' or _ann_path == 'vote') and not _win.voting %}
+    {% set _ann_text = '' %}
+  {% endif %}
+{% endif %}
+{% if _ann_text %}
+<div class="ag-announce ag-scope" role="region" aria-label="Announcement" id="agAnnounce" data-key="{{ (_ann_text ~ _ann_url)|length }}-{{ _ann_text|slice(0, 24)|url_encode }}">
   <span class="ag-announce__dot" aria-hidden="true"></span>
-  <span>{{ announcement_text }}</span>
-  {% if announcement_url %}<a href="{{ announcement_url }}">{{ announcement_cta|default('Learn more →') }}</a>{% endif %}
-  <button class="ag-announce__x" type="button" aria-label="Dismiss" data-ag-do="dismiss-parent">×</button>
+  <span>{{ _ann_text }}</span>
+  {% if _ann_url %}<a href="{{ _ann_url }}">{{ _ann_cta }}</a>{% endif %}
+  <button class="ag-announce__x" type="button" aria-label="Dismiss announcement" data-ag-do="dismiss-announce">×</button>
 </div>
+{# Runs before the bar paints, so a dismissed banner never flashes back on the
+   next page. Keyed to the message: a NEW announcement shows again. #}
+<script nonce="{{ csp_nonce }}">(function(){try{var a=document.getElementById('agAnnounce');if(a&&localStorage.getItem('ag_announce_x')===a.getAttribute('data-key'))a.hidden=true;}catch(e){}})();</script>
 {% endif %}
 
 {# ════ DESKTOP NAV ════ #}

@@ -120,6 +120,7 @@ final class CookieRegistry
             ['key' => 'afg_cheer_',      'purpose' => 'A message you started writing for a nominee, so a mistaken tap does not lose it.'],
             ['key' => 'afg_report_',     'purpose' => 'A report you began, for the same reason.'],
             ['key' => 'ag_intro',        'purpose' => 'Whether you have seen the introduction, so it is not shown twice.'],
+            ['key' => 'ag_announce_x',   'purpose' => 'Which site announcement you dismissed, so it does not reappear on every page. A new announcement shows again.'],
             ['key' => 'ag-celebrated:',  'purpose' => 'Which results you have already seen celebrated, so the animation plays once and not on every visit.'],
             ['key' => 'coi_declared_',   'purpose' => 'For judges only: that you have made this programme\'s conflict-of-interest declaration on this device.'],
         ];

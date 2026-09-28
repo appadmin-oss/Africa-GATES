@@ -434,6 +434,26 @@ return [
             'cron_health',
             [\AfricaGates\Support\CronHealth::class, 'status']
         ));
+        // What the public can do RIGHT NOW — { nominations: bool, voting: bool } —
+        // from the same cached programme list and CyclePolicy predicates the
+        // /nominate and /vote pages use. The announcement bar is admin-set text, so
+        // it kept saying "Nominations open — Nominate now →" above a /nominate page
+        // that said "Nominations are closed right now". A function, not a global, so
+        // it is only computed on pages that render the bar; null when unknown.
+        $twig->getEnvironment()->addFunction(new \Twig\TwigFunction('live_windows', function () use ($c) {
+            static $state = false;
+            if ($state !== false) return $state;
+            try {
+                $progs = $c->get(CacheService::class)->remember('awards:active', 1800,
+                    fn () => $c->get(AwardService::class)->getActiveProgrammesWithStatus());
+                $state = ['nominations' => false, 'voting' => false];
+                foreach ((array) $progs as $p) {
+                    if (!empty($p['phase']['is_nominations_open'])) $state['nominations'] = true;
+                    if (!empty($p['phase']['is_voting_open']))      $state['voting'] = true;
+                }
+            } catch (\Throwable $e) { $state = null; }
+            return $state;
+        }));
         // Consume one-shot flash. `flash` included — it was leaking for the whole session.
         unset($_SESSION['flash_ok'], $_SESSION['flash'],
               $_SESSION['flash_error'], $_SESSION['flash_notice'],

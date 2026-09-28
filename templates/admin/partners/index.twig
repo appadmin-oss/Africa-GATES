@@ -4,7 +4,7 @@
 {% block topbar_actions %}<a class="ad-btn" href="/admin/partners/export.csv">Export CSV</a>{% endblock %}
 {% block content %}
 <form class="ad-filters" method="get" action="/admin/partners">
-  <div style="margin-left:auto;display:flex;gap:6px">
+  <div style="margin-left:auto;display:flex;flex-wrap:wrap;gap:6px;max-width:100%">
     <a class="ad-tab {% if not filters.status %}is-active{% endif %}" href="/admin/partners">All</a>
     <a class="ad-tab {% if filters.status == 'new' %}is-active{% endif %}" href="?status=new">New <span class="n">{{ counts.new }}</span></a>
     <a class="ad-tab {% if filters.status == 'in_review' %}is-active{% endif %}" href="?status=in_review">In Review <span class="n">{{ counts.in_review }}</span></a>

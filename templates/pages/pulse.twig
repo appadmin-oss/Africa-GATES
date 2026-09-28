@@ -577,10 +577,14 @@
      any content. What follows removes furniture rather than shrinking it, and
      spends the space it frees on the gap BETWEEN cards, which is what actually
      reads as calm. */
+  /* The sr-only twin of the masthead h1 exists only for the phone layout, where the
+     visible one is hidden. On desktop both were exposed — two h1s on one page. */
+  .pl-h1--sr{ display:none; }
   @media (max-width:700px){
     .pl{ padding-top:14px; padding-bottom:96px; }
     /* The masthead goes; the h1 survives as sr-only for readers and crawlers. */
     .pl-head{ display:none; }
+    .pl-h1--sr{ display:block; }
 
     /* Tabs become app chrome: smaller, tighter, and stuck under the site bar so
        switching surface never costs a scroll back to the top. */
@@ -1137,8 +1141,15 @@
             or <button type="button" class="pl-linkish" @click="tab='foryou'">see everything on the feed</button>.
           </div>
           <div class="pl-empty" x-show="media === '' && !loading && items.length === 0" x-cloak>
+            {# The journal posts render directly below this box, so "Nothing here yet"
+               above two articles read as a broken feed. Say which part is empty. #}
+            {% if posts|default([]) is not empty %}
+            No community posts yet — be the first. Meanwhile, here is the latest from the
+            <a href="/blog">journal</a>:
+            {% else %}
             Nothing here yet. Follow the cycle as nominations open — or read the latest on the
             <a href="/blog">journal</a>.
+            {% endif %}
           </div>
 
           <div x-ref="sentinel" aria-hidden="true"></div>

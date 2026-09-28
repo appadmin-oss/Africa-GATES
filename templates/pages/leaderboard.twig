@@ -46,8 +46,8 @@
   .lb-row--top .lb-c-rank{ color:#7a5600; }
   .lb-c-who{ flex:1; display:flex; align-items:center; gap:12px; min-width:0; }
   .lb-av{ flex:none; width:40px; height:40px; border-radius:11px; display:flex; align-items:center; justify-content:center; font-family:var(--ag-font-display); font-weight:700; font-size:16px; }
-  .lb-who__name{ font-weight:600; font-size:14px; color:var(--ag-ink); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-  .lb-who__tier{ font-size:12px; color:#5a6d6f; }
+  .lb-who__name{ display:block; font-weight:600; font-size:14px; color:var(--ag-ink); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .lb-who__tier{ display:block; font-size:12px; color:#5a6d6f; text-transform:capitalize; }
   .lb-c-cat{ width:130px; font-size:13px; color:#626a6e; flex:none; }
   .lb-c-cpi{ width:70px; text-align:right; font:700 16px/1 var(--ag-font-mono); color:var(--ag-ink); flex:none; }
   .lb-note{ margin:16px 2px 0; font-size:12px; color:#5a6d6f; text-align:center; }
@@ -71,6 +71,10 @@
     .lbp__name{ font-size:13px; }
     .lbp--1 .lbp__name{ font-size:16px; }
     .lb-c-cat{ display:none; }
+    /* Wrap, don't truncate: on a phone the name is the whole point of the row. */
+    .lb-row{ padding:14px 16px; gap:12px; }
+    .lb-who__name{ white-space:normal; overflow-wrap:anywhere; line-height:1.3; }
+    .lb-c-cpi{ width:auto; }
   }
 </style>
 {% endblock %}

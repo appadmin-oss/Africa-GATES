@@ -10,7 +10,11 @@
   .rg-head p{ margin:12px 0 0; font-size:16px; line-height:1.6; color:#4a5256; max-width:560px; }
   .rg-search{ display:flex; align-items:center; gap:11px; background:var(--ag-surface); border:1px solid rgba(16,41,44,.14); border-radius:14px; padding:14px 18px; margin-top:22px; max-width:560px; }
   .rg-search:focus-within{ border-color:var(--ag-green); }
-  .rg-search input{ flex:1; border:none; outline:none; font-family:inherit; font-size:16px; color:var(--ag-ink); background:none; }
+  .rg-search input{ flex:1; min-width:0; border:none; outline:none; font-family:inherit; font-size:16px; color:var(--ag-ink); background:none; }
+  .rg-search:focus-within{ box-shadow:0 0 0 3px rgba(35,123,34,.22); }
+  .rg-search__go{ flex:none; border:0; border-radius:10px; background:var(--ag-ink); color:var(--ag-surface); font-weight:600; font-size:14px; line-height:1; font-family:inherit; padding:10px 14px; cursor:pointer; }
+  .rg-pager{ display:flex; align-items:center; justify-content:space-between; gap:12px; margin:26px 0 0; }
+  .rg-pager__of{ font-size:14px; color:var(--ag-ink-soft); }
 
   .rg-filters{ display:flex; gap:8px; overflow-x:auto; padding:20px 0 6px; scrollbar-width:none; }
   .rg-filters::-webkit-scrollbar{ display:none; }
@@ -62,6 +66,13 @@
 {% set COV = ['linear-gradient(135deg,#10292C,#1a6118)','linear-gradient(135deg,#a47306,#d49a0e)','linear-gradient(135deg,#1a2629,#5d7374)','linear-gradient(135deg,#237b22,#7FC87C)','linear-gradient(135deg,#5b3a8a,#8a5fc0)','linear-gradient(135deg,#b03a5b,#e0245e)'] %}
 {% set rows = profiles|default([]) %}
 {% set has_profiles = rows|length > 0 %}
+{% set reg_q = reg_q|default('') %}
+{% set reg_total = reg_total|default(rows|length) %}
+{% set reg_page = reg_page|default(1) %}
+{% set reg_pages = reg_pages|default(1) %}
+{# The registry itself is empty only when nothing is approved — a search with no
+   hits is a different state, and must not tell the visitor the platform is new. #}
+{% set registry_empty = not has_profiles and reg_q == '' %}
 {% set catset = [] %}
 {% for p in rows %}{% if p.category and p.category not in catset %}{% set catset = catset|merge([p.category]) %}{% endif %}{% endfor %}
 
@@ -69,20 +80,27 @@
   <header class="rg-head">
     <p class="rg-eyebrow">The continental record</p>
     <h1>Registry</h1>
-    <p>{% if has_profiles %}{{ rows|length }} verified profile{{ rows|length == 1 ? '' : 's' }} — every entry is panel-verified before it joins the index.{% else %}The verified profile registry. Every entry is panel-verified before it joins the continental record.{% endif %}</p>
-    {% if has_profiles %}
-    <div class="rg-search">
+    <p>{% if reg_q != '' %}{{ reg_total|number_format }} profile{{ reg_total == 1 ? '' : 's' }} match “{{ reg_q }}”. <a href="/registry">Show everyone</a>{% elseif has_profiles %}{{ reg_total|number_format }} verified profile{{ reg_total == 1 ? '' : 's' }} — every entry is panel-verified before it joins the index.{% else %}The verified profile registry. Every entry is panel-verified before it joins the continental record.{% endif %}</p>
+    {% if not registry_empty %}
+    {# A real GET form: Enter searches the WHOLE registry (and works with no
+       JavaScript); typing still filters the cards on screen instantly. #}
+    <form class="rg-search" method="get" action="/registry" role="search">
       <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="#5a6d6f" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
-      <input id="rgSearch" type="search" placeholder="Search by name…" aria-label="Search the registry">
-    </div>
+      <label for="rgSearch" class="sr-only">Search the registry by name, category or country</label>
+      <input id="rgSearch" type="search" name="q" value="{{ reg_q }}" maxlength="80" placeholder="Search by name, category or country…" enterkeyhint="search" autocomplete="off">
+      <button type="submit" class="rg-search__go">Search</button>
+    </form>
     {% endif %}
   </header>
 
-  {% if has_profiles %}
-    <div class="rg-filters">
+  {% if not registry_empty %}
+    {% if has_profiles %}
+    <div class="rg-filters" role="group" aria-label="Filter by category">
       <button type="button" class="rg-chip is-active" data-cat="">All</button>
       {% for c in catset %}<button type="button" class="rg-chip" data-cat="{{ c }}">{{ c }}</button>{% endfor %}
     </div>
+    {% endif %}
+    <p class="sr-only" id="rgStatus" role="status" aria-live="polite"></p>
 
     <div class="rg-grid" id="rgGrid">
       {% for p in rows %}
@@ -106,12 +124,21 @@
       {% endfor %}
     </div>
 
-    <div class="rg-empty" id="rgEmpty" style="display:none">
+    {% if reg_pages > 1 %}
+    {% set _qs = reg_q != '' ? '&q=' ~ (reg_q|url_encode) : '' %}
+    <nav class="rg-pager" aria-label="Registry pages">
+      {% if reg_page > 1 %}<a class="rg-btn rg-btn--g" rel="prev" href="/registry?page={{ reg_page - 1 }}{{ _qs }}">← Previous</a>{% else %}<span></span>{% endif %}
+      <span class="rg-pager__of">Page {{ reg_page }} of {{ reg_pages }}</span>
+      {% if reg_page < reg_pages %}<a class="rg-btn rg-btn--g" rel="next" href="/registry?page={{ reg_page + 1 }}{{ _qs }}">Next →</a>{% else %}<span></span>{% endif %}
+    </nav>
+    {% endif %}
+
+    <div class="rg-empty" id="rgEmpty"{% if has_profiles %} style="display:none"{% endif %}>
       <img src="{{ asset('/assets/img/illustrations/illo-search.jpg') }}" alt="" aria-hidden="true">
       <h2>No profiles match</h2>
-      <p>Try another name, clear the filters, or nominate someone who belongs on the record.</p>
+      <p id="rgEmptyMsg">{% if reg_q != '' and not has_profiles %}Nobody on the record matches “{{ reg_q }}”. Check the spelling, try part of the name, or nominate them.{% else %}Nobody on this page matches. Press Enter to search the whole registry, clear the filters, or nominate someone who belongs on the record.{% endif %}</p>
       <div class="rg-btns">
-        <button type="button" class="rg-btn rg-btn--g" id="rgClear">Clear filters</button>
+        {% if reg_q != '' and not has_profiles %}<a class="rg-btn rg-btn--g" href="/registry">Show everyone</a>{% else %}<button type="button" class="rg-btn rg-btn--g" id="rgClear">Clear filters</button>{% endif %}
         <a class="rg-btn rg-btn--p" href="/nominate">Nominate someone →</a>
       </div>
     </div>
@@ -145,6 +172,8 @@
       if (on) shown++;
     });
     if (empty) empty.style.display = shown ? 'none' : 'block';
+    var st = document.getElementById('rgStatus');
+    if (st) st.textContent = (q || cat) ? (shown + (shown === 1 ? ' profile' : ' profiles') + ' shown on this page') : '';
   }
   chips.forEach(function(c){ c.addEventListener('click', function(){
     chips.forEach(function(x){ x.classList.remove('is-active'); });

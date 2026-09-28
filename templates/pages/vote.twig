@@ -264,7 +264,7 @@
       <div class="vh-ballot">
         <h2>Your ballot</h2>
         <p><span x-text="votedCount"></span> of {{ meta.voting_count }} live programme{{ meta.voting_count == 1 ? '' : 's' }} voted <span style="color:#5f7273">· on this device</span></p>
-        <div class="vh-prog" role="progressbar" :aria-valuenow="votedCount" aria-valuemin="0" aria-valuemax="{{ meta.voting_count }}"><i :style="'width:' + Math.round(votedCount/{{ meta.voting_count }}*100) + '%'"></i></div>
+        <div class="vh-prog" role="progressbar" aria-label="Programmes you have voted in" :aria-valuenow="votedCount" aria-valuemin="0" aria-valuemax="{{ meta.voting_count }}"><i :style="'width:' + Math.round(votedCount/{{ meta.voting_count }}*100) + '%'"></i></div>
         <div class="vh-secure">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#237b22" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
           <span>Verified by email OTP — one vote per category, never duplicated.</span>

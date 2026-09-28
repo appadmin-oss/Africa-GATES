@@ -238,6 +238,13 @@
   .community-fab{ right:16px !important; bottom:calc(148px + env(safe-area-inset-bottom,0px)) !important; }
   #backToTop{ right:20px !important; bottom:calc(206px + env(safe-area-inset-bottom,0px)) !important; }
   .gee-panel{ max-height:calc(100vh - 84px - 18px); }
+  /* Tucked while the reader scrolls down (gee.js) so it stops covering the
+     content's own buttons. Off-screen right, not display:none, so it slides back. */
+  .gee .gee-fab{ transition:transform .28s cubic-bezier(.22,1,.36,1), opacity .2s; }
+  .gee.is-tucked:not([data-open="1"]) .gee-fab{ transform:translateX(calc(100% + 24px)); opacity:0; pointer-events:none; }
+}
+@media (max-width:899px) and (prefers-reduced-motion:reduce){
+  .gee .gee-fab{ transition:opacity .01s; }
 }
 
 /* ── Mobile: bottom-sheet ────────────────────────────────────────── */

@@ -69,7 +69,7 @@
   {% if judges is not empty %}
   <div x-data="{ filter: 'all' }">
     {% if filters is not empty %}
-    <div class="jg-filters" role="tablist" aria-label="Filter judges by programme">
+    <div class="jg-filters" role="group" aria-label="Filter judges by programme">
       <button type="button" class="jg-chip" :class="filter==='all' ? 'is-on' : ''" @click="filter='all'" :aria-pressed="filter==='all'">All judges</button>
       {% for slug, title in filters %}<button type="button" class="jg-chip" :class="filter==='{{ slug }}' ? 'is-on' : ''" @click="filter='{{ slug }}'" :aria-pressed="filter==='{{ slug }}'">{{ title }}</button>{% endfor %}
     </div>

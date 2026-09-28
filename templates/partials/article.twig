@@ -91,10 +91,10 @@
 {% if d.subtitle is defined and d.subtitle %}<p class="ar-sub">{{ d.subtitle }}</p>{% endif %}
 {% if d.standfirst is defined and d.standfirst %}<p class="ar-stand">{{ d.standfirst|raw }}</p>{% endif %}
 <dl class="ar-meta">
-  <div><dfn>By</dfn> <b>{{ d.author }}</b></div>
-  {% if d.version is defined and d.version %}<div><dfn>Version</dfn> <b>{{ d.version }}</b></div>{% endif %}
-  <div><dfn>Updated</dfn> <b><time datetime="{{ d.updated }}">{{ d.updated|date('j F Y') }}</time></b></div>
-  {% if d.read_minutes is defined and d.read_minutes %}<div><b>{{ d.read_minutes }} min</b> read</div>{% endif %}
+  <div><dt>By</dt> <dd>{{ d.author }}</dd></div>
+  {% if d.version is defined and d.version %}<div><dt>Version</dt> <dd>{{ d.version }}</dd></div>{% endif %}
+  <div><dt>Updated</dt> <dd><time datetime="{{ d.updated }}">{{ d.updated|date('j F Y') }}</time></dd></div>
+  {% if d.read_minutes is defined and d.read_minutes %}<div><dt class="sr-only">Reading time</dt> <dd>{{ d.read_minutes }} min read</dd></div>{% endif %}
 </dl>
 {% endmacro %}
 
@@ -250,10 +250,10 @@
   <p>{{ d.note|raw }}</p>
 
   <dl class="ar-meta">
-    {% if d.version %}<div><dfn>Version</dfn> <b>{{ d.version }}</b></div>{% endif %}
-    <div><dfn>Published</dfn> <b><time datetime="{{ d.published }}">{{ d.published|date('j F Y') }}</time></b></div>
-    <div><dfn>Updated</dfn> <b><time datetime="{{ d.updated }}">{{ d.updated|date('j F Y') }}</time></b></div>
-    <div><dfn>Accessed</dfn> <b><time datetime="{{ d.accessed }}">{{ d.accessed|date('j F Y') }}</time></b></div>
+    {% if d.version %}<div><dt>Version</dt> <dd>{{ d.version }}</dd></div>{% endif %}
+    <div><dt>Published</dt> <dd><time datetime="{{ d.published }}">{{ d.published|date('j F Y') }}</time></dd></div>
+    <div><dt>Updated</dt> <dd><time datetime="{{ d.updated }}">{{ d.updated|date('j F Y') }}</time></dd></div>
+    <div><dt>Accessed</dt> <dd><time datetime="{{ d.accessed }}">{{ d.accessed|date('j F Y') }}</time></dd></div>
   </dl>
 
   <div class="ar-tabs" role="tablist" aria-label="Citation format"

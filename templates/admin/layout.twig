@@ -213,7 +213,10 @@
     {% if not cron.ok %}
     <div class="ad-flash ad-flash--err" role="alert" style="align-items:flex-start">
       <span aria-hidden="true">⏱</span>
-      <span><strong>{{ cron.never ? 'Scheduled maintenance has never run' : 'Scheduled maintenance has stopped' }}</strong>
+      {# A short headline; `cron.say` is the full sentence. The headline used to repeat
+         say's opening words verbatim ("…has never run — Scheduled maintenance has never
+         run…"), and called a schedule that IS running but failing "stopped". #}
+      <span><strong>{{ cron.never ? 'Maintenance not set up' : (cron.stale ? 'Maintenance has stopped' : 'Maintenance is failing') }}</strong>
         — {{ cron.say }}
         {% if cron.last %}<span style="display:block;margin-top:4px;opacity:.85;font-size:12px">Last run: {{ cron.last }}</span>{% endif %}
       </span>

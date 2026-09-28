@@ -44,7 +44,7 @@ body[data-page="legal"]{
   --ar-surface:#ffffff;         /* the page sits ON something, as everything here does */
   --ar-ink:var(--ag-ink,#10292c);
   --ar-soft:#4f5b58;            /* ≥4.5:1 on white — body-adjacent text */
-  --ar-faint:#6b7773;           /* ≥4.5:1 on white — labels and furniture */
+  --ar-faint:#5a6562;           /* ≥4.5:1 on white AND on --ar-wash (4.8:1) — labels, table heads */
   --ar-line:rgba(16,41,44,.10);
   --ar-line-soft:rgba(16,41,44,.06);
   /* ── A DOCUMENT SPENDS NO ACCENT, AND THAT IS THE WHOLE OF SURFACE D ───────
@@ -68,7 +68,7 @@ body[data-page="legal"]{
   --ar-accent:var(--ag-ink,#10292c);
   --ar-accent-dark:var(--ag-ink,#10292c);
   --ar-wash:var(--ag-surface-2,#e8e5dd);
-  --ar-gold:#9a7726;
+  --ar-gold:#846520;            /* 5.1:1 on the note wash (#faf7ef); #9a7726 was 3.9:1 */
   /* THERE ARE NO SHADOWS ON THIS SITE. Depth is a hard offset border — the lip — and
      the lip belongs only to things that are pressed. Kept as a token set to `none` rather
      than deleted, because three rules reference it and a dangling var() resolves to an
@@ -134,8 +134,9 @@ body[data-page="legal"]{
           border:1px solid var(--ar-line-soft); border-radius:var(--ag-r-md,14px);
           display:flex; flex-wrap:wrap; gap:.35rem 1.25rem;
           font:500 12px/1.5 var(--ag-font-mono); color:var(--ar-faint); }
-.ar-meta b{ color:var(--ar-ink); font-weight:600; }
-.ar-meta dfn{ font-style:normal; }
+.ar-meta > div{ display:flex; gap:.4em; align-items:baseline; }
+.ar-meta dt, .ar-meta dd{ margin:0; }
+.ar-meta dd{ color:var(--ar-ink); font-weight:600; }
 
 /* ── TOOLBAR ────────────────────────────────────────────────────────────────
    The first pass made all three hairline-quiet. Copy is the one people actually

@@ -265,7 +265,7 @@
                 {% for code,name in COUNTRIES %}<option value="{{ code }}" {% if (old.country_code ?? prefill.country_code ?? '') == code %}selected{% endif %}>{{ name }}</option>{% endfor %}
               </select>
             </div>
-            <div class="nm-who__full"><label class="nm-lab" for="nOrg">Organisation / school <span style="color:#5a6d6f;font-weight:400">(optional)</span></label><input id="nOrg" name="nominee_org" class="nm-in" type="text" maxlength="200" placeholder="School, company or organisation they belong to" value="{{ old.nominee_org ?? prefill.nominee_org ?? '' }}"></div>
+            <div class="nm-who__full"><label class="nm-lab" for="nOrg">Organisation / school <span style="color:#5a6d6f;font-weight:400">(optional)</span></label><input id="nOrg" name="nominee_org" class="nm-in" type="text" maxlength="200" placeholder="e.g. Kings College Lagos" value="{{ old.nominee_org ?? prefill.nominee_org ?? '' }}"></div>
             <div class="nm-who__full nm-row">
               <div>
                 <label class="nm-lab" for="nStateSel" x-show="nomineeStates.length">State / Region *</label>
@@ -279,7 +279,7 @@
               <div><label class="nm-lab" for="nLGA">LGA / County *</label><input id="nLGA" name="nominee_lga" class="nm-in" type="text" required placeholder="e.g. Nsukka" value="{{ old.nominee_lga ?? prefill.nominee_lga ?? '' }}"></div>
             </div>
             <div class="nm-who__full nm-row">
-              <div><label class="nm-lab" for="nEmail">Nominee's email <span style="color:#5a6d6f;font-weight:400">(email or phone — at least one)</span></label><input id="nEmail" name="nominee_email" class="nm-in" type="email" aria-describedby="contactHint" placeholder="So we can reach them about the nomination" value="{{ old.nominee_email ?? prefill.nominee_email ?? '' }}"></div>
+              <div><label class="nm-lab" for="nEmail">Nominee's email <span style="color:#5a6d6f;font-weight:400">(email or phone — at least one)</span></label><input id="nEmail" name="nominee_email" class="nm-in" type="email" aria-describedby="contactHint" placeholder="name@example.com" value="{{ old.nominee_email ?? prefill.nominee_email ?? '' }}"></div>
               <div><label class="nm-lab" for="nPhone">Nominee's phone <span style="color:#5a6d6f;font-weight:400">(with country code)</span></label><input id="nPhone" name="nominee_phone" class="nm-in" type="tel" maxlength="40" aria-describedby="contactHint" placeholder="e.g. +234 801 234 5678" value="{{ old.nominee_phone ?? prefill.nominee_phone ?? '' }}"></div>
             </div>
             <div class="nm-who__full"><small id="contactHint" style="color:#5a6d6f">We use this to tell the nominee about their nomination — share their email, phone, or both. Phone works with SMS and WhatsApp.</small></div>
@@ -354,9 +354,9 @@
           <fieldset style="border:0;padding:0;margin:0">
             <legend class="nm-lab" style="margin:18px 0 7px;padding:0">Reference links (optional)</legend>
             <div class="nm-stack">
-              <input name="reference_url" class="nm-in" type="url" aria-label="Reference link 1 — article, video, or programme website" placeholder="Reference 1 — article, video, or programme website" value="{{ old.reference_url ?? '' }}">
-              <input name="reference_url_2" class="nm-in" type="url" aria-label="Reference link 2 (optional)" placeholder="Reference 2 (optional)" value="{{ old.reference_url_2 ?? '' }}">
-              <input name="reference_url_3" class="nm-in" type="url" aria-label="Reference link 3 (optional)" placeholder="Reference 3 (optional)" value="{{ old.reference_url_3 ?? '' }}">
+              <input name="reference_url" class="nm-in" type="url" aria-label="Reference link 1 — article, video, or programme website" placeholder="Link 1 — https://…" value="{{ old.reference_url ?? '' }}">
+              <input name="reference_url_2" class="nm-in" type="url" aria-label="Reference link 2 (optional)" placeholder="Link 2 (optional)" value="{{ old.reference_url_2 ?? '' }}">
+              <input name="reference_url_3" class="nm-in" type="url" aria-label="Reference link 3 (optional)" placeholder="Link 3 (optional)" value="{{ old.reference_url_3 ?? '' }}">
             </div>
           </fieldset>
           {# The label had no `for` and the input had no id, so they were associated

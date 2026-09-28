@@ -17,11 +17,23 @@ class RegistryController {
         private readonly ?OtpService $mailer = null
     ){}
     public function index(Request $req,Response $res):Response {
-        $page=max(1,(int)($req->getQueryParams()['page']??1));
-        $data=$this->cache->remember("reg:p{$page}",300,fn()=>$this->profiles->paginatedList($page,18,'','','','cpi_desc','',''));
+        $qp=$req->getQueryParams();
+        $page=max(1,(int)($qp['page']??1));
+        // Server-side search. The box used to filter only the 18 cards already on
+        // screen, so anyone ranked 19th or lower "didn't exist" — and the WebSite
+        // SearchAction in the layout's JSON-LD has always advertised /registry?q=.
+        $q=mb_substr(trim(preg_replace('/\s+/u',' ',(string)($qp['q']??''))),0,80);
+        $perPage=18;
+        $load=fn()=>$this->profiles->paginatedList($page,$perPage,'','',$q,'cpi_desc','','');
+        // Searches are not cached: the key space is unbounded, and the query is one
+        // indexed LIKE over approved profiles.
+        $data=$q==='' ? $this->cache->remember("reg:p{$page}",300,$load) : $load();
+        $total=(int)($data['total']??count($data['profiles']));
+        $pages=max(1,(int)ceil($total/$perPage));
         // The template derives rows/has_profiles/catset from `profiles` — pass the
         // raw array (not a JSON string) or the grid renders the empty state always.
-        return $this->view->render($res,'pages/registry/index.twig',['page_title'=>'Registry — Africa GATES','meta_description'=>'Browse the Africa GATES registry — the verified record of African creatives, businesses and organisations, ranked by live Cultural Power Index scores.','gates_page'=>'registry','profiles'=>$data['profiles']]);
+        return $this->view->render($res,'pages/registry/index.twig',['page_title'=>($q!=='' ? 'Search: '.$q.' — ' : '').'Registry — Africa GATES','meta_description'=>'Browse the Africa GATES registry — the verified record of African creatives, businesses and organisations, ranked by live Cultural Power Index scores.','gates_page'=>'registry','profiles'=>$data['profiles'],
+            'reg_total'=>$total,'reg_page'=>min($page,$pages),'reg_pages'=>$pages,'reg_q'=>$q]);
     }
     public function profile(Request $req,Response $res,array $args):Response {
         $slug=$args['slug']??''; $p=$this->cache->remember("profile:{$slug}",1800,fn()=>$this->profiles->getBySlug($slug));
