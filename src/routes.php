@@ -2779,6 +2779,27 @@ return function(App $app) {
          * Splitting them is what stopped sixteen sections of Ubuntu sitting between a
          * reader arriving from a ballot and the answer to "how is a winner decided".
          */
+        // ── THE STYLE PAGE ──────────────────────────────────────────────────
+        //
+        // Phase 1 of the redesign: every token and every base component, in every
+        // state, rendered through the REAL layout so the cascade it specimens is
+        // the cascade that ships. Somebody building a later phase reads this
+        // rather than three stylesheets.
+        //
+        // Dev only, and gated on APP_ENV rather than on a token: there is nothing
+        // secret on it, and a token would mean the one page whose whole job is to
+        // be looked at needs a credential to look at. 404 rather than 403 in
+        // production, so it is not discoverable either.
+        $g->get('/_dev/ui', function ($req, $res) use ($tv) {
+            if (\AfricaGates\Support\Env::get('APP_ENV', 'production') === 'production') {
+                return $res->withStatus(404);
+            }
+            return $tv($req)->render($res, 'pages/dev-ui.twig', [
+                'page_title'  => 'Tokens & base components',
+                'meta_robots' => 'noindex, nofollow',
+            ]);
+        });
+
         $g->get('/philosophy', function ($req, $res) use ($tv, $integrityFigures) {
             $doc   = \AfricaGates\Services\CommunityVotingPhilosophy::class;
             $figs  = $integrityFigures();

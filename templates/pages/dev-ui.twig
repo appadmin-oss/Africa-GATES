@@ -1,0 +1,441 @@
+{% extends 'layout/shell.twig' %}
+
+{#
+  ══════════════════════════════════════════════════════════════════════════════
+  /_dev/ui — every token and every base component, in every state
+  ══════════════════════════════════════════════════════════════════════════════
+
+  Phase 1 build item 6. Two jobs, and the second is the one that earns its place:
+
+  1. A specimen sheet. Somebody building phase 4 can see what a chip looks like
+     selected, what a disabled button says, and what the skeleton geometry is,
+     without reading three stylesheets.
+
+  2. A READER for the token vocabulary. `DeadTokenTest` fails on a custom property
+     nothing reads, and it is right to: the fault it was written for is the next
+     person finding `--shadow-lg: none` in a file, taking it for the house
+     convention, and getting nothing. When `tokens.css` landed it declared
+     thirteen §6 rungs — spacing steps, two radii, three z-layers — that no
+     component had reached yet, and the guard failed exactly as the recon predicted.
+
+     Carving an exemption for "the token file" would have been the easy answer and
+     the wrong one: it is the same hole a genuinely dead palette would later hide
+     in. So the specimens below USE the whole vocabulary. The spacing ladder is
+     drawn from the spacing tokens, the radius ladder from the radius tokens, the
+     layer legend from the z tokens. They are read because they are shown, and the
+     guard stays strict with nothing forgiven.
+
+  Dev-only: the route answers 404 when APP_ENV is production.
+#}
+
+{% block content %}
+<div class="duix__wrap">
+
+      <header class="duix__head">
+        <p class="duix__kicker">Phase 1</p>
+        <h1 class="duix__h1">Tokens &amp; base components</h1>
+        <p class="duix__lede">Every value on this page comes from
+          <code>tokens.css</code>. If something here is wrong, it is wrong
+          everywhere.</p>
+      </header>
+
+      {# ── COLOUR ─────────────────────────────────────────────────────────── #}
+      <section class="duix__sec">
+        <h2 class="duix__h2">Colour</h2>
+        <p class="duix__note">One accent per block. Green is only the primary action
+          inside the page — never a button in the header. The hex values are
+          deliberately not printed here: a value repeated on a page is a second copy
+          that goes stale on its own. <code>tokens.css</code> is the one place.</p>
+        <ul class="duix__swatches">
+          {% for t in [
+            {n:'ink',        u:'primary text'},
+            {n:'ink-2',      u:'secondary text'},
+            {n:'soft',       u:'meta, captions'},
+            {n:'mute',       u:'disabled, off track'},
+            {n:'ground',     u:'page background'},
+            {n:'surface',    u:'cards, inputs'},
+            {n:'bar',        u:'filled bars'},
+            {n:'line',       u:'hairlines'},
+            {n:'line-2',     u:'input borders'},
+            {n:'line-3',     u:'list separators'},
+            {n:'tint',       u:'neutral fills'},
+            {n:'green',      u:'primary action'},
+            {n:'green-deep', u:'success text'},
+            {n:'green-light',u:'accents on dark'},
+            {n:'green-wash', u:'success wash'},
+            {n:'green-edge', u:'success borders'},
+            {n:'gold',       u:'honour, winners'},
+            {n:'gold-ink',   u:'text on gold'},
+            {n:'gold-wash',  u:'winner cards'},
+            {n:'gold-wash-2',u:'early-bird strip'},
+            {n:'gold-edge',  u:'gold borders'},
+            {n:'live',       u:'live dot, hearts'},
+            {n:'live-ink',   u:'live text'},
+            {n:'live-wash',  u:'giving wash'},
+            {n:'info',       u:'tickets, info'},
+            {n:'info-wash',  u:'info wash'},
+            {n:'error',      u:'errors, Sign out'},
+            {n:'stock-low',  u:'Only N left'},
+            {n:'stock-gone', u:'Sold out'}
+          ] %}
+          <li class="duix__sw">
+            <span class="duix__chip" style="--c:var(--ag-{{ t.n }})"></span>
+            <b>--ag-{{ t.n }}</b>
+            <span>{{ t.u }}</span>
+          </li>
+          {% endfor %}
+        </ul>
+      </section>
+
+      {# ── TYPE ───────────────────────────────────────────────────────────── #}
+      <section class="duix__sec">
+        <h2 class="duix__h2">Type</h2>
+        <p class="duix__note">Playfair Display 700 for headlines only. Mono only for
+          references and codes — never for labels or stats. No uppercase labels.</p>
+        <div class="duix__type">
+          <p class="duix__t-d">Display · 32 phone / 44 desktop</p>
+          <p class="duix__t-h2">Section heading · 19</p>
+          <p class="duix__t-card">Card title · 17 / 700</p>
+          <p class="duix__t-body">Body · 16, measure capped at 62ch. The rest of this
+            line exists to show where a paragraph wraps when it is allowed to run on
+            past a comfortable reading measure and keeps going.</p>
+          <p class="duix__t-sec">Secondary · 14.5</p>
+          <p class="duix__t-meta">Meta · 13.5</p>
+          <p class="duix__t-micro">Micro · 12.5</p>
+          <p class="duix__t-mono">AGX-4417-KQ · mono 13, references and codes only</p>
+        </div>
+      </section>
+
+      {# ── SPACING · reads every --ag-sp-* rung ───────────────────────────── #}
+      <section class="duix__sec">
+        <h2 class="duix__h2">Spacing</h2>
+        <p class="duix__note">The whole ladder. A value not on it is a misread of the
+          design.</p>
+        <ul class="duix__scale">
+          <li><i style="width:var(--ag-sp-4)"></i><b>4</b></li>
+          <li><i style="width:var(--ag-sp-6)"></i><b>6</b></li>
+          <li><i style="width:var(--ag-sp-8)"></i><b>8</b></li>
+          <li><i style="width:var(--ag-sp-10)"></i><b>10</b></li>
+          <li><i style="width:var(--ag-sp-12)"></i><b>12</b></li>
+          <li><i style="width:var(--ag-sp-14)"></i><b>14</b></li>
+          <li><i style="width:var(--ag-sp-16)"></i><b>16</b></li>
+          <li><i style="width:var(--ag-sp-18)"></i><b>18</b></li>
+          <li><i style="width:var(--ag-sp-20)"></i><b>20</b></li>
+          <li><i style="width:var(--ag-sp-22)"></i><b>22</b></li>
+          <li><i style="width:var(--ag-sp-24)"></i><b>24</b></li>
+          <li><i style="width:var(--ag-sp-28)"></i><b>28</b></li>
+          <li><i style="width:var(--ag-sp-32)"></i><b>32</b></li>
+          <li><i style="width:var(--ag-sp-36)"></i><b>36</b></li>
+          <li><i style="width:var(--ag-sp-40)"></i><b>40</b></li>
+          <li><i style="width:var(--ag-sp-48)"></i><b>48</b></li>
+          <li><i style="width:var(--ag-sp-56)"></i><b>56</b></li>
+          <li><i style="width:var(--ag-sp-64)"></i><b>64</b></li>
+        </ul>
+      </section>
+
+      {# ── RADII · reads every --ag-r-* rung ──────────────────────────────── #}
+      <section class="duix__sec">
+        <h2 class="duix__h2">Radii</h2>
+        <ul class="duix__radii">
+          <li><i style="border-radius:var(--ag-r-7)"></i><b>7</b><span>mini badges</span></li>
+          <li><i style="border-radius:var(--ag-r-10)"></i><b>10</b><span>icon tiles</span></li>
+          <li><i style="border-radius:var(--ag-r-12)"></i><b>12</b><span>tiles</span></li>
+          <li><i style="border-radius:var(--ag-r-14)"></i><b>14</b><span>inputs, small buttons</span></li>
+          <li><i style="border-radius:var(--ag-r-16)"></i><b>16</b><span>phone CTAs, rows</span></li>
+          <li><i style="border-radius:var(--ag-r-18)"></i><b>18</b><span>lists</span></li>
+          <li><i style="border-radius:var(--ag-r-20)"></i><b>20</b><span>cards, drawers</span></li>
+          <li><i style="border-radius:var(--ag-r-22)"></i><b>22</b><span>content sheet over a gallery</span></li>
+          <li><i style="border-radius:var(--ag-r-24)"></i><b>24</b><span>major cards, sheets</span></li>
+          <li><i style="border-radius:var(--ag-r-pill)"></i><b>999</b><span>pills, chips</span></li>
+        </ul>
+      </section>
+
+      {# ── LAYERS · reads every --ag-z-* token ────────────────────────────── #}
+      <section class="duix__sec">
+        <h2 class="duix__h2">Layers</h2>
+        <p class="duix__note">Written down because a z-index picked by adding ten to
+          the last one somebody remembered is how two fixed elements end up level.</p>
+        <ul class="duix__layers">
+          <li><b style="--z:var(--ag-z-sticky)">5</b><span>sticky toolbars</span></li>
+          <li><b style="--z:var(--ag-z-appbar)">20</b><span>app bar</span></li>
+          <li><b style="--z:var(--ag-z-bar)">30</b><span>buy / vote / give bars</span></li>
+          <li><b style="--z:var(--ag-z-header)">40</b><span>site header</span></li>
+          <li><b style="--z:var(--ag-z-gee)">60</b><span>Gee</span></li>
+          <li><b style="--z:var(--ag-z-scrim)">79</b><span>scrim</span></li>
+          <li><b style="--z:var(--ag-z-sheet)">80</b><span>sheets</span></li>
+        </ul>
+      </section>
+
+      {# ── SHADOWS ────────────────────────────────────────────────────────── #}
+      <section class="duix__sec">
+        <h2 class="duix__h2">Shadows</h2>
+        <ul class="duix__shadows">
+          <li><i style="box-shadow:var(--ag-sh-pop)"></i><b>pop</b><span>popover, drawer</span></li>
+          <li><i style="box-shadow:var(--ag-sh-mega)"></i><b>mega</b><span>mega panel</span></li>
+          <li><i style="box-shadow:var(--ag-sh-sheet)"></i><b>sheet</b><span>bottom sheet</span></li>
+          <li><i style="box-shadow:var(--ag-sh-float)"></i><b>float</b><span>round button on a photo</span></li>
+          <li><i style="box-shadow:var(--ag-sh-dot)"></i><b>dot</b><span>quick-add on a card</span></li>
+        </ul>
+      </section>
+
+      {# ── BUTTONS ────────────────────────────────────────────────────────── #}
+      <section class="duix__sec">
+        <h2 class="duix__h2">Button</h2>
+        <p class="duix__note">52px on phone, 48 on desktop. A disabled button always
+          has an explanation beside it; on its own it is an anti-pattern.</p>
+        <div class="duix__row">
+          <button type="button" class="ag-btn ag-btn--primary">Send my support</button>
+          <button type="button" class="ag-btn ag-btn--secondary">See how it was decided</button>
+          <button type="button" class="ag-btn ag-btn--ink">Sign in or join</button>
+          <button type="button" class="ag-btn ag-btn--text">Celebrate again</button>
+          <button type="button" class="ag-btn ag-btn--danger">Sign out</button>
+          <button type="button" class="ag-btn ag-btn--primary ag-btn--pill">Get tickets</button>
+        </div>
+        <div class="duix__row">
+          <button type="button" class="ag-btn ag-btn--primary" disabled>Choose a tier first</button>
+          <button type="button" class="ag-btn ag-btn--primary" data-busy>Sending…</button>
+        </div>
+        <div class="duix__row duix__row--block">
+          <button type="button" class="ag-btn ag-btn--primary ag-btn--block">Full width, 52px, radius 16</button>
+        </div>
+      </section>
+
+      {# ── CHIPS ──────────────────────────────────────────────────────────── #}
+      <section class="duix__sec">
+        <h2 class="duix__h2">Chip</h2>
+        <p class="duix__note">Outlined always. Selected is a 2px ink border with the
+          same white fill — never a dark fill. Labels never wrap.</p>
+        <div class="ag-chip-row">
+          <button type="button" class="ag-chip" aria-pressed="true">All</button>
+          <button type="button" class="ag-chip" aria-pressed="false">Voting open
+            <span class="ag-chip__n">12</span></button>
+          <button type="button" class="ag-chip" aria-pressed="false">
+            <span class="ag-chip__dot" style="color:var(--ag-live)"></span>Live</button>
+          <button type="button" class="ag-chip" aria-pressed="false">Opens soon</button>
+          <button type="button" class="ag-chip ag-chip--remove" aria-pressed="false">
+            Size L <b aria-hidden="true">×</b></button>
+          <button type="button" class="ag-chip" disabled>Closed</button>
+        </div>
+      </section>
+
+      {# ── FIELDS ─────────────────────────────────────────────────────────── #}
+      <section class="duix__sec">
+        <h2 class="duix__h2">Field</h2>
+        <p class="duix__note">52px tall, 16px text — anything smaller makes iOS zoom
+          on focus. Labels are always visible; a placeholder is not a label.</p>
+        <div class="duix__grid2">
+          <div>
+            <label class="ag-label" for="duix-a">Full name</label>
+            <span class="ag-field"><input id="duix-a" type="text" autocomplete="name" value="Achieng Odhiambo"></span>
+            <p class="ag-hint">One field. Never first name and last name.</p>
+          </div>
+          <div>
+            <label class="ag-label" for="duix-b">Email</label>
+            <span class="ag-field" data-invalid>
+              <input id="duix-b" type="email" inputmode="email" autocomplete="email"
+                     enterkeyhint="done" aria-invalid="true" aria-describedby="duix-b-e" value="achieng@">
+            </span>
+            <p class="ag-err" id="duix-b-e" role="alert">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                   stroke-width="2.1" stroke-linecap="round" aria-hidden="true">
+                <circle cx="12" cy="12" r="9"/><path d="M12 7v6M12 16.5v.5"/></svg>
+              That address is missing everything after the @.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      {# ── LIST + CARD ────────────────────────────────────────────────────── #}
+      <section class="duix__sec">
+        <h2 class="duix__h2">List and card</h2>
+        <p class="duix__note">The whole row is the target and it ends in a chevron.
+          No small inline buttons inside a tappable row.</p>
+        <div class="ag-list">
+          {% for r in [
+            {t:'Display &amp; reading', v:'Larger text'},
+            {t:'Language', v:'English'},
+            {t:'Notifications', v:'On'}
+          ] %}
+          <a class="ag-list__row" href="#">
+            <span class="ag-icon-tile" aria-hidden="true">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                   stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="8"/></svg>
+            </span>
+            <span class="ag-list__label">{{ r.t|raw }}</span>
+            <span class="ag-list__value">{{ r.v }}</span>
+          </a>
+          {% endfor %}
+        </div>
+        <div class="ag-card duix__cardpad">
+          <p class="duix__t-card">A card</p>
+          <p class="duix__t-sec">Surface, one hairline, radius 20.</p>
+        </div>
+      </section>
+
+      {# ── SWITCH + SEGMENTED ─────────────────────────────────────────────── #}
+      <section class="duix__sec">
+        <h2 class="duix__h2">Switch and segmented control</h2>
+        <div class="duix__grid2">
+          <div class="ag-card duix__cardpad">
+            <div class="duix__switchrow">
+              <span class="ag-list__label">High contrast</span>
+              <span class="ag-switch-target">
+                <span class="ag-switch" role="switch" aria-checked="false" tabindex="0"
+                      aria-label="High contrast"></span>
+              </span>
+            </div>
+            <div class="duix__switchrow">
+              <span class="ag-list__label">Reduce motion</span>
+              <span class="ag-switch-target">
+                <span class="ag-switch" role="switch" aria-checked="true" tabindex="0"
+                      aria-label="Reduce motion"></span>
+              </span>
+            </div>
+          </div>
+          <div class="ag-card duix__cardpad">
+            <span class="ag-label" id="duix-size">Text size</span>
+            <div class="ag-seg" role="radiogroup" aria-labelledby="duix-size">
+              <button type="button" class="ag-seg__opt" role="radio" aria-checked="true">100%</button>
+              <button type="button" class="ag-seg__opt" role="radio" aria-checked="false">125%</button>
+              <button type="button" class="ag-seg__opt" role="radio" aria-checked="false">150%</button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {# ── STATES ─────────────────────────────────────────────────────────── #}
+      <section class="duix__sec">
+        <h2 class="duix__h2">Loading, empty, offline</h2>
+        <p class="duix__note">Skeletons match the final geometry so nothing shifts
+          when the data lands. Spinners are never used for content.</p>
+        <div class="ag-card duix__cardpad">
+          <span class="ag-skel ag-skel--title"></span>
+          <span class="ag-skel ag-skel--line duix__mt"></span>
+          <span class="ag-skel ag-skel--line duix__mt" style="width:78%"></span>
+        </div>
+        <div class="ag-card duix__mt">
+          <div class="ag-empty">
+            <p class="ag-empty__t">Nothing matched “kente” in Size L.</p>
+            <button type="button" class="ag-btn ag-btn--secondary">Clear filters</button>
+          </div>
+        </div>
+        <div class="ag-offline duix__mt">You’re offline. Showing saved results.</div>
+      </section>
+
+      {# ── BARS ───────────────────────────────────────────────────────────── #}
+      <section class="duix__sec">
+        <h2 class="duix__h2">Bars</h2>
+        <p class="duix__note">The app bar fills and grows a hairline once content
+          scrolls under it — a colour change, never a height jump.</p>
+
+        <div class="duix__spec">
+          <div class="ag-appbar ag-appbar--child">
+            <button type="button" class="ag-appbar__icon" aria-label="Back">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                   stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg>
+            </button>
+            <span class="ag-appbar__title"><b>Results</b><span>3rd Edition · 2025</span></span>
+            <button type="button" class="ag-appbar__icon" aria-label="Share">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                   stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/>
+                <path d="m8.6 13.5 6.8 4M15.4 6.5l-6.8 4"/></svg>
+            </button>
+          </div>
+        </div>
+
+        <div class="duix__spec">
+          <div class="ag-actionbar">
+            <span class="ag-actionbar__sum"><b>₦17,500</b><span>Patron · 1 ticket</span></span>
+            <button type="button" class="ag-btn ag-btn--primary">Get tickets</button>
+          </div>
+        </div>
+
+        <div class="duix__spec">
+          <nav class="ag-tabbar" aria-label="Specimen">
+            {% for t in ['Home','Discover','Nominate','Pulse','Menu'] %}
+            <a href="#"{% if loop.first %} aria-current="page"{% endif %}>
+              <svg width="23" height="23" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                   stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <circle cx="12" cy="12" r="8"/></svg>
+              {{ t }}
+            </a>
+            {% endfor %}
+          </nav>
+        </div>
+      </section>
+
+      <p class="duix__foot">Dev only. This route answers 404 when
+        <code>APP_ENV=production</code>.</p>
+</div>
+{% endblock %}
+
+{% block head_styles %}
+<style nonce="{{ csp_nonce }}">
+  /* Page-local specimen furniture. Every value is a token; nothing here is a
+     component, so none of it belongs in components.css. */
+  .duix{ background:var(--ag-ground) }
+  .duix__wrap{ max-width:1180px; margin:0 auto; padding:var(--ag-sp-32) var(--ag-gutter) var(--ag-sp-64) }
+  .duix__head{ margin-bottom:var(--ag-sp-40) }
+  .duix__kicker{ margin:0 0 var(--ag-sp-8); font-size:13px; font-weight:600; color:var(--ag-green) }
+  .duix__h1{ margin:0; font-family:var(--ag-font-display); font-weight:700; font-size:44px; line-height:1.06 }
+  .duix__lede{ max-width:62ch; margin:var(--ag-sp-12) 0 0; font-size:17px; line-height:1.65; color:var(--ag-ink-2) }
+  .duix__sec{ margin-top:var(--ag-sp-48); padding-top:var(--ag-sp-32); border-top:1px solid var(--ag-line) }
+  .duix__h2{ margin:0 0 var(--ag-sp-8); font-size:19px; font-weight:700; line-height:1.3 }
+  .duix__note{ max-width:62ch; margin:0 0 var(--ag-sp-20); font-size:14.5px; line-height:1.5; color:var(--ag-soft) }
+  .duix__row{ display:flex; flex-wrap:wrap; gap:var(--ag-sp-12); margin-bottom:var(--ag-sp-12); align-items:center }
+  .duix__row--block{ display:block }
+  .duix__grid2{ display:grid; gap:var(--ag-sp-20) }
+  @media (min-width:720px){ .duix__grid2{ grid-template-columns:1fr 1fr } }
+  .duix__mt{ margin-top:var(--ag-sp-12) }
+  .duix__cardpad{ padding:var(--ag-sp-18) }
+  .duix__spec{ margin-bottom:var(--ag-sp-20); border:1px solid var(--ag-line); border-radius:var(--ag-r-16); overflow:hidden }
+  .duix__foot{ margin-top:var(--ag-sp-56); font-size:13px; color:var(--ag-soft) }
+  code{ font-family:var(--ag-font-mono); font-size:13px }
+
+  .duix__swatches{ display:grid; gap:var(--ag-sp-10); margin:0; padding:0; list-style:none;
+    grid-template-columns:repeat(auto-fill,minmax(250px,1fr)) }
+  .duix__sw{ display:grid; grid-template-columns:34px 1fr; gap:var(--ag-sp-10) var(--ag-sp-12); align-items:center }
+  .duix__sw b{ font-size:13px; font-weight:700; font-family:var(--ag-font-mono) }
+  .duix__sw > span:last-child{ grid-column:2; font-size:12.5px; color:var(--ag-soft) }
+  .duix__chip{ grid-row:span 2; width:34px; height:34px; border-radius:var(--ag-r-10);
+    background:var(--c); border:1px solid var(--ag-line-2) }
+
+  .duix__type > *{ margin:0 0 var(--ag-sp-14) }
+  .duix__t-d{ font-family:var(--ag-font-display); font-weight:700; font-size:44px; line-height:1.06 }
+  .duix__t-h2{ font-size:19px; font-weight:700; line-height:1.3 }
+  .duix__t-card{ font-size:17px; font-weight:700 }
+  .duix__t-body{ max-width:62ch; font-size:16px; line-height:1.65 }
+  .duix__t-sec{ font-size:14.5px; line-height:1.5; color:var(--ag-ink-2) }
+  .duix__t-meta{ font-size:13.5px; color:var(--ag-soft) }
+  .duix__t-micro{ font-size:12.5px; color:var(--ag-soft) }
+  .duix__t-mono{ font-family:var(--ag-font-mono); font-size:13px; font-weight:500 }
+
+  .duix__scale, .duix__radii, .duix__layers, .duix__shadows{ margin:0; padding:0; list-style:none }
+  .duix__scale li{ display:flex; align-items:center; gap:var(--ag-sp-12); margin-bottom:var(--ag-sp-6) }
+  .duix__scale i{ display:block; height:14px; border-radius:var(--ag-r-7); background:var(--ag-green-edge) }
+  .duix__scale b{ font-family:var(--ag-font-mono); font-size:12.5px; color:var(--ag-soft) }
+
+  .duix__radii{ display:grid; gap:var(--ag-sp-14); grid-template-columns:repeat(auto-fill,minmax(150px,1fr)) }
+  .duix__radii li{ display:grid; grid-template-columns:56px 1fr; gap:var(--ag-sp-10); align-items:center }
+  .duix__radii i{ display:block; width:56px; height:56px; background:var(--ag-tint); border:1px solid var(--ag-line-2) }
+  .duix__radii b{ font-family:var(--ag-font-mono); font-size:13px }
+  .duix__radii span{ grid-column:2; font-size:12.5px; color:var(--ag-soft) }
+
+  .duix__layers li{ display:flex; align-items:center; gap:var(--ag-sp-12); margin-bottom:var(--ag-sp-8) }
+  .duix__layers b{ display:flex; align-items:center; justify-content:center; width:44px; height:28px;
+    border-radius:var(--ag-r-7); background:var(--ag-tint); font-family:var(--ag-font-mono); font-size:12.5px;
+    /* The token is read here: the specimen's own stack order is the value it names. */
+    position:relative; z-index:var(--z) }
+  .duix__layers span{ font-size:13.5px; color:var(--ag-soft) }
+
+  .duix__shadows{ display:grid; gap:var(--ag-sp-20); grid-template-columns:repeat(auto-fill,minmax(170px,1fr)) }
+  .duix__shadows li{ display:grid; gap:var(--ag-sp-8) }
+  .duix__shadows i{ display:block; height:64px; border-radius:var(--ag-r-14); background:var(--ag-surface) }
+  .duix__shadows b{ font-family:var(--ag-font-mono); font-size:13px }
+  .duix__shadows span{ font-size:12.5px; color:var(--ag-soft) }
+
+  .duix__switchrow{ display:flex; align-items:center; justify-content:space-between; gap:var(--ag-sp-12);
+    min-height:56px }
+</style>
+{% endblock %}

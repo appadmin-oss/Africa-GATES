@@ -47,8 +47,39 @@ use Tests\TestCase;
  */
 final class TypeScaleTest extends TestCase
 {
-    /** The closed small-text ladder. */
-    private const LADDER = [10, 11, 12, 13, 14, 16, 17];
+    /**
+     * The closed small-text ladder — REFERENCE §6.2.
+     *
+     * ── THIS LADDER REPLACED A DIFFERENT ONE, AND THE SWAP IS THE POINT ──────
+     *
+     * It used to be `10 · 11 · 12 · 13 · 14 · 16 · 17`, whole pixels only, with the
+     * gap at 15 defended in as many words: "14 is the reading size, 16 is the lede,
+     * and a rung between them is an invitation to split the difference again."
+     *
+     * That was a good rule for the type it governed and it is not the rule the
+     * redesign is drawn on. Measured across the 32 design references: 790 of the
+     * 1,617 `font-size` declarations sit off the old ladder — `15px` alone appears
+     * 296 times, `14.5px` 164, `12.5px` 129, `13.5px` 104. Half the type in the
+     * design. A guard cannot be kept AND the design shipped, so the guard moved.
+     *
+     * What did not change is that there IS a closed ladder. An unguarded scale is a
+     * comment: the tree this repo inherited carried 1,579 declarations off its own
+     * documented scale, 41% of every size on the site, because nothing asked.
+     */
+    private const LADDER = [11.5, 12, 12.5, 13, 13.5, 14, 14.5, 15, 15.5, 16, 16.5, 17];
+
+    /**
+     * Rungs the legacy sheets still stand on, retired as the phases convert them.
+     *
+     * 10 and 11 are not on the redesign's ladder — its smallest micro size is 11.5 —
+     * but 582 declarations across the unconverted templates use them today. Failing
+     * on those would turn this guard into a wall of noise about pages no phase has
+     * reached, which is how a guard gets switched off.
+     *
+     * Each phase deletes the ones its pages stop using. When this is empty the
+     * migration is finished, and the constant goes with it.
+     */
+    private const MIGRATING = [10, 11];
 
     /** Above this, size is set with clamp() against the viewport, not off the ladder. */
     private const DISPLAY_FLOOR = 18;
@@ -102,7 +133,11 @@ final class TypeScaleTest extends TestCase
             // four files currently do it: a 1px size inside a hidden preview div.
             if ($v <= 1.0 && str_contains($src, 'mso-hide:all')) continue;
 
-            if (!in_array((int) $v, self::LADDER, true) || $v !== (float) (int) $v) {
+            // Compared as floats, because half-sizes are rungs now. `in_array` with
+            // loose comparison would match '12' to 12.5 through PHP's numeric string
+            // rules, so the haystack is built from floats and the test is strict.
+            $allowed = array_map('floatval', array_merge(self::LADDER, self::MIGRATING));
+            if (!in_array($v, $allowed, true)) {
                 $off[] = sprintf('%s:%d  %spx', $file, $line, rtrim(rtrim((string) $v, '0'), '.'));
             }
         }
@@ -116,15 +151,36 @@ final class TypeScaleTest extends TestCase
     }
 
     /**
-     * The rung the scale deliberately omits.
+     * The rung the previous scale deliberately omitted, and that this one carries.
      *
-     * Kept apart from the sweep above because 15px is the one value that is neither a
-     * half-size nor obviously wrong, so a future reader finding it removed deserves to
-     * find the reason rather than a line in a list of 1,579.
+     * Kept as its own test rather than left implicit in the array, because a reader
+     * who knows the old rule will come looking for the gap at 15 and deserves to find
+     * the reversal written down rather than infer it from a list.
+     *
+     * The old reasoning — 14 reads, 16 leads, and a rung between them invites the next
+     * split — was sound about a ladder of whole pixels. The redesign's scale is not
+     * that ladder: 15 is its button size (REFERENCE §6.2, "Buttons 15–16 / 700
+     * primary"), with 14.5 for secondary text and 15.5 for a primary phone button. The
+     * rung is load-bearing now, and the thing that stops the next split-the-difference
+     * is the sweep above, not the absence of this number.
      */
-    public function test_fifteen_is_not_a_rung(): void
+    public function test_fifteen_is_a_rung_now(): void
     {
-        $this->assertNotContains(15, self::LADDER,
-            'the gap between the reading size and the lede is what stops the next split-the-difference');
+        $this->assertContains(15, self::LADDER,
+            '15px is the redesign button size — REFERENCE §6.2');
+        $this->assertNotContains(15.25, self::LADDER,
+            'the ladder is still closed: a size not on it is a misread of the design');
+    }
+
+    /**
+     * The migration allowance only ever shrinks.
+     *
+     * Pinned so that adding a rung to it is a deliberate act with a diff, rather than
+     * the quiet way this guard stops meaning anything.
+     */
+    public function test_the_migration_allowance_is_only_the_two_legacy_rungs(): void
+    {
+        $this->assertSame([10, 11], self::MIGRATING,
+            'nothing new may be added here; each phase removes what its pages stop using');
     }
 }

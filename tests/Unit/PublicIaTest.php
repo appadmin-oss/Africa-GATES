@@ -59,8 +59,16 @@ final class PublicIaTest extends TestCase
 {
     private const ROUTES = __DIR__ . '/../../src/routes.php';
 
-    /** Consoles and machinery that are not the public site. */
-    private const NOT_PUBLIC = ['/api', '/admin', '/judge', '/__', '/m/', '/door', '/ping', '/email'];
+    /**
+     * Consoles and machinery that are not the public site.
+     *
+     * `/_dev` is the redesign's style page — every token and base component in every
+     * state, for whoever is building the next phase. It answers 404 unless APP_ENV is
+     * something other than production, so there is nothing on the public site that
+     * could link to it and nothing on production to reach. A developer surface is the
+     * same kind as the `/__setup` tools beside it, not a public page nobody linked.
+     */
+    private const NOT_PUBLIC = ['/api', '/admin', '/judge', '/__', '/_dev', '/m/', '/door', '/ping', '/email'];
 
     /** Reached by the gateway, by completing a flow, or by an authentication step. */
     private const UNNAVIGABLE = [

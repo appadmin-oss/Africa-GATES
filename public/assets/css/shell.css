@@ -1,0 +1,139 @@
+/* ══════════════════════════════════════════════════════════════════════════════
+   PAGE SHELL — only <main> scrolls
+   REFERENCE §6.7 · app-ux-standards §0.4
+   ══════════════════════════════════════════════════════════════════════════════
+
+   The root is 100dvh and does not scroll. Exactly one element inside it does, so
+   app bars, tab bars, action bars and the Gee launcher stay pinned without being
+   `position:fixed` and without the iOS address-bar jitter that comes with it.
+
+   ── WHY THE OVERFLOW LOCK IS SCOPED AND NOT GLOBAL ──────────────────────────
+
+   The handoff's snippet opens `html,body{margin:0;height:100%;overflow:hidden}`.
+   Applied globally that is correct for a finished redesign and catastrophic
+   during one: around sixty templates have not been converted yet, none of them
+   has an `.ag-main`, and a page with no scroll container and `overflow:hidden` on
+   the body cannot be scrolled at all. The whole site would be unusable below the
+   fold until phase 9.
+
+   So the lock rides on `body.ag-shelled`, which only the new shell sets. An
+   unconverted page scrolls the document as it always did. When the last page is
+   converted the class becomes unconditional and this comment goes with it.
+   ══════════════════════════════════════════════════════════════════════════════ */
+
+html,body{ margin:0 }
+
+body{
+  background:var(--ag-ground);
+  color:var(--ag-ink);
+  font-family:var(--ag-font-ui);
+  -webkit-font-smoothing:antialiased;
+  -moz-osx-font-smoothing:grayscale;
+  text-size-adjust:100%;
+  -webkit-text-size-adjust:100%;
+}
+
+/* The lock. See the header. */
+html:has(body.ag-shelled), body.ag-shelled{ height:100%; overflow:hidden }
+
+.ag-shell{
+  position:relative;
+  width:100%;
+  height:100dvh;
+  max-height:100%;
+  display:flex;
+  flex-direction:column;
+  overflow:hidden;
+}
+/* Bars sit outside the scroller so they cannot move with it. */
+.ag-shell > header,
+.ag-shell > nav,
+.ag-shell > .ag-actionbar,
+.ag-shell > .ag-tabbar{ flex:none }
+
+.ag-main{
+  position:relative;              /* sticky children resolve against this */
+  flex:1;
+  min-height:0;                   /* without this the flex child refuses to shrink */
+  overflow-x:hidden;
+  overflow-y:auto;
+  overscroll-behavior-y:contain;  /* no rubber-banding the page behind a sheet */
+  -webkit-overflow-scrolling:touch;
+}
+
+/* ── Focus · REFERENCE §13, skill §16 ───────────────────────────────────────
+   3px green, 2px offset, and never hidden behind the sticky chrome: WCAG 2.4.11
+   is satisfied by scroll-padding on the scroller, not by hoping. */
+:focus-visible{ outline:3px solid var(--ag-green); outline-offset:2px }
+.ag-main{ scroll-padding-top:var(--ag-sp-64) }
+/* On a document page the green ring reads as an action; the ink one does not. */
+.ag-doc :focus-visible{ outline-color:var(--ag-ink) }
+
+.ag-skip{
+  position:absolute; left:var(--ag-sp-8); top:-64px; z-index:var(--ag-z-sheet);
+  height:44px; display:inline-flex; align-items:center; padding:0 var(--ag-sp-16);
+  border-radius:var(--ag-r-12); background:var(--ag-surface); color:var(--ag-ink);
+  font-weight:700; transition:top var(--ag-dur-1) var(--ag-ease);
+}
+.ag-skip:focus{ top:var(--ag-sp-8) }
+
+/* ── Typographic defaults ───────────────────────────────────────────────────
+   Inputs are never below 16px: anything smaller makes iOS Safari zoom the page
+   on focus, and the zoom does not come back. */
+a{ color:var(--ag-green); text-decoration:none }
+a:hover{ color:var(--ag-green-deep) }
+input,select,textarea,button{ font:inherit; color:inherit }
+input,select,textarea{ font-size:16px }
+h1,h2,h3{ text-wrap:balance }
+p{ text-wrap:pretty }
+.ag-num{ font-variant-numeric:tabular-nums }
+.ag-measure{ max-width:62ch }
+
+.ag-sr{
+  position:absolute; width:1px; height:1px; padding:0; margin:-1px;
+  overflow:hidden; clip:rect(0 0 0 0); clip-path:inset(50%); white-space:nowrap; border:0;
+}
+
+/* ══ Display & reading ═══════════════════════════════════════════════════════
+   Applied to <html> by the inline head script before first paint, so there is no
+   flash of the unstyled preference. The store is localStorage["ag-a11y"]. */
+
+html.ag-t125{ font-size:125% }
+html.ag-t150{ font-size:150% }
+
+/* High contrast collapses the greys onto ink rather than inventing a palette. */
+html.ag-hc{
+  --ag-soft:#10292c;
+  --ag-ink-2:#10292c;
+  --ag-line:#10292c;
+  --ag-line-2:#10292c;
+  --ag-line-3:#10292c;
+}
+html.ag-easy body{ font-family:'Atkinson Hyperlegible',var(--ag-font-ui); letter-spacing:.01em }
+html.ag-ls p, html.ag-ls li{ line-height:1.8 }
+html.ag-ul a{ text-decoration:underline; text-underline-offset:3px }
+
+/* Data saver: no autoplay, and images become tap-to-load placeholders. */
+html.ag-saver video[autoplay]{ display:none }
+html.ag-saver img[data-saver-hide]{ visibility:hidden }
+
+/* ══ Reduced motion ══════════════════════════════════════════════════════════
+   Both the OS signal and the in-app switch, and both show the FINAL state
+   instantly rather than a slow version of the animation. `!important` is allowed
+   here and only here (REFERENCE §4.6). */
+
+@media (prefers-reduced-motion:reduce){
+  *,*::before,*::after{
+    animation-duration:.001ms!important;
+    animation-iteration-count:1!important;
+    transition-duration:.001ms!important;
+    scroll-behavior:auto!important;
+  }
+}
+html.ag-rm *,
+html.ag-rm *::before,
+html.ag-rm *::after{
+  animation:none!important;
+  transition:none!important;
+  scroll-behavior:auto!important;
+}

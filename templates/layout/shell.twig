@@ -1,0 +1,90 @@
+{#
+  ══════════════════════════════════════════════════════════════════════════════
+  THE REDESIGN PAGE SHELL
+  REFERENCE §6.7 · app-ux-standards §0.4
+  ══════════════════════════════════════════════════════════════════════════════
+
+  The root is 100dvh and does not scroll. Exactly one element inside it does —
+  `<main class="ag-main">` — so app bars, tab bars, action bars and the Gee
+  launcher stay pinned without `position:fixed` and without the iOS address-bar
+  jitter that comes with it.
+
+  ── WHY THIS IS A LAYOUT AND NOT A BLOCK INSIDE gates.twig ───────────────────
+
+  The first cut of the Phase 1 style page extended `layout/gates.twig` and put
+  `.ag-shell` inside its `{% block content %}`. That renders, and it is wrong in
+  a way that is obvious the moment you look at it: `.ag-shell` is `height:100dvh`
+  with `overflow:hidden`, and the old layout's body scrolls, so the shell became a
+  one-viewport-tall window onto a document that carried on underneath it. The page
+  clipped at 844px, the legacy tab bar sat over the specimens, and the intro
+  loader's globe painted across the whole thing.
+
+  A shell that only works when nothing else owns the scroll cannot be a guest
+  inside a layout that does. So it is its own layout, loading only the three
+  redesign stylesheets, and pages converted by later phases extend THIS.
+
+  `layout/gates.twig` keeps serving every unconverted page until Phase 9 retires
+  it. Two layouts during a redesign is the honest state; one layout trying to be
+  both is what produced the screenshot above.
+
+  ── BLOCKS ──────────────────────────────────────────────────────────────────
+    head_styles   page-local <style>, nonce'd
+    header        SiteHeader — tablet and desktop      (Phase 2)
+    app_bar       the phone AppBar, root or child      (Phase 2)
+    content       goes inside <main>; the ONLY scroller
+    bottom_bar    action bar OR tab bar, each [data-bottom-ui]  (Phase 2)
+    foot_scripts  page-local <script>, nonce'd
+  ══════════════════════════════════════════════════════════════════════════════
+#}
+<!doctype html>
+<html lang="{{ lang|default('en') }}" dir="{{ (lang|default('en')) == 'ar' ? 'rtl' : 'ltr' }}">
+<head>
+  <meta charset="utf-8">
+  {# `viewport-fit=cover` so `env(safe-area-inset-*)` reports real numbers; without
+     it every safe-area calculation in the components resolves to zero. #}
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>{{ page_title|default('Africa GATES') }}</title>
+  {% if meta_description is defined %}<meta name="description" content="{{ meta_description }}">{% endif %}
+  {% if meta_robots is defined %}<meta name="robots" content="{{ meta_robots }}">{% endif %}
+
+  {# ── Display & reading, before first paint ────────────────────────────────
+     Phase 2 owns the store and the settings screen. The hook is here because it
+     has to run before any stylesheet paints — a linked file would paint first and
+     the person who asked for 150% text would watch it start at 100%. #}
+  {% block a11y_head %}{% endblock %}
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Playfair+Display:wght@700&family=JetBrains+Mono:wght@500;700&display=swap">
+
+  {# The three sheets, in cascade order. tokens.css is the single source of every
+     colour, size, radius, shadow and duration; nothing else may carry a hex. #}
+  <link rel="stylesheet" href="{{ asset('/assets/css/tokens.css') }}">
+  <link rel="stylesheet" href="{{ asset('/assets/css/shell.css') }}">
+  <link rel="stylesheet" href="{{ asset('/assets/css/components.css') }}">
+  {% block head_styles %}{% endblock %}
+</head>
+
+{# `ag-shelled` is what arms the overflow lock in shell.css. It is a class rather
+   than a bare `html,body{overflow:hidden}` so the ~180 pages still on the old
+   layout keep their document scroll — see the note at the top of shell.css. #}
+<body class="ag-shelled" data-page="{{ page_id|default('') }}">
+  <a class="ag-skip" href="#main">Skip to content</a>
+
+  <div class="ag-shell">
+    {% block header %}{% endblock %}
+    {% block app_bar %}{% endblock %}
+
+    <main class="ag-main" id="main">
+      {% block content %}{% endblock %}
+    </main>
+
+    {% block bottom_bar %}{% endblock %}
+  </div>
+
+  {% block gee %}{% endblock %}
+
+  <script defer src="{{ asset('/assets/js/shell.js') }}"></script>
+  {% block foot_scripts %}{% endblock %}
+</body>
+</html>

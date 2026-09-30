@@ -1,0 +1,436 @@
+/* ══════════════════════════════════════════════════════════════════════════════
+   BASE COMPONENTS (BEM)
+   Every value comes from REFERENCE §6 or a .dc.html. Nothing here is rounded.
+   ══════════════════════════════════════════════════════════════════════════════
+
+   Two rules run through the whole file and are the ones most often broken:
+
+   · TARGETS ARE ≥44px. WCAG 2.5.8 sets 24 as the AA floor and 2.5.5 sets 44 as
+     the enhanced bar. This product ships 44, and 48–54 for a primary phone
+     action. A component here is never shorter than that even when the design
+     draws a smaller visual — the hit area grows, not the ink.
+
+   · A SELECTED CHIP IS A 2px INK OUTLINE, NEVER A DARK FILL. Dark-filled chips
+     are in the anti-pattern list (skill §22) and in DESIGN-NOTES. The padding
+     drops by 1px with the border so the width does not jump on selection.
+   ══════════════════════════════════════════════════════════════════════════════ */
+
+
+/* ══ Button ══════════════════════════════════════════════════════════════════ */
+
+.ag-btn{
+  display:inline-flex; align-items:center; justify-content:center; gap:var(--ag-sp-8);
+  height:52px; padding:0 22px;
+  border:0; border-radius:var(--ag-r-16);
+  font-size:15.5px; font-weight:700; line-height:1;
+  text-decoration:none; white-space:nowrap; cursor:pointer;
+  transition:background var(--ag-dur-1) var(--ag-ease),
+             border-color var(--ag-dur-1) var(--ag-ease),
+             opacity var(--ag-dur-1) var(--ag-ease);
+}
+.ag-btn--primary{ background:var(--ag-green); color:#fff }
+.ag-btn--primary:hover{ background:var(--ag-green-deep); color:#fff }
+.ag-btn--secondary{
+  background:var(--ag-surface); color:var(--ag-ink);
+  border:1px solid var(--ag-line-2); font-size:15px; font-weight:600;
+}
+.ag-btn--secondary:hover{ background:var(--ag-bar); color:var(--ag-ink) }
+.ag-btn--ink{ background:var(--ag-ink); color:#fff }
+.ag-btn--text{
+  height:44px; padding:0 var(--ag-sp-4);
+  background:transparent; color:var(--ag-ink); font-weight:600;
+  text-decoration:underline; text-underline-offset:3px;
+}
+.ag-btn--danger{ background:transparent; color:var(--ag-error); font-weight:600 }
+.ag-btn--pill{ border-radius:var(--ag-r-pill) }
+.ag-btn--block{ width:100% }
+
+/* Pressed within 50ms, so the tap is acknowledged before the network is.
+   Transform only — never height, or the bar it sits in reflows. */
+.ag-btn:active{ transform:translateY(1px) }
+
+/* A disabled button must say why somewhere; on its own it is an anti-pattern.
+   `aria-disabled` is styled as well as `[disabled]` because a bottom-bar action
+   that is merely impossible-for-now must stay focusable to announce its reason. */
+.ag-btn[disabled],
+.ag-btn[aria-disabled="true"]{
+  background:var(--ag-tint); color:var(--ag-mute); border-color:transparent;
+  cursor:not-allowed; transform:none;
+}
+
+/* Submitting: the label becomes "Sending…" in markup and the width is held, so
+   the bar does not jump. Spinners are for <1s actions inside a button only. */
+.ag-btn[data-busy]{ pointer-events:none; opacity:.72 }
+
+@media (min-width:1024px){
+  .ag-btn{ height:48px; font-size:15px }
+  .ag-btn--text{ height:44px }
+}
+
+
+/* ══ Chip ════════════════════════════════════════════════════════════════════ */
+
+.ag-chip{
+  flex:none;
+  display:inline-flex; align-items:center; gap:7px;
+  height:44px; padding:0 var(--ag-sp-16);
+  border:1px solid var(--ag-line-2); border-radius:var(--ag-r-pill);
+  background:var(--ag-surface); color:var(--ag-ink);
+  font-size:14.5px; font-weight:500;
+  white-space:nowrap;                 /* a wrapped chip label is a defect */
+  cursor:pointer;
+  transition:border-color var(--ag-dur-1) var(--ag-ease);
+}
+.ag-chip[aria-pressed="true"],
+.ag-chip[aria-selected="true"],
+.ag-chip[aria-current="true"],
+.ag-chip[aria-current="page"]{
+  border:2px solid var(--ag-ink);
+  padding:0 15px;                     /* 16 − 1 so the width does not move */
+  font-weight:700;
+}
+.ag-chip[disabled]{ color:var(--ag-mute); border-color:var(--ag-line); cursor:not-allowed }
+.ag-chip__dot{ width:7px; height:7px; border-radius:50%; background:currentColor }
+.ag-chip__n{ font-variant-numeric:tabular-nums; color:var(--ag-soft); font-weight:600 }
+.ag-chip--remove{ padding-inline-end:10px }
+.ag-chip--remove b{ display:flex; width:20px; height:20px; align-items:center; justify-content:center }
+@media (min-width:1024px){ .ag-chip{ height:40px } }
+
+/* The row bleeds to both edges so the last chip is not visually clipped mid-word. */
+.ag-chip-row{
+  display:flex; gap:var(--ag-sp-8);
+  overflow-x:auto; scrollbar-width:none;
+  margin-inline:calc(var(--ag-gutter) * -1);
+  padding:var(--ag-sp-10) var(--ag-gutter);
+}
+.ag-chip-row::-webkit-scrollbar{ display:none }
+
+
+/* ══ Sticky toolbar ══════════════════════════════════════════════════════════
+   The hairline appears only once something has scrolled under it, which is what
+   makes the bar read as attached to the content rather than drawn on top. */
+
+.ag-sticky{
+  position:sticky; top:0; z-index:var(--ag-z-sticky);
+  background:var(--ag-ground);
+  border-bottom:1px solid transparent;
+  transition:border-color var(--ag-dur-1) var(--ag-ease);
+}
+.ag-sticky[data-scrolled]{ border-bottom-color:var(--ag-line) }
+
+
+/* ══ Collapsing search · REFERENCE §9.2 ══════════════════════════════════════
+   The row is ALWAYS in the DOM. `display:none` cannot animate and cannot be
+   reopened smoothly, so the collapse is a grid-row transition with an
+   overflow-hidden inner — the one technique that animates to and from auto. */
+
+.ag-cs__row{
+  display:grid; grid-template-rows:1fr; margin-bottom:var(--ag-sp-10);
+  transition:grid-template-rows var(--ag-dur-2) var(--ag-ease),
+             margin-bottom var(--ag-dur-2) var(--ag-ease),
+             opacity var(--ag-dur-1) ease;
+}
+.ag-cs__row > div{ min-height:0; overflow:hidden }
+[data-cs][data-collapsed] .ag-cs__row{ grid-template-rows:0fr; margin-bottom:0; opacity:0 }
+
+.ag-cs__btn{
+  flex:none; width:0; margin-inline-end:-8px; opacity:0; overflow:hidden;
+  display:inline-flex; align-items:center; justify-content:center;
+  height:44px; border:1px solid var(--ag-line-2); border-radius:var(--ag-r-pill);
+  background:var(--ag-surface); color:var(--ag-ink); cursor:pointer; padding:0;
+  transition:width var(--ag-dur-2) var(--ag-ease),
+             margin var(--ag-dur-2) var(--ag-ease),
+             opacity var(--ag-dur-1) ease;
+}
+[data-cs][data-collapsed] .ag-cs__btn{ width:44px; margin-inline-end:0; opacity:1 }
+@media (min-width:1024px){
+  .ag-cs__btn{ height:40px }
+  [data-cs][data-collapsed] .ag-cs__btn{ width:40px }
+}
+
+
+/* ══ Field ═══════════════════════════════════════════════════════════════════
+   52px tall, 16px text, visible label always. A placeholder is not a label:
+   it disappears exactly when the person needs it. */
+
+.ag-label{
+  display:block; margin-bottom:var(--ag-sp-6);
+  font-size:14.5px; font-weight:600; color:var(--ag-ink);
+}
+.ag-hint{ margin:var(--ag-sp-6) 0 0; font-size:13px; color:var(--ag-soft) }
+
+.ag-field{
+  display:flex; align-items:center; gap:var(--ag-sp-10);
+  height:52px; padding:0 14px;
+  background:var(--ag-surface);
+  border:1px solid var(--ag-line-2); border-radius:var(--ag-r-14);
+  color:var(--ag-soft);
+}
+.ag-field > input,
+.ag-field > select{
+  flex:1; min-width:0; height:100%;
+  border:0; outline:0; background:transparent;
+  color:var(--ag-ink); font-size:16px;
+}
+.ag-field:focus-within{ outline:3px solid var(--ag-green); outline-offset:2px }
+.ag-field[data-invalid]{ border-color:var(--ag-error) }
+
+.ag-err{
+  display:flex; align-items:center; gap:6px;
+  margin:var(--ag-sp-6) 0 0;
+  font-size:13.5px; font-weight:600; color:var(--ag-error);
+}
+
+textarea.ag-field{ height:auto; min-height:120px; padding:12px 14px; align-items:stretch }
+@media (min-width:1024px){ .ag-field{ height:48px } }
+
+
+/* ══ Card · list · icon tile ═════════════════════════════════════════════════ */
+
+.ag-card{
+  background:var(--ag-surface);
+  border:1px solid var(--ag-line);
+  border-radius:var(--ag-r-20);
+}
+
+.ag-list{
+  display:flex; flex-direction:column;
+  background:var(--ag-surface);
+  border:1px solid var(--ag-line); border-radius:var(--ag-r-18);
+  overflow:hidden;
+}
+/* The whole row is the target and it ends in a chevron. No small inline buttons
+   inside a tappable row — they are a coin-toss for a thumb. */
+.ag-list__row{
+  display:grid; grid-template-columns:auto minmax(0,1fr) auto; gap:14px;
+  align-items:center; min-height:56px; padding:0 14px;
+  border-top:1px solid var(--ag-line-3);
+  color:var(--ag-ink); text-decoration:none;
+}
+.ag-list__row:first-child{ border-top:0 }
+.ag-list__row:hover{ background:var(--ag-bar); color:var(--ag-ink) }
+.ag-list__label{ font-size:16px; font-weight:500 }
+.ag-list__value{ font-size:14.5px; color:var(--ag-soft) }
+.ag-list__chev{ color:var(--ag-chevron); display:flex }
+
+.ag-icon-tile{
+  width:34px; height:34px; flex:none;
+  border-radius:var(--ag-r-10); background:var(--ag-tint);
+  display:flex; align-items:center; justify-content:center;
+}
+.ag-icon-tile--lg{ width:44px; height:44px; border-radius:var(--ag-r-14) }
+
+
+/* ══ Scrim + bottom sheet ════════════════════════════════════════════════════
+   Back closes the top-most layer first, so a sheet pushes a history entry and
+   its close is driven by popstate — see sheet.js. */
+
+.ag-scrim{
+  position:fixed; inset:0; z-index:var(--ag-z-scrim);
+  background:var(--ag-scrim);
+  opacity:0; pointer-events:none;
+  transition:opacity var(--ag-dur-2) var(--ag-ease);
+}
+.ag-scrim[data-open]{ opacity:1; pointer-events:auto }
+
+.ag-sheet{
+  position:fixed; left:0; right:0; bottom:0; z-index:var(--ag-z-sheet);
+  max-height:88dvh;
+  display:flex; flex-direction:column;
+  background:var(--ag-ground);
+  border-radius:var(--ag-r-24) var(--ag-r-24) 0 0;
+  box-shadow:var(--ag-sh-sheet);
+  transform:translateY(100%);
+  transition:transform var(--ag-dur-2) var(--ag-ease);
+  padding-bottom:env(safe-area-inset-bottom);
+}
+.ag-sheet[data-open]{ transform:none }
+/* Landscape phone: a sheet that fills the screen has nothing to dismiss against. */
+@media (max-height:520px){ .ag-sheet{ max-height:90dvh } }
+
+.ag-sheet__grabber{
+  width:38px; height:5px; margin:var(--ag-sp-8) auto 2px;
+  border-radius:3px; background:var(--ag-grabber);
+}
+.ag-sheet__head{
+  display:grid; grid-template-columns:44px 1fr 44px; align-items:center;
+  padding:0 var(--ag-sp-8) var(--ag-sp-6);
+  font-size:16.5px; font-weight:700; text-align:center;
+}
+.ag-sheet__body{ flex:1; min-height:0; overflow:auto; padding:0 var(--ag-sp-16) var(--ag-sp-32) }
+
+/* Desktop: nothing slides up from the bottom. A sheet becomes a floating drawer
+   12px from the edges with a 20px radius (skill §23, REFERENCE §18.1). */
+@media (min-width:1024px){
+  .ag-sheet--drawer{
+    left:auto; right:12px; top:12px; bottom:12px;
+    width:380px; max-height:none;
+    border-radius:var(--ag-r-20);
+    box-shadow:var(--ag-sh-pop);
+    transform:translateX(calc(100% + 24px));
+  }
+  .ag-sheet--drawer[data-open]{ transform:none }
+  .ag-sheet--drawer .ag-sheet__grabber{ display:none }
+}
+
+
+/* ══ Switch ══════════════════════════════════════════════════════════════════ */
+
+.ag-switch{
+  flex:none; width:46px; height:28px; padding:3px;
+  border:0; border-radius:var(--ag-r-pill);
+  background:var(--ag-mute);
+  display:flex; justify-content:flex-start; align-items:center;
+  cursor:pointer;
+  transition:background var(--ag-dur-1) var(--ag-ease);
+}
+.ag-switch::after{ content:""; width:22px; height:22px; border-radius:50%; background:#fff }
+.ag-switch[aria-checked="true"]{ background:var(--ag-green); justify-content:flex-end }
+.ag-doc .ag-switch[aria-checked="true"]{ background:var(--ag-ink) }
+/* The control is 28px of ink inside a 44px target. */
+.ag-switch-target{
+  display:flex; align-items:center; justify-content:center;
+  min-width:44px; min-height:44px; border:0; background:transparent; cursor:pointer; padding:0;
+}
+
+
+/* ══ Segmented control ═══════════════════════════════════════════════════════ */
+
+.ag-seg{
+  display:grid; grid-auto-flow:column; grid-auto-columns:1fr; gap:var(--ag-sp-4);
+  padding:var(--ag-sp-4);
+  background:var(--ag-tint); border-radius:var(--ag-r-14);
+}
+.ag-seg__opt{
+  height:48px; border:0; border-radius:11px;
+  background:transparent; color:var(--ag-ink);
+  font-weight:600; cursor:pointer;
+  transition:background var(--ag-dur-1) var(--ag-ease);
+}
+.ag-seg__opt[aria-checked="true"]{ background:var(--ag-surface); font-weight:700 }
+
+
+/* ══ Skeleton ════════════════════════════════════════════════════════════════
+   Skeletons match the final geometry so nothing shifts when the data lands.
+   Spinners are never used for content (skill §13.1). */
+
+.ag-skel{
+  background:linear-gradient(90deg,var(--ag-tint) 0,#f6f4ef 50%,var(--ag-tint) 100%) 0 0/200% 100%;
+  border-radius:var(--ag-r-10);
+  animation:agSkel 1.2s linear infinite;
+}
+.ag-skel--line{ height:14px; border-radius:7px }
+.ag-skel--title{ height:20px; border-radius:7px; width:62% }
+.ag-skel--card{ height:180px }
+@keyframes agSkel{ to{ background-position:-200% 0 } }
+
+
+/* ══ Empty and error blocks · skill §13 ══════════════════════════════════════
+   An empty state is one sentence built from the live filters plus one action.
+   Never a blank page, never a shrug. */
+
+.ag-empty{ padding:var(--ag-sp-32) var(--ag-gutter); text-align:center }
+.ag-empty__t{ margin:0 0 var(--ag-sp-12); font-size:16px; color:var(--ag-ink-2) }
+.ag-offline{
+  display:flex; align-items:center; justify-content:center; gap:var(--ag-sp-8);
+  padding:var(--ag-sp-10) var(--ag-gutter);
+  background:var(--ag-gold-wash); color:var(--ag-gold-ink);
+  font-size:13.5px; font-weight:600;
+}
+
+
+/* ══ Phone app bar · REFERENCE §7.2 ══════════════════════════════════════════
+   At rest it is the page ground with no border. Once content scrolls under it,
+   it fills and grows a hairline — a colour change only, never a height jump. */
+
+.ag-appbar{
+  position:relative; z-index:var(--ag-z-appbar);
+  display:flex; align-items:center; gap:var(--ag-sp-4);
+  min-height:56px; padding:0 var(--ag-sp-4);
+  background:var(--ag-ground);
+  border-bottom:1px solid transparent;
+  transition:background var(--ag-dur-1) var(--ag-ease),
+             border-color var(--ag-dur-1) var(--ag-ease);
+}
+.ag-shell[data-scrolled] .ag-appbar{ background:var(--ag-bar); border-bottom-color:var(--ag-line) }
+
+.ag-appbar__icon{
+  flex:none; width:44px; height:44px;
+  border:0; border-radius:50%; background:transparent; color:var(--ag-ink);
+  display:flex; align-items:center; justify-content:center; cursor:pointer;
+}
+/* Over a photo an icon button needs a container fill or it disappears (M3). */
+.ag-appbar__icon--float{ background:rgba(255,255,255,.94); box-shadow:var(--ag-sh-float) }
+
+.ag-appbar__title{ flex:1; min-width:0; padding:0 var(--ag-sp-4) }
+
+/* Root: a small centred title that fades in, over a large title row that hides. */
+.ag-appbar--root .ag-appbar__small{
+  display:block; text-align:center;
+  font-size:17px; font-weight:700;
+  opacity:0; transition:opacity var(--ag-dur-1) var(--ag-ease);
+}
+.ag-shell[data-scrolled] .ag-appbar--root .ag-appbar__small{ opacity:1 }
+
+.ag-appbar__large{
+  display:grid; grid-template-rows:1fr;
+  padding:0 var(--ag-gutter) var(--ag-sp-10);
+  background:var(--ag-ground);
+  transition:grid-template-rows var(--ag-dur-2) var(--ag-ease),
+             padding-bottom var(--ag-dur-2) var(--ag-ease),
+             opacity var(--ag-dur-1) var(--ag-ease);
+}
+.ag-appbar__large > h1{
+  margin:0; min-height:0; overflow:hidden;
+  font-family:var(--ag-font-display); font-weight:700; font-size:26px; line-height:1;
+}
+.ag-shell[data-scrolled] .ag-appbar__large{ grid-template-rows:0fr; padding-bottom:0; opacity:0 }
+
+/* Child: back · title + sub · at most one action. Both lines truncate; the sub
+   adds information and never repeats the title. */
+.ag-appbar--child .ag-appbar__title b{
+  display:block; font-size:16px; font-weight:700; line-height:1.2;
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+}
+.ag-appbar--child .ag-appbar__title span{
+  display:block; font-size:12.5px; color:var(--ag-soft);
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+}
+
+
+/* ══ Phone tab bar · REFERENCE §7.3 ══════════════════════════════════════════
+   Five destinations, labels always visible, exactly one or zero active. */
+
+.ag-tabbar{
+  display:grid; grid-template-columns:repeat(5,1fr);
+  padding:var(--ag-sp-6) var(--ag-sp-8) calc(var(--ag-sp-22) + env(safe-area-inset-bottom));
+  background:var(--ag-bar);
+  border-top:1px solid var(--ag-line);
+}
+.ag-tabbar a,
+.ag-tabbar button{
+  display:flex; flex-direction:column; align-items:center; justify-content:center; gap:var(--ag-sp-4);
+  min-height:52px; border:0; background:transparent;
+  color:var(--ag-soft); font-size:12px; font-weight:600; cursor:pointer;
+}
+.ag-tabbar [aria-current="page"]{ color:var(--ag-green); font-weight:700 }
+
+
+/* ══ Bottom action bar · skill §8 ════════════════════════════════════════════
+   The primary action of a flow lives here, in the thumb zone — never only at the
+   top of a long page. */
+
+.ag-actionbar{
+  display:flex; align-items:center; gap:14px;
+  padding:var(--ag-sp-12) var(--ag-sp-16) calc(var(--ag-sp-28) + env(safe-area-inset-bottom));
+  background:rgba(251,251,250,.96);
+  backdrop-filter:blur(14px); -webkit-backdrop-filter:blur(14px);
+  border-top:1px solid var(--ag-line);
+}
+.ag-actionbar__sum{ flex:1; min-width:0 }
+.ag-actionbar__sum b{ display:block; font-size:16px; font-weight:700 }
+.ag-actionbar__sum span{
+  display:block; font-size:12.5px; color:var(--ag-soft);
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+}
+.ag-actionbar .ag-btn{ flex:none; height:54px }

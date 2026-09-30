@@ -213,6 +213,28 @@
   })();
   </script>
 
+  {# ── THE FOUR COLOURS THIS SITE MAY MEAN SOMETHING WITH ────────────────────
+     Emitted from Support\Accent rather than written into a stylesheet, so the values
+     the page receives and the values AccentTest measures cannot drift apart. That drift
+     is how FOUR golds (#f3b416, #fbc329, #c9a24b, #7a5600) came to be in circulation
+     under a house style naming one — and how the one the style names came to be used as
+     a hairline, where 1.65:1 against paper is invisible.
+
+     ── IT MOVED ABOVE THE STYLESHEETS, AND THAT IS THE WHOLE POINT ───────────
+     It used to sit AFTER them, deliberately, so it would win the cascade. That was the
+     right answer while it was the only source of colour and the wrong one the moment
+     the redesign brought a token layer: an inline <style> beats a linked sheet at the
+     same specificity, so `tokens.css` would have been silently overridden on every name
+     the two share — and five of the six colliding names carry IDENTICAL values, so the
+     only visible symptom would have been one hairline, `--ag-line`, quietly staying the
+     old colour.
+
+     So the cascade is inverted rather than the machinery deleted. Accent still owns the
+     four roles and their sixteen slots, still has its floors re-derived by AccentTest
+     and SlotFloorTest on every run, and `tokens.css` now wins where the two overlap.
+     Nothing is declared in both files. #}
+  <style nonce="{{ csp_nonce }}">{{ ag_accents()|raw }}</style>
+
   {# ── GLOBAL CSS ─────────────────────────────────────────────────────────────
      One minified bundle when `bin/console assets:build` has run, the fifteen
      individual files when it has not. Lighthouse measured the unbundled version at
@@ -240,8 +262,12 @@
   <link rel="stylesheet" href="{{ asset('/assets/css/redesign-2026.css') }}">
   <link rel="stylesheet" href="{{ asset('/assets/css/aurora.css') }}">
 
-  {# ── New modular design system (built alongside legacy; migrated per-page) ── #}
-  <link rel="stylesheet" href="{{ asset('/assets/css/base/tokens.css') }}">
+  {# ── New modular design system (built alongside legacy; migrated per-page) ──
+     `base/tokens.css` is GONE, superseded by `/assets/css/tokens.css` below. It
+     had been emptied of colour already (Accent took that over); what was left —
+     the fluid display sizes, the named radii, the old z ladder — moved into the
+     new file's compatibility block, which each phase shrinks. Two files called
+     tokens.css was itself the confusion worth removing. #}
   <link rel="stylesheet" href="{{ asset('/assets/css/base/reset.css') }}">
   <link rel="stylesheet" href="{{ asset('/assets/css/base/typography.css') }}">
   <link rel="stylesheet" href="{{ asset('/assets/css/components/flash.css') }}">
@@ -258,21 +284,20 @@
      whose hover lift it replaces. See AssetBundle::STYLESHEETS, which is the single
      source of this order. #}
   <link rel="stylesheet" href="{{ asset('/assets/css/components/lip.css') }}">
+  {# ── THE REDESIGN LAYER ────────────────────────────────────────────────────
+     tokens.css is the single source of every colour, size, radius, shadow and
+     duration in the redesign (REFERENCE §6). shell.css gives the page its
+     structure — only <main> scrolls — and components.css the base components.
+
+     They load AFTER everything above and after the Accent block below, which is
+     what makes tokens.css authoritative: a linked sheet cannot beat an inline
+     one, so the inline one had to move earlier rather than this one later. #}
+  <link rel="stylesheet" href="{{ asset('/assets/css/tokens.css') }}">
+  <link rel="stylesheet" href="{{ asset('/assets/css/shell.css') }}">
+  <link rel="stylesheet" href="{{ asset('/assets/css/components.css') }}">
   {# Accessibility layer — loaded LAST so its corrections win (WCAG 2.2 AA) #}
   <link rel="stylesheet" href="{{ asset('/assets/css/a11y.css') }}">
   {% endif %}
-
-  {# ── THE FOUR COLOURS THIS SITE MAY MEAN SOMETHING WITH ────────────────────
-     Emitted from Support\Accent rather than written into a stylesheet, so the values
-     the page receives and the values AccentTest measures cannot drift apart. That drift
-     is how FOUR golds (#f3b416, #fbc329, #c9a24b, #7a5600) came to be in circulation
-     under a house style naming one — and how the one the style names came to be used as
-     a hairline, where 1.65:1 against paper is invisible.
-
-     Before {% block head_styles %}, so a page may override a role deliberately and a
-     page that does not think about colour inherits a palette that already clears its
-     floors. #}
-  <style nonce="{{ csp_nonce }}">{{ ag_accents()|raw }}</style>
 
   {# Hide animated elements until JS prepares them (anti-FOUC) #}
   <style nonce="{{ csp_nonce }}">
@@ -514,6 +539,15 @@
    rather than the stylesheet hiding things — if this never runs, the page is
    simply not animated instead of being blank. #}
 <script defer src="{{ asset('/assets/js/ag-motion.js') }}"></script>
+
+{# ── THE SHELL ──────────────────────────────────────────────────────────────
+   Scroll state, the collapsing sticky search, the bottom-bar measurement that
+   keeps Gee clear of any fixed bar, and the sheet focus trap. A classic script
+   exposing `window.AGShell`, matching every other script here — the handoff's
+   snippets are ES modules, and `type="module"` would change both the load order
+   and the CSP surface for no gain. It boots itself and does nothing on a page
+   that has no `.ag-main`, which is every page no phase has converted yet. #}
+<script defer src="{{ asset('/assets/js/shell.js') }}"></script>
 <script defer src="{{ asset('/assets/js/ag-social.js') }}"></script>
 {# Site-wide search overlay. Plain JS, no Alpine — it has to work on every page
    including the ones that never load Alpine, and it enhances a form that already

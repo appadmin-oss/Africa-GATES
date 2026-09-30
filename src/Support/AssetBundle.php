@@ -69,7 +69,9 @@ final class AssetBundle
         'assets/css/redesign-2026.css',
         'assets/css/aurora.css',
         // The newer modular design system, layered over the legacy sheets above.
-        'assets/css/base/tokens.css',
+        // `base/tokens.css` is gone — superseded by `assets/css/tokens.css` below.
+        // It had already been emptied of colour; what remained moved into the new
+        // file's compatibility block. Two files called tokens.css was the confusion.
         'assets/css/base/reset.css',
         'assets/css/base/typography.css',
         'assets/css/components/flash.css',
@@ -90,6 +92,14 @@ final class AssetBundle
         // those sheets declare on the buttons it applies to — a lipped button does not
         // rise, and a rule that loses on order would leave the press overshooting.
         'assets/css/components/lip.css',
+        // ── THE REDESIGN LAYER ────────────────────────────────────────────────
+        // tokens.css is the single source of every colour, size, radius, shadow and
+        // duration in the redesign (REFERENCE §6); shell.css makes only <main>
+        // scroll; components.css holds the base components. Last but for a11y.css,
+        // so the redesign wins over the legacy sheets it is replacing.
+        'assets/css/tokens.css',
+        'assets/css/shell.css',
+        'assets/css/components.css',
         // LAST, and it must stay last — its corrections are meant to win.
         'assets/css/a11y.css',
     ];
