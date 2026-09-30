@@ -3518,6 +3518,21 @@ return function(App $app) {
         // run as on the scheduled path.
         $a->post('/result-release/release', \AfricaGates\Admin\Controllers\ResultReleaseController::class.':release')
           ->add(new RoleMiddleware('superadmin'));
+        // Re-walks the tamper-evidence chain and reports. A POST because it reads the whole
+        // archive and a link could be fired by a prefetch. See checkRecord(): the promise
+        // this answers had no route a person could take.
+        //
+        // No RoleMiddleware of its own, and that is currently a distinction without a
+        // difference: `Permissions::PATH_SECTIONS` has no `result-release` key, so
+        // `SectionGuardMiddleware` fails the whole screen CLOSED to superadmin — by design,
+        // an unmapped /admin path is superadmin-only so a new route cannot ship ungated.
+        // The release above adds `superadmin` explicitly on top of that.
+        //
+        // Worth knowing rather than fixing here: CLAUDE.md describes this page as sitting
+        // under the `data` gate, which it does in `AdminNav` and does not in the path map,
+        // so a `data`-role operator sees it in the rail and is redirected on arrival.
+        // Mapping it is an ACCESS change and must never ride along inside a feature one.
+        $a->post('/result-release/check-record', \AfricaGates\Admin\Controllers\ResultReleaseController::class.':checkRecord');
 
         // ── AND THE MARKS UNDER IT ──────────────────────────────────────────
         //

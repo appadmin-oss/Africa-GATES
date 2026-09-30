@@ -279,9 +279,13 @@
 
      One headline now — how many categories need a person, counted once — with the
      reasons behind it, and the nominee-level counts kept visibly apart. #}
-  {% if recount_said %}
-    <p class="ja-caveat" role="status">{{ recount_said }}</p>
-  {% endif %}
+  {# ── WHAT THE LAST ACTION SAID IS NOT DRAWN HERE ─────────────────────────
+     A `recount_said` box stood here and never once rendered: the controller read
+     `$_SESSION['flash_ok']` after the container's Twig factory had already consumed it
+     into the `flash_ok` global and unset it. The report was never lost — the admin
+     layout draws that global at the top of every page — but this was a second slot for
+     the same fact, which is the thing the margin note below argues against at length.
+     One slot, always in the same place. #}
 
   {#
     ── THE ANNOUNCEMENT, BESIDE TODAY'S ARITHMETIC ─────────────────────────
@@ -416,6 +420,37 @@
       </form>
     </div>
   {% endif %}
+
+  {#
+    ══════════════════════════════════════════════════════════════════════════════
+    AND THE QUESTION THE ARCHIVE EXISTS TO ANSWER, WHICH NOBODY COULD ASK
+    ══════════════════════════════════════════════════════════════════════════════
+
+    The help centre publishes a promise about `gates_vote_snapshots`: "the result is
+    written down and sealed… there is no quiet edit available. There is only an edit that
+    announces itself", and "the chain is re-verified automatically every day… a break is
+    not a warning in a log somebody might read. It is raised as a failure, to people."
+
+    The daily half was true. `SnapshotService::verify()` re-walks every link, and the
+    maintenance sweep calls it and throws. Its only OTHER caller was a console command, on
+    a host with no SSH — so the promise had no route a person could take, and an operator
+    answering a nominee who has asked whether the numbers were altered had nothing to
+    press. §18's shape, on the archive the platform asks the public to trust.
+
+    OUTSIDE the seal block above on purpose: the chain covers every capture ever written,
+    routine ones included, so the question is worth asking about an edition still in
+    judging as much as about a published one. Unconfirmed, because it changes nothing —
+    the cost of pressing it by accident is a slow page, and a second dialog would teach an
+    operator to click through the one guarding the release.
+  #}
+  <form method="post" action="/admin/result-release/check-record" class="ja-recount">
+    <input type="hidden" name="_token" value="{{ csrf_token }}">
+    <input type="hidden" name="cycle" value="{{ cycle_id }}">
+    <button type="submit" class="ja-recount__b">Check the record</button>
+    <span class="ja-den" style="display:block;margin-top:6px;max-width:74ch">Re-walks every
+      standing this platform has ever written and reports whether each still follows from
+      the one before it. Nothing is changed. The answer appears at the top of this page.</span>
+  </form>
 
   <div class="ja-stats">
     <div class="ja-stat{% if attention.needs_person > 0 %} ja-stat--bad{% endif %}">
@@ -1067,6 +1102,35 @@
             on a 0&ndash;1000 index.</p>
         {% endif %}
       {% endif %}
+
+      {# ── THE REPAIR, WHICH HAD NO WAY IN ──────────────────────────────────
+         `POST /admin/result-release/recount` was complete on every other side — the
+         route, the controller, a report naming every nominee whose counter moved, a
+         refusal for the nominee whose ballot rows are missing, and the CSS for this
+         button sitting in this file. No template posted to it. Every figure in the table
+         above is a cached counter over `gates_votes`, and the one action that makes the
+         cache agree with the ledger was reachable only by crafting a request by hand,
+         against a host with no shell.
+
+         Per category, not once per cycle: a drift is found by reading ONE table above,
+         and the report names nominees, so an operator has to be able to tie what moved to
+         what they were looking at.
+
+         Confirmed, because it rewrites the numbers an award is decided by — and the
+         dialog says what it CANNOT do, since "recount" sounds like it might invent or
+         erase support and it does neither. #}
+      <form method="post" action="/admin/result-release/recount" class="ja-recount"
+            data-confirm="Rebuild this category&rsquo;s vote counters from the ballots? It can only make the stored totals agree with the ledger — it cannot add support, and it refuses to zero a nominee whose ballot rows are missing.">
+        <input type="hidden" name="_token" value="{{ csrf_token }}">
+        <input type="hidden" name="cycle" value="{{ cycle_id }}">
+        {# |default(0) for the same reason the heading above uses it: this table is drawn
+           from whatever the deployment's category query returned, and a 0 is answered by
+           the controller with "no category was named, so nothing was recounted" — a
+           refusal an operator can read, where a strict-variables crash takes the whole
+           release screen down on the morning it is needed. #}
+        <input type="hidden" name="category" value="{{ c.category.id|default(0) }}">
+        <button type="submit" class="ja-recount__b">Recount this category against the ballots</button>
+      </form>
     </div>
   {% endfor %}
 

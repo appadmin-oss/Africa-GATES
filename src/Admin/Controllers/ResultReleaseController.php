@@ -123,14 +123,115 @@ final class ResultReleaseController
             // Said out loud rather than rendered as an empty table. "Nothing scored yet"
             // and "the query failed" look identical on a screen and mean opposite things.
             'failed'     => $failed,
-            // What the last repair did, said once and then gone. An operator who has just
-            // rewritten the numbers an award is decided on must be told what moved.
-            'recount_said' => (function (): ?string {
-                $m = $_SESSION['flash_ok'] ?? null;
-                unset($_SESSION['flash_ok']);
-                return is_string($m) && $m !== '' ? $m : null;
-            })(),
+            // ── WHAT THE LAST ACTION SAID IS NOT PASSED FROM HERE ───────────
+            //
+            // This handed the template a `recount_said`, read out of
+            // `$_SESSION['flash_ok']`, and it was ALWAYS NULL. The container's
+            // `Twig::class` factory reads every flash key into a Twig global and
+            // `unset()`s them in the same closure, and this controller cannot exist until
+            // that closure has run — Twig arrives through its constructor. So the key was
+            // gone before the line that read it, and the second render slot the template
+            // drew for it never fired once.
+            //
+            // It cost nobody a message, because the report still shows: the admin layout
+            // renders `flash_ok` at the top of every page. That is the platform's one slot
+            // for "here is what just happened", and one slot is the point — this screen's
+            // own margin note argues it at length about a fact stated in two places. Every
+            // POST here writes a flash and redirects; the banner says which.
+            //
+            // `FlashKeyTest::test_no_controller_re_reads_a_flash_key_the_container_consumes`
+            // fails on the next copy of this.
         ]);
+    }
+
+    /**
+     * POST /admin/result-release/check-record — walk the chain and report what it says.
+     *
+     * ══════════════════════════════════════════════════════════════════════════
+     * THE PROMISE HAD NO ROUTE IN
+     * ══════════════════════════════════════════════════════════════════════════
+     *
+     * {@see \AfricaGates\Services\SnapshotService::verify()} re-walks every link in
+     * `gates_vote_snapshots` and is the whole substance of what the help centre tells the
+     * public: "the result is written down and sealed… there is no quiet edit available.
+     * There is only an edit that announces itself", and "the chain is re-verified
+     * automatically every day… a break is not a warning in a log somebody might read."
+     *
+     * The daily half was true — {@see \AfricaGates\Support\Maintenance} runs it and
+     * throws, which reaches `gates_cron_log` and the webcron body. What did not exist was
+     * any way for a PERSON to ask. Its only other caller is a console command, on a host
+     * with no SSH. So an operator about to sign off an award, or answering a nominee who
+     * has asked whether the numbers were altered, could not find out.
+     *
+     * A POST, for the same reason the other two are: as a link this could be fired by a
+     * prefetch or a reload, and it walks the whole archive.
+     *
+     * ── IT REPORTS, AND DOES NOT ACCUSE ──────────────────────────────────────
+     *
+     * The overwhelmingly likelier cause of a break is two captures having forked the
+     * chain — which `UNIQUE(prev_hash)` now forbids, and an archive written before that
+     * index can still carry one. "Somebody edited the results" is alarming and usually
+     * wrong. It also says nothing is lost, because that is the first thing an operator
+     * fears on bad news about a record.
+     */
+    public function checkRecord(Request $req, Response $res): Response
+    {
+        // Parenthesised, and the coalesce inside the cast. `(int) $b['cycle'] ?? 0` casts
+        // first, so the `??` can never fire and a missing key is a PHP warning instead of
+        // a default — the same shape that makes a crafted request noisier than a real one.
+        $b    = (array) $req->getParsedBody();
+        $cid  = (int) ($b['cycle'] ?? 0);
+        $back = '/admin/result-release' . ($cid > 0 ? '?cycle=' . $cid : '');
+
+        try {
+            $v = (new \AfricaGates\Services\SnapshotService())->verify();
+        } catch (\Throwable $e) {
+            error_log('[result-release] chain check: ' . $e->getMessage());
+            // flash_error and not flash_ok: the layout draws the first with a warning rule
+            // and `role="alert"`, the second with a green tick. "Could not be read" is
+            // about this DEPLOYMENT and "does not verify" is about the STANDINGS — opposite
+            // facts, and a tick over the first sends nobody to the right place.
+            $_SESSION['flash_error'] = 'The record could not be read, so nothing was '
+                . 'checked. That is a fault to investigate, not a finding about the '
+                . 'standings.';
+            return $res->withHeader('Location', $back)->withStatus(303);
+        }
+
+        $unchained = (int) $v['unchained'];
+        // Counted, never folded in. "Verified 40,000 rows" and "verified 40,000 rows, and
+        // there are 900 older ones nothing can vouch for" are different claims, and the
+        // second is the true one. See verify()'s own note on `prev_hash`.
+        $tail = $unchained > 0
+            ? sprintf(' %d older row(s) were written before the chain existed and sit '
+                    . 'outside it — they vouch for nothing, in either direction.', $unchained)
+            : '';
+
+        if ($v['ok']) {
+            $_SESSION['flash_ok'] = sprintf(
+                'The record verifies. %d row(s) checked, each following from the one before '
+                . 'it, so no standing has been altered since it was written.%s',
+                (int) $v['checked'], $tail);
+        } else {
+            $_SESSION['flash_error'] = sprintf(
+                'The record does NOT verify — it stops following from itself at row #%d, '
+                . 'after %d good row(s). The likeliest cause is two captures having forked '
+                . 'the chain rather than anybody editing a standing. Nothing here is lost: '
+                . 'every row is still present.%s',
+                (int) $v['broken_at'], (int) $v['checked'], $tail);
+        }
+
+        // Swallowed the same way the recount's is: an audit row that cannot be written
+        // must not cost the operator the answer they came for. The verdict travels on the
+        // row, not just the fact of a check — "who looked, and what did it say then" is
+        // the question an audit of a disputed release brings.
+        try {
+            (new \AfricaGates\Admin\Services\AuditService())->record(
+                (int) ($_SESSION['admin_id'] ?? 0), 'results.chain_check', 'cycle', $cid,
+                ['ok' => $v['ok'], 'checked' => $v['checked'], 'broken_at' => $v['broken_at'],
+                 'unchained' => $unchained]);
+        } catch (\Throwable) {}
+
+        return $res->withHeader('Location', $back)->withStatus(303);
     }
 
     /**
