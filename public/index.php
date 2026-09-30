@@ -216,6 +216,12 @@ $app->add(new \AfricaGates\Middleware\ReferralCaptureMiddleware());
 // at. Records nothing for bots, admin pages, or anybody sending DNT / Sec-GPC, and
 // swallows its own errors — a tracker that can 500 the home page is worse than none.
 $app->add(new \AfricaGates\Middleware\VisitTrackingMiddleware());
+// Which language this request renders in, and the one place `?lang=` becomes a
+// stored preference. Middleware because a shared link carries `?lang=` on whatever
+// page it points at, so it has to work on all of them — see the class for why every
+// language control on the site is a plain link and not a script.
+$app->add(new \AfricaGates\Middleware\LanguageMiddleware());
+
 $app->add(new CsrfMiddleware());
 $app->addBodyParsingMiddleware();
 

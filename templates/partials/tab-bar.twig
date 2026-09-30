@@ -1,0 +1,46 @@
+{#
+  The phone tab bar — REFERENCE §7.3.
+
+  Five destinations: Home · Discover · Nominate · Pulse · Menu. Labels are always
+  visible, never icon-only, and EXACTLY ONE OR ZERO is active — a page that is not
+  a tab destination (Results, Shop, an event) shows none, rather than lighting the
+  nearest one and telling somebody they are somewhere they are not.
+
+  `data-bottom-ui` is what feeds `--ag-bottom-ui`, so the Gee launcher clears the
+  bar by 16px without anybody hard-coding 96.
+
+  Args: active — 'home' | 'discover' | 'nominate' | 'pulse' | '' (none)
+#}
+<nav class="ag-tabbar" data-bottom-ui aria-label="Main">
+  {% for t in [
+    {k:'home',     href:'/',         label:'Home',
+     d:'M4 11.5 12 4l8 7.5M6 10v10h12V10'},
+    {k:'discover', href:'/discover', label:'Discover',
+     d:'M11 4a7 7 0 1 0 0 14 7 7 0 0 0 0-14ZM20 20l-3.6-3.6'},
+    {k:'nominate', href:'/nominate', label:'Nominate',
+     d:'M12 5v14M5 12h14'},
+    {k:'pulse',    href:'/pulse',    label:'Pulse',
+     d:'M3 12h4l3-7 4 14 3-7h4'}
+  ] %}
+    <a href="{{ t.href }}"{% if active|default('') == t.k %} aria-current="page"{% endif %}>
+      <svg width="23" height="23" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+           stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="{{ t.d }}"></path>
+      </svg>
+      {{ t.label }}
+    </a>
+  {% endfor %}
+
+  {# Menu is a SHEET, not a page. A full-screen menu page is in the anti-pattern
+     list: it takes a navigation step to leave and loses where you were. #}
+  <button type="button" data-ag-menu aria-label="Open menu" aria-expanded="false"
+          aria-haspopup="dialog">
+    <svg width="23" height="23" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+         stroke-width="1.9" stroke-linecap="round" aria-hidden="true">
+      <line x1="4" y1="7" x2="20" y2="7"></line>
+      <line x1="4" y1="12" x2="20" y2="12"></line>
+      <line x1="4" y1="17" x2="20" y2="17"></line>
+    </svg>
+    Menu
+  </button>
+</nav>

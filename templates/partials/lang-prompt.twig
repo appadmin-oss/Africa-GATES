@@ -1,0 +1,42 @@
+{#
+  ══════════════════════════════════════════════════════════════════════════════
+  THE FIRST-VISIT LANGUAGE PROMPT — REFERENCE §7.2
+  ══════════════════════════════════════════════════════════════════════════════
+
+  One row under the root app bar, asked once: if the browser's first preferred
+  language is one we offer and no `ag_lang` cookie has been written, we ask —
+  IN THAT LANGUAGE — whether they would like the site in it.
+
+  ── WHY THE ROWS ARE RENDERED AND HIDDEN RATHER THAN BUILT IN JS ─────────────
+
+  `navigator.languages` is only readable in the browser, so the CHOICE of row is
+  necessarily client-side. The WORDS are not: they are the only translated strings
+  in this codebase and they live in `Support\Languages`, beside the language they
+  belong to, so nothing composes a sentence at runtime and nothing carries a
+  second copy. Seven small rows is a cheap price for that, and it means the prompt
+  works with no JSON blob in an attribute — the shape that silently shredded the
+  flier's styles when the HTML parser closed the attribute at the first quote.
+
+  ── EITHER ANSWER SETTLES IT ─────────────────────────────────────────────────
+
+  Both answers are LINKS carrying `?lang=`, which the middleware turns into the
+  stored choice. "Keep English" therefore costs a reload of a page that looks
+  identical, and that is the price of the prompt working with scripting off and of
+  there being exactly one writer for the cookie. The condition for asking is the
+  ABSENCE of that cookie, so neither answer can bring the prompt back. A prompt that
+  returns is an advert.
+
+  "Keep English" stays in English: it is the option it describes, and somebody who
+  wants it can read it.
+#}
+<div class="ag-langask" data-ag-langask hidden>
+  {% for l in lang_prompts() %}
+    <div class="ag-langask__row" data-ag-langask-for="{{ l.code }}"
+         lang="{{ l.code }}" dir="{{ l.dir }}" hidden>
+      <span class="ag-langask__q">{{ l.ask }}</span>
+      <a class="ag-btn ag-btn--sm ag-btn--ink" href="{{ lang_url(l.code) }}">{{ l.yes }}</a>
+      <a class="ag-btn ag-btn--sm ag-btn--quiet" href="{{ lang_url('en') }}"
+         lang="en" dir="ltr">Keep English</a>
+    </div>
+  {% endfor %}
+</div>

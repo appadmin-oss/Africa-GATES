@@ -1,0 +1,89 @@
+{#
+  ══════════════════════════════════════════════════════════════════════════════
+  DISPLAY & READING — the controls
+  REFERENCE §7.5, DisplayReading.dc.html
+  ══════════════════════════════════════════════════════════════════════════════
+
+  One block, three homes: the full screen, the phone Quick settings sheet, and the
+  Menu's pushed sub-view. They are three doors onto the same seven switches, so
+  they share this markup rather than each growing a copy — the fault this codebase
+  keeps paying for is two surfaces that drift about whether a setting is on.
+
+  Every control writes `localStorage["ag-a11y"]` through `AGA11y.set()`, which
+  re-applies the <html> classes and fires `ag:a11y` so any other mounted copy
+  re-reads. The first application happens in the head, before paint.
+
+  `compact` drops the heading, for the Quick settings sheet, which has its own.
+#}
+<div class="ag-dr" data-ag-dr>
+
+  {% if not compact|default(false) %}
+    <span class="ag-dr__h">Display &amp; reading</span>
+  {% endif %}
+
+  {# Three steps, not a slider. The letter is drawn at 15 / 19 / 23px so the three
+     buttons differ by what they DO rather than by a label claiming it. The
+     accessible name carries the words, since "A" three times is not a choice. #}
+  <div class="ag-seg" role="radiogroup" aria-label="Text size">
+    {% for s in [
+      {i:0, name:'Standard text', fs:'15px'},
+      {i:1, name:'Large text',    fs:'19px'},
+      {i:2, name:'Largest text',  fs:'23px'}
+    ] %}
+      <button type="button" class="ag-seg__opt ag-dr__size" role="radio"
+              aria-checked="false" aria-label="{{ s.name }}"
+              data-ag-size="{{ s.i }}" style="font-size:{{ s.fs }}">A</button>
+    {% endfor %}
+  </div>
+
+  {% for t in [
+    {k:'hc',     label:'High contrast',       help:'Darker text and borders'},
+    {k:'easy',   label:'Easy-read font',      help:'Atkinson Hyperlegible, more letter spacing'},
+    {k:'space',  label:'More line spacing',   help:'Easier to track lines'},
+    {k:'ul',     label:'Underline all links', help:'Links don’t rely on colour'},
+    {k:'motion', label:'Reduce motion',       help:'No animation or auto-play'},
+    {k:'saver',  label:'Data saver',          help:'Photos and video load when you tap'},
+    {k:'listen', label:'Read pages aloud',    help:'Adds Listen to every article and profile'}
+  ] %}
+    {# The whole row is the switch: a 52px target rather than a 26px one, which is
+       what the standards ask for and what a thumb needs. #}
+    <button type="button" class="ag-dr__row" role="switch" aria-checked="false"
+            data-ag-toggle="{{ t.k }}">
+      <span class="ag-dr__text">
+        <span class="ag-dr__label">{{ t.label }}</span>
+        <span class="ag-dr__help">{{ t.help }}</span>
+      </span>
+      <span class="ag-switch" aria-hidden="true"></span>
+    </button>
+  {% endfor %}
+
+  {# A native select on purpose: eight options is a list, and the platform's own
+     picker is the one that already works with every assistive technology.
+
+     Inside a real GET form, and not a script that navigates on change, because a
+     language switch is the control most needed by people whose scripting is off or
+     broken. The button is hidden while `ag-dr__lang` has been upgraded — chrome.js
+     submits on change — and is the only way through otherwise.
+
+     Every other value on the page is carried as a hidden field so switching language
+     on `/discover?q=lagos` does not silently drop the search. #}
+  <form class="ag-dr__lang" method="get" data-ag-langform>
+    {% for k, v in lang_carry() %}<input type="hidden" name="{{ k }}" value="{{ v }}">{% endfor %}
+    <label for="ag-dr-lang">Language</label>
+    <select id="ag-dr-lang" name="lang" data-ag-lang>
+      {% for l in languages() %}
+        <option value="{{ l.code }}" lang="{{ l.code }}"
+                {{ l.code == lang() ? 'selected' : '' }}>{{ l.name }}</option>
+      {% endfor %}
+    </select>
+    <button type="submit" class="ag-btn ag-btn--sm ag-dr__go">Change</button>
+  </form>
+
+  {# Said plainly rather than discovered. The mechanism is real — it sets `lang`
+     and `dir` on the document, which is what a screen reader's pronunciation and
+     the whole RTL layout depend on — and the copy is not translated yet. A menu
+     that silently does nothing is the thing worth refusing to ship. #}
+  <p class="ag-dr__note">Sets the page’s language for screen readers and
+    right-to-left layout. The writing is still in English while the translations
+    are prepared.</p>
+</div>

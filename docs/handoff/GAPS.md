@@ -319,3 +319,105 @@ Answers needed before the phase named can start. Per REFERENCE §4.2 none has be
 - [ ] **REFERENCE §17 evidence** — not applicable and not produced. Phase 0 renders no
       screen; the line is the boilerplate footer repeated in all eleven phase files. Flagged
       rather than silently dropped.
+
+---
+
+## 9. Phase 2 deviations
+
+Each of these is a place the build does not match a `.dc.html` or a phase-file line, with
+what was done and why. The phase file's target is none; these are the ones the design and
+the constraints could not both be satisfied on, and every one is recorded rather than
+quietly resolved in either direction.
+
+### 9.1 The four icon-tile tints are tokens, not the DC's hexes
+
+`MobileMenu.dc.html` tints its list and quick tiles `#eef7ee`, `#e9efef`, `#a47306` and
+`#2b373d`. `SiteHeader.dc.html` adds `#effaf0`, `#fff8df`, `#fdecef` and `#f0f2f2/#5d7374`
+for the mega panel. None of those names is in REFERENCE §6.1, whose own rule is "only the
+tokens in §6. No new colours."
+
+The rule wins over the values. Each maps to the nearest token PAIR — a fill and the ink
+drawn on it — as `.ag-tint--green | --gold | --live | --neutral`:
+
+| DC | token pair | measured |
+|---|---|---|
+| `#eef7ee` / `#effaf0` | `--ag-green-wash` + `--ag-green-deep` | 7.08 : 1 |
+| `#fff8df` / `#a47306` | `--ag-gold-wash` + `--ag-gold-ink` | 6.06 : 1 |
+| `#fdecef` / `#b0224f` | `--ag-live-wash` + `--ag-live-ink` | 5.78 : 1 |
+| `#e9efef` / `#f0f2f2` / `#2b373d` / `#5d7374` | `--ag-tint` + `--ag-ink-2` | 7.37 : 1 |
+
+An icon owes 3:1 under WCAG 1.4.11; every pair clears the 4.5 a word owes, which is what
+makes a tile safe to put a label in later. `NoLiteralHexTest` would have failed on the raw
+values in any case — but the reason to map rather than exempt is that four more hexes on
+this ramp is how the tree reached 642 of them.
+
+### 9.2 The Menu's wordmark takes `--ag-soft`, not `--ag-mute`
+
+`--ag-mute` measures **2.75 : 1** on the page ground. §6.1 scopes it to "disabled text,
+off-switch track", and "Africa GATES · An Afrovanguard initiative" is neither — it is a
+sentence a reader can read, so 1.4.3's incidental-text exemption does not reach it.
+`--ag-soft` is 4.80 : 1 and is otherwise identical in role.
+
+### 9.3 The Menu's Explore list follows the phase file, not the DC
+
+`MobileMenu.dc.html` lists *Discover, Pulse, Giving, Shop, Legacy Vault, **Leaderboard**,
+Register a profile*. Phase §7.4 lists *Discover, Pulse, Giving, Shop, Legacy Vault,
+**Blog**, Register*. REFERENCE §0 puts the phase file above the DC, so Blog is in and
+Leaderboard is out of this list — it is still in the tab bar's reach through Discover and
+in the desktop Explore panel.
+
+`SiteHeader.dc.html` has the same shape of conflict on the desktop Explore panel: seven
+items including Leaderboard and Shop and **no Status**, against §7.1's six ending in
+Status. Same resolution.
+
+### 9.4 The search palette uses `/activity/search`, not a new `GET /search`
+
+Phase §7.1 asks for "`GET /search?q=&scope=` (JSON)". `/search` is already a **route
+alias to `/activity`**, and `src/routes.php` explains in as many words that it exists so
+that somebody who types the word people actually type lands on the results — and that
+there is deliberately **not a second search page: one endpoint, one index, one set of
+promises about what is covered**.
+
+Serving JSON from `/search` would break that alias and create the second search the repo
+argues against. The palette therefore calls the existing `/activity/search`, which gained
+a `scope=` parameter. The chips are §7.1's five, verbatim; what the phase file does not
+fix is which source answers each, so that mapping is
+`ActivityFeedService::SCOPES` and `SearchScopeTest` requires every source to sit in
+exactly one chip — a source added later would otherwise answer under All and under
+nothing else, reachable only by somebody who never touched a chip.
+
+`org` sits under **People**, which is a compromise: an organisation is not a person and
+the fixed chip set has nowhere else for one. Dropping it would make a partner that went
+through CAC and SCUML vetting unfindable from the palette, which is the worse wrong.
+
+### 9.5 `/discover` is a 302 placeholder until Phase 4
+
+§5.5 records that Discover has no template and no route. Phase 2's chrome puts it on the
+tab bar, in the Explore panel and in the Menu — three surfaces, one href — so the choice
+was between linking to a 404 and hard-coding `/registry` in three places for Phase 4 to
+find again. Neither is acceptable, so `/discover` exists from today and answers **302** to
+`/registry`; Phase 4 replaces that one line with the real handler. 302 and not 301
+deliberately: 301 says the address is never the page, and it is about to be. The tab's
+highlight comes from the page's own `active` argument rather than from the URL, so it is
+correct either way.
+
+### 9.6 Language ships as the mechanism, and the prompt's words are the only translations
+
+§5.3 is still open, so there is no string catalogue. `Support\Languages` ships the part
+that does not need one: the supported set, `?lang=`, the `ag_lang` cookie, and `lang` /
+`dir` on `<html>` — which is what a screen reader's pronunciation and the whole RTL
+requirement of §17 are measured against. Every surface that offers it says in one line
+that the writing is still English, because a language menu that silently does nothing is
+the thing worth refusing to ship.
+
+The first-visit prompt (§7.2) must be written in the language it offers — asking in
+English asks the one person least able to answer — so `ask` and `yes` are the only
+translated strings in this codebase. They are short, stated once, and live beside the
+language they belong to. **Each wants a speaker's eye before that prompt is switched on
+for its language.**
+
+### 9.7 `AppBar.dc.html` carries a keyboard-shortcuts dialog §7.1 does not mention
+
+`SiteHeader.dc.html` has a `kbOpen` dialog listing eight shortcuts. No line of §7.1 asks
+for it and no other phase file mentions it. Not built; flagged rather than invented, since
+a shortcut list is a promise about bindings that have to exist.

@@ -1,0 +1,26 @@
+{#
+  Display & reading, applied before the first paint.
+
+  This is a DELIBERATE six-line duplicate of `AGA11y.apply()`. It cannot be the
+  linked file: a `<script src>` is fetched and run after the first paint, so
+  somebody who asked for 150% text would watch the page render at 100% and jump.
+  The store is read here, the classes go on <html>, and `a11y.js` takes over for
+  everything after.
+
+  The LANGUAGE is not here: it is a cookie, so `lang` and `dir` are already on the
+  <html> element above in the markup the server sent. Reading it a second time from
+  storage would be a second source for one value.
+
+  Kept to the smallest thing that can do that job, and wrapped: `localStorage`
+  THROWS in a Safari private window rather than returning null, and this runs on
+  every page — a settings store that takes the site down when storage is blocked
+  is worse than one that forgets.
+#}
+<script nonce="{{ csp_nonce }}">
+(function(){try{
+  var c=document.documentElement.classList,s=JSON.parse(localStorage.getItem('ag-a11y')||'{}');
+  var t={1:'ag-t125',2:'ag-t150'}[s.size]; if(t)c.add(t);
+  var m={hc:'ag-hc',easy:'ag-easy',space:'ag-ls',ul:'ag-ul',motion:'ag-rm',saver:'ag-saver'};
+  for(var k in m){ if(s[k])c.add(m[k]); }
+}catch(e){}})();
+</script>

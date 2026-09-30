@@ -1,5 +1,8 @@
 <!DOCTYPE html>
-<html lang="en" dir="ltr">
+{# `lang` and `dir` were hard-coded `en`/`ltr` here, which made the language menu
+   a control that changed nothing on ~180 pages. They come from the cookie now,
+   resolved once per request by LanguageMiddleware. #}
+<html lang="{{ lang() }}" dir="{{ lang_dir() }}">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width,initial-scale=1.0,viewport-fit=cover">
@@ -233,6 +236,12 @@
      four roles and their sixteen slots, still has its floors re-derived by AccentTest
      and SlotFloorTest on every run, and `tokens.css` now wins where the two overlap.
      Nothing is declared in both files. #}
+  {# Display & reading, before the first paint. On THIS layout too, and that is the
+     point: a text size that applies on the two converted pages and not on the other
+     hundred and eighty is worse than one that applies nowhere, because it reads as
+     the site losing the setting. #}
+  {% include 'partials/a11y-head.twig' %}
+
   <style nonce="{{ csp_nonce }}">{{ ag_accents()|raw }}</style>
 
   {# ── GLOBAL CSS ─────────────────────────────────────────────────────────────
@@ -548,6 +557,10 @@
    and the CSP surface for no gain. It boots itself and does nothing on a page
    that has no `.ag-main`, which is every page no phase has converted yet. #}
 <script defer src="{{ asset('/assets/js/shell.js') }}"></script>
+{# The store and the controls that write it. Loaded here as well as on the new
+   shell for the reason the head script is: the setting has to hold everywhere. #}
+<script defer src="{{ asset('/assets/js/a11y.js') }}"></script>
+<script defer src="{{ asset('/assets/js/chrome.js') }}"></script>
 <script defer src="{{ asset('/assets/js/ag-social.js') }}"></script>
 {# Site-wide search overlay. Plain JS, no Alpine — it has to work on every page
    including the ones that never load Alpine, and it enhances a form that already

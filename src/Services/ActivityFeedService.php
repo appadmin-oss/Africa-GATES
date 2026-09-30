@@ -145,6 +145,48 @@ final class ActivityFeedService
     }
 
     /**
+     * The search palette's scope chips, and which sources each one asks.
+     *
+     * REFERENCE §7.1 fixes the five chips: All, People, Awards, Events, Pages. What it
+     * does not fix is which of {@see SOURCES} answers each, and that mapping is exactly
+     * the kind of thing that gets written into a controller and then drifts — a source
+     * added later would answer under "All" and under nothing else, so it would be
+     * findable only by somebody who never touched a chip. `SearchScopeTest` requires
+     * every source to appear in exactly one scope, so adding one to SOURCES and not
+     * here fails rather than quietly halving its reach.
+     *
+     * `org` sits under People and that is a deliberate compromise: an organisation is
+     * not a person, and the chip set the design fixed has nowhere else to put one.
+     * Dropping it would make a partner that went through CAC and SCUML vetting
+     * unfindable from the palette, which is the worse of the two wrongs.
+     *
+     * `phase` — voting opening or closing — sits under Awards because that is what it
+     * is about, not under Pages where its lack of a person would otherwise put it.
+     */
+    public const SCOPES = [
+        'people' => ['nominee', 'profile', 'org'],
+        'awards' => ['award', 'result', 'phase'],
+        'events' => ['event'],
+        'pages'  => ['page', 'post', 'thread'],
+    ];
+
+    /**
+     * The sources a scope asks, or [] for "all of them".
+     *
+     * An unknown scope is [] and not an error: it arrives in a query string, so the
+     * failure a stranger can cause is at worst a search that ignores their chip. A
+     * filter nobody can see returning zero rows reads as the feature being broken.
+     *
+     * @return list<string>
+     */
+    public static function scopeSources(?string $scope): array
+    {
+        $s = strtolower(trim((string) $scope));
+
+        return self::SCOPES[$s] ?? [];
+    }
+
+    /**
      * What this search covers, in the words the public reads, in declaration order.
      *
      * @return list<string>
@@ -179,10 +221,15 @@ final class ActivityFeedService
      *                        degraded path.
      * @return array{items: list<array>, query:string, live:bool, sources:int, understood:?array}
      */
-    public function search(?string $query = null, int $limit = 20, bool $interpret = false): array
-    {
+    public function search(
+        ?string $query = null,
+        int $limit = 20,
+        bool $interpret = false,
+        ?string $scope = null
+    ): array {
         $q     = trim((string) $query);
         $limit = max(1, min(self::MAX_LIMIT, $limit));
+        $only  = self::scopeSources($scope);
 
         // A one-character query matches most of the register, so it is treated as no
         // query at all rather than as a very expensive way to get the latest feed.
@@ -196,7 +243,21 @@ final class ActivityFeedService
         // the worst case is that a filter is ignored, not that results vanish.
         $understood = $interpret ? $this->interpret($q) : null;
 
-        $result = $this->collect($understood['terms'] ?? $q, $limit, $understood);
+        // A CHIP THE PERSON PRESSED BEATS A GUESS THE MODEL MADE, and the two are
+        // intersected rather than one replacing the other — somebody who typed
+        // "winners in Ghana" and then pressed People wants people, not the model's
+        // reading of the whole phrase. An empty intersection means the chip and the
+        // interpretation disagree completely, and the chip wins outright: the
+        // alternative is a search that silently ignores the only control the person
+        // actually touched.
+        $narrow = $understood;
+        if ($only !== []) {
+            $both   = array_values(array_intersect($narrow['kinds'] ?? [], $only));
+            $narrow = ($narrow ?? []) + ['terms' => $q, 'country' => null, 'days' => null, 'note' => ''];
+            $narrow['kinds'] = $both !== [] ? $both : $only;
+        }
+
+        $result = $this->collect($understood['terms'] ?? $q, $limit, $narrow);
 
         return $result + ['query' => $q, 'live' => true, 'understood' => $understood];
     }

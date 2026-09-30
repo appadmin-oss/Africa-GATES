@@ -1,0 +1,104 @@
+{#
+  ══════════════════════════════════════════════════════════════════════════════
+  THE PHONE APP BAR — REFERENCE §7.2, AppBar.dc.html
+  ══════════════════════════════════════════════════════════════════════════════
+
+  Two variants and no third. HIG allows a navigation bar back + title + ONE
+  action, and the rule is what keeps the bar readable at a glance:
+
+    root   a tab destination. 52px row of [88px · centred small title · 88px],
+           then a large Playfair title that collapses on scroll. This is the
+           page's only <h1>.
+    child  a pushed screen. 44px back · title + optional sub, both truncating ·
+           at most one action.
+
+  ── THE GRID WIDTHS ARE NOT DECORATION ───────────────────────────────────────
+
+  Root is `88px minmax(0,1fr) 88px` — two equal 88px rails so the centred title is
+  centred against the BAR rather than against whatever happens to be in the slots.
+  Child is `44px minmax(0,1fr) auto`, left-aligned, because a child title sits
+  beside its back button and has no symmetry to keep.
+
+  ── AND THE AVATAR IS A SHEET, NOT A LINK ────────────────────────────────────
+
+  It opens Quick settings. There are deliberately NO separate Aa or language
+  buttons in the phone bar (REFERENCE §18.5): they live in that sheet, because a
+  bar with back, title, search, Aa, language and avatar is the nav-clutter
+  anti-pattern the standards reject.
+
+  Args
+    variant   'root' | 'child'                     default 'root'
+    title     the page title                       required
+    sub       child only; must ADD information, never repeat the title
+    back      child only; the href for the back button
+    search    show the search icon                 default: root
+    share     show the share action                default: child
+    avatar    show the avatar → Quick settings     default: root
+    initials  the avatar's letters
+#}
+{% set _variant = variant|default('root') %}
+{% set _root    = _variant == 'root' %}
+{% set _search  = search is defined ? search : _root %}
+{% set _share   = share  is defined ? share  : not _root %}
+{% set _avatar  = avatar is defined ? avatar : _root %}
+
+<div class="ag-appbar ag-appbar--{{ _root ? 'root' : 'child' }}">
+  <div class="ag-appbar__row">
+
+    {% if _root %}
+      {% if _search %}
+        <a class="ag-appbar__icon" href="/discover" aria-label="Search Africa GATES">
+          <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+               stroke-width="2" aria-hidden="true">
+            <circle cx="11" cy="11" r="7"></circle>
+            <path d="m20 20-3.6-3.6" stroke-linecap="round"></path>
+          </svg>
+        </a>
+      {% else %}<span></span>{% endif %}
+    {% else %}
+      <a class="ag-appbar__icon" href="{{ back|default('/') }}" aria-label="Back">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+             stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="m15 18-6-6 6-6"></path>
+        </svg>
+      </a>
+    {% endif %}
+
+    <div class="ag-appbar__title">
+      {% if _root %}
+        {# Hidden at rest and faded in on scroll — the large title below is the one
+           being read until then. `aria-hidden` stays off: it is the same string, and
+           a screen reader hearing it twice is better than a sighted-only title. #}
+        <span class="ag-appbar__small">{{ title }}</span>
+      {% else %}
+        <b>{{ title }}</b>
+        {% if sub is defined and sub %}<span>{{ sub }}</span>{% endif %}
+      {% endif %}
+    </div>
+
+    <div class="ag-appbar__end">
+      {% if _share %}
+        <button type="button" class="ag-appbar__icon" data-ag-share aria-label="Share">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+               stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M12 3v12"></path><path d="m7 8 5-5 5 5"></path>
+            <path d="M5 14v5a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-5"></path>
+          </svg>
+        </button>
+      {% endif %}
+      {% if _avatar %}
+        <button type="button" class="ag-appbar__icon" data-ag-quick
+                aria-label="Account, language and display" aria-haspopup="dialog"
+                aria-expanded="false">
+          <span class="ag-appbar__av">{{ initials|default('AG') }}</span>
+        </button>
+      {% endif %}
+    </div>
+  </div>
+
+  {% if _root %}
+    {# The page's only <h1>. It collapses on scroll and the small title above takes
+       over; the heading stays in the accessibility tree either way. #}
+    <div class="ag-appbar__large"><h1>{{ title }}</h1></div>
+  {% endif %}
+</div>

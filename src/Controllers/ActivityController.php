@@ -92,11 +92,18 @@ final class ActivityController
         $q       = trim((string) ($req->getQueryParams()['q'] ?? ''));
         $limit   = (int) ($req->getQueryParams()['limit'] ?? 20);
         $literal = ($req->getQueryParams()['literal'] ?? '') !== '';
-        $result  = $this->feed->search($q, $limit, interpret: !$literal);
+        // The search palette's scope chip (REFERENCE §7.1). This endpoint serves both
+        // the inline combobox and the palette, deliberately: `/search` is an ALIAS to
+        // `/activity` so people who type it find the page, and src/routes.php says in as
+        // many words that there is not a second search here — one endpoint, one index,
+        // one set of promises about what is covered.
+        $scope   = (string) ($req->getQueryParams()['scope'] ?? '');
+        $result  = $this->feed->search($q, $limit, interpret: !$literal, scope: $scope);
 
         return $json([
             'ok'      => true,
             'query'   => $result['query'],
+            'scope'   => $scope !== '' && ActivityFeedService::scopeSources($scope) !== [] ? $scope : 'all',
             'live'    => $result['live'],
             'count'   => count($result['items']),
             'items'   => $result['items'],

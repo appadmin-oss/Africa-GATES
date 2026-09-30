@@ -277,14 +277,14 @@ textarea.ag-field{ height:auto; min-height:120px; padding:12px 14px; align-items
 /* ══ Switch ══════════════════════════════════════════════════════════════════ */
 
 .ag-switch{
-  flex:none; width:46px; height:28px; padding:3px;
+  flex:none; width:44px; height:26px; padding:3px; box-sizing:border-box;
   border:0; border-radius:var(--ag-r-pill);
   background:var(--ag-mute);
   display:flex; justify-content:flex-start; align-items:center;
   cursor:pointer;
   transition:background var(--ag-dur-1) var(--ag-ease);
 }
-.ag-switch::after{ content:""; width:22px; height:22px; border-radius:50%; background:#fff }
+.ag-switch::after{ content:""; width:20px; height:20px; border-radius:50%; background:var(--ag-surface) }
 .ag-switch[aria-checked="true"]{ background:var(--ag-green); justify-content:flex-end }
 .ag-doc .ag-switch[aria-checked="true"]{ background:var(--ag-ink) }
 /* The control is 28px of ink inside a 44px target. */
@@ -345,14 +345,20 @@ textarea.ag-field{ height:auto; min-height:120px; padding:12px 14px; align-items
 
 .ag-appbar{
   position:relative; z-index:var(--ag-z-appbar);
-  display:flex; align-items:center; gap:var(--ag-sp-4);
-  min-height:56px; padding:0 var(--ag-sp-4);
   background:var(--ag-ground);
   border-bottom:1px solid transparent;
   transition:background var(--ag-dur-1) var(--ag-ease),
              border-color var(--ag-dur-1) var(--ag-ease);
 }
 .ag-shell[data-scrolled] .ag-appbar{ background:var(--ag-bar); border-bottom-color:var(--ag-line) }
+
+/* Two equal 88px rails on root, so the centred title is centred against the BAR
+   rather than against whatever happens to be in the slots. Child is left-aligned
+   beside its back button and has no symmetry to keep. */
+.ag-appbar__row{ display:grid; align-items:center; height:52px; padding:0 var(--ag-sp-4) }
+.ag-appbar--root  .ag-appbar__row{ grid-template-columns:88px minmax(0,1fr) 88px }
+.ag-appbar--child .ag-appbar__row{ grid-template-columns:44px minmax(0,1fr) auto }
+.ag-appbar__end{ display:flex; justify-content:flex-end }
 
 .ag-appbar__icon{
   flex:none; width:44px; height:44px;
@@ -362,12 +368,21 @@ textarea.ag-field{ height:auto; min-height:120px; padding:12px 14px; align-items
 /* Over a photo an icon button needs a container fill or it disappears (M3). */
 .ag-appbar__icon--float{ background:rgba(255,255,255,.94); box-shadow:var(--ag-sh-float) }
 
-.ag-appbar__title{ flex:1; min-width:0; padding:0 var(--ag-sp-4) }
+.ag-appbar__title{ min-width:0; display:flex; flex-direction:column; justify-content:center; padding:0 var(--ag-sp-6) }
+.ag-appbar--root  .ag-appbar__title{ align-items:center }
+.ag-appbar--child .ag-appbar__title{ align-items:flex-start }
+.ag-appbar__av{
+  width:32px; height:32px; border-radius:50%;
+  background:var(--ag-ink); color:var(--ag-ground);
+  display:flex; align-items:center; justify-content:center;
+  font-weight:700; font-size:12px;
+}
 
 /* Root: a small centred title that fades in, over a large title row that hides. */
 .ag-appbar--root .ag-appbar__small{
-  display:block; text-align:center;
-  font-size:17px; font-weight:700;
+  max-width:100%; text-align:center;
+  font-size:17px; font-weight:600; line-height:1.2;
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
   opacity:0; transition:opacity var(--ag-dur-1) var(--ag-ease);
 }
 .ag-shell[data-scrolled] .ag-appbar--root .ag-appbar__small{ opacity:1 }
@@ -382,18 +397,19 @@ textarea.ag-field{ height:auto; min-height:120px; padding:12px 14px; align-items
 }
 .ag-appbar__large > h1{
   margin:0; min-height:0; overflow:hidden;
-  font-family:var(--ag-font-display); font-weight:700; font-size:26px; line-height:1;
+  font-family:var(--ag-font-display); font-weight:700;
+  font-size:32px; line-height:1.1; letter-spacing:-.01em;
 }
 .ag-shell[data-scrolled] .ag-appbar__large{ grid-template-rows:0fr; padding-bottom:0; opacity:0 }
 
 /* Child: back · title + sub · at most one action. Both lines truncate; the sub
    adds information and never repeats the title. */
 .ag-appbar--child .ag-appbar__title b{
-  display:block; font-size:16px; font-weight:700; line-height:1.2;
+  max-width:100%; font-size:17px; font-weight:600; line-height:1.2;
   white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
 }
 .ag-appbar--child .ag-appbar__title span{
-  display:block; font-size:12.5px; color:var(--ag-soft);
+  max-width:100%; font-size:12.5px; color:var(--ag-soft);
   white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
 }
 
@@ -434,3 +450,208 @@ textarea.ag-field{ height:auto; min-height:120px; padding:12px 14px; align-items
   white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
 }
 .ag-actionbar .ag-btn{ flex:none; height:54px }
+
+
+/* ══ Icon tile tints ══════════════════════════════════════════════════════════
+
+   MobileMenu.dc.html tints its tiles `#eef7ee`, `#e9efef`, `#a47306` and
+   `#2b373d`. None of those is in REFERENCE §6.1, whose rule is "only the tokens
+   in §6. No new colours" — so each maps to the nearest token pair rather than
+   being written as a fifth, sixth and seventh value of the same ramp. Recorded in
+   docs/handoff/GAPS.md as a deviation; the alternative was four more hexes on a
+   palette that already cost this codebase 642 of them.
+
+   Every pair is a FILL plus the INK drawn on it, measured here rather than
+   assumed: 7.08, 6.06, 5.78 and 7.37 : 1. An icon owes 3:1 under 1.4.11 and each
+   of these clears the 4.5 a word owes, which is what makes the tile safe to reuse
+   for a label later. */
+
+.ag-tint--green  { background:var(--ag-green-wash); color:var(--ag-green-deep) }
+.ag-tint--gold   { background:var(--ag-gold-wash);  color:var(--ag-gold-ink) }
+.ag-tint--live   { background:var(--ag-live-wash);  color:var(--ag-live-ink) }
+.ag-tint--neutral{ background:var(--ag-tint);       color:var(--ag-ink-2) }
+
+
+/* ══ Small and quiet buttons ═════════════════════════════════════════════════
+   44px and not smaller: §6 draws a 36px pill in two places and the rule at the
+   top of this file is that the hit area grows rather than the ink. */
+
+.ag-btn--sm{ height:44px; padding:0 var(--ag-sp-16); font-size:14.5px; border-radius:var(--ag-r-14) }
+.ag-btn--quiet{
+  background:transparent; color:var(--ag-ink);
+  border:1px solid var(--ag-line-2); font-weight:600;
+}
+.ag-btn--quiet:hover{ background:var(--ag-surface) }
+
+
+/* ══ The sheet, while it is open ═════════════════════════════════════════════
+   `.ag-main` is the page's only scroller, so stopping IT is what stops the page
+   moving behind a sheet. `position:fixed` on the body is the usual trick and is
+   not needed here — the shell never scrolled the document in the first place. */
+
+body.ag-sheet-open .ag-main{ overflow:hidden }
+
+
+/* ══ Menu ════════════════════════════════════════════════════════════════════
+   MobileMenu.dc.html. From `top:52px` so the app bar stays visible behind it and
+   the sheet reads as something OVER the page rather than a new page. */
+
+.ag-menu{ top:52px; background:var(--ag-ground) }
+.ag-menu .ag-sheet__head{
+  display:grid; grid-template-columns:44px minmax(0,1fr) 44px;
+  align-items:center; padding:0 var(--ag-sp-8) var(--ag-sp-6);
+}
+[data-ag-menu-title]{ text-align:center; font-size:16.5px; font-weight:700 }
+.ag-menu__x{
+  display:flex; align-items:center; justify-content:center;
+  width:30px; height:30px; border-radius:50%;
+  background:var(--ag-tint); color:var(--ag-ink);
+}
+.ag-menu__body{ display:flex; flex-direction:column; gap:var(--ag-sp-22); padding:var(--ag-sp-6) var(--ag-sp-16) var(--ag-sp-40) }
+.ag-menu__body > [data-ag-menu-view]{ display:flex; flex-direction:column; gap:var(--ag-sp-22) }
+.ag-menu__body > [data-ag-menu-view][hidden]{ display:none }
+.ag-menu__h{
+  margin:0; padding:0 var(--ag-sp-6) var(--ag-sp-8);
+  font-size:13px; font-weight:600; color:var(--ag-soft);
+}
+
+/* Profile card and its signed-out counterpart. */
+.ag-menu__me,
+.ag-qs__me{
+  display:flex; align-items:center; gap:var(--ag-sp-12);
+  padding:var(--ag-sp-14); border-radius:var(--ag-r-18);
+  background:var(--ag-surface); color:var(--ag-ink); text-decoration:none;
+}
+.ag-menu__av{
+  flex:none; display:flex; align-items:center; justify-content:center;
+  width:52px; height:52px; border-radius:50%;
+  background:var(--ag-ink); color:var(--ag-ground);
+  font-weight:700; font-size:16px;
+}
+.ag-qs__me .ag-menu__av{ width:44px; height:44px; font-size:14.5px }
+.ag-menu__who{ flex:1; min-width:0; display:flex; flex-direction:column; gap:2px }
+.ag-menu__who b{ font-size:17px; font-weight:700 }
+.ag-menu__who span{ font-size:13.5px; color:var(--ag-soft) }
+.ag-menu__pts{ flex:none; display:flex; flex-direction:column; align-items:flex-end }
+/* Mono is for references and figures, never for labels — §6.2. */
+.ag-menu__pts b{ font-family:var(--ag-font-mono); font-weight:700; font-size:15px }
+.ag-menu__pts span{ font-size:12px; color:var(--ag-soft) }
+
+.ag-menu__join{
+  display:flex; flex-direction:column; gap:var(--ag-sp-6);
+  padding:var(--ag-sp-16); border-radius:var(--ag-r-18); background:var(--ag-surface);
+}
+.ag-menu__join b{ font-size:17px; font-weight:700 }
+.ag-menu__join span{ font-size:13.5px; color:var(--ag-soft) }
+.ag-menu__join .ag-btn{ height:50px; margin-top:var(--ag-sp-6) }
+
+/* Four quick tiles. */
+.ag-menu__quick{ display:grid; grid-template-columns:repeat(4,1fr); gap:var(--ag-sp-8) }
+.ag-menu__quick a{
+  display:flex; flex-direction:column; align-items:center; gap:var(--ag-sp-6);
+  padding:var(--ag-sp-12) var(--ag-sp-4); border-radius:var(--ag-r-18);
+  background:var(--ag-surface); color:var(--ag-ink); text-decoration:none;
+  font-size:13px; font-weight:600; text-align:center;
+}
+
+/* A dot AND the word: colour is never the only carrier of a state. */
+.ag-menu__live{
+  display:inline-flex; align-items:center; gap:var(--ag-sp-6);
+  font-size:13px; font-weight:600; color:var(--ag-green-deep);
+}
+.ag-menu__live i{ width:7px; height:7px; border-radius:50%; background:var(--ag-green) }
+
+.ag-menu__lang .ag-menu__tick{ color:var(--ag-green); opacity:0; flex:none; display:flex }
+.ag-menu__lang[aria-current="true"] .ag-menu__tick{ opacity:1 }
+.ag-menu__lang[aria-current="true"] .ag-list__label{ font-weight:700 }
+
+.ag-menu__pane{ padding:var(--ag-sp-16) }
+
+.ag-menu__foot{ display:flex; flex-direction:column; gap:var(--ag-sp-12); align-items:flex-start }
+.ag-menu__foot nav{ display:flex; flex-wrap:wrap; gap:0 var(--ag-sp-16) }
+.ag-menu__foot nav a{
+  display:inline-flex; align-items:center; min-height:32px;
+  font-size:13.5px; color:var(--ag-soft);
+}
+.ag-menu__foot .ag-btn--danger{ height:44px; padding:0; font-size:15px }
+/* --ag-mute measures 2.75:1 on the ground and this is a real sentence, not a
+   disabled control — so the wordmark takes --ag-soft (4.80). The DC asks for
+   mute; recorded as a deviation with the measurement rather than shipped. */
+.ag-menu__foot > span{ font-size:12px; color:var(--ag-soft) }
+
+
+/* ══ Quick settings ══════════════════════════════════════════════════════════
+   AppBar.dc.html. A short sheet: two of the seven switches, and a way through to
+   all of them. It is a subset of one store, never a second set. */
+
+.ag-qs__body{ display:flex; flex-direction:column; gap:var(--ag-sp-16); padding:var(--ag-sp-8) var(--ag-sp-16) var(--ag-sp-24) }
+.ag-qs__block{ display:flex; flex-direction:column; gap:var(--ag-sp-8) }
+.ag-qs__h{ font-size:13px; font-weight:600; color:var(--ag-soft) }
+.ag-seg--48 .ag-seg__opt{ height:48px }
+.ag-qs__switches{ background:var(--ag-surface); border-radius:var(--ag-r-18); padding:0 var(--ag-sp-14) }
+.ag-qs__switches .ag-dr__row:last-child{ border-bottom:0 }
+
+/* Eight chips do not fit across 390px. They scroll HERE because this sheet is a
+   shortcut; the Menu and the full screen present the same eight as a list, so a
+   horizontal scroller is never the only way to reach one. */
+.ag-qs__langs{
+  display:flex; gap:var(--ag-sp-8);
+  overflow-x:auto; scrollbar-width:none;
+  margin:0 calc(var(--ag-sp-16) * -1); padding:0 var(--ag-sp-16);
+}
+.ag-qs__langs::-webkit-scrollbar{ display:none }
+.ag-qs__lang{ flex:none }
+
+.ag-qs__all{ background:var(--ag-surface); border-radius:var(--ag-r-18); border-top:0 }
+.ag-qs__done{ height:52px }
+
+
+/* ══ Display & reading ═══════════════════════════════════════════════════════
+   DisplayReading.dc.html. One block, three homes — the full screen, the Quick
+   settings sheet and the Menu's pushed sub-view — so the markup is shared rather
+   than copied. */
+
+.ag-dr{ display:flex; flex-direction:column; gap:var(--ag-sp-10) }
+.ag-dr__h{ font-size:15px; font-weight:700 }
+
+/* The whole row is the switch: a 52px target rather than the 26px the visual
+   control occupies. */
+.ag-dr__row{
+  display:flex; align-items:center; gap:var(--ag-sp-12);
+  min-height:52px; padding:var(--ag-sp-6) 2px;
+  border:0; border-bottom:1px solid var(--ag-ground);
+  background:transparent; color:var(--ag-ink);
+  font-family:inherit; text-align:start; cursor:pointer;
+}
+.ag-qs__switches .ag-dr__row{ border-bottom-color:var(--ag-line-3) }
+.ag-dr__text{ flex:1; min-width:0; display:flex; flex-direction:column; gap:1px }
+.ag-dr__label{ font-size:14.5px; font-weight:600 }
+.ag-dr__help{ font-size:12.5px; color:var(--ag-soft) }
+
+.ag-dr__size{ font-weight:700; line-height:1 }
+
+.ag-dr__lang{
+  display:flex; align-items:center; gap:var(--ag-sp-10);
+  min-height:48px; font-size:14.5px; font-weight:600;
+}
+.ag-dr__lang label{ flex:1 }
+.ag-dr__lang select{
+  height:44px; padding:0 var(--ag-sp-10);
+  border:1px solid var(--ag-line-2); border-radius:var(--ag-r-10);
+  font-family:inherit; font-size:14px; color:var(--ag-ink); background:var(--ag-surface);
+}
+.ag-dr__note{ margin:0; font-size:12.5px; color:var(--ag-soft) }
+
+
+/* ══ The first-visit language prompt ═════════════════════════════════════════
+   One row under the root app bar, asked once. Both answers are links, so it works
+   with scripting off; the script only chooses WHICH row, which is the half only a
+   browser can answer. */
+
+.ag-langask{ background:var(--ag-gold-wash-2); border-bottom:1px solid var(--ag-line) }
+.ag-langask__row{
+  display:flex; align-items:center; flex-wrap:wrap; gap:var(--ag-sp-8);
+  padding:var(--ag-sp-10) var(--ag-gutter);
+}
+.ag-langask__row[hidden]{ display:none }
+.ag-langask__q{ flex:1; min-width:180px; font-size:14px; font-weight:600 }

@@ -1820,6 +1820,22 @@ return function(App $app) {
         $g->get('/judges',        JudgesController::class.':index');
         $g->get('/judges/{slug}', JudgesController::class.':show');
         $g->get('/registry',      RegistryController::class.':index');
+        // ── DISCOVER, UNTIL PHASE 4 BUILDS IT ────────────────────────────────
+        //
+        // The redesign's chrome puts Discover on the phone tab bar, in the desktop
+        // Explore panel and in the Menu — three surfaces, one href — and there is no
+        // such page yet (docs/handoff/GAPS.md §5.5). A link to a 404 from the tab bar
+        // is the worst of the options, and hard-coding `/registry` into those three
+        // places is the second worst: Phase 4 would have to find all three, and the
+        // failure mode is forgetting.
+        //
+        // So `/discover` is the one canonical address from today and Phase 4 replaces
+        // this line with the real handler. 302 and not 301 deliberately — 301 says this
+        // address is never the page, and it is about to be. See PublicIaTest, which
+        // reads exactly that distinction.
+        $g->get('/discover', function ($req, $res) {
+            return $res->withHeader('Location', '/registry')->withStatus(302);
+        });
         $g->get('/registry/{slug}',RegistryController::class.':profile');
         // ── NEAR-MISS URLS ───────────────────────────────────────────────────
         //

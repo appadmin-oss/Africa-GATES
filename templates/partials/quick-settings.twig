@@ -1,0 +1,117 @@
+{#
+  ══════════════════════════════════════════════════════════════════════════════
+  QUICK SETTINGS — what the app bar's avatar opens
+  REFERENCE §7.2, AppBar.dc.html
+  ══════════════════════════════════════════════════════════════════════════════
+
+  A short sheet: who you are, text size, the two switches people reach for most,
+  the languages, and a way through to all of them. It exists so the phone bar can
+  hold ONE button instead of three — §18.5 rejects a bar carrying back, title,
+  search, Aa, language and avatar, and this is where the Aa and the globe went.
+
+  ── IT IS A SUBSET, NOT A SECOND SET ─────────────────────────────────────────
+
+  Two of the seven switches are here and all seven are one tap away. Every control
+  writes the same `ag-a11y` store through `AGA11y.set()`, and the store fires
+  `ag:a11y` on every write, so the copy inside the Menu and the copy on the full
+  screen re-read rather than keeping their own idea of what is on. This codebase's
+  standing fault is two surfaces disagreeing about one setting; three doors onto
+  one store is the answer to it, and three stores would be the fault.
+
+  ── THE LANGUAGE CHIPS SCROLL, AND THAT IS A DECISION ────────────────────────
+
+  Eight chips do not fit across 390px. They scroll horizontally here because the
+  sheet is a shortcut; the Menu's sub-view and the full screen both present the
+  same eight as a vertical list, where nothing is off-screen. A horizontal scroller
+  is acceptable for a shortcut and is not acceptable as the only way to reach an
+  option — which is why it is never the only way.
+#}
+<div class="ag-scrim" data-ag-quick-scrim hidden></div>
+
+<div class="ag-sheet ag-qs" data-ag-quick-sheet role="dialog" aria-modal="true"
+     aria-label="Account, language and display" inert>
+
+  <span class="ag-sheet__grabber" aria-hidden="true"></span>
+
+  <div class="ag-qs__body">
+
+    {% if member is defined and member %}
+      <a class="ag-qs__me" href="/account">
+        <span class="ag-menu__av">{{ member.initials|default('AG') }}</span>
+        <span class="ag-menu__who">
+          <b>{{ member.name }}</b>
+          <span>View your profile</span>
+        </span>
+        <span class="ag-list__chev" aria-hidden="true">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+               stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="m9 6 6 6-6 6"></path></svg>
+        </span>
+      </a>
+    {% else %}
+      <a class="ag-btn ag-btn--ink ag-btn--block" href="/account/login">Sign in or join</a>
+    {% endif %}
+
+    {# The same three-step control as everywhere else, at the 48px height §7.2
+       asks for rather than DisplayReading's 44. The letters are drawn at the
+       sizes they set; the accessible name carries the words. #}
+    <div class="ag-qs__block">
+      <span class="ag-qs__h" id="ag-qs-size">Text size</span>
+      <div class="ag-seg ag-seg--48" role="radiogroup" aria-labelledby="ag-qs-size">
+        {% for s in [
+          {i:0, name:'Standard text', fs:'15px'},
+          {i:1, name:'Large text',    fs:'19px'},
+          {i:2, name:'Largest text',  fs:'23px'}
+        ] %}
+          <button type="button" class="ag-seg__opt ag-dr__size" role="radio"
+                  aria-checked="false" aria-label="{{ s.name }}"
+                  data-ag-size="{{ s.i }}" style="font-size:{{ s.fs }}">A</button>
+        {% endfor %}
+      </div>
+    </div>
+
+    <div class="ag-dr ag-qs__switches">
+      {% for t in [
+        {k:'hc',     label:'High contrast', help:'Darker text and borders'},
+        {k:'motion', label:'Reduce motion', help:'No animation or auto-play'}
+      ] %}
+        <button type="button" class="ag-dr__row" role="switch" aria-checked="false"
+                data-ag-toggle="{{ t.k }}">
+          <span class="ag-dr__text">
+            <span class="ag-dr__label">{{ t.label }}</span>
+            <span class="ag-dr__help">{{ t.help }}</span>
+          </span>
+          <span class="ag-switch" aria-hidden="true"></span>
+        </button>
+      {% endfor %}
+    </div>
+
+    <div class="ag-qs__block">
+      <span class="ag-qs__h" id="ag-qs-lang">Language</span>
+      {# Each chip carries `lang` so a screen reader pronounces the word in its own
+         language instead of reading "Yorùbá" as English. Links, not radios: following
+         one navigates, and the middleware is what stores the choice — so these work
+         with scripting off, which for a language control matters most. #}
+      <nav class="ag-qs__langs" aria-labelledby="ag-qs-lang">
+        {% for l in languages() %}
+          <a class="ag-chip ag-qs__lang" href="{{ lang_url(l.code) }}" lang="{{ l.code }}"
+             {{ l.code == lang() ? 'aria-current="true"' : '' }}>{{ l.name }}</a>
+        {% endfor %}
+      </nav>
+    </div>
+
+    <button type="button" class="ag-list__row ag-qs__all" data-ag-quick-all>
+      <span class="ag-list__label">All display &amp; reading settings</span>
+      <span class="ag-list__chev" aria-hidden="true">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+             stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="m9 6 6 6-6 6"></path></svg>
+      </span>
+    </button>
+
+    {# Done rather than a close cross: this sheet has no destructive state and
+       nothing to cancel, so the one button says what pressing it means. #}
+    <button type="button" class="ag-btn ag-btn--ink ag-btn--block ag-qs__done"
+            data-ag-quick-close>Done</button>
+  </div>
+</div>

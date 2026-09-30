@@ -31,13 +31,18 @@
     head_styles   page-local <style>, nonce'd
     header        SiteHeader — tablet and desktop      (Phase 2)
     app_bar       the phone AppBar, root or child      (Phase 2)
+    sheets        the Menu and Quick settings; shell-level, rarely overridden
     content       goes inside <main>; the ONLY scroller
     bottom_bar    action bar OR tab bar, each [data-bottom-ui]  (Phase 2)
     foot_scripts  page-local <script>, nonce'd
   ══════════════════════════════════════════════════════════════════════════════
 #}
 <!doctype html>
-<html lang="{{ lang|default('en') }}" dir="{{ (lang|default('en')) == 'ar' ? 'rtl' : 'ltr' }}">
+{# `lang` and `dir` come from the cookie, resolved once per request by
+   LanguageMiddleware. They are on the markup the server sends, which is why the
+   head script below does not touch them — a second reader would be a second
+   answer, and the two would disagree the first time a cookie was cleared. #}
+<html lang="{{ lang() }}" dir="{{ lang_dir() }}">
 <head>
   <meta charset="utf-8">
   {# `viewport-fit=cover` so `env(safe-area-inset-*)` reports real numbers; without
@@ -51,7 +56,7 @@
      Phase 2 owns the store and the settings screen. The hook is here because it
      has to run before any stylesheet paints — a linked file would paint first and
      the person who asked for 150% text would watch it start at 100%. #}
-  {% block a11y_head %}{% endblock %}
+  {% block a11y_head %}{% include 'partials/a11y-head.twig' %}{% endblock %}
 
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -84,7 +89,19 @@
 
   {% block gee %}{% endblock %}
 
+  {# The two sheets live in the SHELL and not in the pages that open them: the
+     Menu is reachable from the tab bar on every phone page and Quick settings from
+     every root app bar, and a partial each page had to remember to include is a
+     partial the next page forgets. Both start `inert`, so nothing inside them is
+     focusable or announced until one is opened. #}
+  {% block sheets %}
+    {% include 'partials/menu-sheet.twig' %}
+    {% include 'partials/quick-settings.twig' %}
+  {% endblock %}
+
   <script defer src="{{ asset('/assets/js/shell.js') }}"></script>
+  <script defer src="{{ asset('/assets/js/a11y.js') }}"></script>
+  <script defer src="{{ asset('/assets/js/chrome.js') }}"></script>
   {% block foot_scripts %}{% endblock %}
 </body>
 </html>

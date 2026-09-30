@@ -291,6 +291,55 @@ return [
             'search_covers',
             static fn (): array => \AfricaGates\Services\ActivityFeedService::nouns()
         ));
+        // ── LANGUAGE, AS FUNCTIONS FOR THE REASON THE CONSENT NOTICE IS ─────
+        //
+        // This block has no Request, so a global could only answer by reading $_GET
+        // and $_COOKIE itself — a second resolver for a value LanguageMiddleware has
+        // already settled from the real request. A function is evaluated at RENDER
+        // time, which is after that, so it reads the answer rather than recomputing
+        // one. See AfricaGates\Support\Languages::observe().
+        $twig->getEnvironment()->addFunction(new \Twig\TwigFunction(
+            'lang',
+            [\AfricaGates\Support\Languages::class, 'current']
+        ));
+        $twig->getEnvironment()->addFunction(new \Twig\TwigFunction(
+            'lang_dir',
+            [\AfricaGates\Support\Languages::class, 'currentDir']
+        ));
+        // The name IN that language — "Français", never "French".
+        $twig->getEnvironment()->addFunction(new \Twig\TwigFunction(
+            'lang_name',
+            static fn (?string $code = null): string => \AfricaGates\Support\Languages::name(
+                $code ?? \AfricaGates\Support\Languages::current()
+            )
+        ));
+        $twig->getEnvironment()->addFunction(new \Twig\TwigFunction(
+            'languages',
+            [\AfricaGates\Support\Languages::class, 'options']
+        ));
+        // Only the languages the first-visit prompt can be written in.
+        $twig->getEnvironment()->addFunction(new \Twig\TwigFunction(
+            'lang_prompts',
+            [\AfricaGates\Support\Languages::class, 'prompts']
+        ));
+        // This URL with `lang` set — never a bare `?lang=xx`, which replaces the whole
+        // query string and would drop the search somebody had just run.
+        $twig->getEnvironment()->addFunction(new \Twig\TwigFunction(
+            'lang_url',
+            [\AfricaGates\Support\Languages::class, 'url']
+        ));
+        // Has this visitor answered the language question at all? The COOKIE half of
+        // the prompt's condition; the browser answers the other half.
+        // The rest of this request's query string, for the Display & reading form to
+        // carry as hidden fields — a GET form submits only its own.
+        $twig->getEnvironment()->addFunction(new \Twig\TwigFunction(
+            'lang_carry',
+            [\AfricaGates\Support\Languages::class, 'carry']
+        ));
+        $twig->getEnvironment()->addFunction(new \Twig\TwigFunction(
+            'lang_ask',
+            [\AfricaGates\Support\Languages::class, 'shouldAsk']
+        ));
         $twig->getEnvironment()->addFunction(new \Twig\TwigFunction(
             'cookie_ask',
             static fn (): bool => \AfricaGates\Services\CookiePrefs::asking()
