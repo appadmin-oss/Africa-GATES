@@ -655,3 +655,181 @@ body.ag-sheet-open .ag-main{ overflow:hidden }
 }
 .ag-langask__row[hidden]{ display:none }
 .ag-langask__q{ flex:1; min-width:180px; font-size:14px; font-weight:600 }
+
+
+/* ══ Site header — tablet and desktop ════════════════════════════════════════
+   REFERENCE §7.1, SiteHeader.dc.html.
+
+   Hidden below 900px: the phone has the app bar and the tab bar, and a site
+   header squeezed onto 390px is the nav-clutter anti-pattern by another route.
+   The breakpoint is where the two top links, the toolbar pill and the identity
+   control stop fitting beside the wordmark, measured rather than guessed. */
+
+.ag-head{ position:sticky; top:0; z-index:var(--ag-z-header) }
+@media (max-width:899px){ .ag-head{ display:none } }
+
+.ag-head__bar{
+  display:flex; align-items:center; gap:var(--ag-sp-8);
+  height:64px; padding:0 var(--ag-sp-28);
+  background:rgba(251,251,250,.9);
+  -webkit-backdrop-filter:blur(16px); backdrop-filter:blur(16px);
+  border-bottom:1px solid var(--ag-line);
+}
+/* The panel hangs from the bar with no gap, so a rule between them cuts it in
+   half. Removed while one is open — §7.1. */
+.ag-head.is-mega .ag-head__bar{ border-bottom-color:transparent }
+.ag-head__gap{ flex:1 }
+.ag-head__end{ display:flex; align-items:center; gap:var(--ag-sp-12) }
+
+.ag-logo{ display:flex; align-items:center; gap:var(--ag-sp-10); margin-inline-end:var(--ag-sp-18); text-decoration:none }
+.ag-logo img{
+  width:32px; height:32px; box-sizing:border-box; padding:3px;
+  border:1px solid var(--ag-line-2); border-radius:9px;
+  background:var(--ag-surface); object-fit:contain;
+}
+.ag-logo span{ display:flex; flex-direction:column; line-height:1 }
+.ag-logo b{ font-family:var(--ag-font-display); font-weight:700; font-size:16px; color:var(--ag-ink) }
+.ag-logo i{ font-style:normal; font-size:9.5px; font-weight:700; letter-spacing:.26em; color:var(--ag-green) }
+/* 9.5px is below §6.2's 11.5 micro floor, and it stays there because this is a
+   LOGOTYPE and not type: at a quarter-em of tracking the five letters are a device
+   locked to the 32px mark beside them, not a word anybody reads. Raising it to the
+   ladder makes the tag wider than the name above it and breaks the lockup.
+   TypeScaleTest exempts it by what it does — a sub-floor size at .26em — never by
+   naming this file. */
+
+.ag-head__top{ display:flex; gap:2px }
+.ag-head__link{
+  display:flex; align-items:center; gap:var(--ag-sp-6);
+  height:40px; padding:0 var(--ag-sp-14);
+  border:0; border-radius:var(--ag-r-10);
+  background:transparent; color:var(--ag-ink);
+  font-family:inherit; font-weight:600; font-size:14.5px; cursor:pointer;
+}
+.ag-head__link:hover{ background:var(--ag-ground) }
+.ag-head__link svg{ width:11px; height:11px; transition:transform var(--ag-dur-1) var(--ag-ease) }
+.is-open > .ag-head__link{ background:var(--ag-tint) }
+.is-open > .ag-head__link svg{ transform:rotate(180deg) }
+
+/* The toolbar pill. One 40px capsule, three controls, hairline dividers. */
+.ag-tools{
+  display:flex; align-items:center; gap:2px;
+  height:40px; padding:0 3px;
+  border:1px solid var(--ag-line); border-radius:var(--ag-r-pill);
+  background:var(--ag-surface);
+}
+.ag-tools__b{
+  display:flex; align-items:center; justify-content:center; gap:var(--ag-sp-6);
+  width:40px; height:34px;
+  border:0; border-radius:var(--ag-r-pill);
+  background:transparent; color:var(--ag-ink);
+  font-family:inherit; cursor:pointer;
+}
+.ag-tools__b:hover{ background:var(--ag-ground) }
+.ag-tools__b[aria-expanded="true"]{ background:var(--ag-tint) }
+.ag-tools__aa{ font-weight:700; font-size:14.5px }
+.ag-tools__lang{ width:auto; padding:0 var(--ag-sp-12); font-weight:600; font-size:13.5px }
+.ag-tools__div{ width:1px; height:18px; background:var(--ag-line) }
+
+.ag-head__cart{
+  position:relative; display:flex; align-items:center; justify-content:center;
+  width:40px; height:40px; border-radius:50%; color:var(--ag-ink);
+}
+.ag-head__cart:hover{ background:var(--ag-ground) }
+.ag-head__cartn{
+  position:absolute; top:3px; inset-inline-end:1px;
+  min-width:17px; height:17px; padding:0 var(--ag-sp-4); box-sizing:border-box;
+  border-radius:var(--ag-r-pill);
+  background:var(--ag-green); color:var(--ag-surface);
+  /* The DC draws this at 10.5px. That IS type — a number somebody reads — so it
+     takes the ladder's bottom rung instead. GAPS.md §9.9. */
+  font:700 11.5px/17px var(--ag-font-ui); text-align:center;
+}
+
+.ag-head__av{
+  display:flex; align-items:center; justify-content:center;
+  width:40px; height:40px; border-radius:50%;
+  background:var(--ag-ink); color:var(--ag-ground);
+  font-weight:700; font-size:13px; text-decoration:none;
+}
+/* OUTLINED, never green. §6.1: green is the primary action inside the PAGE, and
+   a green pill in the chrome outshouts every page's own call to action. */
+.ag-head__signin{
+  display:flex; align-items:center; height:40px; padding:0 var(--ag-sp-18);
+  border:1px solid var(--ag-ink); border-radius:var(--ag-r-pill);
+  color:var(--ag-ink); font-weight:600; font-size:14px; text-decoration:none;
+}
+.ag-head__signin:hover{ background:var(--ag-tint); color:var(--ag-ink) }
+
+/* ── The mega panel ──────────────────────────────────────────────────────── */
+
+.ag-mega-wrap{ position:static }
+.ag-mega{
+  display:none;
+  position:absolute; top:64px; inset-inline:0;
+  background:rgba(251,251,250,.9);
+  -webkit-backdrop-filter:blur(18px); backdrop-filter:blur(18px);
+  border-bottom:1px solid rgba(16,41,44,.08);
+  border-end-start-radius:var(--ag-r-24); border-end-end-radius:var(--ag-r-24);
+  box-shadow:var(--ag-sh-mega);
+}
+.ag-mega-wrap.is-open .ag-mega{ display:block }
+.ag-mega__grid{
+  max-width:1180px; margin:0 auto; padding:26px var(--ag-sp-40) 30px;
+  display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:var(--ag-sp-4);
+}
+.ag-mega__item{
+  display:flex; align-items:flex-start; gap:var(--ag-sp-14);
+  padding:var(--ag-sp-12); border-radius:var(--ag-r-14);
+  color:var(--ag-ink); text-decoration:none;
+}
+.ag-mega__item:hover{ background:var(--ag-ground); color:var(--ag-ink) }
+.ag-icon-tile--mega{ width:40px; height:40px; border-radius:var(--ag-r-12) }
+.ag-mega__txt{ display:flex; flex-direction:column; gap:2px }
+.ag-mega__txt b{ font-weight:700; font-size:15px }
+/* There are no pictures in here — §7.1. A description is what a reader was
+   scanning anyway, and it is the thing an icon cannot say. */
+.ag-mega__txt span{ font-size:13px; line-height:1.45; color:var(--ag-soft) }
+
+/* ── The two popovers ────────────────────────────────────────────────────── */
+
+.ag-pop{
+  display:none;
+  position:absolute; top:70px; inset-inline-end:var(--ag-sp-28);
+  box-sizing:border-box;
+  background:var(--ag-surface);
+  border:1px solid var(--ag-line);
+  box-shadow:var(--ag-sh-pop);
+}
+.ag-pop[data-open]{ display:flex; flex-direction:column }
+.ag-pop--aa{ width:360px; max-height:min(620px, calc(100dvh - 90px)); overflow:auto; padding:var(--ag-sp-18); border-radius:var(--ag-r-20) }
+.ag-pop--lang{ width:210px; padding:var(--ag-sp-6); border-radius:var(--ag-r-16) }
+
+.ag-pop__lang{
+  display:flex; align-items:center; justify-content:space-between;
+  height:40px; padding:0 var(--ag-sp-12);
+  border-radius:var(--ag-r-10);
+  color:var(--ag-ink); font-size:14px; text-decoration:none;
+}
+.ag-pop__lang:hover{ background:var(--ag-ground); color:var(--ag-ink) }
+.ag-pop__lang[aria-current="true"]{ background:var(--ag-tint); font-weight:700 }
+.ag-pop__lang i{ font-style:normal; font-size:12px; color:var(--ag-soft) }
+
+
+/* ══ The announcement strip ══════════════════════════════════════════════════
+   Not in the DC and not invented here: it is an operator-controlled sentence
+   that predates the redesign, and removing it inside a navigation change would
+   have taken a product feature out with the chrome. */
+
+.ag-announce{
+  display:flex; align-items:center; gap:var(--ag-sp-10);
+  padding:var(--ag-sp-8) var(--ag-gutter);
+  background:var(--ag-ink); color:var(--ag-ground);
+  font-size:13px;
+}
+.ag-announce__dot{ width:7px; height:7px; border-radius:50%; background:var(--ag-green-light) }
+.ag-announce a{ color:var(--ag-ground); text-decoration:underline; text-underline-offset:3px }
+.ag-announce__x{
+  margin-inline-start:auto; width:32px; height:32px;
+  border:0; background:transparent; color:var(--ag-ground);
+  font-size:17px; line-height:1; cursor:pointer;
+}

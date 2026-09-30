@@ -215,11 +215,10 @@
   --ag-dur-fast:.15s;
   --ag-dur:.25s;
 
-  /* The old z ladder. Kept because ~60 templates place themselves on it; the new
-     one above is what anything converted uses. */
+  /* The old z ladder, minus the three whose only reader was `components/nav.css`:
+     `--ag-z-mega`, `--ag-z-mobile-nav` and `--ag-z-overlay` went with the file, which
+     is what this block's own rule says to do — each phase deletes the names its pages
+     stop using. `DeadTokenTest` named all three the moment the sheet was removed. */
   --ag-z-nav:50;
-  --ag-z-mega:55;
-  --ag-z-mobile-nav:60;
-  --ag-z-overlay:80;
   --ag-z-loader:2147483000;
 }

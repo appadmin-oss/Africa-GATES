@@ -421,3 +421,47 @@ for its language.**
 `SiteHeader.dc.html` has a `kbOpen` dialog listing eight shortcuts. No line of §7.1 asks
 for it and no other phase file mentions it. Not built; flagged rather than invented, since
 a shortcut list is a promise about bindings that have to exist.
+
+### 9.8 The Explore panel carries a seventh item: Results
+
+Neither of §7.1's two lists contains Results. `PublicResultsTest` exists because of what
+that costs, and it says so in its own comment: the results page was built, the Pulse and
+the congratulations emails linked it, and **nobody browsing the site could reach a decided
+award** — a mechanism complete and correct in every part except the route in, which is
+this repository's most expensive shape.
+
+A specification that omits a destination does not make the destination optional. Results
+is in Explore, and the guard that caught it is now able to see a data-driven nav: it used
+to look for the literal `href="/results"`, which is what a hand-written list contains and
+what a Twig loop over `{href:'/results', …}` never does. It would have gone quiet on
+exactly the change most able to drop the link.
+
+### 9.9 Two sub-floor type sizes, resolved in opposite directions
+
+REFERENCE §6.2's smallest rung is **11.5px** (micro / badges). `SiteHeader.dc.html` uses
+two sizes below it, and they are not the same kind of thing:
+
+- **The cart badge, 10.5px → 11.5px.** A number somebody reads is type, and §6 outranks
+  the DC for the same reason it does on colour (§9.1). It still fits the 17px badge.
+- **The wordmark's "GATES", 9.5px, kept.** A logotype is not type. Five letters tracked a
+  quarter of an em and locked to the 32px mark beside them are a device, not a word;
+  raising it to the ladder makes the tag wider than the name above it and breaks the
+  lockup. `TypeScaleTest` exempts it **by the tracking**, the way it exempts the email
+  preheader by `mso-hide:all` — naming what it does, never the file that does it.
+
+### 9.10 `components/nav.css` was split, not deleted
+
+The old navigation's stylesheet had to go: its `.ag-menu` block is `position:fixed;
+inset:0` for a full-screen overlay, and the redesign's `.ag-menu` is a bottom sheet from
+`top:52px`. Same class, opposite component, nothing in either file to hint at it.
+
+It also held every `.vc-*` rule for the vote countdown, which has nothing to do with
+navigation. Those moved to `components/vote-countdown.css` rather than going with the
+file. `VoteCountdownTest` reads them by name and would have said so — the reason to split
+rather than rely on that is that a sheet named for one component and holding two is a
+sheet the *next* deletion gets wrong the same way.
+
+Deleting it also orphaned three compatibility tokens whose only reader it was
+(`--ag-z-mega`, `--ag-z-mobile-nav`, `--ag-z-overlay`). `DeadTokenTest` named all three,
+and they are gone — which is what `tokens.css`'s compatibility block says each phase
+should do.

@@ -1,30 +1,45 @@
-{# ═══════════════════════════════════════════════════════════════
-   Africa GATES — Navigation (new design system: components/nav.css)
-   Desktop: sticky nav + Participate/Explore megas.
-   Mobile: no top nav → bottom bar (Home · Pulse · Nominate · Ranks ·
-   Menu) + full-screen overlay menu.
-   ═══════════════════════════════════════════════════════════════ #}
 {#
-  ── THE MENU'S TWENTY-FOUR TINTED TILES ARE GONE, AND THE TINT IS WHY ────────
+  ══════════════════════════════════════════════════════════════════════════════
+  SITE HEADER — tablet and desktop
+  REFERENCE §7.1 · design/SiteHeader.dc.html
+  ══════════════════════════════════════════════════════════════════════════════
 
-  Every item in these two menus carried a 38px rounded tile: an emoji on a pale
-  ground, each ground and each ink hand-derived on the spot. Forty-eight literal
-  colours, none of them from the palette, none of them meaning anything — and
-  seven of them were HONOUR GOLD (`#fff8df` on `#7a5600`) sitting behind a
-  Leaderboard link, a Shop link and a Create-an-account link. On this platform
-  gold means an award has been decided for a named person. Spending it on a menu
-  row is the single fastest way to make it stop meaning that.
+  A 64px bar, two top links, one toolbar pill, one identity control. That is the
+  whole of it, and the restraint is the design: §18.5 rejects a bar carrying
+  search, Aa, language, cart, account and half a dozen section links, which is
+  what this file used to be.
 
-  An emoji is also colour nothing here can control: it renders in the vendor's
-  own palette on every device, at full saturation, regardless of any rule this
-  codebase writes. A design system whose argument is that colour must carry
-  meaning cannot have two dozen uncontrolled colours in its navigation.
+  ── THERE IS NO GREEN BUTTON IN THIS HEADER ─────────────────────────────────
 
-  What replaces them is what the handoff calls for and what the menu already
-  had: weight and value. Each row is a title in ink and a line of description in
-  `ink-soft`, which is what a reader was scanning anyway.
+  §6.1: green is THE primary action INSIDE the page. A green Vote pill in the
+  chrome competes with every page's own call to action and wins, which is how a
+  site ends up with two things shouting on every screen. The signed-out control
+  is an OUTLINED pill. The phase file lists this as a Done-when line, and
+  `SiteHeaderTest` asserts it in both signed-in states.
+
+  ── WHAT MOVED TO THE PHONE, AND WHY THIS FILE STILL LOADS IT ───────────────
+
+  The old mobile half of this file — a bottom bar and a FULL-SCREEN overlay menu
+  — is gone. A full-screen menu page is in the anti-pattern list: it takes a
+  navigation step to leave and loses where you were. It is a bottom SHEET now
+  (`partials/menu-sheet.twig`), reached from `partials/tab-bar.twig`.
+
+  Those two partials are included HERE rather than in each page, because this
+  file is what `layout/gates.twig` includes on every one of the ~180 screens no
+  phase has converted yet. `layout/shell.twig` includes the sheets itself, so a
+  converted page gets them once and only once.
+
+  ── THE MEGA CONTROLLER IS THE ONE THAT WAS ALREADY HERE ────────────────────
+
+  Kept deliberately (phase §7.1: "Keep the repo's `data-ag-mega*` controller").
+  It carries three fixes that are invisible until they are missing — direct
+  per-trigger handlers bound after DOMContentLoaded so no document-level listener
+  can re-close the panel on the same click, hover-open gated on a fine pointer,
+  and Esc closing everything. Rebuilding it would have meant rediscovering all
+  three.
 #}
 {% set _p = gates_page|default('') %}
+{% set _ini = member_name ? (member_name|split(' ')|map(w => w|first)|join|upper|slice(0,2)) : 'AG' %}
 
 {% if announcement_text %}
 <div class="ag-announce ag-scope" role="region" aria-label="Announcement">
@@ -35,150 +50,185 @@
 </div>
 {% endif %}
 
-{# ════ DESKTOP NAV ════ #}
-<header class="ag-nav ag-scope" id="agNav" role="banner">
-  <div class="ag-nav__row">
-    <a class="ag-brand" href="/" aria-label="Africa GATES home">
-      <img class="ag-brand__mark" src="{{ asset('/assets/img/logo-mark.png') }}" width="38" height="38" alt="" aria-hidden="true">
-      <span class="ag-brand__words"><span class="ag-brand__name">Africa</span><span class="ag-brand__tag">GATES</span></span>
+<div class="ag-head" data-ag-head>
+  <header class="ag-head__bar" role="banner">
+
+    <a class="ag-logo" href="/" aria-label="Africa GATES home">
+      <img src="{{ asset('/assets/img/logo-mark.png') }}" width="32" height="32" alt="" aria-hidden="true">
+      <span><b>Africa</b><i>GATES</i></span>
     </a>
 
-    <nav class="ag-nav__links" aria-label="Primary">
-      <a href="/pulse" class="ag-link ag-link--pulse {% if _p=='pulse' %}is-active{% endif %}"{% if _p=='pulse' %} aria-current="page"{% endif %}><span class="ag-link__dot" aria-hidden="true"></span>Pulse</a>
+    {# ── TWO TOP LINKS, AND THE WHOLE SITE BEHIND THEM ────────────────────
+       The lists are §7.1's, not the DC's: `SiteHeader.dc.html` puts seven items
+       under Explore including Leaderboard and Shop and no Status, and REFERENCE
+       §0 puts the phase file above the DC. Recorded in GAPS.md §9.3.
 
-      <div class="ag-mega-wrap" data-ag-mega>
-        <button type="button" class="ag-link" data-ag-mega-trigger aria-haspopup="true" aria-expanded="false">Participate
-          <svg class="ag-link__chev" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path d="M13.8 7.2 10 11 6.2 7.2 5 8.3l5 5 5-5z"/></svg></button>
-        <div class="ag-mega" data-ag-mega-panel>
-          <a href="/nominate" class="ag-mega__item"><span class="ag-mega__txt"><strong>Nominate</strong><small>Put someone forward for continental recognition</small></span></a>
-          <a href="/vote" class="ag-mega__item"><span class="ag-mega__txt"><strong>Vote</strong><small>One verified voter, one vote per category</small></span></a>
-          <a href="/account/register" class="ag-mega__item"><span class="ag-mega__txt"><strong>Create an account</strong><small>Free — earn voting points and redeem them for votes</small></span></a>
-          <a href="/awards" class="ag-mega__item"><span class="ag-mega__txt"><strong>Awards</strong><small>Education, integrity, choral &amp; business</small></span></a>
-          <a href="/leaderboard" class="ag-mega__item"><span class="ag-mega__txt"><strong>Leaderboard</strong><small>Live CPI rankings, refreshed every {{ cpi_recompute_hours }} hours</small></span></a>
-          {# The awards themselves. Without this the only way into a decided result is a
-             link somebody sent you: the page existed, the Pulse and the emails pointed at
-             it, and nobody browsing the site could find it. #}
-          <a href="/results" class="ag-mega__item"><span class="ag-mega__txt"><strong>Results</strong><small>Every award decided, with the working shown</small></span></a>
-          <a href="/integrity" class="ag-mega__item"><span class="ag-mega__txt"><strong>Integrity Center</strong><small>How voting, scoring and audits work</small></span></a>
-          <a href="/giving" class="ag-mega__item"><span class="ag-mega__txt"><strong>Donate</strong><small>Fund child leadership programmes</small></span></a>
+       Every tile's tint is a TOKEN pair rather than the DC's eight hexes — see
+       GAPS.md §9.1, and `.ag-tint--*` in components.css for the measurements.
+
+       Explore carries a SEVENTH item, Results, and that is not a loosening of §7.1.
+       Results is in neither of the phase file's two lists, and `PublicResultsTest`
+       exists because of exactly what that costs: the page was built, the Pulse and
+       the emails linked it, and nobody browsing the site could reach a decided
+       award. A spec that omits a destination does not make it optional. GAPS.md §9.8.
+
+       And a comment cannot go INSIDE the array below — Twig lexes `{# #}` as a
+       comment only between tags, never inside an expression, and it answers a `#`
+       in an array literal with a SyntaxError naming a backtick. #}
+    <nav class="ag-head__top" aria-label="Primary">
+      {% for m in [
+        {k:'participate', label:'Participate', items:[
+          {href:'/nominate',         label:'Nominate',           sub:'Put someone forward in under 90 seconds', tint:'green',   d:'M12 5v14M5 12h14'},
+          {href:'/vote',             label:'Vote',               sub:'One verified voter, one vote per category', tint:'green', d:'M4 12.5 9 17.5 20 6.5'},
+          {href:'/awards',           label:'Awards',             sub:'Every award, edition and category',       tint:'gold',    d:'M5 16 3 6l5 4 4-6 4 6 5-4-2 10z'},
+          {href:'/giving',           label:'Giving',             sub:'Back the programmes behind the awards',   tint:'live',    d:'M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.6l-1-1a5.5 5.5 0 0 0-7.8 7.8L12 21l8.8-8.6a5.5 5.5 0 0 0 0-7.8Z'},
+          {href:'/account/register', label:'Register a profile', sub:'Join the continental registry, free',     tint:'gold',    d:'M16 11a4 4 0 1 0-8 0M3 21a9 9 0 0 1 18 0'},
+          {href:'/integrity',        label:'Integrity Center',   sub:'How voting, judging and audits work',     tint:'neutral', d:'M12 2.4l7.6 2.7v5.8c0 4.7-3.1 8.3-7.6 10-4.5-1.7-7.6-5.3-7.6-10V5.1z'}
+        ]},
+        {k:'explore', label:'Explore', items:[
+          {href:'/discover', label:'Discover',     sub:'People, organisations and awards',      tint:'neutral', d:'M11 4a7 7 0 1 0 0 14 7 7 0 0 0 0-14ZM20 20l-3.6-3.6'},
+          {href:'/pulse',    label:'Pulse',        sub:'Posts and live moments',                tint:'live',    d:'M5 3h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2ZM10 8.5l5 3.5-5 3.5z'},
+          {href:'/events',   label:'Events',       sub:'Ceremonies, livestreams and sessions',  tint:'green',   d:'M4 5h16v15H4zM4 10h16M9 3v4M15 3v4'},
+          {href:'/legacy',   label:'Legacy Vault', sub:'Every edition, permanently archived',   tint:'gold',    d:'M4 8h16v12H4zM2 4h20v4H2z'},
+          {href:'/blog',     label:'Blog',         sub:'Stories and methodology notes',         tint:'neutral', d:'M4 5h16M4 10h16M4 15h10'},
+          {href:'/results',  label:'Results',      sub:'Every award decided, with the working shown', tint:'gold', d:'M5 16 3 6l5 4 4-6 4 6 5-4-2 10z'},
+          {href:'/status',   label:'Status',       sub:'Whether every part of this is working', tint:'neutral', d:'M3 12h4l3-7 4 14 3-7h4'}
+        ]}
+      ] %}
+        <div class="ag-mega-wrap" data-ag-mega>
+          <button type="button" class="ag-head__link" data-ag-mega-trigger
+                  aria-haspopup="true" aria-expanded="false">{{ m.label }}
+            <svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+              <path d="M13.8 7.2 10 11 6.2 7.2 5 8.3l5 5 5-5z"/></svg>
+          </button>
+          <div class="ag-mega" data-ag-mega-panel role="menu" aria-label="{{ m.label }}">
+            <div class="ag-mega__grid">
+              {% for i in m.items %}
+                <a class="ag-mega__item" role="menuitem" href="{{ i.href }}">
+                  <span class="ag-icon-tile ag-icon-tile--mega ag-tint--{{ i.tint }}" aria-hidden="true">
+                    <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                         stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                      <path d="{{ i.d }}"></path></svg>
+                  </span>
+                  <span class="ag-mega__txt"><b>{{ i.label }}</b><span>{{ i.sub }}</span></span>
+                </a>
+              {% endfor %}
+            </div>
+          </div>
         </div>
-      </div>
-
-      <div class="ag-mega-wrap" data-ag-mega>
-        <button type="button" class="ag-link" data-ag-mega-trigger aria-haspopup="true" aria-expanded="false">Explore
-          <svg class="ag-link__chev" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path d="M13.8 7.2 10 11 6.2 7.2 5 8.3l5 5 5-5z"/></svg></button>
-        <div class="ag-mega" data-ag-mega-panel>
-          <a href="/pulse" class="ag-mega__item"><span class="ag-mega__txt"><strong>Pulse</strong><small>Reels, posts and live moments</small></span></a>
-          <a href="/activity" class="ag-mega__item"><span class="ag-mega__txt"><strong>Activity</strong><small>Search everything happening, live</small></span></a>
-          <a href="/registry" class="ag-mega__item"><span class="ag-mega__txt"><strong>Registry</strong><small>Browse verified African profiles</small></span></a>
-          <a href="/legacy" class="ag-mega__item"><span class="ag-mega__txt"><strong>Legacy Vault</strong><small>Every edition, permanently archived</small></span></a>
-          <a href="/community" class="ag-mega__item"><span class="ag-mega__txt"><strong>Community</strong><small>Programme channels, OTP-verified</small></span></a>
-          <a href="/events" class="ag-mega__item"><span class="ag-mega__txt"><strong>Events</strong><small>Ceremonies, webinars &amp; sessions</small></span></a>
-          <a href="/blog" class="ag-mega__item"><span class="ag-mega__txt"><strong>Blog</strong><small>Announcements and methodology notes</small></span></a>
-          <a href="/judges" class="ag-mega__item"><span class="ag-mega__txt"><strong>Meet the Judges</strong><small>The independent evaluation panel</small></span></a>
-          <a href="/shop" class="ag-mega__item"><span class="ag-mega__txt"><strong>Shop</strong><small>Wear the recognition — funds programmes</small></span></a>
-        </div>
-      </div>
-
-      <a href="/leaderboard" class="ag-link {% if _p=='leaderboard' %}is-active{% endif %}"{% if _p=='leaderboard' %} aria-current="page"{% endif %}>Leaderboard</a>
+      {% endfor %}
     </nav>
 
-    <div class="ag-nav__cta">
-      {# Opens the site-wide search. A BUTTON, not a link: it opens a dialog on this
-         page rather than navigating, and announcing "link" for something that does
-         not go anywhere is a promise the control cannot keep. The shortcut is named
-         in the accessible label, because a keyboard or touch user has no hover to
-         discover it with. #}
-      <button type="button" class="ag-searchbtn" data-ag-search-open
-              aria-haspopup="dialog" aria-label="Search the site. Shortcut: press the slash key">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true" focusable="false"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.6-3.6" stroke-linecap="round"/></svg>
-        <span class="ag-searchbtn__k" aria-hidden="true">/</span>
-      </button>
-      <a href="/vote" class="ag-vote {% if _p=='vote' %}is-active{% endif %}"{% if _p=='vote' %} aria-current="page"{% endif %}>Vote</a>
+    <span class="ag-head__gap"></span>
+
+    <div class="ag-head__end">
+
+      {# ── THE TOOLBAR PILL ──────────────────────────────────────────────
+         Three controls in one 40px pill with hairline dividers. `role="toolbar"`
+         is a claim about arrow-key navigation between the three, which
+         `header.js` implements — a toolbar that only answers Tab is a toolbar
+         in name. #}
+      <div class="ag-tools" role="toolbar" aria-label="Search, accessibility and language">
+        <button type="button" class="ag-tools__b" data-ag-search-open
+                aria-haspopup="dialog" aria-expanded="false"
+                aria-label="Search Africa GATES. Shortcut: press the slash key">
+          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+               stroke-width="2" aria-hidden="true">
+            <circle cx="11" cy="11" r="7"></circle>
+            <path d="m20 20-3.6-3.6" stroke-linecap="round"></path></svg>
+        </button>
+        <span class="ag-tools__div" aria-hidden="true"></span>
+        <button type="button" class="ag-tools__b ag-tools__aa" data-ag-pop="aa"
+                aria-haspopup="dialog" aria-expanded="false"
+                aria-label="Display and reading">Aa</button>
+        <span class="ag-tools__div" aria-hidden="true"></span>
+        {# The CODE, not the name: two letters fit a 40px pill and eight names do
+           not. The accessible label carries the language in full, so nobody is
+           asked to know that "ig" is Igbo. #}
+        <button type="button" class="ag-tools__b ag-tools__lang" data-ag-pop="lang"
+                aria-haspopup="menu" aria-expanded="false"
+                aria-label="Language: {{ lang_name() }}. Choose another">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+               stroke-width="1.8" aria-hidden="true">
+            <circle cx="12" cy="12" r="9"></circle>
+            <path d="M3 12h18M12 3c2.5 2.7 3.8 5.7 3.8 9s-1.3 6.3-3.8 9c-2.5-2.7-3.8-5.7-3.8-9S9.5 5.7 12 3Z"></path></svg>
+          <span>{{ lang()|upper }}</span>
+        </button>
+      </div>
+
+      {# Rendered on shop routes, and revealed by `header.js` anywhere the basket
+         is not empty. The basket lives in this browser's own storage, so the
+         server cannot know: shipping the button hidden and letting the page that
+         CAN read it decide is the only arrangement that does not either hide a
+         full basket or show an empty one. No subtotal — §7.1. #}
+      {% set _shop = _p starts with 'shop' %}
+      <a class="ag-head__cart" href="/shop/cart" data-ag-cart
+         {% if not _shop %}hidden{% endif %} aria-label="Your basket">
+        <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+             stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M5.5 8h13l-1 12h-11z"></path><path d="M9 8V7a3 3 0 0 1 6 0v1"></path></svg>
+        <span class="ag-head__cartn" data-ag-cart-n hidden></span>
+      </a>
+
       {% if is_member %}
-        <a href="/account" class="ag-register {% if _p=='account' %}is-active{% endif %}"{% if _p=='account' %} aria-current="page"{% endif %}>{{ member_name ? 'My account' : 'Account' }}
-          <svg viewBox="0 0 20 20" fill="none" aria-hidden="true" focusable="false"><path d="M7.5 4.5 13 10 7.5 15.5" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/></svg></a>
+        <a class="ag-head__av" href="/account" aria-label="Your account">{{ _ini }}</a>
       {% else %}
-        <a href="/account/login" class="ag-signin {% if _p=='account' %}is-active{% endif %}">Sign in</a>
-        <a href="/account/register" class="ag-register">Register
-          <svg viewBox="0 0 20 20" fill="none" aria-hidden="true" focusable="false"><path d="M7.5 4.5 13 10 7.5 15.5" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/></svg></a>
+        {# Outlined, never green — see the note at the top of this file. #}
+        <a class="ag-head__signin" href="/account/login">Sign in</a>
       {% endif %}
     </div>
-  </div>
-</header>
+  </header>
 
-{# ════ MOBILE BOTTOM BAR ════ #}
-<nav class="ag-mobnav ag-scope" aria-label="Primary mobile">
-  <a href="/" class="ag-tab {% if _p=='' or _p=='home' %}is-active{% endif %}"{% if _p=='' or _p=='home' %} aria-current="page"{% endif %} aria-label="Home">
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9.5 12 3l9 6.5V20a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1V9.5Z"/></svg><span>Home</span></a>
-  <a href="/pulse" class="ag-tab {% if _p=='pulse' %}is-active{% endif %}"{% if _p=='pulse' %} aria-current="page"{% endif %} aria-label="Pulse">
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="5"/><path d="m10 8.5 5 3.5-5 3.5z" fill="currentColor" stroke="none"/></svg><span>Pulse</span></a>
-  <a href="/nominate" class="ag-tab ag-tab--cta {% if _p=='nominate' %}is-active{% endif %}"{% if _p=='nominate' %} aria-current="page"{% endif %} aria-label="Nominate">
-    <span class="ag-tab__fab"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg></span><span>Nominate</span></a>
-  <a href="/leaderboard" class="ag-tab {% if _p=='leaderboard' %}is-active{% endif %}"{% if _p=='leaderboard' %} aria-current="page"{% endif %} aria-label="Ranks">
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg><span>Ranks</span></a>
-  <button type="button" class="ag-tab" id="agMenuOpen" aria-controls="agMenu" aria-expanded="false" aria-label="Open menu">
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg><span>Menu</span></button>
-</nav>
-
-{# ════ FULL-SCREEN OVERLAY MENU ════ #}
-<div class="ag-menu ag-scope" id="agMenu" role="dialog" aria-modal="true" aria-label="Menu">
-  <div class="ag-menu__top">
-    <a class="ag-brand" href="/" aria-label="Africa GATES home">
-      <img class="ag-brand__mark" src="{{ asset('/assets/img/logo-mark.png') }}" width="38" height="38" alt="" aria-hidden="true">
-      <span class="ag-brand__words"><span class="ag-brand__name">Africa</span><span class="ag-brand__tag">GATES</span></span>
-    </a>
-    <button type="button" class="ag-menu__x" id="agMenuClose" aria-label="Close menu">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
+  {# ── THE TWO POPOVERS ──────────────────────────────────────────────────
+     Both hang from `top:70px` under the bar. Display & reading is the SAME
+     partial the phone sheet and the Menu use, because three copies of seven
+     switches is how the halves of a setting come to disagree. #}
+  <div class="ag-pop ag-pop--aa" data-ag-pop-panel="aa" role="dialog"
+       aria-label="Display and reading" inert>
+    {% include 'partials/display-reading.twig' %}
   </div>
-  <div class="ag-menu__body">
-    <div class="ag-menu__group">
-      <p class="ag-menu__label">Participate</p>
-      <a href="/activity" class="ag-menu__link {% if _p=='activity' %}is-active{% endif %}"{% if _p=='activity' %} aria-current="page"{% endif %}><span class="ag-menu__txt"><strong>Activity</strong><small>Search everything happening across the platform, live</small></span></a>
-      <a href="/nominate" class="ag-menu__link {% if _p=='nominate' %}is-active{% endif %}"{% if _p=='nominate' %} aria-current="page"{% endif %}><span class="ag-menu__txt"><strong>Nominate</strong><small>Put someone forward for continental recognition</small></span></a>
-      <a href="/vote" class="ag-menu__link {% if _p=='vote' %}is-active{% endif %}"{% if _p=='vote' %} aria-current="page"{% endif %}><span class="ag-menu__txt"><strong>Vote</strong><small>One verified voter, one vote per category</small></span></a>
-      <a href="/account/register" class="ag-menu__link"><span class="ag-menu__txt"><strong>Create an account</strong><small>Free — earn voting points and redeem them for votes</small></span></a>
-      <a href="/awards" class="ag-menu__link {% if _p=='awards' %}is-active{% endif %}"{% if _p=='awards' %} aria-current="page"{% endif %}><span class="ag-menu__txt"><strong>Awards</strong><small>Education, integrity, choral &amp; business</small></span></a>
-      <a href="/leaderboard" class="ag-menu__link {% if _p=='leaderboard' %}is-active{% endif %}"{% if _p=='leaderboard' %} aria-current="page"{% endif %}><span class="ag-menu__txt"><strong>Leaderboard</strong><small>Live CPI rankings, every {{ cpi_recompute_hours }} hours</small></span></a>
-      <a href="/results" class="ag-menu__link {% if _p=='results' %}is-active{% endif %}"{% if _p=='results' %} aria-current="page"{% endif %}><span class="ag-menu__txt"><strong>Results</strong><small>Every award decided, with the working shown</small></span></a>
-      <a href="/integrity" class="ag-menu__link"><span class="ag-menu__txt"><strong>Integrity Center</strong><small>How voting, scoring and audits work</small></span></a>
-      <a href="/giving" class="ag-menu__link {% if _p=='donate' %}is-active{% endif %}"{% if _p=='donate' %} aria-current="page"{% endif %}><span class="ag-menu__txt"><strong>Donate</strong><small>Fund child leadership programmes</small></span></a>
-    </div>
-    <div class="ag-menu__group">
-      <p class="ag-menu__label">Explore</p>
-      <a href="/pulse" class="ag-menu__link {% if _p=='pulse' %}is-active{% endif %}"{% if _p=='pulse' %} aria-current="page"{% endif %}><span class="ag-menu__txt"><strong>Pulse</strong><small>Reels, posts and live moments</small></span></a>
-      <a href="/registry" class="ag-menu__link {% if _p=='registry' %}is-active{% endif %}"{% if _p=='registry' %} aria-current="page"{% endif %}><span class="ag-menu__txt"><strong>Registry</strong><small>Browse verified African profiles</small></span></a>
-      <a href="/legacy" class="ag-menu__link {% if _p=='legacy' %}is-active{% endif %}"{% if _p=='legacy' %} aria-current="page"{% endif %}><span class="ag-menu__txt"><strong>Legacy Vault</strong><small>Every edition, permanently archived</small></span></a>
-      <a href="/community" class="ag-menu__link {% if _p=='community' %}is-active{% endif %}"{% if _p=='community' %} aria-current="page"{% endif %}><span class="ag-menu__txt"><strong>Community</strong><small>Programme channels, OTP-verified</small></span></a>
-      <a href="/events" class="ag-menu__link {% if _p=='events' %}is-active{% endif %}"{% if _p=='events' %} aria-current="page"{% endif %}><span class="ag-menu__txt"><strong>Events</strong><small>Ceremonies, webinars &amp; sessions</small></span></a>
-      <a href="/blog" class="ag-menu__link {% if _p=='blog' %}is-active{% endif %}"{% if _p=='blog' %} aria-current="page"{% endif %}><span class="ag-menu__txt"><strong>Blog</strong><small>Announcements and methodology notes</small></span></a>
-      <a href="/judges" class="ag-menu__link {% if _p=='judges' %}is-active{% endif %}"{% if _p=='judges' %} aria-current="page"{% endif %}><span class="ag-menu__txt"><strong>Meet the Judges</strong><small>The independent evaluation panel</small></span></a>
-      <a href="/shop" class="ag-menu__link {% if _p=='shop' %}is-active{% endif %}"{% if _p=='shop' %} aria-current="page"{% endif %}><span class="ag-menu__txt"><strong>Shop</strong><small>Wear the recognition — funds programmes</small></span></a>
-    </div>
-    <div class="ag-menu__ctas">
-      {% if is_member %}
-      <a href="/account" class="ag-register" style="justify-content:center">My account
-        <svg viewBox="0 0 20 20" fill="none" aria-hidden="true" focusable="false"><path d="M7.5 4.5 13 10 7.5 15.5" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/></svg></a>
-      <a href="/account/logout" class="ag-menu__link" style="justify-content:center"><span class="ag-menu__txt" style="text-align:center"><strong>Sign out</strong></span></a>
-      {% else %}
-      <a href="/account/register" class="ag-register" style="justify-content:center">Create your account
-        <svg viewBox="0 0 20 20" fill="none" aria-hidden="true" focusable="false"><path d="M7.5 4.5 13 10 7.5 15.5" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/></svg></a>
-      <a href="/account/login" class="ag-menu__link" style="justify-content:center;background:var(--ag-surface-2)"><span class="ag-menu__txt" style="text-align:center"><strong>Sign in to your account</strong></span></a>
-      {% endif %}
-      <a href="/partner" class="ag-menu__link {% if _p=='partner' %}is-active{% endif %}"{% if _p=='partner' %} aria-current="page"{% endif %} style="justify-content:center;background:var(--ag-surface-2)"><span class="ag-menu__txt" style="text-align:center"><strong>Become a partner</strong></span></a>
-      <a href="/support" class="ag-menu__link {% if _p=='support' %}is-active{% endif %}"{% if _p=='support' %} aria-current="page"{% endif %} style="justify-content:center"><span class="ag-menu__txt" style="text-align:center"><strong>Support &amp; appeals</strong></span></a>
-    </div>
+
+  <div class="ag-pop ag-pop--lang" data-ag-pop-panel="lang" role="menu"
+       aria-label="Language" inert>
+    {% for l in languages() %}
+      {# A link, because following it navigates and the middleware stores the
+         choice — so the language menu works with scripting off. #}
+      <a class="ag-pop__lang" role="menuitem" href="{{ lang_url(l.code) }}" lang="{{ l.code }}"
+         {{ l.code == lang() ? 'aria-current="true"' : '' }}>
+        {{ l.name }}<i>{{ l.code|upper }}</i>
+      </a>
+    {% endfor %}
   </div>
 </div>
+
+{# ── THE PHONE ─────────────────────────────────────────────────────────────
+   The tab bar, the Menu sheet and Quick settings, for every page still on the
+   old layout. `layout/shell.twig` includes the two sheets itself, and a
+   converted page does not include this file, so nothing is drawn twice. #}
+{% include 'partials/lang-prompt.twig' %}
+{% include 'partials/tab-bar.twig' with { active: _p } %}
+{% include 'partials/menu-sheet.twig' %}
+{% include 'partials/quick-settings.twig' %}
+{% include 'partials/site-search.twig' %}
 
 <script nonce="{{ csp_nonce }}">
 (function(){
   function init(){
-    var wraps = Array.prototype.slice.call(document.querySelectorAll('.ag-mega-wrap'));
-    function closeMegas(except){ wraps.forEach(function(o){ if(o!==except){ o.classList.remove('is-open'); var b=o.querySelector('[data-ag-mega-trigger]'); if(b) b.setAttribute('aria-expanded','false'); } }); }
-    // Megas — direct per-trigger handlers bound (after DOMContentLoaded) to the
-    // FINAL elements, with stopPropagation so no other document click handler can
+    // ── MEGAS — the controller phase §7.1 says to keep ─────────────────────
+    //
+    // Direct per-trigger handlers bound (after DOMContentLoaded) to the FINAL
+    // elements, with stopPropagation so no other document click handler can
     // immediately re-close the panel. A click outside any wrap closes all.
+    var wraps = Array.prototype.slice.call(document.querySelectorAll('.ag-mega-wrap'));
+    var head  = document.querySelector('[data-ag-head]');
+    function closeMegas(except){
+      wraps.forEach(function(o){
+        if(o!==except){ o.classList.remove('is-open'); var b=o.querySelector('[data-ag-mega-trigger]'); if(b) b.setAttribute('aria-expanded','false'); }
+      });
+      // The bar's hairline is removed while a panel is open (§7.1): the panel
+      // hangs from the bar with no gap, and a rule between them cuts it in half.
+      if(head) head.classList.toggle('is-mega', !!document.querySelector('.ag-mega-wrap.is-open'));
+    }
     wraps.forEach(function(w){
       var btn=w.querySelector('[data-ag-mega-trigger]'); if(!btn) return;
       btn.addEventListener('click', function(e){
@@ -187,57 +237,19 @@
         closeMegas(w);
         w.classList.toggle('is-open', willOpen);
         btn.setAttribute('aria-expanded', willOpen?'true':'false');
+        if(head) head.classList.toggle('is-mega', willOpen);
       });
-      // Hover-to-open on desktop (fine pointer only) — click still works everywhere,
-      // and touch devices fall through to click since they don't fire hover.
+      // Hover-to-open on desktop (fine pointer only) — click still works
+      // everywhere, and touch devices fall through to click since they do not
+      // fire hover.
       if (window.matchMedia && window.matchMedia('(hover:hover) and (pointer:fine)').matches){
         var hideT;
-        w.addEventListener('mouseenter', function(){ clearTimeout(hideT); closeMegas(w); w.classList.add('is-open'); btn.setAttribute('aria-expanded','true'); });
-        w.addEventListener('mouseleave', function(){ hideT=setTimeout(function(){ w.classList.remove('is-open'); btn.setAttribute('aria-expanded','false'); }, 140); });
+        w.addEventListener('mouseenter', function(){ clearTimeout(hideT); closeMegas(w); w.classList.add('is-open'); btn.setAttribute('aria-expanded','true'); if(head) head.classList.add('is-mega'); });
+        w.addEventListener('mouseleave', function(){ hideT=setTimeout(function(){ w.classList.remove('is-open'); btn.setAttribute('aria-expanded','false'); closeMegas(null); }, 140); });
       }
     });
     document.addEventListener('click', function(e){ if(!(e.target.closest && e.target.closest('.ag-mega-wrap'))) closeMegas(null); });
-    // ── Mobile overlay menu ──────────────────────────────────────────────────
-    //
-    // This carries role="dialog" aria-modal="true", which is a claim about three things.
-    // Only the class toggle was here, so: focus stayed on the Menu BUTTON — which the
-    // open overlay has just hidden from assistive tech, leaving the caret on something a
-    // screen reader will not announce — Tab walked straight out into that hidden page, and
-    // closing dropped focus at the top of the document.
-    var menu = document.getElementById('agMenu'), openB = document.getElementById('agMenuOpen'), closeB = document.getElementById('agMenuClose');
-    function menuFocusables(){
-      if(!menu) return [];
-      return Array.prototype.slice.call(menu.querySelectorAll('a[href], button, [tabindex]:not([tabindex="-1"])'))
-        .filter(function(n){ return !n.disabled && n.offsetParent !== null; });
-    }
-    function setMenu(on){
-      if(!menu) return;
-      menu.classList.toggle('is-open', on);
-      document.documentElement.classList.toggle('ag-menu-open', on);
-      if(openB) openB.setAttribute('aria-expanded', on?'true':'false');
-      if(on){
-        // The close button, not the first link: it is the thing somebody who opened this by
-        // accident is looking for, and Tab from there walks the menu in reading order.
-        if(closeB) closeB.focus();
-      } else if(openB && typeof openB.focus === 'function'){
-        openB.focus();
-      }
-    }
-    if(openB) openB.addEventListener('click', function(){ setMenu(true); });
-    if(closeB) closeB.addEventListener('click', function(){ setMenu(false); });
-    // Tab cannot leave the menu while it is open.
-    if(menu) menu.addEventListener('keydown', function(e){
-      if(e.key !== 'Tab' || !menu.classList.contains('is-open')) return;
-      var f = menuFocusables(); if(!f.length) return;
-      var first = f[0], last = f[f.length-1];
-      if(e.shiftKey && document.activeElement === first){ e.preventDefault(); last.focus(); }
-      else if(!e.shiftKey && document.activeElement === last){ e.preventDefault(); first.focus(); }
-    });
-    document.addEventListener('keydown', function(e){
-      if(e.key!=='Escape') return;
-      if(menu && menu.classList.contains('is-open')) setMenu(false);
-      closeMegas(null);
-    });
+    document.addEventListener('keydown', function(e){ if(e.key==='Escape') closeMegas(null); });
   }
   if(document.readyState==='loading') document.addEventListener('DOMContentLoaded', init); else init();
 })();

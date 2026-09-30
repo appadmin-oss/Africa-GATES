@@ -186,7 +186,7 @@ final class VoteCountdownTest extends TestCase
     public function test_the_bare_variant_removes_chrome_and_sets_no_colour(): void
     {
         $css = (string) file_get_contents(
-            dirname(__DIR__, 2) . '/public/assets/css/components/nav.css');
+            dirname(__DIR__, 2) . '/public/assets/css/components/vote-countdown.css');
 
         $this->assertStringContainsString('.vc--bare', $css);
         $this->assertStringNotContainsString('.vc--dark', $css,

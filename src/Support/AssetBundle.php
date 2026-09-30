@@ -76,8 +76,8 @@ final class AssetBundle
         'assets/css/base/typography.css',
         'assets/css/components/flash.css',
         'assets/css/components/loader.css',
-        'assets/css/components/nav.css',
         'assets/css/components/footer.css',
+        'assets/css/components/vote-countdown.css',
         'assets/css/components/gee.css',
         'assets/css/components/community-modal.css',
         'assets/css/components/site-search.css',
@@ -253,7 +253,7 @@ final class AssetBundle
      * Rewrite relative `url(...)` references so they still resolve from `assets/dist/`.
      *
      * Concatenation moves CSS to a new directory, and a relative `url(../img/x.svg)` in
-     * `assets/css/components/nav.css` resolves against `assets/dist/` afterwards —
+     * `assets/css/components/footer.css` resolves against `assets/dist/` afterwards —
      * silently pointing at a file that is not there. Today every reference in this
      * project is already absolute or a fragment (`url(#cpiGrad)`), verified before
      * writing this, so nothing changes. It is here so that adding one relative URL later

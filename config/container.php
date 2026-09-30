@@ -291,6 +291,29 @@ return [
             'search_covers',
             static fn (): array => \AfricaGates\Services\ActivityFeedService::nouns()
         ));
+        // The signed-in member's points balance, for the Menu's profile card.
+        //
+        // A FUNCTION and not a global, and that is the whole reason the row can exist:
+        // a global is computed for all four hundred routes in order to fill one row in
+        // a sheet most visits never open, and it is a database read. This is evaluated
+        // at render time, so a page that never draws the Menu never asks — and the memo
+        // means the Menu and Quick settings, which are both mounted on a phone page,
+        // ask once between them rather than twice.
+        //
+        // Null when signed out, so the template branches on "do we know" rather than
+        // printing a confident nought at somebody who has points.
+        $twig->getEnvironment()->addFunction(new \Twig\TwigFunction(
+            'member_points',
+            static function (): ?int {
+                static $memo = null;
+                if ($memo !== null) return $memo === false ? null : $memo;
+
+                $id = (int) ($_SESSION['user_id'] ?? 0);
+                if ($id <= 0) { $memo = false; return null; }
+
+                return $memo = \AfricaGates\Services\PointsService::balance($id);
+            }
+        ));
         // ── LANGUAGE, AS FUNCTIONS FOR THE REASON THE CONSENT NOTICE IS ─────
         //
         // This block has no Request, so a global could only answer by reading $_GET

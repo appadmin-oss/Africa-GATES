@@ -1036,11 +1036,21 @@ final class PublicResultsTest extends TestCase
         // email, a feed card and a search result is one nobody finds on their own, which
         // is the same shape as this codebase's most expensive class of bug: a mechanism
         // complete and correct in every part except the route in.
+        //
+        // READ AS A DESTINATION, NOT AS A LITERAL ATTRIBUTE. This used to look for the
+        // string `href="/results"`, which is what a hand-written nav contains and what a
+        // DATA-DRIVEN one never does: the redesign's header loops over a list of
+        // `{href:'/results', label:…}` and renders `href="{{ i.href }}"`, so the literal
+        // appears nowhere and the guard would have gone quiet on the exact change most
+        // able to drop the link. Both spellings count now — a link is a link whichever
+        // way the template writes it.
         foreach (['templates/layout/nav.twig'    => 'the navigation',
                   'templates/layout/footer.twig' => 'the footer'] as $f => $what) {
-            $this->assertStringContainsString('href="/results"',
-                (string) file_get_contents($root . '/' . $f),
-                $what . ' has no way into the results');
+            $body = (string) file_get_contents($root . '/' . $f);
+            $this->assertTrue(
+                str_contains($body, 'href="/results"') || str_contains($body, "href:'/results'"),
+                $what . ' has no way into the results'
+            );
         }
     }
 

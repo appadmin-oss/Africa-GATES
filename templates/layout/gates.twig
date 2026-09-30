@@ -281,8 +281,8 @@
   <link rel="stylesheet" href="{{ asset('/assets/css/base/typography.css') }}">
   <link rel="stylesheet" href="{{ asset('/assets/css/components/flash.css') }}">
   <link rel="stylesheet" href="{{ asset('/assets/css/components/loader.css') }}">
-  <link rel="stylesheet" href="{{ asset('/assets/css/components/nav.css') }}">
   <link rel="stylesheet" href="{{ asset('/assets/css/components/footer.css') }}">
+  <link rel="stylesheet" href="{{ asset('/assets/css/components/vote-countdown.css') }}">
   <link rel="stylesheet" href="{{ asset('/assets/css/components/gee.css') }}">
   <link rel="stylesheet" href="{{ asset('/assets/css/components/community-modal.css') }}">
   <link rel="stylesheet" href="{{ asset('/assets/css/components/site-search.css') }}">
@@ -561,6 +561,9 @@
    shell for the reason the head script is: the setting has to hold everywhere. #}
 <script defer src="{{ asset('/assets/js/a11y.js') }}"></script>
 <script defer src="{{ asset('/assets/js/chrome.js') }}"></script>
+{# The site header's toolbar, popovers and basket badge. The mega controller is
+   NOT here — it stays inline in layout/nav.twig, which phase §7.1 asks for. #}
+<script defer src="{{ asset('/assets/js/header.js') }}"></script>
 <script defer src="{{ asset('/assets/js/ag-social.js') }}"></script>
 {# Site-wide search overlay. Plain JS, no Alpine — it has to work on every page
    including the ones that never load Alpine, and it enhances a form that already

@@ -257,7 +257,7 @@ class AssetBundleTest extends TestCase
         $this->assertNotNull(AssetBundle::url($this->root));
 
         // Edit one source with a later mtime — the situation every developer creates.
-        $edited = $this->root . '/assets/css/components/nav.css';
+        $edited = $this->root . '/assets/css/components/footer.css';
         file_put_contents($edited, ".nav{color:hotpink}\n");
         touch($edited, time() + 30);
         clearstatcache();
@@ -337,7 +337,7 @@ class AssetBundleTest extends TestCase
         $this->seedSources();
         // A component sheet referencing an image the way a future edit might.
         file_put_contents(
-            $this->root . '/assets/css/components/nav.css',
+            $this->root . '/assets/css/components/footer.css',
             ".n{background:url(../../img/logo.svg)}\n"
         );
         AssetBundle::build($this->root);

@@ -43,6 +43,11 @@ use Tests\TestCase;
  *     ignore `display:none`, and raising it to the ladder puts a stray line of grey text
  *     at the top of four production emails.
  *
+ *  3. **A logotype.** The wordmark's "GATES" sits below the micro floor, tracked a
+ *     quarter of an em and locked to the mark beside it. It is artwork with letterforms
+ *     in it, and a text scale applied to a logo is the right rule pinned to the wrong
+ *     token. Recognised by the tracking, not by the file.
+ *
  * Anything else off the ladder is the drift this exists to stop.
  */
 final class TypeScaleTest extends TestCase
@@ -132,6 +137,15 @@ final class TypeScaleTest extends TestCase
             // The preheader collapse, recognised by what it DOES rather than by which
             // four files currently do it: a 1px size inside a hidden preview div.
             if ($v <= 1.0 && str_contains($src, 'mso-hide:all')) continue;
+
+            // A LOGOTYPE IS NOT TYPE. The wordmark's "GATES" is set below the 11.5
+            // micro floor and locked to the 32px mark beside it; at a quarter-em of
+            // tracking those five letters are a device, not a word — nobody reads
+            // running text at .26em, and raising it to the ladder makes the tag wider
+            // than the name above it. Recognised by the tracking, the same way the
+            // preheader is recognised by `mso-hide:all`: name what it DOES, never the
+            // file that currently does it, or the exemption becomes a list that grows.
+            if (str_contains(str_replace(' ', '', $src), 'letter-spacing:.26em')) continue;
 
             // Compared as floats, because half-sizes are rungs now. `in_array` with
             // loose comparison would match '12' to 12.5 through PHP's numeric string

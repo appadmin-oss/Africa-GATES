@@ -26,6 +26,7 @@
   is acceptable for a shortcut and is not acceptable as the only way to reach an
   option — which is why it is never the only way.
 #}
+{% set _ini = member_name ? (member_name|split(' ')|map(w => w|first)|join|upper|slice(0,2)) : 'AG' %}
 <div class="ag-scrim" data-ag-quick-scrim hidden></div>
 
 <div class="ag-sheet ag-qs" data-ag-quick-sheet role="dialog" aria-modal="true"
@@ -35,11 +36,11 @@
 
   <div class="ag-qs__body">
 
-    {% if member is defined and member %}
+    {% if is_member %}
       <a class="ag-qs__me" href="/account">
-        <span class="ag-menu__av">{{ member.initials|default('AG') }}</span>
+        <span class="ag-menu__av">{{ _ini }}</span>
         <span class="ag-menu__who">
-          <b>{{ member.name }}</b>
+          <b>{{ member_name|default('Your account') }}</b>
           <span>View your profile</span>
         </span>
         <span class="ag-list__chev" aria-hidden="true">

@@ -20,6 +20,7 @@
   token: green-wash, tint, gold-ink and ink-2. Recorded as a deviation rather than
   silently done either way.
 #}
+{% set _ini = member_name ? (member_name|split(' ')|map(w => w|first)|join|upper|slice(0,2)) : 'AG' %}
 <div class="ag-scrim" data-ag-menu-scrim hidden></div>
 
 <div class="ag-sheet ag-menu" data-ag-menu-sheet role="dialog" aria-modal="true"
@@ -52,17 +53,23 @@
     {# ── MAIN ──────────────────────────────────────────────────────────────── #}
     <div data-ag-menu-view="main">
 
-      {% if member is defined and member %}
+      {% if is_member %}
         <a class="ag-menu__me" href="/account">
-          <span class="ag-menu__av">{{ member.initials|default('AG') }}</span>
+          <span class="ag-menu__av">{{ _ini }}</span>
           <span class="ag-menu__who">
-            <b>{{ member.name }}</b>
+            <b>{{ member_name|default('Your account') }}</b>
             <span>View your profile</span>
           </span>
-          <span class="ag-menu__pts">
-            <b class="ag-num">{{ member.points|default(0)|number_format }}</b>
-            <span>points</span>
-          </span>
+          {# A FUNCTION, so a page that never opens this sheet never runs the query —
+             see config/container.php. Null when we do not know, and the row is then
+             drawn without a figure rather than with a confident nought. #}
+          {% set _pts = member_points() %}
+          {% if _pts is not null %}
+            <span class="ag-menu__pts">
+              <b>{{ _pts|number_format }}</b>
+              <span>points</span>
+            </span>
+          {% endif %}
         </a>
       {% else %}
         <div class="ag-menu__join">
@@ -150,7 +157,7 @@
                 <path d="m9 6 6 6-6 6"></path></svg>
             </span>
           </button>
-          {% if member is defined and member %}
+          {% if is_member %}
             <a class="ag-list__row" href="/account#notifications">
               <span class="ag-icon-tile ag-tint--neutral" aria-hidden="true">
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
@@ -221,7 +228,7 @@
           <a href="/terms">Terms</a>
           <a href="/cookies">Cookies</a>
         </nav>
-        {% if member is defined and member %}
+        {% if is_member %}
           <a class="ag-btn ag-btn--danger" href="/account/logout">Sign out</a>
         {% endif %}
         <span>Africa GATES · An Afrovanguard initiative</span>
