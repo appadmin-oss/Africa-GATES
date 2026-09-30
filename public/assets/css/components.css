@@ -369,6 +369,13 @@ textarea.ag-field{ height:auto; min-height:120px; padding:12px 14px; align-items
 /* Two equal 88px rails on root, so the centred title is centred against the BAR
    rather than against whatever happens to be in the slots. Child is left-aligned
    beside its back button and has no symmetry to keep. */
+/* PHONE ONLY, at the same 768 the header and the tab bar use. §7.2 calls this the
+   phone AppBar and §7.1 calls the other one the tablet-and-desktop header; without
+   this rule a converted page drew BOTH above 768 — a child app bar under a site
+   header, two titles and two back affordances on one screen. The three breakpoints
+   have to be one number or a width exists with two chromes, or with none. */
+@media (min-width:768px){ .ag-appbar{ display:none } }
+
 .ag-appbar__row{ display:grid; align-items:center; height:52px; padding:0 var(--ag-sp-4) }
 .ag-appbar--root  .ag-appbar__row{ grid-template-columns:88px minmax(0,1fr) 88px }
 .ag-appbar--child .ag-appbar__row{ grid-template-columns:44px minmax(0,1fr) auto }
@@ -691,6 +698,12 @@ body.ag-sheet-open .ag-main{ overflow:hidden }
 .ag-dr__help{ font-size:12.5px; color:var(--ag-soft) }
 
 .ag-dr__size{ font-weight:700; line-height:1 }
+/* The specimen letters, at the sizes they set. Off the ladder on purpose and stated
+   here rather than in a `style` attribute: these are what 100 / 125 / 150% of the
+   reading size look like, which is the only way three identical letters can differ. */
+.ag-dr__size--0{ font-size:15px }
+.ag-dr__size--1{ font-size:19px }
+.ag-dr__size--2{ font-size:23px }
 
 .ag-dr__lang{
   display:flex; align-items:center; gap:var(--ag-sp-10);
@@ -899,3 +912,16 @@ body.ag-sheet-open .ag-main{ overflow:hidden }
   border:0; background:transparent; color:var(--ag-ground);
   font-size:17px; line-height:1; cursor:pointer;
 }
+
+/* ══ Point-of-collection AI notice ═══════════════════════════════════════════
+   Beside the field, generated from the capability registry — see
+   `partials/ai-collection-notice.twig`. Informational rather than a warning: it
+   describes what happens, and dressing it as a fault teaches people to dismiss
+   the notices that are one. */
+.ag-ai-note{
+  margin:0; padding:var(--ag-sp-10) var(--ag-sp-12);
+  border:1px solid var(--ag-line); border-radius:var(--ag-r-12);
+  background:var(--ag-surface);
+  font-size:13px; line-height:1.5; color:var(--ag-ink-2);
+}
+.ag-ai-note a{ color:var(--ag-green-deep); font-weight:600 }

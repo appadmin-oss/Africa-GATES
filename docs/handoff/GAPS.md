@@ -594,3 +594,216 @@ At 1440, driven by keys alone:
 | Esc in the search palette | closes and returns focus to the search button |
 | Back gesture with a sheet open | closes the sheet, stays on the page |
 | Quick settings → "All display & reading settings" | closes that sheet, opens the Menu at its Display sub-view, **one** history entry across the handover |
+
+---
+
+## 11. The nominations and awards rebuild
+
+The brief: every award gets its own nomination page; a nomination names a person, an
+organisation or a business under **two or three** categories, each with a reason of at
+least **40 characters**; optional evidence; and a model places the nomination for the
+judging stage in the background. Plus: an award may carry its own wording so its form
+does not ask a choirmaster for "the nominee's full name".
+
+### 11.1 What the audit found before anything was built
+
+Four faults, each established by measurement rather than reading:
+
+| | fault |
+|---|---|
+| One page for every award | `/nominate` was a single form with a programme `<select>`. The brief's "each award has its own nomination page" had no route to hang on. |
+| One category, no reason floor | `gates_nominations` held one `category_id` and a free-text `reason` with no minimum. |
+| Evidence had nowhere to go | No table, no column, no upload path. |
+| The two doors disagreed | `AwardService` and `ApiController` each validated a nomination with their own list of required fields. |
+
+### 11.2 The shape of the fix
+
+`Services\NominationRules` is the **one validator**, spoken by both doors
+(`NominationDoorsAgreeTest` holds it). `Support\NomineeKind` is the one place the three
+kinds are declared — the label and the hint for the name field travel from there to the
+form, so "Full name" is never shown over a registered body.
+
+The categories and the evidence are their own tables rather than more columns, because
+a nomination now has two-to-three of one and nought-to-five of the other, and the reason
+belongs to the PAIR rather than to the nomination. `gates_nomination_categories` carries
+the UNIQUE on `(nomination_id, category_id)`, and the insert of the nomination and its
+children is one transaction — proven by dropping the child table so the write genuinely
+fails, then checking no orphan parent survives.
+
+`Services\NominationCategoryFit` is the background placement. It reaches the model
+through `AiGateway` like everything else here — pinned model, budget, kill switch, the
+nominator's words FENCED, the reply discarded if it is not the declared shape, and a row
+in `gates_ai_calls` either way. It sends evidence **labels and link hosts only**, never
+file contents and never a full URL.
+
+### 11.3 Deviations recorded
+
+**11.3.1 The fit analysis reaches no visitor, and that is a sweep rather than a promise.**
+Phase §8.16 says "no AI wording" on the nomination flow and means the FEATURE: no
+machine's opinion of somebody's reason, no score, no suggested category. A nominator told
+a machine scored their reason at 41 is being graded by a form, and the person that
+discourages first is the one writing in their second language about somebody they admire.
+`NominationCategoryFitTest` sweeps every public template for a reader.
+
+**11.3.2 But the point-of-collection disclosure IS on the page, deliberately.** That is a
+legal obligation rather than a feature, and it is the one disclosure that has to sit where
+the collection is. `partials/ai-collection-notice.twig` is generated from the capability
+registry — the same basis `AiPrivacy::disclosure()` generates `/privacy#automated-processing`
+from — and explicitly NOT from "is a provider configured right now", so the two documents
+cannot come to disagree on a key rotation.
+
+**11.3.3 `public_content` means "processes content submitted by the public".** It was
+written `false` on the fit capability first, read as "not shown publicly" — a different
+claim, held by the template sweep above. `AiPrivacy::disclosure()` filters on this flag,
+so `false` would have left a capability that sends a nominator's own words to a third
+party out of the page whose job is listing exactly that. It is `true`. The admin wording
+capability beside it is `false`, and that is not the same mistake: what leaves there is an
+award's own title and description, written by an operator in this console.
+
+**11.3.4 A validation failure re-renders the award's own page.** It used to return to the
+chooser, which lost everything typed.
+
+### 11.4 The award's own words
+
+`Support\AwardWording` stores seven phrases and the accepted nominee kinds as one JSON
+document on the programme, for the reason `OrgBrand` is one document: everything in it is
+read once per page for one programme already loaded, and nothing filters or sorts on it.
+Same trap, too — the column is TEXT and the caps count CHARACTERS, so `save()` refuses
+above `MAX_JSON_BYTES` rather than letting the database truncate a document that then
+does not parse and silently reverts the whole award to the house words.
+
+**It shipped with no writer.** The reader, the validator, the caps and the house
+fallbacks were all complete and correct, and nothing called `save()` — so the column
+could only ever answer with the house words, for ever. That is §18's shape, and this
+codebase has paid for it over a donor's stop button: `manageUrl()` built the link to
+cancel a monthly gift and no receipt and no template ever contained the URL. The
+distinguishing question is never "does this work?", because every piece did. It is **who
+is ever handed this?**
+
+So `/admin/programmes/{id}/wording` is the door, and `AwardWordingTest` asserts the door
+rather than the store: a route reaches the writer, and the programme form links to the
+route. Both were broken deliberately and watched to name the break.
+
+A sub-page **linked from the programme it belongs to, not added to the rail** — the rail
+is seven headings and a section carries exactly one gate, so a rail entry is an access
+decision and this is not one.
+
+The AI draft fills the seven boxes from what the award says about itself and **stores
+nothing**; the operator reads it, edits it and presses Save. Its capability is
+`FAIL_ANNOUNCE`, because an operator who pressed Draft and got silence would retype seven
+phrases believing the button is dead.
+
+### 11.5 Two faults found by driving the real pages
+
+**11.5.1 A box's geometry split across two rules, and the shorthand won.**
+`margin-top:auto` was declared on `.nf__bar` beside `.nf__form`; a hundred lines lower the
+bar's own block set `margin: var(--ag-sp-16) …`, same selector, same specificity, later in
+the file. The shorthand writes all four edges, so the computed `margin-top` was `16px` and
+the `auto` never applied.
+
+Three of the four steps overflow the viewport, where `position:sticky` pins the bar anyway.
+Evidence is the one short step, and there the action bar floated at 559–644 of an 844px
+viewport with two hundred pixels of empty ground under it — 200, 377 and 261px at 390, 768
+and 1440. So a cascade fault presented as "the Evidence step is broken", which is the wrong
+screen, the wrong file and the wrong half of the rule.
+
+`ShorthandOverridesTest` is the sweep. On its first run it found **three more**, all in the
+legacy sheets and all the same shape — a selector re-declared in full as design generations
+stacked up, with a longhand in an early copy that a later copy's shorthand reset:
+`.ad-table-wrap`'s `overflow-x`, `.face-tile`'s `transition-delay`, and three separate
+`.p-hero h1 { margin-bottom }` under a final `margin: 0 auto 1.25rem`. Every one was inert —
+the computed margin on `/opportunities` was `0px 88px 20px` before the deletion and after —
+so they were removed rather than excused, and the sweep carries **no exclusion list**.
+
+**11.5.2 The kind card had a heading that did not read as one.** `.aw-kind span` matched the
+wrapper as well as the hint, so the kind's name inherited the muted colour through it and
+the two lines came out identical. A descendant selector cannot tell a wrapper from the thing
+it wraps; each part is named now.
+
+### 11.6 A sweep that was lying, and the three real faults it was hiding
+
+`TemplateContextTest::matchBracket()` skipped string literals and **not comments** — and an
+apostrophe in prose is a quote. A render array documented with `// the admin's preview …`
+had that `'` read as a string opening, the scan ran to the next `'` in the file, and every
+quote after it paired one out of step. The closing `]` landed inside what the scanner
+believed was a string, so the array never closed and matching ran on into the next method's
+render call.
+
+Measured: `ProgrammesController::wording()`'s array closes at line 170 and the matcher
+returned **line 293**, swallowing `cycleEdit()`'s context whole and reporting four variables
+against a template that mentions none of them — every one read perfectly well by the
+template it actually belongs to. Four invented findings, each plausible enough to send
+somebody deleting correct code, in the file somebody took the trouble to explain.
+
+The corrected matcher immediately found three the broken one had hidden — the same thing
+that happened when `DeadTokenTest`'s parser was fixed:
+
+| | what it was |
+|---|---|
+| `extras_missing` | **A live fault.** `OptionalColumn::missing('gates_site_events', …)` names the columns a deployment lacks, and its siblings `refund_missing` and `design_missing` both gate their sections with it. This one was passed and never read, so on a deployment that has not opened `/__setup/migrate` six boxes drew, took an organiser's typing and dropped it on save — which is the harm the controller's own comment beside the variable gives as the reason the variable exists. §19's shape. The reader was WRITTEN, per field. |
+| `all_cycles` | A second raw query for the list `editions` already provides and the Editions panel already draws. Deleted with its query. |
+| `admin_settings` | A whole-table read plus a schema probe on every render of the settings screen, for a variable no template has ever mentioned. Deleted with its query. |
+
+`strict_variables` cannot see this direction at all: it catches a template reading what a
+controller stopped passing, and has nothing whatever to say about a controller passing what
+nothing reads.
+
+### 11.7 Ten warnings in the suite, all of them mine
+
+`SearchScopeTest` built its duplicate-chip failure message with `"{$seen[$s]}"`. PHP
+evaluates every argument **before** the call, so that message was interpolated on each of
+the ten passing iterations too, where the key is by definition absent — ten "Undefined
+array key" warnings from a test that passed. Noise in exactly the place a real warning
+would have to be noticed. The suite reports zero warnings now, and the message was proved
+still correct by staging a real duplicate.
+
+### 11.8 Verified in a browser, not asserted
+
+The flow walked end to end at 390, 768 and 1440: the action bar sits on the viewport floor
+on every one of the four steps, zero horizontal overflow, zero page errors. The counter
+reads the server's floor, the cap disables the unchosen rows at three with "3 of 3 chosen —
+remove one to swap", and the short-reason message is the server's own sentence.
+
+The wording screen was driven the same way, and the write path proved end to end: an
+operator edits the wording, presses Save, and the public nomination form's lede, reason
+question and evidence hint all move to the operator's words.
+
+### 11.9 The ENUM words, which the suite cannot check by itself
+
+`gates_nominations.nominee_kind` and `gates_nomination_evidence.kind` are ENUMs, and
+their vocabulary was typed in two places: the migration, and PHP. The evidence kinds
+were two bare string literals inside `AwardService`, with nothing comparing them to the
+column.
+
+A value outside an ENUM is `Data truncated` on MySQL — not an error anybody notices —
+and SQLite has no ENUM at all, so it stores whatever it is handed. A fourth nominee kind
+added to `NomineeKind::ALL` and not to the column would therefore pass every test on
+this harness and land as an empty string on production, for ever, with the row saved and
+the kind gone. This codebase has shipped that three times: `JudgeSchedule`'s
+`'scheduled'`, the claims funnel reading "Profile claimed by the nominee — 0 — 0%" on
+every deployment since it shipped, and `gates_comments.status = 'pending'` making the
+moderation warning unreachable while `/admin/moderation` worked through the real backlog.
+
+So the words now live beside the code that writes them
+(`NominationRules::EVIDENCE_LINK` / `EVIDENCE_FILE`), and
+`NominationSchemaWordsTest` compares the migration's ENUMs against the PHP declarations.
+
+It is a MAP rather than a sweep, because the thing asserted — *these words live in this
+constant* — cannot be derived; nothing in the SQL says where its vocabulary is declared.
+What keeps the map from going stale is the second test: **every ENUM the migration
+introduces must appear in the map**, so a new ENUM column cannot be added without saying
+where its words live. The map is checked against the migration and the migration against
+the map. All three failure modes were staged and watched to name the break.
+
+It reads the migration rather than the live schema deliberately: on SQLite the column is
+plain TEXT and the database cannot answer, so a test that asked it would pass vacuously
+on the harness and only ever do its job on the parity run — which is the run most likely
+not to happen.
+
+### 11.10 Not done
+
+- **No MySQL parity run.** No server was available in this container. Everything in the
+  MySQL/SQLite list at the top of `CLAUDE.md` is invisible without it, and this change adds
+  four tables, one ENUM (`nominee_kind`), one `TINYINT UNSIGNED` (`fit`) and a TEXT column
+  whose writer caps in characters against a byte ceiling — all four of the shapes that run
+  differently there. **Run `scripts/mysql-parity.sh` before this reaches production.**

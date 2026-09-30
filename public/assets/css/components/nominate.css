@@ -1,0 +1,227 @@
+/* ══════════════════════════════════════════════════════════════════════════════
+   THE NOMINATION FLOW
+   design/NominationFlow.dc.html · phase §8.16
+   ══════════════════════════════════════════════════════════════════════════════
+
+   ONE PAGE'S STYLES, IN ONE PAGE'S SHEET. These first went into `components.css`,
+   which is wrong in a way that only shows up later: that file is the BASE layer —
+   buttons, chips, fields, lists, sheets — loaded by every screen on the site, and a
+   `.nf__cat` in it is fifty lines every other page downloads to use none of.
+
+   It is also how a component sheet stops being one. `components/nav.css` held every
+   `.vc-*` rule for the vote countdown, and the redesign nearly deleted the countdown
+   with the navigation; splitting it was a whole commit of care that a correctly named
+   file would not have needed.
+
+   Loaded by `pages/nominate-award.twig` and nothing else — through the shell's
+   `head_styles` block, NOT through `AssetBundle::STYLESHEETS`. That list is the legacy
+   layout's global set and `AssetBundleTest` compares it link-for-link against
+   `layout/gates.twig`; a page-scoped sheet in it would be a file every one of the ~180
+   unconverted pages downloads, which is the thing this split exists to avoid.
+   ── HOW THE FLOW IS PUT TOGETHER ─────────────────────────────────────────────
+
+   Four steps on a per-award page, because the award step IS the page. Every panel is
+   in the document from the first render and `hidden` is put on the ones a person is
+   not on — so with no script every section is simply visible and the form still
+   posts. That is also why nothing here styles a disabled Continue: the button always
+   works and says what is missing.
+   ══════════════════════════════════════════════════════════════════════════════ */
+
+/* The page fills the scroller, so the action bar lands at the BOTTOM on a short step
+   instead of floating halfway down with empty ground beneath it. `sticky` alone does
+   not do that: with nothing to scroll it simply sits where the content ends.
+
+   `min-height:100%` needs its parent to be a flex column for the percentage to
+   resolve, and `.ag-main` is shared by every page on the shell — so the rule is
+   scoped with `:has()` to the one page that holds this layout, rather than changing
+   the scroller for screens that do not want it. Measured before and after: the bar
+   sat at 628px of an 844px viewport, and now sits on the floor. */
+.ag-main:has(> .nf){ display:flex; flex-direction:column }
+
+.nf{
+  /* `flex:1` is what fills the scroller, not `min-height`. In a flex COLUMN,
+     `align-items:stretch` works on the cross axis — the horizontal one — so a child
+     with `min-height:100%` and the default `flex:0 1 auto` still sizes to its content
+     and the bar lands mid-page. Measured: 644px of an 844px viewport before this line,
+     the floor after it. `flex` is ignored outside a flex container, so this stays
+     harmless if the `:has()` rule above ever stops matching. */
+  flex:1; min-height:100%; box-sizing:border-box;
+  display:flex; flex-direction:column;
+  padding:var(--ag-sp-16) var(--ag-gutter) 0;
+}
+.nf__form{ flex:1; display:flex; flex-direction:column; gap:var(--ag-sp-16) }
+
+.nf__h{ margin:0; font-family:var(--ag-font-display); font-weight:700; font-size:26px; line-height:1.15 }
+.nf__lede{ margin:0; font-size:15px; line-height:1.55; color:var(--ag-ink-2); max-width:62ch }
+.nf__opt{
+  margin-inline-start:var(--ag-sp-8); padding:2px var(--ag-sp-8);
+  border-radius:var(--ag-r-pill); background:var(--ag-tint);
+  font-family:var(--ag-font-ui); font-size:12px; font-weight:600; color:var(--ag-ink-2);
+  vertical-align:middle;
+}
+
+.nf__err{
+  margin:0; padding:var(--ag-sp-12) var(--ag-sp-14);
+  border:1px solid var(--ag-error); border-radius:var(--ag-r-14);
+  background:var(--ag-surface); color:var(--ag-error);
+  font-size:14.5px; font-weight:600;
+}
+
+/* ── The rail ─────────────────────────────────────────────────────────────
+   Four dots and their words. It is an <ol>, so a screen reader says "1 of 4"
+   without the markup claiming anything the CSS is doing. */
+.nf__rail{
+  display:flex; gap:var(--ag-sp-4); margin:0; padding:0; list-style:none;
+  overflow-x:auto; scrollbar-width:none;
+}
+.nf__rail::-webkit-scrollbar{ display:none }
+.nf__rail li{
+  flex:1; display:flex; flex-direction:column; align-items:center; gap:var(--ag-sp-6);
+  min-width:64px; font-size:12px; font-weight:600; color:var(--ag-soft);
+}
+.nf__rail li span{
+  display:flex; align-items:center; justify-content:center;
+  width:26px; height:26px; border-radius:50%;
+  background:var(--ag-tint); color:var(--ag-ink-2);
+  font-family:var(--ag-font-mono); font-size:12px; font-weight:700;
+}
+/* The step somebody is ON, and the steps behind it, are different states and read
+   differently — one is where you are, the other is what you finished. */
+.nf__rail li[aria-current="step"]{ color:var(--ag-ink) }
+.nf__rail li[aria-current="step"] span{ background:var(--ag-ink); color:var(--ag-ground) }
+.nf__rail li[data-done] span{ background:var(--ag-green-wash); color:var(--ag-green-deep) }
+
+.nf__step{ display:flex; flex-direction:column; gap:var(--ag-sp-10) }
+.nf__step[hidden]{ display:none }
+.nf__step .ag-label{ margin-top:var(--ag-sp-6) }
+
+/* ── Categories ───────────────────────────────────────────────────────────── */
+
+.nf__count{ margin:0; font-size:13px; font-weight:600; color:var(--ag-soft) }
+.nf__cats{ display:flex; flex-direction:column; gap:var(--ag-sp-10) }
+.nf__cat{
+  border:1px solid var(--ag-line); border-radius:var(--ag-r-16);
+  background:var(--ag-surface); padding:var(--ag-sp-14);
+}
+.nf__cat:has([data-nf-pick]:checked){ border-color:var(--ag-ink); border-width:2px; padding:13px }
+/* At the cap the unchosen rows are stopped, not hidden: a category that vanishes
+   when you pick three reads as the list being broken, and somebody looking for the
+   one they wanted cannot find it to swap. */
+.nf__cat[data-maxed]{ opacity:.55 }
+.nf__cat-head{ display:grid; grid-template-columns:22px 1fr; gap:var(--ag-sp-10) var(--ag-sp-12); align-items:start; cursor:pointer }
+.nf__cat-head input{ width:22px; height:22px; margin:0; accent-color:var(--ag-green) }
+.nf__cat-t{ font-size:16px; font-weight:600 }
+.nf__cat-d{ grid-column:2; font-size:13px; line-height:1.5; color:var(--ag-soft) }
+
+.nf__why{ margin-top:var(--ag-sp-12); display:flex; flex-direction:column; gap:var(--ag-sp-6) }
+.nf__why[hidden]{ display:none }
+.nf__why textarea{
+  width:100%; padding:var(--ag-sp-12);
+  border:1px solid var(--ag-line-2); border-radius:var(--ag-r-14);
+  background:var(--ag-surface); color:var(--ag-ink);
+  /* 16px minimum on any input, always — anything smaller makes iOS zoom the page
+     on focus and a person loses their place in a form they are part-way through. */
+  font-family:inherit; font-size:16px; line-height:1.55; resize:vertical;
+}
+.nf__why textarea:focus-visible{ outline:3px solid var(--ag-green); outline-offset:2px }
+
+/* The counter. Mono, because it is a figure that changes under the eye and a
+   proportional font makes it jitter — §6.2 allows mono for exactly this. */
+.nf__meter{
+  margin:0; align-self:flex-end;
+  font-family:var(--ag-font-mono); font-size:12px; font-weight:700;
+  color:var(--ag-soft);
+}
+/* Green at the floor — AND the number itself is the message, so colour is never
+   the only thing that changed. Somebody who cannot tell the two greens apart still
+   reads 40/40. */
+.nf__meter[data-ok]{ color:var(--ag-green-deep) }
+
+/* ── Evidence ─────────────────────────────────────────────────────────────── */
+
+.nf__link[hidden]{ display:none }
+
+/* ── You ──────────────────────────────────────────────────────────────────── */
+
+.nf__consent{
+  display:grid; grid-template-columns:22px 1fr; gap:var(--ag-sp-12);
+  align-items:start; margin-top:var(--ag-sp-8);
+  font-size:14.5px; line-height:1.55;
+}
+.nf__consent input{ width:22px; height:22px; margin:0; accent-color:var(--ag-green) }
+
+/* ── The action bar ───────────────────────────────────────────────────────── */
+
+/* THE BAR'S WHOLE GEOMETRY IS THIS ONE DECLARATION, and that is the point rather
+   than tidiness. `margin-top:auto` was declared up beside `.nf__form`, a hundred
+   lines above this block — and the `margin:` SHORTHAND here, same selector and same
+   specificity, later in the file, reset it to the gap value. No cascade warning, no
+   invalid property, nothing to see in either rule read on its own: the computed
+   `margin-top` was simply `16px`.
+
+   What that cost is invisible on most of the flow. Three of the four steps OVERFLOW
+   the viewport, so `position:sticky` pins the bar to the floor and the auto margin
+   is doing nothing anyway. Evidence is the one short step, and there the bar floated
+   559–644 of an 844px viewport with 200px of empty ground under it — measured at 390,
+   768 and 1440, where the gap was 200, 377 and 261px. So the fault appeared on
+   exactly one screen of four and looked like a bug in that screen.
+
+   Two margins, one box. Never split a box's geometry across two rules for the same
+   selector; the shorthand wins and says nothing.
+
+   `auto` on the top edge takes the free space on a short step and resolves to zero
+   on a tall one, where sticky takes over. The gap above it on a tall step is the
+   form's own `gap`, which applies between flex items whatever the margins do — the
+   16px that used to be here was a second gap stacked on that one. */
+.nf__bar{
+  position:sticky; bottom:0;
+  display:flex; gap:var(--ag-sp-10); align-items:center;
+  margin:auto calc(var(--ag-gutter) * -1) 0;
+  padding:var(--ag-sp-12) var(--ag-gutter) calc(var(--ag-sp-20) + env(safe-area-inset-bottom));
+  background:var(--ag-bar); border-top:1px solid var(--ag-line);
+}
+.nf__bar .ag-btn{ height:52px }
+.nf__bar .ag-btn--secondary{ flex:none; width:auto; padding:0 var(--ag-sp-20) }
+
+/* ── Closed ───────────────────────────────────────────────────────────────── */
+
+.nf__shut{ padding:var(--ag-sp-24); display:flex; flex-direction:column; gap:var(--ag-sp-12) }
+.nf__shut h1{ margin:0; font-family:var(--ag-font-display); font-weight:700; font-size:26px; line-height:1.15 }
+.nf__shut-why{ margin:0; font-size:15px; line-height:1.6; color:var(--ag-ink-2) }
+.nf__shut-do{ display:flex; flex-wrap:wrap; gap:var(--ag-sp-10) }
+
+@media (min-width:768px){
+  .nf{ max-width:720px; margin-inline:auto }
+  .nf__h{ font-size:32px }
+}
+
+
+/* ══ The hub ═════════════════════════════════════════════════════════════════
+   design/NominateHub.dc.html. One question — which award — and every row is a
+   link. No script runs on this page. */
+
+.nh{ padding:var(--ag-sp-16) var(--ag-gutter) calc(var(--ag-sp-40) + var(--ag-bottom-ui, 0px)) }
+.nh__lede{ margin:0 0 var(--ag-sp-20); font-size:15px; line-height:1.6; color:var(--ag-ink-2); max-width:62ch }
+.nh__h{ margin:var(--ag-sp-24) 0 var(--ag-sp-10); font-size:13px; font-weight:600; color:var(--ag-soft) }
+.nh__h:first-of-type{ margin-top:0 }
+.nh__list{ margin:0 }
+/* The row grows past the 56px list default because it carries two lines, and the
+   whole row is the target — there is no separate button to hit. */
+.nh__row{ min-height:72px }
+.nh__txt{ flex:1; min-width:0; display:flex; flex-direction:column; gap:2px }
+.nh__meta{ font-size:13px; line-height:1.45; color:var(--ag-soft) }
+.nh__do{ display:flex; flex-wrap:wrap; gap:var(--ag-sp-10); justify-content:center; margin-top:var(--ag-sp-16) }
+
+@media (min-width:768px){
+  .nh{ max-width:720px; margin-inline:auto }
+}
+
+/* A shared link's note. Informational, so it is not the error's red: a prefilled
+   form is a helpful state, and dressing it as a fault is how somebody deletes what
+   the link brought them. */
+.nf__note{
+  margin:0; padding:var(--ag-sp-12) var(--ag-sp-14);
+  border:1px solid var(--ag-green-edge); border-radius:var(--ag-r-14);
+  background:var(--ag-green-wash); color:var(--ag-green-deep);
+  font-size:14px; line-height:1.5;
+}

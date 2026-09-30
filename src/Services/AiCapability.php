@@ -533,6 +533,53 @@ final class AiCapability
                 'data_purpose'    => 'To score how complete and specific the nomination reads, and summarise it '
                     . 'for the reviewer. A person always makes the decision.',
             ]),
+            // ── WHICH CATEGORY THIS WORK BELONGS IN ─────────────────────────
+            //
+            // Reads the nominator's reasons and the labels of whatever evidence came
+            // with them, against the award's own category list, and scores the fit of
+            // each. For the review desk and the judging panel — the design handoff
+            // §8.16 forbids any of it reaching a public screen, and a sweep holds that.
+            //
+            // TIER_REASON and untrusted_input for the same reasons the triage has them:
+            // this is judgement rather than composition, and every word of the input was
+            // typed by a stranger. The budget is smaller per call than the triage's
+            // because the answer is a short list of numbers, and larger per day because
+            // it runs on every nomination rather than on the ones a reviewer opens.
+            'nomination.category_fit' => $c('nomination.category_fit', [
+                'purpose'         => 'moderation',
+                'tier'            => self::TIER_REASON,
+                'model'           => self::primary(self::TIER_REASON),
+                // FAIL_DEGRADE and not FAIL_ANNOUNCE — "the caller carries on as if the
+                // feature were off", which is literally the state here: a nomination
+                // with no fit rows is exactly what a deployment with no provider has,
+                // and both are a queue an operator reads in arrival order. The triage
+                // beside it announces, and should: a MISSING QUALITY SCORE looks like a
+                // bad nomination, so a reviewer has to be told the difference. A missing
+                // fit looks like nothing, because there is no cell to be empty.
+                'on_failure'      => self::FAIL_DEGRADE,
+                'advisory'        => true,
+                'max_tokens'      => 400,
+                'calls_per_day'   => 5000,
+                'tokens_per_day'  => 600_000,
+                'untrusted_input' => true,
+                // TRUE, and it is not a contradiction with the rule that none of this
+                // reaches a visitor's screen. This flag means "processes content
+                // SUBMITTED BY THE PUBLIC, and so belongs in the published privacy
+                // disclosure" — which is exactly what a nominator's reasons are. It was
+                // written `false` here first, read as "not shown publicly", and the cost
+                // of that misreading is precise: `AiPrivacy::disclosure()` filters on
+                // this flag, so the privacy page would have omitted a capability that
+                // sends a visitor's own words to a third party. Where it is NOT shown is
+                // held separately, by a sweep over every public template.
+                'public_content'  => true,
+                'data_sent'       => 'The award\'s category titles and descriptions, the kind of nominee, '
+                    . 'your reason for each category you chose, and the NAME of any evidence you '
+                    . 'attached — never a file\'s contents, and never the address of a link beyond '
+                    . 'its website name. No contact details are sent.',
+                'data_purpose'    => 'To suggest which category the work described belongs in, so a judging '
+                    . 'panel opens it in the right race. It never changes what you chose, and a '
+                    . 'panel always decides.',
+            ]),
             // ── THE COUNTDOWN LETTERS, DRAFTED FOR ONE CEREMONY ─────────────
             //
             // Writes the five letters an organiser will send to their nominees in the
@@ -984,6 +1031,37 @@ final class AiCapability
                 'calls_per_day'   => 1000,
                 'tokens_per_day'  => 1_000_000,
                 'timeout'         => 20,
+                'untrusted_input' => true,
+            ]),
+            // ── AN AWARD'S OWN WORDS ─────────────────────────────────────
+            //
+            // Drafts the seven phrases a nomination form uses about the people one
+            // award is for — `Support\AwardWording::FIELDS`. The operator reviews
+            // every one before it is stored; nothing here is written to a public
+            // screen without a person pressing Save.
+            //
+            // `public_content` is FALSE, and that is not the same misreading the
+            // nomination fit capability shipped with. The flag means "processes
+            // content submitted by the PUBLIC" — what goes to the provider here is an
+            // award's own title, subtitle and description, written by an operator in
+            // this console. No visitor's words are in the payload, so this capability
+            // does not belong in the disclosure `AiPrivacy` generates from the flag.
+            //
+            // ANNOUNCE rather than degrade: an operator who pressed Draft and got
+            // silence would retype the seven phrases believing the button does
+            // nothing. A missing draft is visible and must say why.
+            'admin.award_wording' => $c('admin.award_wording', [
+                'purpose'         => 'assist',
+                'tier'            => self::TIER_WRITE,
+                'model'           => self::primary(self::TIER_WRITE),
+                'on_failure'      => self::FAIL_ANNOUNCE,
+                'advisory'        => true,
+                'max_tokens'      => 700,
+                'calls_per_day'   => 300,
+                'tokens_per_day'  => 300_000,
+                'timeout'         => 20,
+                // The award's own description is operator-written, but it is prose
+                // from a database going into a prompt, and the fence costs nothing.
                 'untrusted_input' => true,
             ]),
             'admin.form_design' => $c('admin.form_design', [

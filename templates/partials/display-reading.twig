@@ -14,7 +14,19 @@
   re-reads. The first application happens in the head, before paint.
 
   `compact` drops the heading, for the Quick settings sheet, which has its own.
+
+  ── `uid` IS REQUIRED, AND IT IS NOT DECORATION ─────────────────────────────
+
+  Three surfaces mount this block, and two of them are in the same document: the
+  header's Aa popover and the Menu's Display sub-view. With a fixed `id` on the
+  language select, that document carried two `ag-dr-lang` — and `getElementById`
+  answers with the first, so the Menu's own label pointed at the popover's select.
+  Pressing "Language" in the Menu moved focus into a panel that was not open.
+
+  Nothing threw and nothing looked wrong. `SiteHeaderTest` counts how many times a
+  layout reaches a partial now, which is what found it.
 #}
+{% set _uid = uid|default('dr') %}
 <div class="ag-dr" data-ag-dr>
 
   {% if not compact|default(false) %}
@@ -25,14 +37,19 @@
      buttons differ by what they DO rather than by a label claiming it. The
      accessible name carries the words, since "A" three times is not a choice. #}
   <div class="ag-seg" role="radiogroup" aria-label="Text size">
+    {# The three letters are drawn at the sizes they set — 15 / 19 / 23px — so the
+       buttons differ by what they DO rather than by a label claiming it. The size is a
+       CLASS and not a `style` attribute: three fixed values off a fixed ladder are a
+       modifier, and an inline declaration is one the stylesheet cannot reach when the
+       ladder moves. #}
     {% for s in [
-      {i:0, name:'Standard text', fs:'15px'},
-      {i:1, name:'Large text',    fs:'19px'},
-      {i:2, name:'Largest text',  fs:'23px'}
+      {i:0, name:'Standard text'},
+      {i:1, name:'Large text'},
+      {i:2, name:'Largest text'}
     ] %}
-      <button type="button" class="ag-seg__opt ag-dr__size" role="radio"
+      <button type="button" class="ag-seg__opt ag-dr__size ag-dr__size--{{ s.i }}" role="radio"
               aria-checked="false" aria-label="{{ s.name }}"
-              data-ag-size="{{ s.i }}" style="font-size:{{ s.fs }}">A</button>
+              data-ag-size="{{ s.i }}">A</button>
     {% endfor %}
   </div>
 
@@ -69,8 +86,8 @@
      on `/discover?q=lagos` does not silently drop the search. #}
   <form class="ag-dr__lang" method="get" data-ag-langform>
     {% for k, v in lang_carry() %}<input type="hidden" name="{{ k }}" value="{{ v }}">{% endfor %}
-    <label for="ag-dr-lang">Language</label>
-    <select id="ag-dr-lang" name="lang" data-ag-lang>
+    <label for="ag-dr-lang-{{ _uid }}">Language</label>
+    <select id="ag-dr-lang-{{ _uid }}" name="lang" data-ag-lang>
       {% for l in languages() %}
         <option value="{{ l.code }}" lang="{{ l.code }}"
                 {{ l.code == lang() ? 'selected' : '' }}>{{ l.name }}</option>

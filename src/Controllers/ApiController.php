@@ -387,7 +387,12 @@ HTML;
         // int under PHP 8, so a caller who sent the id as a number — as JSON encodes
         // numbers — got "An internal error occurred" instead of a nomination, while a
         // caller who quoted it as a string succeeded. Found by POSTing to it.
-        foreach(['programme_id','nominee_name','country_code','reason','nominator_name','nominator_email'] as $f) if(empty(trim((string)($b[$f]??'')))) return $this->err($res,"Field '$f' is required.");
+        // The fields this door can check by itself. `nominee_name`, the categories and
+        // the evidence are NOT here: they belong to NominationRules, which AwardService
+        // runs for BOTH doors — because this endpoint and the web form had drifted to
+        // six required fields against thirteen, so an API nomination landed with no
+        // state, no LGA, no nominator phone and a one-word name the form refused.
+        foreach(['programme_id','country_code','nominator_name','nominator_email'] as $f) if(empty(trim((string)($b[$f]??'')))) return $this->err($res,"Field '$f' is required.");
         if(!filter_var($b['nominator_email'],FILTER_VALIDATE_EMAIL)) return $this->err($res,'Invalid nominator email.');
         // Nominee contact: email OR phone — at least one; anything provided must validate.
         $ne=trim((string)($b['nominee_email']??'')); $np=trim((string)($b['nominee_phone']??''));

@@ -30,13 +30,16 @@ use Slim\Psr7\Response;
  */
 class FormAccessibilityTest extends TestCase
 {
-    private function render(string $class, string $method, string $path): string
+    private function render(string $class, string $method, string $path, array $args = []): string
     {
         $builder = new \DI\ContainerBuilder();
         $builder->addDefinitions(require dirname(__DIR__, 2) . '/config/container.php');
         $ctrl = $builder->build()->get($class);
         $req  = (new ServerRequestFactory())->createServerRequest('GET', $path);
-        return (string) $ctrl->$method($req, new Response())->getBody();
+        $out  = $args === []
+            ? $ctrl->$method($req, new Response())
+            : $ctrl->$method($req, new Response(), $args);
+        return (string) $out->getBody();
     }
 
     private function openForNominations(): void
@@ -92,42 +95,65 @@ class FormAccessibilityTest extends TestCase
         return $out;
     }
 
-    public function test_the_nomination_wizard_has_no_unlabelled_field(): void
+    /**
+     * The nomination form, which is `/nominate/{slug}` now.
+     *
+     * `/nominate` used to be the whole wizard; it is the award chooser now, and the
+     * form — with its own wording, categories and accepted kinds — is on each award's
+     * page. The GUARANTEES below are unchanged: every control has an accessible name,
+     * the reason box is named by the heading a sighted person reads, and repeated
+     * inputs are named individually. Only the URL moved.
+     */
+    private function nominationForm(): string
+    {
+        return $this->render(
+            \AfricaGates\Controllers\NominationController::class, 'award', '/nominate/rising',
+            ['slug' => 'rising']
+        );
+    }
+
+    public function test_the_nomination_form_has_no_unlabelled_field(): void
     {
         // The form that matters most. Five of its controls had no accessible name.
         $this->openForNominations();
 
-        $html = $this->render(\AfricaGates\Controllers\NominationController::class, 'form', '/nominate');
-        $this->assertStringContainsString('x-data', $html, 'the wizard must render, or this proves nothing');
+        $html = $this->nominationForm();
+        $this->assertStringContainsString('name="nominee_name"', $html,
+            'the form must render, or this proves nothing');
 
         $this->assertSame([], $this->unnamedControls($html));
     }
 
-    public function test_the_reason_textarea_is_named_by_its_visible_heading(): void
+    public function test_each_reason_textarea_is_named_by_the_question_above_it(): void
     {
-        // aria-labelledby the heading rather than an invented aria-label: the
-        // accessible name should be the text a sighted user actually reads.
+        // The accessible name is the text a sighted person actually reads, and here
+        // that text is the award's own question — "Why Ada for Teaching?" — which is a
+        // `<label for>` rather than an invented `aria-label`. `for`/`id` is the plainer
+        // mechanism and the one that also makes the question clickable.
         $this->openForNominations();
 
-        $html = $this->render(\AfricaGates\Controllers\NominationController::class, 'form', '/nominate');
+        $html = $this->nominationForm();
 
-        $this->assertMatchesRegularExpression('~id="nWhyHeading"~', $html);
-        $this->assertMatchesRegularExpression('~<textarea[^>]*aria-labelledby="nWhyHeading"~', $html);
+        $this->assertMatchesRegularExpression('~<label[^>]*for="nf-why-\d+"~', $html);
+        $this->assertMatchesRegularExpression('~<textarea[^>]*id="nf-why-\d+"~', $html);
     }
 
-    public function test_each_reference_url_input_is_named_individually(): void
+    public function test_each_evidence_link_input_is_named_individually(): void
     {
-        // One group label cannot name three controls. Without individual names a
-        // screen reader announces "edit text" three times, indistinguishable.
+        // One group label cannot name five controls. Without individual names a screen
+        // reader announces "edit text" five times, indistinguishable — which is why the
+        // three `reference_url` boxes this replaced each carried their own.
         $this->openForNominations();
 
-        $html = $this->render(\AfricaGates\Controllers\NominationController::class, 'form', '/nominate');
+        $html = $this->nominationForm();
 
-        foreach (['reference_url', 'reference_url_2', 'reference_url_3'] as $n) {
+        preg_match_all('~<input[^>]*name="evidence_links\[\]"[^>]*>~', $html, $m);
+        $this->assertNotEmpty($m[0], 'the evidence inputs must render');
+
+        foreach ($m[0] as $i => $tag) {
             $this->assertMatchesRegularExpression(
-                '~<input[^>]*name="' . $n . '"[^>]*aria-label="[^"]+"|<input[^>]*aria-label="[^"]+"[^>]*name="' . $n . '"~',
-                $html,
-                "{$n} has no accessible name"
+                '~aria-label="[^"]+"~', $tag,
+                'evidence link input ' . ($i + 1) . ' has no accessible name'
             );
         }
     }

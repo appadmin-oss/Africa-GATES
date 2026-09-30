@@ -590,12 +590,19 @@ class AiPrivacyTest extends TestCase
         $builder = new \DI\ContainerBuilder();
         $builder->addDefinitions(require dirname(__DIR__, 2) . '/config/container.php');
         $ctrl = $builder->build()->get(\AfricaGates\Controllers\NominationController::class);
-        $req  = (new \Slim\Psr7\Factory\ServerRequestFactory())->createServerRequest('GET', '/nominate');
-        $html = (string) $ctrl->form($req, new \Slim\Psr7\Response())->getBody();
+        // THE POINT OF COLLECTION IS THE AWARD'S OWN PAGE. `/nominate` is the chooser
+        // now — it collects nothing, so a notice there would be disclosure attached to
+        // no field. The form, and the boxes the reasons are typed into, are at
+        // `/nominate/{slug}`, and that is where the sentence has to be.
+        $req  = (new \Slim\Psr7\Factory\ServerRequestFactory())->createServerRequest('GET', '/nominate/gates');
+        $html = (string) $ctrl->award($req, new \Slim\Psr7\Response(), ['slug' => 'gates'])->getBody();
 
-        $this->assertStringContainsString('third-party AI service', $html);
-        $this->assertStringContainsString('replaced with placeholders', $html);
-        $this->assertStringContainsString('/privacy#automated-processing', $html,
+        // Collapsed, because the sentence is wrapped for the template it lives in.
+        $flat = (string) preg_replace('/\s+/', ' ', $html);
+
+        $this->assertStringContainsString('third-party AI service', $flat);
+        $this->assertStringContainsString('replaced with placeholders', $flat);
+        $this->assertStringContainsString('/privacy#automated-processing', $flat,
             'and it must point at the generated section, whose anchor therefore has to exist');
         $this->assertStringContainsString('id="automated-processing"', $this->renderPrivacy(),
             'the anchor the nominate form links to');

@@ -314,6 +314,33 @@ return [
                 return $memo = \AfricaGates\Services\PointsService::balance($id);
             }
         ));
+        // Is any capability that processes PUBLIC-SUBMITTED content actually running on
+        // this deployment? Drives the point-of-collection notice beside the nomination
+        // form. A function, so a page that never draws the notice never asks — and so
+        // that the answer is the live one rather than a build-time snapshot.
+        //
+        // ── THE SAME BASIS THE PRIVACY PAGE USES, AND NOT A NARROWER ONE ────
+        //
+        // The obvious gate is `AiPrivacy::currentlyActive()` — "is a provider actually
+        // configured right now" — and it is the wrong one. `AiPrivacy::disclosure()`,
+        // which generates `/privacy#automated-processing`, does NOT gate on it: the
+        // published page lists every declared public-content capability whatever the
+        // key situation is on the day.
+        //
+        // Two documents about one fact have to agree. Gating this one differently would
+        // mean the privacy page says a nominator's text may go to a third party while
+        // the form beside the box says nothing — and it would flip, silently, on a
+        // provider outage or a key rotation. It would also make the guarantee untestable
+        // in CI, where no provider is ever configured.
+        $twig->getEnvironment()->addFunction(new \Twig\TwigFunction(
+            'ai_collection_notice',
+            static function (): bool {
+                foreach (\AfricaGates\Services\AiCapability::all() as $cap) {
+                    if ($cap->publicContent) return true;
+                }
+                return false;
+            }
+        ));
         // ── LANGUAGE, AS FUNCTIONS FOR THE REASON THE CONSENT NOTICE IS ─────
         //
         // This block has no Request, so a global could only answer by reading $_GET

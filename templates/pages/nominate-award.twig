@@ -1,0 +1,368 @@
+{% extends 'layout/shell.twig' %}
+
+{#
+  ══════════════════════════════════════════════════════════════════════════════
+  ONE AWARD'S NOMINATION PAGE
+  design/NominationFlow.dc.html · phase §8.16
+  ══════════════════════════════════════════════════════════════════════════════
+
+  The DC's flow has five steps — Nominee, Award, Categories, Evidence, You. This page
+  has FOUR, because the award step is the page: somebody who followed a link from the
+  award's own page, a poster or a closing-soon email has already answered it, and asking
+  again is the thing a per-award door exists to stop. `/nominate` is where that question
+  is asked, and "Change award" goes back to it. Recorded in docs/handoff/GAPS.md.
+
+  ── IT IS ONE FORM, AND THE STEPS ARE AN ENHANCEMENT ────────────────────────
+
+  Every field is in the document from the first render and the whole thing posts to
+  `/nominate` — the same door, with the same validator behind it. `nominate.js` hides
+  the steps a person is not on and moves between them; with no JavaScript every section
+  is simply visible and the form still submits. A five-screen wizard that only exists in
+  JavaScript is a nomination form that does not work for the people this platform is
+  most trying to reach.
+
+  That is also why the counter is an enhancement and the rule is the server's: the live
+  "12/40" is drawn by script, and a browser that never runs it still gets
+  `NominationRules::SHORT_REASON` back from the server in the same words.
+
+  ── THE WORDS COME FROM THE AWARD ───────────────────────────────────────────
+
+  `wording.*` is `Support\AwardWording`, resolved per programme with the house words as
+  the fallback. A form that says "nominee" under a heading reading *Carol Awards* is
+  asking a choirmaster a question about a person. Nothing here writes a noun of its own.
+
+  ── AND NOTHING HERE MENTIONS THE ANALYSIS ──────────────────────────────────
+
+  §8.16: "No AI wording. Category-fit analysis runs server-side for admins and judges
+  only." A nominator who is told a machine scored their reason is being graded by a
+  form, and the first person that discourages is the one writing in a second language.
+  `NominationCategoryFitTest` sweeps this file.
+#}
+
+{% set _w = wording %}
+{% set _closing = programme.nominations_close %}
+
+{# What goes back into a field: what they just typed, then what a share link carried,
+   then nothing. ONE chain, at template scope, rather than `old.x ?? prefill.x ?? ''`
+   written out at every input — thirty copies of a precedence rule is thirty chances
+   to get one of them the wrong way round, and the wrong way round silently overwrites
+   what somebody typed with what a link suggested. #}
+{% set _v = (old|default({})) %}
+{% set _p = (prefill|default({})) %}
+
+{# The site header on tablet and desktop, the app bar on the phone. Both are in the
+   document and CSS chooses, at one breakpoint, so there is no width with two chromes
+   and none with neither. #}
+{% block header %}{% include 'partials/site-header.twig' %}{% endblock %}
+
+{% block app_bar %}
+  {% include 'partials/app-bar.twig' with {
+    variant: 'child',
+    back: '/awards/' ~ programme.slug,
+    title: programme.title,
+    sub: nominations_open
+      ? (_closing ? 'Nominations close ' ~ (_closing|when('j M')) : 'Nominations open')
+      : 'Nominations are not open'
+  } %}
+{% endblock %}
+
+{% block content %}
+<div class="nf">
+
+  {% if not nominations_open %}
+    {# ── CLOSED, AND SAYING SO ────────────────────────────────────────────
+       200 and an explanation, not a 404 and not a bounce to the chooser. Whoever
+       follows a link on the day is exactly the person owed the reason, and a 404
+       reads as the award having been taken down. #}
+    <section class="nf__shut ag-card">
+      <h1>{{ programme.title }}</h1>
+      {# ── WHY IT IS SHUT, AND ONLY IF THAT IS TRUE ────────────────────────
+         "Nominations closed on 30 October" was being printed over a date thirty days
+         in the FUTURE, because an edition can leave the nomination phase without the
+         window having elapsed — this one had moved to voting. A closing date is not
+         the same fact as a closed window, and printing one as the other is §19's
+         shape on the page somebody came to nominate from.
+
+         So the past date is only claimed when it IS past, and the phase carries the
+         rest. #}
+      <p class="nf__shut-why">
+        {% if programme.phase.phase == 'upcoming' %}
+          Nominations for this award have not opened yet{% if programme.nominations_open %},
+          and are due to open on {{ programme.nominations_open|when('j F Y') }}{% endif %}.
+        {% elseif _closing and _closing|when('U') < 'now'|date('U') %}
+          Nominations closed on {{ _closing|when('j F Y') }}. This edition is now in its
+          {{ programme.phase.label|default(programme.cycle_status) }} stage.
+        {% elseif programme.phase.label|default('') %}
+          This edition is in its {{ programme.phase.label }} stage, so it is not taking
+          nominations at the moment.
+        {% else %}
+          This award is not taking nominations at the moment.
+        {% endif %}
+      </p>
+      <div class="nf__shut-do">
+        <a class="ag-btn ag-btn--primary" href="/awards/{{ programme.slug }}">See this award</a>
+        <a class="ag-btn ag-btn--secondary" href="/nominate">Awards open now</a>
+      </div>
+    </section>
+
+  {% else %}
+
+    {% if error is defined and error %}
+      <p class="nf__err" role="alert">{{ error }}</p>
+    {% endif %}
+
+    {% if share_expired|default(false) %}
+      <p class="nf__err" role="alert">That shared nomination link has expired. You can
+        still nominate — the form below is empty and ready.</p>
+    {% elseif _p is not empty %}
+      <p class="nf__note">Somebody shared this nomination with you. We have filled in what
+        they knew about {{ _p.nominee_name|default('the nominee') }} — change anything, and
+        it is submitted in your name.</p>
+    {% endif %}
+
+    {# Every number and sentence the script uses comes through these attributes from
+       `NominationRules`. There is no 40, no 2 and no 3 in nominate.js: a literal there
+       would be a second copy of a rule, and a form that counts to one number while the
+       server refuses by another is the shape this codebase keeps paying for. #}
+    <form class="nf__form" method="post" action="/nominate"
+          enctype="multipart/form-data" data-nf novalidate
+          data-min-cats="{{ rules.min_categories }}"
+          data-max-cats="{{ rules.max_categories }}"
+          data-short-reason="{{ rules.short_reason }}">
+      <input type="hidden" name="_token" value="{{ csrf_token }}">
+      <input type="hidden" name="programme_id" value="{{ programme.id }}">
+
+      {# The steps. `aria-current` moves with the step; with no script every panel is
+         open and this list is a summary of what is being asked. #}
+      <ol class="nf__rail" data-nf-rail aria-label="Steps">
+        {% for s in ['Nominee', 'Categories', 'Evidence', 'You'] %}
+          <li data-nf-dot="{{ loop.index }}"{% if loop.first %} aria-current="step"{% endif %}>
+            <span>{{ loop.index }}</span>{{ s }}
+          </li>
+        {% endfor %}
+      </ol>
+
+      {# ── 1 · WHO ──────────────────────────────────────────────────────── #}
+      <section class="nf__step" data-nf-step="1" aria-labelledby="nf-h1">
+        <h1 class="nf__h" id="nf-h1">{{ _w.who_question }}</h1>
+        <p class="nf__lede">{{ _w.who_hint }}</p>
+
+        {% if _w.accepts|length > 1 %}
+          <div class="ag-chip-row" role="radiogroup" aria-label="What kind of nominee">
+            {# `|filter`, not `for … if`: Twig 3 removed the inline `if` on a for-tag
+               and answers it with "Unexpected token if", which reads as a typo rather
+               than as a version difference. #}
+            {% for k in kinds|filter(k => k.kind in _w.accepts) %}
+              <label class="ag-chip nf__kind">
+                <input type="radio" name="nominee_kind" value="{{ k.kind }}"
+                       {{ loop.first ? 'checked' : '' }} data-nf-kind>
+                {{ k.one }}
+              </label>
+            {% endfor %}
+          </div>
+        {% else %}
+          {# One accepted kind: stated, not chosen. A radiogroup with one option is a
+             control that cannot be operated, and it reads as something being broken. #}
+          <input type="hidden" name="nominee_kind" value="{{ _w.accepts|first }}">
+        {% endif %}
+
+        {# The label and the hint BOTH change with the kind: "Full name" is wrong for a
+           registered body and "Registered name" is wrong for a person. `nominate.js`
+           swaps them from the chip that was pressed, and the server has the same rule —
+           a person needs two words, an organisation does not. #}
+        <label class="ag-label" for="nf-name" data-nf-name-label>{{ name_label }}</label>
+        <div class="ag-field"><input id="nf-name" name="nominee_name" required
+          value="{{ _v.nominee_name|default(_p.nominee_name|default('')) }}" autocomplete="off"></div>
+        <p class="ag-hint" data-nf-name-hint>{{ name_hint }}</p>
+
+        <label class="ag-label" for="nf-country">Country</label>
+        <div class="ag-field">
+          <select id="nf-country" name="country_code" required>
+            <option value="">Choose a country</option>
+            {% for code, r in regions %}
+              <option value="{{ code }}" {{ _v.country_code|default(_p.country_code|default('')) == code ? 'selected' : '' }}>{{ r.name }}</option>
+            {% endfor %}
+          </select>
+        </div>
+
+        <label class="ag-label" for="nf-state">State or region</label>
+        <div class="ag-field"><input id="nf-state" name="nominee_state" required
+          value="{{ _v.nominee_state|default(_p.nominee_state|default('')) }}"></div>
+
+        <label class="ag-label" for="nf-lga">City, town or LGA</label>
+        <div class="ag-field"><input id="nf-lga" name="nominee_lga" required
+          value="{{ _v.nominee_lga|default(_p.nominee_lga|default('')) }}"></div>
+
+        {# TWO CONTROLS, TWO NAMES. One `<label>` over a pair is a label for the first
+           of them: a screen reader announces the second as "edit text", and the
+           placeholder that looks like its label is not an accessible name — it also
+           disappears the moment somebody types, so the only person who ever saw it had
+           not started. The visible heading names the pair, and each box carries its
+           own. #}
+        <span class="ag-label" id="nf-contact-h">Their email or phone</span>
+        <div class="ag-field"><input id="nf-contact" name="nominee_email" type="email"
+          aria-label="Their email address"
+          value="{{ _v.nominee_email|default(_p.nominee_email|default('')) }}" autocomplete="off"></div>
+        <div class="ag-field"><input name="nominee_phone" type="tel"
+          aria-label="Their phone number" placeholder="or a phone number"
+          value="{{ _v.nominee_phone|default(_p.nominee_phone|default('')) }}" autocomplete="off"></div>
+        <p class="ag-hint">So we can tell them. Never shown publicly.</p>
+      </section>
+
+      {# ── 2 · CATEGORIES ──────────────────────────────────────────────────
+         The wire shape is `categories[<id>]` = the reason, so the id and the text it
+         belongs to cannot be separated. Two parallel arrays — ids in one field,
+         reasons in another — is how a reason ends up filed against the wrong category
+         when a browser drops an empty value, and nothing on any screen would show it:
+         every reason is somebody's real writing, just attached to the wrong choice. #}
+      <section class="nf__step" data-nf-step="2" aria-labelledby="nf-h2" hidden>
+        <h2 class="nf__h" id="nf-h2">Choose {{ rules.min_categories }} or {{ rules.max_categories }} categories</h2>
+        <p class="nf__lede">Pick where their work fits best. Each one needs its own reason.</p>
+        <p class="nf__count" data-nf-cats role="status">0 of {{ rules.max_categories }} chosen</p>
+
+        {# Beside the boxes the reasons are typed into — not in a policy nobody opens,
+           and not only next to Submit, which is four steps away from where somebody is
+           writing. #}
+        {% include 'partials/ai-collection-notice.twig' with { where: 'What you write about them' } %}
+
+        <div class="nf__cats">
+          {% for c in programme.categories %}
+            <div class="nf__cat" data-nf-cat>
+              <label class="nf__cat-head">
+                <input type="checkbox" data-nf-pick value="{{ c.id }}"
+                       {{ old.categories[c.id]|default('') ? 'checked' : '' }}>
+                <span class="nf__cat-t">{{ c.title }}</span>
+                {% if c.description %}<span class="nf__cat-d">{{ c.description }}</span>{% endif %}
+              </label>
+
+              <div class="nf__why" data-nf-why {{ old.categories[c.id]|default('') ? '' : 'hidden' }}>
+                <label class="ag-label" for="nf-why-{{ c.id }}"
+                       data-nf-why-label data-nf-tpl="{{ _w.reason_question }}"
+                       data-nf-cat-title="{{ c.title }}">
+                  {{ _w.reason_question|replace({'{name}': 'them', '{category}': c.title}) }}
+                </label>
+                <textarea id="nf-why-{{ c.id }}" name="categories[{{ c.id }}]" rows="4"
+                          data-nf-reason>{{ old.categories[c.id]|default('') }}</textarea>
+                {# The number comes from the constant, never typed here: the counter and
+                   the server's refusal have to be the same rule. #}
+                <p class="nf__meter" data-nf-meter data-min="{{ rules.min_reason }}" role="status">
+                  0/{{ rules.min_reason }}
+                </p>
+              </div>
+            </div>
+          {% else %}
+            <p class="ag-hint">This award has no categories yet. You can still nominate —
+              a reviewer will place them.</p>
+          {% endfor %}
+        </div>
+      </section>
+
+      {# ── 3 · EVIDENCE ──────────────────────────────────────────────────── #}
+      <section class="nf__step" data-nf-step="3" aria-labelledby="nf-h3" hidden>
+        <h2 class="nf__h" id="nf-h3">Add evidence <span class="nf__opt">Optional</span></h2>
+        <p class="nf__lede">{{ _w.evidence_hint }}</p>
+
+        <div data-nf-links>
+          {% for i in 1..rules.max_evidence %}
+            {# NAMED INDIVIDUALLY. One group label cannot name five boxes — a screen
+               reader announces "edit text" five times, indistinguishable — and the
+               placeholder is not a name: it vanishes on the first keystroke, so the
+               only person who ever read it had not started typing. #}
+            <div class="ag-field nf__link"{{ i > 1 ? ' hidden' : '' }}>
+              <input name="evidence_links[]" type="url" inputmode="url"
+                     aria-label="Evidence link {{ i }} of {{ rules.max_evidence }}"
+                     placeholder="Paste a link — an article, a video, a website"
+                     value="{{ _v.evidence_links[i - 1]|default('') }}">
+            </div>
+          {% endfor %}
+        </div>
+        <button type="button" class="ag-btn ag-btn--text" data-nf-add-link>Add another link</button>
+
+        <label class="ag-label" for="nf-files">Or upload a file</label>
+        <div class="ag-field">
+          <input id="nf-files" name="evidence[]" type="file" multiple
+                 accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png">
+        </div>
+        <p class="ag-hint">PDF, JPG or PNG · up to {{ rules.max_file_mb }} MB each ·
+          {{ rules.max_evidence }} pieces of evidence in total.</p>
+      </section>
+
+      {# ── 4 · YOU ───────────────────────────────────────────────────────── #}
+      <section class="nf__step" data-nf-step="4" aria-labelledby="nf-h4" hidden>
+        <h2 class="nf__h" id="nf-h4">About you</h2>
+        <p class="nf__lede">Every nominator is checked, so every nomination counts.</p>
+
+        <label class="ag-label" for="nf-you">Your full name</label>
+        <div class="ag-field"><input id="nf-you" name="nominator_name" required
+          value="{{ old.nominator_name|default(member.name|default('')) }}"></div>
+
+        <label class="ag-label" for="nf-you-email">Your email</label>
+        <div class="ag-field"><input id="nf-you-email" name="nominator_email" type="email" required
+          value="{{ old.nominator_email|default(member.email|default('')) }}"></div>
+
+        <label class="ag-label" for="nf-you-phone">Your phone</label>
+        <div class="ag-field"><input id="nf-you-phone" name="nominator_phone" type="tel" required
+          value="{{ old.nominator_phone|default('') }}"></div>
+
+        <label class="ag-label" for="nf-you-country">Your country</label>
+        <div class="ag-field">
+          <select id="nf-you-country" name="nominator_country" required>
+            <option value="">Choose a country</option>
+            {% for code, r in regions %}
+              <option value="{{ code }}" {{ old.nominator_country|default('') == code ? 'selected' : '' }}>{{ r.name }}</option>
+            {% endfor %}
+          </select>
+        </div>
+
+        <label class="ag-label" for="nf-you-state">Your state or region</label>
+        <div class="ag-field"><input id="nf-you-state" name="nominator_state" required
+          value="{{ old.nominator_state|default('') }}"></div>
+
+        <label class="ag-label" for="nf-you-lga">Your city, town or LGA</label>
+        <div class="ag-field"><input id="nf-you-lga" name="nominator_lga" required
+          value="{{ old.nominator_lga|default('') }}"></div>
+
+        <label class="ag-label" for="nf-you-age">Your age range</label>
+        <div class="ag-field">
+          <select id="nf-you-age" name="nominator_age_range" required>
+            <option value="">Choose one</option>
+            {% for a in ['under 18', '18–24', '25–34', '35–44', '45–54', '55–64', '65+'] %}
+              <option value="{{ a }}" {{ old.nominator_age_range|default('') == a ? 'selected' : '' }}>{{ a }}</option>
+            {% endfor %}
+          </select>
+        </div>
+
+        <label class="nf__consent">
+          <input type="checkbox" name="consent" value="1" required
+                 {{ old.consent|default('') ? 'checked' : '' }}>
+          <span>I confirm this nomination is genuine, and I accept the
+            <a href="/awards/{{ programme.slug }}#terms">terms of this award</a>.</span>
+        </label>
+      </section>
+
+      {# The action bar is in the form, so Submit is a real submit button and Enter
+         works from any field. A bar outside the form needs `form=` on every control,
+         which is the sort of thing that is right on the day and wrong after a move. #}
+      <div class="nf__bar" data-bottom-ui>
+        <button type="button" class="ag-btn ag-btn--secondary" data-nf-back hidden>Back</button>
+        <button type="button" class="ag-btn ag-btn--primary ag-btn--block" data-nf-next>Continue</button>
+        <button type="submit" class="ag-btn ag-btn--primary ag-btn--block" data-nf-submit hidden>
+          Submit nomination
+        </button>
+      </div>
+    </form>
+  {% endif %}
+</div>
+{% endblock %}
+
+{% block head_styles %}
+  {# This page's own sheet, and not a block in `components.css`: that file is the base
+     layer every screen loads, and a `.nf__cat` in it is fifty lines the whole site
+     downloads to use none of. `components/nav.css` is the cautionary tale — it held the
+     vote countdown's rules under a navigation name and the redesign nearly deleted them. #}
+  <link rel="stylesheet" href="{{ asset('/assets/css/components/nominate.css') }}">
+{% endblock %}
+
+{% block foot_scripts %}
+  <script defer src="{{ asset('/assets/js/nominate.js') }}"></script>
+{% endblock %}

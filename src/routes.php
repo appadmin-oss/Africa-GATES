@@ -2129,6 +2129,18 @@ return function(App $app) {
         $g->get('/nominate',      NominationController::class.':form');
         $g->post('/nominate',     NominationController::class.':submit');
         $g->get('/nominate/success',function($req,$res) use ($tv){ $d=$_SESSION['nom_done']??null; unset($_SESSION['nom_done']); return $tv($req)->render($res,'pages/nominate-success.twig',['page_title'=>'Nomination Submitted — Africa GATES','meta_description'=>'Your nomination is in. Thank you for championing African excellence — our team will review it for the Africa GATES awards cycle. Nominate someone else too.','gates_page'=>'nominate','ref'=>$d['ref']??'','nominee'=>$d['nominee']??'','category'=>$d['cat']??'','share_payload'=>$d['share']??null]); });
+        // ── ONE AWARD'S OWN NOMINATION PAGE ──────────────────────────────────
+        //
+        // AFTER `/nominate/success`, and the order is the whole of it: a literal
+        // declared after a placeholder that matches it is served by the PLACEHOLDER
+        // and answers 200 with the wrong page — which reads as a bug in the handler
+        // rather than a routing mistake. RouteTableIntegrityTest holds exactly this
+        // shape, so getting it the wrong way round fails the build.
+        //
+        // The slug is constrained, so `/nominate/Success` and `/nominate/../x` never
+        // reach it. A constrained placeholder is not `[^/]+`, and treating it loosely
+        // is what condemned nearly every admin sub-page in an earlier sweep.
+        $g->get('/nominate/{slug:[a-z0-9-]+}', NominationController::class.':award');
         // Paid-voting routes are STATIC and must be registered BEFORE the
         // /vote/{program}/{slug} variable route, or FastRoute treats them as
         // shadowed and aborts routing for the whole app.
@@ -3626,6 +3638,20 @@ return function(App $app) {
         $a->post('/programmes/new',                  AdminProgrammesController::class.':save');
         $a->get('/programmes/{id:[0-9]+}',           AdminProgrammesController::class.':form');
         $a->post('/programmes/{id:[0-9]+}',          AdminProgrammesController::class.':save');
+        // ── WHAT THIS AWARD CALLS ITS OWN PEOPLE ─────────────────────────────
+        //
+        // The one way into `gates_award_programmes.wording_json`. Before this the
+        // column had a reader, a validator, caps and house fallbacks, and NO WRITER —
+        // §18's shape, where every part of a mechanism is complete and there is no
+        // door. The nomination form read it on every render and it could only ever
+        // answer with the house words.
+        //
+        // The same gate as the rest of the programme, deliberately: this changes what
+        // the form SAYS, not who may enter or where money goes, and an editor running
+        // an award is exactly who knows whether it is for principals or for choirs.
+        $a->get('/programmes/{id:[0-9]+}/wording',  AdminProgrammesController::class.':wording');
+        $a->post('/programmes/{id:[0-9]+}/wording', AdminProgrammesController::class.':wordingSave');
+
         // ── SPONSORSHIP ──────────────────────────────────────────────────────
         //
         // Superadmin on the WRITES, not on the read: naming a commercial backer beside an
@@ -3720,6 +3746,10 @@ return function(App $app) {
         $a->post('/legal/{slug:[a-z0-9-]+}/delete',\AfricaGates\Admin\Controllers\LegalController::class.':delete');
         // Shared admin AI helpers (drafting + form-schema generation)
         $a->post('/ai/assist',      \AfricaGates\Admin\Controllers\AiAssistController::class.':assist');
+        // Drafts an award's seven form phrases from what the award says about itself.
+        // Writes nothing — the reply lands in the boxes on /admin/programmes/{id}/wording
+        // and the operator saves it, or does not.
+        $a->post('/ai/award-wording', \AfricaGates\Admin\Controllers\AiAssistController::class.':awardWording');
         $a->post('/ai/form-fields', \AfricaGates\Admin\Controllers\AiAssistController::class.':formFields');
 
         // Shop — product catalogue CRUD.

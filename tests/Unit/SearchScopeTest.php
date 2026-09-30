@@ -38,10 +38,18 @@ final class SearchScopeTest extends TestCase
                     ActivityFeedService::SOURCES,
                     "the '$scope' chip asks for a source that does not exist: $s"
                 );
+                // `?? ''` because PHP builds every argument BEFORE the call, so this
+                // message is interpolated on each of the ten PASSING iterations too —
+                // where `$seen[$s]` is by definition absent. Without it the suite
+                // emitted ten "Undefined array key" warnings from a test that passed,
+                // which is noise in exactly the place a real warning would have to be
+                // noticed. The empty string can never be printed: the only path that
+                // shows this message is the one where the key is set.
                 $this->assertArrayNotHasKey(
                     $s,
                     $seen,
-                    "$s is in two chips ('{$seen[$s]}' and '$scope'), so a result appears twice"
+                    "$s is in two chips ('" . ($seen[$s] ?? '') . "' and '$scope'), "
+                    . 'so a result appears twice'
                 );
                 $seen[$s] = $scope;
             }

@@ -1686,7 +1686,6 @@ p { color: var(--neutral-500); line-height: 1.6; }
 }
 .p-hero h1 {
   font-size: clamp(2.25rem, 4.5vw, 3.5rem);
-  margin-bottom: 1rem;
 }
 .p-hero p {
   font-size: 1.0625rem;
@@ -2281,7 +2280,6 @@ p { color: var(--neutral-500); line-height: 1.6; }
   font-family: var(--font-display);
   font-weight: 700;
   font-size: clamp(2.125rem, 5.5vw, 4rem);
-  margin-bottom: 1rem;
   letter-spacing: -0.022em;
   line-height: 1.04;
   text-wrap: balance;
@@ -3262,7 +3260,6 @@ html { scroll-behavior: smooth; }
   transform: scale(0.6);
   opacity: 0;
   transition: transform 0.7s cubic-bezier(0.22,1,0.36,1), opacity 0.5s ease, box-shadow 0.3s ease;
-  transition-delay: var(--d, 0ms);
 }
 .face-tile.is-in { transform: scale(1); opacity: 1; }
 .face-tile img {
@@ -3543,7 +3540,6 @@ html { scroll-behavior: smooth; }
   letter-spacing: -0.02em;
   line-height: 1;
   color: #fff;
-  margin-bottom: 1.25rem;
   text-wrap: balance;
 }
 .p-hero h1 em {
@@ -3710,7 +3706,6 @@ html { scroll-behavior: smooth; }
     opacity 0.7s ease,
     box-shadow 0.3s ease,
     border-color 0.3s ease;
-  transition-delay: var(--d, 0ms);
   will-change: transform, opacity;
 }
 .face-tile.is-in {

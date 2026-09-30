@@ -320,7 +320,6 @@ body[data-page-admin] {
 }
 
 /* Tables */
-.ad-table-wrap { overflow-x: auto; }
 .ad-table { width: 100%; border-collapse: collapse; font-size: 14px; }
 .ad-table th, .ad-table td {
   text-align: left; padding: 12px 16px;

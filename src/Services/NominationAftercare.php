@@ -99,6 +99,14 @@ final class NominationAftercare
         // Advisory AI triage (score / summary / duplicates) for the review desk.
         try { NominationTriageService::enqueue($nominationId); } catch (\Throwable) {}
 
+        // And which category the work actually belongs in, for the review desk and the
+        // judging panel. QUEUED HERE rather than in either controller, for the reason
+        // this whole class exists: there are two nomination doors, and the last thing
+        // queued from only one of them was the triage itself — a nomination arriving at
+        // the API sat in the table with no score, no summary and no duplicate check
+        // until somebody happened to look at it.
+        try { NominationCategoryFit::enqueue($nominationId); } catch (\Throwable) {}
+
         // ── the operator's own spreadsheet ──────────────────────────────────
         //
         // GoogleSheetsService has had a pushNomination() since it was written and

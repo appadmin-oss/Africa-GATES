@@ -38,6 +38,13 @@ class AwardService {
                 'nominations_open'=>$c->nominations_open ?? null,'nominations_close'=>$c->nominations_close ?? null,
                 'voting_open'=>$c->voting_open ?? null,'voting_close'=>$c->voting_close ?? null,'results_date'=>$c->results_date ?? null,
                 'categories'=>DB::table('gates_award_categories')->where('cycle_id',$c->id ?? 0)->orderBy('sort_order')->get()->toArray(),
+                // The words THIS award uses about the people it is for, and which kinds
+                // of nominee it accepts. Resolved here so every consumer — the hub, the
+                // per-award page, the admin preview and the API — reads one answer. A
+                // form that says "nominee" under a heading reading "Carol Awards" is
+                // asking a choirmaster a question about a person, and the commonest way
+                // that goes wrong is somebody typing their own name.
+                'wording'=>\AfricaGates\Support\AwardWording::of($p),
             ];
         })->values()->all();
     }
@@ -191,6 +198,161 @@ class AwardService {
         }, $this->getActiveProgrammesWithStatus());
     }
 
+    /**
+     * The category this nomination is filed under — or a refusal.
+     *
+     * ══════════════════════════════════════════════════════════════════════════
+     * THE CYCLE WAS RESOLVED CAREFULLY AND THE CATEGORY WAS NOT
+     * ══════════════════════════════════════════════════════════════════════════
+     *
+     * `submitNomination()` goes to some trouble over the cycle — through
+     * `BallotGuard::currentCycleForProgramme()`, with a comment explaining why a
+     * `year = date('Y')` match was not good enough — and then wrote the category as
+     * `(int) $data['category_id']`, from the request, unchecked.
+     *
+     * `gates_nominations` has a foreign key on `cycle_id` and **none on
+     * `category_id`**, so any integer landed. And `POST /api/nominations` is public
+     * and unauthenticated, so changing one number in a request filed a nomination
+     * into a category belonging to a DIFFERENT AWARD: the row's `cycle_id` said one
+     * award, its `category_id` said another, the review desk read the category, and
+     * approval minted a nominee under it — somebody standing in an award nobody had
+     * nominated them for, with every figure on the row internally consistent.
+     *
+     * Measured before it was fixed, not deduced: `NominationIntegrityTest` filed an
+     * Alpha nomination carrying Beta's category and it was accepted, and so was
+     * `category_id = 999999`, which resolves to nothing at all.
+     *
+     * ── NULL IS STILL ALLOWED, AND THAT IS NOT AN OVERSIGHT ─────────────────
+     *
+     * An award may run without categories, and a nominator may not know which one
+     * fits — the desk files those. Refusing an absent category here would break
+     * every such award, so the rule is "if you name one, it must be this cycle's".
+     *
+     * The refusal is written for the person filling the form: a nomination form is
+     * where somebody gives up on entering, and `PublicFault::line()` passes our own
+     * copy through verbatim.
+     */
+    private static function categoryInCycle(int $cycleId, mixed $raw): ?int
+    {
+        $id = (int) (is_scalar($raw) ? $raw : 0);
+        if ($id <= 0) return null;
+
+        $belongs = DB::table('gates_award_categories')
+            ->where('id', $id)
+            ->where('cycle_id', $cycleId)
+            ->exists();
+
+        if (!$belongs) {
+            throw new \RuntimeException(
+                'That category is not part of this award\'s current edition. Please choose one '
+                . 'from the list and try again.'
+            );
+        }
+
+        return $id;
+    }
+
+    /**
+     * The 2-to-3 categories and their reasons.
+     *
+     * `sort_order` 0 is the primary one — the category `gates_nominations.category_id`
+     * and `.reason` carry the copy of, and the one a single-category screen shows. The
+     * order is the order the nominator chose them in, which is the only ranking anybody
+     * has stated; nothing here re-ranks it by a guess.
+     *
+     * @param array<int,string> $picked categoryId => reason, already validated
+     */
+    private static function writeCategories(int $nominationId, array $picked): void
+    {
+        if ($picked === []) return;
+
+        $now  = Carbon::now()->toDateTimeString();
+        $rows = [];
+        $i    = 0;
+        foreach ($picked as $categoryId => $reason) {
+            $rows[] = [
+                'nomination_id' => $nominationId,
+                'category_id'   => (int) $categoryId,
+                'reason'        => trim($reason),
+                'sort_order'    => $i++,
+                'created_at'    => $now,
+            ];
+        }
+
+        DB::table('gates_nomination_categories')->insert($rows);
+    }
+
+    /**
+     * The evidence links.
+     *
+     * FILES are not here: they arrive as uploads, are stored by the controller that can
+     * see them, and are recorded through {@see recordEvidenceFile()} once they are on
+     * disk. Splitting it that way keeps this service free of the request object, which
+     * is what lets the whole submit path be tested without one.
+     *
+     * Evidence is optional and its failure must never cost somebody their nomination —
+     * but it is written inside the same transaction as the nomination, because a link
+     * silently missing from a submitted nomination is worse than a refusal: the
+     * nominator saw it accepted.
+     *
+     * @param array<string,mixed> $data
+     */
+    private static function writeEvidence(int $nominationId, array $data): void
+    {
+        $links = NominationRules::links($data);
+        if ($links === []) return;
+
+        $now  = Carbon::now()->toDateTimeString();
+        $rows = [];
+        foreach ($links as $url) {
+            // Re-validated on the way IN even though the rules already passed it: a
+            // caller that reached this service by another route has not been through
+            // them, and this value ends up in an `href` a moderator clicks.
+            if (!NominationRules::isHttpUrl($url)) continue;
+            $rows[] = [
+                'nomination_id' => $nominationId,
+                'kind'          => NominationRules::EVIDENCE_LINK,
+                'url'           => mb_substr($url, 0, 600),
+                'label'         => mb_substr((string) (parse_url($url, PHP_URL_HOST) ?: ''), 0, 200),
+                'created_at'    => $now,
+            ];
+        }
+
+        if ($rows !== []) DB::table('gates_nomination_evidence')->insert($rows);
+    }
+
+    /**
+     * Record a file that has already been stored.
+     *
+     * Called by the controller AFTER its upload succeeds, because only the controller
+     * holds the request. Returns false rather than throwing: the nomination is already
+     * saved by this point and a failure to record one attachment must not take it down
+     * — the operator sees the evidence list one item short, which is visible, where a
+     * 500 after a successful submit is a person nominating twice.
+     */
+    public static function recordEvidenceFile(
+        int $nominationId,
+        string $path,
+        ?string $label = null,
+        ?string $mime = null,
+        ?int $bytes = null
+    ): bool {
+        try {
+            DB::table('gates_nomination_evidence')->insert([
+                'nomination_id' => $nominationId,
+                'kind'          => NominationRules::EVIDENCE_FILE,
+                'path'          => mb_substr($path, 0, 400),
+                'label'         => $label !== null ? mb_substr($label, 0, 200) : null,
+                'mime'          => $mime !== null ? mb_substr($mime, 0, 100) : null,
+                'bytes'         => $bytes,
+                'created_at'    => Carbon::now()->toDateTimeString(),
+            ]);
+            return true;
+        } catch (\Throwable) {
+            return false;
+        }
+    }
+
     public function submitNomination(array $data, string $ip): int {
         // The cycle is resolved by the SAME status-priority pick the public
         // pages use, not by `year = date('Y')`. The old year match is why a
@@ -253,14 +415,40 @@ class AwardService {
             }
         }
 
+        // ── EVERY RULE, ONCE, FOR BOTH DOORS ────────────────────────────────
+        //
+        // `POST /nominate` and `POST /api/nominations` both arrive here, and they had
+        // drifted: the API asked for six fields where the form asked for thirteen, so
+        // an API nomination landed with no state, no LGA, no nominator phone and a
+        // one-word name the form would have refused. Putting the new rules in the
+        // controller would have made that three doors' worth of divergence, so they
+        // are in NominationRules and enforced here — past every caller, present and
+        // future. See NominationDoorsAgreeTest.
+        $picked = NominationRules::categories($data);
+        if ($picked !== []) {
+            $valid = DB::table('gates_award_categories')
+                ->where('cycle_id', $cycle->id)->pluck('id')->map(static fn ($i): int => (int) $i)->all();
+            if (($why = NominationRules::check($data, $valid)) !== null) {
+                throw new \RuntimeException($why);
+            }
+        }
+
         // Build the core row — columns that have always existed
         $row = [
             'cycle_id'       => $cycle->id,
-            'category_id'    => !empty($data['category_id']) ? (int)$data['category_id'] : null,
+            // The PRIMARY category — a denormalised copy of the first row of
+            // gates_nomination_categories, kept because ~20 readers take the
+            // nomination's category and reason from these two columns. One writer
+            // (here), and NominationCategoriesTest asserts the copy still matches.
+            'category_id'    => $picked !== []
+                ? (int) array_key_first($picked)
+                : self::categoryInCycle((int) $cycle->id, $data['category_id'] ?? null),
             'nominee_name'   => trim($data['nominee_name']),
             'nominee_email'  => $nomineeEmail !== '' ? $nomineeEmail : null,
             'country_code'   => strtoupper($data['country_code'] ?? ''),
-            'reason'         => trim($data['reason'] ?? ''),
+            'reason'         => $picked !== []
+                ? trim((string) reset($picked))
+                : trim($data['reason'] ?? ''),
             'nominator_name' => trim($data['nominator_name']),
             'nominator_email'=> strtolower(trim($data['nominator_email'])),
             // ALWAYS 'pending' — every nomination reaches the human review
@@ -283,6 +471,7 @@ class AwardService {
         // writer correct on any partially-migrated schema.
         $existing = DB::getSchemaBuilder()->getColumnListing('gates_nominations');
         $extended = [
+            'nominee_kind'        => \AfricaGates\Support\NomineeKind::resolve($data['nominee_kind'] ?? null),
             'nominee_state'       => trim($data['nominee_state']       ?? ''),
             'nominee_lga'         => trim($data['nominee_lga']         ?? ''),
             'nominee_org'         => mb_substr(trim($data['nominee_org'] ?? ''), 0, 200),
@@ -321,7 +510,18 @@ class AwardService {
             $row['device_fp'] = $fpHash;
         }
 
-        $id = DB::table('gates_nominations')->insertGetId($row);
+        // ── THE PARENT AND ITS CHILDREN ARE ONE WRITE ───────────────────────
+        //
+        // A nomination with no categories is not a smaller nomination, it is a broken
+        // one: the review desk shows nothing to judge and the category-fit analysis
+        // has nothing to compare. So the three inserts are one transaction — a throw
+        // on the second leaves no first.
+        $id = DB::transaction(function () use ($row, $picked, $data): int {
+            $id = (int) DB::table('gates_nominations')->insertGetId($row);
+            self::writeCategories($id, $picked);
+            self::writeEvidence($id, $data);
+            return $id;
+        });
 
         // What this visitor's arrival led to. Stamped once per session, first-wins, and
         // silent outside a web request — see VisitTracker::convert().

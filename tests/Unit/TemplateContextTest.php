@@ -110,17 +110,49 @@ final class TemplateContextTest extends TestCase
     }
 
     /**
-     * The matching `]`, skipping brackets inside string literals.
+     * The matching `]`, skipping brackets inside string literals AND inside comments.
      *
      * A naive depth count trips on `$r['id']` and on any prose containing a bracket, and
      * it fails SILENTLY — it returns a truncated array and the keys after the truncation
      * are simply never checked, so the sweep reports a clean pass over the half it read.
+     *
+     * ── AND SKIPPING STRINGS WITHOUT SKIPPING COMMENTS FAILS THE OTHER WAY ──
+     *
+     * This used to handle quotes and not comments, and an APOSTROPHE IN PROSE is a
+     * quote. A render array documented with `// the admin's preview and the public
+     * form have to show one sentence` had that `'` read as a string opening; the scan
+     * ran to the next `'` in the file — the quote around the NEXT KEY — and from there
+     * every quote in the array was paired one out of step. The closing `]` landed
+     * inside what the scanner believed was a string, so the array never closed, and
+     * matching carried on into the next method's render call.
+     *
+     * Measured on `ProgrammesController::wording()`: the array closes at line 170 and
+     * this returned line 293, swallowing `cycleEdit()`'s context whole. The sweep then
+     * reported FOUR variables against a template that mentions none of them — every
+     * one of them read perfectly well by the template they actually belong to. Four
+     * invented findings, each plausible enough to send somebody deleting correct code,
+     * and the failure is in the file somebody took the trouble to explain.
+     *
+     * So comments are skipped here in the same order `topLevelKeys()` skips them:
+     * comment first, then quote. A `//` inside a string literal is unreachable that
+     * way, because the opening quote is met first and the whole literal is jumped.
      */
     private function matchBracket(string $s, int $open): ?int
     {
         $depth = 0;
         for ($i = $open, $n = strlen($s); $i < $n; $i++) {
             $c = $s[$i];
+
+            // Prose carries apostrophes, brackets and quotation marks, and none of
+            // them are code. See the docblock for what the omission cost.
+            if ($c === '/' && $i + 1 < $n && $s[$i + 1] === '/') {
+                $i = strpos($s, "\n", $i) ?: $n; continue;
+            }
+            if ($c === '/' && $i + 1 < $n && $s[$i + 1] === '*') {
+                $i = (int) strpos($s, '*/', $i) + 1; continue;
+            }
+            if ($c === '#') { $i = strpos($s, "\n", $i) ?: $n; continue; }
+
             if ($c === "'" || $c === '"') { $i = $this->endOfString($s, $i); continue; }
             if ($c === '[') $depth++;
             elseif ($c === ']') { $depth--; if ($depth === 0) return $i; }

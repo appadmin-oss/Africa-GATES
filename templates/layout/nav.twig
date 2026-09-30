@@ -1,210 +1,24 @@
 {#
   ══════════════════════════════════════════════════════════════════════════════
-  SITE HEADER — tablet and desktop
-  REFERENCE §7.1 · design/SiteHeader.dc.html
+  THE LEGACY LAYOUT'S CHROME — header + phone
   ══════════════════════════════════════════════════════════════════════════════
 
-  A 64px bar, two top links, one toolbar pill, one identity control. That is the
-  whole of it, and the restraint is the design: §18.5 rejects a bar carrying
-  search, Aa, language, cart, account and half a dozen section links, which is
-  what this file used to be.
+  `layout/gates.twig` includes this and gets both halves: the site header for tablet
+  and desktop, and the phone's tab bar, Menu sheet and language prompt.
 
-  ── THERE IS NO GREEN BUTTON IN THIS HEADER ─────────────────────────────────
+  A page on `layout/shell.twig` must NOT include this — it mounts its own sheets, and
+  the two together put a second `data-ag-menu-sheet` in the document, where the opener
+  finds the first and the Menu appears dead. Those pages include
+  `partials/site-header.twig` and choose their own bottom bar, because a flow page has
+  an action bar and no tab bar (§7.3).
 
-  §6.1: green is THE primary action INSIDE the page. A green Vote pill in the
-  chrome competes with every page's own call to action and wins, which is how a
-  site ends up with two things shouting on every screen. The signed-out control
-  is an OUTLINED pill. The phase file lists this as a Done-when line, and
-  `SiteHeaderTest` asserts it in both signed-in states.
-
-  ── WHAT MOVED TO THE PHONE, AND WHY THIS FILE STILL LOADS IT ───────────────
-
-  The old mobile half of this file — a bottom bar and a FULL-SCREEN overlay menu
-  — is gone. A full-screen menu page is in the anti-pattern list: it takes a
-  navigation step to leave and loses where you were. It is a bottom SHEET now
-  (`partials/menu-sheet.twig`), reached from `partials/tab-bar.twig`.
-
-  Those two partials are included HERE rather than in each page, because this
-  file is what `layout/gates.twig` includes on every one of the ~180 screens no
-  phase has converted yet. `layout/shell.twig` includes the sheets itself, so a
-  converted page gets them once and only once.
-
-  ── THE MEGA CONTROLLER IS THE ONE THAT WAS ALREADY HERE ────────────────────
-
-  Kept deliberately (phase §7.1: "Keep the repo's `data-ag-mega*` controller").
-  It carries three fixes that are invisible until they are missing — direct
-  per-trigger handlers bound after DOMContentLoaded so no document-level listener
-  can re-close the panel on the same click, hover-open gated on a fine pointer,
-  and Esc closing everything. Rebuilding it would have meant rediscovering all
-  three.
+  Quick settings is deliberately absent from this file: its only trigger is the phone
+  app bar's avatar and this layout has no app bar, so mounting it here would put a
+  dialog in ~180 pages that nothing on any of them can open. `ChromeReachabilityTest`
+  fails on exactly that.
 #}
 {% set _p = gates_page|default('') %}
-{% set _ini = member_name ? (member_name|split(' ')|map(w => w|first)|join|upper|slice(0,2)) : 'AG' %}
-
-{% if announcement_text %}
-<div class="ag-announce ag-scope" role="region" aria-label="Announcement">
-  <span class="ag-announce__dot" aria-hidden="true"></span>
-  <span>{{ announcement_text }}</span>
-  {% if announcement_url %}<a href="{{ announcement_url }}">{{ announcement_cta|default('Learn more →') }}</a>{% endif %}
-  <button class="ag-announce__x" type="button" aria-label="Dismiss" data-ag-do="dismiss-parent">×</button>
-</div>
-{% endif %}
-
-<div class="ag-head" data-ag-head>
-  <header class="ag-head__bar" role="banner">
-
-    <a class="ag-logo" href="/" aria-label="Africa GATES home">
-      <img src="{{ asset('/assets/img/logo-mark.png') }}" width="32" height="32" alt="" aria-hidden="true">
-      <span><b>Africa</b><i>GATES</i></span>
-    </a>
-
-    {# ── TWO TOP LINKS, AND THE WHOLE SITE BEHIND THEM ────────────────────
-       The lists are §7.1's, not the DC's: `SiteHeader.dc.html` puts seven items
-       under Explore including Leaderboard and Shop and no Status, and REFERENCE
-       §0 puts the phase file above the DC. Recorded in GAPS.md §9.3.
-
-       Every tile's tint is a TOKEN pair rather than the DC's eight hexes — see
-       GAPS.md §9.1, and `.ag-tint--*` in components.css for the measurements.
-
-       Explore carries a SEVENTH item, Results, and that is not a loosening of §7.1.
-       Results is in neither of the phase file's two lists, and `PublicResultsTest`
-       exists because of exactly what that costs: the page was built, the Pulse and
-       the emails linked it, and nobody browsing the site could reach a decided
-       award. A spec that omits a destination does not make it optional. GAPS.md §9.8.
-
-       And a comment cannot go INSIDE the array below — Twig lexes a comment only
-       between tags, never inside an expression, and it answers a stray hash in an
-       array literal with a SyntaxError naming a backtick.
-
-       Nor may a comment CONTAIN a comment's closing brace-hash. Writing that pair
-       here to illustrate the rule ended the comment on the spot and printed the
-       remaining four lines of prose into the page, above the header, on every
-       screen of the site. Name the characters; do not type them. #}
-    <nav class="ag-head__top" aria-label="Primary">
-      {% for m in [
-        {k:'participate', label:'Participate', items:[
-          {href:'/nominate',         label:'Nominate',           sub:'Put someone forward in under 90 seconds', tint:'green',   d:'M12 5v14M5 12h14'},
-          {href:'/vote',             label:'Vote',               sub:'One verified voter, one vote per category', tint:'green', d:'M4 12.5 9 17.5 20 6.5'},
-          {href:'/awards',           label:'Awards',             sub:'Every award, edition and category',       tint:'gold',    d:'M5 16 3 6l5 4 4-6 4 6 5-4-2 10z'},
-          {href:'/giving',           label:'Giving',             sub:'Back the programmes behind the awards',   tint:'live',    d:'M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.6l-1-1a5.5 5.5 0 0 0-7.8 7.8L12 21l8.8-8.6a5.5 5.5 0 0 0 0-7.8Z'},
-          {href:'/account/register', label:'Register a profile', sub:'Join the continental registry, free',     tint:'gold',    d:'M16 11a4 4 0 1 0-8 0M3 21a9 9 0 0 1 18 0'},
-          {href:'/integrity',        label:'Integrity Center',   sub:'How voting, judging and audits work',     tint:'neutral', d:'M12 2.4l7.6 2.7v5.8c0 4.7-3.1 8.3-7.6 10-4.5-1.7-7.6-5.3-7.6-10V5.1z'}
-        ]},
-        {k:'explore', label:'Explore', items:[
-          {href:'/discover', label:'Discover',     sub:'People, organisations and awards',      tint:'neutral', d:'M11 4a7 7 0 1 0 0 14 7 7 0 0 0 0-14ZM20 20l-3.6-3.6'},
-          {href:'/pulse',    label:'Pulse',        sub:'Posts and live moments',                tint:'live',    d:'M5 3h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2ZM10 8.5l5 3.5-5 3.5z'},
-          {href:'/events',   label:'Events',       sub:'Ceremonies, livestreams and sessions',  tint:'green',   d:'M4 5h16v15H4zM4 10h16M9 3v4M15 3v4'},
-          {href:'/legacy',   label:'Legacy Vault', sub:'Every edition, permanently archived',   tint:'gold',    d:'M4 8h16v12H4zM2 4h20v4H2z'},
-          {href:'/blog',     label:'Blog',         sub:'Stories and methodology notes',         tint:'neutral', d:'M4 5h16M4 10h16M4 15h10'},
-          {href:'/results',  label:'Results',      sub:'Every award decided, with the working shown', tint:'gold', d:'M5 16 3 6l5 4 4-6 4 6 5-4-2 10z'},
-          {href:'/status',   label:'Status',       sub:'Whether every part of this is working', tint:'neutral', d:'M3 12h4l3-7 4 14 3-7h4'}
-        ]}
-      ] %}
-        <div class="ag-mega-wrap" data-ag-mega>
-          <button type="button" class="ag-head__link" data-ag-mega-trigger
-                  aria-haspopup="true" aria-expanded="false">{{ m.label }}
-            <svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
-              <path d="M13.8 7.2 10 11 6.2 7.2 5 8.3l5 5 5-5z"/></svg>
-          </button>
-          <div class="ag-mega" data-ag-mega-panel role="menu" aria-label="{{ m.label }}">
-            <div class="ag-mega__grid">
-              {% for i in m.items %}
-                <a class="ag-mega__item" role="menuitem" href="{{ i.href }}">
-                  <span class="ag-icon-tile ag-icon-tile--mega ag-tint--{{ i.tint }}" aria-hidden="true">
-                    <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                         stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                      <path d="{{ i.d }}"></path></svg>
-                  </span>
-                  <span class="ag-mega__txt"><b>{{ i.label }}</b><span>{{ i.sub }}</span></span>
-                </a>
-              {% endfor %}
-            </div>
-          </div>
-        </div>
-      {% endfor %}
-    </nav>
-
-    <span class="ag-head__gap"></span>
-
-    <div class="ag-head__end">
-
-      {# ── THE TOOLBAR PILL ──────────────────────────────────────────────
-         Three controls in one 40px pill with hairline dividers. `role="toolbar"`
-         is a claim about arrow-key navigation between the three, which
-         `header.js` implements — a toolbar that only answers Tab is a toolbar
-         in name. #}
-      <div class="ag-tools" role="toolbar" aria-label="Search, accessibility and language">
-        <button type="button" class="ag-tools__b" data-ag-search-open
-                aria-haspopup="dialog" aria-expanded="false"
-                aria-label="Search Africa GATES. Shortcut: press the slash key">
-          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-               stroke-width="2" aria-hidden="true">
-            <circle cx="11" cy="11" r="7"></circle>
-            <path d="m20 20-3.6-3.6" stroke-linecap="round"></path></svg>
-        </button>
-        <span class="ag-tools__div" aria-hidden="true"></span>
-        <button type="button" class="ag-tools__b ag-tools__aa" data-ag-pop="aa"
-                aria-haspopup="dialog" aria-expanded="false"
-                aria-label="Display and reading">Aa</button>
-        <span class="ag-tools__div" aria-hidden="true"></span>
-        {# The CODE, not the name: two letters fit a 40px pill and eight names do
-           not. The accessible label carries the language in full, so nobody is
-           asked to know that "ig" is Igbo. #}
-        <button type="button" class="ag-tools__b ag-tools__lang" data-ag-pop="lang"
-                aria-haspopup="menu" aria-expanded="false"
-                aria-label="Language: {{ lang_name() }}. Choose another">
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-               stroke-width="1.8" aria-hidden="true">
-            <circle cx="12" cy="12" r="9"></circle>
-            <path d="M3 12h18M12 3c2.5 2.7 3.8 5.7 3.8 9s-1.3 6.3-3.8 9c-2.5-2.7-3.8-5.7-3.8-9S9.5 5.7 12 3Z"></path></svg>
-          <span>{{ lang()|upper }}</span>
-        </button>
-      </div>
-
-      {# Rendered on shop routes, and revealed by `header.js` anywhere the basket
-         is not empty. The basket lives in this browser's own storage, so the
-         server cannot know: shipping the button hidden and letting the page that
-         CAN read it decide is the only arrangement that does not either hide a
-         full basket or show an empty one. No subtotal — §7.1. #}
-      {% set _shop = _p starts with 'shop' %}
-      <a class="ag-head__cart" href="/shop/cart" data-ag-cart
-         {% if not _shop %}hidden{% endif %} aria-label="Your basket">
-        <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-             stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-          <path d="M5.5 8h13l-1 12h-11z"></path><path d="M9 8V7a3 3 0 0 1 6 0v1"></path></svg>
-        <span class="ag-head__cartn" data-ag-cart-n hidden></span>
-      </a>
-
-      {% if is_member %}
-        <a class="ag-head__av" href="/account" aria-label="Your account">{{ _ini }}</a>
-      {% else %}
-        {# Outlined, never green — see the note at the top of this file. #}
-        <a class="ag-head__signin" href="/account/login">Sign in</a>
-      {% endif %}
-    </div>
-  </header>
-
-  {# ── THE TWO POPOVERS ──────────────────────────────────────────────────
-     Both hang from `top:70px` under the bar. Display & reading is the SAME
-     partial the phone sheet and the Menu use, because three copies of seven
-     switches is how the halves of a setting come to disagree. #}
-  <div class="ag-pop ag-pop--aa" data-ag-pop-panel="aa" role="dialog"
-       aria-label="Display and reading" inert>
-    {% include 'partials/display-reading.twig' %}
-  </div>
-
-  <div class="ag-pop ag-pop--lang" data-ag-pop-panel="lang" role="menu"
-       aria-label="Language" inert>
-    {% for l in languages() %}
-      {# A link, because following it navigates and the middleware stores the
-         choice — so the language menu works with scripting off. #}
-      <a class="ag-pop__lang" role="menuitem" href="{{ lang_url(l.code) }}" lang="{{ l.code }}"
-         {{ l.code == lang() ? 'aria-current="true"' : '' }}>
-        {{ l.name }}<i>{{ l.code|upper }}</i>
-      </a>
-    {% endfor %}
-  </div>
-</div>
+{% include 'partials/site-header.twig' %}
 
 {# ── THE PHONE ─────────────────────────────────────────────────────────────
    The tab bar, the Menu sheet and Quick settings, for every page still on the
@@ -229,47 +43,3 @@
    simply stops responding. `SiteHeaderTest` compares the two layouts' include
    lists now, because this is the second time one surface has been mounted twice
    in this phase. #}
-
-<script nonce="{{ csp_nonce }}">
-(function(){
-  function init(){
-    // ── MEGAS — the controller phase §7.1 says to keep ─────────────────────
-    //
-    // Direct per-trigger handlers bound (after DOMContentLoaded) to the FINAL
-    // elements, with stopPropagation so no other document click handler can
-    // immediately re-close the panel. A click outside any wrap closes all.
-    var wraps = Array.prototype.slice.call(document.querySelectorAll('.ag-mega-wrap'));
-    var head  = document.querySelector('[data-ag-head]');
-    function closeMegas(except){
-      wraps.forEach(function(o){
-        if(o!==except){ o.classList.remove('is-open'); var b=o.querySelector('[data-ag-mega-trigger]'); if(b) b.setAttribute('aria-expanded','false'); }
-      });
-      // The bar's hairline is removed while a panel is open (§7.1): the panel
-      // hangs from the bar with no gap, and a rule between them cuts it in half.
-      if(head) head.classList.toggle('is-mega', !!document.querySelector('.ag-mega-wrap.is-open'));
-    }
-    wraps.forEach(function(w){
-      var btn=w.querySelector('[data-ag-mega-trigger]'); if(!btn) return;
-      btn.addEventListener('click', function(e){
-        e.preventDefault(); e.stopPropagation();
-        var willOpen=!w.classList.contains('is-open');
-        closeMegas(w);
-        w.classList.toggle('is-open', willOpen);
-        btn.setAttribute('aria-expanded', willOpen?'true':'false');
-        if(head) head.classList.toggle('is-mega', willOpen);
-      });
-      // Hover-to-open on desktop (fine pointer only) — click still works
-      // everywhere, and touch devices fall through to click since they do not
-      // fire hover.
-      if (window.matchMedia && window.matchMedia('(hover:hover) and (pointer:fine)').matches){
-        var hideT;
-        w.addEventListener('mouseenter', function(){ clearTimeout(hideT); closeMegas(w); w.classList.add('is-open'); btn.setAttribute('aria-expanded','true'); if(head) head.classList.add('is-mega'); });
-        w.addEventListener('mouseleave', function(){ hideT=setTimeout(function(){ w.classList.remove('is-open'); btn.setAttribute('aria-expanded','false'); closeMegas(null); }, 140); });
-      }
-    });
-    document.addEventListener('click', function(e){ if(!(e.target.closest && e.target.closest('.ag-mega-wrap'))) closeMegas(null); });
-    document.addEventListener('keydown', function(e){ if(e.key==='Escape') closeMegas(null); });
-  }
-  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded', init); else init();
-})();
-</script>

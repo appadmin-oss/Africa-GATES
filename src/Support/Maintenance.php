@@ -963,6 +963,14 @@ final class Maintenance
             $q->on(NominationTriageService::JOB_TRIAGE, function (array $p) {
                 NominationTriageService::generate((int)($p['nomination_id'] ?? 0));
             });
+            // Which category this nomination's work actually belongs in — for the review
+            // desk and the judging panel, never for the nominator. A SECOND job rather
+            // than more work inside the triage one: they answer different questions, they
+            // have different budgets, and a failure in one must not cost the other. See
+            // Services\NominationCategoryFit.
+            $q->on(\AfricaGates\Services\NominationCategoryFit::JOB, function (array $p) {
+                \AfricaGates\Services\NominationCategoryFit::generate((int)($p['nomination_id'] ?? 0));
+            });
             // ── QUESTIONNAIRE INVITATIONS ──────────────────────────────────────
             //
             // Queued rather than sent in the request that asked for them. There is no

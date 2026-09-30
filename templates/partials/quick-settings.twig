@@ -60,14 +60,15 @@
     <div class="ag-qs__block">
       <span class="ag-qs__h" id="ag-qs-size">Text size</span>
       <div class="ag-seg ag-seg--48" role="radiogroup" aria-labelledby="ag-qs-size">
+        {# The size is a class, never a `style` attribute — see display-reading.twig. #}
         {% for s in [
-          {i:0, name:'Standard text', fs:'15px'},
-          {i:1, name:'Large text',    fs:'19px'},
-          {i:2, name:'Largest text',  fs:'23px'}
+          {i:0, name:'Standard text'},
+          {i:1, name:'Large text'},
+          {i:2, name:'Largest text'}
         ] %}
-          <button type="button" class="ag-seg__opt ag-dr__size" role="radio"
+          <button type="button" class="ag-seg__opt ag-dr__size ag-dr__size--{{ s.i }}" role="radio"
                   aria-checked="false" aria-label="{{ s.name }}"
-                  data-ag-size="{{ s.i }}" style="font-size:{{ s.fs }}">A</button>
+                  data-ag-size="{{ s.i }}">A</button>
         {% endfor %}
       </div>
     </div>

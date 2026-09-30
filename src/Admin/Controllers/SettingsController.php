@@ -22,13 +22,12 @@ class SettingsController
 
     public function form(Request $req, Response $res): Response
     {
-        $adminSettings = [];
-        try {
-            if (\Illuminate\Database\Capsule\Manager::getSchemaBuilder()->hasTable('gates_admin_settings')) {
-                $rows = \Illuminate\Database\Capsule\Manager::table('gates_admin_settings')->get();
-                foreach ($rows as $r) $adminSettings[$r->setting_key] = $r->setting_value;
-            }
-        } catch (\Throwable) {}
+        // `gates_admin_settings` used to be read in full here and passed as
+        // `admin_settings`, which no template has ever mentioned — a table scan and a
+        // schema probe on every render of the settings screen, for a variable Twig
+        // discarded. `strict_variables` cannot see this direction: it catches a
+        // template reading what a controller stopped passing, and has nothing to say
+        // about a controller passing what nothing reads. `TemplateContextTest` asks it.
 
         return $this->view->render($res, 'admin/settings.twig', [
             'page_title'     => 'Settings — Admin',
@@ -47,7 +46,6 @@ class SettingsController
             'tz_choices'     => \AfricaGates\Support\DisplayTime::choices(),
             'tz_current'     => \AfricaGates\Support\DisplayTime::zone(),
             'tz_abbr'        => \AfricaGates\Support\DisplayTime::abbr(),
-            'admin_settings' => $adminSettings,
             'smtp_configured'=> $this->mailer?->smtpConfigured() ?? false,
             // Whether a password is resolvable at all, from either source — the field
             // itself is WRITE-ONLY, like every provider key, so this only picks the

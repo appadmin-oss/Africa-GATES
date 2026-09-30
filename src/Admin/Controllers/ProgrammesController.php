@@ -90,6 +90,130 @@ class ProgrammesController
         return $res->withHeader('Location', '/admin/programmes')->withStatus(302);
     }
 
+    /**
+     * ══════════════════════════════════════════════════════════════════════════
+     * THE WORDS ONE AWARD USES ABOUT ITS OWN PEOPLE
+     * ══════════════════════════════════════════════════════════════════════════
+     *
+     * Every nomination form on this platform said "nominee". The Carol Awards is for
+     * choirs, which are not people; the Incorruptible Awards is for public servants.
+     * A form headed *Carol Awards* that asks "What is the nominee's full name?" is
+     * asking a choirmaster a question about a person, and the commonest way that goes
+     * wrong is not an error — it is somebody typing their own name because the form
+     * appeared to be asking for it.
+     *
+     * {@see \AfricaGates\Support\AwardWording} is the store and the resolver; this is
+     * the only way in. Before it existed, the wording column was written by nothing:
+     * the reader, the fallbacks and the caps were all complete and there was no form —
+     * the shape §18 of the codebase index is about, and the shape `manageUrl()`
+     * shipped in over a donor's stop button.
+     *
+     * A SUB-PAGE, linked from the programme it belongs to rather than added to the
+     * rail. The rail is seven headings and a section can carry only one gate, so a new
+     * entry is an access decision; this is not one.
+     */
+    public function wording(Request $req, Response $res, array $args): Response
+    {
+        $id  = (int) ($args['id'] ?? 0);
+        $row = DB::table('gates_award_programmes')->where('id', $id)->first();
+        if (!$row) {
+            $_SESSION['flash_error'] = 'That award could not be found.';
+            return $res->withHeader('Location', '/admin/programmes')->withStatus(302);
+        }
+
+        // Rejected values survive one render and are then dropped, so a reload of the
+        // saved page is the saved page. Keyed to this programme: two awards edited in
+        // two tabs otherwise prefill each other, which is the `reg_old` fault the
+        // registration form shipped with.
+        $old = $_SESSION['award_wording_old'][$id] ?? null;
+        unset($_SESSION['award_wording_old'][$id]);
+
+        // A REAL category from this award's own cycle, where it has one. A preview
+        // built on "Category name" shows an operator a sentence that will never be
+        // printed, and how the sentence reads with their own words in it is the one
+        // thing they are on this page to judge.
+        $cycle = DB::table('gates_award_cycles')->where('programme_id', $id)
+            ->orderByDesc('year')->first();
+        $category = $cycle
+            ? DB::table('gates_award_categories')->where('cycle_id', $cycle->id)
+                ->orderBy('sort_order')->value('title')
+            : null;
+        $category = is_string($category) && trim($category) !== ''
+            ? trim($category) : 'this category';
+
+        // A stand-in first name, because the form puts the nominee's first name in
+        // this sentence and "them" is what it prints before anybody has typed.
+        $name = 'Ada';
+
+        $wording = \AfricaGates\Support\AwardWording::of($row);
+
+        return $this->view->render($res, 'admin/programmes/wording.twig', [
+            'page_title' => 'Wording · ' . (string) $row->title . ' — Admin',
+            'admin_page' => 'programmes',
+            'row'        => (array) $row,
+            // The stored document, complete — every key present, house words where the
+            // award has said nothing. The template never writes a `|default()`, which
+            // is how a fifth copy of a default gets into a template and takes over
+            // silently the day a controller stops passing one.
+            'wording'    => $wording,
+            'preview_name'     => $name,
+            'preview_category' => $category,
+            // Built by the resolver, never by the template — the admin's preview and
+            // the public form have to show one sentence.
+            'preview_reason'   => \AfricaGates\Support\AwardWording::reasonQuestion(
+                $wording, $name, $category),
+            'old'        => $old,
+            'fields'     => \AfricaGates\Support\AwardWording::FIELDS,
+            'kinds'      => \AfricaGates\Support\NomineeKind::ALL,
+            'kinds_key'  => \AfricaGates\Support\AwardWording::KINDS_KEY,
+            'is_custom'  => \AfricaGates\Support\AwardWording::isCustom($row),
+        ]);
+    }
+
+    /**
+     * Store it, or hand the whole attempt back with the reason.
+     *
+     * The refusal comes from {@see AwardWording::save()} and not from a second set of
+     * checks here: a form enforcing one ceiling while the writer enforces another is
+     * this codebase's most expensive shape, and the caps are already in `FIELDS`,
+     * where the template reads them for `maxlength` too.
+     */
+    public function wordingSave(Request $req, Response $res, array $args): Response
+    {
+        $id = (int) ($args['id'] ?? 0);
+        $b  = (array) $req->getParsedBody();
+
+        if (!DB::table('gates_award_programmes')->where('id', $id)->exists()) {
+            $_SESSION['flash_error'] = 'That award could not be found.';
+            return $res->withHeader('Location', '/admin/programmes')->withStatus(302);
+        }
+
+        $input = [];
+        foreach (\AfricaGates\Support\AwardWording::FIELDS as $key => $_) {
+            $input[$key] = $b[$key] ?? '';
+        }
+        $input[\AfricaGates\Support\AwardWording::KINDS_KEY] =
+            is_array($b[\AfricaGates\Support\AwardWording::KINDS_KEY] ?? null)
+                ? $b[\AfricaGates\Support\AwardWording::KINDS_KEY] : [];
+
+        $error = \AfricaGates\Support\AwardWording::save($id, $input);
+        if ($error !== null) {
+            // Everything they typed travels back. A refusal that empties seven boxes
+            // is a refusal somebody answers by giving up.
+            $_SESSION['award_wording_old'][$id] = $input;
+            $_SESSION['flash_error'] = $error;
+            return $res->withHeader('Location', '/admin/programmes/' . $id . '/wording')->withStatus(302);
+        }
+
+        $this->audit->record((int) ($_SESSION['admin_id'] ?? 0), 'programme.wording', 'programme', $id);
+        // The nomination form reads this on every render through the programme row,
+        // and that row is cached with the rest of the award views.
+        $this->bustAwardsCache();
+        $_SESSION['flash_ok'] = 'Wording saved. The nomination form uses it from now on.';
+
+        return $res->withHeader('Location', '/admin/programmes/' . $id . '/wording')->withStatus(302);
+    }
+
     public function cycleEdit(Request $req, Response $res, array $args): Response
     {
         $programmeId = (int)$args['id'];
@@ -164,8 +288,10 @@ class ProgrammesController
             // question an operator editing a past edition needs answered loudly.
             'live_cycle_id' => (int) (\AfricaGates\Services\BallotGuard::currentCycleForProgramme($programmeId)->id ?? 0),
             'next_year'  => \AfricaGates\Services\CycleEdition::nextYearFor($programmeId),
-            'all_cycles' => DB::table('gates_award_cycles')->where('programme_id', $programmeId)
-                ->orderByDesc('year')->get()->map(fn($r) => (array) $r)->all(),
+            // `all_cycles` was here — every cycle on the programme, queried on every
+            // render and read by nothing. `editions` above is the same list through
+            // `CycleEdition::listFor()`, and IT is what the Editions panel draws, so
+            // the raw copy was a second query answering a question already answered.
         ]);
     }
 

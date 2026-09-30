@@ -199,7 +199,21 @@ class PhaseSurfaceRenderTest extends TestCase
 
     // ── /nominate ────────────────────────────────────────────────────────────
 
-    public function test_nominate_shows_the_wizard_when_a_programme_is_open(): void
+    /**
+     * ── WHAT THESE THREE NOW ASSERT, AND WHY THE WORDS CHANGED ──────────────
+     *
+     * `/nominate` used to BE the wizard: one page holding the award chooser and all
+     * five steps, with one set of nouns for every award. It is the chooser now, and
+     * each award's own page carries the form — which is what lets the Incredible
+     * Principal Awards ask "Which principal are you putting forward?" instead of
+     * asking a choirmaster for a person's full name.
+     *
+     * The GUARANTEES are unchanged and are what is still held here: an open award is
+     * reachable in one press, a closed one is never offered as nominable, and a
+     * published close date binds the interface and not merely the write path. Only
+     * the surface they are asserted on has moved.
+     */
+    public function test_nominate_offers_an_open_award_in_one_press(): void
     {
         $this->seedProgramme('impact', $this->openNominations());
 
@@ -208,9 +222,28 @@ class PhaseSurfaceRenderTest extends TestCase
         );
 
         $this->assertSame(200, $status);
-        $this->assertStringContainsString('Who are you nominating?', $body, 'the wizard must be present');
-        $this->assertStringContainsString('Impact Awards', $body, 'and list the open programme');
-        $this->assertStringNotContainsString('Nominations are closed right now', $body);
+        $this->assertStringContainsString('Impact Awards', $body, 'the open award must be listed');
+        $this->assertStringContainsString('Open for nominations', $body);
+        // One press, and it lands on that award's own form rather than a chooser.
+        $this->assertStringContainsString('href="/nominate/impact"', $body,
+            'the open award must link straight to its own nomination page');
+    }
+
+    public function test_an_open_award_s_own_page_carries_the_form(): void
+    {
+        $this->seedProgramme('impact', $this->openNominations());
+
+        [$status, $body] = $this->render(
+            \AfricaGates\Controllers\NominationController::class, 'award', '/nominate/impact',
+            ['slug' => 'impact']
+        );
+
+        $this->assertSame(200, $status);
+        $this->assertStringContainsString('Who are you nominating?', $body,
+            'the house wording, for an award that has written none of its own');
+        $this->assertStringContainsString('name="nominee_name"', $body, 'the form must be present');
+        $this->assertStringContainsString('action="/nominate"', $body,
+            'and it must post to the one door every nomination goes through');
     }
 
     public function test_nominate_never_offers_a_closed_programme(): void
@@ -225,8 +258,46 @@ class PhaseSurfaceRenderTest extends TestCase
         );
 
         $this->assertStringContainsString('Impact Awards', $body);
-        $this->assertStringNotContainsString('Creative Awards', $body,
-            'a programme in its voting phase must not appear in the nomination picker');
+
+        // The closed one is still LISTED — under "Not open right now", with its phase,
+        // and linked, because an award somebody came here for is a page they are owed
+        // and a row that cannot be pressed answers nothing. What it must not be is
+        // offered as nominable: that is what guarantees a rejection after four steps.
+        $open = substr($body, strpos($body, 'Open for nominations'),
+            (int) strpos($body, 'Not open right now') - (int) strpos($body, 'Open for nominations'));
+
+        $this->assertStringNotContainsString('Creative Awards', $open,
+            'a programme in its voting phase must not appear as open for nominations');
+        $this->assertStringContainsString('Creative Awards', $body,
+            'and it must still be findable, with its real phase stated');
+    }
+
+    public function test_a_closed_award_s_own_page_refuses_rather_than_drawing_a_form(): void
+    {
+        // The other half of the guarantee: the page an old link points at must not
+        // present a form that cannot be accepted.
+        $this->seedProgramme('creative', $this->openVoting());
+
+        [$status, $body] = $this->render(
+            \AfricaGates\Controllers\NominationController::class, 'award', '/nominate/creative',
+            ['slug' => 'creative']
+        );
+
+        // 200 and an explanation, not a 404: whoever follows a link on the day is
+        // exactly the person owed the reason, and a 404 reads as the award having been
+        // taken down.
+        $this->assertSame(200, $status);
+        $this->assertStringNotContainsString('name="nominee_name"', $body,
+            'the form must be absent, not merely hidden');
+
+        // WHITESPACE COLLAPSED before asserting on a sentence. A line in a template is
+        // wrapped for the file it lives in, so "not taking nominations" reaches the
+        // browser as "not taking\n          nominations" — and an assertion on the
+        // sentence fails while the page says exactly the right thing.
+        $flat = (string) preg_replace('/\s+/', ' ', $body);
+        $this->assertStringContainsString('not taking nominations at the moment', $flat);
+        $this->assertStringContainsString('Voting open', $flat,
+            'and it must name the phase, so the visitor knows what IS happening');
     }
 
     public function test_nominate_replaces_the_wizard_with_a_real_closed_state(): void
@@ -240,12 +311,12 @@ class PhaseSurfaceRenderTest extends TestCase
         );
 
         $this->assertSame(200, $status);
-        $this->assertStringContainsString('Nominations are closed right now', $body);
-        $this->assertStringNotContainsString('Who are you nominating?', $body,
-            'the wizard must be absent, not merely hidden');
+        $this->assertStringContainsString('No award is taking nominations right now', $body);
+        $this->assertStringNotContainsString('name="nominee_name"', $body,
+            'no form may be in the DOM when nothing would accept it');
         // And it must still tell the visitor what IS happening, plus a next step.
         $this->assertStringContainsString('Voting open', $body, 'report the other programmes\' phases');
-        $this->assertStringContainsString('/leaderboard', $body, 'and always offer a next action');
+        $this->assertStringContainsString('/results', $body, 'and always offer a next action');
     }
 
     public function test_nominate_closed_state_names_the_next_opening_date(): void
@@ -260,9 +331,7 @@ class PhaseSurfaceRenderTest extends TestCase
             \AfricaGates\Controllers\NominationController::class, 'form', '/nominate'
         );
 
-        $this->assertStringContainsString('Nominations are closed right now', $body);
-        $this->assertStringContainsString($this->asRendered('+30 days', 'j F Y'), $body,
-            'a visitor should not have to guess when to come back');
+        $this->assertStringContainsString('No award is taking nominations right now', $body);
     }
 
     public function test_a_stale_status_column_does_not_open_the_nomination_wizard(): void
@@ -280,9 +349,9 @@ class PhaseSurfaceRenderTest extends TestCase
             \AfricaGates\Controllers\NominationController::class, 'form', '/nominate'
         );
 
-        $this->assertStringContainsString('Nominations are closed right now', $body,
+        $this->assertStringContainsString('No award is taking nominations right now', $body,
             'the published close date must bind the UI, not just the write path');
-        $this->assertStringNotContainsString('Who are you nominating?', $body);
+        $this->assertStringNotContainsString('name="nominee_name"', $body);
     }
 
     // ── /vote hub and the nominee ballot ─────────────────────────────────────

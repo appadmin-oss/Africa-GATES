@@ -38,7 +38,16 @@ use Tests\TestCase;
  */
 final class SiteHeaderTest extends TestCase
 {
-    private const NAV = __DIR__ . '/../../templates/layout/nav.twig';
+    /**
+     * The header, which is a PARTIAL and no longer the legacy layout's whole chrome.
+     *
+     * It was `layout/nav.twig`, and that file was two things at once: the desktop
+     * header and the phone's tab bar, Menu sheet and language prompt. The moment a
+     * page on the redesign shell wanted a header, the bundle came with it — a tab bar
+     * on a flow page, and a second `data-ag-menu-sheet` beside the one the shell
+     * already mounts, where the opener finds the first and the Menu appears dead.
+     */
+    private const NAV = __DIR__ . '/../../templates/partials/site-header.twig';
 
     private function nav(): string
     {
@@ -161,8 +170,13 @@ final class SiteHeaderTest extends TestCase
         $shell = (string) preg_replace('/\{#.*?#\}/s', '',
             (string) file_get_contents(__DIR__ . '/../../templates/layout/shell.twig'));
 
-        // The Menu is on both layouts: the tab bar opens it and both draw one.
-        $this->assertSame(1, substr_count($code, 'partials/menu-sheet.twig'),
+        // The Menu is on both layouts: the tab bar opens it and both draw one. It lives
+        // in the LEGACY CHROME file rather than the header partial, because the header
+        // is tablet-and-desktop and the Menu is the phone's.
+        $legacy = (string) preg_replace('/\{#.*?#\}/s', '',
+            (string) file_get_contents(__DIR__ . '/../../templates/layout/nav.twig'));
+
+        $this->assertSame(1, substr_count($legacy, 'partials/menu-sheet.twig'),
             'the Menu is mounted twice by the old layout');
         $this->assertSame(1, substr_count($shell, 'partials/menu-sheet.twig'),
             'the Menu is mounted twice by the shell');
@@ -172,37 +186,93 @@ final class SiteHeaderTest extends TestCase
         // no app bar. Mounting it there put a dialog in ~180 pages that nothing on any of
         // them could open — every part complete except the way in. `ChromeReachabilityTest`
         // is the general form; this pins the instance that shipped.
-        $this->assertSame(0, substr_count($code, 'partials/quick-settings.twig'),
+        $this->assertSame(0, substr_count($legacy, 'partials/quick-settings.twig'),
             'the old layout mounts Quick settings and has no app bar to open it from');
         $this->assertSame(1, substr_count($shell, 'partials/quick-settings.twig'));
 
         // A converted page extends the shell and does not include nav.twig, so nothing
         // gets two Menus — two dialogs with one `data-ag-menu-sheet` between them means
         // the opener finds the first and the tab bar's button appears dead.
-        $this->assertStringContainsString('partials/tab-bar.twig', $code);
+        $this->assertStringContainsString('partials/tab-bar.twig', $legacy);
     }
 
-    public function test_no_partial_is_mounted_twice_in_one_document(): void
+    public function test_no_id_appears_twice_in_one_document(): void
     {
-        // `layout/gates.twig` includes `layout/nav.twig`, so a partial in both is in the
-        // document TWICE — and the search palette carries `id="agsInput"`, which
-        // `getElementById` answers with the first copy. Every control its script wired
-        // then belonged to a panel the visitor was not looking at. Nothing throws and
-        // nothing looks wrong; the palette simply stops responding.
+        // ══════════════════════════════════════════════════════════════════════
+        // THE FAULT IS A DUPLICATE ID, NOT A DUPLICATE MOUNT
+        // ══════════════════════════════════════════════════════════════════════
         //
-        // Measured, not imagined: the rendered home page carried two of that id.
-        $inc = static function (string $path): array {
-            $body = (string) preg_replace('/\{#.*?#\}/s', '',
-                (string) file_get_contents(__DIR__ . '/../../templates/' . $path));
-            preg_match_all("/\\{%-? *include '([^']+)'/", $body, $m);
-            return array_unique($m[1]);
-        };
+        // `getElementById` answers with the FIRST match, and a `for=` or an
+        // `aria-labelledby` resolves the same way. So two copies of one id in a
+        // document means every control the second copy wired belongs to the first —
+        // silently. Measured twice in this work:
+        //
+        //   · the search palette, mounted by both the header and the legacy layout,
+        //     put two `id="agsInput"` in the home page and stopped responding;
+        //   · `display-reading.twig` is mounted by the header's Aa popover AND the
+        //     Menu's sub-view, so pressing "Language" in the Menu moved focus into a
+        //     panel that was not open.
+        //
+        // The second of those is a partial that SHOULD be mounted twice — three
+        // surfaces share one set of switches on purpose, and splitting them is how
+        // the halves of a setting come to disagree. What it may not do is carry a
+        // fixed id, so it takes a `uid`. That is why this counts IDS and not mounts:
+        // a mount rule would have forced the wrong fix.
+        foreach (['layout/gates.twig', 'layout/shell.twig'] as $layout) {
+            $ids = [];
+            $this->collectIds($layout, $ids);
 
-        $both = array_intersect($inc('layout/nav.twig'), $inc('layout/gates.twig'));
+            $twice = [];
+            foreach ($ids as $id => $n) if ($n > 1) $twice[] = $id . ' ×' . $n;
 
-        $this->assertSame([], array_values($both),
-            'these partials are included by BOTH layouts, so every id inside them is in '
-            . 'the document twice: ' . implode(', ', $both));
+            $this->assertSame([], $twice,
+                $layout . ' renders these ids more than once, so `getElementById`, every '
+                . '`for=` and every `aria-labelledby` resolves to the first: ' . implode(', ', $twice));
+        }
+    }
+
+    /**
+     * Every literal `id="..."` a layout reaches, counted, following includes down.
+     *
+     * An id carrying `{{ }}` is skipped: it is per-mount by construction, which is the
+     * fix this test asks for, and counting the template text would report it as a
+     * duplicate of itself.
+     *
+     * @param array<string,int> $ids
+     */
+    private function collectIds(string $path, array &$ids, int $depth = 0): void
+    {
+        if ($depth > 12) return;
+        $file = __DIR__ . '/../../templates/' . $path;
+        if (!is_file($file)) return;
+
+        $body = (string) preg_replace('/\{#.*?#\}/s', '', (string) file_get_contents($file));
+
+        preg_match_all('/\bid="([^"]+)"/', $body, $m);
+        foreach ($m[1] as $id) {
+            if (str_contains($id, '{{')) continue;
+            $ids[$id] = ($ids[$id] ?? 0) + 1;
+        }
+
+        preg_match_all("/\\{%-? *include '([^']+)'/", $body, $inc);
+        foreach ($inc[1] as $f) $this->collectIds($f, $ids, $depth + 1);
+    }
+
+    public function test_a_shell_page_never_pulls_in_the_legacy_chrome_bundle(): void
+    {
+        // `layout/shell.twig` mounts the Menu and Quick settings itself. A page on it
+        // that also includes `layout/nav.twig` gets the phone bundle a second time —
+        // and a tab bar on a flow page, which §7.3 says has none.
+        $bad = [];
+        foreach (glob(__DIR__ . '/../../templates/pages/*.twig') ?: [] as $f) {
+            $body = (string) file_get_contents($f);
+            if (!str_contains($body, "extends 'layout/shell.twig'")) continue;
+            if (str_contains($body, "include 'layout/nav.twig'")) $bad[] = basename($f);
+        }
+
+        $this->assertSame([], $bad,
+            'these shell pages include the legacy chrome bundle, which mounts a second '
+            . 'Menu sheet over the one the shell already drew: ' . implode(', ', $bad));
     }
 
     public function test_the_full_screen_overlay_menu_is_gone(): void

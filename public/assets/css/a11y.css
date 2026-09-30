@@ -22,8 +22,12 @@
 }
 [aria-invalid="true"]:focus-visible { outline: 2px solid #b4452f; outline-offset: 2px; }
 
-/* Error + status messages: readable, never colour-only (JS adds role) */
-[role="alert"], .nm-perr, .vn-err, .ed-err, .ac-err {
+/* Error + status messages: readable, never colour-only (JS adds role).
+   `.nm-perr` is gone with the nomination wizard it belonged to — the rebuilt flow's
+   message carries `role="alert"`, which this rule already reaches. A dead selector
+   here is §17 at the stylesheet layer: the next person reads it as this codebase's
+   convention for an error and writes markup for a rule that matches nothing. */
+[role="alert"], .vn-err, .ed-err, .ac-err {
   font-weight: 600;
 }
 
@@ -49,7 +53,7 @@
    is why this reaches for controls rather than for `a` in running text. */
 button, [role="button"], input[type="submit"], input[type="button"],
 input[type="reset"], select, summary, [role="tab"], [role="switch"],
-.nm-next, .nm-back, .vn-go, .ed-cta, .ag-maf__btn {
+.vn-go, .ed-cta, .ag-maf__btn {
   min-height: 24px;
   min-width: 24px;
 }
@@ -57,7 +61,7 @@ input[type="reset"], select, summary, [role="tab"], [role="switch"],
 /* ── Touch-target minimums on coarse pointers (WCAG 2.5.8) ────────────── */
 @media (pointer: coarse) {
   button, [role="button"], input[type="submit"], input[type="button"],
-  select, .nm-next, .nm-back, .vn-go, .ed-cta, .ag-maf__btn {
+  select, .vn-go, .ed-cta, .ag-maf__btn {
     min-height: 44px;
   }
   input[type="checkbox"], input[type="radio"] {
@@ -105,7 +109,11 @@ main:target, section:target, div[id]:target {
 /* ── High-contrast preference: strengthen muted text + borders ────────── */
 @media (prefers-contrast: more) {
   body { color: #0c1f22; }
-  .nm-hint, .vn-sub, .ed-label, .ac-empty, .ac-row__d,
+  /* `.ag-hint` replaced `.nm-hint`: the nomination wizard's own hint class went with
+     the wizard, and the rebuilt form uses the design system's. A hint that stays pale
+     under `prefers-contrast: more` is the one line on a form somebody asked to be
+     darkened and was not. */
+  .ag-hint, .vn-sub, .ed-label, .ac-empty, .ac-row__d,
   small, .lead, [class*="__sub"], [class*="-mute"] { color: #33484a !important; }
   input, select, textarea, button { border-color: #0c1f22 !important; }
 }
@@ -117,8 +125,8 @@ main:target, section:target, div[id]:target {
   .skip-link:focus { background: Canvas; color: LinkText; }
 }
 
-/* ── Keyboard affordance for custom interactive cards (nm-pc etc.) ────── */
-.nm-pc:focus-visible, .ag-maf__btn:focus-visible {
+/* ── Keyboard affordance for custom interactive cards ─────────────────── */
+.ag-maf__btn:focus-visible {
   outline: 2px solid var(--ag-green, #237b22);
   outline-offset: 3px;
 }

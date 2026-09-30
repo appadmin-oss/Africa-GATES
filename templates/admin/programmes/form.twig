@@ -29,6 +29,26 @@
       {% if not is_new and row.slug %}<p style="margin:-4px 0 0;font-size:12px;color:var(--ad-text-mute,#5a6d6f)"><a href="/terms/{{ row.slug }}" target="_blank" rel="noopener" style="color:var(--ad-accent,#237b22);font-weight:600">Preview public terms page →</a></p>{% endif %}
     </div>
   </div></div>
+
+  {#
+    ── THE SUB-PAGES OF THIS AWARD ─────────────────────────────────────────────
+    Linked from the page they belong under rather than added to the rail, which is
+    what keeps the rail scannable and needs no page key or sprite. The wording page
+    is also the ONLY door to `wording_json`: unlinked, the column has a reader and no
+    writer, which is the state it shipped in.
+  #}
+  {% if not is_new %}
+    <div class="ad-card"><div class="ad-card__body">
+      <h3 style="margin:0 0 4px;font-size:14px">This award’s pages</h3>
+      <p style="margin:0 0 12px;font-size:13px;line-height:1.6;color:var(--ad-text-mute,#5a6d6f)">
+        Saved separately from the details above.
+      </p>
+      <div style="display:flex;flex-wrap:wrap;gap:10px">
+        <a class="ad-btn" href="/admin/programmes/{{ row.id }}/wording">Wording on the nomination form</a>
+        <a class="ad-btn" href="/admin/programmes/{{ row.id }}/sponsors">Sponsors</a>
+      </div>
+    </div></div>
+  {% endif %}
   <div style="display:flex;justify-content:flex-end;gap:10px">
     <a class="ad-btn" href="/admin/programmes">Cancel</a>
     <button class="ad-btn ad-btn--primary" type="submit">Save</button>
