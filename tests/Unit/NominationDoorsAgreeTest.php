@@ -47,7 +47,16 @@ use Tests\TestCase;
  */
 final class NominationDoorsAgreeTest extends TestCase
 {
-    private const PROG  = 411;
+    /**
+     * Assigned by the database, never typed: `gates_award_programmes.id` is
+     * `TINYINT UNSIGNED` and stops at 255. A literal above that is accepted silently by
+     * SQLite and answered with `1264 Out of range` by MySQL — the fault `CLAUDE.md`
+     * opens with, and one only `scripts/mysql-parity.sh` can see.
+     * {@see \Tests\Unit\NominationCategoriesTest} for the full account, including why
+     * the `INSERT IGNORE` form of it is worse.
+     */
+    private int $prog = 0;
+
     private const CYCLE = 4110;
     private const CAT_A = 41101;
     private const CAT_B = 41102;
@@ -56,11 +65,11 @@ final class NominationDoorsAgreeTest extends TestCase
     {
         parent::setUp();
 
-        DB::table('gates_award_programmes')->insert([
-            'id' => self::PROG, 'slug' => 'doors-prog', 'title' => 'Doors Awards', 'is_active' => 1,
+        $this->prog = (int) DB::table('gates_award_programmes')->insertGetId([
+            'slug' => 'doors-prog', 'title' => 'Doors Awards', 'is_active' => 1,
         ]);
         DB::table('gates_award_cycles')->insert([
-            'id' => self::CYCLE, 'programme_id' => self::PROG, 'year' => 2026, 'status' => 'nominations',
+            'id' => self::CYCLE, 'programme_id' => $this->prog, 'year' => 2026, 'status' => 'nominations',
             'nominations_open'  => date('Y-m-d H:i:s', strtotime('-1 day')),
             'nominations_close' => date('Y-m-d H:i:s', strtotime('+30 days')),
         ]);
@@ -79,7 +88,7 @@ final class NominationDoorsAgreeTest extends TestCase
     private function body(array $over = []): array
     {
         return $over + [
-            'programme_id'    => self::PROG,
+            'programme_id'    => $this->prog,
             'nominee_name'    => 'Ada Lovelace',
             'country_code'    => 'NG',
             'nominator_name'  => 'Grace Hopper',

@@ -35,8 +35,20 @@ use Tests\TestCase;
  */
 final class NominationIntegrityTest extends TestCase
 {
-    private const P_ALPHA = 211;
-    private const P_BETA  = 212;
+    /**
+     * Two programmes, both assigned by the database.
+     *
+     * These were literals — 211 and 212 — which happen to fit `TINYINT UNSIGNED`'s 255
+     * and so passed the parity run that caught their siblings at 311 and 411. That is
+     * luck rather than correctness: the ceiling is invisible from this file, the next
+     * number somebody picks is as likely to be over it as under, and a literal can also
+     * collide with a programme the schema or the demo seeder already wrote.
+     *
+     * An `AUTO_INCREMENT` id can do neither, so nothing here needs to know the width.
+     */
+    private int $alpha = 0;
+    private int $beta  = 0;
+
     private const C_ALPHA = 2110;
     private const C_BETA  = 2120;
     private const CAT_ALPHA = 21101;
@@ -49,14 +61,14 @@ final class NominationIntegrityTest extends TestCase
         $open = date('Y-m-d H:i:s', strtotime('-1 day'));
         $shut = date('Y-m-d H:i:s', strtotime('+30 days'));
 
-        DB::table('gates_award_programmes')->insert([
-            ['id' => self::P_ALPHA, 'slug' => 'ni-alpha', 'title' => 'Alpha Awards', 'is_active' => 1],
-            ['id' => self::P_BETA,  'slug' => 'ni-beta',  'title' => 'Beta Awards',  'is_active' => 1],
-        ]);
+        $this->alpha = (int) DB::table('gates_award_programmes')->insertGetId(
+            ['slug' => 'ni-alpha', 'title' => 'Alpha Awards', 'is_active' => 1]);
+        $this->beta  = (int) DB::table('gates_award_programmes')->insertGetId(
+            ['slug' => 'ni-beta',  'title' => 'Beta Awards',  'is_active' => 1]);
         DB::table('gates_award_cycles')->insert([
-            ['id' => self::C_ALPHA, 'programme_id' => self::P_ALPHA, 'year' => 2026, 'status' => 'nominations',
+            ['id' => self::C_ALPHA, 'programme_id' => $this->alpha, 'year' => 2026, 'status' => 'nominations',
              'nominations_open' => $open, 'nominations_close' => $shut],
-            ['id' => self::C_BETA,  'programme_id' => self::P_BETA,  'year' => 2026, 'status' => 'nominations',
+            ['id' => self::C_BETA,  'programme_id' => $this->beta,  'year' => 2026, 'status' => 'nominations',
              'nominations_open' => $open, 'nominations_close' => $shut],
         ]);
         DB::table('gates_award_categories')->insert([
@@ -71,7 +83,7 @@ final class NominationIntegrityTest extends TestCase
         $svc = new AwardService();
 
         return $svc->submitNomination($over + [
-            'programme_id'    => self::P_ALPHA,
+            'programme_id'    => $this->alpha,
             'nominee_name'    => 'Ada Lovelace',
             'country_code'    => 'NG',
             'reason'          => 'A specific and verifiable reason for this nomination, well past forty characters.',

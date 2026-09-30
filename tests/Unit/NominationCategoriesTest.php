@@ -39,7 +39,26 @@ use Tests\TestCase;
  */
 final class NominationCategoriesTest extends TestCase
 {
-    private const PROG = 311;
+    /**
+     * THE PROGRAMME ID IS ASSIGNED BY THE DATABASE, NEVER TYPED.
+     *
+     * `gates_award_programmes.id` is `TINYINT UNSIGNED` — it stops at **255**. This
+     * fixture used to seed a literal above that, which SQLite accepts without a word
+     * and MySQL answers with `1264 Out of range value for column 'id'`, so every test
+     * in this class errored on the only database that matters while the suite was
+     * green here. Found by `scripts/mysql-parity.sh`, which is the only thing that
+     * sees it.
+     *
+     * It is the fault `CLAUDE.md` opens with, in its milder form. The dangerous form
+     * is `INSERT IGNORE`, which does not refuse an oversized id — it CLAMPS it to 255,
+     * so thirty test files seeding `9800` all resolved to the same programme and a
+     * nominee's submission silently matched another award's configuration.
+     *
+     * An `AUTO_INCREMENT` id cannot be out of range and cannot collide with a seeded
+     * row, so nothing here needs to know how wide the column is.
+     */
+    private int $prog = 0;
+
     private const CYCLE = 3110;
     private const CAT_A = 31101;
     private const CAT_B = 31102;
@@ -49,11 +68,11 @@ final class NominationCategoriesTest extends TestCase
     {
         parent::setUp();
 
-        DB::table('gates_award_programmes')->insert([
-            'id' => self::PROG, 'slug' => 'nc-prog', 'title' => 'Categories Awards', 'is_active' => 1,
+        $this->prog = (int) DB::table('gates_award_programmes')->insertGetId([
+            'slug' => 'nc-prog', 'title' => 'Categories Awards', 'is_active' => 1,
         ]);
         DB::table('gates_award_cycles')->insert([
-            'id' => self::CYCLE, 'programme_id' => self::PROG, 'year' => 2026, 'status' => 'nominations',
+            'id' => self::CYCLE, 'programme_id' => $this->prog, 'year' => 2026, 'status' => 'nominations',
             'nominations_open'  => date('Y-m-d H:i:s', strtotime('-1 day')),
             'nominations_close' => date('Y-m-d H:i:s', strtotime('+30 days')),
         ]);
@@ -75,7 +94,7 @@ final class NominationCategoriesTest extends TestCase
     private function nominate(array $over = []): int
     {
         return (new AwardService())->submitNomination($over + [
-            'programme_id'    => self::PROG,
+            'programme_id'    => $this->prog,
             'nominee_name'    => 'Ada Lovelace',
             'nominee_kind'    => NomineeKind::PERSON,
             'country_code'    => 'NG',
@@ -213,23 +232,47 @@ final class NominationCategoriesTest extends TestCase
         // The obvious probe — a bad link, a short reason — never reaches the insert at
         // all, because the rules run in front of it; a test written that way passes on
         // an unwrapped insert and proves nothing. Measured: with the transaction
-        // removed, this leaves a nomination with no categories and no evidence, which
-        // is a row the review desk shows with nothing to judge.
+        // removed, this leaves a nomination with no categories, which is a row the
+        // review desk shows with nothing to judge.
         //
-        // Dropping the table is the one failure that is certain to happen inside the
-        // second write and nowhere else. `TestCase` rebuilds the schema per test.
+        // ── AND THE MECHANISM MAY NOT BE DDL ────────────────────────────────────
+        //
+        // This used to force the failure with `DROP TABLE gates_nomination_evidence`,
+        // which is certain to break the child write and is WRONG ON THE ONLY DATABASE
+        // THAT MATTERS: **DDL implicitly COMMITs on MySQL**, so the parent insert was
+        // already permanent before any rollback could run. The test therefore FAILED on
+        // MySQL while passing here — against a transaction that was working perfectly.
+        // The guard was broken, not the code. `scripts/mysql-parity.sh` found it.
+        //
+        // A UNIQUE violation needs no DDL and is enforced by both drivers, so the
+        // transaction is left intact and the failure lands where it is meant to.
+        $first = $this->nominate();
+
+        // The id the next nomination will take. Both drivers hand out max+1 here, and
+        // the assertion below fails loudly if that ever stops being true rather than
+        // passing over a collision that never happened.
+        $next = $first + 1;
+
+        DB::table('gates_nomination_categories')->insert([
+            'nomination_id' => $next,
+            'category_id'   => self::CAT_A,
+            'reason'        => $this->reason('Planted by the test to collide'),
+            'sort_order'    => 0,
+        ]);
+
         $before = (int) DB::table('gates_nominations')->count();
-        DB::statement('DROP TABLE gates_nomination_evidence');
 
         try {
-            $this->nominate(['evidence_links' => ['https://example.org/proof']]);
+            $this->nominate();
             $this->fail('the child write did not fail, so this proves nothing');
         } catch (\Throwable) {
-            // expected
+            // expected — the UNIQUE on (nomination_id, category_id)
         }
 
         $this->assertSame($before, (int) DB::table('gates_nominations')->count(),
-            'the nomination survived a failed child write — it has no categories and no evidence');
+            'the nomination survived a failed child write — it has no categories');
+        $this->assertSame($first, (int) DB::table('gates_nominations')->max('id'),
+            'the parent row was not rolled back');
     }
 
     // ══════════════════════════════════════════════════════════════════════════

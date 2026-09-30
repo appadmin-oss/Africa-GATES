@@ -51,7 +51,49 @@
 }
 .nf__form{ flex:1; display:flex; flex-direction:column; gap:var(--ag-sp-16) }
 
-.nf__h{ margin:0; font-family:var(--ag-font-display); font-weight:700; font-size:26px; line-height:1.15 }
+/* ══ THE PAGE HEAD AND THE CARD ═══════════════════════════════════════════
+   `docs/redesign-ref/Nominate Page.dc.html`. The reference puts a kicker, a title
+   and a lede on the ground and the form in a white card beneath them — and the card
+   is the page's whole visual identity. Built without it, the flow read as text on a
+   background: correct, and nothing to do with the design that was drawn.
+
+   The measurements are the reference's: card radius 22, 34px of padding, a hairline
+   at 8% ink. On a phone the padding comes down because 34px of it either side of a
+   390px screen leaves 322px for a form. */
+
+/* The reference centres the whole head over the card. Left-aligned it reads as the
+   top of a document rather than the opening of a form. */
+.nf__head{ text-align:center }
+/* The kicker is the reference's, and the reference has no phone branch. Below 768
+   the child app bar already says "Nominate" a few pixels above it, so on a phone it
+   is the same word twice — the smaller cousin of the fault that took the award's
+   name out of this bar. It returns at the width the reference was drawn for. */
+.nf__kicker{ display:none }
+@media (min-width:768px){ .nf__kicker{ display:block } }
+.nf__kicker{
+  margin:0 0 var(--ag-sp-8); font-size:12px; font-weight:600;
+  letter-spacing:.14em; text-transform:uppercase; color:var(--ag-green-deep);
+}
+.nf__title{
+  margin:0; font-family:var(--ag-font-display); font-weight:700;
+  font-size:28px; line-height:1.12; letter-spacing:-.02em; color:var(--ag-ink);
+}
+.nf__intro{
+  margin:var(--ag-sp-12) auto 0; font-size:15px; line-height:1.6;
+  color:var(--ag-ink-2); max-width:52ch;
+}
+.nf__card{
+  margin-top:var(--ag-sp-24);
+  background:var(--ag-surface); border:1px solid var(--ag-line);
+  border-radius:22px; padding:var(--ag-sp-20);
+}
+/* The reference's closing line, under the card and quieter than it. */
+.nf__foot{
+  margin:var(--ag-sp-16) 0 var(--ag-sp-24); text-align:center;
+  font-size:12.5px; color:var(--ag-soft);
+}
+
+.nf__h{ margin:0; font-family:var(--ag-font-display); font-weight:700; font-size:22px; line-height:1.2 }
 .nf__lede{ margin:0; font-size:15px; line-height:1.55; color:var(--ag-ink-2); max-width:62ch }
 .nf__opt{
   margin-inline-start:var(--ag-sp-8); padding:2px var(--ag-sp-8);
@@ -70,26 +112,55 @@
 /* ── The rail ─────────────────────────────────────────────────────────────
    Four dots and their words. It is an <ol>, so a screen reader says "1 of 4"
    without the markup claiming anything the CSS is doing. */
+/* ── The rail ─────────────────────────────────────────────────────────────
+   Four discs, their words, and the LINE BETWEEN THEM — which is the reference's and
+   is not decoration: the line is what says these four are one journey rather than
+   four separate questions, and the tick is what says a step is behind you. A rail of
+   four identical discs says neither, and that is what this was.
+
+   It is an <ol>, so a screen reader says "1 of 4" without the markup claiming
+   anything the CSS is doing. The line is drawn with a pseudo-element on the item
+   rather than as a fifth child, so the list still holds exactly four entries. */
 .nf__rail{
-  display:flex; gap:var(--ag-sp-4); margin:0; padding:0; list-style:none;
-  overflow-x:auto; scrollbar-width:none;
+  display:flex; margin:0 0 var(--ag-sp-8); padding:0; list-style:none;
 }
-.nf__rail::-webkit-scrollbar{ display:none }
 .nf__rail li{
-  flex:1; display:flex; flex-direction:column; align-items:center; gap:var(--ag-sp-6);
-  min-width:64px; font-size:12px; font-weight:600; color:var(--ag-soft);
+  position:relative; flex:1;
+  display:flex; flex-direction:column; align-items:center; gap:var(--ag-sp-6);
+  min-width:0; font-size:11px; font-weight:600; color:var(--ag-soft);
+  text-align:center;
 }
-.nf__rail li span{
+/* The connector, from this disc's edge to the next one's. Not drawn after the last
+   item, and `aria-hidden` is unnecessary because a pseudo-element has no content. */
+.nf__rail li:not(:last-child)::after{
+  content:''; position:absolute; top:16px; height:2px;
+  inset-inline-start:calc(50% + 21px); inset-inline-end:calc(-50% + 21px);
+  background:var(--ag-line-2);
+}
+.nf__rail li[data-done]::after{ background:var(--ag-green) }
+
+.nf__dot{
   display:flex; align-items:center; justify-content:center;
-  width:26px; height:26px; border-radius:50%;
-  background:var(--ag-tint); color:var(--ag-ink-2);
-  font-family:var(--ag-font-mono); font-size:12px; font-weight:700;
+  width:34px; height:34px; border-radius:50%; flex:none;
+  border:2px solid var(--ag-line-2);
+  background:var(--ag-surface); color:var(--ag-soft);
+  font-family:var(--ag-font-mono); font-size:13px; font-weight:700;
 }
+/* The number lives in the attribute so the tick can replace it without the markup
+   ever having claimed a step was finished — the server renders plain numbers. */
+.nf__dot::before{ content:attr(data-n) }
+.nf__rail-t{ display:block; max-width:100%; overflow:hidden; text-overflow:ellipsis }
+
 /* The step somebody is ON, and the steps behind it, are different states and read
    differently — one is where you are, the other is what you finished. */
 .nf__rail li[aria-current="step"]{ color:var(--ag-ink) }
-.nf__rail li[aria-current="step"] span{ background:var(--ag-ink); color:var(--ag-ground) }
-.nf__rail li[data-done] span{ background:var(--ag-green-wash); color:var(--ag-green-deep) }
+.nf__rail li[aria-current="step"] .nf__dot{
+  background:var(--ag-ink); border-color:transparent; color:var(--ag-ground);
+}
+.nf__rail li[data-done] .nf__dot{
+  background:var(--ag-green); border-color:transparent; color:var(--ag-ground);
+}
+.nf__rail li[data-done] .nf__dot::before{ content:'\2713' }
 
 .nf__step{ display:flex; flex-direction:column; gap:var(--ag-sp-10) }
 .nf__step[hidden]{ display:none }
@@ -173,13 +244,36 @@
    on a tall one, where sticky takes over. The gap above it on a tall step is the
    form's own `gap`, which applies between flex items whatever the margins do — the
    16px that used to be here was a second gap stacked on that one. */
+/* ── THE PHONE ACTION BAR IS FIXED, NOT STICKY ────────────────────────────
+   §8 describes it exactly: pinned to the bottom, a translucent fill with a blur and
+   a top hairline. Sticky cannot do that here and the reason is structural rather
+   than a tuning problem — **a sticky element cannot leave its containing block**,
+   and the bar's containing block is the card. The reference puts its closing note
+   UNDER the card, so the card stops 21px short of the viewport floor, and the bar
+   stopped there with it. Measured: card bottom 823 of an 844px viewport, bar bottom
+   822, on the one step short enough for it to matter.
+
+   Fixed takes it out of that box entirely, which is what the standard asks for. The
+   card then owes the clearance instead: `--ag-bottom-ui` is MEASURED from this bar
+   by `shell.js`, so the padding follows a bar that changes height and nothing here
+   hard-codes one. It is not circular — the bar's height does not depend on the
+   card's padding. */
 .nf__bar{
-  position:sticky; bottom:0;
+  position:fixed; inset-inline:0; bottom:0; z-index:3;
+  backdrop-filter:blur(14px); -webkit-backdrop-filter:blur(14px);
   display:flex; gap:var(--ag-sp-10); align-items:center;
-  margin:auto calc(var(--ag-gutter) * -1) 0;
+  /* THE NEGATIVE MARGINS ARE THE CARD'S PADDING, NOT THE PAGE GUTTER. The bar lives
+     inside `.nf__card` now, so it has to break out of that padding to reach the card's
+     own edges — sized to the page gutter instead it stopped 22px short of the floor on
+     the one step that does not fill the screen, which is the same symptom the
+     `margin-top` shorthand fault produced and a different cause. Measured at 390. */
+  margin:0;
   padding:var(--ag-sp-12) var(--ag-gutter) calc(var(--ag-sp-20) + env(safe-area-inset-bottom));
-  background:var(--ag-bar); border-top:1px solid var(--ag-line);
+  background:color-mix(in srgb, var(--ag-bar) 96%, transparent);
+  border-top:1px solid var(--ag-line);
 }
+/* The card owes the clearance, since the bar no longer takes space in the flow. */
+.nf__card{ padding-bottom:calc(var(--ag-bottom-ui, 0px) + var(--ag-sp-20)) }
 .nf__bar .ag-btn{ height:52px }
 .nf__bar .ag-btn--secondary{ flex:none; width:auto; padding:0 var(--ag-sp-20) }
 
@@ -191,8 +285,44 @@
 .nf__shut-do{ display:flex; flex-wrap:wrap; gap:var(--ag-sp-10) }
 
 @media (min-width:768px){
-  .nf{ max-width:720px; margin-inline:auto }
-  .nf__h{ font-size:32px }
+  /* The reference's own measure: a 680px column inside a 1000px page.
+     `width:100%` IS REQUIRED and is not redundant beside `max-width`. `.nf` is a
+     flex item in a column, so its width is the CROSS size — and an `auto` margin on
+     the cross axis cancels the stretch that would otherwise fill the line. Left to
+     `max-width` alone the item falls back to fit-content: measured at 560px against
+     a 680px cap, so the card came out 120px narrower than the reference on every
+     desktop width while both declarations read as correct. */
+  .nf{ width:100%; max-width:680px; margin-inline:auto }
+  .nf__card{ padding:34px }
+  .nf__title{ font-size:38px }
+
+  /* ── THE NAV ROW COMES BACK INSIDE THE CARD ─────────────────────────────
+     A sticky bottom bar is the phone pattern and §8 makes it a MUST there — the
+     primary action of a flow belongs in the thumb zone. On a desktop it is the
+     wrong control in two ways: the reference draws the nav as a row inside the
+     card, under a hairline, with Back as quiet text on the left and Continue as an
+     auto-width pill on the right; and a bar pinned to the viewport floor SITS OVER
+     THE CARD'S OWN CONTENT, which was measured cutting across a field label.
+
+     So the bar stops being sticky here and becomes that row. Same markup, same
+     buttons, same handlers — only the geometry changes with the pointer. */
+  .nf__card{ padding-bottom:34px }
+  .nf__bar{
+    position:static; inset:auto; backdrop-filter:none; -webkit-backdrop-filter:none;
+    margin:var(--ag-sp-24) 0 0;
+    padding:var(--ag-sp-20) 0 0;
+    border-top:1px solid var(--ag-line); border-bottom:0;
+    background:none;
+    justify-content:space-between;
+  }
+  .nf__bar .ag-btn{ height:46px }
+  /* `ag-btn--block` is the phone rule; on the row a button is its own width. */
+  .nf__bar .ag-btn--block{ display:inline-flex; width:auto; flex:none; padding:0 28px }
+  .nf__bar .ag-btn--secondary{
+    order:-1; background:none; border:0; padding:0 4px; color:var(--ag-ink-2);
+  }
+  /* With Back hidden on step one the pill would slide left; this holds the row. */
+  .nf__bar::before{ content:''; flex:1; order:0 }
 }
 
 
@@ -225,3 +355,29 @@
   background:var(--ag-green-wash); color:var(--ag-green-deep);
   font-size:14px; line-height:1.5;
 }
+
+
+/* ══ SUBMITTING ═══════════════════════════════════════════════════════════
+   §13 makes a loading state a MUST and the reference draws one. It covers the card
+   rather than replacing it, so the answers stay behind it and nothing jumps.
+
+   `position:absolute` against the card, which is why `.nf__card` is positioned. A
+   fixed overlay would cover the chrome as well and trap somebody who wants to leave. */
+.nf__card{ position:relative }
+.nf__busy{
+  position:absolute; inset:0; z-index:2;
+  display:flex; flex-direction:column; align-items:center; justify-content:center;
+  gap:var(--ag-sp-16); border-radius:22px;
+  background:color-mix(in srgb, var(--ag-surface) 92%, transparent);
+}
+.nf__busy[hidden]{ display:none }
+.nf__busy p{ margin:0; font-size:14.5px; font-weight:600; color:var(--ag-ink) }
+.nf__spin{
+  width:48px; height:48px; border-radius:50%;
+  border:4px solid var(--ag-line-2); border-top-color:var(--ag-green);
+  animation:nf-spin .8s linear infinite;
+}
+@keyframes nf-spin{ to{ transform:rotate(360deg) } }
+/* A spinner that cannot spin must still say the form is going, so the text carries
+   it and the ring simply holds still. */
+@media (prefers-reduced-motion:reduce){ .nf__spin{ animation:none } }

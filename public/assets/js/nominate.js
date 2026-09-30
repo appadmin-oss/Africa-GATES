@@ -348,6 +348,19 @@
         return;
       }
     }
+
+    /* SHOWN ONLY ONCE THE FORM IS ACTUALLY GOING — after every rule has passed and
+       nothing has called preventDefault. Put on the press instead, it would sit
+       spinning over a submission the step-2 rules had just refused, which is a page
+       that lies about what it is doing.
+
+       This is the one state a nomination needs most and had none of: the last step
+       posts a file upload, and over a slow connection a form with no sign of life is
+       a form somebody presses again. The button is disabled with it, because a
+       second POST is a second nomination. */
+    var busy = form.querySelector('[data-nf-busy]');
+    if (busy) busy.hidden = false;
+    if (submit) submit.disabled = true;
   });
 
   /* ════════════════════════════════════════════════════════════════════════ */

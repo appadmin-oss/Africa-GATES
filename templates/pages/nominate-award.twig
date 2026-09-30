@@ -55,11 +55,31 @@
    and none with neither. #}
 {% block header %}{% include 'partials/site-header.twig' %}{% endblock %}
 
+{#
+  ── THE BAR DOES NOT REPEAT THE AWARD'S NAME ──────────────────────────────────
+  The page's own `<h1>` is the award, and this bar is drawn only below 768 — so with
+  the award's name here as well, a phone showed it TWICE on one screen, forty pixels
+  apart. §0.5 forbids that outright and §22 lists it as a reject. Measured: two
+  occurrences at 390, one at 768 and one at 1440.
+
+  The bar answers "where am I and how do I get back"; the page answers "which award".
+  The sub carries the closing date, which §3 requires to ADD to the title rather than
+  repeat it.
+
+  AND THIS NOTE IS OUT HERE FOR A REASON: a Twig comment inside a hash literal is a
+  syntax error rather than a comment. Written between `back:` and `title:` it took the
+  whole page to a 500.
+
+  The first attempt at saying so took it to a 500 a second time, because it TYPED the
+  closing brace-hash pair as an example — and those two characters end a Twig comment
+  wherever they appear, including inside one. So this file names them and never spells
+  them; the same rule the globe band's sweep records.
+#}
 {% block app_bar %}
   {% include 'partials/app-bar.twig' with {
     variant: 'child',
     back: '/awards/' ~ programme.slug,
-    title: programme.title,
+    title: 'Nominate',
     sub: nominations_open
       ? (_closing ? 'Nominations close ' ~ (_closing|when('j M')) : 'Nominations open')
       : 'Nominations are not open'
@@ -124,7 +144,25 @@
        `NominationRules`. There is no 40, no 2 and no 3 in nominate.js: a literal there
        would be a second copy of a rule, and a form that counts to one number while the
        server refuses by another is the shape this codebase keeps paying for. #}
-    <form class="nf__form" method="post" action="/nominate"
+    {#
+      ── THE PAGE HEAD, ABOVE THE CARD ──────────────────────────────────────
+      `docs/redesign-ref/Nominate Page.dc.html` puts a kicker, a title and a lede on
+      the ground, then the form in a white card below them. The lede's copy is the
+      reference's, character for character.
+
+      The H1 is the AWARD, because that is this page's subject — the reference is the
+      generic `/nominate`, where the H1 is "Surface someone who matters". Each step's
+      question is therefore an `<h2>`, which is also what the reference does and what
+      keeps one `<h1>` per screen.
+    #}
+    <div class="nf__head">
+      <p class="nf__kicker">Nominate</p>
+      <h1 class="nf__title">{{ programme.title }}</h1>
+      <p class="nf__intro">Ninety seconds to put a name on the continental record. Our panel
+        verifies every profile before it joins the cycle.</p>
+    </div>
+
+    <form class="nf__form nf__card" method="post" action="/nominate"
           enctype="multipart/form-data" data-nf novalidate
           data-min-cats="{{ rules.min_categories }}"
           data-max-cats="{{ rules.max_categories }}"
@@ -134,17 +172,27 @@
 
       {# The steps. `aria-current` moves with the step; with no script every panel is
          open and this list is a summary of what is being asked. #}
+      {#
+        The connector line and the tick are the reference's, and they carry different
+        information from the number: the line says these four are one journey, and the
+        tick says this one is behind you. A rail of four identical discs says neither.
+
+        The tick is drawn by CSS on `[data-done]` rather than swapped into the markup,
+        so the server's render — the one that arrives with no script — shows the plain
+        numbers it should, and nothing here claims a step is finished before it is.
+      #}
       <ol class="nf__rail" data-nf-rail aria-label="Steps">
         {% for s in ['Nominee', 'Categories', 'Evidence', 'You'] %}
           <li data-nf-dot="{{ loop.index }}"{% if loop.first %} aria-current="step"{% endif %}>
-            <span>{{ loop.index }}</span>{{ s }}
+            <span class="nf__dot" data-n="{{ loop.index }}" aria-hidden="true"></span>
+            <span class="nf__rail-t">{{ s }}</span>
           </li>
         {% endfor %}
       </ol>
 
       {# ── 1 · WHO ──────────────────────────────────────────────────────── #}
       <section class="nf__step" data-nf-step="1" aria-labelledby="nf-h1">
-        <h1 class="nf__h" id="nf-h1">{{ _w.who_question }}</h1>
+        <h2 class="nf__h" id="nf-h1">{{ _w.who_question }}</h2>
         <p class="nf__lede">{{ _w.who_hint }}</p>
 
         {% if _w.accepts|length > 1 %}
@@ -201,9 +249,11 @@
            own. #}
         <span class="ag-label" id="nf-contact-h">Their email or phone</span>
         <div class="ag-field"><input id="nf-contact" name="nominee_email" type="email"
+          inputmode="email" enterkeyhint="next" autocapitalize="off" spellcheck="false"
           aria-label="Their email address"
           value="{{ _v.nominee_email|default(_p.nominee_email|default('')) }}" autocomplete="off"></div>
         <div class="ag-field"><input name="nominee_phone" type="tel"
+          inputmode="tel" enterkeyhint="next"
           aria-label="Their phone number" placeholder="or a phone number"
           value="{{ _v.nominee_phone|default(_p.nominee_phone|default('')) }}" autocomplete="off"></div>
         <p class="ag-hint">So we can tell them. Never shown publicly.</p>
@@ -294,14 +344,18 @@
 
         <label class="ag-label" for="nf-you">Your full name</label>
         <div class="ag-field"><input id="nf-you" name="nominator_name" required
+          enterkeyhint="next" autocomplete="name"
           value="{{ old.nominator_name|default(member.name|default('')) }}"></div>
 
         <label class="ag-label" for="nf-you-email">Your email</label>
         <div class="ag-field"><input id="nf-you-email" name="nominator_email" type="email" required
+          inputmode="email" enterkeyhint="next" autocapitalize="off" spellcheck="false"
+          autocomplete="email"
           value="{{ old.nominator_email|default(member.email|default('')) }}"></div>
 
         <label class="ag-label" for="nf-you-phone">Your phone</label>
         <div class="ag-field"><input id="nf-you-phone" name="nominator_phone" type="tel" required
+          inputmode="tel" enterkeyhint="next" autocomplete="tel"
           value="{{ old.nominator_phone|default('') }}"></div>
 
         <label class="ag-label" for="nf-you-country">Your country</label>
@@ -350,7 +404,28 @@
           Submit nomination
         </button>
       </div>
+
+      {#
+        ── THE SUBMITTING STATE ────────────────────────────────────────────
+        The reference has it, and §13 makes it a MUST: a form that posts a file
+        upload over a slow connection with no sign that anything happened is a form
+        somebody presses twice. It covers the card rather than replacing it, so the
+        answers stay visible behind it and the page does not jump.
+
+        `hidden` until the submit handler has decided the form is going — never on
+        press, because the step-2 rules can still refuse and then the person would
+        watch a spinner for a submission that never left.
+      #}
+      <div class="nf__busy" data-nf-busy hidden role="status" aria-live="polite">
+        <span class="nf__spin" aria-hidden="true"></span>
+        <p>Submitting nomination…</p>
+      </div>
     </form>
+
+    {# The reference's line, character for character. It answers the three questions
+       somebody hesitates over at the last step — what it costs, how long it takes,
+       and whether their address is about to be sold. #}
+    <p class="nf__foot">Free · takes about 90 seconds · OTP-secured</p>
   {% endif %}
 </div>
 {% endblock %}
