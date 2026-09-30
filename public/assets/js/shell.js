@@ -97,8 +97,20 @@
      "the bar plus the gap", and a hard-coded number goes stale the first time a
      bar gains a second line of text.
 
-     `offsetParent === null` is the display:none test; a bar that is merely
-     translated off-screen still counts, which is correct while a sheet animates. */
+     ── THE VISIBILITY TEST EXCLUDED EVERY BAR IT EXISTS TO MEASURE ──────────
+
+     It was `offsetParent !== null`, described here as the display:none test. It is
+     not: `offsetParent` is **null for a `position:fixed` element**, which is what
+     every one of these bars is. So the tallest visible bar was always none of
+     them, `--ag-bottom-ui` stayed at its 0px default on every page, and the Gee
+     launcher and the cookie notice sat flat against the bottom edge — on top of
+     the tab bar on a phone. Nothing threw; the number simply never moved off its
+     own fallback, which is the shape that survives a review.
+
+     `getClientRects().length` is the test that means what the old comment claimed:
+     zero for `display:none`, non-zero for anything laid out, fixed included. A bar
+     merely translated off-screen still counts, which is correct while a sheet
+     animates. */
   function trackBottomUI() {
     var bars = document.querySelectorAll('[data-bottom-ui]');
 
@@ -106,7 +118,7 @@
       var h = 0;
       var els = document.querySelectorAll('[data-bottom-ui]');
       for (var i = 0; i < els.length; i++) {
-        if (els[i].offsetParent !== null) h = Math.max(h, els[i].getBoundingClientRect().height);
+        if (els[i].getClientRects().length) h = Math.max(h, els[i].getBoundingClientRect().height);
       }
       document.body.style.setProperty('--ag-bottom-ui', h + 'px');
     }
@@ -140,6 +152,10 @@
     if (scrim) scrim.setAttribute('data-open', '');
     if (trigger) trigger.setAttribute('aria-expanded', 'true');
 
+    /* `offsetParent` is the right test HERE and the wrong one in trackBottomUI,
+       and the difference is worth stating: it is null for a fixed element itself,
+       and NOT null for that element's children — their offsetParent is the fixed
+       ancestor. These are the sheet's children. */
     function els() {
       return Array.prototype.filter.call(
         sheet.querySelectorAll(FOCUSABLE),

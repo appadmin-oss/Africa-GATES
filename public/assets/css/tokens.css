@@ -208,10 +208,24 @@
   --ag-shadow-cutout:none;
   --ag-shadow-nav:0 1px 0 var(--ag-line);
 
-  /* Layout and motion under their previous names. */
+  /* Layout and motion under their previous names.
+
+     BOTH BAR HEIGHTS WERE WRONG THE MOMENT THE CHROME WAS REBUILT, and wrong is
+     worse than stale here: ~10 templates stick a rail under `--ag-nav-h` and the
+     Pulse FAB and the cookie notice clear `--ag-mobile-nav-h`, so a number that
+     no longer describes a bar puts a control underneath one or floating above
+     nothing. The redesign's header is 64px, measured off its own rule.
+
+     The phone bar has no fixed height any more — it is 52px of target plus a
+     22px pad plus the safe-area inset, which differs per device — so the compat
+     name points at `--ag-bottom-ui`, which `shell.js` MEASURES from whatever bar
+     is actually on screen. That is also why it is not a number: the three
+     documented offsets (96 above the tab bar, 108 above an action bar, 40 with
+     neither) are just "the bar plus the gap", and a typed one goes stale the
+     first time a bar gains a second line. */
   --ag-maxw:1240px;
-  --ag-nav-h:72px;
-  --ag-mobile-nav-h:64px;
+  --ag-nav-h:64px;
+  --ag-mobile-nav-h:var(--ag-bottom-ui);
   --ag-dur-fast:.15s;
   --ag-dur:.25s;
 

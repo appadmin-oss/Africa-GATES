@@ -155,21 +155,54 @@ final class SiteHeaderTest extends TestCase
         $this->assertStringNotContainsString('data-ag-pick-lang', $code);
     }
 
-    public function test_the_phone_chrome_is_included_once_here_and_once_in_the_shell(): void
+    public function test_each_sheet_is_mounted_by_the_layout_that_can_open_it(): void
     {
         $code  = $this->code();
         $shell = (string) preg_replace('/\{#.*?#\}/s', '',
             (string) file_get_contents(__DIR__ . '/../../templates/layout/shell.twig'));
 
-        foreach (['partials/menu-sheet.twig', 'partials/quick-settings.twig'] as $p) {
-            $this->assertSame(1, substr_count($code, $p), "$p is included twice by the old layout");
-            $this->assertSame(1, substr_count($shell, $p), "$p is included twice by the shell");
-        }
+        // The Menu is on both layouts: the tab bar opens it and both draw one.
+        $this->assertSame(1, substr_count($code, 'partials/menu-sheet.twig'),
+            'the Menu is mounted twice by the old layout');
+        $this->assertSame(1, substr_count($shell, 'partials/menu-sheet.twig'),
+            'the Menu is mounted twice by the shell');
+
+        // Quick settings is on the SHELL ONLY, and that is the §18 rule rather than a
+        // tidy-up: its one trigger is the phone app bar's avatar, and the old layout has
+        // no app bar. Mounting it there put a dialog in ~180 pages that nothing on any of
+        // them could open — every part complete except the way in. `ChromeReachabilityTest`
+        // is the general form; this pins the instance that shipped.
+        $this->assertSame(0, substr_count($code, 'partials/quick-settings.twig'),
+            'the old layout mounts Quick settings and has no app bar to open it from');
+        $this->assertSame(1, substr_count($shell, 'partials/quick-settings.twig'));
 
         // A converted page extends the shell and does not include nav.twig, so nothing
         // gets two Menus — two dialogs with one `data-ag-menu-sheet` between them means
         // the opener finds the first and the tab bar's button appears dead.
         $this->assertStringContainsString('partials/tab-bar.twig', $code);
+    }
+
+    public function test_no_partial_is_mounted_twice_in_one_document(): void
+    {
+        // `layout/gates.twig` includes `layout/nav.twig`, so a partial in both is in the
+        // document TWICE — and the search palette carries `id="agsInput"`, which
+        // `getElementById` answers with the first copy. Every control its script wired
+        // then belonged to a panel the visitor was not looking at. Nothing throws and
+        // nothing looks wrong; the palette simply stops responding.
+        //
+        // Measured, not imagined: the rendered home page carried two of that id.
+        $inc = static function (string $path): array {
+            $body = (string) preg_replace('/\{#.*?#\}/s', '',
+                (string) file_get_contents(__DIR__ . '/../../templates/' . $path));
+            preg_match_all("/\\{%-? *include '([^']+)'/", $body, $m);
+            return array_unique($m[1]);
+        };
+
+        $both = array_intersect($inc('layout/nav.twig'), $inc('layout/gates.twig'));
+
+        $this->assertSame([], array_values($both),
+            'these partials are included by BOTH layouts, so every id inside them is in '
+            . 'the document twice: ' . implode(', ', $both));
     }
 
     public function test_the_full_screen_overlay_menu_is_gone(): void

@@ -23,6 +23,16 @@
 
   var open = false, active = -1, items = [], seq = 0, timer = null, opener = null;
 
+  /* The chip in force, and the map that says what it asks for. The MAP IS NOT
+     DECLARED HERE: it arrives with every response, because it is decided in
+     `ActivityFeedService::SCOPES` and a second copy in this file is two lists
+     that drift — visibly as a result filed under the wrong heading, and
+     invisibly as one filed under none. Empty until the first response, which is
+     also the first moment there is anything to group. */
+  var scope = '', scopeMap = null;
+
+  var SCOPE_LABEL = { people: 'People', awards: 'Awards', events: 'Events', pages: 'Pages' };
+
   // ── ARIA the input must carry as a combobox ───────────────────────────────
   // Set from script, not markup: an input advertising role="combobox" with no
   // listbox behaviour is a lie to a screen reader, and that is exactly what the
@@ -61,6 +71,12 @@
     d.documentElement.style.overflow = 'hidden';   // the page must not scroll behind
     // rAF because an element revealed in the same frame is not yet focusable.
     requestAnimationFrame(function () { input.focus(); input.select(); });
+
+    // An empty panel is a dead end: somebody who opened this to browse has
+    // nothing to read and no clue what the box reaches. It fills with the latest
+    // feed, grouped under the same headings a query produces, so the first thing
+    // they see is the shape of the answer.
+    run();
   }
 
   function hide() {
@@ -104,35 +120,98 @@
     }
   }
 
+  /* Which heading an item belongs under, from the delivered map. A kind the map
+     does not mention goes under "More" rather than being dropped: a result that
+     exists and appears nowhere is the worst of the three outcomes, and it is the
+     one a silent `continue` produces. */
+  function groupOf(kind) {
+    if (!scopeMap) return 'more';
+    for (var k in scopeMap) {
+      if (!Object.prototype.hasOwnProperty.call(scopeMap, k)) continue;
+      if (scopeMap[k].indexOf(kind) >= 0) return k;
+    }
+    return 'more';
+  }
+
+  /* ≤6 per group — §7.1. The cap is per GROUP and not overall, so one crowded
+     kind cannot push every other heading off the panel: a search for a common
+     first name used to return twelve nominees and nothing else, with the award
+     and the page that matched it below the fold of a list nobody scrolls. */
+  var PER_GROUP = 6;
+
   function render(res) {
-    items = res.items || [];
-    if (!items.length) {
+    if (res.scopes) scopeMap = res.scopes;
+
+    var all = res.items || [];
+    if (!all.length) {
+      items = [];
       list.innerHTML = '';
       input.setAttribute('aria-expanded', 'false');
       input.removeAttribute('aria-activedescendant');
-      status.textContent = input.value.trim() ? 'No matches for “' + input.value.trim() + '”.' : '';
+      /* Name the CHIP when one is pressed. "No matches for award" over a panel
+         filtered to People reads as the search being broken; "no people match" says
+         which control to move. The chip is the only thing the person changed. */
+      var q = input.value.trim();
+      var where = scope && SCOPE_LABEL[scope] ? ' in ' + SCOPE_LABEL[scope].toLowerCase() : '';
+      status.textContent = q ? 'No matches' + where + ' for \u201c' + q + '\u201d.' : '';
       return;
     }
 
-    var html = '';
-    for (var i = 0; i < items.length; i++) {
-      var it = items[i];
-      html += '<li class="ags__item" role="presentation">'
-        + '<a class="ags__link" role="option" id="agsOpt' + i + '" aria-selected="false" href="' + esc(it.url) + '">'
-        + '<span class="ags__kind">' + esc(it.label || it.kind) + '</span>'
-        + '<span class="ags__t">' + esc(it.title) + '</span>'
-        + (it.detail ? '<span class="ags__d">' + esc(it.detail) + '</span>' : '')
-        + (it.at_label ? '<span class="ags__at">' + esc(it.at_label) + '</span>' : '')
-        + '</a></li>';
+    // Bucket in the order the chips are drawn, so the panel and the chip row
+    // read top to bottom the same way.
+    var order = ['people', 'awards', 'events', 'pages', 'more'];
+    var buckets = {}, i;
+    for (i = 0; i < all.length; i++) {
+      var g = groupOf(all[i].kind);
+      (buckets[g] = buckets[g] || []).push(all[i]);
     }
+
+    // `items` is rebuilt to match the DRAWN order, because the arrow keys walk
+    // it by index — leaving it as the server's order makes Down highlight one
+    // row and Enter open another.
+    items = [];
+    var html = '', n = 0;
+    for (var o = 0; o < order.length; o++) {
+      var key = order[o], rows = buckets[key];
+      if (!rows || !rows.length) continue;
+      rows = rows.slice(0, PER_GROUP);
+
+      var label = SCOPE_LABEL[key] || 'More';
+      html += '<li class="ags__grp" role="group" aria-label="' + esc(label) + '">'
+            + '<span class="ags__grph" aria-hidden="true">' + esc(label) + '</span>';
+      for (i = 0; i < rows.length; i++) {
+        var it = rows[i];
+        items.push(it);
+        html += '<a class="ags__link" role="option" id="agsOpt' + n + '" aria-selected="false" href="' + esc(it.url) + '">'
+          + '<span class="ags__kind">' + esc(it.label || it.kind) + '</span>'
+          + '<span class="ags__t">' + esc(it.title) + '</span>'
+          + (it.detail ? '<span class="ags__d">' + esc(it.detail) + '</span>' : '')
+          + (it.at_label ? '<span class="ags__at">' + esc(it.at_label) + '</span>' : '')
+          + '</a>';
+        n++;
+      }
+      html += '</li>';
+    }
+
     list.innerHTML = html;
     input.setAttribute('aria-expanded', 'true');
     active = -1;
     input.removeAttribute('aria-activedescendant');
 
     // Announced on the always-present live region. Counting is the useful part —
-    // a screen-reader user cannot see the list grow.
-    status.textContent = items.length + (items.length === 1 ? ' result' : ' results')
+    // a screen-reader user cannot see the list grow. The count is what is SHOWN,
+    // not what arrived: saying "12 results" over a panel holding eight is a
+    // number somebody then goes looking for.
+    var shown = items.length;
+    if (!input.value.trim()) {
+      // Not "12 results" — nobody searched for anything. Saying "results" over an
+      // unasked question is the same class of untruth as a count that is not the
+      // count being shown.
+      status.textContent = shown + ' recent ' + (shown === 1 ? 'item' : 'items');
+      return;
+    }
+    status.textContent = shown + (shown === 1 ? ' result' : ' results')
+      + (shown < all.length ? ', the closest in each group' : '')
       + (res.understood && res.understood.summary ? '. Read as: ' + res.understood.summary : '');
   }
 
@@ -140,15 +219,25 @@
 
   function run() {
     var q = input.value.trim();
-    if (q.length < 2) { clear(); return; }
 
+    /* An empty box asks for the latest feed rather than showing nothing. §7.1
+       asks for "trending, open-now and coming-soon"; there is no trending signal
+       anywhere in this codebase — no view counts, no per-item reads — and
+       inventing one is the fault the homepage globe was built to undo, where
+       sixteen cities arrived with ballot counts and a median latency this
+       platform has never recorded. So the empty state is what is TRUE: what has
+       just happened, grouped under the same headings. GAPS.md §9.11.
+
+       The endpoint already answers an empty query with the latest feed, so this
+       is one parameter rather than a second code path. */
     var mine = ++seq;
     // Announced before the request, because on a slow connection the gap between
     // typing and results is exactly where a non-sighted user has no idea whether
     // anything is happening.
     status.textContent = 'Searching…';
 
-    fetch('/activity/search?limit=12&q=' + encodeURIComponent(q), {
+    fetch('/activity/search?limit=24&q=' + encodeURIComponent(q)
+          + (scope ? '&scope=' + encodeURIComponent(scope) : ''), {
       headers: { 'X-Requested-With': 'XMLHttpRequest' }
     })
       .then(function (r) { return r.json(); })
@@ -171,6 +260,36 @@
   });
   Array.prototype.forEach.call(root.querySelectorAll('[data-ag-search-close]'), function (b) {
     b.addEventListener('click', hide);
+  });
+
+  /* A chip re-runs the query it is filtering, and moves the tab stop with it:
+     `role="tablist"` is one Tab stop and arrow keys between the tabs, and a tab
+     row that only answers Tab tells a screen-reader user to press keys that do
+     nothing. */
+  var chips = Array.prototype.slice.call(root.querySelectorAll('[data-ags-scope]'));
+  function pickScope(btn) {
+    scope = btn.getAttribute('data-ags-scope') || '';
+    chips.forEach(function (c) {
+      var on = c === btn;
+      c.setAttribute('aria-selected', on ? 'true' : 'false');
+      c.tabIndex = on ? 0 : -1;
+    });
+    run();
+    // Focus goes back to the box: the chip narrows what is being typed about,
+    // and leaving focus on it means the next keystroke lands nowhere.
+    input.focus();
+  }
+  chips.forEach(function (c, i) {
+    c.tabIndex = i === 0 ? 0 : -1;
+    c.addEventListener('click', function () { pickScope(c); });
+    c.addEventListener('keydown', function (e) {
+      var step = (e.key === 'ArrowRight') ? 1 : (e.key === 'ArrowLeft') ? -1 : 0;
+      if (!step) return;
+      e.preventDefault();
+      var next = chips[(i + step + chips.length) % chips.length];
+      next.focus();
+      pickScope(next);
+    });
   });
 
   input.addEventListener('input', function () {

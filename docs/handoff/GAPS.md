@@ -465,3 +465,132 @@ Deleting it also orphaned three compatibility tokens whose only reader it was
 (`--ag-z-mega`, `--ag-z-mobile-nav`, `--ag-z-overlay`). `DeadTokenTest` named all three,
 and they are gone — which is what `tokens.css`'s compatibility block says each phase
 should do.
+
+### 9.11 The palette's empty state is the latest feed, not "trending"
+
+§7.1: "The empty query shows trending, open-now and coming-soon."
+
+There is **no trending signal anywhere in this codebase** — no view counts, no per-item
+reads, nothing that could rank one result above another by attention. Building a "Trending"
+heading would mean inventing the ordering behind it, which is the fault the homepage globe
+was built to undo: sixteen cities arrived in that handoff with ballot counts and a median
+verification latency this platform has never recorded, and the repair was to drive the band
+from the one geographic fact that exists.
+
+So the empty panel shows what is true — the latest feed, grouped under the same headings a
+query produces — and it is one parameter rather than a second code path, because
+`/activity/search` already answers a short query with `latest()`. Open-now and coming-soon
+are reachable honestly (`gates_cycle_transitions` is what the `phase` source reads) and
+would be a real addition; trending needs a measurement first.
+
+The live region says "12 recent items" rather than "12 results" when nobody has searched
+for anything, and the count is what is **shown** rather than what arrived — a "12" over a
+panel holding eight is a number somebody then goes looking for.
+
+### 9.12 The cookie notice offers one choice, not three optional categories
+
+§7.9: "Essential is always on, plus 3 optional categories."
+
+This platform has one. `Support\CookieRegistry` declares five cookies across three
+categories and `anyRefusable()` answers **false**, because nothing it stores is refusable:
+the arrival counting reuses the session cookie that is already strictly necessary under
+ePrivacy Art.5(3), so a banner asking permission to store would be asking about something
+we are not storing. What *is* refusable is the counting itself, and `Services\CookiePrefs`
+is the one resolver for it.
+
+Drawing "Analytics / Marketing / Personalisation" when two of the three describe nothing
+this site does is §19's shape with a checkbox on it — a document people are asked to rely
+on, stating something that was never true. The notice asks the one real question and the
+`/cookies` page states the rest, generated from the registry.
+
+**GPC is already honoured, and better than §7.9 asks.** It is read from the `Sec-GPC`
+request header rather than `navigator.globalPrivacyControl`, so it applies before a line of
+script runs and on a browser with scripting off; `CookiePrefs`'s rule is that **if anything
+said no, the answer is no**, which is stricter than the GPC specification requires and is
+deliberate. The page states it in words ("Your browser has already said no… we treat that
+as a refusal") and explains that the specification permits a site-specific opt-in which
+this platform declines to offer.
+
+**What did change is a regression the chrome rebuild caused.** The notice cleared
+`--ag-mobile-nav-h`, a typed 64px describing `.ag-mobnav` — the bar the redesign deleted.
+It reads `--ag-bottom-ui` now, which `shell.js` measures from whatever bar is on screen.
+The two compatibility tokens were corrected with it: `--ag-nav-h` was 72px against a 64px
+header, and about ten templates stick a rail under it.
+
+---
+
+## 10. Findings from driving the real pages
+
+Everything below was measured in a real browser against the running app, not read off the
+source. Each one is invisible in a diff and several were invisible in the suite.
+
+### 10.1 Four faults in my own Phase 2 work, none of which threw
+
+| what | how it read | why it happened |
+|---|---|---|
+| The Menu sheet showed a 49px sliver of grabber and header at rest, on every phone page | nothing — it was `inert`, correct in the markup, and a screenshot away | `translateY(100%)` moves a sheet by **its own height**, which clears the viewport only if its top edge started at the bottom. The Menu is pinned at `top:52px`. Fixed with `visibility` plus its own distance. |
+| The scrim was never once drawn | the page behind an open sheet stayed bright | the markup carried `hidden`, which is `display:none`, and `AGShell.openSheet()` reveals a scrim by setting `data-open` — an attribute cannot beat `display:none` |
+| The Menu's close button wrapped onto a second row and the title slid left | a broken header, and only when the back button was hidden | the head is a `44px 1fr 44px` grid and `hidden` is `display:none`, which takes the **cell** with it. `visibility:hidden` keeps the cell and still leaves the tab order |
+| The tab bar drew at 1440, straight through the mega panel's blur | five destinations competing with the two panels that hold them | `@media (min-width:900px){ .ag-tabbar{display:none} }` was written **above** `.ag-tabbar{display:grid}`. Same specificity, so source order was the whole decision — it read correctly and did nothing |
+
+### 10.2 Three faults that were already there, found the same way
+
+- **`--ag-bottom-ui` was 0px on every page of the site.** `shell.js` picked the tallest
+  *visible* bar with `offsetParent !== null`, commented as "the display:none test". It is
+  not: **`offsetParent` is null for a `position:fixed` element**, which is what every one
+  of these bars is. So the measurement excluded exactly what it exists to measure, the
+  value never moved off its 0px default, and the Gee launcher and the cookie notice sat
+  flat against the bottom edge — on top of the tab bar on a phone. `getClientRects().length`
+  is the test the comment described. (The same `offsetParent` test one function below is
+  **correct**: it filters a sheet's *children*, whose offsetParent is the fixed sheet.)
+- **`[hidden]` did not hide.** `[hidden]{display:none}` is a user-agent rule, so any author
+  rule setting `display` outranks it — and this design system sets `display` on nearly every
+  component. `chrome.js` hides the language form's redundant "Change" button with
+  `el.hidden = true`; `.ag-btn{display:inline-flex}` kept it on screen. One base rule now.
+- **`box-sizing:border-box` was not global.** `.ag-btn--block{width:100%}` measured 358px on
+  a `<button>` and **402** on an `<a>` with the same classes — 358 plus the button's own
+  44px of padding — so the Sign-in control ran off the right edge of the Quick settings
+  sheet. Nine rules in `components.css` say `box-sizing:border-box` by hand, which is what a
+  missing base rule looks like from the inside.
+
+### 10.3 One for Phase 3: the home page overflows 9999px in RTL
+
+Measured at 390: `/?lang=en` has a document overflow of **0**, `/?lang=ar` has **9999**. The
+widest offenders are `.hm-marq__row` (3405px) and two `.hm-*__glow` blocks, and the
+marquee's parent is `overflow-x:hidden` in **both** directions — so the containment that
+holds in LTR does not hold in RTL, which is the familiar behaviour of a child overflowing
+to the "wrong" side of a right-to-left document.
+
+`/_dev/ui`, which is nothing but Phase 1 and Phase 2 chrome, measures **0** in RTL. The
+chrome mirrors correctly — the Menu's chevrons move to the left, the sheets and popovers use
+logical properties throughout. This is the home page, and §17's "RTL at 390" will fail on it
+until Phase 3 rebuilds that hero.
+
+### 10.4 The phone/tablet breakpoint is 768, not 900
+
+The old navigation hid below 900px and the first cut of the redesign's header inherited
+that number. §7.1 calls this the **tablet and desktop** header and the acceptance protocol
+screenshots **834** as a tablet width — so at 900 an iPad in portrait got the phone chrome
+on precisely the width the specification names as the tablet case.
+
+768 is what the bar actually needs, measured rather than guessed: logo 150 + two links 200
++ toolbar pill 180 + identity 100 + 56 of gutter is 686, and the bar's children measure
+**670** at 768 with 98px to spare. The header's breakpoint and the tab bar's are now the
+same number in both directions — two different figures would leave a band of widths with
+both chromes, or with neither.
+
+### 10.5 Keyboard pass, measured
+
+At 1440, driven by keys alone:
+
+| | result |
+|---|---|
+| First Tab | **Skip to content** |
+| The whole header | ~8 stops — the toolbar pill is **one**, as `role="toolbar"` claims |
+| Aa on Enter | opens, focus moves to the first control, `aria-expanded="true"` |
+| Esc | closes, focus **returns to the trigger**, `aria-expanded="false"` |
+| ← → inside the toolbar | search → Aa → language → wraps |
+| ← → on the size control | moves the selection and `ag-t125` lands on `<html>` |
+| Esc in the search palette | closes and returns focus to the search button |
+| Back gesture with a sheet open | closes the sheet, stays on the page |
+| Quick settings → "All display & reading settings" | closes that sheet, opens the Menu at its Display sub-view, **one** history entry across the handover |

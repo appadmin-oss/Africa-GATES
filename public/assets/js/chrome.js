@@ -180,7 +180,7 @@
     }
     var back  = sheet.querySelector('[data-ag-menu-back]');
     var title = sheet.querySelector('[data-ag-menu-title]');
-    if (back) back.hidden = main;
+    if (back) back.toggleAttribute('data-hide', main);
     if (title) {
       title.textContent = main ? 'Menu'
         : (name === 'display' ? 'Display & reading' : 'Language');

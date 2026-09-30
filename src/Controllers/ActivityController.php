@@ -104,6 +104,12 @@ final class ActivityController
             'ok'      => true,
             'query'   => $result['query'],
             'scope'   => $scope !== '' && ActivityFeedService::scopeSources($scope) !== [] ? $scope : 'all',
+            // The chip → source mapping, DELIVERED rather than duplicated. The palette
+            // groups its results under the same five headings the chips offer, and it
+            // cannot know which kind belongs to which without this — a second copy of
+            // the map in JavaScript is two lists that drift, and the drift shows up as
+            // a result quietly landing under the wrong heading or under none.
+            'scopes'  => ActivityFeedService::SCOPES,
             'live'    => $result['live'],
             'count'   => count($result['items']),
             'items'   => $result['items'],

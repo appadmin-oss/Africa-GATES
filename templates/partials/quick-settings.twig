@@ -27,7 +27,8 @@
   option — which is why it is never the only way.
 #}
 {% set _ini = member_name ? (member_name|split(' ')|map(w => w|first)|join|upper|slice(0,2)) : 'AG' %}
-<div class="ag-scrim" data-ag-quick-scrim hidden></div>
+{# See the note in menu-sheet.twig: `hidden` is display:none and defeats `data-open`. #}
+<div class="ag-scrim" data-ag-quick-scrim></div>
 
 <div class="ag-sheet ag-qs" data-ag-quick-sheet role="dialog" aria-modal="true"
      aria-label="Account, language and display" inert>

@@ -106,6 +106,43 @@ final class SearchScopeTest extends TestCase
         );
     }
 
+    public function test_the_palette_offers_a_chip_for_every_scope_and_no_others(): void
+    {
+        $twig = (string) file_get_contents(__DIR__ . '/../../templates/partials/site-search.twig');
+        preg_match_all("/\\{k:'([a-z]*)', *label:'([A-Za-z]+)'\\}/", $twig, $m, PREG_SET_ORDER);
+
+        $keys = array_map(static fn (array $r): string => $r[1], $m);
+
+        // "All" is the empty key — the absence of a filter, not a fifth bucket.
+        $this->assertSame('', $keys[0] ?? null, 'the first chip must be All');
+        $this->assertSame(
+            array_keys(ActivityFeedService::SCOPES),
+            array_values(array_filter($keys)),
+            'the chips and the scopes disagree: a chip with no bucket filters nothing and '
+            . 'a bucket with no chip is a group of results nobody can ask for'
+        );
+    }
+
+    public function test_the_chip_map_is_delivered_and_not_copied_into_the_javascript(): void
+    {
+        // The palette groups its results under the same headings the chips offer, and
+        // it cannot know which kind belongs where without the map. A second copy in JS
+        // is two lists that drift — visibly as a result filed under the wrong heading,
+        // invisibly as one filed under none.
+        $ctrl = (string) file_get_contents(__DIR__ . '/../../src/Controllers/ActivityController.php');
+        $this->assertStringContainsString("ActivityFeedService::SCOPES", $ctrl,
+            'the search endpoint no longer delivers the scope map');
+
+        $js = (string) file_get_contents(__DIR__ . '/../../public/assets/js/ag-search.js');
+        foreach (ActivityFeedService::SOURCES as $kind => $_) {
+            $this->assertStringNotContainsString(
+                "'" . $kind . "'",
+                $js,
+                "ag-search.js names the source '$kind' itself; the mapping belongs on the server"
+            );
+        }
+    }
+
     public function test_a_verified_organisation_is_findable_from_a_chip(): void
     {
         // An organisation is not a person, and the chip set has nowhere else to put one.

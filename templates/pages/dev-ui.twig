@@ -25,8 +25,23 @@
      layer legend from the z tokens. They are read because they are shown, and the
      guard stays strict with nothing forgiven.
 
+  Phase 2 added a third job, and it is the one that keeps a sheet honest: this is
+  the only page on the site that mounts the phone APP BAR, so it is the only route
+  from which Quick settings can be opened at all. Until a phase converts a real
+  page to this shell, a specimen page is the difference between a dialog that has
+  been seen working and one nobody has ever opened — which is the state the
+  donor's cancellation link and the Chrome extension both shipped in.
+
   Dev-only: the route answers 404 when APP_ENV is production.
 #}
+
+{% block app_bar %}
+  {% include 'partials/app-bar.twig' with { variant: 'root', title: 'Tokens & components', initials: 'AG' } %}
+{% endblock %}
+
+{% block bottom_bar %}
+  {% include 'partials/tab-bar.twig' with { active: '' } %}
+{% endblock %}
 
 {% block content %}
 <div class="duix__wrap">

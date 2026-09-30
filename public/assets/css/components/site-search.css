@@ -11,30 +11,28 @@
      otherwise correct dialog — they can move, but cannot see where they are.
    ══════════════════════════════════════════════════════════════════════════ */
 
-/* the header trigger */
-.ag-searchbtn{
-  display:inline-flex; align-items:center; gap:7px; cursor:pointer;
-  border:1px solid rgba(16,41,44,.14); background:transparent; color:var(--ag-ink,#10292c);
-  border-radius:999px; padding:8px 12px; line-height:0;
-}
-.ag-searchbtn svg{ width:17px; height:17px; }
-.ag-searchbtn:hover{ background:rgba(16,41,44,.05); }
-.ag-searchbtn:focus-visible{ outline:2px solid var(--ag-green,#237b22); outline-offset:2px; }
-.ag-searchbtn__k{
-  font:600 11px/1 var(--ag-font-mono,monospace); color:var(--ag-ink-soft,#626a6e);
-  border:1px solid rgba(16,41,44,.16); border-radius:5px; padding:3px 5px;
-}
-@media (max-width: 880px){ .ag-searchbtn__k{ display:none; } }
+/* The header trigger's own rules are GONE: it is the toolbar pill's first
+   control now (`.ag-tools__b` in components.css), and `.ag-searchbtn` was left
+   with no element to style. A selector with nothing behind it is §17 at the
+   stylesheet layer — the next person reads it as the site's convention for a
+   search button and writes markup for a rule that no longer matches anything.
 
-/* the overlay */
+   the overlay */
 .ags[hidden]{ display:none; }
+/* 84px from the top — the DC's figure, not a fraction of the viewport. `7vh` was
+   63px on a 900px window and 41px on a laptop, so the palette sat at a different
+   height on every screen while the handoff names one. Short windows get the
+   fallback below rather than a formula that is wrong everywhere else. */
 .ags{ position:fixed; inset:0; z-index:1200; display:flex; justify-content:center;
-      align-items:flex-start; padding:clamp(12px,7vh,90px) 16px 16px; }
-.ags__scrim{ position:absolute; inset:0; background:rgba(8,18,19,.55); backdrop-filter:blur(3px); }
+      align-items:flex-start; padding:84px 16px 16px; }
+@media (max-height:620px){ .ags{ padding-top:24px } }
+.ags__scrim{ position:absolute; inset:0; background:rgba(16,41,44,.28); backdrop-filter:blur(2px); }
 .ags__panel{
-  position:relative; width:min(680px,100%); max-height:calc(100vh - 100px);
-  display:flex; flex-direction:column; background:#fff; border-radius:20px;
- overflow:hidden;
+  position:relative; width:min(680px,100%); max-height:min(560px, calc(100dvh - 110px));
+  display:flex; flex-direction:column;
+  background:var(--ag-surface); border-radius:var(--ag-r-20);
+  box-shadow:0 30px 70px -20px rgba(16,41,44,.45);
+  overflow:hidden;
 }
 
 .ags__bar{ display:flex; align-items:center; gap:10px; padding:14px 16px;
@@ -102,4 +100,25 @@
   .ags{ padding:0; }
   .ags__panel{ width:100%; max-height:100vh; height:100%; border-radius:0; }
   .ags__foot kbd{ display:none; }
+}
+
+
+/* ══ The scope chips and the grouped panel — REFERENCE §7.1 ══════════════════ */
+
+.ags__scopes{
+  flex:none; display:flex; gap:var(--ag-sp-6);
+  padding:var(--ag-sp-12) var(--ag-sp-18) var(--ag-sp-4);
+  overflow-x:auto; scrollbar-width:none;
+}
+.ags__scopes::-webkit-scrollbar{ display:none }
+.ags__scope{ flex:none; height:32px; padding:0 13px; font-size:13px }
+
+/* A group is a heading plus its rows. `role="group"` inside the listbox, so the
+   headings are announced as structure rather than read as options somebody can
+   arrow onto and then not open. */
+.ags__grp{ display:flex; flex-direction:column; gap:2px; padding:var(--ag-sp-6) 0; list-style:none }
+.ags__grph{
+  padding:var(--ag-sp-6) var(--ag-sp-10);
+  font-size:11.5px; font-weight:700; letter-spacing:.08em;
+  text-transform:uppercase; color:var(--ag-soft);
 }

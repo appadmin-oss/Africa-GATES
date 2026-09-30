@@ -72,9 +72,14 @@
        the emails linked it, and nobody browsing the site could reach a decided
        award. A spec that omits a destination does not make it optional. GAPS.md §9.8.
 
-       And a comment cannot go INSIDE the array below — Twig lexes `{# #}` as a
-       comment only between tags, never inside an expression, and it answers a `#`
-       in an array literal with a SyntaxError naming a backtick. #}
+       And a comment cannot go INSIDE the array below — Twig lexes a comment only
+       between tags, never inside an expression, and it answers a stray hash in an
+       array literal with a SyntaxError naming a backtick.
+
+       Nor may a comment CONTAIN a comment's closing brace-hash. Writing that pair
+       here to illustrate the rule ended the comment on the spot and printed the
+       remaining four lines of prose into the page, above the header, on every
+       screen of the site. Name the characters; do not type them. #}
     <nav class="ag-head__top" aria-label="Primary">
       {% for m in [
         {k:'participate', label:'Participate', items:[
@@ -208,8 +213,22 @@
 {% include 'partials/lang-prompt.twig' %}
 {% include 'partials/tab-bar.twig' with { active: _p } %}
 {% include 'partials/menu-sheet.twig' %}
-{% include 'partials/quick-settings.twig' %}
-{% include 'partials/site-search.twig' %}
+{# Quick settings is NOT mounted here, and that is the point. Its only trigger is
+   the phone app bar's avatar, and this layout has no app bar — so including it
+   would put a dialog in ~180 pages that nothing on any of them can open. That is
+   §18 exactly: a mechanism complete in every part except the way in.
+
+   `layout/shell.twig` mounts it, because the app bar is part of the shell. On this
+   layout the Menu is the phone's route to the same settings, and it is the same
+   partial behind both. `ChromeReachabilityTest` fails on a sheet no template that
+   mounts it can open. #}
+{# The search palette is NOT included here: `layout/gates.twig` already includes it,
+   and including it twice put two `id="agsInput"` boxes in one document — which
+   `getElementById` answers with the first, so every control the script wired
+   belonged to a panel the visitor was not looking at. Nothing throws; the palette
+   simply stops responding. `SiteHeaderTest` compares the two layouts' include
+   lists now, because this is the second time one surface has been mounted twice
+   in this phase. #}
 
 <script nonce="{{ csp_nonce }}">
 (function(){

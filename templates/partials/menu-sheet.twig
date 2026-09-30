@@ -21,7 +21,12 @@
   silently done either way.
 #}
 {% set _ini = member_name ? (member_name|split(' ')|map(w => w|first)|join|upper|slice(0,2)) : 'AG' %}
-<div class="ag-scrim" data-ag-menu-scrim hidden></div>
+{# No `hidden` attribute: that is `display:none`, and `AGShell.openSheet()` reveals a
+   scrim by setting `data-open` on it — which cannot beat `display:none`. The scrim was
+   in the document, correct in every other respect, and never once drawn. The resting
+   state is `opacity:0; pointer-events:none` in the stylesheet, which is also what lets
+   it fade rather than appear. #}
+<div class="ag-scrim" data-ag-menu-scrim></div>
 
 <div class="ag-sheet ag-menu" data-ag-menu-sheet role="dialog" aria-modal="true"
      aria-label="Menu" inert>
@@ -29,14 +34,18 @@
   <span class="ag-sheet__grabber" aria-hidden="true"></span>
 
   <div class="ag-sheet__head">
+    {# `visibility`, never `hidden`. The head is a `44px 1fr 44px` grid and `hidden` is
+       `display:none`, which takes the cell with it — so on the main view the title slid
+       into the back button's column and the close button wrapped onto a second row.
+       `visibility:hidden` keeps the cell AND takes the control out of the tab order,
+       which is the whole of what was wanted. #}
     <button type="button" class="ag-appbar__icon" data-ag-menu-back
-            aria-label="Back to menu" hidden>
+            aria-label="Back to menu" data-hide>
       <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor"
            stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
         <path d="m15 18-6-6 6-6"></path>
       </svg>
     </button>
-    <span data-ag-menu-notback></span>
     <b data-ag-menu-title>Menu</b>
     <button type="button" class="ag-appbar__icon" data-ag-menu-close aria-label="Close menu">
       <span class="ag-menu__x">

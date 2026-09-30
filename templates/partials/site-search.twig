@@ -70,6 +70,32 @@
 
     <p class="ags__hint" id="agsHint">Try a name, a category, or a question like “how does voting work”.</p>
 
+    {# ── THE SCOPE CHIPS — REFERENCE §7.1 ──────────────────────────────────
+       Five chips, and what each one ASKS is decided server-side
+       (`ActivityFeedService::SCOPES`) and delivered with the results, never
+       restated here. Two copies of that map is two lists that drift, and the
+       drift shows up as a result landing under the wrong heading or under none.
+
+       `role="tablist"` is the DC's, and it is right: the chips filter the panel
+       below them rather than navigating, and exactly one is chosen at a time.
+       Each is a real <button>, so with no script the palette never opens and
+       the form underneath still submits to /activity — the chips are part of
+       the enhancement, not part of the way in. #}
+    <div class="ags__scopes" role="tablist" aria-label="Search in">
+      {% for sc in [
+        {k:'',       label:'All'},
+        {k:'people', label:'People'},
+        {k:'awards', label:'Awards'},
+        {k:'events', label:'Events'},
+        {k:'pages',  label:'Pages'}
+      ] %}
+        <button type="button" class="ag-chip ags__scope" role="tab"
+                aria-selected="{{ loop.first ? 'true' : 'false' }}"
+                aria-controls="agsResults"
+                data-ags-scope="{{ sc.k }}">{{ sc.label }}</button>
+      {% endfor %}
+    </div>
+
     {# Always present, so the announcement lands. Empty until there is something
        true to say — a status line that says "0 results" before you have typed is
        noise read out on every open. #}

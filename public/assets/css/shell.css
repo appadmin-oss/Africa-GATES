@@ -137,3 +137,33 @@ html.ag-rm *::after{
   transition:none!important;
   scroll-behavior:auto!important;
 }
+
+/* ══ `hidden` has to actually hide ═══════════════════════════════════════════
+
+   `[hidden]{display:none}` is a USER-AGENT rule, so ANY author rule setting
+   `display` beats it on specificity — and this design system sets `display` on
+   almost every component. Measured: the Display & reading form's "Change" button
+   is `.ag-btn{display:inline-flex}`, `chrome.js` sets `hidden` on it because the
+   select submits on change, and it stayed on screen beside a control that had
+   already made it redundant.
+
+   The failure is silent in both directions: an element the script hid is still
+   there, and the script's own `el.hidden = true` reads as correct at every call
+   site. One rule, at the base layer, rather than a `[hidden]` variant on each of
+   thirty components. */
+/* ══ Border-box, everywhere ══════════════════════════════════════════════════
+
+   The old stylesheet layer set this and the redesign's three sheets did not, so it
+   held only where an older file happened to reach. Measured on the Quick settings
+   sheet: `.ag-btn--block{width:100%}` on a `<button>` came out 358px and the same
+   classes on an `<a>` came out 402 — 358 plus the button's own 44px of padding —
+   and the Sign-in control ran off the right edge of the sheet. Whatever reset was
+   catching the button was not catching the anchor.
+
+   Declared here rather than hunted down per component: every width, padding and
+   border in this design system is written as though it were already true. Nine
+   rules in components.css say `box-sizing:border-box` by hand, which is what a
+   missing base rule looks like from the inside. */
+*, *::before, *::after{ box-sizing:border-box }
+
+[hidden]{ display:none !important }
