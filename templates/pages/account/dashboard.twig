@@ -709,15 +709,11 @@
           <div class="me-col">
             <section class="ag-card" aria-labelledby="h-hiw">
               <h2 id="h-hiw" class="ag-h2">How it works</h2>
-              <ol class="ag-steps">
-                {% for step in [
-                  'Share your link or code with friends, family and colleagues.',
-                  'They buy event tickets through it.',
-                  'After ' ~ referral.threshold ~ ' paid bookings you earn ' ~ referral.rate_pct ~ '% of everything they paid, including the first ' ~ referral.threshold ~ '.'
-                ] %}
-                <li><span class="ag-steps__n">{{ loop.index }}</span><span>{{ step }}</span></li>
-                {% endfor %}
-              </ol>
+              {{ ui.steps([
+                {s: 'Share your link or code with friends, family and colleagues.'},
+                {s: 'They buy event tickets through it.'},
+                {s: 'After ' ~ referral.threshold ~ ' paid bookings you earn ' ~ referral.rate_pct ~ '% of everything they paid, including the first ' ~ referral.threshold ~ '.'}
+              ]) }}
             </section>
 
             {% if my_links|default([])|length %}

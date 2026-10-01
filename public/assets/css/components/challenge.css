@@ -1,276 +1,193 @@
 /* ══════════════════════════════════════════════════════════════════════════════
-   CHALLENGES — /challenges and /challenges/{slug}
+   CHALLENGES — the theme, /challenges/{slug}, the list, and the Pulse cards
    ══════════════════════════════════════════════════════════════════════════════
 
-   A THEME IS A NAME, NEVER A HEX.
+   What is HERE is only what a challenge has and nothing else does: its theme, its
+   hero and its prize rail. The steps, the rules, the questions, the rows and the
+   meter are the shared library's (`partials/ui.twig`, components.css) and are not
+   restyled here beyond handing them the theme's colour through the custom properties
+   each of them exposes for that.
+
+   ── A THEME IS A NAME, NEVER A HEX ──────────────────────────────────────────
 
    The design comp carries `accent`, `wash` and `ink` inline on each challenge, because
-   a design file carries its own palette. Storing those on the row would put 4 hexes
-   per challenge into the database and let an admin pick a gold at 1.65:1 that reads as
-   nothing on paper — which is the exact fault `Support\Accent` exists to prevent, and
-   §0.4 of the handoff forbids a new colour outright.
+   a design file carries its own palette. Storing those on the row would let an admin
+   pick a gold at 1.65:1 that reads as nothing on paper — the fault `Support\Accent`
+   exists to prevent — so `theme` is one of four NAMES resolving to tokens.
 
-   So `theme` is one of four NAMES and each resolves to tokens that already exist. All
-   four are below; there is no fifth, and adding one is a token question rather than a
-   CSS one.
+   Four slots, and the fourth is the one that was missing:
 
-   `fill` vs `edge` is load-bearing and is the split `EventTierTone` already draws. A
-   fill is the identity — the wash, the chip, the dot — and owes no contrast floor. An
-   edge is for anything that has to HOLD at 3:1 against white (1.4.11): a border, a
-   ring, a rule. Painting a hairline with a pale fill draws nothing at all; painting a
-   chip with an edge shows a colour nobody chose.
+     --ch-fill   the identity: a meter segment, a bar. Owes no contrast floor.
+     --ch-edge   anything that must hold 3:1 against white — a ring, the kicker.
+     --ch-wash   the hero's ground.
+     --ch-solid  a background that carries WHITE TEXT at 4.5:1: the step numbers and
+                 the primary action. This used to be `--ch-fill`, so the gold theme's
+                 "Sign in to join" was white on #f3b416 — 1.85:1, a button nobody could
+                 read. Measured per theme: green 5.35, blue 5.44, gold-ink 6.65,
+                 live-ink 6.59.
+
+   The hairline (`--ch-line`) is mixed from the edge rather than typed: two of the four
+   presets carried a bare hex for it, which is how the palette came to hold 642.
    ══════════════════════════════════════════════════════════════════════════════ */
 
-[data-theme="green"]{
-  --ch-fill:var(--ag-green); --ch-edge:var(--ag-green-deep);
-  --ch-wash:var(--ag-green-wash); --ch-line:var(--ag-green-edge);
-}
-[data-theme="blue"]{
-  --ch-fill:var(--ag-info); --ch-edge:var(--ag-info);
-  --ch-wash:var(--ag-info-wash); --ch-line:#cfe0ec;
-}
-[data-theme="gold"]{
-  /* The gold is 1.65:1 on paper, so `edge` is the ink variant and never the gold
-     itself. This is the token that made the whole site read monochrome when it was
-     used as a hairline. */
-  --ch-fill:var(--ag-gold); --ch-edge:var(--ag-gold-ink);
-  --ch-wash:var(--ag-gold-wash); --ch-line:var(--ag-gold-edge);
-}
-[data-theme="rose"]{
-  --ch-fill:var(--ag-live); --ch-edge:var(--ag-live-ink);
-  --ch-wash:var(--ag-live-wash); --ch-line:#f4d2da;
-}
+[data-theme="green"]{ --ch-fill:var(--ag-green); --ch-edge:var(--ag-green-deep);
+  --ch-wash:var(--ag-green-wash); --ch-solid:var(--ag-green) }
+[data-theme="blue"] { --ch-fill:var(--ag-info);  --ch-edge:var(--ag-info);
+  --ch-wash:var(--ag-info-wash);  --ch-solid:var(--ag-info) }
+[data-theme="gold"] { --ch-fill:var(--ag-gold);  --ch-edge:var(--ag-gold-ink);
+  --ch-wash:var(--ag-gold-wash);  --ch-solid:var(--ag-gold-ink) }
+[data-theme="rose"] { --ch-fill:var(--ag-live);  --ch-edge:var(--ag-live-ink);
+  --ch-wash:var(--ag-live-wash);  --ch-solid:var(--ag-live-ink) }
+[data-theme]{ --ch-line:color-mix(in srgb, var(--ch-edge) 16%, var(--ag-surface)) }
 
-/* ══ the page ════════════════════════════════════════════════════════════════ */
 
-.ch{ display:block; background:var(--ag-paper) }
+/* ══ /challenges/{slug} ═════════════════════════════════════════════════════
 
-.ch__hero{ background:var(--ch-wash); border-bottom:1px solid var(--ch-line) }
-.ch__hero-in{
-  max-width:1180px; margin-inline:auto;
-  display:grid; grid-template-columns:minmax(0,1fr); gap:var(--ag-sp-16);
-  padding:18px 16px 22px;
-}
-.ch__art{ display:flex; justify-content:center }
-.ch__art-img{ width:100%; max-width:260px; height:auto; border-radius:var(--ag-r-16) }
-.ch__icon{
-  display:flex; align-items:center; justify-content:center;
-  width:120px; height:120px; border-radius:var(--ag-r-16);
+   The comp's three layouts, by container width:
+     phone  (<600)   one column, the meter as a card, the action bar fixed below
+     tablet (600+)   the hero goes two-across, the rail appears under the column
+     desktop (1024+) the rail moves beside the column and sticks
+   ══════════════════════════════════════════════════════════════════════════ */
+
+.ch{ background:var(--ag-ground);
+  /* The shared pieces take the theme from here. */
+  --ag-step-fill:var(--ch-solid); --ag-meter-fill:var(--ch-fill);
+  --ag-notice-wash:var(--ch-wash); --ag-notice-ink:var(--ch-edge) }
+
+/* ── the hero ── */
+.ch-hero{ background:var(--ch-wash); border-bottom:1px solid var(--ch-line) }
+.ch-hero__in{ max-width:1160px; margin:0 auto; padding:18px 16px 22px;
+  display:grid; grid-template-columns:minmax(0,1fr); gap:16px; align-items:center }
+.ch-hero__art{ width:100%; max-width:260px; height:auto; justify-self:center; display:block }
+.ch-hero__icon{ justify-self:center; width:120px; height:120px; border-radius:32px;
   background:var(--ag-surface); color:var(--ch-edge);
-}
-.ch__icon svg{ width:56px; height:56px }
-
-.ch__kicker{
-  margin:0 0 var(--ag-sp-10); display:flex; align-items:center; gap:var(--ag-sp-8);
-  flex-wrap:wrap;
-  font-family:var(--ag-font-mono); font-size:11px; font-weight:600;
-  letter-spacing:.08em; text-transform:uppercase; color:var(--ag-soft);
-}
-
-/* The state pill carries a WORD. It is never the only signal of state — the CTA, the
-   meter title and the facts strip all say it too — because a reader who cannot
-   separate these hues still has to know whether they can enter. */
-.ch__pill,.chl__pill{
-  display:inline-flex; align-items:center; min-height:22px; padding:0 9px;
-  border-radius:999px; font-family:var(--ag-font-mono); font-size:11px; font-weight:600;
-  letter-spacing:.04em; text-transform:uppercase;
-  background:var(--ag-surface); border:1px solid currentColor;
-}
-.ch__pill[data-state="open"],.chl__pill[data-state="open"]{ color:var(--ag-green-deep) }
-.ch__pill[data-state="full"],.chl__pill[data-state="full"]{ color:var(--ag-gold-ink) }
-.ch__pill[data-state="ended"],.chl__pill[data-state="ended"]{ color:var(--ag-soft) }
-.ch__pill[data-state="upcoming"],.chl__pill[data-state="upcoming"]{ color:var(--ag-info) }
-
-/* Display range: set with clamp() against the viewport, not off the closed 10–17
-   ladder, which stops at the reading sizes. */
-.ch__h1{ margin:0 0 var(--ag-sp-12); font-size:clamp(28px,8vw,34px); line-height:1.1 }
-.ch__promise{ margin:0 0 var(--ag-sp-18); font-size:17px; line-height:1.5; color:var(--ag-ink-2) }
-
-.ch__facts{
-  margin:0; display:grid; grid-template-columns:repeat(2,minmax(0,1fr));
-  gap:1px; background:var(--ch-line); border:1px solid var(--ch-line);
-  border-radius:var(--ag-r-12); overflow:hidden;
-}
-.ch__fact{ display:flex; flex-direction:column; gap:4px; padding:12px 14px; background:rgba(255,255,255,.75) }
-.ch__fact dt{ font-size:12px; color:var(--ag-soft) }
-.ch__fact dd{ margin:0; font-weight:700; font-size:15.5px }
-
-/* ══ body ════════════════════════════════════════════════════════════════════ */
-
-.ch__body{
-  max-width:1180px; margin-inline:auto;
-  display:grid; grid-template-columns:minmax(0,1fr); gap:var(--ag-sp-24);
-  /* The tail clears the fixed bar. A bar that overlaps the last section hides the
-     terms link, which is the one thing on this page somebody may need to read. */
-  padding:20px 16px 120px;
-}
-.ch__sec{ margin:0 0 var(--ag-sp-28) }
-.ch__sec-head{ display:flex; align-items:baseline; justify-content:space-between; gap:10px; flex-wrap:wrap }
-.ch__h2{ margin:0 0 var(--ag-sp-12); font-size:21px; font-weight:700 }
-.ch__sec-sub,.ch__sec-note{ font-size:13.5px; color:var(--ag-soft) }
-.ch__sec-note{ margin:0 0 var(--ag-sp-12) }
-
-.ch__steps{ margin:0; padding:0; list-style:none; display:grid; gap:var(--ag-sp-12) }
-.ch__step{
-  display:grid; grid-template-columns:34px minmax(0,1fr); gap:4px var(--ag-sp-12);
-  padding:var(--ag-sp-14); background:var(--ag-surface);
-  border:1px solid var(--ag-line); border-radius:var(--ag-r-14);
-}
-.ch__step-n{
-  grid-row:1/3; display:flex; align-items:center; justify-content:center;
-  width:34px; height:34px; border-radius:50%;
-  background:var(--ch-wash); color:var(--ch-edge);
-  font-family:var(--ag-font-mono); font-size:13px; font-weight:700;
-}
-.ch__step-t{ font-weight:600; font-size:16px }
-.ch__step-s{ font-size:14px; line-height:1.5; color:var(--ag-ink-2) }
-
-.ch__rules{ margin:0; padding:0; list-style:none; background:var(--ag-surface);
-  border:1px solid var(--ag-line); border-radius:var(--ag-r-14) }
-.ch__rule{ padding:var(--ag-sp-14); font-size:15px; line-height:1.5 }
-.ch__rule + .ch__rule{ border-top:1px solid var(--ag-line-3) }
-
-.ch__winners{ margin:0; padding:0; list-style:none; background:var(--ag-surface);
-  border:1px solid var(--ag-line); border-radius:var(--ag-r-14) }
-.ch__winner{
-  display:grid; grid-template-columns:44px minmax(0,1fr) auto; gap:2px var(--ag-sp-10);
-  padding:var(--ag-sp-14); align-items:center;
-}
-.ch__winner + .ch__winner{ border-top:1px solid var(--ag-line-3) }
-.ch__winner-n{ grid-row:1/3; font-family:var(--ag-font-mono); font-size:13px; color:var(--ag-soft) }
-.ch__winner-who{ font-weight:600; font-size:15px }
-.ch__winner-when{ grid-row:1/3; font-family:var(--ag-font-mono); font-size:12px; color:var(--ag-soft) }
-.ch__winner-where{ font-size:13px; color:var(--ag-soft) }
-
-.ch__empty{
-  display:flex; align-items:center; gap:var(--ag-sp-16); padding:var(--ag-sp-20);
-  background:var(--ag-surface); border:1px dashed var(--ag-line-2); border-radius:var(--ag-r-16);
-}
-.ch__empty-t{ display:block; font-size:16px }
-.ch__empty-s{ display:block; font-size:14px; line-height:1.5; color:var(--ag-ink-2) }
-
-.ch__inc{ margin:0; padding:0; list-style:none; background:var(--ag-surface);
-  border:1px solid var(--ag-line); border-radius:var(--ag-r-14) }
-.ch__inc-row{ display:flex; align-items:center; gap:var(--ag-sp-12); padding:var(--ag-sp-12) var(--ag-sp-14) }
-.ch__inc-row + .ch__inc-row{ border-top:1px solid var(--ag-line-3) }
-.ch__inc-kind{
-  flex:none; font-family:var(--ag-font-mono); font-size:11px; font-weight:600;
-  letter-spacing:.04em; text-transform:uppercase; color:var(--ag-soft);
-}
-/* 44px, and the whole row is the target rather than the words. */
-.ch__inc-link{ flex:1; min-height:44px; display:flex; align-items:center; font-size:15px }
-
-/* The FAQ is `<details>`: it opens with no JavaScript, is found by find-in-page, and
-   is announced as a disclosure without a line of ARIA. */
-.ch__faq{ border-top:1px solid var(--ag-line) }
-.ch__q{ border-bottom:1px solid var(--ag-line) }
-.ch__q-q{
-  display:flex; align-items:center; justify-content:space-between; gap:12px;
-  min-height:58px; font-weight:600; font-size:16px; cursor:pointer; list-style:none;
-}
-.ch__q-q::-webkit-details-marker{ display:none }
-.ch__q-q::after{ content:'+'; font-size:22px; font-weight:400; color:var(--ag-soft) }
-.ch__q[open] .ch__q-q::after{ content:'−' }
-.ch__q-q:focus-visible{ outline:3px solid var(--ag-green); outline-offset:2px }
-.ch__q-a{ margin:0 0 var(--ag-sp-16); font-size:15px; line-height:1.6; color:var(--ag-ink-2); max-width:62ch }
-.ch__terms{ margin:var(--ag-sp-16) 0 0; font-size:13.5px }
-
-.ch__more{ display:grid; grid-template-columns:minmax(0,1fr); gap:var(--ag-sp-12) }
-.ch__more-card{
-  display:grid; gap:4px; padding:var(--ag-sp-16);
-  background:var(--ag-surface); border:1px solid var(--ag-line); border-radius:var(--ag-r-14);
-}
-.ch__more-t{ font-weight:700; font-size:16px }
-.ch__more-s{ font-size:13.5px; color:var(--ag-ink-2) }
-.ch__more-card .ch__pill{ justify-self:start; margin-top:4px }
-
-/* ══ the meter ═══════════════════════════════════════════════════════════════ */
-
-.ch__meter-card{
-  margin:0 0 var(--ag-sp-24); padding:var(--ag-sp-16);
-  background:var(--ag-surface); border:1px solid var(--ag-line); border-radius:var(--ag-r-16);
-}
-.ch__meter{ display:grid; gap:var(--ag-sp-10) }
-.ch__meter-head{ display:flex; align-items:center; justify-content:space-between; gap:10px }
-.ch__meter-t{ font-size:16px }
-.ch__meter-time{ font-size:13.5px; color:var(--ag-soft) }
-
-.ch__spots{ display:flex; flex-wrap:wrap; gap:6px }
-.ch__spot{
-  width:16px; height:16px; border-radius:50%;
-  background:var(--ag-surface); box-shadow:inset 0 0 0 1.5px var(--ag-line-2);
-}
-.ch__spot.is-taken{ background:var(--ch-fill); box-shadow:none }
-
-.ch__mine{ display:grid; gap:6px }
-.ch__mine-t{ font-family:var(--ag-font-mono); font-size:12px; color:var(--ag-soft) }
-.ch__mine-bar{ display:block; height:8px; border-radius:999px; background:var(--ag-tint); overflow:hidden }
-.ch__mine-fill{ display:block; height:100%; width:var(--ag-pct,0%); background:var(--ch-fill) }
-
-/* ══ the rail and the bar ════════════════════════════════════════════════════ */
-
-.ch__rail{ display:none }
-
-.ch__cta{
   display:flex; align-items:center; justify-content:center;
-  min-height:52px; padding:0 var(--ag-sp-20); white-space:nowrap;
-  background:var(--ch-fill); color:#fff; font-weight:600; font-size:16px;
-  border-radius:var(--ag-r-12); border:1px solid transparent;
-}
-/* A full or ended challenge offers a way ON, not a way in — so it is outlined rather
-   than filled. The word changes too; the weight is not carrying it alone. */
-.ch__cta--quiet{ background:var(--ag-surface); color:var(--ag-ink); border-color:var(--ag-ink) }
-.ch__cta:focus-visible{ outline:3px solid var(--ag-green); outline-offset:2px }
-.ch__cta-note{ margin:var(--ag-sp-10) 0 0; font-size:13px; line-height:1.5; color:var(--ag-soft) }
+  box-shadow:0 20px 40px -24px rgba(16,41,44,.35) }
+.ch-hero__icon svg{ width:46%; height:46% }
+.ch-hero__b{ display:flex; flex-direction:column; gap:14px; min-width:0 }
+.ch-hero__k{ margin:0; display:flex; align-items:center; gap:8px; flex-wrap:wrap;
+  font-size:13.5px; font-weight:700; color:var(--ch-edge) }
+.ch-hero__h{ margin:0; font-family:var(--ag-font-display); font-weight:700;
+  font-size:34px; line-height:1.04; text-wrap:balance }
+.ch-hero__p{ margin:0; max-width:44ch; font-size:17px; line-height:1.5; color:var(--ag-ink-2) }
 
-.ch__bar{
-  position:fixed; inset-inline:0; bottom:0; z-index:40;
-  display:flex; align-items:center; gap:var(--ag-sp-12);
-  padding:10px 16px calc(10px + env(safe-area-inset-bottom));
-  background:var(--ag-surface); border-top:1px solid var(--ag-line);
-}
-.ch__bar-l{ flex:1; min-width:0; display:flex; flex-direction:column; gap:1px }
-.ch__bar-prize{ font-size:17px }
-.ch__bar-sub{ font-size:12.5px; color:var(--ag-soft); white-space:nowrap; overflow:hidden; text-overflow:ellipsis }
-.ch__bar-cta{
-  flex:none; display:flex; align-items:center; min-height:48px; padding:0 var(--ag-sp-18);
-  background:var(--ch-fill); color:#fff; font-weight:600; border-radius:var(--ag-r-12);
-  white-space:nowrap;
-}
+/* The flag, drawn: green · white · green at the flag's 1:2 proportion. An emoji is
+   two letters on Windows, which has no flag glyphs. */
+.ch-flag{ display:flex; width:24px; height:15px; border-radius:3px; overflow:hidden;
+  box-shadow:inset 0 0 0 1px rgba(16,41,44,.15) }
+.ch-flag > span{ flex:1; background:var(--ag-green) }
+.ch-flag > span:nth-child(2){ background:var(--ag-surface) }
+
+/* The state, as a white chip on the wash. Its word is the state; the colour is extra. */
+.ch-state{ display:inline-flex; align-items:center; height:24px; padding:0 10px;
+  border-radius:999px; background:var(--ag-surface); font-size:12px }
+.ch-state[data-state="open"]    { color:var(--ag-green-deep) }
+.ch-state[data-state="full"]    { color:var(--ag-gold-ink) }
+.ch-state[data-state="ended"]   { color:var(--ag-soft) }
+.ch-state[data-state="upcoming"]{ color:var(--ag-info) }
+
+/* WHO RUNS THE AWARD. The logo is sized by HEIGHT with an auto width, because a host's
+   mark is whatever shape it is — a fixed box letterboxes a wordmark or squashes a
+   roundel. It carries `alt=""`: the sentence beside it names the host, and a named
+   image beside the same name is read twice. */
+.ch-host{ margin:0; display:flex; align-items:center; gap:10px; flex-wrap:wrap;
+  font-size:14px; color:var(--ag-ink-2) }
+.ch-host img{ width:auto; height:28px; max-width:140px; object-fit:contain; display:block }
+.ch-host b, .ch-host a{ color:var(--ag-ink); font-weight:600 }
+.ch-host a{ text-decoration:underline; text-underline-offset:2px }
+
+/* The shared fact strip, on the wash: cells of white at 75% with the theme's hairline
+   between. The strip's own sunken ground would vanish into a tinted hero. */
+.ch-hero .ag-facts{ margin-top:4px; background:var(--ch-line); border:1px solid var(--ch-line);
+  border-radius:var(--ag-r-16) }
+.ch-hero .ag-facts > *{ padding:12px 14px; background:rgba(255,255,255,.75) }
+.ch-hero .ag-facts dd{ font:700 15.5px/1.3 var(--ag-font-body) }
+.ch-hero .ag-facts dt{ white-space:normal }
+
+/* ── the body ── */
+.ch-body{ max-width:1160px; margin:0 auto; padding:20px 16px 40px;
+  display:grid; grid-template-columns:minmax(0,1fr); gap:40px; align-items:start }
+.ch-main{ min-width:0; display:flex; flex-direction:column; gap:32px }
+.ch-sec{ display:flex; flex-direction:column; gap:12px }
+.ch-sec > .ag-hint{ margin:0 }
+.ch-h2{ margin:0; font-family:var(--ag-font-ui); font-size:21px; font-weight:700; letter-spacing:0 }
+.ch-terms{ font-weight:600; font-size:14.5px }
+.ch-more{ display:grid; grid-template-columns:minmax(0,1fr); gap:10px }
+.ch-more > .ag-list__row{ border:1px solid var(--ag-line); border-radius:var(--ag-r-18);
+  background:var(--ag-surface) }
+
+/* The meter block, in the phone card and the rail alike. */
+.ch-meter{ display:flex; flex-direction:column; gap:10px }
+.ch-meter--phone{ padding:18px; gap:12px; border-radius:var(--ag-r-20) }
+.ch-meter b{ font-size:16px }
+.ch-mine{ font-size:14px; color:var(--ag-ink-2) }
+.ch-mine b{ color:var(--ag-ink) }
+
+/* Winners: rank · who and where · when. Two columns on a desk, because a list of
+   eleven names one under another is a scroll for a fact that fits beside itself. */
+.ch-winners{ list-style:none; margin:0; padding:4px 18px; background:var(--ag-surface);
+  border:1px solid var(--ag-line); border-radius:var(--ag-r-18);
+  display:grid; grid-template-columns:minmax(0,1fr); column-gap:24px }
+.ch-winners > li{ display:flex; align-items:center; gap:12px; min-height:58px }
+.ch-winners > li + li{ border-top:1px solid var(--ag-line) }
+.ch-winners__n{ flex:none; width:32px; font:700 13.5px/1 var(--ag-font-mono); color:var(--ag-gold-ink) }
+.ch-winners__b{ flex:1; min-width:0; display:flex; flex-direction:column; gap:1px }
+.ch-winners__b b{ font-size:15px; font-weight:600 }
+.ch-winners__b span{ font-size:12.5px; color:var(--ag-soft) }
+.ch-winners__t{ flex:none; font:500 12.5px/1 var(--ag-font-mono); color:var(--ag-ink-2) }
+
+/* The theme's solid action. Only the colour is the theme's; the button is the shared
+   one, so its height, radius and focus ring match every other primary on the site. */
+.ch-cta{ background:var(--ch-solid); color:var(--ag-surface) }
+.ch-cta:hover{ background:var(--ch-solid); color:var(--ag-surface); filter:brightness(.94) }
+
+/* ── the rail ── */
+.ch-rail{ display:none; flex-direction:column; gap:16px; padding:24px;
+  background:var(--ag-surface); border:1px solid var(--ag-line); border-radius:var(--ag-r-22);
+  box-shadow:0 18px 40px -30px rgba(16,41,44,.4) }
+.ch-rail__k{ font-size:12.5px; font-weight:700; letter-spacing:.06em; text-transform:uppercase; color:var(--ch-edge) }
+.ch-rail__prize{ font-size:38px; font-weight:800; letter-spacing:-.03em; line-height:1 }
+.ch-rail__prize span{ font-size:15px; font-weight:600; letter-spacing:0; color:var(--ag-soft) }
+.ch-rail .ch-meter{ padding-top:16px; border-top:1px solid var(--ag-line) }
+.ch-rail .ch-meter b{ font-size:15px }
+.ch-rail__mine{ display:flex; flex-direction:column; gap:8px; padding:14px;
+  background:var(--ag-surface-2); border-radius:var(--ag-r-14); font-size:14px }
+.ch-rail__mine .ag-meter--bar > *{ background:var(--ch-fill) }
+.ch-rail__acts{ display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px; padding-top:4px }
+.ch-rail .ag-btn--sm{ height:44px }
+
+/* ── the phone's action bar ── */
+.ch-bar{ position:fixed; inset:auto 0 0 0; z-index:var(--ag-z-bar) }
+.ch-bar .ag-actionbar__sum b{ font-size:17px }
+/* Room for the bar under the last section, so nothing ends behind it. */
+.ch-body{ padding-bottom:calc(40px + 96px) }
 
 @media (min-width:600px){
-  .ch__hero-in{ grid-template-columns:minmax(0,.8fr) minmax(0,1.2fr); gap:32px; padding:32px 28px }
-  .ch__art-img{ max-width:420px }
-  .ch__icon{ width:200px; height:200px }
-  .ch__icon svg{ width:88px; height:88px }
-  .ch__h1{ font-size:clamp(34px,5vw,42px) }
-  .ch__promise{ font-size:20px }
-  .ch__facts{ grid-template-columns:repeat(4,minmax(0,1fr)) }
-  .ch__steps{ grid-template-columns:repeat(3,minmax(0,1fr)) }
-  .ch__more{ grid-template-columns:repeat(2,minmax(0,1fr)) }
+  .ch-hero__in{ grid-template-columns:minmax(0,.8fr) minmax(0,1.2fr); gap:48px; padding:32px 28px }
+  .ch-hero__art{ max-width:420px }
+  .ch-hero__icon{ width:200px; height:200px }
+  .ch-hero__h{ font-size:42px }
+  .ch-hero__p{ font-size:20px }
+  .ch-hero .ag-facts{ grid-auto-flow:column; grid-template-columns:none }
+  .ch-body{ padding:40px 32px 72px }
+  .ch-more{ grid-template-columns:repeat(2,minmax(0,1fr)) }
+  /* The rail, the meter card and the bar each belong to one layout; hiding the others
+     rather than drawing each conditionally keeps one source of each in the markup. */
+  .ch-rail{ display:flex }
+  .ch-meter--phone, .ch-bar{ display:none }
 }
 
 @media (min-width:1024px){
-  .ch__hero-in{ grid-template-columns:420px minmax(0,1fr); gap:48px; padding:48px 32px }
-  .ch__h1{ font-size:56px }
-  .ch__body{ grid-template-columns:minmax(0,1fr) 360px; padding:40px 32px 72px }
-
-  .ch__rail{ display:block }
-  .ch__rail-in{
-    position:sticky; top:var(--ag-top-ui,88px);
-    display:grid; gap:var(--ag-sp-16);
-    padding:var(--ag-sp-20); background:var(--ag-surface);
-    border:1px solid var(--ag-line); border-radius:var(--ag-r-16);
-  }
-  .ch__prize{ margin:0; font-size:15px; color:var(--ag-soft) }
-  .ch__prize b{ display:block; font-size:30px; color:var(--ag-ink) }
-
-  /* The phone's meter card and bottom bar both belong to the phone. Hiding them here
-     rather than drawing the rail only on desktop keeps ONE source of each. */
-  .ch__meter-card--phone,.ch__bar{ display:none }
-  .ch__body{ padding-bottom:72px }
-  .ch__winners{ display:grid; grid-template-columns:repeat(2,minmax(0,1fr)) }
+  .ch-hero__in{ grid-template-columns:420px minmax(0,1fr); padding:48px 32px }
+  .ch-hero__h{ font-size:56px }
+  .ch-body{ grid-template-columns:minmax(0,1fr) 360px }
+  .ch-rail{ position:sticky; top:24px }
+  .ch-winners{ grid-template-columns:repeat(2,minmax(0,1fr)) }
+  /* In two columns the hairline runs between rows, not between the pair. */
+  .ch-winners > li + li{ border-top:0 }
+  .ch-winners > li:nth-child(n+3){ border-top:1px solid var(--ag-line) }
 }
+
 
 /* ══ the list page ═══════════════════════════════════════════════════════════ */
 
@@ -290,6 +207,12 @@
 }
 .chl__tile svg{ width:24px; height:24px }
 .chl__pill{ justify-self:start }
+.chl__pill{ display:inline-flex; align-items:center; min-height:24px; padding:0 10px; border-radius:999px;
+  background:var(--ag-surface); border:1px solid currentColor; font-size:12px; font-weight:700 }
+.chl__pill[data-state="open"]{ color:var(--ag-green-deep) }
+.chl__pill[data-state="full"]{ color:var(--ag-gold-ink) }
+.chl__pill[data-state="ended"]{ color:var(--ag-soft) }
+.chl__pill[data-state="upcoming"]{ color:var(--ag-info) }
 .chl__kicker{ font-family:var(--ag-font-mono); font-size:11px; letter-spacing:.06em;
   text-transform:uppercase; color:var(--ag-soft) }
 .chl__t{ font-weight:700; font-size:18px }
@@ -336,30 +259,4 @@
 .mc__empty span{ font-size:14px; line-height:1.5; color:var(--ag-ink-2) }
 .mc__empty-cta{ justify-self:start; display:inline-flex; align-items:center; min-height:44px;
   padding:0 var(--ag-sp-18); border-radius:var(--ag-r-12);
-  background:var(--ag-green); color:#fff; font-weight:600; font-size:15px }
-
-/* The rail's two actions. Both 44px, both reachable by keyboard — "Get the flier" is a
-   real download because the file is posted to WhatsApp, where a link preview is not
-   the point. */
-.ch__rail-acts{ display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:var(--ag-sp-10) }
-.ch__rail-act{
-  display:flex; align-items:center; justify-content:center; min-height:44px;
-  padding:0 var(--ag-sp-12); border:1px solid var(--ag-line-2); border-radius:var(--ag-r-12);
-  background:var(--ag-surface); color:var(--ag-ink); font-size:14px; font-weight:600;
-  font-family:inherit; cursor:pointer;
-}
-.ch__rail-act:focus-visible{ outline:3px solid var(--ag-green); outline-offset:2px }
-
-/* ── WHO RUNS THE AWARD ──────────────────────────────────────────────────────
-   One line under the promise. The logo is sized by HEIGHT with an auto width, because
-   a host's mark is whatever shape it is and a fixed box either letterboxes a wordmark
-   or squashes a roundel — `okun-alimosho-logo.png` is 891×606 and neither of those
-   reads as the organisation's own mark. `alt` is the host's name rather than a
-   description, so a reader who cannot see it is told the same thing as one who can:
-   the sentence beside it already says "Hosted by". */
-.ch__host{ display:flex; align-items:center; gap:10px; flex-wrap:wrap;
-  margin:14px 0 0; font-size:14px; color:var(--ag-ink-soft); }
-.ch__host-logo{ width:auto; height:28px; max-width:140px; object-fit:contain;
-  flex:none; display:block; }
-.ch__host-t b, .ch__host-t a{ color:var(--ag-ink); font-weight:600; }
-.ch__host-t a{ text-decoration:underline; text-underline-offset:2px; }
+  background:var(--ag-green); color:var(--ag-surface); font-weight:600; font-size:15px }

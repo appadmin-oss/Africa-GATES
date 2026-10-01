@@ -1,232 +1,208 @@
 {% extends "layout/gates.twig" %}
-{# The meter is drawn twice — the phone card and the desktop rail — so it is a macro.
-   Two copies is two places for the dots and the aria label to drift apart. #}
-{% import "partials/challenge-bits.twig" as ch %}
+
 {#
-  ═══════════════════════════════════════════════════════════════════════════════
-  /challenges/{slug} — one template, every challenge
-  ═══════════════════════════════════════════════════════════════════════════════
+  ══ /challenges/{slug} — BUILT FROM `ChallengePage.dc.html` ON THE SHARED LIBRARY ══
 
-  Ported from `handoff-new-pages/designs/ChallengePage.dc.html`. Order, copy and
-  sections follow it; the three departures are listed at the bottom of this comment.
+  ── HOW THIS PAGE IS PUT TOGETHER ───────────────────────────────────────────────
 
-  NOT ONE SENTENCE IS WRITTEN HERE. Everything a reader sees comes out of `copy`,
-  which is `ChallengeCopy::for()` — the ported design function. A string typed into
-  this file would be the second place a challenge's terms are written, and the two
-  would disagree the first time somebody raised a cap. The settings screen in this
-  codebase was found 157 points out for exactly that reason.
+    partials/ui.twig    steps · ticks · notice · faq · row · meter · pill · tile
+    components.css      what each of those looks like, on every page
+    challenge.css       the hero, the rail and the theme — the three things only a
+                        challenge has
 
-  DEVIATIONS FROM THE COMP, EACH DELIBERATE
+  ── NOT ONE SENTENCE IS WRITTEN HERE ────────────────────────────────────────────
 
-  1. No hexes. The comp carries `accent`, `wash` and `ink` inline per challenge,
-     because a design file carries its own palette. Here the theme is a NAME on
-     `data-theme` and the four presets live in CSS — §0.4 forbids a new colour and this
-     repo's rule is blunter: a bare hex is not a colour.
-  2. "Included" is built. §3 of the handoff lists the section; the comp does not draw
-     it (the word appears zero times in the file), so the markup is this codebase's own
-     list idiom rather than a match to something that exists.
-  3. The FAQ is `<details>`. The comp drives it from React state with a `+`/`−` glyph.
-     A disclosure that needs JavaScript to open is a question nobody can read with
-     JavaScript off, and `<details>` is the element for it — keyboard, screen reader
-     and find-in-page all work without a line of script.
+  Every word a reader sees comes out of `copy`, which is `ChallengeCopy::for()` — the
+  comp's own `derive()`, ported. A string typed into this file would be a second place
+  a challenge's terms are written, and the two would disagree the first time somebody
+  raised a cap. The headings are the comp's, and are the same for every challenge.
+
+  ── THE THEME IS A NAME ─────────────────────────────────────────────────────────
+
+  `data-theme` on the root, resolved to tokens in challenge.css. The comp carries three
+  hexes per challenge; storing them would let an admin pick a gold at 1.65:1 that reads
+  as nothing on paper.
+
+  ── DEPARTURES FROM THE COMP, EACH DELIBERATE ───────────────────────────────────
+
+  1. "Included" is built. §3 of the handoff lists it; the comp does not draw it.
+  2. The FAQ is `<details>`, opened on the first question as the comp rests. A
+     disclosure that needs a script to open is a question some people never read.
+  3. The root is a `<div>`. The layout already owns `<main id="main">`, and this page
+     used to open a second one with the same id — two main landmarks, and a skip link
+     with two targets.
 #}
 
-
 {% block content %}
-<main class="ch" id="main" data-theme="{{ c.theme }}">
+{% import "partials/ui.twig" as ui %}
+{% import "partials/icons.twig" as gi %}
 
-  {# ── hero ─────────────────────────────────────────────────────────────── #}
-  <header class="ch__hero">
-    <div class="ch__hero-in">
+{# The meter is drawn twice — the phone card and the rail — from this one count, so
+   the two cannot disagree about how many places are gone. #}
+{% set claimed_n = copy.has_meter ? (spots|filter(t => t)|length) : 0 %}
 
-      <div class="ch__art">
-        {% if c.art_url %}
-          <img class="ch__art-img" src="{{ c.art_url }}" alt="{{ c.art_alt|default('') }}"
-               width="420" height="420" loading="eager" decoding="async">
-        {% else %}
-          {# The icon tile is decorative — the heading beside it carries the meaning. #}
-          <span class="ch__icon" aria-hidden="true">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"
-                 stroke-linecap="round" stroke-linejoin="round">
-              <path d="{{ c.icon|default('M6 4h12v4a6 6 0 0 1-12 0zM9 20h6M12 14v6') }}"/>
-            </svg>
-          </span>
-        {% endif %}
-      </div>
+<div class="ch" data-theme="{{ c.theme }}">
 
-      <div class="ch__head">
-        <p class="ch__kicker">
-          {% if c.flag %}<span class="ch__flag" aria-hidden="true">🇳🇬</span>{% endif %}
+  {# ══ HERO ═══════════════════════════════════════════════════════════════════ #}
+  <section class="ch-hero" aria-labelledby="ch-h1">
+    <div class="ch-hero__in">
+      {% if c.art_url %}
+        <img class="ch-hero__art" src="{{ c.art_url }}" alt="{{ c.art_alt|default('') }}"
+             width="420" height="420" fetchpriority="high" decoding="async">
+      {% else %}
+        <span class="ch-hero__icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
+               stroke-linecap="round" stroke-linejoin="round">
+            <path d="{{ c.icon|default('M6 4h12v4a6 6 0 0 1-12 0zM9 20h6M12 14v6') }}"/>
+          </svg>
+        </span>
+      {% endif %}
+
+      <div class="ch-hero__b">
+        <p class="ch-hero__k">
+          {# The flag is drawn, not an emoji: 🇳🇬 renders as two letters "NG" on
+             Windows, which has no flag glyphs at all. #}
+          {% if c.flag %}<span class="ch-flag" aria-hidden="true"><span></span><span></span><span></span></span>{% endif %}
           {{ c.kicker }}
-          <span class="ch__pill" data-state="{{ copy.state }}">{{ copy.state_label }}</span>
+          <span class="ch-state" data-state="{{ copy.state }}">{{ copy.state_label }}</span>
         </p>
+        <h1 class="ch-hero__h" id="ch-h1">{{ c.title }}</h1>
+        <p class="ch-hero__p">{{ copy.promise }}</p>
 
-        <h1 class="ch__h1" id="ch-h1">{{ c.title }}</h1>
-        <p class="ch__promise">{{ copy.promise }}</p>
-
-        {# ── WHO RUNS THIS AWARD ──────────────────────────────────────────────
-           Resolved through the scope chain by `ProgrammeHost`, never stored on the
-           challenge: two copies of a host's name is one copy nobody updates. It renders
-           only when a host is NAMED — a logo on its own is an unexplained picture, and
-           most programmes have no host but Africa GATES, where the line would be noise.
-
-           The logo is NOT a link unless the host gave a URL, and the name carries the
-           meaning either way: a picture is not an attribution. #}
+        {# WHO RUNS THIS AWARD. Resolved through the scope chain by ProgrammeHost, never
+           stored on the challenge — two copies of a host's name is one copy nobody
+           updates. Only when a host is NAMED: a logo alone is an unexplained picture. #}
         {% if host %}
-        <p class="ch__host">
-          {% if host.logo %}
-            <img class="ch__host-logo" src="{{ host.logo }}" alt="{{ host.name }}"
-                 height="28" loading="lazy" decoding="async">
-          {% endif %}
-          <span class="ch__host-t">Hosted by {% if host.url %}<a href="{{ host.url }}" rel="noopener">{{ host.name }}</a>{% else %}<b>{{ host.name }}</b>{% endif %}</span>
+        <p class="ch-host">
+          {% if host.logo %}<img src="{{ host.logo }}" alt="" height="28" loading="lazy" decoding="async">{% endif %}
+          <span>Hosted by {% if host.url %}<a href="{{ host.url }}" rel="noopener">{{ host.name }}</a>{% else %}<b>{{ host.name }}</b>{% endif %}</span>
         </p>
         {% endif %}
 
-        <dl class="ch__facts">
-          {% for f in copy.facts %}
-            <div class="ch__fact"><dt>{{ f.k }}</dt><dd>{{ f.v }}</dd></div>
-          {% endfor %}
-        </dl>
+        {{ ui.facts(copy.facts) }}
       </div>
     </div>
-  </header>
+  </section>
 
-  <div class="ch__body">
-    <div class="ch__main">
+  {# ══ BODY ═══════════════════════════════════════════════════════════════════ #}
+  <div class="ch-body">
+    <div class="ch-main">
 
-      {# The meter, on the phone only — the desktop rail carries it instead. #}
-      <div class="ch__meter-card ch__meter-card--phone">
-        {{ ch.meter(copy, spots, entry) }}
+      {# The meter, phone only — from 600px the rail carries it. #}
+      <div class="ch-meter ch-meter--phone ag-card">
+        <span class="ag-between"><b>{{ copy.meter_title }}</b><span class="ag-list__value">{{ copy.time_left }}</span></span>
+        {% if copy.has_meter and spots|length %}{{ ui.meter(claimed_n, spots|length, copy.meter_aria, 'outline') }}{% endif %}
+        {% if entry %}<span class="ch-mine"><b>You:</b> {{ copy.mine }}</span>{% endif %}
       </div>
 
       {% if copy.steps|length %}
-        <section class="ch__sec" aria-labelledby="h-how">
-          <h2 class="ch__h2" id="h-how">How to take part</h2>
-          <ol class="ch__steps">
-            {% for s in copy.steps %}
-              <li class="ch__step">
-                <span class="ch__step-n" aria-hidden="true">{{ s.n }}</span>
-                <span class="ch__step-t">{{ s.t }}</span>
-                <span class="ch__step-s">{{ s.s }}</span>
-              </li>
-            {% endfor %}
-          </ol>
-        </section>
+      <section class="ch-sec" aria-labelledby="h-how">
+        <h2 class="ch-h2" id="h-how">How to take part</h2>
+        {{ ui.steps(copy.steps, true) }}
+      </section>
       {% endif %}
 
-      <section class="ch__sec" aria-labelledby="h-count">
-        <h2 class="ch__h2" id="h-count">{{ copy.count_title }}</h2>
-        <ul class="ch__rules">
-          {% for r in copy.rules %}<li class="ch__rule">{{ r }}</li>{% endfor %}
-        </ul>
+      <section class="ch-sec" aria-labelledby="h-count">
+        <h2 class="ch-h2" id="h-count">{{ copy.count_title }}</h2>
+        {{ ui.ticks(copy.rules) }}
       </section>
 
-      <section class="ch__sec" aria-labelledby="h-win">
-        <div class="ch__sec-head">
-          <h2 class="ch__h2" id="h-win">{{ copy.win_title }}</h2>
-          <span class="ch__sec-sub">{{ copy.win_sub }}</span>
+      <section class="ch-sec" aria-labelledby="h-win">
+        <div class="ag-between">
+          <h2 class="ch-h2" id="h-win">{{ copy.win_title }}</h2>
+          <span class="ag-list__value">{{ copy.win_sub }}</span>
         </div>
-
         {% if winners|length %}
-          <ol class="ch__winners">
+          <ol class="ch-winners">
             {% for w in winners %}
-              <li class="ch__winner">
-                <span class="ch__winner-n">#{{ w.standing }}</span>
-                <span class="ch__winner-who">{{ w.name }}</span>
-                {# Area and time only. A full name beside a published cash amount is an
-                   invitation addressed to whoever reads it, and this page has no
-                   sign-in. `ChallengeService::winners()` is what enforces it. #}
-                <span class="ch__winner-where">{{ w.where }}</span>
-                <span class="ch__winner-when">{{ w.when }}</span>
-              </li>
+            <li>
+              <span class="ch-winners__n">#{{ w.standing }}</span>
+              {# Area and time only. A full name beside a published cash amount is an
+                 invitation addressed to whoever reads it; ChallengeService::winners()
+                 enforces it. #}
+              <span class="ch-winners__b"><b>{{ w.name }}</b><span>{{ w.where }}</span></span>
+              <span class="ch-winners__t">{{ w.when }}</span>
+            </li>
             {% endfor %}
           </ol>
         {% else %}
-          <div class="ch__empty">
-            <b class="ch__empty-t">{{ copy.empty_title }}</b>
-            <span class="ch__empty-s">{{ copy.empty_sub }}</span>
-          </div>
+          {{ ui.notice('trophy', copy.empty_title, copy.empty_sub) }}
         {% endif %}
       </section>
 
       {% if included|length %}
-        <section class="ch__sec" aria-labelledby="h-inc">
-          <h2 class="ch__h2" id="h-inc">Included</h2>
-          <p class="ch__sec-note">Only what you do inside these counts towards this challenge.</p>
-          <ul class="ch__inc">
-            {% for i in included %}
-              <li class="ch__inc-row">
-                <span class="ch__inc-kind">{{ i.kind }}</span>
-                <a class="ch__inc-link" href="{{ i.href }}">{{ i.name }}</a>
-              </li>
-            {% endfor %}
-          </ul>
-        </section>
+      <section class="ch-sec" aria-labelledby="h-inc">
+        <h2 class="ch-h2" id="h-inc">Included</h2>
+        <p class="ag-hint">Only what you do inside these counts towards this challenge.</p>
+        <div class="ag-list">
+          {% for i in included %}{{ ui.row({label: i.name, sub: i.kind, href: i.href}) }}{% endfor %}
+        </div>
+      </section>
       {% endif %}
 
-      <section class="ch__sec" aria-labelledby="h-faq">
-        <h2 class="ch__h2" id="h-faq">Questions</h2>
-        <div class="ch__faq">
-          {% for q in copy.faq %}
-            {# `<details>` rather than a scripted toggle: a question that needs
-               JavaScript to open is a question some readers never see. #}
-            <details class="ch__q">
-              <summary class="ch__q-q">{{ q.q }}</summary>
-              <p class="ch__q-a">{{ q.a }}</p>
-            </details>
-          {% endfor %}
-        </div>
+      <section class="ch-sec" aria-labelledby="h-faq">
+        <h2 class="ch-h2" id="h-faq">Questions</h2>
+        {{ ui.faq(copy.faq, true) }}
         {% if copy.terms_version %}
-          <p class="ch__terms"><a href="/terms">Full terms, version {{ copy.terms_version }}</a></p>
+          <a class="ch-terms" href="/terms">Full challenge terms · {{ copy.terms_version }}</a>
         {% endif %}
       </section>
 
       {% if others|length %}
-        <section class="ch__sec" aria-labelledby="h-more">
-          <h2 class="ch__h2" id="h-more">More challenges</h2>
-          <div class="ch__more">
-            {% for o in others %}
-              <a class="ch__more-card" href="/challenges/{{ o.slug }}" data-theme="{{ o.theme }}">
-                <span class="ch__more-t">{{ o.title }}</span>
-                <span class="ch__more-s">{{ o.line }}</span>
-                <span class="ch__pill" data-state="{{ o.state }}">{{ o.state_label }}</span>
-              </a>
-            {% endfor %}
-          </div>
-        </section>
+      <section class="ch-sec" aria-labelledby="h-more">
+        <h2 class="ch-h2" id="h-more">More challenges</h2>
+        <div class="ch-more">
+          {% for o in others %}
+            {{ ui.row({icon: 'trophy', tone: {'green':'green','blue':'info','gold':'gold','rose':'live'}[o.theme]|default('green'),
+                       label: o.title, sub: o.line, href: '/challenges/' ~ o.slug,
+                       pill: {label: o.state_label, tone: o.state == 'open' ? 'ok' : (o.state == 'full' ? 'warn' : '')}}) }}
+          {% endfor %}
+        </div>
+      </section>
       {% endif %}
     </div>
 
-    {# ── the rail, desktop only ──────────────────────────────────────────── #}
-    <aside class="ch__rail" aria-label="Take part">
-      <div class="ch__rail-in">
-        <p class="ch__prize"><b>{{ copy.prize_big }}</b> {{ copy.prize_unit }}</p>
-        {{ ch.meter(copy, spots, entry) }}
-        {{ ch.cta(copy) }}
+    {# ══ THE RAIL — from 600px; beside the column from 1024 ══════════════════ #}
+    <aside class="ch-rail" aria-label="Take part">
+      <span class="ch-rail__k">Prize</span>
+      <b class="ch-rail__prize">{{ copy.prize_big }} <span>{{ copy.prize_unit }}</span></b>
 
-        {# §3's rail actions. The flier is a real file rather than a share sheet: it is
-           posted to WhatsApp and Instagram, where a link preview is not the point. #}
-        <div class="ch__rail-acts">
-          <a class="ch__rail-act" href="/challenges/{{ c.slug }}/flier.png" download>Get the flier</a>
-          <button class="ch__rail-act" type="button"
-                  data-ag-share data-share-url="/challenges/{{ c.slug }}"
-                  data-share-title="{{ c.title }}">Share</button>
-        </div>
+      <div class="ch-meter">
+        <span class="ag-between"><b>{{ copy.meter_title }}</b><span class="ag-list__value">{{ copy.time_left }}</span></span>
+        {% if copy.has_meter and spots|length %}{{ ui.meter(claimed_n, spots|length, copy.meter_aria, 'outline') }}{% endif %}
+      </div>
+
+      {% if entry %}
+      <div class="ch-rail__mine">
+        <span><b>You:</b> {{ copy.mine }}</span>
+        {{ ui.bar(copy.mine_pct, copy.mine) }}
+      </div>
+      {% endif %}
+
+      <a class="ag-btn {{ copy.cta_primary ? 'ch-cta' : 'ag-btn--secondary' }} ag-btn--block" href="{{ copy.cta_href }}">{{ copy.cta }}</a>
+      <p class="ag-hint">{{ copy.cta_note }}</p>
+
+      {# The flier is a file rather than a share sheet: it is posted to WhatsApp and
+         Instagram, where a link preview is not the point. #}
+      <div class="ch-rail__acts">
+        <button class="ag-btn ag-btn--secondary ag-btn--sm" type="button"
+                data-ag-share data-share-url="/challenges/{{ c.slug }}"
+                data-share-title="{{ c.title }}">Share</button>
+        <a class="ag-btn ag-btn--secondary ag-btn--sm" href="/challenges/{{ c.slug }}/flier.png" download>Get the flier</a>
       </div>
     </aside>
   </div>
 
-  {# ── the phone's fixed bar ───────────────────────────────────────────────
-     `position:fixed` in the stylesheet rather than set by JavaScript, so it is there
-     on first paint. A bar positioned from a measured custom property is a bar that is
-     missing for anybody whose script did not run — which this codebase shipped once on
-     the nomination form. #}
-  <div class="ch__bar">
-    <span class="ch__bar-l">
-      <b class="ch__bar-prize">{{ copy.prize_big }} {{ copy.prize_unit }}</b>
-      <span class="ch__bar-sub">{{ copy.bar_sub }}</span>
+  {# ══ THE PHONE'S ACTION BAR ═══════════════════════════════════════════════
+     The shared bar, fixed by the stylesheet so it is there on first paint: a bar
+     placed from a measured property is missing for anybody whose script did not run,
+     which this codebase shipped once on the nomination form. #}
+  <div class="ag-actionbar ch-bar">
+    <span class="ag-actionbar__sum">
+      <b>{{ copy.prize_big }} {{ copy.prize_unit }}</b>
+      <span>{{ copy.bar_sub }}</span>
     </span>
-    <a class="ch__bar-cta" href="{{ copy.cta_href }}">{{ copy.cta }}</a>
+    <a class="ag-btn {{ copy.cta_primary ? 'ch-cta' : 'ag-btn--secondary' }}" href="{{ copy.cta_href }}">{{ copy.cta }}</a>
   </div>
-</main>
+</div>
 {% endblock %}
