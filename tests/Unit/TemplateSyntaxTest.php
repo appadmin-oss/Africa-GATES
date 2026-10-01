@@ -123,8 +123,27 @@ final class TemplateSyntaxTest extends TestCase
             if ($pos === false) continue;
 
             $tail = trim(substr($src, $pos + strlen('{% endblock %}')));
-            // Comments after the last block are harmless; markup is not.
-            $tail = trim((string) preg_replace('/\{#.*?#\}/s', '', $tail));
+
+            // ── WHAT TWIG ACTUALLY ALLOWS AFTER THE LAST BLOCK ──────────────
+            //
+            // Not "nothing". A child template may carry `macro`, `import`, `from`,
+            // `use` and `set` at its top level — only OUTPUT is forbidden there. This
+            // stripped comments alone, so it reported `pages/challenges/show.twig` as a
+            // SyntaxError over two `{% macro %}` definitions that compile and render
+            // perfectly, and it said in its own failure message that the page was
+            // broken. It was not: `test_every_template_parses()` above loads the same
+            // file without complaint, which is the compiler's own verdict and the thing
+            // this test is an approximation of.
+            //
+            // A guard that calls working code broken is worse than no guard: the next
+            // person reads the message, moves a macro inside a block to appease it, and
+            // the macro is then unavailable to the other block that calls it.
+            $tail = (string) preg_replace('/\{#.*?#\}/s', '', $tail);
+            $tail = (string) preg_replace('/\{%-?\s*macro\b.*?\{%-?\s*endmacro\s*-?%\}/s', '', $tail);
+            $tail = (string) preg_replace('/\{%-?\s*set\b.*?\{%-?\s*endset\s*-?%\}/s', '', $tail);
+            $tail = (string) preg_replace('/\{%-?\s*(?:import|from|use|set)\b[^%]*-?%\}/s', '', $tail);
+            $tail = trim($tail);
+
             if ($tail !== '') $offenders[] = $rel . ' — trailing: ' . substr($tail, 0, 60);
         }
 
