@@ -73,6 +73,9 @@ final class SeedRunner
      */
     private const DONE_PREFIX = 'seed_ran_';
 
+    /** The last outcome of a seed that is not done yet: JSON {status, note, at}. */
+    private const LAST_PREFIX = 'seed_last_';
+
     /** @return list<string> every seed's name, in filename order, which is date order */
     public static function names(): array
     {
@@ -127,6 +130,26 @@ final class SeedRunner
             return ['status' => 'failed', 'note' => $name . ' does not return a callable'];
         }
 
+        $result = self::attempt($seed);
+        self::remember($name, $result);
+
+        return $result;
+    }
+
+    /**
+     * The seed itself, classified.
+     *
+     * Split out of `run()` so that every exit — waiting, failed, done — passes through
+     * `remember()` on the way back. When the outcome was only RETURNED, the one place a
+     * waiting seed said why was the migration's output, read once by whoever opened that
+     * URL, and the maintenance log; on a host with no shell that is nowhere. A seed could
+     * sit "not yet" for a fortnight past the date its challenge opened, with the reason
+     * — usually one an operator could fix in a minute — on no screen at all.
+     *
+     * @return array{status:string, note:string}
+     */
+    private static function attempt(callable $seed): array
+    {
         try {
             $pdo = DB::connection()->getPdo();
 
@@ -167,8 +190,6 @@ final class SeedRunner
             return ['status' => 'failed', 'note' => $e->getMessage()];
         }
 
-        self::mark($name);
-
         return ['status' => 'done', 'note' => 'applied'];
     }
 
@@ -198,27 +219,94 @@ final class SeedRunner
         return $n;
     }
 
-    /** @return array<string,array{status:string,note:string}> for the operator's screen */
+    /**
+     * Every seed, with what is actually known about it — for the operator's screen.
+     *
+     * This used to answer `pending — "not applied to this database"` for anything not
+     * done, and had no caller. Both halves were the fault: a seed that is waiting has a
+     * REASON, the reason is nearly always one an operator can act on ("no edition is open
+     * for nominations"), and a status that says only "pending" is a status that sends
+     * somebody to a shell this host does not have.
+     *
+     * @return array<string,array{status:string, note:string, at:?string}>
+     *         status: done | waiting | failed | pending (never attempted on this database)
+     */
     public static function status(): array
     {
         $out = [];
 
         foreach (self::names() as $name) {
-            $out[$name] = self::done($name)
-                ? ['status' => 'done', 'note' => 'applied']
-                : ['status' => 'pending', 'note' => 'not applied to this database'];
+            if (self::done($name)) {
+                $out[$name] = ['status' => 'done', 'note' => 'applied',
+                               'at' => self::setting(self::DONE_PREFIX . $name)];
+                continue;
+            }
+            $last = json_decode((string) self::setting(self::LAST_PREFIX . $name), true);
+            $out[$name] = is_array($last) && isset($last['status'])
+                ? ['status' => (string) $last['status'], 'note' => (string) ($last['note'] ?? ''),
+                   'at' => isset($last['at']) ? (string) $last['at'] : null]
+                : ['status' => 'pending', 'note' => 'not attempted on this database yet', 'at' => null];
         }
 
         return $out;
     }
 
+    /** True when at least one seed is not applied — the screen only draws when it is. */
+    public static function anyOutstanding(): bool
+    {
+        foreach (self::names() as $name) {
+            if (!self::done($name)) return true;
+        }
+        return false;
+    }
+
+    /**
+     * Keep the last outcome. A `done` marks the seed applied; anything else is stored
+     * so `status()` can say why — and is overwritten on the next attempt, because a
+     * reason from three weeks ago describes a database that no longer exists.
+     *
+     * @param array{status:string, note:string} $result
+     */
+    private static function remember(string $name, array $result): void
+    {
+        if ($result['status'] === 'done') {
+            self::mark($name);
+        }
+        self::put(self::LAST_PREFIX . $name, (string) json_encode([
+            'status' => $result['status'],
+            // The column is TEXT, but a PDO message can carry a whole statement and its
+            // bound values; this is a sentence for a screen, not a dump.
+            'note'   => mb_substr($result['note'], 0, 500),
+            'at'     => Carbon::now()->toDateTimeString(),
+        ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
+    }
+
+    private static function setting(string $key): ?string
+    {
+        try {
+            $v = DB::table('gates_settings')->where('key_name', $key)->value('value');
+            return $v === null ? null : (string) $v;
+        } catch (\Throwable) {
+            return null;
+        }
+    }
+
     private static function mark(string $name): void
+    {
+        // A seed that applied and could not record it will be attempted again, and every
+        // seed here is an upsert — so the cost of a failed write is a wasted query, not a
+        // double write. Swallowing it (in `put()`) is safe exactly because of that
+        // property, and it is the reason the property is required rather than encouraged.
+        self::put(self::DONE_PREFIX . $name, Carbon::now()->toDateTimeString());
+    }
+
+    private static function put(string $key, string $value): void
     {
         try {
             DB::table('gates_settings')->updateOrInsert(
-                ['key_name' => self::DONE_PREFIX . $name],
+                ['key_name' => $key],
                 [
-                    'value'      => Carbon::now()->toDateTimeString(),
+                    'value'      => $value,
                     // Explicit: SQLite's copy of this table has no `ON UPDATE
                     // CURRENT_TIMESTAMP`, so a row written without it on dev carries a
                     // different stamp from the same row on production.
@@ -228,11 +316,7 @@ final class SeedRunner
                     // off exactly that — and a seed is not an operator.
                 ]
             );
-        } catch (\Throwable $e) {
-            // A seed that applied and could not record it will be attempted again, and
-            // every seed here is an upsert — so the cost is a wasted query, not a double
-            // write. Swallowing this is safe exactly because of that property, and it is
-            // the reason the property is required rather than merely encouraged.
+        } catch (\Throwable) {
         }
     }
 }

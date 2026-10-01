@@ -8,6 +8,9 @@ use AfricaGates\Services\PromoService;
 use AfricaGates\Support\ChallengeEnum as E;
 use AfricaGates\Support\ProgrammeHost;
 use AfricaGates\Support\SeedRunner;
+use DI\ContainerBuilder;
+use Slim\Psr7\Factory\ServerRequestFactory;
+use Slim\Psr7\Response;
 use Illuminate\Database\Capsule\Manager as DB;
 use Tests\TestCase;
 
@@ -60,7 +63,14 @@ final class CelebrateNigeriaSeedTest extends TestCase
         // The runner records applied seeds in `gates_settings`, and the suite is one
         // process against one database — so a case that ran earlier would make a later
         // one skip, and the skip looks exactly like a pass.
-        DB::table('gates_settings')->where('key_name', 'like', 'seed\\_ran\\_%')->delete();
+        //
+        // By KEY, not by `LIKE 'seed\\_ran\\_%'`, which is what this was: SQLite has no
+        // backslash escape, so on the suite's own database that pattern matched nothing and
+        // the purge it describes never happened. The cases passed because each one rolls
+        // back, not because this line worked — CLAUDE.md's LIKE trap, inside a cleanup.
+        DB::table('gates_settings')
+            ->whereIn('key_name', ['seed_ran_' . self::SEED, 'seed_last_' . self::SEED])
+            ->delete();
     }
 
     // ══════════════════════════════════════════════════════════════════════════
@@ -228,7 +238,10 @@ final class CelebrateNigeriaSeedTest extends TestCase
         $r = SeedRunner::run(self::SEED);
 
         $this->assertSame('waiting', $r['status'], 'the seed did not refuse without the award');
-        $this->assertStringContainsString('Alimosho Awards not found', $r['note']);
+        // The sentence is the operator's fix, so it has to name what was looked for —
+        // "not found" alone sends somebody to check an award they can see in the list.
+        $this->assertStringContainsString('"alimosho-awards"', $r['note']);
+        $this->assertStringContainsString('"Alimosho Awards"', $r['note']);
         $this->assertNull(CS::bySlug(self::SLUG), 'it created the challenge anyway');
 
         // And "waiting" must NOT be recorded, or the retry never happens.
@@ -241,8 +254,91 @@ final class CelebrateNigeriaSeedTest extends TestCase
         DB::table('gates_award_cycles')->where('id', $this->cycle)
             ->update(['nominations_close' => '2026-01-01 00:00:00']);
 
-        $this->assertSame('waiting', SeedRunner::run(self::SEED)['status'],
+        $r = SeedRunner::run(self::SEED);
+        $this->assertSame('waiting', $r['status'],
             'the seed scoped a challenge to an edition that is not taking nominations');
+
+        // The commonest cause is a window a day off, which "none open" does not show.
+        $this->assertStringContainsString('2026 (nominations 2026-09-01 00:00:00 → 2026-01-01 00:00:00)',
+            $r['note'], 'the refusal does not show the editions it found and their windows');
+    }
+
+    // ══════════════════════════════════════════════════════════════════════════
+    // The operator can see a waiting seed, and run it
+    // ══════════════════════════════════════════════════════════════════════════
+
+    /**
+     * `status()` had no caller and answered "pending" for anything not done, so the
+     * reason a seed was waiting lived in a migration's output and nowhere else. On a
+     * host with no shell that is nowhere — the challenge simply did not appear.
+     */
+    public function test_a_waiting_seed_keeps_its_reason_where_the_admin_reads_it(): void
+    {
+        DB::table('gates_award_programmes')->where('id', $this->programme)->update(['slug' => 'alimosho']);
+        DB::table('gates_award_programmes')->where('id', $this->programme)->update(['title' => 'Alimosho Awards 2026']);
+
+        SeedRunner::run(self::SEED);
+        $s = SeedRunner::status()[self::SEED] ?? null;
+
+        $this->assertNotNull($s);
+        $this->assertSame('waiting', $s['status'], 'the waiting outcome was not kept');
+        $this->assertStringContainsString('"alimosho-awards"', $s['note'],
+            'the reason is not what the screen shows');
+        $this->assertNotNull($s['at'], 'no time — an operator cannot tell a stale reason from a fresh one');
+        $this->assertTrue(SeedRunner::anyOutstanding());
+
+        // Fix it, run again: the stored reason is replaced, not left beside a success.
+        DB::table('gates_award_programmes')->where('id', $this->programme)
+            ->update(['slug' => 'alimosho-awards']);
+        $this->assertSame('done', SeedRunner::run(self::SEED)['status']);
+        $this->assertSame('done', SeedRunner::status()[self::SEED]['status']);
+    }
+
+    public function test_the_admin_can_run_a_waiting_seed_and_cannot_name_a_path(): void
+    {
+        $ctl = self::controller();
+
+        // A name is checked against the directory, never used as a path.
+        $_SESSION = [];
+        $ctl->runSeed(self::post(['seed' => '../../config/container']), new Response());
+        $this->assertSame('No such seed.', $_SESSION['flash_error'] ?? null);
+
+        $_SESSION = [];
+        $res = $ctl->runSeed(self::post(['seed' => self::SEED]), new Response());
+        $this->assertSame(302, $res->getStatusCode());
+        $this->assertStringStartsWith('Applied', (string) ($_SESSION['flash_ok'] ?? ''));
+        $this->assertNotNull(CS::bySlug(self::SLUG), 'the button reported success and wrote nothing');
+    }
+
+    public function test_the_list_draws_the_waiting_seed_and_its_reason(): void
+    {
+        DB::table('gates_award_programmes')->where('id', $this->programme)
+            ->update(['slug' => 'x', 'title' => 'X']);
+        SeedRunner::run(self::SEED);
+
+        $html = (string) self::controller()->index(
+            (new ServerRequestFactory())->createServerRequest('GET', '/admin/challenges'),
+            new Response()
+        )->getBody();
+
+        $this->assertStringContainsString('Waiting to be added', $html);
+        $this->assertStringContainsString('action="/admin/challenges/seeds/run"', $html);
+        $this->assertStringContainsString('&quot;alimosho-awards&quot;', $html,
+            'the reason is not on the screen, which is the whole of what this panel is for');
+    }
+
+    /** The real controller, out of the real container — with the app's Twig globals and filters. */
+    private static function controller(): \AfricaGates\Admin\Controllers\ChallengesController
+    {
+        $b = new ContainerBuilder();
+        $b->addDefinitions(require dirname(__DIR__, 2) . '/config/container.php');
+        return $b->build()->get(\AfricaGates\Admin\Controllers\ChallengesController::class);
+    }
+
+    private static function post(array $body): \Psr\Http\Message\ServerRequestInterface
+    {
+        return (new ServerRequestFactory())
+            ->createServerRequest('POST', '/admin/challenges/seeds/run')->withParsedBody($body);
     }
 
     // ══════════════════════════════════════════════════════════════════════════

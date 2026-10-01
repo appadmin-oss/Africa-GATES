@@ -3802,6 +3802,7 @@ return function(App $app) {
          */
         $a->get('/challenges',                                 AdminChallengesController::class.':index');
         $a->get('/challenges/new',                             AdminChallengesController::class.':form');
+        $a->post('/challenges/seeds/run',                      AdminChallengesController::class.':runSeed');
         $a->post('/challenges/new',                            AdminChallengesController::class.':save');
         $a->post('/challenges/new/draft',                      AdminChallengesController::class.':draft');
         $a->get('/challenges/{id:[0-9]+}',                     AdminChallengesController::class.':form');

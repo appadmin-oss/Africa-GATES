@@ -65,10 +65,17 @@ return static function (PDO $db): void {
     $award->execute([':s' => 'alimosho-awards', ':n' => 'Alimosho Awards']);
     $programmeId = $award->fetchColumn();
 
+    // ── BOTH REFUSALS NAME WHAT THEY LOOKED FOR ──────────────────────────────
+    //
+    // They are shown verbatim on /admin/challenges, which is the only place an operator
+    // on this host can read them. "Alimosho Awards not found" sends somebody to check an
+    // award they can see in the list — named "Alimosho Awards 2026", say, which is not
+    // what this matches. Saying the exact slug and title turns the sentence into the fix.
     if (!$programmeId) {
         throw new RuntimeException(
-            'Alimosho Awards not found. Create the award programme and its current edition '
-            . 'through the admin first; this seed will not invent one.');
+            'No award programme has the slug "alimosho-awards" or the title "Alimosho Awards". '
+            . 'Create it (or correct its slug) in Programmes, open an edition for nominations, '
+            . 'then press Run now. This seed will not invent an award.');
     }
 
     // Open for nominations by the DATES, which is the question this seed is asking —
@@ -85,9 +92,22 @@ return static function (PDO $db): void {
     $cycleId = $cycle->fetchColumn();
 
     if (!$cycleId) {
+        // List what IS there, with its window: the commonest cause is an edition whose
+        // dates are a day off, and that is invisible from a sentence saying "none open".
+        $seen = $db->prepare(
+            'SELECT year, nominations_open, nominations_close FROM gates_award_cycles
+              WHERE programme_id = :a ORDER BY year DESC, id DESC LIMIT 3');
+        $seen->execute([':a' => $programmeId]);
+        $editions = array_map(
+            static fn (array $e): string => $e['year'] . ' (nominations '
+                . ($e['nominations_open'] ?: 'not set') . ' → '
+                . ($e['nominations_close'] ?: 'no close') . ')',
+            $seen->fetchAll(PDO::FETCH_ASSOC) ?: []
+        );
         throw new RuntimeException(
-            'No Alimosho Awards edition is open for nominations. Open the edition in the '
-            . 'admin, then re-run this seed.');
+            'Alimosho Awards has no edition open for nominations at ' . $now . ' UTC. '
+            . ($editions ? 'Editions found: ' . implode('; ', $editions) . '. ' : 'It has no editions. ')
+            . 'Set the nominations window to include today, then press Run now.');
     }
 
     // ── IT OWNS THE TRANSACTION ONLY IF THERE IS NOT ONE ALREADY ───────────

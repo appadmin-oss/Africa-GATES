@@ -8,6 +8,7 @@ use AfricaGates\Services\ChallengeAdmin;
 use AfricaGates\Services\ChallengeCopy;
 use AfricaGates\Services\ChallengeService as CS;
 use AfricaGates\Support\ChallengeEnum as E;
+use AfricaGates\Support\SeedRunner;
 use Illuminate\Database\Capsule\Manager as DB;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
@@ -89,7 +90,47 @@ final class ChallengesController
         return $this->view->render($res, 'admin/challenges/index.twig', [
             'admin_page' => 'challenges', 'topbar_title' => 'Challenges',
             'challenges' => $list,
+            // Only when something is outstanding. A panel listing seeds that all say
+            // "applied" is a panel an operator learns to scroll past, and then it is
+            // scrolled past on the day one is waiting.
+            'seeds' => SeedRunner::anyOutstanding() ? SeedRunner::status() : [],
         ]);
+    }
+
+    /**
+     * POST — run one waiting seed now, rather than at the next hourly sweep.
+     *
+     * The sweep retries by itself, so this is about time and nothing else: a challenge
+     * whose window opened at midnight is losing entrants every hour it is not up, and an
+     * operator who has just fixed the edition it was waiting on should not have to wait
+     * for a clock to find out whether they fixed the right thing.
+     *
+     * The name is checked against the seed directory rather than used as a path. Never
+     * `$force`: re-running an applied seed is a decision about a published challenge, and
+     * that belongs in the challenge's own form, not behind a button on a list.
+     */
+    public function runSeed(Request $req, Response $res): Response
+    {
+        $name = (string) (((array) $req->getParsedBody())['seed'] ?? '');
+
+        if (!in_array($name, SeedRunner::names(), true)) {
+            $_SESSION['flash_error'] = 'No such seed.';
+            return $this->back($res, '/admin/challenges');
+        }
+
+        $r = SeedRunner::run($name);
+        $this->audit?->record($this->adminId(), 'seed.run', 'seed', 0,
+            ['seed' => $name, 'status' => $r['status']]);
+
+        [$key, $msg] = match ($r['status']) {
+            'done'    => ['flash_ok',    'Applied. The challenge is in the list below.'],
+            'skipped' => ['flash_ok',    'Already applied — nothing to do.'],
+            'waiting' => ['flash_error', 'Not yet: ' . $r['note']],
+            default   => ['flash_error', 'It failed: ' . $r['note']],
+        };
+        $_SESSION[$key] = $msg;
+
+        return $this->back($res, '/admin/challenges');
     }
 
     // ══════════════════════════════════════════════════════════════════════════
