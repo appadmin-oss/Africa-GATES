@@ -868,6 +868,41 @@ final class AiCapability
             ]),
             // Admin plain-English filter parsing. Already whitelist-validates
             // its output — the reference pattern for every other capability.
+            /**
+             * Drafting the WORDS of a challenge, never its numbers.
+             *
+             * It is handed the shape — the action, the target, the mode, the names of
+             * the scopes — and asked for a title, a kicker, a summary and extra rules.
+             * It is never handed the prize, the cap or the dates, and is never asked
+             * for them: those decide who gets money, and a model that could nudge a
+             * cap from 11 to 15 is a model deciding an award.
+             *
+             * The promise sentence is not drafted at all. `ChallengeCopy` generates it
+             * from the stored figures, so an operator who accepts every word of a
+             * draft still cannot end up with a page promising what the rules do not do.
+             *
+             * `advisory`, which `AiGateway` enforces, and `degrade` on failure: the
+             * builder has never needed this and must keep working without it.
+             */
+            'challenge.draft' => $c('challenge.draft', [
+                'purpose'        => 'assist',
+                'tier'           => self::TIER_REASON,
+                'model'          => self::primary(self::TIER_REASON),
+                'on_failure'     => self::FAIL_DEGRADE,
+                'advisory'       => true,
+                'max_tokens'     => 500,
+                'calls_per_day'  => 200,
+                'tokens_per_day' => 60_000,
+                // An operator describing a campaign they are running. Nothing here is
+                // a member's data, so there is nothing to minimise away.
+                'minimise'       => false,
+                'data_sent'      => 'The challenge shape an operator has typed: the action, the target, '
+                    . 'the mode, the names of the awards or events it covers, and a free-text hint. '
+                    . 'No prize amount, no cap, no dates, and no member or nominee data.',
+                'data_purpose'   => 'To draft a title, kicker, summary and extra rules for the operator '
+                    . 'to read, change or discard. Nothing it returns is published without a person '
+                    . 'pressing save, and it never writes a rule that decides who wins.',
+            ]),
             'admin.filter_parse' => $c('admin.filter_parse', [
                 'purpose'        => 'assist',
                 'tier'           => self::TIER_FAST,

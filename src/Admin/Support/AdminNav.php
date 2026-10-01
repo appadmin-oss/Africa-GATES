@@ -104,6 +104,11 @@ final class AdminNav
                 'items' => [
                     ['page' => 'programmes',  'label' => 'Awards & cycles', 'href' => '/admin/programmes'],
                     ['page' => 'shortlists',  'label' => 'Shortlists',      'href' => '/admin/shortlists'],
+                    // A challenge hangs off an award or an event, so it belongs under the
+                    // gate those are under. NOT a new heading: seven is a floor, each
+                    // section carries exactly one gate, and an eighth would move pages
+                    // between gates — an access change riding inside a nav change.
+                    ['page' => 'challenges',  'label' => 'Challenges',      'href' => '/admin/challenges'],
                     ['page' => 'awards_page', 'label' => 'Awards page',     'href' => '/admin/awards-page'],
                 ],
             ],

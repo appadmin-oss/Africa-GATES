@@ -1,4 +1,7 @@
 {% extends "layout/gates.twig" %}
+{# The meter is drawn twice — the phone card and the desktop rail — so it is a macro.
+   Two copies is two places for the dots and the aria label to drift apart. #}
+{% import "partials/challenge-bits.twig" as ch %}
 {#
   ═══════════════════════════════════════════════════════════════════════════════
   /challenges/{slug} — one template, every challenge
@@ -28,7 +31,6 @@
      and find-in-page all work without a line of script.
 #}
 
-{% block title %}{{ page_title }}{% endblock %}
 
 {% block content %}
 <main class="ch" id="main" data-theme="{{ c.theme }}">
@@ -76,7 +78,7 @@
 
       {# The meter, on the phone only — the desktop rail carries it instead. #}
       <div class="ch__meter-card ch__meter-card--phone">
-        {{ _self.meter(copy, spots, entry) }}
+        {{ ch.meter(copy, spots, entry) }}
       </div>
 
       {% if copy.steps|length %}
@@ -181,8 +183,8 @@
     <aside class="ch__rail" aria-label="Take part">
       <div class="ch__rail-in">
         <p class="ch__prize"><b>{{ copy.prize_big }}</b> {{ copy.prize_unit }}</p>
-        {{ _self.meter(copy, spots, entry) }}
-        {{ _self.cta(copy) }}
+        {{ ch.meter(copy, spots, entry) }}
+        {{ ch.cta(copy) }}
       </div>
     </aside>
   </div>
@@ -201,44 +203,3 @@
   </div>
 </main>
 {% endblock %}
-
-{#
-  The meter is drawn twice — once on the phone card, once in the desktop rail — so it
-  is a macro. Two copies of this markup is two places for the dots and the aria label
-  to drift apart, and the label is the only form of it a screen reader gets.
-#}
-{% macro meter(copy, spots, entry) %}
-  <div class="ch__meter">
-    <span class="ch__meter-head">
-      <b class="ch__meter-t">{{ copy.meter_title }}</b>
-      <span class="ch__meter-time">{{ copy.time_left }}</span>
-    </span>
-
-    {% if copy.has_meter and spots|length %}
-      {# One `role="img"` with a sentence, not N unlabelled dots: a screen reader
-         reading "image image image" eleven times conveys nothing. #}
-      <span class="ch__spots" role="img" aria-label="{{ copy.meter_aria }}">
-        {% for taken in spots %}
-          <span class="ch__spot{{ taken ? ' is-taken' : '' }}"></span>
-        {% endfor %}
-      </span>
-    {% endif %}
-
-    {% if entry %}
-      <span class="ch__mine">
-        <span class="ch__mine-t">{{ copy.mine }}</span>
-        {# A custom property carrying a runtime number, which is the repo's established
-           bridge for one (`--ob-accent`, `--tier-hue`, `--p-hero-image`) and is not
-           what §0.4's "no inline styles" forbids — there is no declaration here, only a
-           value the stylesheet reads. A width cannot come from a class: it is a
-           percentage of this person's own progress. #}
-        <span class="ch__mine-bar"><span class="ch__mine-fill" style="--ag-pct:{{ copy.mine_pct }}%"></span></span>
-      </span>
-    {% endif %}
-  </div>
-{% endmacro %}
-
-{% macro cta(copy) %}
-  <a class="ch__cta{{ copy.cta_primary ? '' : ' ch__cta--quiet' }}" href="{{ copy.cta_href }}">{{ copy.cta }}</a>
-  <p class="ch__cta-note">{{ copy.cta_note }}</p>
-{% endmacro %}

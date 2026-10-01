@@ -1,0 +1,91 @@
+{% extends 'admin/layout.twig' %}
+
+{#
+  Every challenge, with the thing stopping each one on the row.
+
+  A list that hides the blocker is a list an operator clicks through one at a time to
+  find out why nothing is live. The draft rows carry their count, and `Awaiting` is the
+  number of nominations sitting with us or with a nominee — the figure that decides
+  whether anybody needs to open the queues today.
+#}
+
+{% block head_styles %}
+<style nonce="{{ csp_nonce }}">
+  .cq-lede{ background:#fff; border:1px solid rgba(16,41,44,.1); border-radius:14px;
+    padding:18px 20px; margin-bottom:16px }
+  .cq-lede h2{ margin:0 0 8px; font-size:14px; color:#10292C }
+  .cq-lede p{ margin:8px 0 0; font-size:13px; line-height:1.7; color:#5a6d6f; max-width:76ch }
+  .cq-tbl{ width:100%; background:#fff; border:1px solid rgba(16,41,44,.1); border-radius:14px;
+    border-collapse:separate; border-spacing:0; overflow:hidden }
+  .cq-tbl th{ text-align:start; font-size:12px; color:#5a6d6f; font-weight:600;
+    padding:12px 14px; border-bottom:1px solid rgba(16,41,44,.08) }
+  .cq-tbl td{ padding:12px 14px; font-size:13.5px; border-bottom:1px solid rgba(16,41,44,.06) }
+  .cq-tbl tr:last-child td{ border-bottom:0 }
+  .cq-t{ font-weight:600; color:#10292C }
+  .cq-sub{ display:block; font-size:12px; color:#5a6d6f }
+  .cq-pill{ display:inline-flex; align-items:center; min-height:22px; padding:0 9px;
+    border-radius:999px; border:1px solid currentColor; font-size:11px; font-weight:700;
+    letter-spacing:.04em; text-transform:uppercase }
+  .cq-pill[data-s="draft"]{ color:#5a6d6f }
+  .cq-pill[data-s="open"]{ color:#1a6118 }
+  .cq-pill[data-s="upcoming"]{ color:#1f6fa3 }
+  .cq-pill[data-s="full"]{ color:#7a5600 }
+  .cq-pill[data-s="ended"],.cq-pill[data-s="cancelled"]{ color:#5a6d6f }
+  .cq-warn{ color:#b42318; font-weight:600 }
+  .cq-act{ display:inline-flex; align-items:center; min-height:34px; padding:0 12px;
+    border-radius:9px; border:1px solid rgba(16,41,44,.18); font-size:13px; color:#10292C }
+  .cq-new{ display:inline-flex; align-items:center; min-height:40px; padding:0 16px;
+    border-radius:10px; background:#237b22; color:#fff; font-weight:600; font-size:14px }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="cq-lede">
+  <h2>Challenges</h2>
+  <p>A challenge pays people for something that already helps an award — nominating,
+    bringing ticket buyers. Everything a challenge says on its public page is generated
+    from the figures below, so the page and the rules cannot disagree.
+    <strong>Once published, the rules are fixed:</strong> the people who entered read
+    those terms, and changing a cap afterwards takes a prize from somebody who earned it.</p>
+  <p style="margin-top:14px"><a class="cq-new" href="/admin/challenges/new">New challenge</a></p>
+</div>
+
+{% if challenges|length %}
+<table class="cq-tbl">
+  <thead>
+    <tr>
+      <th>Challenge</th><th>State</th><th>Prize</th>
+      <th>Entries</th><th>Places</th><th>Awaiting</th><th></th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for c in challenges %}
+      <tr>
+        <td>
+          <span class="cq-t">{{ c.title }}</span>
+          <span class="cq-sub">/challenges/{{ c.slug }}</span>
+        </td>
+        <td>
+          <span class="cq-pill" data-s="{{ c.status }}">{{ c.status }}</span>
+          {% if c.blockers %}
+            {# The count, on the row. Opening a draft to find out what is missing is a
+               click for information that fits in four characters. #}
+            <span class="cq-sub cq-warn">{{ c.blockers }} to fix before it can go live</span>
+          {% endif %}
+        </td>
+        <td>{{ c.prize }}</td>
+        <td>{{ c.entries }}</td>
+        <td>{% if c.cap %}{{ c.claimed }} / {{ c.cap }}{% else %}—{% endif %}</td>
+        <td>{% if c.awaiting %}<span class="cq-warn">{{ c.awaiting }}</span>{% else %}0{% endif %}</td>
+        <td>
+          <a class="cq-act" href="/admin/challenges/{{ c.id }}">Edit</a>
+          <a class="cq-act" href="/admin/challenges/{{ c.id }}/queues">Queues</a>
+        </td>
+      </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% else %}
+  <div class="cq-lede"><p>No challenges yet.</p></div>
+{% endif %}
+{% endblock %}

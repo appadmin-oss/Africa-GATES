@@ -19,6 +19,7 @@ use AfricaGates\Admin\Controllers\{
     ModerationController as AdminModerationController,
     ProgrammesController as AdminProgrammesController,
     ShortlistsController as AdminShortlistsController,
+    ChallengesController as AdminChallengesController,
     NomineesController as AdminNomineesController,
     LegacyController as AdminLegacyController,
     OpportunitiesController as AdminOpportunitiesController,
@@ -3758,6 +3759,32 @@ return function(App $app) {
         // holds. PUBLISHING is not: it cuts the field, and it carries the weight of
         // announcing a result. Hence the narrower guard on the three routes that make a
         // shortlist real, withdraw one, or hand somebody the document.
+        /**
+         * Challenges — the builder and its queues.
+         *
+         * Under the `programmes` gate, beside awards and cycles, because a challenge is
+         * attached to one. Deliberately NOT a new nav section: the rail is seven
+         * headings and each carries exactly one gate, so a new one would move pages
+         * between gates — an access change, which must never ride along inside a
+         * navigation change.
+         */
+        $a->get('/challenges',                                 AdminChallengesController::class.':index');
+        $a->get('/challenges/new',                             AdminChallengesController::class.':form');
+        $a->post('/challenges/new',                            AdminChallengesController::class.':save');
+        $a->post('/challenges/new/draft',                      AdminChallengesController::class.':draft');
+        $a->get('/challenges/{id:[0-9]+}',                     AdminChallengesController::class.':form');
+        $a->post('/challenges/{id:[0-9]+}',                    AdminChallengesController::class.':save');
+        $a->post('/challenges/{id:[0-9]+}/draft',              AdminChallengesController::class.':draft');
+        $a->post('/challenges/{id:[0-9]+}/publish',            AdminChallengesController::class.':publish');
+        $a->post('/challenges/{id:[0-9]+}/cancel',             AdminChallengesController::class.':cancel');
+        $a->get('/challenges/{id:[0-9]+}/queues',              AdminChallengesController::class.':queues');
+        $a->get('/challenges/{id:[0-9]+}/export',              AdminChallengesController::class.':export');
+        $a->post('/challenges/{id:[0-9]+}/draw',               AdminChallengesController::class.':draw');
+        $a->post('/challenges/{id:[0-9]+}/entry/{entry:[0-9]+}/paid',
+            AdminChallengesController::class.':markPaid');
+        $a->post('/challenges/{id:[0-9]+}/entry/{entry:[0-9]+}/disqualify',
+            AdminChallengesController::class.':disqualify');
+
         $a->get('/shortlists',                                 AdminShortlistsController::class.':index');
         $a->post('/shortlists/rule',                            AdminShortlistsController::class.':saveRule');
         $a->get('/shortlists/category/{catId:[0-9]+}',          AdminShortlistsController::class.':category');
