@@ -458,6 +458,83 @@ final class ChallengeServiceTest extends TestCase
     }
 
     // ══════════════════════════════════════════════════════════════════════════
+    // The account's Challenges tab
+    // ══════════════════════════════════════════════════════════════════════════
+
+    /**
+     * The one line that says what to do next.
+     *
+     * A progress bar answers "how far" and never answers "and now what". The state
+     * that matters most is `needs_details` — work only this member can do, which
+     * otherwise sits on their card looking like our delay rather than their turn.
+     */
+    public function test_each_card_says_what_this_member_should_do_next(): void
+    {
+        [$ch, $entry] = $this->joined(['target' => 3, 'cap' => 5], 'Tabby Person');
+        $userId = (int) CS::entry($entry)->user_id;
+
+        // Nothing done yet.
+        self::assertSame('3 more to go.', CS::minePublic($userId)[0]['next']);
+
+        $this->nomination($entry, 'A', 'verified', '2026-10-01 09:00:00');
+        $this->nomination($entry, 'B', 'checking', null);
+        CS::recount($entry);
+        self::assertSame('1 is with us or with the nominee. Nothing for you to do.',
+            CS::minePublic($userId)[0]['next']);
+
+        // Work only they can do outranks work we are doing.
+        $this->nomination($entry, 'C', 'needs_details', null);
+        CS::recount($entry);
+        self::assertSame('1 of yours needs more detail — that is the quickest thing to fix.',
+            CS::minePublic($userId)[0]['next'],
+            'a state the member can act on was buried under one they cannot');
+    }
+
+    /** Singular and plural both occur every day; "1 of yours need" reads as a machine. */
+    public function test_the_next_step_sentence_is_never_ungrammatical(): void
+    {
+        [$ch, $entry] = $this->joined(['target' => 2, 'cap' => 5], 'Grammar Person');
+        $userId = (int) CS::entry($entry)->user_id;
+
+        $this->nomination($entry, 'A', 'verified', '2026-10-01 09:00:00');
+        CS::recount($entry);
+
+        self::assertSame('One more to go.', CS::minePublic($userId)[0]['next']);
+
+        foreach (CS::minePublic($userId) as $card) {
+            self::assertStringNotContainsString('1 of yours need ', $card['next']);
+            self::assertStringNotContainsString('1 are ', $card['next']);
+            self::assertStringNotContainsString('1 more to go', $card['next']);
+        }
+    }
+
+    /**
+     * An ended challenge stays on the tab, and a draft never appears on it.
+     *
+     * The tab is what you DID; the public list is what you can still do. Somebody who
+     * won in October has to be able to find it in December.
+     */
+    public function test_the_tab_keeps_what_is_over_and_hides_what_was_never_published(): void
+    {
+        [$ended, $e1] = $this->joined(['target' => 1, 'cap' => 2], 'Historian');
+        $userId = (int) CS::entry($e1)->user_id;
+
+        DB::table('gates_challenges')->where('id', $ended)->update(['status' => E::ST_ENDED]);
+        self::assertCount(1, CS::minePublic($userId), 'an ended challenge vanished from the tab');
+
+        DB::table('gates_challenges')->where('id', $ended)->update(['status' => E::ST_DRAFT]);
+        self::assertSame([], CS::minePublic($userId),
+            'a draft challenge was shown to a member as one they are in');
+    }
+
+    /** A member in nothing gets an empty list, not a crash. */
+    public function test_a_member_in_no_challenge_has_an_empty_tab(): void
+    {
+        self::assertSame([], CS::minePublic($this->user('Nobody')));
+        self::assertSame([], CS::minePublic(0));
+    }
+
+    // ══════════════════════════════════════════════════════════════════════════
 
     private function challenge(array $over = []): int
     {

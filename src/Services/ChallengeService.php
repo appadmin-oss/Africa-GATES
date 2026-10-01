@@ -647,6 +647,109 @@ final class ChallengeService
             ->where('status', '!=', E::E_DISQUALIFIED)->count();
     }
 
+    /**
+     * Every challenge this member is in, for the account's Challenges tab.
+     *
+     * Ended ones are KEPT, unlike the public list, and that is the point of the tab: a
+     * member who won in October should be able to find it in December, and one who did
+     * not finish should be able to see why rather than have the row vanish. The public
+     * `/challenges` page is about what you can do now; this is about what you did.
+     *
+     * @return list<array<string,mixed>>
+     */
+    public static function minePublic(int $userId): array
+    {
+        if ($userId < 1) return [];
+
+        $rows = DB::table('gates_challenge_entries as e')
+            ->join('gates_challenges as c', 'c.id', '=', 'e.challenge_id')
+            ->where('e.user_id', $userId)
+            // A draft or cancelled challenge is not a thing to show somebody they are
+            // "in" — the same reason the public page 404s them.
+            ->whereNotIn('c.status', [E::ST_DRAFT, E::ST_CANCELLED])
+            ->orderByDesc('e.joined_at')
+            ->get(['c.*', 'e.id as entry_id', 'e.verified', 'e.checking', 'e.needs_details',
+                   'e.standing', 'e.status as entry_status', 'e.qualified_at',
+                   'e.payout_status', 'e.joined_at']);
+
+        $out = [];
+
+        foreach ($rows as $r) {
+            $copy = ChallengeCopy::for((array) $r, [
+                'claimed'   => self::claimed((int) $r->id),
+                'signed_in' => true,
+                'mine'      => (int) $r->verified,
+            ]);
+
+            $out[] = [
+                'slug'     => (string) $r->slug,
+                'title'    => (string) $r->title,
+                'kicker'   => (string) $r->kicker,
+                'theme'    => (string) $r->theme,
+                'icon'     => (string) ($r->icon ?? ''),
+                'state'    => $copy['state'],
+                'state_label' => $copy['state_label'],
+                'mine'     => $copy['mine'],
+                'pct'      => $copy['mine_pct'],
+                'target'   => (int) $r->target,
+                'verified' => (int) $r->verified,
+                'checking' => (int) $r->checking,
+                'needs'    => (int) $r->needs_details,
+                'standing' => $r->standing !== null ? (int) $r->standing : null,
+                'entry_status' => (string) $r->entry_status,
+                'payout'   => (string) $r->payout_status,
+                'prize'    => trim($copy['prize_big'] . ' ' . $copy['prize_unit']),
+                'time_left'=> $copy['time_left'],
+                // The one sentence that says what to do next, which is the whole reason
+                // somebody opens this tab.
+                'next'     => self::nextStep($r, $copy),
+            ];
+        }
+
+        return $out;
+    }
+
+    /**
+     * What this member has to do next, said plainly.
+     *
+     * A progress bar answers "how far"; it never answers "and now what". The states a
+     * member can actually be in are few and each has a different answer, and the one
+     * that matters most is `needs_details` — work only they can do, which otherwise
+     * sits there looking like our delay rather than their turn.
+     */
+    private static function nextStep(object $r, array $copy): string
+    {
+        if ((string) $r->entry_status === E::E_DISQUALIFIED) {
+            return 'This entry was removed. Ask support if you think that is wrong.';
+        }
+        if ($r->standing !== null) {
+            return (string) $r->payout_status === E::PAY_PAID
+                ? 'Paid. Nothing else to do.'
+                : 'You have a place. The prize is on its way.';
+        }
+        if ($r->qualified_at !== null) {
+            return 'Finished, after the prizes were gone. Your nominations still count for the award.';
+        }
+        // Singular and plural both occur every day here — "1 of yours" is the commonest
+        // state of all — and a sentence that gets it wrong reads as machine output on
+        // the one line this card exists to deliver.
+        $needs = (int) $r->needs_details;
+        if ($needs > 0) {
+            return $needs . ($needs === 1 ? ' of yours needs' : ' of yours need')
+                . ' more detail — that is the quickest thing to fix.';
+        }
+
+        $checking = (int) $r->checking;
+        if ($checking > 0) {
+            return $checking . ($checking === 1 ? ' is' : ' are')
+                . ' with us or with the nominee. Nothing for you to do.';
+        }
+
+        $left = max(0, (int) $r->target - (int) $r->verified);
+
+        return $left === 1 ? 'One more to go.' : $left . ' more to go.';
+    }
+
     public static function entryFor(int $challengeId, int $userId): ?object
     {
         return DB::table('gates_challenge_entries')

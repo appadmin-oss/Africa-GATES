@@ -297,3 +297,43 @@
 .chl__time{ font-family:var(--ag-font-mono); font-size:12px; color:var(--ag-soft) }
 .chl__empty{ display:grid; gap:6px; padding:var(--ag-sp-24); background:var(--ag-surface);
   border:1px dashed var(--ag-line-2); border-radius:var(--ag-r-16); font-size:15px }
+
+/* ══ the account's Challenges tab ════════════════════════════════════════════
+   §2: an auto-fill grid of cards, min 280px. The theme tokens at the top of this
+   file carry over, so a card here and the page it links to are the same colour
+   without the card knowing which theme it is. */
+
+.mc__grid{ margin:0; padding:0; list-style:none; display:grid; gap:var(--ag-sp-14);
+  grid-template-columns:repeat(auto-fill,minmax(280px,1fr)) }
+.mc__card{ background:var(--ag-surface); border:1px solid var(--ag-line); border-radius:var(--ag-r-16) }
+/* The whole card is the target, not the title. */
+.mc__link{ display:grid; gap:6px; padding:var(--ag-sp-16); height:100% }
+.mc__link:focus-visible{ outline:3px solid var(--ag-green); outline-offset:2px; border-radius:var(--ag-r-16) }
+.mc__top{ display:flex; align-items:center; justify-content:space-between; gap:var(--ag-sp-10) }
+.mc__tile{ display:flex; align-items:center; justify-content:center; width:40px; height:40px;
+  border-radius:13px; background:var(--ch-wash); color:var(--ch-edge) }
+.mc__tile svg{ width:20px; height:20px }
+.mc__pill{ display:inline-flex; align-items:center; min-height:22px; padding:0 9px; border-radius:999px;
+  border:1px solid currentColor; background:var(--ag-surface);
+  font-family:var(--ag-font-mono); font-size:10px; font-weight:600; letter-spacing:.04em;
+  text-transform:uppercase }
+.mc__pill[data-state="open"]{ color:var(--ag-green-deep) }
+.mc__pill[data-state="full"]{ color:var(--ag-gold-ink) }
+.mc__pill[data-state="ended"]{ color:var(--ag-soft) }
+.mc__pill[data-state="upcoming"]{ color:var(--ag-info) }
+.mc__t{ font-weight:700; font-size:17px }
+.mc__line{ font-family:var(--ag-font-mono); font-size:12px; color:var(--ag-soft) }
+.mc__bar{ display:block; height:8px; margin:4px 0; border-radius:999px; background:var(--ag-tint); overflow:hidden }
+.mc__fill{ display:block; height:100%; width:var(--ag-pct,0%); background:var(--ch-fill) }
+/* The sentence that says what to do next. It is the reason to open this tab, so it is
+   reading size rather than a caption. */
+.mc__next{ font-size:14px; line-height:1.45; color:var(--ag-ink-2) }
+.mc__place{ justify-self:start; font-family:var(--ag-font-mono); font-size:12px;
+  font-weight:700; color:var(--ag-gold-ink) }
+.mc__empty{ display:grid; gap:8px; padding:var(--ag-sp-24); background:var(--ag-surface);
+  border:1px dashed var(--ag-line-2); border-radius:var(--ag-r-16) }
+.mc__empty b{ font-size:16px }
+.mc__empty span{ font-size:14px; line-height:1.5; color:var(--ag-ink-2) }
+.mc__empty-cta{ justify-self:start; display:inline-flex; align-items:center; min-height:44px;
+  padding:0 var(--ag-sp-18); border-radius:var(--ag-r-12);
+  background:var(--ag-green); color:#fff; font-weight:600; font-size:15px }

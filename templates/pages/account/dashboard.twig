@@ -60,7 +60,11 @@
    defined once and rendered into one. AccountDashboardTest now asserts the foot script gets
    a real array, because "this is defined in one place" is a claim a test can check and a
    comment cannot. #}
-{% set me_tabs = ['overview','points','referral','purchases','vendor','activity','saved','security','settings'] %}
+{# §2's order, which is not the old one: `challenges` is new and sits after
+   referrals, where a member who has just seen their referral link is most likely
+   to be looking for something to do with it. `vendor` keeps its place and its
+   gate — the rail row below renders only for a member linked to a stall. #}
+{% set me_tabs = ['overview','points','referral','challenges','purchases','vendor','activity','saved','security','settings'] %}
 
 {% block head_styles %}
 {# Synchronous and FIRST — it decides what is painted, so it cannot be deferred. #}
@@ -511,11 +515,19 @@
     {# `on` gates a row. "Your stall" appears only for a member linked to a vendor account:
        a rail entry for a section that is not rendered is a door onto nothing. Its count is
        the number with a deadline attached — an unaccepted offer is released. A Twig comment
-       cannot sit INSIDE the array literal below; it closes the brace. #}
+       cannot sit INSIDE the array literal below; it closes the brace.
+
+       Which is exactly what adding the Challenges row did, comment and all: the whole
+       dashboard answered 500. The warning was four lines above the array and it still
+       happened, so here is the note it was meant to carry — the Challenges count is
+       how many this member is ACTIVELY in, never how many are running. A badge
+       counting other people's opportunities never goes down, and a badge that never
+       goes down is one people stop reading. #}
       {% set rail = [
         {'id':'overview',  'label':'Overview',  'ico':'overview', 'n':null},
         {'id':'points',    'label':'Points',    'ico':'points',   'n':counts.points|default(0)},
         {'id':'referral',  'label':'Referrals', 'ico':'refer',    'n':referral.referrals|default(0)},
+        {'id':'challenges','label':'Challenges','ico':'spark',    'n':(my_challenges|default([]))|length},
         {'id':'purchases', 'label':'Purchases', 'ico':'bag',      'n':counts.purchases|default(0)},
         {'id':'vendor',    'label':'Your stall', 'ico':'stand',
          'n':(vendor ? (vendor.live_offers|length ?: (vendor.applications|length ?: null)) : null),
@@ -1162,6 +1174,62 @@
         </div>
       </section>
       {% endif %}
+
+      {# ── CHALLENGES ────────────────────────────────────────────────────────
+         §2: "auto-fill grid of cards (min 280px): icon tile, state pill, title, line,
+         progress bar." Plus one line the design does not have and this needs: what to
+         do NEXT. A progress bar answers "how far" and never answers "and now what" —
+         and the state that matters most, `needs_details`, is work only this member can
+         do, which otherwise sits looking like our delay rather than their turn.
+
+         Ended challenges stay here, unlike the public list. Somebody who won in
+         October should find it in December, and somebody who did not finish should see
+         why rather than have the row disappear. #}
+      <section class="me-sec" id="me-challenges" aria-labelledby="me-challenges-h">
+        <div class="me-sec__h"><h2 id="me-challenges-h">Challenges</h2></div>
+
+        {% if my_challenges|default([])|length %}
+          <ul class="mc__grid">
+            {% for c in my_challenges %}
+              <li class="mc__card" data-theme="{{ c.theme }}" data-me-find="{{ c.title }} {{ c.kicker }}">
+                <a class="mc__link" href="/challenges/{{ c.slug }}">
+                  <span class="mc__top">
+                    <span class="mc__tile" aria-hidden="true">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"
+                           stroke-linecap="round" stroke-linejoin="round">
+                        <path d="{{ c.icon|default('M6 4h12v4a6 6 0 0 1-12 0zM9 20h6M12 14v6') }}"/>
+                      </svg>
+                    </span>
+                    <span class="mc__pill" data-state="{{ c.state }}">{{ c.state_label }}</span>
+                  </span>
+
+                  <span class="mc__t">{{ c.title }}</span>
+                  <span class="mc__line">{{ c.prize }} · {{ c.mine }}</span>
+
+                  {# The bar is `role="img"` with a sentence rather than a bare
+                     `progressbar`: the figure beside it already says "6 of 10
+                     verified", and two controls reading the same number aloud is
+                     noise. #}
+                  <span class="mc__bar" role="img" aria-label="{{ c.mine }}">
+                    <span class="mc__fill" style="--ag-pct:{{ c.pct }}%"></span>
+                  </span>
+
+                  <span class="mc__next">{{ c.next }}</span>
+                  {% if c.standing %}<span class="mc__place">Place #{{ c.standing }}</span>{% endif %}
+                </a>
+              </li>
+            {% endfor %}
+          </ul>
+        {% else %}
+          {# An empty state that offers the next step rather than reporting a void. #}
+          <div class="mc__empty">
+            <b>You are not in a challenge yet</b>
+            <span>Challenges run alongside an award's nominations or an event's tickets.
+              Doing the thing you were going to do anyway is usually all they ask.</span>
+            <a class="mc__empty-cta" href="/challenges">See what is running</a>
+          </div>
+        {% endif %}
+      </section>
 
       <section class="me-sec" id="me-purchases" aria-labelledby="me-purchases-h">
         <div class="me-sec__h"><h2 id="me-purchases-h">Purchases</h2></div>

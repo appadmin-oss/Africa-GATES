@@ -1092,6 +1092,10 @@ class AccountController
             // The promo band. Nothing is rendered when there are none — a 188px
             // strip of empty on a live page is worse than no band at all.
             'promos' => \AfricaGates\Services\PromoService::forPlacement('account', !empty($_SESSION['user_id'])),
+            // The Challenges tab (§2). Ended ones are kept — this tab is what you did,
+            // not what you can still do.
+            'my_challenges' => \AfricaGates\Services\ChallengeService::minePublic(
+                (int) ($_SESSION['user_id'] ?? 0)),
             // Nominees this member voted for who were promoted. Only ever non-empty for a
             // cycle CycleMaterialiser actually released, so it cannot congratulate anybody
             // on an award nobody has been told about.
