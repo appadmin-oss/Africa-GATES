@@ -201,24 +201,49 @@ textarea.ag-field{ height:auto; min-height:120px; padding:12px 14px; align-items
 }
 /* The whole row is the target and it ends in a chevron. No small inline buttons
    inside a tappable row — they are a coin-toss for a thumb. */
+/* ── FLEX, NOT A THREE-COLUMN GRID ────────────────────────────────────────────
+   This was `grid-template-columns:auto minmax(0,1fr) auto`, which is exactly three
+   slots — so a row carrying a tile, a body, a status AND a chevron put the fourth
+   child into an implicit column and the alignment drifted. Every caller has a
+   leading tile, a growing body and one or two trailing marks, which is a flex row:
+   the body takes the space and the trailing items keep their size, whatever there
+   are of them. */
 .ag-list__row{
-  display:grid; grid-template-columns:auto minmax(0,1fr) auto; gap:14px;
-  align-items:center; min-height:56px; padding:0 14px;
+  display:flex; align-items:center; gap:14px;
+  min-height:56px; padding:0 var(--ag-sp-16);
   border-top:1px solid var(--ag-line-3);
   color:var(--ag-ink); text-decoration:none;
 }
 .ag-list__row:first-child{ border-top:0 }
 .ag-list__row:hover{ background:var(--ag-bar); color:var(--ag-ink) }
-.ag-list__label{ font-size:16px; font-weight:500 }
-.ag-list__value{ font-size:14.5px; color:var(--ag-soft) }
-.ag-list__chev{ color:var(--ag-chevron); display:flex }
+/* The body takes the slack and truncates; a row whose height changes with its text
+   is a row that makes a list look broken. */
+.ag-list__b{ flex:1; min-width:0; display:flex; flex-direction:column; gap:2px }
+.ag-list__label{ font-size:16px; font-weight:500;
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis }
+.ag-list__sub{ font-size:12.5px; color:var(--ag-soft);
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis }
+.ag-list__value{ flex:none; font-size:14.5px; color:var(--ag-soft);
+  font-variant-numeric:tabular-nums }
+.ag-list__chev{ flex:none; color:var(--ag-chevron); display:flex }
+a.ag-list__row:hover{ background:var(--ag-ground) }
+a.ag-list__row:focus-visible{ outline:3px solid var(--ag-green); outline-offset:-3px }
 
+/* ── THE TILE TAKES ITS SIZE FROM A PROPERTY ──────────────────────────────────
+   The comps use 28, 32, 34, 38, 40, 44 and 46px tiles across five screens, and the
+   last pass answered that by declaring a tile per page. One class with `--ag-tile`
+   is the same shape at every size: a caller sets the property, the default stays 34
+   so every existing use is unchanged, and `--lg` keeps its 44.
+
+   The radius scales with it, because a 15px radius on a 28px square is nearly a
+   circle and on a 46px one is a rounded square — the DC's own tiles follow that. */
 .ag-icon-tile{
-  width:34px; height:34px; flex:none;
+  --ag-tile:34px;
+  width:var(--ag-tile); height:var(--ag-tile); flex:none;
   border-radius:var(--ag-r-10); background:var(--ag-tint);
   display:flex; align-items:center; justify-content:center;
 }
-.ag-icon-tile--lg{ width:44px; height:44px; border-radius:var(--ag-r-14) }
+.ag-icon-tile--lg{ --ag-tile:44px; border-radius:var(--ag-r-14) }
 
 
 /* ══ Scrim + bottom sheet ════════════════════════════════════════════════════
@@ -951,3 +976,305 @@ body.ag-sheet-open .ag-main{ overflow:hidden }
   font-size:13px; line-height:1.5; color:var(--ag-ink-2);
 }
 .ag-ai-note a{ color:var(--ag-green-deep); font-weight:600 }
+
+/* ══ RECORDS: a pill, a table, a fact strip and a meter ═══════════════════════
+   ═════════════════════════════════════════════════════════════════════════════
+
+   Four primitives the account, challenge and award pages all need and none of
+   which this layer had. They are HERE and not in a page's own sheet because the
+   last pass built them three times under three prefixes — `.me-pill`, `.ch__fact`,
+   a third in the award page — and three copies of a status badge is three answers
+   to "what does Confirmed look like".
+
+   Everything below composes what is already here: `--ag-tint--*` for colour,
+   `--ag-sp-*`/`--ag-r-*` for rhythm, `.ag-icon-tile` for the leading mark. Nothing
+   re-declares a value this file already holds. */
+
+/* ── A STATUS, WHICH IS NOT A CHIP ────────────────────────────────────────────
+   `.ag-chip` is an interactive control and is 44px for that reason. A status is a
+   LABEL — it is read, never pressed — so it is 28px and carries no border, no
+   pointer and no focus ring. Giving a status the chip's geometry is how a row ends
+   up looking like it has two buttons in it. */
+.ag-pill{
+  display:inline-flex; align-items:center;
+  height:28px; padding:0 11px;
+  border-radius:var(--ag-r-pill);
+  font-size:12.5px; font-weight:700; white-space:nowrap;
+  background:var(--ag-line-3); color:var(--ag-ink-2);
+}
+.ag-pill--ok{   background:var(--ag-green-wash); color:var(--ag-green-deep) }
+.ag-pill--wait{ background:var(--ag-info-wash);  color:var(--ag-info) }
+.ag-pill--warn{ background:var(--ag-gold-wash);  color:var(--ag-gold-ink) }
+.ag-pill--bad{  background:var(--ag-error-wash); color:var(--ag-error) }
+
+/* ── A RECORDS TABLE ──────────────────────────────────────────────────────────
+   A list of records is a TABLE on a pointer — aligned columns an eye runs down, a
+   header saying what each one is — and a STACK on a phone. The two are the same
+   markup: `--ag-dcell` and `--ag-mcell` decide which cells exist, so a row is never
+   written twice, and a page sets `--ag-cols` to its own column template.
+
+   Row height does not change with content. A table whose rows breathe as the text
+   varies is a list wearing a table's clothes, which is why the cells truncate. */
+.ag-tbl{
+  --ag-cols:minmax(0,1fr) auto;
+  --ag-dcell:none;
+  --ag-mcell:block;
+  background:var(--ag-surface);
+  border:1px solid var(--ag-line);
+  border-radius:var(--ag-r-20);
+  overflow:hidden;
+}
+@media (min-width:600px){ .ag-tbl{ --ag-dcell:block; --ag-mcell:none } }
+
+.ag-tbl__h{
+  display:grid; grid-template-columns:var(--ag-cols); gap:var(--ag-sp-16);
+  padding:var(--ag-sp-12) var(--ag-sp-20);
+  border-bottom:1px solid var(--ag-line-3);
+  font-size:12.5px; font-weight:600; color:var(--ag-soft);
+}
+@media (max-width:599px){ .ag-tbl__h{ display:none } }
+
+.ag-tbl__r{
+  display:grid; grid-template-columns:var(--ag-cols); gap:var(--ag-sp-16);
+  align-items:center; min-height:72px;
+  padding:var(--ag-sp-12) var(--ag-sp-20);
+  color:var(--ag-ink); text-decoration:none;
+}
+.ag-tbl__r + .ag-tbl__r{ border-top:1px solid var(--ag-line-3) }
+a.ag-tbl__r:hover{ background:var(--ag-ground) }
+a.ag-tbl__r:focus-visible{ outline:3px solid var(--ag-green); outline-offset:-3px }
+@media (max-width:599px){
+  .ag-tbl__r{ min-height:64px; gap:var(--ag-sp-12); padding:var(--ag-sp-10) var(--ag-sp-16) }
+  .ag-tbl__h, .ag-tbl__g{ padding-inline:var(--ag-sp-16) }
+}
+
+/* A band grouping the rows under it — a month, a status, a cycle. Sticky on a
+   phone, because scrolling a long ledger without it means losing track of which
+   group you are in; static on a pointer, where the header row is always visible. */
+.ag-tbl__g{
+  position:static; top:0; z-index:2;
+  padding:var(--ag-sp-10) var(--ag-sp-20);
+  background:var(--ag-surface-2); border-top:1px solid var(--ag-line-3);
+  font-size:12.5px; font-weight:700; color:var(--ag-ink-2);
+}
+.ag-tbl__g:first-child{ border-top:0 }
+@media (max-width:599px){ .ag-tbl__g{ position:sticky } }
+
+/* The cells. `--d` exists only on a pointer, `--m` only on a phone. */
+.ag-cell--d{ display:var(--ag-dcell) }
+.ag-cell--m{ display:var(--ag-mcell) }
+.ag-cell{ min-width:0; display:flex; flex-direction:column; gap:2px }
+.ag-cell__t{ font-size:15px; font-weight:600;
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis }
+.ag-cell__s{ font-size:12.5px; color:var(--ag-soft);
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis }
+.ag-cell__p{ font-size:14px; color:var(--ag-ink-2);
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis }
+/* Tabular, and right-aligned: a column of figures that does not line up at the
+   decimal is a column you cannot compare down. */
+.ag-cell__n{ text-align:right; font:700 15px/1 var(--ag-font-mono);
+  font-variant-numeric:tabular-nums }
+
+/* ── A STRIP OF FACTS ─────────────────────────────────────────────────────────
+   Two to four figures in one sunken panel, divided by the GAP rather than by
+   borders — one background showing through a 1px grid gap is one element to style
+   instead of n-1 dividers that have to know which of them is last. */
+.ag-facts{
+  display:grid; grid-auto-flow:column; grid-auto-columns:minmax(0,1fr);
+  gap:1px; background:var(--ag-line-3);
+  border-radius:var(--ag-r-14); overflow:hidden;
+}
+.ag-facts > *{
+  display:flex; flex-direction:column; gap:var(--ag-sp-4);
+  padding:var(--ag-sp-12); background:var(--ag-surface-2); min-width:0;
+}
+.ag-facts dt, .ag-facts__k{
+  font-size:12px; color:var(--ag-soft);
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+}
+.ag-facts dd, .ag-facts__v{
+  margin:0; font:700 16px/1 var(--ag-font-mono); color:var(--ag-ink);
+}
+/* Four facts do not fit a phone in one row. They wrap to two before they shrink
+   to unreadable, which is the choice the ticket strip already makes. */
+@media (max-width:599px){
+  .ag-facts{ grid-auto-flow:row; grid-template-columns:repeat(2,minmax(0,1fr)) }
+}
+
+/* ── A PROGRESS METER ─────────────────────────────────────────────────────────
+   SEGMENTS, not a bar, wherever the quantity is a COUNT somebody is working
+   toward: "6 of 10" is readable off segments at a glance and a percentage bar can
+   only say "most of the way". A bar is right for a proportion with no natural
+   unit — a profile's completeness — and `.ag-meter--bar` is that case.
+
+   Not `.ag-seg`, which is this file's segmented CONTROL. A meter is read; that one
+   is pressed. */
+.ag-meter{ display:grid; grid-auto-flow:column; grid-auto-columns:1fr; gap:var(--ag-sp-4) }
+.ag-meter > *{ height:8px; border-radius:4px; background:var(--ag-line-3) }
+.ag-meter__on{   background:var(--ag-green) }
+.ag-meter__wait{ background:var(--ag-info-wash);  box-shadow:inset 0 0 0 2px var(--ag-info) }
+.ag-meter__need{ background:var(--ag-gold-wash);  box-shadow:inset 0 0 0 2px var(--ag-gold-ink) }
+.ag-meter--bar{ display:block; height:6px; border-radius:3px;
+  background:var(--ag-line-3); overflow:hidden }
+.ag-meter--bar > *{ display:block; height:100%; border-radius:0;
+  background:var(--ag-green); transition:width var(--ag-dur) var(--ag-ease) }
+
+/* The info tint the other four were missing. Tickets, orders and anything
+   in-transit read blue across this product; without it each page reached for a
+   literal. */
+.ag-tint--info{ background:var(--ag-info-wash); color:var(--ag-info) }
+
+/* ══ THE LIBRARY'S REMAINING PARTS ════════════════════════════════════════════
+   Each is used by `partials/ui.twig` and by nothing else, which is how it should
+   be: a macro and its rule arrive together or the macro is describing something
+   that does not exist. */
+
+/* A person, where a tile is a thing. Same sizing property as `.ag-icon-tile`, so a
+   row holding one of each lines up without either knowing about the other. */
+.ag-avatar{
+  --ag-tile:40px;
+  width:var(--ag-tile); height:var(--ag-tile); flex:none;
+  border-radius:50%;
+  background:var(--ag-tint); color:var(--ag-ink-2);
+  display:flex; align-items:center; justify-content:center;
+  font-weight:700; font-size:calc(var(--ag-tile) * .34);
+}
+
+/* A figure in a fact strip can carry a direction. Three tones and no more: a strip
+   where every value is coloured is a strip where none of them is. */
+.ag-facts--ok{  color:var(--ag-green-deep) }
+.ag-facts--bad{ color:var(--ag-error) }
+.ag-facts--warn{ color:var(--ag-gold-ink) }
+
+/* An empty state's body. `.ag-empty__t` is already here; this is the sentence under
+   it that says WHY it is empty — "no data" is not a reason a reader can act on. */
+.ag-empty__b{ margin:0 auto var(--ag-sp-16); max-width:46ch;
+  font-size:14px; line-height:1.6; color:var(--ag-soft) }
+
+/* ── A PAGE'S TITLE BLOCK ─────────────────────────────────────────────────────
+   Display face, the lead under it, and room for one action on the right. The lead
+   is hidden below 600 and reprinted by the page where the phone layout wants it —
+   one element showing at a time, because both at once is the same sentence twice.
+
+   `clamp()` rather than the closed type ladder: this is the display range, which is
+   set against the viewport by the house rule rather than off the 10–17 scale. */
+.ag-pagehead{ display:flex; align-items:flex-end; justify-content:space-between;
+  gap:var(--ag-sp-16); padding-bottom:var(--ag-sp-4) }
+.ag-pagehead__b{ display:flex; flex-direction:column; gap:var(--ag-sp-6); min-width:0 }
+.ag-pagehead h1{ margin:0; font-family:var(--ag-font-display); font-weight:700;
+  font-size:clamp(26px, 4.2vw, 34px); line-height:1.1 }
+.ag-pagehead p{ margin:0; font-size:15.5px; line-height:1.5; color:var(--ag-ink-2) }
+@media (max-width:599px){ .ag-pagehead{ display:none } }
+
+/* The phone's copy of the lead, for the width that has no title block. */
+.ag-lead{ margin:0; padding-top:var(--ag-sp-6);
+  font-size:14.5px; line-height:1.5; color:var(--ag-ink-2) }
+@media (min-width:600px){ .ag-lead{ display:none } }
+
+/* A heading over a group of rows — 13px soft, the DC's group label. */
+.ag-group{ display:flex; flex-direction:column; gap:var(--ag-sp-8) }
+.ag-group > h2{ margin:0; padding:0 var(--ag-sp-4);
+  font-size:13px; font-weight:600; color:var(--ag-soft) }
+
+/* A section heading inside a page, where `.ag-group`'s label is too quiet. */
+.ag-h2{ margin:0; font-size:18px; font-weight:700 }
+/* A heading and its action on one line — used above tables, lists and cards. */
+.ag-between{ display:flex; align-items:center; justify-content:space-between;
+  gap:var(--ag-sp-10); flex-wrap:wrap }
+
+/* ── A FIELD WITH NO ICON ─────────────────────────────────────────────────────
+   `.ag-field` is a WRAPPER — a box with an icon beside an input. Most fields have
+   no icon, and a second class for that case is a second box to keep in step: the
+   referral link's input and the payout form's three had drifted to 48px and a
+   14px face, which on iOS is the height of a zoom on focus (§11).
+
+   So the same class goes on the control itself. Flex on a replaced element is
+   ignored and the box is identical; only the text properties, which an `<input>`
+   does not inherit, have to be said again. */
+input.ag-field, select.ag-field, textarea.ag-field{
+  width:100%; font:inherit; font-size:16px; color:var(--ag-ink);
+}
+input.ag-field:focus, select.ag-field:focus, textarea.ag-field:focus{
+  outline:3px solid var(--ag-green); outline-offset:2px;
+}
+/* A value read character by character — a referral code, an account number, a
+   reference. The mono face is what makes 0/O and 1/l tellable apart, which is the
+   whole reason somebody is reading it one character at a time. */
+.ag-field--mono{ font-family:var(--ag-font-mono); font-size:15px; letter-spacing:.01em }
+
+/* A field with its action beside it. It WRAPS, and the button keeps a floor of
+   its own: side by side at 390px a Copy button and a URL field leave the field
+   about nine characters wide, which is a link nobody can check before sending. */
+.ag-inline{ display:flex; flex-wrap:wrap; gap:var(--ag-sp-8); align-items:center }
+.ag-inline > .ag-field{ flex:1 1 220px; min-width:0 }
+
+/* ── A NUMBERED SEQUENCE ──────────────────────────────────────────────────────
+   An `<ol>`, because the order is the content. The marker is drawn rather than
+   left to the list style so it can carry the tint and sit on the first line of a
+   wrapped step; `list-style:none` removes the native one, and the number is in
+   the markup for a reader that has lost the CSS. */
+.ag-steps{ list-style:none; margin:0; padding:0; display:flex; flex-direction:column;
+  gap:var(--ag-sp-12) }
+.ag-steps > li{ display:flex; gap:var(--ag-sp-12); font-size:14.5px; line-height:1.55 }
+.ag-steps__n{
+  flex:none; width:26px; height:26px; border-radius:50%;
+  background:var(--ag-green-wash); color:var(--ag-green-deep);
+  display:flex; align-items:center; justify-content:center;
+  font-size:13px; font-weight:700;
+}
+
+/* ── A DATE BLOCK ─────────────────────────────────────────────────────────────
+   Month over day, where a row is about a day — the next ticket, a sitting, a
+   deadline. It takes the leading slot a tile would, at the same width, so a list
+   mixing the two keeps one left edge. */
+.ag-date{
+  flex:none; width:44px; padding:5px 0;
+  border-radius:var(--ag-r-12); background:var(--ag-tint);
+  display:flex; flex-direction:column; align-items:center; line-height:1.1;
+}
+.ag-date > span{ font-family:var(--ag-font-mono); font-size:10px; font-weight:700;
+  letter-spacing:var(--ag-tracking-label); color:var(--ag-soft) }
+.ag-date > b{ font-size:17px; font-weight:700 }
+
+/* A card that is itself a link. The hover is a border rather than a lift: a card
+   that rises on hover tells a touch device nothing and moves the text under a
+   finger that has already landed. */
+.ag-card--link{ display:flex; flex-direction:column; gap:var(--ag-sp-10);
+  padding:var(--ag-sp-16); text-decoration:none; color:inherit;
+  transition:border-color var(--ag-dur-1) var(--ag-ease) }
+.ag-card--link:hover{ border-color:var(--ag-line-strong); color:inherit }
+
+/* ── A FORM STACK ─────────────────────────────────────────────────────────────
+   Label, field, hint, label, field, hint, button. The gap is on the stack and not
+   on each element, so a hint sits tight under its own field (its own `margin-top`
+   closes the gap) and the next label starts a fresh pair. Three forms were each
+   doing this with inline styles. */
+.ag-form{ display:flex; flex-direction:column; gap:var(--ag-sp-12) }
+.ag-form > .ag-label{ margin-bottom:calc(var(--ag-sp-12) * -1 + var(--ag-sp-6)) }
+.ag-form > .ag-hint{ margin-top:calc(var(--ag-sp-12) * -1 + var(--ag-sp-6)) }
+.ag-form > .ag-btn{ align-self:flex-start; margin-top:var(--ag-sp-4) }
+
+/* ── A DISCLOSURE ─────────────────────────────────────────────────────────────
+   A `<details>` whose summary is a 52px row. The marker is removed and redrawn as
+   a chevron that turns, because the native one is 8px — far under the 24px AA
+   floor — and WebKit draws it as a filled triangle no stylesheet can recolour.
+
+   `list-style:none` is the standards-track way and `::-webkit-details-marker` is
+   the one Safari still reads; both are needed, and dropping either leaves a stray
+   triangle beside the chevron on exactly one engine. */
+.ag-disc > summary{
+  display:flex; align-items:center; justify-content:space-between; gap:var(--ag-sp-10);
+  min-height:52px; padding:0 var(--ag-sp-16);
+  font-size:14.5px; font-weight:600; cursor:pointer; list-style:none;
+}
+.ag-disc > summary::-webkit-details-marker{ display:none }
+.ag-disc > summary::after{
+  content:''; flex:none; width:9px; height:9px;
+  border-right:2px solid var(--ag-soft); border-bottom:2px solid var(--ag-soft);
+  transform:rotate(45deg) translateY(-2px);
+  transition:transform var(--ag-dur-1) var(--ag-ease);
+}
+.ag-disc[open] > summary::after{ transform:rotate(-135deg) translateY(-2px) }
+.ag-disc > summary:focus-visible{ outline:3px solid var(--ag-green); outline-offset:-3px }
+.ag-disc__b{ padding:0 var(--ag-sp-16) var(--ag-sp-16);
+  display:flex; flex-direction:column; gap:var(--ag-sp-12) }

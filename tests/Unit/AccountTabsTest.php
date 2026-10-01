@@ -288,14 +288,30 @@ final class AccountTabsTest extends TestCase
     {
         $tpl = self::tpl();
 
-        $start = strpos($tpl, 'class="me-grp me-more"');
+        // Found by `me-more`, which is what this list IS, never by the whole class
+        // string: the shared class beside it carries the LOOK and has already changed
+        // once, and a guard that cannot find its subject is a guard that is not running.
+        $start = strpos($tpl, 'me-more');
         $this->assertNotFalse($start, 'the phone "Your account" list is gone');
-        $block = substr($tpl, $start, 1200);
+        // To the end of that section rather than a fixed number of characters: the rows
+        // became macro calls and a 1,200-character window then stopped short of them, so
+        // the guard reported the loop missing from a template that had it.
+        $end   = strpos($tpl, '</section>', $start);
+        $block = substr($tpl, $start, ($end === false ? 2400 : $end - $start));
 
         $this->assertStringContainsString('{% for r in rail %}', $block,
             'the phone list is hand-written — that is the fourth copy of the section list');
-        $this->assertStringContainsString('href="#me-{{ r.id }}"', $block,
-            'the rows must be real hash links, or phone navigation needs the script the rest of this page deliberately does not');
+
+        // The href has to be BUILT from `r.id`, and the two spellings below are the
+        // attribute and the macro argument — the row has been both. Pinning either one
+        // is what put this guard on the wrong token the first time; what matters is that
+        // the destination is derived and is a real hash link, so phone navigation needs
+        // none of the script the rest of this page deliberately does without.
+        $this->assertMatchesRegularExpression(
+            '{\#me-(\{\{ r\.id \}\}|\x27 ~ r\.id)}', $block,
+            'the rows must be real hash links built from the loop, or phone navigation '
+            . 'needs the script the rest of this page deliberately does not'
+        );
         $this->assertStringContainsString("r.id != 'overview'", $block,
             'Overview is the page this list is ON; a row pointing at it goes nowhere');
 

@@ -58,7 +58,6 @@
      with it — including, in fifteen places here, a focus ring sharing the same
      declaration. `--ag-shadow-nav` becomes the solid hairline it was imitating.
      ─────────────────────────────────────────────────────────────────────────── */
-  --ag-shadow-cutout:none;
   --ag-shadow-nav:0 1px 0 var(--ag-line);
 
   /* ── Layout ── */
@@ -73,7 +72,6 @@
   --ag-dur:.25s;
 
   /* ── Z-index scale ── */
-  --ag-z-nav:50;
   --ag-z-mega:55;
   --ag-z-mobile-nav:60;
   --ag-z-overlay:80;         /* full-screen mobile menu */

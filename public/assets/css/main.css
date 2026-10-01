@@ -16,7 +16,6 @@
   --z-drawer-backdrop:  96;   /* dim behind the mobile drawer           */
   --z-drawer:           98;   /* full-screen mobile drawer              */
   --z-header:          100;   /* sticky top nav + its mega menu         */
-  --z-ai:              110;   /* AI assistant fab + panel               */
   --z-scroll-progress: 150;   /* top reading-progress bar               */
   --z-modal:          1000;   /* blocking dialogs                       */
   --z-toast:          1100;   /* transient toasts (always above modals) */
@@ -68,7 +67,6 @@
   /* Semantic */
   --color-text: var(--kale-700);
    /* AA on white: 6.4:1 */
-  --color-text-muted: var(--neutral-500);  /* AA on white: 4.7:1 */
   --color-bg: #ffffff;
   --color-border: rgba(16, 41, 44, 0.08);
 
@@ -85,7 +83,6 @@
   --wrap-px: clamp(1.25rem, 4vw, 2.5rem);
 
   /* Radii — small to medium */
-  --r-xs: 4px;
   --r-sm: 8px;
   --r-md: 12px;
   --r-lg: 16px;
@@ -94,7 +91,6 @@
   --r-pill: 999px;
 
   /* Spacing scale */
-  --s-1: 0.25rem;
 
   /* Shadows — soft, layered */
 

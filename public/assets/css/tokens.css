@@ -56,6 +56,10 @@
 
   --ag-ground:#f1efe9;       /* page background */
   --ag-surface:#ffffff;      /* cards, inputs */
+  /* A SUNKEN surface, for a panel inside a card: a strip of figures, the band over
+     a group of table rows. It is not the page ground — those sit ON white and need
+     to read as set into it rather than as a gap in it. */
+  --ag-surface-2:#f8f7f4;
   --ag-bar:#fbfbfa;          /* app bars and tab bars when filled */
   --ag-line:#e8e5dd;         /* hairlines, card borders */
   --ag-line-2:#d6d4cc;       /* input and outlined-chip borders */
@@ -81,8 +85,10 @@
   --ag-info:#1f6fa3;         /* tickets, info */
   --ag-info-wash:#e8f1f7;
   --ag-error:#b42318;        /* errors, destructive text ("Sign out") */
-  --ag-stock-low:#8a2020;    /* "Only N left" */
-  --ag-stock-gone:#8a5a00;   /* "Sold out" note */
+  /* The wash behind a refusal — a refunded order, a rejected nomination, a failed
+     payout. It existed as a literal in four places before it had a name, which is
+     how the shop's "Refunded" and the account's came to be different pinks. */
+  --ag-error-wash:#fdecea;
 
   --ag-scrim:rgba(16,41,44,.32);
   --ag-chevron:#b3b9ba;
@@ -126,16 +132,13 @@
   --ag-sh-sheet:0 -12px 40px rgba(16,41,44,.18);      /* bottom sheet */
   --ag-sh-float:0 2px 10px rgba(16,41,44,.15);        /* round button on a photo */
   --ag-sh-dot:0 3px 10px rgba(16,41,44,.18);          /* quick-add dot on a card */
-  --ag-sh-gee:0 30px 70px -24px rgba(16,41,44,.45);
 
   /* ── Motion · REFERENCE §6.6 ───────────────────────────────────────────────
      Scroll-linked chrome swaps on a threshold, never scrubbed per pixel. */
 
   --ag-ease:cubic-bezier(.2,0,0,1);        /* all UI transitions */
-  --ag-ease-pop:cubic-bezier(.2,.9,.3,1.2);/* badges, stars */
   --ag-dur-1:200ms;                         /* opacity, colour */
   --ag-dur-2:260ms;                         /* collapse and expand, sheets */
-  --ag-dur-3:500ms;                         /* celebration text rise */
 
   /* ── Layers · REFERENCE §6.7 ───────────────────────────────────────────────
      sticky toolbars 4–6 · app bar 20 · buy/vote bars 30 · header 40 · Gee 60 ·
@@ -205,7 +208,6 @@
   /* There were no shadows on the old site: depth was a solid lip that collapsed
      on press. Kept as `none` rather than removed — a dangling var() invalidates
      its whole declaration, and fifteen of these share one with a focus ring. */
-  --ag-shadow-cutout:none;
   --ag-shadow-nav:0 1px 0 var(--ag-line);
 
   /* Layout and motion under their previous names.
@@ -233,7 +235,6 @@
      `--ag-z-mega`, `--ag-z-mobile-nav` and `--ag-z-overlay` went with the file, which
      is what this block's own rule says to do — each phase deletes the names its pages
      stop using. `DeadTokenTest` named all three the moment the sheet was removed. */
-  --ag-z-nav:50;
   --ag-z-loader:2147483000;
 }
 

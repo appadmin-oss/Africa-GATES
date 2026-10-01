@@ -4,52 +4,45 @@
    layout rail is suppressed — otherwise every message would appear twice. #}
 {% set own_flash = true %}
 
-{# Tier 2, transactional: it asks a reader to redeem points and to withdraw money, and
-   `ColourBudgetTest` allows two colour events for that. Every tint on this screen is an
-   ICON tile, which the sweep does not charge and should not: a 16px stroke is a word,
-   not an area. #}
+{# Tier 2, transactional: it asks a reader to redeem points and to withdraw money,
+   and `ColourBudgetTest` allows two colour events for that. Every tint on this
+   screen is an ICON tile, which the sweep does not charge and should not — a 16px
+   stroke is a word, not an area. #}
 {% set colour_tier = '2' %}
 
 {#
-  ══ /account — REBUILT FROM `handoff-new-pages/designs/AccountPage.dc.html` ══════
+  ══ /account — BUILT FROM `AccountPage.dc.html` ON THE SHARED LIBRARY ════════════
 
-  ── WHAT WAS HERE BEFORE, AND WHY IT WAS REPLACED RATHER THAN EDITED ────────────
+  ── HOW THIS PAGE IS PUT TOGETHER ───────────────────────────────────────────────
 
-  Eight full-width cards in one column, every one the same white panel, with a rail
-  added later and a phone layout made by REFLOWING the desktop blocks into a single
-  column. `app-ux-standards` §0.1 forbids exactly that, and it is why each subpage had
-  invented its own idea of what "narrow" meant: there was no shared model to read.
+    components.css      what a card, a row, a table, a pill, a tile LOOK like
+    partials/ui.twig    what they are MADE of — the macros below call these
+    components/account  this page's layout model and the four things only it has
 
-  The DC does not describe a page with a sidebar. It describes a LAYOUT MODEL —
-  breakpoints, column templates, and a per-tab grid for each table — and the model is
-  now in `components/account.css`, declared once on `.me` and read by every rule. This
-  template's only job is to put the right content into it.
+  The page itself is content. If a block below looks like it is describing
+  presentation, it is in the wrong file.
 
-  ── THE THREE THINGS THAT SURVIVE FROM THE OLD PAGE, DELIBERATELY ───────────────
+  ── THE FOUR THINGS THAT HAVE TO AGREE ──────────────────────────────────────────
 
-  1. `me_tabs` is ONE list. Four things have to agree for a section to be visible (the
-     accepted set, a rail row, the reveal rule, and a section id), and this file has
-     twice shipped a fully-built section that was unreachable because one of them was
-     missed — the referral panel, then the stall. Everything below loops that array.
-  2. `:target` is the mechanism and the script is the enhancement. Every rail row is a
-     real `<a href="#me-…">`, so the page works with no JavaScript at all; the worst
-     case is a stale highlight rather than tabs that do nothing.
-  3. The account search, which filters `[data-find]` rows across every section at once.
-     "Where is that order" is the actual question people arrive with.
+  A section is visible only when all of these line up, and this file has twice
+  shipped a fully-built section nobody could reach because one was missed — the
+  referral panel, then the stall:
 
-  ── WHAT THE DC DOES NOT COVER, AND WHERE IT WENT ──────────────────────────────
+    1. an entry in `me_tabs`, or the head script falls back to 'overview'
+    2. a rail row, or there is nothing to click
+    3. the generated reveal rule, because `[data-me] .me-sec` hides everything
+    4. a section whose id is exactly `me-<tab>`
 
-  The stall, the payout request form, passkeys, the points sparkline and the
-  backed-winner celebration are this platform's and have no counterpart in the comp.
-  They are built from the SAME primitives as everything else (`.me-card`, `.me-rows`,
-  `.me-tbl`) rather than keeping their old shapes, because a screen with two visual
-  languages is the thing the rebuild was for.
+  Everything below loops ONE array, so (2), (3) and (4) cannot drift from (1).
+
+  ── WHAT SURVIVES WITH NO JAVASCRIPT ────────────────────────────────────────────
+
+  All of it. Rail rows are real `<a href="#me-…">` and `:target` reveals the
+  section; the forms post; the links navigate. The script adds the highlight, the
+  search, the filters and the balance toggle — so the worst case is a stale
+  highlight, never tabs that do nothing.
 #}
 
-{# ── THE SECTION LIST, ONCE ─────────────────────────────────────────────────────
-   Read by: the head script (what is an accepted tab), the reveal rules in the
-   stylesheet's generated block, the child bar's titles, the rail, the phone list and
-   the foot script. Six readers, one array. #}
 {% set me_tabs = ['overview','points','referral','challenges','purchases','vendor','activity','saved','security','settings'] %}
 
 {% block head_styles %}
@@ -57,20 +50,19 @@
 <script nonce="{{ csp_nonce }}">
   (function () {
     var ok = {{ me_tabs|json_encode|raw }};
-    // The hash is the SECTION ID (`#me-referral`), because that is what makes `:target`
-    // work with no JavaScript. The bare form is accepted so links shared before this
-    // change keep working.
+    // The hash is the SECTION ID (`#me-referral`), because that is what makes
+    // `:target` work with no JavaScript. The bare form is accepted so links shared
+    // before this change keep working.
     var h = (location.hash || '').replace('#','').replace(/^me-/,'');
     document.documentElement.setAttribute('data-me', ok.indexOf(h) >= 0 ? h : 'overview');
 
-    // ── AND THE BALANCE ANSWER, HERE RATHER THAN AT THE FOOT ─────────────────
-    // "Hide my balances" is only worth having if the balance is never painted. From
-    // the foot script it would be applied after layout, so the figure a member asked
-    // us to hide appears for a frame on every load — on a slow connection, a second.
+    // The balance answer, HERE rather than at the foot: applied after layout it
+    // would show the figure a member asked us to hide for a frame on every load —
+    // on a slow connection, a second — which is the whole of what it was for.
     //
-    // Wrapped, because `localStorage` THROWS rather than returning null in a private
-    // window; an exception here would abort the section choice above it and leave
-    // every tab dead.
+    // Wrapped, because `localStorage` THROWS rather than returning null in a
+    // private window, and an exception here would abort the section choice above
+    // it and leave every tab dead.
     try {
       if (localStorage.getItem('ag-hide-bal') === '1') {
         document.documentElement.setAttribute('data-bal', 'hidden');
@@ -79,8 +71,9 @@
   })();
 </script>
 <style nonce="{{ csp_nonce }}">
-  /* GENERATED from `me_tabs`, and it has to be: this is the third place a section id is
-     spelled, and the two hand-written ones each shipped a section nobody could reach. */
+  /* GENERATED from `me_tabs`, and it has to be: this is the third place a section
+     id is spelled, and the two hand-written ones each shipped a section nobody
+     could reach. */
   {% for t in me_tabs %}
   [data-me="{{ t }}"] #me-{{ t }}{{ loop.last ? '' : ',' }}
   {% endfor %}
@@ -98,77 +91,38 @@
 {% endblock %}
 
 {% block content %}
+{% import "partials/ui.twig" as ui %}
 {% import "partials/icons.twig" as gi %}
-{# The site's one chart component — see partials/viz.twig for what interaction is for. #}
+{# The site's one chart component — see partials/viz.twig for what interaction is
+   for, and why every value it shows is also in a table. #}
 {% import "partials/viz.twig" as viz %}
 
-{% set initials = (user.name|default('?')|split(' ')|map(w => w|first)|slice(0,2)|join)|upper %}
 {% set first_name = user.name|default('')|split(' ')|first %}
 {% set open_steps = checklist|default([])|filter(s => not s.done) %}
 
-{# ── ONE WORD PER STATE, DECIDED ONCE ───────────────────────────────────────────
-   Three screens show a nomination's state and two show a purchase's, and before this
-   each of them spelled its own sentence — which is how the same row came to read
-   "Checking" in one place and "In review" in another. The `group` is what the filter
-   chips key on, so a chip and a pill can never disagree about which rows they mean.
+{# The rail. `on` gates a row — the stall appears only for a member linked to a
+   vendor account, because a rail entry for a section that is not rendered is a door
+   onto nothing. `warm` marks a count that wants attention rather than one that is a
+   total.
 
-   The DEFAULT is the raw status title-cased rather than a guess: a state this map has
-   not met yet should look unstyled and obviously unaccounted for, not quietly wear the
-   nearest colour. #}
-{% set NOM_STATE = {
-  'needs_details': {'label':'Needs you',  'tone':'warn', 'group':'needs'},
-  'draft':         {'label':'Draft',      'tone':'mute', 'group':'needs'},
-  'submitted':     {'label':'Submitted',  'tone':'wait', 'group':'checking'},
-  'checking':      {'label':'Checking',   'tone':'wait', 'group':'checking'},
-  'verified':      {'label':'Verified',   'tone':'ok',   'group':'done'},
-  'approved':      {'label':'Approved',   'tone':'ok',   'group':'done'},
-  'rejected':      {'label':'Not taken',  'tone':'bad',  'group':'done'}
-} %}
-{% set BUY_STATE = {
-  'confirmed': {'label':'Confirmed',  'tone':'ok'},
-  'delivered': {'label':'Delivered',  'tone':'ok'},
-  'paid':      {'label':'Paid',       'tone':'ok'},
-  'shipped':   {'label':'On its way', 'tone':'wait'},
-  'offered':   {'label':'Seat held',  'tone':'wait'},
-  'waiting':   {'label':'Waiting list','tone':'wait'},
-  'pending':   {'label':'Pending',    'tone':'wait'},
-  'unpaid':    {'label':'Not paid',   'tone':'warn'},
-  'refunded':  {'label':'Refunded',   'tone':'bad'},
-  'cancelled': {'label':'Cancelled',  'tone':'bad'}
-} %}
-
-{# What a ledger row's `reason` is called on screen. #}
-{% set labels = {
-  'earn.shop_order':'Shop order', 'earn.donation':'Donation',
-  'earn.event_ticket':'Event ticket', 'earn.referral':'Referral bonus',
-  'earn.nomination':'Nomination bonus', 'earn.welcome':'Welcome bonus',
-  'spend.vote':'Redeemed for votes', 'adjust.admin':'Adjustment by the team'
-} %}
-
-{# The rail. `on` gates a row — the stall appears only for a member linked to a vendor
-   account, because a rail entry for a section that is not rendered is a door onto
-   nothing. `tone` is the icon tile's tint and `warm` marks a count that wants attention
-   rather than one that is merely a total.
-
-   A Twig comment cannot sit INSIDE the array literal below: it closes the brace, and
+   A Twig comment cannot sit INSIDE the array literal: it closes the brace, and
    doing that once answered 500 on the whole dashboard. #}
 {% set rail = [
-  {'id':'overview',  'label':'Overview',   'ico':'overview', 'tone':'t-ink',   'n':null},
-  {'id':'points',    'label':'Points',     'ico':'points',   'tone':'t-green', 'n':points|default(0)},
-  {'id':'referral',  'label':'Referrals',  'ico':'refer',    'tone':'t-live',  'n':referral.referrals|default(0)},
-  {'id':'challenges','label':'Challenges', 'ico':'trophy',   'tone':'t-gold',  'n':(my_challenges|default([]))|length},
-  {'id':'purchases', 'label':'Purchases',  'ico':'bag',      'tone':'t-info',  'n':counts.purchases|default(0)},
-  {'id':'vendor',    'label':'Your stall', 'ico':'stand',    'tone':'t-info',
+  {'id':'overview',  'label':'Overview',   'ico':'overview', 'tone':'neutral', 'n':null},
+  {'id':'points',    'label':'Points',     'ico':'points',   'tone':'green',   'n':points|default(0)},
+  {'id':'referral',  'label':'Referrals',  'ico':'refer',    'tone':'live',    'n':referral.referrals|default(0)},
+  {'id':'challenges','label':'Challenges', 'ico':'trophy',   'tone':'gold',    'n':(my_challenges|default([]))|length},
+  {'id':'purchases', 'label':'Purchases',  'ico':'bag',      'tone':'info',    'n':counts.purchases|default(0)},
+  {'id':'vendor',    'label':'Your stall', 'ico':'stand',    'tone':'info',
    'n':(vendor ? (vendor.live_offers|length ?: (vendor.applications|length ?: null)) : null),
    'on':(vendor is not null), 'warm':true},
-  {'id':'activity',  'label':'Activity',   'ico':'activity', 'tone':'t-deep',  'n':counts.activity|default(0), 'warm':true},
-  {'id':'saved',     'label':'Saved',      'ico':'saved',    'tone':'t-gold',  'n':counts.saved|default(0)},
-  {'id':'security',  'label':'Security',   'ico':'shield',   'tone':'t-ink',   'n':null},
-  {'id':'settings',  'label':'Settings',   'ico':'settings', 'tone':'t-ink',   'n':null}
+  {'id':'activity',  'label':'Activity',   'ico':'activity', 'tone':'green',   'n':counts.activity|default(0), 'warm':true},
+  {'id':'saved',     'label':'Saved',      'ico':'saved',    'tone':'gold',    'n':counts.saved|default(0)},
+  {'id':'security',  'label':'Security',   'ico':'shield',   'tone':'neutral', 'n':null},
+  {'id':'settings',  'label':'Settings',   'ico':'settings', 'tone':'neutral', 'n':null}
 ] %}
 
-{# The DC's own per-tab strings. Copy is final: these are the comp's, character for
-   character, and the three this site adds are marked. #}
+{# The DC's own per-tab leads, character for character. #}
 {% set leads = {
   'points':     'Earn points when you buy, book or give. Spend them as votes.',
   'referral':   'Share events. Once ' ~ referral.threshold|default(5) ~ ' people buy through your link, you earn ' ~ referral.rate_pct|default(10) ~ '% of everything they pay.',
@@ -181,30 +135,68 @@
   'vendor':     'Your pitch, what you sell, and what is owing.'
 } %}
 
+{# ── ONE WORD PER STATE, DECIDED ONCE ───────────────────────────────────────────
+   Three screens show a nomination's state and two show a purchase's, and before
+   this each spelled its own sentence — which is how one row came to read "Checking"
+   in one place and "In review" in another. `group` is what the filter chips key on,
+   so a chip and a pill can never disagree about which rows they mean.
+
+   The DEFAULT is the raw status title-cased rather than a guess: a state this map
+   has not met should look obviously unaccounted for, not quietly wear the nearest
+   colour. #}
+{% set NOM_STATE = {
+  'needs_details': {'label':'Needs you',  'tone':'warn', 'group':'needs'},
+  'draft':         {'label':'Draft',      'tone':'',     'group':'needs'},
+  'submitted':     {'label':'Submitted',  'tone':'wait', 'group':'checking'},
+  'checking':      {'label':'Checking',   'tone':'wait', 'group':'checking'},
+  'verified':      {'label':'Verified',   'tone':'ok',   'group':'done'},
+  'approved':      {'label':'Approved',   'tone':'ok',   'group':'done'},
+  'rejected':      {'label':'Not taken',  'tone':'bad',  'group':'done'}
+} %}
+{% set BUY_STATE = {
+  'confirmed': {'label':'Confirmed',   'tone':'ok'},
+  'delivered': {'label':'Delivered',   'tone':'ok'},
+  'paid':      {'label':'Paid',        'tone':'ok'},
+  'shipped':   {'label':'On its way',  'tone':'wait'},
+  'offered':   {'label':'Seat held',   'tone':'wait'},
+  'waiting':   {'label':'Waiting list','tone':'wait'},
+  'pending':   {'label':'Pending',     'tone':'wait'},
+  'unpaid':    {'label':'Not paid',    'tone':'warn'},
+  'refunded':  {'label':'Refunded',    'tone':'bad'},
+  'cancelled': {'label':'Cancelled',   'tone':'bad'}
+} %}
+
+{# What a ledger row's `reason` is called on screen. #}
+{% set labels = {
+  'earn.shop_order':'Shop order', 'earn.donation':'Donation',
+  'earn.event_ticket':'Event ticket', 'earn.referral':'Referral bonus',
+  'earn.nomination':'Nomination bonus', 'earn.welcome':'Welcome bonus',
+  'spend.vote':'Redeemed for votes', 'adjust.admin':'Adjustment by the team'
+} %}
+
 <div class="me" id="me">
 
-  {# ══ THE PHONE HUB ═══════════════════════════════════════════════════════════
+  {# ══ THE PHONE HUB ═════════════════════════════════════════════════════════
      Below 600 this is a HOME (greeting, balance, eight tiles, a list of everywhere
-     else) and a set of CHILD VIEWS you are pushed into. Which bar is showing is decided
-     by CSS from the same `data-me` the head script wrote before first paint — not by a
-     second script, and not by a server-side guess at a viewport, so there is no frame
-     in which the wrong bar is up.
+     else) and a set of CHILD VIEWS you are pushed into. Which bar is showing is
+     decided by CSS from the same `data-me` the head script wrote before first
+     paint — not by a second script and not by a server-side guess at a viewport,
+     so there is no frame in which the wrong bar is up.
 
-     With no script `data-me` is absent, every section is visible, and this resolves to
-     the greeting bar over a long page — the same no-JS reading the rest of the file
-     has. That is why the selectors key off `:not([data-me="overview"])` rather than
-     assuming the attribute exists. #}
+     With no script `data-me` is absent, every section is visible, and this resolves
+     to the greeting bar over a long page. That is why the selectors key off
+     `:not([data-me="overview"])` rather than assuming the attribute exists. #}
   <div class="me-ph">
     <div class="me-ph__home">
-      {# Not a link: this site has no public member profile to open, and a 404 behind an
-         avatar is worse than an avatar that does nothing. #}
-      <span class="me-ph__ava" aria-hidden="true">{{ initials }}</span>
+      {# Not a link: this site has no public member profile to open, and a 404
+         behind an avatar is worse than an avatar that does nothing. #}
+      {{ ui.avatar(user.name, 44) }}
       <span class="me-ph__who">
         <b>Hi, {{ first_name }}</b>
-        {# Read off `gates_users.email_verified`, the only verification this platform
-           records for a member. Absent rather than reworded when it is not set:
-           "Unverified member" is an accusation on somebody's own home screen, and the
-           checklist already asks for the thing that fixes it. #}
+        {# Read off `gates_users.email_verified`, the only verification this
+           platform records for a member. Absent rather than reworded when it is not
+           set: "Unverified member" is an accusation on somebody's own home screen,
+           and the checklist already asks for the thing that fixes it. #}
         {% if user.email_verified %}
           <span class="me-ph__vf">{{ gi.ui('shield-tick', 13) }}Verified member</span>
         {% endif %}
@@ -216,13 +208,13 @@
          aria-label="Settings">{{ gi.ui('gear', 21) }}</a>
     </div>
 
-    {# Every title is in the document and CSS reveals the one matching `data-me`. The
-       alternative is the controller passing it, which it cannot: the section is chosen
-       by the HASH, which never reaches the server. `role="heading"` and not an `<h2>`,
-       because ten hidden `<h2>`s would sit in the outline for a reader walking
-       headings — `display:none` keeps them out of both. #}
+    {# Every title is in the document and CSS reveals the one matching `data-me`.
+       The alternative is the controller passing it, which it cannot: the section is
+       chosen by the HASH, which never reaches the server. `role="heading"` and not
+       an `<h2>`, because ten hidden `<h2>`s would sit in the page outline for a
+       reader walking headings — `display:none` keeps them out of both. #}
     <div class="me-ph__child">
-      <a class="me-ph__back" href="#me-overview" data-me-go="overview"
+      <a class="me-ph__ico" href="#me-overview" data-me-go="overview"
          aria-label="Back to your account">{{ gi.ui('back', 22) }}</a>
       {% for r in rail %}
         <span class="me-ph__t" data-me-title="{{ r.id }}" role="heading" aria-level="2">{{ r.label }}</span>
@@ -232,19 +224,19 @@
 
   <div class="me-body">
 
-    {# ══ THE RAIL — profile, search and nine rows as ONE column ══════════════ #}
+    {# ══ THE RAIL — profile, search and nine rows as ONE column ═════════════ #}
     <aside class="me-rail" aria-label="Your account">
       <span class="me-rail__me">
-        <span class="me-rail__ava" aria-hidden="true">{{ initials }}</span>
+        {{ ui.avatar(user.name, 46) }}
         <span class="me-rail__who">
           <b>{{ user.name }}</b>
-          <span>{% if user.email_verified %}Verified member{% else %}Member{% endif %}</span>
+          <span>{{ user.email_verified ? 'Verified member' : 'Member' }}</span>
         </span>
       </span>
 
-      {# One field, filtering everything. No `/` shortcut and no key hint: the site binds
-         `/` to its own search overlay on every page, and a second field claiming it would
-         advertise a shortcut that opens somebody else's box. #}
+      {# One field, filtering everything. No `/` shortcut and no key hint: the site
+         binds `/` to its own search overlay on every page, and a second field
+         claiming it would advertise a shortcut that opens somebody else's box. #}
       <label class="me-find">
         {{ gi.ui('search', 15) }}
         <input id="meFind" type="search" autocomplete="off" spellcheck="false"
@@ -255,15 +247,15 @@
 
       <nav class="me-rail__nav" id="meRail" aria-label="Account sections">
         {% for r in rail %}
-          {% if (r.on is not defined or r.on) and (r.id != 'saved' or r.n > 0) %}
+          {% if r.on is not defined or r.on %}
           {# `aria-current`, NOT `aria-selected`: ARIA permits aria-selected only on
-             gridcell, option, row, tab, columnheader, rowheader and treeitem. A link is
-             none of those, so readers were handed an attribute they are specified to
-             ignore and the rail announced nine identical links. Not hardcoded either —
-             the hash decides and the server cannot see it; the stylesheet carries the
-             visual meanwhile. #}
+             gridcell, option, row, tab, columnheader, rowheader and treeitem. A
+             link is none of those, so readers were handed an attribute they are
+             specified to ignore and the rail announced nine identical links. Not
+             hardcoded either — the hash decides and the server cannot see it, so
+             the stylesheet carries the visual until the script runs. #}
           <a class="me-rail__i" href="#me-{{ r.id }}" data-me-go="{{ r.id }}">
-            <span class="me-rail__t {{ r.tone }}" aria-hidden="true">{{ gi.ui(r.ico, 15) }}</span>
+            {{ ui.tile(r.ico, r.tone, 28) }}
             <span class="me-rail__n">{{ r.label }}</span>
             {% if r.n %}<span class="me-rail__c{{ r.warm|default(false) ? ' me-rail__c--warm' : '' }}">{{ r.n|number_format }}</span>{% endif %}
           </a>
@@ -274,47 +266,47 @@
 
     <div class="me-pane">
 
-      {% if flash_ok %}<div class="me-note me-note--ok" role="status">{{ flash_ok }}</div>{% endif %}
-      {% if flash_error %}<div class="me-note me-note--bad" role="alert">{{ flash_error }}</div>{% endif %}
-      <p id="meFindNote" class="me-sub" role="status" aria-live="polite"></p>
+      {% if flash_ok %}<div class="ag-flash ag-flash--ok" role="status">{{ flash_ok }}</div>{% endif %}
+      {% if flash_error %}<div class="ag-flash ag-flash--error" role="alert">{{ flash_error }}</div>{% endif %}
+      <p id="meFindNote" class="ag-hint" role="status" aria-live="polite"></p>
 
-      {# ══ OVERVIEW ════════════════════════════════════════════════════════════ #}
+      {# ══ OVERVIEW ══════════════════════════════════════════════════════════ #}
       <section class="me-sec" id="me-overview" aria-labelledby="me-overview-h">
-        <h2 id="me-overview-h" class="sr-only">Overview</h2>
+        {# The page's one `<h1>`, and it is on Overview rather than repeated per
+           section: the others are pushed CHILD views and head themselves. Below 600
+           it is the phone hub's greeting instead, so this is hidden there with the
+           rest of `.ag-pagehead`. #}
+        <div class="ag-pagehead">
+          <div class="ag-pagehead__b"><h1 id="me-overview-h">Your account</h1></div>
+        </div>
 
-        {# ── A FIRST-RUN SCREEN, NOT SIX EMPTY SECTIONS ─────────────────────────
-           A dashboard where every panel says "nothing yet" reads as a product that is
-           not working, and it is the first thing a new member sees. This replaces the
-           lot until something has happened. #}
+        {# A first-run screen, not six empty sections: a dashboard where every panel
+           says "nothing yet" reads as a product that is not working, and it is the
+           first thing a new member sees. #}
         {% if is_new|default(false) %}
-        <div class="me-card">
-          <div class="me-empty">
-            <span class="me-r__t t-green" style="width:48px;height:48px;border-radius:16px" aria-hidden="true">{{ gi.ui('trophy', 24) }}</span>
-            <h3>Welcome, {{ first_name }}</h3>
-            <p>Nothing has happened on this account yet. Points arrive from what you buy,
-              the events you book and what you give — and they convert into votes you can
-              cast in the awards.</p>
-            <a class="me-btn me-btn--go" href="/vote">See the ballot {{ gi.ui('go', 15) }}</a>
-          </div>
+        <div class="ag-card">
+          {{ ui.empty('Welcome, ' ~ first_name,
+             'Nothing has happened on this account yet. Points arrive from what you buy, the events you book and what you give — and they convert into votes you can cast in the awards.',
+             'See the ballot', '/vote') }}
         </div>
         {% endif %}
 
         <div class="me-top">
-          {# ── THE BALANCE CARD ──────────────────────────────────────────────── #}
+          {# ── THE BALANCE CARD ─────────────────────────────────────────────── #}
           <section class="me-bal" aria-labelledby="h-bal" data-find="points balance voting points">
             <div class="me-bal__h">
               <h2 id="h-bal">Voting points
-                {# Hiding a balance is a JS-ONLY feature, deliberately: the answer lives
-                   in `localStorage`, and a control that forgets what you told it is
-                   worse than no control — you hide the number, open Points, and it is
-                   back. The button ships `hidden` and the script reveals it. #}
+                {# Hiding a balance is a JS-ONLY feature, deliberately: the answer
+                   lives in `localStorage`, and a control that forgets what you told
+                   it is worse than no control — you hide the number, open Points,
+                   and it is back. The button ships `hidden`; the script reveals it. #}
                 <button type="button" class="me-eye" id="meEye" hidden
                         aria-pressed="false" aria-label="Hide balances">
                   <span class="me-eye__on">{{ gi.ui('eye', 18) }}</span>
                   <span class="me-eye__off">{{ gi.ui('eye-off', 18) }}</span>
                 </button>
               </h2>
-              <a class="me-btn me-btn--quiet" href="#me-points" data-me-go="points">History {{ gi.ui('next', 14) }}</a>
+              <a class="ag-btn ag-btn--text" href="#me-points" data-me-go="points">History</a>
             </div>
 
             <div class="me-bal__n">
@@ -323,153 +315,166 @@
             </div>
 
             <span class="me-bal__l">
-              {% if points_enabled %}
-                Worth {{ redeemable }} vote{{ redeemable == 1 ? '' : 's' }}{% if redeemable > 0 %} · {{ (points_per_vote - points % points_per_vote) }} more for the {{ redeemable + 1 }}th{% endif %}
-              {% else %}
+              {%- if points_enabled -%}
+                Worth {{ redeemable }} vote{{ redeemable == 1 ? '' : 's' }}{% if redeemable > 0 %} · {{ points_per_vote - points % points_per_vote }} more for the next{% endif %}
+              {%- else -%}
                 Points are being collected now. Redemption opens with the ballot.
-              {% endif %}
+              {%- endif -%}
             </span>
 
             <div class="me-bal__cta">
               {% if points_enabled and redeemable > 0 %}
-                <a class="me-btn me-btn--go" href="/vote">Redeem for votes</a>
+                <a class="ag-btn ag-btn--primary" href="/vote">Redeem for votes</a>
               {% else %}
-                <span class="me-btn me-btn--flat" aria-disabled="true">Redeem for votes</span>
+                <span class="ag-btn ag-btn--secondary" aria-disabled="true">Redeem for votes</span>
               {% endif %}
-              <a class="me-btn me-btn--flat" href="#me-points" data-me-go="points">Earn more</a>
+              <a class="ag-btn ag-btn--secondary" href="#me-points" data-me-go="points">Earn more</a>
             </div>
 
-            {# Referral earnings in the foot of the balance card, because it is the one
-               number on this account that is MONEY: a member who has earned it and
-               never opens that section never learns it is there. `payout_can` answers
-               "can they" and "why not" together, so the row either offers the
+            {# Referral earnings in the foot of the balance card, because it is the
+               one number on this account that is MONEY: a member who has earned it
+               and never opens that section never learns it is there. `payout_can`
+               answers "can they" AND "why not" together, so this either offers the
                withdrawal or says what is in the way — never a button that refuses. #}
             {% if referral.accrued_naira|default(0) > 0 %}
             <div class="me-bal__foot" data-find="referral earnings withdraw">
               <span>
-                <span class="me-sub">Referral earnings</span><br>
+                <span class="ag-hint" style="margin:0">Referral earnings</span><br>
                 {# `accrued_naira`, not `payable_naira`: what has been EARNED is the
                    figure a member recognises, and the payable one is zero until the
                    threshold unlocks it — ₦0 beside "Referral earnings" on an account
                    that has earned four thousand is the panel contradicting itself. #}
                 <b><span class="me-cash">₦{{ referral.accrued_naira|number_format }}</span><span class="me-dots" aria-hidden="true">₦••••</span></b>
-                {% if payout_can %}<span class="me-sub" style="color:var(--ag-green-deep);font-weight:600">ready</span>{% endif %}
               </span>
               {% if payout_can %}
-                <a class="me-btn" href="#me-referral" data-me-go="referral">Withdraw</a>
+                <a class="ag-btn ag-btn--secondary ag-btn--sm" href="#me-referral" data-me-go="referral">Withdraw</a>
               {% else %}
-                <span class="me-sub">{{ payout_why }}</span>
+                <span class="ag-hint" style="margin:0;max-width:30ch">{{ payout_why }}</span>
               {% endif %}
             </div>
             {% endif %}
           </section>
 
-          {# ── EIGHT TILES ───────────────────────────────────────────────────────
-             The destinations somebody came here to reach, where a thumb reaches them.
-             Four of the eight are `#me-…` links into this page and four leave it, and
-             that mixture is the point: this is the answer to "what now", not a second
-             rail. EVERY BADGE COUNTS THIS MEMBER'S OWN THINGS — the challenges badge is
-             what they are IN, never what is running, because a badge counting other
-             people's opportunities never goes down and one that never goes down is one
-             people stop reading. #}
+          {# ── EIGHT TILES ─────────────────────────────────────────────────────
+             The destinations somebody came here to reach, where a thumb reaches
+             them. Four are `#me-…` links into this page and four leave it, and that
+             mixture is the point: this is the answer to "what now", not a second
+             rail. EVERY BADGE COUNTS THIS MEMBER'S OWN THINGS — a badge counting
+             other people's opportunities never goes down, and one that never goes
+             down is one people stop reading. #}
           {% set quick = [
-            {'to':'/vote',          'label':'Vote',         'ico':'vote',   'tone':'t-green'},
-            {'to':'/nominate',      'label':'Nominate',     'ico':'plus',   'tone':'t-deep'},
-            {'to':'#me-purchases',  'label':'Tickets',      'ico':'ticket', 'tone':'t-info',
+            {'to':'/vote',          'label':'Vote',         'ico':'vote',   'tone':'green'},
+            {'to':'/nominate',      'label':'Nominate',     'ico':'plus',   'tone':'green'},
+            {'to':'#me-purchases',  'label':'Tickets',      'ico':'ticket', 'tone':'info',
              'n':(my_tickets|default([]))|length},
-            {'to':'#me-referral',   'label':'Refer & earn', 'ico':'refer',  'tone':'t-live'},
-            {'to':'#me-challenges', 'label':'Challenges',   'ico':'trophy', 'tone':'t-gold',
+            {'to':'#me-referral',   'label':'Refer & earn', 'ico':'refer',  'tone':'live'},
+            {'to':'#me-challenges', 'label':'Challenges',   'ico':'trophy', 'tone':'gold',
              'n':(my_challenges|default([]))|length},
-            {'to':'/shop',          'label':'Orders',       'ico':'bag',    'tone':'t-info'},
-            {'to':'/giving',        'label':'Giving',       'ico':'heart',  'tone':'t-live'},
-            {'to':'/help',          'label':'Help',         'ico':'help',   'tone':'t-ink'}
+            {'to':'/shop',          'label':'Orders',       'ico':'bag',    'tone':'info'},
+            {'to':'/giving',        'label':'Giving',       'ico':'heart',  'tone':'live'},
+            {'to':'/help',          'label':'Help',         'ico':'help',   'tone':'neutral'}
           ] %}
           <nav class="me-quick" aria-label="Quick actions">
             {% for a in quick %}
             <a class="me-quick__i" href="{{ a.to }}"{% if a.to starts with '#me-' %} data-me-go="{{ a.to|slice(4) }}"{% endif %}>
-              <span class="me-quick__t {{ a.tone }}" aria-hidden="true">
+              <span class="ag-icon-tile ag-tint--{{ a.tone }}" aria-hidden="true">
                 {{ gi.ui(a.ico, 21) }}
                 {% if a.n|default(0) > 0 %}<span class="me-quick__d">{{ a.n > 9 ? '9+' : a.n }}</span>{% endif %}
               </span>
               <span class="me-quick__l">{{ a.label }}</span>
-              {# The badge is a glyph on a tile and `aria-hidden`; the count it carries
-                 still has to reach a reader who cannot see it, so it is said in words in
-                 the link's own name. #}
-              {% if a.n|default(0) > 0 %}<span class="sr-only">, {{ a.n }}</span>{% endif %}
+              {# The badge is a glyph on a tile and `aria-hidden`; the count it
+                 carries still has to reach a reader who cannot see it, so it is
+                 said in words in the link's own name. #}
+              {% if a.n|default(0) > 0 %}<span class="ag-sr">, {{ a.n }}</span>{% endif %}
             </a>
             {% endfor %}
           </nav>
         </div>
 
-        {# The promo band (§4). `PromoService` decides what appears; zero promos render
-           nothing at all. It belongs to the HOME — a pushed child view hides it. #}
+        {# The promo band (§4). `PromoService` decides what appears; zero promos
+           render nothing at all. It belongs to the HOME — a pushed child view hides
+           it. #}
         {% include "partials/promo-carousel.twig" with { promos: promos|default([]) } only %}
 
         <div class="me-ov">
           <div class="me-col">
 
-            {# ── SOMEONE YOU BACKED WON ────────────────────────────────────────
-               `backed_winners` is only non-empty for a nominee `CycleMaterialiser`
-               actually promoted — the same transaction that crowns the cycle and seals
-               the standing — so this cannot congratulate anybody on an award nobody has
-               been told about. The key includes every id, so a member who backs a second
-               winner next month gets a second celebration rather than one that already
-               counts as seen. #}
+            {# `backed_winners` is only non-empty for a nominee `CycleMaterialiser`
+               actually promoted — the same transaction that crowns the cycle and
+               seals the standing — so this cannot congratulate anybody on an award
+               nobody has been told about. The celebration key includes every id, so
+               a member who backs a second winner next month gets a second
+               celebration rather than one that already counts as seen. #}
             {% for w in backed_winners|default([]) %}
             <section class="me-won" data-find="{{ w.nominee }} {{ w.category|default('') }} winner"
                      {% if loop.first %}data-celebrate="backed-{{ backed_winners|map(x => x.id)|join('-') }}"{% endif %}>
-              <span class="me-won__i" aria-hidden="true">{{ gi.ui('trophy', 22) }}</span>
-              <span class="me-won__b" {% if loop.first %}data-celebrate-anchor{% endif %}>
+              {{ ui.tile('trophy', 'gold', 44) }}
+              <span class="ag-list__b" {% if loop.first %}data-celebrate-anchor{% endif %}>
                 <b>Someone you backed {{ w.kind == 'winner' ? 'won' : 'was named' }}</b>
-                <span>{{ w.nominee }}{% if w.category %} · {{ w.category }}{% endif %}</span>
+                <span class="ag-list__sub">{{ w.nominee }}{% if w.category %} · {{ w.category }}{% endif %}</span>
               </span>
-              <a class="me-won__a" href="/results">See</a>
+              <a class="ag-btn ag-btn--text" href="/results">See</a>
             </section>
             {% endfor %}
 
-            {# ── CHALLENGE PROGRESS ────────────────────────────────────────────
-               Ten segments and not a percentage bar: a count is what somebody is
+            {# Segments and not a percentage bar: a count is what somebody is
                working towards, and "6 of 10" is a sentence a bar cannot say. #}
+            {# THREE STATES, NOT ONE. `verified` is done, `checking` is with us, and
+               `needs` is work only this member can do — and that last one is the whole
+               point of the card: flattened into one colour it reads as our delay.
+               The three counts are `minePublic()`'s own, not re-derived here. #}
             {% for c in my_challenges|default([])|filter(c => c.state == 'open' or c.state == 'full')|slice(0,1) %}
-            <section class="me-card" aria-labelledby="h-ch" data-find="{{ c.title }} challenge">
-              <div class="me-bal__h" style="margin-bottom:12px">
-                <b id="h-ch" class="me-card__h">{{ c.title }}</b>
-                <span class="me-sub">{{ c.state_label }}</span>
+            {% set tgt = c.target|default(10) %}
+            <section class="ag-card me-ch" aria-labelledby="h-ch" data-find="{{ c.title }} challenge">
+              <div class="ag-between">
+                <b id="h-ch">{{ c.title }}</b>
+                <span class="ag-list__value">{{ c.time_left }}</span>
               </div>
-              <div class="me-seg" role="img" aria-label="{{ c.mine|default(0) }} of {{ c.pct is defined ? 10 : 10 }} done"
-                   style="grid-template-columns:repeat(10,1fr);margin-bottom:12px">
-                {% for i in 1..10 %}
-                  <span class="{{ i <= (c.mine|default(0)) ? 'me-seg__ok' : '' }}"></span>
-                {% endfor %}
-              </div>
+              {{ ui.meter(
+                [{n: c.verified|default(0)},
+                 {n: c.checking|default(0), tone: 'wait'},
+                 {n: c.needs|default(0),    tone: 'need'}],
+                tgt,
+                c.verified|default(0) ~ ' of ' ~ tgt ~ ' verified'
+                  ~ (c.checking ? ', ' ~ c.checking ~ ' being checked' : '')
+                  ~ (c.needs    ? ', ' ~ c.needs ~ ' needing more detail' : '')
+              ) }}
+              {# Said in words as well as in colour: the segments are `aria-hidden`
+                 inside one `role="img"`, and colour is never the only signal (§16). #}
+              <span class="me-bal__l">
+                <b>{{ c.verified|default(0) }} of {{ tgt }} verified</b>
+                {%- if c.checking %} · {{ c.checking }} checking{% endif -%}
+                {%- if c.needs %} · {{ c.needs }} need{{ c.needs == 1 ? 's' : '' }} details{% endif -%}
+              </span>
               <span class="me-bal__l">{{ c.next }}</span>
-              <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px">
-                <a class="me-btn" href="/challenges/{{ c.slug }}">Challenge details</a>
+              <div class="ag-between">
+                {% if c.needs %}
+                  <a class="ag-btn ag-btn--secondary ag-btn--sm" href="#me-activity" data-me-go="activity">Fix {{ c.needs }} nomination{{ c.needs == 1 ? '' : 's' }}</a>
+                {% endif %}
+                <a class="ag-btn ag-btn--text" href="/challenges/{{ c.slug }}">Challenge details</a>
               </div>
             </section>
             {% endfor %}
 
-            {# ── RECENT ACTIVITY ───────────────────────────────────────────────
-               The last five things that happened, as the DC's 64px rows. "See all"
-               rather than a longer list: this is a summary and Activity is the record. #}
+            {# The last five things that happened. "See all" rather than a longer
+               list: this is a summary and Activity is the record. #}
             {% set recent = my_nominations|default([])|slice(0,5) %}
             {% if recent|length %}
-            <section class="me-grp" aria-labelledby="h-act">
-              <div class="me-bal__h">
-                <h2 id="h-act" style="margin:0;font-size:18px;font-weight:700">Recent activity</h2>
-                <a class="me-btn me-btn--quiet" href="#me-activity" data-me-go="activity">See all</a>
+            <section class="ag-group" aria-labelledby="h-act">
+              <div class="ag-between">
+                <h2 id="h-act" class="ag-h2">Recent activity</h2>
+                <a class="ag-btn ag-btn--text" href="#me-activity" data-me-go="activity">See all</a>
               </div>
-              <div class="me-rows">
+              <div class="ag-list">
                 {% for n in recent %}
-                {% set st = NOM_STATE[n.status]|default({'label':n.status|replace({'_':' '})|capitalize,'tone':'mute','group':'other'}) %}
-                <span class="me-r" data-find="{{ n.nominee }} nomination {{ n.status }}">
-                  <span class="me-r__t t-deep" aria-hidden="true">{{ gi.ui('activity', 18) }}</span>
-                  <span class="me-r__b">
-                    <span class="me-r__n">{{ n.nominee }}</span>
-                    <span class="me-r__s">{% if n.created_at %}{{ n.created_at|when }}{% endif %}{% if n.reference %} · {{ n.reference }}{% endif %}</span>
-                  </span>
-                  <span class="me-pill me-pill--{{ st.tone }}">{{ st.label }}</span>
-                </span>
+                {% set st = NOM_STATE[n.status]|default({'label':n.status|replace({'_':' '})|capitalize,'tone':''}) %}
+                {{ ui.row({
+                  icon: 'activity', tone: 'green',
+                  label: n.nominee,
+                  sub: (n.created_at ? n.created_at|when : '') ~ (n.reference ? ' · ' ~ n.reference : ''),
+                  pill: st,
+                  find: n.nominee ~ ' nomination ' ~ n.status
+                }) }}
                 {% endfor %}
               </div>
             </section>
@@ -477,26 +482,23 @@
           </div>
 
           <div class="me-col">
-            {# ── FINISH SETTING UP ─────────────────────────────────────────────
-               The bar and the count are the same fact in two registers, which the DC
-               does on purpose: the number is the answer and the bar is the glance. It
-               is dropped entirely at 100% — a full bar is not news, and it used to sit
-               beside "3 things left", two true statements reading as a contradiction
-               because the meter measures the PROFILE and the list counts things to do. #}
+            {# The bar and the count are the same fact in two registers, which the
+               DC does on purpose: the number is the answer and the bar is the
+               glance. Dropped entirely at 100% — a full bar is not news, and it
+               used to sit beside "3 things left", two true statements reading as a
+               contradiction because the meter measures the PROFILE and the list
+               counts things to do. #}
             {% if open_steps is not empty %}
-            <section class="me-card" aria-labelledby="h-setup">
-              <div class="me-bal__h" style="margin-bottom:12px">
-                <b id="h-setup" class="me-card__h">Finish setting up</b>
-                <span class="me-sub">{{ checklist|length - open_steps|length }} of {{ checklist|length }}</span>
+            <section class="ag-card" aria-labelledby="h-setup">
+              <div class="ag-between">
+                <b id="h-setup">Finish setting up</b>
+                <span class="ag-list__value">{{ checklist|length - open_steps|length }} of {{ checklist|length }}</span>
               </div>
-              <span class="me-setup__bar" aria-hidden="true" style="margin-bottom:4px">
-                <span style="width:{{ completeness.pct|default(0) }}%"></span>
-              </span>
+              {{ ui.bar(completeness.pct|default(0), 'Profile ' ~ completeness.pct|default(0) ~ '% complete') }}
               {% for s in checklist %}
               <a class="me-setup__i{{ s.done ? ' me-setup__i--done' : '' }}" href="{{ s.href }}">
                 <span class="me-setup__n" aria-hidden="true">{% if s.done %}{{ gi.ui('tick', 12) }}{% else %}{{ loop.index }}{% endif %}</span>
-                <span>{{ s.label }}{% if s.done %} <span class="sr-only">— done</span>{% endif %}</span>
-                {% if not s.done %}<span class="me-r__g">{{ gi.ui('next', 16) }}</span>{% endif %}
+                <span>{{ s.label }}{% if s.done %} <span class="ag-sr">— done</span>{% endif %}</span>
               </a>
               {% endfor %}
             </section>
@@ -504,96 +506,85 @@
 
             {# The next thing in the diary, which on this site is a ticket. #}
             {% for t in my_tickets|default([])|filter(t => t.state == 'confirmed')|slice(0,1) %}
-            <a class="me-card" href="{{ t.url }}" style="display:flex;align-items:center;gap:14px;color:inherit;text-decoration:none"
-               data-find="{{ t.event }} ticket">
-              <span style="flex:none;width:50px;display:flex;flex-direction:column;align-items:center;line-height:1.1">
-                <span style="font-size:12px;font-weight:700;color:var(--ag-live-ink)">{{ t.when|date('M')|upper }}</span>
-                <span style="font-size:22px;font-weight:700">{{ t.when|date('d') }}</span>
+            <a class="ag-card ag-list__row" href="{{ t.url }}" data-find="{{ t.event }} ticket">
+              <span class="ag-date" aria-hidden="true">
+                <span>{{ t.when|date('M')|upper }}</span><b>{{ t.when|date('d') }}</b>
               </span>
-              <span class="me-r__b">
-                <b style="font-size:15px;font-weight:600">{{ t.event }}{% if t.seats > 1 %} · {{ t.seats }} tickets{% endif %}</b>
-                <span class="me-r__s">{{ t.tier|default('Ticket') }}{% if t.where %} · {{ t.where }}{% endif %}</span>
+              <span class="ag-list__b">
+                <span class="ag-list__label">{{ t.event }}{% if t.seats > 1 %} · {{ t.seats }} tickets{% endif %}</span>
+                <span class="ag-list__sub">{{ t.tier|default('Ticket') }}{% if t.where %} · {{ t.where }}{% endif %}</span>
               </span>
-              <span style="flex:none;font-weight:700;font-size:14px;color:var(--ag-green)">Ticket</span>
+              <span class="me-go">Ticket</span>
             </a>
             {% endfor %}
           </div>
         </div>
 
-        {# ── "YOUR ACCOUNT" — and it IS the navigation ──────────────────────────
+        {# ── "YOUR ACCOUNT" — and it IS the navigation ───────────────────────────
            Phone only. The rail is hidden below 600, so this list is how you get
-           anywhere: a ten-item horizontal strip on a 390px screen hides six behind a
-           scroll nobody is told about. Looped from the SAME `rail` array with the same
-           `on` gate — a hand-written copy here would be the fourth list in this file,
-           and the first three each shipped a section that was unreachable. #}
-        <section class="me-grp me-more" aria-label="Your account">
+           anywhere: a ten-item horizontal strip on a 390px screen hides six behind
+           a scroll nobody is told about. Looped from the SAME `rail` array with the
+           same gate — a hand-written copy here would be the fourth list in this
+           file, and the first three each shipped a section nobody could reach. #}
+        <section class="ag-group me-more" aria-label="Your account">
           <h2>Your account</h2>
-          <div class="me-rows">
+          <div class="ag-list">
             {% for r in rail %}
-              {% if r.id != 'overview' and (r.on is not defined or r.on) and (r.id != 'saved' or r.n > 0) %}
-              <a class="me-r" href="#me-{{ r.id }}" data-me-go="{{ r.id }}">
-                <span class="me-r__t {{ r.tone }}" aria-hidden="true">{{ gi.ui(r.ico, 16) }}</span>
-                <span class="me-r__n" style="flex:1">{{ r.label }}</span>
-                {% if r.n %}<span class="me-r__v">{{ r.n|number_format }}</span>{% endif %}
-                <span class="me-r__g" aria-hidden="true">{{ gi.ui('next', 16) }}</span>
-              </a>
+              {% if r.id != 'overview' and (r.on is not defined or r.on) %}
+              {{ ui.row({
+                icon: r.ico, tone: r.tone, label: r.label,
+                value: r.n ? r.n|number_format : '',
+                href: '#me-' ~ r.id,
+                attrs: 'data-me-go="' ~ r.id ~ '"'
+              }) }}
               {% endif %}
             {% endfor %}
           </div>
         </section>
       </section>
 
-      {# ══ POINTS ══════════════════════════════════════════════════════════════ #}
+      {# ══ POINTS ════════════════════════════════════════════════════════════ #}
       <section class="me-sec" id="me-points" aria-labelledby="me-points-h">
-        <div class="me-hd">
-          <div class="me-hd__b">
+        <div class="ag-pagehead">
+          <div class="ag-pagehead__b">
             <h1 id="me-points-h">Points</h1>
             <p>{{ leads.points }}</p>
           </div>
-          {# The DC puts a download beside this one heading and no other, and it is right
-             to: a points ledger is the one thing on this account somebody has a reason to
-             take away — for a tax return, or to check our arithmetic. The route already
-             existed and nothing linked to it. #}
-          <a class="me-btn" href="/account/points.csv" download>Download CSV</a>
+          {# A points ledger is the one thing on this account somebody has a reason
+             to take away — for a tax return, or to check our arithmetic. The route
+             already existed and nothing linked to it. #}
+          <a class="ag-btn ag-btn--secondary ag-btn--sm" href="/account/points.csv" download>Download CSV</a>
         </div>
-        <p class="me-lead">{{ leads.points }}</p>
+        <p class="ag-lead">{{ leads.points }}</p>
 
         <div class="me-split">
-          <section class="me-card" aria-labelledby="h-pb" style="display:flex;flex-direction:column;gap:16px;padding:22px">
-            <div class="me-bal__h">
-              <h2 id="h-pb" style="margin:0;font-size:14px;font-weight:600;color:var(--ag-ink-2)">Balance</h2>
-            </div>
+          <section class="ag-card" aria-labelledby="h-pb">
+            <h2 id="h-pb" class="ag-hint" style="margin:0 0 14px">Balance</h2>
             <div class="me-bal__n">
               <b style="font-size:44px"><span class="me-cash">{{ points|number_format }}</span><span class="me-dots" aria-hidden="true">••••</span></b>
               <span class="me-bal__u">pts{% if points_enabled %} · worth {{ redeemable }} vote{{ redeemable == 1 ? '' : 's' }}{% endif %}</span>
             </div>
 
-            {# ── THE SITE'S ONE CHART COMPONENT, NOT A SECOND SPARKLINE ─────────
-               The first cut of this rebuild drew a bare decorative `<svg>` here, and that
-               was an accessibility REGRESSION rather than a simplification: `viz.chart()`
-               renders the path on the SERVER (so it prints, and survives a script that
-               never loads), makes the plot reachable from a keyboard, and puts every
-               value the hover shows into a table underneath — because a number only
-               reachable by pointing at it is a number some people cannot reach.
-               `AccountDashboardTest` named all three the moment the component went.
-
-               It is also the component the partner dashboard and the stands admin
-               render, so there is one answer on this site to "what is a hover". #}
+            {# The site's ONE chart component. An earlier cut drew a bare decorative
+               `<svg>` here and that was an accessibility regression rather than a
+               simplification: this renders the path on the SERVER (so it prints and
+               survives a script that never loads), makes the plot keyboard
+               reachable, and puts every value the hover shows into a table —
+               because a number only reachable by pointing at it is a number some
+               people cannot reach. #}
             {% if points_chart.ok|default(false) %}
               {{ viz.chart(points_chart) }}
             {% else %}
-              {# A graph of nothing is the worst first screen there is, and the title alone
-                 is enough to make one: `AccountDashboardTest` fails on the string
-                 "Balance, last 90 days" appearing for an account with no history. The
-                 figures above and the strip below still say everything there is to say. #}
-              <p class="me-sub">Nothing to chart yet. This fills in as points arrive.</p>
+              {# A graph of nothing is the worst first screen there is, and the title
+                 alone is enough to make one. #}
+              <p class="ag-hint">Nothing to chart yet. This fills in as points arrive.</p>
             {% endif %}
 
-            <div class="me-facts">
-              <div><span>Earned</span><b style="color:var(--ag-green-deep)">+{{ summary.earned|number_format }}</b></div>
-              <div><span>Spent</span><b style="color:var(--ag-error)">−{{ summary.spent|number_format }}</b></div>
-              <div><span>Next vote</span><b>{{ points_enabled ? (points_per_vote - points % points_per_vote) ~ ' pts' : '—' }}</b></div>
-            </div>
+            {{ ui.facts([
+              {k: 'Earned', v: '+' ~ summary.earned|number_format, tone: 'ok'},
+              {k: 'Spent',  v: '−' ~ summary.spent|number_format,  tone: 'bad'},
+              {k: 'Next vote', v: points_enabled ? (points_per_vote - points % points_per_vote) ~ ' pts' : '—'}
+            ]) }}
           </section>
 
           <div class="me-col">
@@ -601,165 +592,145 @@
               <b>Turn points into votes</b>
               <span>{{ points_per_vote }} points make one vote. Points never expire while your account is active.</span>
               {% if points_enabled and redeemable > 0 %}
-                <a class="me-btn me-btn--go" href="/vote">Redeem {{ redeemable }} vote{{ redeemable == 1 ? '' : 's' }}</a>
+                <a class="ag-btn ag-btn--primary" href="/vote">Redeem {{ redeemable }} vote{{ redeemable == 1 ? '' : 's' }}</a>
               {% else %}
-                <span class="me-btn me-btn--flat" aria-disabled="true">Redemption opens with the ballot</span>
+                <span class="ag-btn ag-btn--secondary" aria-disabled="true">Redemption opens with the ballot</span>
               {% endif %}
             </section>
 
-            {% set earn_ways = [
-              {'t':'Shop orders',   'r':'1 per ₦100', 'ico':'bag',    'tone':'t-info'},
-              {'t':'Event tickets', 'r':'1 per ₦100', 'ico':'ticket', 'tone':'t-deep'},
-              {'t':'Donations',     'r':'1 per ₦50',  'ico':'heart',  'tone':'t-live'},
-              {'t':'Referrals',     'r':'50 each',    'ico':'refer',  'tone':'t-gold'}
-            ] %}
-            <section class="me-grp" aria-labelledby="h-earn">
-              <div class="me-rows">
-                <span class="me-r" style="min-height:48px"><b id="h-earn" style="font-size:15px">Ways to earn</b></span>
-                {% for w in earn_ways %}
-                <span class="me-r">
-                  <span class="me-r__t {{ w.tone }}" aria-hidden="true">{{ gi.ui(w.ico, 16) }}</span>
-                  <span class="me-r__n" style="flex:1;font-size:14.5px">{{ w.t }}</span>
-                  <span style="font:700 13px/1 var(--ag-font-mono);color:var(--ag-green-deep)">{{ w.r }}</span>
-                </span>
+            <section class="ag-group" aria-labelledby="h-earn">
+              <h2 id="h-earn">Ways to earn</h2>
+              <div class="ag-list">
+                {% for w in [
+                  {'t':'Shop orders',   'r':'1 per ₦100', 'ico':'bag',    'tone':'info'},
+                  {'t':'Event tickets', 'r':'1 per ₦100', 'ico':'ticket', 'tone':'green'},
+                  {'t':'Donations',     'r':'1 per ₦50',  'ico':'heart',  'tone':'live'},
+                  {'t':'Referrals',     'r':'50 each',    'ico':'refer',  'tone':'gold'}
+                ] %}
+                  {{ ui.row({icon: w.ico, tone: w.tone, label: w.t, value: w.r}) }}
                 {% endfor %}
               </div>
             </section>
           </div>
         </div>
 
-        {# ── HISTORY ───────────────────────────────────────────────────────────
-           A real table on a desk and a stacked row on a phone, from one row of markup:
-           `.me-d` cells exist only at ≥600 and `.me-m` only below it. Grouped by month,
-           and the band is STICKY on phone — scrolling a long ledger without it means
-           losing track of which month you are in. #}
-        <section class="me-grp" aria-labelledby="h-hist">
-          <div class="me-bal__h">
-            <h2 id="h-hist" style="margin:0;font-size:18px;font-weight:700">History</h2>
-            <div class="me-chips" role="group" aria-label="Filter the points history">
-              <button type="button" class="me-chip" data-me-filter="all" aria-pressed="true">All</button>
-              <button type="button" class="me-chip" data-me-filter="earn" aria-pressed="false">Earned</button>
-              <button type="button" class="me-chip" data-me-filter="spend" aria-pressed="false">Spent</button>
-            </div>
+        {# ── HISTORY ──────────────────────────────────────────────────────────
+           A real table on a desk and a stacked row on a phone, from one row of
+           markup. Grouped by month, and the band is STICKY on phone — scrolling a
+           long ledger without it means losing track of which month you are in. #}
+        <section class="ag-group" aria-labelledby="h-hist">
+          <div class="ag-between">
+            <h2 id="h-hist" class="ag-h2">History</h2>
+            {{ ui.chips('me-filter', [
+              {key:'all', label:'All'}, {key:'earn', label:'Earned'}, {key:'spend', label:'Spent'}
+            ], 'all', 'Filter the points history') }}
           </div>
 
-          <div class="me-tbl" id="meLedger">
-            <div class="me-tbl__h me-led" aria-hidden="true">
+          <div class="ag-tbl me-led" id="meLedger">
+            <div class="ag-tbl__h" aria-hidden="true">
               <span>Date</span><span>Activity</span><span>Source</span><span style="text-align:right">Points</span>
             </div>
             {% set month = '' %}
             {% for e in ledger %}
-              {% set m = e.created_at|date('F') %}
-              {% if m != month %}
-                {% set month = m %}
-                <div class="me-tbl__g">{{ m }}</div>
+              {% if e.created_at|date('F') != month %}
+                {% set month = e.created_at|date('F') %}
+                <div class="ag-tbl__g">{{ month }}</div>
               {% endif %}
-              <div class="me-tbl__r me-led" data-me-sign="{{ e.delta >= 0 ? 'earn' : 'spend' }}"
+              <div class="ag-tbl__r" data-me-sign="{{ e.delta >= 0 ? 'earn' : 'spend' }}"
                    data-find="{{ labels[e.reason]|default(e.reason) }} {{ e.note|default('') }} points">
-                <span class="me-d me-cell--plain">{{ e.created_at|date('j M') }}</span>
-                <span class="me-cell">
-                  <span class="me-cell__t">{{ labels[e.reason]|default(e.reason) }}</span>
-                  <span class="me-m me-cell__s">{{ e.created_at|date('j M') }}{% if e.note %} · {{ e.note }}{% endif %}</span>
-                </span>
-                <span class="me-d me-cell--plain">{{ e.note|default('—') }}</span>
-                <span class="me-num" style="color:{{ e.delta >= 0 ? 'var(--ag-green-deep)' : 'var(--ag-error)' }}">{{ e.delta >= 0 ? '+' : '−' }}{{ (e.delta < 0 ? -e.delta : e.delta)|number_format }}</span>
+                <span class="ag-cell--d ag-cell__p">{{ e.created_at|date('j M') }}</span>
+                {{ ui.cell(labels[e.reason]|default(e.reason),
+                           e.created_at|date('j M') ~ (e.note ? ' · ' ~ e.note : '')) }}
+                <span class="ag-cell--d ag-cell__p">{{ e.note|default('—') }}</span>
+                <span class="ag-cell__n ag-facts--{{ e.delta >= 0 ? 'ok' : 'bad' }}">{{ e.delta >= 0 ? '+' : '−' }}{{ (e.delta < 0 ? -e.delta : e.delta)|number_format }}</span>
               </div>
             {% else %}
-              <div class="me-empty">
-                <h3>No points yet</h3>
-                <p>Points arrive from what you buy, the events you book and what you give.</p>
-              </div>
+              {{ ui.empty('No points yet',
+                 'Points arrive from what you buy, the events you book and what you give.') }}
             {% endfor %}
-            <div class="me-empty" id="meLedgerNone" hidden><p>Nothing in that filter.</p></div>
+            <div id="meLedgerNone" hidden>{{ ui.empty('Nothing in that filter', '') }}</div>
           </div>
         </section>
       </section>
 
-      {# ══ REFERRALS ═══════════════════════════════════════════════════════════ #}
+      {# ══ REFERRALS ═════════════════════════════════════════════════════════ #}
       <section class="me-sec" id="me-referral" aria-labelledby="me-ref-h">
-        <div class="me-hd"><div class="me-hd__b">
-          <h1 id="me-ref-h">Refer people to events</h1><p>{{ leads.referral }}</p>
-        </div></div>
-        <p class="me-lead">{{ leads.referral }}</p>
+        {{ ui.head('Refer people to events', leads.referral, 'me-ref-h') }}
+        <p class="ag-lead">{{ leads.referral }}</p>
 
         <div class="me-split">
           <div class="me-col">
-            <section class="me-card" style="display:flex;flex-direction:column;gap:12px;padding:22px">
+            <section class="ag-card">
               {% if referral.code %}
-                <label for="rfLink" style="font-size:14px;font-weight:600">Your referral link</label>
+                <label class="ag-label" for="rfLink">Your referral link</label>
                 {# The input stays readonly-and-VISIBLE rather than hidden behind the
-                   button, so with no JS — or a clipboard API the browser refuses — the
-                   link is still there to select by hand. That matters more here than
-                   anywhere else on this page: the link IS the feature. #}
-                <div style="display:flex;gap:8px;flex-wrap:wrap">
-                  <input id="rfLink" readonly value="{{ referral_site }}/events?ref={{ referral.code }}"
-                         style="flex:1 1 260px;min-width:0;height:52px;padding:0 14px;border:1px solid var(--ag-line-2);border-radius:12px;background:var(--ag-ground);font:500 14px/1 var(--ag-font-mono);color:var(--ag-ink)">
-                  <button type="button" class="me-btn me-btn--go" data-rf-copy="rfLink"
-                          style="flex:none;padding:0 24px">Copy</button>
+                   button, so with no JS — or a clipboard API the browser refuses —
+                   the link is still there to select by hand. That matters more here
+                   than anywhere else on this page: the link IS the feature. #}
+                <div class="ag-inline">
+                  <input id="rfLink" class="ag-input ag-input--mono" readonly
+                         value="{{ referral_site }}/events?ref={{ referral.code }}">
+                  <button type="button" class="ag-btn ag-btn--primary" data-rf-copy="rfLink">Copy</button>
                 </div>
-                <span class="me-sub">Code <b style="font-family:var(--ag-font-mono);color:var(--ag-ink)">{{ referral.code }}</b> works in the discount box too.</span>
+                <p class="ag-hint">Code <b>{{ referral.code }}</b> works in the discount box too.</p>
               {% else %}
-                <form method="post" action="/account/referral/code" style="display:flex;flex-direction:column;gap:12px">
+                <form method="post" action="/account/referral/code">
                   <input type="hidden" name="_token" value="{{ csrf_token }}">
-                  <b class="me-card__h">Get your referral link</b>
-                  <span class="me-sub">A code is minted when you ask for one, so visiting this page does not create a row for every account.</span>
-                  <button class="me-btn me-btn--go" type="submit" style="align-self:flex-start;padding:0 22px">Get my link</button>
+                  <b>Get your referral link</b>
+                  <p class="ag-hint">A code is minted when you ask for one, so visiting this
+                    page does not create a row for every account.</p>
+                  <button class="ag-btn ag-btn--primary" type="submit">Get my link</button>
                 </form>
               {% endif %}
             </section>
 
-            <section class="me-card" aria-labelledby="h-unl" style="display:flex;flex-direction:column;gap:14px;padding:22px">
-              <div class="me-bal__h">
-                <h2 id="h-unl" style="margin:0;font-size:16px;font-weight:700">Earnings unlocked</h2>
-                <span class="me-pill me-pill--ok">{{ referral.referrals }} of {{ referral.threshold }} paid</span>
+            <section class="ag-card" aria-labelledby="h-unl">
+              <div class="ag-between">
+                <h2 id="h-unl" class="ag-h2">Earnings unlocked</h2>
+                {{ ui.pill(referral.referrals ~ ' of ' ~ referral.threshold ~ ' paid', 'ok') }}
               </div>
-              <div class="me-seg" aria-hidden="true" style="grid-template-columns:repeat({{ referral.threshold }},1fr)">
-                {% for i in 1..referral.threshold %}
-                  <span class="{{ i <= referral.referrals ? 'me-seg__ok' : '' }}"></span>
-                {% endfor %}
-              </div>
-              <div class="me-facts">
-                <div><span>Paid referrals</span><b>{{ referral.referrals }} / {{ referral.threshold }}</b></div>
-                <div><span>Earned</span><b>₦{{ referral.accrued_naira|number_format }}</b></div>
-                <div><span>Withdrawn</span><b>₦{{ referral.paid_out_naira|number_format }}</b></div>
-              </div>
-              {% include "partials/account-payout.twig" ignore missing with {
+              {{ ui.meter(referral.referrals, referral.threshold,
+                 referral.referrals ~ ' of ' ~ referral.threshold ~ ' paid bookings') }}
+              {{ ui.facts([
+                {k:'Paid referrals', v: referral.referrals ~ ' / ' ~ referral.threshold},
+                {k:'Earned',    v: '₦' ~ referral.accrued_naira|number_format},
+                {k:'Withdrawn', v: '₦' ~ referral.paid_out_naira|number_format}
+              ]) }}
+              {% include "partials/account-payout.twig" with {
                 payout_open: payout_open, payout_can: payout_can, payout_amount: payout_amount,
                 payout_why: payout_why, payout_bank: payout_bank, payout_history: payout_history,
                 csrf_token: csrf_token
               } only %}
-              <span class="me-sub">Paid to an account in your name. A referral counts once the ticket is paid; refunds remove it.</span>
+              <p class="ag-hint">Paid to an account in your name. A referral counts once the
+                ticket is paid; refunds remove it.</p>
             </section>
           </div>
 
           <div class="me-col">
-            <section class="me-card" aria-labelledby="h-hiw" style="display:flex;flex-direction:column;gap:12px;padding:20px">
-              <h2 id="h-hiw" style="margin:0;font-size:15px;font-weight:700">How it works</h2>
-              <ol style="list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:12px">
+            <section class="ag-card" aria-labelledby="h-hiw">
+              <h2 id="h-hiw" class="ag-h2">How it works</h2>
+              <ol class="ag-steps">
                 {% for step in [
                   'Share your link or code with friends, family and colleagues.',
                   'They buy event tickets through it.',
                   'After ' ~ referral.threshold ~ ' paid bookings you earn ' ~ referral.rate_pct ~ '% of everything they paid, including the first ' ~ referral.threshold ~ '.'
                 ] %}
-                <li style="display:flex;gap:12px;align-items:flex-start">
-                  <span style="flex:none;width:26px;height:26px;border-radius:50%;background:var(--ag-ink);color:var(--ag-surface);font:700 12.5px/26px var(--ag-font-mono);text-align:center">{{ loop.index }}</span>
-                  <span style="font-size:14px;line-height:1.5;color:var(--ag-ink-2)">{{ step }}</span>
-                </li>
+                <li><span class="ag-steps__n">{{ loop.index }}</span><span>{{ step }}</span></li>
                 {% endfor %}
               </ol>
             </section>
 
             {% if my_links|default([])|length %}
-            <section class="me-grp" aria-labelledby="h-links">
+            <section class="ag-group" aria-labelledby="h-links">
               <h2 id="h-links">Links you made</h2>
-              <div class="me-rows">
+              <div class="ag-list">
                 {% for l in my_links %}
-                <span class="me-r" data-find="{{ l.nominee }} share link">
-                  <span class="me-r__b">
-                    <span class="me-r__n">{{ l.nominee }}</span>
-                    <span class="me-r__s">{{ l.hits }} open{{ l.hits == 1 ? '' : 's' }}{% if l.expired %} · expired{% elseif l.expires_at %} · until {{ l.expires_at|when }}{% endif %}</span>
+                <span class="ag-list__row" data-find="{{ l.nominee }} share link">
+                  <span class="ag-list__b">
+                    <span class="ag-list__label">{{ l.nominee }}</span>
+                    <span class="ag-list__sub">{{ l.hits }} open{{ l.hits == 1 ? '' : 's' }}{% if l.expired %} · expired{% elseif l.expires_at %} · until {{ l.expires_at|when }}{% endif %}</span>
                   </span>
-                  <button type="button" class="me-btn" data-me-copy="{{ l.url }}"
+                  <button type="button" class="ag-btn ag-btn--secondary ag-btn--sm" data-me-copy="{{ l.url }}"
                           aria-label="Copy the link for {{ l.nominee }}">Copy</button>
                 </span>
                 {% endfor %}
@@ -770,47 +741,42 @@
         </div>
       </section>
 
-      {# ══ CHALLENGES ══════════════════════════════════════════════════════════ #}
+      {# ══ CHALLENGES ════════════════════════════════════════════════════════ #}
       <section class="me-sec" id="me-challenges" aria-labelledby="me-ch-h">
-        <div class="me-hd"><div class="me-hd__b">
-          <h1 id="me-ch-h">Challenges</h1><p>{{ leads.challenges }}</p>
-        </div></div>
-        <p class="me-lead">{{ leads.challenges }}</p>
+        {{ ui.head('Challenges', leads.challenges, 'me-ch-h') }}
+        <p class="ag-lead">{{ leads.challenges }}</p>
 
         {% if my_challenges|default([])|length %}
+        {% set tone = {'open':'green','full':'gold','ended':'neutral','upcoming':'info'} %}
         <div class="me-cards">
           {% for c in my_challenges %}
-          {% set tone = {'open':'t-deep','full':'t-gold','ended':'t-ink','upcoming':'t-info'} %}
-          <a class="me-ch" href="/challenges/{{ c.slug }}" data-find="{{ c.title }} {{ c.kicker }} challenge">
-            <span class="me-ch__h">
-              <span class="me-ch__i {{ tone[c.state]|default('t-gold') }}" aria-hidden="true">{{ gi.ui('trophy', 20) }}</span>
-              <span class="me-pill me-pill--{{ c.state == 'open' ? 'ok' : (c.state == 'full' ? 'warn' : 'mute') }}">{{ c.state_label }}</span>
-            </span>
-            <span class="me-ch__b">
-              <b>{{ c.title }}</b>
-              <span>{{ c.next }}</span>
-            </span>
+          <a class="ag-card ag-card--link" href="/challenges/{{ c.slug }}"
+             data-find="{{ c.title }} {{ c.kicker }} challenge">
+            <div class="ag-between">
+              {{ ui.tile('trophy', tone[c.state]|default('gold'), 44) }}
+              {{ ui.pill(c.state_label, c.state == 'open' ? 'ok' : (c.state == 'full' ? 'warn' : '')) }}
+            </div>
+            <b class="ag-h2">{{ c.title }}</b>
+            <span class="ag-list__sub" style="white-space:normal">{{ c.next }}</span>
             {% if c.pct is not null and c.state == 'open' %}
-            <span class="me-ch__bar" aria-hidden="true"><span style="width:{{ c.pct }}%"></span></span>
+              {{ ui.bar(c.pct, c.pct ~ '% of the way') }}
             {% endif %}
           </a>
           {% endfor %}
         </div>
         {% else %}
-        <div class="me-card"><div class="me-empty">
-          <h3>You are not in a challenge yet</h3>
-          <p>A challenge is a run of nominations or referrals with a prize at the end of it.</p>
-          <a class="me-btn" href="/challenges">See what is running {{ gi.ui('go', 15) }}</a>
-        </div></div>
+        <div class="ag-card">
+          {{ ui.empty('You are not in a challenge yet',
+             'A challenge is a run of nominations or referrals with a prize at the end of it.',
+             'See what is running', '/challenges') }}
+        </div>
         {% endif %}
       </section>
 
-      {# ══ PURCHASES ═══════════════════════════════════════════════════════════ #}
+      {# ══ PURCHASES ═════════════════════════════════════════════════════════ #}
       <section class="me-sec" id="me-purchases" aria-labelledby="me-buy-h">
-        <div class="me-hd"><div class="me-hd__b">
-          <h1 id="me-buy-h">Purchases</h1><p>{{ leads.purchases }}</p>
-        </div></div>
-        <p class="me-lead">{{ leads.purchases }}</p>
+        {{ ui.head('Purchases', leads.purchases, 'me-buy-h') }}
+        <p class="ag-lead">{{ leads.purchases }}</p>
 
         {% set buys = [] %}
         {% for t in my_tickets|default([]) %}
@@ -829,85 +795,75 @@
         {% endfor %}
 
         {% if buys|length %}
-        <div class="me-chips" role="group" aria-label="Filter purchases">
-          <button type="button" class="me-chip" data-me-buy="all" aria-pressed="true">All</button>
-          <button type="button" class="me-chip" data-me-buy="ticket" aria-pressed="false">Tickets</button>
-          <button type="button" class="me-chip" data-me-buy="order" aria-pressed="false">Orders</button>
-        </div>
+        {{ ui.chips('me-buy', [
+          {key:'all', label:'All'}, {key:'ticket', label:'Tickets'}, {key:'order', label:'Orders'}
+        ], 'all', 'Filter purchases') }}
 
-        <div class="me-tbl" id="meBuys">
-          <div class="me-tbl__h me-buy" aria-hidden="true">
-            <span></span><span>Item</span><span>Date</span><span style="text-align:right">Amount</span><span>Status</span><span></span>
+        <div class="ag-tbl me-buy" id="meBuys">
+          <div class="ag-tbl__h" aria-hidden="true">
+            <span></span><span>Item</span><span>Date</span>
+            <span style="text-align:right">Amount</span><span>Status</span><span></span>
           </div>
           {% for b in buys %}
-          {% set st = BUY_STATE[b.state]|default({'label':b.state|replace({'_':' '})|capitalize,'tone':'mute'}) %}
-          <a class="me-tbl__r me-buy" href="{{ b.url }}" data-me-kind="{{ b.kind }}"
+          {% set st = BUY_STATE[b.state]|default({'label':b.state|replace({'_':' '})|capitalize,'tone':''}) %}
+          <a class="ag-tbl__r" href="{{ b.url }}" data-me-kind="{{ b.kind }}"
              data-find="{{ b.title }} {{ b.meta }} {{ b.code|default('') }} {{ b.kind }}">
-            <span class="me-tile {{ b.kind == 'ticket' ? 't-deep' : 't-info' }}" aria-hidden="true">
-              {{ gi.ui(b.kind == 'ticket' ? 'ticket' : 'bag', 19) }}
-            </span>
-            <span class="me-cell">
-              <span class="me-cell__t">{{ b.title }}</span>
-              <span class="me-cell__s">{{ b.meta }}{% if b.code %} · {{ b.code }}{% endif %}</span>
-            </span>
-            <span class="me-d me-cell--plain">{% if b.when %}{{ b.when|date('j M') }}{% endif %}</span>
+            {{ ui.tile(b.kind == 'ticket' ? 'ticket' : 'bag', b.kind == 'ticket' ? 'green' : 'info', 40) }}
+            {{ ui.cell(b.title, b.meta ~ (b.code ? ' · ' ~ b.code : '')) }}
+            <span class="ag-cell--d ag-cell__p">{% if b.when %}{{ b.when|date('j M') }}{% endif %}</span>
             <span class="me-amt">
               <b>{% if b.amount %}₦{{ b.amount|number_format }}{% else %}—{% endif %}</b>
-              <span class="me-m" style="font-size:12px;font-weight:700;color:var(--ag-ink-2)">{{ st.label }}</span>
+              <span class="ag-cell--m ag-cell__s">{{ st.label }}</span>
             </span>
-            <span class="me-d"><span class="me-pill me-pill--{{ st.tone }}">{{ st.label }}</span></span>
-            <span class="me-d me-go">{{ b.act }}</span>
+            <span class="ag-cell--d">{{ ui.pill(st.label, st.tone) }}</span>
+            <span class="ag-cell--d me-go">{{ b.act }}</span>
           </a>
           {% endfor %}
-          <div class="me-empty" id="meBuysNone" hidden><p>Nothing in that filter.</p></div>
+          <div id="meBuysNone" hidden>{{ ui.empty('Nothing in that filter', '') }}</div>
         </div>
         {% else %}
-        <div class="me-card"><div class="me-empty">
-          <h3>Nothing bought yet</h3>
-          <p>Orders from the shop and tickets to events show up here, with their status and
-            the code that gets you in.</p>
-          <a class="me-btn" href="/events">See what is coming up {{ gi.ui('go', 15) }}</a>
-        </div></div>
+        <div class="ag-card">
+          {{ ui.empty('Nothing bought yet',
+             'Orders from the shop and tickets to events show up here, with their status and the code that gets you in.',
+             'See what is coming up', '/events') }}
+        </div>
         {% endif %}
       </section>
 
-      {# ══ YOUR STALL ══════════════════════════════════════════════════════════
-         Not in the DC — a stand vendor is this platform's own, and `/org` was built for
-         a DONATION partner who has none of what a trader needs. Built from the same
-         primitives as everything else rather than keeping its old shapes. #}
+      {# ══ YOUR STALL ════════════════════════════════════════════════════════
+         Not in the DC — a stand vendor is this platform's own, and `/org` was built
+         for a DONATION partner who has none of what a trader needs. Built from the
+         same library as everything else rather than keeping its old shapes. #}
       {% if vendor %}
       <section class="me-sec" id="me-vendor" aria-labelledby="me-vendor-h">
-        <div class="me-hd"><div class="me-hd__b">
-          <h1 id="me-vendor-h">Your stall</h1><p>{{ leads.vendor }}</p>
-        </div></div>
-        <p class="me-lead">{{ leads.vendor }}</p>
+        {{ ui.head('Your stall', leads.vendor, 'me-vendor-h') }}
+        <p class="ag-lead">{{ leads.vendor }}</p>
 
-        <div class="me-facts">
-          <div><span>Pitches live</span><b>{{ vendor.live_offers|length }}</b></div>
-          <div><span>Applications</span><b>{{ vendor.applications|length }}</b></div>
-          <div><span>Owing</span><b>₦{{ vendor.owed|default(0)|number_format }}</b></div>
-        </div>
+        {{ ui.facts([
+          {k:'Pitches live',  v: vendor.live_offers|length},
+          {k:'Applications',  v: vendor.applications|length},
+          {k:'Owing',         v: '₦' ~ vendor.owed|default(0)|number_format,
+           tone: vendor.owed|default(0) > 0 ? 'warn' : ''}
+        ]) }}
 
         {% if vendor.missing_docs|default([])|length %}
-        <div class="me-note me-note--bad" role="status">
+        <div class="ag-flash ag-flash--error" role="status">
           Still needed before a pitch can be confirmed: {{ vendor.missing_docs|join(', ') }}.
         </div>
         {% endif %}
 
         {% for group in [{'t':'Live pitches','rows':vendor.live_offers},{'t':'Applications','rows':vendor.applications}] %}
           {% if group.rows|length %}
-          <section class="me-grp">
+          <section class="ag-group">
             <h2>{{ group.t }}</h2>
-            <div class="me-rows">
+            <div class="ag-list">
               {% for a in group.rows %}
-              <span class="me-r" data-find="{{ a.event }} stall pitch">
-                <span class="me-r__t t-info" aria-hidden="true">{{ gi.ui(a.ico|default('bag'), 16) }}</span>
-                <span class="me-r__b">
-                  <span class="me-r__n">{{ a.event }}</span>
-                  <span class="me-r__s">{{ a.label|default(a.type) }}{% if a.expires_at %} · take it by {{ a.expires_at|when }}{% endif %}</span>
-                </span>
-                {% if a.owing %}<span class="me-pill me-pill--warn">₦{{ a.owing|number_format }} owing</span>{% endif %}
-              </span>
+                {{ ui.row({
+                  icon: 'stand', tone: 'info', label: a.event,
+                  sub: (a.label|default(a.type)) ~ (a.expires_at ? ' · take it by ' ~ a.expires_at|when : ''),
+                  pill: a.owing ? {label: '₦' ~ a.owing|number_format ~ ' owing', tone: 'warn'} : null,
+                  find: a.event ~ ' stall pitch'
+                }) }}
               {% endfor %}
             </div>
           </section>
@@ -915,95 +871,83 @@
         {% endfor %}
 
         {% if vendor.items|default([])|length %}
-        <section class="me-grp">
+        <section class="ag-group">
           <h2>What you sell</h2>
-          <div class="me-rows">
+          <div class="ag-list">
             {% for i in vendor.items %}
-            <span class="me-r" data-find="{{ i.name }} {{ i.category }} stall item">
-              <span class="me-r__b">
-                <span class="me-r__n">{{ i.name }}</span>
-                <span class="me-r__s">{{ i.category }}{% if i.price_naira %} · ₦{{ i.price_naira|number_format }}{% endif %}{% if i.price_note %} · {{ i.price_note }}{% endif %}</span>
-              </span>
-              <span class="me-pill me-pill--{{ i.is_available ? 'ok' : 'mute' }}">{{ i.is_available ? 'On sale' : 'Hidden' }}</span>
-            </span>
+              {{ ui.row({
+                label: i.name,
+                sub: i.category ~ (i.price_naira ? ' · ₦' ~ i.price_naira|number_format : '') ~ (i.price_note ? ' · ' ~ i.price_note : ''),
+                pill: {label: i.is_available ? 'On sale' : 'Hidden', tone: i.is_available ? 'ok' : ''},
+                find: i.name ~ ' ' ~ i.category ~ ' stall item'
+              }) }}
             {% endfor %}
           </div>
-          <span class="me-sub">Up to {{ vendor_max }} items.</span>
+          <p class="ag-hint">Up to {{ vendor_max }} items.</p>
         </section>
         {% endif %}
       </section>
       {% endif %}
 
-      {# ══ ACTIVITY ════════════════════════════════════════════════════════════ #}
+      {# ══ ACTIVITY ══════════════════════════════════════════════════════════ #}
       <section class="me-sec" id="me-activity" aria-labelledby="me-act-h">
-        <div class="me-hd"><div class="me-hd__b">
-          <h1 id="me-act-h">Activity</h1><p>{{ leads.activity }}</p>
-        </div></div>
-        <p class="me-lead">{{ leads.activity }}</p>
+        {{ ui.head('Activity', leads.activity, 'me-act-h') }}
+        <p class="ag-lead">{{ leads.activity }}</p>
 
         {% if my_nominations|length %}
-        <div class="me-chips" role="group" aria-label="Filter activity">
-          <button type="button" class="me-chip" data-me-nom="all" aria-pressed="true">All</button>
-          <button type="button" class="me-chip" data-me-nom="needs" aria-pressed="false">Needs you</button>
-          <button type="button" class="me-chip" data-me-nom="checking" aria-pressed="false">Checking</button>
-          <button type="button" class="me-chip" data-me-nom="done" aria-pressed="false">Done</button>
-        </div>
+        {{ ui.chips('me-nom', [
+          {key:'all', label:'All'}, {key:'needs', label:'Needs you'},
+          {key:'checking', label:'Checking'}, {key:'done', label:'Done'}
+        ], 'all', 'Filter activity') }}
 
-        <div class="me-tbl" id="meNoms">
-          <div class="me-tbl__h me-act" aria-hidden="true">
+        <div class="ag-tbl me-act" id="meNoms">
+          <div class="ag-tbl__h" aria-hidden="true">
             <span></span><span>Who</span><span>What</span><span>Status</span><span></span>
           </div>
           {% for n in my_nominations %}
-          {% set st = NOM_STATE[n.status]|default({'label':n.status|replace({'_':' '})|capitalize,'tone':'mute','group':'other'}) %}
-          <div class="me-tbl__r me-act" data-me-nomstate="{{ st.group }}"
+          {% set st = NOM_STATE[n.status]|default({'label':n.status|replace({'_':' '})|capitalize,'tone':'','group':'other'}) %}
+          {% set meta = (n.created_at ? n.created_at|when : '') ~ (n.reference ? ' · ' ~ n.reference : '') %}
+          <div class="ag-tbl__r" data-me-nomstate="{{ st.group }}"
                data-find="{{ n.nominee }} nomination {{ n.status }} {{ n.reference|default('') }}">
-            <span class="me-tile me-tile--round" aria-hidden="true">{{ (n.nominee|split(' ')|map(w => w|first)|slice(0,2)|join)|upper }}</span>
-            <span class="me-cell">
-              <b style="font-size:15px;font-weight:600">{{ n.nominee }}</b>
-              <span class="me-m me-cell__s">{% if n.created_at %}{{ n.created_at|when }}{% endif %}{% if n.reference %} · {{ n.reference }}{% endif %}</span>
-            </span>
-            <span class="me-d me-cell--plain">{% if n.created_at %}{{ n.created_at|when }}{% endif %}{% if n.reference %} · {{ n.reference }}{% endif %}</span>
-            <span><span class="me-pill me-pill--{{ st.tone }}">{{ st.label }}</span></span>
-            <span class="me-d me-go">{{ st.group == 'needs' ? 'Fix' : '' }}</span>
+            {{ ui.avatar(n.nominee, 40) }}
+            {{ ui.cell(n.nominee, meta) }}
+            <span class="ag-cell--d ag-cell__p">{{ meta }}</span>
+            <span>{{ ui.pill(st.label, st.tone) }}</span>
+            <span class="ag-cell--d me-go">{{ st.group == 'needs' ? 'Fix' : '' }}</span>
           </div>
           {% endfor %}
-          <div class="me-empty" id="meNomsNone" hidden><p>Nothing in that filter.</p></div>
+          <div id="meNomsNone" hidden>{{ ui.empty('Nothing in that filter', '') }}</div>
         </div>
         {% endif %}
 
         {% if my_votes|length %}
-        <section class="me-grp" aria-labelledby="h-votes">
+        <section class="ag-group" aria-labelledby="h-votes">
           <h2 id="h-votes">Votes you cast</h2>
-          <div class="me-rows">
+          <div class="ag-list">
             {% for v in my_votes %}
-            <span class="me-r" data-find="{{ v.nominee }} {{ v.category }} vote">
-              <span class="me-r__t t-green" aria-hidden="true">{{ gi.ui('vote', 16) }}</span>
-              <span class="me-r__b">
-                <span class="me-r__n">{{ v.nominee }}</span>
-                <span class="me-r__s">{{ v.category }}{% if v.voted_at %} · {{ v.voted_at|when }}{% endif %}</span>
-              </span>
-            </span>
+              {{ ui.row({
+                icon: 'vote', tone: 'green', label: v.nominee,
+                sub: v.category ~ (v.voted_at ? ' · ' ~ v.voted_at|when : ''),
+                find: v.nominee ~ ' ' ~ v.category ~ ' vote'
+              }) }}
             {% endfor %}
           </div>
         </section>
         {% endif %}
 
         {% if my_nominations is empty and my_votes is empty %}
-        <div class="me-card"><div class="me-empty">
-          <h3>Nothing yet</h3>
-          <p>Your votes and the people you put forward show up here, with what each one is
-            waiting on.</p>
-          <a class="me-btn" href="/nominate">Nominate someone {{ gi.ui('go', 15) }}</a>
-        </div></div>
+        <div class="ag-card">
+          {{ ui.empty('Nothing yet',
+             'Your votes and the people you put forward show up here, with what each one is waiting on.',
+             'Nominate someone', '/nominate') }}
+        </div>
         {% endif %}
       </section>
 
-      {# ══ SAVED ═══════════════════════════════════════════════════════════════ #}
+      {# ══ SAVED ═════════════════════════════════════════════════════════════ #}
       <section class="me-sec" id="me-saved" aria-labelledby="me-saved-h">
-        <div class="me-hd"><div class="me-hd__b">
-          <h1 id="me-saved-h">Saved</h1><p>{{ leads.saved }}</p>
-        </div></div>
-        <p class="me-lead">{{ leads.saved }}</p>
+        {{ ui.head('Saved', leads.saved, 'me-saved-h') }}
+        <p class="ag-lead">{{ leads.saved }}</p>
 
         {% if bookmarks|length %}
         <div class="me-saved">
@@ -1020,54 +964,45 @@
         {% endif %}
       </section>
 
-      {# ══ SECURITY ════════════════════════════════════════════════════════════ #}
+      {# ══ SECURITY ══════════════════════════════════════════════════════════ #}
       <section class="me-sec" id="me-security" aria-labelledby="me-sec-h">
-        <div class="me-hd"><div class="me-hd__b">
-          <h1 id="me-sec-h">Security</h1><p>{{ leads.security }}</p>
-        </div></div>
+        {{ ui.head('Security', leads.security, 'me-sec-h') }}
 
-        <div class="me-split" style="grid-template-columns:var(--me-set)">
-          <section class="me-grp">
+        <div class="me-set">
+          <section class="ag-group">
             <h2>Signing in</h2>
-            <div class="me-rows">
-              <span class="me-r">
-                <span class="me-r__n" style="flex:1">Email</span>
-                <span class="me-r__v" style="color:{{ user.email_verified ? 'var(--ag-green-deep)' : 'var(--ag-gold-ink)' }};font-weight:700">{{ user.email_verified ? 'Verified' : 'Not verified' }}</span>
-              </span>
-              <span class="me-r">
-                <span class="me-r__n" style="flex:1">Phone number</span>
-                <span class="me-r__v">{{ user.phone|default('Not added') }}</span>
-              </span>
-              <span class="me-r">
-                <span class="me-r__n" style="flex:1">Passkeys</span>
-                <span class="me-r__v">{{ passkeys|default([])|length }} saved</span>
-              </span>
+            <div class="ag-list">
+              {{ ui.row({label: 'Email',
+                 pill: {label: user.email_verified ? 'Verified' : 'Not verified',
+                        tone: user.email_verified ? 'ok' : 'warn'}}) }}
+              {{ ui.row({label: 'Phone number', value: user.phone|default('Not added')}) }}
+              {{ ui.row({label: 'Passkeys', value: (passkeys|default([]))|length ~ ' saved'}) }}
             </div>
-            {# Revealed only when this browser can actually run the ceremony, and every
-               outcome is SHOWN: a cancelled prompt rejects a promise, and a page that
-               catches and drops it is a button that does nothing — the camera and
-               autoplay faults this codebase has already paid for. #}
+            {# Revealed only when this browser can actually run the ceremony, and
+               EVERY outcome is shown: a cancelled prompt rejects a promise, and a
+               page that catches and drops it is a button that does nothing — the
+               shape of the camera and autoplay faults this codebase has paid for. #}
             {% if passkeys_available %}
-            <div id="meKeyAdd" hidden style="display:flex;flex-direction:column;gap:8px;align-items:flex-start">
-              <button type="button" class="me-btn" id="meKeyBtn">Add a passkey</button>
-              <p id="meKeyNote" class="me-sub" hidden></p>
+            <div id="meKeyAdd" hidden>
+              <button type="button" class="ag-btn ag-btn--secondary ag-btn--sm" id="meKeyBtn">Add a passkey</button>
+              <p id="meKeyNote" class="ag-hint" hidden></p>
             </div>
             {% endif %}
           </section>
 
           {% if passkeys|default([])|length %}
-          <section class="me-grp">
+          <section class="ag-group">
             <h2>Passkeys on this account</h2>
-            <div class="me-rows">
+            <div class="ag-list">
               {% for k in passkeys %}
-              <span class="me-r">
-                <span class="me-r__b">
-                  <span class="me-r__n">{{ k.label }}</span>
-                  <span class="me-r__s">Added {{ k.created_at ? k.created_at|when : 'recently' }}{% if k.last_used_at %} · last used {{ k.last_used_at|when }}{% else %} · not used yet{% endif %}</span>
+              <span class="ag-list__row">
+                <span class="ag-list__b">
+                  <span class="ag-list__label">{{ k.label }}</span>
+                  <span class="ag-list__sub">Added {{ k.created_at ? k.created_at|when : 'recently' }}{% if k.last_used_at %} · last used {{ k.last_used_at|when }}{% else %} · not used yet{% endif %}</span>
                 </span>
                 <form method="post" action="/account/passkey/{{ k.id }}/delete" data-confirm="Remove this passkey?">
                   <input type="hidden" name="_token" value="{{ csrf_token }}">
-                  <button class="me-btn" type="submit">Remove</button>
+                  <button class="ag-btn ag-btn--secondary ag-btn--sm" type="submit">Remove</button>
                 </form>
               </span>
               {% endfor %}
@@ -1077,53 +1012,38 @@
         </div>
       </section>
 
-      {# ══ SETTINGS ════════════════════════════════════════════════════════════ #}
+      {# ══ SETTINGS ══════════════════════════════════════════════════════════ #}
       <section class="me-sec" id="me-settings" aria-labelledby="me-set-h">
-        <div class="me-hd"><div class="me-hd__b">
-          <h1 id="me-set-h">Settings</h1><p>{{ leads.settings }}</p>
-        </div></div>
+        {{ ui.head('Settings', leads.settings, 'me-set-h') }}
 
-        {% set groups = [
-          {'t':'You','rows':[
-            {'l':'Personal details','v':user.name,'to':'/account/profile'},
-            {'l':'Email','v':user.email,'to':'/account/profile'},
-            {'l':'Member since','v':(member_since ? member_since|date('F Y') : '—'),'to':null}
-          ]},
-          {'t':'Preferences','rows':[
-            {'l':'Display & reading','v':'Standard','to':'/display'},
-            {'l':'Language','v':'English','to':'/display'}
-          ]},
-          {'t':'Privacy','rows':[
-            {'l':'Cookie settings','v':'','to':'/cookies'},
-            {'l':'How we use your data','v':'','to':'/privacy'}
-          ]}
-        ] %}
-
-        <div class="me-split" style="grid-template-columns:var(--me-set)">
-          {% for g in groups %}
-          <section class="me-grp">
+        <div class="me-set">
+          {% for g in [
+            {'t':'You','rows':[
+              {'l':'Personal details','v':user.name,'to':'/account/profile'},
+              {'l':'Email','v':user.email,'to':'/account/profile'},
+              {'l':'Member since','v':(member_since ? member_since|date('F Y') : '—'),'to':null}
+            ]},
+            {'t':'Preferences','rows':[
+              {'l':'Display & reading','v':'Standard','to':'/display'},
+              {'l':'Language','v':'English','to':'/display'}
+            ]},
+            {'t':'Privacy','rows':[
+              {'l':'Cookie settings','v':'','to':'/cookies'},
+              {'l':'How we use your data','v':'','to':'/privacy'}
+            ]}
+          ] %}
+          <section class="ag-group">
             <h2>{{ g.t }}</h2>
-            <div class="me-rows">
+            <div class="ag-list">
               {% for r in g.rows %}
-                {% if r.to %}
-                <a class="me-r" href="{{ r.to }}">
-                  <span class="me-r__n" style="flex:1">{{ r.l }}</span>
-                  <span class="me-r__v">{{ r.v }}</span>
-                  <span class="me-r__g" aria-hidden="true">{{ gi.ui('next', 16) }}</span>
-                </a>
-                {% else %}
-                <span class="me-r">
-                  <span class="me-r__n" style="flex:1">{{ r.l }}</span>
-                  <span class="me-r__v">{{ r.v }}</span>
-                </span>
-                {% endif %}
+                {{ ui.row({label: r.l, value: r.v, href: r.to}) }}
               {% endfor %}
             </div>
           </section>
           {% endfor %}
         </div>
 
-        <a class="me-btn me-btn--danger" href="/account/logout">Sign out</a>
+        <a class="ag-btn ag-btn--danger" href="/account/logout">Sign out</a>
       </section>
 
     </div>

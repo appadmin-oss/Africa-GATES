@@ -11,13 +11,10 @@
 ══════════════════════════════════════════════════════════════ */
 :root {
   /* Glow colours extracted from the logo corona */
-  --corona-gold:    rgba(243, 180, 22, 0.55);
 
   /* Professional shadow scale */
-  --shadow-xs: none;
 
   /* Glow shadows */
-  --glow-emerald: 0 0 0 3px rgba(51,134,50,0.20), 0 4px 24px rgba(51,134,50,0.18);
 
   /* Border system */
   --border-subtle:  1px solid rgba(16,41,44,0.07);

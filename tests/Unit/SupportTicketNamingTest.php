@@ -143,12 +143,21 @@ final class SupportTicketNamingTest extends TestCase
         // token" failure this codebase keeps paying for, inside the guard against it.
         //
         // What has to stay true is that an EVENT ticket is called a ticket on this page,
-        // distinctly from a support ticket. It is now a filter chip and a row kind rather
-        // than a panel heading, so the assertion asks for the word in a control a reader
-        // can see, and then for the thing that must never appear.
-        $this->assertMatchesRegularExpression('~>\s*Tickets\s*<~', $me,
+        // distinctly from a support ticket.
+        //
+        // And it moved AGAIN, which is why this no longer looks at markup at all: the
+        // quick tile and the purchase filter are both generated from arrays now, so the
+        // word is a quoted label and `>Tickets<` appears nowhere — the rule intact, the
+        // guard red for the second time over the same sentence. The word is a LABEL
+        // wherever it is written, so this strips the comments (a word nobody renders is
+        // not a label) and asks whether the page labels anything "Tickets", in an
+        // element or in a list a loop prints.
+        $body = (string) preg_replace('~\{#.*?#\}~s', ' ', $me);
+        $this->assertMatchesRegularExpression(
+            '~(>\s*Tickets\s*<|[\'"]Tickets[\'"])~', $body,
             'nothing on the account page is labelled "Tickets" any more — an event ticket '
-            . 'needs its own name, distinct from a support ticket');
+            . 'needs its own name, distinct from a support ticket'
+        );
         $this->assertStringNotContainsString('support ticket code', strtolower($me));
         $this->assertStringNotContainsString('raise a ticket', strtolower($me),
             'support language on the page that lists event tickets is the confusion this '

@@ -94,6 +94,25 @@ final class DeadTokenTest extends TestCase
         $stack = [];   // one frame per open block, innermost last
         $line  = 1;
 
+        // ── A TRAILING COMMENT HID THE NEXT DECLARATION, AND THAT IS LIE (4) ──
+        //
+        // A declaration is recognised as the first thing in its `;`-separated segment.
+        // A comment is not stripped, so `--a:red; /* why */` leaves the NEXT segment
+        // beginning with `/* why */` — and `--b` after it is skipped entirely.
+        //
+        // In a token file where almost every line carries an explanatory comment, that
+        // is most of the file: `--ag-stock-low` sat dead behind `--ag-error`'s comment
+        // and this sweep reported a clean pass over it. It surfaced only because an
+        // unrelated token was inserted between the two, which is the worst way for a
+        // guard to be wrong — it goes quiet exactly in the files somebody documented,
+        // which in this repo is all of them.
+        //
+        // Comments are replaced by a space rather than removed, so the line numbers the
+        // findings carry stay true. `str_repeat` keeps every newline for the same reason.
+        $text = (string) preg_replace_callback('~/\*.*?\*/~s', static function (array $m): string {
+            return str_repeat("\n", substr_count($m[0], "\n")) . ' ';
+        }, $text);
+
         foreach (str_split($text) as $ch) {
             if ($ch === "\n") $line++;
 
