@@ -131,13 +131,17 @@
      there whether or not a page declares one, and it carries 16/32/48 so a tab and a
      bookmarks bar each get a size drawn for them rather than a downscale.
 
-     The mark is the continent from the site's own committed silhouette, in the
-     logo's green. The full lockup cannot be the favicon: at 16px the "Africa
-     G.A.T.E.S." wordmark inside it is four grey pixels. #}
-  <link rel="icon" href="/favicon.ico" sizes="32x32">
-  <link rel="icon" type="image/png" href="{{ asset('/assets/img/icon-32.png') }}" sizes="32x32">
-  <link rel="icon" type="image/png" href="{{ asset('/assets/img/icon-192.png') }}" sizes="192x192">
-  <link rel="apple-touch-icon" href="{{ asset('/assets/img/apple-touch-icon.png') }}">
+     The full lockup cannot be the favicon: at 16px the "Africa G.A.T.E.S."
+     wordmark inside it is four grey pixels — so the mark is the disc and the
+     continent alone, below. #}
+  {# ── THE OCTOBER MARK, AND THE ONE LINK THE SCRIPT MAY REDRAW ──────────────
+     The brand disc and continent from the loader's own paths. The SVG follows the
+     OS colour scheme with no script; `favicon.js` redraws `#agFavicon` for the five
+     states it owns and nothing else may touch it. The static hrefs stay real files,
+     so the crawler still has a URL — the reason this block exists at all. #}
+  <link rel="icon" id="agFavicon" type="image/svg+xml" href="{{ asset('/favicon.svg') }}">
+  <link rel="alternate icon" href="{{ asset('/favicon.ico') }}" sizes="16x16 32x32 48x48">
+  <link rel="apple-touch-icon" href="{{ asset('/apple-touch-icon.png') }}">
   <link rel="manifest" href="/site.webmanifest">
 
   {# ── PRECONNECT BUDGET ──────────────────────────────────────────────────────
@@ -378,7 +382,7 @@
    than to browse. It is a MARKER, not a switch: the layout renders exactly the same,
    and what reads it is page CSS that needs to suppress floating furniture over a
    docked action. Kept distinct from `hide_chrome`, which removes the header too. #}
-<body data-page="{{ gates_page|default('') }}"{% if task_page|default(false) %} data-task-page{% endif %}>
+<body data-page="{{ gates_page|default('') }}"{% if task_page|default(false) %} data-task-page{% endif %}{% if favicon_state|default('') == 'live' %} data-favicon="live"{% endif %}>
 
 {# ══ THE ENTRANCE LOADER (v5) ═══════════════════════════════════════════════
 
@@ -638,6 +642,8 @@
    loaded when the widget is suppressed (members on community pages). #}
 {% if not gee_suppressed|default(false) %}
 <script defer src="{{ asset('/assets/js/gee.js') }}"></script>
+{# After gee.js, as the handoff orders: Gee reports unread replies through it. #}
+<script defer nonce="{{ csp_nonce }}" src="{{ asset('/assets/js/favicon.js') }}"></script>
 {% endif %}
 
 {# ── Aurora — the real Stripe WebGL liquid-mesh gradient ──────────── #}

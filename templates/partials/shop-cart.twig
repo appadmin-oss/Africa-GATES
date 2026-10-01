@@ -176,7 +176,7 @@
       {% if providers is empty %}
         <div class="sc-soon">Online checkout is being set up. To order now, <a href="/partner">contact our team</a> and we’ll arrange payment & delivery.</div>
       {% else %}
-        <form method="post" action="/shop/checkout">
+        <form method="post" action="/shop/checkout" data-favicon-busy>
           <input type="hidden" name="_token" value="{{ csrf_token }}">
           <input type="hidden" name="cart" :value="JSON.stringify($store.cart.items)">
           <input type="hidden" name="discount" :value="$store.cart.code">

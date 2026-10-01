@@ -1990,6 +1990,10 @@
         if(this.hasTiers && this.tierId === 0){ this.error='Please choose a ticket type.'; return; }
         if(this.soldOut){ return this.joinList(); }
         this.busy=true; this.error='';
+        /* The tab says so too: a paid seat is a payment request. Explicit rather than
+           agFavicon.track(), because a refusal here is a 200 with success:false. */
+        var fav = function(s){ if(window.agFavicon) agFavicon.set(s); };
+        fav('busy');
         try{
           var r = await fetch('/events/'+slug+'/register', {
             method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded'},
@@ -2036,14 +2040,16 @@
             this.toneMs = 1100; this.toneLaps = 1; this.toneSparks = 5;
             this.burst++;
             this.step='done';
+            fav('idle');
           } else {
+            fav('error');
             /* The seats went while they were filling the form in. If there is a list, offer
                it here rather than making them find the tier button again — the answer to
                "it sold out just now" is the queue, and they are already typed in. */
             if(d.full && d.waitlist){ this.soldOut = true; this.error = d.message || ''; }
             else { this.error = d.message || 'Could not register. Please try again.'; }
           }
-        }catch(e){ this.error='Network error. Please try again.'; }
+        }catch(e){ this.error='Network error. Please try again.'; fav('error'); }
         finally{ this.busy=false; }
       },
 

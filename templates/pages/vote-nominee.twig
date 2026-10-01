@@ -1,5 +1,9 @@
 {% extends "layout/gates.twig" %}
 
+{# The tab's live dot. An open ballot is the one page whose state is worth seeing from
+   another tab — see favicon.js. Template scope, so the layout's <body> can read it. #}
+{% set favicon_state = voting_open|default(false) ? 'live' : '' %}
+
 {# ── `slug` IS AT TEMPLATE SCOPE, AND IT HAS TO BE ────────────────────────────
 
    It was `{% set %}` inside `{% block content %}` and read inside `{% block foot_scripts %}`.
@@ -970,7 +974,7 @@
               <div x-show="!done">
                 <div class="vn-redeem__hd"><strong x-text="'You have ' + bal.toLocaleString() + ' points'"></strong><span>Redeem {{ points_per_vote|number_format }} to instantly add a vote for {{ firstName }}.</span></div>
                 <button type="button" class="vn-redeem__btn" :disabled="busy || bal < {{ points_per_vote }}"
-                  @click="busy=true;msg='';fetch('/account/redeem',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded','X-CSRF-Token':(document.querySelector('meta[name=csrf-token]')||{}).content||''},body:new URLSearchParams({nominee_id:{{ nominee.id }}})}).then(r=>r.json()).then(d=>{busy=false;if(d.ok){done=true;msg=d.message;bal=d.new_balance;try{localStorage.setItem('afg_voted_prog_{{ nominee.programme_id }}',String(Date.now()));}catch(e){}}else{msg=d.message||'Could not redeem right now.';}}).catch(()=>{busy=false;msg='Network error. Please try again.';})"
+                  @click="busy=true;msg='';window.agFavicon&&agFavicon.set('busy');fetch('/account/redeem',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded','X-CSRF-Token':(document.querySelector('meta[name=csrf-token]')||{}).content||''},body:new URLSearchParams({nominee_id:{{ nominee.id }}})}).then(r=>r.json()).then(d=>{busy=false;window.agFavicon&&agFavicon.set(d.ok?'idle':'error');if(d.ok){done=true;msg=d.message;bal=d.new_balance;try{localStorage.setItem('afg_voted_prog_{{ nominee.programme_id }}',String(Date.now()));}catch(e){}}else{msg=d.message||'Could not redeem right now.';}}).catch(()=>{busy=false;window.agFavicon&&agFavicon.set('error');msg='Network error. Please try again.';})"
                   x-text="busy ? 'Redeeming…' : 'Redeem points to vote'"></button>
                 <p class="vn-redeem__err" x-show="msg" x-cloak x-text="msg"></p>
               </div>
@@ -1028,7 +1032,7 @@
                  no "save up to N%" is promised and no next tier is dangled. A buyer
                  sees a quantity and the price of that quantity. #}
               <p style="margin:0 0 12px;font-size:13px;color:var(--ag-ink-soft);line-height:1.5">A contribution of ₦{{ vote_price|number_format }} adds one vote to {{ firstName }}'s public tally and helps fund the programme. It does not affect the jury score or the Cultural Power Index.{% if max_qty > 1000 %} Up to {{ max_qty|number_format }} in one contribution.{% endif %} <a href="/integrity#money" style="color:var(--ag-action-ink)">How this works</a> &middot; <a href="/philosophy" style="color:var(--ag-action-ink)">why voting is paid</a>.</p>
-              <form method="POST" action="/vote/paid/start">
+              <form method="POST" action="/vote/paid/start" data-favicon-busy>
                 <input type="hidden" name="_token" value="{{ csrf_token }}">
                 <input type="hidden" name="nominee_id" value="{{ nominee.id }}">
                 {# Quick amounts, straight off the admin's ladder and filtered to what one
@@ -1555,6 +1559,10 @@ function voteNominee() {
       this.voteError = '';
       if (this.otp.length !== 6) { this.voteError = 'Enter the 6-digit code.'; return; }
       this.busy = true;
+      // The tab says so too, and it cannot use agFavicon.track(): a refused vote comes
+      // back as a 200 with `success:false`, which a status check would call a success.
+      const fav = (s) => { if (window.agFavicon) agFavicon.set(s); };
+      fav('busy');
       try {
         const r = await fetch('/api/vote', {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -1574,6 +1582,7 @@ function voteNominee() {
           this.messageNote = d.message_note || '';
           this.messageUrl  = d.message_url  || '';
           this.step = 'done';
+          fav('idle');
           // Inside the same tap that confirmed the vote. That click is the user
           // gesture every browser requires before it will open a share sheet, and it
           // is the only reason "share automatically after voting" can work at all —
@@ -1586,8 +1595,9 @@ function voteNominee() {
           if (window.AFG) AFG.trackFunnel('vote_cast', { nominee_id: this.nomineeId, award_id: this.awardId });
         } else {
           this.voteError = d.message || 'Could not record your vote.';
+          fav('error');
         }
-      } catch (e) { this.voteError = 'Network error. Please try again.'; }
+      } catch (e) { this.voteError = 'Network error. Please try again.'; fav('error'); }
       finally { this.busy = false; }
     },
 

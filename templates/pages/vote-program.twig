@@ -1,5 +1,9 @@
 {% extends "layout/gates.twig" %}
 
+{# The tab's live dot. An open ballot is the one page whose state is worth seeing from
+   another tab — see favicon.js. Template scope, so the layout's <body> can read it. #}
+{% set favicon_state = voting_open|default(false) ? 'live' : '' %}
+
 {% block head_styles %}
 <style nonce="{{ csp_nonce }}">
   body[data-page="awards"]{ background:#eef0ec; color:var(--ag-ink); }

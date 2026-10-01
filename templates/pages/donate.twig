@@ -673,7 +673,7 @@
           {% endif %}
         </div>
         {% else %}
-        <form class="dn-card__in" method="post" action="/giving" @submit="submitting = true">
+        <form class="dn-card__in" method="post" action="/giving" data-favicon-busy @submit="submitting = true">
           <input type="hidden" name="_token" value="{{ csrf_token }}">
           <input type="hidden" name="amount" :value="value">
           {# Which appeal this is. Re-resolved and re-checked server-side — the slug is a

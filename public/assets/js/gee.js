@@ -470,6 +470,7 @@
           support: !!d.support, ticket: d.ticket || null
         };
         addBot(reply, extra);
+        noteUnread();
         // The header sub-label follows the LAST turn, both ways. It has to reset:
         // measured in Chromium, asking "how do I nominate someone?" after a
         // payment problem left the header reading "Support — I can check a
@@ -495,8 +496,29 @@
       });
   }
 
+  // ── Unread replies, on the tab ──────────────────────────────────────
+  // A reply that lands while the panel is shut, or while somebody is in another tab,
+  // has not been read — and the favicon is the one thing they can see from there.
+  // Counted here because only Gee knows whether its own panel was open; cleared the
+  // moment it is seen.
+  var unread = 0;
+  function noteUnread() {
+    if (state.open && !document.hidden) return;
+    unread++;
+    if (window.agFavicon) agFavicon.unread(unread);
+  }
+  function clearUnread() {
+    if (!unread) return;
+    unread = 0;
+    if (window.agFavicon) agFavicon.unread(0);
+  }
+  document.addEventListener('visibilitychange', function () {
+    if (!document.hidden && state.open) clearUnread();
+  });
+
   // ── Open / close ────────────────────────────────────────────────────
   function open() {
+    clearUnread();
     state.open = true;
     root.dataset.open = '1';
     panel.hidden = false;

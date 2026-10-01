@@ -185,7 +185,7 @@
           on your account.</p>
 
         {% if can_pay %}
-          <form method="post" action="/stand/{{ app.access_token }}/pay">
+          <form method="post" action="/stand/{{ app.access_token }}/pay" data-favicon-busy>
             <input type="hidden" name="_token" value="{{ csrf_token }}">
             {# No amount field. What is owed is computed on the server from the stamped fee
                and what has already been credited — a posted amount would let anybody pay ₦1

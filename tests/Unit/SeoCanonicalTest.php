@@ -139,7 +139,12 @@ final class SeoCanonicalTest extends TestCase
     {
         $html = (string) file_get_contents(self::LAYOUT);
 
-        $this->assertMatchesRegularExpression('~rel="icon"[^>]*href="/favicon\.ico"~', $html);
+        // A file URL in every static icon link — the SVG the script starts from and the
+        // ICO beside it. favicon.js swaps in a canvas data: URI at RUNTIME, which a
+        // crawler never runs, so the attribute in the source is the one that has to be
+        // a URL.
+        $this->assertMatchesRegularExpression("~rel=\"icon\"[^>]*href=\"\\{\\{ asset\\('/favicon\\.svg'\\) \\}\\}\"~", $html);
+        $this->assertMatchesRegularExpression("~rel=\"alternate icon\"[^>]*href=\"\\{\\{ asset\\('/favicon\\.ico'\\) \\}\\}\"~", $html);
         $this->assertDoesNotMatchRegularExpression(
             '~rel="icon"[^>]*href="data:~', $html,
             'a data: URI has no URL for a crawler to fetch'
@@ -152,11 +157,15 @@ final class SeoCanonicalTest extends TestCase
 
         foreach ([
             '/favicon.ico',
+            '/favicon.svg',
+            '/apple-touch-icon.png',
             '/site.webmanifest',
-            '/assets/img/icon-32.png',
+            '/assets/icons/favicon-192.png',
+            '/assets/icons/favicon-512.png',
+            // The previous set stays on disk: a home-screen install keeps the manifest
+            // it was installed with, and that one names these.
             '/assets/img/icon-192.png',
             '/assets/img/icon-512.png',
-            '/assets/img/apple-touch-icon.png',
         ] as $path) {
             $this->assertFileExists($public . $path);
         }
