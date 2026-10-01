@@ -215,6 +215,58 @@ class NominationController {
         ];
     }
 
+    /**
+     * The evidence files on this request, ready to store — or none.
+     *
+     * ══════════════════════════════════════════════════════════════════════════
+     * THIS WAS CALLED AND NEVER DEFINED, AND IT WAS A 500 ON THE SUBMIT PATH
+     * ══════════════════════════════════════════════════════════════════════════
+     *
+     * `submit()` has looped over `self::uploadedEvidence($req)` since the evidence
+     * table shipped. The method did not exist, so every nomination carrying a file
+     * died with `Call to undefined method` AFTER the row was written — the nomination
+     * was saved, the nominator got a 500, and the only honest thing they could
+     * conclude was that it had not gone through.
+     *
+     * Nothing caught it because nothing posted a file through this controller: the
+     * suite exercised `AwardService::recordEvidenceFile()` directly, which is the
+     * half that worked. A unit test of the piece below the fault is not a test of the
+     * path. {@see \Tests\Unit\NominationUploadTest}.
+     *
+     * ── WHAT IT HAS TO GET RIGHT ─────────────────────────────────────────────
+     *
+     * `evidence[]` arrives as a LIST under one key, and a single `evidence` field
+     * would arrive as one object — both shapes are normalised here so a change to the
+     * form's field name cannot produce a silent no-upload.
+     *
+     * An empty file input posts with `UPLOAD_ERR_NO_FILE`, which is not an error to
+     * report: it is what a form looks like when somebody attached nothing.
+     *
+     * The cap is the rules' own. Taking the first N rather than refusing the lot is
+     * deliberate — the links are already capped and validated by then, and discarding
+     * a whole nomination over a sixth attachment is a worse answer than keeping five.
+     *
+     * @return list<\Psr\Http\Message\UploadedFileInterface>
+     */
+    private static function uploadedEvidence(Request $req): array
+    {
+        $raw = $req->getUploadedFiles()['evidence'] ?? null;
+        if ($raw === null) return [];
+        if (!is_array($raw)) $raw = [$raw];
+
+        $out = [];
+        foreach ($raw as $f) {
+            if (!$f instanceof \Psr\Http\Message\UploadedFileInterface) continue;
+            // UPLOAD_ERR_NO_FILE is an empty input, not a failure.
+            if ($f->getError() !== UPLOAD_ERR_OK) continue;
+            if ((int) $f->getSize() <= 0) continue;
+            $out[] = $f;
+            if (count($out) >= \AfricaGates\Services\NominationRules::MAX_EVIDENCE) break;
+        }
+
+        return $out;
+    }
+
     public function submit(Request $req,Response $res):Response {
         $b=(array)$req->getParsedBody(); $ip=$req->getServerParams()['REMOTE_ADDR']??''; $fp=hash('sha256',$ip.strtolower(trim($b['nominator_email']??'')));
         // Real programme data for any error re-render, so the form never falls back

@@ -180,6 +180,25 @@
   });
 
   /* ════════════════════════════════════════════════════════════════════════
+     THE PORTRAIT
+     ════════════════════════════════════════════════════════════════════════ */
+
+  /* A file input that says nothing after a choice is a file input somebody presses
+     twice. The label is the only visible part, so the chosen name goes there — and
+     the FILE NAME rather than a tick, because "that is not the photo I meant" is the
+     thing a person needs to be able to see. */
+  var port = form.querySelector('[data-nf-port]');
+  if (port) {
+    port.addEventListener('change', function () {
+      var slot  = form.querySelector('.nf__port-slot');
+      var label = form.querySelector('[data-nf-port-label]');
+      var f     = port.files && port.files[0];
+      if (label) label.textContent = f ? f.name : 'Add a photo';
+      if (slot) slot.toggleAttribute('data-has', !!f);
+    });
+  }
+
+  /* ════════════════════════════════════════════════════════════════════════
      EVIDENCE LINKS
      ════════════════════════════════════════════════════════════════════════ */
 
@@ -207,7 +226,43 @@
   /* What is missing before this step can be left — or null.
      The sentences are the server's, near enough that nobody meets two different
      accounts of one rule; the server's copy is what arrives if this never runs. */
+  /* THE STEP'S OWN REQUIRED FIELDS, READ FROM THE MARKUP.
+     The server has a list of required field names in `NominationController::submit()`
+     and the template marks the same fields `required`. A THIRD copy in this file is
+     how they come apart — and they had: `nominee_state` and `nominee_lga` are
+     required by the server and were not checked here, so somebody could complete all
+     four steps and be refused on a step-one field, with the message appearing on
+     step four beside the Submit button. Measured end to end.
+
+     Reading `[required]` inside the panel means there is no list here at all: a field
+     added to a step is covered the day it is added, and the browser, this script and
+     the server are looking at the same declaration. The message names the field from
+     its own visible label, so it is never a sentence somebody has to map onto a box. */
+  function missingRequired(step) {
+    var panel = form.querySelector('[data-nf-step="' + step + '"]');
+    if (!panel) return null;
+
+    var fields = panel.querySelectorAll('[required]');
+    for (var i = 0; i < fields.length; i++) {
+      var f = fields[i];
+      if (f.disabled) continue;
+      var empty = f.type === 'checkbox' || f.type === 'radio' ? !f.checked : !String(f.value).trim();
+      if (!empty) continue;
+
+      var lab = f.id ? panel.querySelector('label[for="' + f.id + '"]') : null;
+      if (!lab) lab = f.closest('label');
+      var what = lab ? lab.textContent.trim().replace(/\s+/g, ' ') : '';
+
+      try { f.focus(); } catch (e) { /* a hidden panel cannot take focus yet */ }
+      return what ? 'Please fill in “' + what + '”.' : 'Please fill in the rest of this step.';
+    }
+    return null;
+  }
+
   function blocking(step) {
+    /* The markup's own rules first, then the ones markup cannot express. */
+    var missing = missingRequired(step);
+
     if (step === 1) {
       var name = form.querySelector('[name="nominee_name"]');
       if (!name || !name.value.trim()) return 'Please tell us who you are nominating.';
@@ -223,7 +278,21 @@
       }
       var country = form.querySelector('[name="country_code"]');
       if (country && !country.value) return 'Please choose their country.';
-      return null;
+
+      /* ONE OF THE TWO, which is a rule HTML cannot state. `required` on both would
+         demand both; on neither it demands nothing — so this is the one step-one
+         rule that has to be written out, and it was missing. The server refuses in
+         these words and somebody met them four steps later, beside Submit, about a
+         box at the top of the first screen. */
+      var mail = form.querySelector('[name="nominee_email"]');
+      var tel  = form.querySelector('[name="nominee_phone"]');
+      if (mail && tel && !mail.value.trim() && !tel.value.trim()) {
+        mail.focus();
+        return 'Please give their email address or phone number — we need one of the '
+             + 'two so we can tell them.';
+      }
+
+      return missing;
     }
 
     if (step === 2) {
@@ -250,10 +319,10 @@
         return form.getAttribute('data-short-reason')
             || 'Please write a little more in each reason.';
       }
-      return null;
+      return missing;
     }
 
-    return null;
+    return missing;
   }
 
   function show(step, announce) {
@@ -275,6 +344,30 @@
       });
     }
 
+    /* §8's summary: where you are, and what this step wants. The step names live
+       here and in the rail; the rail is the markup's and this reads FROM it, so the
+       two cannot drift and nothing in this file spells a step name. */
+    var sumV = form.querySelector('[data-nf-sum-v]');
+    var sumD = form.querySelector('[data-nf-sum-d]');
+    if (sumV) sumV.textContent = 'Step ' + at + ' of ' + LAST;
+    if (sumD) {
+      var panel2 = form.querySelector('[data-nf-step="' + at + '"]');
+      var head2  = panel2 && panel2.querySelector('h1, h2');
+      /* The heading's own words only. "Add evidence" carries an `Optional` pill
+         inside the <h2>, and `textContent` glues them into "Add evidence Optional". */
+      var own = '';
+      if (head2) {
+        for (var k = 0; k < head2.childNodes.length; k++) {
+          if (head2.childNodes[k].nodeType === 3) own += head2.childNodes[k].textContent;
+        }
+        own = own.trim() || head2.textContent.trim();
+      }
+      sumD.textContent = own;
+    }
+
+    /* These three run on boot as well as on every step change, which is what turns
+       the server's long form into a wizard — and is why the markup ships in the
+       no-script shape rather than this one. */
     if (back)   back.hidden   = at === 1;
     if (next)   next.hidden   = at === LAST;
     if (submit) submit.hidden = at !== LAST;
@@ -364,6 +457,12 @@
   });
 
   /* ════════════════════════════════════════════════════════════════════════ */
+
+  /* THE FORM BECOMES A WIZARD HERE, and the attribute is what says so to the
+     stylesheet. Everything that only makes sense with four screens — the fixed
+     thumb-zone bar and the clearance under it — hangs off this, so the page the
+     server sent stays a working long form for anybody the script never reaches. */
+  form.setAttribute('data-nf-wizard', '');
 
   syncCats();
   retitleReasons();

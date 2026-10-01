@@ -39,8 +39,21 @@
   margin:0 0 .9rem; font-size:11px; font-weight:700;
   letter-spacing:.1em; text-transform:uppercase; color:var(--ag-green-light);
 }
-.ag-foot__links{ display:flex; flex-direction:column; gap:.65rem; padding:0; margin:0; list-style:none; }
+/* ══ THE FOOTER'S TARGETS, AND WHY THIS ONE FILE WAS 80% OF THE SITE'S ══════
+   A sweep of every public page found 801 targets under the floor, and 640 of them
+   were these three rules — because the footer is on every page, so one 16px link
+   here is one failure per page per link, forever. Nothing about that is visible
+   from this file, and nothing about it is visible from any single page either.
+
+   `min-height` rather than `height`: the text keeps its size and its leading, and
+   only the box a finger has to find grows. The column gap comes down to compensate,
+   so the footer is no taller than it was. */
+.ag-foot__links{ display:flex; flex-direction:column; gap:.15rem; padding:0; margin:0; list-style:none; }
 .ag-foot__links a{
+  /* `min-width` as well — "Vote" is 31px of text, and a target fails on whichever
+     axis is short. `width:fit-content` below sets the box to the text; `min-width`
+     raises the floor under it. */
+  display:inline-flex; align-items:center; min-height:44px; min-width:44px;
   font-size:14px; color:rgba(255,255,255,.7); text-decoration:none;
   width:fit-content; transition:color .15s ease;
 }
@@ -60,7 +73,7 @@
 .ag-foot__meta{ display:flex; align-items:center; gap:1.1rem; flex-wrap:wrap; }
 .ag-foot__social{ display:flex; gap:9px; }
 .ag-foot__social a{
-  width:36px; height:36px; border-radius:50%;
+  width:44px; height:44px; border-radius:50%;
   border:1px solid rgba(255,255,255,.16);
   display:flex; align-items:center; justify-content:center;
   color:rgba(255,255,255,.8); text-decoration:none;
@@ -69,8 +82,12 @@
 .ag-foot__social a:hover,
 .ag-foot__social a:focus-visible{ background:#fff; color:#10292C; border-color:#fff; }
 .ag-foot__sep{ width:1px; height:18px; background:rgba(255,255,255,.16); }
-.ag-foot__legal{ display:flex; align-items:center; gap:1.1rem; flex-wrap:wrap; }
-.ag-foot__legal a{ font-size:13px; color:rgba(255,255,255,.6); text-decoration:none; transition:color .15s ease; }
+.ag-foot__legal{ display:flex; align-items:center; gap:.5rem 1.1rem; flex-wrap:wrap; }
+.ag-foot__legal a{
+  display:inline-flex; align-items:center; justify-content:center;
+  min-height:44px; min-width:44px;
+  font-size:13px; color:rgba(255,255,255,.6); text-decoration:none; transition:color .15s ease;
+}
 .ag-foot__legal a:hover,
 .ag-foot__legal a:focus-visible{ color:#fff; }
 

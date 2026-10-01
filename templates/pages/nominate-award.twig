@@ -247,6 +247,34 @@
            disappears the moment somebody types, so the only person who ever saw it had
            not started. The visible heading names the pair, and each box carries its
            own. #}
+        {#
+          ── THE OPTIONAL PORTRAIT ─────────────────────────────────────────
+          THIS WAS DROPPED AND IS BEING PUT BACK. `NominationController::submit()`
+          has a complete handler for `nominee_photo` — validated, re-encoded, size
+          capped, stored before the insert so the path lands on the row — and says in
+          its own comment that a moderator reviews it and it seeds the profile avatar
+          on approval. Both admin screens render it. The rebuild of this form simply
+          did not carry the field across, so the handler had nothing to handle, the
+          column stayed empty on every nomination taken since, and no screen anywhere
+          said so. §18's shape, introduced by a redesign rather than inherited.
+
+          The reference draws it as a 130x150 dashed slot beside the name. It is
+          genuinely optional and says so, because a nominator often does not have a
+          photograph of the person they are putting forward and must not feel stopped.
+        #}
+        <div class="nf__port">
+          <label class="nf__port-slot" for="nf-photo">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"
+                 stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M3 7h3l2-2h8l2 2h3v12H3z"/><circle cx="12" cy="13" r="3.5"/>
+            </svg>
+            <span data-nf-port-label>Add a photo</span>
+          </label>
+          <input id="nf-photo" class="nf__port-in" type="file" name="nominee_photo"
+                 accept="image/png,image/jpeg,image/webp" data-nf-port>
+          <p class="nf__port-note">Optional portrait</p>
+        </div>
+
         <span class="ag-label" id="nf-contact-h">Their email or phone</span>
         <div class="ag-field"><input id="nf-contact" name="nominee_email" type="email"
           inputmode="email" enterkeyhint="next" autocapitalize="off" spellcheck="false"
@@ -265,7 +293,7 @@
          reasons in another — is how a reason ends up filed against the wrong category
          when a browser drops an empty value, and nothing on any screen would show it:
          every reason is somebody's real writing, just attached to the wrong choice. #}
-      <section class="nf__step" data-nf-step="2" aria-labelledby="nf-h2" hidden>
+      <section class="nf__step" data-nf-step="2" aria-labelledby="nf-h2">
         <h2 class="nf__h" id="nf-h2">Choose {{ rules.min_categories }} or {{ rules.max_categories }} categories</h2>
         <p class="nf__lede">Pick where their work fits best. Each one needs its own reason.</p>
         <p class="nf__count" data-nf-cats role="status">0 of {{ rules.max_categories }} chosen</p>
@@ -281,11 +309,26 @@
               <label class="nf__cat-head">
                 <input type="checkbox" data-nf-pick value="{{ c.id }}"
                        {{ old.categories[c.id]|default('') ? 'checked' : '' }}>
+                {# The tinted square the reference draws, with the category's own
+                   initial in it. The tint rotates through the four house roles by
+                   position, so a list of any length stays varied without anybody
+                   choosing a colour per category — and `aria-hidden`, because the
+                   title beside it already says what this is. #}
+                <span class="nf__cat-ic ag-tint--{{ ['green','gold','neutral','live'][loop.index0 % 4] }}"
+                      aria-hidden="true">{{ c.title|first|upper }}</span>
                 <span class="nf__cat-t">{{ c.title }}</span>
                 {% if c.description %}<span class="nf__cat-d">{{ c.description }}</span>{% endif %}
               </label>
 
-              <div class="nf__why" data-nf-why {{ old.categories[c.id]|default('') ? '' : 'hidden' }}>
+              {#
+                NOT `hidden` FROM THE SERVER. The reason box opened only when the
+                script revealed it, so with scripting off a person could tick a
+                category and had nowhere to write — and the server then refused the
+                nomination for naming none. `syncCats()` closes the unchosen ones on
+                boot, which is the same ordering the steps use: the server sends the
+                working long form, the script makes it a wizard.
+              #}
+              <div class="nf__why" data-nf-why>
                 <label class="ag-label" for="nf-why-{{ c.id }}"
                        data-nf-why-label data-nf-tpl="{{ _w.reason_question }}"
                        data-nf-cat-title="{{ c.title }}">
@@ -308,7 +351,7 @@
       </section>
 
       {# ── 3 · EVIDENCE ──────────────────────────────────────────────────── #}
-      <section class="nf__step" data-nf-step="3" aria-labelledby="nf-h3" hidden>
+      <section class="nf__step" data-nf-step="3" aria-labelledby="nf-h3">
         <h2 class="nf__h" id="nf-h3">Add evidence <span class="nf__opt">Optional</span></h2>
         <p class="nf__lede">{{ _w.evidence_hint }}</p>
 
@@ -338,7 +381,7 @@
       </section>
 
       {# ── 4 · YOU ───────────────────────────────────────────────────────── #}
-      <section class="nf__step" data-nf-step="4" aria-labelledby="nf-h4" hidden>
+      <section class="nf__step" data-nf-step="4" aria-labelledby="nf-h4">
         <h2 class="nf__h" id="nf-h4">About you</h2>
         <p class="nf__lede">Every nominator is checked, so every nomination counts.</p>
 
@@ -398,9 +441,42 @@
          works from any field. A bar outside the form needs `form=` on every control,
          which is the sort of thing that is right on the day and wrong after a move. #}
       <div class="nf__bar" data-bottom-ui>
+        {#
+          ── THE SUMMARY §8 ASKS FOR ────────────────────────────────────────
+          "[summary: bold value + 12.5px detail] [primary]". On a shop that is the
+          price; here the thing somebody needs held in front of them is WHERE THEY
+          ARE and what this step still wants — a four-step form whose bar says only
+          "Continue" gives no sense of how much is left, and the step rail scrolls
+          away above the fold.
+
+          It is filled by `nominate.js` from the step it is on, so there is no second
+          list of step names here. With no script it reads "Step 1 of 4", which is
+          true of the page a person without JavaScript sees — every panel open, and
+          this bar's Submit the one button that matters.
+        #}
+        <p class="nf__sum" data-nf-sum>
+          <b data-nf-sum-v>Step 1 of 4</b>
+          <span data-nf-sum-d>Who you are nominating</span>
+        </p>
+        {#
+          ── THE SERVER SENDS A WORKING FORM; THE SCRIPT MAKES IT A WIZARD ─────
+          THIS WAS THE WRONG WAY ROUND. Steps two to four shipped `hidden` and Submit
+          shipped `hidden`, so with no JavaScript the page was step one and no way to
+          send it — while this file's own stylesheet said, in as many words, that
+          every section is simply visible and the form still posts. §19's shape, in a
+          comment I wrote.
+
+          Measured with scripting off: one of four panels visible, no submit button,
+          twenty-nine fields that could never be sent.
+
+          So the defaults are the no-script defaults. `Continue` is the wizard's own
+          control and does nothing without it, so IT is the one that starts hidden;
+          `show()` reveals it on boot and hides the panels. Everything here is then
+          true of both pages — the one with the script and the one without.
+        #}
         <button type="button" class="ag-btn ag-btn--secondary" data-nf-back hidden>Back</button>
-        <button type="button" class="ag-btn ag-btn--primary ag-btn--block" data-nf-next>Continue</button>
-        <button type="submit" class="ag-btn ag-btn--primary ag-btn--block" data-nf-submit hidden>
+        <button type="button" class="ag-btn ag-btn--primary ag-btn--block" data-nf-next hidden>Continue</button>
+        <button type="submit" class="ag-btn ag-btn--primary ag-btn--block" data-nf-submit>
           Submit nomination
         </button>
       </div>

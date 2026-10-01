@@ -169,20 +169,56 @@
 /* ── Categories ───────────────────────────────────────────────────────────── */
 
 .nf__count{ margin:0; font-size:13px; font-weight:600; color:var(--ag-soft) }
-.nf__cats{ display:flex; flex-direction:column; gap:var(--ag-sp-10) }
-.nf__cat{
-  border:1px solid var(--ag-line); border-radius:var(--ag-r-16);
-  background:var(--ag-surface); padding:var(--ag-sp-14);
+/* ── The category tiles ───────────────────────────────────────────────────
+   The reference draws these as a 2-up grid of tiles: 1.5px hairline, radius 14, a
+   38px tinted icon square, and a green border over a pale green ground when chosen.
+   Ours differ in one way that is the brief's rather than a liberty: a category here
+   carries its OWN REASON, so a chosen tile needs the width of the card to write in.
+
+   `:has()` gives that for nothing — a chosen tile spans both columns and the
+   unchosen ones stay two-up beside each other. The grid is one column on a phone,
+   where two tiles of this height would be 150px of chrome before any text. */
+.nf__cats{ display:grid; grid-template-columns:1fr; gap:var(--ag-sp-10) }
+@media (min-width:768px){
+  .nf__cats{ grid-template-columns:1fr 1fr }
+  .nf__cat:has([data-nf-pick]:checked){ grid-column:1 / -1 }
 }
-.nf__cat:has([data-nf-pick]:checked){ border-color:var(--ag-ink); border-width:2px; padding:13px }
+.nf__cat{
+  border:1.5px solid var(--ag-line-2); border-radius:14px;
+  background:var(--ag-surface); padding:15px;
+}
+/* The reference's selected state: the accent on the border and a wash behind it —
+   never a dark fill, which §0.5 rejects outright. The border was already 1.5px, so
+   nothing shifts by a pixel when it is chosen. */
+.nf__cat:has([data-nf-pick]:checked){
+  border-color:var(--ag-green); background:var(--ag-green-wash);
+}
 /* At the cap the unchosen rows are stopped, not hidden: a category that vanishes
    when you pick three reads as the list being broken, and somebody looking for the
    one they wanted cannot find it to swap. */
 .nf__cat[data-maxed]{ opacity:.55 }
-.nf__cat-head{ display:grid; grid-template-columns:22px 1fr; gap:var(--ag-sp-10) var(--ag-sp-12); align-items:start; cursor:pointer }
+.nf__cat-head{
+  display:grid; grid-template-columns:22px 38px 1fr;
+  gap:var(--ag-sp-6) var(--ag-sp-12); align-items:center; cursor:pointer;
+}
 .nf__cat-head input{ width:22px; height:22px; margin:0; accent-color:var(--ag-green) }
-.nf__cat-t{ font-size:16px; font-weight:600 }
-.nf__cat-d{ grid-column:2; font-size:13px; line-height:1.5; color:var(--ag-soft) }
+/* The reference's 38px tinted square. Its glyph is the category's own initial —
+   derived, never invented: these categories come from the database and differ per
+   award, so a fixed icon set would be a guess about somebody else's taxonomy. */
+.nf__cat-ic{
+  display:flex; align-items:center; justify-content:center;
+  width:38px; height:38px; border-radius:11px;
+  font-family:var(--ag-font-mono); font-size:15px; font-weight:700;
+}
+/* ON A CHOSEN TILE THE SQUARE TAKES THE SURFACE, NOT ITS TINT. A chosen card's
+   ground IS `--ag-green-wash`, and a green-tinted square on it is the same colour as
+   the thing behind it — the square simply disappeared, leaving a letter floating in
+   the row. Only the two green roles collide, but the rule is written for all four:
+   a square that changes shape depending on which tint it drew is worse than one that
+   always reads the same. */
+.nf__cat:has([data-nf-pick]:checked) .nf__cat-ic{ background:var(--ag-surface) }
+.nf__cat-t{ font-size:14px; font-weight:600 }
+.nf__cat-d{ grid-column:3; font-size:13px; line-height:1.5; color:var(--ag-soft) }
 
 .nf__why{ margin-top:var(--ag-sp-12); display:flex; flex-direction:column; gap:var(--ag-sp-6) }
 .nf__why[hidden]{ display:none }
@@ -259,8 +295,7 @@
    hard-codes one. It is not circular — the bar's height does not depend on the
    card's padding. */
 .nf__bar{
-  position:fixed; inset-inline:0; bottom:0; z-index:3;
-  backdrop-filter:blur(14px); -webkit-backdrop-filter:blur(14px);
+  position:static;
   display:flex; gap:var(--ag-sp-10); align-items:center;
   /* THE NEGATIVE MARGINS ARE THE CARD'S PADDING, NOT THE PAGE GUTTER. The bar lives
      inside `.nf__card` now, so it has to break out of that padding to reach the card's
@@ -272,10 +307,51 @@
   background:color-mix(in srgb, var(--ag-bar) 96%, transparent);
   border-top:1px solid var(--ag-line);
 }
-/* The card owes the clearance, since the bar no longer takes space in the flow. */
-.nf__card{ padding-bottom:calc(var(--ag-bottom-ui, 0px) + var(--ag-sp-20)) }
+/* ── FIXED ONLY WHEN THERE IS A WIZARD TO FIX IT FOR ──────────────────────
+   The bar was `position:fixed` unconditionally, and the clearance under it came
+   from `--ag-bottom-ui` — which `shell.js` MEASURES. With scripting off that
+   variable never leaves its 0px default, so the bar floated over the end of the
+   form and covered the consent checkbox: measured at 390, `elementFromPoint` on
+   the box returned `.nf__bar`. The last control of the form, unreachable, on the
+   exact path that is supposed to work without JavaScript.
+
+   So the fixed bar belongs to the wizard, because the wizard is what makes the
+   form short enough to need one. `nominate.js` sets `data-nf-wizard` on boot — the
+   same ordering the steps use: the server sends one long form with its submit
+   button at the end of it, and the script turns that into four screens with a
+   thumb-zone bar. Neither shape depends on the other being there. */
+.nf__form[data-nf-wizard] .nf__bar{
+  position:fixed; inset-inline:0; bottom:0; z-index:3;
+  backdrop-filter:blur(14px); -webkit-backdrop-filter:blur(14px);
+}
+.nf__form[data-nf-wizard]{ padding-bottom:calc(var(--ag-bottom-ui, 0px) + var(--ag-sp-20)) }
 .nf__bar .ag-btn{ height:52px }
 .nf__bar .ag-btn--secondary{ flex:none; width:auto; padding:0 var(--ag-sp-20) }
+
+/* ── The summary §8 asks the bar to carry ─────────────────────────────────
+   Bold value over a 12.5px detail, and it TRUNCATES rather than wrapping: a step
+   heading can be a whole question ("Which principal are you putting forward?"), and
+   a bar that grows a second line on one step moves the primary button under the
+   thumb that was already reaching for it. */
+.nf__sum{
+  flex:1; min-width:0; margin:0; display:flex; flex-direction:column; gap:1px;
+  line-height:1.25;
+}
+.nf__sum b{ font-size:14px; font-weight:700; color:var(--ag-ink) }
+.nf__sum span{
+  font-size:12.5px; color:var(--ag-soft);
+  overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+}
+/* On a phone the primary is full width and the summary sits above it, which is the
+   thumb-zone order: read, then press. */
+@media (max-width:767px){
+  .nf__bar{ flex-wrap:wrap }
+  .nf__sum{ flex:1 0 100%; margin-bottom:var(--ag-sp-8) }
+  /* `--block` means full width on a page; inside the bar it has to SHARE the row
+     with Back. Left at 100% it wrapped to a third line and the bar took 199px of an
+     844px screen — a quarter of the phone, for two buttons. */
+  .nf__bar .ag-btn--block{ flex:1; width:auto }
+}
 
 /* ── Closed ───────────────────────────────────────────────────────────────── */
 
@@ -306,7 +382,8 @@
 
      So the bar stops being sticky here and becomes that row. Same markup, same
      buttons, same handlers — only the geometry changes with the pointer. */
-  .nf__card{ padding-bottom:34px }
+  .nf__form[data-nf-wizard]{ padding-bottom:34px }
+  .nf__form[data-nf-wizard] .nf__bar,
   .nf__bar{
     position:static; inset:auto; backdrop-filter:none; -webkit-backdrop-filter:none;
     margin:var(--ag-sp-24) 0 0;
@@ -381,3 +458,121 @@
 /* A spinner that cannot spin must still say the form is going, so the text carries
    it and the ring simply holds still. */
 @media (prefers-reduced-motion:reduce){ .nf__spin{ animation:none } }
+
+
+/* ══ THE OPTIONAL PORTRAIT ════════════════════════════════════════════════
+   The reference's slot: 130x150, radius 16, a dashed green hairline on a pale
+   ground, with its caption beneath. The real `<input type=file>` is visually hidden
+   rather than `display:none` — a hidden input is not focusable, and the label is
+   what a pointer uses, so the keyboard would have no way to reach it at all.
+
+   It is NOT the `.ag-field` treatment, because this is a drop target rather than a
+   text box, and dressing it as one would say "type here". */
+.nf__port{ margin:var(--ag-sp-8) 0 var(--ag-sp-4) }
+.nf__port-slot{
+  display:flex; flex-direction:column; align-items:center; justify-content:center;
+  gap:var(--ag-sp-8); width:130px; height:150px; cursor:pointer;
+  border:1px dashed var(--ag-green-edge); border-radius:16px;
+  background:var(--ag-green-wash); color:var(--ag-green-deep);
+  font-size:13px; font-weight:600; text-align:center; padding:var(--ag-sp-10);
+}
+.nf__port-slot svg{ width:26px; height:26px }
+.nf__port-slot:hover{ border-color:var(--ag-green) }
+/* The focus ring follows the INPUT, which is what actually takes focus. */
+.nf__port-in:focus-visible + .nf__port-note,
+.nf__port-in:focus-visible ~ .nf__port-note{ color:var(--ag-green-deep) }
+.nf__port-in:focus-visible{ outline:none }
+.nf__port:focus-within .nf__port-slot{ outline:3px solid var(--ag-green); outline-offset:2px }
+/* Visually hidden, still focusable and still in the tab order. */
+.nf__port-in{
+  position:absolute; width:1px; height:1px; padding:0; margin:-1px;
+  overflow:hidden; clip:rect(0 0 0 0); white-space:nowrap; border:0;
+}
+.nf__port-note{ margin:var(--ag-sp-6) 0 0; font-size:11px; color:var(--ag-soft) }
+.nf__port-slot[data-has]{ border-style:solid; background:var(--ag-surface) }
+
+/* ══ NOMINATION SENT ══════════════════════════════════════════════════════
+   The reference's DONE state, on the shell. Centred, because this screen asks
+   nothing — it reports, and a centred column is what a report of one fact looks
+   like. Everything below the fold is the share block, which is the only thing here
+   somebody can act on.
+
+   `.nf--done` drops the flow's column behaviour: there is no action bar to push to
+   a floor and no step to fill, so the page is simply a page. */
+.nf--done{ display:block; padding-bottom:calc(var(--ag-sp-40) + var(--ag-bottom-ui, 0px)) }
+
+.ns{ text-align:center; padding:var(--ag-sp-16) 0 0 }
+
+/* The badge is the celebration's anchor, so the stars open from the one thing on
+   screen the eye is already on. A star rather than a tick: a tick says "done", and
+   what happened here is somebody being put forward. */
+.ns__badge{
+  display:inline-flex; align-items:center; justify-content:center;
+  width:72px; height:72px; border-radius:50%;
+  background:var(--ag-green-wash); color:var(--ag-green-deep);
+  margin-bottom:var(--ag-sp-16);
+}
+.ns__badge svg{ width:34px; height:34px }
+
+.ns__kicker{
+  margin:0 0 var(--ag-sp-8); font-size:12px; font-weight:600;
+  letter-spacing:.14em; text-transform:uppercase; color:var(--ag-green-deep);
+}
+.ns__h{
+  margin:0; font-family:var(--ag-font-display); font-weight:700;
+  font-size:28px; line-height:1.15; letter-spacing:-.02em; color:var(--ag-ink);
+}
+.ns__sub{
+  margin:var(--ag-sp-12) auto 0; max-width:46ch;
+  font-size:15px; line-height:1.6; color:var(--ag-ink-2);
+}
+
+/* The reference's reference chip: a mono figure on a pale ground, labelled. Mono
+   because it is a code somebody may read out or type, and a proportional face makes
+   an O and a 0 the same shape. */
+.ns__ref{
+  margin:var(--ag-sp-20) auto 0; max-width:260px;
+  display:flex; align-items:center; justify-content:space-between; gap:var(--ag-sp-12);
+  padding:var(--ag-sp-14) var(--ag-sp-16);
+  background:var(--ag-tint); border-radius:14px;
+}
+.ns__ref dt{
+  font-family:var(--ag-font-mono); font-size:10px; letter-spacing:.08em;
+  text-transform:uppercase; color:var(--ag-soft);
+}
+.ns__ref dd{
+  margin:0; font-family:var(--ag-font-mono); font-size:15px; font-weight:700;
+  color:var(--ag-ink);
+}
+
+.ns__do{
+  display:flex; flex-direction:column; gap:var(--ag-sp-10);
+  margin:var(--ag-sp-24) auto 0; max-width:360px;
+}
+.ns__do .ag-btn{ height:52px }
+
+.ns__fine{
+  margin:var(--ag-sp-20) auto 0; max-width:46ch;
+  font-size:13px; line-height:1.7; color:var(--ag-soft);
+}
+.ns__fine a{ color:var(--ag-green-deep) }
+
+/* ── The share block ────────────────────────────────────────────────────── */
+.ns__share{ margin:var(--ag-sp-32) 0 0; padding:var(--ag-sp-20); text-align:start }
+.ns__share h2{ margin:0 0 var(--ag-sp-6); font-size:17px; font-weight:700 }
+.ns__share > p{
+  margin:0 0 var(--ag-sp-16); font-size:14px; line-height:1.6; color:var(--ag-ink-2);
+}
+.ns__share-err{
+  margin:var(--ag-sp-12) 0 0; font-size:13.5px; font-weight:600; color:var(--ag-error);
+}
+.ns__share-err[hidden]{ display:none }
+.ns__share-out[hidden]{ display:none }
+.ns__share-row{ display:flex; gap:var(--ag-sp-8); align-items:stretch }
+.ns__share-row .ag-field{ flex:1; min-width:0 }
+.ns__share-row .ag-btn{ flex:none; height:52px; padding:0 var(--ag-sp-20) }
+
+@media (min-width:768px){
+  .nf--done{ width:100%; max-width:680px; margin-inline:auto }
+  .ns__h{ font-size:36px }
+}

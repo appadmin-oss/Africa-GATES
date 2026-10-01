@@ -807,3 +807,154 @@ not to happen.
   four tables, one ENUM (`nominee_kind`), one `TINYINT UNSIGNED` (`fit`) and a TEXT column
   whose writer caps in characters against a byte ceiling — all four of the shapes that run
   differently there. **Run `scripts/mysql-parity.sh` before this reaches production.**
+
+---
+
+## 12. Fixing all of it: the standard, the reference, and five live faults
+
+This pass answered "fix all, no errors" against `/app-ux-standards` and
+`/anthropic-skills:implementing-designs`. It found more than styling.
+
+### 12.1 Five live faults, none of them cosmetic
+
+| | fault | how it was found |
+|---|---|---|
+| **A 500 on every nomination carrying a file.** `NominationController::submit()` looped over `self::uploadedEvidence($req)` and **that method did not exist**. The row was written first, so the nomination saved and the nominator got a 500 — the only reasonable conclusion being that it had not gone through. | driving the real form |
+| **The portrait field was dropped.** `submit()` has a complete validated, re-encoded, size-capped handler for `nominee_photo`; both admin screens render it; its own comment says it seeds the profile avatar on approval. The redesign did not carry the input across, so the handler had nothing to handle and the column stayed empty on every nomination since. | §18's question, asked of the form |
+| **The confirmation named the wrong award.** `$progName` fell back to `'Programme #' . $id` whenever the title was not passed, and the rebuilt form stopped passing it. That string goes into the **email and the SMS**, not just the page. | driving the real form |
+| **It named one category of three.** Read off the nomination row's denormalised `category_id` while a nomination now names two or three. The nominator chose them deliberately and was told their nomination went somewhere narrower than it did. | the same |
+| **Step one let you pass and refused at step four.** The server requires `nominee_state`, `nominee_lga` and one of email/phone; the wizard checked none of them, so somebody completed all four steps and met a step-one refusal beside the Submit button. | the same |
+
+The first three were invisible to a green suite because nothing posted at the
+controller — the tests exercised `recordEvidenceFile()` directly, which is the half
+that worked. **A unit test of the piece below a fault is not a test of the path.**
+`NominationSubmitPathTest` posts, with a real `UploadedFile` backed by a real temp
+file (an in-memory stream cannot be `rename()`d, so `moveTo()` would warn and the
+store would never happen — the test would pass over a path it had not walked).
+
+Step validation now reads `[required]` **from the panel's own markup**, so there is no
+list in JavaScript at all: the browser, the script and the server look at one
+declaration, and a field added to a step is covered the day it is added. The
+either/or on email-or-phone is the one rule markup cannot express and is written out.
+
+### 12.2 The targets: 801 → 0
+
+A sweep of twelve public pages at 390 and 1440 found **801 targets under the floor**
+(44 on phone, 40 for a desktop pointer). **640 of them were three rules in the shared
+footer** — it is on every page, so one 16px link there is one failure per page per
+link, for ever, and nothing about that is visible from any single page.
+
+The rest were the article component (`/cookies`, `/privacy`, the help centre), the
+shop filter rows, the results and support chips, and the help-nav identity link.
+`min-height` throughout: the type and the leading are untouched and only the box a
+finger has to find grows.
+
+**WCAG 2.5.8's inline exception is honoured and is the only exception.** A link inside
+a sentence keeps its natural size — inflating one to 44px wrecks the leading of the
+paragraph holding it — and the sweep tells prose from controls by asking whether the
+link's parent holds more text than the link does.
+
+### 12.3 Three of seven audit findings were the audit lying
+
+Recorded because each failed the way this codebase keeps recording, and each would
+have sent somebody editing correct code:
+
+- **"Two scroll containers."** The closed sheet is hidden with `visibility`, which
+  `offsetParent` cannot see.
+- **"Inputs are 50px, the token is 52."** Measured the inner `<input>` rather than the
+  control surface. `.ag-field` is 52 on phone and 48 on desktop, both correct.
+- **"`--ag-bottom-ui` is 0."** `shell.js` sets it on `<body>` and the probe read
+  `:root`. It is 85px on the flow and 81px on the hub.
+
+A fourth, later: **`.ccard__x` is 24px and correct** — it extends its hit area with a
+transparent `::after`, which an element-box measurement cannot see. The sweep reads
+the pseudo-element now.
+
+### 12.4 Against the reference
+
+`docs/redesign-ref/Nominate Page.dc.html` — which the first build never opened; the
+stylesheet cited `design/NominationFlow.dc.html`, a path that does not exist.
+
+Now present and measured against the reference's own values: the white card (616px,
+radius 22, 34px padding), the centred kicker/title/lede, the stepper with connector
+lines and ticks, the 38px tinted category tile with the reference's selected state,
+the optional portrait slot, the submitting state, and
+"Free · takes about 90 seconds · OTP-secured" verbatim.
+
+Deviations, deliberate:
+
+- **Inputs stay 16px and the phone primary 52px.** The reference draws 14.5px and
+  ~44px on a desktop canvas with no phone branch; §1 and §11 are MUSTs and a sub-16px
+  input makes iOS zoom the page mid-form.
+- **The reference is a single-category flow with one story box.** The brief is two or
+  three categories each with its own reason. The brief supersedes it; a chosen tile
+  spans both columns so its reason has the width, which `:has()` gives for nothing.
+- **The category glyph is the category's initial, not an icon.** These categories come
+  from the database and differ per award; a fixed icon set would be a guess about
+  somebody else's taxonomy.
+
+### 12.5 The celebration: one engine, two kinds
+
+§24 makes a celebration a MUST for nominations, and `/nominate/success` had
+`sc_confetti: false` on the legacy layout.
+
+**§24.7's engine files do not exist** — the skill ships only `SKILL.md` — and this
+repo already has a celebration engine with ten tests holding real product rules (no
+burst on a held result, none on a delayed holding page, never paints the page).
+Writing a second engine from prose would be two implementations of one occasion,
+which is the shape this codebase pays for most often, and §24 itself asks for
+consistency.
+
+So `celebrate.js` gained a `kind`. `win` fires exactly the choreography it always
+has; `nominate` is its own — stars from the badge on two radii, roughly half the
+density, no gold cannons. **A nomination is not a win**, and firing the winner's
+choreography on the screen where somebody has just put a name forward tells them the
+award is theirs.
+
+One test had to change with it, and the change is the point: it counted the **literal**
+`disableForReducedMotion: true` and expected two. The rule — every burst carries the
+flag — was right; the token was how the flag happened to be written that day. It is
+counted against `fire(` calls now, so it covers a flag set as a property just as well
+as one spelled in a literal, and it was broken and watched to name the break.
+
+### 12.6 The form did not work without JavaScript, and said it did
+
+`components/nominate.css` stated, in as many words, that with no script "every
+section is simply visible and the form still posts". Measured with scripting off: **one
+of four panels visible, no submit button, twenty-nine fields that could never be
+sent.** §19's shape, in a comment written in this pass.
+
+Four separate things had the dependency, and each was the wrong way round:
+
+| | it shipped as | it ships as |
+|---|---|---|
+| Steps 2–4 | `hidden`, revealed by script | visible; the script hides them on boot |
+| Submit | `hidden`, revealed by script | visible; `Continue` is the one that starts hidden, because Continue is the wizard's own control and does nothing without it |
+| Each reason box | `hidden`, revealed on tick | visible; `syncCats()` closes the unchosen ones on boot |
+| The action bar | `position:fixed`, cleared by `--ag-bottom-ui` | fixed only under `[data-nf-wizard]` |
+
+The last is the subtle one. `--ag-bottom-ui` is **measured by `shell.js`**, so with no
+script it never leaves its 0px default — the fixed bar then floated over the end of the
+form and covered the consent checkbox. `elementFromPoint` on that box returned
+`.nf__bar`: the last control of the form, unreachable, on the exact path that is meant
+to work without JavaScript. The fixed bar belongs to the wizard, because the wizard is
+what makes the form short enough to need one.
+
+**And one server rule had to change with them.** `NominationRules::categories()` kept
+every entry, which is right only while something upstream guarantees an unchosen
+category never posts — and with the wizard running, something does: the script disables
+the textarea of an unticked category, and a disabled control is the one thing a browser
+will not submit. With no script there is nothing to disable, so all six reason boxes
+posted and a nomination naming two categories arrived as six, four of them blank, and
+was refused for exceeding a cap the person had not come near. The checkbox cannot
+settle it either — it carries no `name` and has never posted at all, so **the writing
+has always been the choice**. An empty reason is not a choice now.
+
+Verified by submitting a complete nomination with `javaScriptEnabled: false` and landing
+on the success page, and by re-walking the wizard with scripting on.
+
+### 12.7 Not done
+
+- **No automated guard on touch targets.** The sweep that found the 801 is a browser
+  script in the scratchpad, not a test — PHPUnit cannot measure a rendered box. The
+  numbers above are reproducible by hand and nothing stops them growing back.

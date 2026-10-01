@@ -44,7 +44,10 @@
   color: var(--ag-ink, #10292c);
   min-width: 0;
 }
-.hn__id a { color: inherit; text-decoration: none; }
+/* The one link out of the help nav back to its index, and it was 19px tall. The
+   heading's own type is untouched; `min-height` grows only the box. */
+.hn__id a { display: inline-flex; align-items: center; min-height: 44px;
+            color: inherit; text-decoration: none; }
 .hn__id a:hover { text-decoration: underline; text-underline-offset: 3px; }
 .hn__id a:focus-visible { outline: 3px solid var(--ag-action-edge, #237b22); outline-offset: 3px; }
 

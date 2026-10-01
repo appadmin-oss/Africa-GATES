@@ -141,7 +141,11 @@ body[data-page="legal"]{
    The first pass made all three hairline-quiet. Copy is the one people actually
    want, so it now reads as the primary action and the other two support it. */
 .ar-tools{ margin:1.25rem 0 0; display:flex; flex-wrap:wrap; gap:.5rem; position:relative; }
-.ar-tool{ display:inline-flex; align-items:center; gap:.45rem; cursor:pointer;
+/* 44, not 33. These four are the document's own controls and sat under both the
+   phone floor and the 40px desktop one. `.ar-tab` beside them had already been
+   raised for exactly this reason — the note above it says so — and the toolbar was
+   simply missed. */
+.ar-tool{ display:inline-flex; align-items:center; min-height:44px; gap:.45rem; cursor:pointer;
           background:var(--ar-surface); border:1px solid var(--ar-line); border-radius:var(--ag-r-pill,999px);
           padding:.52rem 1rem; font:600 13px/1 var(--ag-font-body); color:var(--ar-ink);
           text-decoration:none !important; transition:border-color .15s, background-color .15s, transform .15s; }
@@ -172,7 +176,12 @@ body[data-page="legal"]{
 /* Scoped to the contents LIST, not to every link in the rail. The legal pages put
    an "Also filed here" <ul> in the same rail, and an unscoped rule numbered those
    sibling policies 01/02/03 as though they were sections of this document. */
-.ar-rail ol a, .ar-toc ol a{ display:flex; gap:.55rem; padding:.34rem .4rem; margin:0 -.4rem; border-radius:7px;
+/* `min-height:44px` and centred, because this list IS the navigation of a long
+   legal document — on a phone the contents panel is the only way to reach a section
+   without scrolling the whole thing, and the rows measured 29px. The type and the
+   leading are untouched; only the row a thumb has to hit grows. */
+.ar-rail ol a, .ar-toc ol a{ display:flex; align-items:center; min-height:44px;
+                             gap:.55rem; padding:.34rem .4rem; margin:0 -.4rem; border-radius:7px;
                              font-size:13px !important; line-height:1.42 !important; font-weight:500 !important;
                              color:var(--ar-soft) !important; text-decoration:none !important; }
 .ar-rail ol a::before, .ar-toc ol a::before{ content:counter(ar,decimal-leading-zero); flex:none;
@@ -285,7 +294,8 @@ body[data-page="legal"]{
 .ar-refs span{ font:700 10px/1 var(--ag-font-mono); letter-spacing:.13em; text-transform:uppercase; color:var(--ar-faint); }
 .ar-refs ul{ list-style:none; margin:.5rem 0 0; padding:0; }
 .ar-refs li{ margin-bottom:.28rem; font-size:14px !important; line-height:1.55 !important; }
-.ar-refs a{ color:var(--ar-soft) !important; }
+.ar-refs a{ display:inline-flex; align-items:center; min-height:44px;
+            color:var(--ar-soft) !important; }
 .ar-refs a:hover{ color:var(--ar-accent-dark) !important; }
 
 /* ── CONTINUE ───────────────────────────────────────────────────────────────
@@ -315,7 +325,7 @@ body[data-page="legal"]{
    keeps the row looking identical on a desktop and makes it usable on a handset. */
 .ar-tab{ cursor:pointer; background:var(--ag-surface-2,#f6f7f6); border:1px solid var(--ar-line);
          border-radius:var(--ag-r-pill,999px); padding:.42rem .85rem;
-         min-height:40px; display:inline-flex; align-items:center;
+         min-height:44px; display:inline-flex; align-items:center;
          font:600 13px/1 var(--ag-font-body); color:var(--ar-soft); transition:background .15s, color .15s; }
 .ar-tab:hover{ color:var(--ar-ink); background:var(--ar-wash); border-color:var(--ar-accent); }
 .ar-tab[aria-selected="true"]{ background:var(--ar-accent); border-color:var(--ar-accent); color:#fff; }

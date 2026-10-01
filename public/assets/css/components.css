@@ -629,8 +629,14 @@ body.ag-sheet-open .ag-main{ overflow:hidden }
 
 .ag-menu__foot{ display:flex; flex-direction:column; gap:var(--ag-sp-12); align-items:flex-start }
 .ag-menu__foot nav{ display:flex; flex-wrap:wrap; gap:0 var(--ag-sp-16) }
+/* 44 rather than 32. Three small legal links in a row are exactly the shape that
+   gets missed — quiet, secondary, and the only way to the page somebody opened the
+   Menu to find. The row gains twelve pixels and nothing else moves. */
 .ag-menu__foot nav a{
-  display:inline-flex; align-items:center; min-height:32px;
+  /* `min-width` as well as `min-height`: "Terms" is four letters and came out 40px
+     wide, so the target failed on the axis nobody checks. */
+  display:inline-flex; align-items:center; justify-content:center;
+  min-height:44px; min-width:44px;
   font-size:13.5px; color:var(--ag-soft);
 }
 .ag-menu__foot .ag-btn--danger{ height:44px; padding:0; font-size:15px }
@@ -760,7 +766,9 @@ body.ag-sheet-open .ag-main{ overflow:hidden }
 .ag-head__gap{ flex:1 }
 .ag-head__end{ display:flex; align-items:center; gap:var(--ag-sp-12) }
 
-.ag-logo{ display:flex; align-items:center; gap:var(--ag-sp-10); margin-inline-end:var(--ag-sp-18); text-decoration:none }
+/* `min-height:40px` is the desktop pointer floor, and the home link is the one every
+   page carries. The mark stays 32px — only the target grows. */
+.ag-logo{ display:flex; align-items:center; min-height:40px; gap:var(--ag-sp-10); margin-inline-end:var(--ag-sp-18); text-decoration:none }
 .ag-logo img{
   width:32px; height:32px; box-sizing:border-box; padding:3px;
   border:1px solid var(--ag-line-2); border-radius:9px;
@@ -796,9 +804,13 @@ body.ag-sheet-open .ag-main{ overflow:hidden }
   border:1px solid var(--ag-line); border-radius:var(--ag-r-pill);
   background:var(--ag-surface);
 }
+/* 40, NOT 34. §1's desktop floor is 40x40 for a pointer and this toolbar is drawn
+   only at 768 and above, so 34 was six pixels under it on every desktop — on the
+   three controls a person reaches for most often beside the nav itself. The pill is
+   the same height as `.ag-head__link` beside it, which was already 40. */
 .ag-tools__b{
   display:flex; align-items:center; justify-content:center; gap:var(--ag-sp-6);
-  width:40px; height:34px;
+  width:40px; height:40px;
   border:0; border-radius:var(--ag-r-pill);
   background:transparent; color:var(--ag-ink);
   font-family:inherit; cursor:pointer;
@@ -906,9 +918,23 @@ body.ag-sheet-open .ag-main{ overflow:hidden }
   font-size:13px;
 }
 .ag-announce__dot{ width:7px; height:7px; border-radius:50%; background:var(--ag-green-light) }
-.ag-announce a{ color:var(--ag-ground); text-decoration:underline; text-underline-offset:3px }
+/* ── 44, INSIDE A 48px BAR ────────────────────────────────────────────────
+   Both of these were under the floor — the link 30px tall on a phone and 15px on a
+   desktop, where it is one line of a sentence, and the close 26x32. §1 ships 44 and
+   lists no inline exception.
+
+   `min-height` on an inline-flex link raises the TARGET without raising the bar: the
+   bar is already 48px, so the 44px box fits inside it and nothing moves. The text
+   still looks like a sentence's link, which is the point — the fix is the hit area,
+   not the appearance. */
+.ag-announce a{
+  display:inline-flex; align-items:center; min-height:44px;
+  color:var(--ag-ground); text-decoration:underline; text-underline-offset:3px;
+}
 .ag-announce__x{
-  margin-inline-start:auto; width:32px; height:32px;
+  /* `flex:none`, or the bar's flex shrinks a 44px button to 29 on a narrow phone —
+     a declared width is a BASIS to a flex child, not a floor. */
+  margin-inline-start:auto; flex:none; width:44px; height:44px;
   border:0; background:transparent; color:var(--ag-ground);
   font-size:17px; line-height:1; cursor:pointer;
 }

@@ -19,7 +19,7 @@
   .sh-search input{ width:100%; border:1px solid rgba(16,41,44,.14); border-radius:999px; padding:11px 42px 11px 42px; font-family:inherit; font-size:14px; color:var(--ag-ink); background:var(--ag-surface,#fff); outline:none; }
   .sh-search input:focus{ border-color:var(--ag-green); box-shadow:0 0 0 3px rgba(35,123,34,.1); }
   .sh-search__i{ position:absolute; left:15px; top:50%; transform:translateY(-50%); color:var(--ag-ink-soft,#626a6e); pointer-events:none; }
-  .sh-search__go{ position:absolute; right:5px; top:5px; bottom:5px; cursor:pointer; border:none; background:var(--ag-ink); color:#fff; font-family:inherit; font-size:13px; font-weight:600; padding:0 15px; border-radius:999px; }
+  .sh-search__go{ position:absolute; right:5px; top:5px; bottom:5px; cursor:pointer; border:none; background:var(--ag-ink); color:#fff; font-family:inherit; font-size:13px; font-weight:600; padding:0 15px; border-radius:999px; min-height:44px}
   .sh-sort{ display:inline-flex; align-items:center; gap:7px; font-size:13px; color:#4a5256; }
   .sh-sort select{ border:1px solid rgba(16,41,44,.16); border-radius:999px; padding:9px 13px; font-family:inherit; font-size:16px; background:var(--ag-surface,#fff); color:var(--ag-ink); cursor:pointer; }
   .sh-ship{ display:flex; align-items:center; gap:9px; background:#eafaf0; border:1px solid rgba(35,123,34,.2); border-radius:14px; padding:11px 16px; margin-top:16px; font-size:14px; color:#10292C; }
@@ -112,7 +112,7 @@
   .sh-ask__l{ display:flex; gap:8px; flex-wrap:wrap; }
   .sh-ask__l a{ font-size:13px; font-weight:600; text-decoration:none; color:#10292C;
     border:1px solid rgba(16,41,44,.14); border-radius:999px; padding:8px 13px;
-    background:var(--ag-surface,#fff); white-space:nowrap; }
+    background:var(--ag-surface,#fff); white-space:nowrap; display:inline-flex;align-items:center;min-height:44px}
   .sh-ask__l a:hover{ border-color:var(--ag-green); color:var(--ag-green); }
   /* ── ON A PHONE, THIS CARD WAS COSTING THE SHOP ITS FIRST SCREEN ──────────
      Measured at 390×844: hero, search, this card at three stacked full-width buttons, the
@@ -193,9 +193,9 @@
   .sh-fs{ border:none; margin:0; padding:14px 0 0; border-top:1px solid rgba(16,41,44,.08); }
   .sh-fs__l{ font-size:11px; font-weight:700; letter-spacing:.08em; text-transform:uppercase;
     color:var(--ag-ink-soft,#626a6e); padding:0; margin-bottom:9px; }
-  .sh-opt{ display:flex; align-items:center; gap:9px; font-size:14px; color:#3a4448;
+  .sh-opt{ display:flex; align-items:center; min-height:44px; gap:9px; font-size:14px; color:#3a4448;
     padding:5px 0; cursor:pointer; }
-  .sh-opt input{ width:auto; flex:none; margin:0; accent-color:var(--ag-green); }
+  .sh-opt input{ width:auto; flex:none; margin:0; accent-color:var(--ag-green); width:22px;height:22px}
   .sh-opt span{ min-width:0; overflow-wrap:anywhere; }
   .sh-opt__n{ margin-left:auto; font-size:12px; color:var(--ag-ink-soft,#626a6e); font-variant-numeric:tabular-nums; }
 
@@ -209,7 +209,7 @@
 
   .sh-apply{ display:flex; gap:8px; margin-top:16px; }
   .sh-apply button{ flex:1; cursor:pointer; border:none; background:var(--ag-ink); color:#fff;
-    font-family:inherit; font-size:13px; font-weight:700; padding:11px; border-radius:999px; }
+    font-family:inherit; font-size:13px; font-weight:700; padding:11px; border-radius:999px; min-height:44px}
   .sh-apply a{ flex:none; display:inline-flex; align-items:center; padding:0 13px;
     border-radius:999px; border:1px solid rgba(16,41,44,.14); font-size:13px;
     font-weight:600; color:#4a5256; text-decoration:none; }

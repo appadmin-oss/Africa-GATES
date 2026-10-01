@@ -223,6 +223,25 @@ final class NominationRules
         foreach ($raw as $id => $reason) {
             $id = (int) $id;
             if ($id <= 0 || !is_scalar($reason)) continue;
+
+            /* ── AN EMPTY REASON IS NOT A CHOICE ──────────────────────────────
+               Every entry was kept, which is right only while something upstream
+               guarantees that an unchosen category never posts — and with the wizard
+               running, something does: the script disables the textarea of a category
+               nobody ticked, and a disabled control is the one thing a browser will
+               not submit.
+
+               WITH NO SCRIPT there is nothing to disable it. The form ships as one
+               long page, every reason box is open and empty, and all of them post —
+               so a nomination naming two categories arrived as six, four of them
+               blank, and was refused for exceeding a cap the person had not come
+               near. The checkbox cannot settle it either: it carries no `name`, so it
+               has never posted at all and the WRITING has always been the choice.
+
+               Trimmed before the test, or a box holding a newline counts as a
+               category nobody picked. */
+            if (trim((string) $reason) === '') continue;
+
             $out[$id] = (string) $reason;
         }
 

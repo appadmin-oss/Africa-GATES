@@ -76,20 +76,57 @@ final class NominationAftercare
         $nomEmail = strtolower(trim((string) ($data['nominee_email'] ?? '')));
         $byName   = Name::title((string) ($data['nominator_name'] ?? ''));
         $byEmail  = strtolower(trim((string) ($data['nominator_email'] ?? '')));
-        $progName = trim((string) ($data['programme_title'] ?? ''))
-                 ?: ('Programme #' . (int) ($data['programme_id'] ?? 0));
+        /* ── THE AWARD'S REAL NAME, LOOKED UP WHEN IT IS NOT HANDED OVER ───────
+           This fell back to `'Programme #' . $id`, and that string is not a label —
+           it goes into the confirmation EMAIL, the SMS and the success page. A
+           nominator who had just written about somebody was told their nomination was
+           filed under "Programme #1". The fallback reads like data, which is what
+           made it survive: nothing looks broken, it just says the wrong thing.
+
+           The id is in hand either way, so the title is a lookup rather than a guess.
+           The numbered form stays as the last resort for a programme row that is
+           genuinely gone — an import, a deleted award — because an empty sentence is
+           worse than an honest placeholder. */
+        $progName = trim((string) ($data['programme_title'] ?? ''));
+        if ($progName === '' && !empty($data['programme_id'])) {
+            try {
+                $progName = trim((string) (DB::table('gates_award_programmes')
+                    ->where('id', (int) $data['programme_id'])->value('title') ?? ''));
+            } catch (\Throwable) {}
+        }
+        if ($progName === '') $progName = 'Programme #' . (int) ($data['programme_id'] ?? 0);
         $watchUrl = rtrim($baseUrl, '/') . '/leaderboard';
 
         $reference = self::reference($nominationId);
 
-        // Resolve the award CATEGORY so every message names it, not just the programme.
-        $catName = '';
-        if (!empty($data['category_id'])) {
+        /* ── EVERY CATEGORY, NOT THE FIRST ────────────────────────────────────
+           A nomination names two or three categories now, and they live in
+           `gates_nomination_categories`. This read `category_id` off the nomination
+           row — the denormalised copy of the FIRST one — so the email, the SMS and
+           the success page each named one of the three and said nothing about the
+           others. The nominator chose them deliberately and is told their nomination
+           went somewhere narrower than it did.
+
+           The row's own `category_id` is the fallback, for a nomination taken before
+           the table existed. */
+        $catNames = [];
+        try {
+            $catNames = DB::table('gates_nomination_categories as nc')
+                ->join('gates_award_categories as c', 'c.id', '=', 'nc.category_id')
+                ->where('nc.nomination_id', $nominationId)
+                ->orderBy('nc.sort_order')->orderBy('nc.id')
+                ->pluck('c.title')->all();
+        } catch (\Throwable) { $catNames = []; }
+
+        if ($catNames === [] && !empty($data['category_id'])) {
             try {
-                $catName = (string) (DB::table('gates_award_categories')
+                $one = (string) (DB::table('gates_award_categories')
                     ->where('id', (int) $data['category_id'])->value('title') ?? '');
+                if ($one !== '') $catNames = [$one];
             } catch (\Throwable) {}
         }
+
+        $catName = self::listOf($catNames);
         $catLine = $catName !== '' ? ($progName . ' · ' . $catName) : $progName;
 
         self::email($data, $mailer, $files, $baseUrl, $reference,
@@ -163,6 +200,27 @@ final class NominationAftercare
      * when the column does not exist on an unmigrated database, which is the single
      * case where there is nothing stored to disagree with.
      */
+    /**
+     * "A", "A and B", or "A, B and C" — the way a person would say a short list.
+     *
+     * One place, because this line is read in three: the confirmation email, the SMS
+     * and the success page. Three joins is three chances for one of them to come out
+     * as "Teaching,Leadership".
+     *
+     * @param list<string> $items
+     */
+    private static function listOf(array $items): string
+    {
+        $items = array_values(array_filter(array_map('trim', $items), static fn ($v) => $v !== ''));
+        $n = count($items);
+
+        if ($n === 0) return '';
+        if ($n === 1) return $items[0];
+
+        $last = array_pop($items);
+        return implode(', ', $items) . ' and ' . $last;
+    }
+
     private static function reference(int $nominationId): string
     {
         try {

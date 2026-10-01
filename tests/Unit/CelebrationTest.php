@@ -324,7 +324,23 @@ final class CelebrationTest extends TestCase
         // carries the library's own flag — because the check and the bursts are far
         // enough apart in the file for one to be edited without the other.
         $this->assertMatchesRegularExpression('~if \(quiet \|\| typeof window\.confetti[^)]*\) return;~', $js);
-        $this->assertSame(2, substr_count($js, 'disableForReducedMotion: true'),
+        // ── THE RULE, NOT THE SPELLING ──────────────────────────────────────
+        // This counted the LITERAL `disableForReducedMotion: true` and expected two.
+        // The rule it meant — every burst carries the flag — was right; the token was
+        // the way the flag happened to be written on the day. When the beats moved to
+        // a per-kind table the flag became an assignment on the options object, and
+        // the count went to zero against code that is MORE correct, not less: there
+        // are now two kinds and the flag is set on whichever one fires.
+        //
+        // So it is counted against the thing it has to cover. Every call to `fire`
+        // must have had the flag set for it, whether that is a key in a literal or a
+        // property set on the object a moment earlier.
+        $bursts = preg_match_all('~(?<![.\w])fire\(~', $js);
+        $flags  = substr_count($js, 'disableForReducedMotion: true')
+                + substr_count($js, 'disableForReducedMotion = true');
+
+        $this->assertGreaterThan(0, $bursts, 'no bursts found — the reader is broken');
+        $this->assertSame($bursts, $flags,
             'a burst was added without the reduced-motion flag');
         // And the count-up is motion too — honoured by the counter it delegates to,
         // which refuses to run under reduced motion on its own account. Asserted there

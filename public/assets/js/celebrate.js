@@ -71,6 +71,52 @@
     return c;
   }
 
+  /* ── THE KINDS, AND WHY THERE IS MORE THAN ONE ──────────────────────────
+     §24 of the app-ux standard asks for a distinct signature per moment, and the
+     reason is not variety: **a nomination is not a win**. Firing the winner's two
+     cannons when somebody has put a name forward tells them the award is theirs,
+     on the one screen where that is most likely to be believed and most costly to
+     be wrong about.
+
+     So `nominate` is its own, quieter shape — stars fanning from the badge on two
+     radii, then a light green-and-gold drift — and `win` is EXACTLY the choreography
+     this file has always fired, because an award page's moment is already right and
+     nothing about it should move.
+
+     One engine, a table of beats. A second celebration file would be two
+     implementations of one occasion, which is the shape this codebase pays for most
+     often; the skill asks for the same thing in its own words, under consistency. */
+  var KINDS = {
+    win: {
+      /* Two cannons from the lower corners, angled inward: a single source reads as
+         a party popper, two reads as a room. */
+      one: [
+        { particleCount: 62, angle: 62,  spread: 58, startVelocity: 52,
+          origin: { x: 0.06, y: 0.96 }, ticks: 240, scalar: 1.05,
+          colors: [GOLD, EMERALD, LEAF, PAPER] },
+        { particleCount: 62, angle: 118, spread: 58, startVelocity: 52,
+          origin: { x: 0.94, y: 0.96 }, ticks: 240, scalar: 1.05,
+          colors: [GOLD, EMERALD, LEAF, PAPER] }
+      ],
+      two: { particleCount: 42, spread: 150, startVelocity: 18, gravity: 0.62,
+             decay: 0.93, ticks: 320, scalar: 0.85, colors: [GOLD, PAPER, LEAF, INK] }
+    },
+    nominate: {
+      /* Stars, from the badge rather than the floor, on two radii — the outer ring
+         thrown further and the inner one hanging behind it, so the shape opens twice
+         instead of once. Roughly half the win's particle count: this is somebody
+         doing a generous thing, not somebody being crowned. */
+      one: [
+        { particleCount: 26, spread: 360, startVelocity: 26, gravity: 0.5, decay: 0.92,
+          ticks: 260, scalar: 1.1, shapes: ['star'], colors: [GOLD, LEAF] },
+        { particleCount: 16, spread: 360, startVelocity: 13, gravity: 0.45, decay: 0.9,
+          ticks: 300, scalar: 0.8, shapes: ['star'], colors: [GOLD, PAPER] }
+      ],
+      two: { particleCount: 26, spread: 120, startVelocity: 14, gravity: 0.55,
+             decay: 0.94, ticks: 300, scalar: 0.7, colors: [LEAF, GOLD, PAPER] }
+    }
+  };
+
   var AG = window.agCelebrate = function (opts) {
     opts = opts || {};
     var key = opts.key || location.pathname;
@@ -88,6 +134,10 @@
     if (figure && typeof window.agCount === 'function') window.agCount(figure);
     if (quiet || typeof window.confetti !== 'function') return;
 
+    // An unknown kind is the winner's, which is what every caller got before kinds
+    // existed — a typo in an attribute must not silently remove the celebration.
+    var shape = KINDS[opts.kind] || KINDS.win;
+
     var canvas = stage();
     // NO WORKER. canvas-confetti's worker is built from a Blob URL, and this site's CSP
     // has no `worker-src` — which falls back to `script-src`, and that is `'self'` plus a
@@ -98,34 +148,45 @@
     var fire = window.confetti.create(canvas, { resize: true, useWorker: false });
     var opened = Date.now();
 
+    // Measured at FIRE TIME rather than now: the badge can still be settling when
+    // the page opens, and a burst aimed at where it used to be lands beside it.
+    function ox() {
+      var box = opts.anchor ? opts.anchor.getBoundingClientRect() : null;
+      return box ? (box.left + box.width / 2) / window.innerWidth : 0.5;
+    }
+    function oy() {
+      var box = opts.anchor ? opts.anchor.getBoundingClientRect() : null;
+      // ABOVE the badge, never on it: spawned at its own top edge the field put a
+      // dense clump over the word it was celebrating — the one piece of the page a
+      // photograph of this moment is of.
+      return box ? Math.max(0, (box.top / window.innerHeight) - 0.06) : 0.2;
+    }
+
     // BEAT ONE — the field opens from the lower corners, angled inward, while the
     // number is still climbing. Two cannons rather than one centre burst: a single
     // source reads as a party popper, two reads as a room.
     setTimeout(function () {
-      [{ x: 0.06, angle: 62 }, { x: 0.94, angle: 118 }].forEach(function (s) {
-        fire({
-          particleCount: 62, angle: s.angle, spread: 58, startVelocity: 52,
-          origin: { x: s.x, y: 0.96 }, ticks: 240, scalar: 1.05,
-          colors: [GOLD, EMERALD, LEAF, PAPER],
-          disableForReducedMotion: true
-        });
-      });
+      for (var i = 0; i < shape.one.length; i++) {
+        var b = {}, src = shape.one[i], k;
+        for (k in src) if (Object.prototype.hasOwnProperty.call(src, k)) b[k] = src[k];
+        // A kind with no origin of its own opens from the badge, which is where the
+        // eye already is on a page that is not an award result.
+        if (!b.origin) b.origin = { x: ox(), y: oy() };
+        b.disableForReducedMotion = true;
+        fire(b);
+      }
     }, 240);
 
     // BEAT TWO — a slower, wider fall from above the badge as the number lands.
     setTimeout(function () {
-      var box = opts.anchor ? opts.anchor.getBoundingClientRect() : null;
-      var ox = box ? (box.left + box.width / 2) / window.innerWidth : 0.5;
       // ABOVE the badge, not on it. Spawning at the anchor's own top edge put a dense
       // clump directly over the word it was celebrating — the one piece of the page a
       // photograph of this moment is of.
-      var oy = box ? Math.max(0, (box.top / window.innerHeight) - 0.06) : 0.2;
-      fire({
-        particleCount: 42, spread: 150, startVelocity: 18, gravity: 0.62, decay: 0.93,
-        origin: { x: ox, y: oy }, ticks: 320, scalar: 0.85,
-        colors: [GOLD, PAPER, LEAF, INK],
-        disableForReducedMotion: true
-      });
+      var b = {}, k;
+      for (k in shape.two) if (Object.prototype.hasOwnProperty.call(shape.two, k)) b[k] = shape.two[k];
+      b.origin = { x: ox(), y: oy() };
+      b.disableForReducedMotion = true;
+      fire(b);
     }, 720);
 
     // Take the canvas away once the last particle can no longer be on it. Left in
@@ -147,7 +208,8 @@
     AG({
       key: host.getAttribute('data-celebrate') || location.pathname,
       figure: host.querySelector('[data-celebrate-figure]'),
-      anchor: host.querySelector('[data-celebrate-anchor]') || host
+      anchor: host.querySelector('[data-celebrate-anchor]') || host,
+      kind: host.getAttribute('data-celebrate-kind') || 'win'
     });
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot);
