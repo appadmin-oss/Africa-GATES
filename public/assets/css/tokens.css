@@ -236,3 +236,19 @@
   --ag-z-nav:50;
   --ag-z-loader:2147483000;
 }
+
+/* ── A DIRECTIONAL ICON MIRRORS AND NOTHING ELSE DOES ────────────────────────
+   `partials/icons.twig` marks the chevrons it draws for `back` and `next` with this
+   class. They are the only shapes on this site whose meaning is "the way you came"
+   and "onward", and in a right-to-left language that is the other way round.
+
+   Before this rule a grep for `rtl` across every stylesheet here returned nothing:
+   `<html dir>` was being written correctly by `lang_dir()` and no rule anywhere acted
+   on it, so a back chevron in Arabic pointed forward. It is scoped to the PATH rather
+   than the `<svg>` so a shield, a cog or a logo inside the same icon set cannot pick it
+   up — mirroring those is the same mistake in the other direction.
+
+   `transform-box` is spelled out: without it the origin is resolved against a box the
+   path does not have, and the mirrored chevron lands outside the 24×24 viewport — a
+   button that renders empty, which is how this rule fails if it is written short. */
+[dir="rtl"] .ag-ico-dir{ transform:scaleX(-1); transform-box:view-box; transform-origin:50% 50%; }

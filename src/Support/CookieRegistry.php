@@ -133,6 +133,7 @@ final class CookieRegistry
             ['key' => 'ag_intro',        'purpose' => 'Whether you have seen the introduction, so it is not shown twice.'],
             ['key' => 'ag-a11y',         'purpose' => 'Your display and reading settings — text size, high contrast, the easy-read font, line spacing, underlined links, reduced motion, data saver and read-aloud — so every page opens the way you set it. It is applied before the page paints, which is why it is kept on your device rather than fetched.'],
             ['key' => 'ag-celebrated:',  'purpose' => 'Which results you have already seen celebrated, so the animation plays once and not on every visit.'],
+            ['key' => 'ag-hide-bal',     'purpose' => 'Whether you asked for the balances on your account page to be covered up, so they stay covered on this device. It is read before the page paints — the whole point of the control is that the figure is never on the screen — which is why it is kept here rather than on your account.'],
             ['key' => 'coi_declared_',   'purpose' => 'For judges only: that you have made this programme\'s conflict-of-interest declaration on this device.'],
         ];
     }

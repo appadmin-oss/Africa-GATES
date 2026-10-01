@@ -177,6 +177,34 @@
 {%- elseif name == 'plus' %}<path d="M12 5v14M5 12h14"/>
 {%- elseif name == 'warn' %}<path d="M12 3.6 21.4 20H2.6Z"/><path d="M12 10v4.2M12 17.2v.1" stroke-width="2.2"/>
 {%- elseif name == 'clock' %}<circle cx="12" cy="12" r="9"/><path d="M12 7v5.3l3.2 2"/>
+{# ── added for the account phone hub (§2) ────────────────────────────────────
+   `back` and `next` are directional, and that is why they belong in this macro rather
+   than drawn inline in a page: a chevron that means "the way you came" has to mirror
+   under `dir="rtl"`, which `<html dir>` already carries, and NOTHING in this tree was
+   mirroring anything — a grep for `rtl` across every stylesheet returned no rules at
+   all. So the rule ships with the icons (see `.ag-ico-dir` in tokens.css), and a second
+   copy of the path typed into a template would point the wrong way in Arabic with
+   nothing on screen to say why. Not `shield-tick` or `gear`: a logo, a shield and a
+   cog are not directional, and mirroring them is the other half of the same mistake. #}
+{%- elseif name == 'back' %}<path class="ag-ico-dir" d="m15 18-6-6 6-6" stroke-width="2.2"/>
+{%- elseif name == 'next' %}<path class="ag-ico-dir" d="m9 6 6 6-6 6" stroke-width="2.2"/>
+{%- elseif name == 'gear' %}<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1Z"/>
+{%- elseif name == 'eye' %}<path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/>
+{%- elseif name == 'eye-off' %}<path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/><path d="M3 3l18 18"/>
+{# The eight tiles of the account phone hub. These paths are the DESIGN'S OWN — copied
+   out of `AccountPage.dc.html`'s `IC`/`BI` tables rather than redrawn, because a tile
+   grid is read as one shape and eight icons with four different stroke weights is the
+   way that reads as eight separate widgets. `sec()` below has its own `bag`, `ticket`,
+   `refer` and `heart`: those are the two-tone SECTION marks and carry a fixed hue, which
+   is right in a rail and wrong inside a tile that sets its own colour. #}
+{%- elseif name == 'vote' %}<path d="M4 12.5 9 17.5 20 6.5" stroke-width="2"/>
+{%- elseif name == 'bag' %}<path d="M5.5 8h13l-1 12h-11zM9 8V7a3 3 0 0 1 6 0v1" stroke-width="2"/>
+{%- elseif name == 'ticket' %}<path d="M4 7h16v4a2 2 0 0 0 0 4v4H4v-4a2 2 0 0 0 0-4z" stroke-width="2"/>
+{%- elseif name == 'refer' %}<path d="M16 11a4 4 0 1 0-8 0M3 21a9 9 0 0 1 18 0M19 8v6M22 11h-6" stroke-width="2"/>
+{%- elseif name == 'trophy' %}<path d="M6 4h12v4a6 6 0 0 1-12 0zM9 20h6M12 14v6M6 6H3v1a4 4 0 0 0 4 4M18 6h3v1a4 4 0 0 1-4 4" stroke-width="2"/>
+{%- elseif name == 'heart' %}<path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.6l-1-1a5.5 5.5 0 0 0-7.8 7.8L12 21l8.8-8.6a5.5 5.5 0 0 0 0-7.8Z" stroke-width="2"/>
+{%- elseif name == 'help' %}<path d="M12 17h.01M9.1 9a3 3 0 1 1 4 2.8c-.7.3-1.1 1-1.1 1.7V14" stroke-width="2"/>
+{%- elseif name == 'shield-tick' %}<path d="M12 2.4l7.6 2.7v5.8c0 4.7-3.1 8.3-7.6 10-4.5-1.7-7.6-5.3-7.6-10V5.1z"/><path d="m8.6 11.8 2.3 2.3 4.5-4.6"/>
 {%- endif -%}
 </svg>
 {% endmacro %}

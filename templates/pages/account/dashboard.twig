@@ -64,6 +64,15 @@
    referrals, where a member who has just seen their referral link is most likely
    to be looking for something to do with it. `vendor` keeps its place and its
    gate — the rail row below renders only for a member linked to a stall. #}
+{# ── WHAT THIS PAGE MAY SPEND ─────────────────────────────────────────────────
+   Tier 2, transactional: it asks a reader to redeem points and to withdraw money, and
+   `ColourBudgetTest` allows two colour events for that. It is declared now because §2's
+   tile grid is the first thing on this page to spend a role token at all — before it,
+   every colour here came from the `--me-*` block below, which is literal and invisible
+   to that sweep. Declaring a tier opts the whole page in, including the legacy aliases:
+   a `var(--ag-gold…)` anywhere on it is charged as honour from this line onward. #}
+{% set colour_tier = '2' %}
+
 {% set me_tabs = ['overview','points','referral','challenges','purchases','vendor','activity','saved','security','settings'] %}
 
 {% block head_styles %}
@@ -98,6 +107,21 @@
     // form is still accepted so links shared before this change keep working.
     var h  = (location.hash || '').replace('#','').replace(/^me-/,'');
     document.documentElement.setAttribute('data-me', ok.indexOf(h) >= 0 ? h : 'overview');
+
+    // ── AND THE BALANCE ANSWER, HERE RATHER THAN AT THE FOOT ─────────────────
+    // "Hide my balances" is only worth having if the balance is never painted. Applied
+    // from the foot script it would be applied AFTER layout, so the number a member
+    // asked us to hide appears for a frame on every single load — which on a slow
+    // connection is not a frame, it is a second. This script is synchronous and first.
+    //
+    // Wrapped, because `localStorage` THROWS rather than returning null in a private
+    // window and behind blocked site data; an exception here aborts the whole function
+    // and takes the section choice above it with it, leaving every tab dead.
+    try {
+      if (localStorage.getItem('ag-hide-bal') === '1') {
+        document.documentElement.setAttribute('data-bal', 'hidden');
+      }
+    } catch (e) {}
   })();
 </script>
 <style nonce="{{ csp_nonce }}">
@@ -450,6 +474,184 @@
   .me-key__n{ display:block; font-size:14px; font-weight:700; }
   .me-key__m{ display:block; margin-top:3px; font-size:13px; line-height:1.5; color:var(--me-mute); }
 
+
+  /* ══ §2 · THE PHONE HUB ════════════════════════════════════════════════════
+
+     NO `var(--x, #fallback)` ANYWHERE BELOW, and that is `NoLiteralHexTest`'s rule
+     rather than a style preference. A fallback hex is a second declaration of the
+     colour that nothing updates when the token moves, so the day `--ag-green-wash` is
+     retuned this page keeps the old one — silently, and only on the machines where the
+     stylesheet failed to load, which is nobody's machine during review. tokens.css is
+     loaded by the layout on every page this template can be reached from; if it is not
+     there, one wrong wash is the least of what is wrong.
+
+     Everything below 600px. The breakpoint is 599/600 and not this file's existing
+     900px rail breakpoint, because they answer different questions: 900 is "does the
+     rail fit beside the pane", 600 is `app-ux-standards` §0.2's phone boundary — the
+     width at which this stops being a page with a sidebar and becomes a home screen
+     with child views. Between them (600–900) the rail is the horizontal strip it
+     already was. */
+
+  .me-ph{ display:none; }
+  .me-quick{ display:none; }
+  .me-more{ display:none; }
+
+  /* The eye toggle and the money it hides. `.me-dots` is the stand-in and it is
+     `display:none` rather than `visibility:hidden` — a hidden-but-present balance is
+     still read aloud, and a member hiding their balance on a bus wants it hidden from
+     the person beside them AND from anything speaking into an earpiece. Swapping
+     `display` takes the real figure out of the accessibility tree entirely. */
+  .me-dots{ display:none; letter-spacing:.06em; }
+  [data-bal="hidden"] .me-cash{ display:none; }
+  [data-bal="hidden"] .me-dots{ display:inline; }
+  .me-eye{ width:36px; height:36px; margin:-9px -6px -9px 2px; padding:0; border:0; border-radius:50%;
+    background:transparent; color:var(--me-mute); display:inline-flex; align-items:center;
+    justify-content:center; vertical-align:middle; cursor:pointer; }
+  .me-eye:hover{ background:rgba(16,41,44,.06); color:var(--me-ink); }
+  .me-eye:focus-visible{ outline:3px solid var(--me-accent); outline-offset:2px; }
+  .me-eye__off{ display:none; }
+  [data-bal="hidden"] .me-eye__on{ display:none; }
+  [data-bal="hidden"] .me-eye__off{ display:inline-flex; }
+
+  /* Referral earnings, in the foot of the balance panel. */
+  .me-earn{ display:flex; align-items:center; justify-content:space-between; gap:10px;
+    flex-wrap:wrap; margin-top:14px; padding-top:13px; border-top:1px solid var(--me-line); }
+  .me-earn__b{ display:flex; flex-direction:column; gap:2px; min-width:0; }
+  .me-earn__v{ font-size:16px; font-variant-numeric:tabular-nums; }
+  .me-earn__ok{ font-size:12.5px; font-weight:600; color:var(--ag-green-deep); }
+  .me-earn__why{ font-size:13px; line-height:1.45; color:var(--me-mute); max-width:30ch; }
+
+  /* ── the eight tiles ──────────────────────────────────────────────────────
+     Four columns at every width this renders at. The DC draws them beside the balance
+     card on a wide desktop; here they are a phone control only, because the desktop
+     page already has the rail and a second grid of the same destinations beside it is
+     the same fact twice — §0.5. */
+  .me-quick{ grid-template-columns:repeat(4,minmax(0,1fr)); gap:4px;
+    padding:8px 4px; background:var(--me-panel); border:1px solid var(--me-line);
+    border-radius:18px; }
+  .me-quick__i{ display:flex; flex-direction:column; align-items:center; gap:7px;
+    min-height:76px; padding:8px 2px; border-radius:14px; color:var(--me-ink);
+    text-align:center; text-decoration:none; }
+  .me-quick__i:active{ background:rgba(16,41,44,.05); }
+  .me-quick__i:focus-visible{ outline:3px solid var(--me-accent); outline-offset:-2px; }
+  .me-quick__t{ position:relative; width:46px; height:46px; border-radius:15px;
+    display:flex; align-items:center; justify-content:center; }
+  
+  .me-quick__l{ font-size:12.5px; font-weight:600; line-height:1.2; }
+  /* ── ONE GROUND, FIVE INKS, AND THAT IS A BUDGET DECISION ────────────────────
+     `AccountPage.dc.html` fills each tile with its own wash — green, blue, pink, gold,
+     grey. Four washes is four COLOUR EVENTS by `ColourBudgetTest`'s definition (a tile
+     is named in it explicitly), and this page is tier 2: it asks a reader to redeem and
+     to withdraw, and it may spend two. Eight tinted squares in a row is also the thing
+     that rule exists for — the grid reads as eight unrelated widgets rather than one
+     control, which is the same finding the globe band's ring produced.
+
+     So the GROUND is one neutral for all eight and the hue is in the icon. The kinds
+     stay distinguishable, which is what the tints were doing, and `1.4.1` is satisfied
+     by the label under each one rather than by the colour. The sweep does not charge an
+     ink, and it is right not to: a 21px stroke is a word, not an area. */
+  .me-quick__t{ background:var(--me-paper); }
+  .me-quick__t--green{ color:var(--ag-green); }
+  .me-quick__t--info{  color:var(--ag-info); }
+  .me-quick__t--live{  color:var(--ag-live-ink); }
+  .me-quick__t--gold{  color:var(--ag-gold-ink); }
+  .me-quick__t--ink{   color:var(--me-ink); }
+  .me-quick__d{ position:absolute; top:-3px; right:-3px; min-width:18px; height:18px;
+    padding:0 5px; box-sizing:border-box; border-radius:999px;
+    /* The ring is the card it sits on so the badge reads as lifted off it; the text is
+       `--ag-surface` because that is the token for white, and this file's literal budget
+       is frozen: a bare three-digit white here fails `NoLiteralHexTest` by one. And it
+       is SPELLED that way rather than quoted, because the sweep strips Twig comments and
+       not CSS ones — quoting the value inside the comment explaining its removal trips
+       the very guard being documented, which is a shape this repo has paid for before. */
+    border:2px solid var(--me-panel); background:var(--ag-live); color:var(--ag-surface);
+    font:700 10px/14px var(--ag-font-ui,inherit); }
+
+  /* ── "Your account" ───────────────────────────────────────────────────────── */
+  .me-more{ flex-direction:column; gap:8px; margin-top:16px; }
+  .me-more__h{ margin:0; padding:0 4px; font-size:13px; font-weight:600; color:var(--me-mute); }
+  .me-more__l{ display:flex; flex-direction:column; background:var(--me-panel);
+    border:1px solid var(--me-line); border-radius:18px; overflow:hidden; }
+  .me-more__i{ display:flex; align-items:center; gap:14px; min-height:56px; padding:0 16px;
+    color:var(--me-ink); text-decoration:none; }
+  .me-more__i + .me-more__i{ border-top:1px solid var(--me-line); }
+  .me-more__i:active{ background:rgba(16,41,44,.05); }
+  .me-more__i:focus-visible{ outline:3px solid var(--me-accent); outline-offset:-3px; }
+  .me-more__t{ flex:none; width:32px; height:32px; border-radius:10px;
+    background:var(--me-paper); display:flex; align-items:center; justify-content:center; }
+  .me-more__n{ flex:1; min-width:0; font-size:15.5px; font-weight:500; }
+  .me-more__c{ flex:none; font-size:13px; color:var(--me-mute);
+    font-variant-numeric:tabular-nums; }
+  .me-more__g{ flex:none; color:var(--ag-chevron); display:flex; }
+
+  @media (max-width:599px){
+    .me-ph{ display:block; }
+    .me-quick{ display:grid; }
+    .me-more{ display:flex; }
+
+    /* The rail is a desktop control; the list above replaces it. And the desktop
+       header goes with it — the greeting row IS that header, rewritten for a screen
+       where the name, the email and the join date cost the whole first fold. */
+    .me-rail{ display:none; }
+    .me-top{ display:none; }
+
+    .me-ph__home{ display:flex; align-items:center; gap:12px; min-height:60px; padding:4px 0; }
+    .me-ph__ava{ flex:none; width:44px; height:44px; border-radius:50%;
+      background:var(--me-ink); color:var(--me-paper); display:flex; align-items:center;
+      justify-content:center; font-weight:700; font-size:14px; }
+    .me-ph__who{ flex:1; min-width:0; display:flex; flex-direction:column; gap:1px; }
+    .me-ph__who b{ font-size:17px; }
+    .me-ph__vf{ display:flex; align-items:center; gap:5px; font-size:12.5px; font-weight:600;
+      color:var(--ag-green-deep); }
+    .me-ph__ico{ flex:none; width:44px; height:44px; border:0; border-radius:50%;
+      background:transparent; color:var(--me-ink); display:flex; align-items:center;
+      justify-content:center; cursor:pointer; }
+    .me-ph__ico:active{ background:rgba(16,41,44,.06); }
+    .me-ph__ico:focus-visible{ outline:3px solid var(--me-accent); outline-offset:-1px; }
+
+    /* ── the child bar ────────────────────────────────────────────────────────
+       Shown for every section but Overview, and for NO section when `data-me` is
+       absent — which is the no-script reading, where every section is on the page at
+       once and "back" would be a lie. */
+    .me-ph__child{ display:none; align-items:center; gap:4px; min-height:56px;
+      margin:0 calc(var(--ag-gutter,16px) * -1); padding:0 8px 0 4px;
+      border-bottom:1px solid var(--me-line); }
+    .me-ph__back{ flex:none; width:44px; height:44px; border-radius:50%; color:var(--me-ink);
+      display:flex; align-items:center; justify-content:center; }
+    .me-ph__back:active{ background:rgba(16,41,44,.06); }
+    .me-ph__back:focus-visible{ outline:3px solid var(--me-accent); outline-offset:-1px; }
+    .me-ph__t{ display:none; flex:1; min-width:0; font-weight:700; font-size:17px; }
+
+    [data-me]:not([data-me="overview"]) .me-ph__home{ display:none; }
+    [data-me]:not([data-me="overview"]) .me-ph__child{ display:flex; }
+    /* The child bar carries the title, so the section's own heading would be the same
+       words twice, 56px apart. Hidden from the EYE and kept for the outline — it is the
+       target of `aria-labelledby` on every section, and `display:none` would leave ten
+       landmarks with no accessible name at all. */
+    [data-me]:not([data-me="overview"]) .me-sec__h > h2{
+      position:absolute; width:1px; height:1px; margin:-1px; padding:0; overflow:hidden;
+      clip:rect(0 0 0 0); clip-path:inset(50%); white-space:nowrap; border:0; }
+    /* A pushed view is its own screen: the promo band belongs to the home. */
+    [data-me]:not([data-me="overview"]) .pb{ display:none; }
+
+    /* Searching replaces the greeting row with the one field. The field is the SAME
+       `#meFind` the desktop header carries — moved, not copied: a second input would be
+       a second id, a second listener, and two boxes that disagree about what is typed. */
+    .me-finding .me-ph__home{ display:none; }
+    .me-finding .me-top{ display:flex; padding:0; margin:0; min-height:60px; }
+    .me-finding .me-ava, .me-finding .me-who, .me-finding .me-top__act > .me-btn{ display:none; }
+    .me-finding .me-top__act{ width:100%; margin:0; }
+    .me-finding .me-find{ width:100%; }
+  }
+
+  /* GENERATED from `me_tabs`, like the two blocks above it, for the same reason: this
+     is the third place a section id is spelled and the two hand-written ones each
+     shipped a section nobody could reach. */
+  {% for t in me_tabs %}
+  [data-me="{{ t }}"] .me-ph__t[data-me-title="{{ t }}"]{{ loop.last ? '' : ',' }}
+  {% endfor %}
+  { display:block; }
+
   @media print{ .me-rail, .me-top__act, .me-find{ display:none } [data-me] .me-sec{ display:block } }
 </style>
 {% endblock %}
@@ -474,7 +676,93 @@
 {% set open_steps = checklist|default([])|filter(s => not s.done) %}
 {% set initials = (user.name|default('?')|split(' ')|map(w => w|first)|slice(0,2)|join)|upper %}
 
+{# ── THE SECTION LIST IS READ IN THREE PLACES NOW, SO IT IS SET IN ONE ───────
+   It used to sit inside `<nav class="me-rail">`, which was fine while the rail was the
+   only reader. The phone hub added two more — the child bar's title, and the "Your
+   account" list that replaces the rail at phone width — and a second copy of this array
+   is the fault this file has already paid for twice (the referral panel, then the stall).
+   A `{% set %}` is visible to everything AFTER it in the same block, so it is hoisted
+   here rather than duplicated. #}
+{% set rail = [
+  {'id':'overview',  'label':'Overview',  'ico':'overview', 'n':null},
+  {'id':'points',    'label':'Points',    'ico':'points',   'n':counts.points|default(0)},
+  {'id':'referral',  'label':'Referrals', 'ico':'refer',    'n':referral.referrals|default(0)},
+  {'id':'challenges','label':'Challenges','ico':'spark',    'n':(my_challenges|default([]))|length},
+  {'id':'purchases', 'label':'Purchases', 'ico':'bag',      'n':counts.purchases|default(0)},
+  {'id':'vendor',    'label':'Your stall', 'ico':'stand',
+   'n':(vendor ? (vendor.live_offers|length ?: (vendor.applications|length ?: null)) : null),
+   'on':(vendor is not null)},
+  {'id':'activity',  'label':'Activity',  'ico':'activity', 'n':counts.activity|default(0)},
+  {'id':'saved',     'label':'Saved',     'ico':'saved',    'n':counts.saved|default(0)},
+  {'id':'security',  'label':'Security',  'ico':'shield',   'n':null},
+  {'id':'settings',  'label':'Settings',  'ico':'settings', 'n':null}
+] %}
+
 <div class="me" id="me">
+
+  {# ══ §2 · THE PHONE HUB ════════════════════════════════════════════════════
+
+     At phone width this page is not the desktop page in one column. It is a HOME
+     (greeting, balance, eight tiles, a list of everywhere else) and a set of CHILD
+     VIEWS you are pushed into, each with a back button — which is the shape
+     `app-ux-standards` §0.1 and §2 require and the shape `AccountPage.dc.html`
+     draws. The rail is a desktop control and is hidden below 600px; the list at the
+     foot of Overview replaces it.
+
+     WHICH OF THE TWO BARS IS SHOWING IS DECIDED BY CSS, from the same `data-me`
+     attribute the head script writes before first paint. Not by a second script and
+     not by a server-side guess at the viewport: the attribute is already there when
+     the first pixel is painted, so there is no frame in which the wrong bar is up.
+
+     And with NO script at all `data-me` is absent, every section is visible, and this
+     resolves to the greeting bar over a long page — the same no-JS reading the rest
+     of this file already has. That is why the selectors below key off
+     `:not([data-me])` as well as `[data-me="overview"]`, rather than assuming the
+     attribute exists. #}
+  <div class="me-ph">
+    <div class="me-ph__home">
+      {# Not a link. The DC's avatar opens a public profile page; this site has no
+         public member profile to open, and a 404 behind an avatar is worse than an
+         avatar that does nothing. It stays the initials badge it is on desktop. #}
+      <span class="me-ph__ava" aria-hidden="true">{{ initials }}</span>
+      <span class="me-ph__who">
+        <b>Hi, {{ user.name|split(' ')|first }}</b>
+        {# Read off `gates_users.email_verified`, which is the only verification this
+           platform records for a member. Absent rather than reworded when it is not
+           set: "Unverified member" is an accusation on somebody's own home screen,
+           and the checklist above already asks for the thing that fixes it. #}
+        {% if user.email_verified %}
+        <span class="me-ph__vf">{{ gi.ui('shield-tick', 13) }}Verified member</span>
+        {% endif %}
+      </span>
+      {# Reveals the one search field — the same `#meFind` the desktop header carries.
+         A second input with the same job would be a second id and a second listener;
+         this moves the field, it does not copy it. Hidden until pressed because a
+         60px greeting row with a full-width search box under it pushes the balance
+         below the fold on a 390×844 screen. #}
+      <button type="button" class="me-ph__ico" id="mePhFind"
+              aria-controls="meFind" aria-expanded="false"
+              aria-label="Search your account">{{ gi.ui('search', 21) }}</button>
+      <a class="me-ph__ico" href="#me-settings" data-me-go="settings"
+         aria-label="Settings">{{ gi.ui('gear', 21) }}</a>
+    </div>
+
+    {# The child bar. Every title is in the document and CSS reveals the one that
+       matches `data-me` — generated from the same `rail` array, so a section added
+       there arrives here with it. The alternative is the controller passing a title,
+       which it cannot: the section is chosen by the HASH, which never reaches the
+       server. #}
+    <div class="me-ph__child">
+      <a class="me-ph__back" href="#me-overview" data-me-go="overview"
+         aria-label="Back to your account">{{ gi.ui('back', 22) }}</a>
+      {# `role="heading"` and not an `<h2>`: there are ten of these in the document and
+         only one is ever displayed, but a hidden `<h2>` still sits in the outline of
+         the page for a reader walking headings. `display:none` keeps it out of both. #}
+      {% for r in rail %}
+        <span class="me-ph__t" data-me-title="{{ r.id }}" role="heading" aria-level="2">{{ r.label }}</span>
+      {% endfor %}
+    </div>
+  </div>
 
   <header class="me-top">
     <span class="me-ava" aria-hidden="true">{{ initials }}</span>
@@ -523,20 +811,6 @@
        how many this member is ACTIVELY in, never how many are running. A badge
        counting other people's opportunities never goes down, and a badge that never
        goes down is one people stop reading. #}
-      {% set rail = [
-        {'id':'overview',  'label':'Overview',  'ico':'overview', 'n':null},
-        {'id':'points',    'label':'Points',    'ico':'points',   'n':counts.points|default(0)},
-        {'id':'referral',  'label':'Referrals', 'ico':'refer',    'n':referral.referrals|default(0)},
-        {'id':'challenges','label':'Challenges','ico':'spark',    'n':(my_challenges|default([]))|length},
-        {'id':'purchases', 'label':'Purchases', 'ico':'bag',      'n':counts.purchases|default(0)},
-        {'id':'vendor',    'label':'Your stall', 'ico':'stand',
-         'n':(vendor ? (vendor.live_offers|length ?: (vendor.applications|length ?: null)) : null),
-         'on':(vendor is not null)},
-        {'id':'activity',  'label':'Activity',  'ico':'activity', 'n':counts.activity|default(0)},
-        {'id':'saved',     'label':'Saved',     'ico':'saved',    'n':counts.saved|default(0)},
-        {'id':'security',  'label':'Security',  'ico':'shield',   'n':null},
-        {'id':'settings',  'label':'Settings',  'ico':'settings', 'n':null}
-      ] %}
       {% for r in rail %}
         {% if (r.on is not defined or r.on) and (r.id != 'saved' or r.n > 0) %}
         <a class="me-rail__i" href="#me-{{ r.id }}" data-me-go="{{ r.id }}"
@@ -617,8 +891,21 @@
         <div class="me-panel">
           <div class="me-hero">
             <div>
-              <span class="me-hero__k">Voting points</span>
-              <span class="me-hero__n" data-find="points balance">{{ points|number_format }}<span class="me-hero__u">pts</span></span>
+              <span class="me-hero__k">Voting points
+                {# ── HIDING A BALANCE IS A JS-ONLY FEATURE, DELIBERATELY ──────────
+                   The button ships `hidden` and `me.js` reveals it, because the state
+                   lives in `localStorage` and a control that cannot remember its own
+                   answer is worse than no control: you hide the number, navigate, and
+                   it is back. The HEAD script applies the stored answer before first
+                   paint — not this one — so there is no frame in which the balance a
+                   member asked us to hide is on the screen. #}
+                <button type="button" class="me-eye" id="meEye" hidden
+                        aria-pressed="false" aria-label="Hide balances">
+                  <span class="me-eye__on">{{ gi.ui('eye', 18) }}</span>
+                  <span class="me-eye__off">{{ gi.ui('eye-off', 18) }}</span>
+                </button>
+              </span>
+              <span class="me-hero__n" data-find="points balance"><span class="me-cash">{{ points|number_format }}</span><span class="me-dots" aria-hidden="true">••••</span><span class="me-hero__u">pts</span></span>
             </div>
             <div class="me-hero__f">
               <div>
@@ -662,7 +949,72 @@
             {% if points_enabled and redeemable > 0 %}<a class="me-btn me-btn--go" href="/vote">Redeem at the ballot {{ gi.ui('go', 15) }}</a>{% endif %}
             <a class="me-btn" href="#me-points" data-me-go="points">Points history</a>
           </div>
+
+          {# ── WHAT IS WAITING TO BE WITHDRAWN, ON THE PANEL YOU LOOK AT ─────────
+             §2 puts referral earnings in the foot of the balance card rather than only
+             inside Referrals, and the reason is the one number on this account that is
+             MONEY: a member who has earned it and never opens that section never learns
+             it is there. `payout_can` is `ReferralPayout::available()`, which answers
+             "can they" and "why not" together — so the row either offers the withdrawal
+             or says what is in the way, and never shows a button that refuses. #}
+          {% if referral.accrued_naira|default(0) > 0 %}
+          <div class="me-earn">
+            <span class="me-earn__b">
+              <span class="me-fact__k">Referral earnings</span>
+              {# `accrued_naira`, not `payable_naira`: what has been EARNED is the figure a
+                 member recognises, and the payable one is zero until the fifth paid booking
+                 unlocks it — a row reading ₦0 beside "Referral earnings" on an account that
+                 has earned four thousand naira is the panel contradicting itself. The
+                 withdrawable figure is the one on the button, where it is the subject. #}
+              <b class="me-earn__v"><span class="me-cash">₦{{ referral.accrued_naira|number_format }}</span><span class="me-dots" aria-hidden="true">₦••••</span>{% if payout_can %} <span class="me-earn__ok">₦{{ payout_amount|number_format }} ready</span>{% endif %}</b>
+            </span>
+            {% if payout_can %}
+              <a class="me-btn" href="#me-referral" data-me-go="referral">Withdraw</a>
+            {% else %}
+              <span class="me-earn__why">{{ payout_why }}</span>
+            {% endif %}
+          </div>
+          {% endif %}
         </div>
+
+        {# ══ §2 · THE EIGHT TILES ═══════════════════════════════════════════════
+           The destinations a member came here to reach, where a thumb reaches them.
+           Four of the eight are `#me-…` links into this page's own sections and four
+           leave it, and that mixture is the point: the tile grid is the answer to "what
+           now", not a second rail.
+
+           EVERY BADGE IS A COUNT OF THIS MEMBER'S OWN THINGS. The challenges badge is
+           what they are IN, never what is running — a badge counting other people's
+           opportunities never goes down, and a badge that never goes down is one people
+           stop reading. Same reason the rail's count works that way. #}
+        {% set quick = [
+          {'to':'/vote',          'label':'Vote',         'ico':'vote',   'tone':'green'},
+          {'to':'/nominate',      'label':'Nominate',     'ico':'plus',   'tone':'green'},
+          {'to':'/events',        'label':'Tickets',      'ico':'ticket', 'tone':'info'},
+          {'to':'#me-referral',   'label':'Refer & earn', 'ico':'refer',  'tone':'live',
+           'n':referral.referrals|default(0)},
+          {'to':'#me-challenges', 'label':'Challenges',   'ico':'trophy', 'tone':'gold',
+           'n':(my_challenges|default([]))|length},
+          {'to':'#me-purchases',  'label':'Orders',       'ico':'bag',    'tone':'info',
+           'n':counts.purchases|default(0)},
+          {'to':'/giving',        'label':'Giving',       'ico':'heart',  'tone':'live'},
+          {'to':'/help',          'label':'Help',         'ico':'help',   'tone':'ink'}
+        ] %}
+        <nav class="me-quick" aria-label="Quick actions">
+          {% for a in quick %}
+          <a class="me-quick__i" href="{{ a.to }}"{% if a.to starts with '#me-' %} data-me-go="{{ a.to|slice(4) }}"{% endif %}>
+            <span class="me-quick__t me-quick__t--{{ a.tone }}" aria-hidden="true">
+              {{ gi.ui(a.ico, 21) }}
+              {% if a.n|default(0) > 0 %}<span class="me-quick__d">{{ a.n > 9 ? '9+' : a.n }}</span>{% endif %}
+            </span>
+            <span class="me-quick__l">{{ a.label }}</span>
+            {# The badge is `aria-hidden` above because it is a glyph on a tile. The count
+               it carries still has to reach a reader who cannot see it, so it is said in
+               words in the link's own name rather than left as a decoration. #}
+            {% if a.n|default(0) > 0 %}<span class="sr-only">, {{ a.n }}</span>{% endif %}
+          </a>
+          {% endfor %}
+        </nav>
 
         {% if open_steps is not empty %}
         <div class="me-panel">
@@ -714,6 +1066,36 @@
           </ul>
         </div>
         {% endif %}
+
+        {# ══ §2 · "YOUR ACCOUNT", AND IT IS THE RAIL ════════════════════════════
+           Phone only. The rail is a desktop control — a horizontal strip of ten chips on
+           a 390px screen hides six of them behind a scroll nobody is told about — so at
+           phone width it is hidden and this list is how you get anywhere. A 56px row with
+           the count and a chevron, which is §18's shape and the DC's.
+
+           It is the SAME `rail` array, with the same `on` gate: the stall row appears for
+           a linked vendor and not otherwise. A hand-written copy here would be the fourth
+           list in this file, and the first three each shipped a section that was
+           unreachable. Overview is dropped because this list is ON Overview.
+
+           It renders at every width and CSS hides it above 599px. Server-side it cannot
+           know the viewport, and a width guess in Twig would be wrong for the half of
+           this audience on a device nobody tested. #}
+        <section class="me-more" aria-label="Your account">
+          <h2 class="me-more__h">Your account</h2>
+          <div class="me-more__l">
+            {% for r in rail %}
+              {% if r.id != 'overview' and (r.on is not defined or r.on) and (r.id != 'saved' or r.n > 0) %}
+              <a class="me-more__i" href="#me-{{ r.id }}" data-me-go="{{ r.id }}">
+                <span class="me-more__t" aria-hidden="true">{{ gi.sec(r.ico, 16) }}</span>
+                <span class="me-more__n">{{ r.label }}</span>
+                {% if r.n %}<span class="me-more__c">{{ r.n }}</span>{% endif %}
+                <span class="me-more__g" aria-hidden="true">{{ gi.ui('next', 16) }}</span>
+              </a>
+              {% endif %}
+            {% endfor %}
+          </div>
+        </section>
       </section>
 
       {# ══ POINTS ════════════════════════════════════════════════════════ #}
@@ -1713,6 +2095,79 @@
       timer = setTimeout(runFind, 120);
     });
     find.addEventListener('keydown', function (e) { if (e.key === 'Escape') { find.value = ''; runFind(); } });
+  }
+
+  // ── the eye ───────────────────────────────────────────────────────────────
+  //
+  // Revealed here and not rendered visible, because the answer lives in `localStorage`
+  // and a control that forgets what you told it is worse than no control: you hide the
+  // number, open Points, and it is back. No storage, no button.
+  var eye = document.getElementById('meEye');
+  if (eye) {
+    // The probe WRITES, because reading is not the thing that fails: in a private window
+    // `getItem` answers null quite happily and `setItem` throws, so a read-only probe
+    // reveals a button whose answer is discarded the moment it is given.
+    //
+    // It writes the REAL key — its own current value, or the default — rather than a
+    // scratch one. A throwaway probe key is still a key this site writes to somebody's
+    // device, and `/cookies` has to declare every one of those by name (CookieRegistry);
+    // declaring a key that exists for four milliseconds is a legal document describing
+    // something nobody could ever observe. `CookieRegistryTest` caught exactly that.
+    var store = null;
+    try {
+      localStorage.setItem('ag-hide-bal', localStorage.getItem('ag-hide-bal') === '1' ? '1' : '0');
+      store = localStorage;
+    } catch (e) { store = null; }
+    if (store) {
+      eye.hidden = false;
+      var paintEye = function () {
+        var off = root.getAttribute('data-bal') === 'hidden';
+        eye.setAttribute('aria-pressed', off ? 'true' : 'false');
+        // The LABEL is the action, not the state: a button announcing "Balances hidden"
+        // tells a reader where they are and not what pressing it does.
+        eye.setAttribute('aria-label', off ? 'Show balances' : 'Hide balances');
+      };
+      paintEye();
+      eye.addEventListener('click', function () {
+        var off = root.getAttribute('data-bal') === 'hidden';
+        if (off) { root.removeAttribute('data-bal'); } else { root.setAttribute('data-bal', 'hidden'); }
+        try { store.setItem('ag-hide-bal', off ? '0' : '1'); } catch (e) {}
+        paintEye();
+        if (window.agAnnounce) window.agAnnounce(off ? 'Balances shown' : 'Balances hidden');
+      });
+    }
+  }
+
+  // ── the phone hub's search button ─────────────────────────────────────────
+  //
+  // It REVEALS the one field, it does not own a second one. `me-finding` on the root
+  // swaps the greeting row for the header the field already lives in, so what is typed,
+  // what is announced and what is filtered all stay with `#meFind`.
+  var phFind = document.getElementById('mePhFind');
+  if (phFind && find) {
+    var closeFind = function () {
+      root.classList.remove('me-finding');
+      phFind.setAttribute('aria-expanded', 'false');
+      phFind.focus();
+    };
+    phFind.addEventListener('click', function () {
+      root.classList.add('me-finding');
+      phFind.setAttribute('aria-expanded', 'true');
+      find.focus();
+    });
+    // Escape already clears the query (above). Here it also puts the greeting row back
+    // and returns focus to the button that opened it — §6.5. An empty field on blur does
+    // the same, because a search row left open over a page nobody is searching is 60px
+    // of the first fold spent on nothing.
+    find.addEventListener('keydown', function (e) {
+      if (e.key === 'Escape' && root.classList.contains('me-finding')) closeFind();
+    });
+    find.addEventListener('blur', function () {
+      if (!find.value && root.classList.contains('me-finding')) {
+        root.classList.remove('me-finding');
+        phFind.setAttribute('aria-expanded', 'false');
+      }
+    });
   }
 
   // ── ledger filter ─────────────────────────────────────────────────────────
