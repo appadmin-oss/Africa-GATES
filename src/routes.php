@@ -2641,6 +2641,26 @@ return function(App $app) {
         $g->get('/cookies', fn($req,$res)=>$legalRender($req,$res,'cookies'));
 
         /**
+         * The nominee's own answer — /n/confirm/{token}
+         *
+         * A short path on purpose: it travels inside a 160-character SMS beside a
+         * sentence that has to explain itself to somebody who did not ask to be
+         * contacted, and every character of path is one not available to the
+         * explanation.
+         *
+         * The token is constrained to its exact shape, so a probe for
+         * `/n/confirm/../../something` never reaches the handler and a mistyped link
+         * is a 404 from the router rather than a database lookup on rubbish.
+         */
+        $nomineeConfirm = new \AfricaGates\Controllers\NomineeConfirmController(
+            $container->get(\Slim\Views\Twig::class));
+
+        $g->get('/n/confirm/{token:[a-f0-9]{40}}',
+            fn($req, $res, $args) => $nomineeConfirm->show($req, $res, $args));
+        $g->post('/n/confirm/{token:[a-f0-9]{40}}',
+            fn($req, $res, $args) => $nomineeConfirm->answer($req, $res, $args));
+
+        /**
          * POST /cookies/choice — the answer, from the page or from the notice.
          *
          * ── A FORM POST, WITH NO JAVASCRIPT ANYWHERE IN THE PATH ─────────────

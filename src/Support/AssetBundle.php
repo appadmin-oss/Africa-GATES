@@ -84,6 +84,8 @@ final class AssetBundle
         // Forms. After components.css's `.ag-field`, because it adds the invalid and
         // summary states to that base rather than redeclaring it.
         'assets/css/components/forms.css',
+        // The nominee's confirmation screen: one card, no chrome, two equal answers.
+        'assets/css/components/nominee-confirm.css',
         // The immersive mobile Pulse feed. After site-search so its
         // body[data-page="pulse"] overrides win over the generic components, and
         // before a11y.css, which must stay last.

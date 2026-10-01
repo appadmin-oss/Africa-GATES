@@ -1,0 +1,78 @@
+{% extends "layout/gates.twig" %}
+{#
+  THE ONE PLACE A NOMINEE IS ASKED ANYTHING — /n/confirm/{token}
+
+  Somebody else has entered this person's name into a public award. This page is the
+  only point at which they are asked whether that is all right, and whoever opens it is
+  by definition not signed in and may never have heard of this platform.
+
+  So three things are load-bearing:
+
+  · BOTH ANSWERS ARE BUTTONS. "Yes" as a button and "No" as grey text is the pattern
+    this codebase's cookie notice exists to forbid, and the stakes here are higher than
+    analytics — it is whether a named person appears in a public award. The two carry
+    an identical class string and differ only in their accent.
+
+  · IT WORKS WITH NO JAVASCRIPT. Two plain POSTs. A privacy or consent control that
+    needs JavaScript is missing for exactly the people most likely to block it, and this
+    arrives as an SMS link opened in whatever browser the phone defaults to.
+
+  · NOTHING IS PREFILLED ABOUT THEM BEYOND WHAT THE NOMINATOR ALREADY KNEW. The page
+    shows the nominator's name and the award, because that is what makes the request
+    legible. It does not show the reason written about them: that is a third party's
+    words, it is not yet moderated, and a page anybody with the link can open is not
+    where it belongs.
+#}
+
+{% block title %}Did {{ nominator }} nominate you? — Africa GATES{% endblock %}
+
+{% block content %}
+<main class="nc" id="main">
+  <div class="nc__card">
+    <p class="nc__kicker">Africa GATES</p>
+    <h1 class="nc__h1">Did {{ nominator }} nominate you?</h1>
+
+    <p class="nc__lede">
+      <strong>{{ nominator }}</strong> has put your name forward
+      {% if award %}for <strong>{{ award }}</strong>{% else %}for an award{% endif %}.
+      Before it goes any further we need to hear from you.
+    </p>
+
+    <dl class="nc__facts">
+      <div><dt>Your name, as entered</dt><dd>{{ nominee }}</dd></div>
+      {% if category %}<div><dt>Category</dt><dd>{{ category }}</dd></div>{% endif %}
+      <div><dt>Nominated by</dt><dd>{{ nominator }}</dd></div>
+    </dl>
+
+    <p class="nc__ask">By saying yes you confirm you are a real person and that you are
+      happy for your name to appear in this award. Your phone number and email are not
+      published.</p>
+
+    {#
+      Two forms rather than one with two submit buttons. A `<form>` inside a `<form>` is
+      silently DELETED by the parser — its children survive and post to the outer action
+      — which has shipped three times here. These are siblings.
+    #}
+    <div class="nc__answers">
+      <form method="post" action="/n/confirm/{{ token }}">
+        <input type="hidden" name="_token" value="{{ csrf_token }}">
+        <button class="nc__btn nc__btn--yes" type="submit" name="answer" value="yes">
+          Yes, that is me
+        </button>
+      </form>
+
+      <form method="post" action="/n/confirm/{{ token }}">
+        <input type="hidden" name="_token" value="{{ csrf_token }}">
+        <button class="nc__btn nc__btn--no" type="submit" name="answer" value="no">
+          No, take it down
+        </button>
+      </form>
+    </div>
+
+    <p class="nc__fine">
+      Saying no removes the nomination and stops us contacting you about it.
+      The link works for {{ ttl_days }} days from when the nomination was made.
+    </p>
+  </div>
+</main>
+{% endblock %}
