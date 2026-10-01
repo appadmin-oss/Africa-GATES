@@ -2673,6 +2673,38 @@ return function(App $app) {
         $g->get('/challenges/{slug:[a-z0-9-]{1,160}}',
             fn($req, $res, $args) => $challenges->show($req, $res, $args));
 
+        /**
+         * The 1080x1080 share graphic — /challenges/{slug}/flier.png
+         *
+         * Public, because the point of it is that an entrant posts it. It carries only
+         * what the page already says: the kicker, the prize, the promise, the steps.
+         * A draft or cancelled challenge has no flier for the same reason it has no
+         * page — it would be publishing an offer nobody approved.
+         */
+        $g->get('/challenges/{slug:[a-z0-9-]{1,160}}/flier.png',
+            function ($req, $res, $args) {
+                $c = \AfricaGates\Services\ChallengeService::bySlug((string) $args['slug']);
+
+                if (!$c || in_array($c->status, ['draft', 'cancelled'], true)) {
+                    return $res->withStatus(404);
+                }
+
+                $png = \AfricaGates\Services\ChallengeFlier::png((array) $c, [
+                    'claimed' => \AfricaGates\Services\ChallengeService::claimed((int) $c->id),
+                ]);
+
+                // GD or FreeType missing is a 503, not a broken image: an empty square
+                // posted to a timeline is worse than a download that plainly failed.
+                if ($png === null) return $res->withStatus(503);
+
+                $res->getBody()->write($png);
+
+                return $res->withHeader('Content-Type', 'image/png')
+                    ->withHeader('Cache-Control', 'public, max-age=900')
+                    ->withHeader('Content-Disposition',
+                        'inline; filename="' . $args['slug'] . '-flier.png"');
+            });
+
         $g->get('/n/confirm/{token:[a-f0-9]{40}}',
             fn($req, $res, $args) => $nomineeConfirm->show($req, $res, $args));
         $g->post('/n/confirm/{token:[a-f0-9]{40}}',

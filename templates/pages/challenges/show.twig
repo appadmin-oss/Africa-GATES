@@ -185,6 +185,15 @@
         <p class="ch__prize"><b>{{ copy.prize_big }}</b> {{ copy.prize_unit }}</p>
         {{ ch.meter(copy, spots, entry) }}
         {{ ch.cta(copy) }}
+
+        {# §3's rail actions. The flier is a real file rather than a share sheet: it is
+           posted to WhatsApp and Instagram, where a link preview is not the point. #}
+        <div class="ch__rail-acts">
+          <a class="ch__rail-act" href="/challenges/{{ c.slug }}/flier.png" download>Get the flier</a>
+          <button class="ch__rail-act" type="button"
+                  data-ag-share data-share-url="/challenges/{{ c.slug }}"
+                  data-share-title="{{ c.title }}">Share</button>
+        </div>
       </div>
     </aside>
   </div>

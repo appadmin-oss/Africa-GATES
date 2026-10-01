@@ -337,3 +337,15 @@
 .mc__empty-cta{ justify-self:start; display:inline-flex; align-items:center; min-height:44px;
   padding:0 var(--ag-sp-18); border-radius:var(--ag-r-12);
   background:var(--ag-green); color:#fff; font-weight:600; font-size:15px }
+
+/* The rail's two actions. Both 44px, both reachable by keyboard — "Get the flier" is a
+   real download because the file is posted to WhatsApp, where a link preview is not
+   the point. */
+.ch__rail-acts{ display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:var(--ag-sp-10) }
+.ch__rail-act{
+  display:flex; align-items:center; justify-content:center; min-height:44px;
+  padding:0 var(--ag-sp-12); border:1px solid var(--ag-line-2); border-radius:var(--ag-r-12);
+  background:var(--ag-surface); color:var(--ag-ink); font-size:14px; font-weight:600;
+  font-family:inherit; cursor:pointer;
+}
+.ch__rail-act:focus-visible{ outline:3px solid var(--ag-green); outline-offset:2px }

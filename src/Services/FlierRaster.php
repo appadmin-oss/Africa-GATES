@@ -70,11 +70,131 @@ trait FlierRaster
         imagefilledellipse($im, (int) ($x + $w - $r), (int) ($y + $h / 2), (int) ($r * 2), (int) $h, $colour);
     }
 
+    /**
+     * A rectangle with a chosen corner radius — a card, not a pill.
+     *
+     * `pill()` caps the radius at half the height, which is right for a chip and wrong
+     * for a 240px card with 24px corners: it would come out as a lozenge. Both live
+     * here for the reason given above — the inclusive-rectangle and centre-ellipse
+     * traps are the same ones, and getting them right twice is how two graphics come to
+     * differ by a pixel that only shows when they sit side by side.
+     *
+     * The four corner discs are drawn at `2r` diameter centred `r` in from each edge,
+     * and the two cross bars overlap them, so nothing is drawn twice at a different
+     * rounding.
+     */
+    protected function roundRect($im, float $x, float $y, float $w, float $h, float $r, int $colour): void
+    {
+        $r = max(0.0, min($r, $w / 2, $h / 2));
+
+        if ($r < 1) {
+            // `imagefilledrectangle` is INCLUSIVE of both corners, so the far edge is
+            // one less than the width — the same trap the pill comment names.
+            imagefilledrectangle($im, (int) $x, (int) $y, (int) ($x + $w - 1), (int) ($y + $h - 1), $colour);
+
+            return;
+        }
+
+        $x0 = (int) $x; $y0 = (int) $y;
+        $x1 = (int) ($x + $w - 1); $y1 = (int) ($y + $h - 1);
+        $ri = (int) round($r);
+
+        imagefilledrectangle($im, $x0 + $ri, $y0, $x1 - $ri, $y1, $colour);
+        imagefilledrectangle($im, $x0, $y0 + $ri, $x1, $y1 - $ri, $colour);
+
+        $d = $ri * 2;
+        imagefilledellipse($im, $x0 + $ri, $y0 + $ri, $d, $d, $colour);
+        imagefilledellipse($im, $x1 - $ri, $y0 + $ri, $d, $d, $colour);
+        imagefilledellipse($im, $x0 + $ri, $y1 - $ri, $d, $d, $colour);
+        imagefilledellipse($im, $x1 - $ri, $y1 - $ri, $d, $d, $colour);
+    }
+
+    /**
+     * Can this face actually put ink down for this character?
+     *
+     * ── A MISSING GLYPH IS SILENT, AND `imagettfbbox` LIES ABOUT IT ─────────
+     *
+     * DM Sans — `bold`, `semibold` and `regular` here — has no ₦. Asked to draw one,
+     * GD draws NOTHING: no warning, no exception, and `imagettfbbox` still returns a
+     * width, so a renderer that measures before drawing is told the character fits and
+     * then silently omits it.
+     *
+     * Measured: "₦" at 80pt in DMSans-Bold leaves 0 ink pixels; in AGText-Bold it
+     * leaves 4,179. A challenge flier advertising "6k" with no currency at all is the
+     * shape of failure that reaches a timeline before anybody notices.
+     *
+     * This matters for every operator-typed symbol, not just the naira: GH₵, KSh and
+     * the rest arrive from a form. So the check is by RENDERING, which is the only
+     * thing that answers the question, memoised per face and character because it
+     * costs an image each time.
+     */
+    protected function canDraw(string $font, string $ch): bool
+    {
+        static $memo = [];
+
+        $key = $font . '|' . $ch;
+        if (isset($memo[$key])) return $memo[$key];
+
+        // Whitespace draws no ink by definition and must not be reported as missing.
+        if (trim($ch) === '') return $memo[$key] = true;
+
+        $im = @imagecreatetruecolor(96, 96);
+        if ($im === false) return $memo[$key] = true;
+
+        imagefilledrectangle($im, 0, 0, 95, 95, (int) imagecolorallocate($im, 255, 255, 255));
+        @imagettftext($im, 48, 0, 10, 70, (int) imagecolorallocate($im, 0, 0, 0), $font, $ch);
+
+        $ink = 0;
+        for ($x = 0; $x < 96 && $ink === 0; $x += 2) {
+            for ($y = 0; $y < 96; $y += 2) {
+                if ((imagecolorat($im, $x, $y) & 0xFF) < 200) { $ink = 1; break; }
+            }
+        }
+        imagedestroy($im);
+
+        return $memo[$key] = $ink > 0;
+    }
+
+    /**
+     * The face to draw one character with: the asked-for one, or the first fallback
+     * that can.
+     *
+     * The fallbacks are this repo's own `AGText`/`AGMono` faces, which carry the
+     * currency symbols DM Sans does not. A mixed-face run is how typesetting has always
+     * handled this; a dropped symbol is not.
+     */
+    protected function faceFor(string $font, string $ch): string
+    {
+        if ($this->canDraw($font, $ch)) return $font;
+
+        $dir = dirname(__DIR__, 2) . '/resources/fonts/';
+        foreach (['AGText-Bold.ttf', 'AGMono-Bold.ttf', 'AGText-Regular.ttf'] as $alt) {
+            $path = $dir . $alt;
+            if (is_file($path) && $this->canDraw($path, $ch)) return $path;
+        }
+
+        return $font;   // nothing can draw it; let the caller's own face try
+    }
+
     /** Draw text with an optional letter-spacing, which imagettftext has no concept of. */
     protected function text($im, string $s, int $size, string $font, int $colour, float $x, float $y, float $tracking = 0): void
     {
         if ($tracking <= 0) {
-            imagettftext($im, $size, 0, (int) round($x), (int) round($y), $colour, $font, $s);
+            // ── THE FAST PATH STAYS FAST ────────────────────────────────────
+            // Only a string carrying a character this face cannot draw takes the
+            // per-character route; ordinary Latin copy is one call as it always was.
+            if ($this->drawable($s, $font)) {
+                imagettftext($im, $size, 0, (int) round($x), (int) round($y), $colour, $font, $s);
+
+                return;
+            }
+
+            foreach (preg_split('//u', $s, -1, PREG_SPLIT_NO_EMPTY) ?: [] as $ch) {
+                $face = $this->faceFor($font, $ch);
+                imagettftext($im, $size, 0, (int) round($x), (int) round($y), $colour, $face, $ch);
+                $x += $this->width($ch, $size, $face);
+            }
+
             return;
         }
         // Per-character, because the kicker's letter-spacing is a real part of the design
@@ -83,6 +203,19 @@ trait FlierRaster
             imagettftext($im, $size, 0, (int) round($x), (int) round($y), $colour, $font, $ch);
             $x += $this->width($ch, $size, $font) + $tracking;
         }
+    }
+
+    /** Is every character in this string one the face can actually draw? */
+    protected function drawable(string $s, string $font): bool
+    {
+        // ASCII is in every face here, so the common case never renders a probe.
+        if (preg_match('/^[\x20-\x7E]*$/', $s) === 1) return true;
+
+        foreach (preg_split('//u', $s, -1, PREG_SPLIT_NO_EMPTY) ?: [] as $ch) {
+            if (!$this->canDraw($font, $ch)) return false;
+        }
+
+        return true;
     }
 
     /**
