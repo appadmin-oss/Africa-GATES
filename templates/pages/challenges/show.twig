@@ -1,0 +1,244 @@
+{% extends "layout/gates.twig" %}
+{#
+  ═══════════════════════════════════════════════════════════════════════════════
+  /challenges/{slug} — one template, every challenge
+  ═══════════════════════════════════════════════════════════════════════════════
+
+  Ported from `handoff-new-pages/designs/ChallengePage.dc.html`. Order, copy and
+  sections follow it; the three departures are listed at the bottom of this comment.
+
+  NOT ONE SENTENCE IS WRITTEN HERE. Everything a reader sees comes out of `copy`,
+  which is `ChallengeCopy::for()` — the ported design function. A string typed into
+  this file would be the second place a challenge's terms are written, and the two
+  would disagree the first time somebody raised a cap. The settings screen in this
+  codebase was found 157 points out for exactly that reason.
+
+  DEVIATIONS FROM THE COMP, EACH DELIBERATE
+
+  1. No hexes. The comp carries `accent`, `wash` and `ink` inline per challenge,
+     because a design file carries its own palette. Here the theme is a NAME on
+     `data-theme` and the four presets live in CSS — §0.4 forbids a new colour and this
+     repo's rule is blunter: a bare hex is not a colour.
+  2. "Included" is built. §3 of the handoff lists the section; the comp does not draw
+     it (the word appears zero times in the file), so the markup is this codebase's own
+     list idiom rather than a match to something that exists.
+  3. The FAQ is `<details>`. The comp drives it from React state with a `+`/`−` glyph.
+     A disclosure that needs JavaScript to open is a question nobody can read with
+     JavaScript off, and `<details>` is the element for it — keyboard, screen reader
+     and find-in-page all work without a line of script.
+#}
+
+{% block title %}{{ page_title }}{% endblock %}
+
+{% block content %}
+<main class="ch" id="main" data-theme="{{ c.theme }}">
+
+  {# ── hero ─────────────────────────────────────────────────────────────── #}
+  <header class="ch__hero">
+    <div class="ch__hero-in">
+
+      <div class="ch__art">
+        {% if c.art_url %}
+          <img class="ch__art-img" src="{{ c.art_url }}" alt="{{ c.art_alt|default('') }}"
+               width="420" height="420" loading="eager" decoding="async">
+        {% else %}
+          {# The icon tile is decorative — the heading beside it carries the meaning. #}
+          <span class="ch__icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"
+                 stroke-linecap="round" stroke-linejoin="round">
+              <path d="{{ c.icon|default('M6 4h12v4a6 6 0 0 1-12 0zM9 20h6M12 14v6') }}"/>
+            </svg>
+          </span>
+        {% endif %}
+      </div>
+
+      <div class="ch__head">
+        <p class="ch__kicker">
+          {% if c.flag %}<span class="ch__flag" aria-hidden="true">🇳🇬</span>{% endif %}
+          {{ c.kicker }}
+          <span class="ch__pill" data-state="{{ copy.state }}">{{ copy.state_label }}</span>
+        </p>
+
+        <h1 class="ch__h1" id="ch-h1">{{ c.title }}</h1>
+        <p class="ch__promise">{{ copy.promise }}</p>
+
+        <dl class="ch__facts">
+          {% for f in copy.facts %}
+            <div class="ch__fact"><dt>{{ f.k }}</dt><dd>{{ f.v }}</dd></div>
+          {% endfor %}
+        </dl>
+      </div>
+    </div>
+  </header>
+
+  <div class="ch__body">
+    <div class="ch__main">
+
+      {# The meter, on the phone only — the desktop rail carries it instead. #}
+      <div class="ch__meter-card ch__meter-card--phone">
+        {{ _self.meter(copy, spots, entry) }}
+      </div>
+
+      {% if copy.steps|length %}
+        <section class="ch__sec" aria-labelledby="h-how">
+          <h2 class="ch__h2" id="h-how">How to take part</h2>
+          <ol class="ch__steps">
+            {% for s in copy.steps %}
+              <li class="ch__step">
+                <span class="ch__step-n" aria-hidden="true">{{ s.n }}</span>
+                <span class="ch__step-t">{{ s.t }}</span>
+                <span class="ch__step-s">{{ s.s }}</span>
+              </li>
+            {% endfor %}
+          </ol>
+        </section>
+      {% endif %}
+
+      <section class="ch__sec" aria-labelledby="h-count">
+        <h2 class="ch__h2" id="h-count">{{ copy.count_title }}</h2>
+        <ul class="ch__rules">
+          {% for r in copy.rules %}<li class="ch__rule">{{ r }}</li>{% endfor %}
+        </ul>
+      </section>
+
+      <section class="ch__sec" aria-labelledby="h-win">
+        <div class="ch__sec-head">
+          <h2 class="ch__h2" id="h-win">{{ copy.win_title }}</h2>
+          <span class="ch__sec-sub">{{ copy.win_sub }}</span>
+        </div>
+
+        {% if winners|length %}
+          <ol class="ch__winners">
+            {% for w in winners %}
+              <li class="ch__winner">
+                <span class="ch__winner-n">#{{ w.standing }}</span>
+                <span class="ch__winner-who">{{ w.name }}</span>
+                {# Area and time only. A full name beside a published cash amount is an
+                   invitation addressed to whoever reads it, and this page has no
+                   sign-in. `ChallengeService::winners()` is what enforces it. #}
+                <span class="ch__winner-where">{{ w.where }}</span>
+                <span class="ch__winner-when">{{ w.when }}</span>
+              </li>
+            {% endfor %}
+          </ol>
+        {% else %}
+          <div class="ch__empty">
+            <b class="ch__empty-t">{{ copy.empty_title }}</b>
+            <span class="ch__empty-s">{{ copy.empty_sub }}</span>
+          </div>
+        {% endif %}
+      </section>
+
+      {% if included|length %}
+        <section class="ch__sec" aria-labelledby="h-inc">
+          <h2 class="ch__h2" id="h-inc">Included</h2>
+          <p class="ch__sec-note">Only what you do inside these counts towards this challenge.</p>
+          <ul class="ch__inc">
+            {% for i in included %}
+              <li class="ch__inc-row">
+                <span class="ch__inc-kind">{{ i.kind }}</span>
+                <a class="ch__inc-link" href="{{ i.href }}">{{ i.name }}</a>
+              </li>
+            {% endfor %}
+          </ul>
+        </section>
+      {% endif %}
+
+      <section class="ch__sec" aria-labelledby="h-faq">
+        <h2 class="ch__h2" id="h-faq">Questions</h2>
+        <div class="ch__faq">
+          {% for q in copy.faq %}
+            {# `<details>` rather than a scripted toggle: a question that needs
+               JavaScript to open is a question some readers never see. #}
+            <details class="ch__q">
+              <summary class="ch__q-q">{{ q.q }}</summary>
+              <p class="ch__q-a">{{ q.a }}</p>
+            </details>
+          {% endfor %}
+        </div>
+        {% if copy.terms_version %}
+          <p class="ch__terms"><a href="/terms">Full terms, version {{ copy.terms_version }}</a></p>
+        {% endif %}
+      </section>
+
+      {% if others|length %}
+        <section class="ch__sec" aria-labelledby="h-more">
+          <h2 class="ch__h2" id="h-more">More challenges</h2>
+          <div class="ch__more">
+            {% for o in others %}
+              <a class="ch__more-card" href="/challenges/{{ o.slug }}" data-theme="{{ o.theme }}">
+                <span class="ch__more-t">{{ o.title }}</span>
+                <span class="ch__more-s">{{ o.line }}</span>
+                <span class="ch__pill" data-state="{{ o.state }}">{{ o.state_label }}</span>
+              </a>
+            {% endfor %}
+          </div>
+        </section>
+      {% endif %}
+    </div>
+
+    {# ── the rail, desktop only ──────────────────────────────────────────── #}
+    <aside class="ch__rail" aria-label="Take part">
+      <div class="ch__rail-in">
+        <p class="ch__prize"><b>{{ copy.prize_big }}</b> {{ copy.prize_unit }}</p>
+        {{ _self.meter(copy, spots, entry) }}
+        {{ _self.cta(copy) }}
+      </div>
+    </aside>
+  </div>
+
+  {# ── the phone's fixed bar ───────────────────────────────────────────────
+     `position:fixed` in the stylesheet rather than set by JavaScript, so it is there
+     on first paint. A bar positioned from a measured custom property is a bar that is
+     missing for anybody whose script did not run — which this codebase shipped once on
+     the nomination form. #}
+  <div class="ch__bar">
+    <span class="ch__bar-l">
+      <b class="ch__bar-prize">{{ copy.prize_big }} {{ copy.prize_unit }}</b>
+      <span class="ch__bar-sub">{{ copy.bar_sub }}</span>
+    </span>
+    <a class="ch__bar-cta" href="{{ copy.cta_href }}">{{ copy.cta }}</a>
+  </div>
+</main>
+{% endblock %}
+
+{#
+  The meter is drawn twice — once on the phone card, once in the desktop rail — so it
+  is a macro. Two copies of this markup is two places for the dots and the aria label
+  to drift apart, and the label is the only form of it a screen reader gets.
+#}
+{% macro meter(copy, spots, entry) %}
+  <div class="ch__meter">
+    <span class="ch__meter-head">
+      <b class="ch__meter-t">{{ copy.meter_title }}</b>
+      <span class="ch__meter-time">{{ copy.time_left }}</span>
+    </span>
+
+    {% if copy.has_meter and spots|length %}
+      {# One `role="img"` with a sentence, not N unlabelled dots: a screen reader
+         reading "image image image" eleven times conveys nothing. #}
+      <span class="ch__spots" role="img" aria-label="{{ copy.meter_aria }}">
+        {% for taken in spots %}
+          <span class="ch__spot{{ taken ? ' is-taken' : '' }}"></span>
+        {% endfor %}
+      </span>
+    {% endif %}
+
+    {% if entry %}
+      <span class="ch__mine">
+        <span class="ch__mine-t">{{ copy.mine }}</span>
+        {# A custom property carrying a runtime number, which is the repo's established
+           bridge for one (`--ob-accent`, `--tier-hue`, `--p-hero-image`) and is not
+           what §0.4's "no inline styles" forbids — there is no declaration here, only a
+           value the stylesheet reads. A width cannot come from a class: it is a
+           percentage of this person's own progress. #}
+        <span class="ch__mine-bar"><span class="ch__mine-fill" style="--ag-pct:{{ copy.mine_pct }}%"></span></span>
+      </span>
+    {% endif %}
+  </div>
+{% endmacro %}
+
+{% macro cta(copy) %}
+  <a class="ch__cta{{ copy.cta_primary ? '' : ' ch__cta--quiet' }}" href="{{ copy.cta_href }}">{{ copy.cta }}</a>
+  <p class="ch__cta-note">{{ copy.cta_note }}</p>
+{% endmacro %}

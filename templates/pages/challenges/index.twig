@@ -1,0 +1,57 @@
+{% extends "layout/gates.twig" %}
+{#
+  /challenges — the list.
+
+  Not in the design pack: §3 specifies the single challenge page and the placements,
+  and the handoff's own rule is that "Challenges" appears under Participate in the mega
+  menu while at least one is open. A menu entry needs somewhere to land, and a nav item
+  pointing at nothing is this codebase's oldest fault — a mechanism with no route in.
+
+  So the list is built in the house card idiom rather than matched to a comp, and every
+  line on a card comes from `ChallengeCopy` exactly as the full page does, so a card and
+  the page behind it can never promise different prizes.
+#}
+
+{% block title %}{{ page_title }}{% endblock %}
+
+{% block content %}
+<main class="chl" id="main">
+  <header class="chl__head">
+    <h1 class="chl__h1">Challenges</h1>
+    <p class="chl__lede">Do a thing that already helps an award, and win something for it.
+      Every challenge says exactly what counts before you start.</p>
+  </header>
+
+  {% if cards|length %}
+    <ul class="chl__grid">
+      {% for c in cards %}
+        <li>
+          <a class="chl__card" href="/challenges/{{ c.slug }}" data-theme="{{ c.theme }}">
+            <span class="chl__tile" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"
+                   stroke-linecap="round" stroke-linejoin="round">
+                <path d="{{ c.icon|default('M6 4h12v4a6 6 0 0 1-12 0zM9 20h6M12 14v6') }}"/>
+              </svg>
+            </span>
+            <span class="chl__pill" data-state="{{ c.state }}">{{ c.state_label }}</span>
+            <span class="chl__kicker">{{ c.kicker }}</span>
+            <span class="chl__t">{{ c.title }}</span>
+            <span class="chl__line">{{ c.line }}</span>
+            <span class="chl__time">{{ c.time_left }}</span>
+          </a>
+        </li>
+      {% endfor %}
+    </ul>
+  {% else %}
+    {#
+      An empty state that says WHEN, not just that there is nothing. "No challenges"
+      alone reads as a broken page; this says the mechanism exists and is between runs.
+    #}
+    <div class="chl__empty">
+      <b>No challenges are running just now</b>
+      <span>They open alongside an award's nominations or an event's ticket sales.
+        The <a href="/awards">awards page</a> shows what is coming.</span>
+    </div>
+  {% endif %}
+</main>
+{% endblock %}

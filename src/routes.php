@@ -2655,6 +2655,23 @@ return function(App $app) {
         $nomineeConfirm = new \AfricaGates\Controllers\NomineeConfirmController(
             $container->get(\Slim\Views\Twig::class));
 
+        /**
+         * The challenge pages. One template renders every challenge, and every word
+         * on them comes from `ChallengeCopy` — the ported design function — so a card,
+         * a strip and the full page can never promise different prizes.
+         *
+         * `/challenges` is not in the design pack and is built in the house card
+         * idiom: the handoff puts "Challenges" under Participate in the mega menu
+         * while one is open, and a nav entry needs somewhere to land. A menu item
+         * pointing at nothing is this codebase's oldest fault.
+         */
+        $challenges = new \AfricaGates\Controllers\ChallengeController(
+            $container->get(\Slim\Views\Twig::class));
+
+        $g->get('/challenges', fn($req, $res) => $challenges->index($req, $res));
+        $g->get('/challenges/{slug:[a-z0-9-]{1,160}}',
+            fn($req, $res, $args) => $challenges->show($req, $res, $args));
+
         $g->get('/n/confirm/{token:[a-f0-9]{40}}',
             fn($req, $res, $args) => $nomineeConfirm->show($req, $res, $args));
         $g->post('/n/confirm/{token:[a-f0-9]{40}}',

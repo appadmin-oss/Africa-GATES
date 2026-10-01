@@ -166,11 +166,14 @@ final class ChallengeCopy
             'win_title'   => $mode === E::MODE_TOP ? 'Leading now' : 'Winners so far',
             'win_sub'     => match ($mode) {
                 E::MODE_TOP  => 'Updated every hour',
-                E::MODE_DRAW => 'Draw on ' . self::drawDate($c),
+                E::MODE_DRAW => self::drawDate($c) === ''
+                    ? 'Drawn after the close' : 'Draw on ' . self::drawDate($c),
                 default      => 'In the order they qualified',
             },
             'empty_title' => $mode === E::MODE_DRAW
-                ? 'The draw happens on ' . self::drawDate($c)
+                ? (self::drawDate($c) === ''
+                    ? 'The draw happens after the close'
+                    : 'The draw happens on ' . self::drawDate($c))
                 : 'Nobody has qualified yet',
             'empty_sub'   => $mode === E::MODE_DRAW
                 ? 'Everyone who gets ' . $target . ' ' . $u . ' verified before the close goes into the draw.'
@@ -223,10 +226,16 @@ final class ChallengeCopy
         if ($mode === E::MODE_TOP) {
             // The DC takes everything before the first comma of the close — "30 Nov"
             // out of "30 Nov, 23:59 EAT" — because a promise does not need a minute.
-            $by = explode(',', (string) ($c['ends'] ?? ''))[0];
+            $by = trim(explode(',', self::endsLabel($c))[0]);
 
-            return 'The top ' . $cap . ' by ' . $by . ' win ' . $big . ' ' . $unit
-                 . '. Every paid ticket through your link counts.';
+            // A promise with a blank where its deadline should be is worse than one
+            // without the clause: "The top 3 by  win 5,000 points" reads as a broken
+            // page on the sentence somebody decides by.
+            return $by === ''
+                ? 'The top ' . $cap . ' win ' . $big . ' ' . $unit
+                  . '. Every paid ticket through your link counts.'
+                : 'The top ' . $cap . ' by ' . $by . ' win ' . $big . ' ' . $unit
+                  . '. Every paid ticket through your link counts.';
         }
 
         if ($mode === E::MODE_DRAW) {
@@ -283,7 +292,7 @@ final class ChallengeCopy
             ['k' => 'Prize',      'v' => trim($prize['big'] . ' ' . $prize['unit'])],
             ['k' => 'Winners',    'v' => $winners],
             ['k' => 'To qualify', 'v' => (int) ($c['target'] ?? 1) . ' ' . $u],
-            ['k' => $ended ? 'Ended' : 'Ends', 'v' => (string) ($c['ends'] ?? '')],
+            ['k' => $ended ? 'Ended' : 'Ends', 'v' => self::endsLabel($c)],
         ];
     }
 
@@ -318,9 +327,7 @@ final class ChallengeCopy
         $raw = match ((string) ($c['action'] ?? E::ACTION_NOMINATE)) {
             E::ACTION_NOMINATE => [
                 ['Sign in or create your account', 'Free. Verify your phone number with a code.'],
-                ['Nominate ' . $target . ' ' . $u,
-                 'For ' . (string) ($c['award'] ?? '') . ', in ' . (string) ($c['cats'] ?? '')
-                 . ', with every field complete.'],
+                ['Nominate ' . $target . ' ' . $u, self::whereClause($c)],
                 ['Get them verified', 'Each nominee confirms, and our team checks the details.'],
             ],
             E::ACTION_REFER => [
@@ -338,6 +345,39 @@ final class ChallengeCopy
         }
 
         return $out;
+    }
+
+    /**
+     * "For Alimosho Awards 2026, in Choral, Business or Impact, with every field complete."
+     *
+     * ── ANOTHER SENTENCE THE COMP'S FIXTURE HELD UP ─────────────────────────
+     *
+     * The design's config carries `award` and `cats` as strings. A real
+     * `gates_challenges` row carries neither — what it has is SCOPES, rows in
+     * `gates_challenge_scopes` naming cycles, categories and events. So the step
+     * rendered literally as "For , in , with every field complete." on the first live
+     * page, under a heading telling somebody how to take part.
+     *
+     * Same shape as the close: the fixture supplies a field the schema does not have,
+     * so every unit test passes and the page is wrong. The controller resolves the
+     * scopes and passes the names in; this builds whatever sentence the available
+     * parts can make, and never one with a hole in it.
+     */
+    private static function whereClause(array $c): string
+    {
+        $award = trim((string) ($c['award'] ?? ''));
+        $cats  = trim((string) ($c['cats'] ?? ''));
+
+        if ($award !== '' && $cats !== '') {
+            return 'For ' . $award . ', in ' . $cats . ', with every field complete.';
+        }
+        if ($award !== '') return 'For ' . $award . ', with every field complete.';
+        if ($cats !== '')  return 'In ' . $cats . ', with every field complete.';
+
+        // Nothing scoped yet. The sentence still has to say the thing that matters —
+        // a half-filled nomination does not count — rather than naming an award it
+        // cannot name.
+        return 'With every field complete.';
     }
 
     // ══════════════════════════════════════════════════════════════════════════
@@ -379,9 +419,15 @@ final class ChallengeCopy
             default => [],
         };
 
+        $drawOn = self::drawDate($c);
+
         $order = match ((string) ($c['mode'] ?? E::MODE_FIRST)) {
             E::MODE_TOP  => 'Ranked by verified count at the close. Ties go to whoever reached the count first',
-            E::MODE_DRAW => 'The draw is recorded and published on ' . self::drawDate($c),
+            // This one is a published RULE, so it has to stay true with no date set:
+            // "recorded and published" is the promise, and the date is a detail of it.
+            E::MODE_DRAW => $drawOn === ''
+                ? 'The draw is recorded and published after the close'
+                : 'The draw is recorded and published on ' . $drawOn,
             default      => 'Prizes go in the order entries are fully verified, not the order they were sent',
         };
 
@@ -405,9 +451,14 @@ final class ChallengeCopy
         $cap = (int) ($c['cap'] ?? 0);
 
         if (!$capped) {
-            return (string) ($c['mode'] ?? '') === E::MODE_TOP
-                ? 'Top ' . $cap . ' win'
-                : (int) ($c['draw_count'] ?? 0) . ' winners drawn ' . self::drawDate($c);
+            if ((string) ($c['mode'] ?? '') === E::MODE_TOP) return 'Top ' . $cap . ' win';
+
+            $n    = (int) ($c['draw_count'] ?? 0);
+            $when = self::drawDate($c);
+
+            return $when === ''
+                ? $n . ' winners drawn at the close'
+                : $n . ' winners drawn ' . $when;
         }
 
         return $full
@@ -516,6 +567,52 @@ final class ChallengeCopy
 
     // ══════════════════════════════════════════════════════════════════════════
 
+    /**
+     * The close, as a reader sees it: "30 Nov, 23:59 EAT".
+     *
+     * ── A GAP THE DEMO FIXTURES HID COMPLETELY ──────────────────────────────
+     *
+     * The design's config carries `ends` as a formatted STRING, because a comp has no
+     * database behind it. A real `gates_challenges` row carries `ends_at`, a datetime,
+     * and nothing named `ends` at all. So every figure derived from it came out empty
+     * on a live row while all three demo configs rendered perfectly — the facts strip
+     * printed "Ends" with no value, and a `top` challenge promised "The top 3 by  win
+     * 5,000 points".
+     *
+     * Found by rendering a real row, not by reading: the unit tests pass either way,
+     * because their fixtures are the comp's. That is the same shape as a fixture
+     * writing a counter and no ballot rows.
+     *
+     * The zone is the challenge's own `timezone` column rather than the server's. A
+     * deadline printed in a zone the reader does not share is a deadline they will
+     * miss, and this platform runs awards across several of them.
+     */
+    private static function endsLabel(array $c): string
+    {
+        $given = trim((string) ($c['ends'] ?? ''));
+        if ($given !== '') return $given;
+
+        $raw = trim((string) ($c['ends_at'] ?? ''));
+        if ($raw === '') return '';
+
+        try {
+            // ── THE STORED VALUE IS UTC, STATED RATHER THAN ASSUMED ─────────
+            // A `DATETIME` carries no zone, so an instant stored in one and read back
+            // without saying which zone it is in resolves against the SERVER's — and
+            // the printed deadline then moves the day somebody changes that setting,
+            // silently, on every challenge at once. Naming UTC here fixes the
+            // interpretation in the code rather than in a server's configuration.
+            $d = (new \DateTimeImmutable($raw, new \DateTimeZone('UTC')))
+                ->setTimezone(new \DateTimeZone((string) ($c['timezone'] ?? 'Africa/Lagos')));
+
+            return $d->format('j M, H:i ') . $d->format('T');
+        } catch (\Throwable) {
+            // An unparseable date is the row's problem; printing nothing is better than
+            // printing a raw timestamp at somebody deciding whether to take part.
+            return '';
+        }
+    }
+
     /** The DC's `n.toLocaleString('en')` — a thousands separator and nothing else. */
     private static function fmt(int $n): string
     {
@@ -536,8 +633,13 @@ final class ChallengeCopy
 
         if ($ends !== '') {
             try {
-                $now = new \DateTimeImmutable((string) ($ctx['now'] ?? 'now'));
-                $end = new \DateTimeImmutable($ends);
+                // Both sides in UTC, for the reason given in `endsLabel()`: a countdown
+                // and a printed close that disagree about which zone the column is in
+                // will differ by a day near the deadline, which is the only time
+                // anybody reads either of them.
+                $utc = new \DateTimeZone('UTC');
+                $now = new \DateTimeImmutable((string) ($ctx['now'] ?? 'now'), $utc);
+                $end = new \DateTimeImmutable($ends, $utc);
 
                 return max(0, (int) $now->diff($end)->format('%r%a'));
             } catch (\Throwable) {
@@ -549,12 +651,31 @@ final class ChallengeCopy
         return max(0, (int) ($c['days'] ?? 0));
     }
 
-    /** A draw date an admin has not set yet must not print the word "null". */
+    /**
+     * The draw date, or '' when an admin has not set one.
+     *
+     * It returns EMPTY rather than a stand-in phrase, because one phrase cannot fit
+     * every slot it is dropped into. A single fallback of "the closing date" gave
+     * "20 winners drawn the closing date" in the meter and "The draw happens on on the
+     * closing date" in the empty state — each call site has to write its own sentence
+     * for the unset case, and they do.
+     */
     private static function drawDate(array $c): string
     {
-        $d = trim((string) ($c['draw_date'] ?? $c['draw_at'] ?? ''));
+        $raw = trim((string) ($c['draw_date'] ?? ''));
+        if ($raw !== '') return $raw;
 
-        return $d !== '' ? $d : 'the closing date';
+        $at = trim((string) ($c['draw_at'] ?? ''));
+        if ($at === '') return '';
+
+        try {
+            // Same UTC-in, zone-out rule as the close. See `endsLabel()`.
+            return (new \DateTimeImmutable($at, new \DateTimeZone('UTC')))
+                ->setTimezone(new \DateTimeZone((string) ($c['timezone'] ?? 'Africa/Lagos')))
+                ->format('j M');
+        } catch (\Throwable) {
+            return '';
+        }
     }
 
     /**

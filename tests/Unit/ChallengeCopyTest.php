@@ -404,6 +404,152 @@ final class ChallengeCopyTest extends TestCase
         );
     }
 
+    /**
+     * ── THE GAP EVERY FIXTURE IN THIS FILE HID ──────────────────────────────
+     *
+     * The three demo configs carry `ends` as a formatted STRING, because a design comp
+     * has no database behind it. A real `gates_challenges` row carries `ends_at`, a
+     * datetime, and nothing named `ends` at all.
+     *
+     * So on a live row the facts strip printed "Ends" with no value and a `top`
+     * challenge promised "The top 3 by  win 5,000 points" — while all sixteen tests
+     * above stayed green, because their inputs were the comp's. Found by rendering a
+     * seeded row in a browser, not by reading.
+     *
+     * The same shape as a fixture that writes a vote counter and no ballot rows: the
+     * test is scoring a different rule from the one that runs.
+     */
+    public function test_the_close_is_derived_from_the_stored_datetime(): void
+    {
+        $c = [
+            'action' => E::ACTION_REFER, 'mode' => E::MODE_TOP, 'target' => 5, 'cap' => 3,
+            'prize_type' => E::PRIZE_POINTS, 'prize_amount' => 5000,
+            'ends_at' => '2026-11-30 23:59:00', 'timezone' => 'Africa/Nairobi',
+        ];
+
+        $v = ChallengeCopy::for($c);
+
+        // Stored UTC, shown in the challenge's own zone — so 23:59 UTC is 02:59 the
+        // next morning in Nairobi, and the page says so rather than printing a time
+        // nobody in that country would recognise as the deadline.
+        self::assertSame('1 Dec, 02:59 EAT', $v['facts'][3]['v'],
+            'the facts strip printed nothing for a row that has a close');
+        self::assertSame(
+            'The top 3 by 1 Dec win 5,000 points. Every paid ticket through your link counts.',
+            $v['promise'],
+            'the promise lost its deadline on a real row',
+        );
+    }
+
+    /** The zone is the CHALLENGE's, not the server's. */
+    public function test_the_close_is_printed_in_the_challenge_own_timezone(): void
+    {
+        $base = ['action' => E::ACTION_NOMINATE, 'mode' => E::MODE_FIRST, 'target' => 1,
+                 'cap' => 5, 'prize_type' => E::PRIZE_POINTS, 'prize_amount' => 10,
+                 'ends_at' => '2026-11-30 23:00:00'];
+
+        // A deadline printed in a zone the reader does not share is a deadline they
+        // will miss, and this platform runs awards across several of them.
+        self::assertStringContainsString('WAT',
+            ChallengeCopy::for($base + ['timezone' => 'Africa/Lagos'])['facts'][3]['v']);
+        self::assertStringContainsString('EAT',
+            ChallengeCopy::for($base + ['timezone' => 'Africa/Nairobi'])['facts'][3]['v']);
+    }
+
+    /**
+     * A promise with a blank where its deadline should be is worse than one without
+     * the clause at all — it reads as a broken page, on the sentence somebody is
+     * deciding by.
+     */
+    public function test_a_top_challenge_with_no_close_still_reads_as_a_sentence(): void
+    {
+        $v = ChallengeCopy::for([
+            'action' => E::ACTION_REFER, 'mode' => E::MODE_TOP, 'target' => 5, 'cap' => 3,
+            'prize_type' => E::PRIZE_POINTS, 'prize_amount' => 5000,
+        ]);
+
+        self::assertSame(
+            'The top 3 win 5,000 points. Every paid ticket through your link counts.',
+            $v['promise'],
+        );
+        self::assertStringNotContainsString('by  win', $v['promise']);
+    }
+
+    /**
+     * A draw with no date set still reads as English everywhere it appears.
+     *
+     * One stand-in phrase cannot fit every slot: "the closing date" gave
+     * "20 winners drawn the closing date" in the meter and "The draw happens on on the
+     * closing date" in the empty state. Both were live on `/challenges/teachers-day`
+     * until a real row was rendered — the demo config carries `draw_date`, so every
+     * test above supplied one.
+     */
+    public function test_a_draw_with_no_date_reads_as_a_sentence_in_every_slot(): void
+    {
+        $c = ChallengeDemo::get('teachers');
+        unset($c['draw_date']);
+
+        $v = ChallengeCopy::for($c);
+
+        self::assertSame('20 winners drawn at the close', $v['meter_title']);
+        self::assertSame('The draw happens after the close', $v['empty_title']);
+        self::assertSame('Drawn after the close', $v['win_sub']);
+        self::assertSame('The draw is recorded and published after the close',
+            $v['rules'][array_key_last($v['rules'])],
+            'the published rule lost its promise along with its date');
+
+        foreach (['meter_title', 'empty_title', 'win_sub'] as $k) {
+            self::assertStringNotContainsString(' on on ', $v[$k]);
+            self::assertStringNotContainsString('drawn the ', $v[$k]);
+        }
+    }
+
+    /** A stored `draw_at` is formatted in the challenge's zone, like the close. */
+    public function test_a_stored_draw_datetime_is_formatted(): void
+    {
+        $c = ChallengeDemo::get('teachers');
+        unset($c['draw_date']);
+        $c['draw_at']  = '2026-10-14 10:00:00';
+        $c['timezone'] = 'Africa/Lagos';
+
+        self::assertSame('20 winners drawn 14 Oct', ChallengeCopy::for($c)['meter_title']);
+    }
+
+    /**
+     * The "where" step never renders with a hole in it.
+     *
+     * The comp's config carries `award` and `cats` as strings; a real row carries
+     * SCOPES and neither field. The first live render of this page therefore said
+     * "For , in , with every field complete." under a heading telling somebody how to
+     * take part — with all nineteen tests above green, because their fixture supplies
+     * both strings.
+     */
+    public function test_the_where_step_never_has_a_hole_in_it(): void
+    {
+        $base = ['action' => E::ACTION_NOMINATE, 'mode' => E::MODE_FIRST, 'target' => 3,
+                 'cap' => 5, 'prize_type' => E::PRIZE_POINTS, 'prize_amount' => 100];
+
+        $cases = [
+            ['award' => 'Alimosho Awards 2026', 'cats' => 'Choral or Impact',
+             'want' => 'For Alimosho Awards 2026, in Choral or Impact, with every field complete.'],
+            ['award' => 'Alimosho Awards 2026', 'cats' => '',
+             'want' => 'For Alimosho Awards 2026, with every field complete.'],
+            ['award' => '', 'cats' => 'Choral or Impact',
+             'want' => 'In Choral or Impact, with every field complete.'],
+            ['award' => '', 'cats' => '', 'want' => 'With every field complete.'],
+        ];
+
+        foreach ($cases as $i => $case) {
+            $v = ChallengeCopy::for($base + ['award' => $case['award'], 'cats' => $case['cats']]);
+
+            self::assertSame($case['want'], $v['steps'][1]['s'], "case $i");
+            // The shape of the fault, pinned directly: a sentence with nothing between
+            // a preposition and its comma.
+            self::assertStringNotContainsString('For ,', $v['steps'][1]['s']);
+            self::assertStringNotContainsString('in ,', $v['steps'][1]['s']);
+        }
+    }
+
     /** The strip beside an award cannot promise a different prize from the page. */
     public function test_the_compact_strip_agrees_with_the_page(): void
     {
