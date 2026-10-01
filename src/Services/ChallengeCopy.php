@@ -97,7 +97,19 @@ final class ChallengeCopy
         // word, and the page must not go on inviting people into a race that is over.
         $claimed = (int) ($ctx['claimed'] ?? $c['claimed'] ?? 0);
         $capped  = $mode === E::MODE_FIRST;          // the DC's `capped`
-        $st      = (string) ($ctx['state'] ?? $c['status'] ?? 'open');
+
+        // ── THE CLOCK, NOT THE COLUMN ───────────────────────────────────────
+        //
+        // This read `$c['status']`, and NOTHING IN THIS CODEBASE EVER WROTE `ended` —
+        // so a challenge whose `ends_at` had passed went on saying "Open", counting days
+        // left into the negative, and taking entries. The reasoning two lines below for
+        // deriving `full` at read time ("the page must not go on inviting people into a
+        // race that is over") is about the clock just as much as the cap; it had been
+        // applied to one of them. `ChallengeWindow` is the one resolver now, and an
+        // explicit `state` in the context still overrides it for a caller that is
+        // rendering a hypothetical.
+        $st = (string) ($ctx['state'] ?? \AfricaGates\Support\ChallengeWindow::status(
+            $c, isset($ctx['now']) ? (string) $ctx['now'] : null, $claimed));
 
         $full     = $st === E::ST_FULL || ($capped && $cap > 0 && $claimed >= $cap);
         $ended    = $st === E::ST_ENDED;
@@ -264,9 +276,7 @@ final class ChallengeCopy
             'big' => match ($type) {
                 E::PRIZE_POINTS  => self::fmt($amount),
                 E::PRIZE_TICKETS => (string) $amount,
-                // The currency is a SYMBOL on the row (₦, KSh, GH₵), not a code,
-                // because the design prints it joined to the figure with no space.
-                default          => (string) ($c['prize_currency'] ?? '') . self::fmt($amount),
+                default          => self::symbol((string) ($c['prize_currency'] ?? '')) . self::fmt($amount),
             },
             'unit' => match ($type) {
                 E::PRIZE_POINTS    => 'points',
@@ -275,6 +285,44 @@ final class ChallengeCopy
                 default            => 'shared',
             },
         ];
+    }
+
+    /**
+     * The currency as it is PRINTED, from whatever the row happens to hold.
+     *
+     * ══ A COLUMN TOOK TWO SPELLINGS AND ONE OF THEM REACHED THE PAGE ══════════
+     *
+     * This read `prize_currency` straight into the sentence, under a comment saying the
+     * column holds a symbol. Nothing enforced that. The October seed stores `NGN`, which
+     * is the right thing for a row — an ISO code is unambiguous, sorts, and is what every
+     * other money column on this platform carries — and the challenge page then read
+     * "Prize NGN6,000 each" where the handoff's acceptance says ₦6,000, on the one screen
+     * whose whole job is telling somebody what they can win.
+     *
+     * Neither spelling is wrong to STORE; printing the stored string was the fault. So
+     * both resolve here, through `CurrencyService::CURRENCIES` — the site's one map, the
+     * same one the shop prices through — and a symbol already in the column is passed
+     * back untouched so no existing row changes meaning. An unknown code is returned as
+     * itself followed by a space: "XAF 6,000" is readable and honest, where swallowing it
+     * would print a bare 6,000 in no currency at all.
+     */
+    private static function symbol(string $currency): string
+    {
+        $c = trim($currency);
+
+        if ($c === '') {
+            return '';
+        }
+
+        // Already a symbol (or anything that is not a three-letter code): use it joined
+        // to the figure, which is how the design draws ₦, KSh and GH₵.
+        if (!preg_match('/^[A-Za-z]{3}$/', $c)) {
+            return $c;
+        }
+
+        $code = strtoupper($c);
+
+        return \AfricaGates\Services\CurrencyService::CURRENCIES[$code] ?? ($code . ' ');
     }
 
     /** @return list<array{k:string,v:string}> Prize · Winners · To qualify · Ends */

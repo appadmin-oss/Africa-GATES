@@ -279,6 +279,15 @@ final class Maintenance
                 $ran[] = ['qdisqualify', $this->task('qdisqualify', fn() => $this->enforceQuestionnaireDeadlines())];
                 $ran[] = ['cronlog',   $this->task('cronlog',   fn() => $this->trimCronLog())];
                 $ran[] = ['chain',     $this->task('chain',     fn() => $this->verifyChain())];
+                // Seeds that are still waiting on an operator. See SeedRunner: a seed
+                // refusing because an award has not been created yet is "not yet", not a
+                // failure, so this returns 0 on every ordinary tick and the webcron
+                // services that disable a persistently failing job never see one.
+                $ran[] = ['seeds',     $this->task('seeds',     fn() => \AfricaGates\Support\SeedRunner::sweep())];
+                // A challenge's stored status is a CACHE of its window — see
+                // ChallengeWindow. Every page is already right without this; the column
+                // has to agree because three queries filter on it.
+                $ran[] = ['challenges', $this->task('challenges', fn() => \AfricaGates\Services\ChallengeService::sweepWindows())];
             }
         } else {
             match ($task) {
@@ -308,6 +317,15 @@ final class Maintenance
                 'welcome'   => $ran[] = ['welcome', $this->task('welcome',
                     fn() => \AfricaGates\Services\DoorWelcome::sweep())],
                 'chain'     => $ran[] = ['chain', $this->task('chain', fn() => $this->verifyChain())],
+                // Addressable by name for the reason judgemaps and welcome are: there is
+                // no shell here. An operator who has just opened the award edition a seed
+                // was waiting on should not have to wait an hour to find out whether it
+                // took — `/__cron/run?task=seeds` answers now.
+                'seeds'     => $ran[] = ['seeds', $this->task('seeds', fn() => \AfricaGates\Support\SeedRunner::sweep())],
+                // Addressable by name: an operator watching a challenge close at midnight
+                // should not wait an hour to see the banners come down, and there is no
+                // shell here to make them come down any other way.
+                'challenges' => $ran[] = ['challenges', $this->task('challenges', fn() => \AfricaGates\Services\ChallengeService::sweepWindows())],
                 // Addressable by name because there is no SSH on this account: when a round
                 // opens sooner than the hourly sweep can fill it, `/__cron/run?task=judgemaps`
                 // is the only way anybody can ask for another batch.

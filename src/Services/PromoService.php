@@ -38,10 +38,29 @@ final class PromoService
      * @param bool   $signedIn  decides the `audience` filter
      * @return list<array<string,mixed>>
      */
-    public static function forPlacement(string $placement, bool $signedIn, int $limit = 5): array
-    {
+    public static function forPlacement(
+        string $placement,
+        bool $signedIn,
+        int $limit = 5,
+        ?int $programmeId = null
+    ): array {
         if (!in_array($placement, E::PLACEMENTS, true)) return [];
         if (!\AfricaGates\Support\SchemaHas::table('gates_promos')) return [];
+
+        // ── THE `award` PLACEMENT IS SCOPED, AND REFUSES WITHOUT A SCOPE ─────────
+        //
+        // "Banners show on the Alimosho Awards pages, and on NO OTHER AWARD." A promo
+        // placed on `award` with nothing saying which award is a banner on every award
+        // page this platform runs — the Kenya Creative Economy Awards advertising a
+        // challenge nobody in Kenya can enter, with a prize in naira.
+        //
+        // So the absence of a programme is a refusal rather than a wildcard. A caller
+        // that forgets to pass one shows nothing, which is a missing banner somebody
+        // reports; the other way round is a wrong banner on somebody else's award, which
+        // nobody reports because it looks deliberate.
+        if ($placement === 'award' && ($programmeId === null || $programmeId <= 0)) {
+            return [];
+        }
 
         $now = date('Y-m-d H:i:s');
 
@@ -77,8 +96,21 @@ final class PromoService
                 // Ended, draft or cancelled: the banner comes down by itself. Nobody has
                 // to remember, which is the rule `PublicResults::delayed()` already
                 // holds — a banner an operator must take down is still up in March.
-                if (in_array($copy['state'], ['ended'], true)
-                    || in_array($c->status, [E::ST_DRAFT, E::ST_CANCELLED, E::ST_ENDED], true)) {
+                // The CLOCK, through the one resolver — not the stored column, which is
+                // a cache the hourly sweep writes. A banner that stays up for the hour
+                // between a challenge ending and the sweep noticing is an hour of
+                // inviting people into a closed race on five pages.
+                $live = \AfricaGates\Support\ChallengeWindow::status(
+                    $c, null, ChallengeService::claimed((int) $c->id));
+
+                if (in_array($live, [E::ST_DRAFT, E::ST_CANCELLED, E::ST_ENDED], true)) {
+                    continue;
+                }
+
+                // And on an award page, only a challenge that actually counts inside
+                // THIS award.
+                if ($placement === 'award'
+                    && !self::countsInProgramme((int) $c->id, (int) $programmeId)) {
                     continue;
                 }
 
@@ -106,6 +138,47 @@ final class PromoService
     }
 
     /**
+     * Does this challenge count inside this award programme?
+     *
+     * Walks `gates_challenge_scopes` the same way `ChallengeController::included()` does
+     * — cycle scopes directly, category scopes through their cycle — and through the
+     * `is_active` gate for the reason every reader here carries it: the sandbox lives in
+     * an inactive programme, and a reader that walks the chain is safe without knowing
+     * the sandbox exists.
+     *
+     * An EVENT scope is not a programme scope and answers false. A challenge about a gala
+     * does not belong on an award's page just because the gala is part of the season.
+     */
+    private static function countsInProgramme(int $challengeId, int $programmeId): bool
+    {
+        if ($challengeId <= 0 || $programmeId <= 0) return false;
+
+        try {
+            $byCycle = DB::table('gates_challenge_scopes as s')
+                ->join('gates_award_cycles as cy', 'cy.id', '=', 's.scope_id')
+                ->join('gates_award_programmes as p', 'p.id', '=', 'cy.programme_id')
+                ->where('s.challenge_id', $challengeId)
+                ->where('s.scope_type', E::SCOPE_CYCLE)
+                ->where('p.id', $programmeId)->where('p.is_active', 1)
+                ->exists();
+
+            if ($byCycle) return true;
+
+            return DB::table('gates_challenge_scopes as s')
+                ->join('gates_award_categories as ct', 'ct.id', '=', 's.scope_id')
+                ->join('gates_award_cycles as cy', 'cy.id', '=', 'ct.cycle_id')
+                ->join('gates_award_programmes as p', 'p.id', '=', 'cy.programme_id')
+                ->where('s.challenge_id', $challengeId)
+                ->where('s.scope_type', E::SCOPE_CATEGORY)
+                ->where('p.id', $programmeId)->where('p.is_active', 1)
+                ->exists();
+        } catch (\Throwable $e) {
+            // A banner is decoration on somebody else's page. It fails closed.
+            return false;
+        }
+    }
+
+    /**
      * The same slides, shaped for `/api/promos`.
      *
      * Deliberately the SAME method underneath. Two readers of one placement is how the
@@ -113,9 +186,9 @@ final class PromoService
      * codebase records as "two readers of one KEY", and the pair most likely to differ
      * is the one that publishes a value and the one that acts on it.
      */
-    public static function payload(string $placement, bool $signedIn): array
+    public static function payload(string $placement, bool $signedIn, ?int $programmeId = null): array
     {
-        $slides = self::forPlacement($placement, $signedIn);
+        $slides = self::forPlacement($placement, $signedIn, 5, $programmeId);
 
         return ['placement' => $placement, 'count' => count($slides), 'slides' => $slides];
     }

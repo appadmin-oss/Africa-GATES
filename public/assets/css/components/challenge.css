@@ -349,3 +349,17 @@
   font-family:inherit; cursor:pointer;
 }
 .ch__rail-act:focus-visible{ outline:3px solid var(--ag-green); outline-offset:2px }
+
+/* ── WHO RUNS THE AWARD ──────────────────────────────────────────────────────
+   One line under the promise. The logo is sized by HEIGHT with an auto width, because
+   a host's mark is whatever shape it is and a fixed box either letterboxes a wordmark
+   or squashes a roundel — `okun-alimosho-logo.png` is 891×606 and neither of those
+   reads as the organisation's own mark. `alt` is the host's name rather than a
+   description, so a reader who cannot see it is told the same thing as one who can:
+   the sentence beside it already says "Hosted by". */
+.ch__host{ display:flex; align-items:center; gap:10px; flex-wrap:wrap;
+  margin:14px 0 0; font-size:14px; color:var(--ag-ink-soft); }
+.ch__host-logo{ width:auto; height:28px; max-width:140px; object-fit:contain;
+  flex:none; display:block; }
+.ch__host-t b, .ch__host-t a{ color:var(--ag-ink); font-weight:600; }
+.ch__host-t a{ text-decoration:underline; text-underline-offset:2px; }

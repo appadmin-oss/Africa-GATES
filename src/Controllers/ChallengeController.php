@@ -119,6 +119,10 @@ final class ChallengeController
                 : [],
             'winners'     => CS::winners((int) $c->id, 12),
             'included'    => $included,
+            // Who runs the award this counts inside. Resolved through the scope chain by
+            // the one resolver, never stored on the challenge — see ProgrammeHost.
+            'host'        => \AfricaGates\Support\ProgrammeHost::forScopes(
+                CS::scopeIds($c, E::SCOPE_CYCLE), CS::scopeIds($c, E::SCOPE_CATEGORY)),
             'others'      => $this->others((int) $c->id),
         ]);
     }

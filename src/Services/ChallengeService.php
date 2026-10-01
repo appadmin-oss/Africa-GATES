@@ -81,7 +81,17 @@ final class ChallengeService
 
         // A challenge that is not open takes no entries. `draft` and `cancelled` are
         // refused as hard as `ended`: a draft is a page an admin is still writing.
-        if (!in_array($ch->status, [E::ST_OPEN, E::ST_FULL], true)) {
+        //
+        // ── AND IT IS THE CLOCK, NOT THE COLUMN ─────────────────────────────
+        //
+        // This read `$ch->status` directly, and nothing in this codebase ever wrote
+        // `ended` — so the window closing refused nobody, and people could enter a
+        // competition that had finished. They would hear about it when a prize they
+        // were never eligible for was not paid. `ChallengeWindow` is the one resolver;
+        // see its docblock for the three readers this was wrong for.
+        $live = \AfricaGates\Support\ChallengeWindow::status($ch);
+
+        if (!in_array($live, [E::ST_OPEN, E::ST_FULL], true)) {
             return ['ok' => false, 'code' => 'NOT_OPEN', 'entry' => null];
         }
 
@@ -93,7 +103,7 @@ final class ChallengeService
         // theirs, and the page has to be able to show it.
         if ($existing) return ['ok' => true, 'code' => 'ALREADY', 'entry' => $existing];
 
-        if ($ch->status === E::ST_FULL) {
+        if ($live === E::ST_FULL) {
             return ['ok' => false, 'code' => 'FULL', 'entry' => null];
         }
 
@@ -210,8 +220,29 @@ final class ChallengeService
             $seen = $checking = $needs = 0;
             $ids  = [];
 
+            // ── AND NEVER YOURSELF ──────────────────────────────────────────
+            //
+            // "You cannot nominate yourself or the same person twice" is one of the
+            // challenge's own published rules, and it is enforced HERE rather than at
+            // the form, deliberately. Nominating yourself for an award is a question
+            // for the award — some accept it — and refusing the submission would be
+            // this challenge dictating the award's rules. What it may do is decline to
+            // PAY for it.
+            //
+            // Both identities, because a nominee is identified by a phone OR an email
+            // and the entrant may be reached either way: hashing only the phone lets
+            // somebody nominate themselves by email for a tenth of the prize.
+            $self = self::selfIdentities($entry);
+
             foreach ($rows as $r) {
                 $key = (string) ($r->nominee_identity_hash ?? '');
+
+                if ($key !== '' && isset($self[$key])) {
+                    // Not "checking" and not "needs details": it is finished and it does
+                    // not count, and the queue screen must not invite a moderator to
+                    // chase it.
+                    continue;
+                }
 
                 if (NS::countsForChallenge($r->status ?? null, $r->nominee_confirmed_at ?? null)) {
                     // A row with no hash at all cannot be proved distinct from any
@@ -754,6 +785,209 @@ final class ChallengeService
     {
         return DB::table('gates_challenge_entries')
             ->where('challenge_id', $challengeId)->where('user_id', $userId)->first();
+    }
+
+    /**
+     * Bring the stored `status` into line with the clock.
+     *
+     * {@see \AfricaGates\Support\ChallengeWindow} is the truth and every PAGE is right
+     * without this. The column still has to agree, because three queries FILTER on it —
+     * the public index, the promo lookup and the admin queue — and a filter cannot call a
+     * function per row. So the column is a cache, and this is what keeps it honest.
+     *
+     * Hourly from `Maintenance`, and reachable by name because there is no shell here: an
+     * operator watching a challenge close at midnight should not have to wait for the
+     * next tick to see the banners come down.
+     *
+     * It never touches `draft` or `cancelled` — those are decisions a person made, and
+     * `ChallengeWindow` returns them unchanged for exactly that reason.
+     *
+     * @return int how many rows moved, so a tick with nothing to do reports 0
+     */
+    public static function sweepWindows(): int
+    {
+        try {
+            $rows = DB::table('gates_challenges')
+                ->whereIn('status', [E::ST_OPEN, E::ST_UPCOMING, E::ST_FULL, E::ST_ENDED])
+                ->get(['id', 'status', 'starts_at', 'ends_at', 'cap', 'mode']);
+        } catch (\Throwable $e) {
+            return 0;
+        }
+
+        $moved = 0;
+
+        foreach ($rows as $c) {
+            // `claimed` is passed so a challenge that filled on its last place is written
+            // as full by the same rule the page already draws it with — two answers to
+            // "is it full" is the shape this file exists to avoid.
+            $live = \AfricaGates\Support\ChallengeWindow::status(
+                $c, null, self::claimed((int) $c->id));
+
+            if ($live === (string) $c->status) continue;
+
+            DB::table('gates_challenges')->where('id', $c->id)
+                ->update(['status' => $live, 'updated_at' => date('Y-m-d H:i:s')]);
+
+            // In the ledger, because a challenge closing is the moment entries stop
+            // being accepted and somebody will ask when that was.
+            self::event((int) $c->id, null, 'window', ['from' => (string) $c->status, 'to' => $live]);
+
+            $moved++;
+        }
+
+        return $moved;
+    }
+
+    /**
+     * The entrant's own identity hashes, for the self-nomination rule.
+     *
+     * Keyed rather than listed so the hot loop above is a lookup. Returns an empty map
+     * for an entry with no user behind it, which is the honest answer: an identity this
+     * platform cannot establish cannot be excluded, and silently excluding a nominee on
+     * a guess costs somebody a prize.
+     *
+     * @return array<string,true>
+     */
+    private static function selfIdentities(object $entry): array
+    {
+        $userId = (int) ($entry->user_id ?? 0);
+        if ($userId <= 0) return [];
+
+        try {
+            $u = DB::table('gates_users')->where('id', $userId)->first(['phone', 'email']);
+        } catch (\Throwable $e) {
+            return [];
+        }
+
+        if (!$u) return [];
+
+        $out = [];
+
+        // The country is the member's own, and `Phone::normalize()` will not resolve a
+        // trunk-0 national number without one — see `phoneHash()`. A number it cannot
+        // resolve simply yields no hash, so the rule does not fire rather than firing
+        // against the wrong person.
+        foreach ([
+            self::identityHash((string) ($u->phone ?? ''), null),
+            self::identityHash(null, (string) ($u->email ?? '')),
+        ] as $h) {
+            if ($h !== null) $out[$h] = true;
+        }
+
+        return $out;
+    }
+
+    /**
+     * Attach a just-submitted nomination to the entry it counts towards.
+     *
+     * ══ THE COLUMN EXISTED, THE COUNTER READ IT, AND NOTHING EVER WROTE IT ════
+     *
+     * `gates_nominations.challenge_entry_id` shipped in the challenge migration,
+     * `countFor()` counts by it and `NomineeConfirmation` recounts on it — and a grep
+     * for a WRITER returned the admin queue's joins and nothing else. So every piece of
+     * the counting machinery was correct and the whole of it was unreachable: a member
+     * could join Celebrate Nigeria, nominate ten people, watch all ten be verified and
+     * stay on 0/10 for ever, with no error anywhere and a green test suite.
+     *
+     * That is this codebase's oldest fault wearing its usual face — a declared column
+     * with no writer is the same shape as a method with no caller — and it is the reason
+     * this is called from the one place a nomination is created rather than from a
+     * controller: a second door into nominations would be a second door that forgets.
+     *
+     * @return int|null the entry it was attached to, or null when there was none
+     */
+    public static function attachNomination(int $nominationId, int $userId, int $cycleId): ?int
+    {
+        if ($nominationId <= 0 || $userId <= 0 || $cycleId <= 0) return null;
+
+        try {
+            // The member's own ACTIVE entry on an OPEN challenge this cycle is scoped
+            // to. Not a qualified or won entry: those are finished, and adding an
+            // eleventh nominee to a complete entry must not disturb a standing somebody
+            // else's standing was assigned around.
+            $entryId = (int) DB::table('gates_challenge_entries as e')
+                ->join('gates_challenges as c', 'c.id', '=', 'e.challenge_id')
+                ->join('gates_challenge_scopes as s', 's.challenge_id', '=', 'c.id')
+                ->where('e.user_id', $userId)
+                ->where('e.status', E::E_ACTIVE)
+                ->where('s.scope_type', E::SCOPE_CYCLE)
+                ->where('s.scope_id', $cycleId)
+                ->where('c.status', E::ST_OPEN)
+                ->orderBy('c.ends_at')
+                ->value('e.id');
+
+            if ($entryId <= 0) return null;
+
+            DB::table('gates_nominations')->where('id', $nominationId)
+                ->update(['challenge_entry_id' => $entryId]);
+
+            // Counted now rather than on confirmation, because a nomination that is
+            // already `checking` has to appear in the entrant's "2 being checked" the
+            // moment they submit it — a meter that only moves on somebody else's action
+            // reads as a meter that is broken.
+            self::recount($entryId);
+
+            return $entryId;
+        } catch (\Throwable $e) {
+            // A challenge is a layer ON TOP of nominating. A failure here must never
+            // cost somebody the nomination they just spent ninety seconds writing.
+            return null;
+        }
+    }
+
+    /**
+     * What this member is working towards on THIS award, if anything.
+     *
+     * The nomination form's one line: "Counts toward Celebrate Nigeria · 6/10". It exists
+     * because the form is where somebody is doing the work, and a progress figure they
+     * have to go and look up on another page is a figure they do not look up.
+     *
+     * ── IT ANSWERS FOR A JOINED ENTRY ONLY, AND THAT IS THE DESIGN ──────────
+     *
+     * Not "a challenge you could join" — the strip is a progress line, and a progress
+     * line reading 0/10 to somebody who has never heard of the challenge is an
+     * advertisement wearing a meter's clothes. Joining is what the promo banner above the
+     * form is for, and that one says so in its own words.
+     *
+     * `verified` and not `progress`: qualification is ten VERIFIED nominees, so a figure
+     * counting submissions would climb to 10/10 and then not pay out, which is the worst
+     * number this platform could put in front of somebody. The breakdown — what is being
+     * checked, what needs details — is on the challenge page, which this links to.
+     *
+     * @return array{slug:string,title:string,done:int,target:int}|null
+     */
+    public static function progressForProgramme(int $userId, int $programmeId): ?array
+    {
+        if ($userId <= 0 || $programmeId <= 0) return null;
+
+        try {
+            // Through the scope chain and the `is_active` gate, like every other reader
+            // here: a sandbox challenge must not put a strip on a live form.
+            $row = DB::table('gates_challenge_entries as e')
+                ->join('gates_challenges as c', 'c.id', '=', 'e.challenge_id')
+                ->join('gates_challenge_scopes as s', 's.challenge_id', '=', 'c.id')
+                ->join('gates_award_cycles as cy', 'cy.id', '=', 's.scope_id')
+                ->join('gates_award_programmes as p', 'p.id', '=', 'cy.programme_id')
+                ->where('e.user_id', $userId)
+                ->where('s.scope_type', E::SCOPE_CYCLE)
+                ->where('p.id', $programmeId)->where('p.is_active', 1)
+                ->whereIn('c.status', [E::ST_OPEN, E::ST_FULL])
+                ->whereIn('e.status', [E::E_ACTIVE, E::E_QUALIFIED, E::E_WON])
+                ->orderBy('c.ends_at')
+                ->first(['c.slug', 'c.title', 'c.target', 'e.verified']);
+        } catch (\Throwable $e) {
+            // A strip is decoration on a form that must submit either way.
+            return null;
+        }
+
+        if (!$row) return null;
+
+        return [
+            'slug'   => (string) $row->slug,
+            'title'  => (string) $row->title,
+            'done'   => (int) $row->verified,
+            'target' => max(1, (int) $row->target),
+        ];
     }
 
     /** The scope ids of one kind, so a count can be confined to them. */

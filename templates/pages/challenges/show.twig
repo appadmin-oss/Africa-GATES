@@ -64,6 +64,24 @@
         <h1 class="ch__h1" id="ch-h1">{{ c.title }}</h1>
         <p class="ch__promise">{{ copy.promise }}</p>
 
+        {# ── WHO RUNS THIS AWARD ──────────────────────────────────────────────
+           Resolved through the scope chain by `ProgrammeHost`, never stored on the
+           challenge: two copies of a host's name is one copy nobody updates. It renders
+           only when a host is NAMED — a logo on its own is an unexplained picture, and
+           most programmes have no host but Africa GATES, where the line would be noise.
+
+           The logo is NOT a link unless the host gave a URL, and the name carries the
+           meaning either way: a picture is not an attribution. #}
+        {% if host %}
+        <p class="ch__host">
+          {% if host.logo %}
+            <img class="ch__host-logo" src="{{ host.logo }}" alt="{{ host.name }}"
+                 height="28" loading="lazy" decoding="async">
+          {% endif %}
+          <span class="ch__host-t">Hosted by {% if host.url %}<a href="{{ host.url }}" rel="noopener">{{ host.name }}</a>{% else %}<b>{{ host.name }}</b>{% endif %}</span>
+        </p>
+        {% endif %}
+
         <dl class="ch__facts">
           {% for f in copy.facts %}
             <div class="ch__fact"><dt>{{ f.k }}</dt><dd>{{ f.v }}</dd></div>

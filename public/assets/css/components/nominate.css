@@ -576,3 +576,26 @@
   .nf--done{ width:100%; max-width:680px; margin-inline:auto }
   .ns__h{ font-size:36px }
 }
+
+/* ── WHAT THIS NOMINATION COUNTS TOWARDS ─────────────────────────────────────
+   One line under the intro, for a member already in a challenge this award counts
+   inside. A LINK and not a badge: the figure raises a question — which ten? what is
+   still being checked? — and the challenge page is the answer, so the whole row is the
+   target rather than a count with a separate "details" control beside it (§18).
+
+   48px tall, which is the primary-row floor rather than the 44px minimum: it sits
+   directly above a form somebody is about to start filling in, and a mis-tap here costs
+   them the page they were on. */
+.nf__ch{ margin:14px 0 0; }
+.nf__ch a{ display:inline-flex; align-items:center; gap:10px; min-height:48px;
+  padding:0 16px; border:1px solid var(--ag-line-2); border-radius:999px;
+  background:var(--ag-surface); color:var(--ag-ink); text-decoration:none; }
+.nf__ch a:hover{ border-color:var(--ag-ink); }
+.nf__ch a:focus-visible{ outline:3px solid var(--ag-green); outline-offset:2px; }
+.nf__ch-t{ font-size:14.5px; font-weight:600; }
+.nf__ch-d{ color:var(--ag-ink-soft); }
+/* Mono and tabular: it is a count that changes under the reader, and a proportional
+   face makes 6/10 and 7/10 different widths, so the row jogs as the number climbs. */
+.nf__ch-n{ font:700 13px/1 var(--ag-font-mono); font-variant-numeric:tabular-nums;
+  padding:5px 9px; border-radius:999px; background:var(--ag-green-wash);
+  color:var(--ag-green-deep); }

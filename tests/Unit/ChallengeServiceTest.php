@@ -106,6 +106,79 @@ final class ChallengeServiceTest extends TestCase
         }
     }
 
+    /**
+     * THE COLUMN LIES, AND THE CLOCK IS WHAT DECIDES.
+     *
+     * Nothing in this codebase ever wrote `status = 'ended'` — there was no sweep and no
+     * caller — so every challenge whose window had closed was still sitting on `open`,
+     * and `join()` read that column. People could enter a competition that had finished;
+     * they would find out when a prize they were never eligible for was not paid.
+     *
+     * The case above this one passes with the stored word alone, which is why it did not
+     * catch it: it sets the column to `ended` by hand, which is the state nothing could
+     * produce. This one sets the state that actually occurs — open, with the date gone.
+     *
+     * Proved by breaking it: putting `$ch->status` back in place of
+     * `ChallengeWindow::status($ch)` fails here and nowhere else.
+     */
+    public function test_a_challenge_whose_window_has_closed_takes_no_entries(): void
+    {
+        $ch = $this->challenge([
+            'status'     => E::ST_OPEN,
+            'starts_at'  => '2026-01-01 00:00:00',
+            'ends_at'    => gmdate('Y-m-d H:i:s', time() - 60),
+        ]);
+
+        $r = CS::join($ch, $this->user('Late'), '+2348031119999');
+
+        $this->assertFalse($r['ok'], 'somebody entered a challenge that had already closed');
+        $this->assertSame('NOT_OPEN', $r['code']);
+    }
+
+    /** And the other edge: a start date in the future refuses, whatever the column says. */
+    public function test_a_challenge_that_has_not_started_takes_no_entries(): void
+    {
+        $ch = $this->challenge([
+            'status'    => E::ST_OPEN,
+            'starts_at' => gmdate('Y-m-d H:i:s', time() + 3600),
+            'ends_at'   => gmdate('Y-m-d H:i:s', time() + 86400),
+        ]);
+
+        $this->assertSame('NOT_OPEN',
+            CS::join($ch, $this->user('Eager'), '+2348031118888')['code']);
+    }
+
+    /**
+     * The sweep writes the column the three filters read, and never overrules a person.
+     *
+     * `ChallengeWindow` is the truth and every PAGE is right without this — but the
+     * public index, the promo lookup and the admin queue all filter on the column, and a
+     * filter cannot call a function per row.
+     */
+    public function test_the_sweep_closes_a_finished_challenge_and_leaves_decisions_alone(): void
+    {
+        $over = $this->challenge([
+            'status' => E::ST_OPEN, 'ends_at' => gmdate('Y-m-d H:i:s', time() - 60),
+        ]);
+        $live = $this->challenge([
+            'status' => E::ST_OPEN, 'ends_at' => gmdate('Y-m-d H:i:s', time() + 86400),
+        ]);
+        $cancelled = $this->challenge([
+            'status' => E::ST_CANCELLED, 'ends_at' => gmdate('Y-m-d H:i:s', time() - 60),
+        ]);
+
+        $this->assertGreaterThanOrEqual(1, CS::sweepWindows());
+
+        $this->assertSame(E::ST_ENDED, CS::find($over)->status);
+        $this->assertSame(E::ST_OPEN,  CS::find($live)->status, 'the sweep closed a live challenge');
+        $this->assertSame(E::ST_CANCELLED, CS::find($cancelled)->status,
+            'the sweep overruled a cancellation somebody decided on');
+
+        // Idempotent: a second pass has nothing to move, so a quiet hour reports 0 and
+        // the ledger does not fill with one row per tick per challenge.
+        $this->assertSame(0, CS::sweepWindows());
+    }
+
     // ══════════════════════════════════════════════════════════════════════════
     // Counting
     // ══════════════════════════════════════════════════════════════════════════

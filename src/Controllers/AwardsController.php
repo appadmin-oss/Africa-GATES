@@ -30,6 +30,22 @@ class AwardsController {
             (int) ($data['id'] ?? 0),
             isset($data['cycle']['id']) ? (int) $data['cycle']['id'] : null);
 
-        return $this->view->render($res,'pages/awards/programme.twig',['page_title'=>$data['title'].' — Africa GATES','meta_description'=>$meta,'og_title'=>$data['title'].' — Africa GATES','gates_page'=>'awards','programme'=>$data,'sponsors'=>$sponsors,'tiers'=>\AfricaGates\Services\ProgrammeSponsor::TIERS]);
+        // ── AND WHO RUNS IT, WHICH IS A DIFFERENT QUESTION ───────────────────
+        //
+        // A host runs the award; a sponsor paid to be named beside it. They are two
+        // relationships and the sponsors table says so in its own docblock, so they are
+        // two reads and two lines on the page. Outside the cache for the same reason the
+        // sponsors are: a host's name is the kind of thing that is corrected the moment
+        // somebody notices it is wrong.
+        $host = \AfricaGates\Support\ProgrammeHost::forProgramme((int) ($data['id'] ?? 0));
+
+        // The promo band, scoped to THIS programme. `forPlacement` refuses the `award`
+        // placement without one rather than treating it as a wildcard — see the note
+        // there for why a missing banner is the safe failure and a banner on somebody
+        // else's award is not.
+        $promos = \AfricaGates\Services\PromoService::forPlacement(
+            'award', !empty($_SESSION['user_id']), 5, (int) ($data['id'] ?? 0));
+
+        return $this->view->render($res,'pages/awards/programme.twig',['page_title'=>$data['title'].' — Africa GATES','meta_description'=>$meta,'og_title'=>$data['title'].' — Africa GATES','gates_page'=>'awards','programme'=>$data,'sponsors'=>$sponsors,'host'=>$host,'promos'=>$promos,'tiers'=>\AfricaGates\Services\ProgrammeSponsor::TIERS]);
     }
 }

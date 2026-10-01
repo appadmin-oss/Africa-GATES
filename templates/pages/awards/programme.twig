@@ -24,10 +24,35 @@
   .spon__d{ margin:6px 0 0; font-size:14px; line-height:1.6; color:#5a6d6f; max-width:62ch }
   .spon__rule{ margin:16px 0 0; font-size:13px; line-height:1.7; color:#5a6d6f;
     max-width:72ch }
+
+  /* ── THE HOST ───────────────────────────────────────────────────────────────
+     This one DOES carry a logo, where the sponsor list deliberately does not, and the
+     reason is that there is exactly one of them. The objection to a logo wall is that
+     it hands the visual weight to whoever sent the biggest file; a single mark beside a
+     single name is an attribution, and the body that runs an award is the one party
+     whose own mark belongs on its page.
+
+     Sized by HEIGHT with an auto width and a max: a host's mark is whatever shape it is,
+     and a fixed box either letterboxes a wordmark or squashes a roundel. */
+  .phost{ display:flex; align-items:center; gap:14px; flex-wrap:wrap; margin:0;
+    padding:14px 0; border-top:1px solid rgba(16,41,44,.12);
+    border-bottom:1px solid rgba(16,41,44,.12) }
+  .phost__logo{ width:auto; height:44px; max-width:180px; object-fit:contain;
+    flex:none; display:block }
+  /* No fallback hex: this file's literal budget is frozen and a `var(--x, #fallback)`
+     is a second declaration of the colour that nothing updates when the token moves.
+     The rules above it predate that guard. */
+  .phost__n{ font-weight:700; font-size:19px; color:var(--ag-ink) }
+  .phost__n a{ color:inherit; text-decoration:underline; text-underline-offset:3px;
+    text-decoration-color:rgba(16,41,44,.28) }
+  .phost__n a:hover{ text-decoration-color:currentColor }
 </style>
 {% endblock %}
 
 {% block content %}
+{# The promo band (§4). Scoped to this programme by the controller: a challenge that does
+   not count inside this award has no banner here. Zero promos render nothing at all. #}
+{% include "partials/promo-carousel.twig" with { promos: promos|default([]) } only %}
 
 {% set a = programme %}
 {# The COMPUTED phase — see AfricaGates\Services\CyclePolicy. `a.cycle_status`
@@ -149,6 +174,38 @@
   Google defines for a paid link, and omitting it on links somebody paid for is the thing
   that costs a site its ranking.
 #}
+{#
+  ══ AND WHO RUNS IT, WHICH IS NOT WHO BACKS IT ════════════════════════════════
+
+  Its own block above the sponsors, and deliberately NOT a row inside their list. A host
+  runs the award; a sponsor paid to be named beside it, and the paragraph at the foot of
+  that list — "Sponsors fund the programme. They do not judge it" — is a promise about
+  the people in it. A host DOES run the thing, so putting one in that list would make
+  that paragraph false about one of its own entries, on the page where this platform
+  stakes its whole claim about an award not being buyable.
+
+  Same reason the host is not a `gates_programme_sponsors` row in the database. See
+  `2027_02_14_programme_host.php`.
+#}
+{% if host %}
+<section class="sec sec--tight" aria-labelledby="host-h">
+  <div class="wrap">
+    <span class="eyebrow">Hosted by</span>
+    <h2 id="host-h" class="sec__h">Who runs this programme</h2>
+    <p class="phost">
+      {% if host.logo %}
+        <img class="phost__logo" src="{{ host.logo }}" alt="{{ host.name }}"
+             height="44" loading="lazy" decoding="async">
+      {% endif %}
+      {# No `sponsored` on this link, and that is the distinction the rel is for: nobody
+         paid for it. `nofollow` stays, because an outbound link from every edition of an
+         award page is still a link this site did not vouch for editorially. #}
+      <span class="phost__n">{% if host.url %}<a href="{{ host.url }}" target="_blank" rel="noopener noreferrer nofollow">{{ host.name }}</a>{% else %}{{ host.name }}{% endif %}</span>
+    </p>
+  </div>
+</section>
+{% endif %}
+
 {% if sponsors %}
 <section class="sec sec--tight" aria-labelledby="spon-h">
   <div class="wrap">

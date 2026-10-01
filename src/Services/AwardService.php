@@ -523,6 +523,17 @@ class AwardService {
             return $id;
         });
 
+        // ── DOES THIS COUNT TOWARDS A CHALLENGE? ────────────────────────────
+        //
+        // The one writer of `gates_nominations.challenge_entry_id`, and it is here
+        // rather than in a controller because this is the one place a nomination is
+        // created: a second door would be a second door that forgets to stamp, and the
+        // whole counting machinery is silent when it is not stamped. Returns null and
+        // changes nothing for everybody who is not in a challenge, which is almost
+        // everybody. See `ChallengeService::attachNomination()`.
+        \AfricaGates\Services\ChallengeService::attachNomination(
+            (int) $id, (int) ($_SESSION['user_id'] ?? 0), (int) $cycle->id);
+
         // What this visitor's arrival led to. Stamped once per session, first-wins, and
         // silent outside a web request — see VisitTracker::convert().
         \AfricaGates\Services\VisitTracker::convert('nomination');

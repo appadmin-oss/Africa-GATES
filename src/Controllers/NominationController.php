@@ -112,6 +112,12 @@ class NominationController {
             'member'           => \AfricaGates\Services\UserAccountService::memberForForms(),
             'prefill'          => $prefill,
             'share_expired'    => $share !== '' && $prefill === null,
+            // "Counts toward Celebrate Nigeria · 6/10", for a member who has joined a
+            // challenge this award counts inside. Null for everybody else, including
+            // somebody who could join — see the note on the resolver for why a strip is
+            // a progress line and not an advertisement.
+            'challenge'        => \AfricaGates\Services\ChallengeService::progressForProgramme(
+                (int) ($_SESSION['user_id'] ?? 0), (int) ($prog['id'] ?? 0)),
         ]);
     }
 
