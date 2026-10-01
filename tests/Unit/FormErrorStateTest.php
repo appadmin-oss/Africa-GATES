@@ -116,6 +116,40 @@ final class FormErrorStateTest extends TestCase
     }
 
     /**
+     * …and the validator a form promises is actually LOADED on its layout.
+     *
+     * The sweep above reads the form tag, which is the right token for "were the two
+     * attributes separated" and the wrong one for "does anything answer the second".
+     * `layout/shell.twig` — the nomination form's layout — loaded neither
+     * form-validate.js nor forms.css, so `novalidate data-ag-validate` there turned the
+     * browser's messages off on a promise nothing kept, and the attribute check passed.
+     */
+    public function test_every_layout_carrying_a_validated_form_loads_the_validator(): void
+    {
+        $root = dirname(__DIR__, 2) . '/templates';
+        $bad  = [];
+        foreach ($this->templates() as $rel => $body) {
+            if (!str_contains($body, 'data-ag-validate')) continue;
+            // The whole `extends` chain, not the parent alone: account-auth.twig loads
+            // neither file and extends gates.twig, which loads both. Reading one level
+            // reported the registration page as unvalidated when it was not.
+            $chain = '';
+            $names = [];
+            $cur = $body;
+            while (preg_match('~\{%\s*extends\s+[\'"]([^\'"]+)[\'"]~', $cur, $m) && count($names) < 6) {
+                $names[] = $m[1];
+                $cur = (string) @file_get_contents($root . '/' . $m[1]);
+                $chain .= $cur;
+            }
+            if ($names === []) continue;
+            foreach (['/assets/js/form-validate.js', '/assets/css/components/forms.css'] as $need) {
+                if (!str_contains($chain, $need)) $bad[] = "{$rel} → " . implode(' → ', $names) . " does not load {$need}";
+            }
+        }
+        $this->assertSame([], array_values(array_unique($bad)), implode("\n  ", array_unique($bad)));
+    }
+
+    /**
      * The error sentence is TEXT, never a colour or an icon alone (WCAG 1.4.1).
      *
      * `--ag-error` is `#b42318` on the house paper. Somebody who cannot separate it from

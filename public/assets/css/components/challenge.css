@@ -189,6 +189,34 @@
 }
 
 
+/* ══ the strip — `partials/challenge-strip.twig` ══════════════════════════════
+   One line on an award page and on its nomination form. A LINK and not a badge: the
+   figure raises a question — which ten? what is still being checked? — and the
+   challenge page is the answer, so the whole row is the target (§18). 48px, the
+   primary-row floor rather than the 44px minimum: it sits above a form somebody is
+   about to start, and a mis-tap there costs them the page they were on. */
+.ch-strip{ align-self:flex-start; display:inline-flex; align-items:center; gap:8px; flex-wrap:wrap;
+  min-height:48px; padding:6px 16px; border:1px solid var(--ch-line); border-radius:999px;
+  background:var(--ch-wash); color:var(--ag-ink); text-decoration:none; font-size:14.5px }
+.ch-strip:hover{ border-color:var(--ch-edge); color:var(--ag-ink) }
+.ch-strip:focus-visible{ outline:3px solid var(--ag-green); outline-offset:2px }
+.ch-strip__t{ font-weight:600 }
+.ch-strip__m{ white-space:nowrap }
+.ch-strip__m > [aria-hidden]{ color:var(--ag-soft) }
+/* Mono and tabular: it is a count that changes under the reader, and a proportional
+   face makes 6/10 and 7/10 different widths, so the row jogs as the number climbs. */
+.ch-strip__n{ font-variant-numeric:tabular-nums; color:var(--ch-edge); font-weight:700 }
+.ch-strip__go{ font-weight:700; color:var(--ch-edge) }
+/* "Part of X · 4 of 11 prizes left · Details" is longer than a phone, so below 600px it
+   is two lines BY DESIGN — the name, then the figure — rather than wrapping wherever
+   the font puts the break and leaving a separator at the start of the second line.
+   The short joined line ("Counts toward X · 6/10") fits and stays on one. */
+@media (max-width:599px){
+  .ch-strip--long{ flex-direction:column; align-items:flex-start; gap:2px; border-radius:var(--ag-r-16) }
+  .ch-strip--long .ch-strip__m > [aria-hidden]:first-child{ display:none }
+}
+
+
 /* ══ the list page ═══════════════════════════════════════════════════════════ */
 
 .chl{ max-width:1180px; margin-inline:auto; padding:24px 16px 48px }

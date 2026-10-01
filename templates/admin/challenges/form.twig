@@ -75,7 +75,11 @@
   <div>
     {# The draft form. `novalidate` + `data-ag-validate` so it gets the same per-field
        messages and summary as every other form on the site. #}
-    <form method="post" action="/admin/challenges/{{ c ? c.id : 'new' }}" novalidate data-ag-validate>
+    {# The browser's own validation, on purpose. This carried `novalidate
+       data-ag-validate`, which turns the native messages off on the promise that the
+       shared validator replaces them — and the admin layout does not load it, so a
+       blank required field was simply posted and refused by the server a page later. #}
+    <form method="post" action="/admin/challenges/{{ c ? c.id : 'new' }}">
       <input type="hidden" name="_token" value="{{ csrf_token }}">
 
       {# ── 1 ─────────────────────────────────────────────────────────────── #}

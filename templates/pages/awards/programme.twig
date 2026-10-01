@@ -71,6 +71,10 @@
     {% endif %}
   </header>
 
+  {# Which challenge this award counts inside — the prompt's "every scoped award page
+     gets a compact one-line strip". Above the views, so it is on every one of them. #}
+  {% include 'partials/challenge-strip.twig' with { strip: challenge_strip } only %}
+
   {% set nav = [] %}
   {% for k, l in views %}{% set nav = nav|merge([{key: k, label: l, href: '?tab=' ~ k}]) %}{% endfor %}
   {{ ui.subnav(nav, tab, 'About this award') }}

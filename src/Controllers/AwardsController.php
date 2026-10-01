@@ -68,6 +68,10 @@ class AwardsController {
             'programme'=>$data,'sponsors'=>$sponsors,'host'=>$host,'promos'=>$promos,
             'tiers'=>\AfricaGates\Services\ProgrammeSponsor::TIERS,
             'tab'=>$tab,'views'=>$views,
+            // Outside the cache like the sponsors: a challenge filling up must show on
+            // the next view, not half an hour later.
+            'challenge_strip'=>\AfricaGates\Services\ChallengeService::stripFor(
+                (int) $data['id'], (int) ($_SESSION['user_id'] ?? 0)),
             'timeline'=>$data['cycle'] ? \AfricaGates\Services\AwardOverview::timeline($data['cycle'], $data['phase']) : [],
             'action'=>\AfricaGates\Services\AwardOverview::action((string) $data['slug'], $data['phase']),
             'facts'=>\AfricaGates\Services\AwardOverview::facts($host, $data['first_year'] ?? null, (int) ($data['editions'] ?? 0), $weights),

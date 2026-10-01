@@ -167,19 +167,7 @@
          number is VERIFIED nominees, because that is what qualifies; a count of
          submissions would reach 10/10 and then not pay, which is the worst figure this
          platform could put in front of somebody halfway through earning it. #}
-      {% if challenge %}
-      <p class="nf__ch">
-        <a href="/challenges/{{ challenge.slug }}">
-          <span class="nf__ch-t">Counts toward {{ challenge.title }}</span>
-          {# The separator is in the markup rather than left to the gap, because the
-             handoff specifies the line as "Counts toward X · n/10" and a reader using a
-             screen reader gets the two halves run together otherwise. `aria-hidden`
-             because "middle dot" is not a word anybody needs read to them. #}
-          <span class="nf__ch-d" aria-hidden="true">·</span>
-          <span class="nf__ch-n">{{ challenge.done }}/{{ challenge.target }}</span>
-        </a>
-      </p>
-      {% endif %}
+      {% include 'partials/challenge-strip.twig' with { strip: challenge } only %}
     </div>
 
     <form class="nf__form nf__card" method="post" action="/nominate" data-favicon-busy
@@ -537,6 +525,9 @@
      downloads to use none of. `components/nav.css` is the cautionary tale — it held the
      vote countdown's rules under a navigation name and the redesign nearly deleted them. #}
   <link rel="stylesheet" href="{{ asset('/assets/css/components/nominate.css') }}">
+  {# The challenge strip and its theme presets. The main layout loads this globally;
+     this one does not, and the strip is the same partial on both. #}
+  <link rel="stylesheet" href="{{ asset('/assets/css/components/challenge.css') }}">
 {% endblock %}
 
 {% block foot_scripts %}

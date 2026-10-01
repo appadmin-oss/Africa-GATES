@@ -67,6 +67,10 @@
   <link rel="stylesheet" href="{{ asset('/assets/css/tokens.css') }}">
   <link rel="stylesheet" href="{{ asset('/assets/css/shell.css') }}">
   <link rel="stylesheet" href="{{ asset('/assets/css/components.css') }}">
+  {# Forms: the invalid state, the error summary, the required/optional marks. Part of
+     the base here as it is in the main layout — this layout carries the nomination
+     form, and without this its `data-ag-validate` described styles nothing loaded. #}
+  <link rel="stylesheet" href="{{ asset('/assets/css/components/forms.css') }}">
   {% block head_styles %}{% endblock %}
 </head>
 
@@ -102,6 +106,12 @@
   <script defer src="{{ asset('/assets/js/shell.js') }}"></script>
   <script defer src="{{ asset('/assets/js/a11y.js') }}"></script>
   <script defer src="{{ asset('/assets/js/chrome.js') }}"></script>
+  {# The shared validator. A form here that says `novalidate data-ag-validate` turns the
+     browser's own messages off on the promise this replaces them — and this layout
+     never loaded it, so on the nomination form that promise was kept only by
+     nominate.js's per-step checks, and the summary and field messages it describes
+     never drew. #}
+  <script defer src="{{ asset('/assets/js/form-validate.js') }}"></script>
   {% block foot_scripts %}{% endblock %}
 </body>
 </html>

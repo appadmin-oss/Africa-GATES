@@ -1,0 +1,26 @@
+{#
+  ══ THE CHALLENGE STRIP ══════════════════════════════════════════════════════════
+
+  One line saying which challenge an award counts inside. Two states, from
+  `ChallengeService::stripFor()`, and one partial — so the award page and the
+  nomination form cannot word the same fact two ways:
+
+    joined    "Counts toward Celebrate Nigeria · 6/10"   (the October handoff)
+    everyone  "Part of Celebrate Nigeria · 4 of 11 prizes left · Details"
+                                                         (the challenge prompt)
+
+  The whole line is the link, so the target is the line and not a word in it. The
+  dots are `aria-hidden`: "middle dot" is not something anybody needs read to them,
+  and without a separator a screen reader runs the halves together.
+
+  @param strip  the resolver's array, or null for nothing at all
+#}
+{% if strip %}
+<a class="ch-strip{{ strip.joined ? '' : ' ch-strip--long' }}" href="/challenges/{{ strip.slug }}" data-theme="{{ strip.theme }}">
+  <span class="ch-strip__t">{{ strip.joined ? 'Counts toward' : 'Part of' }} {{ strip.title }}</span>
+  {#- The separator travels WITH what it introduces: on a narrow phone the title wraps,
+      and a dot left at the end of the first line reads as a mistake. -#}
+  <span class="ch-strip__m"><span aria-hidden="true">·</span> <span class="ch-strip__n">{{ strip.line }}</span>
+  {%- if not strip.joined %} <span aria-hidden="true">·</span> <span class="ch-strip__go">Details</span>{% endif %}</span>
+</a>
+{% endif %}

@@ -936,57 +936,80 @@ final class ChallengeService
     }
 
     /**
-     * What this member is working towards on THIS award, if anything.
+     * The one-line challenge strip for an award: which open challenge this award counts
+     * inside, and how this reader stands in it.
      *
-     * The nomination form's one line: "Counts toward Celebrate Nigeria · 6/10". It exists
-     * because the form is where somebody is doing the work, and a progress figure they
-     * have to go and look up on another page is a figure they do not look up.
+     * One answer for two states of one strip, so they cannot disagree:
      *
-     * ── IT ANSWERS FOR A JOINED ENTRY ONLY, AND THAT IS THE DESIGN ──────────
+     *   joined    "Counts toward Celebrate Nigeria · 6/10" — the October handoff's line,
+     *             VERIFIED nominees, because that is what qualifies. A count of
+     *             submissions would reach 10/10 and then not pay, the worst figure this
+     *             platform could show somebody halfway through earning it.
+     *   everyone  "Part of Celebrate Nigeria · 4 of 11 prizes left" — the challenge
+     *             prompt's strip for every scoped award page. The count is
+     *             ChallengeCopy's own meter line, so it is the same sentence the
+     *             challenge page prints.
      *
-     * Not "a challenge you could join" — the strip is a progress line, and a progress
-     * line reading 0/10 to somebody who has never heard of the challenge is an
-     * advertisement wearing a meter's clothes. Joining is what the promo banner above the
-     * form is for, and that one says so in its own words.
+     * This replaced `progressForProgramme()`, which answered only the first state, so the
+     * award page had no strip at all for anybody who had not joined — which is everybody
+     * a strip exists to tell.
      *
-     * `verified` and not `progress`: qualification is ten VERIFIED nominees, so a figure
-     * counting submissions would climb to 10/10 and then not pay out, which is the worst
-     * number this platform could put in front of somebody. The breakdown — what is being
-     * checked, what needs details — is on the challenge page, which this links to.
+     * Scoped through the chain: a challenge on the award's EDITION, or on one of that
+     * edition's CATEGORIES, counts; and only an active programme, so the sandbox's
+     * rehearsal challenges never put a strip on a live page.
      *
-     * @return array{slug:string,title:string,done:int,target:int}|null
+     * @return array{slug:string,title:string,theme:string,joined:bool,done:int,target:int,
+     *               line:string}|null
      */
-    public static function progressForProgramme(int $userId, int $programmeId): ?array
+    public static function stripFor(int $programmeId, int $userId = 0): ?array
     {
-        if ($userId <= 0 || $programmeId <= 0) return null;
+        if ($programmeId <= 0) return null;
 
         try {
-            // Through the scope chain and the `is_active` gate, like every other reader
-            // here: a sandbox challenge must not put a strip on a live form.
-            $row = DB::table('gates_challenge_entries as e')
-                ->join('gates_challenges as c', 'c.id', '=', 'e.challenge_id')
-                ->join('gates_challenge_scopes as s', 's.challenge_id', '=', 'c.id')
+            $byCycle = DB::table('gates_challenge_scopes as s')
                 ->join('gates_award_cycles as cy', 'cy.id', '=', 's.scope_id')
-                ->join('gates_award_programmes as p', 'p.id', '=', 'cy.programme_id')
-                ->where('e.user_id', $userId)
-                ->where('s.scope_type', E::SCOPE_CYCLE)
-                ->where('p.id', $programmeId)->where('p.is_active', 1)
-                ->whereIn('c.status', [E::ST_OPEN, E::ST_FULL])
-                ->whereIn('e.status', [E::E_ACTIVE, E::E_QUALIFIED, E::E_WON])
-                ->orderBy('c.ends_at')
-                ->first(['c.slug', 'c.title', 'c.target', 'e.verified']);
-        } catch (\Throwable $e) {
-            // A strip is decoration on a form that must submit either way.
+                ->where('s.scope_type', E::SCOPE_CYCLE)->where('cy.programme_id', $programmeId)
+                ->pluck('s.challenge_id');
+            $byCategory = DB::table('gates_challenge_scopes as s')
+                ->join('gates_award_categories as cat', 'cat.id', '=', 's.scope_id')
+                ->join('gates_award_cycles as cy', 'cy.id', '=', 'cat.cycle_id')
+                ->where('s.scope_type', E::SCOPE_CATEGORY)->where('cy.programme_id', $programmeId)
+                ->pluck('s.challenge_id');
+            $ids = array_values(array_unique(array_map('intval', array_merge($byCycle->all(), $byCategory->all()))));
+            if ($ids === []) return null;
+
+            $live = DB::table('gates_award_programmes')->where('id', $programmeId)->where('is_active', 1)->exists();
+            if (!$live) return null;
+
+            $c = DB::table('gates_challenges')->whereIn('id', $ids)
+                ->whereIn('status', [E::ST_OPEN, E::ST_FULL])
+                ->orderBy('ends_at')->first();
+        } catch (\Throwable) {
+            // A strip is decoration on a page that must render either way.
             return null;
         }
+        if (!$c) return null;
 
-        if (!$row) return null;
+        $entry = $userId > 0 ? self::entryFor((int) $c->id, $userId) : null;
+        $joined = $entry !== null
+            && in_array((string) $entry->status, [E::E_ACTIVE, E::E_QUALIFIED, E::E_WON], true);
+
+        $copy = ChallengeCopy::for((array) $c, [
+            'claimed'   => self::claimed((int) $c->id),
+            'signed_in' => $userId > 0,
+            'mine'      => (int) ($entry->verified ?? 0),
+        ]);
+        $target = max(1, (int) $c->target);
+        $done   = (int) ($entry->verified ?? 0);
 
         return [
-            'slug'   => (string) $row->slug,
-            'title'  => (string) $row->title,
-            'done'   => (int) $row->verified,
-            'target' => max(1, (int) $row->target),
+            'slug'   => (string) $c->slug,
+            'title'  => (string) $c->title,
+            'theme'  => (string) ($c->theme ?? 'green'),
+            'joined' => $joined,
+            'done'   => $done,
+            'target' => $target,
+            'line'   => $joined ? $done . '/' . $target : (string) $copy['meter_title'],
         ];
     }
 
