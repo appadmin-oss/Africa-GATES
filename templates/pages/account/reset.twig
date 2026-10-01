@@ -30,7 +30,14 @@
     {% if email %}<input type="hidden" name="email" value="{{ email }}" autocomplete="username">{% endif %}
     <div class="ag-acct__field">
       <label class="ag-acct__label" for="password">New password</label>
-      <input class="ag-acct__input{% if error %} ag-acct__input--err{% endif %}" id="password" type="password"
+      {# `errors.password`. The other two refusals this flow can produce — an expired
+         link and a throttle — redirect to `/account/forgot` rather than back here, so a
+         bare `error` is safe today and is safe by accident. An expired link reddening
+         the password box would be telling somebody to fix a password they have not
+         typed yet. #}
+      <input class="ag-acct__input{% if errors.password|default('') %} ag-acct__input--err{% endif %}"
+             {% if errors.password|default('') %}aria-invalid="true" aria-describedby="password-err"{% endif %}
+             id="password" type="password"
              name="password" autocomplete="new-password" minlength="8" placeholder="At least 8 characters" required autofocus>
     </div>
     <div class="ag-acct__btns">

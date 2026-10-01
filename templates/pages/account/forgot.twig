@@ -28,7 +28,13 @@
     <input type="hidden" name="_token" value="{{ csrf_token }}">
     <div class="ag-acct__field">
       <label class="ag-acct__label" for="email">Email</label>
-      <input class="ag-acct__input{% if error %} ag-acct__input--err{% endif %}" id="email" type="email" name="email"
+      {# `errors.email`, not `error`. The page shows one field, so the two look
+         equivalent — and they are not: the throttle on this route redirects to
+         `?sent=1` today, and the day somebody adds an error path that does not, a bare
+         `error` reddens the address box for a failure that is not about the address. #}
+      <input class="ag-acct__input{% if errors.email|default('') %} ag-acct__input--err{% endif %}"
+             {% if errors.email|default('') %}aria-invalid="true" aria-describedby="email-err"{% endif %}
+             id="email" type="email" name="email"
              value="{{ login_email|default('') }}" autocomplete="email" placeholder="you@email.com" required autofocus>
     </div>
     <div class="ag-acct__btns">

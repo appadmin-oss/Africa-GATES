@@ -110,7 +110,10 @@
       {# One field, optional. A required "reason" box is a barrier in front of a safety
          action, and the point of this page is that stopping something wrong should be
          easier than letting it stand. #}
-      <form method="POST" action="/claim/dispute/{{ token }}">
+      {# `novalidate` + `data-ag-validate`: the browser's own bubble off, and this
+   site's message in its place — styled, translatable, and announced by the same
+   summary the server renders. The pair is swept for; neither travels alone. #}
+  <form method="POST" action="/claim/dispute/{{ token }}" novalidate data-ag-validate>
         <input type="hidden" name="_token" value="{{ csrf_token }}">
         <label class="cdp__lab" for="cdpNote">Anything you want the person reviewing it to know? <span style="font-weight:400;color:#5a6d6f">(optional)</span></label>
         <textarea class="cdp__note" id="cdpNote" name="note" maxlength="400"

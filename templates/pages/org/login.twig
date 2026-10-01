@@ -88,7 +88,10 @@
        password is an account-enumeration oracle. #}
     {% if error %}<div class="pl__err" role="alert">{{ error }}</div>{% endif %}
 
-    <form method="post" action="/org/login">
+    {# `novalidate` + `data-ag-validate`: the browser's own bubble off, and this
+   site's message in its place — styled, translatable, and announced by the same
+   summary the server renders. The pair is swept for; neither travels alone. #}
+  <form method="post" action="/org/login" novalidate data-ag-validate>
       <input type="hidden" name="_token" value="{{ csrf_token }}">
 
       <label class="pl__f" for="plEmail">

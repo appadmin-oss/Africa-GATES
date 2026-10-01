@@ -286,6 +286,9 @@
   <link rel="stylesheet" href="{{ asset('/assets/css/components/gee.css') }}">
   <link rel="stylesheet" href="{{ asset('/assets/css/components/community-modal.css') }}">
   <link rel="stylesheet" href="{{ asset('/assets/css/components/site-search.css') }}">
+  {# Forms: the invalid and summary states. After components.css's `.ag-field`.
+     Mirrored in AssetBundle::STYLESHEETS, which is the single source of this order. #}
+  <link rel="stylesheet" href="{{ asset('/assets/css/components/forms.css') }}">
   <link rel="stylesheet" href="{{ asset('/assets/css/components/pulse-immersive.css') }}">
   {# The tile — the one device that carries colour. #}
   <link rel="stylesheet" href="{{ asset('/assets/css/components/tile.css') }}">
@@ -612,6 +615,9 @@
 </script>
 <script defer src="{{ asset('/assets/js/afg-features.js') }}"></script>
 <script defer src="{{ asset('/assets/js/main.js') }}"></script>
+{# Form validation: progressive enhancement only. The server is the authority, and
+   every form here is submittable with this file missing. #}
+<script defer src="{{ asset('/assets/js/form-validate.js') }}"></script>
 {# Gee — the page-aware guide (self-contained; no lite_page gating). Not
    loaded when the widget is suppressed (members on community pages). #}
 {% if not gee_suppressed|default(false) %}

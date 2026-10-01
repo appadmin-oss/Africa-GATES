@@ -27,18 +27,31 @@ final class UserAccountService
     }
 
     /** Create an account. Returns ['ok'=>bool, 'id'=>?int, 'error'=>?string]. */
+    /**
+     * Every refusal names the FIELD it is about, not only the sentence.
+     *
+     * A form that answers "Password must be at least 8 characters" and reddens the
+     * email box is worse than one that reddens nothing: it sends somebody to correct
+     * an address that was right. That was live on `/account/register`, where the
+     * template's `{% if error %}` marked the email input for ANY failure — under a
+     * comment correctly describing it as "the one failure that has a field to blame".
+     *
+     * The key is additive, so the 20-odd callers reading `error` alone are unaffected.
+     * A new refusal added here without a `field` degrades to the summary rather than
+     * accusing the wrong box, which is the right failure direction.
+     */
     public function register(string $name, string $email, string $phone, ?string $password): array
     {
         $name  = trim($name);
         $email = strtolower(trim($email));
         $phone = trim($phone);
 
-        if ($name === '' || !preg_match('/\S+\s+\S+/u', $name)) return ['ok' => false, 'error' => 'Please enter your full name (first and last).'];
-        if (!filter_var($email, FILTER_VALIDATE_EMAIL))          return ['ok' => false, 'error' => 'Please enter a valid email address.'];
-        if (\AfricaGates\Support\DisposableEmail::isDisposable($email)) return ['ok' => false, 'error' => 'Please use a permanent email address — disposable inboxes are not accepted.'];
-        if (strlen((string) preg_replace('/\D+/', '', $phone)) < 7) return ['ok' => false, 'error' => 'Please enter a valid phone number.'];
-        if ($password !== null && $password !== '' && strlen($password) < 8) return ['ok' => false, 'error' => 'Password must be at least 8 characters.'];
-        if (DB::table('gates_users')->where('email', $email)->exists()) return ['ok' => false, 'error' => 'An account with that email already exists — please sign in.'];
+        if ($name === '' || !preg_match('/\S+\s+\S+/u', $name)) return ['ok' => false, 'field' => 'name', 'error' => 'Please enter your full name (first and last).'];
+        if (!filter_var($email, FILTER_VALIDATE_EMAIL))          return ['ok' => false, 'field' => 'email', 'error' => 'Please enter a valid email address.'];
+        if (\AfricaGates\Support\DisposableEmail::isDisposable($email)) return ['ok' => false, 'field' => 'email', 'error' => 'Please use a permanent email address — disposable inboxes are not accepted.'];
+        if (strlen((string) preg_replace('/\D+/', '', $phone)) < 7) return ['ok' => false, 'field' => 'phone', 'error' => 'Please enter a valid phone number.'];
+        if ($password !== null && $password !== '' && strlen($password) < 8) return ['ok' => false, 'field' => 'password', 'error' => 'Password must be at least 8 characters.'];
+        if (DB::table('gates_users')->where('email', $email)->exists()) return ['ok' => false, 'field' => 'email', 'error' => 'An account with that email already exists — please sign in.'];
 
         $id = (int) DB::table('gates_users')->insertGetId([
             'name'          => mb_substr($name, 0, 160),

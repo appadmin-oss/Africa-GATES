@@ -647,20 +647,20 @@ final class PartnerOrg
         $pass  = (string) ($in['password'] ?? '');
         $cac   = trim((string) ($in['cac_number'] ?? ''));
 
-        if ($name === '')  return $fail + ['message' => 'Give the name supporters will recognise you by.'];
-        if ($legal === '') return $fail + ['message' => 'Give the registered name exactly as it appears at the CAC.'];
+        if ($name === '')  return $fail + ['field' => 'name', 'message' => 'Give the name supporters will recognise you by.'];
+        if ($legal === '') return $fail + ['field' => 'legal_name', 'message' => 'Give the registered name exactly as it appears at the CAC.'];
         if ($cac === '') {
             // Not negotiable, and not the same rule as a vendor's. A body collecting
             // charitable gifts in Nigeria has to be incorporated — an unregistered group
             // asking the public for money is the thing this platform must never launder.
-            return $fail + ['message' => 'A CAC registration number is required. Only an '
+            return $fail + ['field' => 'cac_number', 'message' => 'A CAC registration number is required. Only an '
                                        . 'incorporated body may collect charitable gifts in Nigeria.'];
         }
         // Shape, and shape only. A non-IT number is a NOTE and not a refusal here: a
         // non-profit limited by guarantee is an RC, and turning one away at a form it cannot
         // argue with would be both wrong and unappealable. The note reaches the reviewer.
         $cacIn = self::checkCacInput($cac, true);
-        if (!$cacIn['ok']) return $fail + ['message' => $cacIn['message']];
+        if (!$cacIn['ok']) return $fail + ['field' => 'cac_number', 'message' => $cacIn['message']];
         $cac = $cacIn['stored'];
 
         // ── ONE REGISTERED BODY, ONE RECORD ─────────────────────────────────
@@ -685,17 +685,17 @@ final class PartnerOrg
             // Deliberately does not name the organisation holding it. A form that answers
             // "which body is registered under this number" is a register lookup anybody can
             // run, and this one is not ours to publish.
-            return $fail + ['message' => 'An organisation is already registered here under that '
+            return $fail + ['field' => 'cac_number', 'message' => 'An organisation is already registered here under that '
                                        . 'CAC number. If it is yours, sign in instead — and if '
                                        . 'you think somebody else has used your number, write to '
                                        . 'us and we will look into it.'];
         }
 
         if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
-            return $fail + ['message' => 'That is not a valid email address.'];
+            return $fail + ['field' => 'contact_email', 'message' => 'That is not a valid email address.'];
         }
         if (\AfricaGates\Services\OrgAuth::findByEmail($email)) {
-            return $fail + ['message' => 'That email address already has a sign-in. '
+            return $fail + ['field' => 'contact_email', 'message' => 'That email address already has a sign-in. '
                                        . 'Sign in and continue from your dashboard.'];
         }
         if (strlen($pass) < 12) {

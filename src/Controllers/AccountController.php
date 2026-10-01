@@ -157,6 +157,10 @@ class AccountController
             'page_title' => $title,
             'gates_page' => 'account', 'hide_chrome' => true, 'as' => $as,
             'error' => $this->flash('flash_error'), 'old' => $this->flash(self::oldKey($as)) ?? [],
+            // Per-field, keyed per BRANCH for the same reason `oldKey()` is: `name` is a
+            // person on one side of this form and an organisation on the other, so one
+            // shared bag puts an organisation's error on an individual's Full name box.
+            'errors' => \AfricaGates\Support\FormErrors::take('register_' . ($as ?: 'individual'))['errors'],
             // Somebody already holding an organisation sign-in must not be handed a form
             // that mints a SECOND organisation against them — two half-complete records in
             // the review queue, with nothing to say which is real. The apply page guarded
@@ -201,6 +205,8 @@ class AccountController
                 . 'account, sign in instead.';
             $_SESSION[self::oldKey('individual')] =
                 ['name' => $b['name'] ?? '', 'email' => $b['email'] ?? '', 'phone' => $b['phone'] ?? ''];
+            // Deliberately NOT attributed to a field: a throttle is about the connection,
+            // and reddening a box would send somebody to correct an address that is fine.
             return $res->withHeader('Location', '/account/register?as=individual')->withStatus(302);
         }
 
@@ -209,6 +215,13 @@ class AccountController
             $_SESSION['flash_error'] = $r['error'];
             $_SESSION[self::oldKey('individual')] =
                 ['name' => $b['name'] ?? '', 'email' => $b['email'] ?? '', 'phone' => $b['phone'] ?? ''];
+
+            // The field the refusal is actually about, so the box that reddens is the box
+            // to fix. A refusal with no field degrades to the summary rather than guessing.
+            if (!empty($r['field'])) {
+                \AfricaGates\Support\FormErrors::for('register_individual')
+                    ->add((string) $r['field'], (string) $r['error'])->flash();
+            }
             // Back to the FORM. Step one would show four options and no sign of the
             // message explaining what was wrong with what they had just typed.
             return $res->withHeader('Location', '/account/register?as=individual')->withStatus(302);
@@ -249,9 +262,17 @@ class AccountController
      * A ten-field form emptied by one validation error is a form that does not get filled
      * in a second time — and this one asks for a CAC number somebody has to go and look up.
      */
-    private function backToOrgForm(Response $res, array $b, string $message): Response
+    private function backToOrgForm(Response $res, array $b, string $message, string $field = ''): Response
     {
         $_SESSION['flash_error'] = $message;
+
+        // Per-field where the refusal has a field. A throttle does not — it is about
+        // the connection — and reddening a box for it sends somebody to correct a CAC
+        // number they looked up correctly.
+        if ($field !== '') {
+            \AfricaGates\Support\FormErrors::for('register_organisation')
+                ->add($field, $message)->flash();
+        }
         // The password is deliberately not carried back: it is re-typed, never redisplayed,
         // and a session bag is not where one belongs even for a redirect.
         unset($b['password'], $b['_token']);
@@ -275,7 +296,8 @@ class AccountController
         }
 
         $r = \AfricaGates\Services\PartnerOrg::registerPartner($b);
-        if (!$r['ok']) return $this->backToOrgForm($res, $b, (string) $r['message']);
+        if (!$r['ok']) return $this->backToOrgForm($res, $b, (string) $r['message'],
+            (string) ($r['field'] ?? ''));
 
         $user = $r['user'];
         if (!$user) {
@@ -415,7 +437,10 @@ class AccountController
     public function forgotForm(Request $req, Response $res): Response
     {
         if (!empty($_SESSION['user_id'])) return $res->withHeader('Location', '/account')->withStatus(302);
+        $bag = \AfricaGates\Support\FormErrors::take('forgot');
+
         return $this->view->render($res, 'pages/account/forgot.twig', [
+            'errors' => $bag['errors'],
             'page_title' => 'Reset your password — Africa GATES', 'gates_page' => 'account',
             'hide_chrome' => true,
             'login_email' => (string) ($_SESSION['user_login_email'] ?? ''),
@@ -437,6 +462,8 @@ class AccountController
 
         if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
             $_SESSION['flash_error'] = 'Please enter a valid email.';
+            \AfricaGates\Support\FormErrors::for('forgot')
+                ->add('email', 'Please enter a valid email.')->flash();
             return $res->withHeader('Location', '/account/forgot')->withStatus(302);
         }
         $_SESSION['user_login_email'] = $email;
@@ -482,7 +509,10 @@ class AccountController
         $token = trim((string) ($req->getQueryParams()['token'] ?? ''));
         $user  = $token === '' ? null : $this->accounts->findByResetToken($token);
 
+        $bag = \AfricaGates\Support\FormErrors::take('reset');
+
         return $this->view->render($res, 'pages/account/reset.twig', [
+            'errors' => $bag['errors'],
             'page_title' => 'Set a new password — Africa GATES', 'gates_page' => 'account',
             'hide_chrome' => true,
             // The token is only echoed back into the form when it is LIVE. A dead one is
@@ -502,6 +532,8 @@ class AccountController
 
         if (strlen($pw) < 8) {
             $_SESSION['flash_error'] = 'Your new password must be at least 8 characters.';
+            \AfricaGates\Support\FormErrors::for('reset')
+                ->add('password', 'Your new password must be at least 8 characters.')->flash();
             return $res->withHeader('Location', '/account/reset?token=' . urlencode($token))->withStatus(302);
         }
         if ($this->rateLimit && !$this->rateLimit->check(hash('sha256', $this->ip($req)), 'user_reset_use', 10, 3600)) {

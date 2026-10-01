@@ -44,7 +44,10 @@
     </div>
   </div>
 
-  <form method="POST" action="/register" class="rg-card">
+  {# `novalidate` + `data-ag-validate`: the browser's own bubble off, and this
+   site's message in its place — styled, translatable, and announced by the same
+   summary the server renders. The pair is swept for; neither travels alone. #}
+  <form method="POST" action="/register" class="rg-card" novalidate data-ag-validate>
     <input type="hidden" name="_token" value="{{ csrf_token }}">
     {% if error %}<div class="rg-err" role="alert">{{ error }}</div>{% endif %}
 

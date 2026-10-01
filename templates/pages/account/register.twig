@@ -21,6 +21,9 @@
    no sign of the message explaining what was wrong with what they typed.
    ═══════════════════════════════════════════════════════════════════════════ #}
 {% extends "layout/account-auth.twig" %}
+{# The one place the field-error sentence is drawn, so the markup the server
+   renders and the markup `form-validate.js` builds are the same thing. #}
+{% import "partials/field.twig" as fld %}
 
 {% block card %}
 {% if as|default('') == 'individual' %}
@@ -47,7 +50,29 @@
      where the person who typed them is still standing there; the second cannot be checked
      in a browser, so it is said instead. #}
 
-  <form method="post" action="/account/register">
+  {#
+    The summary, which is the half a screen reader needs. WCAG 3.3.1 asks for the item
+    in error to be IDENTIFIED; a banner reading "Please check the form" identifies
+    nothing. It takes focus on arrival so somebody bounced back is told what happened
+    rather than finding out by scrolling.
+
+    `novalidate` turns off the browser's own bubble. The `pattern` and `minlength`
+    attributes stay — they still carry the rule to assistive technology and to
+    `form-validate.js` — they just no longer open a tooltip this site cannot write,
+    cannot translate, and which says something the server may not agree with.
+  #}
+  <form method="post" action="/account/register" novalidate data-ag-validate>
+    {% if errors|default({})|length %}
+      <div class="ag-formsum" role="alert" tabindex="-1" data-ag-form-summary>
+        <p class="ag-formsum__t">
+          {{ errors|length == 1 ? 'There is one thing to fix' : 'There are ' ~ errors|length ~ ' things to fix' }}
+        </p>
+        <ul class="ag-formsum__list">
+          {% for field, text in errors %}<li><a href="#{{ field }}">{{ text }}</a></li>{% endfor %}
+        </ul>
+      </div>
+    {% endif %}
+
     <input type="hidden" name="_token" value="{{ csrf_token }}">
     {# The member branch, named in the BODY as the organisation one is. It was implicit —
        anything without `as=organisation` fell through to here — which works and reads as
@@ -59,17 +84,36 @@
       {# Two words, because that is the server's rule. Spelled as a pattern rather than
          left to the round trip — and `title` carries the reason, which is what a browser
          shows when it refuses. #}
-      <input class="ag-acct__input" id="name" type="text" name="name" value="{{ old.name|default('') }}"
+      <input class="ag-acct__input{% if errors.name|default('') %} ag-acct__input--err{% endif %}"
+             id="name" type="text" name="name" value="{{ old.name|default('') }}"
              autocomplete="name" placeholder="First and last name" required autofocus
-             pattern="\s*\S+\s+.*\S.*" title="First and last name, please — both.">
+             pattern="\s*\S+\s+.*\S.*" title="First and last name, please — both."
+             {% if errors.name|default('') %}aria-invalid="true" aria-describedby="name-err"{% endif %}>
+      {{ fld.message('name', errors.name|default('')) }}
     </div>
 
     <div class="ag-acct__field">
       <label class="ag-acct__label" for="email">Email</label>
-      {# The one failure that has a field to blame: an address already in use. #}
-      <input class="ag-acct__input{% if error %} ag-acct__input--err{% endif %}" id="email" type="email" name="email"
-             value="{{ old.email|default('') }}" autocomplete="email" placeholder="you@email.com" required>
-      <small class="ag-acct__hint">Where your vote receipts and tickets go, so it has to be
+      {#
+        THE CONDITION USED TO BE `{% if error %}` — ANY error at all.
+
+        The comment above it said "the one failure that has a field to blame: an
+        address already in use", which is the right rule; the code marked this box for
+        every failure the form could produce. So "Password must be at least 8
+        characters" reddened the EMAIL input, sending somebody to correct an address
+        that was perfectly fine, with the actual problem unmarked two fields below.
+        That is worse than no error state: it is a confident wrong answer.
+
+        `UserAccountService::register()` names the field on every refusal now, and this
+        reads that field. A refusal with no field shows in the summary only.
+      #}
+      <input class="ag-acct__input{% if errors.email|default('') %} ag-acct__input--err{% endif %}"
+             id="email" type="email" name="email"
+             value="{{ old.email|default('') }}" autocomplete="email" placeholder="you@email.com" required
+             aria-describedby="email-hint{% if errors.email|default('') %} email-err{% endif %}"
+             {% if errors.email|default('') %}aria-invalid="true"{% endif %}>
+      {{ fld.message('email', errors.email|default('')) }}
+      <small class="ag-acct__hint" id="email-hint">Where your vote receipts and tickets go, so it has to be
         one you keep — disposable inboxes are refused.</small>
     </div>
 
@@ -77,8 +121,11 @@
       {# Required, and that is current behaviour rather than an oversight —
          vote receipts and event tickets reach people by phone. #}
       <label class="ag-acct__label" for="phone">Phone</label>
-      <input class="ag-acct__input" id="phone" type="tel" name="phone" value="{{ old.phone|default('') }}"
-             autocomplete="tel" inputmode="tel" placeholder="+234…" required>
+      <input class="ag-acct__input{% if errors.phone|default('') %} ag-acct__input--err{% endif %}"
+             id="phone" type="tel" name="phone" value="{{ old.phone|default('') }}"
+             autocomplete="tel" inputmode="tel" placeholder="+234…" required
+             {% if errors.phone|default('') %}aria-invalid="true" aria-describedby="phone-err"{% endif %}>
+      {{ fld.message('phone', errors.phone|default('')) }}
     </div>
 
     <div class="ag-acct__field">
@@ -87,10 +134,14 @@
          string that vanishes the moment somebody types, so the only person who ever saw
          the rule was one who had not started, and the only one who needed it was one who
          had. The server has always enforced it. #}
-      <input class="ag-acct__input" id="password" type="password" name="password"
-             minlength="8" autocomplete="new-password" placeholder="At least 8 characters">
-      <small class="ag-acct__hint">Leave it blank and we email you a one-time code each time
-        you sign in. You can set one later either way.</small>
+      <input class="ag-acct__input{% if errors.password|default('') %} ag-acct__input--err{% endif %}"
+             id="password" type="password" name="password"
+             minlength="8" autocomplete="new-password" placeholder="At least 8 characters"
+             aria-describedby="password-hint{% if errors.password|default('') %} password-err{% endif %}"
+             {% if errors.password|default('') %}aria-invalid="true"{% endif %}>
+      {{ fld.message('password', errors.password|default('')) }}
+      <small class="ag-acct__hint" id="password-hint">At least 8 characters. Leave it blank and we email
+        you a one-time code each time you sign in. You can set one later either way.</small>
     </div>
 
     <div class="ag-acct__btns">
@@ -207,9 +258,12 @@
 
       <div class="ag-acct__field">
         <label class="ag-acct__label" for="orgEmail">Email</label>
-        <input class="ag-acct__input{% if error %} ag-acct__input--err{% endif %}" id="orgEmail"
+        <input class="ag-acct__input{% if errors.contact_email|default('') %} ag-acct__input--err{% endif %}"
+               id="orgEmail"
                type="email" name="contact_email" maxlength="190" required autocomplete="email"
-               value="{{ old.contact_email|default('') }}" placeholder="you@organisation.org">
+               value="{{ old.contact_email|default('') }}" placeholder="you@organisation.org"
+               {% if errors.contact_email|default('') %}aria-invalid="true" aria-describedby="contact_email-err"{% endif %}>
+        {{ fld.message('contact_email', errors.contact_email|default('')) }}
         <small class="ag-acct__hint">This becomes your sign-in, and it is where the decision goes.</small>
       </div>
 

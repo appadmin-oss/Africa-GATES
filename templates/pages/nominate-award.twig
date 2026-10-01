@@ -163,7 +163,12 @@
     </div>
 
     <form class="nf__form nf__card" method="post" action="/nominate"
-          enctype="multipart/form-data" data-nf novalidate
+          {# `data-ag-validate` beside `data-nf`: the shared validator draws the field
+             messages and the summary, and `nominate.js` keeps the step logic and the
+             category rules that are specific to this form. `novalidate` without one of
+             them would be a form with the browser's bubble off and nothing in its
+             place, which is what `FormErrorStateTest` sweeps for. #}
+          enctype="multipart/form-data" data-nf novalidate data-ag-validate
           data-min-cats="{{ rules.min_categories }}"
           data-max-cats="{{ rules.max_categories }}"
           data-short-reason="{{ rules.short_reason }}">

@@ -63,7 +63,10 @@
     </div>
   </header>
 
-  <form method="POST" action="/community/new" class="cm-card" novalidate
+  {# `novalidate` turns the browser's bubble off; `data-ag-validate` is what draws a
+     message in its place. Without the second this form had no client-side feedback at
+     all — strictly worse than the native bubble it suppressed. #}
+  <form method="POST" action="/community/new" class="cm-card" novalidate data-ag-validate
         x-data="cmCompose()" @submit="if (!validate()) { $event.preventDefault(); } else { busy = true; }"
         aria-labelledby="cmFormH">
     <h2 class="sr-only" id="cmFormH">New thread details</h2>
