@@ -382,6 +382,10 @@
 {% endblock %}
 
 {% block content %}
+  {# The promo band (§4). `PromoService` decides what appears; zero promos render
+     nothing at all, so this include is safe on every one of the five pages. #}
+  {% include "partials/promo-carousel.twig" with { promos: promos|default([]) } only %}
+
 {% set feat   = (spotlight_profiles|default([]))|first %}
 {% set vmini  = (leaderboard|default([]))|slice(0,3) %}
 {% set leaders = (leaderboard|default([]))|slice(0,6) %}

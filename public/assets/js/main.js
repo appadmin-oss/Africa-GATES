@@ -245,6 +245,14 @@
     $$('[data-count]').forEach((el) => {
       const target = parseFloat((el.getAttribute('data-count') || '').replace(/[, ]/g, ''));
       if (!Number.isFinite(target)) return;
+
+      /* A count-up REPLACES the element's text, so an element with children is not a
+         counter — it is something else that happens to carry a number under a name
+         nobody namespaced. Running on it deletes the whole subtree and leaves "0",
+         with valid markup in the response and nothing in the console.
+         Measured: the promo band shipped `data-count="1"` and vanished on every page
+         it appeared on. That one is renamed; this is what stops the next one. */
+      if (el.firstElementChild) return;
       const suffix = el.getAttribute('data-count-suffix') || '';
       const obj = { v: 0 };
       gsap.to(obj, {

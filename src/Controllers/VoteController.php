@@ -88,6 +88,9 @@ class VoteController {
         }
 
         return $this->view->render($res, 'pages/vote.twig', [
+            // The promo band. Nothing is rendered when there are none — a 188px
+            // strip of empty on a live page is worse than no band at all.
+            'promos' => \AfricaGates\Services\PromoService::forPlacement('vote', !empty($_SESSION['user_id'])),
             'page_title'       => 'Vote — Africa GATES | Afrovanguard',
             'meta_description' => 'Cast your verified vote in the Africa GATES awards. Browse the live programmes and back the African excellence you believe deserves continental recognition.',
             'gates_page'       => 'awards',

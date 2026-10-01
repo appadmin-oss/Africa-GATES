@@ -108,6 +108,10 @@
 {% endblock %}
 
 {% block content %}
+  {# The promo band (§4). `PromoService` decides what appears; zero promos render
+     nothing at all, so this include is safe on every one of the five pages. #}
+  {% include "partials/promo-carousel.twig" with { promos: promos|default([]) } only %}
+
 {% set FLAGS = {'NG':'🇳🇬','GH':'🇬🇭','ZA':'🇿🇦','KE':'🇰🇪','ET':'🇪🇹','EG':'🇪🇬','MA':'🇲🇦','TZ':'🇹🇿','UG':'🇺🇬','CI':'🇨🇮','CM':'🇨🇲','SN':'🇸🇳','ML':'🇲🇱','AO':'🇦🇴','CD':'🇨🇩','RW':'🇷🇼','ZM':'🇿🇲','ZW':'🇿🇼','BF':'🇧🇫','NE':'🇳🇪','BW':'🇧🇼'} %}
 {# Chip colour per phase. The LABEL comes from the phase view-model
    (CyclePolicy), never from a second copy here — that is how the badge and the

@@ -1,0 +1,116 @@
+{#
+  ═══════════════════════════════════════════════════════════════════════════════
+  THE PROMO BAND — partials/promo-carousel.twig
+  ═══════════════════════════════════════════════════════════════════════════════
+
+  Ported from `handoff-new-pages/designs/ChallengeBanner.dc.html`. Mounted on five
+  placements (account, nominate, home, vote, events) with `{% include %}` and a
+  `placement` variable; the controller supplies `promos` from `PromoService`.
+
+  TWO RULES FROM §4 THAT ARE NOT STYLE CHOICES
+
+  · ZERO PROMOS RENDERS NOTHING. Not an empty band, not a placeholder — the markup is
+    absent. A 188px strip of nothing on five pages is five pages with a hole in them.
+  · ONE PROMO MEANS NO DOTS AND NO AUTO-ADVANCE. A carousel of one that still ticks is
+    a thing that redraws itself for no reason, and dots that cannot change anything are
+    controls that lie.
+
+  AND ONE DEPARTURE FROM THE COMP, DELIBERATELY
+
+  The comp pauses on hover and on `prefers-reduced-motion`. §4 also requires pausing on
+  FOCUS-WITHIN, and it is right: WCAG 2.2.2 is about anything that moves for more than
+  five seconds, and a keyboard user tabbing into a slide that then slides away loses
+  what they were reading with no way to get it back. The script does both.
+
+  The motion itself is CSS; the script only moves an index. So with JavaScript off this
+  is a readable list of slides rather than a dead frame — see the `no-js` note below.
+#}
+
+{% if promos|default([])|length %}
+  <section class="pb" aria-roledescription="carousel" aria-label="Challenges"
+           {# `data-pb-count`, NOT `data-count`. `main.js` binds a GSAP count-up to
+              every `[data-count]` on the page and writes the result into the element's
+              `textContent` — which replaced this whole band with the character "0".
+              Raw markup in the response, an empty band in the browser, and nothing in
+              the console: an unnamespaced data attribute on a shared page is a global
+              API, and this one already had an owner. #}
+           data-ag-promos data-pb-count="{{ promos|length }}">
+
+    <div class="pb__view">
+      {#
+        The track is sized in CSS from `--pb-n`, not from an inline width, so a slide
+        count change needs no second place to keep true.
+      #}
+      <ul class="pb__track" style="--pb-n:{{ promos|length }}" data-pb-track>
+        {% for p in promos %}
+          <li class="pb__slide" data-theme="{{ p.theme }}"
+              aria-roledescription="slide"
+              aria-label="{{ loop.index }} of {{ promos|length }}: {{ p.title }}"
+              {# Only the current slide is reachable. Without this a keyboard user tabs
+                 into slides that are off-screen and the page scrolls sideways to
+                 nothing — the commonest carousel fault there is. #}
+              {% if not loop.first %}aria-hidden="true" inert{% endif %}>
+
+            <span class="pb__deco" aria-hidden="true">
+              <span class="pb__ring"></span><span class="pb__disc"></span><span class="pb__dot"></span>
+            </span>
+
+            <span class="pb__body">
+              {% if p.kicker or p.chip %}
+                <span class="pb__kicker">
+                  {{ p.kicker }}
+                  {% if p.chip %}<span class="pb__chip" data-state="{{ p.chip_state }}">{{ p.chip }}</span>{% endif %}
+                </span>
+              {% endif %}
+              <span class="pb__t">{{ p.title }}</span>
+              {% if p.sub %}<span class="pb__s">{{ p.sub }}</span>{% endif %}
+              <a class="pb__cta" href="{{ p.href }}"
+                 {% if not loop.first %}tabindex="-1"{% endif %}>{{ p.cta }}</a>
+            </span>
+
+            {% if p.art %}
+              {# Desktop only — the phone layout has no room and a 180px image beside
+                 20px type is the title losing. `loading="lazy"` on all but the first:
+                 the band is above the fold on the account page. #}
+              <span class="pb__art" aria-hidden="true">
+                <img src="{{ p.art }}" alt="" width="180" height="156"
+                     loading="{{ loop.first ? 'eager' : 'lazy' }}" decoding="async">
+              </span>
+            {% endif %}
+          </li>
+        {% endfor %}
+      </ul>
+    </div>
+
+    {% if promos|length > 1 %}
+      <div class="pb__controls">
+        {#
+          32px targets, which is above the 24px AA floor and matches the comp. The
+          visible pill is 8px (28px when current) and the hit area is the button.
+        #}
+        {% for p in promos %}
+          <button class="pb__dot-btn" type="button" data-pb-go="{{ loop.index0 }}"
+                  aria-label="Show slide {{ loop.index }} of {{ promos|length }}"
+                  aria-current="{{ loop.first ? 'true' : 'false' }}">
+            <span class="pb__pill"></span>
+          </button>
+        {% endfor %}
+
+        {#
+          WCAG 2.2.2 wants a mechanism to pause. It is a real button with a label that
+          changes, not an icon alone — and it is rendered by the SERVER so it exists
+          before any script runs.
+        #}
+        <button class="pb__pause" type="button" data-pb-pause aria-label="Pause slides">
+          <svg class="pb__i-pause" width="10" height="10" viewBox="0 0 14 14" fill="currentColor" aria-hidden="true">
+            <rect x="2" y="1" width="3.5" height="12" rx="1"></rect>
+            <rect x="8.5" y="1" width="3.5" height="12" rx="1"></rect>
+          </svg>
+          <svg class="pb__i-play" width="10" height="10" viewBox="0 0 14 14" fill="currentColor" aria-hidden="true">
+            <path d="M3 1.5v11l9-5.5z"></path>
+          </svg>
+        </button>
+      </div>
+    {% endif %}
+  </section>
+{% endif %}

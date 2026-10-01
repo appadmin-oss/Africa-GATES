@@ -3265,6 +3265,34 @@ return function(App $app) {
         // X-API-Version header (see ApiVersionMiddleware).
         $apiRoutes = function(RouteCollectorProxy $a) {
             $a->get('/registry',         ApiController::class.':registry');
+
+            /**
+             * GET /api/v1/promos?placement=account — the band's own slides.
+             *
+             * Reads `PromoService::payload()`, which calls the SAME method the
+             * server-rendered band uses. Two readers of one placement is how an
+             * endpoint and a page come to disagree about what is running, and the pair
+             * most likely to differ is the one that publishes a value and the one that
+             * acts on it.
+             *
+             * It takes the signed-in state from the SESSION, never from a parameter: a
+             * client that could ask for the signed-in set would be able to read
+             * promos aimed at members while signed out.
+             */
+            $a->get('/promos', function ($req, $res) {
+                $placement = (string) ($req->getQueryParams()['placement'] ?? '');
+                $payload   = \AfricaGates\Services\PromoService::payload(
+                    $placement, !empty($_SESSION['user_id']));
+
+                $res->getBody()->write((string) json_encode($payload,
+                    JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE));
+
+                return $res->withHeader('Content-Type', 'application/json')
+                    // A band that differs by session must never be cached by a shared
+                    // proxy: one visitor's signed-in slides served to the next is a
+                    // disclosure, small but gratuitous.
+                    ->withHeader('Cache-Control', 'private, max-age=60');
+            });
             $a->get('/registry/{slug}',  ApiController::class.':profileBySlug');
             $a->get('/awards',           ApiController::class.':awardsIndex');
             $a->get('/nominees',         ApiController::class.':nominees');

@@ -175,6 +175,9 @@ class NominationController {
         $openIds = array_map(static fn (array $p): int => (int) $p['id'], $open);
 
         return $this->view->render($res, 'pages/nominate.twig', [
+            // The promo band. Nothing is rendered when there are none — a 188px
+            // strip of empty on a live page is worse than no band at all.
+            'promos' => \AfricaGates\Services\PromoService::forPlacement('nominate', !empty($_SESSION['user_id'])),
             'page_title'       => 'Nominate — Africa GATES',
             'meta_description' => 'Put someone forward for continental recognition. Choose the '
                                 . 'Africa GATES award you are nominating for.',

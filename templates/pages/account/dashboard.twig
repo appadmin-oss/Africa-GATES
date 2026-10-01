@@ -451,6 +451,10 @@
 {% endblock %}
 
 {% block content %}
+  {# The promo band (§4). `PromoService` decides what appears; zero promos render
+     nothing at all, so this include is safe on every one of the five pages. #}
+  {% include "partials/promo-carousel.twig" with { promos: promos|default([]) } only %}
+
 {# The shared set. Section icons are coloured — see the note in that file for why the
    emoji this page used to carry were the right idea and the wrong mechanism. #}
 {% import "partials/icons.twig" as gi %}

@@ -291,6 +291,7 @@
   <link rel="stylesheet" href="{{ asset('/assets/css/components/forms.css') }}">
   <link rel="stylesheet" href="{{ asset('/assets/css/components/nominee-confirm.css') }}">
   <link rel="stylesheet" href="{{ asset('/assets/css/components/challenge.css') }}">
+  <link rel="stylesheet" href="{{ asset('/assets/css/components/promo.css') }}">
   <link rel="stylesheet" href="{{ asset('/assets/css/components/pulse-immersive.css') }}">
   {# The tile — the one device that carries colour. #}
   <link rel="stylesheet" href="{{ asset('/assets/css/components/tile.css') }}">
@@ -620,6 +621,9 @@
 {# Form validation: progressive enhancement only. The server is the authority, and
    every form here is submittable with this file missing. #}
 <script defer src="{{ asset('/assets/js/form-validate.js') }}"></script>
+{# The promo band moves one index; all of the motion is in promo.css, so the band is
+   readable with this file missing. #}
+<script defer src="{{ asset('/assets/js/promo-carousel.js') }}"></script>
 {# Gee — the page-aware guide (self-contained; no lite_page gating). Not
    loaded when the widget is suppressed (members on community pages). #}
 {% if not gee_suppressed|default(false) %}

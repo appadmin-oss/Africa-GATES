@@ -68,6 +68,9 @@ class EventsController
                 ->orderByDesc('event_date')->limit(12)->get()->map(fn($r) => (array)$r)->all()
         );
         return $this->view->render($res, 'pages/events.twig', [
+            // The promo band. Nothing is rendered when there are none — a 188px
+            // strip of empty on a live page is worse than no band at all.
+            'promos' => \AfricaGates\Services\PromoService::forPlacement('events', !empty($_SESSION['user_id'])),
             'page_title'       => 'Events — Africa GATES',
             'meta_description' => 'Ceremonies, webinars and community sessions across the Africa GATES cycle.',
             'gates_page'       => 'events',

@@ -1089,6 +1089,9 @@ class AccountController
         $bookmarks = $this->community ? $this->community->bookmarkedThreads((int) $user->id, 12) : [];
 
         return $this->view->render($res, 'pages/account/dashboard.twig', [
+            // The promo band. Nothing is rendered when there are none — a 188px
+            // strip of empty on a live page is worse than no band at all.
+            'promos' => \AfricaGates\Services\PromoService::forPlacement('account', !empty($_SESSION['user_id'])),
             // Nominees this member voted for who were promoted. Only ever non-empty for a
             // cycle CycleMaterialiser actually released, so it cannot congratulate anybody
             // on an award nobody has been told about.

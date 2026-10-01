@@ -88,6 +88,8 @@ final class AssetBundle
         'assets/css/components/nominee-confirm.css',
         // Challenges. The four theme presets are NAMES resolving to existing tokens.
         'assets/css/components/challenge.css',
+        // The promo band, on five placements.
+        'assets/css/components/promo.css',
         // The immersive mobile Pulse feed. After site-search so its
         // body[data-page="pulse"] overrides win over the generic components, and
         // before a11y.css, which must stay last.
