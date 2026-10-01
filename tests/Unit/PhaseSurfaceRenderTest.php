@@ -108,8 +108,11 @@ class PhaseSurfaceRenderTest extends TestCase
         );
 
         $this->assertSame(200, $status);
-        $this->assertStringContainsString('Cast a vote', $body, 'the voting CTA must render during voting');
-        $this->assertStringContainsString('/vote/creative', $body, 'and deep-link to THIS programme, not the hub');
+        // The label is AwardOverview's, which takes the comp's "Vote now". Asserting the
+        // literal "Cast a vote" pinned the old page's wording, and the rule it guarded —
+        // an action for the phase, linked to THIS programme — survived the rebuild intact.
+        $this->assertMatchesRegularExpression('~<a class="ag-btn[^"]*" href="/vote/creative">Vote now</a>~', $body,
+            'the voting CTA must render during voting, and deep-link to THIS programme, not the hub');
         $this->assertStringContainsString('Voting open', $body, 'the phase must be stated');
     }
 
@@ -122,8 +125,10 @@ class PhaseSurfaceRenderTest extends TestCase
             '/awards/impact', ['p' => 'impact']
         );
 
-        $this->assertStringContainsString('Submit a nomination', $body);
-        $this->assertStringNotContainsString('Cast a vote', $body, 'and must not offer voting yet');
+        // To this award's own nomination page, which knows its wording and categories —
+        // the old link went to the generic /nominate and dropped both.
+        $this->assertMatchesRegularExpression('~href="/nominate/impact">Submit a nomination</a>~', $body);
+        $this->assertStringNotContainsString('>Vote now<', $body, 'and must not offer voting yet');
     }
 
     public function test_programme_page_offers_results_when_published(): void
@@ -142,7 +147,7 @@ class PhaseSurfaceRenderTest extends TestCase
 
         $this->assertStringContainsString('See the results', $body);
         $this->assertStringContainsString('Results published', $body);
-        $this->assertStringNotContainsString('Cast a vote', $body, 'a finished cycle is not votable');
+        $this->assertStringNotContainsString('>Vote now<', $body, 'a finished cycle is not votable');
     }
 
     public function test_programme_page_states_the_phase_even_with_no_action_available(): void
@@ -187,13 +192,17 @@ class PhaseSurfaceRenderTest extends TestCase
         // guarded is a hardcoded year in the PROGRAMME EYEBROW, so that is what
         // this now looks at — and a literal `2026` is replaced by date('Y'), or
         // the test stops testing anything at all next January.
+        //
+        // The year moved from the old hero eyebrow to the edition card's heading, which is
+        // where the comp states it; the rule — the cycle's own year, never a literal — is
+        // asserted there, against that element alone, for the same reason.
         $this->assertMatchesRegularExpression(
-            '/class="eyebrow"[^>]*>[^<]*2031 Cycle/u', $body,
-            'the eyebrow must render the cycle\'s own year'
+            '~id="h-ed"><span>Edition</span>\s*[^<]*2031~u', $body,
+            'the edition heading must render the cycle\'s own year'
         );
         $this->assertDoesNotMatchRegularExpression(
-            '/class="eyebrow"[^>]*>[^<]*' . date('Y') . ' Cycle/u', $body,
-            'the eyebrow used to be a literal'
+            '~id="h-ed"><span>Edition</span>\s*[^<]*' . date('Y') . '~u', $body,
+            'the year used to be a literal'
         );
     }
 

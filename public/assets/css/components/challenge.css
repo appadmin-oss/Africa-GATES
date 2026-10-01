@@ -98,11 +98,11 @@
 
 /* The shared fact strip, on the wash: cells of white at 75% with the theme's hairline
    between. The strip's own sunken ground would vanish into a tinted hero. */
-.ch-hero .ag-facts{ margin-top:4px; background:var(--ch-line); border:1px solid var(--ch-line);
+/* The shared text-fact strip, on the wash: cells of white at 75% with the theme's
+   hairline between, where a white strip would sit on the tint like a sticker. */
+.ch-hero .ag-facts{ margin-top:4px; background:var(--ch-line); border-color:var(--ch-line);
   border-radius:var(--ag-r-16) }
 .ch-hero .ag-facts > *{ padding:12px 14px; background:rgba(255,255,255,.75) }
-.ch-hero .ag-facts dd{ font:700 15.5px/1.3 var(--ag-font-body) }
-.ch-hero .ag-facts dt{ white-space:normal }
 
 /* ── the body ── */
 .ch-body{ max-width:1160px; margin:0 auto; padding:20px 16px 40px;

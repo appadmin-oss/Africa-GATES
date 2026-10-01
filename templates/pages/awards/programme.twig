@@ -1,240 +1,202 @@
 {% extends "layout/gates.twig" %}
+
+{#
+  ══ /awards/{slug} — BUILT FROM `AwardsPage.dc.html` (view: detail) ══════════════
+
+  ── HOW THIS PAGE IS PUT TOGETHER ───────────────────────────────────────────────
+
+    partials/ui.twig     subnav · facts · pill · row · empty
+    components.css       what those look like everywhere
+    components/awards.css  the hero, the edition card and the category race — the
+                         three things only an award page has
+
+  ── EVERY FACT IS WORKED OUT, NOT WRITTEN ───────────────────────────────────────
+
+  The phase, its dates, the one action a reader can take and the scoring split come
+  from `AwardOverview`, which reads `CyclePolicy` and `RuleEngine`. A percentage typed
+  here would be the 157-points-out settings screen again.
+
+  ── DEPARTURES FROM THE COMP, EACH DELIBERATE ───────────────────────────────────
+
+  1. Sponsors are NAMES in the comp's cards, not logos. A logo wall hands the visual
+     weight to whoever sent the biggest file, and the line under the list — sponsors
+     fund the award and do not judge it — is this platform's actual guarantee, kept
+     where somebody is looking at the thing that raises the question.
+  2. The edition is text, not a select. The comp draws a picker; switching edition needs
+     each past edition's standing, which this page does not hold. A select that changes
+     nothing is worse than a label.
+  3. No "Judges · names published" fact. The comp asserts it; nothing here can state
+     that truthfully for every programme, so it is not printed.
+  4. No "Become a sponsor" link: there is no page for it to go to.
+  5. No stock photo. The old page hotlinked one for every award; with no cover the hero
+     is text alone.
+#}
+
 {% block head_styles %}
-<style nonce="{{ csp_nonce }}">
-  /* ── THE SPONSOR LIST ───────────────────────────────────────────────────────
-     Hairline rules and mono micro-labels, the house pattern. Deliberately NOT a logo
-     wall: a row of uploaded images at whatever resolution each sponsor sent is the
-     single fastest way to make an awards page look like a trade show, and it hands the
-     visual weight to whoever supplied the biggest PNG. Names set in the page's own type
-     read as the platform naming its backers, which is what this is. */
-  .spon{ list-style:none; margin:0; padding:0; border-top:1px solid rgba(16,41,44,.12) }
-  .spon__i{ padding:14px 0; border-bottom:1px solid rgba(16,41,44,.12) }
-  .spon__b{ display:flex; align-items:baseline; gap:10px; flex-wrap:wrap }
-  .spon__n{ font-weight:700; font-size:17px; color:var(--ag-ink,#10292C); text-decoration:none }
-  .spon__n[href]{ text-decoration:underline; text-underline-offset:3px;
-    text-decoration-color:rgba(16,41,44,.28) }
-  .spon__n[href]:hover{ text-decoration-color:currentColor }
-  .spon__t{ font-family:var(--ag-font-mono,monospace); font-size:11px; font-weight:700;
-    letter-spacing:.1em; text-transform:uppercase; color:#5a6d6f }
-  /* The headline sponsor is the one thing given weight, and it is given ONE thing —
-     a gold rule, not a size, a background and a badge. A highlight almost everything
-     qualifies for is a background. */
-  .spon__i--headline{ border-left:3px solid #f3b416; padding-left:14px }
-  .spon__i--headline .spon__n{ font-size:19px }
-  .spon__d{ margin:6px 0 0; font-size:14px; line-height:1.6; color:#5a6d6f; max-width:62ch }
-  .spon__rule{ margin:16px 0 0; font-size:13px; line-height:1.7; color:#5a6d6f;
-    max-width:72ch }
-
-  /* ── THE HOST ───────────────────────────────────────────────────────────────
-     This one DOES carry a logo, where the sponsor list deliberately does not, and the
-     reason is that there is exactly one of them. The objection to a logo wall is that
-     it hands the visual weight to whoever sent the biggest file; a single mark beside a
-     single name is an attribution, and the body that runs an award is the one party
-     whose own mark belongs on its page.
-
-     Sized by HEIGHT with an auto width and a max: a host's mark is whatever shape it is,
-     and a fixed box either letterboxes a wordmark or squashes a roundel. */
-  .phost{ display:flex; align-items:center; gap:14px; flex-wrap:wrap; margin:0;
-    padding:14px 0; border-top:1px solid rgba(16,41,44,.12);
-    border-bottom:1px solid rgba(16,41,44,.12) }
-  .phost__logo{ width:auto; height:44px; max-width:180px; object-fit:contain;
-    flex:none; display:block }
-  /* No fallback hex: this file's literal budget is frozen and a `var(--x, #fallback)`
-     is a second declaration of the colour that nothing updates when the token moves.
-     The rules above it predate that guard. */
-  .phost__n{ font-weight:700; font-size:19px; color:var(--ag-ink) }
-  .phost__n a{ color:inherit; text-decoration:underline; text-underline-offset:3px;
-    text-decoration-color:rgba(16,41,44,.28) }
-  .phost__n a:hover{ text-decoration-color:currentColor }
-</style>
+<link rel="stylesheet" href="{{ asset('/assets/css/components/awards.css') }}">
 {% endblock %}
 
 {% block content %}
-{# The promo band (§4). Scoped to this programme by the controller: a challenge that does
-   not count inside this award has no banner here. Zero promos render nothing at all. #}
+{% import "partials/ui.twig" as ui %}
+{% set a = programme %}
+{% set phase = a.phase|default(null) %}
+
+{# The promo band (§4), scoped to this programme by the controller. #}
 {% include "partials/promo-carousel.twig" with { promos: promos|default([]) } only %}
 
-{% set a = programme %}
-{# The COMPUTED phase — see AfricaGates\Services\CyclePolicy. `a.cycle_status`
-   used to be read here while the service never returned it, so `status` was
-   permanently 'upcoming' and every CTA on this page was unreachable in every
-   phase. Read `phase` for anything the user sees. #}
-{% set phase = a.phase|default(null) %}
-{% set status = phase.phase|default(a.cycle_status|default('upcoming')) %}
+<div class="aw-page"><div class="aw">
+  <a class="aw-back" href="/awards">← All awards</a>
 
-<section class="p-hero p-hero--image" style="--p-hero-image: url('{{ a.cover|default('https://images.unsplash.com/photo-1492684223066-81342ee5ff30?auto=format&fit=crop&w=2000&q=82') }}')">
-  <div class="aurora aurora--dark" aria-hidden="true"></div>
-  <div class="wrap">
-    <p class="eyebrow" data-anim>{{ a.icon_emoji|default('🏆') }} Programme{% if a.year %} · {{ a.year }} Cycle{% endif %}</p>
-    <h1 data-text-anim>{{ a.title }}</h1>
-    <p data-anim data-anim-delay="1">{{ a.description }}</p>
-    {% if phase %}
-    {# One line of state, always present. Absolute dates are the accessible
-       primary: no live ticker here, so nothing to announce repeatedly. #}
-    <p class="p-hero__state" data-anim data-anim-delay="1"
-       style="margin:14px 0 0;font-size:14px;font-weight:600;letter-spacing:.01em">
-      <span style="display:inline-flex;align-items:center;gap:8px;padding:7px 15px;border-radius:999px;background:rgba(255,255,255,.14);box-shadow:inset 0 0 0 1px rgba(255,255,255,.2)">
-        {% if phase.is_open %}<span aria-hidden="true" style="width:8px;height:8px;border-radius:50%;background:#7FC87C"></span>{% endif %}
-        {{ phase.label }}
-      </span>
-      <span style="margin-left:10px;font-weight:400;opacity:.85">{{ phase.detail }}</span>
-    </p>
+  {# ══ HERO ═══════════════════════════════════════════════════════════════════ #}
+  <header class="aw-hero{{ a.cover ? ' aw-hero--art' : '' }}">
+    <div class="aw-hero__b">
+      {# WHO RUNS IT, beside its mark — the October handoff's "Hosted by", on every view
+         of the page. Its own line and never a row in the sponsor list: the guarantee
+         under that list is a promise about the people in it, and a host does run the
+         award. No `sponsored` on the link, because nobody paid for it; `nofollow`, as
+         for any outbound link this site has not vouched for. The logo is `alt=""` —
+         the sentence beside it names the host. #}
+      {% if host %}
+      <p class="aw-hero__k">
+        {% if host.logo %}<img src="{{ host.logo }}" alt="" height="28" decoding="async">{% endif %}
+        <span>Hosted by {% if host.url %}<a href="{{ host.url }}" target="_blank" rel="noopener noreferrer nofollow">{{ host.name }}</a>{% else %}<b>{{ host.name }}</b>{% endif %}</span>
+      </p>
+      {% endif %}
+      <h1 class="aw-hero__h">{{ a.title }}</h1>
+      {% if a.subtitle or a.description %}<p class="aw-hero__p">{{ a.subtitle ?: a.description }}</p>{% endif %}
+    </div>
+    {% if a.cover %}
+      <img class="aw-hero__art" src="{{ a.cover }}" alt="" width="520" height="390"
+           fetchpriority="high" decoding="async">
     {% endif %}
-    <div class="p-hero__cta" data-anim data-anim-delay="2">
-      {# Deep-link to THIS programme, not the hub. The old links went to /vote
-         and to a /vote#{slug} anchor that no page defines. #}
-      {% if status == 'voting' %}
-        <a href="/vote/{{ a.slug }}" class="btn btn--gold">Cast a vote <svg aria-hidden="true" focusable="false" class="btn__arrow" viewBox="0 0 20 20" fill="none"><path d="M7.5 4.5 13 10 7.5 15.5" stroke="currentColor" stroke-width="1.75" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></a>
-      {% elseif status == 'nominations' %}
-        <a href="/nominate" class="btn btn--gold">Submit a nomination <svg aria-hidden="true" focusable="false" class="btn__arrow" viewBox="0 0 20 20" fill="none"><path d="M7.5 4.5 13 10 7.5 15.5" stroke="currentColor" stroke-width="1.75" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></a>
-      {% elseif status == 'results' %}
-        <a href="/leaderboard" class="btn btn--gold">See the results <svg aria-hidden="true" focusable="false" class="btn__arrow" viewBox="0 0 20 20" fill="none"><path d="M7.5 4.5 13 10 7.5 15.5" stroke="currentColor" stroke-width="1.75" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></a>
-      {% elseif status == 'shortlisting' or status == 'judging' %}
-        {# No action is available, so offer the nearest useful one rather than a
-           disabled control or a dead end. #}
-        <a href="/vote/{{ a.slug }}" class="btn btn--gold">See the nominees <svg aria-hidden="true" focusable="false" class="btn__arrow" viewBox="0 0 20 20" fill="none"><path d="M7.5 4.5 13 10 7.5 15.5" stroke="currentColor" stroke-width="1.75" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></a>
-      {% endif %}
-      <a href="/awards" class="btn btn--white">All programmes <svg aria-hidden="true" focusable="false" class="btn__arrow" viewBox="0 0 20 20" fill="none"><path d="M7.5 4.5 13 10 7.5 15.5" stroke="currentColor" stroke-width="1.75" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></a>
+  </header>
+
+  {% set nav = [] %}
+  {% for k, l in views %}{% set nav = nav|merge([{key: k, label: l, href: '?tab=' ~ k}]) %}{% endfor %}
+  {{ ui.subnav(nav, tab, 'About this award') }}
+
+  {% if tab == 'details' %}
+  {# ══ AWARD DETAILS ════════════════════════════════════════════════════════ #}
+  <section class="aw-sec" aria-labelledby="h-det">
+    <h2 class="aw-h2" id="h-det">About the award</h2>
+    {% if a.description %}<div class="aw-prose">{{ a.description|nl2br }}</div>{% endif %}
+    {% if facts|length %}{{ ui.facts(facts, 'text') }}{% endif %}
+  </section>
+
+
+  {% elseif tab == 'terms' %}
+  {# ══ TERMS ═══════════════════════════════════════════════════════════════ #}
+  <section class="aw-sec" aria-labelledby="h-terms">
+    <h2 class="aw-h2" id="h-terms">Terms</h2>
+    <div class="aw-prose">{{ a.terms|nl2br }}</div>
+  </section>
+
+  {% else %}
+  {# ══ OVERVIEW ════════════════════════════════════════════════════════════ #}
+
+  {% if a.cycle %}
+  <section class="aw-edition ag-card" aria-labelledby="h-ed">
+    <div class="ag-between">
+      {# "11th Edition · 2026" — and the year once, where a label already is the year
+         (several editions are labelled "2026" and nothing else). #}
+      {% set ed = a.cycle.edition_label|default('')|trim %}
+      <h2 class="aw-edition__h" id="h-ed"><span>Edition</span>
+        {{ ed ?: a.year }}{% if ed and a.year and (a.year ~ '') not in ed %} · {{ a.year }}{% endif %}</h2>
+      {# Live for any open phase — a nomination window is happening now as much as a
+         vote is — so the pill and the step bar under it speak with one colour. #}
+      {% if phase %}{{ ui.pill(phase.label, phase.is_open ? 'live' : (phase.is_finished ? 'ok' : '')) }}{% endif %}
     </div>
-  </div>
-</section>
 
-<section class="section">
-  <div class="wrap">
-    <div class="text-center mx-auto max-w-xl mb-8" data-anim>
-      <p class="eyebrow">Categories</p>
-      <h2 data-text-anim>This cycle's <em>shortlist</em></h2>
-      {# Say why the order is what it is. An order a reader cannot explain reads as
-         no order at all, and they go back to scanning every card. Only shown once
-         there is a real race to have ordered by. #}
-      {% if a.categories|default([])|length and a.categories|first.leader %}
-      <p class="text-sm text-soft" style="margin-top:10px">Ordered by the race — the category with the strongest lead comes first.</p>
-      {% endif %}
-    </div>
-    {% if a.categories is iterable and a.categories|length %}
-    <div class="card-grid">
-      {% for c in a.categories %}
-      <div class="card">
-        {% if c.leader and loop.first %}<p class="eyebrow" style="color:var(--ag-live-ink);margin:0 0 6px">Hottest race</p>{% endif %}
-        <h3 class="card__title">{{ c.title }}</h3>
-        <p class="card__deck">{{ c.description|default('Recognition for outstanding contribution in this category.') }}</p>
-
-        {# The leader is what the ordering is BASED on, so it has to be visible or
-           the sequence looks arbitrary. Absent entirely until the first vote
-           lands: a nominee on zero votes is not leading anything. #}
-        {% if c.leader %}
-        <div style="display:flex;align-items:center;gap:10px;margin:14px 0 0;padding:10px 12px;background:#f4f9f4;border:1px solid #cfe6cf;border-radius:14px">
-          <span aria-hidden="true" style="flex:none;width:34px;height:34px;border-radius:50%;background:#237b22;color:#fff;display:inline-flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;background-size:cover;background-position:center{% if c.leader.photo_path %};background-image:url('{{ c.leader.photo_path }}'){% endif %}">{% if not c.leader.photo_path %}{{ c.leader.name|slice(0,1)|upper }}{% endif %}</span>
-          <span style="min-width:0">
-            <span style="display:block;font-size:11px;font-weight:700;letter-spacing:.09em;text-transform:uppercase;color:#5a6d6f">Out in front</span>
-            <strong style="display:block;font-size:14px;color:#10292c;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ c.leader.name }}</strong>
-            {% if c.leader.organisation %}<span style="display:block;font-size:12px;color:#5a6d6f;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ c.leader.organisation }}</span>{% endif %}
-          </span>
-        </div>
-        {% endif %}
-
-        <div class="card__foot">
-          <span class="text-sm text-soft">{{ c.nominee_count|default(0) }} nominees{% if c.total_votes|default(0) %} · {{ c.total_votes|number_format }} votes cast{% endif %}</span>
-          {% if status == 'voting' %}
-            <a href="/vote/{{ a.slug }}" class="btn btn--emerald btn--sm">Vote <svg aria-hidden="true" focusable="false" class="btn__arrow" viewBox="0 0 20 20" fill="none"><path d="M7.5 4.5 13 10 7.5 15.5" stroke="currentColor" stroke-width="1.75" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></a>
-          {% endif %}
-        </div>
-      </div>
+    {# Four steps, each a bar over its name and its date. The step that is happening is
+       the live colour; the ones behind it are done. Said in words as well: the bars
+       carry no meaning a reader without colour would miss, because the sub-line says
+       "Closed", "Until 1 Oct", "After voting". #}
+    <ol class="aw-steps">
+      {% for st in timeline %}
+      <li class="aw-steps__i" data-state="{{ st.state }}"{{ st.state == 'now' ? ' aria-current="step"' }}>
+        <b>{{ st.label }}</b><span>{{ st.sub }}</span>
+      </li>
       {% endfor %}
-    </div>
-    {% else %}
-    <div class="empty-rich" data-anim>
-      <div class="empty-rich__icon">🌱</div>
-      <h3>Categories open soon</h3>
-      <p>The {{ a.title }} cycle is being finalised. Subscribe to be notified the moment nominations open.</p>
-      <a href="/" class="btn btn--primary">Back to home <svg aria-hidden="true" focusable="false" class="btn__arrow" viewBox="0 0 20 20" fill="none"><path d="M7.5 4.5 13 10 7.5 15.5" stroke="currentColor" stroke-width="1.75" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></a>
-    </div>
-    {% endif %}
-  </div>
-</section>
+    </ol>
 
-{#
-  ══ WHO BACKS THIS AWARD ══════════════════════════════════════════════════════
+    {% if phase and phase.detail %}<p class="ag-hint aw-edition__d">{{ phase.detail }}</p>{% endif %}
+    {% if action %}<a class="ag-btn ag-btn--primary ag-btn--pill aw-edition__cta" href="{{ action.href }}">{{ action.label }}</a>{% endif %}
+  </section>
+  {% endif %}
 
-  Published, and that is the point. A sponsorship nobody can see is the arrangement people
-  reasonably suspect; one printed under the award is one they can weigh. The whole claim of
-  this platform is that an award cannot be bought, and the way to hold that claim beside
-  money changing hands is disclosure rather than silence.
-
-  BELOW the categories, never above them. A sponsor band at the top of a page about an
-  award reads as the sponsor's page, and the first thing a nominee's family should see is
-  the award.
-
-  The line under the list is not decoration — it is the actual guarantee, stated where
-  somebody is looking at the thing that raises the question. The schema has no column
-  attaching a sponsor to a category, a nominee or a judge, so this is a claim the code
-  cannot quietly stop honouring.
-
-  `rel="nofollow sponsored"` because that is what these links ARE: `sponsored` is the value
-  Google defines for a paid link, and omitting it on links somebody paid for is the thing
-  that costs a site its ranking.
-#}
-{#
-  ══ AND WHO RUNS IT, WHICH IS NOT WHO BACKS IT ════════════════════════════════
-
-  Its own block above the sponsors, and deliberately NOT a row inside their list. A host
-  runs the award; a sponsor paid to be named beside it, and the paragraph at the foot of
-  that list — "Sponsors fund the programme. They do not judge it" — is a promise about
-  the people in it. A host DOES run the thing, so putting one in that list would make
-  that paragraph false about one of its own entries, on the page where this platform
-  stakes its whole claim about an award not being buyable.
-
-  Same reason the host is not a `gates_programme_sponsors` row in the database. See
-  `2027_02_14_programme_host.php`.
-#}
-{% if host %}
-<section class="sec sec--tight" aria-labelledby="host-h">
-  <div class="wrap">
-    <span class="eyebrow">Hosted by</span>
-    <h2 id="host-h" class="sec__h">Who runs this programme</h2>
-    <p class="phost">
-      {% if host.logo %}
-        <img class="phost__logo" src="{{ host.logo }}" alt="{{ host.name }}"
-             height="44" loading="lazy" decoding="async">
-      {% endif %}
-      {# No `sponsored` on this link, and that is the distinction the rel is for: nobody
-         paid for it. `nofollow` stays, because an outbound link from every edition of an
-         award page is still a link this site did not vouch for editorially. #}
-      <span class="phost__n">{% if host.url %}<a href="{{ host.url }}" target="_blank" rel="noopener noreferrer nofollow">{{ host.name }}</a>{% else %}{{ host.name }}{% endif %}</span>
-    </p>
-  </div>
-</section>
-{% endif %}
-
-{% if sponsors %}
-<section class="sec sec--tight" aria-labelledby="spon-h">
-  <div class="wrap">
-    <span class="eyebrow">Supported by</span>
-    <h2 id="spon-h" class="sec__h">Who backs this programme</h2>
-    <ul class="spon">
-      {% for s in sponsors %}
-        <li class="spon__i spon__i--{{ s.tier }}">
-          <div class="spon__b">
-            {% if s.website %}
-              <a class="spon__n" href="{{ s.website }}" target="_blank"
-                 rel="noopener noreferrer nofollow sponsored">{{ s.name }}</a>
+  <section class="aw-sec" aria-labelledby="h-cats">
+    <h2 class="aw-h2" id="h-cats">Categories</h2>
+    {% if a.categories|default([])|length %}
+      {# Ordered by the race once there is one — the strongest lead first — and by the
+         organiser's own order until then. Said, because an order a reader cannot
+         explain reads as no order. #}
+      {% if a.categories|first.leader %}<p class="ag-hint">Strongest lead first.</p>{% endif %}
+      <ul class="aw-cats">
+        {% for c in a.categories %}
+        <li class="aw-cats__i">
+          <span class="aw-cats__b">
+            <b>{{ c.title }}</b>
+            {% if c.leader %}
+              {# A nominee on zero votes is not leading anything: the service returns no
+                 leader until somebody has voted. #}
+              <span class="aw-cats__lead">
+                {% if c.leader.photo_path %}
+                  <img src="{{ c.leader.photo_path }}" alt="" width="24" height="24" loading="lazy" decoding="async">
+                {% else %}{{ ui.avatar(c.leader.name, 24) }}{% endif %}
+                Leading: {{ c.leader.name }}
+              </span>
             {% else %}
-              <span class="spon__n">{{ s.name }}</span>
+              <span class="aw-cats__lead">{{ c.nominee_count|default(0) }} nominee{{ c.nominee_count == 1 ? '' : 's' }}</span>
             {% endif %}
-            <span class="spon__t">{{ tiers[s.tier]|default('Sponsor') }}</span>
-          </div>
-          {% if s.blurb %}<p class="spon__d">{{ s.blurb }}</p>{% endif %}
+          </span>
+          {% if c.total_votes|default(0) %}<span class="aw-cats__n">{{ c.total_votes|number_format }} votes</span>{% endif %}
         </li>
+        {% endfor %}
+      </ul>
+    {% else %}
+      <div class="ag-card">{{ ui.empty('Categories are not published yet',
+        'They appear here when the edition opens for nominations.') }}</div>
+    {% endif %}
+  </section>
+
+  {% if facts|length %}
+  <section class="aw-sec" aria-labelledby="h-about">
+    <h2 class="aw-h2" id="h-about">About the award</h2>
+    {{ ui.facts(facts, 'text') }}
+    <a class="aw-more" href="?tab=details">Read the full award details →</a>
+  </section>
+  {% endif %}
+
+  {#
+    WHO BACKS THIS AWARD — published, and below the categories, never above: a sponsor
+    band at the top of a page about an award reads as the sponsor's page.
+
+    `rel="nofollow sponsored"` because that is what these links ARE, and the line under
+    the cards is the actual guarantee. The schema has no column attaching a sponsor to
+    a category, a nominee or a judge, so it is a claim the code cannot quietly break.
+  #}
+  {% if sponsors %}
+  <section class="aw-sec" aria-labelledby="h-spon">
+    <h2 class="aw-h2" id="h-spon">Backed by</h2>
+    <ul class="aw-spon">
+      {% for s in sponsors %}
+      <li class="aw-spon__i{{ s.tier == 'headline' ? ' aw-spon__i--headline' : '' }}">
+        {% if s.website %}
+          <a class="aw-spon__n" href="{{ s.website }}" target="_blank" rel="noopener noreferrer nofollow sponsored">{{ s.name }}</a>
+        {% else %}<b class="aw-spon__n">{{ s.name }}</b>{% endif %}
+        <span class="aw-spon__t">{{ tiers[s.tier]|default('Sponsor') }}</span>
+        {% if s.blurb %}<span class="aw-spon__d">{{ s.blurb }}</span>{% endif %}
+      </li>
       {% endfor %}
     </ul>
-    <p class="spon__rule">
+    <p class="ag-hint aw-spon__rule">
       Sponsors fund the programme. They do not judge it, are never shown to the panel, and
       cannot be attached to a category, a nominee or a judge &mdash; there is no way to
       record that, by design. The scoring method is published in full in the
       <a href="/integrity">Integrity Center</a>.
     </p>
-  </div>
-</section>
-{% endif %}
-
+  </section>
+  {% endif %}
+  {% endif %}
+</div></div>
 {% endblock %}

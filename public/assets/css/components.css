@@ -1006,6 +1006,10 @@ body.ag-sheet-open .ag-main{ overflow:hidden }
 .ag-pill--wait{ background:var(--ag-info-wash);  color:var(--ag-info) }
 .ag-pill--warn{ background:var(--ag-gold-wash);  color:var(--ag-gold-ink) }
 .ag-pill--bad{  background:var(--ag-error-wash); color:var(--ag-error) }
+/* Happening now — a vote that is open. The dot is extra; the word is the state. */
+.ag-pill--live{ background:var(--ag-live-wash); color:var(--ag-live-ink) }
+.ag-pill--live::before{ content:''; width:6px; height:6px; margin-inline-end:6px;
+  border-radius:50%; background:currentColor }
 
 /* ── A RECORDS TABLE ──────────────────────────────────────────────────────────
    A list of records is a TABLE on a pointer — aligned columns an eye runs down, a
@@ -1095,10 +1099,19 @@ a.ag-tbl__r:focus-visible{ outline:3px solid var(--ag-green); outline-offset:-3p
 .ag-facts dd, .ag-facts__v{
   margin:0; font:700 16px/1 var(--ag-font-mono); color:var(--ag-ink);
 }
+/* Words rather than figures: white cells with a hairline round them, the value in the
+   UI face. Both design comps that state facts about an award draw them this way. */
+.ag-facts--text{ border:1px solid var(--ag-line) }
+.ag-facts--text > *{ background:var(--ag-surface) }
+.ag-facts--text dd{ font:700 15.5px/1.3 var(--ag-font-ui) }
+.ag-facts--text dt{ white-space:normal }
 /* Four facts do not fit a phone in one row. They wrap to two before they shrink
    to unreadable, which is the choice the ticket strip already makes. */
 @media (max-width:599px){
   .ag-facts{ grid-auto-flow:row; grid-template-columns:repeat(2,minmax(0,1fr)) }
+  /* An odd count leaves a hole in the last row, which reads as a fact that failed to
+     load. The last one takes the row instead. */
+  .ag-facts > :last-child:nth-child(odd){ grid-column:1 / -1 }
 }
 
 /* ── A PROGRESS METER ─────────────────────────────────────────────────────────
@@ -1340,3 +1353,17 @@ input.ag-field:focus, select.ag-field:focus, textarea.ag-field:focus{
 .ag-disc > summary:focus-visible{ outline:3px solid var(--ag-green); outline-offset:-3px }
 .ag-disc__b{ padding:0 var(--ag-sp-16) var(--ag-sp-16);
   display:flex; flex-direction:column; gap:var(--ag-sp-12) }
+
+/* ── A PAGE'S OWN VIEWS ───────────────────────────────────────────────────────
+   `ui.subnav()`. An underline on the current view, a hairline under the set. It
+   scrolls sideways on a phone rather than wrapping: three labels that wrap read as two
+   rows of something else. The 44px floor is the target, not the ink. */
+.ag-subnav{ display:flex; gap:var(--ag-sp-8); overflow-x:auto; scrollbar-width:none;
+  border-bottom:1px solid var(--ag-line-2) }
+.ag-subnav::-webkit-scrollbar{ display:none }
+.ag-subnav__i{ flex:none; display:flex; align-items:center; min-height:44px;
+  padding:0 var(--ag-sp-10); margin-bottom:-1px; border-bottom:2px solid transparent;
+  font-size:15px; font-weight:600; color:var(--ag-soft); text-decoration:none; white-space:nowrap }
+.ag-subnav__i:hover{ color:var(--ag-ink) }
+.ag-subnav__i[aria-current="page"]{ color:var(--ag-ink); border-bottom-color:var(--ag-green) }
+.ag-subnav__i:focus-visible{ outline:3px solid var(--ag-green); outline-offset:-3px }

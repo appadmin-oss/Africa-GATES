@@ -64,7 +64,20 @@ class AwardService {
         // phase, for any programme. Both keys are now present and derived from
         // the same policy every other surface uses.
         $phase = $cycle ? CyclePolicy::stateFor($cycle) : null;
-        return['id'=>$p->id,'slug'=>$p->slug,'title'=>$p->title,'subtitle'=>$p->subtitle ?? null,'description'=>$p->description ?? null,'icon_emoji'=>$p->icon_emoji ?? null,'cycle'=>$cycle?(array)$cycle:null,'cycle_status'=>$phase['phase'] ?? 'upcoming','phase'=>$phase,'year'=>$cycle->year ?? (int)date('Y'),'categories'=>$cats];
+        // How long this award has run, from its own editions. "Since" is a claim a page
+        // prints about an organisation's history, so it is counted, never typed.
+        $span = DB::table('gates_award_cycles')->where('programme_id', $p->id)
+            ->selectRaw('MIN(year) AS first_year, COUNT(*) AS editions')->first();
+        return['id'=>$p->id,'slug'=>$p->slug,'title'=>$p->title,'subtitle'=>$p->subtitle ?? null,'description'=>$p->description ?? null,'icon_emoji'=>$p->icon_emoji ?? null,
+            // The award's own picture. The page read `cover` and this never returned one, so
+            // every award page fell back to the same stock concert photo, hotlinked from a
+            // third party — whatever the award was. `terms` likewise had a column and no
+            // reader; the page's Terms view is where it is read now.
+            'cover'=>trim((string) ($p->cover_path ?? '')) ?: null,
+            'terms'=>trim((string) ($p->terms ?? '')) ?: null,
+            'first_year'=>isset($span->first_year) ? (int) $span->first_year : null,
+            'editions'=>(int) ($span->editions ?? 0),
+            'cycle'=>$cycle?(array)$cycle:null,'cycle_status'=>$phase['phase'] ?? 'upcoming','phase'=>$phase,'year'=>$cycle->year ?? (int)date('Y'),'categories'=>$cats];
     }
 
     /**

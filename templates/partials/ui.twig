@@ -130,10 +130,12 @@
   A definition list, because that is what it is: a term and its value. It renders as
   a grid, so the semantics cost nothing and a screen reader gets the pairing.
 
-  @param items  [{k: 'Earned', v: '+1,450', tone: 'ok'}]
+  @param items    [{k: 'Earned', v: '+1,450', tone: 'ok'}]
+  @param variant  'text' when the values are WORDS — a host, a date, a rule. The mono
+                  face is for figures that line up; a sentence set in it reads as code.
 #}
-{% macro facts(items) %}
-<dl class="ag-facts">
+{% macro facts(items, variant) %}
+<dl class="ag-facts{{ variant ? ' ag-facts--' ~ variant : '' }}">
   {% for f in items %}
   <div>
     <dt>{{ f.k }}</dt>
@@ -320,4 +322,24 @@
   </details>
   {% endfor %}
 </div>
+{%- endmacro %}
+
+{#
+  A page's own views, as links: "Overview · Award details · Terms".
+
+  Links, not ARIA tabs. Each view is a URL (`?tab=…`) the server renders, so it can be
+  shared, it survives a reload, and Back undoes it — none of which is true of panels a
+  script swaps in place. `aria-current="page"` says which one is showing; `role="tab"`
+  would promise arrow-key behaviour this does not have and should not.
+
+  @param items    [{key: 'overview', label: 'Overview', href: '?tab=overview'}]
+  @param current  the key being shown
+  @param label    what the set is, for the landmark
+#}
+{% macro subnav(items, current, label) %}
+<nav class="ag-subnav" aria-label="{{ label }}">
+  {% for it in items %}
+  <a class="ag-subnav__i" href="{{ it.href }}"{{ it.key == current ? ' aria-current="page"' }}>{{ it.label }}</a>
+  {% endfor %}
+</nav>
 {%- endmacro %}

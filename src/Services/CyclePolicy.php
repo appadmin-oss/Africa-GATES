@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 namespace AfricaGates\Services;
 
+use AfricaGates\Support\DisplayTime;
 use Illuminate\Support\Carbon;
 
 /**
@@ -194,21 +195,29 @@ final class CyclePolicy
         if ($phase === CyclePhase::Archived) return 'This cycle is closed.';
         if ($phase === CyclePhase::Results)  return 'Winners have been announced.';
 
+        // In the DISPLAY zone, like every other date a reader is shown. This formatted the
+        // stored (UTC) instant, so a deadline stored after 23:00 UTC printed a day early:
+        // the award page's own step said "Until 1 Dec" while this line under it said
+        // "30 Nov", about the same window, on the same card.
+        $day = static fn (Carbon $at): string => DisplayTime::show($at, 'j M Y');
+
         if ($phase === CyclePhase::Upcoming) {
-            return $opensAt ? 'Opens ' . $opensAt->format('j M Y') : 'Dates to be announced.';
+            return $opensAt ? 'Opens ' . $day($opensAt) : 'Dates to be announced.';
         }
         if ($phase === CyclePhase::Shortlisting) {
-            return $closesAt ? 'Voting opens ' . $closesAt->format('j M Y') : 'Voting dates to be announced.';
+            return $closesAt ? 'Voting opens ' . $day($closesAt) : 'Voting dates to be announced.';
         }
         if ($phase === CyclePhase::Judging) {
-            return $closesAt ? 'Results ' . $closesAt->format('j M Y') : 'Results date to be announced.';
+            return $closesAt ? 'Results ' . $day($closesAt) : 'Results date to be announced.';
         }
 
-        // Nominations / Voting — the two phases with a live deadline.
-        $noun = $phase === CyclePhase::Voting ? 'Voting' : 'Nominations';
-        if ($closesAt === null)   return $noun . ' is open.';
-        if ($secondsLeft === 0)   return $noun . ' closed ' . $closesAt->format('j M Y') . '.';
-        return $noun . ' closes ' . self::humanRemaining($secondsLeft) . ' · ' . $closesAt->format('j M Y');
+        // Nominations / Voting — the two phases with a live deadline. The verb agrees with
+        // its noun: "Nominations closes" was on every open award.
+        [$noun, $is, $verb] = $phase === CyclePhase::Voting
+            ? ['Voting', 'is', 'closes'] : ['Nominations', 'are', 'close'];
+        if ($closesAt === null)   return $noun . ' ' . $is . ' open.';
+        if ($secondsLeft === 0)   return $noun . ' closed ' . $day($closesAt) . '.';
+        return $noun . ' ' . $verb . ' ' . self::humanRemaining($secondsLeft) . ' · ' . $day($closesAt);
     }
 
     /**

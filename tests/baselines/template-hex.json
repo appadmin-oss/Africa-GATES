@@ -11,7 +11,6 @@
   "templates/layout/gates.twig": 1,
   "templates/pages/activity.twig": 29,
   "templates/pages/awards/index.twig": 39,
-  "templates/pages/awards/programme.twig": 13,
   "templates/pages/blog/index.twig": 20,
   "templates/pages/blog/post.twig": 15,
   "templates/pages/claim-dispute.twig": 22,

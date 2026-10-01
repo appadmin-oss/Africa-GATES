@@ -16,7 +16,9 @@ class AwardsController {
         return $this->view->render($res,'pages/awards/index.twig',['page_title'=>'Awards — Africa GATES','meta_description'=>'Explore every Africa GATES award programme — open cycles, categories and how community votes and expert judges crown the continent\'s cultural best.','gates_page'=>'awards','page'=>AwardsPageController::resolved($this->settings),'awards_data'=>$this->cache->remember('awards:index',1800,fn()=>$this->awards->getActiveProgrammesWithStatus())]);
     }
     public function programme(Request $req,Response $res,array $args):Response {
-        $slug=$args['p']??''; $data=$this->cache->remember("award:prog:{$slug}",1800,fn()=>$this->awards->getProgrammeBySlug($slug));
+        // `v2`: the entry gained the cover, the terms and the edition span. An entry cached
+        // under the old key would be served for half an hour after a deploy without them.
+        $slug=$args['p']??''; $data=$this->cache->remember("award:prog:v2:{$slug}",1800,fn()=>$this->awards->getProgrammeBySlug($slug));
         if(!$data) throw new \Slim\Exception\HttpNotFoundException($req);
         $blurb=trim(strip_tags((string)($data['subtitle'] ?: $data['description'])));
         $meta=$blurb!==''?(mb_strlen($blurb)>160?rtrim(mb_substr($blurb,0,157)).'…':$blurb):($data['title'].' — an Africa GATES award programme recognising the continent\'s cultural best through community votes and expert judging.');
@@ -46,6 +48,29 @@ class AwardsController {
         $promos = \AfricaGates\Services\PromoService::forPlacement(
             'award', !empty($_SESSION['user_id']), 5, (int) ($data['id'] ?? 0));
 
-        return $this->view->render($res,'pages/awards/programme.twig',['page_title'=>$data['title'].' — Africa GATES','meta_description'=>$meta,'og_title'=>$data['title'].' — Africa GATES','gates_page'=>'awards','programme'=>$data,'sponsors'=>$sponsors,'host'=>$host,'promos'=>$promos,'tiers'=>\AfricaGates\Services\ProgrammeSponsor::TIERS]);
+        // ── THE VIEW, FROM THE URL ───────────────────────────────────────────
+        //
+        // The comp's three tabs are links to `?tab=`, rendered here, not panels a script
+        // swaps: a view a person can only reach by clicking is a view nobody can link to,
+        // and Back must undo it. A tab with nothing to show is not offered — a Terms tab
+        // over an empty page is a promise the award has not made.
+        $views = ['overview' => 'Overview', 'details' => 'Award details'];
+        if (!empty($data['terms'])) $views['terms'] = 'Terms';
+        $tab = (string) ($req->getQueryParams()['tab'] ?? 'overview');
+        if (!isset($views[$tab])) $tab = 'overview';
+
+        $cycleId = isset($data['cycle']['id']) ? (int) $data['cycle']['id'] : null;
+        $weights = (new \AfricaGates\Services\RuleEngine())->weights((int) $data['id'], $cycleId);
+
+        return $this->view->render($res,'pages/awards/programme.twig',[
+            'page_title'=>$data['title'].' — Africa GATES','meta_description'=>$meta,
+            'og_title'=>$data['title'].' — Africa GATES','gates_page'=>'awards',
+            'programme'=>$data,'sponsors'=>$sponsors,'host'=>$host,'promos'=>$promos,
+            'tiers'=>\AfricaGates\Services\ProgrammeSponsor::TIERS,
+            'tab'=>$tab,'views'=>$views,
+            'timeline'=>$data['cycle'] ? \AfricaGates\Services\AwardOverview::timeline($data['cycle'], $data['phase']) : [],
+            'action'=>\AfricaGates\Services\AwardOverview::action((string) $data['slug'], $data['phase']),
+            'facts'=>\AfricaGates\Services\AwardOverview::facts($host, $data['first_year'] ?? null, (int) ($data['editions'] ?? 0), $weights),
+        ]);
     }
 }

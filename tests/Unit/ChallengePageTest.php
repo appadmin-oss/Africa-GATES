@@ -75,7 +75,7 @@ final class ChallengePageTest extends TestCase
 
         // From the shared library, not page-local copies of it.
         foreach (['ag-steps ag-steps--cards', 'class="ag-ticks"', 'class="ag-faq"', 'class="ag-notice"',
-                  'ag-meter ag-meter--outline', 'class="ag-facts"', 'ag-actionbar'] as $piece) {
+                  'ag-meter ag-meter--outline', 'class="ag-facts ag-facts--text"', 'ag-actionbar'] as $piece) {
             $this->assertStringContainsString($piece, $h, "{$piece} is not on the page");
         }
 
