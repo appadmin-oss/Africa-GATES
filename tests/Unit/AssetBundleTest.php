@@ -178,6 +178,32 @@ class AssetBundleTest extends TestCase
 
     // ── Order, which is the cascade ─────────────────────────────────────────
 
+    /**
+     * The base before the components that specialise it, and after the legacy sheets it
+     * replaces. This block used to load last, so components.css beat forms.css on every
+     * form on the site — at equal specificity a page's sheet could never refine a shared
+     * component, and the rule that refined `.ag-label` and `.ag-hint` read as shipped
+     * while nothing it said applied.
+     */
+    public function test_the_base_layer_loads_before_every_component_sheet(): void
+    {
+        $list = AssetBundle::STYLESHEETS;
+        $at   = static fn (string $rel): int => (int) array_search($rel, $list, true);
+
+        foreach (['assets/css/tokens.css', 'assets/css/shell.css', 'assets/css/components.css'] as $base) {
+            $this->assertContains($base, $list);
+            foreach ($list as $i => $rel) {
+                if (str_starts_with($rel, 'assets/css/components/')) {
+                    $this->assertLessThan($i, $at($base), "{$base} loads after {$rel}, so it overrides it");
+                }
+            }
+            foreach (['main.css', 'ui-overhaul.css', 'professional.css', 'redesign-2026.css', 'aurora.css'] as $legacy) {
+                $this->assertGreaterThan($at('assets/css/' . $legacy), $at($base),
+                    "{$base} loads before {$legacy}, so the legacy sheet beats the redesign");
+            }
+        }
+    }
+
     public function test_a11y_is_last_so_its_corrections_win(): void
     {
         $last = AssetBundle::STYLESHEETS[count(AssetBundle::STYLESHEETS) - 1];
@@ -249,6 +275,33 @@ class AssetBundleTest extends TestCase
     }
 
     // ── Staleness: never serve CSS that does not match the source ───────────
+
+    /**
+     * A bundle built in another cascade ORDER is stale even though no stylesheet changed.
+     * Moving the base layer ahead of the component sheets edited no CSS file, so the mtime
+     * check passed and the old order would have kept being served. Simulated by the one
+     * thing that differs: the order recorded at build time.
+     */
+    public function test_a_bundle_built_in_another_order_falls_back(): void
+    {
+        $this->seedSources();
+        $this->assertTrue(AssetBundle::build($this->root)['ok']);
+        $this->assertNotNull(AssetBundle::url($this->root));
+
+        $path = $this->root . '/assets/dist/manifest.json';
+        $m = json_decode((string) file_get_contents($path), true);
+        $this->assertArrayHasKey('order', $m, 'the build does not record the order it was made in');
+
+        $m['order'] = 'built-in-another-order';
+        file_put_contents($path, json_encode($m));
+        $this->assertNull(AssetBundle::url($this->root),
+            'a reorder edits no source, and the bundle in the old order was still served');
+
+        unset($m['order']);
+        file_put_contents($path, json_encode($m));
+        $this->assertNull(AssetBundle::url($this->root),
+            'a manifest from before the order was recorded must fall back, not be trusted');
+    }
 
     public function test_an_edited_source_falls_back_instead_of_serving_a_stale_bundle(): void
     {

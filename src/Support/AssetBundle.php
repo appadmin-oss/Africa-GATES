@@ -74,6 +74,13 @@ final class AssetBundle
         // file's compatibility block. Two files called tokens.css was the confusion.
         'assets/css/base/reset.css',
         'assets/css/base/typography.css',
+        // ── THE REDESIGN LAYER: the base, before the components that specialise it ──
+        // After the legacy sheets (so it replaces them) and before every component
+        // sheet (so a page's own sheet can still say something more specific). It was
+        // last, and components.css then beat forms.css on every form — see gates.twig.
+        'assets/css/tokens.css',
+        'assets/css/shell.css',
+        'assets/css/components.css',
         'assets/css/components/flash.css',
         'assets/css/components/loader.css',
         'assets/css/components/footer.css',
@@ -102,14 +109,6 @@ final class AssetBundle
         // those sheets declare on the buttons it applies to — a lipped button does not
         // rise, and a rule that loses on order would leave the press overshooting.
         'assets/css/components/lip.css',
-        // ── THE REDESIGN LAYER ────────────────────────────────────────────────
-        // tokens.css is the single source of every colour, size, radius, shadow and
-        // duration in the redesign (REFERENCE §6); shell.css makes only <main>
-        // scroll; components.css holds the base components. Last but for a11y.css,
-        // so the redesign wins over the legacy sheets it is replacing.
-        'assets/css/tokens.css',
-        'assets/css/shell.css',
-        'assets/css/components.css',
         // LAST, and it must stay last — its corrections are meant to win.
         'assets/css/a11y.css',
     ];
@@ -143,7 +142,21 @@ final class AssetBundle
         // Any source newer than the build → the bundle no longer represents the source.
         if (self::newestSourceMtime($root) > (int) ($manifest['mtime'] ?? 0)) return null;
 
+        // And the ORDER is part of what it represents. A reorder edits no stylesheet, so
+        // the mtime check above passes and the old cascade keeps being served — which is
+        // exactly how moving the base layer ahead of the component sheets would have
+        // reached production: the layout's fallback in the new order, the bundle every
+        // visitor actually receives in the old one. A manifest from before this check
+        // carries no list and falls back, which is the safe direction.
+        if (($manifest['order'] ?? '') !== self::orderHash()) return null;
+
         return '/' . ltrim($file, '/');
+    }
+
+    /** The cascade order the bundle was built in, as one comparable string. */
+    private static function orderHash(): string
+    {
+        return substr(hash('sha256', implode("\n", self::STYLESHEETS)), 0, 16);
     }
 
     /**
@@ -190,6 +203,7 @@ final class AssetBundle
         $manifest = [
             'file'    => self::DIST_DIR . '/' . $name,
             'mtime'   => self::newestSourceMtime($root),
+            'order'   => self::orderHash(),
             'sources' => count($parts),
             'raw'     => $raw,
             'min'     => strlen($min),

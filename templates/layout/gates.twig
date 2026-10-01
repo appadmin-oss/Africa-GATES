@@ -283,6 +283,25 @@
      tokens.css was itself the confusion worth removing. #}
   <link rel="stylesheet" href="{{ asset('/assets/css/base/reset.css') }}">
   <link rel="stylesheet" href="{{ asset('/assets/css/base/typography.css') }}">
+  {# ── THE REDESIGN LAYER — BASE, THEN THE COMPONENTS THAT SPECIALISE IT ───────
+     tokens.css is the single source of every colour, size, radius, shadow and
+     duration in the redesign (REFERENCE §6). shell.css gives the page its
+     structure — only <main> scrolls — and components.css the base components.
+
+     AFTER the legacy sheets above, which is what lets the redesign replace them, and
+     after the inline Accent block, which is what makes tokens.css authoritative: a
+     linked sheet cannot beat an inline one, so the inline one moved earlier.
+
+     And BEFORE every component sheet below, which is the half that used to be wrong.
+     This block loaded last, so the shared layer beat every page's own sheet at equal
+     specificity: forms.css — "after components.css's .ag-field", its comment said —
+     loaded before it, and its two corrections (the hint ABOVE the control, a label
+     that lays out its required and optional marks) were overridden on every form on
+     the site, while the file describing them read as shipped. A base that loads after
+     its specialisations is not a base. #}
+  <link rel="stylesheet" href="{{ asset('/assets/css/tokens.css') }}">
+  <link rel="stylesheet" href="{{ asset('/assets/css/shell.css') }}">
+  <link rel="stylesheet" href="{{ asset('/assets/css/components.css') }}">
   <link rel="stylesheet" href="{{ asset('/assets/css/components/flash.css') }}">
   <link rel="stylesheet" href="{{ asset('/assets/css/components/loader.css') }}">
   <link rel="stylesheet" href="{{ asset('/assets/css/components/footer.css') }}">
@@ -304,17 +323,6 @@
      whose hover lift it replaces. See AssetBundle::STYLESHEETS, which is the single
      source of this order. #}
   <link rel="stylesheet" href="{{ asset('/assets/css/components/lip.css') }}">
-  {# ── THE REDESIGN LAYER ────────────────────────────────────────────────────
-     tokens.css is the single source of every colour, size, radius, shadow and
-     duration in the redesign (REFERENCE §6). shell.css gives the page its
-     structure — only <main> scrolls — and components.css the base components.
-
-     They load AFTER everything above and after the Accent block below, which is
-     what makes tokens.css authoritative: a linked sheet cannot beat an inline
-     one, so the inline one had to move earlier rather than this one later. #}
-  <link rel="stylesheet" href="{{ asset('/assets/css/tokens.css') }}">
-  <link rel="stylesheet" href="{{ asset('/assets/css/shell.css') }}">
-  <link rel="stylesheet" href="{{ asset('/assets/css/components.css') }}">
   {# Accessibility layer — loaded LAST so its corrections win (WCAG 2.2 AA) #}
   <link rel="stylesheet" href="{{ asset('/assets/css/a11y.css') }}">
   {% endif %}
