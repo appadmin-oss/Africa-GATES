@@ -1025,3 +1025,82 @@ CREATE INDEX IF NOT EXISTS idx_vmsg_queue ON gates_vote_messages(status, created
 -- exec() of the entire file, so one unrunnable statement aborted the run two steps
 -- before the migration that would have fixed it. See MigrationRunner::applySchemaFile.
 CREATE INDEX IF NOT EXISTS idx_vmsg_reported ON gates_vote_messages(reports, reported_at);
+
+-- ══════════════════════════════════════════════════════════════════════════════
+-- CHALLENGES (SQLite)
+-- The same five tables as `schema.sql`. SQLite has no ENUM and ignores integer
+-- widths, so every column that is an ENUM there is TEXT here — which is exactly why
+-- `ChallengeSchemaWordsTest` reads the words out of `Support\ChallengeEnum` and the
+-- MySQL schema rather than trusting this file: a sixth action added in PHP and not
+-- in the column passes every test on this harness and lands as an empty string on
+-- the only database that matters.
+-- ══════════════════════════════════════════════════════════════════════════════
+
+CREATE TABLE IF NOT EXISTS gates_challenges (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  slug TEXT NOT NULL, title TEXT NOT NULL, kicker TEXT NOT NULL, summary TEXT NULL,
+  action TEXT NOT NULL DEFAULT 'nominate',
+  target INTEGER NOT NULL DEFAULT 1,
+  mode TEXT NOT NULL DEFAULT 'first',
+  cap INTEGER NULL, draw_count INTEGER NULL, draw_at TEXT NULL, draw_seed TEXT NULL,
+  prize_type TEXT NOT NULL DEFAULT 'cash_each',
+  prize_amount INTEGER NOT NULL DEFAULT 0,
+  prize_currency TEXT NULL, prize_label TEXT NULL,
+  theme TEXT NOT NULL DEFAULT 'green',
+  art_url TEXT NULL, art_alt TEXT NULL, icon TEXT NULL, flag INTEGER NOT NULL DEFAULT 0,
+  eligibility TEXT NULL, extra_rules TEXT NULL,
+  starts_at TEXT NULL, ends_at TEXT NULL,
+  timezone TEXT NOT NULL DEFAULT 'Africa/Lagos',
+  terms_version TEXT NOT NULL DEFAULT '1.0',
+  status TEXT NOT NULL DEFAULT 'draft', cancel_reason TEXT NULL,
+  created_by INTEGER NULL, published_at TEXT NULL,
+  created_at TEXT NULL, updated_at TEXT NULL
+);
+CREATE UNIQUE INDEX IF NOT EXISTS uq_challenge_slug ON gates_challenges(slug);
+CREATE INDEX IF NOT EXISTS idx_challenge_status ON gates_challenges(status);
+
+CREATE TABLE IF NOT EXISTS gates_challenge_scopes (
+  challenge_id INTEGER NOT NULL,
+  scope_type TEXT NOT NULL,
+  scope_id INTEGER NOT NULL,
+  PRIMARY KEY (challenge_id, scope_type, scope_id)
+);
+CREATE INDEX IF NOT EXISTS idx_scope_lookup ON gates_challenge_scopes(scope_type, scope_id);
+
+CREATE TABLE IF NOT EXISTS gates_challenge_entries (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  challenge_id INTEGER NOT NULL, user_id INTEGER NOT NULL,
+  phone_hash TEXT NULL, joined_at TEXT NULL,
+  progress INTEGER NOT NULL DEFAULT 0, verified INTEGER NOT NULL DEFAULT 0,
+  checking INTEGER NOT NULL DEFAULT 0, needs_details INTEGER NOT NULL DEFAULT 0,
+  qualified_at TEXT NULL, standing INTEGER NULL,
+  status TEXT NOT NULL DEFAULT 'active', disqualify_reason TEXT NULL,
+  payout_status TEXT NOT NULL DEFAULT 'none',
+  payout_ref TEXT NULL, payout_at TEXT NULL,
+  created_at TEXT NULL, updated_at TEXT NULL
+);
+CREATE UNIQUE INDEX IF NOT EXISTS uq_entry_user ON gates_challenge_entries(challenge_id, user_id);
+CREATE UNIQUE INDEX IF NOT EXISTS uq_entry_phone ON gates_challenge_entries(challenge_id, phone_hash);
+CREATE INDEX IF NOT EXISTS idx_entry_rank ON gates_challenge_entries(challenge_id, status, qualified_at);
+
+CREATE TABLE IF NOT EXISTS gates_challenge_events (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  challenge_id INTEGER NULL, entry_id INTEGER NULL,
+  kind TEXT NOT NULL, ref_type TEXT NULL, ref_id INTEGER NULL,
+  actor_id INTEGER NULL, meta TEXT NULL, created_at TEXT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_chev_entry ON gates_challenge_events(entry_id, id);
+CREATE INDEX IF NOT EXISTS idx_chev_challenge ON gates_challenge_events(challenge_id, kind);
+
+CREATE TABLE IF NOT EXISTS gates_promos (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  placement TEXT NOT NULL, kicker TEXT NULL, title TEXT NOT NULL,
+  sub TEXT NULL, cta TEXT NULL, href TEXT NULL,
+  theme TEXT NOT NULL DEFAULT 'green', art_url TEXT NULL,
+  challenge_id INTEGER NULL, priority INTEGER NOT NULL DEFAULT 0,
+  audience TEXT NOT NULL DEFAULT 'all',
+  starts_at TEXT NULL, ends_at TEXT NULL,
+  active INTEGER NOT NULL DEFAULT 1,
+  created_at TEXT NULL, updated_at TEXT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_promo_slot ON gates_promos(placement, active, priority);

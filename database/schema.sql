@@ -319,7 +319,15 @@ CREATE TABLE IF NOT EXISTS gates_nominations (
   nominator_age_range VARCHAR(20) DEFAULT NULL,
   decision_reason TEXT,
   nominator_ack_at TIMESTAMP NULL DEFAULT NULL,
-  status ENUM('pending','approved','rejected') NOT NULL DEFAULT 'pending',
+  -- WIDENED FOR CHALLENGES, NEVER REPLACED. The handoff specifies
+  -- (draft,submitted,checking,verified,needs_details,rejected); 176 places in src/
+  -- read the literal 'approved'. Dropping it would make every one of them match zero
+  -- rows, silently, on MySQL. So this is the union, the three live words keep their
+  -- original positions (an ENUM reorder rewrites every stored row), and
+  -- `Support\NominationStatus` is the one place that knows the two vocabularies
+  -- overlap: `approved` is the historic spelling of a moderator pass, and a prize
+  -- also needs the nominee's own confirmation.
+  status ENUM('pending','approved','rejected','draft','submitted','checking','verified','needs_details') NOT NULL DEFAULT 'pending',
   ip_hash VARCHAR(64) DEFAULT NULL,
   device_fp VARCHAR(64) DEFAULT NULL,
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -929,4 +937,147 @@ CREATE TABLE IF NOT EXISTS gates_vote_messages (
   KEY idx_vmsg_queue (status, created_at),
   KEY idx_vmsg_reported (reports, reported_at),
   CONSTRAINT fk_vmsg_nominee FOREIGN KEY (nominee_id) REFERENCES gates_nominees(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ══════════════════════════════════════════════════════════════════════════════
+-- CHALLENGES
+-- A time-boxed campaign that pays people for real actions. Every campaign is ONE
+-- ROW here: the launch one (first 11 to get 10 nominees verified, ₦6,000 each,
+-- inside Alimosho Awards 2026) differs from "20 gala tickets drawn among everyone
+-- who thanks 5 teachers" only by these values. If a second campaign ever needs a
+-- migration, this shape is wrong.
+--
+-- Kept in step with `database/migrations/2027_02_10_challenges.php` and with
+-- `Support\ChallengeEnum`, which is where every word below is declared.
+-- ══════════════════════════════════════════════════════════════════════════════
+
+CREATE TABLE IF NOT EXISTS gates_challenges (
+  id INT UNSIGNED NOT NULL AUTO_INCREMENT,
+  slug VARCHAR(160) NOT NULL,
+  title VARCHAR(200) NOT NULL,
+  kicker VARCHAR(160) NOT NULL,
+  summary TEXT,
+  action ENUM('nominate','vote','refer','give','attend') NOT NULL DEFAULT 'nominate',
+  target SMALLINT UNSIGNED NOT NULL DEFAULT 1,
+  mode ENUM('first','top','draw') NOT NULL DEFAULT 'first',
+  -- SMALLINT and not TINYINT: a cap of 300 is an ordinary campaign, and a TINYINT
+  -- stores it as 255 with nothing to see. This codebase has paid for that twice.
+  cap SMALLINT UNSIGNED DEFAULT NULL,
+  draw_count SMALLINT UNSIGNED DEFAULT NULL,
+  draw_at DATETIME DEFAULT NULL,
+  draw_seed VARCHAR(64) DEFAULT NULL,
+  prize_type ENUM('cash_each','cash_pool','points','tickets') NOT NULL DEFAULT 'cash_each',
+  -- INT: a shared pool in Naira passes a SMALLINT at ₦65,536.
+  prize_amount INT UNSIGNED NOT NULL DEFAULT 0,
+  prize_currency VARCHAR(8) DEFAULT NULL,
+  prize_label VARCHAR(80) DEFAULT NULL,
+  theme ENUM('green','blue','gold','rose') NOT NULL DEFAULT 'green',
+  art_url VARCHAR(400) DEFAULT NULL,
+  art_alt VARCHAR(200) DEFAULT NULL,
+  icon VARCHAR(400) DEFAULT NULL,
+  flag TINYINT(1) NOT NULL DEFAULT 0,
+  eligibility TEXT,
+  extra_rules TEXT,
+  starts_at DATETIME DEFAULT NULL,
+  ends_at DATETIME DEFAULT NULL,
+  timezone VARCHAR(64) NOT NULL DEFAULT 'Africa/Lagos',
+  terms_version VARCHAR(16) NOT NULL DEFAULT '1.0',
+  status ENUM('draft','upcoming','open','full','ended','cancelled') NOT NULL DEFAULT 'draft',
+  cancel_reason VARCHAR(300) DEFAULT NULL,
+  created_by BIGINT UNSIGNED DEFAULT NULL,
+  published_at DATETIME DEFAULT NULL,
+  created_at DATETIME DEFAULT NULL,
+  updated_at DATETIME DEFAULT NULL,
+  PRIMARY KEY(id),
+  UNIQUE KEY uq_challenge_slug(slug),
+  KEY idx_challenge_status(status)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- An action counts ONLY inside a scope. This table is the whole difference between
+-- "nominate anybody" and "nominate for Alimosho 2026, in three named categories".
+CREATE TABLE IF NOT EXISTS gates_challenge_scopes (
+  challenge_id INT UNSIGNED NOT NULL,
+  scope_type ENUM('award_cycle','category','event') NOT NULL,
+  -- BIGINT because a category id is BIGINT, even though an event id is INT: of two
+  -- joined keys it is the narrower one that silently truncates.
+  scope_id BIGINT UNSIGNED NOT NULL,
+  PRIMARY KEY (challenge_id, scope_type, scope_id),
+  KEY idx_scope_lookup(scope_type, scope_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS gates_challenge_entries (
+  id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  challenge_id INT UNSIGNED NOT NULL,
+  user_id BIGINT UNSIGNED NOT NULL,
+  -- Hashed, never stored: one entry per PERSON is enforced on a number we must not
+  -- keep beside a prize.
+  phone_hash CHAR(64) DEFAULT NULL,
+  joined_at DATETIME DEFAULT NULL,
+  progress SMALLINT UNSIGNED NOT NULL DEFAULT 0,
+  verified SMALLINT UNSIGNED NOT NULL DEFAULT 0,
+  checking SMALLINT UNSIGNED NOT NULL DEFAULT 0,
+  needs_details SMALLINT UNSIGNED NOT NULL DEFAULT 0,
+  qualified_at DATETIME DEFAULT NULL,
+  -- `standing`, never `rank`: RANK is reserved in MySQL 8 and bare-legal in SQLite,
+  -- which is how a column name passes dev and fails production. The release seal hit
+  -- this already and settled on the same word.
+  standing SMALLINT UNSIGNED DEFAULT NULL,
+  status ENUM('active','qualified','won','disqualified','withdrawn') NOT NULL DEFAULT 'active',
+  disqualify_reason VARCHAR(300) DEFAULT NULL,
+  payout_status ENUM('none','pending','paid','failed') NOT NULL DEFAULT 'none',
+  payout_ref VARCHAR(120) DEFAULT NULL,
+  payout_at DATETIME DEFAULT NULL,
+  created_at DATETIME DEFAULT NULL,
+  updated_at DATETIME DEFAULT NULL,
+  PRIMARY KEY(id),
+  -- The two ways one human arrives twice.
+  UNIQUE KEY uq_entry_user(challenge_id, user_id),
+  UNIQUE KEY uq_entry_phone(challenge_id, phone_hash),
+  KEY idx_entry_rank(challenge_id, status, qualified_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- APPEND-ONLY. A disqualification, a payout and a draw are decisions somebody may
+-- have to answer for months later. `gates_audit_log` already taught this codebase
+-- that a record nothing can QUERY is not a record, so this one is indexed for the
+-- two questions it exists to answer: what happened to this entry, and what has been
+-- done on this challenge.
+CREATE TABLE IF NOT EXISTS gates_challenge_events (
+  id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  challenge_id INT UNSIGNED DEFAULT NULL,
+  entry_id BIGINT UNSIGNED DEFAULT NULL,
+  kind VARCHAR(60) NOT NULL,
+  ref_type VARCHAR(40) DEFAULT NULL,
+  ref_id BIGINT UNSIGNED DEFAULT NULL,
+  actor_id BIGINT UNSIGNED DEFAULT NULL,
+  meta TEXT,
+  created_at DATETIME DEFAULT NULL,
+  PRIMARY KEY(id),
+  KEY idx_chev_entry(entry_id, id),
+  KEY idx_chev_challenge(challenge_id, kind)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- The rows `partials/promo-carousel.twig` reads. `challenge_id` is nullable because a
+-- promo may advertise something that is not a challenge; where it is set, the state
+-- chip is computed live rather than copied, so a full challenge cannot go on
+-- advertising spare places.
+CREATE TABLE IF NOT EXISTS gates_promos (
+  id INT UNSIGNED NOT NULL AUTO_INCREMENT,
+  placement ENUM('account','nominate','home','vote','events','award','event') NOT NULL,
+  kicker VARCHAR(120) DEFAULT NULL,
+  title VARCHAR(200) NOT NULL,
+  sub VARCHAR(300) DEFAULT NULL,
+  cta VARCHAR(80) DEFAULT NULL,
+  href VARCHAR(400) DEFAULT NULL,
+  theme ENUM('green','blue','gold','rose') NOT NULL DEFAULT 'green',
+  art_url VARCHAR(400) DEFAULT NULL,
+  challenge_id INT UNSIGNED DEFAULT NULL,
+  priority SMALLINT NOT NULL DEFAULT 0,
+  audience ENUM('all','signed_in','signed_out') NOT NULL DEFAULT 'all',
+  starts_at DATETIME DEFAULT NULL,
+  ends_at DATETIME DEFAULT NULL,
+  active TINYINT(1) NOT NULL DEFAULT 1,
+  created_at DATETIME DEFAULT NULL,
+  updated_at DATETIME DEFAULT NULL,
+  PRIMARY KEY(id),
+  KEY idx_promo_slot(placement, active, priority)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
