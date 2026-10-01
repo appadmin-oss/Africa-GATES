@@ -145,6 +145,63 @@ final class ChallengeSchemaWordsTest extends TestCase
         $this->assertFalse(NS::countsForChallenge('rejected', '2026-10-01 09:00:00'));
     }
 
+    /**
+     * The live column is ASKED whether it will take each word, not told that it should.
+     *
+     * ══════════════════════════════════════════════════════════════════════════
+     * THE DIRECTION THE TESTS ABOVE DO NOT ASK IN
+     * ══════════════════════════════════════════════════════════════════════════
+     *
+     * Everything above reads a FILE: the migration against `NominationStatus::ALL`,
+     * one schema against the other. All of it passed while `verified` could not be
+     * written on SQLite at all, because `gates_nominations` carries
+     * `CHECK(status IN ('pending','approved','rejected'))` — and SQLite enforces
+     * CHECK. The harness's `PRAGMA foreign_keys = OFF` disables foreign keys and
+     * nothing else, which is easy to misread as "constraints are off in here".
+     *
+     * So a nomination could reach `verified` on production and nowhere a developer or
+     * a test could see, and `countsForChallenge()` — which requires exactly that word
+     * — was dead everywhere but the one database with no shell on it. The usual
+     * MySQL/SQLite divergence runs the other way, which is what made it easy to write
+     * and invisible to read.
+     *
+     * The repair is `2027_02_11_nomination_status_check_repair.php`. This is the
+     * question that would have caught it: write the word, and require the row.
+     *
+     * Proved by breaking it. Restoring the three-word CHECK in `sqlite-schema.sql`
+     * alone is NOT enough — the repair migration puts it back at migration time,
+     * which is the whole point of it. With the migration disabled as well, this is
+     * the only test in the file that fails: the insert throws
+     * `CHECK constraint failed` on `draft`, the first declared word the old set does
+     * not hold. It surfaces as an error rather than as the assertion message below,
+     * because a refused write never reaches the read-back.
+     */
+    public function test_every_declared_status_word_can_actually_be_written(): void
+    {
+        $cycle = DB::table('gates_award_cycles')->insertGetId([
+            'programme_id' => DB::table('gates_award_programmes')->insertGetId([
+                'title' => 'Status vocabulary probe', 'slug' => 'status-vocab-probe',
+                'is_active' => 1,
+            ]),
+            'year' => 2026, 'status' => 'nominations',
+        ]);
+
+        foreach (NS::ALL as $word) {
+            $id = DB::table('gates_nominations')->insertGetId([
+                'cycle_id' => $cycle, 'nominee_name' => 'Probe ' . $word,
+                'nominator_name' => 'Probe', 'nominator_email' => 'probe@example.test',
+                'status' => $word,
+            ]);
+
+            // Read it BACK. A driver that silently coerced the value would otherwise
+            // pass on the insert alone — which is MySQL's `Data truncated`, the fault
+            // this whole file exists for, wearing the other driver's clothes.
+            $this->assertSame($word, DB::table('gates_nominations')->where('id', $id)->value('status'),
+                "the schema refuses `$word`, so no test and no developer can ever "
+                . 'produce a nomination in that state');
+        }
+    }
+
     // ══════════════════════════════════════════════════════════════════════════
 
     /**

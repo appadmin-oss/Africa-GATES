@@ -236,7 +236,10 @@ CREATE TABLE IF NOT EXISTS gates_nominations (
   nominator_age_range TEXT,
   decision_reason TEXT,
   nominator_ack_at TEXT,
-  status TEXT NOT NULL DEFAULT 'pending' CHECK(status IN ('pending','approved','rejected')),
+  -- The union of the live vocabulary and the challenge handoff's. SQLite enforces
+  -- CHECK, and PRAGMA foreign_keys = OFF does not touch it, so a word missing here
+  -- is a word no developer and no test can ever write while production accepts it.
+  status TEXT NOT NULL DEFAULT 'pending' CHECK(status IN ('pending','approved','rejected','draft','submitted','checking','verified','needs_details')),
   ip_hash TEXT,
   device_fp TEXT,
   created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
