@@ -1,71 +1,29 @@
-/* ════════════════════════════════════════════════════════════════
-   Africa GATES — Mobile entrance loader
-   The whole reveal — disc, continent, wordmark, fade — lives HERE, on
-   one clock, keyed on `.ag-loader.is-playing`. It used to be SMIL
-   inside the SVG, whose timeline starts on document load and therefore
-   drifted from the CSS by however long the page took; that skew is what
-   the original 4.9s hold was absorbing, and it cost 5.4s of covered
-   page on every first mobile view.
-   Shown once per session, on mobile, motion-safe, and never on a page
-   somebody arrived at with a problem (gated by html.ag-loading — see
-   the head script in layout/gates.twig). Removed by JS, with a hard cap.
-   ════════════════════════════════════════════════════════════════ */
-.ag-loader{
-  position:fixed; inset:0; z-index:var(--ag-z-loader,2147483000);
-  display:none; flex-direction:column; align-items:center; justify-content:center; gap:30px;
-  background:var(--ag-bg,#fbfbfa);
-}
-/* The fade is TRIGGERED, not scheduled. It used to be `animation:agExit .7s 4.9s`,
-   which covered the page for 5.4s however fast it had loaded — the splash was a
-   timer wearing a loader's clothes. `.is-out` is added by the script at the end of
-   <body> as soon as the document is parsed. See the note there. */
-html.ag-loading .ag-loader{
-  display:flex;
-  opacity:1;
-  transition:opacity .34s ease, visibility .34s ease;
-}
+/* Africa GATES — entrance loader v5 (replaces components/loader.css)
+   Total 1.36s. Brand-green disc (#006432, from logo-mark.png), light-green continent,
+   "Africa" in Playfair ink, tracked green "GATES", 2px hairline.
+     0.00–0.36 disc opens · 0.16–0.50 continent rises · 0.28–0.62 Africa · 0.34–0.68 GATES
+     0.20–0.92 hairline · 1.04–1.28 mark lifts and fades · 1.12–1.36 panel fades */
+.ag-loader{ position:fixed; inset:0; z-index:var(--ag-z-loader,2147483000); display:none; align-items:center; justify-content:center; background:var(--ag-bg,#fbfbfa); }
+html.ag-loading .ag-loader{ display:flex; opacity:1; transition:opacity .24s ease, visibility .24s; }
 html.ag-loading .ag-loader.is-out{ opacity:0; visibility:hidden; }
-
-.ag-loader__logo{ width:min(52vw,190px); height:auto; overflow:visible; }
-
-/* ── The reveal, on ONE clock ────────────────────────────────────────────────
-   Everything here starts from `.is-playing`, added by the script on the first
-   rendered frame. It used to be SMIL inside the SVG, and SMIL's timeline starts
-   on DOCUMENT LOAD — after every subresource — so it ran at an unpredictable
-   offset from the CSS. Measured: getCurrentTime() still 0.00 with the CSS clock
-   past 1.0s, which is what the original 4.9s hold was really absorbing, and it
-   cannot be corrected from the SVG side because pauseAnimations() before the
-   timeline starts does nothing.
-
-   `stroke-dashoffset`, `fill-opacity` and `opacity` are all long-standing CSS
-   properties on SVG geometry, so this needs no transform-origin tricks — which is
-   what the SMIL was originally chosen to avoid. Total reveal ≈ 0.90s.
-
-   Held at their end state by `forwards`, so a frame dropped mid-animation cannot
-   leave a half-drawn continent on screen. */
-.ag-loader__disc{ opacity:0; }
-.ag-loader__land, .ag-loader__isle{ opacity:0; }
-
-.ag-loader.is-playing .ag-loader__disc{ animation:agDisc .34s ease-out forwards; }
-.ag-loader.is-playing .ag-loader__land{ animation:agDraw .48s .16s cubic-bezier(.65,0,.35,1) forwards,
-                                                  agFlood .26s .60s ease forwards; }
-.ag-loader.is-playing .ag-loader__isle{ animation:agDraw .22s .46s cubic-bezier(.65,0,.35,1) forwards,
-                                                  agFlood .2s .68s ease forwards; }
-
-@keyframes agDisc { from{ opacity:0 } to{ opacity:1 } }
-@keyframes agDraw { from{ opacity:1; stroke-dashoffset:1000 } to{ opacity:1; stroke-dashoffset:0 } }
-@keyframes agFlood{ to{ opacity:1; fill-opacity:1; stroke-width:0 } }
-
-/* Wordmark — lands as the continent finishes filling.
-   The delay is relative to `.is-playing`, like every other part of the reveal, so
-   the order is guaranteed. A bare `animation-delay` here would be relative to FIRST
-   RENDER, which is a different clock from the one the drawing runs on — that is
-   precisely how the wordmark used to appear before the continent had begun. */
-.ag-loader__word{
-  font-family:var(--ag-font-display,"Playfair Display",serif); font-weight:700;
-  font-size:clamp(1.4rem,6vw,1.9rem); color:var(--ag-ink,#10292c);
-  opacity:0; transform:translateY(10px);
-}
-.ag-loader.is-playing .ag-loader__word{ animation:agWord .28s .70s ease forwards; }
-.ag-loader__word span{ color:var(--ag-green,#237b22); letter-spacing:.16em; font-size:.6em; font-weight:700; vertical-align:.14em; margin-left:.4em; }
-@keyframes agWord{ to{opacity:1;transform:none} }
+.ag-loader__mark{ display:flex; flex-direction:column; align-items:center; gap:22px; transition:transform .24s cubic-bezier(.2,.8,.2,1), opacity .24s ease; }
+.ag-loader.is-leaving .ag-loader__mark{ opacity:0; transform:translateY(-8px); }
+.ag-loader__logo{ width:96px; height:96px; display:block; overflow:visible; }
+.ag-loader__disc{ fill:#006432; clip-path:circle(0% at 50% 50%); }
+.ag-loader__land{ fill:#7fc87c; opacity:0; transform-box:fill-box; transform-origin:center; }
+.ag-loader__word{ display:flex; flex-direction:column; align-items:center; gap:6px; }
+.ag-loader__africa{ font:700 28px/1 var(--ag-font-display,"Playfair Display",Georgia,serif); color:var(--ag-ink,#10292c); opacity:0; }
+.ag-loader__gates{ font:700 11.5px/1 var(--ag-font,"DM Sans",system-ui,sans-serif); letter-spacing:.28em; padding-left:.28em; color:var(--ag-green,#237b22); opacity:0; }
+.ag-loader__bar{ position:relative; width:72px; height:2px; margin-top:6px; border-radius:2px; background:#e8e5dd; overflow:hidden; }
+.ag-loader__bar::after{ content:""; position:absolute; inset:0; background:var(--ag-green,#237b22); transform-origin:left; transform:scaleX(0); }
+.ag-loader.is-playing .ag-loader__disc  { animation:agLDisc .36s cubic-bezier(.2,.8,.2,1) forwards; }
+.ag-loader.is-playing .ag-loader__land  { animation:agLLand .34s .16s cubic-bezier(.2,.8,.2,1) forwards; }
+.ag-loader.is-playing .ag-loader__africa{ animation:agLWord .34s .28s cubic-bezier(.2,.8,.2,1) forwards; }
+.ag-loader.is-playing .ag-loader__gates { animation:agLTag .34s .34s cubic-bezier(.2,.8,.2,1) forwards; }
+.ag-loader.is-playing .ag-loader__bar::after{ animation:agLBar .72s .2s cubic-bezier(.65,0,.35,1) forwards; }
+@keyframes agLDisc{ from{clip-path:circle(0% at 50% 50%)} to{clip-path:circle(50% at 50% 50%)} }
+@keyframes agLLand{ from{opacity:0;transform:translateY(14px) scale(.96)} to{opacity:1;transform:none} }
+@keyframes agLWord{ from{opacity:0;letter-spacing:.06em} to{opacity:1;letter-spacing:0} }
+@keyframes agLTag { from{opacity:0;letter-spacing:.5em} to{opacity:1;letter-spacing:.28em} }
+@keyframes agLBar { to{transform:scaleX(1)} }
+@media (prefers-reduced-motion:reduce){ .ag-loader{ display:none !important; } }

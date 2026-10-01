@@ -94,13 +94,17 @@ final class SplashScreenTest extends TestCase
     {
         $css = $this->cssCode();
 
-        foreach (['ag-loader__disc', 'ag-loader__land', 'ag-loader__isle'] as $part) {
+        // `ag-loader__isle` was a second animated path; v5 puts Madagascar and the
+        // mainland inside ONE `<g class="ag-loader__land">` and animates the group, so
+        // the two can no longer rise a frame apart. The outlines themselves are
+        // unchanged — see the case below, which is what holds that.
+        foreach (['ag-loader__disc', 'ag-loader__land', 'ag-loader__africa', 'ag-loader__gates'] as $part) {
             $this->assertMatchesRegularExpression(
                 '~\.ag-loader\.is-playing\s+\.' . preg_quote($part, '~') . '\s*\{[^}]*animation~',
                 $css, "{$part} must animate from .is-playing, not from first render.");
         }
-        $this->assertMatchesRegularExpression('~\.ag-loader\.is-playing\s+\.ag-loader__word\s*\{[^}]*animation~',
-            $css, 'The wordmark too, or it lands before the continent has drawn.');
+        $this->assertMatchesRegularExpression('~\.ag-loader\.is-playing\s+\.ag-loader__bar::after\s*\{[^}]*animation~',
+            $css, 'The hairline too, or it is a static rule under a mark that is still arriving.');
     }
 
     /** Every reveal animation holds its end state. */
@@ -125,9 +129,14 @@ final class SplashScreenTest extends TestCase
     {
         $l = $this->layout();
 
-        $this->assertSame(1, preg_match('~var\s+REVEAL=(\d+),\s*FADE=(\d+),\s*CAP=(\d+);~', $l, $m),
-            'The three timings should stay together and readable.');
-        [, $reveal, $fade, $cap] = $m;
+        $this->assertSame(1, preg_match('~var\s+REVEAL=(\d+),\s*LEAVE=(\d+),\s*FADE=(\d+),\s*CAP=(\d+);~', $l, $m),
+            'The four timings should stay together and readable.');
+        [, $reveal, $leave, $fade, $cap] = $m;
+
+        // The handoff states a total, and a total is the sum of its parts or it is a
+        // number somebody typed. 1040 + 80 + 240 = 1360.
+        $this->assertSame(1360, (int) $reveal + (int) $leave + (int) $fade,
+            'the three phases no longer add up to the 1.36s the spec states');
 
         $this->assertLessThanOrEqual(1200, (int) $reveal,
             'The reveal is decoration. Anything beyond about a second is a toll on every '
@@ -222,5 +231,114 @@ final class SplashScreenTest extends TestCase
             $this->layout(),
             'Stamp the flag outside the show/skip branch, or a skipped intro reappears on the '
             . 'next page the visitor opens.');
+    }
+
+    // ══════════════════════════════════════════════════════════════════════════
+    // v5 — handoff-oct-2026 Part B
+    // ══════════════════════════════════════════════════════════════════════════
+
+    /**
+     * THE CAP HAS TO ACTUALLY CAP, AND THE SHIPPED SCRIPT'S DID NOT.
+     *
+     * The handoff's own exit script guarded the cap with
+     *
+     *   if (playing && performance.now() - started < REVEAL) return;
+     *
+     * so a cap firing on a reveal that had only just begun did NOTHING, and the only
+     * remaining exit was the reveal's own timer. Measured on a throttled connection: the
+     * reveal began at 2179ms and the loader left at 3581ms, against a spec that says
+     * "Hard cap 2.2s" — and a slow connection is the only case a cap is for.
+     *
+     * That is the fault this whole file was written for, returning by a different route:
+     * the splash becoming the thing somebody waits on. The cap fires unconditionally now.
+     */
+    public function test_the_cap_has_no_escape_for_a_reveal_in_progress(): void
+    {
+        $l = $this->layout();
+
+        $cap = substr($l, strpos($l, 'CAP - performance.now()') - 300, 320);
+
+        $this->assertStringNotContainsString('< REVEAL) return', $cap,
+            'the cap yields to a reveal in progress — on a slow page the loader outlasts it, '
+            . 'which is the one case a cap exists for');
+        $this->assertMatchesRegularExpression('~setTimeout\(function\(\)\{\s*out\(true\)~', $l,
+            'the cap must call the exit, not merely schedule a check that can decline');
+    }
+
+    /**
+     * The CSS schedule is the spec, and a sum nobody checks is a comment.
+     *
+     * Each phase is `animation:<name> <duration> <delay>`; the last thing to finish is
+     * the hairline at 0.20 + 0.72 = 0.92s, and the script's REVEAL (1040ms) has to be at
+     * least that or the mark starts leaving while a line is still drawing under it.
+     */
+    public function test_the_drawn_phases_finish_before_the_mark_starts_leaving(): void
+    {
+        $css = $this->cssCode();
+
+        preg_match_all('~\.ag-loader\.is-playing[^{]*\{\s*animation:\w+\s+([\d.]+)s(?:\s+([\d.]+)s)?~',
+            $css, $m, PREG_SET_ORDER);
+
+        $this->assertGreaterThanOrEqual(5, count($m),
+            'the five reveal phases (disc, continent, Africa, GATES, hairline) are not all keyed on .is-playing');
+
+        $last = 0.0;
+        foreach ($m as $phase) {
+            $last = max($last, (float) $phase[1] + (float) ($phase[2] ?? 0));
+        }
+
+        $this->assertEqualsWithDelta(0.92, $last, 0.001,
+            'the last phase no longer lands at 0.92s — the schedule in the spec has moved');
+
+        preg_match('~var\s+REVEAL=(\d+)~', $this->layout(), $r);
+        $this->assertGreaterThanOrEqual($last * 1000, (int) $r[1],
+            'the mark starts leaving before the drawing has finished');
+    }
+
+    /**
+     * THE CONTINENT IS NOT REDRAWN, and the handoff says so in as many words.
+     *
+     * Both outlines are traced and nobody has the source. A "tidy-up" that simplifies
+     * them is a different Africa on the first thing anybody sees, and it is the kind of
+     * change that reads as a formatting commit in a diff — which is exactly why it is
+     * pinned by length rather than left to be noticed.
+     */
+    public function test_the_two_outlines_are_the_originals(): void
+    {
+        $l = $this->layout();
+
+        preg_match('~<g class="ag-loader__land">(.*?)</g>~s', $l, $g);
+        $this->assertNotEmpty($g, 'the two outlines are no longer grouped as ag-loader__land');
+
+        preg_match_all('~<path d="([^"]+)"~', $g[1], $p);
+        $this->assertCount(2, $p[1], 'there should be exactly two paths: the mainland and Madagascar');
+
+        // The mainland starts at the Maghreb and Madagascar off Mozambique. Pinned as
+        // prefixes rather than in full: a whole-path assertion is unreadable in a diff
+        // and tells nobody which end moved.
+        $this->assertStringStartsWith('M 427.0,237.0', $p[1][0], 'the mainland outline was redrawn');
+        $this->assertStringStartsWith('M 1274.0,1000.0', $p[1][1], 'the Madagascar outline was redrawn');
+        $this->assertGreaterThan(900, strlen($p[1][0]), 'the mainland outline has been simplified');
+    }
+
+    /** Restored from the back/forward cache, it goes at once rather than fading in. */
+    public function test_a_bfcache_restore_removes_it_outright(): void
+    {
+        $this->assertMatchesRegularExpression(
+            "~pageshow.*?e\.persisted\s*\)\s*rm\(\)~s", $this->layout(),
+            'a page restored from bfcache is already drawn and being looked at — a splash '
+            . 'fading in over it is the site appearing to reload something nobody left');
+    }
+
+    /** Two denials, not one: the gate decides, and the stylesheet refuses anyway. */
+    public function test_reduced_motion_is_refused_twice(): void
+    {
+        $this->assertMatchesRegularExpression(
+            '~@media\s*\(prefers-reduced-motion:\s*reduce\)\s*\{\s*\.ag-loader\{\s*display:none~',
+            $this->cssCode(),
+            'the stylesheet does not deny itself under reduced motion');
+
+        $this->assertStringContainsString('prefers-reduced-motion: no-preference', $this->layout(),
+            'the head gate no longer checks motion, so the stylesheet is the only thing left');
     }
 }

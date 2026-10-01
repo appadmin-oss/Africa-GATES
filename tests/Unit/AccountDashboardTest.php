@@ -93,16 +93,27 @@ class AccountDashboardTest extends TestCase
 
         // The attribute the head script sets, and the rules keyed off it. Together they are
         // the whole mechanism — no Alpine, so the page works on a lite render too.
+        // ── THE HIDING RULE LIVES IN THE LINKED SHEET NOW, THE REVEAL IN THE PAGE ──
+        //
+        // The page's CSS moved to `components/account.css` when it was rebuilt; the
+        // per-tab REVEAL rules stay inline because they are generated from `me_tabs` and
+        // have to be. So this reads both, which is what `ColourBudgetTest` already does —
+        // a test that can only see one of the two files reports a rule as gone when it
+        // has merely moved, and that is the same "right rule, wrong token" failure this
+        // file is full of.
+        $css = $html . "\n" . (string) file_get_contents(
+            dirname(__DIR__, 2) . '/public/assets/css/components/account.css');
+
         $this->assertStringContainsString('data-me', $html);
-        $this->assertMatchesRegularExpression('~\[data-me\]\s*\.me-sec\{\s*display:none~', $html);
+        $this->assertMatchesRegularExpression('~\[data-me\]\s*\.me-sec\{\s*display:none~', $css);
         $this->assertMatchesRegularExpression('~\[data-me="points"\]\s*#me-points~', $html);
 
         // And EVERY hide is conditional on that attribute. An unconditional
         // `.me-sec{display:none}` would leave a reader with scripting off looking at one
         // section with no way to reach the other five.
         $this->assertSame(
-            substr_count($html, '.me-sec{ display:none'),
-            substr_count($html, '[data-me] .me-sec{ display:none'),
+            substr_count($css, '.me-sec{ display:none'),
+            substr_count($css, '[data-me] .me-sec{ display:none'),
             'a hide that does not depend on the attribute is a hide a no-script reader cannot undo'
         );
     }
@@ -176,24 +187,38 @@ class AccountDashboardTest extends TestCase
         $this->signIn($uid);
         $html = $this->page();
 
-        // Anchored on the two declarations that carry the LIST. A bare `var ok = false`
-        // elsewhere on the page is a different variable in a different closure and is
-        // none of this test's business.
-        preg_match_all('~var (ok|IDS)\s*=\s*(\[[^;]*\]|null)\s*;~', $html, $m, PREG_SET_ORDER);
-        $this->assertCount(2, $m, 'the head and foot tab lists are no longer both present');
+        // ── THERE IS ONLY ONE LIST NOW, AND THAT IS STRONGER THAN TWO THAT AGREE ──
+        //
+        // This used to require TWO rendered arrays and assert they matched, because the
+        // head and foot scripts each carried a copy and the two drifting is how the
+        // referral panel was lost. The rebuilt page removes the second copy entirely:
+        // the foot script DERIVES the accepted set from the `data-me-title` elements the
+        // page already renders from `me_tabs`, so it cannot disagree with the head — a
+        // list it does not hold is a list it cannot get wrong.
+        //
+        // The rule is unchanged and the assertion now states it directly.
+        preg_match_all('~var ok\s*=\s*(\[[^;]*\]|null)\s*;~', $html, $m, PREG_SET_ORDER);
+        $this->assertCount(1, $m, 'the head script no longer renders the tab list');
 
-        foreach ($m as [$_, $name, $value]) {
-            $decoded = json_decode(trim($value), true);
-            $this->assertIsArray($decoded,
-                "`var {$name}` rendered as " . trim($value) . ' — a Twig set inside a block is '
-                . 'invisible to other blocks, and the script throws before it binds anything');
-            $this->assertContains('overview', $decoded);
+        $decoded = json_decode(trim($m[0][1]), true);
+        $this->assertIsArray($decoded,
+            '`var ok` rendered as ' . trim($m[0][1]) . ' — a Twig set inside a block is '
+            . 'invisible to other blocks, and the script throws before it binds anything');
+        $this->assertContains('overview', $decoded);
+
+        $js = (string) file_get_contents(dirname(__DIR__, 2) . '/public/assets/js/account.js');
+        $this->assertStringNotContainsString("'overview',", $js,
+            'the foot script has grown its own copy of the tab list — derive it from the '
+            . 'rendered sections instead, or the two can drift again');
+        $this->assertStringContainsString('data-me-title', $js,
+            'the foot script must read the accepted set off the page it is running on');
+
+        // And every tab the head accepts is actually rendered as one of those elements.
+        foreach ($decoded as $tab) {
+            $this->assertStringContainsString('data-me-title="' . $tab . '"', $html,
+                "`{$tab}` is accepted by the head script and has no title element, so the "
+                . 'foot script will never accept it');
         }
-
-        // Both lists are the same list. Two arrays that merely both parse is the drift this
-        // consolidation existed to end.
-        $this->assertSame(json_decode(trim($m[0][2]), true), json_decode(trim($m[1][2]), true),
-            'the head and foot scripts disagree about which tabs exist');
     }
 
     /** And the reveal rule is generated for every one of them. */

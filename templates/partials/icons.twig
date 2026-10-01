@@ -204,6 +204,16 @@
 {%- elseif name == 'trophy' %}<path d="M6 4h12v4a6 6 0 0 1-12 0zM9 20h6M12 14v6M6 6H3v1a4 4 0 0 0 4 4M18 6h3v1a4 4 0 0 1-4 4" stroke-width="2"/>
 {%- elseif name == 'heart' %}<path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.6l-1-1a5.5 5.5 0 0 0-7.8 7.8L12 21l8.8-8.6a5.5 5.5 0 0 0 0-7.8Z" stroke-width="2"/>
 {%- elseif name == 'help' %}<path d="M12 17h.01M9.1 9a3 3 0 1 1 4 2.8c-.7.3-1.1 1-1.1 1.7V14" stroke-width="2"/>
+{# The rail's nine section marks, from the DC's own `IC` table. They are in `ui` and
+   not in `sec` because a rail tile sets its own colour from a token pair, and `sec`'s
+   marks carry a fixed two-tone hue that fights it. #}
+{%- elseif name == 'overview' %}<path d="M3 9.5 12 3l9 6.5V20H3z" stroke-width="2"/>
+{%- elseif name == 'points' %}<path d="M12 2l2.9 6.3 6.8.7-5.1 4.6 1.5 6.7L12 16.9 5.9 20.3l1.5-6.7L2.3 9l6.8-.7z" stroke-width="2"/>
+{%- elseif name == 'activity' %}<path d="M3 12h4l3-7 4 14 3-7h4" stroke-width="2"/>
+{%- elseif name == 'saved' %}<path d="M6 3h12v18l-6-4-6 4z" stroke-width="2"/>
+{%- elseif name == 'shield' %}<path d="M12 2.4l7.6 2.7v5.8c0 4.7-3.1 8.3-7.6 10-4.5-1.7-7.6-5.3-7.6-10V5.1z" stroke-width="2"/>
+{%- elseif name == 'settings' %}<path d="M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8ZM12 2v3M12 19v3M2 12h3M19 12h3" stroke-width="2"/>
+{%- elseif name == 'stand' %}<path d="M4 9h16l-1 11H5zM3 9l2-5h14l2 5M9 9v11M15 9v11" stroke-width="2"/>
 {%- elseif name == 'shield-tick' %}<path d="M12 2.4l7.6 2.7v5.8c0 4.7-3.1 8.3-7.6 10-4.5-1.7-7.6-5.3-7.6-10V5.1z"/><path d="m8.6 11.8 2.3 2.3 4.5-4.6"/>
 {%- endif -%}
 </svg>

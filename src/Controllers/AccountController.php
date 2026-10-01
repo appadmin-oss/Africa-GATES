@@ -1185,11 +1185,12 @@ class AccountController
                     'empty' => 'Points appear here once something arrives.',
                 ]
             ),
-            // The same 90 days at a glance, for the summary panel. Not the same chart
-            // shrunk: it has no axes, no gridlines and no hover, because a summary that
-            // repeats the detail view is two things to keep in step and one of them will
-            // drift. The numbers beside it are the accessible reading of it.
-            'points_spark' => \AfricaGates\Support\Spark::chart($pointsSeries, 300.0, 46.0),
+            // `points_spark` WAS here — a second, decorative copy of the chart for the
+            // overview summary panel. The rebuilt page follows the DC, whose overview
+            // balance card carries no chart at all, so it had no reader and
+            // `TemplateContextTest` said so. Deleted rather than left as weight: an
+            // unread variable is the shape `basis_ideal` had, and `Spark` is still
+            // reached through `Viz::area()` for the one chart that is drawn.
             'member_since' => (string) ($user->created_at ?? ''),
             // Has this member ever done ANYTHING? It decides between the dashboard and a
             // first-run screen, and a dashboard of six empty sections is the worst possible

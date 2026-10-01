@@ -90,6 +90,7 @@ final class AssetBundle
         'assets/css/components/challenge.css',
         // The promo band, on five placements.
         'assets/css/components/promo.css',
+        'assets/css/components/account.css',
         // The immersive mobile Pulse feed. After site-search so its
         // body[data-page="pulse"] overrides win over the generic components, and
         // before a11y.css, which must stay last.

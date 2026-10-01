@@ -1,0 +1,115 @@
+{#
+  ══ WITHDRAWING REFERRAL EARNINGS ═══════════════════════════════════════════════
+
+  A partial, because it is the one part of /account that is a FORM about money and it has
+  four mutually exclusive states — requested, available, blocked, and "we do not have your
+  bank details yet". Inline in the page those four read as one long card with most of it
+  conditionally absent, which is how the wrong one came to be shown.
+
+  It is rendered `only`, with everything it needs passed in, so it cannot quietly start
+  depending on a page variable that changes meaning.
+
+  ── THE RULES IT ENFORCES VISUALLY ───────────────────────────────────────────────
+
+  `payout_can` answers "can they" AND "why not" together — see `ReferralPayout::available()`
+  — so this never draws a button that will refuse. An open request replaces the form
+  entirely rather than sitting above it: two ways to ask for the same money is how somebody
+  asks twice.
+
+  The bank details are saved once and reused, and each payout keeps its own copy, so
+  changing them never alters where an earlier transfer went. That is said out loud because
+  it is the question somebody editing this form is actually asking.
+
+  Fields are 52px with 16px text (§11, so focusing one cannot zoom the viewport on iOS) and
+  carry `inputmode` and `autocomplete`. The account-number field is `inputmode="numeric"`
+  and NOT `type="number"`: a leading zero is significant in a Nigerian account number and
+  a number input drops it.
+#}
+
+{% if payout_open %}
+  <div class="me-note me-note--ok" role="status">
+    <b>₦{{ payout_open.amount_naira|number_format }} requested</b>
+    {% if payout_open.requested_at %}on {{ payout_open.requested_at|slice(0,10) }}{% endif %},
+    to {{ payout_open.bank_name|default('your saved account') }}{% if payout_open.account_name %} · {{ payout_open.account_name }}{% endif %}.
+    We pay by bank transfer and will be in touch once it has gone.
+  </div>
+
+{% elseif payout_can %}
+  <form method="post" action="/account/payout" data-ag-validate novalidate
+        style="display:flex;flex-direction:column;gap:10px">
+    <input type="hidden" name="_token" value="{{ csrf_token }}">
+    <b class="me-card__h">Withdraw ₦{{ payout_amount|number_format }} to your bank</b>
+    <span class="me-sub">Paid by bank transfer, usually within a few working days. The
+      account name has to match your own — a mismatch is the usual reason one is refused.</span>
+
+    <div class="me-pay">
+      <label class="sr-only" for="poBank">Bank</label>
+      <input id="poBank" class="me-input" type="text" name="bank" required maxlength="120"
+             autocomplete="off" placeholder="Bank (e.g. GTBank)"
+             value="{{ payout_bank.bank|default('') }}">
+
+      <label class="sr-only" for="poName">Account name</label>
+      <input id="poName" class="me-input" type="text" name="account_name" required maxlength="160"
+             autocomplete="name" placeholder="Account name"
+             value="{{ payout_bank.account_name|default('') }}">
+
+      <label class="sr-only" for="poNum">Account number</label>
+      <input id="poNum" class="me-input" type="text" name="account_number" required
+             inputmode="numeric" pattern="[0-9]*" maxlength="20" autocomplete="off"
+             placeholder="Account number"
+             value="{{ payout_bank.account_number|default('') }}">
+
+      <button type="submit" class="me-btn me-btn--go" style="min-width:160px">Request payout</button>
+    </div>
+  </form>
+
+{% elseif payout_why %}
+  <p class="me-sub">{{ payout_why }}</p>
+{% endif %}
+
+<details class="me-card" style="padding:14px 18px"{% if not payout_bank.account_number|default('') %} open{% endif %}>
+  <summary style="cursor:pointer;font-size:14px;font-weight:600;min-height:32px;display:flex;align-items:center">
+    {{ payout_bank.account_number|default('') ? 'Change your bank details' : 'Save your bank details' }}
+  </summary>
+  <p class="me-sub" style="margin:8px 0 10px">
+    Saved once and reused for every withdrawal. Each payout keeps its own copy, so changing
+    these never alters where an earlier transfer went. We pay by ordinary bank transfer —
+    nothing is set up on your behalf with the payment provider.
+  </p>
+  <form method="post" action="/account/bank" data-ag-validate novalidate>
+    <input type="hidden" name="_token" value="{{ csrf_token }}">
+    <div class="me-pay">
+      <label class="sr-only" for="bkBank">Bank</label>
+      <input id="bkBank" class="me-input" type="text" name="bank" required maxlength="120"
+             autocomplete="off" placeholder="Bank (e.g. GTBank)"
+             value="{{ payout_bank.bank|default('') }}">
+      <label class="sr-only" for="bkName">Account name</label>
+      <input id="bkName" class="me-input" type="text" name="account_name" required maxlength="160"
+             autocomplete="name" placeholder="Account name — must be yours"
+             value="{{ payout_bank.account_name|default('') }}">
+      <label class="sr-only" for="bkNum">Account number</label>
+      <input id="bkNum" class="me-input" type="text" name="account_number" required
+             inputmode="numeric" pattern="[0-9]*" maxlength="20" autocomplete="off"
+             placeholder="Account number"
+             value="{{ payout_bank.account_number|default('') }}">
+      <button type="submit" class="me-btn">Save details</button>
+    </div>
+  </form>
+</details>
+
+{% if payout_history|default([])|length %}
+<section class="me-grp">
+  <h2>Withdrawals</h2>
+  <div class="me-rows">
+    {% for h in payout_history %}
+    <span class="me-r" data-find="payout withdrawal {{ h.status }}">
+      <span class="me-r__b">
+        <span class="me-r__n">₦{{ h.amount_naira|number_format }}</span>
+        <span class="me-r__s">{% if h.requested_at %}{{ h.requested_at|slice(0,10) }}{% endif %}{% if h.payment_ref %} · {{ h.payment_ref }}{% endif %}{% if h.note %} · {{ h.note }}{% endif %}</span>
+      </span>
+      <span class="me-pill me-pill--{{ h.status == 'paid' ? 'ok' : (h.status == 'rejected' ? 'bad' : 'wait') }}">{{ h.status|capitalize }}</span>
+    </span>
+    {% endfor %}
+  </div>
+</section>
+{% endif %}

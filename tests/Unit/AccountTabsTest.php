@@ -38,6 +38,29 @@ final class AccountTabsTest extends TestCase
         );
     }
 
+    /**
+     * The page's stylesheet, which is where its rules live since the rebuild.
+     *
+     * They used to be a 400-line inline `<style>`. Several assertions below read CSS, and
+     * a test that only knows the template reports a rule as GONE when it has merely moved
+     * — which is the "right rule pinned to the wrong token" failure this whole file
+     * documents, happening inside the guard against it.
+     */
+    private static function css(): string
+    {
+        return (string) file_get_contents(
+            dirname(__DIR__, 2) . '/public/assets/css/components/account.css'
+        );
+    }
+
+    /** The page's behaviour layer, for the same reason. */
+    private static function js(): string
+    {
+        return (string) file_get_contents(
+            dirname(__DIR__, 2) . '/public/assets/js/account.js'
+        );
+    }
+
     /** @return list<string> */
     private static function tabs(): array
     {
@@ -57,17 +80,18 @@ final class AccountTabsTest extends TestCase
         $tpl = self::tpl();
 
         $this->assertSame(1, preg_match_all('/\{%\s*set me_tabs\s*=/', $tpl), 'more than one tab list');
-        $this->assertSame(2, substr_count($tpl, 'me_tabs|json_encode|raw'),
-            'both scripts should read the one list');
-        // No hand-written copy left behind in either script. The `me_tabs` definition
-        // itself is a literal, of course — what must not exist is a SECOND one that a
-        // future edit could forget.
-        foreach (['var ok  =', 'var ok =', 'var IDS  =', 'var IDS ='] as $decl) {
-            $this->assertStringNotContainsString(
-                $decl . " ['", $tpl,
-                "a script still declares its own tab list ({$decl}) — that is the drift this fixed"
-            );
-        }
+        // ONCE, not twice. The head script renders it; the foot script derives the same
+        // set from the `data-me-title` elements the page already builds from this array,
+        // so there is no second copy to keep in step. A list nobody holds twice is a list
+        // that cannot drift — which is strictly better than the two-that-agree rule this
+        // assertion used to state.
+        $this->assertSame(1, substr_count($tpl, 'me_tabs|json_encode|raw'),
+            'the tab list is rendered more than once — the second copy is the drift');
+
+        $this->assertStringNotContainsString("'overview',", self::js(),
+            'the behaviour layer has grown its own tab list');
+        $this->assertStringContainsString('data-me-title', self::js(),
+            'the behaviour layer must read the accepted set off the rendered page');
     }
 
     /**
@@ -189,7 +213,11 @@ final class AccountTabsTest extends TestCase
             dirname(__DIR__, 2) . '/templates/pages/account/dashboard.twig'
         );
 
-        $this->assertMatchesRegularExpression('~\.me-sec:target\s*\{[^}]*display\s*:\s*block~', $tpl,
+        // `display:flex`, because a section is a flex column now. What matters is that it
+        // is REVEALED by `:target` at all — the rail cannot work without the script
+        // otherwise, which is the state this page shipped in once already.
+        $this->assertMatchesRegularExpression(
+            '~\.me-sec:target\s*\{[^}]*display\s*:\s*(block|flex)~', self::css(),
             'without a :target rule the rail cannot work when the script does not run');
 
         // And the links have to be real anchors at those ids, or :target never fires.
@@ -198,7 +226,8 @@ final class AccountTabsTest extends TestCase
 
         // The handler must NOT swallow the click, or the browser never navigates the hash
         // and :target is bypassed — which is the bug this whole change removes.
-        $handler = substr($tpl, strpos($tpl, "page.addEventListener('click'") ?: 0, 700);
+        $js = self::js();
+        $handler = substr($js, strpos($js, "page.addEventListener('click'") ?: 0, 700);
         $this->assertStringNotContainsString('preventDefault', $handler,
             'intercepting the click puts the rail back on the script it was failing without');
     }
@@ -259,9 +288,9 @@ final class AccountTabsTest extends TestCase
     {
         $tpl = self::tpl();
 
-        $start = strpos($tpl, 'class="me-more__l"');
+        $start = strpos($tpl, 'class="me-grp me-more"');
         $this->assertNotFalse($start, 'the phone "Your account" list is gone');
-        $block = substr($tpl, $start, 900);
+        $block = substr($tpl, $start, 1200);
 
         $this->assertStringContainsString('{% for r in rail %}', $block,
             'the phone list is hand-written — that is the fourth copy of the section list');
@@ -274,7 +303,7 @@ final class AccountTabsTest extends TestCase
         // the page says the same thing twice in two shapes.
         $this->assertMatchesRegularExpression(
             '/@media \(max-width:599px\)\{.*?\.me-rail\{ display:none/s',
-            $tpl,
+            self::css(),
             'the rail is still drawn at phone width beside the list that replaces it'
         );
     }
@@ -302,7 +331,7 @@ final class AccountTabsTest extends TestCase
 
         // `display`, not `visibility`: a hidden-but-present balance is still read aloud.
         $this->assertMatchesRegularExpression(
-            '/\[data-bal="hidden"\] \.me-cash\{ display:none/', $tpl,
+            '/\[data-bal="hidden"\] \.me-cash\{ display:none/', self::css(),
             'the real figure must leave the accessibility tree, not just the screen');
     }
 }

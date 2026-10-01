@@ -135,8 +135,23 @@ final class SupportTicketNamingTest extends TestCase
     {
         $me = (string) file_get_contents(dirname(__DIR__, 2) . '/templates/pages/account/dashboard.twig');
 
-        $this->assertStringContainsString('<p class="me-panel__h">Tickets</p>', $me,
-            'the events panel was renamed; an event ticket is not a support ticket');
+        // ── THE RULE, NOT THE MARKUP ─────────────────────────────────────────────
+        //
+        // This pinned the literal `<p class="me-panel__h">Tickets</p>`, and when the page
+        // was rebuilt to the design comp that class stopped existing — so the test failed
+        // on a page where the rule was perfectly intact. That is the "right rule, wrong
+        // token" failure this codebase keeps paying for, inside the guard against it.
+        //
+        // What has to stay true is that an EVENT ticket is called a ticket on this page,
+        // distinctly from a support ticket. It is now a filter chip and a row kind rather
+        // than a panel heading, so the assertion asks for the word in a control a reader
+        // can see, and then for the thing that must never appear.
+        $this->assertMatchesRegularExpression('~>\s*Tickets\s*<~', $me,
+            'nothing on the account page is labelled "Tickets" any more — an event ticket '
+            . 'needs its own name, distinct from a support ticket');
         $this->assertStringNotContainsString('support ticket code', strtolower($me));
+        $this->assertStringNotContainsString('raise a ticket', strtolower($me),
+            'support language on the page that lists event tickets is the confusion this '
+            . 'test exists to prevent');
     }
 }
