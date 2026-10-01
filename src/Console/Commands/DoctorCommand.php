@@ -252,9 +252,20 @@ final class DoctorCommand extends Command
         foreach (['APP_URL', 'APP_ENV', 'DB_HOST', 'DB_NAME', 'DB_USER', 'DB_PASS',
                   'TRUST_PROXY', 'SESSION_SECURE', 'CRON_TOKEN', 'SETUP_TOKEN',
                   'PAYSTACK_SECRET_KEY', 'FLUTTERWAVE_WEBHOOK_HASH',
-                  'TURNSTILE_SECRET', 'TURNSTILE_SITE_KEY', 'SMTP_HOST', 'SMTP_PASS'] as $key) {
+                  'TURNSTILE_SECRET', 'TURNSTILE_SITE_KEY'] as $key) {
             $out[$key] = $where($key);
         }
+
+        // Mail from the resolver the SENDER uses, not from the environment. This listed
+        // SMTP_HOST and SMTP_PASS beside the others, and since the login moved into
+        // Settings that line read "NOT SET" on a platform that was sending — a doctor
+        // contradicting the patient. Where each value came from is the useful half.
+        $mail = \AfricaGates\Services\Mail\MailConfig::load();
+        $out['mail_transport'] = $mail->host . ':' . $mail->port . ' · ' . $mail->describe()['security']
+            . ' (host from ' . $mail->source('host') . ')';
+        $out['mail_login'] = $mail->hasCredentials()
+            ? 'set (password from ' . $mail->source('password') . ')'
+            : 'NOT SET — mail cannot be sent; see /admin/settings/mail';
 
         // Turnstile needs BOTH keys, and the broken half is invisible in a per-key
         // listing: a secret with no site key renders no widget, so no browser can

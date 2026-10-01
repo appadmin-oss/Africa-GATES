@@ -160,12 +160,6 @@ return [
             // previously typed out in three templates, which is how a site ends
             // up advertising a mailbox nobody reads any more.
             'support_email'     => \AfricaGates\Services\Notifier::supportEmail(),
-            // Email transport health for the admin banner — config check only
-            // (no network). Null-safe when the mailer can't build.
-            'smtp_ok'           => (function () use ($c) {
-                if (empty($_SESSION['admin_id'])) return true; // only admins see the banner
-                try { return $c->get(OtpService::class)->smtpConfigured(); } catch (\Throwable) { return true; }
-            })(),
             // Pending DB migrations — the #1 cause of admin "action 500s" after a
             // deploy: writes touch new columns/tables that were never applied,
             // while reads keep working. Surface it LOUDLY (admins only, one cheap
@@ -532,6 +526,14 @@ return [
         $twig->getEnvironment()->addFunction(new \Twig\TwigFunction(
             'cron_health',
             [\AfricaGates\Support\CronHealth::class, 'status']
+        ));
+        // `{{ mail_health() }}` → is email down right now? Same reasoning as cron_health:
+        // it has to show on WHATEVER admin page is open, and it reads the log itself when
+        // no incident is recorded, because the schedule that opens incidents may be the
+        // other thing that is broken. Admin layout only; public pages never call it.
+        $twig->getEnvironment()->addFunction(new \Twig\TwigFunction(
+            'mail_health',
+            [\AfricaGates\Services\Mail\MailHealth::class, 'banner']
         ));
         // Consume one-shot flash. `flash` included — it was leaking for the whole session.
         unset($_SESSION['flash_ok'], $_SESSION['flash'],

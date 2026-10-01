@@ -6,6 +6,7 @@ use AfricaGates\Support\Brand;
 use AfricaGates\Support\Env;
 use Illuminate\Support\Carbon;
 use Illuminate\Database\Capsule\Manager as DB;
+use AfricaGates\Services\Mail\MailConfig;
 use PHPMailer\PHPMailer\PHPMailer;
 use PHPMailer\PHPMailer\Exception as MailException;
 use PHPMailer\PHPMailer\SMTP;
@@ -63,23 +64,24 @@ class OtpService
      */
     public static function boot(?LoggerInterface $log = null): self
     {
-        $s = [];
-        try { $s = DB::table('gates_settings')->pluck('value', 'key_name')->all(); }
-        catch (\Throwable) {}
+        return self::fromConfig(MailConfig::load(), $log);
+    }
 
-        $pick = static fn (string $key, string $env, string $dft): string
-            => trim((string) ($s[$key] ?? '')) ?: (string) Env::get($env, $dft);
-
+    /**
+     * From the one resolver. The array this class keeps is its historical constructor
+     * shape, which the suite still builds by hand; production never does.
+     */
+    public static function fromConfig(MailConfig $c, ?LoggerInterface $log = null): self
+    {
         return new self([
-            'host'         => $pick('mail_smtp_host', 'SMTP_HOST', 'smtp-relay.brevo.com'),
-            // Cast late: a settings row is a string and Env::int is not reachable through
-            // $pick, so an operator typing "587 " must still produce an int port.
-            'port'         => (int) $pick('mail_smtp_port', 'SMTP_PORT', '587') ?: 587,
-            'username'     => $pick('mail_smtp_user', 'SMTP_USER', ''),
-            'password'     => $pick('mail_smtp_pass', 'SMTP_PASS', ''),
-            'from_address' => $pick('mail_from_address', 'MAIL_FROM_ADDRESS', 'noreply@afrovanguard.org.ng'),
-            'from_name'    => $pick('mail_from_name', 'MAIL_FROM_NAME', 'Africa GATES'),
-            'reply_to'     => $pick('mail_reply_to', 'MAIL_REPLY_TO', ''),
+            'host'         => $c->host,
+            'port'         => $c->port,
+            'secure'       => $c->security(),
+            'username'     => $c->username,
+            'password'     => $c->password,
+            'from_address' => $c->fromAddress,
+            'from_name'    => $c->fromName,
+            'reply_to'     => $c->replyTo,
         ], $log);
     }
 
@@ -90,11 +92,10 @@ class OtpService
     /** True when real (non-placeholder) SMTP credentials are configured. */
     public function smtpConfigured(): bool
     {
-        $u = (string)($this->smtp['username'] ?? '');
-        $p = (string)($this->smtp['password'] ?? '');
-        if ($u === '' || $p === '') return false;
-        $bad = ['your_brevo_login@email.com', 'your_brevo_smtp_key', 'your@email.com', 'smtp_key'];
-        return !in_array($u, $bad, true) && !in_array($p, $bad, true);
+        return MailConfig::of([
+            'username' => (string) ($this->smtp['username'] ?? ''),
+            'password' => (string) ($this->smtp['password'] ?? ''),
+        ])->hasCredentials();
     }
 
     /** Absolute site base URL for every link/image in email — from APP_URL, no trailing slash. */
@@ -125,7 +126,23 @@ class OtpService
         $m->SMTPAuth    = true;
         $m->Username    = (string)$this->smtp['username'];
         $m->Password    = (string)$this->smtp['password'];
-        $m->SMTPSecure  = PHPMailer::ENCRYPTION_STARTTLS;
+        // From the port unless the operator chose otherwise — see MailConfig::security().
+        // This was STARTTLS whatever the port, so every send on 465 (implicit TLS, the
+        // port most providers other than Brevo hand out) waited for a greeting that never
+        // came and died on the timeout as "SMTP connect() failed".
+        $secure = (string) ($this->smtp['secure'] ?? '');
+        if ($secure === '') {
+            $secure = ((int) ($this->smtp['port'] ?? 587)) === 465
+                ? MailConfig::SECURE_SMTPS : MailConfig::SECURE_STARTTLS;
+        }
+        $m->SMTPSecure  = match ($secure) {
+            MailConfig::SECURE_SMTPS => PHPMailer::ENCRYPTION_SMTPS,
+            MailConfig::SECURE_NONE  => '',
+            default                  => PHPMailer::ENCRYPTION_STARTTLS,
+        };
+        // PHPMailer upgrades to TLS on its own whenever the server offers it, which
+        // silently overrides an explicit "none" — the one setting it exists to honour.
+        $m->SMTPAutoTLS = $secure !== MailConfig::SECURE_NONE;
         $m->Timeout     = 12;
         $m->SMTPKeepAlive = false;
         $m->CharSet     = PHPMailer::CHARSET_UTF8;

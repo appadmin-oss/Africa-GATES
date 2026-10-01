@@ -57,24 +57,38 @@ class WebhookService
         'support.escalated'         => 'The support assistant escalated a conversation to a human',
         'support.ticket_opened'     => 'A support ticket is opened',
         'support.ticket_replied'    => 'Someone replies on a support ticket',
+        // Email. Wire `mail.failing` to an SMS or chat ping: when it fires, email is the
+        // one channel that may not reach anybody — so a webhook is how a person hears.
+        'mail.failing'              => 'Email has stopped sending (with the automatic diagnosis)',
+        'mail.recovered'            => 'Email is sending again after an outage',
         'ping'                      => 'Test event (sent from the admin console)',
     ];
 
-    /** Fire an event to every active webhook subscribed to it. Never throws. */
-    public static function dispatch(string $event, array $data): void
+    /**
+     * Fire an event to every active webhook subscribed to it. Never throws.
+     *
+     * Returns how many endpoints ACCEPTED it (a 2xx). Every caller before the mail
+     * alert ignored the result, and could: for them the webhook is one notification
+     * among several. For an email outage it is frequently the only channel left, and
+     * an alert that cannot tell "delivered" from "nobody is subscribed" records
+     * itself as sent while reaching no one.
+     */
+    public static function dispatch(string $event, array $data): int
     {
         try {
             $hooks = DB::table('gates_webhooks')->where('is_active', 1)->get();
         } catch (\Throwable $e) {
-            return; // table missing / DB unavailable — must never break the caller
+            return 0; // table missing / DB unavailable — must never break the caller
         }
+        $ok = 0;
         foreach ($hooks as $hook) {
             $subs = self::subscribed($hook->events ?? '*');
             if ($subs !== ['*'] && !in_array($event, $subs, true)) {
                 continue;
             }
-            self::deliver($hook, $event, $data);
+            if (self::deliver($hook, $event, $data)['ok'] ?? false) $ok++;
         }
+        return $ok;
     }
 
     /** Queue name for outbound deliveries that must not block the caller. */

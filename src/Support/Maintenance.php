@@ -153,6 +153,13 @@ final class Maintenance
             // so polling is the primary path and the callback is the optimisation.
             $ran[] = ['interviewbot',  $this->task('interviewbot',
                 fn() => \AfricaGates\Services\InterviewBot::sweep())];
+            // Email health. Every tick, because the cost of a missed outage is a sign-in
+            // code nobody receives, and the check is one aggregate when nothing is wrong
+            // (its own probe rate-limits itself to hourly). It is what OPENS an incident,
+            // runs the diagnosis and alerts on channels that do not need email — see
+            // AfricaGates\Services\Mail\MailHealth for the states.
+            $ran[] = ['mailhealth',    $this->task('mailhealth',
+                fn() => (new \AfricaGates\Services\Mail\MailHealth())->check())];
             // What the platform looked like on this tick, for /status to show a history
             // with. LAST in the every-tick block on purpose: it records the state AFTER the
             // queue has drained and payments have reconciled, which is the state a visitor
@@ -326,6 +333,7 @@ final class Maintenance
                 // should not wait an hour to see the banners come down, and there is no
                 // shell here to make them come down any other way.
                 'challenges' => $ran[] = ['challenges', $this->task('challenges', fn() => \AfricaGates\Services\ChallengeService::sweepWindows())],
+                'mailhealth' => $ran[] = ['mailhealth', $this->task('mailhealth', fn() => (new \AfricaGates\Services\Mail\MailHealth())->check())],
                 // Addressable by name because there is no SSH on this account: when a round
                 // opens sooner than the hourly sweep can fill it, `/__cron/run?task=judgemaps`
                 // is the only way anybody can ask for another batch.

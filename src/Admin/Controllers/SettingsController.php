@@ -521,7 +521,7 @@ class SettingsController
                   // SMTP transport. The host, port and login are echoed back like any
                   // other field; the PASSWORD is handled below and never rendered.
                   // These used to be readable only from .env, on a host with no shell.
-                  'mail_smtp_host','mail_smtp_port','mail_smtp_user',
+                  'mail_smtp_host','mail_smtp_port','mail_smtp_user','mail_smtp_secure',
                   // Image hosting. Cloud name, key and folder are identifiers, not
                   // secrets — the API secret and the combined URL are handled below.
                   'cloudinary_cloud_name','cloudinary_api_key','cloudinary_folder',

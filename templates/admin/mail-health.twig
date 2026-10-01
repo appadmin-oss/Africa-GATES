@@ -1,0 +1,179 @@
+{% extends "admin/layout.twig" %}
+{% block topbar_title %}Email health{% endblock %}
+
+{#
+  ══ EMAIL HEALTH ═══════════════════════════════════════════════════════════════
+
+  Where every mail alert points, so the first thing on it is the answer an alert
+  promised: is it broken, since when, why, and what to change. Then the evidence —
+  the diagnosis step by step, the last hour grouped by CAUSE (a list of 400 identical
+  "SMTP connect() failed" rows is noise, one line saying "connect · 400" is a finding),
+  and the history, which is how "were we told?" gets an answer.
+
+  Every figure on the rules line is read from MailHealth's constants, never typed —
+  CLAUDE.md's handbook rule: anything typed here that could be computed is a bug
+  waiting for the day somebody changes the threshold.
+#}
+
+{% block head_styles %}
+<style nonce="{{ csp_nonce }}">
+  .mh{ display:flex; flex-direction:column; gap:18px; max-width:980px }
+  .mh-lead{ margin:0; max-width:68ch; font-size:14px; line-height:1.65; color:var(--ad-text-mute) }
+  .mh-state{ display:flex; gap:14px; align-items:flex-start; padding:18px 20px;
+    border-radius:var(--ad-radius); border:1px solid var(--ad-line); background:var(--ad-surface) }
+  .mh-state--bad{ border-color:#f1c4c4; background:#fef6f6 }
+  .mh-state--ok{ border-color:rgba(35,123,34,.3); background:rgba(35,123,34,.05) }
+  .mh-state h2{ margin:0 0 4px; font-size:17px }
+  .mh-state p{ margin:4px 0 0; font-size:14px; line-height:1.6; max-width:72ch }
+  .mh-fix{ font-weight:600 }
+  .mh-meta{ font-size:12.5px; color:var(--ad-text-mute) }
+  .mh-s{ display:inline-block; min-width:62px; padding:3px 9px; border-radius:999px;
+    font:600 11px/1.6 var(--ad-font-mono,ui-monospace,monospace); letter-spacing:.06em; text-align:center; white-space:nowrap }
+  .mh-s--ok{ background:rgba(35,123,34,.12); color:#1a6118; border:1px solid rgba(35,123,34,.3) }
+  .mh-s--fail{ background:rgba(138,32,32,.10); color:#8a2020; border:1px solid rgba(138,32,32,.3) }
+  .mh-s--warn{ background:rgba(243,180,22,.14); color:#7a5600; border:1px solid rgba(243,180,22,.35) }
+  .mh-s--skip{ background:rgba(16,41,44,.05); color:var(--ad-text-mute); border:1px solid rgba(16,41,44,.12) }
+  .mh-t{ width:100%; border-collapse:collapse; font-size:14px }
+  .mh-t th{ text-align:start; font-size:12px; font-weight:600; color:var(--ad-text-mute);
+    padding:8px 10px; border-bottom:1px solid var(--ad-line) }
+  .mh-t td{ padding:10px; border-top:1px solid var(--ad-line-soft); vertical-align:top; line-height:1.5 }
+  .mh-t tr:first-child td{ border-top:0 }
+  .mh-d{ color:var(--ad-text-mute); word-break:break-word }
+  .mh-kv{ display:grid; grid-template-columns:max-content 1fr; gap:6px 16px; margin:0; font-size:14px }
+  .mh-kv dt{ color:var(--ad-text-mute) }
+  .mh-kv dd{ margin:0; font-family:var(--ad-font-mono,ui-monospace,monospace); font-size:13px; word-break:break-all }
+  .mh-bar{ display:flex; gap:10px; align-items:center; flex-wrap:wrap }
+</style>
+{% endblock %}
+
+{% block content %}
+{% set step_word = {'ok':'passed','fail':'failed','warn':'warning','skip':'not run'} %}
+<div class="mh">
+
+  <p class="mh-lead">The platform checks this by itself. It opens an incident when
+    {{ rules.fails }} or more emails fail within {{ rules.window }} minutes at a rate of
+    {{ rules.rate }}% or worse, or when its own hourly check fails; it then runs the
+    diagnosis below and alerts by webhook, by this server’s own mail and on this console,
+    and repeats every {{ rules.realert }} hours until email works again.</p>
+
+  {# ── THE ANSWER ─────────────────────────────────────────────────────────── #}
+  {% if open %}
+    {% set r = open_report ?? {} %}
+    <section class="mh-state mh-state--bad" role="alert">
+      <div>
+        <h2>Email is not sending — {{ r.title|default('cause unknown') }}</h2>
+        <p class="mh-meta">Since {{ open.opened_at|when }} · {{ open.failures }} failed sends
+          · opened by {{ open.opened_by == 'probe' ? 'the hourly check' : 'failed sends' }}
+          {%- if open.alerted_at %} · alerted {{ open.alerted_at|when }} by {{ open.alert_channels|replace({',':', '}) }}{% endif %}</p>
+        {% if r.fix %}<p class="mh-fix">{{ r.fix }}</p>{% endif %}
+        {% if open.last_error %}<p class="mh-meta">Server said: {{ open.last_error }}</p>{% endif %}
+      </div>
+    </section>
+  {% elseif report and not report.ok %}
+    <section class="mh-state mh-state--bad" role="status">
+      <div>
+        <h2>The last check failed — {{ report.title }}</h2>
+        <p class="mh-fix">{{ report.fix }}</p>
+        <p class="mh-meta">Checked {{ report.ran_at|when }}. Not yet an incident: nothing has failed to send since.</p>
+      </div>
+    </section>
+  {% else %}
+    <section class="mh-state mh-state--ok" role="status">
+      <div>
+        <h2>Email is working</h2>
+        <p class="mh-meta">{{ window.sent }} sent in the last {{ rules.window }} minutes
+          {%- if report %} · last check {{ report.ran_at|when }}, every step passed{% endif %}.</p>
+      </div>
+    </section>
+  {% endif %}
+
+  <form method="post" action="/admin/settings/mail/diagnose" class="mh-bar">
+    <input type="hidden" name="_token" value="{{ csrf_token }}">
+    <button class="ad-btn ad-btn--primary" type="submit">Run the diagnosis now</button>
+    <span class="mh-meta">Connects, signs in and offers our From address, then stops. Nobody is emailed.</span>
+    <a class="ad-btn ad-btn--ghost" href="/admin/settings#mail">Edit the email settings</a>
+  </form>
+
+  {# ── THE DIAGNOSIS ──────────────────────────────────────────────────────── #}
+  {% set shown = (open and open_report) ? open_report : report %}
+  {% if shown %}
+  <section class="ad-card">
+    <div class="ad-card__head"><div class="ad-card__title">Step by step
+      <small>{{ shown.ran_at|when }} · {{ shown.took_ms }} ms</small></div></div>
+    <div class="ad-card__body">
+      <table class="mh-t">
+        <tbody>
+          {% for s in shown.steps %}
+          <tr>
+            <td style="width:88px"><span class="mh-s mh-s--{{ s.state }}">{{ step_word[s.state]|default(s.state) }}</span></td>
+            <td style="width:34%"><b>{{ s.label }}</b></td>
+            <td class="mh-d">{{ s.detail }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      {% if shown.ports|default([])|length %}
+      <p class="mh-meta" style="margin-top:12px">Other ports from this server:
+        {% for p, open_ in shown.ports %}{{ p }} {{ open_ ? 'open' : 'blocked' }}{{ loop.last ? '' : ' · ' }}{% endfor %}</p>
+      {% endif %}
+    </div>
+  </section>
+  {% endif %}
+
+  {# ── THE LAST HOUR, BY CAUSE ────────────────────────────────────────────── #}
+  <section class="ad-card">
+    <div class="ad-card__head"><div class="ad-card__title">The last {{ rules.window }} minutes
+      <small>{{ window.sent }} sent · {{ window.system }} failed{% if window.recipient %} · {{ window.recipient }} refused for one address{% endif %}{% if window.dev %} · {{ window.dev }} written to the dev log{% endif %}</small></div></div>
+    <div class="ad-card__body">
+      {% if causes|length %}
+      <table class="mh-t">
+        <thead><tr><th>Cause</th><th>Failures</th><th>What to do</th></tr></thead>
+        <tbody>
+          {% for c in causes %}
+          <tr><td><b>{{ c.title }}</b></td><td>{{ c.n }}</td><td class="mh-d">{{ c.fix }}</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      {% if window.last_error %}<p class="mh-meta" style="margin-top:10px">Latest server message: {{ window.last_error }}</p>{% endif %}
+      {% else %}
+      <p class="mh-meta">No failures.</p>
+      {% endif %}
+    </div>
+  </section>
+
+  {# ── WHAT IS CONFIGURED ─────────────────────────────────────────────────── #}
+  <section class="ad-card">
+    <div class="ad-card__head"><div class="ad-card__title">What the platform is using
+      <small>Resolved the way a send resolves it: Settings first, then the server’s .env, then the built-in default.</small></div></div>
+    <div class="ad-card__body">
+      <dl class="mh-kv">
+        {% for k, v in config %}<dt>{{ k|capitalize }}</dt><dd>{{ v }}</dd>{% endfor %}
+      </dl>
+    </div>
+  </section>
+
+  {# ── HISTORY ────────────────────────────────────────────────────────────── #}
+  {% if history|length %}
+  <section class="ad-card">
+    <div class="ad-card__head"><div class="ad-card__title">Incidents</div></div>
+    <div class="ad-card__body">
+      <table class="mh-t">
+        <thead><tr><th>Started</th><th>Ended</th><th>Cause</th><th>Failures</th><th>Alerted by</th></tr></thead>
+        <tbody>
+          {% for i in history %}
+          <tr>
+            <td>{{ i.opened_at|when }}</td>
+            <td>{{ i.resolved_at ? i.resolved_at|when : 'still open' }}</td>
+            <td>{{ i.cause_title }}</td>
+            <td>{{ i.failures }}</td>
+            <td class="mh-d">{{ i.alert_channels ? i.alert_channels|replace({',':', '}) : 'not yet' }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+  {% endif %}
+
+</div>
+{% endblock %}

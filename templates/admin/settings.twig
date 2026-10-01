@@ -222,7 +222,17 @@
       <div style="margin-top:14px;padding-top:14px;border-top:1px solid var(--ad-line,#e5eae8)">
         <div class="row">
           <div><label for="f-mail_smtp_host">SMTP host <small>leave blank for the Brevo relay</small></label><input type="text" name="mail_smtp_host" id="f-mail_smtp_host" value="{{ values.mail_smtp_host|default('') }}" placeholder="smtp-relay.brevo.com"></div>
-          <div><label for="f-mail_smtp_port">Port</label><input type="number" name="mail_smtp_port" id="f-mail_smtp_port" value="{{ values.mail_smtp_port|default('') }}" placeholder="587" min="1" max="65535"></div>
+          <div><label for="f-mail_smtp_port">Port <small>587 or 2525 for STARTTLS · 465 for SMTPS</small></label><input type="number" name="mail_smtp_port" id="f-mail_smtp_port" value="{{ values.mail_smtp_port|default('') }}" placeholder="587" min="1" max="65535"></div>
+          {# There was no choice here: the transport used STARTTLS whatever the port, so
+             465 — implicit TLS — timed out on every send. Automatic follows the port,
+             which is what every provider documents; the others are for the one that
+             does something unusual. See MailConfig::security(). #}
+          <div><label for="f-mail_smtp_secure">Encryption</label>
+            <select name="mail_smtp_secure" id="f-mail_smtp_secure">
+              {% for k, l in {'auto':'Automatic (from the port)','starttls':'STARTTLS','smtps':'SMTPS (implicit TLS)','none':'None — not recommended'} %}
+              <option value="{{ k }}"{{ (values.mail_smtp_secure|default('auto')) == k ? ' selected' }}>{{ l }}</option>
+              {% endfor %}
+            </select></div>
         </div>
         <div class="row">
           <div><label for="f-mail_smtp_user">SMTP username</label><input type="text" name="mail_smtp_user" id="f-mail_smtp_user" value="{{ values.mail_smtp_user|default('') }}" autocomplete="off" placeholder="the login your mail provider issued"></div>
@@ -234,7 +244,10 @@
         </div>
       </div>
 
-      <div><button class="ad-btn" type="submit" formaction="/admin/settings/smtp-test" formnovalidate>Send a test email to me</button></div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <button class="ad-btn" type="submit" formaction="/admin/settings/smtp-test" formnovalidate>Send a test email to me</button>
+        <a class="ad-btn ad-btn--ghost" href="/admin/settings/mail">Email health &amp; diagnosis</a>
+      </div>
 
       {# ── Delivery health: is mail ACTUALLY leaving the building? ── #}
       <div style="margin-top:14px;padding-top:14px;border-top:1px solid var(--ad-line,#e5eae8)">

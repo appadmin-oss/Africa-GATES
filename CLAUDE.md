@@ -754,6 +754,20 @@ reported as a second reader of ElevenLabs' key; `SETTING` does the same to `Door
 `DisplayTime`. Two invented findings, both plausible enough to send somebody refactoring
 correct code.
 
+**And mail had both faults at once, plus a third nobody could see.** The sender and the
+status probe each resolved the SMTP settings: a blank host meant Brevo to one and "not set"
+to the other, so the page built to answer "is email working" answered about a configuration
+nothing was using. The transport was STARTTLS whatever the port, so 465 — implicit TLS, the
+port most providers hand out — timed out on every send as "SMTP connect() failed", which
+reads as a firewall. And every alert the platform raised went out through `OtpService`, the
+transport that had failed, so an email outage was the one fault it could never report.
+`Services\Mail\MailConfig` is the resolver now (`MailHealthTest` sweeps `src/` for a second
+reader, and found two on its first run); `MailHealth` opens an incident from the log or its
+hourly probe, runs `MailDiagnosis` — the SMTP conversation step by step to `MAIL FROM`, then
+`RSET`, never a message — and `MailAlert` reports it by webhook, by the host's own `mail()`
+and on every console page, recording which channels actually reached somebody.
+`/admin/settings/mail` is where every alert points.
+
 **And one probe, not one per service.** "Does this database have that column?" has to be
 asked here — migrations are applied by an operator opening a URL and the admin layout
 counts unapplied steps in the dozens. The four lines that ask it existed **four** times and

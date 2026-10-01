@@ -4337,6 +4337,12 @@ return function(App $app) {
             // numbers verified in its console. All three read as working everywhere else.
             // A number typed by hand, capped per admin per hour, opt-out honoured.
             $s->post('/providers/send-test', AdminSettingsController::class.':providersSendTest');
+            // ── IS EMAIL WORKING, AND WHY NOT ────────────────────────────────
+            //
+            // Where every mail alert points. The diagnosis walks the SMTP conversation
+            // to MAIL FROM and stops: it never sends, so it can run by itself hourly.
+            $s->get('/mail',           \AfricaGates\Admin\Controllers\MailHealthController::class.':index');
+            $s->post('/mail/diagnose', \AfricaGates\Admin\Controllers\MailHealthController::class.':diagnose');
             // ── TAKE BACK A BATCH OF WORKED-OUT PRONUNCIATIONS ───────────────
             //
             // A name is asked about once, ever, so a bad run of answers is otherwise

@@ -196,12 +196,6 @@
       </span>
     </div>
     {% endif %}
-    {% if smtp_ok is defined and not smtp_ok %}
-    <div class="ad-flash ad-flash--err" role="alert" style="align-items:flex-start">
-      <span aria-hidden="true">✉</span>
-      <span><strong>Email delivery is OFF</strong> — SMTP is not configured, so sign-in codes, verification links and notifications are <strong>not reaching anyone</strong> (they are written to <code>var/logs/outgoing-mail.log</code> instead). Set <code>SMTP_USER</code> / <code>SMTP_PASS</code> in <code>.env</code>, then confirm with <a href="/admin/settings" style="color:inherit;font-weight:700;text-decoration:underline">Settings → Send a test email</a>.</span>
-    </div>
-    {% endif %}
     {#
       THE SCHEDULE HAS STOPPED — and nothing else on the site would show it.
       Reconciliation and automatic refunds only happen inside the maintenance run,
@@ -216,6 +210,22 @@
       <span><strong>{{ cron.never ? 'Scheduled maintenance has never run' : 'Scheduled maintenance has stopped' }}</strong>
         — {{ cron.say }}
         {% if cron.last %}<span style="display:block;margin-top:4px;opacity:.85;font-size:12px">Last run: {{ cron.last }}</span>{% endif %}
+      </span>
+    </div>
+    {% endif %}
+    {#
+      EMAIL IS DOWN. On every console page, for the reason the schedule banner above
+      is: the outage this describes is invisible from any public page, and the alert
+      that would otherwise announce it is sent by the transport that has failed.
+      The page it links to has the diagnosis.
+    #}
+    {% set mail = mail_health() %}
+    {% if mail and not mail_page|default(false) %}
+    <div class="ad-flash ad-flash--err" role="alert" style="align-items:flex-start">
+      <span aria-hidden="true">✉</span>
+      <span><strong>Email is not sending{% if mail.since %} since {{ mail.since|when }}{% endif %} — {{ mail.title }}</strong>
+        <span style="display:block;margin-top:4px">{{ mail.fix }}</span>
+        <a href="/admin/settings/mail" style="display:inline-block;margin-top:6px;font-weight:600">See the diagnosis</a>
       </span>
     </div>
     {% endif %}

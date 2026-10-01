@@ -237,22 +237,26 @@ final class ProviderProbe
      */
     private static function smtp(): array
     {
-        $host = self::setting('mail_smtp_host', 'SMTP_HOST');
-        $port = (int) (self::setting('mail_smtp_port', 'SMTP_PORT') ?: '587');
-        if ($host === '') return self::off('No SMTP host set.');
+        // The SENDER's resolver, not a second reading of the settings. This used to read
+        // `mail_smtp_host` itself and call a blank one "No SMTP host set" — while the form
+        // says "leave blank for the Brevo relay" and the sender does exactly that. So the
+        // page that asks every provider a real question answered "off" about a transport
+        // that was sending.
+        $c = \AfricaGates\Services\Mail\MailConfig::load();
+        if (!$c->hasCredentials()) return self::off('No SMTP login set.');
 
+        $host = ($c->security() === \AfricaGates\Services\Mail\MailConfig::SECURE_SMTPS ? 'ssl://' : 'tcp://') . $c->host;
         $errNo = 0; $errStr = '';
-        $sock = @fsockopen(
-            (str_contains($host, '://') ? $host : 'tcp://' . $host), $port, $errNo, $errStr, self::TIMEOUT);
-        if (!$sock) return self::bad('Could not connect to ' . $host . ':' . $port
-                                     . ($errStr !== '' ? ' — ' . $errStr : '') . '.');
+        $sock = @fsockopen($host, $c->port, $errNo, $errStr, self::TIMEOUT);
+        if (!$sock) return self::bad('Could not connect to ' . $c->host . ':' . $c->port
+                                     . ($errStr !== '' ? ' — ' . $errStr : '') . '. Full diagnosis: Settings → Email health.');
 
         stream_set_timeout($sock, self::TIMEOUT);
         $banner = (string) fgets($sock, 512);
         @fclose($sock);
 
         return str_starts_with(trim($banner), '220')
-            ? self::ok('Connected to ' . $host . ':' . $port . ' — ' . trim(mb_substr($banner, 0, 80)))
+            ? self::ok('Connected to ' . $c->host . ':' . $c->port . ' — ' . trim(mb_substr($banner, 0, 80)))
             : self::bad('Connected but the server did not greet us: ' . trim(mb_substr($banner, 0, 120)));
     }
 
