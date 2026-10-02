@@ -90,7 +90,7 @@ class ApiController {
             DB::table('gates_nominees')->where('id',$nId)->where('status','approved'))->first();
         if(!$nominee) return $this->err($res,'Nominee not found.','INVALID_NOMINEE',404);
         try { \AfricaGates\Services\BallotGuard::assertVotable((int)$nominee->category_id); }
-        catch(\AfricaGates\Services\PhaseError $e) { return $this->err($res,$e->getMessage(),$e->errorCode,403); }
+        catch(\AfricaGates\Services\PhaseError $e) { return $this->err($res,\AfricaGates\Support\PublicFault::line($e,'Voting is not open for this nominee.','api.otp'),$e->errorCode,403); }
         $r=$this->otp->generate($email,$nId,$aId,'vote');
         if($r['success']) {
             $this->events?->otpRequested($fp,$nId,$ipFp);
