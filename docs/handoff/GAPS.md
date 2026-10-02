@@ -1,39 +1,61 @@
-# Redesign recon — what exists, what does not, and what blocks a later phase
+# Redesign Phase 0 — the map before anything is destroyed
 
-**Phase 0 of `design_handoff_africa_gates`.** No template, CSS or JS was changed. The only
-other file this phase created is `.claude/skills/app-ux-standards/SKILL.md`, which Phase 0
-item 1 requires.
+**Phase 0 of `design_handoff_africa_gates`, rebuilt from scratch on 2 Oct 2026 at `615ce92`.**
+The previous `GAPS.md` (960 lines, commit `9c7e07b`) was deleted unread and every fact below was
+re-derived from the code, because three later phases and a dozen unlabelled rebuilds have landed
+on top of it since. No template, CSS or JS was changed by this phase. The only other file this
+phase touches is `.claude/skills/app-ux-standards/SKILL.md` (item 1), which was deleted and
+reinstalled from the bundle and is byte-identical to it, so git records no change.
 
-Everything below was read out of the codebase, not assumed. Where a row says MISSING, the
-searches that found nothing are named, because "I could not find it" and "it is not there"
-are different claims and only the second one is worth acting on.
+Paths are relative to the repo root. `H/` is the handoff bundle. "MISSING" always names the
+searches that came back empty — "I could not find it" and "it is not there" are different claims
+and only the second is worth building on.
 
 ---
 
-## 1. How the route list was produced
+## 0. The standing principle, and what it can and cannot mean
 
-`src/routes.php` is **not parsed anywhere in this document.** `CLAUDE.md` records that a
-parser found 563 routes where the router has 755, because the API group is a closure
-mounted twice and the group proxy variable `$a` is shared by three unrelated trees. So the
-container and the route file are booted the way `public/index.php` does and
-`getRouteCollector()->getRoutes()` is read — the same method `RouteTableIntegrityTest`
-uses.
+> **"Do NOT EVER patch. Only DESTROY, then rebuild."** — the product owner, for this redesign.
 
-| | count |
+This overrides every softer rule in the bundle about *method*: README rule 4 and REFERENCE §4.4
+("reuse first … extend it; never fork it"), DESIGN-NOTES "small request = small edit, don't
+redesign untouched parts", and HANDOFF §5's "light polish of the existing template". A page in
+this redesign is never edited into the new design; its template, its page CSS and its page JS
+are deleted, and the page is written again from its DC.
+
+It does **not** override the rules about *what must survive*, because those are not about method:
+
+| Destroyed and rebuilt | Never destroyed by a UI phase — and why |
 |---|---|
-| verb–path pairs registered | **793** |
-| GET | 401 |
-| GET, excluding `/admin`, `/api`, `/judge`, `/__cron`, `/__setup`, and file extensions | **202** |
-| …of those, controller-backed | 93 |
-| …of those, closure-backed real handlers | 44 |
-| …of those, 301 aliases from the alias table | 65 |
-| **public GET routes that render a page** | **106** |
+| The page template, its `<style>` block, its page CSS file, its page JS | **Behaviour.** REFERENCE §0.5 "keep every feature they already have" becomes a **feature inventory** taken from the template *before* it is deleted, and ticked off against the rebuild. It is a checklist, not a constraint on method. |
+| Shared chrome built by earlier redesign sessions (§7) | **Migrations and both schema files.** A migration that ran on production cannot be un-run; `MigrateCommand` records applied files and runs in filename order (CLAUDE.md, the stack section). Corrections are new repair migrations. |
+| The guard tests tied to destroyed files — **rebuilt with their rule**, and each rebuilt guard is watched failing before it is trusted (CLAUDE.md, "Prove a new sweep FAILS") | **Retired-never-deleted records** — criteria, ballots, receipts, sealed standings (CLAUDE.md "Things that must stay true"). REFERENCE §4.9 agrees for evidence. |
+| `docs/handoff/{ref,mine,shots}` screenshots of destroyed pages | **Domain services** — `NomineeScoringService`, `ResultRelease`, `ReleasedStanding`, `VoterReach`, `CycleMaterialiser`, mail, payments. A screen rebuild reads them; it does not rewrite them. |
+| | **Published URLs.** A path that was a page and stops being one is a 301; a slug is kept when its content is retired (CLAUDE.md, the 301-vs-302 and help-centre sections). |
+| | **The shared files other work also lives in** — `config/container.php`, `src/routes.php`, `src/Support/AssetBundle.php`, `src/Support/CookieRegistry.php`, `templates/layout/gates.twig`. Redesign commits interleave with unrelated fixes in them, so "destroy" there means rewriting the redesign's hunks deliberately, never reverting whole commits. |
 
-**A closure is not a redirect.** `/philosophy`, `/integrity`, `/status`, `/cookies`,
-`/terms`, `/privacy` and `/legal/{slug}` are all real pages registered as closures
-(`src/routes.php:2782`, `:2820`, `:2896`, and the legal group). The 65 genuine aliases were
-identified by reading the `$aliases` table (`src/routes.php:1852`, applied by the loop at
-`:1943`) and subtracting it, not by guessing from the handler type.
+Every later phase's PR states, per page: what was destroyed (paths), the feature inventory taken
+from it, and where each feature lives in the rebuild.
+
+---
+
+## 1. Method
+
+- **Routes were read from Slim, not parsed.** `CLAUDE.md` records a regex parser finding 563
+  routes where the router held 755 (the API group is a closure mounted twice, and `$a` names three
+  unrelated groups). A scratch script booted the container and `src/routes.php` the way
+  `public/index.php` and `RouteTableIntegrityTest` do, and read `getRouteCollector()->getRoutes()`;
+  closures were resolved with `ReflectionFunction`.
+- **Every public GET was dispatched** through the real test harness (in-memory SQLite, all three
+  schema files, every migration) with Twig's profiler recording the templates rendered. That is
+  what separates a 301 from a 302 — a closure is never assumed to be a redirect.
+- **Templates for parameterised routes** that 404 on an empty database (30 of 94) were found by
+  following each handler's source by reflection to depth 3, and by hand for closures that delegate.
+- **DC mapping** is from each `phases/PHASE-*.md` "→ template" arrow and each DC's props, checked
+  against DC references already in template comments.
+- Code facts were each opened and read; the load-bearing ones (the `lang_ask` fault, the `--ag-line`
+  collision, the `/search` alias, the missing celebration files, `base/tokens.css` still linked by
+  admin login, no Alpine in `shell.twig`) were re-checked by a second reader before this was written.
 
 ---
 
@@ -41,920 +63,485 @@ identified by reading the `$aliases` table (`src/routes.php:1852`, applied by th
 
 | Fact | Answer | Where |
 |---|---|---|
-| CSP nonce | a Twig **global** named `csp_nonce`, not a function | registered `config/container.php:243`; produced by `Csp::nonce()`, `src/Support/Csp.php:50-57`; used as `{{ csp_nonce }}` throughout `templates/layout/gates.twig` |
-| …inside macros | macros do **not** see globals, so the nonce is passed as an argument — `article_ld(d, nonce)`, `script(d, nonce)` | `templates/partials/article.twig:64, 323` |
-| `asset()` | Twig function → `Assets::url()`. Per-file **content hash** (`?v=<hash>`), not a manifest. `xxh3` where available, else `crc32b`. Falls back to the shared `asset_version` for a missing file | registered `config/container.php:377-380`; `src/Support/Assets.php:106-160` |
-| CSS bundle | separate concept: `AssetBundle::url()` content-hashes a built bundle, exposed as the `css_bundle` global; the layout falls back to individual sheets when null | `config/container.php:250`; `templates/layout/gates.twig:227-262` |
-| Alpine | **3.13.5**, self-hosted and vendored, loaded `defer`. No npm or composer dependency | `public/assets/js/vendor/alpine-3.13.5.min.js`; `templates/layout/gates.twig:523` |
-| …and the CSP | `'unsafe-eval'` is in the policy *because* Alpine 3 compiles expressions with `new Function` | `src/Support/Csp.php:29-34` |
-| `article.twig` macros | `styles()`, `cite_meta(d)`, `article_ld(d,nonce)`, `masthead(d)`, `tools(d)`, `contents(groups,wide)`, `blocks(list)`, `next(d)`, `cite(d)`, `script(d,nonce)` | `templates/partials/article.twig:30,42,64,88,112,177,202,230,247,323` |
-| `gee.js` entry points | an IIFE with no init API. Globals: `window.openGee`, `window.closeGee`, `window.toggleGee`. State in sessionStorage under `gee.msgs.v1`, `gee.size.v1`, `gee.sheet.v1`, `gee.seen.v1` | `public/assets/js/gee.js:522-524`, `:31-34` |
-| `supportDesk()` | **exists, but it is not Gee's.** It is an Alpine component defined inside a nonce'd inline script in the support page template, and appears nowhere in `gee.js` or `src/` | defined `templates/pages/support-assistant.twig:395`, consumed `:215` |
+| **CSP nonce** | `Csp::nonce()` (memoised, 16 random bytes) exposed as the Twig **global** `csp_nonce`; the header reads the same value | `src/Support/Csp.php:54-57`; `config/container.php:237`; `src/Middleware/SecurityHeadersMiddleware.php:140-144` |
+| …inside macros | **Visible.** Twig 3.27.1 merges globals into every macro call (`vendor/twig/twig/src/Node/MacroNode.php:112`), verified by rendering one. The comment at `templates/partials/article.twig:17` saying macros cannot see it is true of template variables and false of globals; the explicit `nonce` argument is a convention | — |
+| **CSP actually served** | **Two policies, and production gets the weaker one.** PHP: `script-src 'self' 'nonce-…' 'unsafe-eval'`, no `'unsafe-inline'`; `style-src-attr 'unsafe-inline'`. `public/.htaccess:141-142` replaces it with a static nonce-less policy carrying `'unsafe-inline' 'unsafe-eval'` because the host injects its own CSP; its own comment says the nonce policy "has never reached a browser on this host". Kept equal to `Csp::staticPolicy()` by `CspStaticFallbackTest` | `Csp.php:182-242, 291+`; `public/.htaccess:110-142` |
+| **`asset()`** | Twig function → `Assets::url()`: appends `?v=<xxh3 of the file's bytes>`, memoised per request, fallback token for a missing file. Separately `css_bundle` (global) = `AssetBundle::url()`, one built bundle with a manifest; `null` → individual links in the same order | `container.php:470-473`; `src/Support/Assets.php:109-130`; `src/Support/AssetBundle.php:59-114`; `templates/layout/gates.twig:258-323` |
+| **Alpine** | **3.13.5**, vendored, `defer`. It is why `'unsafe-eval'` stays. **`layout/shell.twig` does not load it**, so a page moved onto the shell loses every `x-data` component unless it brings Alpine | `public/assets/js/vendor/alpine-3.13.5.min.js`; `gates.twig:597`; `Csp.php:30-35` |
+| **`article.twig` macros** | `styles()` :30 · `cite_meta(d)` :42 · `article_ld(d, nonce)` :64 · `masthead(d)` :88 · `tools(d)` :112 · `contents(groups, wide)` :177 · `blocks(list)` :202 · `next(d)` :230 · `cite(d)` :247 · `script(d, nonce)` :323. Imported by `legal.twig`, `integrity.twig`, `philosophy.twig` | `templates/partials/article.twig` |
+| Other macro libraries | `partials/ui.twig` (pill, tile, avatar, row, cell, facts, meter, bar, empty, chips, head, steps, ticks, notice, faq, subnav), `partials/icons.twig`, `partials/field.twig`, `partials/viz.twig` | — |
+| **`gee.js` entry points** | A classic IIFE binding fixed ids (`#gee`, `#geeFab`, `#geePanel`, …) in markup that is **inline in `layout/gates.twig:462-560`** — there is no `partials/gee.twig`. Globals: `window.openGee`, `closeGee`, `toggleGee` (`open()` takes no arguments). Talks to `POST /api/guide` and `/api/support/escalate`. Mobile breakpoint hard-coded at 560px, not 600. **No `window.AGGee` exists** | `public/assets/js/gee.js:13-26, 36, 332, 458, 544-546` |
+| **`supportDesk()`** | **Not Gee's.** An Alpine component defined in a nonced inline script in the support page, posting to `/api/v1/support/chat` and `/escalate` | defined `templates/pages/support-assistant.twig:394-395`, used `:215` |
+| Fonts | Google Fonts, `display=swap`, preconnect; allowed by both policies; nothing self-hosted. `gates.twig:174` loads Playfair 400–900, Source Serif 4, DM Sans 300–700, JetBrains Mono 400/500/700; `shell.twig:61-63` loads exactly the handoff set. **Atkinson Hyperlegible (the "easy read" option) is loaded nowhere** and silently falls back | `shell.css:112`; `partials/display-reading.twig:58` |
+| Icons | `partials/icons.twig`: `sec(name, size, title)` (two-tone section icons) and `ui(name, size)` (24×24, stroke 1.9, round caps; `back`/`next` mirror in RTL). Admin has its own sprite. **Lucide 1.28.0 is also vendored** — a second icon set already in the tree, against REFERENCE §14 | `icons.twig:71, 167`; `public/assets/js/vendor/lucide-1.28.0.min.js` |
+| Translation | **There is no translation layer.** No `trans` filter is registered anywhere; every handoff Twig snippet uses `{{ '…'|trans }}` and will not compile. Language is `Support\Languages` + `LanguageMiddleware` (cookie `ag_lang`, `lang`/`dir`) only | `grep` over `config/`, `src/`: no hits |
+| Layouts | `layout/gates.twig` (85 public templates), `layout/shell.twig` (4: nominate ×3, dev-ui), `layout/account-auth.twig` (5), `admin/layout.twig` (97), `judge/layout.twig` (2) | — |
+| CSS | Legacy top level (`main.css` 4,949 lines, `ui-overhaul.css`, `professional.css`, `redesign-2026.css`, `aurora.css`, `motion.css`, …); redesign layer `tokens.css` / `shell.css` / `components.css`; 24 sheets in `components/`. **`base/tokens.css` is orphaned but still linked by `templates/admin/login.twig:11`** and still declares the failing gold `#c9a24b` | `public/assets/css/` |
+| Inline styling today | 924 `style="…"` attributes in 79 public templates (42 interpolate Twig); 89 `<style>` blocks in 81 templates; 3,137 literal hexes in 82 templates (baseline `tests/baselines/template-hex.json`) | — |
 
 ---
 
 ## 3. The gaps table
 
-The handoff's expected status is quoted from `phases/PHASE-0-recon.md` §15. **Where the
-column "Found" disagrees with it, the codebase wins and the phase brief needs correcting.**
+Expected status is quoted from `phases/PHASE-0-recon.md` §15. **Where "Code says" disagrees, the
+code wins and the phase brief needs correcting.**
 
-| # | Feature | Handoff says | Found | Where |
+| # | Feature | Expected | **Code says** | Built by |
 |---|---|---|---|---|
-| 1 | Recognitions + verified issuers | NEW | **MISSING** | no `gates_recognitions`, no issuer table, no `issuer_type`/`verified_at` on an issuer. `grep -rn "gates_recognitions\|gates_issuers"` → 0 hits across all four schema files and every migration |
-| 2 | Award terms versioning + acceptance | NEW | **PARTIAL** | body exists as a single mutable blob `gates_award_programmes.terms` (`database/migrations/2026_06_30_programme_terms.php:9-12`), rendered at `/terms/{slug}` → `templates/pages/programme-terms.twig`. No `gates_award_terms`, no acceptance table, no version/effective_at/changelog. The accept checkboxes on nominate (`templates/pages/nominate.twig:413`) and vote (`templates/pages/vote-nominee.twig:1186,1260`) are **client-side only and persist nothing** |
-| 3 | Coming-soon awards + notify (double opt-in) | NEW | **PARTIAL** | the state is fully wired: `CyclePhase::Upcoming` (`src/Services/CyclePhase.php:27`), label "Opens soon" (`:62`), `gates_award_cycles.status ENUM('upcoming',…)`, rendered in `awards/index.twig:41,102,108` and `vote.twig:117,189,…`. A notify signup exists (`gates_newsletter`, `POST /api/v1/newsletter/subscribe`, `src/Controllers/ApiController.php:439-476`) but is **single opt-in** (no `confirm_token`/`confirmed_at`; the mail sent is a welcome, not a confirmation) and **not award-scoped** (no `programme_id`/`cycle_id`; `source` is free text). No notify form on any awards page |
-| 4 | Overall edition winner + top 3 | NEW (compute) | **EXISTS** | `ResultRelease::overall()` (`src/Services/ResultRelease.php:687-768`) ranks every `in_running` nominee across the cycle; `PublicResults::overallFor()` returns `top4` (`src/Services/PublicResults.php:422`) and the page already renders 2nd–4th (`templates/pages/results/edition.twig:291`). **Do not rebuild this in Phase 5.** One nuance: it is computed on read and never sealed, and always flags `reconstructed => true` (`PublicResults.php:364-378,423`) |
-| 5 | Wall of recognition | NEW | **PARTIAL** | a real moderated approved-only wall exists, but it is **per nominee** and made of supporter messages: `gates_vote_messages` (`database/migrations/2026_08_22_vote_messages.php:56-113`), `VoteMessageService::wall()`, routes `src/routes.php:2187,2190`. No `gates_testimonials` (0 hits), no site-wide wall, no masonry (`column-count`/`grid-auto-rows` → 0 hits) |
-| 6 | Search API + palette | NEW | **PARTIAL** | the palette **exists**: `templates/partials/site-search.twig`, `public/assets/js/ag-search.js` (full ARIA combobox, focus trap, `/` and ⌘K at `:224-225`). The JSON endpoint exists at **`/activity/search`** (`src/routes.php:2112`), not `/search` — `/search` is a **301 alias to `/activity`** (`src/routes.php:1885`). **No `scope` parameter exists at all**, and the kind vocabulary (`result, award, org, nominee, profile, phase, post, event, thread, page`) is not the spec's (All/People/Awards/Events/Pages), and kinds are produced only by an intent pass, never accepted from the client |
-| 7 | DisplayReading persistence + first-paint | NEW | **MISSING** | `grep -rn "ag-a11y"` → 0 hits. No settings screen, no profile column, no first-paint class application. The two nonce'd `<head>` scripts in `gates.twig` are lazy-CSS promotion (`:202-214`) and the intro loader (`:319-334`). `public/assets/css/a11y.css` is a static WCAG correction layer with no user control |
-| 8 | Quick settings sheet + first-visit language prompt | NEW | **MISSING** | no bottom sheet, **no avatar in the header at all** (`grep -n avatar templates/layout/nav.twig` → 0), no `role="switch"` rendered anywhere, and **no i18n layer of any kind** — see §5.3 |
-| 9 | Celebrations | NEW; JS/CSS supplied | **PARTIAL, and the names collide** | an engine exists under a different name: `public/assets/js/celebrate.js` (155 lines, three-beat, honours reduced motion), `templates/partials/celebrate.twig`, vendored `canvas-confetti-1.9.3.js`, six call sites. Seen keys are `ag-celebrated:<key>` (`celebrate.js:58,62`), declared in `src/Support/CookieRegistry.php:123` — **not** `ag-cel-*`. The files to ship (`celebration.js`, `celebration.twig`, `celebration.css`) do not exist, and **there is no celebration CSS file at all** |
-| 10 | Gee restyle + privacy note + `--ag-bottom-ui` | EXTEND `gee.js` | **EXISTS, two gaps** | `public/assets/js/gee.js` (627), `public/assets/css/components/gee.css` (303), markup `gates.twig:391-470`. **No dismissible privacy note** — only a fixed line "Gee can make mistakes — check important details." (`gates.twig:468`). **`--ag-bottom-ui` is not implemented**: the FAB rail is hand-stacked with fixed offsets and `!important` (`gee.css:15,16,19,237-239`). The variable appears exactly once in the repo, in the skill file installed by this phase |
-| 11 | Pulse post kinds + guest banner | EXTEND | **PARTIAL** | exactly 4 reactions ✓ (`cheer/insight/respect/support`, `pulse.twig:1514-1520`, stored as `gates_cheers.kind`). Guest banner ✓ (`pulse.twig:773-776`, `:1098`). **No post kind**: `gates_threads` has no kind column, and the only discriminator is `'result' \| 'post'` (`src/Services/PulseFeedService.php:181`). "Photo" is the presence of `media_path`, not a kind |
-| 12 | Event tier colours, glow, states, waitlist | EXTEND | **PARTIAL** | tiers carry **one** column, `colour VARCHAR(12)` holding a **slot name** (`2026_09_17_tier_colour.php:42-48`); hex is derived at read time from `gates_site_events.ticket_accent` by `EventTierPalette`, which ships `fill/ink/edge` — **not** `accent/accent_light/wash/deep/glow` (0 hits for `accent_light`). A 10-layer animated glow exists (`events/detail.twig:400-443`) but **`@property` and `--ev-a` do not exist anywhere in the repo**. All five states exist but spread across three variables plus an extra `early`. Waitlist works (`src/Services/EventWaitlist.php`, `POST /events/{slug}/waitlist`) with `email`/`tier_id`/`hold_expires_at` — but on `gates_event_registrations` with `status='waitlisted'`, deliberately, not a waitlist table |
-| 13 | Shop multi-select filters, load more, restock alerts, order page | EXTEND | **PARTIAL** | category filter is a **single-select radio** (`shop/index.twig:414,420`) and the server reads a scalar (`ShopController.php:96`, `ShopCatalogue.php:462,491`) — no `c[]` anywhere. Pagination is **numbered**, no load-more (`shop/index.twig:614-631`). Restock alerts **exist** (`gates_stock_alerts`, `2026_09_09_stock_alerts.php:34-74`, `POST /shop/{slug}/notify-me`, stop-by-token page) — but the column is `cancelled_at`, not `stopped_at`, and identity is `product_id`+`variant_id`, not `sku`. The reference-only order page **exists** (`GET /shop/order/{ref}` → `templates/pages/shop/order.twig`) |
-| 14 | Status by country, maintenance, subscribe | NEW | **MISSING (all three)** | `SystemStatus` probes six **subsystems**, not regions; no country dimension anywhere in `report()`/`payload()`/`timeline()`. No maintenance table or column (`gates_maintenance`, `maintenance_window` → 0 hits); incidents are derived retroactively from snapshots. Subscribe is absent **and explicitly refused in the template's own rules** — see §5.4 |
-| 15 | Two-link mega nav | EXTEND `nav.twig` | **PARTIAL** | the nav is at **`templates/layout/nav.twig`**, not `partials/nav.twig`. The two mega panels exist and are the right two (`data-ag-mega` at `:49` and `:67`). But there are **four** top-level items: a standalone `Pulse` (`:47`) and a standalone `Leaderboard` (`:83`, also duplicated inside Participate at `:57`) flank them |
-| 16 | Nominee race, ballot, winner state | EXISTS; restyle | **PARTIAL** | race block exists with rank, count, gap both ways, and a bar plus a next-higher tick (`vote-nominee.twig:639-677`) — but the count is **server-rendered, not polled**; live tallies exist only on the programme page (`/vote/{program}/tallies`). Ballot has all the parts, in a different order, and **the paid path has no phone field** (`:1069,1107,1128`). **There is no `phase=won`** — the winner state is a separate controller variable `award_kind` from `gates_nominees.status` (`VoteController.php:609`, rendered `vote-nominee.twig:773-789`), deliberately (comment at `:1399-1402`) |
-| — | `gates_award_cycles.edition_number` | assumed addable | **DOES NOT EXIST** | the table has `year` (YEAR) + `edition_label` (free text). An edition is identified by `programme_slug + year` (`PublicResults::editionUrl()`). Three migrations touch this table; none adds `edition_number` |
+| 1 | Recognitions + verified issuers | NEW | **MISSING** | — |
+| 2 | Award terms versioning + acceptance | NEW | **PARTIAL** — one unversioned column; acceptance never recorded | `2026_06_30_programme_terms.php` |
+| 3 | Coming-soon awards + notify (double opt-in) | NEW | **MISSING** (newsletter double opt-in exists to reuse) | — |
+| 4 | Overall edition winner + top 3 | NEW (compute) | **EXISTS** — compute and render. *Disagrees* | pre-redesign |
+| 5 | Wall of recognition | NEW | **MISSING** | — |
+| 6 | Search API + palette | NEW | **PARTIAL** — palette built; JSON lives at `/activity/search`; `GET /search` is a 301 to HTML. *Disagrees* | Phase 2 `4c5f489` |
+| 7 | DisplayReading persistence + first-paint apply | NEW | **PARTIAL** — localStorage and first paint EXIST; the profile half is MISSING | Phase 2 `b18620b` |
+| 8 | Quick settings sheet + first-visit language prompt | NEW | **EXISTS, with a live fault** in the prompt. *Disagrees* | Phase 2 `b18620b`, `ee7dce0` |
+| 9 | Celebrations (partial + boot + seen keys) | NEW; JS/CSS supplied | **PARTIAL** — a different engine runs; the verbatim files are not in the repo | pre-redesign |
+| 10 | Gee restyle + privacy note + `--ag-bottom-ui` | EXTEND `gee.js` | **PARTIAL** — none of the three asks done; still mounted on Pulse; absent from shell pages | — |
+| 11 | Pulse post kinds + guest banner | EXTEND | **PARTIAL** — `post`/`result` only; 4 reactions exist; banner copy differs | pre-redesign |
+| 12 | Event tier colours, glow, states, waitlist | EXTEND | **Mostly EXISTS** — the spec's stored colour columns conflict with CLAUDE.md | pre-redesign |
+| 13 | Shop multi-select, load more, restock alerts, order page | EXTEND | **PARTIAL** — restock and order page exist; multi-select, load more, phone markup missing | pre-redesign |
+| 14 | Status by country, maintenance, subscribe | NEW | **PARTIAL** — incident timeline exists; the three named features missing | pre-redesign |
+| 15 | Two-link mega nav | EXTEND `nav.twig` | **EXISTS** in `partials/site-header.twig`; Explore has 7 items, not 6 | Phase 2 `ee7dce0` |
+| 16 | Nominee race, ballot, winner state | EXISTS; restyle | **EXISTS** — ballot field rules differ from REFERENCE §12 | pre-redesign |
+
+### 3.1 Recognitions + verified issuers — MISSING
+- Searched `src/`, `database/`, `templates/`, `public/assets/js`, `config/` for `gates_recognitions`,
+  `issuer_type`, `withdrawn_reason`, `commendation`, `issuer`, `recogni` as a table/service/kind:
+  nothing but payout and judge-COI wording. No `CREATE TABLE` for recognitions or issuers in any
+  schema file or migration. `SupporterHonours` / `pages/honour.twig` thank supporters — a different thing.
+- Reusable: recipient `gates_profiles`; organisation/business issuers `gates_partner_orgs` (CAC-vetted
+  via `vetted_by`/`vetted_at`, no `issuer_type`; `2026_09_18_partner_orgs.php:55`) — community and
+  government issuers have no table; evidence `gates_nominee_evidence.verified_at`; the withdrawn-never-
+  deleted, audited pattern of `gates_judge_coi.withdrawn_at` (`JudgeService.php:965-1012`).
+
+### 3.2 Award terms versioning + acceptance — PARTIAL
+- **Exists:** `gates_award_programmes.terms`, one MEDIUMTEXT per programme, no version
+  (`2026_06_30_programme_terms.php:9-10`, `database/schema.sql:41`); written in admin
+  (`ProgrammesController.php:75`); read by the award page's Terms tab (`AwardsController.php:57-58`,
+  `awards/programme.twig:91-96`, `|nl2br`) and by `/terms/{slug}` (`routes.php:2664-2672`,
+  `programme-terms.twig`, `|sanitize_html`) — **the same text through two different filters**.
+- **Missing:** `gates_award_terms` (version, effective_at, changelog), `gates_award_terms_acceptance`,
+  and any acceptance write (`terms_accept`, `accept_terms`, `agree_terms` hit only gated forms and stand offers).
+- **Live faults the rebuild must not inherit:** the nominate form's required `consent` checkbox
+  (`nominate-award.twig:445-449`) is **never read by the server** — `consent` appears nowhere in
+  `NominationController`, `AwardService` or `NominationRules`. Its link `/awards/{slug}#terms` lands on
+  the Overview tab (the view is `?tab=terms`, the heading id `h-terms`). Voting says "By voting you agree
+  to the programme terms" (`vote-nominee.twig:1190`) and records nothing.
+
+### 3.3 Coming-soon awards + notify — MISSING
+- Searched `coming soon`, `notify-me`, `notify_me`, `view=soon`, `'soon'`, `email me`: the only notify
+  route is the shop's (`routes.php:2279`). `awards/programme.twig:100-128` draws the edition card only
+  `{% if a.cycle %}`; `AwardOverview::action()` returns `null` when no phase is open, so a dormant award
+  offers nothing. `awards/index.twig:108` prints an "Opens soon" badge with no form.
+- **Reuse, don't fork:** `/newsletter` + `/email/confirm` (`routes.php:3276-3279`),
+  `NewsletterController.php:80-95`, `Newsletter\NewsletterAudience` over `gates_newsletter.confirmed_at`
+  — the same table already holds stand-call "email me when it opens" rows, which `NewsletterAudience`
+  correctly treats as not-subscriptions.
+
+### 3.4 Overall edition winner + top 3 — EXISTS (table says NEW; the code wins)
+- Compute: `ResultRelease::overall()` (`ResultRelease.php:687`); `PublicResults::overallFor()`
+  (`PublicResults.php:395-425`) returns winner, runner_up, margin, dead_heat, provisional/held, `top4`,
+  from the sealed published categories without re-scoring.
+- Render: `results/edition.twig:255-318` (winner, then 2nd/3rd from `top4|slice(1,3)`, then the caveat);
+  also `results/index.twig:391-394`, `results/hall.twig:521-575`. A running edition is
+  `results/open.twig:181`; a late one `results/late.twig`.
+- **Before rebuilding:** (1) **two resolvers for one headline** — the name is `e.top` (the category winner
+  with the highest CPI, `PublicResults.php:514-519`) while the runners-up and margin come from `e.overall`;
+  the rebuild draws the whole block from `e.overall`. (2) The overall order is **not sealed**
+  (`'reconstructed' => true`, `PublicResults.php:424`). (3) The phase names `pages/results.twig`, which does
+  not exist; the real set is `pages/results/{index,edition,show,hall,open,late}.twig`.
+
+### 3.5 Wall of recognition — MISSING
+- Searched `wall`, `masonry`, `testimon`, `Who recognis`, `gates_testimonials` (excluding firewall/
+  swallow/paywall) over `home.twig`, `HomeController`, `src/Services`: nothing; `gates_testimonials` is in
+  no schema file or migration. The DC's cards need quote, name, role, photo or initials, tag (Winner,
+  Finalist, Honoured, Issuer, Nominator) and tone.
+- **Not the source:** `gates_vote_messages` (supporter messages, consented, used by the nominee page's
+  roll of honour) and the OrgBrand `quotes` block are different consents for different uses.
+
+### 3.6 Search API + palette — PARTIAL (built in Phase 2 on another URL)
+- Palette: `partials/site-search.twig` + `public/assets/js/ag-search.js` — scope chips, ≤6 per group,
+  combobox ARIA, focus trap, `/` and Cmd-K; mounted once at `gates.twig:540`.
+- JSON: `GET /activity/search?q=&scope=&literal=&limit=` (`routes.php:2149`,
+  `ActivityController.php:68-110`), scope map `ActivityFeedService::SCOPES` (`:166-171`), 120 req/60 s.
+- Gaps: **`GET /search` is not JSON** — `/search` and `/find` are 301 aliases to the HTML `/activity`
+  (`routes.php:1916-1917`). The empty query shows the latest feed, not trending/open-now/coming-soon — a
+  documented deviation (`ag-search.js:223-231`): there is no trending signal, and coming-soon awards (3.3)
+  do not exist.
+
+### 3.7 DisplayReading persistence + first-paint apply — PARTIAL
+- Exists: store `public/assets/js/a11y.js` (`localStorage["ag-a11y"]`, fires `ag:a11y`); first paint
+  `partials/a11y-head.twig` (inline, nonced; `ag-t125`, `ag-t150`, `ag-hc`, `ag-easy`, `ag-ls`, `ag-ul`,
+  `ag-rm`, `ag-saver`), included by both layouts (`gates.twig:243`, `shell.twig:59`); UI
+  `partials/display-reading.twig`; declared at `CookieRegistry.php:134`.
+- **Missing — "and the profile when signed in":** `a11y.js` never fetches; `gates_users` has no
+  preferences column; no route reads or writes the settings.
+
+### 3.8 Quick settings + first-visit language prompt — EXISTS, with a live fault (table says NEW)
+- Quick settings: `partials/quick-settings.twig`, mounted only by `shell.twig:103` because its one trigger
+  is the shell app bar's avatar (`partials/app-bar.twig:91`) — so it works on four pages.
+- Language prompt: `partials/lang-prompt.twig`, `chrome.js:298-317`, strings from `Support\Languages`, one
+  cookie writer `LanguageMiddleware`.
+- **FAULT:** `layout/nav.twig:27` includes the prompt **unconditionally**. The server gate `lang_ask()`
+  is registered (`container.php:384`, `Languages::shouldAsk()`) and **no template calls it**
+  (`grep -rn lang_ask templates`: nothing), while `chrome.js` says the block is present only when it was
+  true. So a visitor who answered "Keep English" is asked again on every page; and on the ~180 `gates.twig`
+  pages `bindLangAsk` returns early (no `.ag-main`), so it never hides on scroll. `LanguageTest` checks
+  `shouldAsk()` in isolation and passes over it. This is a §17 "declared, no reader" fault and is listed
+  for the Phase 2 rebuild, not patched here.
+
+### 3.9 Celebrations — PARTIAL; the verbatim files are not in the repo
+```
+cmp H/design/assets/celebration/celebration.js  public/assets/js/celebration.js
+  → No such file or directory
+cmp H/design/assets/celebration/celebration.css public/assets/css/components/celebration.css
+  → No such file or directory
+```
+- Bundle files: `celebration.js` 19,848 B (sha256 `903d690b…5c7a145f3c8`), `celebration.css` 4,776 B
+  (sha256 `1e00d2fb…b016eada06a`). No `AGCelebrate` or `data-agc-` anywhere in the repo.
+- What runs instead: `public/assets/js/celebrate.js` (217 lines, `window.agCelebrate`, on vendored
+  `canvas-confetti-1.9.3`), kinds `win`/`nominate` only, seen keys `ag-celebrated:<key>`
+  (`celebrate.js:57-62, 89-119`); partial `partials/celebrate.twig` (`key` only); call sites
+  `partials/success.twig:179`, `vote-nominee.twig:1407`, `account/dashboard.twig:1051`,
+  `events/ticket.twig:1037`, `results/show.twig:685`, `results/edition.twig:385`, and
+  `nominate-success.twig:167` directly. Guarded by `CelebrationTest` (17 tests).
+- **Rules to carry across the destroy:** no celebration on a held or delayed result, play once, never
+  instead of the page (`CelebrationTest`'s docblock).
+
+### 3.10 Gee — PARTIAL; none of the three asks is done
+- Exists: `gee.js` (649 lines), `components/gee.css` (303); mounted only in `gates.twig:448-470`;
+  `shell.twig:94` has an empty `{% block gee %}`, so **shell pages have no Gee**. Two modes, label only.
+- Missing: the privacy note (`privacy`, `ag-gee` not in `gee.js`; `ag-gee-privacy` not in
+  `CookieRegistry`); `--ag-bottom-ui` clearance (`gee.css:19` `bottom:1.5rem`, `:237` a fixed phone offset —
+  while `shell.js:94-123` already sets the variable); `window.AGGee.open({mode,q})`; the §8.22 help-desk UI
+  (work card, quick fixes, "From your account", reference card, handoff card); z-index is 70 not 60.
+- **Gee is on Pulse**, which the spec forbids: `gee_suppressed` (`gates.twig:462-464`) covers `community`
+  for members, `support`, and `hide_chrome`; Pulse renders as `gates_page='pulse'` (`PulseController.php:198`).
+- The live work card's three steps have nothing to bind to: `supportDesk()`'s `chat` is one request/response.
+
+### 3.11 Pulse — PARTIAL
+- Kinds: `'kind' => isset($results[$id]) ? 'result' : 'post'` (`PulseFeedService.php:181`) plus photo/video
+  media. Missing: `recognition` (needs 3.1), `vote`, `give`.
+- Reactions: the four exist (`CommunityService::REACTIONS`, `:142`).
+- Guest banner exists with different copy (`pulse.twig:773-775`).
+
+### 3.12 Event tiers — mostly EXISTS; the spec conflicts with CLAUDE.md
+- Colour: one slot column `gates_event_tiers.colour` (`2026_09_17_tier_colour.php:42`), slots in
+  `EventTierPalette.php:66-73`, resolved from `ticket_accent` by `EventTierTone::hues()` (`:230`, `hue`/fill
+  + `edge`), passed as `tier_hues` (`EventsController.php:271`).
+- Glow `.ed-fx__*` conic gradients (`events/detail.twig:405-505`) — not `@property --ev-a` over 3.2 s as §8.10 says.
+- States: tier `open/sold_out/early/closed` (`detail.twig:1052-1086`); event ended (`:955`), `sales_closed` (`:958-965`).
+- Waitlist: `EventWaitlist` (join, placeOf, length, promote, expireOffers), `POST /events/{slug}/waitlist`
+  (`routes.php:2099`), rows in `gates_event_registrations` (`waitlisted`, `offer_expires_at`); "N waiting"
+  (`detail.twig:1128`). **Hold is 48 h** (`EventWaitlist::OFFER_HOURS`, `:45`), the spec says 24 h. Off by default.
+
+### 3.13 Shop — PARTIAL
+- Exists: restock alerts (`gates_stock_alerts`, `2026_09_09_stock_alerts.php:36-67`; `StockAlert`;
+  `POST /shop/{slug}/notify-me`, `GET /shop/back-in-stock/stop/{token}`, `routes.php:2277-2279`;
+  `shop/alert-stopped.twig` — the spec's `sku`/`stopped_at` are `variant_id`/`cancelled_at`, so no new table);
+  order page `GET /shop/order/{ref}` (`ShopCheckoutController::order()`, `:501-520`; noindex; states
+  pending→delivered/cancelled, `shop/order.twig:57-112`); region/currency cookies declared.
+- Missing: **multi-select filters** — `ShopController.php:96` reads `c` as one string, so the spec's
+  `?c[]=` becomes the string `"Array"`, a warning, and zero products (same cast on `q`, `sort`, `min`/`max`);
+  **load more** (numbered pager, `ShopCatalogue::PER_PAGE = 12`); phone markup; the order page's 4-step
+  progress. `order.twig:90` prints a raw `paid_at` rather than `DisplayTime`.
+
+### 3.14 Status — PARTIAL
+- Exists: `/status` (`routes.php:3053-3076`) on `SystemStatus::report()`/`timeline()`, incidents from
+  `gates_status_log`, `/status.json`.
+- Missing: country dimension (no `country`/`geo` in `SystemStatus`, no probe table); maintenance windows
+  (`maintenance_window`, `maintenance_mode`, `planned maintenance`, `gates_maintenance` — nothing; "Maintenance"
+  here is the cron orchestrator); subscribe. `status.twig:26` forbids a subscribe with nothing behind it, so it
+  ships only with `NewsletterAudience` / `SendPolicy` / `BroadcastLog` behind it and gated on a working sender.
+
+### 3.15 Mega nav — EXISTS (Phase 2, `ee7dce0`)
+- In `partials/site-header.twig` (not `nav.twig`), included by `layout/nav.twig:21`. Participate: Nominate,
+  Vote, Awards, Giving, Register a profile, Integrity Center (`:85-91`). Explore: Discover, Pulse, Events,
+  Legacy Vault, Blog, **Results**, Status (`:93-100`) — 7 against 6; Results was added so decided awards stay
+  reachable (`PublicResultsTest`). Discover currently 302s to `/registry`.
+
+### 3.16 Nominee page — EXISTS; ballot rules differ
+- `pages/vote-nominee.twig` (1,652 lines): race `.vn-race*`; won state "Winner"/"Runner-up" + "{name} won."
+  (`:777-805`) then the consented roll of honour; points redeem for members (`:973-985`; the signed-out
+  "Have points?" line is missing).
+- **Ballot fields vs REFERENCE §12 ("name, phone, email and message required"):**
+
+| Ballot | Name | Phone | Email | Message | Lines |
+|---|---|---|---|---|---|
+| Free | collected | collected | collected | optional, behind a toggle | `:1201-1240` |
+| Paid | "(optional)" | none | required | "(optional)" | `:1073, :1111, :1132` |
+
+  The paid name field **is** the display-name consent ("THE FIELD IS THE CONSENT", `:1076-1088`).
+  Making it required changes what consent means — blocked question Q9.
 
 ---
 
-## 4. Route → design reference map
+## 4. REFERENCE §11 data model, and the two redirects
 
-106 public GET routes render a page. Every DC in `design/` maps as follows. `design/_archived/`
-and `Nominate.dc.html` (the review canvas) are not specs and are excluded.
+| Item | Status | Evidence |
+|---|---|---|
+| `gates_award_cycles.edition_number` | **MISSING** | Cycles have `year` + free-text `edition_label` (`schema.sql:48`); `AwardService.php:70` counts editions with `COUNT(*)`. Only a seed docblock mentions the name |
+| `gates_award_terms` + acceptance | **MISSING** | §3.2 |
+| `gates_recognitions` + issuers | **MISSING** | §3.1 |
+| `gates_testimonials` | **MISSING** | §3.5 |
+| Blog `read_minutes`, `people` | **MISSING** | `gates_posts` has slug, title, excerpt, body, cover_image, audio_path, author, tag, status, timestamps. `read_minutes` exists only for help articles (computed, `HelpController.php:219`) |
+| Event tier colour columns (`accent`, `accent_light`, `wash`, `deep`, `glow`) | **Deliberately not columns** | §3.12 and conflict C9 |
+| Event waitlist | **EXISTS, different shape** | rows in `gates_event_registrations`, `offer_expires_at`, 48 h |
+| Maintenance windows · status probes by country | **MISSING** | §3.14 |
+| Shop restock alerts | **EXISTS** | §3.13 |
 
-| Route(s) | Design reference | Phase | Template today |
+**`/activity` → 301 `/discover?tab=live` (keep `q`, `literal`) — MISSING, and blocked on Phase 4.** `/activity`
+is a live page (`routes.php:2148`, `pages/activity.twig`) and `/discover` is a deliberate 302 to `/registry`
+(`routes.php:1851-1853`) with no Discover template. Moving with the redirect: the `/search` and `/find` aliases
+(they would chain), the footer's "Activity search" (`layout/footer.twig:31`), the GET forms in
+`site-search.twig:46,115` and `find-band.twig:64`, the links in `activity.twig:85,89`; `/activity/search` (the
+palette's JSON) stays or moves deliberately; `/discover?tab=live` joins `SitemapService` (`/activity` was
+never in it).
+
+**`/support/assistant` → 301 `/help?gee=support` (keep `q`) — MISSING, and order matters.** The route still
+renders `SupportController::page` (`routes.php:3120`); nothing reads `gee=support` (`HelpController`,
+`help.twig`, `help-article.twig`); `window.AGGee` does not exist. Build `AGGee.open({mode:'support', q})` and
+the desk first, or the 301 lands people on a Help Centre that cannot open it and the ticket link, the
+no-provider fallback and "forget reference" are lost with the page. The bundle's `snippets/php/redirects.php`
+registers both paths a second time beside the live routes — `RouteTableIntegrityTest` fails that (the second
+handler is dead and its middleware never runs); the destroy replaces the route, it never adds a twin.
+
+---
+
+## 5. Route → DC map
+
+**Counts (from the live router).** 846 verb-path pairs (GET 422, POST 422, OPTIONS 1, DELETE 1 —
+`RouteTableIntegrityTest`'s docblock still says 755). Excluded GETs: `/admin` 137, `/api` 32, `/judge` 7,
+`/__setup` 11, `/__cron` 1. **Public GETs 234**: 86 × 301 (63 alias table at `routes.php:1883-1979`, 15 legacy
+`/donate*`·`/gift*`, 8 others), 1 × 302 placeholder (`/discover`), 40 files/data, 13 payment hand-offs/logout,
+**94 render a page** — 77 public site + 17 member/partner/token/staff.
+
+### 5.1 Public site
+
+| Path | Handler | Template | DC (props) | Phase |
+|---|---|---|---|---|
+| `/` | `HomeController:index` | `pages/home.twig` | HomePageV3 + WeAreAfrica | 4 |
+| `/awards` | `AwardsController:index` | `pages/awards/index.twig` | AwardsPage `view=index` | 5 |
+| `/awards/{p}` | `AwardsController:programme` | `pages/awards/programme.twig` | AwardsPage `view=detail` (`view=soon`: no route or state) | 5 |
+| `/vote` | `VoteController:index` | `pages/vote.twig` | VoteHub | 5 |
+| `/vote/{program}` | `VoteController:program` | `pages/vote-program.twig` | VotePage `view=vote` | 5 |
+| `/vote/{program}/{slug}` | `VoteController:nominee` | `pages/vote-nominee.twig` | NomineePage + VoteBallot | 5 |
+| `/vote/paid/success` | `PaidVoteController:success` | `pages/vote-paid-success.twig` | *inferred:* Celebration `kind=vote` | 5/3 |
+| `/results/{edition}` | `ResultsController:edition` | `pages/results/edition.twig` · `open.twig` | ResultsPage | 5 |
+| `/results` | `ResultsController:index` | `pages/results/index.twig` | **ambiguous** (Q14) | 5? |
+| `/results/{id-slug}` | `ResultsController:show` | `pages/results/show.twig` · `late.twig` | **ambiguous** (Q14) | 5? |
+| `/leaderboard` | `LeaderboardController:index` | `pages/leaderboard.twig` | Leaderboard `state=live/empty` | 6 |
+| `/legacy` | `LegacyController:index` | `pages/legacy/index.twig` | LegacyVault `view=index` | 6 |
+| `/legacy/{slug}` | `LegacyController:event` | `pages/legacy/event.twig` | LegacyVault `view=edition` | 6 |
+| `/registry/{slug}` | `RegistryController:profile` | `pages/registry/profile.twig` | ProfilePage (`owner=true` has no view; the phase's `pages/profile.twig` does not exist) | 6 |
+| `/registry` | `RegistryController:index` | `pages/registry/index.twig` | *inferred:* DiscoverPage (directory) | 4? |
+| `/activity` | `ActivityController:index` | `pages/activity.twig` | **retire** → DiscoverPage Live | 4 |
+| `/events` | `EventsController:index` | `pages/events.twig` | EventsPage `view=index` | 7 |
+| `/events/{slug}` | `EventsController:show` | `pages/events/detail.twig` | EventsPage `view=detail` × open/waitlist/soldout/closed/ended | 7 |
+| `/events/ticket/{ref}` | `EventsController:ticket` | `pages/events/ticket.twig` | TicketPage `status=valid/checkedin` | 7 |
+| `/shop` | `ShopController:index` | `pages/shop/index.twig` | ShopPage `view=index` | 7 |
+| `/shop/{slug}` | `ShopController:item` | `pages/shop/item.twig` | ShopPage `view=item` | 7 |
+| `/shop/success` | `ShopCheckoutController:success` | `pages/shop/success.twig` | ShopPage `view=done` | 7 |
+| `/shop/order/{ref}` | `ShopCheckoutController:order` | `pages/shop/order.twig` | ShopPage `view=order` | 7 |
+| `/shop/back-in-stock/stop/{token}` | `ShopController:stopAlert` | `pages/shop/alert-stopped.twig` | ShopPage `view=stopped` | 7 |
+| `/giving`, `/giving/{org}`, `/giving/{org}/{campaign}` | `DonationController:page` | `pages/donate.twig` | GivingPage `view=campaign` (`checkout` is an in-page step) | 7 |
+| `/giving/success` | `DonationController:success` | `pages/donate-success.twig` | GivingPage `view=done` + Celebration `kind=give` | 7 |
+| `/pulse`, `/pulse/reels` | `PulseController:index` | `pages/pulse.twig` | PulsePage `signedIn` | 8 |
+| `/nominate` | `NominationController:form` | `pages/nominate.twig` | NominateHub | 8 |
+| `/nominate/{slug}` | `NominationController:award` | `pages/nominate-award.twig` | NominationFlow | 8 |
+| `/nominate/success` | closure `routes.php:2152` | `pages/nominate-success.twig` | Celebration `kind=nominate` | 8/3 |
+| `/account/login` | `AccountController:loginForm` | `pages/account/login.twig` | SignIn `view=phone`/`code` (no phone path exists) | 8 |
+| `/account/register` | `AccountController:registerForm` | `pages/account/register.twig` | SignIn join (`profile`, `interests`: no equivalent) | 8 |
+| `/account/verify`, `/account/forgot`, `/account/reset` | `AccountController` | `pages/account/{verify-notice,forgot,reset}.twig` | SignIn family, no matching view (the DC is passwordless) | 8? |
+| `/integrity` | closure `routes.php:2977-3038` | `pages/integrity.twig` | DocPage `doc=integrity` | 9 |
+| `/philosophy` | closure `routes.php:2939-2975` | `pages/philosophy.twig` | DocPage `doc=philosophy` | 9 |
+| `/terms`, `/privacy`, `/cookies` | `$legalRender` (`routes.php:2566`) | `pages/legal.twig` | DocPage `doc=terms/privacy/cookies` (+ CookieConsent) | 9/2 |
+| `/refunds`, `/vendor-terms`, `/legal/{slug}` | `$legalRender` | `pages/legal.twig` | DocPage legal shape (not in the `doc` enum) | 9 |
+| `/terms/{slug}` | closure `routes.php:2664-2672` | `pages/programme-terms.twig` | DocPage `doc=programme-terms` | 9 |
+| `/help` | `HelpController:index` | `pages/help.twig` | HelpCentre `view=index` (+ Gee support) | 9/3 |
+| `/help/c/{cat}` | `HelpController:category` | `pages/help-category.twig` | HelpCentre (no category view in the DC) | 9 |
+| `/help/{slug}` | `HelpController:article` | `pages/help-article.twig` | HelpCentre `view=article` | 9 |
+| `/blog`, `/blog/{slug}` | `BlogController` | `pages/blog/{index,post}.twig` | BlogPage `view=index/post` | 9 |
+| `/status` | closure `routes.php:3053-3076` | `pages/status.twig` | StatusPageV2 | 9 |
+| `/support/assistant` | `SupportController:page` | `pages/support-assistant.twig` | **retire** → Gee `mode=support` | 3 |
+| `/_dev/ui` | closure `routes.php:2929-2937` | `pages/dev-ui.twig` | Phase 1 style page | 1 |
+
+**No DC (22):** `/winners` (`results/hall.twig`), `/support`, `/judges`, `/judges/{slug}`, `/opportunities`,
+`/challenges`, `/challenges/{slug}` (cites `ChallengePage.dc.html`, not in this bundle), `/community`,
+`/community/{slug}`, `/community/new`, `/vote/verify` (payment proof — not VotePage `view=verify`),
+`/vote/{p}/{s}/flier`, `/vote/{p}/{s}/messages`, `/vote/{p}/{s}/supporters`, `/m/{token}`, `/honour/{ref}`,
+`/partner`, `/partner/success`, `/pay/success`, `/newsletter`, `/email/confirm`, `/email/unsubscribe`.
+
+### 5.2 Member, partner, token and staff pages (not designed)
+`/account` (cites `AccountPage.dc.html`, not in this bundle) · `/support/tickets` · `/org/login` · `/org` ·
+`/giving/manage/{token}` · `/support/t/{token}` · `/claim/{id}` · `/claim/dispute/{token}` · `/n/confirm/{token}` ·
+`/my-work/{token}` · `/interview/{token}` · `/stand/{token}` · `/events/{slug}/stands` · `/events/{slug}/stands/apply` ·
+`/door/{token}` · `/form/{token}` · `/f/{key}`. REFERENCE §18.7 leaves these undesigned.
+
+### 5.3 DCs and views with no current route
+DiscoverPage (no page; `/discover` is a 302) · AwardsPage `view=soon` · SignIn `phone`, `profile`, `interests` ·
+GivingPage `checkout` (an in-page step) · VotePage `verify`/`done` (in-flow states — not confirmed) ·
+ProfilePage `owner=true` · ResultsPage's named `pages/results.twig` · `GET /search` JSON · `/help?gee=support`.
+Components, not pages: SiteHeader, AppBar, MobileMenu, DisplayReading, CookieConsent (`view=admin` out of scope),
+Gee, Celebration, WeAreAfrica, VoteBallot. `Nominate.dc.html` is the review canvas.
+
+### 5.4 Page templates no route renders
+`pages/registry/register.twig` (its controller methods are unrouted; `/register` 301s), `pages/registry/register-success.twig`
+(referenced by nothing), `pages/terms.twig` (referenced by nothing; "Last updated · 1 May 2025") — orphans for the
+destroy list. `pages/error.twig` is the error handler's.
+
+### 5.5 What could not be determined
+Populated rendering of the 30 parameterised routes (mapped by handler source, not watched); per-route middleware
+(Slim 4 exposes none, so gating is inferred from the 302s); which DC owns `/results` and `/results/{id}`; whether
+VotePage `verify`/`done` are meant as routes.
+
+---
+
+## 6. Conflicts — the bundle against the repo's own rules
+
+The bundle's §0 order of authority puts its README first and the repo's templates last. It says nothing about
+the repo's **guards** — the tests that encode faults which already shipped. Each row below is a place where
+building the bundle as written fails a test or reintroduces a documented fault. None is resolved here.
+
+| # | Bundle says | Repo rule / guard | Decision needed |
 |---|---|---|---|
-| `/` | `HomePageV3` + `WeAreAfrica` | 4 | `pages/home.twig` |
-| — **no route exists** — | `DiscoverPage` | 4 | **none — see §5.5** |
-| `/activity`, `/activity/search` | retired; 301 to Discover | 4 | `pages/activity.twig` |
-| `/awards` | `AwardsPage` `view=index` | 5 | `pages/awards/index.twig` |
-| `/awards/{p}` | `AwardsPage` `view=detail\|soon` | 5 | `pages/awards/programme.twig` |
-| `/vote` | `VoteHub` | 5 | `pages/vote.twig` |
-| `/vote/{program}` | `VotePage` | 5 | `pages/vote-program.twig` |
-| `/vote/{program}/{slug}` | `NomineePage` + `VoteBallot` | 5 | `pages/vote-nominee.twig` |
-| `/vote/verify`, `/vote/paid/success` | `VotePage` `view=verify\|done` | 5 | `pages/vote-verify.twig`, `pages/vote-paid-success.twig` |
-| `/results`, `/results/{edition}`, `/results/{slug}`, `/winners` | `ResultsPage` | 5 | `pages/results/{index,edition,show,hall}.twig` |
-| `/leaderboard` | `Leaderboard` | 6 | `pages/leaderboard.twig` |
-| `/legacy`, `/legacy/{slug}` | `LegacyVault` `view=index\|edition` | 6 | `pages/legacy/{index,event}.twig` |
-| `/registry/{slug}` | `ProfilePage` | 6 | `pages/registry/profile.twig` (**not** `pages/profile.twig`) |
-| `/events`, `/events/{slug}` | `EventsPage` `view=index\|detail` × 5 states | 7 | `pages/events.twig`, `pages/events/detail.twig` |
-| `/events/ticket/{ref}` | `TicketPage` | 7 | `pages/events/ticket.twig` |
-| `/shop`, `/shop/{slug}`, `/shop/success`, `/shop/order/{ref}`, `/shop/back-in-stock/stop/{token}` | `ShopPage` `view=index\|item\|done\|order\|stopped` | 7 | `pages/shop/*.twig` |
-| `/giving`, `/giving/{slug}`, `/giving/success` | `GivingPage` `view=campaign\|checkout\|done` | 7 | `pages/donate*.twig` |
-| `/pulse`, `/pulse/reels` | `PulsePage` | 8 | `pages/pulse.twig` |
-| `/nominate`, `/nominate/success` | `NominateHub` + `NominationFlow` | 8 | `pages/nominate.twig`, `pages/nominate-success.twig` |
-| `/account/login`, `/account/register`, `/signin` | `SignIn` `view=phone\|code\|profile\|interests` | 8 | `pages/account/*.twig` |
-| `/integrity`, `/philosophy`, `/terms`, `/privacy`, `/cookies`, `/legal/{slug}`, `/terms/{slug}` | `DocPage` `doc=…` | 9 | `pages/integrity.twig`, `pages/philosophy.twig`, `pages/legal.twig`, `pages/terms.twig`, `pages/programme-terms.twig` |
-| `/help`, `/help/c/{cat}`, `/help/{slug}` | `HelpCentre` `view=index\|article` | 9 | `pages/help*.twig` |
-| `/blog`, `/blog/{slug}` | `BlogPage` `view=index\|post` | 9 | `pages/blog/*.twig` |
-| `/status` | `StatusPageV2` | 9 | `pages/status.twig` |
-| every page | `SiteHeader`, `AppBar`, `MobileMenu`, `DisplayReading`, `CookieConsent` | 2 | `templates/layout/nav.twig`, footer, cookie partial |
-| every page but `/pulse` | `Gee` | 3 | `gates.twig:391-470` |
-| success surfaces | `Celebration` | 3 | `templates/partials/celebrate.twig` |
+| C1 | **Colour:** 26 named tokens, "only the tokens in §6", `snippets/css/tokens.css` "the only file with hex values" (REFERENCE §6.1, §4.6) | CLAUDE.md: `Support\Accent` is the ramp, "colour comes from Accent and nowhere else", "never invent a fifth name". Guards: `AccentTest` (10), `SlotFloorTest` (15), `ColourBudgetTest` (9), `NoLiteralHexTest` (4). **Live collision today:** `--ag-line` is `#d6d4cc` from Accent (`Accent.php:121`, emitted at `gates.twig:245`) and `#e8e5dd` in `tokens.css:64`; `--ag-surface-2` likewise. Near-duplicates under different names: action wash `#e4f6e4` / `--ag-green-wash #effaf0`; live ink `#cc1950` / `#b0224f`; caution `#b3261e` / `--ag-error #b42318` | **Q1** — one source. Either Accent is destroyed and rebuilt *as* the bundle palette (still PHP-emitted, so the floor tests measure real values), or `tokens.css` is the source and the four guards are rebuilt to read it |
+| C2 | Guards are **blind** to the bundle's names: `AccentTest`/`ColourBudgetTest` look for `--ag-<role>-(fill\|wash)`; a page painted with `--ag-green` or `--ag-gold-wash` passes them **without being checked** | CLAUDE.md, "the right rule pinned to the wrong token" | Rebuild the guards with the palette (Q1) |
+| C3 | Gold `#f3b416` for "honour, winners"; `--ag-mute` for disabled text; inputs and outlined chips bordered only by `--ag-line-2 #d6d4cc` | Gold is 1.61:1 on the ground — CLAUDE.md records gold used as a line as the reason the site read monochrome; `SlotFloorTest::test_mute_is_never_a_word`; the chip/input border is **1.48:1** on white, under the 3:1 a border owes (WCAG 1.4.11, CLAUDE.md tier section) | **Q2** — rule on gold as fill-only, mute as text, and the outlined-component border |
+| C4 | Seven exact shadows (REFERENCE §6.5) | `Accent.php:212-217` "there are no shadows anywhere on this site" (the lip) | **Q3** |
+| C5 | Type scale: body 16, 14.5, 13.5, micro 11.5–12.5, display fixed per breakpoint, "never `vw` type" (§6.2, §4.5) | `TypeScaleTest` **already enforces the bundle's ladder** (11.5…17, `MIGRATING = [10, 11]`, Phase 1 `c73971e`) — but CLAUDE.md still states the old closed scale `10·11·12·13·14·16·17` and "display set with `clamp()` against the viewport", and `tokens.css:195-201` carries `vw` compat sizes | **Q4** — fixed display rungs; delete `MIGRATING`; rewrite CLAUDE.md's section (prose outliving the rule) |
+| C6 | "Never mono for labels, stats or kickers; no uppercase labels" (§6.2, §18.3-4) — but the bundle contradicts itself: HANDOFF §2 "Mono … numbers, codes, times", §5e "a mono count"; SKILL §24.3 "mono 17px value" vs §24.7 "no monospace"; HANDOFF §5c "removable dark chips" vs §18.2 outlined | CLAUDE.md house style: "hairline rules, **mono micro-labels**" (214 such declarations). 124 files use `text-transform:uppercase`. No test either way | **Q5** — resolve the bundle's own contradictions; rewrite the house-style line; add a guard |
+| C7 | Snippet `tokens.css` declares the full ladders (`--ag-sp-*`, `--ag-r-*`, `--ag-sh-*`, `--ag-z-*`, stock, `--ag-ease-pop`, `--ag-dur-3`) | `DeadTokenTest`: no property declared without a reader. It already forced five bundle tokens out; Phase 1 made `/_dev/ui` read ladders to keep them alive — the §17 fault dressed as a fix | A token lands with its first reader, in the phase that reads it |
+| C8 | "No inline styles in Twig" (§4.6, README rule 6) | 924 `style=` and 89 `<style>` blocks today; `NoLiteralHexTest` and `ColourBudgetTest` **read templates only**, so moving colour into component CSS moves it out of every guard's sight | Rebuilt guards sweep `public/assets/css/components/*.css` too |
+| C9 | Event tiers carry stored `accent`, `accent_light`, `wash`, `deep`, `glow` columns (§11, HANDOFF §5) | CLAUDE.md: "a tier's colour is a slot, never a hex … `EventTierTone::hues()` is the one resolver". Guards `EventTierToneTest` (21), `EventTierColourFieldTest` (13), `EventTierSelectionTest` (28), `EventFlierThemeTest` | **Q6** — recommend deriving the five properties at read time from the slot |
+| C10 | `celebration.js`/`.css` ship **verbatim**; SKILL §24.7: the engine "sets only inline style properties via JS" | It writes `style="…"` **attributes through `innerHTML`** (lines 122, 147-152), so `style-src-attr 'unsafe-inline'` becomes load-bearing. 32 lines of literal hex, 7 colours outside §6.1 (`#fbd46a #f4789c #7fb6d9 #e8a800 #fff3c4 #d9c7a3 #c9dbe8`), demo defaults `'KCEA Ceremony'` / `'Sat 6 Dec · 18:00'`. Its `ag-cel-` key is undeclared → `CookieRegistryTest` fails by name. It replaces `celebrate.js`, guarded by `CelebrationTest` (17) | **Q7** — accept the file's hexes and defaults as verbatim (exempt by kind) or the owner amends it |
+| C11 | Unsplash photography in 21 of 32 DCs — "placeholders only" (§14) **and** "never ship a placeholder" (§4.2) | `AwardPageTest:88` refuses a stock photo on the award page; Unsplash still live in `opportunities.twig:9,73` and a `dns-prefetch` at `gates.twig:162` | **Q8** — what fills a photo slot with no real image |
+| C12 | Paid contributions "count the same as free votes" (§12, HANDOFF §6, DESIGN-NOTES) | CLAUDE.md: paid votes count at full weight in the **30% tally only**; the 70% people term counts verified people and a purchase buys no reach (`VoterReach`; `PaidVoteCpiSeparationTest`, `EditionScaleTest` sweeps help articles for the retired wording) | **Q10** — copy built from that sentence would publish a false rule; confirm it is overridden |
+| C13 | "No AI wording anywhere public" (§4.8, README rule 8) | Legally required disclosures: `partials/ai-collection-notice.twig` (NDPA point-of-collection), `/privacy#automated-processing` from `AiPrivacy::disclosure()`, the `/cookies` AI section; `AiPrivacyTest` (30). The notice's own comment draws the line: features may go unnamed, data processing may not | Keep the disclosures; the rule applies to feature copy |
+| C14 | Consent cookie `ag_consent` (JSON, versioned), four categories (§10, CookieConsent DC) | `CookiePrefs::COOKIE = 'ag_privacy'`, one resolver ("if anything said no, the answer is no"), `visits_consent_mode`, plain-POST controls, identical class strings on accept/decline; `CookieRegistryTest` fails by name on `ag_consent`, `ag-cel-*`, `ag-gee-privacy` | **Q11** |
+| C15 | Snippets use `|trans`; ES-module JS (`export function`); `page-shell.twig` includes `partials/nav.twig` and `partials/gee.twig`; `shell.css` locks `html,body{overflow:hidden}` globally; `bottom-ui.js` skips `position:fixed` bars via `offsetParent` | No `trans` filter; every repo script is a classic `defer` script; neither partial exists; a global lock makes every `gates.twig` page unscrollable; the `offsetParent` bug was found and fixed in `4c5f489` | **Q12** — build a translation layer first, or drop `|trans`. The other three are known snippet faults; the DC wins over the snippet (snippets README) |
+| C16 | `GET /search?q=&scope=` returns JSON (HANDOFF §3) | `/search` is a 301 alias to `/activity`; the palette's JSON is `/activity/search` (`SearchScopeTest`, 7) | **Q13** |
+| C17 | `docs/redesign-ref/` | A different, earlier set of 24 DCs; the nomination flow (`4e4090c`, `4dadb12`) was built against it, not against `H/design/NominationFlow.dc.html`. REFERENCE §0: only `design/` is spec | **Q15** — two references disagreeing is this repo's costliest shape |
+| C20 | NominationFlow DC: the error copy says "at least one" category | Its own heading, and PHASE-8 §8.16, say two to three; `NominationRules` enforces two (`src/Services/NominationRules.php:52-62`). REFERENCE §0 puts the phase file above the DC | **Resolved by the bundle's own order:** two. Recorded here because the comment in `NominationRules` points at this file |
+| C18 | The method rules (§4.4, DESIGN-NOTES "small request = small edit") | The owner's principle (§0 above) | **Resolved by the owner:** destroy and rebuild; the feature inventory replaces "keep every feature" as the guarantee |
+| C19 | §17 acceptance: Lighthouse, 2 GB Android, overlay diffs | No headless browser on the production host; the dev container has Chromium (Playwright) and the earlier sessions' screenshots in `docs/handoff/{ref,mine,shots}` | Screenshots are taken in the dev container |
 
-**Routes with no design reference** (they keep their current design unless a later phase says
-otherwise): `/judges`, `/judges/{slug}`, `/registry`, `/opportunities`, `/community*`,
-`/partner`, `/org`, `/org/login`, `/support*`, `/claim/*`, `/my-work/*`, `/interview/*`,
-`/door/*`, `/honour/*`, `/stand/*`, `/form/*`, `/f/{key}`, `/email/unsubscribe`,
-`/m/{token}`, `/vote/{program}/{slug}/{flier,messages,supporters}`, `/events/{slug}/stands*`,
-`/refunds`, `/vendor-terms`, `/giving/manage/{token}`, `/account/{verify,forgot,reset,logout}`,
-`/account`.
+**CLAUDE.md is already stale in three places** because Phase 1 rewrote the guards and left the prose: the type
+ladder (C5), the paper colour (`Accent::PAPER` is already `#f1efe9`; CLAUDE.md and the `Accent.php:13` /
+`AccentTest.php:17` docblocks still say `#f0f2f2`), and the role count (Accent has five roles — `fault` was
+added — not four). Whichever phase decides C1 and C5 rewrites those sections in the same commit.
 
 ---
 
-## 5. Conflicts that block a later phase
+## 7. What earlier sessions built from this bundle — and the destroy list
 
-These are not preferences. Each one is a rule the repo enforces with a passing test, or a
-mechanism that makes the instruction inoperative. **REFERENCE §4.2 says to stop and ask
-rather than guess, so none of them has been worked around.**
+The clone is shallow (58 commits visible). Redesign work found, oldest first:
 
-### 5.1 The type scale — Phase 1 cannot build `tokens.css` as written
-
-`TypeScaleTest` holds a **closed** ladder of `10 · 11 · 12 · 13 · 14 · 16 · 17` below an
-18px display floor, and scans `templates/` and `public/assets/css`. `CLAUDE.md` records why
-the gap at 15 is deliberate: "14 is the reading size, 16 is the lede, and a rung between
-them is an invitation to split the difference again."
-
-The redesign's scale is built on half-pixel sizes:
-
-| | count |
-|---|---|
-| `font-size` declarations across the 32 DCs | 1,617 |
-| …that are off the ladder and below the display floor | **790 (49%)** |
-
-The offending values and their frequency: `15px` ×296, `14.5px` ×164, `12.5px` ×129,
-`13.5px` ×104, `15.5px` ×57, `11.5px` ×21, `16.5px` ×13, `10.5px` ×1, `9.5px` ×4, `9px` ×1.
-The handoff's own Phase-1 starting CSS (`snippets/css/components.css`) already carries six of
-them, `15px` included.
-
-**This is not avoidable by careful implementation.** Either the ladder changes or the design
-does. It needs a decision before Phase 1 writes a line.
-
-### 5.2 Colour — the redesign's token layer would be overridden at runtime
-
-The repo moved colour **out** of CSS on purpose. `public/assets/css/base/tokens.css:6-21`
-says so in as many words: "NOT HERE ANY MORE. Every colour on this site is emitted at
-runtime by `Support\Accent` … which the site layout writes into a nonced `<style>` **after**
-these sheets so it wins the cascade."
-
-That is exactly what happens: `templates/layout/gates.twig:275` renders
-`<style nonce>{{ ag_accents()|raw }}</style>` after the stylesheet links at `:227-262`.
-`Accent::css()` emits `:root{…}` containing `--ag-ground`, `--ag-bg`, `--ag-surface`,
-`--ag-line`, `--ag-line-strong`, one `--ag-{name}` per neutral, and `--ag-{role}-{slot}` for
-four roles × four slots.
-
-So Phase 1's `public/assets/css/tokens.css` would be a **linked** stylesheet whose `:root`
-declarations lose to the inline one for every name they share:
-
-| name | `Accent` emits | REFERENCE §6.1 wants | |
-|---|---|---|---|
-| `--ag-ground` | `#f1efe9` | `#f1efe9` | identical |
-| `--ag-surface` | `#ffffff` | `#ffffff` | identical |
-| `--ag-ink` | `#10292c` | `#10292c` | identical |
-| `--ag-ink-2` | `#3a4a4c` | `#3a4a4c` | identical |
-| `--ag-mute` | `#8b9295` | `#8b9295` | identical |
-| **`--ag-line`** | **`#d6d4cc`** | **`#e8e5dd`** | **collides, and the value differs** |
-
-Five of the six are identical, so the override is invisible — which is what makes the sixth
-dangerous. And the disagreement on `--ag-line` is not a typo, it is **structural**:
-
-REFERENCE asks for two hairline weights — `--ag-line` `#e8e5dd` for hairlines and card
-borders, `--ag-line-2` `#d6d4cc` for input and chip borders. `Accent` deliberately collapsed
-both of the repo's legacy hairlines into one solid line, and its own comment gives the
-reason: *"The ramp has ONE line, and the reason it is solid applies to both: an alpha border
-takes its value from whatever sits behind it, which is why the same rule looked like two
-different rules on a card and on the ground."* The redesign reintroduces the second weight.
-That is a decision to take, not a value to patch.
-
-Two colours also exist under both naming schemes: `#626a6e` is `--ag-soft` in REFERENCE and
-`--ag-ink-soft` in `Accent`; `#e8e5dd` is both `--ag-line` and `--ag-tint` in REFERENCE and
-`--ag-surface-2` in `Accent`.
-
-Two further repo rules bear on this. `CLAUDE.md`: "Colour comes from `Support\Accent` and
-nowhere else … never invent a fifth name." And `DeadTokenTest` fails on a declared custom
-property nothing reads — the snippet declares **82** `--ag-*` properties, so any that no
-component uses would fail on the first run.
-
-The token values themselves are not the problem: every one of REFERENCE §6.1's 24 colour
-tokens is present in `snippets/css/tokens.css` at the same hex, and `Accent::PAPER` is
-already `#f1efe9`, `ink` `#10292c`, `ink-2` `#3a4a4c`, `ink-soft` `#626a6e`, `card`
-`#ffffff` — identical to the redesign's neutrals. **The architecture is the conflict, not
-the palette.**
-
-### 5.3 There is no internationalisation layer at all
-
-The redesign requires eight languages (EN, FR, AR with `dir="rtl"`, SW, PT, HA, YO, IG),
-"every string goes through the translation layer", a `?lang=` parameter, an `ag_lang`
-cookie, language chips labelled in their own language, a first-visit language prompt, and
-**an RTL screenshot at 390 in the acceptance protocol of every phase.**
-
-The repo has none of it: `grep -rn "ag_lang|navigator.languages|setLang"` → 0 hits; no
-`i18n`/`locale`/`translat*` file under `src/Support` or `src/Services`; `ag_lang` is not in
-`src/Support/CookieRegistry.php`, which `CookieRegistryTest` enforces as the complete list.
-
-Phase 2 allocates this one line — "5. Language switching, including RTL" — as the fifth of
-six items. Extracting every string in ~180 page templates into a translation layer is not
-that. **This needs its own phase, or an explicit decision to ship English-only and drop RTL
-from the acceptance protocol.**
-
-### 5.4 Status subscribe — the design asks for what the page's own rules forbid
-
-Phase 9 requires the status page to gain "subscribe". `templates/pages/status.twig:26`
-carries this in its header rules: `· No "subscribe for updates" with nothing behind it.`
-REFERENCE §0 puts the repo's existing templates below the design in authority, and the
-`StatusPageV2` brief itself says "keep every rule in the twig header comment" — so the two
-instructions contradict each other directly. The condition is satisfiable (build a real
-sender first), but which way it goes is the owner's call, not mine.
-
-### 5.5 Discover does not exist
-
-`DiscoverPage` is treated as an existing page: the `§4` table maps it to `pages/discover.twig`
-and Phase 4 lists that path under "Before you start". There is **no such template and no
-such route** — `ls templates/pages/discover*` → nothing, and no `/discover` in the route
-table. Phase 4 must build it end to end, including whatever feeds its Live tab, and its
-Phase-4 budget should reflect that.
-
-### 5.6 The acceptance protocol is not executable as literally written
-
-REFERENCE §17 requires screenshots at 390, 834, 1024 and 1440 "for **every** prop combination
-the DC exposes", plus RTL at 390. Counting the props each DC actually declares:
-
-| DC | combinations |
-|---|---|
-| `ShopPage` | 360 |
-| `NominationFlow` | 160 |
-| `StatusPageV2` | 60 |
-| `EventsPage` | 30 |
-| `Celebration` | 20 |
-| `DocPage` | 18 |
-| `VotePage` | 18 |
-| all 32 DCs | **837** |
-
-837 × 4 widths = 3,348 screenshots, plus 837 RTL = **4,185**, before overlay diffs and
-recordings. Most of the count is orthogonal props that cannot co-occur: `ShopPage`'s
-`orderState` only means anything when `view=order`, and `doneState` only when `view=done`,
-so its real distinct states are nearer 20 than 360. **Confirm that "every prop combination"
-means every reachable state, not the Cartesian product.**
-
----
-
-## 6. Corrections to the handoff's own claims
-
-Small, but each would cost a session to discover mid-phase.
-
-| The handoff says | Actually |
-|---|---|
-| `partials/nav.twig` | `templates/layout/nav.twig` |
-| `pages/profile.twig` | `templates/pages/registry/profile.twig` |
-| `pages/results.twig` | `templates/pages/results/{index,edition,show,hall,open,late}.twig` — six templates |
-| `pages/discover.twig` | does not exist (§5.5) |
-| create `public/assets/css/tokens.css` | a tokens file already exists at `public/assets/css/base/tokens.css` (§5.2) |
-| gap row "Overall edition winner + top 3 — NEW (compute)" | already built (§3 row 4) |
-| gap row "Search API + palette — NEW" | the palette is built; the endpoint exists under another path with no `scope` (§3 row 6) |
-| celebration seen keys `ag-cel-{seen_key}` | the repo's existing engine uses `ag-celebrated:{key}`; shipping `celebration.js` beside `celebrate.js` leaves two engines and two key schemes unless one is retired |
-
-Everything else resolves. Every `§n` reference in the phase files points at a section that
-exists — §4/5/6/9.4/9.5/10/11/12/13/17 in `REFERENCE.md`, §7.x/8.x/9.x/15 inside the phase
-files themselves, §24/24.6 in the skill. All 12 snippet files, all 79 screenshots and both
-celebration production files are present and readable.
-
----
-
-## 7. Blocked questions
-
-Answers needed before the phase named can start. Per REFERENCE §4.2 none has been guessed.
-
-1. **Type scale (blocks Phase 1).** Does `TypeScaleTest`'s closed ladder give way to the
-   redesign's half-pixel scale, or does the redesign move onto the ladder? 790 declarations
-   turn on this.
-2. **Colour architecture (blocks Phase 1).** Does `tokens.css` become the source of truth and
-   `Support\Accent` stop emitting colour, or does `Accent` gain the redesign's palette and
-   `tokens.css` carry only non-colour tokens? As things stand the linked sheet loses to the
-   inline one and the failure is silent.
-3. **Internationalisation (blocks Phase 2, and the acceptance protocol of every phase).**
-   Is an eight-language translation layer with RTL in scope? If yes it needs its own phase;
-   if no, the RTL requirement comes out of §17.
-4. **Status subscribe (blocks Phase 9).** Build a real sender, or keep the page's existing
-   rule and drop the requirement?
-5. **Acceptance protocol (blocks every phase's sign-off).** Every reachable state, or the
-   Cartesian product? (§5.6)
-6. **Celebrations (blocks Phase 3).** `celebrate.js` and its six call sites — retired and
-   replaced by `celebration.js`, or kept alongside? Two engines and two seen-key schemes is
-   the outcome if this is not decided.
-7. **`edition_number` (blocks Phase 5).** Editions are currently identified by
-   `programme_slug + year`, and published result URLs are built from that. Does
-   `edition_number` become the identity, or a display-only addition beside `edition_label`?
-
----
-
-## 8. Phase 0 exit checklist
-
-- [x] `docs/handoff/GAPS.md` exists and covers every gaps row with a status and paths — §3.
-- [x] A route → DC map is included — §4.
-- [x] No template, CSS or JS was changed. `git status` shows two additions only: this file
-      and `.claude/skills/app-ux-standards/SKILL.md` (Phase 0 build item 1).
-- [ ] **REFERENCE §17 evidence** — not applicable and not produced. Phase 0 renders no
-      screen; the line is the boilerplate footer repeated in all eleven phase files. Flagged
-      rather than silently dropped.
-
----
-
-## 9. Phase 2 deviations
-
-Each of these is a place the build does not match a `.dc.html` or a phase-file line, with
-what was done and why. The phase file's target is none; these are the ones the design and
-the constraints could not both be satisfied on, and every one is recorded rather than
-quietly resolved in either direction.
-
-### 9.1 The four icon-tile tints are tokens, not the DC's hexes
-
-`MobileMenu.dc.html` tints its list and quick tiles `#eef7ee`, `#e9efef`, `#a47306` and
-`#2b373d`. `SiteHeader.dc.html` adds `#effaf0`, `#fff8df`, `#fdecef` and `#f0f2f2/#5d7374`
-for the mega panel. None of those names is in REFERENCE §6.1, whose own rule is "only the
-tokens in §6. No new colours."
-
-The rule wins over the values. Each maps to the nearest token PAIR — a fill and the ink
-drawn on it — as `.ag-tint--green | --gold | --live | --neutral`:
-
-| DC | token pair | measured |
+| Commit | What | Built against |
 |---|---|---|
-| `#eef7ee` / `#effaf0` | `--ag-green-wash` + `--ag-green-deep` | 7.08 : 1 |
-| `#fff8df` / `#a47306` | `--ag-gold-wash` + `--ag-gold-ink` | 6.06 : 1 |
-| `#fdecef` / `#b0224f` | `--ag-live-wash` + `--ag-live-ink` | 5.78 : 1 |
-| `#e9efef` / `#f0f2f2` / `#2b373d` / `#5d7374` | `--ag-tint` + `--ag-ink-2` | 7.37 : 1 |
+| `9c7e07b` | Phase 0 (the GAPS.md this file replaces; the skill) | this bundle |
+| `c73971e` | Phase 1: `tokens.css`, `shell.css`, `components.css`, `shell.js`, `layout/shell.twig`, `pages/dev-ui.twig` + `/_dev/ui`; rewrote `TypeScaleTest`; moved `ag_accents()` before the links | this bundle |
+| `b18620b` | Phase 2: app bar, tab bar, menu sheet, quick settings, display reading, a11y head, lang prompt; `a11y.js`, `chrome.js`; `Languages`, `LanguageMiddleware` | this bundle |
+| `ee7dce0` | Phase 2: site header (`layout/nav.twig`, `partials/site-header.twig`, `header.js`; deleted `components/nav.css`; `components/vote-countdown.css`) | this bundle |
+| `4c5f489` | Phase 2: search palette (`ag-search.js`, `site-search.twig`, `/activity/search?scope=`) | this bundle |
+| `e2b2343`, `4e4090c`, `4dadb12` | Nominations: per-award pages, 2–3 categories, evidence; flow; 801 touch targets | **`docs/redesign-ref/`** |
+| `22b31d1`, `777bb00`, `980609c` | Account; `partials/ui.twig` | `AccountPage.dc.html` (**not in this bundle**) |
+| `e107714`, `63b68d8` | Challenges; `challenge-strip.twig` | `ChallengePage.dc.html` (**not in this bundle**) |
+| `e9f7d2f` | Awards page; `AwardOverview`; `components/awards.css` | this bundle's AwardsPage |
 
-An icon owes 3:1 under WCAG 1.4.11; every pair clears the 4.5 a word owes, which is what
-makes a tile safe to put a label in later. `NoLiteralHexTest` would have failed on the raw
-values in any case — but the reason to map rather than exempt is that four more hexes on
-this ramp is how the tree reached 642 of them.
+### 7.1 Existence against the snippets
+| Path | State |
+|---|---|
+| `public/assets/css/tokens.css` | EXISTS (255 lines). Missing from the snippet set: `--ag-stock-low`, `--ag-stock-gone`, `--ag-sh-gee`, `--ag-ease-pop`, `--ag-dur-3` (C7). Added beyond §6.1: `--ag-surface-2`, `--ag-error-wash`, `--ag-r-7`, and a 22-name compatibility block (`--ag-fs-*` in `vw`, `--ag-r-sm/md/lg`, `--ag-shadow-nav`, `--ag-nav-h`, …) |
+| `public/assets/css/shell.css` / `components.css` | EXIST (169 / 1,369). Every snippet selector present; the lock is scoped to `body.ag-shelled` |
+| `public/assets/js/shell.js` | EXISTS — scroll state, collapsing search, bottom UI, sheet, as one classic script (`window.AGShell`). The four snippet JS files do not exist separately |
+| `templates/layout/shell.twig`, `partials/app-bar.twig`, `partials/tab-bar.twig` | EXIST, rebuilt without `|trans` |
+| `templates/partials/celebration.twig`, `public/assets/js/celebration.js`, `css/components/celebration.css` | **MISSING** |
+| `templates/partials/gee.twig`, `templates/partials/nav.twig` | never existed |
+| Redirects snippet | not applied |
 
-### 9.2 The Menu's wordmark takes `--ag-soft`, not `--ag-mute`
+### 7.2 Destroy list (for the phases that own them — nothing is deleted in Phase 0)
+Each is destroyed **together with** its guard, which is rebuilt with its rule in the same commit.
 
-`--ag-mute` measures **2.75 : 1** on the page ground. §6.1 scopes it to "disabled text,
-off-switch track", and "Africa GATES · An Afrovanguard initiative" is neither — it is a
-sentence a reader can read, so 1.4.3's incidental-text exemption does not reach it.
-`--ag-soft` is 4.80 : 1 and is otherwise identical in role.
+- **Phase 1 (foundations):** `public/assets/css/tokens.css`, `shell.css`, `components.css`; the orphan
+  `public/assets/css/base/tokens.css` and its link at `templates/admin/login.twig:11`; `public/assets/js/shell.js`;
+  `templates/layout/shell.twig`; `templates/pages/dev-ui.twig` and its route (`routes.php:2920-2937`).
+  Guards: `TypeScaleTest`, `DeadTokenTest`, `AssetBundleTest`, `ShorthandOverridesTest`, and — with Q1 — `AccentTest`,
+  `SlotFloorTest`, `ColourBudgetTest`, `NoLiteralHexTest` + `tests/baselines/template-hex.json`.
+- **Phase 2 (chrome):** `layout/nav.twig`, `partials/{site-header,app-bar,tab-bar,menu-sheet,quick-settings,display-reading,a11y-head,lang-prompt,site-search}.twig`,
+  `public/assets/js/{a11y,chrome,header,ag-search}.js`, `components/{site-search,vote-countdown}.css`, the cookie notice partial.
+  Guards: `SiteHeaderTest`, `ChromeReachabilityTest`, `DisplayReadingTest`, `LanguageTest` (rebuilt to catch §3.8's fault),
+  `SearchScopeTest`, `VoteCountdownTest`.
+- **Phase 3 (Gee + celebrations):** `public/assets/js/celebrate.js`, `vendor/canvas-confetti-1.9.3.js` + its PROVENANCE row,
+  `partials/celebrate.twig`, the `ag-celebrated:` row in `CookieRegistry`; the inline Gee markup in `gates.twig:462-560`,
+  `gee.js`, `components/gee.css`; `pages/support-assistant.twig` (after the desk exists under `/help`).
+  Guards: `CelebrationTest` (keeping its four refusal rules).
+- **Phases 4–9 (pages):** each page template in §5.1 with its `<style>` block and page CSS/JS, including the ones already rebuilt
+  against other references — `pages/nominate*.twig` + `components/nominate.css` + `nominate*.js`, `pages/awards/*.twig` +
+  `components/awards.css`; the orphans in §5.4; `pages/activity.twig` (Phase 4).
+- **Undesigned surfaces** rebuilt against DCs outside this bundle — `account/*`, `challenges/*` with `components/{account,challenge}.css`,
+  `account.js`, `partials/{ui,challenge-strip,account-payout}.twig` — are listed, not scheduled: no phase in this bundle owns them (Q16).
+- **Docs:** `docs/handoff/{ref,mine,shots}/` as each page they picture is destroyed; `docs/redesign-ref/` on Q15.
 
-### 9.3 The Menu's Explore list follows the phase file, not the DC
-
-`MobileMenu.dc.html` lists *Discover, Pulse, Giving, Shop, Legacy Vault, **Leaderboard**,
-Register a profile*. Phase §7.4 lists *Discover, Pulse, Giving, Shop, Legacy Vault,
-**Blog**, Register*. REFERENCE §0 puts the phase file above the DC, so Blog is in and
-Leaderboard is out of this list — it is still in the tab bar's reach through Discover and
-in the desktop Explore panel.
-
-`SiteHeader.dc.html` has the same shape of conflict on the desktop Explore panel: seven
-items including Leaderboard and Shop and **no Status**, against §7.1's six ending in
-Status. Same resolution.
-
-### 9.4 The search palette uses `/activity/search`, not a new `GET /search`
-
-Phase §7.1 asks for "`GET /search?q=&scope=` (JSON)". `/search` is already a **route
-alias to `/activity`**, and `src/routes.php` explains in as many words that it exists so
-that somebody who types the word people actually type lands on the results — and that
-there is deliberately **not a second search page: one endpoint, one index, one set of
-promises about what is covered**.
-
-Serving JSON from `/search` would break that alias and create the second search the repo
-argues against. The palette therefore calls the existing `/activity/search`, which gained
-a `scope=` parameter. The chips are §7.1's five, verbatim; what the phase file does not
-fix is which source answers each, so that mapping is
-`ActivityFeedService::SCOPES` and `SearchScopeTest` requires every source to sit in
-exactly one chip — a source added later would otherwise answer under All and under
-nothing else, reachable only by somebody who never touched a chip.
-
-`org` sits under **People**, which is a compromise: an organisation is not a person and
-the fixed chip set has nowhere else for one. Dropping it would make a partner that went
-through CAC and SCUML vetting unfindable from the palette, which is the worse wrong.
-
-### 9.5 `/discover` is a 302 placeholder until Phase 4
-
-§5.5 records that Discover has no template and no route. Phase 2's chrome puts it on the
-tab bar, in the Explore panel and in the Menu — three surfaces, one href — so the choice
-was between linking to a 404 and hard-coding `/registry` in three places for Phase 4 to
-find again. Neither is acceptable, so `/discover` exists from today and answers **302** to
-`/registry`; Phase 4 replaces that one line with the real handler. 302 and not 301
-deliberately: 301 says the address is never the page, and it is about to be. The tab's
-highlight comes from the page's own `active` argument rather than from the URL, so it is
-correct either way.
-
-### 9.6 Language ships as the mechanism, and the prompt's words are the only translations
-
-§5.3 is still open, so there is no string catalogue. `Support\Languages` ships the part
-that does not need one: the supported set, `?lang=`, the `ag_lang` cookie, and `lang` /
-`dir` on `<html>` — which is what a screen reader's pronunciation and the whole RTL
-requirement of §17 are measured against. Every surface that offers it says in one line
-that the writing is still English, because a language menu that silently does nothing is
-the thing worth refusing to ship.
-
-The first-visit prompt (§7.2) must be written in the language it offers — asking in
-English asks the one person least able to answer — so `ask` and `yes` are the only
-translated strings in this codebase. They are short, stated once, and live beside the
-language they belong to. **Each wants a speaker's eye before that prompt is switched on
-for its language.**
-
-### 9.7 `AppBar.dc.html` carries a keyboard-shortcuts dialog §7.1 does not mention
-
-`SiteHeader.dc.html` has a `kbOpen` dialog listing eight shortcuts. No line of §7.1 asks
-for it and no other phase file mentions it. Not built; flagged rather than invented, since
-a shortcut list is a promise about bindings that have to exist.
-
-### 9.8 The Explore panel carries a seventh item: Results
-
-Neither of §7.1's two lists contains Results. `PublicResultsTest` exists because of what
-that costs, and it says so in its own comment: the results page was built, the Pulse and
-the congratulations emails linked it, and **nobody browsing the site could reach a decided
-award** — a mechanism complete and correct in every part except the route in, which is
-this repository's most expensive shape.
-
-A specification that omits a destination does not make the destination optional. Results
-is in Explore, and the guard that caught it is now able to see a data-driven nav: it used
-to look for the literal `href="/results"`, which is what a hand-written list contains and
-what a Twig loop over `{href:'/results', …}` never does. It would have gone quiet on
-exactly the change most able to drop the link.
-
-### 9.9 Two sub-floor type sizes, resolved in opposite directions
-
-REFERENCE §6.2's smallest rung is **11.5px** (micro / badges). `SiteHeader.dc.html` uses
-two sizes below it, and they are not the same kind of thing:
-
-- **The cart badge, 10.5px → 11.5px.** A number somebody reads is type, and §6 outranks
-  the DC for the same reason it does on colour (§9.1). It still fits the 17px badge.
-- **The wordmark's "GATES", 9.5px, kept.** A logotype is not type. Five letters tracked a
-  quarter of an em and locked to the 32px mark beside them are a device, not a word;
-  raising it to the ladder makes the tag wider than the name above it and breaks the
-  lockup. `TypeScaleTest` exempts it **by the tracking**, the way it exempts the email
-  preheader by `mso-hide:all` — naming what it does, never the file that does it.
-
-### 9.10 `components/nav.css` was split, not deleted
-
-The old navigation's stylesheet had to go: its `.ag-menu` block is `position:fixed;
-inset:0` for a full-screen overlay, and the redesign's `.ag-menu` is a bottom sheet from
-`top:52px`. Same class, opposite component, nothing in either file to hint at it.
-
-It also held every `.vc-*` rule for the vote countdown, which has nothing to do with
-navigation. Those moved to `components/vote-countdown.css` rather than going with the
-file. `VoteCountdownTest` reads them by name and would have said so — the reason to split
-rather than rely on that is that a sheet named for one component and holding two is a
-sheet the *next* deletion gets wrong the same way.
-
-Deleting it also orphaned three compatibility tokens whose only reader it was
-(`--ag-z-mega`, `--ag-z-mobile-nav`, `--ag-z-overlay`). `DeadTokenTest` named all three,
-and they are gone — which is what `tokens.css`'s compatibility block says each phase
-should do.
-
-### 9.11 The palette's empty state is the latest feed, not "trending"
-
-§7.1: "The empty query shows trending, open-now and coming-soon."
-
-There is **no trending signal anywhere in this codebase** — no view counts, no per-item
-reads, nothing that could rank one result above another by attention. Building a "Trending"
-heading would mean inventing the ordering behind it, which is the fault the homepage globe
-was built to undo: sixteen cities arrived in that handoff with ballot counts and a median
-verification latency this platform has never recorded, and the repair was to drive the band
-from the one geographic fact that exists.
-
-So the empty panel shows what is true — the latest feed, grouped under the same headings a
-query produces — and it is one parameter rather than a second code path, because
-`/activity/search` already answers a short query with `latest()`. Open-now and coming-soon
-are reachable honestly (`gates_cycle_transitions` is what the `phase` source reads) and
-would be a real addition; trending needs a measurement first.
-
-The live region says "12 recent items" rather than "12 results" when nobody has searched
-for anything, and the count is what is **shown** rather than what arrived — a "12" over a
-panel holding eight is a number somebody then goes looking for.
-
-### 9.12 The cookie notice offers one choice, not three optional categories
-
-§7.9: "Essential is always on, plus 3 optional categories."
-
-This platform has one. `Support\CookieRegistry` declares five cookies across three
-categories and `anyRefusable()` answers **false**, because nothing it stores is refusable:
-the arrival counting reuses the session cookie that is already strictly necessary under
-ePrivacy Art.5(3), so a banner asking permission to store would be asking about something
-we are not storing. What *is* refusable is the counting itself, and `Services\CookiePrefs`
-is the one resolver for it.
-
-Drawing "Analytics / Marketing / Personalisation" when two of the three describe nothing
-this site does is §19's shape with a checkbox on it — a document people are asked to rely
-on, stating something that was never true. The notice asks the one real question and the
-`/cookies` page states the rest, generated from the registry.
-
-**GPC is already honoured, and better than §7.9 asks.** It is read from the `Sec-GPC`
-request header rather than `navigator.globalPrivacyControl`, so it applies before a line of
-script runs and on a browser with scripting off; `CookiePrefs`'s rule is that **if anything
-said no, the answer is no**, which is stricter than the GPC specification requires and is
-deliberate. The page states it in words ("Your browser has already said no… we treat that
-as a refusal") and explains that the specification permits a site-specific opt-in which
-this platform declines to offer.
-
-**What did change is a regression the chrome rebuild caused.** The notice cleared
-`--ag-mobile-nav-h`, a typed 64px describing `.ag-mobnav` — the bar the redesign deleted.
-It reads `--ag-bottom-ui` now, which `shell.js` measures from whatever bar is on screen.
-The two compatibility tokens were corrected with it: `--ag-nav-h` was 72px against a 64px
-header, and about ten templates stick a rail under it.
+**Never destroyed** (see §0): `database/migrations/2027_02_02_nomination_categories_evidence.php` and every other migration;
+both schema files; `Support\Languages`, `LanguageMiddleware` and their cookie rows (the only i18n there is, and published policy);
+`NominationRules`, `NominationCategoryFit`, `AwardWording`, `NomineeKind`, `AwardOverview`, `ActivityFeedService::SCOPES`; every
+scoring, sealing, mail and payment service.
 
 ---
 
-## 10. Findings from driving the real pages
+## 8. Blocked questions — for the owner, not guessed
 
-Everything below was measured in a real browser against the running app, not read off the
-source. Each one is invisible in a diff and several were invisible in the suite.
-
-### 10.1 Four faults in my own Phase 2 work, none of which threw
-
-| what | how it read | why it happened |
-|---|---|---|
-| The Menu sheet showed a 49px sliver of grabber and header at rest, on every phone page | nothing — it was `inert`, correct in the markup, and a screenshot away | `translateY(100%)` moves a sheet by **its own height**, which clears the viewport only if its top edge started at the bottom. The Menu is pinned at `top:52px`. Fixed with `visibility` plus its own distance. |
-| The scrim was never once drawn | the page behind an open sheet stayed bright | the markup carried `hidden`, which is `display:none`, and `AGShell.openSheet()` reveals a scrim by setting `data-open` — an attribute cannot beat `display:none` |
-| The Menu's close button wrapped onto a second row and the title slid left | a broken header, and only when the back button was hidden | the head is a `44px 1fr 44px` grid and `hidden` is `display:none`, which takes the **cell** with it. `visibility:hidden` keeps the cell and still leaves the tab order |
-| The tab bar drew at 1440, straight through the mega panel's blur | five destinations competing with the two panels that hold them | `@media (min-width:900px){ .ag-tabbar{display:none} }` was written **above** `.ag-tabbar{display:grid}`. Same specificity, so source order was the whole decision — it read correctly and did nothing |
-
-### 10.2 Three faults that were already there, found the same way
-
-- **`--ag-bottom-ui` was 0px on every page of the site.** `shell.js` picked the tallest
-  *visible* bar with `offsetParent !== null`, commented as "the display:none test". It is
-  not: **`offsetParent` is null for a `position:fixed` element**, which is what every one
-  of these bars is. So the measurement excluded exactly what it exists to measure, the
-  value never moved off its 0px default, and the Gee launcher and the cookie notice sat
-  flat against the bottom edge — on top of the tab bar on a phone. `getClientRects().length`
-  is the test the comment described. (The same `offsetParent` test one function below is
-  **correct**: it filters a sheet's *children*, whose offsetParent is the fixed sheet.)
-- **`[hidden]` did not hide.** `[hidden]{display:none}` is a user-agent rule, so any author
-  rule setting `display` outranks it — and this design system sets `display` on nearly every
-  component. `chrome.js` hides the language form's redundant "Change" button with
-  `el.hidden = true`; `.ag-btn{display:inline-flex}` kept it on screen. One base rule now.
-- **`box-sizing:border-box` was not global.** `.ag-btn--block{width:100%}` measured 358px on
-  a `<button>` and **402** on an `<a>` with the same classes — 358 plus the button's own
-  44px of padding — so the Sign-in control ran off the right edge of the Quick settings
-  sheet. Nine rules in `components.css` say `box-sizing:border-box` by hand, which is what a
-  missing base rule looks like from the inside.
-
-### 10.3 One for Phase 3: the home page overflows 9999px in RTL
-
-Measured at 390: `/?lang=en` has a document overflow of **0**, `/?lang=ar` has **9999**. The
-widest offenders are `.hm-marq__row` (3405px) and two `.hm-*__glow` blocks, and the
-marquee's parent is `overflow-x:hidden` in **both** directions — so the containment that
-holds in LTR does not hold in RTL, which is the familiar behaviour of a child overflowing
-to the "wrong" side of a right-to-left document.
-
-`/_dev/ui`, which is nothing but Phase 1 and Phase 2 chrome, measures **0** in RTL. The
-chrome mirrors correctly — the Menu's chevrons move to the left, the sheets and popovers use
-logical properties throughout. This is the home page, and §17's "RTL at 390" will fail on it
-until Phase 3 rebuilds that hero.
-
-### 10.4 The phone/tablet breakpoint is 768, not 900
-
-The old navigation hid below 900px and the first cut of the redesign's header inherited
-that number. §7.1 calls this the **tablet and desktop** header and the acceptance protocol
-screenshots **834** as a tablet width — so at 900 an iPad in portrait got the phone chrome
-on precisely the width the specification names as the tablet case.
-
-768 is what the bar actually needs, measured rather than guessed: logo 150 + two links 200
-+ toolbar pill 180 + identity 100 + 56 of gutter is 686, and the bar's children measure
-**670** at 768 with 98px to spare. The header's breakpoint and the tab bar's are now the
-same number in both directions — two different figures would leave a band of widths with
-both chromes, or with neither.
-
-### 10.5 Keyboard pass, measured
-
-At 1440, driven by keys alone:
-
-| | result |
-|---|---|
-| First Tab | **Skip to content** |
-| The whole header | ~8 stops — the toolbar pill is **one**, as `role="toolbar"` claims |
-| Aa on Enter | opens, focus moves to the first control, `aria-expanded="true"` |
-| Esc | closes, focus **returns to the trigger**, `aria-expanded="false"` |
-| ← → inside the toolbar | search → Aa → language → wraps |
-| ← → on the size control | moves the selection and `ag-t125` lands on `<html>` |
-| Esc in the search palette | closes and returns focus to the search button |
-| Back gesture with a sheet open | closes the sheet, stays on the page |
-| Quick settings → "All display & reading settings" | closes that sheet, opens the Menu at its Display sub-view, **one** history entry across the handover |
+1. **One colour source** — rebuild `Support\Accent` as the bundle palette, or make `tokens.css` the source and rebuild the four colour guards to read it? (C1, C2)
+2. Gold as fill only; `--ag-mute` as disabled text; the 1.48:1 outlined chip/input border — accepted, or corrected? (C3)
+3. Shadows — the bundle's seven, or none? (C4)
+4. Display type — fixed rungs per breakpoint (bundle) confirmed, `MIGRATING [10, 11]` deleted outright? (C5)
+5. Mono and uppercase — which side of the bundle's own contradictions wins? (C6)
+6. Event tier colour — five stored columns, or derived from the slot at read time (recommended)? (C9)
+7. `celebration.js` — accept its off-palette hexes and demo defaults as verbatim, or amend the file? (C10)
+8. A photo slot with no real image — what renders? (C11)
+9. Ballot fields — make name, phone and message required (REFERENCE §12)? The paid name field is the display-name consent today. (§3.16)
+10. Paid-vote copy states the real rule (tally yes, reach no) — confirm the bundle's "count the same" sentence is overridden. (C12)
+11. Consent — keep the `ag_privacy` single-switch model, or build the four-category `ag_consent` (CookiePrefs, legal copy, a repair migration of the stored policy)? (C14)
+12. Translation — build a `trans` layer before any phase uses the snippets, or drop `|trans`? (C15)
+13. Search JSON — move it to `GET /search` (retiring that alias), or keep `/activity/search`? Trending in the empty palette has no measured signal — drop it? (C16, §3.6)
+14. Which DC owns `/results` (index) and `/results/{id}` (one award)? (§5.1)
+15. `docs/redesign-ref/` — delete as superseded? (C17)
+16. Account and Challenges were rebuilt from DCs not in this bundle — destroyed and rebuilt in a phase of this redesign, or left as they are?
+17. Waitlist hold — 24 h (bundle) or 48 h (`EventWaitlist::OFFER_HOURS`)? (§3.12)
+18. Explore — keep Results (7 items) or the bundle's 6? (§3.15)
+19. Gee on `layout/shell.twig` pages — yes? Today they have none. (§3.10)
 
 ---
 
-## 11. The nominations and awards rebuild
+## 8a. Code that cites this file
 
-The brief: every award gets its own nomination page; a nomination names a person, an
-organisation or a business under **two or three** categories, each with a reason of at
-least **40 characters**; optional evidence; and a model places the nomination for the
-judging stage in the background. Plus: an award may carry its own wording so its form
-does not ask a choirmaster for "the nominee's full name".
+Four comments cite section numbers of the GAPS.md this file replaces. Phase 0 edits no other file, so the
+phase that next touches each one re-points it:
 
-### 11.1 What the audit found before anything was built
-
-Four faults, each established by measurement rather than reading:
-
-| | fault |
-|---|---|
-| One page for every award | `/nominate` was a single form with a programme `<select>`. The brief's "each award has its own nomination page" had no route to hang on. |
-| One category, no reason floor | `gates_nominations` held one `category_id` and a free-text `reason` with no minimum. |
-| Evidence had nowhere to go | No table, no column, no upload path. |
-| The two doors disagreed | `AwardService` and `ApiController` each validated a nomination with their own list of required fields. |
-
-### 11.2 The shape of the fix
-
-`Services\NominationRules` is the **one validator**, spoken by both doors
-(`NominationDoorsAgreeTest` holds it). `Support\NomineeKind` is the one place the three
-kinds are declared — the label and the hint for the name field travel from there to the
-form, so "Full name" is never shown over a registered body.
-
-The categories and the evidence are their own tables rather than more columns, because
-a nomination now has two-to-three of one and nought-to-five of the other, and the reason
-belongs to the PAIR rather than to the nomination. `gates_nomination_categories` carries
-the UNIQUE on `(nomination_id, category_id)`, and the insert of the nomination and its
-children is one transaction — proven by dropping the child table so the write genuinely
-fails, then checking no orphan parent survives.
-
-`Services\NominationCategoryFit` is the background placement. It reaches the model
-through `AiGateway` like everything else here — pinned model, budget, kill switch, the
-nominator's words FENCED, the reply discarded if it is not the declared shape, and a row
-in `gates_ai_calls` either way. It sends evidence **labels and link hosts only**, never
-file contents and never a full URL.
-
-### 11.3 Deviations recorded
-
-**11.3.1 The fit analysis reaches no visitor, and that is a sweep rather than a promise.**
-Phase §8.16 says "no AI wording" on the nomination flow and means the FEATURE: no
-machine's opinion of somebody's reason, no score, no suggested category. A nominator told
-a machine scored their reason at 41 is being graded by a form, and the person that
-discourages first is the one writing in their second language about somebody they admire.
-`NominationCategoryFitTest` sweeps every public template for a reader.
-
-**11.3.2 But the point-of-collection disclosure IS on the page, deliberately.** That is a
-legal obligation rather than a feature, and it is the one disclosure that has to sit where
-the collection is. `partials/ai-collection-notice.twig` is generated from the capability
-registry — the same basis `AiPrivacy::disclosure()` generates `/privacy#automated-processing`
-from — and explicitly NOT from "is a provider configured right now", so the two documents
-cannot come to disagree on a key rotation.
-
-**11.3.3 `public_content` means "processes content submitted by the public".** It was
-written `false` on the fit capability first, read as "not shown publicly" — a different
-claim, held by the template sweep above. `AiPrivacy::disclosure()` filters on this flag,
-so `false` would have left a capability that sends a nominator's own words to a third
-party out of the page whose job is listing exactly that. It is `true`. The admin wording
-capability beside it is `false`, and that is not the same mistake: what leaves there is an
-award's own title and description, written by an operator in this console.
-
-**11.3.4 A validation failure re-renders the award's own page.** It used to return to the
-chooser, which lost everything typed.
-
-### 11.4 The award's own words
-
-`Support\AwardWording` stores seven phrases and the accepted nominee kinds as one JSON
-document on the programme, for the reason `OrgBrand` is one document: everything in it is
-read once per page for one programme already loaded, and nothing filters or sorts on it.
-Same trap, too — the column is TEXT and the caps count CHARACTERS, so `save()` refuses
-above `MAX_JSON_BYTES` rather than letting the database truncate a document that then
-does not parse and silently reverts the whole award to the house words.
-
-**It shipped with no writer.** The reader, the validator, the caps and the house
-fallbacks were all complete and correct, and nothing called `save()` — so the column
-could only ever answer with the house words, for ever. That is §18's shape, and this
-codebase has paid for it over a donor's stop button: `manageUrl()` built the link to
-cancel a monthly gift and no receipt and no template ever contained the URL. The
-distinguishing question is never "does this work?", because every piece did. It is **who
-is ever handed this?**
-
-So `/admin/programmes/{id}/wording` is the door, and `AwardWordingTest` asserts the door
-rather than the store: a route reaches the writer, and the programme form links to the
-route. Both were broken deliberately and watched to name the break.
-
-A sub-page **linked from the programme it belongs to, not added to the rail** — the rail
-is seven headings and a section carries exactly one gate, so a rail entry is an access
-decision and this is not one.
-
-The AI draft fills the seven boxes from what the award says about itself and **stores
-nothing**; the operator reads it, edits it and presses Save. Its capability is
-`FAIL_ANNOUNCE`, because an operator who pressed Draft and got silence would retype seven
-phrases believing the button is dead.
-
-### 11.5 Two faults found by driving the real pages
-
-**11.5.1 A box's geometry split across two rules, and the shorthand won.**
-`margin-top:auto` was declared on `.nf__bar` beside `.nf__form`; a hundred lines lower the
-bar's own block set `margin: var(--ag-sp-16) …`, same selector, same specificity, later in
-the file. The shorthand writes all four edges, so the computed `margin-top` was `16px` and
-the `auto` never applied.
-
-Three of the four steps overflow the viewport, where `position:sticky` pins the bar anyway.
-Evidence is the one short step, and there the action bar floated at 559–644 of an 844px
-viewport with two hundred pixels of empty ground under it — 200, 377 and 261px at 390, 768
-and 1440. So a cascade fault presented as "the Evidence step is broken", which is the wrong
-screen, the wrong file and the wrong half of the rule.
-
-`ShorthandOverridesTest` is the sweep. On its first run it found **three more**, all in the
-legacy sheets and all the same shape — a selector re-declared in full as design generations
-stacked up, with a longhand in an early copy that a later copy's shorthand reset:
-`.ad-table-wrap`'s `overflow-x`, `.face-tile`'s `transition-delay`, and three separate
-`.p-hero h1 { margin-bottom }` under a final `margin: 0 auto 1.25rem`. Every one was inert —
-the computed margin on `/opportunities` was `0px 88px 20px` before the deletion and after —
-so they were removed rather than excused, and the sweep carries **no exclusion list**.
-
-**11.5.2 The kind card had a heading that did not read as one.** `.aw-kind span` matched the
-wrapper as well as the hint, so the kind's name inherited the muted colour through it and
-the two lines came out identical. A descendant selector cannot tell a wrapper from the thing
-it wraps; each part is named now.
-
-### 11.6 A sweep that was lying, and the three real faults it was hiding
-
-`TemplateContextTest::matchBracket()` skipped string literals and **not comments** — and an
-apostrophe in prose is a quote. A render array documented with `// the admin's preview …`
-had that `'` read as a string opening, the scan ran to the next `'` in the file, and every
-quote after it paired one out of step. The closing `]` landed inside what the scanner
-believed was a string, so the array never closed and matching ran on into the next method's
-render call.
-
-Measured: `ProgrammesController::wording()`'s array closes at line 170 and the matcher
-returned **line 293**, swallowing `cycleEdit()`'s context whole and reporting four variables
-against a template that mentions none of them — every one read perfectly well by the
-template it actually belongs to. Four invented findings, each plausible enough to send
-somebody deleting correct code, in the file somebody took the trouble to explain.
-
-The corrected matcher immediately found three the broken one had hidden — the same thing
-that happened when `DeadTokenTest`'s parser was fixed:
-
-| | what it was |
-|---|---|
-| `extras_missing` | **A live fault.** `OptionalColumn::missing('gates_site_events', …)` names the columns a deployment lacks, and its siblings `refund_missing` and `design_missing` both gate their sections with it. This one was passed and never read, so on a deployment that has not opened `/__setup/migrate` six boxes drew, took an organiser's typing and dropped it on save — which is the harm the controller's own comment beside the variable gives as the reason the variable exists. §19's shape. The reader was WRITTEN, per field. |
-| `all_cycles` | A second raw query for the list `editions` already provides and the Editions panel already draws. Deleted with its query. |
-| `admin_settings` | A whole-table read plus a schema probe on every render of the settings screen, for a variable no template has ever mentioned. Deleted with its query. |
-
-`strict_variables` cannot see this direction at all: it catches a template reading what a
-controller stopped passing, and has nothing whatever to say about a controller passing what
-nothing reads.
-
-### 11.7 Ten warnings in the suite, all of them mine
-
-`SearchScopeTest` built its duplicate-chip failure message with `"{$seen[$s]}"`. PHP
-evaluates every argument **before** the call, so that message was interpolated on each of
-the ten passing iterations too, where the key is by definition absent — ten "Undefined
-array key" warnings from a test that passed. Noise in exactly the place a real warning
-would have to be noticed. The suite reports zero warnings now, and the message was proved
-still correct by staging a real duplicate.
-
-### 11.8 Verified in a browser, not asserted
-
-The flow walked end to end at 390, 768 and 1440: the action bar sits on the viewport floor
-on every one of the four steps, zero horizontal overflow, zero page errors. The counter
-reads the server's floor, the cap disables the unchosen rows at three with "3 of 3 chosen —
-remove one to swap", and the short-reason message is the server's own sentence.
-
-The wording screen was driven the same way, and the write path proved end to end: an
-operator edits the wording, presses Save, and the public nomination form's lede, reason
-question and evidence hint all move to the operator's words.
-
-### 11.9 The ENUM words, which the suite cannot check by itself
-
-`gates_nominations.nominee_kind` and `gates_nomination_evidence.kind` are ENUMs, and
-their vocabulary was typed in two places: the migration, and PHP. The evidence kinds
-were two bare string literals inside `AwardService`, with nothing comparing them to the
-column.
-
-A value outside an ENUM is `Data truncated` on MySQL — not an error anybody notices —
-and SQLite has no ENUM at all, so it stores whatever it is handed. A fourth nominee kind
-added to `NomineeKind::ALL` and not to the column would therefore pass every test on
-this harness and land as an empty string on production, for ever, with the row saved and
-the kind gone. This codebase has shipped that three times: `JudgeSchedule`'s
-`'scheduled'`, the claims funnel reading "Profile claimed by the nominee — 0 — 0%" on
-every deployment since it shipped, and `gates_comments.status = 'pending'` making the
-moderation warning unreachable while `/admin/moderation` worked through the real backlog.
-
-So the words now live beside the code that writes them
-(`NominationRules::EVIDENCE_LINK` / `EVIDENCE_FILE`), and
-`NominationSchemaWordsTest` compares the migration's ENUMs against the PHP declarations.
-
-It is a MAP rather than a sweep, because the thing asserted — *these words live in this
-constant* — cannot be derived; nothing in the SQL says where its vocabulary is declared.
-What keeps the map from going stale is the second test: **every ENUM the migration
-introduces must appear in the map**, so a new ENUM column cannot be added without saying
-where its words live. The map is checked against the migration and the migration against
-the map. All three failure modes were staged and watched to name the break.
-
-It reads the migration rather than the live schema deliberately: on SQLite the column is
-plain TEXT and the database cannot answer, so a test that asked it would pass vacuously
-on the harness and only ever do its job on the parity run — which is the run most likely
-not to happen.
-
-### 11.10 Not done
-
-- **No MySQL parity run.** No server was available in this container. Everything in the
-  MySQL/SQLite list at the top of `CLAUDE.md` is invisible without it, and this change adds
-  four tables, one ENUM (`nominee_kind`), one `TINYINT UNSIGNED` (`fit`) and a TEXT column
-  whose writer caps in characters against a byte ceiling — all four of the shapes that run
-  differently there. **Run `scripts/mysql-parity.sh` before this reaches production.**
+| Comment | Cited | The fact now lives in |
+|---|---|---|
+| `tests/Unit/SiteHeaderTest.php:126` | §9.8 (Results in the header) | §3.15, Q18 |
+| `src/Support/Languages.php:22, :64` | §5.3 (no translation layer) | §2 "Translation", C15, Q12 |
+| `src/Services/NominationRules.php:61` | (no section) the DC's "at least one" | C20 |
+| `src/routes.php:1842` | §5.5 (no Discover page) | §4, §5.3 |
 
 ---
 
-## 12. Fixing all of it: the standard, the reference, and five live faults
+## 9. Done when
 
-This pass answered "fix all, no errors" against `/app-ux-standards` and
-`/anthropic-skills:implementing-designs`. It found more than styling.
+- [x] **`docs/handoff/GAPS.md` exists, covering every gaps row with a status and paths** — §3, all 16 rows, plus §4.
+- [x] **A route → DC map is included** — §5, derived from the live router and dispatch, not a parse.
+- [x] **No template, CSS or JS was changed** — `git status` after this phase: `docs/handoff/GAPS.md` only. The
+  skill was reinstalled byte-identical, so it records no change.
+- [x] **REFERENCE §17 for each screen in this phase** — Phase 0 has no screens: no screenshots, overlay diffs, RTL,
+  keyboard or reduced-motion evidence apply. **Deviations: 0.**
 
-### 12.1 Five live faults, none of them cosmetic
+## Report back
 
-| | fault | how it was found |
-|---|---|---|
-| **A 500 on every nomination carrying a file.** `NominationController::submit()` looped over `self::uploadedEvidence($req)` and **that method did not exist**. The row was written first, so the nomination saved and the nominator got a 500 — the only reasonable conclusion being that it had not gone through. | driving the real form |
-| **The portrait field was dropped.** `submit()` has a complete validated, re-encoded, size-capped handler for `nominee_photo`; both admin screens render it; its own comment says it seeds the profile avatar on approval. The redesign did not carry the input across, so the handler had nothing to handle and the column stayed empty on every nomination since. | §18's question, asked of the form |
-| **The confirmation named the wrong award.** `$progName` fell back to `'Programme #' . $id` whenever the title was not passed, and the rebuilt form stopped passing it. That string goes into the **email and the SMS**, not just the page. | driving the real form |
-| **It named one category of three.** Read off the nomination row's denormalised `category_id` while a nomination now names two or three. The nominator chose them deliberately and was told their nomination went somewhere narrower than it did. | the same |
-| **Step one let you pass and refused at step four.** The server requires `nominee_state`, `nominee_lga` and one of email/phone; the wizard checked none of them, so somebody completed all four steps and met a step-one refusal beside the Submit button. | the same |
-
-The first three were invisible to a green suite because nothing posted at the
-controller — the tests exercised `recordEvidenceFile()` directly, which is the half
-that worked. **A unit test of the piece below a fault is not a test of the path.**
-`NominationSubmitPathTest` posts, with a real `UploadedFile` backed by a real temp
-file (an in-memory stream cannot be `rename()`d, so `moveTo()` would warn and the
-store would never happen — the test would pass over a path it had not walked).
-
-Step validation now reads `[required]` **from the panel's own markup**, so there is no
-list in JavaScript at all: the browser, the script and the server look at one
-declaration, and a field added to a step is covered the day it is added. The
-either/or on email-or-phone is the one rule markup cannot express and is written out.
-
-### 12.2 The targets: 801 → 0
-
-A sweep of twelve public pages at 390 and 1440 found **801 targets under the floor**
-(44 on phone, 40 for a desktop pointer). **640 of them were three rules in the shared
-footer** — it is on every page, so one 16px link there is one failure per page per
-link, for ever, and nothing about that is visible from any single page.
-
-The rest were the article component (`/cookies`, `/privacy`, the help centre), the
-shop filter rows, the results and support chips, and the help-nav identity link.
-`min-height` throughout: the type and the leading are untouched and only the box a
-finger has to find grows.
-
-**WCAG 2.5.8's inline exception is honoured and is the only exception.** A link inside
-a sentence keeps its natural size — inflating one to 44px wrecks the leading of the
-paragraph holding it — and the sweep tells prose from controls by asking whether the
-link's parent holds more text than the link does.
-
-### 12.3 Three of seven audit findings were the audit lying
-
-Recorded because each failed the way this codebase keeps recording, and each would
-have sent somebody editing correct code:
-
-- **"Two scroll containers."** The closed sheet is hidden with `visibility`, which
-  `offsetParent` cannot see.
-- **"Inputs are 50px, the token is 52."** Measured the inner `<input>` rather than the
-  control surface. `.ag-field` is 52 on phone and 48 on desktop, both correct.
-- **"`--ag-bottom-ui` is 0."** `shell.js` sets it on `<body>` and the probe read
-  `:root`. It is 85px on the flow and 81px on the hub.
-
-A fourth, later: **`.ccard__x` is 24px and correct** — it extends its hit area with a
-transparent `::after`, which an element-box measurement cannot see. The sweep reads
-the pseudo-element now.
-
-### 12.4 Against the reference
-
-`docs/redesign-ref/Nominate Page.dc.html` — which the first build never opened; the
-stylesheet cited `design/NominationFlow.dc.html`, a path that does not exist.
-
-Now present and measured against the reference's own values: the white card (616px,
-radius 22, 34px padding), the centred kicker/title/lede, the stepper with connector
-lines and ticks, the 38px tinted category tile with the reference's selected state,
-the optional portrait slot, the submitting state, and
-"Free · takes about 90 seconds · OTP-secured" verbatim.
-
-Deviations, deliberate:
-
-- **Inputs stay 16px and the phone primary 52px.** The reference draws 14.5px and
-  ~44px on a desktop canvas with no phone branch; §1 and §11 are MUSTs and a sub-16px
-  input makes iOS zoom the page mid-form.
-- **The reference is a single-category flow with one story box.** The brief is two or
-  three categories each with its own reason. The brief supersedes it; a chosen tile
-  spans both columns so its reason has the width, which `:has()` gives for nothing.
-- **The category glyph is the category's initial, not an icon.** These categories come
-  from the database and differ per award; a fixed icon set would be a guess about
-  somebody else's taxonomy.
-
-### 12.5 The celebration: one engine, two kinds
-
-§24 makes a celebration a MUST for nominations, and `/nominate/success` had
-`sc_confetti: false` on the legacy layout.
-
-**§24.7's engine files do not exist** — the skill ships only `SKILL.md` — and this
-repo already has a celebration engine with ten tests holding real product rules (no
-burst on a held result, none on a delayed holding page, never paints the page).
-Writing a second engine from prose would be two implementations of one occasion,
-which is the shape this codebase pays for most often, and §24 itself asks for
-consistency.
-
-So `celebrate.js` gained a `kind`. `win` fires exactly the choreography it always
-has; `nominate` is its own — stars from the badge on two radii, roughly half the
-density, no gold cannons. **A nomination is not a win**, and firing the winner's
-choreography on the screen where somebody has just put a name forward tells them the
-award is theirs.
-
-One test had to change with it, and the change is the point: it counted the **literal**
-`disableForReducedMotion: true` and expected two. The rule — every burst carries the
-flag — was right; the token was how the flag happened to be written that day. It is
-counted against `fire(` calls now, so it covers a flag set as a property just as well
-as one spelled in a literal, and it was broken and watched to name the break.
-
-### 12.6 The form did not work without JavaScript, and said it did
-
-`components/nominate.css` stated, in as many words, that with no script "every
-section is simply visible and the form still posts". Measured with scripting off: **one
-of four panels visible, no submit button, twenty-nine fields that could never be
-sent.** §19's shape, in a comment written in this pass.
-
-Four separate things had the dependency, and each was the wrong way round:
-
-| | it shipped as | it ships as |
-|---|---|---|
-| Steps 2–4 | `hidden`, revealed by script | visible; the script hides them on boot |
-| Submit | `hidden`, revealed by script | visible; `Continue` is the one that starts hidden, because Continue is the wizard's own control and does nothing without it |
-| Each reason box | `hidden`, revealed on tick | visible; `syncCats()` closes the unchosen ones on boot |
-| The action bar | `position:fixed`, cleared by `--ag-bottom-ui` | fixed only under `[data-nf-wizard]` |
-
-The last is the subtle one. `--ag-bottom-ui` is **measured by `shell.js`**, so with no
-script it never leaves its 0px default — the fixed bar then floated over the end of the
-form and covered the consent checkbox. `elementFromPoint` on that box returned
-`.nf__bar`: the last control of the form, unreachable, on the exact path that is meant
-to work without JavaScript. The fixed bar belongs to the wizard, because the wizard is
-what makes the form short enough to need one.
-
-**And one server rule had to change with them.** `NominationRules::categories()` kept
-every entry, which is right only while something upstream guarantees an unchosen
-category never posts — and with the wizard running, something does: the script disables
-the textarea of an unticked category, and a disabled control is the one thing a browser
-will not submit. With no script there is nothing to disable, so all six reason boxes
-posted and a nomination naming two categories arrived as six, four of them blank, and
-was refused for exceeding a cap the person had not come near. The checkbox cannot
-settle it either — it carries no `name` and has never posted at all, so **the writing
-has always been the choice**. An empty reason is not a choice now.
-
-Verified by submitting a complete nomination with `javaScriptEnabled: false` and landing
-on the success page, and by re-walking the wizard with scripting on.
-
-### 12.7 Not done
-
-- **No automated guard on touch targets.** The sweep that found the 801 is a browser
-  script in the scratchpad, not a test — PHPUnit cannot measure a rendered box. The
-  numbers above are reproducible by hand and nothing stops them growing back.
+- **Files:** deleted and rewritten `docs/handoff/GAPS.md`; `.claude/skills/app-ux-standards/SKILL.md` deleted and
+  reinstalled from the bundle (byte-identical, no diff).
+- **DC prop combinations → screenshots:** none — Phase 0 renders nothing.
+- **Deviations:** none.
+- **Blocked:** §8, nineteen questions. Q1–Q5 and Q12 block Phases 1–2; Q7 and Q19 block Phase 3; the rest block the phase named beside them.
