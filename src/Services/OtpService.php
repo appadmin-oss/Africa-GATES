@@ -757,6 +757,7 @@ HTML;
         string $cycleName,
         string $closingDate,
         array  $topNominees = [],
+        string $unsubscribeUrl = '',
     ): array {
         $base = $this->base();
         $rows = '';
@@ -794,7 +795,10 @@ HTML;
             $html,
             "{$cycleName} voting closes {$closingDate}. Vote now at {$base}/vote",
             'Reminder',
-            $this->base() . '/assets/img/illustrations/illo-ballot-countdown.jpg'
+            $this->base() . '/assets/img/illustrations/illo-ballot-countdown.jpg',
+            // A broadcast, so it carries the list headers and the footer's stop link —
+            // without them a reminder is the one bulk mail here nobody can switch off.
+            $unsubscribeUrl
         );
     }
 

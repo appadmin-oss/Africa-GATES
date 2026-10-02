@@ -160,6 +160,11 @@ final class Maintenance
             // AfricaGates\Services\Mail\MailHealth for the states.
             $ran[] = ['mailhealth',    $this->task('mailhealth',
                 fn() => (new \AfricaGates\Services\Mail\MailHealth())->check())];
+            // The newsletter. AFTER mailhealth, deliberately: the send holds while an
+            // incident is open, and this is the tick that may have just opened one. Every
+            // tick, because it is a batch and a list of thousands is many ticks long; when
+            // the schedule is off, or nothing is due or approved, it is two queries.
+            $ran[] = ['newsletter',    $this->task('newsletter', fn() => $this->newsletter()->tick())];
             // What the platform looked like on this tick, for /status to show a history
             // with. LAST in the every-tick block on purpose: it records the state AFTER the
             // queue has drained and payments have reconciled, which is the state a visitor
@@ -334,6 +339,9 @@ final class Maintenance
                 // shell here to make them come down any other way.
                 'challenges' => $ran[] = ['challenges', $this->task('challenges', fn() => \AfricaGates\Services\ChallengeService::sweepWindows())],
                 'mailhealth' => $ran[] = ['mailhealth', $this->task('mailhealth', fn() => (new \AfricaGates\Services\Mail\MailHealth())->check())],
+                // An operator who has just approved an issue should not have to wait for the
+                // next tick to see the first batch go.
+                'newsletter' => $ran[] = ['newsletter', $this->task('newsletter', fn() => $this->newsletter()->tick())],
                 // Addressable by name because there is no SSH on this account: when a round
                 // opens sooner than the hourly sweep can fill it, `/__cron/run?task=judgemaps`
                 // is the only way anybody can ask for another batch.
@@ -1153,23 +1161,52 @@ final class Maintenance
         } catch (\Throwable $e) { $this->log('Ack error: ' . $e->getMessage()); return 0; }
     }
 
+    /** The newsletter sender, on this deployment's transport and site address. */
+    private function newsletter(): \AfricaGates\Services\Newsletter\Newsletter
+    {
+        $mailer = null;
+        try {
+            $mailer = $this->container?->get(OtpService::class);
+        } catch (\Throwable) {
+        }
+        return new \AfricaGates\Services\Newsletter\Newsletter(
+            $mailer instanceof OtpService ? $mailer : OtpService::boot(), SiteUrl::base());
+    }
+
+    /**
+     * "Voting closes soon", to profiles and newsletter subscribers, 24–48 hours out.
+     *
+     * ── THREE FAULTS IT HAD ──────────────────────────────────────────────────
+     *
+     * It ignored the opt-out list: somebody who pressed Unsubscribe in any bulk mail went
+     * on receiving this one, and it carried no List-Unsubscribe header to press. It mailed
+     * every newsletter row, confirmed or not — so every address anybody had typed into the
+     * form. And it could repeat: the 06:00 window is fifteen minutes wide and the webcron
+     * ticks every five, with nothing recording who had already been told. Now it reads
+     * {@see NewsletterAudience} for the list, honours the opt-out, and claims each address
+     * in `gates_broadcast_log` under a key naming the cycles, before sending.
+     */
     private function sendVotingReminders(): int
     {
         $count = 0;
         try {
             $now = Carbon::now();
-            $cycles = DB::table('gates_award_cycles')
+            $q = DB::table('gates_award_cycles')
                 ->where('status', 'voting')
                 ->whereNotNull('voting_close')
                 ->whereBetween('voting_close', [
                     $now->copy()->addHours(24)->toDateTimeString(),
                     $now->copy()->addHours(48)->toDateTimeString(),
-                ])
-                ->get();
+                ]);
+            // The rehearsal is seeded in `voting` with a real close date.
+            \AfricaGates\Services\DemoSeeder::notSandbox($q, 'programme_id');
+            $cycles = $q->orderBy('id')->get();
             if ($cycles->isEmpty()) return 0;
 
             $mailer = $this->container?->get(OtpService::class);
             if (!$mailer || !$mailer->smtpConfigured()) return 0;
+            $site = SiteUrl::base();
+            if ($site === '') return 0;
 
             $catIds = DB::table('gates_award_categories')->whereIn('cycle_id', $cycles->pluck('id'))->pluck('id');
             $topNominees = DB::table('gates_nominees')
@@ -1179,16 +1216,28 @@ final class Maintenance
                 ->limit(5)->get()->all();
 
             $cycleNames  = $cycles->map(fn($c) => $c->edition_label ?? '2026 Cycle')->implode(' · ');
-            $closingDate = Carbon::parse($cycles->first()->voting_close)->format('D, d M Y');
+            $closingDate = \AfricaGates\Support\DisplayTime::showZoned((string) $cycles->first()->voting_close, 'D, d M Y');
+            $campaign    = 'reminder-' . $cycles->pluck('id')->implode('-');
 
-            $profileEmails    = DB::table('gates_profiles')->where('status', 'approved')->whereNotNull('email')->pluck('email')->all();
-            $newsletterEmails = DB::table('gates_newsletter')->whereNull('unsubscribed_at')->whereNotNull('email')->pluck('email')->all();
-            $emails = array_values(array_unique(array_filter(array_merge($profileEmails, $newsletterEmails))));
+            $profileEmails = DB::table('gates_profiles')->where('status', 'approved')->whereNotNull('email')->pluck('email')->all();
+            $subscribers   = array_column(\AfricaGates\Services\Newsletter\NewsletterAudience::recipients(), 'email');
 
-            foreach ($emails as $email) {
+            $suppressed = \AfricaGates\Services\EmailOptOut::suppressedHashes();
+            $done       = BroadcastLog::handled($campaign);
+            $seen       = [];
+            foreach (array_merge($profileEmails, $subscribers) as $email) {
+                $email = \AfricaGates\Services\EmailOptOut::normalise((string) $email);
                 if (!filter_var($email, FILTER_VALIDATE_EMAIL)) continue;
-                $mailer->sendVotingReminder($email, $cycleNames, $closingDate, $topNominees);
-                $count++;
+                $h = \AfricaGates\Services\EmailOptOut::hash($email);
+                if (isset($seen[$h]) || isset($suppressed[$h]) || isset($done[$h])) continue;
+                $seen[$h] = true;
+                if (!BroadcastLog::claim($campaign, $email)) continue;
+
+                $res = $mailer->sendVotingReminder($email, $cycleNames, $closingDate, $topNominees,
+                    \AfricaGates\Services\EmailOptOut::url($site, $email));
+                $ok  = (bool) ($res['success'] ?? false);
+                BroadcastLog::settle($campaign, $email, $ok, (string) ($res['error'] ?? ''));
+                if ($ok) $count++;
             }
             $this->log("Voting reminders sent: {$count}");
         } catch (\Throwable $e) {

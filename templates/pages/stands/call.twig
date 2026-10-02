@@ -599,7 +599,10 @@
       })
         .then(function (r) { return r.json(); })
         .then(function (j) {
-          if (j && j.ok) {
+          // The API answers `success`, never `ok` — reading `ok` sent every request down
+          // the failure branch, so the page told each person who asked that it had not
+          // worked while their address was stored.
+          if (j && j.success) {
             form.hidden = true;
             say.textContent = 'Done — we have your address against this event.';
           } else {

@@ -73,6 +73,7 @@ final class HandbookTest extends TestCase
             // stayed unwritten for as long as it did.
             'scoring'      => HandbookController::scoring($r),
             'grace_days'   => CycleMaterialiser::ANNOUNCE_GRACE_DAYS,
+            'newsletter'   => HandbookController::newsletter(),
             'check_states' => RegistryCheck::STATES,
             'check_sense'  => array_map(static fn (): string => 'sense', RegistryCheck::STATES),
             'cac_search'   => RegistryCheck::CAC_SEARCH,

@@ -1,6 +1,8 @@
 <?php
 declare(strict_types=1);
 namespace AfricaGates\Controllers;
+
+use AfricaGates\Services\Newsletter\NewsletterAudience;
 use AfricaGates\Support\Env;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
@@ -437,9 +439,12 @@ HTML;
     }
 
     /**
-     * Minimal newsletter subscribe — idempotent on email_hash (UNIQUE),
-     * IP-throttled, same-origin enforced upstream by CsrfMiddleware. We
-     * deliberately return success on duplicate to avoid revealing membership.
+     * Newsletter signup — IP-throttled, same-origin enforced upstream by CsrfMiddleware.
+     *
+     * The row is written and a CONFIRMATION is sent; nothing else reaches the address until
+     * its owner presses the button in it ({@see NewsletterAudience}). The answer is the same
+     * whatever happened — new, already confirmed, throttled per address — because a form
+     * that answers differently is a membership lookup.
      */
     public function newsletterSubscribe(Request $req, Response $res): Response {
         $b = (array)$req->getParsedBody();
@@ -451,32 +456,14 @@ HTML;
         if (!$this->rateLimit->check(hash('sha256', $ip), 'newsletter_subscribe', 5, 3600)) {
             return $this->err($res, 'Too many requests. Try again later.', 'RATE_LIMITED', 429);
         }
-        $hash = hash('sha256', $email);
-        $isNew = false;
         try {
-            DB::table('gates_newsletter')->insert([
-                'email_hash' => $hash, 'email' => $email,
-                'ip_hash' => hash('sha256', $ip),
-                'source' => substr((string)($b['source'] ?? 'homepage'), 0, 50),
-                'subscribed_at' => date('Y-m-d H:i:s'),
-            ]);
-            $isNew = true;
+            NewsletterAudience::join($email, (string)($b['source'] ?? 'homepage'), hash('sha256', $ip),
+                \AfricaGates\Support\SiteUrl::base($req),
+                $this->otp ? NewsletterAudience::transport($this->otp) : null);
         } catch (\Throwable $e) {
-            // UNIQUE violation on re-subscribe is fine — idempotent + non-leaky.
+            // Before the migration, or a database hiccup: the person is told the same thing,
+            // and the next attempt will write the row.
         }
-        // Welcome only a genuinely-new subscriber (re-subscribe sends nothing → no mail-bomb).
-        if ($isNew && $this->otp) {
-            try {
-                $base = \AfricaGates\Support\SiteUrl::base($req);
-                $whtml = "<h1 style=\"margin:0;font-family:'Playfair Display',Georgia,serif;font-weight:700;font-size:24px;color:#10292C\">You're on the list</h1>"
-                    . "<p style=\"margin:13px 0 0;font-size:15px;line-height:1.6;color:#4a5256\">Thanks for subscribing to Africa GATES. We'll let you know when nominations open, voting goes live, and each cycle's winners are crowned.</p>"
-                    . "<p style=\"text-align:center;margin:22px 0\"><a href=\"{$base}/leaderboard\" style=\"display:inline-block;padding:12px 28px;background:#10292C;color:#fff;border-radius:999px;font-weight:600;text-decoration:none;font-size:15px\">Explore the leaderboard &rarr;</a></p>"
-                    . "<p style=\"margin:0;font-size:12.5px;color:#92a6a7\">Didn't subscribe? You can ignore this email and you won't hear from us again.</p>";
-                $this->otp->sendBranded($email, "You're subscribed — Africa GATES", $whtml,
-                    "Thanks for subscribing to Africa GATES. We'll let you know when nominations open and voting goes live.\n\n{$base}/leaderboard\n\nDidn't subscribe? Ignore this email.",
-                    'Newsletter');
-            } catch (\Throwable $e) {}
-        }
-        return $this->ok($res, ['message' => 'Subscribed.']);
+        return $this->ok($res, ['message' => 'Check your inbox to confirm your subscription.']);
     }
 }

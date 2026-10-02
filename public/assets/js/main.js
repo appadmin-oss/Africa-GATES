@@ -407,7 +407,7 @@
             if (d && d.success) {
               row && row.setAttribute('hidden', '');
               if (okEl) okEl.classList.add('is-show');
-              toast('You’re subscribed', { msg: 'Insights will land in your inbox.' });
+              toast('Check your inbox', { msg: 'Confirm from the email we just sent.' });
             } else {
               toast('Could not subscribe', { type: 'error', msg: (d && d.message) || 'Please try again in a moment.' });
             }

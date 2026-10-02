@@ -3231,6 +3231,15 @@ return function(App $app) {
         $g->get('/email/unsubscribe',  EmailPrefsController::class . ':show');
         $g->post('/email/unsubscribe', EmailPrefsController::class . ':stop');
 
+        // The newsletter's way in, and its yes. /newsletter is a plain form that posts —
+        // the only signup that existed was a script bound to a form no template renders.
+        // /email/confirm is GET-shows, POST-confirms, for the same scanner reason as
+        // the unsubscribe above. See NewsletterController.
+        $g->get('/newsletter',          \AfricaGates\Controllers\NewsletterController::class . ':show');
+        $g->post('/newsletter',         \AfricaGates\Controllers\NewsletterController::class . ':join');
+        $g->get('/email/confirm',  \AfricaGates\Controllers\NewsletterController::class . ':confirmShow');
+        $g->post('/email/confirm', \AfricaGates\Controllers\NewsletterController::class . ':confirm');
+
         // SEO: robots.txt + sitemap.xml
         $g->get('/robots.txt', function($req, $res) {
             $scheme = $req->getUri()->getScheme();
@@ -4152,6 +4161,16 @@ return function(App $app) {
         // these routes is the safety mechanism.
         $a->group('/campaigns', function (RouteCollectorProxy $s) {
             $s->get('',                      \AfricaGates\Admin\Controllers\CampaignsController::class.':index');
+            // The automated newsletter — a sub-page of campaigns, linked from its list.
+            // Literal segments, so they cannot collide with the digits-only /{id} below.
+            $s->get('/newsletter',                       \AfricaGates\Admin\Controllers\NewsletterAdminController::class.':index');
+            $s->post('/newsletter/settings',             \AfricaGates\Admin\Controllers\NewsletterAdminController::class.':settings');
+            $s->post('/newsletter/compose',              \AfricaGates\Admin\Controllers\NewsletterAdminController::class.':compose');
+            $s->get('/newsletter/{id:[0-9]+}/preview',   \AfricaGates\Admin\Controllers\NewsletterAdminController::class.':preview');
+            $s->post('/newsletter/{id:[0-9]+}/approve',  \AfricaGates\Admin\Controllers\NewsletterAdminController::class.':approve');
+            $s->post('/newsletter/{id:[0-9]+}/skip',     \AfricaGates\Admin\Controllers\NewsletterAdminController::class.':skip');
+            $s->post('/newsletter/{id:[0-9]+}/test',     \AfricaGates\Admin\Controllers\NewsletterAdminController::class.':test');
+            $s->post('/newsletter/{id:[0-9]+}/send',     \AfricaGates\Admin\Controllers\NewsletterAdminController::class.':send');
             $s->post('/new',                 \AfricaGates\Admin\Controllers\CampaignsController::class.':create');
             $s->get('/{id:[0-9]+}',          \AfricaGates\Admin\Controllers\CampaignsController::class.':show');
             $s->post('/{id:[0-9]+}',         \AfricaGates\Admin\Controllers\CampaignsController::class.':save');

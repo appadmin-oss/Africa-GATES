@@ -58,6 +58,24 @@ final class HandbookController
 {
     public function __construct(private readonly Twig $view) {}
 
+    /**
+     * The newsletter's schedule and limits, from the classes that act on them. Static so
+     * HandbookTest renders the page with this and not with its own copy.
+     *
+     * @return array{on:bool, describe:string, grace:int, batch:int, stop:int}
+     */
+    public static function newsletter(): array
+    {
+        $nl = \AfricaGates\Services\Newsletter\NewsletterSchedule::load();
+        return [
+            'on'       => $nl->on(),
+            'describe' => $nl->describe(),
+            'grace'    => \AfricaGates\Services\Newsletter\NewsletterSchedule::GRACE_HOURS,
+            'batch'    => \AfricaGates\Services\Newsletter\Newsletter::BATCH,
+            'stop'     => \AfricaGates\Services\Newsletter\Newsletter::STOP_AFTER,
+        ];
+    }
+
     public function index(Request $req, Response $res): Response
     {
         $role = (string) ($_SESSION['admin_role'] ?? '');
@@ -110,6 +128,9 @@ final class HandbookController
             // here, so a stored typo is described the way it will be SCORED.
             'scoring'     => self::scoring($rules),
             'grace_days'  => CycleMaterialiser::ANNOUNCE_GRACE_DAYS,
+
+            // The newsletter's schedule and its limits, from the classes that act on them.
+            'newsletter'  => self::newsletter(),
 
             // ── THE VERIFICATION STATES, FROM THE SERVICE'S OWN LIST ─────────
             //

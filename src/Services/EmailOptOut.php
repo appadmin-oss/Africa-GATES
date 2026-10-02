@@ -46,12 +46,25 @@ final class EmailOptOut
      */
     public static function token(string $email): string
     {
+        return self::sign($email, self::SCOPE);
+    }
+
+    /**
+     * An address-bound credential for one PURPOSE.
+     *
+     * The unsubscribe token is `sign($email, 'all')`; the newsletter's confirmation link
+     * signs the same address for a different purpose, so one can never be replayed as the
+     * other. One key derivation for every mail link, rather than a second copy of the
+     * fallback rule below drifting from this one.
+     */
+    public static function sign(string $email, string $purpose): string
+    {
         $key = (string) \AfricaGates\Support\Env::get('APP_KEY', '');
         if ($key === '') {
             $key = 'ag-fallback|' . (string) \AfricaGates\Support\Env::get('DB_NAME', 'africa_gates');
         }
 
-        return \substr(\hash_hmac('sha256', self::normalise($email) . '|' . self::SCOPE, $key), 0, 32);
+        return \substr(\hash_hmac('sha256', self::normalise($email) . '|' . $purpose, $key), 0, 32);
     }
 
     /** True when this address has asked not to receive bulk mail. */

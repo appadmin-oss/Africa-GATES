@@ -768,6 +768,19 @@ hourly probe, runs `MailDiagnosis` — the SMTP conversation step by step to `MA
 and on every console page, recording which channels actually reached somebody.
 `/admin/settings/mail` is where every alert points.
 
+**And mail that sends ITSELF claims before it sends.** The campaign screen logs a row
+after each send and says so; a person watching the tally can see a repeat. The newsletter
+and the voting reminder have nobody watching and a second way to repeat — two cron ticks
+reading the same "not yet sent" list — so `Support\BroadcastLog::claim()` writes the row
+FIRST and the UNIQUE (campaign, email_hash) decides who owns the address. The reminder had
+none of it: it ignored the opt-out list, carried no List-Unsubscribe, mailed every address
+anybody had typed into the signup form, and could fire three times in its fifteen-minute
+06:00 window. `Newsletter\NewsletterAudience` is the one answer to "may we mail this
+person" — confirmed, not unsubscribed, not opted out — and a stand-call "email me when it
+opens" row in the same table is not a subscription. The signup form that existed was a
+script bound to a `.subscribe-form` no template rendered; `/newsletter` is the way in now,
+linked from the footer. `NewsletterTest`'s 28 mutations each fail it.
+
 **And one probe, not one per service.** "Does this database have that column?" has to be
 asked here — migrations are applied by an operator opening a URL and the admin layout
 counts unapplied steps in the dozens. The four lines that ask it existed **four** times and

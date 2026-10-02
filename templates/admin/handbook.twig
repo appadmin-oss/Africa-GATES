@@ -405,6 +405,17 @@
     to a web simulator. Every screen reads as working and no phone rings. The Integrations
     page names which environment answered — read that word.</div>
 
+  <h3>The newsletter did not go out</h3>
+  <p>Open <a href="/admin/campaigns/newsletter">Campaigns → Newsletter</a>. It is
+    {% if newsletter.on %}on — {{ newsletter.describe }}{% else %}switched off, so nothing is composed or sent{% endif %}.
+    An issue with nothing new in it is skipped and says so, rather than sent. A send holds by
+    itself while email is failing, and stops after {{ newsletter.stop }} failures in a row; the
+    reason is written on the issue, and the next run carries on from where it stopped —
+    {{ newsletter.batch }} at a time, never mailing anybody twice. A slot missed by more than
+    {{ newsletter.grace }} hours waits for the next one.</p>
+  <p>It reaches only people who confirmed from the email it sends when they sign up. Somebody
+    "not getting it" who never pressed that button is not on the list yet.</p>
+
   <h3>A nominee's score is not changing</h3>
   <p>If the edition has been released, that is correct: the published figures are the
     sealed ones and will not move. Check <a href="/admin/result-release">Result release</a>

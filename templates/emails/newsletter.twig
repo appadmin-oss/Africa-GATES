@@ -1,0 +1,238 @@
+{#
+  The newsletter. Composed by NewsletterComposer from what the site is doing, frozen on
+  the issue row, rendered once per recipient by Newsletter::html().
+
+  The skeleton is campaign.twig's, line for line — the fluid-hybrid wrapper, the MSO
+  conditionals, the hidden preheader, role="presentation" on every layout table, the
+  hosted mark — because EmailInboxCompatTest's properties were proved on that file and
+  NewsletterInboxCompatTest holds the same ones against a RENDERED issue here.
+
+  What differs is only the body: a headline, then one section per kind of news, each a
+  short list of facts that link to the page stating them. There is no hero image and no
+  countdown: an issue is a summary, and the reader's next step is always a link.
+
+  Every colour is `c.*`, a value from Support\Accent passed in by Newsletter::palette():
+  mail cannot read a custom property, but it need not type its own palette either.
+
+  Nothing here is typed by anybody. Every title is a programme, an event or a challenge
+  as the site names it, and autoescaping applies to all of them.
+#}
+<!DOCTYPE html>
+<html lang="en" xmlns="http://www.w3.org/1999/xhtml" xmlns:v="urn:schemas-microsoft-com:vml" xmlns:o="urn:schemas-microsoft-com:office:office">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta http-equiv="X-UA-Compatible" content="IE=edge">
+<meta name="format-detection" content="telephone=no, date=no, address=no, email=no, url=no">
+<meta name="color-scheme" content="light">
+<meta name="supported-color-schemes" content="light">
+<title>{{ subject }}</title>
+<!--[if mso]>
+<noscript>
+<xml>
+<o:OfficeDocumentSettings>
+<o:PixelsPerInch>96</o:PixelsPerInch>
+</o:OfficeDocumentSettings>
+</xml>
+</noscript>
+<![endif]-->
+<style>
+  body, table, td, a { -webkit-text-size-adjust: 100%; -ms-text-size-adjust: 100%; }
+  table, td { mso-table-lspace: 0pt; mso-table-rspace: 0pt; }
+  img { -ms-interpolation-mode: bicubic; border: 0; height: auto; line-height: 100%; outline: none; text-decoration: none; display: block; }
+  body { margin: 0; padding: 0; width: 100% !important; height: 100% !important; background-color: {{ c.ground }}; }
+  table { border-collapse: collapse !important; }
+  a[x-apple-data-detectors] { color: inherit !important; text-decoration: none !important; font-size: inherit !important; font-family: inherit !important; font-weight: inherit !important; line-height: inherit !important; }
+  u + #body a { color: inherit; text-decoration: none; }
+  #MessageViewBody a { color: inherit; text-decoration: none; }
+  span.MsoHyperlink { color: inherit; mso-style-priority: 99; }
+  [data-ogsc] .agw-bg { background-color: {{ c.card }} !important; }
+  [data-ogsc] .agw-text { color: {{ c.ink }} !important; }
+
+  /* Outlook (Word engine) ignores line-height unless told the rule is exact, and
+     collapses to single spacing on long paragraphs. */
+  p, td, a, div, h1 { mso-line-height-rule: exactly; }
+
+  /* ── DARK MODE ───────────────────────────────────────────────────────────
+     `color-scheme: light` above already stops Apple Mail and iOS inverting anything,
+     which is why the palette below is a deliberate dark counterpart rather than a
+     defensive one. Gmail's and Outlook.com's dark modes invert regardless and do it
+     badly on near-white surfaces — dark text left on a darkened background. Declaring
+     the dark values explicitly means the clients that DO honour the query render a
+     chosen design, and the ones that force-invert have less to get wrong. */
+  @media (prefers-color-scheme: dark) {
+    .agw-body   { background-color: {{ c.dark }} !important; }
+    .agw-bg     { background-color: {{ c.dark }} !important; }
+    .agw-text   { color: {{ c.ground }} !important; }
+    .agw-muted  { color: {{ c.line }} !important; }
+    .agw-body-t { color: {{ c.surface2 }} !important; }
+    .agw-rule   { border-color: {{ c.ink2 }} !important; }
+    /* The green CTA already clears 4.5:1 against white text, so it is left alone —
+       lightening it here would only reduce that. */
+  }
+
+  @media screen and (max-width: 600px) {
+    .agw-wrapper { width: 100% !important; }
+    .agw-px { padding-left: 28px !important; padding-right: 28px !important; }
+    .agw-headline { font-size: 26px !important; line-height: 32px !important; }
+    .agw-btn-pad { padding-left: 28px !important; padding-right: 28px !important; }
+    .agw-hero-pad { padding: 28px 20px !important; }
+  }
+</style>
+</head>
+<body id="body" class="agw-body" style="margin:0; padding:0; background-color:{{ c.ground }};">
+
+{# The brand mark is a HOSTED PNG, not an inlined data: URI.
+
+   It was base64 — 20,848 bytes, over half the entire email — and Gmail, Outlook desktop,
+   Outlook.com and Yahoo all refuse data: URIs in an img src, so the majority of readers
+   paid that weight and saw the alt text anyway. It also spent half the headroom before
+   Gmail's ~102KB clipping point, and what Gmail clips off a campaign is the footer, which
+   is where the unsubscribe link lives.
+
+   Not the SVG at /assets/img/logo-africa-gates.svg either: it is 1.4MB of embedded
+   bitmap, and email clients do not render SVG at all. #}
+<!-- PREHEADER -->
+<div style="display:none; max-height:0; overflow:hidden; mso-hide:all; font-size:1px; line-height:1px; color:{{ c.ground }}; opacity:0;">
+  {{ preheader }}
+  &nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;
+</div>
+
+<table role="presentation" class="agw-body" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="{{ c.ground }}" style="background-color:{{ c.ground }};">
+<tr>
+<td align="center" style="padding:32px 12px;">
+
+
+  <!--[if mso]>
+  <table role="presentation" width="560" cellpadding="0" cellspacing="0" border="0" style="width:560px;"><tr><td>
+  <![endif]-->
+  {# FLUID-HYBRID, not a fixed 560px table.
+
+     This was width="560" with the mobile override living only inside the one @media
+     block. Gmail strips <style> in several configurations (notably a non-Gmail address
+     fetched via POP/IMAP into a Gmail account), and when it does, a 560px table lands on
+     a 320px screen: the reader gets a horizontally scrolling email or a zoomed-out one.
+     A percentage width with a max-width needs no media query to work, and the MSO
+     conditional above gives Outlook — which ignores max-width — its fixed 560. #}
+  <table role="presentation" class="agw-wrapper agw-bg" width="100%" cellpadding="0" cellspacing="0" border="0" style="width:100%; max-width:560px; background-color:{{ c.card }}; border-radius:20px; overflow:hidden;">
+
+    <!-- DARK HEADER BAR (logo left, status badge right) -->
+    <tr>
+      <td style="background-color:{{ c.bar }};">
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+          <tr>
+            <td class="agw-px" style="padding:20px 32px;">
+              <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%">
+                <tr>
+                  <td valign="middle">
+                    <table role="presentation" cellpadding="0" cellspacing="0" border="0">
+                      <tr>
+                        <td valign="middle" width="40" style="padding-right:10px;">
+                          {# THE MARK ONLY, not the full lockup. The wordmark version is
+                             illegible below about 96px, and the words "Africa GATES" are
+                             already set in live text in the cell beside this one — printing
+                             them twice, once as unreadable pixels, is worse than not
+                             printing them at all.
+
+                             Served at 2x (192px for a 40px box) so it is not soft on a
+                             retina phone, which is where most of these are opened. #}
+                          <img src="{{ site_url }}/assets/img/logo-mark.png" width="40" height="40" alt="Africa GATES" style="display:block;">
+                        </td>
+                        <td valign="middle">
+                          <p style="margin:0; font-family:Helvetica, Arial, sans-serif; font-size:16px; font-weight:700; color:{{ c.card }}; line-height:16px;">Africa</p>
+                          <p style="margin:1px 0 0 0; font-family:Helvetica, Arial, sans-serif; font-size:10px; font-weight:700; letter-spacing:2px; color:{{ c.bar_accent }}; line-height:12px;">GATES</p>
+                        </td>
+                      </tr>
+                    </table>
+                  </td>
+                  <td valign="middle" align="right">
+                    <p style="margin:0; font-family:Helvetica, Arial, sans-serif; font-size:11px; font-weight:700; letter-spacing:1.6px; color:{{ c.bar_soft }}; text-transform:uppercase;">Newsletter</p>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+
+    <!-- HEADLINE -->
+    <tr>
+      <td class="agw-px" style="padding:36px 40px 0 40px;">
+        <p class="agw-muted" style="margin:0 0 10px 0; font-family:Helvetica, Arial, sans-serif; font-weight:700; font-size:11px; letter-spacing:1.2px; color:{{ c.soft }}; text-transform:uppercase;">{{ dateline }}</p>
+        <h1 class="agw-headline agw-text" style="margin:0; font-family:Helvetica, Arial, sans-serif; font-weight:700; font-size:28px; line-height:34px; color:{{ c.ink }}; letter-spacing:-0.3px;">{{ headline }}</h1>
+      </td>
+    </tr>
+
+    {% for s in sections %}
+      <!-- SECTION -->
+      <tr>
+        <td class="agw-px" style="padding:30px 40px 0 40px;">
+          <p style="margin:0 0 4px 0; font-family:Helvetica, Arial, sans-serif; font-weight:700; font-size:11px; letter-spacing:1.2px; color:{{ c.action }}; text-transform:uppercase;">{{ s.title }}</p>
+          <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+            {% for it in s.items %}
+              <tr>
+                <td class="agw-rule" style="padding:14px 0; border-bottom:1px solid {{ c.line }};">
+                  <p class="agw-text" style="margin:0 0 3px 0; font-family:Helvetica, Arial, sans-serif; font-size:16px; line-height:22px; font-weight:700; color:{{ c.ink }};">
+                    {{ it.title }}{% if it.new %}&nbsp;&nbsp;<span style="font-size:10px; letter-spacing:1px; font-weight:700; color:{{ c.action }}; text-transform:uppercase;">New</span>{% endif %}
+                  </p>
+                  <p class="agw-body-t" style="margin:0 0 6px 0; font-family:Helvetica, Arial, sans-serif; font-size:14px; line-height:21px; color:{{ c.ink2 }};">{{ it.line }}</p>
+                  <a href="{{ it.href }}" target="_blank" style="font-family:Helvetica, Arial, sans-serif; font-size:13px; font-weight:700; color:{{ c.action }}; text-decoration:none;">{{ it.cta }} &nbsp;&rarr;</a>
+                </td>
+              </tr>
+            {% endfor %}
+          </table>
+        </td>
+      </tr>
+    {% endfor %}
+
+    <!-- THE SITE -->
+    {# Both halves, as in campaign.twig: the VML roundrect is the only button Outlook's
+       Word engine renders, and <w:anchorlock/> stops it being draggable. #}
+    <tr>
+      <td class="agw-px agw-btn-pad" align="center" style="padding:32px 40px 0 40px;">
+        <!--[if mso]>
+        <v:roundrect xmlns:v="urn:schemas-microsoft-com:vml" xmlns:w="urn:schemas-microsoft-com:office:word" href="{{ site_url }}" style="height:48px;v-text-anchor:middle;width:300px;" arcsize="12%" strokecolor="{{ c.action }}" fillcolor="{{ c.action }}">
+        <w:anchorlock/>
+        <center style="color:{{ c.card }};font-family:Helvetica,Arial,sans-serif;font-size:14px;font-weight:bold;">Visit Africa GATES</center>
+        </v:roundrect>
+        <![endif]-->
+        <!--[if !mso]><!-->
+        <a href="{{ site_url }}" target="_blank" style="display:inline-block; width:100%; max-width:300px; box-sizing:border-box; background-color:{{ c.action }}; border-radius:8px; padding:15px 24px; font-family:Helvetica, Arial, sans-serif; font-size:14px; font-weight:700; color:{{ c.card }}; text-decoration:none; text-align:center;">Visit Africa GATES</a>
+        <!--<![endif]-->
+      </td>
+    </tr>
+
+    <!-- FOOTER -->
+    <tr>
+      <td class="agw-px" align="center" style="padding:36px 40px 32px 40px;">
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+          <tr><td style="border-top:1px solid {{ c.line }}; font-size:0; line-height:0; padding-bottom:22px;">&nbsp;</td></tr>
+        </table>
+        {# Why this arrived, in the reader's terms. A newsletter that does not say who asked
+           for it reads as spam to the person who has forgotten, and a dated confirmation is
+           the one fact that settles it. #}
+        <p style="margin:0 0 14px 0; font-family:Helvetica, Arial, sans-serif; font-size:12px; line-height:18px; color:{{ c.soft }};">
+          {% if since %}You are receiving this because you confirmed a subscription on {{ since }}.{% else %}You are receiving this because you subscribed to the Africa GATES newsletter.{% endif %}
+        </p>
+        <p style="margin:0 0 6px 0; font-family:Helvetica, Arial, sans-serif; font-size:11px; letter-spacing:1.2px; color:{{ c.action }}; font-weight:700; text-transform:uppercase;">Africa G.A.T.E.S.</p>
+        <p style="margin:0 0 14px 0; font-family:Helvetica, Arial, sans-serif; font-size:11px; color:{{ c.soft }};">
+          {{ postal_address }}
+        </p>
+        <p style="margin:0; font-family:Helvetica, Arial, sans-serif; font-size:11px; color:{{ c.soft }};">
+          <a href="{{ site_url }}" style="color:{{ c.soft }}; text-decoration:underline;">africagates.org</a>&nbsp;&nbsp;·&nbsp;&nbsp;<a href="{{ unsubscribe_url }}" style="color:{{ c.soft }}; text-decoration:underline;">Unsubscribe</a>
+        </p>
+      </td>
+    </tr>
+
+  </table>
+  <!--[if mso]>
+  </td></tr></table>
+  <![endif]-->
+
+</td>
+</tr>
+</table>
+
+</body>
+</html>

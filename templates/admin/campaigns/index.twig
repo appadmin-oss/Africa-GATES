@@ -26,6 +26,13 @@
   so nobody is mailed twice.
 </p>
 
+{# The automated newsletter is a sub-page of this one and linked from here, not from the
+   rail — see CLAUDE.md on sub-pages. #}
+<p class="cp-note">
+  Mail to people who asked for it is the <a href="/admin/campaigns/newsletter"><b>newsletter</b></a>:
+  composed on a schedule from what the site is doing, and sent only to confirmed subscribers.
+</p>
+
 <form method="post" action="/admin/campaigns/new" class="ad-card ad-form" style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;margin-bottom:16px">
   <input type="hidden" name="_token" value="{{ csrf_token }}">
   <label style="flex:1 1 220px">
