@@ -82,6 +82,15 @@ class ApiController {
         $fp=hash('sha256',$email);
         if(!$this->rateLimit->check($fp,'otp_request',3,600)){ $w=$this->rateLimit->retryAfter($fp,'otp_request',600); return $this->err($res,"Too many requests. Try again in {$w}s.",'RATE_LIMITED',429); }
         $nId=(int)($b['nominee_id']??0); $aId=(int)($b['award_id']??0);
+        // Ask the ballot's own gate BEFORE a code is minted and mailed. castVote() refuses
+        // a closed category or a sandbox nominee, but only after this endpoint has already
+        // sent a real email to whatever address was typed — a code nothing can spend, for
+        // a nominee anybody can enumerate by id. Same nominee lookup as VoteService.
+        $nominee=\AfricaGates\Services\MergeService::notMerged(
+            DB::table('gates_nominees')->where('id',$nId)->where('status','approved'))->first();
+        if(!$nominee) return $this->err($res,'Nominee not found.','INVALID_NOMINEE',404);
+        try { \AfricaGates\Services\BallotGuard::assertVotable((int)$nominee->category_id); }
+        catch(\AfricaGates\Services\PhaseError $e) { return $this->err($res,$e->getMessage(),$e->errorCode,403); }
         $r=$this->otp->generate($email,$nId,$aId,'vote');
         if($r['success']) {
             $this->events?->otpRequested($fp,$nId,$ipFp);

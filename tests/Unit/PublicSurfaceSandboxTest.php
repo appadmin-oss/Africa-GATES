@@ -463,4 +463,27 @@ final class PublicSurfaceSandboxTest extends TestCase
         $this->assertTrue(\AfricaGates\Services\BallotGuard::isVotable($cat),
             'the sandbox cycle is not in an open window, so the refusal above is not about the sandbox');
     }
+
+    /**
+     * The code that cannot be spent must not be SENT either. castVote() refuses the
+     * rehearsal, but /api/otp/request used to mint a token and mail it first — a real email
+     * to whatever address was typed, for a nominee anybody can enumerate by id.
+     */
+    public function test_no_vote_code_is_minted_for_a_sandbox_nominee(): void
+    {
+        $seed = DemoSeeder::seed(0);
+        $nom  = DB::table('gates_nominees')
+            ->whereIn('id', array_values($seed['nominees'] ?? []))
+            ->where('status', 'approved')->value('id');
+        $this->assertNotNull($nom, 'the sandbox seeded no approved nominee, so this proves nothing');
+
+        $req = (new ServerRequestFactory())->createServerRequest('POST', 'http://localhost/api/otp/request')
+            ->withHeader('Origin', 'http://localhost')->withHeader('Host', 'localhost')
+            ->withParsedBody(['email' => 'stranger@realmail.ng', 'nominee_id' => (string) $nom, 'award_id' => '0']);
+        $res = $this->app()->handle($req);
+
+        $this->assertNotSame(200, $res->getStatusCode(), (string) $res->getBody());
+        $this->assertSame(0, DB::table('gates_otp_tokens')->where('nominee_id', $nom)->count(),
+            'a vote code was minted for the rehearsal');
+    }
 }
