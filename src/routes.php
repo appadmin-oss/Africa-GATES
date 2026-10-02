@@ -4172,6 +4172,7 @@ return function(App $app) {
             $s->get('/newsletter',                       \AfricaGates\Admin\Controllers\NewsletterAdminController::class.':index');
             $s->post('/newsletter/settings',             \AfricaGates\Admin\Controllers\NewsletterAdminController::class.':settings');
             $s->post('/newsletter/compose',              \AfricaGates\Admin\Controllers\NewsletterAdminController::class.':compose');
+            $s->post('/newsletter/holidays',             \AfricaGates\Admin\Controllers\NewsletterAdminController::class.':holidays');
             $s->get('/newsletter/{id:[0-9]+}/preview',   \AfricaGates\Admin\Controllers\NewsletterAdminController::class.':preview');
             $s->post('/newsletter/{id:[0-9]+}/approve',  \AfricaGates\Admin\Controllers\NewsletterAdminController::class.':approve');
             $s->post('/newsletter/{id:[0-9]+}/skip',     \AfricaGates\Admin\Controllers\NewsletterAdminController::class.':skip');

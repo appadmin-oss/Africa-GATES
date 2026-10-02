@@ -57,6 +57,9 @@
       An issue goes out only when there is something new to say — a week with nothing open,
       announced or coming up is a week without an email.
     </p>
+    {% if holidays %}
+      <p class="nl__p">And a greeting on {{ holidays|slice(0, -1)|join(', ') }}{{ holidays|length > 1 ? ' and ' : '' }}{{ holidays|last }}.</p>
+    {% endif %}
   </section>
 
   <section class="nl__sec" aria-labelledby="nlWhat">

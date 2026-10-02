@@ -95,6 +95,40 @@
     </form>
   </section>
 
+  {# ── HOLIDAYS ──────────────────────────────────────────────────────────────
+     Dates are HolidayCalendar's: computed for the fixed days and Easter, typed only for
+     the two Eids, which follow the moon and are declared by the government days before. #}
+  <section class="nlx-card" id="holidays" aria-labelledby="nlxHol">
+    <h2 id="nlxHol">Holiday issues</h2>
+    <p>On each ticked holiday a greeting issue goes out at the newsletter’s hour, with what is
+      open on the site beneath it — in the same mode as the regular issue{% if not schedule.sendsItself %}, so it
+      waits here for approval that morning{% endif %}. A regular issue due within {{ spacing }} hours of one is skipped.</p>
+    <form method="post" action="/admin/campaigns/newsletter/holidays">
+      <input type="hidden" name="_token" value="{{ csrf_token }}">
+      <table class="nlx-t">
+        <thead><tr><th scope="col">Send</th><th scope="col">Holiday</th><th scope="col">Date</th></tr></thead>
+        <tbody>
+          {% for h in holidays %}
+            <tr>
+              <td><input type="checkbox" name="on[]" value="{{ h.key }}" id="nlxH-{{ h.key }}"{{ h.enabled ? ' checked' }}></td>
+              <td><label for="nlxH-{{ h.key }}">{{ h.name }}</label></td>
+              <td>
+                {% if h.rule == 'set' %}
+                  <label class="nlx-mute" for="nlxD-{{ h.key }}">Declared date</label>
+                  <input type="date" id="nlxD-{{ h.key }}" name="date[{{ h.key }}]" value="{{ h.date }}">
+                  {% if not h.date %}<span class="nlx-mute"> · not set, so not sent</span>{% endif %}
+                {% else %}
+                  {{ h.date|date('l j F Y') }}
+                {% endif %}
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      <div class="nlx-row"><button class="ad-btn" type="submit">Save holidays</button></div>
+    </form>
+  </section>
+
   {# ── WHO IT REACHES ────────────────────────────────────────────────────── #}
   <section class="nlx-card" aria-labelledby="nlxWho">
     <h2 id="nlxWho">Who it reaches</h2>

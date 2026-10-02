@@ -264,7 +264,7 @@ final class MailSendRulesTest extends TestCase
 
     public function test_the_webhook_answers_only_its_own_token(): void
     {
-        $app = (new NewsletterTestApp())->app();
+        $app = \Tests\Support\TestApp::build();
         $post = static function (string $path, array $body) use ($app) {
             $req = (new ServerRequestFactory())->createServerRequest('POST', $path)
                 ->withHeader('Content-Type', 'application/json');
@@ -399,24 +399,5 @@ final class MailSendRulesTest extends TestCase
         MailLog::write('a@africagates.org', 'held', 'newsletter', MailLog::DEFERRED, 'cap', true);
         $this->assertSame([MailLog::SENT, MailLog::DEFERRED], $this->statuses(),
             'without the repair this is Data truncated on MySQL and a CHECK failure on SQLite, swallowed by the log');
-    }
-}
-
-/** The real app, as public/index.php assembles it — borrowed shape from NewsletterTest. */
-final class NewsletterTestApp
-{
-    public function app(): \Slim\App
-    {
-        $b = new \DI\ContainerBuilder();
-        $b->addDefinitions(require dirname(__DIR__, 2) . '/config/container.php');
-        \Slim\Factory\AppFactory::setContainer($b->build());
-        $app = \Slim\Factory\AppFactory::create();
-        $app->addRoutingMiddleware();
-        $app->add(new \AfricaGates\Middleware\CsrfMiddleware());
-        $app->addBodyParsingMiddleware();
-        $err = $app->addErrorMiddleware(false, false, false);
-        $err->setDefaultErrorHandler(new \AfricaGates\Handlers\ErrorHandler($app));
-        (require dirname(__DIR__, 2) . '/src/routes.php')($app);
-        return $app;
     }
 }

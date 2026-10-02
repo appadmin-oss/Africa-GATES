@@ -47,6 +47,10 @@ final class NewsletterTest extends TestCase
             DB::table($t)->delete();
         }
         DB::table('gates_settings')->whereIn('key_name', NewsletterSchedule::KEYS)->delete();
+        // The fixed day below is 1 October — Independence Day — and these cases are about
+        // the REGULAR issue. Holiday issues are HolidayNewsletterTest's, which also holds
+        // that the regular issue steps aside for one; here it would, on every case.
+        \AfricaGates\Services\Newsletter\HolidayCalendar::save([], []);
     }
 
     protected function tearDown(): void
@@ -602,30 +606,13 @@ final class NewsletterTest extends TestCase
             new RateLimitService(), $mail);
     }
 
-    /** The real app, through the real container and middleware, as public/index.php builds it. */
-    private function app(): \Slim\App
-    {
-        $b = new \DI\ContainerBuilder();
-        $b->addDefinitions(require dirname(__DIR__, 2) . '/config/container.php');
-        \Slim\Factory\AppFactory::setContainer($b->build());
-        $app = \Slim\Factory\AppFactory::create();
-        $app->addRoutingMiddleware();
-        $app->add(\Slim\Views\TwigMiddleware::createFromContainer($app, \Slim\Views\Twig::class));
-        $app->add(new \AfricaGates\Middleware\CsrfMiddleware());
-        $app->addBodyParsingMiddleware();
-        $err = $app->addErrorMiddleware(false, false, false);
-        $err->setDefaultErrorHandler(new \AfricaGates\Handlers\ErrorHandler($app));
-        (require dirname(__DIR__, 2) . '/src/routes.php')($app);
-        return $app;
-    }
-
     /** @param array<string,string> $body */
     private function hit(string $method, string $uri, array $body = []): \Psr\Http\Message\ResponseInterface
     {
         $_SESSION['csrf_token'] = 'tok';
         $req = (new ServerRequestFactory())->createServerRequest($method, $uri, ['REMOTE_ADDR' => '10.1.1.1']);
         if ($method === 'POST') $req = $req->withParsedBody($body + ['_token' => 'tok']);
-        return $this->app()->handle($req);
+        return \Tests\Support\TestApp::build()->handle($req);
     }
 
     public function test_the_pages_render_through_the_real_app(): void

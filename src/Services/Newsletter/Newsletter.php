@@ -142,7 +142,8 @@ final class Newsletter
      * the screen can say "nothing new this week" rather than leaving a gap in the history
      * that reads as the schedule having broken.
      */
-    public static function compose(string $periodKey, NewsletterSchedule $schedule, ?Carbon $now = null): ?object
+    public static function compose(string $periodKey, NewsletterSchedule $schedule, ?Carbon $now = null,
+                                   ?array $holiday = null): ?object
     {
         $now  = $now ?? Carbon::now();
         $last = self::lastSent();
@@ -153,7 +154,25 @@ final class Newsletter
         $c['period']   = $schedule->periodNoun();
         $c['dateline'] = DisplayTime::show($now, 'l j F Y');
 
+        if ($holiday !== null) {
+            // A holiday issue is the greeting first and the news second. Its subject is the
+            // greeting — the thing a reader opens it for on the day — and its preheader is
+            // the most time-sensitive line of news, or the greeting's own sentence when the
+            // site has nothing open.
+            $c['holiday']   = $holiday;
+            $c['preheader'] = $c['keys'] !== [] ? $c['subject'] : mb_substr($holiday['message'], 0, 250);
+            $c['subject']   = $holiday['greeting'] . ' from Africa GATES';
+        }
+
+        $recentHoliday = $holiday === null ? self::recentHolidayIssue($now) : null;
+
         [$status, $note] = match (true) {
+            // A greeting is worth sending on its day even in a week with nothing open.
+            $holiday !== null && $schedule->sendsItself()        => [self::ST_APPROVED, 'Approved by the schedule.'],
+            $holiday !== null                                    => [self::ST_DRAFT, 'A holiday issue — approve it today, or it misses its day.'],
+            $recentHoliday !== null                              => [self::ST_SKIPPED, 'Issue #' . (int) $recentHoliday->id
+                                                                      . ' went out for a holiday ' . self::HOLIDAY_SPACING_HOURS
+                                                                      . ' hours ago or less; two issues in two days is one too many.'],
             $c['keys'] === []                                     => [self::ST_SKIPPED, 'Nothing open, announced or coming up to report.'],
             $last !== null && $c['fingerprint'] === $last->fingerprint => [self::ST_SKIPPED, 'Nothing has changed since issue #' . (int) $last->id . '.'],
             $schedule->sendsItself()                              => [self::ST_APPROVED, 'Approved by the schedule.'],
@@ -176,6 +195,36 @@ final class Newsletter
         } catch (\Throwable) {
             return DB::table('gates_newsletter_issues')->where('period_key', $periodKey)->first() ?: null;
         }
+    }
+
+    /** Holiday issues are keyed `h-<holiday>-<year>`; the regular cadence never is. */
+    public const HOLIDAY_PREFIX = 'h-';
+
+    /**
+     * How close a regular issue may follow a holiday one. A holiday on a Wednesday and the
+     * weekly issue on Thursday would be two newsletters in two days with the same news in
+     * both — and the second is the one that gets "report spam".
+     */
+    public const HOLIDAY_SPACING_HOURS = 48;
+
+    public static function holidayKey(string $holiday, int $year): string
+    {
+        return self::HOLIDAY_PREFIX . $holiday . '-' . $year;
+    }
+
+    /** A holiday issue cleared to go, or gone, within the spacing window. */
+    private static function recentHolidayIssue(Carbon $now): ?object
+    {
+        try {
+            $since = $now->copy()->subHours(self::HOLIDAY_SPACING_HOURS)->toDateTimeString();
+            foreach (DB::table('gates_newsletter_issues')->where('composed_at', '>=', $since)
+                         ->whereIn('status', [self::ST_APPROVED, self::ST_SENDING, self::ST_SENT])
+                         ->orderByDesc('id')->get() as $i) {
+                if (str_starts_with((string) $i->period_key, self::HOLIDAY_PREFIX)) return $i;
+            }
+        } catch (\Throwable) {
+        }
+        return null;
     }
 
     // ══ a person's decisions ═════════════════════════════════════════════════
@@ -235,7 +284,10 @@ final class Newsletter
         return [
             'subject'         => (string) $issue->subject,
             'preheader'       => (string) ($issue->preheader ?? ''),
-            'headline'        => 'This ' . (string) ($c['period'] ?? 'week') . ' at Africa GATES',
+            'headline'        => isset($c['holiday']['greeting'])
+                ? (string) $c['holiday']['greeting']
+                : 'This ' . (string) ($c['period'] ?? 'week') . ' at Africa GATES',
+            'greeting'        => (string) ($c['holiday']['message'] ?? ''),
             'dateline'        => (string) ($c['dateline'] ?? ''),
             'sections'        => $sections,
             'since'           => $since !== '' ? DisplayTime::show($since, 'j F Y') : '',
@@ -296,6 +348,7 @@ final class Newsletter
     {
         $v = $this->vars($issue, $email, $since);
         $out = [$v['headline'], $v['dateline'], ''];
+        if ($v['greeting'] !== '') array_push($out, $v['greeting'], '');
         foreach ($v['sections'] as $s) {
             $out[] = strtoupper($s['title']);
             foreach ($s['items'] as $it) {
@@ -445,6 +498,19 @@ final class Newsletter
         $schedule = $schedule ?? NewsletterSchedule::load();
         if (!$schedule->on()) return 0;
         $now = $now ?? Carbon::now();
+
+        // A HOLIDAY FIRST, so the regular slot on the same day finds it and steps aside.
+        // On its day, from the newsletter's hour in the display zone; a holiday is not
+        // carried over to the next morning, because a greeting a day late is not one.
+        $h = HolidayCalendar::load()->today($now);
+        if ($h !== null) {
+            $local = $now->copy()->setTimezone(DisplayTime::zone());
+            $key = self::holidayKey($h['key'], (int) $local->year);
+            if ((int) $local->hour >= $schedule->hour
+                && !DB::table('gates_newsletter_issues')->where('period_key', $key)->exists()) {
+                self::compose($key, $schedule, $now, $h);
+            }
+        }
 
         $slot = $schedule->dueSlot($now);
         if ($slot !== null) {

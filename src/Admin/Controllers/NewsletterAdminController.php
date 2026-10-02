@@ -5,6 +5,7 @@ namespace AfricaGates\Admin\Controllers;
 
 use AfricaGates\Admin\Services\AuditService;
 use AfricaGates\Services\EmailInboxGuard;
+use AfricaGates\Services\Newsletter\HolidayCalendar;
 use AfricaGates\Services\Newsletter\Newsletter;
 use AfricaGates\Services\Newsletter\NewsletterAudience;
 use AfricaGates\Services\Newsletter\NewsletterSchedule;
@@ -97,6 +98,8 @@ final class NewsletterAdminController
             'focus_content'=> $focus ? Newsletter::content($focus) : null,
             'focus_plain'  => $focus ? $this->sender($req)->plain($focus, 'reader@example.com') : '',
             'blocker'      => $this->sender($req)->blocker(),
+            'holidays'     => HolidayCalendar::load()->upcoming(),
+            'spacing'      => Newsletter::HOLIDAY_SPACING_HOURS,
             'batch'        => Newsletter::BATCH,
             'grace'        => NewsletterSchedule::GRACE_HOURS,
         ]);
@@ -117,6 +120,21 @@ final class NewsletterAdminController
             default                         => 'Saved. ' . $after->describe() . ', an issue is composed and sends itself.',
         };
         return $this->back($res);
+    }
+
+    /** Which holidays get an issue, and the declared dates of the two that move. */
+    public function holidays(Request $req, Response $res): Response
+    {
+        if ($b = $this->blocked($res)) return $b;
+
+        $body = (array) $req->getParsedBody();
+        $on   = array_values(array_filter((array) ($body['on'] ?? []), 'is_string'));
+        $date = array_filter((array) ($body['date'] ?? []), 'is_string');
+        HolidayCalendar::save($on, $date);
+        $this->audit?->record($this->adminId(), 'newsletter.holidays', 'setting', null, ['on' => $on]);
+
+        $_SESSION['flash'] = 'Saved. A greeting issue goes out on each holiday that is ticked, at the newsletter’s hour.';
+        return $this->back($res, self::BASE . '#holidays');
     }
 
     /** Compose the current period's issue now, rather than at its slot. */

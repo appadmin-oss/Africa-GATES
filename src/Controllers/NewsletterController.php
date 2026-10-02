@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 namespace AfricaGates\Controllers;
 
+use AfricaGates\Services\Newsletter\HolidayCalendar;
 use AfricaGates\Services\Newsletter\NewsletterAudience;
 use AfricaGates\Services\Newsletter\NewsletterComposer;
 use AfricaGates\Services\Newsletter\NewsletterSchedule;
@@ -107,6 +108,11 @@ final class NewsletterController
             // the setting sends on.
             'schedule'         => $schedule->on() ? $schedule->describe() : null,
             'sections'         => array_values(NewsletterComposer::SECTIONS),
+            // The holidays that get a greeting, by name, from the calendar that sends them.
+            'holidays'         => $schedule->on()
+                ? array_map(static fn (string $k): string => HolidayCalendar::HOLIDAYS[$k]['name'],
+                            HolidayCalendar::load()->enabled())
+                : [],
             'sent'             => false,
             'email_error'      => null,
             'old'              => '',

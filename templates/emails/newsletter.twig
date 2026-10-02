@@ -161,6 +161,9 @@
       <td class="agw-px" style="padding:36px 40px 0 40px;">
         <p class="agw-muted" style="margin:0 0 10px 0; font-family:Helvetica, Arial, sans-serif; font-weight:700; font-size:11px; letter-spacing:1.2px; color:{{ c.soft }}; text-transform:uppercase;">{{ dateline }}</p>
         <h1 class="agw-headline agw-text" style="margin:0; font-family:Helvetica, Arial, sans-serif; font-weight:700; font-size:28px; line-height:34px; color:{{ c.ink }}; letter-spacing:-0.3px;">{{ headline }}</h1>
+        {% if greeting %}
+          <p class="agw-body-t" style="margin:12px 0 0 0; font-family:Helvetica, Arial, sans-serif; font-size:16px; line-height:25px; color:{{ c.ink2 }};">{{ greeting }}</p>
+        {% endif %}
       </td>
     </tr>
 
