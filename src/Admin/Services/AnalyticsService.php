@@ -1087,6 +1087,8 @@ final class AnalyticsService
             $sent = 0; $failed = 0;
             foreach (DB::table('gates_mail_log')->where('created_at', '>=', $from . ' 00:00:00')
                 ->get(['status', 'category']) as $r) {
+                // Held by the send rules is neither delivered nor failed — see Mail\MailLog.
+                if (in_array((string) $r->status, \AfricaGates\Services\Mail\MailLog::HELD, true)) continue;
                 $ok  = in_array(strtolower((string) $r->status), ['sent', 'ok', 'queued'], true);
                 $cat = (string) ($r->category ?? '') ?: 'uncategorised';
                 if (!isset($cats[$cat])) $cats[$cat] = ['category' => $cat, 'sent' => 0, 'failed' => 0];

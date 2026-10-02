@@ -679,7 +679,7 @@ final class EmailCampaign
             'events_url'      => $site . '/events',
             'site_url'        => $site,
             'unsubscribe_url' => $site . '/email/unsubscribe?e=' . str_repeat('a', 44) . '&t=' . str_repeat('b', 64),
-            'postal_address'  => (string) Env::get('MAIL_POSTAL_ADDRESS', 'Afrovanguard, Lagos, Nigeria'),
+            'postal_address'  => \AfricaGates\Services\Mail\MailConfig::postal(),
         ];
     }
 

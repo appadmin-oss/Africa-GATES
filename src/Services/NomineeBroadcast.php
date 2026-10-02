@@ -3,7 +3,6 @@ declare(strict_types=1);
 
 namespace AfricaGates\Services;
 
-use AfricaGates\Support\Env;
 use AfricaGates\Support\Slug;
 use Illuminate\Database\Capsule\Manager as DB;
 use Illuminate\Support\Carbon;
@@ -195,7 +194,7 @@ final class NomineeBroadcast
             'events_url'      => $site . '/events',
             'site_url'        => $site,
             'unsubscribe_url' => EmailOptOut::url($site, $r['email']),
-            'postal_address'  => (string) Env::get('MAIL_POSTAL_ADDRESS', 'Afrovanguard, Lagos, Nigeria'),
+            'postal_address'  => \AfricaGates\Services\Mail\MailConfig::postal(),
         ];
     }
 

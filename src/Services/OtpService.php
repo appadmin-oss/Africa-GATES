@@ -2,11 +2,15 @@
 declare(strict_types=1);
 namespace AfricaGates\Services;
 
+use AfricaGates\Support\Accent;
 use AfricaGates\Support\Brand;
 use AfricaGates\Support\Env;
 use Illuminate\Support\Carbon;
 use Illuminate\Database\Capsule\Manager as DB;
 use AfricaGates\Services\Mail\MailConfig;
+use AfricaGates\Services\Mail\MailLog;
+use AfricaGates\Services\Mail\SendPolicy;
+use AfricaGates\Services\Mail\Suppression;
 use PHPMailer\PHPMailer\PHPMailer;
 use PHPMailer\PHPMailer\Exception as MailException;
 use PHPMailer\PHPMailer\SMTP;
@@ -161,27 +165,6 @@ class OtpService
         return $m;
     }
 
-    /**
-     * Delivery audit: one row per attempted send, recipient masked. Powers the
-     * admin Email-health card so failures are visible instead of silent.
-     * Fault-tolerant — auditing can never break sending.
-     */
-    private function mailLog(string $to, string $subject, string $category, string $status, ?string $error = null): void
-    {
-        try {
-            [$local, $domain] = array_pad(explode('@', $to, 2), 2, '');
-            $masked = mb_substr($local, 0, 2) . '***@' . $domain;
-            \Illuminate\Database\Capsule\Manager::table('gates_mail_log')->insert([
-                'to_masked'  => mb_substr($masked, 0, 120),
-                'subject'    => mb_substr($subject, 0, 200),
-                'category'   => $category !== '' ? mb_substr($category, 0, 40) : null,
-                'status'     => $status,
-                'error'      => $error !== null ? mb_substr($error, 0, 300) : null,
-                'created_at' => date('Y-m-d H:i:s'),
-            ]);
-        } catch (\Throwable) {}
-    }
-
     /** Append to the dev log file (fallback when SMTP is unconfigured). */
     private function devLog(string $to, string $subject, string $body): void
     {
@@ -218,45 +201,21 @@ class OtpService
      */
     public function sendBranded(string $to, string $subject, string $htmlBody, string $plainBody = '', string $category = '', string $hero = '', string $unsubscribeUrl = '', array $attachments = [], string $preheader = '', int $heroHeight = 0): array
     {
-        if (!$this->smtpConfigured()) {
-            $this->devLog($to, $subject, $plainBody ?: strip_tags($htmlBody));
-            if ($this->isProduction()) {
-                $this->log?->error('[mail] SMTP not configured in production — message NOT delivered', ['to' => $to, 'subject' => $subject]);
-                $this->mailLog($to, $subject, $category, 'failed', 'SMTP not configured (Settings → Email & sender)');
-                return ['success' => false, 'fallback' => 'log',
-                        'error' => 'Email is not configured — set the SMTP host and login in Settings → Email & sender. The message was written to var/logs/outgoing-mail.log but was NOT delivered.'];
-            }
-            $this->mailLog($to, $subject, $category, 'logged_dev');
-            return ['success' => true, 'fallback' => 'log'];
-        }
-        try {
-            $m = $this->mailer($to);
-            $m->isHTML(true);
-            $m->Subject = $subject;
-            $m->Body    = $this->brandWrap($subject, $htmlBody, $category, $hero, $unsubscribeUrl, $preheader, $heroHeight);
-            $m->AltBody = $plainBody ?: strip_tags($htmlBody);
-            if ($unsubscribeUrl !== '') {
-                $m->addCustomHeader('List-Unsubscribe', '<' . $unsubscribeUrl . '>');
-                $m->addCustomHeader('List-Unsubscribe-Post', 'List-Unsubscribe=One-Click');
-            }
-            foreach ($attachments as $f) {
-                $name = trim((string) ($f['name'] ?? ''));
-                if ($name === '') continue;
-                // basename, because the filename travels into the reader's downloads folder
-                // and a name carrying a path separator is a name that can point elsewhere.
-                $m->addStringAttachment((string) ($f['body'] ?? ''), basename($name),
-                                        PHPMailer::ENCODING_BASE64,
-                                        (string) ($f['mime'] ?? 'application/octet-stream'));
-            }
-            $m->send();
-            $this->log?->info('[mail] sent', ['to' => $to, 'subject' => $subject]);
-            $this->mailLog($to, $subject, $category, 'sent');
-            return ['success' => true];
-        } catch (MailException|\Throwable $e) {
-            $this->log?->error('[mail] send failed: ' . $e->getMessage(), ['to' => $to]);
-            $this->mailLog($to, $subject, $category, 'failed', $e->getMessage());
-            return ['success' => false, 'error' => $e->getMessage()];
-        }
+        return $this->dispatch($to, $subject, $category, $unsubscribeUrl, $plainBody ?: strip_tags($htmlBody),
+            function (PHPMailer $m) use ($subject, $htmlBody, $plainBody, $category, $hero, $unsubscribeUrl, $attachments, $preheader, $heroHeight): void {
+                $m->isHTML(true);
+                $m->Body    = $this->brandWrap($subject, $htmlBody, $category, $hero, $unsubscribeUrl, $preheader, $heroHeight);
+                $m->AltBody = $plainBody ?: strip_tags($htmlBody);
+                foreach ($attachments as $f) {
+                    $name = trim((string) ($f['name'] ?? ''));
+                    if ($name === '') continue;
+                    // basename, because the filename travels into the reader's downloads
+                    // folder and a name carrying a path separator can point elsewhere.
+                    $m->addStringAttachment((string) ($f['body'] ?? ''), basename($name),
+                                            PHPMailer::ENCODING_BASE64,
+                                            (string) ($f['mime'] ?? 'application/octet-stream'));
+                }
+            });
     }
 
     /**
@@ -284,35 +243,12 @@ class OtpService
      */
     public function sendRawHtml(string $to, string $subject, string $html, string $plainBody = '', string $category = 'campaign', string $unsubscribeUrl = ''): array
     {
-        if (!$this->smtpConfigured()) {
-            $this->devLog($to, $subject, $plainBody ?: strip_tags($html));
-            if ($this->isProduction()) {
-                $this->log?->error('[mail] SMTP not configured in production — message NOT delivered', ['to' => $to, 'subject' => $subject]);
-                $this->mailLog($to, $subject, $category, 'failed', 'SMTP not configured (Settings → Email & sender)');
-                return ['success' => false, 'fallback' => 'log',
-                        'error' => 'Email is not configured — set the SMTP host and login in Settings → Email & sender. The message was written to var/logs/outgoing-mail.log but was NOT delivered.'];
-            }
-            $this->mailLog($to, $subject, $category, 'logged_dev');
-            return ['success' => true, 'fallback' => 'log'];
-        }
-        try {
-            $m = $this->mailer($to);
-            $m->isHTML(true);
-            $m->Subject = $subject;
-            $m->Body    = $html;                       // verbatim — no brandWrap
-            $m->AltBody = $plainBody ?: strip_tags($html);
-            if ($unsubscribeUrl !== '') {
-                $m->addCustomHeader('List-Unsubscribe', '<' . $unsubscribeUrl . '>');
-                $m->addCustomHeader('List-Unsubscribe-Post', 'List-Unsubscribe=One-Click');
-            }
-            $m->send();
-            $this->mailLog($to, $subject, $category, 'sent');
-            return ['success' => true];
-        } catch (MailException|\Throwable $e) {
-            $this->log?->error('[mail] sendRawHtml failed: ' . $e->getMessage(), ['to' => $to]);
-            $this->mailLog($to, $subject, $category, 'failed', $e->getMessage());
-            return ['success' => false, 'error' => $e->getMessage()];
-        }
+        return $this->dispatch($to, $subject, $category, $unsubscribeUrl, $plainBody ?: strip_tags($html),
+            static function (PHPMailer $m) use ($html, $plainBody): void {
+                $m->isHTML(true);
+                $m->Body    = $html;                       // verbatim — no brandWrap
+                $m->AltBody = $plainBody ?: strip_tags($html);
+            });
     }
 
     /**
@@ -321,29 +257,116 @@ class OtpService
      */
     public function sendCustom(string $to, string $subject, string $body): array
     {
+        return $this->dispatch($to, $subject, 'custom', '', $body,
+            static function (PHPMailer $m) use ($body): void {
+                $m->isHTML(false);
+                $m->Body = $body;
+            });
+    }
+
+    /**
+     * The one road every message takes: the send rules, the transport, the headers, the
+     * log, and what a refusal teaches us.
+     *
+     * The three public senders used to carry three copies of this — the unconfigured
+     * fallback, the try/catch, the four log calls — and the copies are where rules go to
+     * be applied twice or not at all. A message is an ANNOUNCEMENT when it carries an
+     * unsubscribe link; see {@see SendPolicy} for what that changes.
+     *
+     * @param callable(PHPMailer): void $build sets the body on a configured mailer
+     * @return array{success:bool, error?:string, fallback?:string, held?:string}
+     */
+    private function dispatch(string $to, string $subject, string $category, string $unsubscribeUrl,
+                              string $devBody, callable $build): array
+    {
+        $bulk = $unsubscribeUrl !== '';
+
         if (!$this->smtpConfigured()) {
-            $this->devLog($to, $subject, $body);
+            $this->devLog($to, $subject, $devBody);
             if ($this->isProduction()) {
-                $this->mailLog($to, $subject, 'custom', 'failed', 'SMTP not configured (Settings → Email & sender)');
+                $this->log?->error('[mail] SMTP not configured in production — message NOT delivered', ['to' => $to, 'subject' => $subject]);
+                MailLog::write($to, $subject, $category, MailLog::FAILED, 'SMTP not configured (Settings → Email & sender)', $bulk);
                 return ['success' => false, 'fallback' => 'log',
-                        'error' => 'Email is not configured — set the SMTP host and login in Settings → Email & sender. Written to var/logs/outgoing-mail.log but NOT delivered.'];
+                        'error' => 'Email is not configured — set the SMTP host and login in Settings → Email & sender. The message was written to var/logs/outgoing-mail.log but was NOT delivered.'];
             }
-            $this->mailLog($to, $subject, 'custom', 'logged_dev');
+            MailLog::write($to, $subject, $category, MailLog::DEV, null, $bulk);
             return ['success' => true, 'fallback' => 'log'];
         }
+
+        // Before any connection: a message the rules hold costs the domain nothing.
+        if (($held = SendPolicy::decide($to, $bulk)) !== null) {
+            MailLog::write($to, $subject, $category, $held['status'], $held['reason'], $bulk);
+            return ['success' => false, 'held' => $held['status'], 'error' => $held['reason']];
+        }
+
         try {
             $m = $this->mailer($to);
-            $m->isHTML(false);
             $m->Subject = $subject;
-            $m->Body    = $body;
-            $m->send();
-            $this->mailLog($to, $subject, 'custom', 'sent');
+            $build($m);
+            $this->headers($m, $category, $unsubscribeUrl);
+            $this->transmit($m);
+            $this->log?->info('[mail] sent', ['to' => $to, 'subject' => $subject]);
+            MailLog::write($to, $subject, $category, MailLog::SENT, null, $bulk);
             return ['success' => true];
         } catch (MailException|\Throwable $e) {
-            $this->log?->error('[mail] sendCustom failed: ' . $e->getMessage(), ['to' => $to]);
-            $this->mailLog($to, $subject, 'custom', 'failed', $e->getMessage());
-            return ['success' => false, 'error' => $e->getMessage()];
+            $err = $e->getMessage();
+            $this->log?->error('[mail] send failed: ' . $err, ['to' => $to]);
+            MailLog::write($to, $subject, $category, MailLog::FAILED, $err, $bulk);
+            // The receiving server said, permanently, that this mailbox does not exist.
+            // Remember it, or every announcement after this one bounces too.
+            if (Suppression::isPermanentBounce($err)) {
+                Suppression::record($to, Suppression::BOUNCE, 'smtp', $err);
+            }
+            return ['success' => false, 'error' => $err];
         }
+    }
+
+    /**
+     * Hand a built message to the network. The one line of the pipeline that leaves the
+     * process, kept apart so the suite can run every rule above it against a real
+     * PHPMailer message without a server — {@see \Tests\Unit\MailSendRulesTest}.
+     */
+    protected function transmit(PHPMailer $m): void
+    {
+        $m->send();
+    }
+
+    /**
+     * The headers that say what kind of message this is.
+     *
+     * EVERY MESSAGE gets a Message-ID on our own domain. PHPMailer otherwise builds it
+     * from the server's hostname — on shared hosting a name like `server123.hostco.net`
+     * that matches nothing in From, which is one more thing a filter scores against us.
+     *
+     * AN ANNOUNCEMENT also gets:
+     *   · List-Unsubscribe + List-Unsubscribe-Post — RFC 8058 one-click, which Gmail and
+     *     Yahoo require of bulk senders;
+     *   · List-Id — so a reader's filters, and a provider's, can see one list per kind of
+     *     announcement rather than one undifferentiated sender;
+     *   · Precedence: bulk and Auto-Submitted: auto-generated — RFC 3834: no vacation
+     *     reply comes back to a newsletter, and nobody's out-of-office lands in our inbox;
+     *   · Feedback-ID — Gmail's complaint loop reports spam rates per this identifier, so
+     *     a newsletter that annoys people can be told apart from a voting reminder that
+     *     does not.
+     */
+    private function headers(PHPMailer $m, string $category, string $unsubscribeUrl): void
+    {
+        $domain = strtolower((string) substr((string) strrchr($m->From, '@'), 1)) ?: 'africagates.org';
+        $m->MessageID = sprintf('<%s@%s>', bin2hex(random_bytes(16)), $domain);
+
+        if ($unsubscribeUrl === '') return;
+
+        $list = trim((string) preg_replace('~[^a-z0-9]+~', '-', strtolower($category !== '' ? $category : 'announcements')), '-');
+        $m->addCustomHeader('List-Unsubscribe', '<' . $unsubscribeUrl . '>');
+        $m->addCustomHeader('List-Unsubscribe-Post', 'List-Unsubscribe=One-Click');
+        // Letters, digits and spaces only in the display part: a category is an internal
+        // label, but a header is the one place a stray character becomes a second header.
+        $label = trim((string) preg_replace('~[^A-Za-z0-9 \-]+~', '', $category)) ?: 'announcements';
+        $m->addCustomHeader('List-Id', sprintf('Africa GATES %s <%s.%s>', $label, $list ?: 'announcements', $domain));
+        $m->addCustomHeader('Precedence', 'bulk');
+        $m->addCustomHeader('Auto-Submitted', 'auto-generated');
+        $m->addCustomHeader('X-Auto-Response-Suppress', 'OOF, AutoReply');
+        $m->addCustomHeader('Feedback-ID', ($list ?: 'announcements') . ':bulk:africagates');
     }
 
     /**
@@ -629,6 +652,12 @@ HTML;
         // The alt is the organisation's name, styled — an unstyled alt renders as 10px
         // serif and reads as a broken attachment rather than as a wordmark.
         $logo = htmlspecialchars(Brand::logoUrl($base, onTint: true), ENT_QUOTES);
+        // The footer used to end "We hash every email — plain text is never stored", on
+        // every branded message this platform sends. It was not true: the newsletter list,
+        // the opt-out list and the broadcast log all hold the address, because mail cannot
+        // be sent to a hash. A footer is a statement in writing to every recipient; it now
+        // says who sent the message and where they are, which is what one owes.
+        $postal = htmlspecialchars(MailConfig::postal(), ENT_QUOTES);
         $unsub = $unsubscribeUrl !== ''
             ? ' · <a href="' . htmlspecialchars($unsubscribeUrl, ENT_QUOTES)
               . '" style="color:rgba(255,255,255,0.8);text-decoration:underline">Unsubscribe</a>'
@@ -731,7 +760,7 @@ HTML;
           <span style="font-family:'Playfair Display',Georgia,serif;font-weight:700;font-size:14px;color:#ffffff">Africa<span style="color:#7FC87C">GATES</span></span>
           <div style="height:1px;background:rgba(255,255,255,0.1);margin:14px 0"></div>
           <p style="margin:0;font-size:11.5px;line-height:1.7;color:rgba(255,255,255,0.55)">
-            © $year Afrovanguard Initiative · Lagos, Nigeria · We hash every email — plain text is never stored.<br>
+            © $year Africa GATES, an Afrovanguard initiative · $postal<br>
             <a href="{$base}/help" style="color:rgba(255,255,255,0.8);text-decoration:underline">Help Center</a> ·
             <a href="{$base}/privacy" style="color:rgba(255,255,255,0.8);text-decoration:underline">Privacy</a>$unsub
           </p>
@@ -749,8 +778,17 @@ HTML;
     /* ── Additional transactional emails ─────────────────────── */
 
     /**
-     * Voting reminder — sent by the maintenance cron 48h before a cycle closes.
-     * $nominees is an array of objects with ->name, ->vote_count, ->category.
+     * "Voting closes soon" — sent by the maintenance tick 24–48 hours before a cycle closes.
+     *
+     * An announcement, so it carries the list headers and the footer's stop link. The copy
+     * is the reader's: what closes, when (with its zone — a deadline without one is an hour
+     * out for somebody), and the one thing to do. No emoji in the subject: it reads as a
+     * promotion to the filters that sort Primary from Promotions, and the reminder is the
+     * one announcement whose whole value is arriving on time where it is seen.
+     *
+     * @param string $cycleName   the award(s) closing, as the site names them
+     * @param string $closingDate the close, already in the display zone with its zone
+     * @param list<object> $topNominees ->name, ->vote_count
      */
     public function sendVotingReminder(
         string $to,
@@ -759,46 +797,47 @@ HTML;
         array  $topNominees = [],
         string $unsubscribeUrl = '',
     ): array {
-        $base = $this->base();
+        $base  = $this->base();
+        $ink   = Accent::neutral('ink');
+        $ink2  = Accent::neutral('ink-2');
+        $soft  = Accent::neutral('ink-soft');
+        $line  = Accent::neutral('line');
+        $go    = Accent::fill(Accent::ACTION);
+        $name  = htmlspecialchars($cycleName, ENT_QUOTES);
+        $when  = htmlspecialchars($closingDate, ENT_QUOTES);
+
         $rows = '';
         foreach (array_slice($topNominees, 0, 5) as $n) {
-            $rows .= '<tr><td style="padding:6px 0;font-size:14px;color:#374151;border-bottom:1px solid #e5e7eb">'
-                   . htmlspecialchars($n->name ?? '')
-                   . '</td><td style="padding:6px 0;font-size:14px;color:#15803d;font-weight:600;text-align:right;border-bottom:1px solid #e5e7eb;font-family:monospace">'
-                   . number_format((int)($n->vote_count ?? 0)) . ' votes</td></tr>';
+            $rows .= '<tr><td style="padding:9px 0;font-size:14px;color:' . $ink . ';border-bottom:1px solid ' . $line . '">'
+                   . htmlspecialchars((string) ($n->name ?? ''), ENT_QUOTES)
+                   . '</td><td style="padding:9px 0;font-size:14px;color:' . $ink2 . ';text-align:right;border-bottom:1px solid ' . $line . ';white-space:nowrap">'
+                   . number_format((int) ($n->vote_count ?? 0)) . ' votes</td></tr>';
         }
-        $leaderTable = $rows
-            ? "<table role='presentation' width='100%' cellpadding='0' cellspacing='0' border='0' style='margin:16px 0'>{$rows}</table>"
+        $leaders = $rows !== ''
+            ? '<p style="margin:22px 0 4px;font-size:11px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:' . $soft . '">Leading so far</p>'
+              . '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">' . $rows . '</table>'
             : '';
 
-        $html = <<<HTML
-<p style="font-size:16px;font-weight:700;color:#10292C;margin:0 0 8px">⏰ Voting closes soon</p>
-<p style="font-size:15px;color:#374151;margin:0 0 16px">
-  The <strong>{$cycleName}</strong> voting window closes on
-  <strong style="color:#10292C">{$closingDate}</strong>.
-  If you haven't voted yet, now is the time.
-</p>
-{$leaderTable}
-<p style="text-align:center;margin:24px 0">
-  <a href="{$base}/vote"
-     style="display:inline-block;padding:14px 32px;background:#10292C;color:#fff;border-radius:999px;font-weight:700;text-decoration:none;font-size:16px">
-    Cast my vote now →
-  </a>
-</p>
-<p style="font-size:13px;color:#9ca3af;margin-top:8px">
-  One OTP-verified vote per category. Takes under a minute.
-</p>
-HTML;
+        $html = '<h1 style="margin:0;font-family:Helvetica,Arial,sans-serif;font-weight:700;font-size:24px;line-height:30px;color:' . $ink . '">Voting closes soon</h1>'
+              . '<p style="margin:12px 0 0;font-size:16px;line-height:1.6;color:' . $ink2 . '">Voting for <strong style="color:' . $ink . '">' . $name . '</strong> closes on <strong style="color:' . $ink . '">' . $when . '</strong>. If you have not voted yet, there is still time.</p>'
+              . $leaders
+              . '<p style="text-align:center;margin:28px 0 8px"><a href="' . $base . '/vote" style="display:inline-block;padding:14px 32px;background:' . $go . ';color:' . Accent::SURFACE . ';border-radius:999px;font-weight:700;text-decoration:none;font-size:16px">Vote now</a></p>'
+              . '<p style="margin:12px 0 0;font-size:13px;line-height:1.6;color:' . $soft . '">One vote per category, confirmed with a code we send you. It takes under a minute.</p>';
+
+        $plain = "Voting for {$cycleName} closes on {$closingDate}.\n\nVote now: {$base}/vote\n\n"
+               . "One vote per category, confirmed with a code we send you."
+               . ($unsubscribeUrl !== '' ? "\n\nStop these emails: {$unsubscribeUrl}" : '');
+
         return $this->sendBranded(
             $to,
-            "⏰ {$cycleName} voting closes {$closingDate} — have you voted?",
+            "Voting closes {$closingDate} — {$cycleName}",
             $html,
-            "{$cycleName} voting closes {$closingDate}. Vote now at {$base}/vote",
+            $plain,
             'Reminder',
-            $this->base() . '/assets/img/illustrations/illo-ballot-countdown.jpg',
-            // A broadcast, so it carries the list headers and the footer's stop link —
-            // without them a reminder is the one bulk mail here nobody can switch off.
-            $unsubscribeUrl
+            $base . '/assets/img/illustrations/illo-ballot-countdown.jpg',
+            $unsubscribeUrl,
+            [],
+            'Still time to vote — one vote per category, under a minute.'
         );
     }
 

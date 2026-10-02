@@ -46,6 +46,7 @@ final class MailConfig
     public const DEFAULT_HOST = 'smtp-relay.brevo.com';
     public const DEFAULT_PORT = 587;
     public const DEFAULT_FROM = 'noreply@afrovanguard.org.ng';
+    public const DEFAULT_POSTAL = 'Afrovanguard, Lagos, Nigeria';
 
     /** The encryption modes, as the settings form offers them. */
     public const SECURE_AUTO     = 'auto';
@@ -70,6 +71,12 @@ final class MailConfig
         public readonly string $fromName,
         public readonly string $replyTo,
         private readonly array $sources,
+        /**
+         * The postal address every bulk mail's footer prints. Commercial mail owes one
+         * (CAN-SPAM; Gmail and Yahoo read its absence as a spam signal), and it was read
+         * from `.env` alone by six senders — on a host with no shell to edit it on.
+         */
+        public readonly string $postalAddress = self::DEFAULT_POSTAL,
     ) {}
 
     /**
@@ -123,8 +130,28 @@ final class MailConfig
             fromAddress:   $pick('from', 'mail_from_address', 'MAIL_FROM_ADDRESS', self::DEFAULT_FROM),
             fromName:      $pick('from_name', 'mail_from_name', 'MAIL_FROM_NAME', 'Africa GATES'),
             replyTo:       $pick('reply_to', 'mail_reply_to', 'MAIL_REPLY_TO', ''),
+            postalAddress: $pick('postal', 'mail_postal_address', 'MAIL_POSTAL_ADDRESS', self::DEFAULT_POSTAL),
             sources:       $sources,
         );
+    }
+
+    /**
+     * The footer's postal address, for the six senders that print one.
+     *
+     * Through load(), never a second reading of the key: it fetches only that row and
+     * hands it over, so the resolution order — settings, then `.env`, then the default —
+     * is the one written above. A broadcast renders per recipient, and this is one
+     * indexed row rather than the whole settings table each time.
+     */
+    public static function postal(): string
+    {
+        $row = [];
+        try {
+            $row = DB::table('gates_settings')->where('key_name', 'mail_postal_address')
+                ->pluck('value', 'key_name')->all();
+        } catch (\Throwable) {
+        }
+        return self::load($row)->postalAddress;
     }
 
     /** A config built from literal values, for the test suite and nothing else. */
@@ -138,6 +165,7 @@ final class MailConfig
             (string) ($v['reply_to'] ?? ''),
             // Everything passed in was chosen, so nothing is reported as the default.
             array_fill_keys(array_keys($v), 'given'),
+            (string) ($v['postal'] ?? self::DEFAULT_POSTAL),
         );
     }
 

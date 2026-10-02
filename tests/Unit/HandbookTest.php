@@ -74,6 +74,7 @@ final class HandbookTest extends TestCase
             'scoring'      => HandbookController::scoring($r),
             'grace_days'   => CycleMaterialiser::ANNOUNCE_GRACE_DAYS,
             'newsletter'   => HandbookController::newsletter(),
+            'send_rules'   => HandbookController::sendRules(),
             'check_states' => RegistryCheck::STATES,
             'check_sense'  => array_map(static fn (): string => 'sense', RegistryCheck::STATES),
             'cac_search'   => RegistryCheck::CAC_SEARCH,

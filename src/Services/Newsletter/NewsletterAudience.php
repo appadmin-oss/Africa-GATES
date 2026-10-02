@@ -4,6 +4,7 @@ declare(strict_types=1);
 namespace AfricaGates\Services\Newsletter;
 
 use AfricaGates\Services\EmailOptOut;
+use AfricaGates\Services\Mail\Suppression;
 use AfricaGates\Services\OtpService;
 use AfricaGates\Support\Accent;
 use Illuminate\Database\Capsule\Manager as DB;
@@ -241,6 +242,9 @@ final class NewsletterAudience
             ]);
         }
         DB::table('gates_email_optout')->where('email_hash', $hash)->delete();
+        // And a bounce on record: a link that only arrives in this inbox has just been
+        // pressed, which is newer and better evidence than whatever bounced before.
+        Suppression::lift($email);
         return true;
     }
 
@@ -253,7 +257,10 @@ final class NewsletterAudience
      */
     public static function recipients(): array
     {
-        $suppressed = EmailOptOut::suppressedHashes();
+        // A choice to stop, or evidence that the mailbox is gone or the reader complained.
+        // The transport would refuse both anyway; leaving them off the list is what keeps
+        // the issue's count of who it reached honest.
+        $suppressed = EmailOptOut::suppressedHashes() + Suppression::hashes();
         $out = [];
         foreach (DB::table('gates_newsletter')->whereNotNull('confirmed_at')->whereNull('unsubscribed_at')
                      ->orderBy('confirmed_at')->orderBy('id')
@@ -293,7 +300,7 @@ final class NewsletterAudience
     {
         $out = ['confirmed' => 0, 'awaiting' => 0, 'unasked' => 0, 'stopped' => 0, 'total' => 0];
         try {
-            $suppressed = EmailOptOut::suppressedHashes();
+            $suppressed = EmailOptOut::suppressedHashes() + Suppression::hashes();
             foreach (DB::table('gates_newsletter')
                          ->get(['email_hash', 'source', 'confirmed_at', 'confirm_sent_at', 'unsubscribed_at']) as $r) {
                 if (!self::isSubscription($r->source) && $r->confirmed_at === null) continue;

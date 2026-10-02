@@ -781,6 +781,26 @@ opens" row in the same table is not a subscription. The signup form that existed
 script bound to a `.subscribe-form` no template rendered; `/newsletter` is the way in now,
 linked from the footer. `NewsletterTest`'s 28 mutations each fail it.
 
+**And the rules about WHO may be mailed live at the transport, not in each sender.**
+Seventy call sites send mail; some announcement senders filtered the opt-out list and some
+did not, and none knew which addresses had bounced, because nothing recorded a bounce — the
+same dead nominee address bounced in every broadcast. `Mail\SendPolicy::decide()` runs in
+`OtpService::dispatch()`, the one road every message takes, before any connection: an
+address at a reserved domain (`.invalid`, `.test`, `example.com` — the sandbox's own
+`@demo.invalid`) is refused for ALL mail; an ANNOUNCEMENT — anything carrying an unsubscribe
+link — is also refused to the opt-out list and to `Mail\Suppression` (permanent 5xx
+recipient refusals at send time, and provider bounce/complaint reports through
+`/hooks/mail-events/{token}`), and deferred past `mail_bulk_daily_cap` per address per 24
+hours. A sign-in code is never held by an announcement rule. **Held is not failed:**
+`refused` and `deferred` are `Mail\MailLog::HELD`, and every reader that makes a rate counts
+only `ATTEMPTS`, or each correctly-refused dead address would edge the platform toward a mail
+incident. The log's status was an `ENUM`/`CHECK` of three words, so the new two needed
+`2027_02_20_mail_send_rules.php` to REPAIR it — a corrected definition would have fixed only
+fresh databases, and the old column turns `deferred` into `Data truncated`, swallowed by the
+log's own catch. And the branded footer said "We hash every email — plain text is never
+stored" on every message for its whole life; three tables hold addresses in the clear.
+`MailSendRulesTest`'s 28 mutations each fail it.
+
 **And one probe, not one per service.** "Does this database have that column?" has to be
 asked here — migrations are applied by an operator opening a URL and the admin layout
 counts unapplied steps in the dozens. The four lines that ask it existed **four** times and

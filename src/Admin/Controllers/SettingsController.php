@@ -514,6 +514,9 @@ class SettingsController
         // Core site settings + email sender identity (gates_settings table)
         foreach (['announce_text','announce_url','announce_cta','site_title','contact_email',
                   'mail_from_name','mail_from_address','mail_reply_to','admin_alert_email',
+                  // The postal address every bulk mail's footer prints. It was .env only,
+                  // read by six senders, on a host with no shell. See MailConfig::postal().
+                  'mail_postal_address',
                   // Public-facing support address. Distinct from admin_alert_email:
                   // that one is internal plumbing, this one is printed on pages and
                   // quoted by the assistant, so a stranger must be able to write to it.

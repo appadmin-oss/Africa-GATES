@@ -400,6 +400,13 @@
     press Run. It asks every provider a real question and reports what each one actually
     said. A provider that is misconfigured says so there; nothing else on the platform will
     tell you.</p>
+  <p>If one person says an announcement never came, it may have been held on purpose. Every
+    message passes the send rules first: nothing goes to an address that cannot exist, and no
+    announcement goes to anybody who unsubscribed, whose mailbox bounced, or who reported one
+    as spam — or to anybody already sent {{ send_rules.cap }} in {{ send_rules.hours }} hours.
+    Sign-in codes, receipts and tickets are never held that way. <a href="/admin/settings/mail#send-rules">Email
+    health → Send rules</a> lists who is not receiving announcements and why, and gives the
+    address your mail provider should send its bounce reports to.</p>
   <div class="hb__n hb__n--warn"><b>A sandbox account looks like success.</b>
     Some gateways issue test credentials that authenticate, return a message id and deliver
     to a web simulator. Every screen reads as working and no phone rings. The Integrations

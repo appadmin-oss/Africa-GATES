@@ -418,10 +418,15 @@ CREATE TABLE IF NOT EXISTS gates_mail_log (
   to_masked VARCHAR(120) NOT NULL,
   subject VARCHAR(200) NOT NULL,
   category VARCHAR(40) DEFAULT NULL,
-  status ENUM('sent','failed','logged_dev') NOT NULL,
+  -- sent | failed | logged_dev | refused | deferred — Mail\MailLog. VARCHAR, not ENUM:
+  -- see 2027_02_20_mail_send_rules.php, which repairs databases built with the ENUM.
+  status VARCHAR(16) NOT NULL,
   error VARCHAR(300) DEFAULT NULL,
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  PRIMARY KEY(id), KEY idx_mail_created(created_at), KEY idx_mail_status(status)
+  to_hash CHAR(64) DEFAULT NULL,
+  bulk TINYINT(1) NOT NULL DEFAULT 0,
+  PRIMARY KEY(id), KEY idx_mail_created(created_at), KEY idx_mail_status(status),
+  KEY idx_mail_to(to_hash, created_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- Outbound SMS / WhatsApp delivery audit (recipients stored hashed + masked, never raw).

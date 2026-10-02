@@ -290,9 +290,7 @@ final class InviteMailer
             'id_url'          => EventInvites::idUrl((string) $invite->reference, $base),
             'events_url'      => $base . '/events/' . rawurlencode((string) $event->slug),
             'unsubscribe_url' => EmailOptOut::url($base, (string) $invite->email),
-            'postal_address'  => (string) \AfricaGates\Support\Env::get(
-                'MAIL_POSTAL_ADDRESS', 'Afrovanguard, Lagos, Nigeria'
-            ),
+            'postal_address'  => \AfricaGates\Services\Mail\MailConfig::postal(),
         ];
     }
 

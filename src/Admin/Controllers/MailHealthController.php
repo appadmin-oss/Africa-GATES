@@ -6,7 +6,11 @@ namespace AfricaGates\Admin\Controllers;
 use AfricaGates\Admin\Services\AuditService;
 use AfricaGates\Services\Mail\MailConfig;
 use AfricaGates\Services\Mail\MailFailure;
+use AfricaGates\Services\Mail\MailEvents;
 use AfricaGates\Services\Mail\MailHealth;
+use AfricaGates\Services\Mail\SendPolicy;
+use AfricaGates\Services\Mail\Suppression;
+use AfricaGates\Support\SiteUrl;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
 use Slim\Views\Twig;
@@ -60,7 +64,55 @@ final class MailHealthController
                 'rate'   => (int) round(MailHealth::TRIP_RATE * 100),
                 'realert'=> MailHealth::REALERT_HOURS, 'probe' => MailHealth::PROBE_MIN,
             ],
+            // The send rules, read from the class that applies them — every figure here
+            // is the one the transport acts on, never a second copy of it.
+            'send'         => [
+                'cap'        => SendPolicy::cap(),
+                'cap_min'    => SendPolicy::CAP_MIN,
+                'cap_max'    => SendPolicy::CAP_MAX,
+                'cap_hours'  => SendPolicy::CAP_HOURS,
+                'reserved'   => array_merge(array_map(static fn (string $t): string => '.' . $t, SendPolicy::RESERVED_TLDS),
+                                            SendPolicy::RESERVED_DOMAINS),
+                'reasons'    => Suppression::REASONS,
+                'counts'     => Suppression::counts(),
+                'suppressed' => Suppression::recent(20),
+                'events_url' => MailEvents::url(SiteUrl::base($req)),
+            ],
         ]);
+    }
+
+    /** POST — the daily cap on announcements per address. */
+    public function rules(Request $req, Response $res): Response
+    {
+        $n = SendPolicy::saveCap((int) (((array) $req->getParsedBody())['cap'] ?? SendPolicy::CAP_DEFAULT));
+        $this->audit?->record((int) ($_SESSION['admin_id'] ?? 0), 'mail.rules', null, null, ['cap' => $n]);
+        $_SESSION['flash_ok'] = sprintf('Saved. Nobody receives more than %d announcement%s in %d hours; the rest wait.',
+                                        $n, $n === 1 ? '' : 's', SendPolicy::CAP_HOURS);
+        return $res->withHeader('Location', '/admin/settings/mail#send-rules')->withStatus(302);
+    }
+
+    /**
+     * POST — take one address off the suppression list. For an operator who has checked
+     * with the person that the address works now; the next bounce puts it straight back.
+     */
+    public function lift(Request $req, Response $res, array $args): Response
+    {
+        $id = (int) ($args['id'] ?? 0);
+        $ok = Suppression::liftById($id);
+        $this->audit?->record((int) ($_SESSION['admin_id'] ?? 0), 'mail.suppression.lift', 'mail_suppression', $id);
+        $_SESSION[$ok ? 'flash_ok' : 'flash_error'] = $ok
+            ? 'Removed. Announcements will reach that address again — a new bounce or complaint puts it back.'
+            : 'That address was not on the list.';
+        return $res->withHeader('Location', '/admin/settings/mail#send-rules')->withStatus(302);
+    }
+
+    /** POST — a new webhook token. The old address stops working at once. */
+    public function rotate(Request $req, Response $res): Response
+    {
+        MailEvents::rotate();
+        $this->audit?->record((int) ($_SESSION['admin_id'] ?? 0), 'mail.events.rotate');
+        $_SESSION['flash_ok'] = 'A new address was made. Paste it into your mail provider’s webhook settings — the old one no longer works.';
+        return $res->withHeader('Location', '/admin/settings/mail#send-rules')->withStatus(302);
     }
 
     /**

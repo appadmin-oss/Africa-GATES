@@ -76,6 +76,17 @@ final class HandbookController
         ];
     }
 
+    /**
+     * The send rules' figures, from the class that applies them. Static for HandbookTest.
+     *
+     * @return array{cap:int, hours:int}
+     */
+    public static function sendRules(): array
+    {
+        return ['cap' => \AfricaGates\Services\Mail\SendPolicy::cap(),
+                'hours' => \AfricaGates\Services\Mail\SendPolicy::CAP_HOURS];
+    }
+
     public function index(Request $req, Response $res): Response
     {
         $role = (string) ($_SESSION['admin_role'] ?? '');
@@ -131,6 +142,7 @@ final class HandbookController
 
             // The newsletter's schedule and its limits, from the classes that act on them.
             'newsletter'  => self::newsletter(),
+            'send_rules'  => self::sendRules(),
 
             // ── THE VERIFICATION STATES, FROM THE SERVICE'S OWN LIST ─────────
             //

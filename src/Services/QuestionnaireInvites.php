@@ -475,8 +475,7 @@ final class QuestionnaireInvites
             'deadline'        => QuestionnairePolicy::humanFor($cycleId),
             'site_url'        => $site,
             'unsubscribe_url' => isset($r['email']) ? EmailOptOut::url($site, (string) $r['email']) : '',
-            'postal_address'  => (string) \AfricaGates\Support\Env::get(
-                'MAIL_POSTAL_ADDRESS', 'Afrovanguard, Lagos, Nigeria'),
+            'postal_address'  => \AfricaGates\Services\Mail\MailConfig::postal(),
         ];
     }
 

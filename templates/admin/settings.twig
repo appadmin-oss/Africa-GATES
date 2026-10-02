@@ -211,6 +211,9 @@
         <div><label for="f-admin_alert_email">Admin alerts to</label><input type="email" name="admin_alert_email" id="f-admin_alert_email" value="{{ values.admin_alert_email|default('') }}" placeholder="app.admin@afrovanguard.org.ng"></div>
       </div>
       <div class="row">
+        <div><label for="f-mail_postal_address">Postal address <small>printed in the footer of every announcement and newsletter — commercial mail owes one</small></label><input type="text" name="mail_postal_address" id="f-mail_postal_address" maxlength="200" value="{{ values.mail_postal_address|default('') }}" placeholder="Afrovanguard, Lagos, Nigeria"></div>
+      </div>
+      <div class="row">
         <div><label for="f-support_email">Support inbox <small>printed on the site, quoted by the assistant, and where tickets are delivered</small></label><input type="email" name="support_email" id="f-support_email" value="{{ values.support_email|default('') }}" placeholder="gates@afrovanguard.org.ng"></div>
       </div>
 

@@ -28,6 +28,8 @@ final class BroadcastLog
     public const SENDING = 'sending';
     public const SENT    = 'sent';
     public const FAILED  = 'failed';
+    /** The send rules refused it — a dead, complaining or unsubscribed address. Final. */
+    public const REFUSED = 'refused';
 
     /** True when this call now owns the address for this campaign. */
     public static function claim(string $campaign, string $email, ?int $nomineeId = null): bool
@@ -47,20 +49,37 @@ final class BroadcastLog
         }
     }
 
-    public static function settle(string $campaign, string $email, bool $ok, string $error = ''): void
+    public static function settle(string $campaign, string $email, bool $ok, string $error = '', ?string $status = null): void
     {
         try {
             DB::table('gates_broadcast_log')
                 ->where('campaign', mb_substr($campaign, 0, 60))
                 ->where('email_hash', EmailOptOut::hash($email))
                 ->update([
-                    'status'  => $ok ? self::SENT : self::FAILED,
+                    'status'  => $status ?? ($ok ? self::SENT : self::FAILED),
                     'error'   => $error === '' ? null : mb_substr($error, 0, 300),
                     'sent_at' => Carbon::now()->toDateTimeString(),
                 ]);
         } catch (\Throwable) {
             // The message has already gone (or failed); a lost status write leaves the row
             // at `sending`, which is the never-retried state — the safe one to be stuck in.
+        }
+    }
+
+    /**
+     * Give an address back: the send rules DEFERRED it, so nothing went and a later run
+     * should try again. Only a row still at `sending` is released — never a settled one,
+     * which would turn a delivered message into a second delivery.
+     */
+    public static function release(string $campaign, string $email): void
+    {
+        try {
+            DB::table('gates_broadcast_log')
+                ->where('campaign', mb_substr($campaign, 0, 60))
+                ->where('email_hash', EmailOptOut::hash($email))
+                ->where('status', self::SENDING)
+                ->delete();
+        } catch (\Throwable) {
         }
     }
 

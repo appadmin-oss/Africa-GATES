@@ -75,7 +75,7 @@ final class MailHealth
      */
     public static function window(int $minutes = self::WINDOW_MIN): array
     {
-        $out = ['sent' => 0, 'system' => 0, 'recipient' => 0, 'dev' => 0, 'rate' => 0.0,
+        $out = ['sent' => 0, 'system' => 0, 'recipient' => 0, 'dev' => 0, 'held' => 0, 'rate' => 0.0,
                 'cause' => null, 'last_error' => null, 'causes' => []];
         try {
             $since = Carbon::now()->subMinutes($minutes)->toDateTimeString();
@@ -88,6 +88,10 @@ final class MailHealth
         foreach ($rows as $r) {
             if ($r->status === 'sent')       { $out['sent']++; continue; }
             if ($r->status === 'logged_dev') { $out['dev']++;  continue; }
+            // The send rules holding a message is the rules working. Counted as a failure,
+            // every correctly-refused dead address would edge the platform toward an
+            // incident about mail that is fine.
+            if (in_array($r->status, MailLog::HELD, true)) { $out['held']++; continue; }
 
             $cause = MailFailure::classify($r->error);
             if (!MailFailure::isSystem($cause)) { $out['recipient']++; continue; }

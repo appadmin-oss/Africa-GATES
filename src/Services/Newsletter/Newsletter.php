@@ -6,11 +6,11 @@ namespace AfricaGates\Services\Newsletter;
 use AfricaGates\Services\EmailInboxGuard;
 use AfricaGates\Services\EmailOptOut;
 use AfricaGates\Services\Mail\MailHealth;
+use AfricaGates\Services\Mail\SendPolicy;
 use AfricaGates\Services\OtpService;
 use AfricaGates\Support\Accent;
 use AfricaGates\Support\BroadcastLog;
 use AfricaGates\Support\DisplayTime;
-use AfricaGates\Support\Env;
 use Illuminate\Database\Capsule\Manager as DB;
 use Illuminate\Support\Carbon;
 use Twig\Environment;
@@ -241,7 +241,7 @@ final class Newsletter
             'since'           => $since !== '' ? DisplayTime::show($since, 'j F Y') : '',
             'site_url'        => rtrim($this->site, '/'),
             'unsubscribe_url' => EmailOptOut::url($this->site, $email),
-            'postal_address'  => (string) Env::get('MAIL_POSTAL_ADDRESS', 'Afrovanguard, Lagos, Nigeria'),
+            'postal_address'  => \AfricaGates\Services\Mail\MailConfig::postal(),
             'c'               => self::palette(),
         ];
     }
@@ -369,7 +369,13 @@ final class Newsletter
 
         $sent = $failed = $streak = 0;
         $note = null;
-        foreach (array_slice($queue, 0, $limit) as $r) {
+        // Walk the queue until $limit messages have actually been ATTEMPTED. A reader the
+        // send rules hold costs no connection, so it must not cost a slot either — or a
+        // morning where half the list has already had its daily announcements would spend
+        // every batch on them and send nobody.
+        $deferred = 0;
+        foreach ($queue as $r) {
+            if ($sent + $failed >= $limit) break;
             if (!BroadcastLog::claim($key, $r['email'])) continue;   // another tick has it
             $res = ['success' => false, 'error' => ''];
             try {
@@ -379,6 +385,22 @@ final class Newsletter
             } catch (\Throwable $e) {
                 $res = ['success' => false, 'error' => $e->getMessage()];
             }
+
+            // HELD BY THE RULES. Deferred (the daily cap) is released, so a later tick sends
+            // it once the window has passed; refused (a dead or complaining address) is
+            // recorded as what it is. Neither is a failure, and neither counts toward the
+            // run of failures that pauses a send — a cap is not an outage.
+            $held = (string) ($res['held'] ?? '');
+            if ($held === SendPolicy::DEFERRED) {
+                BroadcastLog::release($key, $r['email']);
+                $deferred++;
+                continue;
+            }
+            if ($held === SendPolicy::REFUSED) {
+                BroadcastLog::settle($key, $r['email'], false, (string) ($res['error'] ?? ''), BroadcastLog::REFUSED);
+                continue;
+            }
+
             $ok = (bool) ($res['success'] ?? false);
             BroadcastLog::settle($key, $r['email'], $ok, (string) ($res['error'] ?? ''));
             if ($ok) { $sent++; $streak = 0; continue; }
@@ -391,7 +413,12 @@ final class Newsletter
             }
         }
 
-        $left  = max(0, count($queue) - $sent - $failed);
+        $done2 = BroadcastLog::handled($key);
+        $left  = count(array_filter($queue, static fn(array $r) => !isset($done2[$r['hash']])));
+        if ($left > 0 && $note === null && $deferred > 0 && $sent + $failed === 0) {
+            $note = sprintf('%d reader%s already had the day\'s announcements; they are sent once that window passes.',
+                            $deferred, $deferred === 1 ? '' : 's');
+        }
         $tally = BroadcastLog::tally($key);
         $upd   = ['sent' => $tally['sent'], 'failed' => $tally['failed'], 'note' => $note];
         if ($left === 0 && $note === null) {

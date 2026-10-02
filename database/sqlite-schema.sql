@@ -342,9 +342,13 @@ CREATE TABLE IF NOT EXISTS gates_mail_log (
   to_masked TEXT NOT NULL,
   subject TEXT NOT NULL,
   category TEXT,
-  status TEXT NOT NULL CHECK(status IN ('sent','failed','logged_dev')),
+  -- sent | failed | logged_dev | refused | deferred — Mail\MailLog. No CHECK: see
+  -- 2027_02_20_mail_send_rules.php, which repairs databases built with one.
+  status TEXT NOT NULL,
   error TEXT,
-  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  to_hash TEXT NULL,
+  bulk INTEGER NOT NULL DEFAULT 0
 );
 CREATE INDEX IF NOT EXISTS idx_mail_created ON gates_mail_log(created_at);
 CREATE INDEX IF NOT EXISTS idx_mail_status ON gates_mail_log(status);

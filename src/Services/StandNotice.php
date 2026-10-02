@@ -267,8 +267,7 @@ final class StandNotice
             'deposit'         => $deposit > 0 ? $naira($deposit) : '',
             'site_url'        => $site,
             'unsubscribe_url' => EmailOptOut::url($site, $email),
-            'postal_address'  => (string) \AfricaGates\Support\Env::get(
-                'MAIL_POSTAL_ADDRESS', 'Afrovanguard, Lagos, Nigeria'),
+            'postal_address'  => \AfricaGates\Services\Mail\MailConfig::postal(),
         ];
     }
 

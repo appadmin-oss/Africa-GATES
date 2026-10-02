@@ -915,6 +915,9 @@ final class SystemStatus
         try {
             $rows = DB::table('gates_mail_log')
                 ->where('created_at', '>=', $since)
+                // A message the send rules held never reached a transport, so it is not
+                // part of the rate a visitor is being told about.
+                ->whereNotIn('status', \AfricaGates\Services\Mail\MailLog::HELD)
                 ->selectRaw("COUNT(*) n, SUM(CASE WHEN status = 'failed' THEN 1 ELSE 0 END) bad")
                 ->first();
         } catch (\Throwable) {

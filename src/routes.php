@@ -1983,6 +1983,12 @@ return function(App $app) {
         // the authentication, which is why it is not optional.
         $g->post('/hooks/sms-inbound', \AfricaGates\Controllers\SmsInboundController::class.':receive');
 
+        // What the mail provider learned after a message left: hard bounces, spam
+        // complaints, unsubscribes from its own footer. The token in the path is the
+        // credential — see MailEvents for why, and MailEventsController for the answer
+        // a wrong one gets.
+        $g->post('/hooks/mail-events/{token:[a-f0-9]{32}}', \AfricaGates\Controllers\MailEventsController::class.':receive');
+
         $g->get('/opportunities',  OpportunityController::class.':index');
         $g->get('/events',         EventsController::class.':index');
         // ── PAID TICKETS ─────────────────────────────────────────────────────
@@ -4362,6 +4368,9 @@ return function(App $app) {
             // to MAIL FROM and stops: it never sends, so it can run by itself hourly.
             $s->get('/mail',           \AfricaGates\Admin\Controllers\MailHealthController::class.':index');
             $s->post('/mail/diagnose', \AfricaGates\Admin\Controllers\MailHealthController::class.':diagnose');
+            $s->post('/mail/rules',    \AfricaGates\Admin\Controllers\MailHealthController::class.':rules');
+            $s->post('/mail/events/rotate', \AfricaGates\Admin\Controllers\MailHealthController::class.':rotate');
+            $s->post('/mail/suppression/{id:[0-9]+}/lift', \AfricaGates\Admin\Controllers\MailHealthController::class.':lift');
             // ── TAKE BACK A BATCH OF WORKED-OUT PRONUNCIATIONS ───────────────
             //
             // A name is asked about once, ever, so a bad run of answers is otherwise

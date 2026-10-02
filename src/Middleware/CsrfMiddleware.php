@@ -116,6 +116,16 @@ class CsrfMiddleware {
             return $handler->handle($req);
         }
 
+        // ── THE MAIL PROVIDER'S BOUNCE AND COMPLAINT REPORTS ────────────────
+        //
+        // Server to server: Brevo, SendGrid, Mailgun or Postmark posting what happened to
+        // a message after it left. No cookie, no session, no Origin. The 32-hex token in
+        // the path is the credential, compared in MailEventsController; an empty token
+        // refuses everything. Anchored to that exact shape.
+        if (preg_match('~^/hooks/mail-events/[a-f0-9]{32}$~', $path) === 1) {
+            return $handler->handle($req);
+        }
+
         // ── THE NOMINEE'S OWN PAGES ─────────────────────────────────────────
         //
         // Same reasoning as the door, and the same shape: the 32-hex token in the path IS

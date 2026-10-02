@@ -1215,14 +1215,21 @@ final class Maintenance
                 ->orderByDesc('vote_count')
                 ->limit(5)->get()->all();
 
-            $cycleNames  = $cycles->map(fn($c) => $c->edition_label ?? '2026 Cycle')->implode(' · ');
-            $closingDate = \AfricaGates\Support\DisplayTime::showZoned((string) $cycles->first()->voting_close, 'D, d M Y');
+            // Named as the site names them — the programme, with its edition where it has
+            // one. This used to fall back to the literal "2026 Cycle", whatever the year.
+            $titles = DB::table('gates_award_programmes')->whereIn('id', $cycles->pluck('programme_id'))
+                ->pluck('title', 'id')->all();
+            $cycleNames  = $cycles->map(fn($c) => trim((string) ($titles[$c->programme_id] ?? 'Africa GATES')
+                . ((string) ($c->edition_label ?? '') !== '' ? ' ' . $c->edition_label : '')))
+                ->unique()->implode(' · ');
+            $closingDate = \AfricaGates\Support\DisplayTime::showZoned((string) $cycles->first()->voting_close, 'D j M, H:i');
             $campaign    = 'reminder-' . $cycles->pluck('id')->implode('-');
 
             $profileEmails = DB::table('gates_profiles')->where('status', 'approved')->whereNotNull('email')->pluck('email')->all();
             $subscribers   = array_column(\AfricaGates\Services\Newsletter\NewsletterAudience::recipients(), 'email');
 
-            $suppressed = \AfricaGates\Services\EmailOptOut::suppressedHashes();
+            $suppressed = \AfricaGates\Services\EmailOptOut::suppressedHashes()
+                        + \AfricaGates\Services\Mail\Suppression::hashes();
             $done       = BroadcastLog::handled($campaign);
             $seen       = [];
             foreach (array_merge($profileEmails, $subscribers) as $email) {
